@@ -8,6 +8,7 @@ import { DsnImportHistory } from '@/features/dsn-import/components/DsnImportHist
 import { DsnImportQuickStrip } from '@/features/dsn-import/components/DsnImportQuickStrip';
 import { DsnImportSheet } from '@/features/dsn-import/components/DsnImportSheet';
 import { DsnPeriodActionDialog } from '@/features/dsn-import/components/DsnPeriodActionDialog';
+import { useDsnImportCommitWatcher } from '@/features/dsn-import/hooks/useDsnImportCommitWatcher';
 import { RibImportPanel } from '@/features/admin-import/components/RibImportPanel';
 import { CpImportPanel } from '@/features/admin-import/components/CpImportPanel';
 import type { DsnImportLaunchConfig, DsnImportMode } from '@/api/dsnImport';
@@ -39,6 +40,16 @@ export default function DsnImport() {
     companyName?: string | null;
     period: string;
   } | null>(null);
+  const [committingBatchId, setCommittingBatchId] = useState<string | null>(null);
+
+  useDsnImportCommitWatcher(committingBatchId, {
+    enabled: !sheetOpen,
+    onFinished: () => setCommittingBatchId(null),
+  });
+
+  const handleCommitStarted = useCallback((batchId: string) => {
+    setCommittingBatchId(batchId);
+  }, []);
 
   const openSheet = useCallback((config: DsnImportLaunchConfig, files?: File[]) => {
     setSessionKey(crypto.randomUUID());
@@ -51,9 +62,9 @@ export default function DsnImport() {
     setSheetOpen(false);
     setLaunchConfig(null);
     setInitialFiles(undefined);
-    void queryClient.invalidateQueries({ queryKey: ['dsn-admin-matrix'] });
-    void queryClient.invalidateQueries({ queryKey: ['dsn-admin-late-summary'] });
-    void queryClient.invalidateQueries({ queryKey: ['dsn-import-batches'] });
+    void queryClient.refetchQueries({ queryKey: ['dsn-admin-matrix'] });
+    void queryClient.refetchQueries({ queryKey: ['dsn-admin-late-summary'] });
+    void queryClient.refetchQueries({ queryKey: ['dsn-import-batches'] });
   }, [queryClient]);
 
   const handleHistoryResume = useCallback(
@@ -225,6 +236,7 @@ export default function DsnImport() {
         launchConfig={launchConfig}
         initialFiles={initialFiles}
         sessionKey={sessionKey}
+        onCommitStarted={handleCommitStarted}
       />
 
       {periodAction && (

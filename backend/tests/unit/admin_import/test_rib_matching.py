@@ -62,3 +62,77 @@ class TestResolveRibRowMatch:
             full_name="Damien BASTER",
         )
         assert result["employee_id"] == "e1"
+
+    def test_matricule_ok_when_payslip_name_order_differs(self):
+        employees = [
+            {
+                "id": "e-mbc",
+                "first_name": "Sammany",
+                "last_name": "ADAM YOUSSEF",
+                "email": "",
+                "employee_folder_name": "ADAMYOUSSEF_Sammany",
+            },
+        ]
+        roster = [RosterEmployee(id="e-mbc", first_name="Sammany", last_name="ADAM YOUSSEF")]
+        result = resolve_rib_row_match(
+            roster=roster,
+            employees=employees,
+            matricule="ADAMYOUSSE",
+            email="",
+            first_name="ADAM",
+            last_name="YOUSSEF Sammany",
+            full_name="ADAM YOUSSEF Sammany",
+        )
+        assert result["employee_id"] == "e-mbc"
+        assert result["review_status"] == "ok"
+
+    def test_patronymic_matches_dsn_last_name(self):
+        employees = [
+            {
+                "id": "e-gros",
+                "first_name": "Nadine",
+                "last_name": "PRONIER",
+                "email": "",
+                "employee_folder_name": "PRONIER_Nadine",
+            },
+        ]
+        roster = [RosterEmployee(id="e-gros", first_name="Nadine", last_name="PRONIER")]
+        result = resolve_rib_row_match(
+            roster=roster,
+            employees=employees,
+            matricule="GROS",
+            email="",
+            first_name="Nadine",
+            last_name="GROS",
+            full_name="GROS Nadine",
+            patronymic_name="PRONIER",
+        )
+        assert result["employee_id"] == "e-gros"
+        assert result["match_method"] == "patronymic"
+        assert result["review_status"] == "ok"
+
+    def test_matricule_warning_when_names_truly_diverge(self):
+        result = resolve_rib_row_match(
+            roster=ROSTER,
+            employees=EMPLOYEES,
+            matricule="BASTER",
+            email="",
+            first_name="Jean",
+            last_name="DUPONT",
+            full_name="Jean DUPONT",
+        )
+        assert result["employee_id"] == "e1"
+        assert result["review_status"] == "warning"
+
+    def test_matricule_warning_when_names_truly_diverge(self):
+        result = resolve_rib_row_match(
+            roster=ROSTER,
+            employees=EMPLOYEES,
+            matricule="BASTER",
+            email="",
+            first_name="Jean",
+            last_name="DUPONT",
+            full_name="Jean DUPONT",
+        )
+        assert result["employee_id"] == "e1"
+        assert result["review_status"] == "warning"

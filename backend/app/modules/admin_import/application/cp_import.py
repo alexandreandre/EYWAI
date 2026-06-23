@@ -233,6 +233,7 @@ def parse_cp_import_files(
                 first_name=first_name,
                 last_name=last_name,
                 full_name=page.raw_name or "",
+                patronymic_name=page.patronymic_name or "",
             )
             review_status = match.get("review_status") or "error"
             warnings.extend(match.get("warnings") or [])
@@ -244,6 +245,8 @@ def parse_cp_import_files(
 
         year = page.year or date.today().year
         identity = page.raw_name or page.matricule or f"Ligne {idx}"
+        if page.patronymic_name:
+            identity = f"{identity} (pat. {page.patronymic_name})"
 
         item: Dict[str, Any] = {
             "row_index": idx,

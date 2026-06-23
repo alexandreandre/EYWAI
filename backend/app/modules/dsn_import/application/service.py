@@ -16,7 +16,9 @@ from app.modules.dsn_import.application.mapping import (
 )
 from app.modules.dsn_import.application.workforce_reconciliation import (
     attach_workforce_reconciliation,
+    resolve_monthly_target_company_id,
     validate_workforce_resolutions_for_commit,
+    workforce_blocks_commit,
 )
 from app.modules.dsn_import.application.orphan_employees import attach_reimport_orphans
 from app.modules.dsn_import.application.import_checks import (
@@ -78,8 +80,10 @@ def parse_and_stage(
     summary["cumul_periods"] = periods
     summary["cumuls_summary"] = build_cumuls_summary(cumul_items)
     summary["import_mode"] = mode
-    if target_company_id:
-        summary["target_company_id"] = target_company_id
+    resolved_target = resolve_monthly_target_company_id(mode, target_company_id, summary)
+    if resolved_target:
+        summary["target_company_id"] = resolved_target
+        target_company_id = resolved_target
 
     attach_workforce_reconciliation(
         all_items,
@@ -130,9 +134,13 @@ def parse_and_stage(
             summary["suggested_company_name"] = suggested_name
             apply_legal_name_to_preview(
                 all_items,
-                suggested_name,
-                single_establishment=etab_count == 1,
-            )
+            suggested_name,
+            single_establishment=etab_count == 1,
+        )
+
+    can_commit = not any(a.get("severity") == "blocking" for a in anomalies)
+    if workforce_blocks_commit(summary):
+        can_commit = False
 
     file_names = [name for name, _ in files]
     batch_id = repo.insert_batch(
@@ -146,7 +154,7 @@ def parse_and_stage(
             "summary": summary,
             "preview": {
                 "anomalies": anomalies,
-                "can_commit": not any(a.get("severity") == "blocking" for a in anomalies),
+                "can_commit": can_commit,
                 # Snapshot enrichi pour restaurer l'écran preview après un rechargement.
                 "items": all_items,
             },
@@ -174,7 +182,7 @@ def parse_and_stage(
         "summary": summary,
         "anomalies": anomalies,
         "items": all_items,
-        "can_commit": not any(a.get("severity") == "blocking" for a in anomalies),
+        "can_commit": can_commit,
     }
 
 
@@ -441,6 +449,14 @@ def revalidate_preview(
 
     result = revalidate_batch_preview(batch, preview_items, payload_edits)
     mode = str((batch.get("summary") or {}).get("import_mode") or "onboarding")
+    batch_summary = batch.get("summary") or {}
+    resolved_target = resolve_monthly_target_company_id(
+        mode,
+        target_company_id or batch_summary.get("target_company_id"),
+        {**batch_summary, **result["summary"]},
+    )
+    if resolved_target:
+        target_company_id = resolved_target
     result["anomalies"] = strip_import_context_warnings(result["anomalies"])
     result["anomalies"] = strip_enrichment_warnings(result["anomalies"])
     _enrich_actions(preview_items, target_company_id=target_company_id, anomalies=result["anomalies"])
@@ -480,6 +496,8 @@ def revalidate_preview(
     result["can_commit"] = not any(
         a.get("severity") == "blocking" for a in result["anomalies"]
     )
+    if workforce_blocks_commit(result["summary"]):
+        result["can_commit"] = False
 
     # Persistance du snapshot recalculé (actions + flags) et du résumé.
     new_preview = {

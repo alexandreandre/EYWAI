@@ -52,6 +52,7 @@ def _apply_workforce_resolutions(
         "ignored": [],
         "open_exit_deferred": [],
         "acknowledged_new_hires": [],
+        "deleted": [],
     }
     if not resolutions or not company_id:
         return report
@@ -93,6 +94,31 @@ def _apply_workforce_resolutions(
                     "last_working_day": res.get("last_working_day"),
                 }
             )
+            continue
+        if action == "delete_permanently":
+            from app.modules.employees.application.commands import delete_employee
+
+            try:
+                delete_employee(employee_id, company_id)
+                report["deleted"].append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                    }
+                )
+            except Exception as exc:
+                detail = getattr(exc, "detail", str(exc))
+                logger.exception(
+                    "Suppression définitive réconciliation échouée pour %s",
+                    employee_id,
+                )
+                report.setdefault("failed", []).append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                        "error": str(detail),
+                    }
+                )
             continue
         if action == "close_departure":
             try:

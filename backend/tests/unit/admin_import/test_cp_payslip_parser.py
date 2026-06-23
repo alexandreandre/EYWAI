@@ -48,6 +48,19 @@ MBC_PAGE = """
    Matricule : IBRAHIMA N              NoSécu.: 173049934124273
 """
 
+GROS_PRONIER_PAGE = """
+   COMITECH                                                                            BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 49861035100013         Code NAF: 2229A
+                  CP N-1         CP N
+                                                                                  MME GROS Nadine
+  Acquis :        31.00 /      26.96 /
+  Total pris :    25.00 /       0.00 /
+  Solde :          6.00 /      26.96 /
+   Matricule : GROS              NoSécu.: 263098021224031
+   Nom Patronymique : PRONIER
+"""
+
 EYWAI_PAGE = """
 BULLETIN DE PAIE
 Solde de congés au 31/05/2026
@@ -100,6 +113,15 @@ class TestParseCegidClarifie:
         assert parsed.period_label == "Mai 2026"
         assert parsed.cp_n1_solde == 0.0
         assert parsed.cp_n_solde == 11.96
+
+
+    def test_gros_patronymic_pronier(self):
+        parsed = parse_payslip_page_text(GROS_PRONIER_PAGE)
+        assert parsed.matricule == "GROS"
+        assert parsed.patronymic_name == "PRONIER"
+        assert parsed.raw_name == "GROS Nadine"
+        assert parsed.cp_n1_solde == 6.0
+        assert parsed.cp_n_solde == 26.96
 
 
 class TestParseEywaiNative:

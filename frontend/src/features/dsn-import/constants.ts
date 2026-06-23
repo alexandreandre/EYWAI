@@ -15,7 +15,7 @@ export const DSN_IMPORT_ISSUE_HINTS: Record<string, string> = {
   employee_new_hire_not_in_dsn:
     "Embauche récente absente de la DSN — normal si la première paie n'est pas encore dans le fichier. Confirmez pour poursuivre.",
   employee_missing_from_dsn:
-    "Le salarié était en poste ce mois-là mais absent de la DSN — clôturez le départ ou ignorez si la DSN est incomplète.",
+    "Absent de la DSN du mois — clôturez le départ, ignorez si le fichier est incomplet, ou supprimez la fiche si elle est erronée.",
   employee_contract_end_in_dsn:
     "Une fin de contrat est indiquée dans la DSN — clôturez le départ ou ouvrez le parcours complet.",
   workforce_active_without_nir:

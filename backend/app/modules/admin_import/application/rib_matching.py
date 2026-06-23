@@ -114,6 +114,36 @@ def _match_by_payroll_matricule(
     return None
 
 
+def _name_token_set(*parts: str) -> set[str]:
+    tokens: set[str] = set()
+    for part in parts:
+        for token in _normalize(part).split():
+            if len(token) >= 2:
+                tokens.add(token)
+    return tokens
+
+
+def _names_compatible_with_employee(
+    first_name: str,
+    last_name: str,
+    emp: Dict[str, Any],
+    *,
+    full_name: str = "",
+) -> bool:
+    """Même personne si les tokens du nom bulletin couvrent le dossier (ordre paie variable)."""
+    payslip_tokens = _name_token_set(first_name, last_name, full_name)
+    emp_tokens = _name_token_set(
+        str(emp.get("first_name") or ""),
+        str(emp.get("last_name") or ""),
+    )
+    if not payslip_tokens or not emp_tokens:
+        return True
+    overlap = payslip_tokens & emp_tokens
+    if overlap == payslip_tokens or overlap == emp_tokens:
+        return True
+    return len(overlap) >= min(2, len(payslip_tokens), len(emp_tokens))
+
+
 def resolve_rib_row_match(
     *,
     roster: List[RosterEmployee],
@@ -123,6 +153,7 @@ def resolve_rib_row_match(
     first_name: str,
     last_name: str,
     full_name: str,
+    patronymic_name: str = "",
 ) -> Dict[str, Any]:
     fn, ln, _full, identity, mat = _row_identity_fields(
         matricule=matricule,
@@ -138,11 +169,27 @@ def resolve_rib_row_match(
         if found:
             return _result(found, "email", "high", "ok", warnings)
 
+    pat = patronymic_name.strip()
+    if pat:
+        patronymic_fn = fn
+        if not patronymic_fn and _full:
+            parsed_fn, _ = _parse_full_name(_full)
+            patronymic_fn = parsed_fn
+        if patronymic_fn:
+            found = _match_by_names(patronymic_fn, pat, employees)
+            if found:
+                return _result(found, "patronymic", "high", "ok", warnings)
+        found = _match_by_payroll_matricule(pat, employees)
+        if found:
+            return _result(found, "patronymic_matricule", "high", "ok", warnings)
+
     if mat:
         found = _match_by_payroll_matricule(mat, employees)
         if found:
             label = f"{found.get('first_name', '')} {found.get('last_name', '')}".strip()
             if fn and ln and _normalize(label) != _normalize(f"{fn} {ln}"):
+                if _names_compatible_with_employee(fn, ln, found, full_name=_full):
+                    return _result(found, "matricule", "high", "ok", warnings)
                 warnings.append(
                     f"Matricule paie « {mat} » → {label} (vérifiez le prénom dans le fichier)."
                 )

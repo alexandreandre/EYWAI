@@ -9,7 +9,15 @@ from pydantic import BaseModel, Field
 
 MatchConfidence = Literal["high", "medium", "none"]
 ReviewStatus = Literal["ok", "warning", "error"]
-MatchMethod = Literal["matricule", "name_exact", "name_fuzzy", "email", "none"]
+MatchMethod = Literal[
+    "matricule",
+    "name_exact",
+    "name_fuzzy",
+    "email",
+    "patronymic",
+    "patronymic_matricule",
+    "none",
+]
 
 
 class RibImportRowPreview(BaseModel):

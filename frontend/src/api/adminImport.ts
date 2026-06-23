@@ -2,7 +2,14 @@ import apiClient from '@/api/apiClient';
 
 export type RibMatchConfidence = 'high' | 'medium' | 'none';
 export type RibReviewStatus = 'ok' | 'warning' | 'error';
-export type RibMatchMethod = 'matricule' | 'name_exact' | 'name_fuzzy' | 'email' | 'none';
+export type RibMatchMethod =
+  | 'matricule'
+  | 'name_exact'
+  | 'name_fuzzy'
+  | 'email'
+  | 'patronymic'
+  | 'patronymic_matricule'
+  | 'none';
 
 export type RibImportRowPreview = {
   row_index: number;

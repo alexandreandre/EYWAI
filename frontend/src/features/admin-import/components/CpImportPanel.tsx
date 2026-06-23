@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   CheckCircle2,
+  Eye,
   FileText,
   Loader2,
   Upload,
@@ -33,9 +34,17 @@ import { cn } from '@/lib/utils';
 import { EmployeeAssociateCombobox } from '@/components/schedules/assisted-fill/EmployeeAssociateCombobox';
 import type { RosterEmployee } from '@/api/calendar';
 import { getUserErrorMessage } from '@/lib/errorMessages';
+import { CpImportBulletinPreviewDialog } from '@/features/admin-import/components/CpImportBulletinPreviewDialog';
 
 const MAX_FILES = 1000;
 const PAGE_SIZE = 50;
+
+type BulletinPreviewState = {
+  sourceFile: string;
+  pageIndex: number;
+  employeeLabel: string;
+  periodLabel?: string;
+} | null;
 
 type EditableRow = CpImportRowPreview & {
   manuallyConfirmed: boolean;
@@ -79,6 +88,17 @@ export function CpImportPanel() {
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [page, setPage] = useState(0);
+  const [bulletinPreview, setBulletinPreview] = useState<BulletinPreviewState>(null);
+
+  const fileByName = useMemo(() => {
+    const map = new Map<string, File>();
+    for (const file of selectedFiles) {
+      map.set(file.name, file);
+    }
+    return map;
+  }, [selectedFiles]);
+
+  const previewFile = bulletinPreview ? fileByName.get(bulletinPreview.sourceFile) : null;
 
   const parseMutation = useMutation({
     mutationFn: () => parseCpImportFiles(selectedFiles),
@@ -204,6 +224,25 @@ export function CpImportPanel() {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
+  const statusCounts = useMemo(() => {
+    let ok = 0;
+    let warning = 0;
+    let error = 0;
+    for (const row of rows) {
+      if (row.review_status === 'ok') ok += 1;
+      else if (row.review_status === 'warning') warning += 1;
+      else if (row.review_status === 'error') error += 1;
+    }
+    return { all: rows.length, ok, warning, error };
+  }, [rows]);
+
+  const statusFilterLabels: Record<StatusFilter | CpReviewStatus, string> = {
+    all: `Tous (${statusCounts.all})`,
+    ok: `Prêts (${statusCounts.ok})`,
+    warning: `À vérifier (${statusCounts.warning})`,
+    error: `Erreurs (${statusCounts.error})`,
+  };
+
   const savableCount = rows.filter(isSavableRow).length;
   const verifyCount = rows.filter((r) => r.review_status !== 'ok' && r.employee_id).length;
 
@@ -218,6 +257,17 @@ export function CpImportPanel() {
 
   return (
     <div className="space-y-4">
+      <CpImportBulletinPreviewDialog
+        open={bulletinPreview != null}
+        onOpenChange={(open) => {
+          if (!open) setBulletinPreview(null);
+        }}
+        file={previewFile ?? null}
+        pageNumber={bulletinPreview?.pageIndex ?? 1}
+        employeeLabel={bulletinPreview?.employeeLabel}
+        sourceFile={bulletinPreview?.sourceFile}
+        periodLabel={bulletinPreview?.periodLabel}
+      />
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -315,7 +365,7 @@ export function CpImportPanel() {
                       setPage(0);
                     }}
                   >
-                    {f === 'all' ? 'Tous' : f === 'ok' ? 'Prêts' : f === 'warning' ? 'À vérifier' : 'Erreurs'}
+                    {statusFilterLabels[f]}
                   </Button>
                 ))}
                 <Button
@@ -344,6 +394,7 @@ export function CpImportPanel() {
                   <TableHead>CP N</TableHead>
                   <TableHead>Actuel / Δ</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead className="w-24">Bulletin</TableHead>
                   <TableHead className="w-28">Valider</TableHead>
                   <TableHead className="w-48">Associer</TableHead>
                 </TableRow>
@@ -398,6 +449,27 @@ export function CpImportPanel() {
                         </div>
                       </TableCell>
                       <TableCell>{statusBadge(row.review_status)}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 text-xs"
+                          disabled={!fileByName.has(row.source_file)}
+                          onClick={() =>
+                            setBulletinPreview({
+                              sourceFile: row.source_file,
+                              pageIndex: row.page_index,
+                              employeeLabel:
+                                row.matched_name || row.raw_identity || row.matricule || 'Salarié',
+                              periodLabel: row.period_label ?? String(row.year),
+                            })
+                          }
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Voir
+                        </Button>
+                      </TableCell>
                       <TableCell>
                         {needsConfirm ? (
                           <label className="flex items-center gap-2 text-xs">

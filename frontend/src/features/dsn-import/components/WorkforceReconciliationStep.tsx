@@ -10,6 +10,7 @@ type Props = {
   reconciliation: WorkforceReconciliationSummary;
   resolutions: Record<string, WorkforceResolution>;
   onResolutionChange: (resolution: WorkforceResolution) => void;
+  onResolutionClear?: (gapId: string) => void;
   onBack: () => void;
   onCommit: () => void;
   canCommit: boolean;
@@ -23,6 +24,7 @@ export function WorkforceReconciliationStep({
   reconciliation,
   resolutions,
   onResolutionChange,
+  onResolutionClear,
   onBack,
   onCommit,
   canCommit,
@@ -51,6 +53,7 @@ export function WorkforceReconciliationStep({
               batchId={batchId}
               resolution={resolutions[gap.gap_id] ?? gap.resolution ?? undefined}
               onResolutionChange={onResolutionChange}
+              onResolutionClear={onResolutionClear}
             />
           ))}
         </CardContent>

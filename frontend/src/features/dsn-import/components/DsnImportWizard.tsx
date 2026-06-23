@@ -49,6 +49,7 @@ import {
   type WorkforceResolution,
 } from '@/api/dsnImport';
 import { formatEuroAmount } from '@/lib/careerFormat';
+import { applyDsnImportCommitted } from '@/lib/dsnCoverageCache';
 import { DsnImportAttributionCard } from './DsnImportAttributionCard';
 import { DsnCoverageTimeline } from './DsnCoverageTimeline';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,7 @@ import {
 } from './CumulsSummaryCard';
 import { DsnImportIssueList, normalizeCommitErrors } from './DsnImportIssueList';
 import { WorkforceReconciliationStep } from './WorkforceReconciliationStep';
+import { WorkforceReconciliationSummary as WorkforceReconciliationSummaryCard } from './WorkforceReconciliationSummary';
 
 type Step = 'upload' | 'preview' | 'reconciliation' | 'committing' | 'result';
 
@@ -374,11 +376,13 @@ function DsnImportLoadingState({
 export function DsnImportWizard({
   launchConfig,
   onResetLaunch,
+  onCommitStarted,
   initialFiles,
   embedded = false,
 }: {
   launchConfig?: DsnImportLaunchConfig | null;
   onResetLaunch?: () => void;
+  onCommitStarted?: (batchId: string) => void;
   initialFiles?: File[];
   embedded?: boolean;
 }) {
@@ -420,6 +424,7 @@ export function DsnImportWizard({
     launchConfig?.resumeBatchId ?? null,
   );
   const initialFilesHandled = useRef(false);
+  const commitHandledRef = useRef<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const employeesSectionRef = useRef<HTMLDivElement | null>(null);
   const closeLabel = embedded ? 'Fermer' : 'Nouvel import';
@@ -456,7 +461,9 @@ export function DsnImportWizard({
       setExpandedRows({});
       if (lockedTargetCompanyId) {
         setTargetCompanyId(lockedTargetCompanyId);
-      } else if (!data.summary?.target_company_id) {
+      } else if (data.summary?.target_company_id) {
+        setTargetCompanyId(data.summary.target_company_id as string);
+      } else {
         setTargetCompanyId(null);
       }
       setReplaceExistingPeriods(
@@ -471,8 +478,12 @@ export function DsnImportWizard({
       setEmployeesOpen(true);
       setCumulsOpen(true);
       setActiveBatchId(data.batch_id);
-      persistState({ batchId: data.batch_id, step: 'preview' });
-      setStep('preview');
+      const wf = data.summary?.workforce_reconciliation as WorkforceReconciliationSummary | undefined;
+      const gapsDetected = Boolean(wf?.enabled && (wf.gaps?.length ?? 0) > 0);
+      const nextStep: Step =
+        importMode === 'monthly' && gapsDetected ? 'reconciliation' : 'preview';
+      persistState({ batchId: data.batch_id, step: nextStep });
+      setStep(nextStep);
     },
     onError: (err: Error) => {
       toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
@@ -551,6 +562,20 @@ export function DsnImportWizard({
     [parseResult?.batch_id, saveWorkforceMutation],
   );
 
+  const handleWorkforceResolutionClear = useCallback(
+    (gapId: string) => {
+      setWorkforceResolutions((prev) => {
+        const next = { ...prev };
+        delete next[gapId];
+        if (parseResult?.batch_id) {
+          void saveWorkforceMutation.mutateAsync(Object.values(next)).catch(() => {});
+        }
+        return next;
+      });
+    },
+    [parseResult?.batch_id, saveWorkforceMutation],
+  );
+
   const commitMutation = useMutation({
     mutationFn: () => {
       if (!parseResult) throw new Error('Aucune analyse en cours');
@@ -558,7 +583,7 @@ export function DsnImportWizard({
         parseResult.batch_id,
         overrides,
         payloadEdits,
-        targetCompanyId,
+        lockedTargetCompanyId ?? targetCompanyId,
         {
           importMode,
           replaceExistingPeriods,
@@ -570,6 +595,7 @@ export function DsnImportWizard({
     onSuccess: (data) => {
       setConfirmOpen(false);
       setActiveBatchId(data.batch_id);
+      onCommitStarted?.(data.batch_id);
       persistState({ batchId: data.batch_id, step: 'committing' });
       setStep('committing');
       toast({
@@ -600,6 +626,8 @@ export function DsnImportWizard({
     const status = detail.batch.status as DsnImportBatchStatus;
     if (status !== 'committed' && status !== 'failed') return;
     const batchId = activeBatchId as string;
+    if (commitHandledRef.current === batchId) return;
+    commitHandledRef.current = batchId;
     const report =
       commitReportFromSummary(detail.summary ?? {}) ?? {
         stats: { created: 0, updated: 0, skipped: 0, failed: 0 },
@@ -613,22 +641,19 @@ export function DsnImportWizard({
       };
     finalizeResult(report, batchId);
     if (status === 'committed') {
-      void queryClient.invalidateQueries({ queryKey: ['dsn-import-batches'] });
-      void queryClient.invalidateQueries({ queryKey: ['dsn-import-batches-pending'] });
-      void queryClient.invalidateQueries({ queryKey: ['dsn-coverage'] });
-      void queryClient.invalidateQueries({ queryKey: ['dsn-admin-late-summary'] });
-      void queryClient.invalidateQueries({ queryKey: ['dsn-admin-matrix'] });
-      void queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey)
-          && query.queryKey[0] === 'company'
-          && query.queryKey.includes('employees'),
-      });
-      void queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey)
-          && query.queryKey[0] === 'company'
-          && query.queryKey.includes('onboarding'),
+      void applyDsnImportCommitted(queryClient, detail).then(() => {
+        void queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey)
+            && query.queryKey[0] === 'company'
+            && query.queryKey.includes('employees'),
+        });
+        void queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey)
+            && query.queryKey[0] === 'company'
+            && query.queryKey.includes('onboarding'),
+        });
       });
       toast({ title: 'Import terminé', description: 'Le dossier a été reconstruit.' });
     } else {
@@ -669,8 +694,9 @@ export function DsnImportWizard({
           ?.resolutions;
         setWorkforceResolutions(wfStored ? { ...wfStored } : {});
         const wf = detail.summary?.workforce_reconciliation as WorkforceReconciliationSummary | undefined;
+        const wfGaps = Boolean(wf?.enabled && (wf.gaps?.length ?? 0) > 0);
         const resumeStep: Step =
-          wf?.enabled && (wf.unresolved_count ?? 0) > 0 ? 'reconciliation' : 'preview';
+          importMode === 'monthly' && wfGaps ? 'reconciliation' : 'preview';
         setTargetCompanyId(
           lockedTargetCompanyId ??
             (detail.summary?.target_company_id as string | undefined) ??
@@ -1058,12 +1084,17 @@ export function DsnImportWizard({
     });
   }, [groupedItems.employee, overrides, payloadEdits, scrollToRef]);
 
-  const canCommitPreview =
+  const basePreviewChecks =
     !commitMutation.isPending &&
     !hasFieldErrors &&
-    (parseResult?.can_commit ?? true) &&
     !(blockingCount > 0 && editCount === 0) &&
     (contextWarnings.length === 0 || allContextWarningsAcked);
+
+  const canProceedFromPreview =
+    basePreviewChecks && (hasWorkforceGaps || (parseResult?.can_commit ?? true));
+
+  const canCommitPreview =
+    basePreviewChecks && (parseResult?.can_commit ?? true) && !hasWorkforceGaps;
 
   const canCommitReconciliation =
     !commitMutation.isPending &&
@@ -1072,6 +1103,8 @@ export function DsnImportWizard({
     workforceResolutionsList.length === (workforceReconciliation?.gaps.length ?? 0);
 
   const canCommit = step === 'reconciliation' ? canCommitReconciliation : canCommitPreview;
+
+  const previewFooterDisabled = hasWorkforceGaps ? !canProceedFromPreview : !canCommitPreview;
 
   const commitBlockReason = useMemo(() => {
     if (step === 'reconciliation') {
@@ -1082,6 +1115,19 @@ export function DsnImportWizard({
         return 'Enregistrez une décision pour chaque écart effectif.';
       }
       return null;
+    }
+    if (hasWorkforceGaps) {
+      if (!basePreviewChecks) {
+        if (hasFieldErrors) return 'Corrigez les champs invalides (SIREN, SIRET, NIR) avant de continuer.';
+        if (contextWarnings.length > 0 && !allContextWarningsAcked) {
+          return 'Cochez les confirmations période / entreprise ci-dessous avant de continuer.';
+        }
+        if (blockingCount > 0 && editCount === 0) {
+          return `${blockingCount} anomalie(s) bloquante(s) — corrigez ou éditez les lignes concernées.`;
+        }
+      }
+      const gapCount = workforceReconciliation?.gaps.length ?? 0;
+      return `${gapCount} écart(s) effectif(s) — une décision est requise pour chaque salarié avant validation.`;
     }
     if (hasFieldErrors) return 'Corrigez les champs invalides (SIREN, SIRET, NIR) avant validation.';
     if (contextWarnings.length > 0 && !allContextWarningsAcked) {
@@ -1097,6 +1143,8 @@ export function DsnImportWizard({
     workforceUnresolvedCount,
     workforceResolutionsList.length,
     workforceReconciliation?.gaps.length,
+    hasWorkforceGaps,
+    basePreviewChecks,
     hasFieldErrors,
     contextWarnings.length,
     allContextWarningsAcked,
@@ -1394,6 +1442,23 @@ export function DsnImportWizard({
                   ))}
                 </CardContent>
               </Card>
+            )}
+
+            {workforceReconciliation && hasWorkforceGaps && (
+              <div className="space-y-3">
+                <WorkforceReconciliationSummaryCard reconciliation={workforceReconciliation} />
+                {step === 'preview' && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      persistState({ batchId: parseResult.batch_id, step: 'reconciliation' });
+                      setStep('reconciliation');
+                    }}
+                  >
+                    Traiter les écarts effectifs ({workforceReconciliation.gaps.length})
+                  </Button>
+                )}
+              </div>
             )}
 
             <DsnImportAttributionCard
@@ -1750,7 +1815,7 @@ export function DsnImportWizard({
                 }
                 setConfirmOpen(true);
               }}
-              primaryDisabled={!canCommitPreview}
+              primaryDisabled={previewFooterDisabled}
               primaryLoading={commitMutation.isPending}
               blockReason={commitBlockReason}
               primaryLabel={hasWorkforceGaps ? 'Réconcilier les effectifs' : "Valider l'import"}
@@ -1764,6 +1829,7 @@ export function DsnImportWizard({
             reconciliation={workforceReconciliation}
             resolutions={workforceResolutions}
             onResolutionChange={handleWorkforceResolutionChange}
+            onResolutionClear={handleWorkforceResolutionClear}
             onBack={() => {
               persistState({ batchId: parseResult.batch_id, step: 'preview' });
               setStep('preview');
@@ -1776,7 +1842,8 @@ export function DsnImportWizard({
           />
         )}
 
-        {parseResult && (step === 'preview' || step === 'reconciliation') && (
+        {parseResult &&
+          ((step === 'preview' && !hasWorkforceGaps) || step === 'reconciliation') && (
           <CommitConfirmDialog
             open={confirmOpen}
             onOpenChange={setConfirmOpen}
@@ -1875,6 +1942,12 @@ export function DsnImportWizard({
                       <p className="text-sm">
                         <strong>{commitReport.workforce_reconciliation.closed.length}</strong>{' '}
                         départ(s) clôturé(s).
+                      </p>
+                    )}
+                    {(commitReport.workforce_reconciliation.deleted?.length ?? 0) > 0 && (
+                      <p className="text-sm text-destructive">
+                        <strong>{commitReport.workforce_reconciliation.deleted.length}</strong>{' '}
+                        fiche(s) supprimée(s) définitivement.
                       </p>
                     )}
                     {(commitReport.workforce_reconciliation.ignored?.length ?? 0) > 0 && (

@@ -8,6 +8,7 @@ from app.modules.dsn_import.application.commit import _apply_workforce_resolutio
 from app.modules.dsn_import.application.workforce_reconciliation import (
     compute_workforce_gaps,
     validate_workforce_resolutions_for_commit,
+    workforce_blocks_commit,
 )
 
 pytestmark = pytest.mark.unit
@@ -202,6 +203,44 @@ class TestComputeWorkforceGaps:
         assert summary["gaps"] == []
         assert anomalies == []
 
+    def test_missing_from_dsn_matches_nir_without_spaces(self, mock_repo):
+        mock_repo.list_active_employees_with_nir.return_value = [
+            {
+                "id": "emp-a",
+                "first_name": "Alex",
+                "last_name": "Jolly",
+                "nir": "1 11 11 11 111 111",
+                "employment_status": "actif",
+                "hire_date": "2025-06-01",
+            },
+        ]
+        mock_repo.list_active_employees_without_nir.return_value = []
+        mock_repo.find_company_by_id.return_value = {"company_name": "Test SA"}
+
+        summary, _ = compute_workforce_gaps(
+            [_employee_item("1111111111111")],
+            target_company_id=COMPANY_ID,
+            import_mode="monthly",
+            summary={"cumul_periods": ["2026-03"]},
+        )
+        assert summary["gaps"] == []
+
+
+class TestWorkforceBlocksCommit:
+    def test_workforce_blocks_commit_until_resolved(self):
+        summary = {
+            "workforce_reconciliation": {
+                "enabled": True,
+                "gaps": [{"gap_id": "missing:emp-a", "employee_name": "Alex"}],
+                "resolutions": {},
+            }
+        }
+        assert workforce_blocks_commit(summary) is True
+        summary["workforce_reconciliation"]["resolutions"] = {
+            "missing:emp-a": {"gap_id": "missing:emp-a", "action": "ignore"},
+        }
+        assert workforce_blocks_commit(summary) is False
+
 
 class TestValidateWorkforceResolutions:
     def test_raises_when_unresolved(self):
@@ -311,3 +350,47 @@ class TestApplyWorkforceResolutions:
         assert report["acknowledged_new_hires"][0]["employee_id"] == "emp-new"
         assert report["closed"] == []
         assert report["open_exit_deferred"] == []
+
+    def test_delete_permanently_calls_delete_employee(self):
+        with patch(
+            "app.modules.employees.application.commands.delete_employee"
+        ) as mock_delete:
+            report = _apply_workforce_resolutions(
+                [
+                    {
+                        "gap_id": "missing:emp-a",
+                        "employee_id": "emp-a",
+                        "action": "delete_permanently",
+                    }
+                ],
+                COMPANY_ID,
+                "user-1",
+            )
+        mock_delete.assert_called_once_with("emp-a", COMPANY_ID)
+        assert len(report["deleted"]) == 1
+        assert report["deleted"][0]["employee_id"] == "emp-a"
+
+    def test_delete_permanently_not_allowed_for_contract_end_gap(self):
+        summary = {
+            "workforce_reconciliation": {
+                "enabled": True,
+                "gaps": [
+                    {
+                        "gap_id": "end:emp-a",
+                        "gap_type": "contract_end_in_dsn",
+                        "employee_name": "Alex Jolly",
+                    }
+                ],
+            }
+        }
+        with pytest.raises(ValueError, match="suppression définitive"):
+            validate_workforce_resolutions_for_commit(
+                summary,
+                [
+                    {
+                        "gap_id": "end:emp-a",
+                        "employee_id": "emp-a",
+                        "action": "delete_permanently",
+                    }
+                ],
+            )

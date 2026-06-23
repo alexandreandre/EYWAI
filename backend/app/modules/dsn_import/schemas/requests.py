@@ -11,7 +11,13 @@ from pydantic import BaseModel, EmailStr, Field
 class WorkforceResolution(BaseModel):
     gap_id: str
     employee_id: str
-    action: Literal["open_exit", "close_departure", "ignore", "acknowledge_new_hire"]
+    action: Literal[
+        "open_exit",
+        "close_departure",
+        "ignore",
+        "acknowledge_new_hire",
+        "delete_permanently",
+    ]
     exit_type: Optional[str] = None
     last_working_day: Optional[date] = None
     exit_reason: Optional[str] = None

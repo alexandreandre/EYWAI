@@ -36,7 +36,12 @@ export type WorkforceReconciliationSummary = {
 export type WorkforceResolution = {
   gap_id: string;
   employee_id: string;
-  action: 'open_exit' | 'close_departure' | 'ignore' | 'acknowledge_new_hire';
+  action:
+    | 'open_exit'
+    | 'close_departure'
+    | 'ignore'
+    | 'acknowledge_new_hire'
+    | 'delete_permanently';
   exit_type?: string | null;
   last_working_day?: string | null;
   exit_reason?: string | null;
@@ -58,6 +63,7 @@ export type WorkforceReconciliationReport = {
     employee_id: string;
     hire_date?: string | null;
   }>;
+  deleted?: Array<{ gap_id: string; employee_id: string }>;
   failed?: Array<{ gap_id: string; employee_id: string; error: string }>;
 };
 

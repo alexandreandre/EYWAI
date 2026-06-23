@@ -66,6 +66,7 @@ class ParsedPayslipPage:
     month: Optional[int] = None
     raw_name: Optional[str] = None
     matricule: Optional[str] = None
+    patronymic_name: Optional[str] = None
     cp_n1_solde: Optional[float] = None
     cp_n_solde: Optional[float] = None
     acquis_n1: Optional[float] = None
@@ -163,8 +164,9 @@ def _parse_cegid_clarifie(page_text: str) -> ParsedPayslipPage:
     )
 
     name_match = re.search(
-        r"(?:Mr|M\.|Mme|Me)\s+([^\n]{2,80})",
+        r"(?:Mr|M\.|Mme|MME|Me)\s+([^\n]{2,80})",
         page_text,
+        re.IGNORECASE,
     )
     if name_match:
         page.raw_name = name_match.group(1).strip()
@@ -176,6 +178,14 @@ def _parse_cegid_clarifie(page_text: str) -> ParsedPayslipPage:
     )
     if matricule_match:
         page.matricule = matricule_match.group(1).strip()
+
+    patronymic_match = re.search(
+        r"Nom\s+Patronymique\s*:\s*([^\n]+)",
+        page_text,
+        re.IGNORECASE,
+    )
+    if patronymic_match:
+        page.patronymic_name = patronymic_match.group(1).strip()
 
     repos_match = re.search(
         r"Solde repos Cadre\s*=\s*(\d+)\s*j?",

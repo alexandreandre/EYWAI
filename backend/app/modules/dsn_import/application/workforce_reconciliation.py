@@ -52,6 +52,12 @@ def _employee_display_name(row: Dict[str, Any]) -> str:
     return f"{row.get('first_name', '')} {row.get('last_name', '')}".strip() or "Salarié"
 
 
+def _normalize_nir(nir: Optional[str]) -> str:
+    if not nir:
+        return ""
+    return str(nir).replace(" ", "").strip()
+
+
 def _parse_iso_date(value: Any) -> Optional[date]:
     if not value:
         return None
@@ -185,7 +191,7 @@ def compute_workforce_gaps(
         if it.get("item_type") != "employee":
             continue
         payload = it.get("mapped_payload") or {}
-        nir = (payload.get("nir") or "").strip()
+        nir = _normalize_nir(payload.get("nir"))
         if nir:
             dsn_nirs.add(nir)
             dsn_nir_to_item[nir] = it
@@ -193,7 +199,9 @@ def compute_workforce_gaps(
     active_employees = repo.list_active_employees_with_nir(company_id)
     active_without_nir = repo.list_active_employees_without_nir(company_id)
     active_by_nir = {
-        (e.get("nir") or "").strip(): e for e in active_employees if (e.get("nir") or "").strip()
+        _normalize_nir(e.get("nir")): e
+        for e in active_employees
+        if _normalize_nir(e.get("nir"))
     }
 
     gaps: List[Dict[str, Any]] = []
@@ -343,6 +351,42 @@ def attach_workforce_reconciliation(
     anomalies.extend(wf_anomalies)
 
 
+def workforce_blocks_commit(summary: Dict[str, Any]) -> bool:
+    """True tant que des écarts effectifs mensuels n'ont pas de décision enregistrée."""
+    wf = summary.get("workforce_reconciliation") or {}
+    if not wf.get("enabled"):
+        return False
+    gaps = wf.get("gaps") or []
+    if not gaps:
+        return False
+    stored = wf.get("resolutions") or {}
+    for gap in gaps:
+        gap_id = gap.get("gap_id")
+        if not gap_id or gap_id not in stored:
+            return True
+    return False
+
+
+def resolve_monthly_target_company_id(
+    import_mode: str,
+    target_company_id: Optional[str],
+    summary: Dict[str, Any],
+) -> Optional[str]:
+    """Résout l'entreprise cible pour la réconciliation (mensuel)."""
+    if target_company_id:
+        return str(target_company_id)
+    if (import_mode or "").strip().lower() != "monthly":
+        return None
+    siret = summary.get("siret")
+    if not siret:
+        sirets = summary.get("sirets") or []
+        siret = sirets[0] if sirets else None
+    if not siret:
+        return None
+    company = repo.find_company_by_siret(str(siret).replace(" ", ""))
+    return str(company["id"]) if company else None
+
+
 def validate_workforce_resolutions_for_commit(
     summary: Dict[str, Any],
     resolutions: List[Dict[str, Any]],
@@ -363,14 +407,24 @@ def validate_workforce_resolutions_for_commit(
             f"Réconciliation effectifs incomplète : décision requise pour {len(missing)} "
             f"salarié(s) ({names}{extra})."
         )
-    valid_actions = {"open_exit", "close_departure", "ignore", "acknowledge_new_hire"}
+    valid_actions = {
+        "open_exit",
+        "close_departure",
+        "ignore",
+        "acknowledge_new_hire",
+        "delete_permanently",
+    }
     for gap in gaps:
         gap_id = gap.get("gap_id")
         res = by_gap_id.get(gap_id) or {}
         action = res.get("action")
         if action not in valid_actions:
             raise ValueError(f"Action invalide pour {gap.get('employee_name')}.")
-        if action in ("ignore", "acknowledge_new_hire"):
+        if action in ("ignore", "acknowledge_new_hire", "delete_permanently"):
+            if action == "delete_permanently" and gap.get("gap_type") != "missing_from_dsn":
+                raise ValueError(
+                    f"La suppression définitive n'est pas autorisée pour {gap.get('employee_name')}."
+                )
             continue
         if action in ("open_exit", "close_departure"):
             lwd = res.get("last_working_day") or gap.get("suggested_last_working_day")

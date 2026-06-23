@@ -14,6 +14,7 @@ type Props = {
   launchConfig: DsnImportLaunchConfig | null;
   initialFiles?: File[];
   sessionKey?: string | null;
+  onCommitStarted?: (batchId: string) => void;
 };
 
 function sheetTitle(config: DsnImportLaunchConfig | null): string {
@@ -43,6 +44,7 @@ export function DsnImportSheet({
   launchConfig,
   initialFiles,
   sessionKey,
+  onCommitStarted,
 }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -59,6 +61,7 @@ export function DsnImportSheet({
               initialFiles={initialFiles}
               embedded
               onResetLaunch={() => onOpenChange(false)}
+              onCommitStarted={onCommitStarted}
             />
           </div>
         )}

@@ -178,7 +178,8 @@ def employee_workforce_gap_anomaly(*, gap: Dict[str, Any]) -> Dict[str, Any]:
         )
         hint = (
             "Le salarié était en poste ce mois-là et est peut-être sorti des effectifs. "
-            "Clôturez le départ ou ignorez si la DSN est incomplète."
+            "Clôturez le départ, ignorez si la DSN est incomplète, ou supprimez la fiche "
+            "si elle a été créée par erreur."
         )
         code = "employee_missing_from_dsn"
     else:
