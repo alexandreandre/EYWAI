@@ -71,3 +71,10 @@ def test_guide_covers_participation():
 def test_guide_covers_work_medals():
     """Le guide mentionne les médailles du travail (Mon Entreprise et fiche salarié)."""
     assert "médailles du travail" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_manager_validation_menus():
+    """Le guide documente les menus manager (congés et CET à valider)."""
+    assert "Congés à valider" in APP_FEATURE_GUIDE
+    assert "CET à valider" in APP_FEATURE_GUIDE
+    assert "Validations" in APP_FEATURE_GUIDE

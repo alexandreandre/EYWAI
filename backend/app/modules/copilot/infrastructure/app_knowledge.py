@@ -188,8 +188,23 @@ Autres outils de la section paie :
   historique des tickets.
 — Compte : modification du mot de passe, déconnexion.
 — (Pour les admins plateforme EYWAI uniquement) « Plateforme Admin » : back-office
-  EYWAI, dont le catalogue des conventions collectives (KALI), la veille
-  réglementaire et les télétransmissions DSN.
+  EYWAI — catalogue des conventions collectives (KALI), veille réglementaire,
+  télétransmissions DSN, import DSN par entreprise (onboarding, réconciliation
+  effectifs, import RIB salariés, soldes CP depuis bulletins PDF), purge
+  employés et paramètres multi-entreprises du groupe.
+
+================================================================================
+ESPACE MANAGER (menu dédié pour les managers d'équipe)
+================================================================================
+
+Visible pour les profils manager (ou RH en vue équipe) :
+— Validations (« Validations ») : hub des demandes à traiter (congés, CET,
+  notes de frais, etc.) regroupées par type.
+— Congés à valider (« Congés à valider ») : valider ou refuser les demandes
+  d'absence des membres de l'équipe.
+— CET à valider (« CET à valider ») : approuver ou refuser les dépôts et
+  retraits CET des collaborateurs lorsque la validation manager est activée
+  (paramétrage Mon Entreprise → onglet Paie → CET).
 
 ================================================================================
 ESPACE COLLABORATEUR (barre latérale du salarié)
@@ -202,7 +217,8 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
 — Ma badgeuse (« Ma badgeuse ») : pointage des entrées / sorties.
 — Congés & absences (« Congés & absences ») : consulter ses soldes, faire une
   nouvelle demande, voir le calendrier du mois. Si le CET est activé : déposer
-  ou retirer des jours/heures depuis le panneau CET intégré à cette page.
+  ou retirer des jours/heures depuis le panneau CET intégré à cette page
+  (les notifications CET peuvent aussi ouvrir l'écran dédié « Mon CET »).
 — Notes de frais (« Notes de frais ») : déclarer et suivre ses notes de frais.
 — Avances & acomptes (« Avances & acomptes ») : demander et suivre une avance
   sur salaire, un acompte sur salaire (droit du salarié) ou un acompte sur prime.

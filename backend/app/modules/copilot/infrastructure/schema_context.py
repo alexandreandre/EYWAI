@@ -33,6 +33,9 @@ Table 'employees': Fiche salarié — source principale effectifs et contrat.
   - is_subject_to_residence_permit (boolean): Soumis au titre de séjour.
   - residence_permit_expiry_date (date): Échéance titre de séjour.
   - residence_permit_type (text): Type de titre.
+  - residence_permit_number (text): Numéro du titre de séjour.
+    -- Titres expirant bientôt : WHERE is_subject_to_residence_permit = true
+    --   AND residence_permit_expiry_date <= CURRENT_DATE + interval '30 days'
   
   -- Colonnes JSONB de 'employees' (Utiliser ->> pour interroger)
   - salaire_de_base (jsonb): Contient le salaire brut.
@@ -262,6 +265,31 @@ Table 'employee_overtime_routing_decisions': Décisions mensuelles répartition 
   - employee_id (uuid), company_id (uuid), year (int), month (int)
   - total_hs_hours, hours_to_pay, hours_to_account (numeric)
   - status (text): 'pending', 'validated', 'applied_payroll'
+
+---
+Table 'repos_compensateur_credits': Crédits repos compensateurs (COR/RCR) par salarié et mois.
+  - company_id (uuid), employee_id (uuid), year (int), month (int)
+  - source (text): 'cor', 'rcr', 'manual'
+  - heures (numeric), jours (numeric)
+  - Jointure: employees e ON e.id = repos_compensateur_credits.employee_id WHERE e.company_id = ...
+
+---
+Table 'company_cp_fractionnement_settings': Paramètres fractionnement CP (formule MBC).
+  - company_id (uuid), fractionnement_enabled (boolean)
+  - cp_unit (text): 'ouvres', 'ouvrables'
+  - ouvres_to_ouvrables_ratio (numeric), fifth_week_deduction_ouvres (numeric)
+  - calculation_method (text): 'mbc', 'legal', 'manual' si présent
+
+---
+Table 'employee_cp_fractionnement_inputs': Saisies CP pris avant juin (fractionnement).
+  - employee_id (uuid), company_id (uuid), grant_year (int)
+  - cp_reported_june_ouvres (numeric)
+
+---
+Table 'employee_cp_fractionnement_grants': Jours de fractionnement accordés (payroll novembre).
+  - employee_id (uuid), company_id (uuid), grant_year (int)
+  - payroll_year (int), payroll_month (int, défaut 11)
+  - days_granted (int, 0–2), calculation_snapshot (jsonb)
 
 ---
 Table 'company_work_time_periods': Périodes de référence horaire (activité réduite, horaire transitoire).
@@ -512,6 +540,18 @@ Table 'employee_punch_overtime_reviews': HS badgeuse en attente validation.
 
 Table 'employee_overtime_routing_decisions': Répartition HS payer vs compte (modulation manual).
   - employee_id, year, month, total_hs_hours, hours_to_pay, hours_to_account, status
+
+Table 'repos_compensateur_credits': Crédits repos compensateurs COR/RCR par mois.
+  - employee_id, year, month, source (cor/rcr/manual), heures, jours
+
+Table 'employee_modulation_movements': Mouvements compte d'heures (crédits HS, récup, ajustements).
+  - employee_id, year, month, movement_type, hours, status
+
+Table 'company_cp_fractionnement_settings': Paramètres fractionnement CP entreprise.
+  - company_id, fractionnement_enabled, cp_unit, ouvres_to_ouvrables_ratio
+
+Table 'employee_cp_fractionnement_grants': Jours fractionnement accordés par salarié.
+  - employee_id, grant_year, days_granted, payroll_month
 
 Table 'employee_schedules': Cumuls et plannings mensuels.
   - employee_id, year, month, cumuls (jsonb), actual_hours (jsonb)

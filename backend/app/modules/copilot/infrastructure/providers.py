@@ -174,6 +174,10 @@ Exemples:
 - "Mouvements CET en attente de validation" → requires_data_retrieval: true
 - "HS badgeuse en attente de validation" → requires_data_retrieval: true
 - "Bulletins participation en attente de réponse" → requires_data_retrieval: true
+- "Titres de séjour expirant ce mois" → requires_data_retrieval: true
+- "Crédits repos compensateurs du trimestre" → requires_data_retrieval: true
+- "Jours de fractionnement CP accordés" → requires_data_retrieval: true
+- "Où valider les congés de mon équipe ?" → requires_app_help: true
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
 - "Quelle est la durée de la période d'essai ?" → requires_collective_agreement: true
