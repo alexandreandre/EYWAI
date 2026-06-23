@@ -178,7 +178,7 @@ def _insert_historical_obligation(
         "priority": 2,
         "status": "realisee",
         "completed_date": visit_date.isoformat(),
-        "rule_source": "import",
+        "rule_source": "legal",
         "justification": "Import historique Excel",
     }
     if dry_run:

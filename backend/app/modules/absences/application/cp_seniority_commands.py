@@ -48,6 +48,7 @@ def update_cp_seniority_settings(
 def apply_cp_seniority_preset(company_id: str, preset: str) -> dict[str, Any]:
     if preset == "plasturgie_idcc_0292":
         payload = {
+            "enabled": True,
             "preset": "plasturgie_idcc_0292",
             "rules": PLASTURGIE_0292_RULES,
             "seniority_reference": "cp_period_end",

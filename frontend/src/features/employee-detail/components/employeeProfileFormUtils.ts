@@ -192,9 +192,9 @@ export function buildUpdatePayload(
       },
       prevoyance: {
         ...(existingSpec.prevoyance as object),
-        adhesion: isCadre ? values.specificites_paie.prevoyance.adhesion : false,
+        adhesion: values.specificites_paie.prevoyance.adhesion,
         lignes_specifiques:
-          isCadre && values.specificites_paie.prevoyance.adhesion
+          values.specificites_paie.prevoyance.adhesion
             ? ((existingSpec.prevoyance as { lignes_specifiques?: unknown[] })?.lignes_specifiques ?? [])
             : [],
       },
