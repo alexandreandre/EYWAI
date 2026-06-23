@@ -547,13 +547,13 @@ def test_delete_employee_maps_fk_error_to_409(
     assert "données liées" in exc_info.value.detail
 
 
-@patch("app.modules.employees.application.commands.delete_employee")
+@patch("app.modules.employees.application.commands._iter_employee_deletion")
 @patch("app.modules.employees.application.commands._employee_repository")
 @patch("app.core.database.supabase")
 def test_delete_all_company_employees_success(
     mock_supabase,
     mock_emp_repo,
-    mock_delete_employee,
+    mock_iter_deletion,
 ):
     """delete_all_company_employees : supprime chaque employé de l'entreprise."""
     from app.modules.employees.application.commands import delete_all_company_employees
@@ -565,6 +565,9 @@ def test_delete_all_company_employees_success(
         {"id": "emp-1", "first_name": "Alice", "last_name": "Martin"},
         {"id": "emp-2", "first_name": "Bob", "last_name": "Durand"},
     ]
+    mock_iter_deletion.return_value = iter(
+        [{"event": "step", "step": "finalize", "label": "Terminé"}]
+    )
 
     result = delete_all_company_employees("c1")
 
@@ -572,7 +575,7 @@ def test_delete_all_company_employees_success(
     assert result["requested_count"] == 2
     assert result["removed_count"] == 2
     assert len(result["failed"]) == 0
-    assert mock_delete_employee.call_count == 2
+    assert mock_iter_deletion.call_count == 2
 
 
 @patch("app.modules.employees.application.commands.get_storage_provider")

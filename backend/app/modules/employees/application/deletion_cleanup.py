@@ -46,7 +46,7 @@ _COUNT_SPECS: tuple[tuple[str, str], ...] = (
     ("employee_loans", "prêt(s) salarié"),
     ("training_enrollments", "inscription(s) formation"),
     ("employee_schedules", "planning(s) horaire(s)"),
-    ("payroll_simulations", "simulation(s) de paie"),
+    ("simulations", "simulation(s) de paie"),
 )
 
 
@@ -246,7 +246,7 @@ _LEGACY_EMPLOYEE_DATA_TABLES = (
     "absence_requests",
     "monthly_inputs",
     "employee_schedules",
-    "payroll_simulations",
+    "simulations",
     "employee_exits",
     "generated_documents",
     "employee_documents",

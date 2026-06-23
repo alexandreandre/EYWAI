@@ -1,4 +1,7 @@
 import apiClient from "@/api/apiClient";
+import { getApiBaseUrl } from "@/api/apiConfig";
+import { getAccessToken } from "@/lib/authSession";
+import type { PurgeEmployeesStreamEvent } from "@/lib/purgeEmployeesProgress";
 import type {
   ActiveStatusFilter,
   AdminCompany,
@@ -81,6 +84,90 @@ export async function deleteAllCompanyEmployees(
     `/api/super-admin/companies/${companyId}/employees`,
   );
   return data;
+}
+
+export interface PurgeAllCompanyEmployeesOptions {
+  onEvent?: (event: PurgeEmployeesStreamEvent) => void;
+  signal?: AbortSignal;
+}
+
+export async function purgeAllCompanyEmployees(
+  companyId: string,
+  options: PurgeAllCompanyEmployeesOptions = {},
+): Promise<DeleteAllCompanyEmployeesResult> {
+  const baseUrl = getApiBaseUrl();
+  const token = getAccessToken();
+  const headers: Record<string, string> = {
+    Accept: "application/x-ndjson",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${baseUrl}/api/super-admin/companies/${companyId}/employees/purge`,
+    {
+      method: "POST",
+      headers,
+      signal: options.signal,
+    },
+  );
+
+  if (!response.ok) {
+    let detail = "La suppression des employés a échoué.";
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      /* corps non JSON */
+    }
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error("Réponse serveur vide.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: DeleteAllCompanyEmployeesResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const event = JSON.parse(trimmed) as PurgeEmployeesStreamEvent;
+      options.onEvent?.(event);
+      if (event.event === "completed") {
+        finalResult = event.result;
+      }
+      if (event.event === "error") {
+        throw new Error(event.message);
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const event = JSON.parse(buffer.trim()) as PurgeEmployeesStreamEvent;
+    options.onEvent?.(event);
+    if (event.event === "completed") {
+      finalResult = event.result;
+    }
+    if (event.event === "error") {
+      throw new Error(event.message);
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error("Suppression interrompue sans résultat final.");
+  }
+  return finalResult;
 }
 
 export function activeStatusToApiParam(

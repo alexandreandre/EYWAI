@@ -8,9 +8,11 @@ Module autonome : ne dépend pas de app.modules.users ni app.modules.companies.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional, Protocol
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 
@@ -222,6 +224,31 @@ async def delete_all_company_employees(
         return commands.delete_all_company_employees(company_id, super_admin)
     except Exception as e:
         raise _map_exceptions(e)
+
+
+@router.post("/companies/{company_id}/employees/purge")
+async def purge_all_company_employees_stream(
+    company_id: str,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+):
+    """Supprime tous les employés avec progression NDJSON (une ligne JSON par événement)."""
+
+    def generate():
+        try:
+            for event in commands.iter_delete_all_company_employees_stream(
+                company_id, super_admin
+            ):
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+        except LookupError as exc:
+            yield json.dumps(
+                {"event": "error", "message": str(exc)}, ensure_ascii=False
+            ) + "\n"
+        except Exception as exc:
+            yield json.dumps(
+                {"event": "error", "message": str(exc)}, ensure_ascii=False
+            ) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 # ----- Users (global) -----

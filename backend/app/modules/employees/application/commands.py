@@ -15,7 +15,7 @@ import string
 import uuid
 from datetime import date as _date
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 from fastapi import HTTPException
 
@@ -653,75 +653,25 @@ def upload_employee_contract(
     _maybe_activate_after_onboarding(employee_id)
 
 
-def delete_all_company_employees(company_id: str) -> Dict[str, Any]:
-    """Supprime tous les employés d'une entreprise et leurs données liées."""
-    from app.core.database import supabase
-
-    company_resp = (
-        supabase.table("companies")
-        .select("id, company_name")
-        .eq("id", company_id)
-        .maybe_single()
-        .execute()
-    )
-    if not company_resp.data:
-        raise LookupError("Entreprise non trouvée")
-
-    employees = _employee_repository.get_by_company(company_id)
-    removed: list[Dict[str, str]] = []
-    failed: list[Dict[str, str]] = []
-
-    for emp in employees:
-        employee_id = str(emp.get("id") or "")
-        if not employee_id:
-            continue
-        first = (emp.get("first_name") or "").strip()
-        last = (emp.get("last_name") or "").strip()
-        display_name = f"{first} {last}".strip() or employee_id
-        try:
-            delete_employee(employee_id, company_id)
-            removed.append(
-                {"employee_id": employee_id, "employee_name": display_name}
-            )
-        except HTTPException as exc:
-            failed.append(
-                {
-                    "employee_id": employee_id,
-                    "employee_name": display_name,
-                    "error": str(exc.detail),
-                }
-            )
-        except Exception as exc:
-            logger.warning(
-                "Suppression employé %s échouée pour entreprise %s : %s",
-                employee_id,
-                company_id,
-                exc,
-            )
-            failed.append(
-                {
-                    "employee_id": employee_id,
-                    "employee_name": display_name,
-                    "error": str(exc),
-                }
-            )
-
-    company_name = company_resp.data.get("company_name") or company_id
-    return {
-        "success": len(failed) == 0,
-        "company_id": company_id,
-        "company_name": company_name,
-        "requested_count": len(employees),
-        "removed_count": len(removed),
-        "removed": removed,
-        "failed": failed,
-    }
+_EMPLOYEE_DELETE_STEP_LABELS: Dict[str, str] = {
+    "preparation": "Lecture de la fiche…",
+    "storage": "Suppression des fichiers (contrats, bulletins…)…",
+    "data": "Suppression des données (absences, paie, plannings…)…",
+    "account": "Retrait des accès et du compte…",
+    "finalize": "Finalisation…",
+}
 
 
-def delete_employee(employee_id: str, company_id: str) -> None:
-    """
-    Supprime un employé et toutes ses données liées (cascade DB + storage + compte).
-    """
+def _employee_display_name(emp: Dict[str, Any], employee_id: str) -> str:
+    first = (emp.get("first_name") or "").strip()
+    last = (emp.get("last_name") or "").strip()
+    return f"{first} {last}".strip() or employee_id
+
+
+def _iter_employee_deletion(
+    employee_id: str, company_id: str
+) -> Iterator[Dict[str, Any]]:
+    """Émet une étape NDJSON par phase réelle de suppression d'un salarié."""
     from app.modules.employees.application.deletion_cleanup import (
         cleanup_employee_orphan_rows,
         cleanup_employee_storage,
@@ -730,6 +680,12 @@ def delete_employee(employee_id: str, company_id: str) -> None:
     from app.shared.db_errors import raise_http_for_db_error
 
     auth = get_auth_provider()
+
+    yield {
+        "event": "step",
+        "step": "preparation",
+        "label": _EMPLOYEE_DELETE_STEP_LABELS["preparation"],
+    }
     emp = _employee_repository.get_by_id(employee_id, company_id)
     if emp is None:
         raise HTTPException(status_code=404, detail="Employé non trouvé.")
@@ -737,8 +693,25 @@ def delete_employee(employee_id: str, company_id: str) -> None:
     auth_uid = str(emp.get("user_id") or employee_id)
 
     try:
+        yield {
+            "event": "step",
+            "step": "storage",
+            "label": _EMPLOYEE_DELETE_STEP_LABELS["storage"],
+        }
         cleanup_employee_storage(company_id, employee_id)
+
+        yield {
+            "event": "step",
+            "step": "data",
+            "label": _EMPLOYEE_DELETE_STEP_LABELS["data"],
+        }
         cleanup_employee_orphan_rows(employee_id)
+
+        yield {
+            "event": "step",
+            "step": "account",
+            "label": _EMPLOYEE_DELETE_STEP_LABELS["account"],
+        }
         delete_auth_account = cleanup_user_account_for_company(
             auth_uid, company_id, employee_id
         )
@@ -751,11 +724,125 @@ def delete_employee(employee_id: str, company_id: str) -> None:
                 msg = str(auth_exc).lower()
                 if "not found" not in msg:
                     raise
+
+        yield {
+            "event": "step",
+            "step": "finalize",
+            "label": _EMPLOYEE_DELETE_STEP_LABELS["finalize"],
+        }
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("delete_employee failed for %s", employee_id)
         raise_http_for_db_error(exc)
+
+
+def iter_delete_all_company_employees(
+    company_id: str,
+) -> Iterator[Dict[str, Any]]:
+    """Supprime tous les employés et émet la progression (NDJSON)."""
+    from app.core.database import supabase
+
+    company_resp = (
+        supabase.table("companies")
+        .select("id, company_name")
+        .eq("id", company_id)
+        .maybe_single()
+        .execute()
+    )
+    if not company_resp.data:
+        raise LookupError("Entreprise non trouvée")
+
+    company_name = company_resp.data.get("company_name") or company_id
+    employees = _employee_repository.get_by_company(company_id)
+    total = len(employees)
+    removed: list[Dict[str, str]] = []
+    failed: list[Dict[str, str]] = []
+
+    yield {
+        "event": "started",
+        "company_id": company_id,
+        "company_name": company_name,
+        "total": total,
+    }
+
+    for index, emp in enumerate(employees, start=1):
+        employee_id = str(emp.get("id") or "")
+        if not employee_id:
+            continue
+        display_name = _employee_display_name(emp, employee_id)
+        context = {
+            "index": index,
+            "total": total,
+            "employee_id": employee_id,
+            "employee_name": display_name,
+        }
+
+        yield {"event": "employee_started", **context}
+
+        try:
+            for step_event in _iter_employee_deletion(employee_id, company_id):
+                yield {**step_event, **context}
+            removed.append(
+                {"employee_id": employee_id, "employee_name": display_name}
+            )
+            yield {"event": "employee_done", **context}
+        except HTTPException as exc:
+            error = str(exc.detail)
+            failed.append(
+                {
+                    "employee_id": employee_id,
+                    "employee_name": display_name,
+                    "error": error,
+                }
+            )
+            yield {"event": "employee_failed", "error": error, **context}
+        except Exception as exc:
+            logger.warning(
+                "Suppression employé %s échouée pour entreprise %s : %s",
+                employee_id,
+                company_id,
+                exc,
+            )
+            error = str(exc)
+            failed.append(
+                {
+                    "employee_id": employee_id,
+                    "employee_name": display_name,
+                    "error": error,
+                }
+            )
+            yield {"event": "employee_failed", "error": error, **context}
+
+    result = {
+        "success": len(failed) == 0,
+        "company_id": company_id,
+        "company_name": company_name,
+        "requested_count": total,
+        "removed_count": len(removed),
+        "removed": removed,
+        "failed": failed,
+    }
+    yield {"event": "completed", "result": result}
+
+
+def delete_all_company_employees(company_id: str) -> Dict[str, Any]:
+    """Supprime tous les employés d'une entreprise et leurs données liées."""
+    result: Dict[str, Any] | None = None
+    for event in iter_delete_all_company_employees(company_id):
+        if event.get("event") == "completed":
+            result = event.get("result")
+    if result is None:
+        raise RuntimeError("Suppression interrompue sans résultat final")
+    return result
+
+
+def delete_employee(employee_id: str, company_id: str) -> None:
+    """
+    Supprime un employé et toutes ses données liées (cascade DB + storage + compte).
+    """
+    for _ in _iter_employee_deletion(employee_id, company_id):
+        pass
 
 
 def confirm_trial_period(employee_id: str, company_id: str) -> Dict[str, Any]:
