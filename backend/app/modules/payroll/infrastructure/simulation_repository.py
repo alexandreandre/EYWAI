@@ -1,5 +1,5 @@
 """
-Accès Supabase pour les simulations de paie (payroll_simulations, payroll_config, etc.).
+Accès Supabase pour les simulations de paie (simulations, payroll_config, etc.).
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def fetch_simulation_row(
     simulation_id: str, company_id: str
 ) -> Optional[Dict[str, Any]]:
     response = (
-        supabase.table("payroll_simulations")
+        supabase.table("simulations")
         .select("*")
         .eq("id", simulation_id)
         .eq("company_id", company_id)
@@ -75,7 +75,7 @@ def fetch_simulation_row(
 
 
 def insert_simulation_row(payload: Dict[str, Any]) -> Optional[str]:
-    response = supabase.table("payroll_simulations").insert(payload).execute()
+    response = supabase.table("simulations").insert(payload).execute()
     if not response.data:
         return None
     return str(response.data[0].get("id") or "")
@@ -88,7 +88,7 @@ def list_simulation_rows(
     year: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     query = (
-        supabase.table("payroll_simulations")
+        supabase.table("simulations")
         .select(
             "id, employee_id, month, year, simulation_type, scenario_name, payslip_data, created_at"
         )
@@ -118,6 +118,6 @@ def fetch_payslip_row(
 
 
 def delete_simulation_row(simulation_id: str, company_id: str) -> None:
-    supabase.table("payroll_simulations").delete().eq("id", simulation_id).eq(
+    supabase.table("simulations").delete().eq("id", simulation_id).eq(
         "company_id", company_id
     ).execute()

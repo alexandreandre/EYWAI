@@ -24,7 +24,39 @@ from .baremes_loader import resoudre_taux_vm_pour_paie
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
-# Fichier : moteur_paie/calcul_cotisations.py
+
+def _assiette_pour_base(
+    base_id: str,
+    *,
+    salaire_brut: float,
+    brut_plafonne: float,
+    tranche_2: float,
+) -> float:
+    if base_id == "tranche_2":
+        return tranche_2
+    if base_id in ("brut_plafonne", "plafond_ss"):
+        return brut_plafonne
+    return salaire_brut
+
+
+def _sommer_part_patronale_lignes_taux(
+    lignes: List[Dict[str, Any]],
+    *,
+    salaire_brut: float,
+    brut_plafonne: float,
+    tranche_2: float,
+) -> float:
+    total = 0.0
+    for ligne in lignes:
+        base_id = ligne.get("base", "brut_plafonne")
+        assiette = _assiette_pour_base(
+            base_id,
+            salaire_brut=salaire_brut,
+            brut_plafonne=brut_plafonne,
+            tranche_2=tranche_2,
+        )
+        total += assiette * (ligne.get("patronal", 0.0) or 0.0)
+    return total
 
 
 def _calculer_assiettes(
@@ -122,34 +154,52 @@ def _calculer_assiettes(
                     mutuelle_spec.get("montant_patronal", 0.0) or 0.0
                 )
 
+    brut_plafonne = min(salaire_brut, pss_calcule)
+
     part_patronale_prevoyance = 0.0
     prevoyance_spec = contexte.contrat.get("specificites_paie", {}).get(
         "prevoyance", {}
     )
     if isinstance(prevoyance_spec, dict) and prevoyance_spec.get("adhesion"):
-        assiette_prevoyance = min(salaire_brut, pss_calcule)
-
-        if contexte.statut_salarie == "Cadre":
-            # Pour les cadres, on somme les parts patronales des lignes spécifiques du contrat
-            for ligne in prevoyance_spec.get("lignes_specifiques", []):
-                part_patronale_prevoyance += assiette_prevoyance * (
-                    ligne.get("patronal", 0.0) or 0.0
-                )
-        else:
-            # Pour les non-cadres, on utilise la règle standard
+        lignes_prev = prevoyance_spec.get("lignes_specifiques", [])
+        if lignes_prev:
+            part_patronale_prevoyance = _sommer_part_patronale_lignes_taux(
+                lignes_prev,
+                salaire_brut=salaire_brut,
+                brut_plafonne=brut_plafonne,
+                tranche_2=assiette_tranche_2,
+            )
+        elif contexte.statut_salarie == "Non-Cadre":
             cotisation_prevoyance = contexte.get_cotisation_by_id(
                 "prevoyance_non_cadre"
             )
             if cotisation_prevoyance and cotisation_prevoyance.get("patronal"):
-                part_patronale_prevoyance = (
-                    assiette_prevoyance * cotisation_prevoyance["patronal"]
-                )
+                part_patronale_prevoyance = brut_plafonne * cotisation_prevoyance[
+                    "patronal"
+                ]
+
+    part_patronale_retraite_sup = 0.0
+    retraite_sup_spec = contexte.contrat.get("specificites_paie", {}).get(
+        "retraite_sup", {}
+    )
+    if (
+        isinstance(retraite_sup_spec, dict)
+        and retraite_sup_spec.get("adhesion")
+        and contexte.statut_salarie == "Cadre"
+    ):
+        part_patronale_retraite_sup = _sommer_part_patronale_lignes_taux(
+            retraite_sup_spec.get("lignes_specifiques", []),
+            salaire_brut=salaire_brut,
+            brut_plafonne=brut_plafonne,
+            tranche_2=assiette_tranche_2,
+        )
 
     # CALCUL ASSIETTE CSG (inchangé)
     salaire_brut_hors_hs = salaire_brut - remuneration_heures_supp
     base_csg_normale = (
         (salaire_brut_hors_hs * 0.9825)
         + part_patronale_prevoyance
+        + part_patronale_retraite_sup
         + part_patronale_frais_sante
     )
     base_csg_hs = remuneration_heures_supp * 0.9825
@@ -159,7 +209,7 @@ def _calculer_assiettes(
         "plafond_ss": round(
             pss_calcule, 2
         ),  # On retourne le plafond potentiellement réduit
-        "brut_plafonne": min(salaire_brut, pss_calcule),
+        "brut_plafonne": brut_plafonne,
         "tranche_2": round(assiette_tranche_2, 2),
         "assiette_cet": round(assiette_cet, 2),
         "csg_crds_base_normale": round(base_csg_normale, 2),
@@ -615,29 +665,67 @@ def calculer_cotisations(
 
     elif adhesion_prevoyance and contexte.statut_salarie == "Non-Cadre":
         logger.info('  -> ✅ Branche NON-CADRE sélectionnée.')
-        # Cas NON-CADRE : on lit la règle standard depuis les barèmes (cotisations.json)
-        coti_data = contexte.get_cotisation_by_id("prevoyance_non_cadre")
-        if coti_data:
-            log_payroll_debug(logger, f"  -> Règle 'prevoyance_non_cadre' trouvée dans les barèmes: {json.dumps(coti_data)}")
-            assiette = assiettes.get(coti_data.get("base", "brut_plafonne"), 0.0)
-            log_payroll_debug(logger, f'  -> Assiette de calcul utilisée: {assiette:.2f} €')
-            ligne_calculee = _calculer_une_ligne(
-                coti_data.get("libelle"),
-                assiette,
-                coti_data.get("salarial"),
-                coti_data.get("patronal"),
-                coti_id="prevoyance_non_cadre",
+        lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
+        if lignes_specifiques:
+            log_payroll_debug(
+                logger,
+                f'  -> Lignes spécifiques non-cadre: {len(lignes_specifiques)}',
             )
-            if ligne_calculee:
-                bulletin_cotisations.append(ligne_calculee)
-                logger.info(f'  -> ✅ Ligne calculée (Non-Cadre) et ajoutée: {ligne_calculee}')
-            else:
-                logger.warning('  -> ❌ Ligne non-cadre non ajoutée (calcul a retourné None ou 0).')
+            for ligne in lignes_specifiques:
+                base_id = ligne.get("base", "brut_plafonne")
+                assiette = assiettes.get(base_id, 0.0)
+                ligne_calculee = _calculer_une_ligne(
+                    ligne.get("libelle"),
+                    assiette,
+                    ligne.get("salarial"),
+                    ligne.get("patronal"),
+                    coti_id="prevoyance_non_cadre",
+                )
+                if ligne_calculee:
+                    bulletin_cotisations.append(ligne_calculee)
         else:
-            logger.warning("  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes (cotisations.json).")
+            coti_data = contexte.get_cotisation_by_id("prevoyance_non_cadre")
+            if coti_data:
+                log_payroll_debug(
+                    logger,
+                    f"  -> Règle 'prevoyance_non_cadre' barème global: {json.dumps(coti_data)}",
+                )
+                assiette = assiettes.get(coti_data.get("base", "brut_plafonne"), 0.0)
+                ligne_calculee = _calculer_une_ligne(
+                    coti_data.get("libelle"),
+                    assiette,
+                    coti_data.get("salarial"),
+                    coti_data.get("patronal"),
+                    coti_id="prevoyance_non_cadre",
+                )
+                if ligne_calculee:
+                    bulletin_cotisations.append(ligne_calculee)
+            else:
+                logger.warning(
+                    "  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes."
+                )
     else:
         logger.warning("  -> ❌ Aucune branche de calcul de prévoyance n'a été exécutée.")
     log_payroll_debug(logger, '--- FIN DEBUG PRÉVOYANCE ---\n')
+
+    retraite_sup_spec = contexte.contrat.get("specificites_paie", {}).get(
+        "retraite_sup", {}
+    )
+    if not isinstance(retraite_sup_spec, dict):
+        retraite_sup_spec = {}
+    if retraite_sup_spec.get("adhesion") and contexte.statut_salarie == "Cadre":
+        for ligne in retraite_sup_spec.get("lignes_specifiques", []):
+            base_id = ligne.get("base", "brut_plafonne")
+            assiette = assiettes.get(base_id, 0.0)
+            ligne_calculee = _calculer_une_ligne(
+                ligne.get("libelle"),
+                assiette,
+                ligne.get("salarial"),
+                ligne.get("patronal"),
+                coti_id="retraite_sup",
+            )
+            if ligne_calculee:
+                bulletin_cotisations.append(ligne_calculee)
 
     # Ajout de la réduction salariale sur les heures supplémentaires
     if remuneration_heures_supp > 0:

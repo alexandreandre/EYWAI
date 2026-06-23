@@ -44,6 +44,7 @@ COTI_ID_TO_RUBRIQUE: Dict[str, str] = {
     "ceg_t2": "retraite",
     "cet": "retraite",
     "apec": "retraite",
+    "retraite_sup": "retraite",
     "allocations_familiales": "famille",
     "assurance_chomage": "chomage",
     "chomage": "chomage",
