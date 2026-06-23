@@ -22,6 +22,10 @@ from app.modules.companies.domain.overview import (
     compute_demographics,
     compute_movements,
 )
+from app.modules.cse.application.cse_settings import (
+    count_active_elected_members,
+    get_company_cse_settings,
+)
 from app.modules.companies.infrastructure.overview_queries import fetch_overview_raw
 from app.modules.companies.infrastructure.queries import (
     fetch_company_with_employees_and_payslips,
@@ -76,6 +80,8 @@ def get_company_overview(company_id: str, current_user: Any) -> CompanyOverviewD
         demographics["total_headcount"],
         company_cc_ids,
         jei_settings,
+        cse_settings=get_company_cse_settings(company_id).model_dump(mode="json"),
+        active_elected_count=count_active_elected_members(company_id),
     )
     cdd_ending = next(
         (a.get("count", 0) for a in alerts if a.get("code") == "cdd_ending_soon"),

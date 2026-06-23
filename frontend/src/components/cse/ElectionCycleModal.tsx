@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { createElectionCycle, type ElectionCycleCreate } from "@/api/cse";
 import { Loader2 } from "lucide-react";
@@ -25,6 +26,7 @@ export function ElectionCycleModal({ open, onOpenChange }: ElectionCycleModalPro
   const [cycleName, setCycleName] = useState("");
   const [mandateEndDate, setMandateEndDate] = useState("");
   const [electionDate, setElectionDate] = useState("");
+  const [isCarence, setIsCarence] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: (data: ElectionCycleCreate) => createElectionCycle(data),
@@ -38,6 +40,7 @@ export function ElectionCycleModal({ open, onOpenChange }: ElectionCycleModalPro
       setCycleName("");
       setMandateEndDate("");
       setElectionDate("");
+      setIsCarence(false);
       onOpenChange(false);
     },
     onError: (error: unknown) => {
@@ -62,6 +65,7 @@ export function ElectionCycleModal({ open, onOpenChange }: ElectionCycleModalPro
       cycle_name: cycleName.trim(),
       mandate_end_date: mandateEndDate,
       election_date: electionDate || null,
+      outcome: isCarence ? "carence" : undefined,
     });
   };
 
@@ -98,6 +102,16 @@ export function ElectionCycleModal({ open, onOpenChange }: ElectionCycleModalPro
               value={electionDate}
               onChange={(e) => setElectionDate(e.target.value)}
             />
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border p-3">
+            <Checkbox
+              id="carence-outcome"
+              checked={isCarence}
+              onCheckedChange={(v) => setIsCarence(Boolean(v))}
+            />
+            <Label htmlFor="carence-outcome" className="cursor-pointer text-sm font-normal">
+              Issue : carence (aucun candidat aux élections)
+            </Label>
           </div>
         </div>
         <DialogFooter>

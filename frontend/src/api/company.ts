@@ -130,6 +130,10 @@ export interface CompanyOverview {
     vm_configured: boolean;
     collective_agreement_configured: boolean;
     cse_obligation: boolean;
+    cse_ok: boolean;
+    cse_status: string;
+    carence_valid_until?: string | null;
+    carence_expired?: boolean;
     jei_configured: boolean;
   };
   cdd_ending_within_30_days: number;

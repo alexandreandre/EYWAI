@@ -130,7 +130,8 @@ export function BDESUploadModal({ open, onOpenChange }: BDESUploadModalProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bdes">BDES</SelectItem>
-                  <SelectItem value="pv">PV</SelectItem>
+                  <SelectItem value="pv">PV de réunion</SelectItem>
+                  <SelectItem value="pv_carence">PV de carence CSE</SelectItem>
                   <SelectItem value="autre">Autre</SelectItem>
                 </SelectContent>
               </Select>

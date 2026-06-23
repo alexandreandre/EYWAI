@@ -4,6 +4,7 @@ import { AlertTriangle, CalendarDays, ChevronDown, Percent } from "lucide-react"
 import type { CompanyDetails } from "@/api/company";
 import type { DsnCoverage } from "@/api/dsnImport";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
+import CseStatusCard from "@/features/company/components/CseStatusCard";
 import MaintenanceSettingsCard from "@/features/company/components/MaintenanceSettingsCard";
 import PrimeAncienneteSettingsCard from "@/features/company/components/PrimeAncienneteSettingsCard";
 import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
@@ -220,11 +221,11 @@ export function CompanyPayrollTab({
       {cseObligation ? (
         <section className="space-y-3" id="cse" ref={setAnchorRef("cse")}>
           <SectionHeading>Dialogue social</SectionHeading>
+          <CseStatusCard />
           <Card>
             <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                Votre effectif déclenche des obligations CSE. Gérez les élections et réunions
-                depuis le module dédié.
+                Gérez les élections, réunions et documents CSE depuis le module dédié.
               </p>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/cse">Ouvrir CSE & Dialogue Social</Link>

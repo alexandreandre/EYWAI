@@ -47,6 +47,8 @@ from app.modules.cse.schemas import (
     ElectionCycleRead,
     ElectionTimelineStepRead,
     ElectionAlert,
+    CompanyCseSettings,
+    CompanyCseSettingsUpdate,
     ElectedMemberCreate,
     ElectedMemberRead,
     ElectedMemberListItem,
@@ -694,6 +696,43 @@ def get_delegation_payroll_entries_endpoint(
     return queries.get_payroll_delegation_entries(
         company_id, year, month, employee_id
     )
+
+
+# ---------------------------------------------------------------------------
+# Paramètres CSE entreprise (statut / carence)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/settings", response_model=CompanyCseSettings)
+def get_cse_settings_endpoint(
+    current_user: User = Depends(get_current_user),
+):
+    """Statut CSE entreprise (carence, élus, obligation). RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    from app.modules.cse.application.cse_settings import get_company_cse_settings
+
+    return get_company_cse_settings(company_id)
+
+
+@router.put("/settings", response_model=CompanyCseSettings)
+def put_cse_settings_endpoint(
+    body: CompanyCseSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour le statut CSE entreprise. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    from app.modules.cse.application.cse_settings import save_company_cse_settings
+
+    try:
+        return save_company_cse_settings(
+            company_id, body.model_dump(exclude_unset=True)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

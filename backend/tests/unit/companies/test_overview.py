@@ -1,6 +1,6 @@
 """Tests unitaires domain/overview et query get_company_overview."""
 
-from datetime import date, timedelta
+from datetime import date, timedelta, timedelta
 from unittest.mock import MagicMock, patch
 
 
@@ -149,6 +149,24 @@ class TestComputeComplianceFlags:
         )
         assert flags["jei_configured"] is False
 
+    def test_cse_carence_valid(self):
+        future = (date.today() + timedelta(days=30)).isoformat()
+        flags = compute_compliance_flags(
+            {},
+            13,
+            set(),
+            None,
+            cse_settings={"cse_status": "carence", "carence_valid_until": future},
+            active_elected_count=0,
+        )
+        assert flags["cse_ok"] is True
+        assert flags["cse_status"] == "carence"
+
+    def test_cse_obligation_without_carence(self):
+        flags = compute_compliance_flags({}, 13, set())
+        assert flags["cse_obligation"] is True
+        assert flags["cse_ok"] is False
+
 
 class TestJeiAlerts:
     def test_jei_enabled_no_rd_employees_alert(self):
@@ -220,7 +238,17 @@ class TestGetCompanyOverview:
                     "company_cc_ids": set(),
                     "jei_settings": None,
                 },
+            ), patch(
+                f"{MODULE}.get_company_cse_settings",
+            ) as mock_cse_settings, patch(
+                f"{MODULE}.count_active_elected_members",
+                return_value=0,
             ):
+                from app.modules.cse.schemas.responses import CompanyCseSettings
+
+                mock_cse_settings.return_value = CompanyCseSettings(
+                    company_id="c1", cse_status="unknown"
+                )
                 result = queries.get_company_overview("c1", MagicMock())
         assert isinstance(result, CompanyOverviewDto)
         assert result.demographics["total_headcount"] == 1

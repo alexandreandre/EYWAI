@@ -13,6 +13,6 @@ ElectedMemberRole = Literal[
 MeetingType = Literal["ordinaire", "extraordinaire", "cssct", "autre"]
 MeetingStatus = Literal["a_venir", "en_cours", "terminee"]
 ParticipantRole = Literal["participant", "observateur"]
-BDESDocumentType = Literal["bdes", "pv", "autre"]
+BDESDocumentType = Literal["bdes", "pv", "pv_carence", "autre"]
 ElectionCycleStatus = Literal["in_progress", "completed"]
 TimelineStepStatus = Literal["pending", "completed", "overdue"]

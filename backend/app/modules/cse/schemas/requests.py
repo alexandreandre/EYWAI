@@ -17,7 +17,7 @@ ElectedMemberRole = Literal[
 MeetingType = Literal["ordinaire", "extraordinaire", "cssct", "autre"]
 MeetingStatus = Literal["a_venir", "en_cours", "terminee"]
 ParticipantRole = Literal["participant", "observateur"]
-BDESDocumentType = Literal["bdes", "pv", "autre"]
+BDESDocumentType = Literal["bdes", "pv", "pv_carence", "autre"]
 
 
 # ============================================================================
@@ -216,6 +216,9 @@ class BDESDocumentUpdate(BaseModel):
 # ============================================================================
 
 
+ElectionCycleOutcome = Literal["elected", "carence"]
+
+
 class ElectionCycleCreate(BaseModel):
     """Schéma pour la création d'un cycle électoral."""
 
@@ -224,6 +227,9 @@ class ElectionCycleCreate(BaseModel):
         ..., description="Date de fin du mandat précédent"
     )
     election_date: Optional[date_type] = Field(None, description="Date des élections")
+    outcome: Optional[ElectionCycleOutcome] = Field(
+        None, description="Issue du cycle : élus ou carence (aucun candidat)"
+    )
     notes: Optional[Dict[str, Any]] = None
 
 
@@ -239,6 +245,20 @@ class ElectionTimelineStepCreate(BaseModel):
 # ============================================================================
 # Exports
 # ============================================================================
+
+
+CseStatusLiteral = Literal[
+    "unknown", "not_required", "obligation_pending", "carence", "elected"
+]
+
+
+class CompanyCseSettingsUpdate(BaseModel):
+    """Mise à jour partielle du statut CSE entreprise."""
+
+    cse_status: Optional[CseStatusLiteral] = None
+    carence_pv_document_id: Optional[str] = None
+    carence_valid_until: Optional[date_type] = None
+    notes: Optional[str] = None
 
 
 class ExportParams(BaseModel):

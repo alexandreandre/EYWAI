@@ -7,7 +7,7 @@ Comportement identique à l'ancien schemas.cse.
 from datetime import date as date_type, datetime, time
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.cse.schemas.requests import (
     BDESDocumentType,
@@ -423,6 +423,32 @@ class ElectionCycleRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+CseStatus = Literal[
+    "unknown",
+    "not_required",
+    "obligation_pending",
+    "carence",
+    "carence_expired",
+    "elected",
+]
+
+
+class CompanyCseSettings(BaseModel):
+    """Paramètres statut CSE entreprise."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    company_id: str
+    cse_status: Literal[
+        "unknown", "not_required", "obligation_pending", "carence", "elected"
+    ] = "unknown"
+    carence_pv_document_id: Optional[str] = None
+    carence_valid_until: Optional[date_type] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class ElectionAlert(BaseModel):

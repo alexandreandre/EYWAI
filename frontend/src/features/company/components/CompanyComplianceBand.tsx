@@ -94,8 +94,14 @@ export function CompanyComplianceBand({
     },
     {
       key: "cse",
-      label: compliance.cse_obligation ? "Obligations CSE (≥11)" : "CSE non requis",
-      ok: !compliance.cse_obligation,
+      label: (() => {
+        if (!compliance.cse_obligation) return "CSE non requis";
+        if (compliance.cse_status === "carence") return "CSE en carence";
+        if (compliance.cse_status === "carence_expired") return "Carence CSE expirée";
+        if (compliance.cse_status === "elected") return "CSE en place";
+        return "Obligations CSE (≥11)";
+      })(),
+      ok: compliance.cse_ok ?? !compliance.cse_obligation,
       icon: Users,
       anchor: "cse",
     },

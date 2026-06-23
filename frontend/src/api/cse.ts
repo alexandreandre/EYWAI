@@ -12,7 +12,7 @@ export type ElectedMemberRole = "titulaire" | "suppleant" | "secretaire" | "tres
 export type MeetingType = "ordinaire" | "extraordinaire" | "cssct" | "autre";
 export type MeetingStatus = "a_venir" | "en_cours" | "terminee";
 export type ParticipantRole = "participant" | "observateur";
-export type BDESDocumentType = "bdes" | "pv" | "autre";
+export type BDESDocumentType = "bdes" | "pv" | "pv_carence" | "autre";
 export type ElectionCycleStatus = "in_progress" | "completed";
 export type TimelineStepStatus = "pending" | "completed" | "overdue";
 
@@ -381,6 +381,7 @@ export interface ElectionCycleCreate {
   cycle_name: string;
   mandate_end_date: string;
   election_date?: string | null;
+  outcome?: 'elected' | 'carence' | null;
   notes?: Record<string, any> | null;
 }
 
@@ -787,5 +788,45 @@ export async function exportElectionCalendar(cycleId?: string): Promise<Blob> {
     params,
     responseType: "blob",
   });
+  return response.data;
+}
+
+// ============================================================================
+// Paramètres CSE entreprise (statut / carence)
+// ============================================================================
+
+export type CseStatus =
+  | "unknown"
+  | "not_required"
+  | "obligation_pending"
+  | "carence"
+  | "elected";
+
+export interface CompanyCseSettings {
+  company_id: string;
+  cse_status: CseStatus;
+  carence_pv_document_id: string | null;
+  carence_valid_until: string | null;
+  notes: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CompanyCseSettingsUpdate {
+  cse_status?: CseStatus;
+  carence_pv_document_id?: string | null;
+  carence_valid_until?: string | null;
+  notes?: string | null;
+}
+
+export async function getCseSettings(): Promise<CompanyCseSettings> {
+  const response = await apiClient.get<CompanyCseSettings>("/api/cse/settings");
+  return response.data;
+}
+
+export async function saveCseSettings(
+  data: CompanyCseSettingsUpdate,
+): Promise<CompanyCseSettings> {
+  const response = await apiClient.put<CompanyCseSettings>("/api/cse/settings", data);
   return response.data;
 }

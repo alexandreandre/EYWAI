@@ -1211,6 +1211,13 @@ def get_bdes_document_by_id(document_id: str, company_id: str) -> BDESDocumentRe
 # ============================================================================
 
 
+def _election_cycle_notes(data: ElectionCycleCreate) -> Optional[Dict[str, Any]]:
+    notes: Dict[str, Any] = dict(data.notes or {})
+    if data.outcome:
+        notes["outcome"] = data.outcome
+    return notes or None
+
+
 def create_election_cycle(
     company_id: str, data: ElectionCycleCreate
 ) -> ElectionCycleRead:
@@ -1222,8 +1229,8 @@ def create_election_cycle(
         "cycle_name": data.cycle_name,
         "mandate_end_date": data.mandate_end_date.isoformat(),
         "election_date": data.election_date.isoformat() if data.election_date else None,
-        "status": "in_progress",
-        "notes": data.notes,
+        "status": "completed" if data.outcome == "carence" else "in_progress",
+        "notes": _election_cycle_notes(data),
     }
 
     response = supabase.table("cse_election_cycles").insert(insert_data).execute()

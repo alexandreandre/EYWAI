@@ -45,6 +45,7 @@ export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
 export const BDES_TYPE_LABELS: Record<BDESDocumentType, string> = {
   bdes: "BDES",
   pv: "Procès-verbal",
+  pv_carence: "PV de carence CSE",
   autre: "Autre",
 };
 

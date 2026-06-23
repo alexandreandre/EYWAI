@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
+from app.modules.cse.domain.cse_compliance import compute_cse_compliance
 from app.modules.dashboard.domain import rules as dashboard_rules
 
 
@@ -375,14 +376,29 @@ def compute_compliance_flags(
     headcount: int,
     company_cc_ids: Set[str] | None = None,
     jei_settings: Optional[Dict[str, Any]] = None,
-) -> Dict[str, bool]:
+    *,
+    cse_settings: Optional[Dict[str, Any]] = None,
+    active_elected_count: int = 0,
+) -> Dict[str, Any]:
     """Drapeaux pour le bandeau conformité."""
-    return {
+    base = {
         "at_mp_configured": company_data.get("taux_at_mp") is not None,
         "vm_configured": company_data.get("taux_vm") is not None,
         "collective_agreement_configured": has_company_cc_assigned(company_cc_ids or set()),
-        "cse_obligation": headcount >= 11,
         "jei_configured": is_jei_company_configured(jei_settings),
+    }
+    cse = compute_cse_compliance(
+        headcount,
+        cse_settings=cse_settings,
+        active_elected_count=active_elected_count,
+    )
+    return {
+        **base,
+        "cse_obligation": cse["cse_obligation"],
+        "cse_ok": cse["cse_ok"],
+        "cse_status": cse["cse_status"],
+        "carence_valid_until": cse.get("carence_valid_until"),
+        "carence_expired": cse.get("carence_expired", False),
     }
 
 
