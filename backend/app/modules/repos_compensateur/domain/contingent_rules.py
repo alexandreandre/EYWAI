@@ -101,6 +101,41 @@ def compute_weeks_worked(
     return round(max(0.0, days / 7.0), 2)
 
 
+def compute_effective_management_contingent(
+    settings: ContingentSettings,
+    hire_date: date | None,
+    year: int,
+) -> float:
+    """Plafond de pilotage, proratisé si embauche en cours d'année civile."""
+    return compute_prorated_management_contingent(
+        settings.effective_management_contingent,
+        hire_date,
+        year,
+    )
+
+
+def compute_prorated_management_contingent(
+    base_contingent: float,
+    hire_date: date | None,
+    year: int,
+) -> float:
+    """
+    Prorata du plafond de pilotage pour embauche en cours d'année civile.
+
+    Règle Comitech (Excel) : mois restants = 12 − mois d'embauche
+    (ex. embauche mai → 7 mois → 360 × 7/12 = 210 h).
+    """
+    if hire_date is None:
+        return round(float(base_contingent), 2)
+    year_start, year_end = _year_bounds(year)
+    if hire_date <= year_start:
+        return round(float(base_contingent), 2)
+    if hire_date > year_end:
+        return 0.0
+    months = max(1, min(12, 12 - hire_date.month))
+    return round(float(base_contingent) * months / 12.0, 2)
+
+
 def compute_workdays_in_period(
     hire_date: date | None,
     year: int,
@@ -247,7 +282,9 @@ def compute_contingent_breakdown(
 
     consumed = round(structural + paid - pause + manual, 2)
     total = round(consumed + rcr, 2)
-    management = settings.effective_management_contingent
+    management = compute_effective_management_contingent(
+        settings, employee.hire_date, year
+    )
     margin = round(management - total, 2)
     legal_excess = round(max(0.0, consumed - settings.legal_cor_contingent_hours), 2)
     usage = round((total / management * 100) if management > 0 else 0.0, 1)
@@ -325,8 +362,10 @@ __all__ = [
     "ContingentSettings",
     "aggregate_contingent_kpis",
     "compute_contingent_breakdown",
+    "compute_effective_management_contingent",
     "compute_monthly_breakdown",
     "compute_pause_deduction",
+    "compute_prorated_management_contingent",
     "compute_rcr_hours",
     "compute_structural_hours",
     "compute_weeks_worked",

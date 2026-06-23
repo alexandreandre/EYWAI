@@ -8,7 +8,9 @@ from app.modules.repos_compensateur.domain.contingent_rules import (
     ContingentEmployeeInput,
     ContingentSettings,
     compute_contingent_breakdown,
+    compute_effective_management_contingent,
     compute_pause_deduction,
+    compute_prorated_management_contingent,
     compute_structural_hours,
     compute_weeks_worked,
 )
@@ -101,3 +103,49 @@ class TestStructuralAndPause:
             settings, date(2020, 1, 1), 2025, date(2025, 12, 31)
         )
         assert 15.0 <= pause <= 15.5
+
+
+class TestProratedManagementContingent:
+    def test_full_year(self):
+        settings = _settings_client_excel()
+        assert compute_effective_management_contingent(
+            settings, date(2019, 10, 1), 2025
+        ) == 360.0
+
+    def test_jean_may_2025(self):
+        assert compute_prorated_management_contingent(360.0, date(2025, 5, 28), 2025) == 210.0
+
+    def test_sow_april_2025(self):
+        assert compute_prorated_management_contingent(360.0, date(2025, 4, 22), 2025) == 240.0
+
+
+class TestManagementContingentProrata:
+    def test_prorata_embauche_mai(self):
+        from app.modules.repos_compensateur.domain.contingent_rules import (
+            compute_effective_management_contingent,
+        )
+
+        settings = _settings_client_excel()
+        assert compute_effective_management_contingent(
+            settings, date(2025, 5, 28), 2025
+        ) == 210.0
+
+    def test_prorata_embauche_avril(self):
+        from app.modules.repos_compensateur.domain.contingent_rules import (
+            compute_effective_management_contingent,
+        )
+
+        settings = _settings_client_excel()
+        assert compute_effective_management_contingent(
+            settings, date(2025, 4, 22), 2025
+        ) == 240.0
+
+    def test_annee_complete(self):
+        from app.modules.repos_compensateur.domain.contingent_rules import (
+            compute_effective_management_contingent,
+        )
+
+        settings = _settings_client_excel()
+        assert compute_effective_management_contingent(
+            settings, date(2019, 10, 1), 2025
+        ) == 360.0
