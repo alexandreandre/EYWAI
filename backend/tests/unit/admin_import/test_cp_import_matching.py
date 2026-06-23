@@ -29,6 +29,14 @@ def mock_repo():
             "company_name": "COMITECH",
             "siret": "49861035100013",
         }
+        mock.resolve_company_from_payslip.return_value = (
+            {
+                "id": "co-comitech",
+                "company_name": "COMITECH",
+                "siret": "49861035100013",
+            },
+            [],
+        )
         mock.list_employees_by_company_ids.return_value = {
             "co-comitech": EMPLOYEES,
         }
@@ -64,6 +72,10 @@ class TestParseCpImportMatching:
 
     def test_unknown_siret_is_error(self, mock_repo):
         mock_repo.find_company_by_siret.return_value = None
+        mock_repo.resolve_company_from_payslip.return_value = (
+            None,
+            ["Entreprise SIRET 49861035100013 introuvable dans EYWAI."],
+        )
         with patch(
             "app.modules.admin_import.application.cp_import.parse_pdf_file"
         ) as mock_parse:
@@ -80,3 +92,40 @@ class TestParseCpImportMatching:
             row = result["rows"][0]
             assert row["company_id"] is None
             assert row["review_status"] == "error"
+
+    def test_mbc_resolved_by_company_name(self, mock_repo):
+        mock_repo.resolve_company_from_payslip.return_value = (
+            {
+                "id": "co-mbc",
+                "company_name": "Mont Blanc Composite",
+                "siret": None,
+            },
+            [
+                "Entreprise identifiée par nom « MONT BLANC COMPOSITE » "
+                "(SIRET 75116833700028 non enregistré dans EYWAI)."
+            ],
+        )
+        mock_repo.list_employees_by_company_ids.return_value = {
+            "co-mbc": [],
+        }
+        with patch(
+            "app.modules.admin_import.application.cp_import.parse_pdf_file"
+        ) as mock_parse, patch(
+            "app.modules.admin_import.application.cp_import.get_adjustments_by_employees_year",
+            return_value={},
+        ):
+            from app.modules.admin_import.application.cp_payslip_parser import (
+                parse_payslip_page_text,
+            )
+            from tests.unit.admin_import.test_cp_payslip_parser import MBC_PAGE
+
+            page = parse_payslip_page_text(MBC_PAGE)
+            page.source_file = "05-2026 MBC.pdf"
+            page.page_index = 1
+            mock_parse.return_value = ([page], [])
+
+            result = parse_cp_import_files([("05-2026 MBC.pdf", b"%PDF")])
+            row = result["rows"][0]
+            assert row["company_id"] == "co-mbc"
+            assert row["company_name"] == "Mont Blanc Composite"
+            assert any("identifiée par nom" in w for w in row["warnings"])

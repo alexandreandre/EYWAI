@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import calendar
+from datetime import date, datetime, timezone
 
 from app.core.database import supabase
 from app.modules.absences.application.leave_settings_queries import (
@@ -41,6 +42,17 @@ from app.modules.absences.schemas.leave_settings_responses import (
     LeaveSettingsResponse,
     RttYearEndCloseResult,
 )
+
+def bulletin_reference_date(year: int, month: int | None = None) -> date:
+    """Date de référence pour un solde CP issu d'un bulletin (fin de période paie)."""
+    today = date.today()
+    if month is not None and 1 <= month <= 12:
+        _, last_day = calendar.monthrange(year, month)
+        return min(date(year, month, last_day), today)
+    if year < today.year:
+        return date(year, 12, 31)
+    return today
+
 
 _WRITABLE_POLICY_KEYS = frozenset(
     {
@@ -185,11 +197,10 @@ def apply_cp_solde_import(
     cp_n1_solde: float,
     cp_n_solde: float,
     rtt_solde: float = 0.0,
+    month: int | None = None,
     note: str | None = None,
 ) -> None:
     """Convertit des soldes CP/RTT affichés en soldes d'ouverture et upsert."""
-    from datetime import date
-
     from app.modules.absences.domain.rules import (
         compute_cp_period_balances,
         compute_rtt_balance,
@@ -206,7 +217,7 @@ def apply_cp_solde_import(
     )
     policy = get_leave_policy(company_id)
     validated = absence_repository.list_validated_for_employees([employee_id])
-    ref = date(year, 12, 31) if year != date.today().year else date.today()
+    ref = bulletin_reference_date(year, month)
     periods = compute_cp_period_balances(
         hire_date,
         validated,

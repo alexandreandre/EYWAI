@@ -25,6 +25,7 @@ class CpImportCommitRow(BaseModel):
     company_id: str
     employee_id: str
     year: int
+    month: Optional[int] = Field(None, ge=1, le=12)
     cp_n1_solde: float = 0.0
     cp_n_solde: float = 0.0
     source_file: Optional[str] = None

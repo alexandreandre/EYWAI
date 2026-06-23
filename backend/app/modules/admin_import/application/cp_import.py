@@ -6,7 +6,10 @@ import unicodedata
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.modules.absences.application.leave_settings_commands import apply_cp_solde_import
+from app.modules.absences.application.leave_settings_commands import (
+    apply_cp_solde_import,
+    bulletin_reference_date,
+)
 from app.modules.absences.domain.leave_policy import EmployeeLeaveAdjustment
 from app.modules.absences.domain.rules import compute_cp_period_balances
 from app.modules.absences.infrastructure.leave_settings_repository import (
@@ -81,6 +84,7 @@ def _compute_current_cp_soldes(
     employee_id: str,
     company_id: str,
     year: int,
+    month: Optional[int] = None,
 ) -> tuple[Optional[float], Optional[float]]:
     hire_raw = get_employee_hire_date(employee_id)
     if not hire_raw:
@@ -94,7 +98,7 @@ def _compute_current_cp_soldes(
     adjustments = get_adjustments_by_employees_year([employee_id], year)
     adjustment = adjustments.get(employee_id, EmployeeLeaveAdjustment.empty())
     validated = absence_repository.list_validated_for_employees([employee_id])
-    ref = date(year, 12, 31) if year != date.today().year else date.today()
+    ref = bulletin_reference_date(year, month)
     periods = compute_cp_period_balances(
         hire_date,
         validated,
@@ -144,14 +148,23 @@ def parse_cp_import_files(
     deduped, duplicates_removed, conflicts = _dedupe_pages(all_pages)
     file_errors.extend(conflicts)
 
-    sirets = {p.siret for p in deduped if p.siret}
-    companies_by_siret: Dict[str, Dict[str, Any]] = {}
-    for siret in sirets:
-        company = repo.find_company_by_siret(siret)
+    companies_by_page_key: Dict[str, Dict[str, Any]] = {}
+    company_resolution_warnings: Dict[str, List[str]] = {}
+    seen_page_keys: set[str] = set()
+    for page in deduped:
+        page_key = f"{page.siret or ''}|{page.company_name or ''}"
+        if page_key in seen_page_keys:
+            continue
+        seen_page_keys.add(page_key)
+        company, resolve_warnings = repo.resolve_company_from_payslip(
+            page.siret, page.company_name
+        )
         if company:
-            companies_by_siret[siret] = company
+            companies_by_page_key[page_key] = company
+        if resolve_warnings:
+            company_resolution_warnings[page_key] = resolve_warnings
 
-    company_ids = [str(c["id"]) for c in companies_by_siret.values()]
+    company_ids = [str(c["id"]) for c in companies_by_page_key.values()]
     employees_by_company = repo.list_employees_by_company_ids(company_ids)
     rosters_by_company: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -180,12 +193,12 @@ def parse_cp_import_files(
         company_name: Optional[str] = page.company_name
         review_status = "error"
 
-        if page.siret and page.siret in companies_by_siret:
-            co = companies_by_siret[page.siret]
+        page_key = f"{page.siret or ''}|{page.company_name or ''}"
+        co = companies_by_page_key.get(page_key)
+        if co:
             company_id = str(co["id"])
             company_name = co.get("company_name") or company_name
-        elif page.siret:
-            warnings.append(f"Entreprise SIRET {page.siret} introuvable dans EYWAI.")
+        warnings.extend(company_resolution_warnings.get(page_key, []))
 
         first_name, last_name = "", ""
         if page.raw_name:
@@ -303,7 +316,10 @@ def parse_cp_import_files(
             ):
                 item["has_existing_adjustment"] = True
             current_n1, current_n = _compute_current_cp_soldes(
-                str(emp_id), str(company_id), int(year)
+                str(emp_id),
+                str(company_id),
+                int(year),
+                item.get("month"),
             )
             item["current_cp_n1"] = current_n1
             item["current_cp_n"] = current_n
@@ -357,6 +373,7 @@ def commit_cp_import(body: CpImportCommitBody) -> Dict[str, Any]:
                 row.year,
                 cp_n1_solde=row.cp_n1_solde,
                 cp_n_solde=row.cp_n_solde,
+                month=row.month,
                 note=note,
             )
             results.append(

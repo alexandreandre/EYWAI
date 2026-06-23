@@ -95,6 +95,11 @@ class TestParseCegidClarifie:
         assert parsed.siret == "75116833700028"
         assert parsed.company_name == "MONT BLANC COMPOSITE"
         assert parsed.matricule == "IBRAHIMA N"
+        assert parsed.year == 2026
+        assert parsed.month == 5
+        assert parsed.period_label == "Mai 2026"
+        assert parsed.cp_n1_solde == 0.0
+        assert parsed.cp_n_solde == 11.96
 
 
 class TestParseEywaiNative:

@@ -152,6 +152,7 @@ export type CpImportCommitRow = {
   company_id: string;
   employee_id: string;
   year: number;
+  month?: number | null;
   cp_n1_solde: number;
   cp_n_solde: number;
   source_file?: string | null;

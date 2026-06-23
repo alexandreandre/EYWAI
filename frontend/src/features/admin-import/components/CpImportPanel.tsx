@@ -121,6 +121,7 @@ export function CpImportPanel() {
           company_id: row.company_id as string,
           employee_id: row.employee_id as string,
           year: row.year,
+          month: row.month,
           cp_n1_solde: row.cp_n1_solde,
           cp_n_solde: row.cp_n_solde,
           source_file: row.source_file,

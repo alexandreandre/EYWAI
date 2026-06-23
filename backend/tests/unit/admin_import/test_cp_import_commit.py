@@ -23,6 +23,7 @@ class TestCommitCpImport:
                         company_id="co-1",
                         employee_id="emp-1",
                         year=2026,
+                        month=5,
                         cp_n1_solde=0.0,
                         cp_n_solde=11.96,
                         source_file="test.pdf",
@@ -37,6 +38,7 @@ class TestCommitCpImport:
             kwargs = mock_apply.call_args.kwargs
             assert kwargs["cp_n1_solde"] == 0.0
             assert kwargs["cp_n_solde"] == 11.96
+            assert kwargs["month"] == 5
             assert "Mai 2026" in kwargs["note"]
 
     def test_skips_unconfirmed(self):
