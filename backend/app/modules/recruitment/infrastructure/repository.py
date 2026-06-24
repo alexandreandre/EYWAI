@@ -521,13 +521,9 @@ class EmployeeCreator(IEmployeeCreator):
         normalized_last = _remove_accents(c["last_name"]).upper()
         normalized_first = _remove_accents(c["first_name"]).capitalize()
         folder_name = f"{normalized_last}_{normalized_first}"
-        from app.modules.employees.domain.rules import derive_collaborator_username
+        from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 
-        username = derive_collaborator_username(
-            c["first_name"],
-            c["last_name"],
-            email=candidate_email,
-        )
+        username = allocate_collaborator_username(c["first_name"], c["last_name"])
         employee_data = {
             "company_id": company_id,
             "first_name": c["first_name"],

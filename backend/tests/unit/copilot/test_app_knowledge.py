@@ -78,3 +78,21 @@ def test_guide_covers_manager_validation_menus():
     assert "Congés à valider" in APP_FEATURE_GUIDE
     assert "CET à valider" in APP_FEATURE_GUIDE
     assert "Validations" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_salary_advance_net_cap_override():
+    """Le guide documente la dérogation RH au plafond 50 % du net."""
+    assert "50 %" in APP_FEATURE_GUIDE
+    assert "Hors plafond" in APP_FEATURE_GUIDE or "dérogation" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_salary_payment_method():
+    """Le guide mentionne le mode de paiement du salaire (virement/chèque/espèces)."""
+    assert "Mode de paiement du salaire" in APP_FEATURE_GUIDE or "virement" in APP_FEATURE_GUIDE
+    assert "chèque" in APP_FEATURE_GUIDE.lower() or "cheque" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_cse_status_in_mon_entreprise():
+    """Le guide documente le statut CSE dans Mon Entreprise."""
+    assert "Statut CSE" in APP_FEATURE_GUIDE
+    assert "carence" in APP_FEATURE_GUIDE.lower()

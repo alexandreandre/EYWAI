@@ -14,6 +14,9 @@ _TRANSIENT_MARKERS = (
     "errno 35",
     "connection reset",
     "broken pipe",
+    "sslv3_alert_bad_record_mac",
+    "bad record mac",
+    "ssl/tls alert",
 )
 
 T = TypeVar("T")

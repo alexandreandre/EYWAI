@@ -33,10 +33,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
-import {
-  QK_COMPANY_DOCUMENTS_EXPLORER,
-} from '@/components/documents/CompanyDocumentsExplorer';
 import type { EmployeeDocumentGenerationHandlers } from '@/components/employee-detail/EmployeeDetailDocumentsRhSection';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { queryKeys } from '@/lib/queryKeys';
 import { Loader2 } from 'lucide-react';
 
 import {
@@ -59,6 +58,7 @@ type GenMode = DocumentGenMode;
 export function useCompanyDocumentGeneration() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const companyId = useActiveCompanyId();
 
   const [genMode, setGenMode] = useState<GenMode>(null);
   const [genEmployeeId, setGenEmployeeId] = useState('');
@@ -138,7 +138,7 @@ export function useCompanyDocumentGeneration() {
   );
 
   const invalidateExplorer = () => {
-    void queryClient.invalidateQueries({ queryKey: QK_COMPANY_DOCUMENTS_EXPLORER });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.documentsExplorer(companyId) });
     void queryClient.invalidateQueries({ queryKey: ['rh-documents'] });
   };
 

@@ -38,7 +38,10 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   fiche, avec les onglets : Documents, Augmentations et Promotions,
   Primes et autres (primes mensuelles, médailles du travail, prêts employeur,
   taux de PAS), Entretiens, Suivi médical, Calendrier, Badgeuse. C'est aussi là
-  qu'on affecte la convention collective d'un salarié. Les identifiants de connexion d'un
+  qu'on affecte la convention collective d'un salarié et qu'on renseigne le profil
+  administratif (mode de paiement du salaire : virement, chèque ou espèces ;
+  coordonnées bancaires). L'onglet Badgeuse permet de saisir le matricule GTA
+  (identifiant pointage / import planning). Les identifiants de connexion d'un
   salarié (nom d'utilisateur + mot de passe temporaire) se trouvent dans
   l'onglet Documents → dossier « Autres » → fichier « Identifiants de connexion »
   (PDF téléchargeable). Si le PDF n'existe pas encore, il est généré automatiquement
@@ -101,7 +104,9 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   d'augmentation, promotions individuelles, avenants au contrat.
 
 — CSE & Dialogue Social (« CSE & Dialogue Social ») : réunions, élus, heures de
-  délégation, BDES, élections, exports.
+  délégation, BDES, élections, exports. Le statut CSE de l'entreprise (carence
+  électorale, CSE élu, non requis…) se paramètre aussi dans Mon Entreprise →
+  onglet Paie (carte Statut CSE).
 
 — Gestion des Utilisateurs (« Gestion des Utilisateurs ») : comptes applicatifs
   des gestionnaires RH et administrateurs (pas les comptes collaborateurs/salariés).
@@ -156,6 +161,8 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
   ⑧ Saisies sur salaire → saisies-arrêts, pensions alimentaires, ATD.
   ⑨ Avances & acomptes → valider et verser avances sur salaire, acomptes sur
     salaire et acomptes sur prime (réconciliation possible au moment de la paie).
+    Plafond légal 50 % du net de référence ; dérogation RH possible avec motif
+    (« Hors plafond 50 % du net ») pour une demande exceptionnelle.
   ⑩ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
     sur bulletin.
 Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
@@ -281,6 +288,12 @@ FAQ RH TRANSVERSES
 — Avance vs acompte : une avance sur salaire est versée avant le travail ;
   un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
   anticipe une prime. Tout se gère dans « Avances & acomptes » (RH et collaborateur).
+  Le montant est plafonné à 50 % du net de référence ; le RH peut activer une
+  dérogation avec motif obligatoire lors de la création ou validation.
+— Mode de paiement du salaire : virement (défaut), chèque ou espèces — renseigné
+  dans la fiche Collaborateur (section profil / coordonnées).
+— Statut CSE entreprise : Mon Entreprise → onglet Paie → carte Statut CSE
+  (non requis, carence électorale avec PV, CSE élu…).
 — Prêts employeur : module dédié dans le workflow paie (étape ⑩) et espace
   collaborateur ; paramétrage et validation des médailles du travail dans
   Mon Entreprise → onglet Paie.

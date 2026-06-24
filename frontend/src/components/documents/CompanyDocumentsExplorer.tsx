@@ -39,6 +39,8 @@ import {
   type EmployeeGroupMeta,
 } from '@/components/documents/companyDocumentsExplorerUtils';
 import { EmployeeDocumentSubfolder } from '@/components/documents/EmployeeDocumentSubfolder';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { queryKeys } from '@/lib/queryKeys';
 import { Edit, Folder, FolderOpen, RefreshCw, Search, User } from 'lucide-react';
 
 export const QK_COMPANY_DOCUMENTS_EXPLORER = ['company-documents-explorer'] as const;
@@ -81,6 +83,7 @@ export function CompanyDocumentsExplorer({
   generatedHandlers,
   headerActions,
 }: CompanyDocumentsExplorerProps) {
+  const companyId = useActiveCompanyId();
   const [selectedFolder, setSelectedFolder] = useState<DocumentFolderId>('contrat');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [mobileOpenFolder, setMobileOpenFolder] = useState<DocumentFolderId | null>('contrat');
@@ -89,8 +92,10 @@ export function CompanyDocumentsExplorer({
   const [fileSearch, setFileSearch] = useState('');
 
   const explorerQuery = useQuery({
-    queryKey: QK_COMPANY_DOCUMENTS_EXPLORER,
+    queryKey: queryKeys.documentsExplorer(companyId),
     queryFn: getDocumentsExplorer,
+    enabled: Boolean(companyId),
+    refetchOnMount: 'always',
   });
 
   const generatedRows = useMemo(

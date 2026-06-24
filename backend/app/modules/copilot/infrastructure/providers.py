@@ -177,6 +177,11 @@ Exemples:
 - "Titres de séjour expirant ce mois" → requires_data_retrieval: true
 - "Crédits repos compensateurs du trimestre" → requires_data_retrieval: true
 - "Jours de fractionnement CP accordés" → requires_data_retrieval: true
+- "Comment déclarer la carence CSE ?" → requires_app_help: true
+- "Comment activer une dérogation au plafond 50 % pour une avance ?" → requires_app_help: true
+- "Salariés payés par chèque" → requires_data_retrieval: true
+- "Avances avec dérogation au plafond net" → requires_data_retrieval: true
+- "Jours CP ancienneté accordés cette année" → requires_data_retrieval: true
 - "Où valider les congés de mon équipe ?" → requires_app_help: true
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true

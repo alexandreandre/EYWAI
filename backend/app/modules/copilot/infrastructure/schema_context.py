@@ -19,6 +19,10 @@ Table 'employees': Fiche salarié — source principale effectifs et contrat.
   - first_name (text): Prénom.
   - last_name (text): Nom de famille.
   - email (text): Email professionnel.
+  - phone_number (text): Téléphone professionnel.
+  - matricule (text): Matricule interne entreprise (source DSN S21.G00.30.019).
+  - time_tracking_id (text): Matricule GTA / pointage (import planning, badgeuse).
+  - salary_payment_method (text): Mode paiement salaire net (Valeurs: 'virement', 'cheque', 'especes').
   - hire_date (date): Date d'embauche. Cruciale pour calculer l'ancienneté.
   - seniority_reference_date (date): Date de référence ancienneté (reprise / accord).
   - date_naissance (date): Date de naissance.
@@ -119,12 +123,38 @@ Table 'ijss_tracking_periods': Périodes mensuelles de rapprochement IJSS.
 Table 'ijss_expected_lines': IJSS théoriques par salarié et période.
   - period_id (uuid), employee_id (uuid), absence_request_id (uuid)
   - ijss_theorique (numeric), ijss_subrogees_bulletin (numeric)
+  - ijss_brut_validated (numeric): IJSS brut validée RH pour application paie.
+  - validation_source (text): origine validation ('manual', 'cpam_decompte', …).
+  - validated_at (timestamptz), validated_by (uuid)
+  - applied_to_payslip_at (timestamptz), applied_ijss_brut (numeric)
   - line_status (text): 'pending', 'partial', 'ok', 'variance', 'justified'
 
 ---
 Table 'ijss_received_lines': IJSS reçues (CPAM, virement, saisie manuelle).
   - period_id (uuid), employee_id (uuid), source (text: 'cpam_decompte', 'bank_transfer', 'manual')
   - amount (numeric), match_status (text): 'unmatched', 'matched', 'disputed'
+
+---
+Table 'company_cp_seniority_settings': Paramètres CP supplémentaires d'ancienneté par entreprise.
+  - company_id (uuid, UNIQUE), enabled (boolean)
+  - preset (text): 'plasturgie_idcc_0292', 'custom'
+  - seniority_basis (text): 'company_only', 'include_prior_service'
+  - counting_unit (text): 'ouvrable', 'ouvre'
+  - rules (jsonb): paliers ancienneté → jours CP supplémentaires
+  - forfait_annual_days_default (numeric), forfait_reduction_enabled (boolean)
+
+---
+Table 'employee_cp_seniority_grants': Jours CP ancienneté accordés par salarié et année.
+  - employee_id (uuid), company_id (uuid), grant_year (int)
+  - days_granted (numeric), category_resolved (text)
+  - seniority_years_at_ref (numeric), forfait_days_reduction (numeric)
+  - calculation_snapshot (jsonb)
+
+---
+Table 'company_cse_settings': Statut CSE de l'entreprise (carence, élus, obligation).
+  - company_id (uuid, PK)
+  - cse_status (text): 'unknown', 'not_required', 'obligation_pending', 'carence', 'elected'
+  - carence_pv_document_id (uuid), carence_valid_until (date), notes (text)
 
 ---
 Table 'company_overtime_contingent_settings': Paramètres contingent HS entreprise.
@@ -322,6 +352,8 @@ Table 'salary_advances': Avances et acomptes sur salaire ou prime.
   - status (text): 'pending', 'approved', 'rejected', 'paid'
   - repayment_mode (text): 'single', 'multiple'
   - prime_label (text), prime_expected_amount (numeric) — pour acompte_prime
+  - plafond_net_override (boolean): Dérogation RH au plafond 50 % du net de référence.
+  - plafond_net_override_reason (text): Motif obligatoire si plafond_net_override = true.
   - Jointure: employees e ON e.id = salary_advances.employee_id WHERE e.company_id = ...
 
 ---
@@ -446,6 +478,8 @@ IMPORTANT: Filtrer par company_id via employees ou colonne company_id directe.
 
 Table 'employees': Fiche salarié (effectifs, contrat, paie).
   - id, company_id, first_name, last_name, email, hire_date, contract_type
+  - matricule (text): matricule interne DSN ; time_tracking_id (text): matricule GTA/pointage
+  - salary_payment_method (text): 'virement', 'cheque', 'especes'
   - statut (Cadre/Non-Cadre), employment_status (actif/parti/en_onboarding/…)
   - salaire_de_base (jsonb), specificites_paie (jsonb), periode_essai (jsonb)
   - is_temps_partiel, duree_hebdomadaire, prior_service_months
@@ -461,6 +495,7 @@ Table 'salary_history': Évolutions de salaire.
 Table 'salary_advances': Avances et acomptes.
   - employee_id, advance_type (avance_salaire/acompte_salaire/acompte_prime)
   - requested_amount, approved_amount, status (pending/approved/rejected/paid)
+  - plafond_net_override (boolean), plafond_net_override_reason (text)
 
 Table 'salary_seizures': Saisies sur salaire.
   - employee_id, type (saisie_arret/pension_alimentaire/atd), status (active/closed)
@@ -483,7 +518,16 @@ Table 'ijss_tracking_periods': Rapprochement IJSS mensuel.
   - expected_total, received_cpam_total, variance_total
 
 Table 'ijss_expected_lines': IJSS théoriques par salarié.
-  - period_id, employee_id, ijss_theorique, line_status
+  - period_id, employee_id, ijss_theorique, ijss_brut_validated, line_status
+
+Table 'company_cp_seniority_settings': CP supplémentaires d'ancienneté entreprise.
+  - company_id, enabled, preset, counting_unit, rules (jsonb)
+
+Table 'employee_cp_seniority_grants': Jours CP ancienneté accordés par salarié.
+  - employee_id, grant_year, days_granted, seniority_years_at_ref
+
+Table 'company_cse_settings': Statut CSE entreprise.
+  - company_id, cse_status (unknown/not_required/carence/elected/…), carence_valid_until
 
 Table 'salary_certificates': Attestations salaire arrêts maladie.
   - employee_id, absence_request_id, transmitted_to_cpam

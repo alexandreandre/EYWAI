@@ -112,6 +112,9 @@ def _build_employees_index(
         user_id = enriched.get("user_id")
         if user_id:
             employees.setdefault(str(user_id), enriched)
+        folder_name = str(enriched.get("employee_folder_name") or "").strip()
+        if folder_name:
+            employees.setdefault(folder_name, enriched)
         if rh_should_list_in_documents_explorer(enriched):
             visible_employee_ids.add(employee_id)
 
@@ -131,6 +134,62 @@ def _filter_rows_for_visible_employees(
     ]
 
 
+def _resolve_visible_employee_from_folder(
+    folder_name: str,
+    employees: Dict[str, Dict[str, Any]],
+    visible_employee_ids: set[str],
+) -> tuple[str, Dict[str, Any]] | None:
+    """Associe un sous-dossier storage (id employé, user auth ou dossier legacy)."""
+    emp = employees.get(folder_name)
+    if not emp:
+        return None
+    employee_id = str(emp["id"])
+    if employee_id not in visible_employee_ids:
+        return None
+    return employee_id, emp
+
+
+def _append_storage_item(
+    items: List[Dict[str, Any]],
+    seen_employee_ids: set[str],
+    *,
+    bucket: str,
+    storage_path: str,
+    employee_id: str,
+    emp: Dict[str, Any],
+    kind: str,
+    label: str,
+) -> None:
+    if employee_id in seen_employee_ids:
+        return
+    storage = get_storage_provider()
+    url = storage.create_signed_url(
+        bucket,
+        storage_path,
+        expiry_seconds=3600,
+        download=True,
+    )
+    preview_url = storage.create_signed_url(
+        bucket,
+        storage_path,
+        expiry_seconds=3600,
+        download=False,
+    )
+    if not url:
+        return
+    seen_employee_ids.add(employee_id)
+    items.append(
+        {
+            "employee_id": employee_id,
+            "employee_name": _employee_display_name(emp),
+            "kind": kind,
+            "url": url,
+            "preview_url": preview_url or url,
+            "label": label,
+        }
+    )
+
+
 def _scan_storage_bucket(
     bucket: str,
     company_id: str,
@@ -142,45 +201,67 @@ def _scan_storage_bucket(
 ) -> List[Dict[str, Any]]:
     storage = get_storage_provider()
     items: List[Dict[str, Any]] = []
+    seen_employee_ids: set[str] = set()
     roots = storage.list_files(bucket, company_id)
     for folder in roots:
-        emp_id = str(folder.get("name") or "")
-        if not emp_id:
+        folder_name = str(folder.get("name") or "")
+        if not folder_name:
             continue
-        if emp_id not in visible_employee_ids:
+        resolved_emp = _resolve_visible_employee_from_folder(
+            folder_name, employees, visible_employee_ids
+        )
+        if not resolved_emp:
             continue
-        emp = employees.get(emp_id)
-        if not emp:
-            continue
-        inner = storage.list_files(bucket, f"{company_id}/{emp_id}")
+        employee_id, emp = resolved_emp
+        inner = storage.list_files(bucket, f"{company_id}/{folder_name}")
         resolved = file_resolver(inner, emp)
         if not resolved:
             continue
         file_name, label = resolved
-        storage_path = f"{company_id}/{emp_id}/{file_name}"
-        url = storage.create_signed_url(
-            bucket,
-            storage_path,
-            expiry_seconds=3600,
-            download=True,
+        _append_storage_item(
+            items,
+            seen_employee_ids,
+            bucket=bucket,
+            storage_path=f"{company_id}/{folder_name}/{file_name}",
+            employee_id=employee_id,
+            emp=emp,
+            kind=kind,
+            label=label,
         )
-        preview_url = storage.create_signed_url(
-            bucket,
-            storage_path,
-            expiry_seconds=3600,
-            download=False,
-        )
-        if not url:
+    return items
+
+
+def _scan_legacy_credentials_folders(
+    company_id: str,
+    employees: Dict[str, Dict[str, Any]],
+    visible_employee_ids: set[str],
+    seen_employee_ids: set[str],
+) -> List[Dict[str, Any]]:
+    """PDF identifiants au chemin legacy `{employee_folder_name}/creation_compte.pdf`."""
+    bucket = "creation_compte"
+    storage = get_storage_provider()
+    items: List[Dict[str, Any]] = []
+    for employee_id in visible_employee_ids:
+        if employee_id in seen_employee_ids:
             continue
-        items.append(
-            {
-                "employee_id": emp_id,
-                "employee_name": _employee_display_name(emp),
-                "kind": kind,
-                "url": url,
-                "preview_url": preview_url or url,
-                "label": label,
-            }
+        emp = employees.get(employee_id)
+        if not emp:
+            continue
+        folder_name = str(emp.get("employee_folder_name") or "").strip()
+        if not folder_name:
+            continue
+        inner = storage.list_files(bucket, folder_name)
+        if not any(f.get("name") == "creation_compte.pdf" for f in inner):
+            continue
+        _append_storage_item(
+            items,
+            seen_employee_ids,
+            bucket=bucket,
+            storage_path=f"{folder_name}/creation_compte.pdf",
+            employee_id=employee_id,
+            emp=emp,
+            kind="credentials",
+            label="Identifiants de connexion",
         )
     return items
 
@@ -242,16 +323,24 @@ def get_documents_explorer(company_id: str) -> Dict[str, Any]:
             return ("creation_compte.pdf", "Identifiants de connexion")
         return None
 
-    storage.extend(
-        _scan_storage_bucket(
-            "creation_compte",
+    credentials_items = _scan_storage_bucket(
+        "creation_compte",
+        company_id,
+        employees,
+        visible_employee_ids,
+        kind="credentials",
+        file_resolver=credentials_resolver,
+    )
+    seen_credentials_ids = {str(item["employee_id"]) for item in credentials_items}
+    credentials_items.extend(
+        _scan_legacy_credentials_folders(
             company_id,
             employees,
             visible_employee_ids,
-            kind="credentials",
-            file_resolver=credentials_resolver,
+            seen_credentials_ids,
         )
     )
+    storage.extend(credentials_items)
 
     return {
         "generated": generated,
