@@ -48,6 +48,30 @@ def test_prevoyance_non_cadre_via_lignes_specifiques_ta_tb():
     assert tb["base"] == round(max(0, min(5000.0, 8 * pss) - pss), 2)
 
 
+def test_prevoyance_cadre_forfait_jour_via_lignes_specifiques():
+    ctx = build_test_contexte(
+        statut="Cadre au forfait jour",
+        salaire_base=5000.0,
+        specificites_extra={
+            "prevoyance": {
+                "adhesion": True,
+                "lignes_specifiques": [
+                    {
+                        "id": "epca",
+                        "libelle": "Prévoyance Cadre TA",
+                        "salarial": 0.00365,
+                        "patronal": 0.01825,
+                        "base": "brut_plafonne",
+                    },
+                ],
+            },
+        },
+    )
+    lignes, _ = calculer_cotisations(ctx, 5000.0, 0.0, 0.0)
+    prev_lignes = [l for l in lignes if l.get("coti_id") == "prevoyance_cadre"]
+    assert len(prev_lignes) == 1
+
+
 def test_retraite_sup_cadre_eres_ta():
     ctx = build_test_contexte(
         statut="Cadre",

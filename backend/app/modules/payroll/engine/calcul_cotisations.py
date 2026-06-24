@@ -20,7 +20,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import json
 from supabase import create_client, Client
 from .cotisations_rubriques import enrichir_ligne_cotisation
-from .baremes_loader import resoudre_taux_vm_pour_paie
+from app.shared.domain.employment_rules import is_cadre
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
@@ -169,7 +169,7 @@ def _calculer_assiettes(
                 brut_plafonne=brut_plafonne,
                 tranche_2=assiette_tranche_2,
             )
-        elif contexte.statut_salarie == "Non-Cadre":
+        elif not is_cadre(contexte.statut_salarie):
             cotisation_prevoyance = contexte.get_cotisation_by_id(
                 "prevoyance_non_cadre"
             )
@@ -185,7 +185,7 @@ def _calculer_assiettes(
     if (
         isinstance(retraite_sup_spec, dict)
         and retraite_sup_spec.get("adhesion")
-        and contexte.statut_salarie == "Cadre"
+        and is_cadre(contexte.statut_salarie)
     ):
         part_patronale_retraite_sup = _sommer_part_patronale_lignes_taux(
             retraite_sup_spec.get("lignes_specifiques", []),
@@ -313,9 +313,9 @@ def calculer_cotisations(
         # Filtres d'application
         if (
             coti_id == "prevoyance_cadre" or coti_id == "apec"
-        ) and contexte.statut_salarie != "Cadre":
+        ) and not is_cadre(contexte.statut_salarie):
             continue
-        if coti_id == "prevoyance_non_cadre" and contexte.statut_salarie != "Non-Cadre":
+        if coti_id == "prevoyance_non_cadre" and is_cadre(contexte.statut_salarie):
             continue
         if coti_id == "mutuelle":
             continue  # Géré manuellement plus bas
@@ -629,7 +629,7 @@ def calculer_cotisations(
     log_payroll_debug(logger, f'  -> Statut du salarié: {contexte.statut_salarie}')
     log_payroll_debug(logger, f'  -> Adhésion prévoyance détectée dans le contrat: {adhesion_prevoyance}')
 
-    if adhesion_prevoyance and contexte.statut_salarie == "Cadre":
+    if adhesion_prevoyance and is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche CADRE sélectionnée.')
         # Cas CADRE : on lit les lignes depuis le contrat.json
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
@@ -663,7 +663,7 @@ def calculer_cotisations(
                         bulletin_cotisations.append(ligne_fs)
                         log_payroll_debug(logger, f'      -> Ligne Forfait Social ajoutée: {ligne_fs}')
 
-    elif adhesion_prevoyance and contexte.statut_salarie == "Non-Cadre":
+    elif adhesion_prevoyance and not is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche NON-CADRE sélectionnée.')
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
         if lignes_specifiques:
@@ -713,7 +713,7 @@ def calculer_cotisations(
     )
     if not isinstance(retraite_sup_spec, dict):
         retraite_sup_spec = {}
-    if retraite_sup_spec.get("adhesion") and contexte.statut_salarie == "Cadre":
+    if retraite_sup_spec.get("adhesion") and is_cadre(contexte.statut_salarie):
         for ligne in retraite_sup_spec.get("lignes_specifiques", []):
             base_id = ligne.get("base", "brut_plafonne")
             assiette = assiettes.get(base_id, 0.0)
