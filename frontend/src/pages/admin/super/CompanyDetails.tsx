@@ -1,7 +1,7 @@
 // frontend/src/pages/super-admin/CompanyDetails.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../api/apiClient';
 import { fetchDsnCoverage } from '@/api/dsnImport';
 import {
@@ -31,7 +31,7 @@ import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDial
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 function formatCompanyAddress(company: AdminCompanyDetails): string | null {
   if (company.adresse_rue) {
@@ -66,6 +66,7 @@ interface User {
 export default function CompanyDetails() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [company, setCompany] = useState<AdminCompanyDetails | null>(null);
   const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -282,6 +283,9 @@ export default function CompanyDetails() {
   const handlePurgeEmployeesCompleted = async (result: DeleteAllCompanyEmployeesResult) => {
     await loadCompanyDetails();
     await loadUsers(selectedRole || undefined);
+    if (companyId) {
+      void queryClient.invalidateQueries({ queryKey: ['company-setup-status', companyId] });
+    }
 
     if (result.failed.length > 0) {
       toast({
@@ -292,7 +296,7 @@ export default function CompanyDetails() {
     } else {
       toast({
         title: 'Employés supprimés',
-        description: `${result.removed_count} employé(s) et leurs données ont été supprimés.`,
+        description: `${result.removed_count} employé(s) supprimé(s). Couverture DSN et données onboarding réinitialisées.`,
       });
     }
   };
@@ -478,24 +482,35 @@ export default function CompanyDetails() {
 
       {/* Maintenance — suppression des employés */}
       <div className="mb-6 rounded-lg border border-destructive/20 bg-white p-6 shadow">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Maintenance des employés</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+        <h2 className="text-xl font-bold text-gray-900">Maintenance des employés</h2>
+        {company.stats.employees_count === 0 ? (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+            <div>
+              <p className="font-medium text-emerald-900">Aucun salarié</p>
+              <p className="mt-1 text-sm text-emerald-800/90">
+                Tous les employés de {company.company_name} ont été supprimés. L&apos;entreprise et
+                les utilisateurs RH sont conservés.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <p className="text-sm text-muted-foreground">
               Supprime tous les salariés de l&apos;entreprise ainsi que leurs données associées
               (bulletins, absences, plannings, documents, comptes collaborateurs…). Les utilisateurs
               RH et administrateurs de l&apos;entreprise ne sont pas concernés.
             </p>
+            <Button
+              variant="destructive"
+              className="shrink-0"
+              onClick={() => setShowDeleteAllEmployees(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Supprimer tous les employés
+            </Button>
           </div>
-          <Button
-            variant="destructive"
-            disabled={company.stats.employees_count === 0}
-            onClick={() => setShowDeleteAllEmployees(true)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Supprimer tous les employés
-          </Button>
-        </div>
+        )}
       </div>
 
       {/* Répartition par rôle */}

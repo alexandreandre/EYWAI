@@ -315,3 +315,45 @@ def get_company_id_for_user_from_profile(user_id: str) -> Optional[str]:
     if not response.data:
         return None
     return response.data.get("company_id")
+
+
+def fetch_taken_usernames(*, exclude_employee_id: str | None = None) -> set[str]:
+    """Usernames déjà utilisés (comparaison insensible à la casse)."""
+    response = supabase.table("employees").select("id, username").execute()
+    taken: set[str] = set()
+    for row in response.data or []:
+        if exclude_employee_id and str(row.get("id")) == str(exclude_employee_id):
+            continue
+        username = str(row.get("username") or "").strip().lower()
+        if username:
+            taken.add(username)
+    return taken
+
+
+def allocate_collaborator_username(
+    first_name: str,
+    last_name: str,
+    *,
+    exclude_employee_id: str | None = None,
+    existing: str | None = None,
+) -> str:
+    """
+    Alloue un identifiant prenom.nom disponible en base.
+
+    Conserve un identifiant existant valide (hors placeholder import.*).
+    En cas de collision : prenom.nom2, prenom.nom3, etc.
+    """
+    from app.modules.employees.domain.rules import (
+        build_collaborator_username_base,
+        is_import_style_username,
+        resolve_unique_collaborator_username,
+    )
+
+    taken = fetch_taken_usernames(exclude_employee_id=exclude_employee_id)
+    if existing and str(existing).strip() and not is_import_style_username(existing):
+        existing_norm = str(existing).strip().lower()
+        if existing_norm not in taken:
+            return existing_norm
+
+    base = build_collaborator_username_base(first_name, last_name)
+    return resolve_unique_collaborator_username(base, taken)

@@ -16,6 +16,7 @@ export type UpdateEmployeePayload = {
   collective_agreement_id?: string | null;
   email?: string;
   phone_number?: string | null;
+  salary_payment_method?: 'virement' | 'cheque' | 'especes' | null;
   nir?: string;
   date_naissance?: string;
   lieu_naissance?: string;

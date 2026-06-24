@@ -16,6 +16,7 @@ export interface Employee {
   prior_service_months?: number | null;
   email?: string | null;
   phone_number?: string | null;
+  salary_payment_method?: 'virement' | 'cheque' | 'especes' | null;
   username?: string | null;
   nir?: string | null;
   date_naissance?: string | null;

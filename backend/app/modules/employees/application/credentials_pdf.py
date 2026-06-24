@@ -74,9 +74,10 @@ def find_credentials_pdf_path(
     return None
 
 
-_PASSWORD_UNAVAILABLE = (
+CREDENTIALS_PASSWORD_UNAVAILABLE = (
     "— contactez les RH ou utilisez « Mot de passe oublié » sur la page de connexion"
 )
+_PASSWORD_UNAVAILABLE = CREDENTIALS_PASSWORD_UNAVAILABLE
 
 
 def _resolve_temp_password(auth: Any, user_id: str) -> str:
@@ -93,10 +94,71 @@ def _resolve_temp_password(auth: Any, user_id: str) -> str:
         return _PASSWORD_UNAVAILABLE
 
 
+def store_credentials_pdf_for_employee(
+    employee_id: str,
+    company_id: str,
+    *,
+    password: str,
+    username: Optional[str] = None,
+) -> Optional[str]:
+    """Génère et dépose le PDF identifiants au chemin canonique storage."""
+    employee = _employee_repository.get_by_id(employee_id, company_id)
+    if not employee:
+        employee = _employee_repository.get_by_id_only(employee_id)
+        if not employee or str(employee.get("company_id") or "") != str(company_id):
+            return None
+
+    first_name = str(employee.get("first_name") or "").strip()
+    last_name = str(employee.get("last_name") or "").strip()
+    resolved_username = (username or str(employee.get("username") or "")).strip()
+    if not resolved_username and first_name and last_name:
+        from app.modules.employees.domain.rules import build_collaborator_username_base
+
+        resolved_username = build_collaborator_username_base(first_name, last_name)
+    if not resolved_username:
+        logger.warning("PDF identifiants impossible : username manquant pour %s", employee_id)
+        return None
+
+    company_reader = get_company_reader()
+    try:
+        company_data = company_reader.get_company_data(company_id)
+    except Exception as company_err:
+        logger.warning(
+            "Lecture entreprise ignorée pour PDF identifiants (%s): %s",
+            company_id,
+            company_err,
+        )
+        company_data = None
+    company_data = company_data or default_company_data_fallback()
+
+    try:
+        pdf_content = generate_credentials_pdf(
+            first_name=first_name,
+            last_name=last_name,
+            username=resolved_username,
+            password=password,
+            logo_path="",
+            company_data=company_data,
+        )
+        canonical = f"{company_id}/{employee_id}/{CREDENTIALS_FILENAME}"
+        get_storage_provider().upload(
+            CREDENTIALS_BUCKET, canonical, pdf_content, "application/pdf"
+        )
+        logger.info("PDF identifiants stocké pour l'employé %s", employee_id)
+        return canonical
+    except Exception as pdf_err:
+        logger.warning(
+            "Échec génération PDF identifiants pour %s: %s",
+            employee_id,
+            pdf_err,
+        )
+        return None
+
+
 def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
     """
     Garantit la présence du PDF identifiants en storage.
-    Retourne le chemin storage ou None si le collaborateur n'a pas de compte auth.
+    Retourne le chemin storage ou None si le collaborateur est introuvable.
     """
     company_id = get_employee_company_id(employee_id)
     if not company_id:
@@ -136,54 +198,12 @@ def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
     if existing:
         return existing
 
-    first_name = str(employee.get("first_name") or "").strip()
-    last_name = str(employee.get("last_name") or "").strip()
-    username = str(employee.get("username") or "").strip()
-    if not username and first_name and last_name:
-        from app.shared.utils import remove_accents
-
-        username = (
-            f"{remove_accents(first_name).lower().replace(' ', '_')}."
-            f"{remove_accents(last_name).lower().replace(' ', '_')}"
-        )
-    if not username:
-        logger.warning("PDF identifiants impossible : username manquant pour %s", employee_id)
-        return None
-
     password = _resolve_temp_password(get_auth_provider(), user_id) if user_id else _PASSWORD_UNAVAILABLE
-
-    company_reader = get_company_reader()
-    try:
-        company_data = company_reader.get_company_data(company_id)
-    except Exception as company_err:
-        logger.warning(
-            "Lecture entreprise ignorée pour PDF identifiants (%s): %s",
-            company_id,
-            company_err,
-        )
-        company_data = None
-    company_data = company_data or default_company_data_fallback()
-
-    try:
-        pdf_content = generate_credentials_pdf(
-            first_name=first_name,
-            last_name=last_name,
-            username=username,
-            password=password,
-            logo_path="",
-            company_data=company_data,
-        )
-        canonical = f"{company_id}/{employee_id}/{CREDENTIALS_FILENAME}"
-        storage.upload(CREDENTIALS_BUCKET, canonical, pdf_content, "application/pdf")
-        logger.info("PDF identifiants généré pour l'employé %s", employee_id)
-        return canonical
-    except Exception as pdf_err:
-        logger.warning(
-            "Échec génération PDF identifiants pour %s: %s",
-            employee_id,
-            pdf_err,
-        )
-        return None
+    return store_credentials_pdf_for_employee(
+        employee_id,
+        company_id,
+        password=password,
+    )
 
 
 def get_credentials_pdf_url(employee_id: str) -> Optional[str]:

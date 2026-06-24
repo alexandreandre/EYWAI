@@ -9,6 +9,13 @@ interface EmployeeProfileBankCardProps {
 
 export function EmployeeProfileBankCard({ profile }: EmployeeProfileBankCardProps) {
   const iban = profile.coordonnees_bancaires?.iban;
+  const paymentMethod = profile.salary_payment_method ?? 'virement';
+  const paymentLabel =
+    paymentMethod === 'cheque'
+      ? 'Chèque'
+      : paymentMethod === 'especes'
+        ? 'Espèces'
+        : 'Virement';
 
   return (
     <Card>
@@ -18,11 +25,17 @@ export function EmployeeProfileBankCard({ profile }: EmployeeProfileBankCardProp
           Données bancaires
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <Label>IBAN actuel</Label>
-        <p className="font-mono text-sm font-semibold tracking-wide">
-          {maskIban(iban)}
-        </p>
+      <CardContent className="space-y-3">
+        <div>
+          <Label>Mode de paiement du salaire</Label>
+          <p className="text-sm font-medium">{paymentLabel}</p>
+        </div>
+        <div>
+          <Label>IBAN actuel</Label>
+          <p className="font-mono text-sm font-semibold tracking-wide">
+            {maskIban(iban)}
+          </p>
+        </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Pour modifier votre IBAN, contactez votre service RH avec un nouveau RIB.
         </p>

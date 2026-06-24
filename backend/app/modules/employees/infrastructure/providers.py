@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.core.supabase_resilience import execute_with_retry
 from app.modules.employees.domain.interfaces import (
     IAuthProvider,
     ICompanyReader,
@@ -27,8 +28,11 @@ class SupabaseStorageProvider(IStorageProvider):
     """Implémentation Supabase de IStorageProvider."""
 
     def list_files(self, bucket: str, path: str) -> List[Dict[str, Any]]:
-        result = supabase.storage.from_(bucket).list(path)
-        return list(result) if isinstance(result, list) else []
+        def _list() -> List[Dict[str, Any]]:
+            result = supabase.storage.from_(bucket).list(path)
+            return list(result) if isinstance(result, list) else []
+
+        return execute_with_retry(_list)
 
     def create_signed_url(
         self,
@@ -37,8 +41,10 @@ class SupabaseStorageProvider(IStorageProvider):
         expiry_seconds: int = 3600,
         download: bool = True,
     ) -> Optional[str]:
-        response = supabase.storage.from_(bucket).create_signed_url(
-            path, expiry_seconds, options={"download": download}
+        response = execute_with_retry(
+            lambda: supabase.storage.from_(bucket).create_signed_url(
+                path, expiry_seconds, options={"download": download}
+            )
         )
         if isinstance(response, dict):
             data = response

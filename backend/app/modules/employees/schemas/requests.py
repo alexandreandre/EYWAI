@@ -89,6 +89,7 @@ class UpdateEmployee(BaseModel):
     duree_hebdomadaire: float | None = None
     classification_conventionnelle: Dict[str, Any] | None = None
     team_id: str | None = None
+    salary_payment_method: str | None = None
     is_subject_to_residence_permit: bool | None = None
     residence_permit_expiry_date: date | None = None
     residence_permit_type: str | None = None

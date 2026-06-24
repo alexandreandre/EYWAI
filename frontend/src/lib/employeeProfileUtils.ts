@@ -19,6 +19,7 @@ export interface EmployeeProfileData {
   last_name: string;
   email?: string | null;
   phone_number?: string | null;
+  salary_payment_method?: 'virement' | 'cheque' | 'especes' | null;
   adresse?: EmployeeAddress | null;
   coordonnees_bancaires?: { iban?: string } | null;
   hire_date?: string | null;
@@ -26,6 +27,7 @@ export interface EmployeeProfileData {
   statut?: string | null;
   job_title?: string | null;
   duree_hebdomadaire?: number | null;
+  is_temps_partiel?: boolean | null;
   trial_period_applicable?: boolean | null;
   trial_period_status?:
     | "in_progress"
@@ -68,6 +70,11 @@ export function formatProfileAddress(adresse: EmployeeAddress | null | undefined
 export function formatWeeklyHours(hours: number | null | undefined): string {
   if (hours == null) return 'Non renseigné';
   return `${hours} h/semaine`;
+}
+
+export function formatTempsPartielLabel(isTempsPartiel: boolean | null | undefined): string {
+  if (isTempsPartiel == null) return 'Non renseigné';
+  return isTempsPartiel ? 'Temps partiel' : 'Temps plein';
 }
 
 export function formatTrialPeriodLabel(profile: EmployeeProfileData): string | null {
@@ -123,4 +130,28 @@ export function isProfileNotFoundError(error: unknown): boolean {
     return status === 404;
   }
   return false;
+}
+
+const DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX = '.dsn-import.local';
+
+/** Email technique généré à l'import DSN — pas une adresse réelle. */
+export function isDsnImportPlaceholderEmail(email: string | null | undefined): boolean {
+  if (!email?.trim()) return false;
+  return email.trim().toLowerCase().endsWith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX);
+}
+
+/** Email affichable sur la fiche (masque le placeholder DSN). */
+export function getDisplayEmployeeEmail(email: string | null | undefined): string | null {
+  if (!email?.trim() || isDsnImportPlaceholderEmail(email)) return null;
+  return email.trim();
+}
+
+/** Identifiant de connexion affichable (masqué tant que le compte n'est pas activé). */
+export function getDisplayEmployeeUsername(
+  email: string | null | undefined,
+  username: string | null | undefined,
+): string | null {
+  if (isDsnImportPlaceholderEmail(email)) return null;
+  const value = username?.trim();
+  return value || null;
 }

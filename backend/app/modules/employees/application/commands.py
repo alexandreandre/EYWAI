@@ -23,8 +23,9 @@ from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
     build_employee_folder_name,
     default_company_data_fallback,
-    derive_collaborator_username,
+    normalize_temps_travail_fields,
 )
+from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.domain.salary_timeline import est_augmentation_planifiee
 from app.modules.employees.domain.trial_period import TRIAL_JSON_STATUT_CONFIRMED
 from app.modules.onboarding.domain.profile import (
@@ -129,7 +130,7 @@ async def create_employee(
         alphabet = string.ascii_letters + string.digits + simple_punctuation
         password = "".join(secrets.choice(alphabet) for _ in range(12))
 
-        username = derive_collaborator_username(first_name, last_name, email=email)
+        username = allocate_collaborator_username(first_name, last_name)
 
         try:
             new_user_id = auth.create_user(email=email, password=password)
@@ -372,6 +373,7 @@ def create_employee_imported(
 ) -> Dict[str, Any]:
     """
     Crée un salarié importé (DSN) sans compte Auth.
+    Génère le PDF identifiants (sans mot de passe tant que le compte n'est pas activé).
     Statut actif par défaut ; activation du compte utilisateur différée.
     """
     first_name = employee_data["first_name"]
@@ -381,7 +383,7 @@ def create_employee_imported(
     normalized_last_name = remove_accents(last_name).upper()
     normalized_first_name = remove_accents(first_name).capitalize()
     folder_name = build_employee_folder_name(normalized_last_name, normalized_first_name)
-    username = derive_collaborator_username(first_name, last_name, email=email)
+    username = allocate_collaborator_username(first_name, last_name)
 
     new_id = str(uuid.uuid4())
     db_insert_data = prepare_employee_insert_data(
@@ -396,6 +398,25 @@ def create_employee_imported(
     db_insert_data["email"] = email
 
     new_employee_db = _employee_repository.create(db_insert_data)
+    employee_id = str(new_employee_db.get("id") or new_id)
+    try:
+        from app.modules.employees.application.credentials_pdf import (
+            CREDENTIALS_PASSWORD_UNAVAILABLE,
+            store_credentials_pdf_for_employee,
+        )
+
+        store_credentials_pdf_for_employee(
+            employee_id,
+            company_id,
+            password=CREDENTIALS_PASSWORD_UNAVAILABLE,
+            username=username,
+        )
+    except Exception as pdf_err:
+        logger.warning(
+            "Échec génération PDF identifiants pour salarié importé %s: %s",
+            employee_id,
+            pdf_err,
+        )
     return dict(new_employee_db)
 
 
@@ -446,10 +467,17 @@ def activate_imported_employee_account(
             pass
         raise HTTPException(status_code=500, detail="Échec de la création du profil.")
 
+    username = allocate_collaborator_username(
+        str(emp.get("first_name") or ""),
+        str(emp.get("last_name") or ""),
+        exclude_employee_id=employee_id,
+        existing=str(emp.get("username") or "") or None,
+    )
     update_employee(
         employee_id,
         {
             "email": email,
+            "username": username,
         },
     )
     _employee_repository.update(
@@ -469,11 +497,32 @@ def activate_imported_employee_account(
             detail="Compte créé mais échec de l'accès entreprise.",
         ) from grant_err
 
+    credentials_pdf_path: Optional[str] = None
+    try:
+        from app.modules.employees.application.credentials_pdf import (
+            store_credentials_pdf_for_employee,
+        )
+
+        credentials_pdf_path = store_credentials_pdf_for_employee(
+            employee_id,
+            company_id,
+            password=password,
+            username=username,
+        )
+    except Exception as pdf_err:
+        logger.warning(
+            "Échec génération PDF identifiants après activation %s: %s",
+            employee_id,
+            pdf_err,
+        )
+
     return {
         "employee_id": employee_id,
         "user_id": str(new_user_id),
         "email": email,
+        "username": username,
         "generated_password": password,
+        "credentials_pdf_path": credentials_pdf_path,
     }
 
 
@@ -508,6 +557,15 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
     for _key, _val in list(update_data.items()):
         if isinstance(_val, _date):
             update_data[_key] = _val.isoformat()
+
+    if "is_temps_partiel" in update_data or "duree_hebdomadaire" in update_data:
+        curr = _employee_repository.get_by_id_only(employee_id) or {}
+        is_tp, duree = normalize_temps_travail_fields(
+            update_data.get("is_temps_partiel", curr.get("is_temps_partiel")),
+            update_data.get("duree_hebdomadaire", curr.get("duree_hebdomadaire")),
+        )
+        update_data["is_temps_partiel"] = is_tp
+        update_data["duree_hebdomadaire"] = duree
 
     if "specificites_paie" in update_data:
         curr = _employee_repository.get_by_id_only(employee_id)
@@ -823,6 +881,24 @@ def iter_delete_all_company_employees(
         "removed": removed,
         "failed": failed,
     }
+
+    if len(failed) == 0:
+        from app.modules.employees.application.company_onboarding_reset import (
+            reset_company_onboarding_after_employee_purge,
+        )
+
+        try:
+            result["onboarding_reset"] = reset_company_onboarding_after_employee_purge(
+                company_id
+            )
+        except Exception as exc:
+            logger.warning(
+                "Réinitialisation onboarding échouée pour entreprise %s : %s",
+                company_id,
+                exc,
+            )
+            result["onboarding_reset_error"] = str(exc)
+
     yield {"event": "completed", "result": result}
 
 

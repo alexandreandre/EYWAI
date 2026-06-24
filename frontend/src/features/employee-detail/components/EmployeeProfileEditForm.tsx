@@ -228,6 +228,28 @@ export function EmployeeProfileEditForm({
           />
           <FormField
             control={control}
+            name="salary_payment_method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mode de paiement du salaire</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? 'virement'}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="virement">Virement</SelectItem>
+                    <SelectItem value="cheque">Chèque</SelectItem>
+                    <SelectItem value="especes">Espèces</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
             name="coordonnees_bancaires.iban"
             render={({ field }) => (
               <FormItem className="sm:col-span-2">

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDefaultValues,
   buildUpdatePayload,
+  readWeeklyHours,
 } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
@@ -196,5 +197,24 @@ describe('employeeProfileFormUtils deplacement astreinte', () => {
       vehicle_cv: 7,
       vehicle_type: 'voitures',
     });
+  });
+});
+
+describe('employeeProfileFormUtils temps partiel', () => {
+  it('readWeeklyHours retombe sur 35 h si absent', () => {
+    expect(readWeeklyHours({ ...baseEmployee, duree_hebdomadaire: null })).toBe(35);
+  });
+
+  it('buildDefaultValues conserve is_temps_partiel', () => {
+    const values = buildDefaultValues({ ...baseEmployee, is_temps_partiel: true, duree_hebdomadaire: 21 });
+    expect(values.is_temps_partiel).toBe(true);
+    expect(values.duree_hebdomadaire).toBe(21);
+  });
+
+  it('buildUpdatePayload envoie is_temps_partiel et duree_hebdomadaire', () => {
+    const values = buildDefaultValues({ ...baseEmployee, is_temps_partiel: true, duree_hebdomadaire: 21 });
+    const payload = buildUpdatePayload(values, baseEmployee);
+    expect(payload.is_temps_partiel).toBe(true);
+    expect(payload.duree_hebdomadaire).toBe(21);
   });
 });

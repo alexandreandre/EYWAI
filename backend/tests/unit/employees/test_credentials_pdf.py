@@ -108,11 +108,13 @@ def test_ensure_credentials_pdf_generates_when_auth_user_missing(
     mock_company_id.return_value = "company-1"
     mock_repo.get_by_id_only.return_value = {
         "id": "emp-1",
+        "company_id": "company-1",
         "user_id": "user-1",
         "first_name": "Jean",
         "last_name": "Dupont",
         "username": "jean.dupont",
     }
+    mock_repo.get_by_id.return_value = mock_repo.get_by_id_only.return_value
     storage = MagicMock()
     storage.list_files.return_value = []
     mock_storage_provider.return_value = storage
@@ -128,3 +130,45 @@ def test_ensure_credentials_pdf_generates_when_auth_user_missing(
     storage.upload.assert_called_once()
     mock_generate_pdf.assert_called_once()
     assert "contactez les RH" in mock_generate_pdf.call_args.kwargs["password"]
+
+
+@patch("app.modules.employees.application.credentials_pdf.generate_credentials_pdf")
+@patch("app.modules.employees.application.credentials_pdf.get_company_reader")
+@patch("app.modules.employees.application.credentials_pdf.get_storage_provider")
+@patch("app.modules.employees.application.credentials_pdf._employee_repository")
+def test_store_credentials_pdf_for_employee_uploads_canonical_path(
+    mock_repo: MagicMock,
+    mock_storage_provider: MagicMock,
+    mock_company_reader: MagicMock,
+    mock_generate_pdf: MagicMock,
+) -> None:
+    from app.modules.employees.application.credentials_pdf import (
+        store_credentials_pdf_for_employee,
+    )
+
+    mock_repo.get_by_id.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "first_name": "Jean",
+        "last_name": "Dupont",
+        "username": "jean.dupont",
+    }
+    storage = MagicMock()
+    mock_storage_provider.return_value = storage
+    mock_company_reader.return_value.get_company_data.return_value = {"company_name": "Test SA"}
+    mock_generate_pdf.return_value = b"%PDF-1.4"
+
+    path = store_credentials_pdf_for_employee(
+        "emp-1",
+        "company-1",
+        password="TempPass123!",
+        username="jean.dupont",
+    )
+
+    assert path == "company-1/emp-1/creation_compte.pdf"
+    storage.upload.assert_called_once_with(
+        "creation_compte",
+        "company-1/emp-1/creation_compte.pdf",
+        b"%PDF-1.4",
+        "application/pdf",
+    )

@@ -7,6 +7,8 @@ Comportement identique au router legacy (dates en isoformat, défauts).
 from datetime import date
 from typing import Any, Dict, List
 
+from app.modules.employees.domain.rules import normalize_temps_travail_fields
+
 
 def to_employee_dict(row: Dict[str, Any]) -> Dict[str, Any]:
     """Row Supabase -> dict employé (copie)."""
@@ -48,6 +50,14 @@ def prepare_employee_insert_data(
 
     if data.get("is_subject_to_residence_permit") is None:
         data["is_subject_to_residence_permit"] = False
+
+    if "is_temps_partiel" in data or "duree_hebdomadaire" in data:
+        is_tp, duree = normalize_temps_travail_fields(
+            data.get("is_temps_partiel"),
+            data.get("duree_hebdomadaire"),
+        )
+        data["is_temps_partiel"] = is_tp
+        data["duree_hebdomadaire"] = duree
 
     return data
 

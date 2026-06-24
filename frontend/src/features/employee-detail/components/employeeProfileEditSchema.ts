@@ -9,6 +9,7 @@ export const employeeProfileEditSchema = z
     last_name: z.string().min(2, { message: 'Nom requis.' }),
     email: z.string().email({ message: 'Adresse e-mail invalide.' }),
     phone_number: z.string().optional(),
+    salary_payment_method: z.enum(['virement', 'cheque', 'especes']).optional(),
     nir: z.string().length(15, { message: 'Le NIR doit faire 15 chiffres.' }),
     date_naissance: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {
       message: 'Date de naissance requise.',

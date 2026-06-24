@@ -99,6 +99,7 @@ class FullEmployee(BaseModel):
     last_name: str
     email: str | None = None
     phone_number: str | None = None
+    salary_payment_method: str | None = None
     nir: str | None = None
     date_naissance: date | None = None
     lieu_naissance: str | None = None

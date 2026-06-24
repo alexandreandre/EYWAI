@@ -16,10 +16,8 @@ from app.modules.employees.application.credentials_pdf import (
     CREDENTIALS_FILENAME,
     find_credentials_pdf_path,
 )
-from app.modules.employees.domain.rules import (
-    default_company_data_fallback,
-    derive_collaborator_username,
-)
+from app.modules.employees.domain.rules import default_company_data_fallback
+from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.infrastructure.providers import (
     generate_credentials_pdf,
     get_auth_provider,
@@ -42,8 +40,19 @@ def _generate_temp_password() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(12))
 
 
-def _derive_username(first_name: str, last_name: str, existing: Optional[str], email: Optional[str] = None) -> str:
-    return derive_collaborator_username(first_name, last_name, email=email, existing=existing)
+def _derive_username(
+    first_name: str,
+    last_name: str,
+    existing: Optional[str],
+    *,
+    employee_id: str,
+) -> str:
+    return allocate_collaborator_username(
+        first_name,
+        last_name,
+        exclude_employee_id=employee_id,
+        existing=existing,
+    )
 
 
 def provision_collaborator_account(
@@ -72,7 +81,7 @@ def provision_collaborator_account(
         first_name,
         last_name,
         employee.get("username"),
-        email=email,
+        employee_id=employee_id,
     )
 
     storage = get_storage_provider()
@@ -192,7 +201,7 @@ def reset_collaborator_credentials(
 ) -> Dict[str, Any]:
     """
     Regénère le mot de passe temporaire et le PDF identifiants pour un compte existant.
-    Met à jour le username si l'email permet un identifiant plus unique.
+    Recalcule l'identifiant prenom.nom si nécessaire (collision / placeholder import).
     """
     employee = _employee_repository.get_by_id(employee_id, company_id)
     if not employee:
@@ -205,11 +214,11 @@ def reset_collaborator_credentials(
     email = str(employee.get("email") or "").strip()
     first_name = str(employee.get("first_name") or "").strip()
     last_name = str(employee.get("last_name") or "").strip()
-    username = derive_collaborator_username(
+    username = allocate_collaborator_username(
         first_name,
         last_name,
-        email=email or None,
-        existing=None,
+        exclude_employee_id=employee_id,
+        existing=str(employee.get("username") or "") or None,
     )
 
     password = _generate_temp_password()

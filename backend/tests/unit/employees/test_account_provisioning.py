@@ -13,6 +13,10 @@ from app.modules.employees.application.account_provisioning import (
 pytestmark = pytest.mark.unit
 
 
+@patch(
+    "app.modules.employees.application.account_provisioning.allocate_collaborator_username",
+    return_value="marie.onboard",
+)
 @patch("app.modules.employees.application.commands._grant_collaborator_company_access")
 @patch("app.modules.employees.application.account_provisioning.generate_credentials_pdf")
 @patch("app.modules.employees.application.account_provisioning.get_auth_provider")
@@ -28,6 +32,7 @@ def test_provision_collaborator_account_creates_auth_and_pdf(
     mock_auth_provider: MagicMock,
     mock_generate_pdf: MagicMock,
     mock_grant: MagicMock,
+    mock_allocate_username: MagicMock,
 ) -> None:
     mock_repo.get_by_id.return_value = {
         "id": "emp-1",

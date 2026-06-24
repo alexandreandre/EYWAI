@@ -14,6 +14,11 @@ import {
   getEmploymentStatusBadge,
   getStatutCadreBadge,
 } from '@/lib/employeeDisplayUtils';
+import {
+  getDisplayEmployeeEmail,
+  getDisplayEmployeeUsername,
+  isDsnImportPlaceholderEmail,
+} from '@/lib/employeeProfileUtils';
 import { ResidencePermitBadge } from '@/components/ResidencePermitBadge';
 import { TrialPeriodBadge } from '@/components/TrialPeriodBadge';
 import { EmployeeDeleteConfirmDialog } from '@/features/employee-detail/components/EmployeeDeleteConfirmDialog';
@@ -36,6 +41,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { EmployeeDetailLeaveBalancesSummary } from '@/components/employee-detail/EmployeeDetailLeaveBalancesSummary';
 export interface EmployeeDetailHeaderEmployee {
   id: string;
   first_name: string;
@@ -143,6 +149,9 @@ export function EmployeeDetailHeaderCard({
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
   const showOnboarding = isRecentHire(employee.hire_date);
   const employmentBadge = getEmploymentStatusBadge(employee.employment_status);
+  const displayEmail = getDisplayEmployeeEmail(employee.email);
+  const displayUsername = getDisplayEmployeeUsername(employee.email, employee.username);
+  const pendingAccountActivation = isDsnImportPlaceholderEmail(employee.email);
 
   const selectedTeam =
     draftTeamId !== '__none__'
@@ -212,20 +221,24 @@ export function EmployeeDetailHeaderCard({
                   {employee.job_title}
                 </CardDescription>
               ) : null}
-              {employee.email ? (
+              {displayEmail ? (
                 <p className="text-sm">
                   <a
-                    href={`mailto:${employee.email}`}
+                    href={`mailto:${displayEmail}`}
                     className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                   >
-                    {employee.email}
+                    {displayEmail}
                   </a>
                 </p>
+              ) : pendingAccountActivation ? (
+                <p className="text-sm text-muted-foreground">
+                  Compte non activé — email à renseigner
+                </p>
               ) : null}
-              {employee.username ? (
+              {displayUsername ? (
                 <p className="text-xs text-muted-foreground">
                   Identifiant de connexion&nbsp;:{' '}
-                  <span className="font-mono">{employee.username}</span>
+                  <span className="font-mono">{displayUsername}</span>
                 </p>
               ) : null}
             </div>
@@ -294,6 +307,8 @@ export function EmployeeDetailHeaderCard({
             {formatEmployeeDateFR(employee.hire_date)}
           </MetadataField>
         </div>
+
+        <EmployeeDetailLeaveBalancesSummary employeeId={employee.id} />
 
         <div className="space-y-4 border-t pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

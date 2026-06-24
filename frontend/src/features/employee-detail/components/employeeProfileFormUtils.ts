@@ -23,7 +23,7 @@ export function readWeeklyHours(employee: Employee): number {
     const n = Number.parseFloat(raw);
     if (Number.isFinite(n) && n > 0) return n;
   }
-  return 39;
+  return 35;
 }
 
 export function isProfileIncomplete(employee: Employee): boolean {
@@ -66,6 +66,9 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     last_name: employee.last_name ?? '',
     email: employee.email ?? '',
     phone_number: employee.phone_number ?? '',
+    salary_payment_method:
+      (employee.salary_payment_method as 'virement' | 'cheque' | 'especes' | undefined) ??
+      'virement',
     nir: normalizeNir(employee.nir),
     date_naissance: employee.date_naissance?.slice(0, 10) ?? '',
     lieu_naissance: employee.lieu_naissance ?? '',
@@ -146,6 +149,7 @@ export function buildUpdatePayload(
     last_name: values.last_name.trim(),
     email: values.email.trim(),
     phone_number: values.phone_number?.trim() || null,
+    salary_payment_method: values.salary_payment_method ?? 'virement',
     nir: normalizeNir(values.nir),
     date_naissance: values.date_naissance,
     lieu_naissance: values.lieu_naissance.trim(),

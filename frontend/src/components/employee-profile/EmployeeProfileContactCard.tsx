@@ -1,7 +1,7 @@
 import { Home, Mail, Phone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { formatProfileAddress, type EmployeeProfileData } from '@/lib/employeeProfileUtils';
+import { formatProfileAddress, getDisplayEmployeeEmail, type EmployeeProfileData } from '@/lib/employeeProfileUtils';
 
 interface EmployeeProfileContactCardProps {
   profile: EmployeeProfileData;
@@ -29,6 +29,7 @@ function ContactRow({
 
 export function EmployeeProfileContactCard({ profile }: EmployeeProfileContactCardProps) {
   const phone = profile.phone_number?.trim();
+  const displayEmail = getDisplayEmployeeEmail(profile.email);
 
   return (
     <Card>
@@ -47,7 +48,7 @@ export function EmployeeProfileContactCard({ profile }: EmployeeProfileContactCa
         <ContactRow
           icon={Mail}
           label="Email personnel"
-          value={profile.email?.trim() || 'Non renseigné'}
+          value={displayEmail || 'Non renseigné'}
         />
       </CardContent>
     </Card>

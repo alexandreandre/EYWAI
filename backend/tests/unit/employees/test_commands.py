@@ -46,6 +46,7 @@ def _minimal_employee_data():
     }
 
 
+@patch("app.modules.employees.application.commands.allocate_collaborator_username", return_value="jean.dupont")
 @patch("app.modules.employees.application.commands._grant_collaborator_company_access")
 @patch("app.modules.employees.application.commands.on_rib_submitted")
 @patch("app.modules.employees.application.commands.generate_credentials_pdf")
@@ -66,6 +67,7 @@ async def test_create_employee_success_returns_employee_with_generated_password(
     mock_gen_credentials_pdf,
     mock_on_rib_submitted,
     mock_grant_access,
+    mock_allocate_username,
 ):
     """create_employee : succès, retourne l'employé avec generated_password."""
     auth = MagicMock()
@@ -106,9 +108,12 @@ async def test_create_employee_success_returns_employee_with_generated_password(
     )
 
 
+@patch("app.modules.employees.application.commands.allocate_collaborator_username", return_value="jean.dupont")
 @patch("app.modules.employees.application.commands.get_auth_provider")
 @pytest.mark.asyncio
-async def test_create_employee_auth_failure_raises_400(mock_get_auth):
+async def test_create_employee_auth_failure_raises_400(
+    mock_get_auth, mock_allocate_username
+):
     """create_employee : si Auth échoue (ex. email déjà utilisé) → HTTP 400."""
     auth = MagicMock()
     auth.create_user.side_effect = RuntimeError("Email already exists")
@@ -126,6 +131,7 @@ async def test_create_employee_auth_failure_raises_400(mock_get_auth):
     )
 
 
+@patch("app.modules.employees.application.commands.allocate_collaborator_username", return_value="jean.dupont")
 @patch("app.modules.employees.application.commands.on_rib_submitted")
 @patch("app.modules.employees.application.commands.generate_credentials_pdf")
 @patch("app.modules.employees.application.commands.prepare_employee_insert_data")
@@ -144,6 +150,7 @@ async def test_create_employee_profile_upsert_failure_rollback_auth(
     mock_prepare_insert,
     mock_gen_credentials_pdf,
     mock_on_rib_submitted,
+    mock_allocate_username,
 ):
     """create_employee : si upsert profil échoue, on supprime l'utilisateur Auth (rollback)."""
     auth = MagicMock()
@@ -678,3 +685,49 @@ def test_upload_employee_contract_not_found_raises_404(mock_emp_repo):
             file_content=b"%PDF-1.4",
         )
     assert exc_info.value.status_code == 404
+
+
+@patch("app.modules.employees.application.credentials_pdf.store_credentials_pdf_for_employee")
+@patch("app.modules.employees.application.commands._grant_collaborator_company_access")
+@patch("app.modules.employees.application.commands.update_employee")
+@patch("app.modules.employees.application.commands.allocate_collaborator_username")
+@patch("app.modules.employees.application.commands._profile_repository")
+@patch("app.modules.employees.application.commands.get_auth_provider")
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_activate_imported_employee_account_generates_credentials_pdf(
+    mock_emp_repo: MagicMock,
+    mock_auth_provider: MagicMock,
+    mock_profile_repo: MagicMock,
+    mock_allocate_username: MagicMock,
+    mock_update_employee: MagicMock,
+    mock_grant_access: MagicMock,
+    mock_store_pdf: MagicMock,
+) -> None:
+    from app.modules.employees.application.commands import activate_imported_employee_account
+
+    mock_emp_repo.get_by_id.return_value = {
+        "id": "emp-1",
+        "first_name": "Jean",
+        "last_name": "MARTIN",
+        "job_title": "Dev",
+        "username": None,
+        "user_id": None,
+    }
+    auth = MagicMock()
+    auth.create_user.return_value = "user-1"
+    mock_auth_provider.return_value = auth
+    mock_allocate_username.return_value = "jean.martin"
+    mock_store_pdf.return_value = "company-1/emp-1/creation_compte.pdf"
+
+    result = activate_imported_employee_account(
+        "emp-1",
+        "company-1",
+        "jean.martin@test.fr",
+        granted_by_user_id="admin-1",
+    )
+
+    assert result["credentials_pdf_path"] == "company-1/emp-1/creation_compte.pdf"
+    mock_store_pdf.assert_called_once()
+    assert mock_store_pdf.call_args.args == ("emp-1", "company-1")
+    assert mock_store_pdf.call_args.kwargs["username"] == "jean.martin"
+    assert mock_store_pdf.call_args.kwargs["password"] == result["generated_password"]

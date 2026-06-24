@@ -24,7 +24,7 @@ import {
 import { showErrorToast } from '@/lib/errorMessages';
 import { cn } from '@/lib/utils';
 
-type Phase = 'confirm' | 'running' | 'done';
+type Phase = 'confirm' | 'running' | 'done' | 'empty';
 
 type DeleteAllEmployeesDialogProps = {
   open: boolean;
@@ -72,8 +72,12 @@ export function DeleteAllEmployeesDialog({
     if (!open) {
       abortRef.current?.abort();
       resetState();
+      return;
     }
-  }, [open, resetState]);
+    if (employeesCount === 0) {
+      setPhase('empty');
+    }
+  }, [open, resetState, employeesCount]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -168,9 +172,16 @@ export function DeleteAllEmployeesDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Supprimer tous les employés</AlertDialogTitle>
+          <AlertDialogTitle>
+            {phase === 'empty' ? 'Aucun salarié' : 'Supprimer tous les employés'}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            {phase === 'done' ? (
+            {phase === 'empty' ? (
+              <>
+                Tous les employés de <strong>{companyName}</strong> ont déjà été supprimés.
+                L&apos;entreprise et les utilisateurs RH sont conservés.
+              </>
+            ) : phase === 'done' ? (
               <>
                 Purge terminée pour <strong>{companyName}</strong>.
               </>
@@ -184,6 +195,13 @@ export function DeleteAllEmployeesDialog({
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {phase === 'empty' && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+            <span>0 employé à supprimer.</span>
+          </div>
+        )}
 
         {phase === 'confirm' && (
           <div className="rounded-lg bg-muted p-4 text-sm">
@@ -254,6 +272,11 @@ export function DeleteAllEmployeesDialog({
         )}
 
         <AlertDialogFooter>
+          {phase === 'empty' && (
+            <Button onClick={handleCloseDone} className="w-full sm:w-auto">
+              Fermer
+            </Button>
+          )}
           {phase === 'confirm' && (
             <>
               <AlertDialogCancel>Annuler</AlertDialogCancel>

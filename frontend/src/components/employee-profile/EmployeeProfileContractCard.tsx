@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   formatProfileDate,
+  formatTempsPartielLabel,
   formatTrialPeriodLabel,
   formatWeeklyHours,
   type EmployeeProfileData,
@@ -41,6 +42,10 @@ export function EmployeeProfileContractCard({ profile }: EmployeeProfileContract
           />
           <ReadOnlyField label="Date d'arrivée" value={formatProfileDate(profile.hire_date)} />
           <ReadOnlyField label="Statut" value={profile.statut || 'Non renseigné'} />
+          <ReadOnlyField
+            label="Temps de travail"
+            value={formatTempsPartielLabel(profile.is_temps_partiel)}
+          />
           <ReadOnlyField
             label="Durée hebdomadaire"
             value={formatWeeklyHours(profile.duree_hebdomadaire)}
