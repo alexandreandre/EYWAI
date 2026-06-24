@@ -20,6 +20,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import json
 from supabase import create_client, Client
 from .cotisations_rubriques import enrichir_ligne_cotisation
+from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 
 # Fichier : moteur_paie/calcul_cotisations.py

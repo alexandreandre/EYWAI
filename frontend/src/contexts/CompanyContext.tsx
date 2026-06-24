@@ -9,7 +9,7 @@
  */
 
 import { log } from '@/lib/logger';
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
@@ -37,7 +37,10 @@ export interface CompanyAccess {
 export interface CompanyContextType {
   accessibleCompanies: CompanyAccess[];
   activeCompany: CompanyAccess | null;
+  /** Change filiale + rechargement complet (switcher RH). */
   setActiveCompany: (companyId: string) => void;
+  /** Change filiale en session sans recharger (parcours guidé, écrans embarqués). */
+  setActiveCompanyInSession: (companyId: string) => void;
   refreshCompanies: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
@@ -131,21 +134,46 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   }, [user, companiesQuery.data, companiesQuery.isLoading]);
 
   /**
-   * Change l'entreprise active
+   * Change l'entreprise active sans recharger la page (header X-Active-Company + état React).
    */
-  const setActiveCompany = (companyId: string) => {
-    const company = accessibleCompanies.find(c => c.company_id === companyId);
+  const setActiveCompanyInSession = useCallback(
+    (companyId: string) => {
+      if (!companyId) return;
+      const company = accessibleCompanies.find((c) => c.company_id === companyId);
+      if (company) {
+        setActiveCompanyState(company);
+      } else {
+        setActiveCompanyState({
+          company_id: companyId,
+          company_name: '',
+          role: 'admin',
+          is_primary: false,
+        });
+      }
+      localStorage.setItem('activeCompanyId', companyId);
+    },
+    [accessibleCompanies],
+  );
 
-    if (!company) {
-      log.error('[CompanyContext] Entreprise non trouvée:', companyId);
-      return;
-    }
+  /**
+   * Change l'entreprise active (rechargement pour vider le cache multi-filiales).
+   */
+  const setActiveCompany = useCallback(
+    (companyId: string) => {
+      const company = accessibleCompanies.find((c) => c.company_id === companyId);
 
-    setActiveCompanyState(company);
-    localStorage.setItem('activeCompanyId', companyId);
-    queryClient.clear();
-    window.location.reload();
-  };
+      if (!company) {
+        log.error('[CompanyContext] Entreprise non trouvée:', companyId);
+        return;
+      }
+
+      setActiveCompanyState(company);
+      localStorage.setItem('activeCompanyId', companyId);
+      queryClient.clear();
+      window.location.reload();
+    },
+    [accessibleCompanies, queryClient],
+  );
 
   /**
    * Rafraîchir manuellement les entreprises
@@ -160,6 +188,7 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
         accessibleCompanies,
         activeCompany,
         setActiveCompany,
+        setActiveCompanyInSession,
         refreshCompanies,
         isLoading,
         error

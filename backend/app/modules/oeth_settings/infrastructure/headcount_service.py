@@ -45,15 +45,22 @@ def load_smic_horaire(year: int) -> float:
     return 11.88 if year >= 2025 else 11.65
 
 
+def _pcs_code_from_employee(emp: Dict[str, Any]) -> str:
+    cc = emp.get("classification_conventionnelle") or {}
+    if isinstance(cc, dict) and cc.get("pcs"):
+        return str(cc["pcs"])
+    return ""
+
+
 def load_employees_for_oeth(company_id: str) -> List[Dict[str, Any]]:
     r = (
         supabase.table("employees")
         .select(
-            "id, first_name, last_name, hire_date, end_date, date_naissance, "
-            "contract_type, status, job_code, pcs_code"
+            "id, first_name, last_name, hire_date, contract_end_date, date_naissance, "
+            "contract_type, employment_status, classification_conventionnelle"
         )
         .eq("company_id", company_id)
-        .neq("status", "parti")
+        .neq("employment_status", "parti")
         .execute()
     )
     employees = r.data or []
@@ -64,6 +71,9 @@ def load_employees_for_oeth(company_id: str) -> List[Dict[str, Any]]:
     for emp in employees:
         prof = profiles.get(emp["id"])
         emp["boeth"] = prof or {}
+        pcs = _pcs_code_from_employee(emp)
+        if pcs:
+            emp["pcs_code"] = pcs
     return employees
 
 
@@ -72,7 +82,7 @@ def count_active_employees(company_id: str) -> int:
         supabase.table("employees")
         .select("id", count="exact")
         .eq("company_id", company_id)
-        .neq("status", "parti")
+        .neq("employment_status", "parti")
         .execute()
     )
     return r.count or 0

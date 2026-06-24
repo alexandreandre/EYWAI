@@ -113,6 +113,9 @@ class CompanyDetailsUpdate(BaseModel):
     service_sante_travail_adresse_ville: Optional[str] = None
     service_sante_travail_telephone: Optional[str] = None
     service_sante_travail_email: Optional[str] = None
+    taux_at_mp: Optional[float] = None
+    paie_jour_de_fin: Optional[int] = None
+    paie_occurrence: Optional[int] = None
     dsn_sync_mode: Optional[str] = Field(
         None,
         description="external | native | transition — source paie pour alertes DSN",

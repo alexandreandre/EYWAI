@@ -17,6 +17,7 @@ def _payslip_row(
     last_name: str,
     coordonnees_bancaires,
     net_a_payer: float = 1500.0,
+    salary_payment_method: str = "virement",
 ):
     return {
         "id": "ps-1",
@@ -29,6 +30,7 @@ def _payslip_row(
             "first_name": first_name,
             "last_name": last_name,
             "coordonnees_bancaires": coordonnees_bancaires,
+            "salary_payment_method": salary_payment_method,
             "hire_date": "2024-01-01",
             "contract_type": "CDI",
             "statut": "cadre",
@@ -59,6 +61,25 @@ class TestPaiementSalairesIban:
         assert data[0]["IBAN"] == _VALID_IBAN
         assert anomalies == []
         assert totals["virements_count"] == 1
+
+    def test_cheque_payment_excluded_from_virements(self, monkeypatch):
+        coords = f'{{"iban": "{_VALID_IBAN}", "bic": "BNPAFRPP"}}'
+        row = _payslip_row(
+            "emp-1",
+            "Lahouari",
+            "BOUDJEMAA",
+            coords,
+            salary_payment_method="cheque",
+        )
+        monkeypatch.setattr(
+            "app.modules.exports.infrastructure.export_paiement_salaires.supabase.table",
+            lambda name: _FakeQuery(name, payslips=[row], exits=[]),
+        )
+        data, totals, anomalies, warnings = get_paiement_salaires_data("co-1", "2026-06")
+        assert data == []
+        assert totals["virements_count"] == 0
+        assert any("chèque" in w.lower() for w in warnings)
+        assert anomalies == []
 
 
 class _FakeQuery:

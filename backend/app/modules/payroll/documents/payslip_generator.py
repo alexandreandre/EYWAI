@@ -74,6 +74,25 @@ def resolve_date_sortie(employee_data: dict) -> Any:
     return contract_end
 
 
+def _build_temps_travail_payload(employee_data: dict) -> dict[str, Any]:
+    """Construit le bloc temps_travail du contrat.json paie depuis la fiche salarié."""
+    from app.modules.employees.domain.rules import (
+        DUREE_LEGALE_HEBDO,
+        normalize_temps_travail_fields,
+    )
+
+    is_tp, duree = normalize_temps_travail_fields(
+        employee_data.get("is_temps_partiel"),
+        employee_data.get("duree_hebdomadaire"),
+    )
+    quotite = round(min(1.0, duree / DUREE_LEGALE_HEBDO), 4) if duree > 0 else 1.0
+    return {
+        "is_temps_partiel": is_tp,
+        "duree_hebdomadaire": duree,
+        "quotite": quotite,
+    }
+
+
 def process_payslip_generation(
     employee_id: str,
     year: int,
@@ -422,10 +441,7 @@ def process_payslip_generation(
                 "periode_essai": _parse_if_json_string(
                     employee_data.get("periode_essai")
                 ),
-                "temps_travail": {
-                    "is_temps_partiel": employee_data.get("is_temps_partiel"),
-                    "duree_hebdomadaire": employee_data.get("duree_hebdomadaire"),
-                },
+                "temps_travail": _build_temps_travail_payload(employee_data),
             },
             "remuneration": {
                 "salaire_de_base": _parse_if_json_string(
@@ -442,7 +458,8 @@ def process_payslip_generation(
                 ),
                 "avantages_en_nature": _parse_if_json_string(
                     employee_data.get("avantages_en_nature")
-                ),
+                )
+                or {},
             },
             "specificites_paie": _parse_if_json_string(
                 employee_data.get("specificites_paie")

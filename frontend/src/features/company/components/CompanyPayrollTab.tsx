@@ -10,6 +10,7 @@ import PrimeAncienneteSettingsCard from "@/features/company/components/PrimeAnci
 import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
 import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettingsCard";
 import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
+import { CompanyPayrollParamsEditCard } from "@/features/company/components/CompanyPayrollParamsEditCard";
 import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
 import OethSettingsCard from "@/features/company/components/OethSettingsCard";
 import OvertimeContingentSettingsCard from "@/features/company/components/OvertimeContingentSettingsCard";
@@ -90,14 +91,18 @@ export function CompanyPayrollTab({
   cseObligation,
   dsnCoverage = null,
   canEditDsn = false,
+  canEditPayrollParams = false,
   onDsnUpdated,
+  onPayrollParamsUpdated,
 }: {
   company: CompanyDetails;
   scrollAnchor?: ComplianceAnchor | null;
   cseObligation?: boolean;
   dsnCoverage?: DsnCoverage | null;
   canEditDsn?: boolean;
+  canEditPayrollParams?: boolean;
   onDsnUpdated?: () => void;
+  onPayrollParamsUpdated?: () => void;
 }): JSX.Element {
   const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
   const anchorRefs = useRef<Partial<Record<ComplianceAnchor, HTMLElement | null>>>({});
@@ -216,6 +221,11 @@ export function CompanyPayrollTab({
             </CardContent>
           </Card>
         </div>
+        <CompanyPayrollParamsEditCard
+          company={company}
+          canEdit={canEditPayrollParams}
+          onSaved={onPayrollParamsUpdated}
+        />
       </section>
 
       {cseObligation ? (

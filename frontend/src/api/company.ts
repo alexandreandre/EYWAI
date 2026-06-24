@@ -164,6 +164,9 @@ export type CompanyDetailsUpdate = Partial<
     | "service_sante_travail_adresse_ville"
     | "service_sante_travail_telephone"
     | "service_sante_travail_email"
+    | "taux_at_mp"
+    | "paie_jour_de_fin"
+    | "paie_occurrence"
   >
 > & {
   dsn_sync_mode?: DsnSyncMode;

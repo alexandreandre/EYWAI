@@ -132,7 +132,12 @@ def compute_movements(
         cutoff = (today - timedelta(days=delta_days)).isoformat()
         count = 0
         for ex in exits:
-            d = ex.get("exit_date") or ex.get("departure_date") or ex.get("created_at")
+            d = (
+                ex.get("last_working_day")
+                or ex.get("exit_date")
+                or ex.get("departure_date")
+                or ex.get("created_at")
+            )
             if d and str(d)[:10] >= cutoff:
                 count += 1
         return count

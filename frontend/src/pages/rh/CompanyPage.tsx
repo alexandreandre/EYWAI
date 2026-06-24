@@ -386,7 +386,9 @@ export default function CompanyPage() {
             cseObligation={overview?.compliance.cse_obligation}
             dsnCoverage={overview?.dsn_coverage ?? null}
             canEditDsn={canEdit}
+            canEditPayrollParams={canEdit}
             onDsnUpdated={() => void overviewQuery.refetch()}
+            onPayrollParamsUpdated={() => void detailsQuery.refetch()}
           />
         </TabsContent>
 

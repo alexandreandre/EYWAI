@@ -296,7 +296,7 @@ def process_payslip_generation_forfait(
                 "convention_collective": build_convention_collective_payload(
                     employee_data, company_data
                 ),
-                "avantages_en_nature": employee_data.get("avantages_en_nature", {}),
+                "avantages_en_nature": employee_data.get("avantages_en_nature") or {},
             },
             "specificites_paie": employee_data.get("specificites_paie", {}),
             "saisie_du_mois": saisies_data,

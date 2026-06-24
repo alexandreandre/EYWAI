@@ -4,7 +4,10 @@ from datetime import date
 
 import pytest
 
-from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+from app.modules.payroll.engine.calcul_brut import (
+    _construire_ligne_avantages_en_nature,
+    calculer_salaire_brut,
+)
 from app.modules.payroll.engine.salary_evolution_brut import lignes_rappel_salaire
 
 from .helpers import build_test_contexte
@@ -92,3 +95,9 @@ def test_rappel_inclus_dans_brut_total():
     ]
     assert len(rappel_lignes) == 1
     assert res["salaire_brut_total"] >= 2200.0 + 200.0 - 1
+
+
+def test_avantages_en_nature_null_dans_contrat():
+    ctx = build_test_contexte()
+    ctx.contrat.setdefault("remuneration", {})["avantages_en_nature"] = None
+    assert _construire_ligne_avantages_en_nature(ctx) is None

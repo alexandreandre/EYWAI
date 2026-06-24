@@ -76,7 +76,9 @@ def compute_ema_from_employees(
         valid_from = _parse_date(boeth.get("valid_from"))
         valid_to = _parse_date(boeth.get("valid_to"))
         birth = _parse_date(emp.get("date_naissance"))
-        job_code = str(emp.get("job_code") or emp.get("pcs_code") or "")
+        cc = emp.get("classification_conventionnelle") or {}
+        pcs_from_cc = cc.get("pcs") if isinstance(cc, dict) else None
+        job_code = str(emp.get("job_code") or emp.get("pcs_code") or pcs_from_cc or "")
 
         for month in range(1, 13):
             etp = monthly_etp(hire, end, employment_year, month)

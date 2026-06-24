@@ -31,10 +31,10 @@ def _construire_ligne_avantages_en_nature(
     total_avantages = 0.0
     regles_aen = contexte.entreprise.get("parametres_paie", {}).get(
         "avantages_en_nature", {}
-    )
+    ) or {}
     situation_salarie_aen = contexte.contrat.get("remuneration", {}).get(
         "avantages_en_nature", {}
-    )
+    ) or {}
 
     situation_repas = situation_salarie_aen.get("repas", {})
     if situation_repas.get("nombre_par_mois", 0) > 0:

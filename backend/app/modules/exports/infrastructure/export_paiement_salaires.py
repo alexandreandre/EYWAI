@@ -37,6 +37,7 @@ def get_paiement_salaires_data(
             first_name,
             last_name,
             coordonnees_bancaires,
+            salary_payment_method,
             hire_date,
             contract_type,
             statut
@@ -67,6 +68,7 @@ def get_paiement_salaires_data(
     warnings = []
     totals = {"virements_count": 0, "total_amount": 0.0, "currency": "EUR"}
     seen_employees = set()
+    excluded_non_virement = 0
 
     for payslip in payslips:
         employee = payslip.get("employees", {})
@@ -114,6 +116,11 @@ def get_paiement_salaires_data(
                     "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
                 }
             )
+            continue
+
+        payment_method = (employee.get("salary_payment_method") or "virement").strip().lower()
+        if payment_method in ("cheque", "especes"):
+            excluded_non_virement += 1
             continue
 
         raw_coords = employee.get("coordonnees_bancaires")
@@ -184,6 +191,11 @@ def get_paiement_salaires_data(
         paiement_data.append(row)
         totals["virements_count"] += 1
         totals["total_amount"] += net_a_payer
+
+    if excluded_non_virement:
+        warnings.append(
+            f"{excluded_non_virement} salarié(s) exclu(s) — paiement par chèque ou espèces."
+        )
 
     return paiement_data, totals, anomalies, warnings
 

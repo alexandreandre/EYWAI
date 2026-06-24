@@ -26,7 +26,7 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
 
     exits_res = (
         supabase.table("employee_exits")
-        .select("id, exit_date, departure_date, created_at, employee_id")
+        .select("id, last_working_day, created_at, employee_id")
         .eq("company_id", company_id)
         .execute()
     )
