@@ -85,7 +85,7 @@ export default function Employees() {
   );
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [employmentStatusFilter, setEmploymentStatusFilter] = useState<string>("actifs_et_depart");
+  const [employmentStatusFilter, setEmploymentStatusFilter] = useState<string>("all");
 
   const navigate = useNavigate();
 
