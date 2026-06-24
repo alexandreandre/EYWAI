@@ -22,6 +22,7 @@ import {
   formatMutuelleOptionLabel,
   PACK_COUVERTURE_LABELS,
 } from "@/lib/mutuelleUtils";
+import { PrevoyanceAffiliationFields } from "@/features/employees/components/PrevoyanceAffiliationFields";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
 import { getTeams } from "@/api/teams";
 import {
@@ -254,12 +255,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     name: "specificites_paie.mutuelle.lignes_specifiques",
   });
 
-  const { fields: prevoyanceFields, append: appendPrevoyance, remove: removePrevoyance } = useFieldArray({
-    control: form.control,
-    name: "specificites_paie.prevoyance.lignes_specifiques",
-  });
-
-  const isCadre = form.watch("statut")?.toLowerCase() === 'cadre';
   const employeeStatut = form.watch("statut");
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, employeeStatut);
 
@@ -676,10 +671,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       // On met à jour la section prévoyance avec la logique conditionnelle
       prevoyance: {
         adhesion: values.specificites_paie.prevoyance.adhesion,
-        lignes_specifiques: 
-          (values.specificites_paie.prevoyance.adhesion && values.statut?.toLowerCase() === 'cadre') 
-          ? values.specificites_paie.prevoyance.lignes_specifiques
-          : [], // On envoie une liste vide si non-cadre ou si l'adhésion n'est pas cochée
+        lignes_specifiques: values.specificites_paie.prevoyance.adhesion
+          ? values.specificites_paie.prevoyance.lignes_specifiques ?? []
+          : [],
       },
     }
   };
@@ -1624,29 +1618,11 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           </div>
                           <div>
                             <h3 className="font-semibold mb-2">Prévoyance</h3>
-                            <div className="space-y-4 rounded-md border p-4">
-                              <FormField control={form.control} name="specificites_paie.prevoyance.adhesion" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-3"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Adhésion Prévoyance</FormLabel></FormItem>)} />
-                              {form.watch("specificites_paie.prevoyance.adhesion") && isCadre && (
-                                <div className="pl-6 border-l-2 ml-2 space-y-4">
-                                  <div className="flex justify-between items-center">
-                                    <h4 className="text-sm font-medium">Lignes de Prévoyance (Cadre)</h4>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => appendPrevoyance({ id: `prevoyance_${prevoyanceFields.length + 1}`, libelle: '', salarial: 0, patronal: 0, forfait_social: 0 })}>
-                                      <PlusCircle className="mr-2 h-4 w-4" /> Ajouter
-                                    </Button>
-                                  </div>
-                                  {prevoyanceFields.map((field, index) => (
-                                    <div key={field.id} className="space-y-2 border-b pb-4 last:border-b-0">
-                                      <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.libelle`} render={({ field }) => (<FormItem><FormLabel>Libellé</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                        <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.salarial`} render={({ field }) => (<FormItem><FormLabel>Taux Salarial (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.patronal`} render={({ field }) => (<FormItem><FormLabel>Taux Patronal (%)</FormLabel><FormControl><Input type="number" step="0.0001" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={form.control} name={`specificites_paie.prevoyance.lignes_specifiques.${index}.forfait_social`} render={({ field }) => (<FormItem><FormLabel>Forfait Social (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            <PrevoyanceAffiliationFields
+                              control={form.control}
+                              namePrefix="specificites_paie.prevoyance"
+                              statut={employeeStatut}
+                            />
                           </div>
                         </div>
                       </div>

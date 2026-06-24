@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ibanFieldSchema } from "@/lib/ibanSchema";
+import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 
 export const createEmployeeFormSchema = z.object({
   // --- SECTION SALARIÉ (COMPLÉTÉE) ---
@@ -127,22 +128,23 @@ export const createEmployeeFormSchema = z.object({
       path: ["periode_essai", "duree_initiale"],
     });
   }
-  // Règle de validation personnalisée pour la prévoyance
-  if (data.statut?.toLowerCase() === 'cadre' && data.specificites_paie.prevoyance.adhesion) {
-    if (!data.specificites_paie.prevoyance.lignes_specifiques || data.specificites_paie.prevoyance.lignes_specifiques.length === 0) {
-      // Si aucune ligne n'est ajoutée pour un cadre, on ne met pas d'erreur pour l'instant,
-      // mais on pourrait en ajouter une ici si c'était obligatoire.
-      return;
-    }
-    // On vérifie chaque ligne de prévoyance
-    data.specificites_paie.prevoyance.lignes_specifiques.forEach((ligne, index) => {
-      if (!ligne.libelle) {
+  if (data.specificites_paie.prevoyance.adhesion) {
+    const lignes = data.specificites_paie.prevoyance.lignes_specifiques ?? [];
+    lignes.forEach((ligne, index) => {
+      if (!ligne.libelle?.trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Le libellé est requis.",
-          path: [`specificites_paie`, `prevoyance`, `lignes_specifiques`, index, `libelle`],
+          path: ["specificites_paie", "prevoyance", "lignes_specifiques", index, "libelle"],
         });
       }
+    });
+  }
+  if (isEmployeeCadre(data.statut) && !data.specificites_paie.prevoyance.adhesion) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Adhésion prévoyance requise pour un cadre.",
+      path: ["specificites_paie", "prevoyance", "adhesion"],
     });
   }
 });

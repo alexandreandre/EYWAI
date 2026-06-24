@@ -13,8 +13,14 @@ export const STATUT_CATEGORIEL_LABELS: Record<string, string> = {
   tous: 'Tous statuts',
 };
 
+/** Cadre / assimilé cadre (ex. « Cadre au forfait jour »), aligné sur la logique backend. */
+export function isEmployeeCadre(statut?: string | null): boolean {
+  const compact = (statut ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(/-/g, '');
+  return compact.includes('cadre') && !compact.includes('noncadre');
+}
+
 export function normalizeEmployeeStatut(statut?: string | null): 'cadre' | 'non_cadre' {
-  return statut?.toLowerCase() === 'cadre' ? 'cadre' : 'non_cadre';
+  return isEmployeeCadre(statut) ? 'cadre' : 'non_cadre';
 }
 
 /** Filtre les formules mutuelle applicables à un salarié (statut + pack optionnel). */

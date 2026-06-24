@@ -88,6 +88,90 @@ describe('employeeProfileFormUtils transport', () => {
   });
 });
 
+describe('employeeProfileFormUtils prevoyance', () => {
+  const prevoyanceLines = [
+    {
+      id: 'epna',
+      libelle: 'Prévoyance Non-cadre TA',
+      salarial: 0.00465,
+      patronal: 0.00465,
+      forfait_social: 0,
+    },
+    {
+      id: 'epnb',
+      libelle: 'Prévoyance Non-cadre TB',
+      salarial: 0.00465,
+      patronal: 0.00465,
+      forfait_social: 0,
+    },
+  ];
+
+  it('buildDefaultValues charge les lignes prévoyance', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        prevoyance: { adhesion: true, lignes_specifiques: prevoyanceLines },
+      },
+    };
+    const values = buildDefaultValues(employee);
+    expect(values.specificites_paie.prevoyance.adhesion).toBe(true);
+    expect(values.specificites_paie.prevoyance.lignes_specifiques).toEqual(prevoyanceLines);
+  });
+
+  it('buildUpdatePayload persiste les lignes depuis le formulaire', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        prevoyance: { adhesion: true, lignes_specifiques: prevoyanceLines },
+      },
+    };
+    const defaults = buildDefaultValues(employee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        prevoyance: {
+          adhesion: true,
+          lignes_specifiques: prevoyanceLines,
+        },
+      },
+    };
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.prevoyance).toMatchObject({
+      adhesion: true,
+      lignes_specifiques: prevoyanceLines,
+    });
+  });
+
+  it('buildUpdatePayload vide les lignes si adhésion décochée', () => {
+    const employee: Employee = {
+      ...baseEmployee,
+      specificites_paie: {
+        ...baseEmployee.specificites_paie,
+        prevoyance: { adhesion: true, lignes_specifiques: prevoyanceLines },
+      },
+    };
+    const defaults = buildDefaultValues(employee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: {
+        ...defaults.specificites_paie,
+        prevoyance: {
+          adhesion: false,
+          lignes_specifiques: prevoyanceLines,
+        },
+      },
+    };
+    const payload = buildUpdatePayload(values, employee);
+    expect(payload.specificites_paie?.prevoyance).toMatchObject({
+      adhesion: false,
+      lignes_specifiques: [],
+    });
+  });
+});
+
 describe('employeeProfileFormUtils deplacement astreinte', () => {
   it('round-trip deplacement_astreinte', () => {
     const employee: Employee = {

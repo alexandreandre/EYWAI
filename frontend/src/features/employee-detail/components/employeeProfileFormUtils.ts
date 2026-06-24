@@ -43,7 +43,10 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     date_conclusion_contrat?: string | null;
   };
   const mutuelle = spec.mutuelle as { mutuelle_type_ids?: string[] } | undefined;
-  const prevoyance = spec.prevoyance as { adhesion?: boolean } | undefined;
+  const prevoyance = spec.prevoyance as {
+    adhesion?: boolean;
+    lignes_specifiques?: EmployeeProfileEditFormValues['specificites_paie']['prevoyance']['lignes_specifiques'];
+  } | undefined;
   const pas = spec.prelevement_a_la_source as { is_personnalise?: boolean; taux?: number } | undefined;
   const transport = spec.transport as {
     abonnement_mensuel_total?: number;
@@ -113,6 +116,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
+        lignes_specifiques: prevoyance?.lignes_specifiques ?? [],
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
@@ -134,7 +138,6 @@ export function buildUpdatePayload(
   values: EmployeeProfileEditFormValues,
   employee: Employee,
 ): UpdateEmployeePayload {
-  const isCadre = values.statut?.toLowerCase() === 'cadre';
   const existingSpec = employee.specificites_paie ?? {};
   const mutuelleIds = values.specificites_paie.mutuelle.mutuelle_type_ids ?? [];
 
@@ -193,10 +196,9 @@ export function buildUpdatePayload(
       prevoyance: {
         ...(existingSpec.prevoyance as object),
         adhesion: values.specificites_paie.prevoyance.adhesion,
-        lignes_specifiques:
-          values.specificites_paie.prevoyance.adhesion
-            ? ((existingSpec.prevoyance as { lignes_specifiques?: unknown[] })?.lignes_specifiques ?? [])
-            : [],
+        lignes_specifiques: values.specificites_paie.prevoyance.adhesion
+          ? values.specificites_paie.prevoyance.lignes_specifiques ?? []
+          : [],
       },
       maintien_regime_apprenti: Boolean(values.specificites_paie.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),

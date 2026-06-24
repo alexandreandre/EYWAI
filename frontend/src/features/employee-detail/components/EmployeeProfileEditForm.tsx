@@ -35,6 +35,7 @@ import {
   formatMutuelleOptionLabel,
   PACK_COUVERTURE_LABELS,
 } from '@/lib/mutuelleUtils';
+import { PrevoyanceAffiliationFields } from '@/features/employees/components/PrevoyanceAffiliationFields';
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 
@@ -65,7 +66,6 @@ export function EmployeeProfileEditForm({
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
   const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
-  const isCadre = statut?.toLowerCase() === 'cadre';
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, statut);
   const companyId = useActiveCompanyId();
   const { data: jeiSettings } = useQuery({
@@ -482,21 +482,14 @@ export function EmployeeProfileEditForm({
             )}
           </div>
 
-          {isCadre && (
-            <FormField
+          <div>
+            <p className="mb-2 text-sm font-medium">Prévoyance</p>
+            <PrevoyanceAffiliationFields
               control={control}
-              name="specificites_paie.prevoyance.adhesion"
-              render={({ field }) => (
-                <FormItem className="flex items-center gap-2 space-y-0">
-                  <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                  <FormLabel className="font-normal">Adhésion prévoyance (cadre)</FormLabel>
-                  <FormMessage />
-                </FormItem>
-              )}
+              namePrefix="specificites_paie.prevoyance"
+              statut={statut}
             />
-          )}
+          </div>
 
           <FormField
             control={control}

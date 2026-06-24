@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
 import { ibanFieldSchema } from '@/lib/ibanSchema';
+import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 export const employeeProfileEditSchema = z
   .object({
@@ -62,6 +63,18 @@ export const employeeProfileEditSchema = z
       }),
       prevoyance: z.object({
         adhesion: z.boolean(),
+        lignes_specifiques: z
+          .array(
+            z.object({
+              id: z.string(),
+              libelle: z.string().min(2, { message: 'Libellé requis.' }),
+              salarial: z.coerce.number(),
+              patronal: z.coerce.number(),
+              forfait_social: z.coerce.number(),
+            }),
+          )
+          .optional()
+          .default([]),
       }),
       maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),
@@ -97,11 +110,23 @@ export const employeeProfileEditSchema = z
         path: ['classification_conventionnelle', 'groupe_emploi'],
       });
     }
-    if (data.statut.toLowerCase() === 'cadre' && !data.specificites_paie.prevoyance.adhesion) {
+    if (isEmployeeCadre(data.statut) && !data.specificites_paie.prevoyance.adhesion) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Adhésion prévoyance requise pour un cadre.',
         path: ['specificites_paie', 'prevoyance', 'adhesion'],
+      });
+    }
+    if (data.specificites_paie.prevoyance.adhesion) {
+      const lignes = data.specificites_paie.prevoyance.lignes_specifiques ?? [];
+      lignes.forEach((ligne, index) => {
+        if (!ligne.libelle?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Le libellé est requis.',
+            path: ['specificites_paie', 'prevoyance', 'lignes_specifiques', index, 'libelle'],
+          });
+        }
       });
     }
     if (data.is_subject_to_residence_permit && !data.residence_permit_expiry_date?.trim()) {
