@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { Info, Loader2 } from "lucide-react";
 import { createSalaryAdvance, getEmployeeAdvanceAvailable, getMyAdvanceAvailable } from '@/api/saisiesAvances';
@@ -66,7 +67,9 @@ export function SalaryAdvanceRequestForm({
     advance_type: 'avance_salaire',
     repayment_mode: 'single',
     repayment_months: 1,
+    plafond_net_override: false,
   });
+  const [overrideReason, setOverrideReason] = useState('');
 
   useEffect(() => {
     if (employeeId) {
@@ -174,6 +177,7 @@ export function SalaryAdvanceRequestForm({
 
     if (
       advanceType !== 'acompte_prime' &&
+      !formData.plafond_net_override &&
       availableAmount !== null &&
       formData.requested_amount > Number(availableAmount)
     ) {
@@ -185,12 +189,39 @@ export function SalaryAdvanceRequestForm({
       return;
     }
 
+    if (formData.plafond_net_override && !overrideReason.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Un motif est obligatoire pour un acompte exceptionnel hors plafond.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const referenceNet = Number(availableDetails?.reference_net_salary ?? 0);
+    if (
+      formData.plafond_net_override &&
+      referenceNet > 0 &&
+      formData.requested_amount > referenceNet
+    ) {
+      toast({
+        title: "Erreur",
+        description: `Le montant ne peut pas dépasser le net de référence (${formatCurrency(referenceNet)}).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const submitData: SalaryAdvanceCreate = {
         ...formData,
         employee_id: finalEmployeeId,
         advance_type: advanceType,
+        plafond_net_override: formData.plafond_net_override || false,
+        plafond_net_override_reason: formData.plafond_net_override
+          ? overrideReason.trim()
+          : undefined,
       } as SalaryAdvanceCreate;
 
       await createSalaryAdvance(submitData);
@@ -225,7 +256,14 @@ export function SalaryAdvanceRequestForm({
 
   const submitDisabled =
     isLoading ||
-    (advanceType !== 'acompte_prime' && availableAmount === 0);
+    (advanceType !== 'acompte_prime' &&
+      !formData.plafond_net_override &&
+      availableAmount === 0);
+
+  const referenceNet = Number(availableDetails?.reference_net_salary ?? 0);
+  const maxFromNet = Number(availableDetails?.max_advance_from_net ?? 0);
+  const showNetCapOverride =
+    !isEmployeeRequest && advanceType !== 'acompte_prime' && availableDetails !== null;
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -238,9 +276,14 @@ export function SalaryAdvanceRequestForm({
             <Label>Nature *</Label>
             <Select
               value={advanceType}
-              onValueChange={(value: AdvanceType) =>
-                setFormData({ ...formData, advance_type: value })
-              }
+              onValueChange={(value: AdvanceType) => {
+                if (value === 'acompte_prime') setOverrideReason('');
+                setFormData({
+                  ...formData,
+                  advance_type: value,
+                  plafond_net_override: value === 'acompte_prime' ? false : formData.plafond_net_override,
+                });
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -364,6 +407,47 @@ export function SalaryAdvanceRequestForm({
               />
             </div>
           </div>
+
+          {showNetCapOverride && (
+            <div className="space-y-3 rounded-md border border-dashed p-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="plafond-net-override">Hors plafond 50 % du net</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Dérogation RH pour un cas exceptionnel (max. net de référence).
+                  </p>
+                </div>
+                <Switch
+                  id="plafond-net-override"
+                  checked={formData.plafond_net_override ?? false}
+                  onCheckedChange={(checked) => {
+                    setFormData({ ...formData, plafond_net_override: checked });
+                    if (!checked) setOverrideReason('');
+                  }}
+                />
+              </div>
+              {formData.plafond_net_override && (
+                <>
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Plafond habituel : {formatCurrency(maxFromNet)} — maximum autorisé :{' '}
+                      {formatCurrency(referenceNet)} (net de référence).
+                    </AlertDescription>
+                  </Alert>
+                  <div>
+                    <Label>Motif de la dérogation *</Label>
+                    <Textarea
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      placeholder="Accord direction, urgence personnelle…"
+                      rows={2}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div>
             <Label>Motif (optionnel)</Label>

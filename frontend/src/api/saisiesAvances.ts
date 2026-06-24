@@ -98,6 +98,8 @@ export interface SalaryAdvance {
   updated_at: string;
   approved_by?: string;
   approved_at?: string;
+  plafond_net_override?: boolean;
+  plafond_net_override_reason?: string;
 }
 
 export interface SalaryAdvanceCreate {
@@ -111,6 +113,8 @@ export interface SalaryAdvanceCreate {
   prime_label?: string;
   prime_id?: string;
   prime_expected_amount?: number;
+  plafond_net_override?: boolean;
+  plafond_net_override_reason?: string;
 }
 
 export interface AcomptePrimeReconcile {

@@ -135,6 +135,19 @@ export function SalaryAdvanceDetail({ advance, onClose, onUpdate }: SalaryAdvanc
               </Alert>
             )}
 
+            {isRh && advance.plafond_net_override && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="flex items-center gap-2">
+                  <Badge variant="secondary">Exceptionnel</Badge>
+                  Hors plafond 50 % du net
+                </AlertTitle>
+                {advance.plafond_net_override_reason && (
+                  <AlertDescription>{advance.plafond_net_override_reason}</AlertDescription>
+                )}
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Nature</p>

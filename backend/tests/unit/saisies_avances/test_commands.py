@@ -48,12 +48,16 @@ def _advance_create(
     employee_id: str = EMPLOYEE_ID,
     requested_amount: Decimal = Decimal("200"),
     requested_date: date = date(2025, 3, 1),
+    plafond_net_override: bool = False,
+    plafond_net_override_reason: str | None = None,
 ):
     return SalaryAdvanceCreate(
         employee_id=employee_id,
         requested_amount=requested_amount,
         requested_date=requested_date,
         repayment_mode="single",
+        plafond_net_override=plafond_net_override,
+        plafond_net_override_reason=plafond_net_override_reason,
     )
 
 
@@ -230,6 +234,92 @@ class TestCreateSalaryAdvance:
                 with pytest.raises(Exception) as exc_info:
                     commands.create_salary_advance(advance_data, ctx)
         assert "50 %" in str(exc_info.value)
+
+    def test_create_salary_advance_rh_override_with_reason_ok(self):
+        advance_data = _advance_create(
+            requested_amount=Decimal("1500"),
+            plafond_net_override=True,
+            plafond_net_override_reason="Accord direction — urgence",
+        )
+        ctx = UserContext(user_id=USER_ID, role="rh")
+        created = {"id": "adv-override", "status": "pending"}
+        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                with patch(f"{SERVICE_MODULE}.get_accounting_account", return_value="4252"):
+                    with patch(f"{SERVICE_MODULE}.advance_repository") as repo:
+                        prov.get_company_id.return_value = COMPANY_ID
+                        build.return_value = {
+                            "available_amount": Decimal("500"),
+                            "reference_net_salary": Decimal("2000"),
+                            "max_advance_from_net": Decimal("1000"),
+                            "outstanding_advances": Decimal("0"),
+                        }
+                        repo.create.return_value = created
+                        result = commands.create_salary_advance(advance_data, ctx)
+        assert result == created
+        call_data = repo.create.call_args[0][0]
+        assert call_data["plafond_net_override"] is True
+        assert call_data["plafond_net_override_reason"] == "Accord direction — urgence"
+
+    def test_create_salary_advance_rh_override_without_reason_raises(self):
+        advance_data = _advance_create(
+            requested_amount=Decimal("1500"),
+            plafond_net_override=True,
+        )
+        ctx = UserContext(user_id=USER_ID, role="rh")
+        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                prov.get_company_id.return_value = COMPANY_ID
+                build.return_value = {
+                    "available_amount": Decimal("500"),
+                    "reference_net_salary": Decimal("2000"),
+                    "max_advance_from_net": Decimal("1000"),
+                    "outstanding_advances": Decimal("0"),
+                }
+                with pytest.raises(Exception) as exc_info:
+                    commands.create_salary_advance(advance_data, ctx)
+        assert "motif" in str(exc_info.value).lower()
+
+    def test_create_salary_advance_collaborator_override_forbidden(self):
+        advance_data = _advance_create(
+            employee_id=USER_ID,
+            requested_amount=Decimal("1500"),
+            plafond_net_override=True,
+            plafond_net_override_reason="Tentative salarié",
+        )
+        ctx = UserContext(
+            user_id=USER_ID,
+            role="collaborateur",
+            active_company_id=COMPANY_ID,
+        )
+        with patch(
+            f"{SERVICE_MODULE}.resolve_employee_id_for_advance_account",
+            return_value=EMPLOYEE_ID,
+        ):
+            with pytest.raises(Exception) as exc_info:
+                commands.create_salary_advance(advance_data, ctx)
+        msg = str(exc_info.value).lower()
+        assert "rh" in msg or "forbidden" in msg
+
+    def test_create_salary_advance_rh_override_exceeds_reference_net_raises(self):
+        advance_data = _advance_create(
+            requested_amount=Decimal("2500"),
+            plafond_net_override=True,
+            plafond_net_override_reason="Trop élevé",
+        )
+        ctx = UserContext(user_id=USER_ID, role="rh")
+        with patch(f"{SERVICE_MODULE}.employee_company_provider") as prov:
+            with patch(f"{SERVICE_MODULE}.build_advance_available") as build:
+                prov.get_company_id.return_value = COMPANY_ID
+                build.return_value = {
+                    "available_amount": Decimal("500"),
+                    "reference_net_salary": Decimal("2000"),
+                    "max_advance_from_net": Decimal("1000"),
+                    "outstanding_advances": Decimal("0"),
+                }
+                with pytest.raises(Exception) as exc_info:
+                    commands.create_salary_advance(advance_data, ctx)
+        assert "net de référence" in str(exc_info.value).lower()
 
 
 class TestApproveSalaryAdvance:

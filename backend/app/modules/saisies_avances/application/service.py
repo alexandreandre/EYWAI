@@ -252,6 +252,8 @@ def _validate_advance_requested_amount(
     requested_amount: Decimal,
     requested_date: date,
     advance_type: str = "avance_salaire",
+    net_cap_override: bool = False,
+    override_reason: Optional[str] = None,
 ) -> None:
     """Vérifie que le montant demandé respecte le disponible selon la nature."""
     if advance_type == "acompte_prime":
@@ -263,11 +265,25 @@ def _validate_advance_requested_amount(
         requested_date.month,
         advance_type=advance_type,
     )
+    reference_net = data.get("reference_net_salary", Decimal("0"))
+
+    if net_cap_override:
+        reason = (override_reason or "").strip()
+        if not reason:
+            raise ValidationError(
+                "Un motif est obligatoire pour un acompte exceptionnel hors plafond."
+            )
+        if reference_net > 0 and requested_amount > reference_net:
+            raise ValidationError(
+                "Le montant demandé dépasse le net de référence "
+                f"({reference_net:.2f} €)."
+            )
+        return
+
     available = data["available_amount"]
     if requested_amount <= available:
         return
 
-    reference_net = data.get("reference_net_salary", Decimal("0"))
     max_from_net = data.get("max_advance_from_net", Decimal("0"))
     outstanding = data.get("outstanding_advances", Decimal("0"))
     net_cap_remaining = max(Decimal("0"), max_from_net - outstanding)
@@ -306,6 +322,18 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
             "Le libellé de la prime est obligatoire pour un acompte sur prime."
         )
 
+    plafond_net_override = bool(getattr(advance_data, "plafond_net_override", False))
+    override_reason = getattr(advance_data, "plafond_net_override_reason", None)
+
+    if plafond_net_override and ctx.role == "collaborateur":
+        raise ForbiddenError(
+            "Seul le service RH peut créer un acompte exceptionnel hors plafond."
+        )
+    if plafond_net_override and advance_type == "acompte_prime":
+        raise ValidationError(
+            "Le plafond 50 % ne s'applique pas aux acomptes sur prime."
+        )
+
     company_id = employee_company_provider.get_company_id(employee_id)
     if not company_id:
         raise NotFoundError("Employé non trouvé.")
@@ -315,6 +343,8 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         Decimal(str(advance_data.requested_amount)),
         advance_data.requested_date,
         advance_type=advance_type,
+        net_cap_override=plafond_net_override,
+        override_reason=override_reason,
     )
     is_employee_request = ctx.role == "collaborateur"
     initial_status = domain_rules.initial_advance_status(
@@ -337,6 +367,10 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         "request_comment": advance_data.request_comment,
         "status": initial_status,
         "remaining_amount": 0,
+        "plafond_net_override": plafond_net_override,
+        "plafond_net_override_reason": (
+            override_reason.strip() if plafond_net_override and override_reason else None
+        ),
     }
     if advance_type == "acompte_prime":
         db_data["prime_label"] = advance_data.prime_label

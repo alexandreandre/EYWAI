@@ -60,6 +60,8 @@ class SalaryAdvanceCreate(BaseModel):
     prime_label: Optional[str] = None
     prime_id: Optional[str] = None
     prime_expected_amount: Optional[Decimal] = Field(default=None, gt=0)
+    plafond_net_override: bool = False
+    plafond_net_override_reason: Optional[str] = None
 
 
 class AcomptePrimeReconcile(BaseModel):

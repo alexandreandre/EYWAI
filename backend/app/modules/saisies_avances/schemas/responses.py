@@ -87,6 +87,8 @@ class SalaryAdvance(BaseModel):
     updated_at: datetime
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
+    plafond_net_override: bool = False
+    plafond_net_override_reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
