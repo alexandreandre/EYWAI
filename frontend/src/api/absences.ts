@@ -112,6 +112,17 @@ export const getAbsencesForEmployee = (employeeId: string) => {
   return apiClient.get<AbsenceRequest[]>(`/api/absences/employees/${employeeId}`);
 };
 
+export interface AbsenceBalancesResponse {
+  balances: AbsenceBalance[];
+}
+
+/** Soldes de congés d'un collaborateur (vue RH — fiche employé). */
+export const getEmployeeAbsenceBalances = (employeeId: string) => {
+  return apiClient.get<AbsenceBalancesResponse>(
+    `/api/absences/employees/${employeeId}/balances`,
+  );
+};
+
 /**
  * Demandes d'absence en attente de validation manager (entreprise active = session).
  * @param companyId utilisé pour la clé React Query / cohérence multi-entreprise côté UI.

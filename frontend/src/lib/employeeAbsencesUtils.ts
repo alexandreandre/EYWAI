@@ -1,4 +1,4 @@
-import type { AbsenceRequest } from '@/api/absences';
+import type { AbsenceBalance, AbsenceRequest } from '@/api/absences';
 
 export const ABSENCE_TYPE_LABELS: Record<AbsenceRequest['type'], string> = {
   conge_paye: 'Congé payé',
@@ -186,4 +186,37 @@ export function formatBalanceRemaining(
 /** Soldes exprimés en heures (compte modulation, repos compensateur). */
 export function balanceUsesHours(balanceType: string): boolean {
   return balanceType === 'Compte modulation' || balanceType === 'Repos compensateur';
+}
+
+const RH_LEAVE_BALANCE_SHORT_LABELS: Record<string, string> = {
+  'Congés Payés (période précédente)': 'CP N-1',
+  'Congés Payés (période en cours)': 'CP N',
+  'Congés Payés': 'CP total',
+  'Congés Payés (ancienneté)': 'CP ancienneté',
+  'Congés Payés (fractionnement)': 'CP fractionnement',
+  RTT: 'RTT',
+  'Repos compensateur': 'Repos comp.',
+  'Compte modulation': 'Modulation',
+  'Événement familial': 'Évén. familial',
+};
+
+export function getRhLeaveBalanceShortLabel(type: string): string {
+  return RH_LEAVE_BALANCE_SHORT_LABELS[type] ?? type;
+}
+
+export function isRhLeaveBalanceVisible(balance: AbsenceBalance): boolean {
+  return balance.type !== 'Congé sans solde';
+}
+
+export function formatRhLeaveBalanceDetail(
+  balance: AbsenceBalance,
+): string {
+  const unit = balanceUsesHours(balance.type) ? 'h' : 'j';
+  const acquired =
+    typeof balance.acquired === 'number'
+      ? `${balance.acquired.toFixed(1)} ${unit}`
+      : '—';
+  const taken = `${balance.taken.toFixed(1)} ${unit}`;
+  const remaining = formatBalanceRemaining(balance.remaining, unit);
+  return `Acquis : ${acquired} · Pris : ${taken} · Restant : ${remaining}`;
 }

@@ -425,3 +425,33 @@ class TestDownloadSalaryCertificate:
                 storage.download.return_value = {"error": "not found"}
                 result = queries.download_salary_certificate("req-1")
         assert result is None
+
+
+class TestGetEmployeeAbsenceBalancesForRh:
+    """Query get_employee_absence_balances_for_rh."""
+
+    def test_delegates_to_my_balances_after_company_check(self):
+        balances = [{"type": "Congés Payés", "acquired": 25, "taken": 0, "remaining": 25}]
+        with patch(
+            "app.modules.absences.application.leave_settings_queries._ensure_employee_in_company",
+        ) as ensure:
+            with patch(
+                "app.modules.absences.application.queries.get_my_absence_balances",
+                return_value=balances,
+            ) as get_balances:
+                result = queries.get_employee_absence_balances_for_rh(
+                    TEST_COMPANY_ID, "emp-1"
+                )
+        ensure.assert_called_once_with("emp-1", TEST_COMPANY_ID)
+        get_balances.assert_called_once_with("emp-1")
+        assert result == balances
+
+    def test_raises_when_employee_not_in_company(self):
+        with patch(
+            "app.modules.absences.application.leave_settings_queries._ensure_employee_in_company",
+            side_effect=LookupError("Employé introuvable dans cette entreprise."),
+        ):
+            with pytest.raises(LookupError, match="Employé introuvable"):
+                queries.get_employee_absence_balances_for_rh(
+                    TEST_COMPANY_ID, "emp-unknown"
+                )

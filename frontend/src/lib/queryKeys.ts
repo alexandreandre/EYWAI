@@ -13,6 +13,10 @@ export const queryKeys = {
     companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
   employeePayslips: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'payslips'),
+  employeeAbsenceBalances: (
+    companyId: string | undefined,
+    employeeId: string | undefined,
+  ) => companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'absence-balances'),
   collectiveAgreements: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'collective-agreements'),
   dashboardAll: (companyId: string | undefined) =>
@@ -157,6 +161,8 @@ export const queryKeys = {
     ['employee', userId ?? 'none', 'employee-loans'] as const,
   documents: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'documents'),
+  documentsExplorer: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'documents', 'explorer'),
   employeeDashboard: (userId: string | undefined) =>
     ['employee', userId ?? 'none', 'dashboard'] as const,
   employeeDashboardAbsences: (

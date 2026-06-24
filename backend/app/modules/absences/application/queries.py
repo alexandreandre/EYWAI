@@ -600,6 +600,18 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
     return result
 
 
+def get_employee_absence_balances_for_rh(
+    company_id: str, employee_id: str
+) -> List[dict]:
+    """Soldes pour la fiche RH d'un collaborateur."""
+    from app.modules.absences.application.leave_settings_queries import (
+        _ensure_employee_in_company,
+    )
+
+    _ensure_employee_in_company(employee_id, company_id)
+    return get_my_absence_balances(employee_id)
+
+
 def get_my_monthly_calendar(employee_id: str, year: int, month: int) -> List[dict]:
     """Calendrier planifié du mois pour un employé (liste des jours)."""
     return get_planned_calendar(employee_id, year, month)

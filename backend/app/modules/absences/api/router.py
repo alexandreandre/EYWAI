@@ -664,6 +664,26 @@ async def get_my_absences_page_data(
         )
 
 
+@router.get(
+    "/employees/{employee_id}/balances",
+    response_model=AbsenceBalancesResponse,
+)
+async def get_employee_absence_balances_route(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Soldes de congés d'un collaborateur (vue RH — fiche employé)."""
+    cid = _require_rh_company_context(current_user)
+    try:
+        balances = queries.get_employee_absence_balances_for_rh(str(cid), employee_id)
+        return AbsenceBalancesResponse(balances=balances)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Erreur lors du calcul des soldes.")
+
+
 # ----- Aperçu maintien de salaire -----
 
 

@@ -429,3 +429,84 @@ def mark_salary_certificate_transmitted(
         if transmitted
         else "Transmission CPAM annulée.",
     }
+
+
+def create_reconciliation_absence(
+    employee_id: str,
+    company_id: str,
+    current_user_id: str,
+    *,
+    absence_type: str,
+    selected_days: list,
+    arret_type: str | None = None,
+    comment: str | None = None,
+    source: str = "dsn_import",
+    supabase_client: Any = None,
+) -> dict:
+    """
+    Crée une absence historique depuis l'import DSN (bypass workflow / soldes CP).
+
+    Réservé au flux import DSN (``source='dsn_import'``).
+    """
+    if source != "dsn_import":
+        raise ValueError("Source de création non autorisée.")
+
+    if not selected_days:
+        raise ValueError("Aucun jour sélectionné pour l'absence DSN.")
+
+    sb = supabase_client or supabase
+    emp_res = (
+        sb.table("employees")
+        .select("id, company_id")
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    employee = emp_res.data if emp_res else None
+    if not employee or str(employee.get("company_id")) != str(company_id):
+        raise LookupError("Employé non trouvé.")
+
+    days_iso = [
+        d.isoformat() if hasattr(d, "isoformat") else str(d)[:10]
+        for d in selected_days
+    ]
+
+    existing = (
+        sb.table("absence_requests")
+        .select("id, selected_days, type")
+        .eq("employee_id", employee_id)
+        .eq("type", absence_type)
+        .eq("status", "validated")
+        .execute()
+    )
+    for row in existing.data or []:
+        existing_days = set(row.get("selected_days") or [])
+        if existing_days == set(days_iso):
+            return row
+
+    db_data: dict[str, Any] = {
+        "employee_id": employee_id,
+        "company_id": company_id,
+        "type": absence_type,
+        "status": "validated",
+        "workflow_step": "approved_rh",
+        "selected_days": days_iso,
+        "comment": comment or "Import DSN historique",
+    }
+    if arret_type:
+        db_data["arret_type"] = arret_type
+
+    created = absence_repository.create(db_data)
+
+    try:
+        days_to_update = [date.fromisoformat(d) for d in days_iso]
+        calendar_update_provider.update_calendar_from_days(
+            employee_id,
+            days_to_update,
+            absence_type,
+            arret_type=arret_type,
+        )
+    except Exception:
+        logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))
+
+    return created
