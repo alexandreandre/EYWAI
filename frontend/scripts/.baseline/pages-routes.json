@@ -78,6 +78,7 @@
     "collective-agreements",
     "companies",
     "companies/:companyId",
+    "company-setup",
     "dsn-import",
     "dsn-transmissions",
     "email-settings",
