@@ -20,6 +20,8 @@ interface EmployeeAssociateComboboxProps {
   placeholder?: string;
   className?: string;
   compact?: boolean;
+  excludeEmployeeIds?: string[];
+  preferredEmployeeIds?: string[];
 }
 
 export function EmployeeAssociateCombobox({
@@ -29,13 +31,49 @@ export function EmployeeAssociateCombobox({
   placeholder = 'Associer…',
   className,
   compact = false,
+  excludeEmployeeIds = [],
+  preferredEmployeeIds = [],
 }: EmployeeAssociateComboboxProps) {
   const [open, setOpen] = useState(false);
+
+  const excluded = new Set(excludeEmployeeIds.filter((id) => id && id !== value));
+  const available = roster.filter((emp) => !excluded.has(emp.id));
+  const preferred = new Set(preferredEmployeeIds.filter(Boolean));
+  const suggested = available.filter((emp) => preferred.has(emp.id));
+  const others = available.filter((emp) => !preferred.has(emp.id));
 
   const selected = roster.find((e) => e.id === value);
   const displayLabel = selected
     ? `${selected.last_name} ${selected.first_name}`
     : placeholder;
+
+  const renderEmployee = (emp: RosterEmployee) => {
+    const label = `${emp.last_name} ${emp.first_name}`;
+    const searchValue = [emp.last_name, emp.first_name, emp.time_tracking_id ?? '']
+      .join(' ')
+      .toLowerCase();
+    return (
+      <CommandItem
+        key={emp.id}
+        value={`${searchValue} ${emp.id}`}
+        keywords={[emp.last_name, emp.first_name, emp.time_tracking_id ?? ''].filter(Boolean)}
+        onSelect={() => {
+          onSelect(emp.id, label);
+          setOpen(false);
+        }}
+      >
+        <Check
+          className={cn('mr-2 h-4 w-4', value === emp.id ? 'opacity-100' : 'opacity-0')}
+        />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate">{label}</span>
+          {emp.time_tracking_id ? (
+            <span className="text-[10px] text-muted-foreground">Mat. {emp.time_tracking_id}</span>
+          ) : null}
+        </span>
+      </CommandItem>
+    );
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
@@ -59,45 +97,17 @@ export function EmployeeAssociateCombobox({
         <Command>
           <CommandInput placeholder="Taper nom, prénom ou matricule…" className="h-9" />
           <CommandList>
-            <CommandEmpty>Aucun salarié trouvé.</CommandEmpty>
-            <CommandGroup>
-              {roster.map((emp) => {
-                const label = `${emp.last_name} ${emp.first_name}`;
-                const searchValue = [
-                  emp.last_name,
-                  emp.first_name,
-                  emp.time_tracking_id ?? '',
-                ]
-                  .join(' ')
-                  .toLowerCase();
-                return (
-                  <CommandItem
-                    key={emp.id}
-                    value={`${searchValue} ${emp.id}`}
-                    keywords={[emp.last_name, emp.first_name, emp.time_tracking_id ?? ''].filter(Boolean)}
-                    onSelect={() => {
-                      onSelect(emp.id, label);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        'mr-2 h-4 w-4',
-                        value === emp.id ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{label}</span>
-                      {emp.time_tracking_id && (
-                        <span className="text-[10px] text-muted-foreground">
-                          Mat. {emp.time_tracking_id}
-                        </span>
-                      )}
-                    </span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
+            <CommandEmpty>Aucun salarié disponible.</CommandEmpty>
+            {suggested.length > 0 ? (
+              <CommandGroup heading="Suggestions">
+                {suggested.map((emp) => renderEmployee(emp))}
+              </CommandGroup>
+            ) : null}
+            {others.length > 0 ? (
+              <CommandGroup heading={suggested.length > 0 ? 'Autres salariés' : undefined}>
+                {others.map((emp) => renderEmployee(emp))}
+              </CommandGroup>
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>

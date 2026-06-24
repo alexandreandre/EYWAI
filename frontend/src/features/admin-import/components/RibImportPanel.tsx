@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -88,13 +88,29 @@ function isSavableRow(row: EditableRow): boolean {
   return false;
 }
 
-export function RibImportPanel() {
+export function RibImportPanel({
+  fixedCompanyId,
+  hideCompanySelector = false,
+  embedded = false,
+  onComplete,
+  onCompanyChange,
+}: {
+  fixedCompanyId?: string;
+  hideCompanySelector?: boolean;
+  embedded?: boolean;
+  onComplete?: () => void;
+  onCompanyChange?: (companyId: string) => void;
+} = {}) {
   const { toast } = useToast();
-  const [companyId, setCompanyId] = useState('');
+  const [companyId, setCompanyId] = useState(fixedCompanyId ?? '');
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<RibImportParseResponse | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
+
+  useEffect(() => {
+    if (fixedCompanyId) setCompanyId(fixedCompanyId);
+  }, [fixedCompanyId]);
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
     queryKey: ['dsn-import-companies'],
@@ -180,6 +196,7 @@ export function RibImportPanel() {
       setParseResult(null);
       setRows([]);
       setSelectedFile(null);
+      onComplete?.();
     },
     onError: (error) => {
       toast({
@@ -225,6 +242,7 @@ export function RibImportPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          {!hideCompanySelector ? (
           <div className="flex-1 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Entreprise</p>
             <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
@@ -252,6 +270,7 @@ export function RibImportPanel() {
                             value={companyCommandValue(c)}
                             onSelect={() => {
                               setCompanyId(c.id);
+                              onCompanyChange?.(c.id);
                               setComboboxOpen(false);
                               setParseResult(null);
                               setRows([]);
@@ -273,6 +292,7 @@ export function RibImportPanel() {
               </PopoverContent>
             </Popover>
           </div>
+          ) : null}
 
           <div className="flex-1 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Fichier</p>

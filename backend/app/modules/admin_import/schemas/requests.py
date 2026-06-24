@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -35,3 +35,29 @@ class CpImportCommitRow(BaseModel):
 
 class CpImportCommitBody(BaseModel):
     rows: List[CpImportCommitRow] = Field(default_factory=list)
+
+
+class PayrollExportCommitRow(BaseModel):
+    row_index: int
+    employee_id: str
+    employee_patch: Dict[str, Any] = Field(default_factory=dict)
+    team_name: Optional[str] = None
+    boeth: Optional[Dict[str, Any]] = None
+    confirmed: bool = True
+
+
+class PayrollExportCommitBody(BaseModel):
+    company_id: str
+    create_teams_if_missing: bool = True
+    rows: List[PayrollExportCommitRow] = Field(default_factory=list)
+
+
+class PlanningImportManualMapping(BaseModel):
+    raw_name: str = Field(..., min_length=1)
+    employee_id: str = Field(..., min_length=1)
+
+
+class PlanningImportApplyMappingsBody(BaseModel):
+    batch_id: str
+    company_id: str
+    mappings: List[PlanningImportManualMapping] = Field(default_factory=list)

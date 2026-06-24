@@ -371,8 +371,245 @@ def resolve_employee_for_timesheet(
     return proposal
 
 
+def resolve_employee_for_planning_sheet(
+    sheet_name: str,
+    roster: List[RosterEmployee],
+    *,
+    exclude_employee_ids: set[str] | None = None,
+    hint_name: str | None = None,
+) -> AiEmployeeProposal:
+    """Rapproche une feuille Excel calendrier (souvent nom de famille seul)."""
+    raw = (sheet_name or "").strip()
+    proposal = AiEmployeeProposal(raw_name=raw)
+    excluded = exclude_employee_ids or set()
+    available = [e for e in roster if e.id not in excluded]
+
+    if not raw or not roster:
+        proposal.review_status = "empty" if not raw else "error"
+        return proposal
+
+    if not available:
+        proposal.warnings.append(
+            "Tous les salariés du dossier sont déjà associés à une feuille."
+        )
+        proposal.match_method = "none"
+        proposal.review_status = "error"
+        return proposal
+
+    candidates = rank_planning_sheet_candidates(
+        raw,
+        roster,
+        exclude_employee_ids=excluded,
+        hint_name=hint_name,
+        limit=8,
+    )
+    if len(candidates) > 1 and hint_name:
+        picked = _pick_hint_disambiguated_candidate(candidates, hint_name)
+        if picked is not None:
+            candidates = [picked]
+
+    proposal.warnings.extend(
+        _candidate_warnings(raw, candidates, roster, excluded, hint_name)
+    )
+
+    if len(candidates) == 1:
+        emp = candidates[0]
+        proposal.employee_id = emp.id
+        proposal.matched_name = f"{emp.first_name} {emp.last_name}"
+        proposal.match_confidence = "high" if _is_exact_sheet_match(raw, emp) else "medium"
+        proposal.match_method = "name_exact" if proposal.match_confidence == "high" else "name_fuzzy"
+        proposal.review_status = "ok" if proposal.match_confidence == "high" else "warning"
+        if proposal.review_status == "warning":
+            proposal.warnings.append(
+                f"Feuille « {raw} » rapprochée de {proposal.matched_name} — confirmez si besoin."
+            )
+        return proposal
+
+    if len(candidates) > 1:
+        labels = ", ".join(f"{e.first_name} {e.last_name}" for e in candidates[:3])
+        proposal.warnings.append(
+            f"Feuille « {raw} » : plusieurs candidats ({labels}…) — choisissez manuellement."
+        )
+        proposal.match_method = "name_fuzzy"
+        proposal.review_status = "error"
+        return proposal
+
+    proposal.warnings.append(f"Aucun employé disponible reconnu pour la feuille « {raw} ».")
+    proposal.match_method = "none"
+    proposal.review_status = "error"
+    return proposal
+
+
+def rank_planning_sheet_candidates(
+    sheet_name: str,
+    roster: List[RosterEmployee],
+    *,
+    exclude_employee_ids: set[str] | None = None,
+    hint_name: str | None = None,
+    limit: int = 5,
+) -> List[RosterEmployee]:
+    """Classe les salariés candidats pour une feuille (hors déjà associés)."""
+    excluded = exclude_employee_ids or set()
+    available = [e for e in roster if e.id not in excluded]
+    if not available:
+        return []
+
+    scored: List[tuple[int, RosterEmployee]] = []
+    norm_sheet = _normalize(sheet_name)
+    sheet_tokens = _tokens(sheet_name)
+    hint_first = _first_name_hint(hint_name)
+    hint_norm = _normalize(hint_name or "")
+
+    for emp in available:
+        score = _score_planning_candidate(
+            emp,
+            norm_sheet=norm_sheet,
+            sheet_tokens=sheet_tokens,
+            hint_name=hint_name,
+            hint_norm=hint_norm,
+            hint_first=hint_first,
+        )
+        if score > 0:
+            scored.append((score, emp))
+
+    scored.sort(key=lambda item: (-item[0], item[1].last_name, item[1].first_name))
+    return [emp for _, emp in scored[:limit]]
+
+
+def _first_name_hint(hint_name: str | None) -> str:
+    if not hint_name:
+        return ""
+    parts = hint_name.split()
+    if len(parts) < 2:
+        return ""
+    return _normalize(" ".join(parts[1:]))
+
+
+def _pick_hint_disambiguated_candidate(
+    candidates: List[RosterEmployee],
+    hint_name: str,
+) -> RosterEmployee | None:
+    """Désambiguïse via le nom complet du Sommaire Excel."""
+    if len(candidates) < 2:
+        return None
+
+    hint_norm = _normalize(hint_name)
+    full_matches = [
+        emp
+        for emp in candidates
+        if hint_norm
+        in (
+            _normalize(f"{emp.first_name} {emp.last_name}"),
+            _normalize(f"{emp.last_name} {emp.first_name}"),
+        )
+    ]
+    if len(full_matches) == 1:
+        return full_matches[0]
+
+    hint_first = _first_name_hint(hint_name)
+    if hint_first:
+        first_matches = [
+            emp
+            for emp in candidates
+            if _first_name_matches_ocr(hint_first, emp.first_name, strict=True)
+        ]
+        if len(first_matches) == 1:
+            return first_matches[0]
+
+    return None
+
+
+def _is_exact_sheet_match(sheet_name: str, emp: RosterEmployee) -> bool:
+    norm_sheet = _normalize(sheet_name)
+    return norm_sheet == _normalize(emp.last_name)
+
+
+def _score_planning_candidate(
+    emp: RosterEmployee,
+    *,
+    norm_sheet: str,
+    sheet_tokens: set[str],
+    hint_name: str | None,
+    hint_norm: str,
+    hint_first: str,
+) -> int:
+    score = 0
+    last_norm = _normalize(emp.last_name)
+    full_a = _normalize(f"{emp.first_name} {emp.last_name}")
+    full_b = _normalize(f"{emp.last_name} {emp.first_name}")
+    emp_tokens = _tokens(f"{emp.first_name} {emp.last_name}")
+
+    if norm_sheet == last_norm:
+        score += 100
+    if norm_sheet in (full_a, full_b):
+        score += 95
+    if sheet_tokens and sheet_tokens.issubset(emp_tokens):
+        score += 80
+    elif emp_tokens.issubset(sheet_tokens) and len(sheet_tokens) >= 2:
+        score += 75
+    elif len(last_norm) >= 4 and (last_norm in norm_sheet or norm_sheet in last_norm):
+        score += 55
+
+    if hint_norm:
+        if hint_norm in (full_a, full_b):
+            score += 90
+        elif hint_norm in full_a or full_a in hint_norm or full_b in hint_norm:
+            score += 70
+        hint_tokens = _tokens(hint_name or "")
+        overlap = hint_tokens & emp_tokens
+        if overlap:
+            score += 20 + 10 * len(overlap)
+        if hint_first and _first_name_matches_ocr(hint_first, emp.first_name):
+            score += 35
+
+    if score > 0 and score < 100:
+        dist = min(
+            _levenshtein(norm_sheet, full_a),
+            _levenshtein(norm_sheet, full_b),
+            _levenshtein(norm_sheet, last_norm),
+        )
+        if dist <= 2:
+            score += 10
+
+    return score
+
+
+def _candidate_warnings(
+    raw: str,
+    candidates: List[RosterEmployee],
+    roster: List[RosterEmployee],
+    excluded: set[str],
+    hint_name: str | None,
+) -> List[str]:
+    warnings: List[str] = []
+    if hint_name and hint_name.strip() and hint_name.strip().lower() != raw.lower():
+        warnings.append(f"Indice Sommaire : « {hint_name.strip()} ».")
+    if excluded:
+        blocked = rank_planning_sheet_candidates(
+            raw,
+            roster,
+            exclude_employee_ids=set(),
+            hint_name=hint_name,
+            limit=1,
+        )
+        if (
+            blocked
+            and blocked[0].id in excluded
+            and (not candidates or candidates[0].id != blocked[0].id)
+        ):
+            blocked_emp = blocked[0]
+            warnings.append(
+                "Le rapprochement le plus probable "
+                f"({blocked_emp.first_name} {blocked_emp.last_name}) "
+                "est déjà pris par une autre feuille."
+            )
+    return warnings
+
+
 __all__ = [
     "ReviewStatus",
     "is_junk_employee_name",
+    "rank_planning_sheet_candidates",
+    "resolve_employee_for_planning_sheet",
     "resolve_employee_for_timesheet",
 ]

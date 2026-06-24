@@ -35,6 +35,7 @@ import { EmployeeAssociateCombobox } from '@/components/schedules/assisted-fill/
 import type { RosterEmployee } from '@/api/calendar';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { CpImportBulletinPreviewDialog } from '@/features/admin-import/components/CpImportBulletinPreviewDialog';
+import { useCompanySetupStatus } from '@/features/admin-import/hooks/useCompanySetupStatus';
 
 const MAX_FILES = 1000;
 const PAGE_SIZE = 50;
@@ -73,15 +74,52 @@ function formatDelta(value: number | null | undefined): string {
   return value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
 }
 
-function isSavableRow(row: EditableRow): boolean {
+function isSavableRow(row: EditableRow, fixedCompanyId?: string): boolean {
   if (!row.employee_id || !row.company_id) return false;
+  if (fixedCompanyId && row.company_id !== fixedCompanyId) return false;
   if (row.review_status === 'ok') return true;
   if (row.manuallyConfirmed && row.review_status === 'warning') return true;
   if (row.manuallyConfirmed && row.review_status === 'error' && row.employee_id) return true;
   return false;
 }
 
-export function CpImportPanel() {
+const COMPANY_MISMATCH_WARNING = 'Entreprise du bulletin différente de la filiale ciblée';
+
+function applyCompanyScope(
+  row: CpImportRowPreview,
+  fixedCompanyId: string | undefined,
+  scopedCompanyName: string | undefined,
+): EditableRow {
+  const base: EditableRow = {
+    ...row,
+    manuallyConfirmed: row.review_status === 'ok',
+  };
+  if (!fixedCompanyId || !row.company_id || row.company_id === fixedCompanyId) {
+    return base;
+  }
+  const label = row.company_name ?? 'autre entreprise';
+  const expected = scopedCompanyName ?? 'la filiale sélectionnée';
+  const warning = `${COMPANY_MISMATCH_WARNING} (${label}, attendu : ${expected})`;
+  return {
+    ...base,
+    manuallyConfirmed: false,
+    review_status: 'error',
+    warnings: base.warnings.includes(warning) ? base.warnings : [...base.warnings, warning],
+  };
+}
+
+export function CpImportPanel({
+  embedded = false,
+  fixedCompanyId,
+  fixedCompanyName,
+  onComplete,
+}: {
+  embedded?: boolean;
+  /** Filiale déjà ciblée (parcours guidé / hub) — masque le nom répété et contrôle les bulletins. */
+  fixedCompanyId?: string;
+  fixedCompanyName?: string;
+  onComplete?: () => void;
+} = {}) {
   const { toast } = useToast();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [parseResult, setParseResult] = useState<CpImportParseResponse | null>(null);
@@ -89,6 +127,13 @@ export function CpImportPanel() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [page, setPage] = useState(0);
   const [bulletinPreview, setBulletinPreview] = useState<BulletinPreviewState>(null);
+
+  const { data: scopedCompanyStatus } = useCompanySetupStatus(fixedCompanyId ?? '', {
+    enabled: Boolean(fixedCompanyId) && !fixedCompanyName,
+  });
+
+  const scopedCompanyName = fixedCompanyName ?? scopedCompanyStatus?.company_name;
+  const companyScoped = Boolean(fixedCompanyId);
 
   const fileByName = useMemo(() => {
     const map = new Map<string, File>();
@@ -104,17 +149,25 @@ export function CpImportPanel() {
     mutationFn: () => parseCpImportFiles(selectedFiles),
     onSuccess: (data) => {
       setParseResult(data);
-      setRows(
-        data.rows.map((row) => ({
-          ...row,
-          manuallyConfirmed: row.review_status === 'ok',
-        })),
+      const scopedRows = data.rows.map((row) =>
+        applyCompanyScope(row, fixedCompanyId, scopedCompanyName),
       );
+      setRows(scopedRows);
       setPage(0);
+      const mismatchCount = fixedCompanyId
+        ? scopedRows.filter((r) => r.company_id && r.company_id !== fixedCompanyId).length
+        : 0;
       toast({
         title: 'Bulletins analysés',
         description: `${data.summary.total} salarié(s) — ${data.summary.ready} prêt(s), ${data.summary.duplicates_removed} doublon(s) retiré(s).`,
       });
+      if (mismatchCount > 0) {
+        toast({
+          title: 'Entreprise non conforme',
+          description: `${mismatchCount} bulletin(s) ne correspondent pas à ${scopedCompanyName ?? 'la filiale ciblée'}.`,
+          variant: 'destructive',
+        });
+      }
       if (data.file_errors.length > 0) {
         toast({
           title: 'Avertissements fichiers',
@@ -135,7 +188,7 @@ export function CpImportPanel() {
   const commitMutation = useMutation({
     mutationFn: async () => {
       const payload = rows
-        .filter(isSavableRow)
+        .filter((row) => isSavableRow(row, fixedCompanyId))
         .map((row) => ({
           row_index: row.row_index,
           company_id: row.company_id as string,
@@ -168,6 +221,7 @@ export function CpImportPanel() {
       setParseResult(null);
       setRows([]);
       setSelectedFiles([]);
+      onComplete?.();
     },
     onError: (error) => {
       toast({
@@ -243,7 +297,12 @@ export function CpImportPanel() {
     error: `Erreurs (${statusCounts.error})`,
   };
 
-  const savableCount = rows.filter(isSavableRow).length;
+  const companyMismatchCount = useMemo(() => {
+    if (!fixedCompanyId) return 0;
+    return rows.filter((r) => r.company_id && r.company_id !== fixedCompanyId).length;
+  }, [rows, fixedCompanyId]);
+
+  const savableCount = rows.filter((row) => isSavableRow(row, fixedCompanyId)).length;
   const verifyCount = rows.filter((r) => r.review_status !== 'ok' && r.employee_id).length;
 
   const handleFilesChange = (fileList: FileList | null) => {
@@ -328,6 +387,24 @@ export function CpImportPanel() {
         </CardContent>
       </Card>
 
+      {companyScoped && scopedCompanyName ? (
+        <p className="text-sm text-muted-foreground">
+          Import pour <span className="font-medium text-foreground">{scopedCompanyName}</span>
+          {' '}— les bulletins d&apos;une autre filiale seront signalés.
+        </p>
+      ) : null}
+
+      {companyMismatchCount > 0 ? (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {companyMismatchCount} bulletin(s) ne correspondent pas à{' '}
+            <strong>{scopedCompanyName ?? 'cette filiale'}</strong>. Retirez-les ou vérifiez le
+            SIRET avant d&apos;enregistrer.
+          </span>
+        </div>
+      ) : null}
+
       {parseResult && (
         <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
           <span>{parseResult.summary.files_processed} fichier(s) traité(s)</span>
@@ -345,31 +422,19 @@ export function CpImportPanel() {
       {parseResult && rows.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <CardTitle className="text-base">Revue des soldes CP</CardTitle>
-                <CardDescription>
-                  {rows.length} salarié(s), {savableCount} prêt(s) à enregistrer
-                  {verifyCount > 0 ? `, ${verifyCount} à vérifier` : ''}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'ok', 'warning', 'error'] as const).map((f) => (
-                  <Button
-                    key={f}
-                    type="button"
-                    size="sm"
-                    variant={statusFilter === f ? 'default' : 'outline'}
-                    onClick={() => {
-                      setStatusFilter(f);
-                      setPage(0);
-                    }}
-                  >
-                    {statusFilterLabels[f]}
-                  </Button>
-                ))}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <CardTitle className="text-base">Revue des soldes CP</CardTitle>
+                  <CardDescription>
+                    {rows.length} salarié(s), {savableCount} prêt(s) à enregistrer
+                    {verifyCount > 0 ? `, ${verifyCount} à vérifier` : ''}
+                  </CardDescription>
+                </div>
                 <Button
                   type="button"
+                  size="sm"
+                  className="h-8 shrink-0"
                   disabled={savableCount === 0 || commitMutation.isPending}
                   onClick={() => commitMutation.mutate()}
                 >
@@ -381,6 +446,27 @@ export function CpImportPanel() {
                   Enregistrer {savableCount} solde(s)
                 </Button>
               </div>
+              <div
+                className="inline-flex flex-wrap gap-1.5 rounded-lg border bg-muted/25 p-1"
+                role="group"
+                aria-label="Filtrer par statut"
+              >
+                {(['all', 'ok', 'warning', 'error'] as const).map((f) => (
+                  <Button
+                    key={f}
+                    type="button"
+                    size="sm"
+                    variant={statusFilter === f ? 'secondary' : 'ghost'}
+                    className="h-8"
+                    onClick={() => {
+                      setStatusFilter(f);
+                      setPage(0);
+                    }}
+                  >
+                    {statusFilterLabels[f]}
+                  </Button>
+                ))}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -388,7 +474,7 @@ export function CpImportPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
-                  <TableHead>Fichier / Entreprise</TableHead>
+                  <TableHead>{companyScoped ? 'Fichier / Période' : 'Fichier / Entreprise'}</TableHead>
                   <TableHead>Salarié détecté</TableHead>
                   <TableHead>CP N-1</TableHead>
                   <TableHead>CP N</TableHead>
@@ -402,19 +488,30 @@ export function CpImportPanel() {
               <TableBody>
                 {pagedRows.map((row) => {
                   const needsConfirm = row.review_status !== 'ok';
-                  const savable = isSavableRow(row);
+                  const savable = isSavableRow(row, fixedCompanyId);
+                  const companyMismatch =
+                    Boolean(fixedCompanyId) &&
+                    Boolean(row.company_id) &&
+                    row.company_id !== fixedCompanyId;
                   const roster = rosterForRow(row);
                   return (
                     <TableRow key={row.row_index} className={cn(!savable && 'opacity-80')}>
                       <TableCell className="text-muted-foreground">{row.row_index}</TableCell>
                       <TableCell>
-                        <div className="text-xs text-muted-foreground truncate max-w-[140px]">
+                        <div className="text-xs text-muted-foreground truncate max-w-[160px]">
                           {row.source_file}
                         </div>
-                        <div className="font-medium">{row.company_name ?? '—'}</div>
-                        <div className="text-xs text-muted-foreground">
+                        {!companyScoped ? (
+                          <div className="font-medium">{row.company_name ?? '—'}</div>
+                        ) : null}
+                        <div className={cn('text-xs', companyScoped ? 'font-medium' : 'text-muted-foreground')}>
                           {row.period_label ?? row.year}
                         </div>
+                        {companyMismatch ? (
+                          <div className="mt-0.5 text-xs font-medium text-destructive">
+                            {row.company_name ?? 'Autre entreprise'}
+                          </div>
+                        ) : null}
                         {row.has_existing_adjustment && (
                           <Badge variant="outline" className="mt-1 text-xs">
                             Remplacement
