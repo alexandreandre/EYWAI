@@ -9,5 +9,30 @@
   },
   "periode": {
     "dernier_mois_calcule": 5
+  },
+  "dsn_source": {
+    "primes": [
+      {
+        "code": "93",
+        "montant": 9.15
+      }
+    ],
+    "bases_assujetties": {
+      "01": 1779.37,
+      "02": 1966.83,
+      "03": 1966.83,
+      "04": 1941.56,
+      "05": 9.15,
+      "07": 1966.83,
+      "11": 1966.83
+    },
+    "cotisations_agregees": [
+      {
+        "base": "01",
+        "code": "07",
+        "taux": 28.0,
+        "montant": 4.0
+      }
+    ]
   }
 }
