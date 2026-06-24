@@ -11,10 +11,14 @@ Colonnes attendues (noms flexibles, insensibles à la casse) :
   - visit_type / type_visite / type  (VIP, SIR, Reprise, etc.)
   - visit_date / date_visite / date  (YYYY-MM-DD ou format Excel)
 
+Note : la colonne Excel « A renouveler avant le » n'est pas lue par ce script.
+      Utiliser setup_comitech_composite.py (registre codé) ou ajuster manuellement
+      la prochaine échéance après import.
+
 Prérequis : SUPABASE_URL + SUPABASE_SERVICE_KEY (ou SUPABASE_KEY service role) dans backend/.env
 
 Après import, le script recalcule les prochaines obligations (compute_obligations_for_employee)
-pour chaque salarié touché.
+pour chaque salarié touché, y compris la réconciliation des obligations obsolètes.
 """
 
 from __future__ import annotations

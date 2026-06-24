@@ -208,7 +208,7 @@ class _FakeQuery:
 
         rows = self._rows()
         for field, desc in self._order_cols:
-            rows.sort(key=lambda r: r.get(field) or "", reverse=desc)
+            rows.sort(key=lambda r: str(r.get(field) or ""), reverse=desc)
         if self._limit_n is not None:
             rows = rows[: self._limit_n]
         if self._maybe_single:
@@ -217,13 +217,204 @@ class _FakeQuery:
 
 
 class _FakeSupabase:
-    def __init__(self, employee: Dict[str, Any]):
+    def __init__(
+        self,
+        employee: Dict[str, Any],
+        obligations: Optional[List[Dict[str, Any]]] = None,
+    ):
         self.employees = {employee["id"]: employee}
-        self.obligations: List[Dict[str, Any]] = []
+        self.obligations: List[Dict[str, Any]] = list(obligations or [])
         self.absence_requests: List[Dict[str, Any]] = []
 
     def table(self, name: str):
         return _FakeQuery(self, name)
+
+
+def _active_obligations(result: List[Dict[str, Any]], visit_type: str) -> List[Dict]:
+    return [
+        o
+        for o in result
+        if o.get("visit_type") == visit_type
+        and o.get("status") in ("a_faire", "planifiee")
+    ]
+
+
+class TestComputeObligationsHistoricalRegistry:
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine._get_employee_collective_agreement_idcc",
+        return_value=None,
+    )
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine.get_supabase"
+    )
+    def test_sir_veteran_no_aptitude_sir(self, mock_get_supabase, _mock_idcc):
+        company_id = "co-test"
+        employee_id = "emp-bouveyron"
+        employee = {
+            "id": employee_id,
+            "company_id": company_id,
+            "hire_date": "1996-10-01",
+            "date_naissance": "1973-04-20",
+            "employment_status": "actif",
+            "is_poste_sir": True,
+            "is_travail_nuit": False,
+            "collective_agreement_id": None,
+        }
+        fake = _FakeSupabase(
+            employee,
+            obligations=[
+                {
+                    "id": "obl-sir-done",
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "sir",
+                    "trigger_type": "periodicite_sir",
+                    "due_date": "2025-06-10",
+                    "status": "realisee",
+                    "completed_date": "2025-06-10",
+                }
+            ],
+        )
+        mock_get_supabase.return_value = fake
+
+        result = compute_obligations_for_employee(company_id, employee_id)
+        assert _active_obligations(result, "aptitude_sir_avant_affectation") == []
+        assert _active_obligations(result, "mi_carriere_45") == []
+        assert _active_obligations(result, "vip") == []
+
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine._get_employee_collective_agreement_idcc",
+        return_value=None,
+    )
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine.get_supabase"
+    )
+    def test_reconcile_cancels_existing_phantom(self, mock_get_supabase, _mock_idcc):
+        company_id = "co-test"
+        employee_id = "emp-jean"
+        employee = {
+            "id": employee_id,
+            "company_id": company_id,
+            "hire_date": "2025-05-28",
+            "date_naissance": None,
+            "employment_status": "actif",
+            "is_poste_sir": True,
+            "is_travail_nuit": False,
+            "collective_agreement_id": None,
+        }
+        fake = _FakeSupabase(
+            employee,
+            obligations=[
+                {
+                    "id": "obl-aptitude",
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "aptitude_sir_avant_affectation",
+                    "trigger_type": "poste_sir",
+                    "due_date": "2025-05-28",
+                    "status": "a_faire",
+                },
+                {
+                    "id": "obl-sir-done",
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "sir",
+                    "trigger_type": "periodicite_sir",
+                    "due_date": "2025-09-25",
+                    "status": "realisee",
+                    "completed_date": "2025-09-25",
+                },
+            ],
+        )
+        mock_get_supabase.return_value = fake
+
+        result = compute_obligations_for_employee(company_id, employee_id)
+        assert _active_obligations(result, "aptitude_sir_avant_affectation") == []
+        aptitude_row = next(
+            o for o in fake.obligations if o.get("id") == "obl-aptitude"
+        )
+        assert aptitude_row["status"] == "annulee"
+
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine._get_employee_collective_agreement_idcc",
+        return_value=None,
+    )
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine.get_supabase"
+    )
+    def test_new_hire_still_gets_vip(self, mock_get_supabase, _mock_idcc):
+        company_id = "co-test"
+        employee_id = "emp-new"
+        hire = date.today().isoformat()
+        employee = {
+            "id": employee_id,
+            "company_id": company_id,
+            "hire_date": hire,
+            "date_naissance": None,
+            "employment_status": "actif",
+            "is_poste_sir": False,
+            "is_travail_nuit": False,
+            "collective_agreement_id": None,
+        }
+        fake = _FakeSupabase(employee)
+        mock_get_supabase.return_value = fake
+
+        result = compute_obligations_for_employee(company_id, employee_id)
+        vip_active = _active_obligations(result, "vip")
+        assert len(vip_active) == 1
+        assert vip_active[0]["trigger_type"] == "embauche"
+
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine._get_employee_collective_agreement_idcc",
+        return_value=None,
+    )
+    @patch(
+        "app.modules.medical_follow_up.infrastructure.obligation_engine.get_supabase"
+    )
+    def test_vallat_overdue_sir_preserved(self, mock_get_supabase, _mock_idcc):
+        company_id = "co-test"
+        employee_id = "emp-vallat"
+        employee = {
+            "id": employee_id,
+            "company_id": company_id,
+            "hire_date": "2022-11-21",
+            "date_naissance": None,
+            "employment_status": "actif",
+            "is_poste_sir": True,
+            "is_travail_nuit": False,
+            "collective_agreement_id": None,
+        }
+        fake = _FakeSupabase(
+            employee,
+            obligations=[
+                {
+                    "id": "obl-sir-done",
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "sir",
+                    "trigger_type": "periodicite_sir",
+                    "due_date": "2023-01-09",
+                    "status": "realisee",
+                    "completed_date": "2023-01-09",
+                },
+                {
+                    "id": "obl-sir-due",
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "sir",
+                    "trigger_type": "periodicite_sir",
+                    "due_date": "2025-01-09",
+                    "status": "a_faire",
+                },
+            ],
+        )
+        mock_get_supabase.return_value = fake
+
+        result = compute_obligations_for_employee(company_id, employee_id)
+        sir_active = _active_obligations(result, "sir")
+        assert len(sir_active) == 1
+        assert sir_active[0]["due_date"] == "2025-01-09"
+        assert _active_obligations(result, "vip") == []
 
 
 class TestComputeObligationsIdempotence:

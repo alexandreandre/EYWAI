@@ -10,6 +10,12 @@ Comportement strictement identique.
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
+from app.modules.medical_follow_up.domain.rules import (
+    birth_at_age,
+    should_require_aptitude_sir,
+    should_require_mi_carriere,
+    should_require_vip_periodic,
+)
 from app.modules.medical_follow_up.infrastructure.database import get_supabase
 
 # Périodicités et seuils (alignés migration 35 / legacy)
@@ -26,6 +32,9 @@ REPRISE_ABSENCE_TYPES = [
 REPRISE_MIN_DAYS_AT_MP = 30
 REPRISE_MIN_DAYS_MALADIE = 60
 ACTIVE_OBLIGATION_STATUSES = frozenset({"a_faire", "planifiee"})
+OBSOLETE_OBLIGATION_JUSTIFICATION = (
+    "Obsolet — historique SPST / suivi périodique en cours"
+)
 
 
 def _parse_date(d: Any) -> Optional[date]:
@@ -234,6 +243,85 @@ def _cancel_duplicate_obligations(
     ]
 
 
+def _get_completed_visits_by_type(
+    supabase: Any, employee_id: str
+) -> Dict[str, List[date]]:
+    """Visites réalisées groupées par visit_type."""
+    req = (
+        supabase.table("medical_follow_up_obligations")
+        .select("visit_type, completed_date")
+        .eq("employee_id", employee_id)
+        .eq("status", "realisee")
+        .execute()
+    )
+    result: Dict[str, List[date]] = {}
+    for row in req.data or []:
+        visit_type = row.get("visit_type")
+        completed = _parse_date(row.get("completed_date"))
+        if visit_type and completed:
+            result.setdefault(str(visit_type), []).append(completed)
+    return result
+
+
+def _reconcile_obsolete_active_obligations(
+    supabase: Any,
+    company_id: str,
+    employee_id: str,
+    *,
+    hire_date: Optional[date],
+    birth_date: Optional[date],
+    is_poste_sir: bool,
+    today: date,
+    completed_by_type: Dict[str, List[date]],
+) -> int:
+    """
+    Annule les obligations actives devenues obsolètes grâce à l'historique SPST.
+    Retourne le nombre d'obligations annulées.
+    """
+    completed_sir = completed_by_type.get("sir", [])
+    completed_vip = completed_by_type.get("vip", [])
+    completed_mi = completed_by_type.get("mi_carriere_45", [])
+
+    active = [
+        o
+        for o in _existing_obligations(supabase, company_id, employee_id)
+        if o.get("status") in ACTIVE_OBLIGATION_STATUSES
+    ]
+
+    cancelled = 0
+    for obligation in active:
+        visit_type = obligation.get("visit_type")
+        obsolete = False
+        if visit_type == "aptitude_sir_avant_affectation":
+            obsolete = not should_require_aptitude_sir(hire_date, completed_sir)
+        elif visit_type == "mi_carriere_45":
+            obsolete = not should_require_mi_carriere(
+                birth_date,
+                completed_sir,
+                completed_vip,
+                completed_mi,
+                today,
+            )
+        elif visit_type == "vip":
+            obsolete = not should_require_vip_periodic(is_poste_sir, completed_vip)
+
+        if not obsolete:
+            continue
+
+        ob_id = obligation.get("id")
+        if not ob_id:
+            continue
+        supabase.table("medical_follow_up_obligations").update(
+            {
+                "status": "annulee",
+                "justification": OBSOLETE_OBLIGATION_JUSTIFICATION,
+            }
+        ).eq("id", ob_id).execute()
+        cancelled += 1
+
+    return cancelled
+
+
 def compute_obligations_for_employee(
     company_id: str, employee_id: str
 ) -> List[Dict[str, Any]]:
@@ -280,12 +368,18 @@ def compute_obligations_for_employee(
         if key is not None
     }
 
+    completed_by_type = _get_completed_visits_by_type(supabase, employee_id)
+    completed_sir = completed_by_type.get("sir", [])
+    completed_vip = completed_by_type.get("vip", [])
+    completed_mi = completed_by_type.get("mi_carriere_45", [])
+
     to_insert: List[Dict[str, Any]] = []
     to_update: List[tuple] = []
 
     if (
         is_poste_sir
         and hire_date
+        and should_require_aptitude_sir(hire_date, completed_sir)
         and not _has_active_obligation(
             existing, "aptitude_sir_avant_affectation", "poste_sir"
         )
@@ -358,79 +452,87 @@ def compute_obligations_for_employee(
             )
             existing_keys.add(key)
 
-    if birth_date:
-        birth_45 = date(birth_date.year + 45, birth_date.month, birth_date.day)
-        if today >= birth_45 and not _has_active_obligation(
-            existing, "mi_carriere_45", "age_45"
-        ):
-            due = birth_45
-            key = _dedupe_key("mi_carriere_45", "age_45", due)
-            if key not in existing_keys:
-                to_insert.append(
-                    {
-                        "company_id": company_id,
-                        "employee_id": employee_id,
-                        "visit_type": "mi_carriere_45",
-                        "trigger_type": "age_45",
-                        "due_date": due.isoformat(),
-                        "priority": 2,
-                        "status": "a_faire",
-                        "rule_source": rule_source,
-                        "collective_agreement_idcc": idcc,
-                    }
-                )
-                existing_keys.add(key)
+    if (
+        birth_date
+        and should_require_mi_carriere(
+            birth_date,
+            completed_sir,
+            completed_vip,
+            completed_mi,
+            today,
+        )
+        and not _has_active_obligation(existing, "mi_carriere_45", "age_45")
+    ):
+        birth_45 = birth_at_age(birth_date, 45)
+        due = birth_45
+        key = _dedupe_key("mi_carriere_45", "age_45", due)
+        if key not in existing_keys:
+            to_insert.append(
+                {
+                    "company_id": company_id,
+                    "employee_id": employee_id,
+                    "visit_type": "mi_carriere_45",
+                    "trigger_type": "age_45",
+                    "due_date": due.isoformat(),
+                    "priority": 2,
+                    "status": "a_faire",
+                    "rule_source": rule_source,
+                    "collective_agreement_idcc": idcc,
+                }
+            )
+            existing_keys.add(key)
 
-    vip_years = _get_vip_period_years(employee_id)
-    last_vip = (
-        supabase.table("medical_follow_up_obligations")
-        .select("completed_date, due_date")
-        .eq("employee_id", employee_id)
-        .eq("visit_type", "vip")
-        .eq("status", "realisee")
-        .order("completed_date", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if last_vip.data and last_vip.data[0].get("completed_date"):
-        last_d = _parse_date(last_vip.data[0]["completed_date"])
-        if last_d and not _has_active_obligation(existing, "vip"):
-            next_due = last_d.replace(year=last_d.year + vip_years)
-            key = _dedupe_key("vip", "periodicite_vip", next_due)
-            if key not in existing_keys:
-                to_insert.append(
-                    {
-                        "company_id": company_id,
-                        "employee_id": employee_id,
-                        "visit_type": "vip",
-                        "trigger_type": "periodicite_vip",
-                        "due_date": next_due.isoformat(),
-                        "priority": 2,
-                        "status": "a_faire",
-                        "rule_source": rule_source,
-                        "collective_agreement_idcc": idcc,
-                    }
-                )
-                existing_keys.add(key)
-    elif hire_date and not _has_active_obligation(existing, "vip"):
-        next_due = hire_date.replace(year=hire_date.year + vip_years)
-        if next_due > today:
-            key = _dedupe_key("vip", "embauche", next_due)
-            if key not in existing_keys:
-                to_insert.append(
-                    {
-                        "company_id": company_id,
-                        "employee_id": employee_id,
-                        "visit_type": "vip",
-                        "trigger_type": "embauche",
-                        "due_date": next_due.isoformat(),
-                        "priority": 2,
-                        "status": "a_faire",
-                        "rule_source": rule_source,
-                        "collective_agreement_idcc": idcc,
-                    }
-                )
-                existing_keys.add(key)
+    if should_require_vip_periodic(is_poste_sir, completed_vip):
+        vip_years = _get_vip_period_years(employee_id)
+        last_vip = (
+            supabase.table("medical_follow_up_obligations")
+            .select("completed_date, due_date")
+            .eq("employee_id", employee_id)
+            .eq("visit_type", "vip")
+            .eq("status", "realisee")
+            .order("completed_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if last_vip.data and last_vip.data[0].get("completed_date"):
+            last_d = _parse_date(last_vip.data[0]["completed_date"])
+            if last_d and not _has_active_obligation(existing, "vip"):
+                next_due = last_d.replace(year=last_d.year + vip_years)
+                key = _dedupe_key("vip", "periodicite_vip", next_due)
+                if key not in existing_keys:
+                    to_insert.append(
+                        {
+                            "company_id": company_id,
+                            "employee_id": employee_id,
+                            "visit_type": "vip",
+                            "trigger_type": "periodicite_vip",
+                            "due_date": next_due.isoformat(),
+                            "priority": 2,
+                            "status": "a_faire",
+                            "rule_source": rule_source,
+                            "collective_agreement_idcc": idcc,
+                        }
+                    )
+                    existing_keys.add(key)
+        elif hire_date and not _has_active_obligation(existing, "vip"):
+            next_due = hire_date.replace(year=hire_date.year + vip_years)
+            if next_due > today:
+                key = _dedupe_key("vip", "embauche", next_due)
+                if key not in existing_keys:
+                    to_insert.append(
+                        {
+                            "company_id": company_id,
+                            "employee_id": employee_id,
+                            "visit_type": "vip",
+                            "trigger_type": "embauche",
+                            "due_date": next_due.isoformat(),
+                            "priority": 2,
+                            "status": "a_faire",
+                            "rule_source": rule_source,
+                            "collective_agreement_idcc": idcc,
+                        }
+                    )
+                    existing_keys.add(key)
 
     sir_years = SIR_RENEWAL_YEARS
     last_sir = (
@@ -489,6 +591,17 @@ def compute_obligations_for_employee(
         supabase.table("medical_follow_up_obligations").update(payload).eq(
             "id", ob_id
         ).execute()
+
+    _reconcile_obsolete_active_obligations(
+        supabase,
+        company_id,
+        employee_id,
+        hire_date=hire_date,
+        birth_date=birth_date,
+        is_poste_sir=is_poste_sir,
+        today=today,
+        completed_by_type=completed_by_type,
+    )
 
     req = (
         supabase.table("medical_follow_up_obligations")
