@@ -7,7 +7,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
+    AncienneteBlock,
+    ArretTravailBlock,
+    BaseAssujettieBlock,
+    BordereauBlock,
+    ComposantBaseBlock,
+    ComposantCotisationEtabBlock,
+    CompteurAnnuelBlock,
     ContratBlock,
+    CotisationAgregeeBlock,
     CotisationBlock,
     CotisationIndividuelleBlock,
     DeclarationBlock,
@@ -15,12 +23,16 @@ from app.modules.dsn_import.domain.model import (
     EtablissementBlock,
     EntrepriseBlock,
     EnvoiBlock,
+    FinContratBlock,
     IndividuBlock,
     OrganismePscBlock,
     ParsedDsnSet,
+    PrimeBlock,
     RemunerationBlock,
     RubriqueLine,
+    SuspensionContratBlock,
     VersementBlock,
+    VersementOrganismeBlock,
 )
 from app.modules.dsn_import.domain.norm_detect import detect_dsn_format
 from app.modules.dsn_import.domain.rubriques import (
@@ -119,13 +131,67 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_AFF_NB_ENFANTS,
     R_S21_AFF_REF_CONTRAT,
     R_S21_CI_ASSIETTE,
-    R_S21_CI_IDENT_AFF,
-    R_S21_CI_MONTANT_PAT,
-    R_S21_CI_MONTANT_SAL,
+    R_S21_ANC_DEB,
+    R_S21_ANC_FIN,
+    R_S21_ANC_TYPE,
+    R_S21_ARRET_CAISSE,
+    R_S21_ARRET_DEB,
+    R_S21_ARRET_FIN,
+    R_S21_ARRET_MOTIF,
+    R_S21_AVANT_CODE,
+    R_S21_AVANT_DEB,
+    R_S21_AVANT_FIN,
+    R_S21_AVANT_MONTANT,
+    R_S21_BA_CODE,
+    R_S21_BA_DATE_DEB,
+    R_S21_BA_DATE_FIN,
+    R_S21_BA_MONTANT,
+    R_S21_BORD_DATE_DEB,
+    R_S21_BORD_DATE_FIN,
+    R_S21_BORD_IDENT,
+    R_S21_BORD_MONTANT,
+    R_S21_CA_BASE,
+    R_S21_CA_CODE,
+    R_S21_CA_MONTANT,
+    R_S21_CA_TAUX,
+    R_S21_CB_CODE,
+    R_S21_CB_MONTANT,
+    R_S21_CCET_ASSIETTE,
+    R_S21_CCET_CODE,
+    R_S21_CCET_MONTANT,
+    R_S21_CCET_REGIME,
+    R_S21_CCET_TAUX,
+    R_S21_CPT_ANNEE,
+    R_S21_CPT_CODE,
+    R_S21_CPT_MONTANT,
+    R_S21_FIN_DATE,
+    R_S21_FIN_MOTIF,
+    R_S21_FIN_NOTIF,
+    R_S21_PRIME_CODE,
+    R_S21_PRIME_MONTANT,
+    R_S21_SUSP_DEB,
+    R_S21_SUSP_FIN,
+    R_S21_SUSP_MOTIF,
+    R_S21_SUSP_TYPE,
+    R_S21_VO_BIC,
+    R_S21_VO_DATE_DEB,
+    R_S21_VO_DATE_FIN,
+    R_S21_VO_IBAN,
+    R_S21_VO_IDENT,
+    R_S21_VO_LIBELLE,
+    R_S21_VO_MODE,
+    R_S21_VO_MONTANT,
+    R_S21_CTR_CLASSIF,
+    R_S21_CTR_NIVEAU,
+    R_S21_CTR_TAUX_AT,
     R_S21_VER_DATE,
     R_S21_VER_NET_FISCAL,
     R_S21_VER_NET_VERSE,
     R_S21_VER_PAS,
+    R_S21_CI_IDENT_AFF,
+    R_S21_CI_MONTANT_PAT,
+    R_S21_CI_MONTANT_SAL,
+    R_S21_VER_NUMERO,
     R_S21_VER_PAS_ASSIETTE,
     R_S21_VER_PAS_ID,
     R_S21_VER_PAS_LEGACY,
@@ -230,6 +296,17 @@ class _ParseContext:
         self.affiliation: Optional[AffiliationBlock] = None
         self.organisme_psc: Optional[OrganismePscBlock] = None
         self.activite: Optional[Dict[str, Any]] = None
+        self.base_assujettie: Optional[BaseAssujettieBlock] = None
+        self.composant_base: Optional[ComposantBaseBlock] = None
+        self.cotisation_agregee: Optional[CotisationAgregeeBlock] = None
+        self.prime: Optional[PrimeBlock] = None
+        self.composant_cot_etab: Optional[ComposantCotisationEtabBlock] = None
+        self.versement_org: Optional[VersementOrganismeBlock] = None
+        self.bordereau: Optional[BordereauBlock] = None
+        self.compteur_annuel: Optional[CompteurAnnuelBlock] = None
+        self.arret: Optional[ArretTravailBlock] = None
+        self.suspension: Optional[SuspensionContratBlock] = None
+        self.anciennete: Optional[AncienneteBlock] = None
         self.warnings: List[str] = []
 
     def _ensure_individu(self) -> IndividuBlock:
@@ -295,32 +372,147 @@ class _ParseContext:
                 activites.append(self.activite)
         return self.activite
 
+    def _ensure_base_assujettie(self) -> BaseAssujettieBlock:
+        ver = self._ensure_versement()
+        if self.base_assujettie is None:
+            self.base_assujettie = BaseAssujettieBlock()
+            ver.bases_assujetties.append(self.base_assujettie)
+        return self.base_assujettie
+
+    def _ensure_composant_base(self) -> ComposantBaseBlock:
+        ver = self._ensure_versement()
+        if self.composant_base is None:
+            self.composant_base = ComposantBaseBlock()
+            ver.composants_base.append(self.composant_base)
+        return self.composant_base
+
+    def _ensure_cotisation_agregee(self) -> CotisationAgregeeBlock:
+        ver = self._ensure_versement()
+        if self.cotisation_agregee is None:
+            self.cotisation_agregee = CotisationAgregeeBlock()
+            ver.cotisations_agregees.append(self.cotisation_agregee)
+        return self.cotisation_agregee
+
+    def _ensure_prime(self) -> PrimeBlock:
+        ver = self._ensure_versement()
+        if self.prime is None:
+            self.prime = PrimeBlock()
+            ver.primes.append(self.prime)
+        return self.prime
+
+    def _ensure_composant_cot_etab(self) -> ComposantCotisationEtabBlock:
+        if self.composant_cot_etab is None:
+            self.composant_cot_etab = ComposantCotisationEtabBlock()
+            self.etablissement.composants_cotisation.append(self.composant_cot_etab)
+        return self.composant_cot_etab
+
+    def _ensure_versement_org(self) -> VersementOrganismeBlock:
+        if self.versement_org is None:
+            self.versement_org = VersementOrganismeBlock()
+            self.etablissement.versements_organismes.append(self.versement_org)
+        return self.versement_org
+
+    def _ensure_bordereau(self) -> BordereauBlock:
+        if self.bordereau is None:
+            self.bordereau = BordereauBlock()
+            self.etablissement.bordereaux.append(self.bordereau)
+        return self.bordereau
+
+    def _ensure_compteur_annuel(self) -> CompteurAnnuelBlock:
+        if self.compteur_annuel is None:
+            self.compteur_annuel = CompteurAnnuelBlock()
+            self.etablissement.compteurs_annuels.append(self.compteur_annuel)
+        return self.compteur_annuel
+
+    def _ensure_arret(self) -> ArretTravailBlock:
+        ctr = self._ensure_contrat()
+        if self.arret is None:
+            self.arret = ArretTravailBlock()
+            ctr.arrets.append(self.arret)
+        return self.arret
+
+    def _ensure_suspension(self) -> SuspensionContratBlock:
+        ctr = self._ensure_contrat()
+        if self.suspension is None:
+            self.suspension = SuspensionContratBlock()
+            ctr.suspensions.append(self.suspension)
+        return self.suspension
+
+    def _ensure_anciennete(self) -> AncienneteBlock:
+        ctr = self._ensure_contrat()
+        if self.anciennete is None:
+            self.anciennete = AncienneteBlock()
+            ctr.anciennetes.append(self.anciennete)
+        return self.anciennete
+
+    def _reset_contrat_children(self) -> None:
+        self.versement = None
+        self.remuneration = None
+        self.cotisation = None
+        self.cotisation_ind = None
+        self.base_assujettie = None
+        self.composant_base = None
+        self.cotisation_agregee = None
+        self.prime = None
+        self.affiliation = None
+        self.arret = None
+        self.suspension = None
+        self.anciennete = None
+        self.activite = None
+
+    def _reset_versement_children(self) -> None:
+        self.remuneration = None
+        self.cotisation = None
+        self.cotisation_ind = None
+        self.base_assujettie = None
+        self.composant_base = None
+        self.cotisation_agregee = None
+        self.prime = None
+        self.activite = None
+
     def on_block_start(self, g00: str) -> None:
         block = BLOCK_G00.get(g00)
         if block == "individu":
             self.individu = IndividuBlock()
             self.etablissement.individus.append(self.individu)
             self.contrat = None
-            self.versement = None
-            self.remuneration = None
-            self.cotisation = None
-            self.cotisation_ind = None
-            self.affiliation = None
+            self._reset_contrat_children()
             self.organisme_psc = None
-            self.activite = None
         elif block == "organisme_psc":
             self.organisme_psc = OrganismePscBlock()
             self.etablissement.organismes_psc.append(self.organisme_psc)
+        elif block == "versement_organisme":
+            self.versement_org = VersementOrganismeBlock()
+            self.etablissement.versements_organismes.append(self.versement_org)
+        elif block == "bordereau":
+            self.bordereau = BordereauBlock()
+            self.etablissement.bordereaux.append(self.bordereau)
+        elif block == "composant_cotisation_etab":
+            self.composant_cot_etab = ComposantCotisationEtabBlock()
+            self.etablissement.composants_cotisation.append(self.composant_cot_etab)
+        elif block == "compteur_annuel":
+            self.compteur_annuel = CompteurAnnuelBlock()
+            self.etablissement.compteurs_annuels.append(self.compteur_annuel)
         elif block == "contrat":
             ind = self._ensure_individu()
             self.contrat = ContratBlock()
             ind.contrats.append(self.contrat)
-            self.versement = None
-            self.remuneration = None
-            self.cotisation = None
-            self.cotisation_ind = None
-            self.affiliation = None
-            self.activite = None
+            self._reset_contrat_children()
+        elif block == "arret_travail":
+            ctr = self._ensure_contrat()
+            self.arret = ArretTravailBlock()
+            ctr.arrets.append(self.arret)
+        elif block == "suspension":
+            ctr = self._ensure_contrat()
+            self.suspension = SuspensionContratBlock()
+            ctr.suspensions.append(self.suspension)
+        elif block == "fin_contrat":
+            ctr = self._ensure_contrat()
+            ctr.fin_contrat = FinContratBlock()
+        elif block == "anciennete":
+            ctr = self._ensure_contrat()
+            self.anciennete = AncienneteBlock()
+            ctr.anciennetes.append(self.anciennete)
         elif block == "affiliation":
             ctr = self._ensure_contrat()
             self.affiliation = AffiliationBlock()
@@ -329,18 +521,34 @@ class _ParseContext:
             ctr = self._ensure_contrat()
             self.versement = VersementBlock()
             ctr.versements.append(self.versement)
-            self.remuneration = None
-            self.cotisation = None
-            self.cotisation_ind = None
-            self.activite = None
+            self._reset_versement_children()
         elif block == "remuneration":
             ver = self._ensure_versement()
             self.remuneration = RemunerationBlock()
             ver.remunerations.append(self.remuneration)
-        elif block == "cotisation":
+        elif block == "base_assujettie":
+            if self.dsn_format == "legacy":
+                ver = self._ensure_versement()
+                self.cotisation = CotisationBlock()
+                ver.cotisations.append(self.cotisation)
+                self.base_assujettie = None
+            else:
+                ver = self._ensure_versement()
+                self.base_assujettie = BaseAssujettieBlock()
+                ver.bases_assujetties.append(self.base_assujettie)
+                self.cotisation = None
+        elif block == "composant_base":
             ver = self._ensure_versement()
-            self.cotisation = CotisationBlock()
-            ver.cotisations.append(self.cotisation)
+            self.composant_base = ComposantBaseBlock()
+            ver.composants_base.append(self.composant_base)
+        elif block == "cotisation_agregee":
+            ver = self._ensure_versement()
+            self.cotisation_agregee = CotisationAgregeeBlock()
+            ver.cotisations_agregees.append(self.cotisation_agregee)
+        elif block == "prime" or block == "avantage":
+            ver = self._ensure_versement()
+            self.prime = PrimeBlock()
+            ver.primes.append(self.prime)
         elif block == "cotisation_individuelle":
             ver = self._ensure_versement()
             self.cotisation_ind = CotisationIndividuelleBlock()
@@ -356,10 +564,7 @@ class _ParseContext:
                 self.etablissement = EtablissementBlock()
             self.individu = None
             self.contrat = None
-            self.versement = None
-            self.remuneration = None
-            self.cotisation = None
-            self.activite = None
+            self._reset_contrat_children()
         elif block == "entreprise":
             self.entreprise = EntrepriseBlock()
 
@@ -616,19 +821,173 @@ class _ParseContext:
             self._ensure_remuneration().heures = _float_val(valeur)
         elif rubrique.startswith("S21.G00.51."):
             self._ensure_remuneration().rubriques[rubrique] = valeur
-        elif rubrique == R_S21_COT_CODE:
-            self._ensure_cotisation().code = valeur
-            self._ensure_cotisation().rubriques[rubrique] = valeur
-        elif rubrique == R_S21_COT_BASE:
-            self._ensure_cotisation().base = _float_val(valeur)
-        elif rubrique == R_S21_COT_TAUX_SAL:
-            self._ensure_cotisation().taux_salarial = _float_val(valeur)
-        elif rubrique == R_S21_COT_TAUX_PAT:
-            self._ensure_cotisation().taux_patronal = _float_val(valeur)
-        elif rubrique == R_S21_COT_MONTANT_SAL:
+        elif rubrique == R_S21_BA_CODE:
+            if self.dsn_format == "legacy":
+                self._ensure_cotisation().code = valeur
+                self._ensure_cotisation().rubriques[rubrique] = valeur
+            else:
+                ba = self._ensure_base_assujettie()
+                ba.code = valeur.strip()
+                ba.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_BA_DATE_DEB:
+            if self.dsn_format == "legacy":
+                self._ensure_cotisation().base = _float_val(valeur)
+            else:
+                self._ensure_base_assujettie().date_debut = valeur.strip()
+        elif rubrique == R_S21_BA_DATE_FIN:
+            if self.dsn_format == "legacy":
+                self._ensure_cotisation().taux_salarial = _float_val(valeur)
+            else:
+                self._ensure_base_assujettie().date_fin = valeur.strip()
+        elif rubrique == R_S21_BA_MONTANT:
+            if self.dsn_format == "legacy":
+                self._ensure_cotisation().taux_patronal = _float_val(valeur)
+            else:
+                ba = self._ensure_base_assujettie()
+                ba.montant = _float_val(valeur)
+                ver = self._ensure_versement()
+                bases = ver.rubriques.setdefault("bases", {})
+                if isinstance(bases, dict) and ba.code:
+                    bases[ba.code] = ba.montant
+        elif rubrique == R_S21_COT_MONTANT_SAL and self.dsn_format == "legacy":
             self._ensure_cotisation().montant_salarial = _float_val(valeur)
-        elif rubrique == R_S21_COT_MONTANT_PAT:
+        elif rubrique == R_S21_COT_MONTANT_PAT and self.dsn_format == "legacy":
             self._ensure_cotisation().montant_patronal = _float_val(valeur)
+        elif rubrique == R_S21_CB_CODE:
+            cb = self._ensure_composant_base()
+            cb.code = valeur.strip()
+            cb.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_CB_MONTANT:
+            cb = self._ensure_composant_base()
+            cb.montant = _float_val(valeur)
+            ver = self._ensure_versement()
+            bases = ver.rubriques.setdefault("bases", {})
+            if isinstance(bases, dict) and cb.code:
+                bases[cb.code] = cb.montant
+        elif rubrique == R_S21_CA_CODE:
+            ca = self._ensure_cotisation_agregee()
+            ca.code = valeur.strip()
+            ca.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_CA_BASE:
+            self._ensure_cotisation_agregee().code_base = valeur.strip()
+        elif rubrique == R_S21_CA_TAUX:
+            self._ensure_cotisation_agregee().taux = _float_val(valeur)
+        elif rubrique == R_S21_CA_MONTANT:
+            self._ensure_cotisation_agregee().montant = _float_val(valeur)
+        elif rubrique == R_S21_CCET_CODE:
+            cc = self._ensure_composant_cot_etab()
+            cc.code = valeur.strip()
+            cc.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_CCET_REGIME:
+            self._ensure_composant_cot_etab().regime = valeur.strip()
+        elif rubrique == R_S21_CCET_TAUX:
+            self._ensure_composant_cot_etab().taux = _float_val(valeur)
+        elif rubrique == R_S21_CCET_ASSIETTE:
+            self._ensure_composant_cot_etab().assiette = _float_val(valeur)
+        elif rubrique == R_S21_CCET_MONTANT:
+            self._ensure_composant_cot_etab().montant_pat = _float_val(valeur)
+        elif rubrique == R_S21_VO_IDENT:
+            vo = self._ensure_versement_org()
+            vo.identifiant = valeur.strip()
+            vo.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_VO_LIBELLE:
+            self._ensure_versement_org().libelle = valeur.strip()
+        elif rubrique == R_S21_VO_BIC:
+            self._ensure_versement_org().bic = valeur.strip()
+        elif rubrique == R_S21_VO_IBAN:
+            self._ensure_versement_org().iban = valeur.strip()
+        elif rubrique == R_S21_VO_MONTANT:
+            self._ensure_versement_org().montant = _float_val(valeur)
+        elif rubrique == R_S21_VO_DATE_DEB:
+            self._ensure_versement_org().date_debut = valeur.strip()
+        elif rubrique == R_S21_VO_DATE_FIN:
+            self._ensure_versement_org().date_fin = valeur.strip()
+        elif rubrique == R_S21_VO_MODE:
+            self._ensure_versement_org().mode_paiement = valeur.strip()
+        elif rubrique == R_S21_BORD_IDENT:
+            b = self._ensure_bordereau()
+            b.identifiant = valeur.strip()
+            b.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_BORD_DATE_DEB:
+            self._ensure_bordereau().date_debut = valeur.strip()
+        elif rubrique == R_S21_BORD_DATE_FIN:
+            self._ensure_bordereau().date_fin = valeur.strip()
+        elif rubrique == R_S21_BORD_MONTANT:
+            self._ensure_bordereau().montant = _float_val(valeur)
+        elif rubrique == R_S21_CPT_CODE:
+            cpt = self._ensure_compteur_annuel()
+            cpt.code = valeur.strip()
+            cpt.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_CPT_MONTANT:
+            self._ensure_compteur_annuel().montant = _float_val(valeur)
+        elif rubrique == R_S21_CPT_ANNEE:
+            self._ensure_compteur_annuel().annee = valeur.strip()
+        elif rubrique == R_S21_ARRET_DEB:
+            ar = self._ensure_arret()
+            ar.date_debut = valeur.strip()
+            ar.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_ARRET_MOTIF:
+            self._ensure_arret().motif = valeur.strip()
+        elif rubrique == R_S21_ARRET_FIN:
+            self._ensure_arret().date_fin = valeur.strip()
+        elif rubrique == R_S21_ARRET_CAISSE:
+            self._ensure_arret().siret_caisse = valeur.strip()
+        elif rubrique == R_S21_SUSP_TYPE:
+            sus = self._ensure_suspension()
+            sus.type_suspension = valeur.strip()
+            sus.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_SUSP_DEB:
+            self._ensure_suspension().date_debut = valeur.strip()
+        elif rubrique == R_S21_SUSP_FIN:
+            self._ensure_suspension().date_fin = valeur.strip()
+        elif rubrique == R_S21_SUSP_MOTIF:
+            self._ensure_suspension().motif = valeur.strip()
+        elif rubrique == R_S21_FIN_DATE:
+            ctr = self._ensure_contrat()
+            if ctr.fin_contrat is None:
+                ctr.fin_contrat = FinContratBlock()
+            ctr.fin_contrat.date_fin = valeur.strip()
+            ctr.fin_contrat.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_FIN_MOTIF:
+            ctr = self._ensure_contrat()
+            if ctr.fin_contrat is None:
+                ctr.fin_contrat = FinContratBlock()
+            ctr.fin_contrat.motif = valeur.strip()
+        elif rubrique == R_S21_FIN_NOTIF:
+            ctr = self._ensure_contrat()
+            if ctr.fin_contrat is None:
+                ctr.fin_contrat = FinContratBlock()
+            ctr.fin_contrat.date_notification = valeur.strip()
+        elif rubrique == R_S21_ANC_TYPE:
+            anc = self._ensure_anciennete()
+            anc.type_unite = valeur.strip()
+            anc.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_ANC_DEB:
+            self._ensure_anciennete().date_debut = valeur.strip()
+        elif rubrique == R_S21_ANC_FIN:
+            self._ensure_anciennete().date_fin = valeur.strip()
+        elif rubrique == R_S21_PRIME_CODE:
+            pr = self._ensure_prime()
+            pr.code = valeur.strip()
+            pr.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_PRIME_MONTANT:
+            self._ensure_prime().montant = _float_val(valeur)
+        elif rubrique == R_S21_AVANT_CODE:
+            pr = self._ensure_prime()
+            pr.code = valeur.strip()
+            pr.rubriques[rubrique] = valeur
+        elif rubrique == R_S21_AVANT_MONTANT:
+            self._ensure_prime().montant = _float_val(valeur)
+        elif rubrique == R_S21_AVANT_DEB:
+            self._ensure_prime().date_debut = valeur.strip()
+        elif rubrique == R_S21_AVANT_FIN:
+            self._ensure_prime().date_fin = valeur.strip()
+        elif rubrique == R_S21_CTR_CLASSIF:
+            self._ensure_contrat().rubriques[rubrique] = valeur.strip()
+        elif rubrique == R_S21_CTR_NIVEAU:
+            self._ensure_contrat().rubriques[rubrique] = valeur.strip()
+        elif rubrique == R_S21_CTR_TAUX_AT:
+            self._ensure_contrat().rubriques[rubrique] = valeur.strip()
         elif rubrique == R_S21_AFF_REF_CONTRAT:
             aff = self._ensure_affiliation()
             aff.reference_contrat = valeur.strip()
@@ -707,10 +1066,27 @@ def _normalize_psc_cotisations_contrat(contrat: ContratBlock) -> None:
                 ci.montant_patronal = 0.0
 
 
+def _sync_bases_from_blocks(etab: EtablissementBlock) -> None:
+    """Alimente versement.rubriques['bases'] depuis G00.78/G00.79 parsés."""
+    for ind in etab.individus:
+        for contrat in ind.contrats:
+            for ver in contrat.versements:
+                bases = ver.rubriques.setdefault("bases", {})
+                if not isinstance(bases, dict):
+                    continue
+                for ba in ver.bases_assujetties:
+                    if ba.code and ba.montant > 0:
+                        bases[ba.code] = ba.montant
+                for cb in ver.composants_base:
+                    if cb.code and cb.montant > 0:
+                        bases[cb.code] = cb.montant
+
+
 def _normalize_parsed_etablissement(etab: EtablissementBlock) -> None:
     for ind in etab.individus:
         for contrat in ind.contrats:
             _normalize_psc_cotisations_contrat(contrat)
+    _sync_bases_from_blocks(etab)
 
 
 def _looks_like_code(value: str) -> bool:

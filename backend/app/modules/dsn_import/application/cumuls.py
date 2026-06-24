@@ -217,6 +217,50 @@ def build_cumuls_for_month(
     return {"cumuls": cumuls, "periode": {"dernier_mois_calcule": month}}
 
 
+def enrich_cumul_document_metadata(
+    document: Dict[str, Any],
+    ind: IndividuBlock,
+) -> Dict[str, Any]:
+    """Ajoute métadonnées DSN (bases, primes) au document cumuls."""
+    bases: Dict[str, float] = {}
+    primes: List[Dict[str, Any]] = []
+    cotisations_agregees: List[Dict[str, Any]] = []
+
+    for contrat in ind.contrats:
+        for ver in contrat.versements:
+            ver_bases = ver.rubriques.get("bases")
+            if isinstance(ver_bases, dict):
+                for code, amount in ver_bases.items():
+                    if amount:
+                        bases[code] = float(amount)
+            for p in ver.primes:
+                if p.montant > 0:
+                    primes.append(
+                        {"code": p.code, "montant": round(p.montant, 2)}
+                    )
+            for ca in ver.cotisations_agregees:
+                if ca.montant or ca.code:
+                    cotisations_agregees.append(
+                        {
+                            "code": ca.code,
+                            "base": ca.code_base,
+                            "taux": ca.taux,
+                            "montant": round(ca.montant, 2),
+                        }
+                    )
+
+    meta = dict(document.get("dsn_source") or {})
+    if bases:
+        meta["bases_assujetties"] = bases
+    if primes:
+        meta["primes"] = primes
+    if cotisations_agregees:
+        meta["cotisations_agregees"] = cotisations_agregees
+    if meta:
+        document = {**document, "dsn_source": meta}
+    return document
+
+
 def plan_cumul_items(parsed: ParsedDsnSet) -> List[Dict[str, Any]]:
     """Planifie les items cumuls par salarié et par mois (ordre chronologique)."""
     files_sorted = sorted(
@@ -244,6 +288,7 @@ def plan_cumul_items(parsed: ParsedDsnSet) -> List[Dict[str, Any]]:
                 totals = extract_monthly_totals(ind)
                 prev = running.get(key)
                 cumuls_doc = build_cumuls_for_month(prev, totals, month)
+                cumuls_doc = enrich_cumul_document_metadata(cumuls_doc, ind)
                 running[key] = cumuls_doc
                 items.append(
                     {

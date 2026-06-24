@@ -109,6 +109,13 @@ def _batch_company_id(batch: Dict[str, Any], company: Dict[str, Any]) -> bool:
     return False
 
 
+def _batch_commit_had_import_work(batch: Dict[str, Any]) -> bool:
+    """Vrai si le commit a réellement écrit des données (pas un batch vide)."""
+    report = (batch.get("summary") or {}).get("commit_report") or {}
+    stats = report.get("stats") or {}
+    return (stats.get("created") or 0) + (stats.get("updated") or 0) > 0
+
+
 def _periods_from_batch(batch: Dict[str, Any]) -> Set[str]:
     summary = batch.get("summary") or {}
     periods: Set[str] = set()
@@ -116,6 +123,11 @@ def _periods_from_batch(batch: Dict[str, Any]) -> Set[str]:
         raw = summary.get(key)
         if isinstance(raw, list):
             periods.update(str(p) for p in raw if p)
+    if periods:
+        return periods
+    # Fallback period_min/max uniquement si le commit a importé des données.
+    if not _batch_commit_had_import_work(batch):
+        return set()
     pmin = batch.get("period_min")
     pmax = batch.get("period_max") or pmin
     if pmin:
@@ -240,11 +252,16 @@ def compute_coverage(
         months_covered=months_sorted,
     )
 
+    next_import = resolve_next_import_period(
+        {"timeline": timeline, "gaps": gaps, "months_covered": months_sorted}
+    )
+
     return {
         "company_id": company_id,
         "dsn_sync_mode": sync_mode,
         "status": status,
         "expected_last_period": expected,
+        "next_import_period": next_import,
         "last_period": last_period,
         "last_import_at": last_import_at,
         "months_covered": months_sorted,
@@ -254,6 +271,35 @@ def compute_coverage(
         "recent_batches": batch_history[-12:],
         "alerts": alerts,
     }
+
+
+def resolve_next_import_period(coverage: Dict[str, Any]) -> Optional[str]:
+    """Premier mois manquant à importer (ordre chronologique, hors futurs)."""
+    timeline = coverage.get("timeline") or []
+    missing = sorted(
+        str(t["period"])
+        for t in timeline
+        if t.get("state") == "missing" and t.get("period")
+    )
+    if missing:
+        return missing[0]
+    gaps = coverage.get("gaps") or []
+    if gaps:
+        return sorted(str(g) for g in gaps)[0]
+    return None
+
+
+def count_timeline_coverage(coverage: Dict[str, Any]) -> Tuple[int, int]:
+    """Compte mois couverts / mois attendus (hors futurs), comme la matrice admin."""
+    timeline = coverage.get("timeline") or []
+    applicable = [t for t in timeline if t.get("state") != "future"]
+    covered = [t for t in applicable if t.get("state") == "covered"]
+    return len(covered), len(applicable)
+
+
+def is_dsn_coverage_complete(coverage: Dict[str, Any]) -> bool:
+    """True si tous les mois attendus jusqu'à expected_last_period sont importés sans trou."""
+    return (coverage.get("status") or "") == "ok"
 
 
 def _build_coverage_alerts(
@@ -401,6 +447,8 @@ def compute_admin_coverage_matrix(
                 "gaps_count": len(cov["gaps"]),
                 "months_covered": cov["months_covered"],
                 "timeline": cov["timeline"],
+                "at_mp_configured": company.get("taux_at_mp") is not None,
+                "payroll_calendar_configured": company.get("paie_jour_de_fin") is not None,
             }
         )
     rows.sort(key=lambda r: (r.get("group_name") or "", r.get("company_name") or ""))

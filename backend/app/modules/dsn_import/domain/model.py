@@ -25,6 +25,138 @@ class CotisationBlock:
 
 
 @dataclass
+class BaseAssujettieBlock:
+    """Bloc S21.G00.78 en norme P22+ (dates + montant assiette)."""
+
+    code: str = ""
+    date_debut: str = ""
+    date_fin: str = ""
+    montant: float = 0.0
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ComposantBaseBlock:
+    """Bloc S21.G00.79 — composant de base assujettie."""
+
+    code: str = ""
+    montant: float = 0.0
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class CotisationAgregeeBlock:
+    """Bloc S21.G00.86 — cotisation agrégée."""
+
+    code: str = ""
+    code_base: str = ""
+    taux: float = 0.0
+    montant: float = 0.0
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class PrimeBlock:
+    """Bloc S21.G00.52 / S21.G00.54 — prime ou avantage."""
+
+    code: str = ""
+    montant: float = 0.0
+    date_debut: str = ""
+    date_fin: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ComposantCotisationEtabBlock:
+    """Bloc S21.G00.23 — composant cotisation établissement (ex. taux AT/MP)."""
+
+    code: str = ""
+    regime: str = ""
+    taux: float = 0.0
+    assiette: float = 0.0
+    montant_pat: float = 0.0
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class VersementOrganismeBlock:
+    """Bloc S21.G00.20 — versement organisme."""
+
+    identifiant: str = ""
+    libelle: str = ""
+    bic: str = ""
+    iban: str = ""
+    montant: float = 0.0
+    date_debut: str = ""
+    date_fin: str = ""
+    mode_paiement: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class BordereauBlock:
+    """Bloc S21.G00.22 — bordereau de cotisation."""
+
+    identifiant: str = ""
+    date_debut: str = ""
+    date_fin: str = ""
+    montant: float = 0.0
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class CompteurAnnuelBlock:
+    """Bloc S21.G00.44 — compteur annuel (pas une période d'absence)."""
+
+    code: str = ""
+    montant: float = 0.0
+    annee: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ArretTravailBlock:
+    """Bloc S21.G00.41 — arrêt de travail."""
+
+    date_debut: str = ""
+    date_fin: str = ""
+    motif: str = ""
+    siret_caisse: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class SuspensionContratBlock:
+    """Bloc S21.G00.60 — suspension de contrat."""
+
+    type_suspension: str = ""
+    date_debut: str = ""
+    date_fin: str = ""
+    motif: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class FinContratBlock:
+    """Bloc S21.G00.62 — fin de contrat."""
+
+    date_fin: str = ""
+    motif: str = ""
+    date_notification: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class AncienneteBlock:
+    """Bloc S21.G00.65 — ancienneté."""
+
+    type_unite: str = ""
+    date_debut: str = ""
+    date_fin: str = ""
+    rubriques: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class CotisationIndividuelleBlock:
     """Bloc S21.G00.81 — cotisation individuelle (ex. code 059 PSC)."""
 
@@ -82,6 +214,10 @@ class VersementBlock:
     montant_soumis_pas: float = 0.0
     remunerations: List[RemunerationBlock] = field(default_factory=list)
     cotisations: List[CotisationBlock] = field(default_factory=list)
+    bases_assujetties: List[BaseAssujettieBlock] = field(default_factory=list)
+    composants_base: List[ComposantBaseBlock] = field(default_factory=list)
+    cotisations_agregees: List[CotisationAgregeeBlock] = field(default_factory=list)
+    primes: List[PrimeBlock] = field(default_factory=list)
     cotisations_individuelles: List[CotisationIndividuelleBlock] = field(
         default_factory=list
     )
@@ -106,6 +242,10 @@ class ContratBlock:
     libelle_emploi: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
     affiliations: List[AffiliationBlock] = field(default_factory=list)
+    arrets: List[ArretTravailBlock] = field(default_factory=list)
+    suspensions: List[SuspensionContratBlock] = field(default_factory=list)
+    fin_contrat: Optional[FinContratBlock] = None
+    anciennetes: List[AncienneteBlock] = field(default_factory=list)
     versements: List[VersementBlock] = field(default_factory=list)
 
 
@@ -145,6 +285,12 @@ class EtablissementBlock:
     effectif: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
     organismes_psc: List[OrganismePscBlock] = field(default_factory=list)
+    composants_cotisation: List[ComposantCotisationEtabBlock] = field(
+        default_factory=list
+    )
+    versements_organismes: List[VersementOrganismeBlock] = field(default_factory=list)
+    bordereaux: List[BordereauBlock] = field(default_factory=list)
+    compteurs_annuels: List[CompteurAnnuelBlock] = field(default_factory=list)
     individus: List[IndividuBlock] = field(default_factory=list)
 
 
@@ -303,6 +449,14 @@ class ParsedDsnSet:
             target.adresse_rue = source.adresse_rue
             target.adresse_cp = source.adresse_cp
             target.adresse_ville = source.adresse_ville
+        if not target.effectif and source.effectif:
+            target.effectif = source.effectif
+        if source.composants_cotisation:
+            target.composants_cotisation.extend(source.composants_cotisation)
+        if source.versements_organismes:
+            target.versements_organismes.extend(source.versements_organismes)
+        if source.bordereaux:
+            target.bordereaux.extend(source.bordereaux)
         id_index = {i.identifiant: i for i in target.individus if i.identifiant}
         for ind in source.individus:
             key = ind.identifiant

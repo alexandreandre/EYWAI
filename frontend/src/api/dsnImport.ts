@@ -96,7 +96,8 @@ export type DsnImportItemPreview = {
   is_existing?: boolean | null;
   existing_employee_id?: string | null;
   existing_company_id?: string | null;
-  existing_company_name?: string | null;
+  payroll_conflicts?: Record<string, { existing: unknown; dsn: unknown }> | null;
+  payroll_extract?: Record<string, unknown> | null;
 };
 
 export type DsnImportCompany = {
@@ -220,6 +221,7 @@ export type DsnCoverage = {
   dsn_sync_mode: DsnSyncMode;
   status: DsnCoverageStatus;
   expected_last_period: string;
+  next_import_period?: string | null;
   last_period?: string | null;
   last_import_at?: string | null;
   months_covered: string[];
@@ -268,6 +270,8 @@ export type DsnCoverageMatrixCompany = {
   gaps_count: number;
   months_covered: string[];
   timeline: DsnCoverageTimelineMonth[];
+  at_mp_configured?: boolean;
+  payroll_calendar_configured?: boolean;
 };
 
 export type DsnCoverageAdminMatrixResponse = {

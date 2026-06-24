@@ -56,10 +56,15 @@ export function extractCommittedCoverageFromBatch(
       if (p) periods.add(String(p));
     });
   }
-  expandPeriodRange(
-    batch.period_min ?? (summary.period_min as string | undefined),
-    batch.period_max ?? (summary.period_max as string | undefined),
-  ).forEach((p) => periods.add(p));
+  const stats = (summary.commit_report as { stats?: { created?: number; updated?: number } } | undefined)
+    ?.stats;
+  const hadImportWork = ((stats?.created ?? 0) + (stats?.updated ?? 0)) > 0;
+  if (periods.size === 0 && hadImportWork) {
+    expandPeriodRange(
+      batch.period_min ?? (summary.period_min as string | undefined),
+      batch.period_max ?? (summary.period_max as string | undefined),
+    ).forEach((p) => periods.add(p));
+  }
 
   if (periods.size === 0) return null;
   return { companyId, periods: [...periods].sort() };

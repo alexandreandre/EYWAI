@@ -13,7 +13,9 @@ from app.modules.dsn_import.application.cumuls import (
 )
 from app.modules.dsn_import.domain.user_messages import humanize_commit_error, issue_to_legacy_string
 from app.modules.dsn_import.application.mapping import normalize_employee_edits
+from app.modules.dsn_import.domain.establishment_extract import apply_payroll_merge
 from app.modules.dsn_import.application.psc_catalog import sync_employee_psc_catalog
+from app.modules.dsn_import.application.coverage import _periods_from_batch
 from app.modules.dsn_import.infrastructure import repository as repo
 from app.modules.employees.application.commands import create_employee_imported, update_employee
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -155,7 +157,9 @@ PHASE_LABELS = {
     "group": "Création du groupe",
     "establishment": "Création de l'entreprise",
     "collective_agreement": "Conventions collectives",
+    "exit": "Sorties historiques",
     "employee": "Import des salariés",
+    "absence": "Absences historiques",
     "cumul": "Reconstruction des cumuls",
     "done": "Finalisation",
 }
@@ -213,6 +217,10 @@ def _item_label(item: Optional[Dict[str, Any]]) -> Optional[str]:
         return f"IDCC {payload.get('idcc', '')}".strip()
     if item_type == "cumul":
         return f"Cumuls {payload.get('period', '')}".strip()
+    if item_type == "exit":
+        return f"Sortie {payload.get('employee_label', '')}".strip()
+    if item_type == "absence":
+        return f"Absence {payload.get('employee_label', '')}".strip()
     return item.get("source_ref")
 
 
@@ -265,8 +273,21 @@ def commit_batch(
     error_messages: List[str] = []
     imported_employees: List[Dict[str, Any]] = []
     periods_committed: set = set()
+    dsn_import_stats = {
+        "exits_created": 0,
+        "absences_created": 0,
+        "payroll_fields_applied": 0,
+    }
 
-    ordered_types = ["group", "establishment", "collective_agreement", "employee", "cumul"]
+    ordered_types = [
+        "group",
+        "establishment",
+        "collective_agreement",
+        "employee",
+        "exit",
+        "absence",
+        "cumul",
+    ]
     items_sorted = sorted(
         items,
         key=lambda i: ordered_types.index(i.get("item_type", "employee"))
@@ -346,19 +367,53 @@ def commit_batch(
                     stats["created" if created else "updated"] += 1
                     group_id = target_id
             elif item_type == "establishment":
+                apply_fields = set(edits.keys()) if edits else None
+                existing_co = (
+                    target_company
+                    if target_company is not None
+                    else repo.find_company_by_siret(payload.get("siret", ""))
+                )
+                payload = apply_payroll_merge(payload, existing_co, apply_fields)
                 if target_company is not None:
-                    # Rattachement : on attache l'import à l'entreprise existante
-                    # sans écraser ses informations curées.
                     target_id = target_cid
                     if payload.get("siret"):
                         company_by_siret[payload["siret"]] = target_cid
+                    if payload:
+                        _commit_establishment_payroll_fields(
+                            target_cid, payload, existing_co
+                        )
+                        dsn_import_stats["payroll_fields_applied"] += 1
                     action = "update"
                     stats["updated"] += 1
                 else:
-                    target_id, created = _commit_establishment(payload, group_id, action)
+                    target_id, created = _commit_establishment(
+                        payload, group_id, action, existing_co
+                    )
                     stats["created" if created else "updated"] += 1
                     if payload.get("siret"):
                         company_by_siret[payload["siret"]] = target_id
+                    if payload.get("taux_at_mp") is not None:
+                        dsn_import_stats["payroll_fields_applied"] += 1
+            elif item_type == "exit":
+                _commit_exit(
+                    payload,
+                    source_ref,
+                    company_by_siret,
+                    employee_by_ref,
+                    current_user_id,
+                )
+                dsn_import_stats["exits_created"] += 1
+                stats["created"] += 1
+            elif item_type == "absence":
+                _commit_absence(
+                    payload,
+                    source_ref,
+                    company_by_siret,
+                    employee_by_ref,
+                    current_user_id,
+                )
+                dsn_import_stats["absences_created"] += 1
+                stats["created"] += 1
             elif item_type == "collective_agreement":
                 _commit_collective_agreement(payload, company_by_siret)
                 stats["updated"] += 1
@@ -439,6 +494,7 @@ def commit_batch(
         "target_company_id": target_cid,
         "workforce_reconciliation": workforce_report,
         "orphan_removal": orphan_removal_report,
+        "dsn_import_stats": dsn_import_stats,
     }
     summary_state["commit_report"] = report
     summary_state["periods_committed"] = sorted(periods_committed)
@@ -458,12 +514,56 @@ def commit_batch(
     )
     if status == "committed":
         _mark_companies_dsn_transition(set(company_by_siret.values()), target_cid)
-        if periods_committed and resolution_company_id:
-            repo.clear_period_revocations(
-                str(resolution_company_id),
-                sorted(periods_committed),
+        if (import_mode or "").strip().lower() == "onboarding":
+            _bootstrap_leave_settings_for_companies(
+                set(company_by_siret.values()), target_cid
             )
+        if resolution_company_id:
+            periods_to_clear = sorted(
+                _periods_from_batch(
+                    {
+                        "period_min": batch.get("period_min"),
+                        "period_max": batch.get("period_max"),
+                        "summary": summary_state,
+                    }
+                )
+            )
+            if periods_to_clear:
+                repo.clear_period_revocations(
+                    str(resolution_company_id),
+                    periods_to_clear,
+                )
     return report
+
+
+def _bootstrap_leave_settings_for_companies(
+    company_ids: set, target_cid: Optional[str]
+) -> None:
+    """Crée les paramètres congés par défaut si absents (onboarding)."""
+    from app.modules.absences.domain.ccn_setup_presets import get_leave_preset_for_idcc
+    from app.modules.absences.infrastructure.leave_settings_repository import upsert_leave_policy
+
+    ids = {str(cid) for cid in company_ids if cid}
+    if target_cid:
+        ids.add(str(target_cid))
+    client = get_supabase_admin_client()
+    for cid in ids:
+        try:
+            existing = (
+                client.table("company_leave_settings")
+                .select("id")
+                .eq("company_id", cid)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                continue
+            co = repo.find_company_by_id(cid)
+            idcc = co.get("idcc") if co else None
+            preset = get_leave_preset_for_idcc(idcc)
+            upsert_leave_policy(cid, preset)
+        except Exception:
+            logger.exception("Bootstrap leave_settings entreprise %s échoué", cid)
 
 
 def _mark_companies_dsn_transition(company_ids: set, target_cid: Optional[str]) -> None:
@@ -506,8 +606,45 @@ def _commit_group(payload: Dict[str, Any], action: str) -> tuple[str, bool]:
     return str(row["id"]), True
 
 
+def _commit_establishment_payroll_fields(
+    company_id: str,
+    payload: Dict[str, Any],
+    existing: Optional[Dict[str, Any]],
+) -> None:
+    """Applique uniquement les champs paie extraits DSN (merge non destructif)."""
+    client = get_supabase_admin_client()
+    update_data: Dict[str, Any] = {}
+    for field in ("taux_at_mp", "paie_jour_de_fin", "paie_occurrence", "effectif"):
+        val = payload.get(field)
+        if val is None:
+            continue
+        if existing and existing.get(field) not in (None, ""):
+            continue
+        update_data[field] = val
+
+    settings_patch: Dict[str, Any] = {}
+    if payload.get("dsn_organismes"):
+        settings_patch["organismes"] = payload["dsn_organismes"]
+    if payload.get("dsn_bordereaux"):
+        settings_patch["bordereaux"] = payload["dsn_bordereaux"]
+    if settings_patch:
+        current_settings = (existing or {}).get("settings") or {}
+        if not isinstance(current_settings, dict):
+            current_settings = {}
+        dsn_meta = dict(current_settings.get("dsn_import") or {})
+        dsn_meta.update(settings_patch)
+        merged_settings = {**current_settings, "dsn_import": dsn_meta}
+        update_data["settings"] = merged_settings
+
+    if update_data:
+        client.table("companies").update(update_data).eq("id", company_id).execute()
+
+
 def _commit_establishment(
-    payload: Dict[str, Any], group_id: Optional[str], action: str
+    payload: Dict[str, Any],
+    group_id: Optional[str],
+    action: str,
+    existing: Optional[Dict[str, Any]] = None,
 ) -> tuple[str, bool]:
     siret = payload.get("siret", "")
     existing = repo.find_company_by_siret(siret)
@@ -527,6 +664,9 @@ def _commit_establishment(
             "adresse_code_postal",
             "adresse_ville",
             "is_active",
+            "taux_at_mp",
+            "paie_jour_de_fin",
+            "paie_occurrence",
         )
         if k in payload and payload[k] is not None
     }
@@ -536,13 +676,28 @@ def _commit_establishment(
     if existing:
         cid = str(existing["id"])
         if action == "update":
-            client.table("companies").update(insert_data).eq("id", cid).execute()
+            merge_payload = apply_payroll_merge(payload, existing)
+            update_data = {
+                k: merge_payload[k]
+                for k in insert_data
+                if k in merge_payload and merge_payload[k] is not None
+            }
+            if update_data:
+                client.table("companies").update(update_data).eq("id", cid).execute()
+            _commit_establishment_payroll_fields(cid, merge_payload, existing)
         elif group_id and not existing.get("group_id"):
             client.table("companies").update({"group_id": group_id}).eq("id", cid).execute()
         return cid, False
 
     insert_data.setdefault("is_active", True)
     insert_data.setdefault("dsn_sync_mode", "transition")
+    settings_patch: Dict[str, Any] = {}
+    if payload.get("dsn_organismes"):
+        settings_patch["organismes"] = payload["dsn_organismes"]
+    if payload.get("dsn_bordereaux"):
+        settings_patch["bordereaux"] = payload["dsn_bordereaux"]
+    if settings_patch:
+        insert_data["settings"] = {"dsn_import": settings_patch}
     resp = client.table("companies").insert(insert_data).execute()
     if not resp.data:
         raise RuntimeError(f"Création entreprise {siret} échouée")
@@ -592,13 +747,13 @@ def _commit_employee(
         k: v
         for k, v in payload.items()
         if not k.startswith("_")
-        and k not in ("collective_agreement_idcc", "import_source", "ntt", "matricule", "employee_key")
+        and k not in ("collective_agreement_idcc", "import_source", "ntt", "employee_key")
         and v is not None
     }
 
     # Colonnes optionnelles (état civil DSN) : on ne les envoie que si la migration
     # les a créées, sinon l'insert échouerait (column does not exist).
-    for optional_col in ("sexe", "nom_usage"):
+    for optional_col in ("sexe", "nom_usage", "matricule"):
         if optional_col in clean_payload and not repo.employee_has_column(optional_col):
             clean_payload.pop(optional_col, None)
 
@@ -633,6 +788,82 @@ def _commit_employee(
     except Exception:
         logger.exception("Sync PSC mutuelle échoué pour %s", row["id"])
     return str(row["id"]), True, row
+
+
+def _resolve_employee_for_dsn_item(
+    payload: Dict[str, Any],
+    company_by_siret: Dict[str, str],
+    employee_by_ref: Dict[str, Dict[str, Any]],
+) -> tuple[Optional[str], Optional[str]]:
+    siret = payload.get("siret", "")
+    nir = payload.get("nir", "")
+    company_id = company_by_siret.get(siret)
+    if not company_id:
+        co = repo.find_company_by_siret(siret)
+        company_id = str(co["id"]) if co else None
+    if not company_id:
+        raise RuntimeError(f"Entreprise {siret} introuvable")
+
+    emp = _resolve_employee_row(
+        company_id,
+        nir,
+        f"emp:{siret}:{nir}",
+        payload,
+        employee_by_ref,
+    )
+    if not emp:
+        raise RuntimeError(f"Salarié NIR {nir} introuvable pour {siret}")
+    return str(emp["id"]), company_id
+
+
+def _commit_exit(
+    payload: Dict[str, Any],
+    source_ref: str,
+    company_by_siret: Dict[str, str],
+    employee_by_ref: Dict[str, Dict[str, Any]],
+    current_user_id: Optional[str],
+) -> None:
+    from app.modules.employee_exits.application.commands import create_reconciliation_exit
+
+    employee_id, company_id = _resolve_employee_for_dsn_item(
+        payload, company_by_siret, employee_by_ref
+    )
+    user_id = current_user_id or "dsn-import-system"
+    create_reconciliation_exit(
+        employee_id,
+        company_id,
+        user_id,
+        exit_type=str(payload.get("exit_type") or "demission"),
+        last_working_day=payload.get("last_working_day"),
+        exit_reason=payload.get("exit_reason")
+        or f"Import DSN ({payload.get('motif_dsn', '')})",
+        fast_archive=True,
+        source="dsn_reconciliation",
+    )
+
+
+def _commit_absence(
+    payload: Dict[str, Any],
+    source_ref: str,
+    company_by_siret: Dict[str, str],
+    employee_by_ref: Dict[str, Dict[str, Any]],
+    current_user_id: Optional[str],
+) -> None:
+    from app.modules.absences.application.commands import create_reconciliation_absence
+
+    employee_id, company_id = _resolve_employee_for_dsn_item(
+        payload, company_by_siret, employee_by_ref
+    )
+    user_id = current_user_id or "dsn-import-system"
+    create_reconciliation_absence(
+        employee_id,
+        company_id,
+        user_id,
+        absence_type=str(payload.get("absence_type") or "arret_maladie"),
+        selected_days=payload.get("selected_days") or [],
+        arret_type=payload.get("arret_type"),
+        source="dsn_import",
+    )
 
 
 def _commit_cumul(

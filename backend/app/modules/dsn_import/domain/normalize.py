@@ -96,7 +96,16 @@ def map_temps_partiel_dsn(
 
     if heures <= 0:
         heures = 35.0
-    return is_tp, heures
+
+    # Modalité TP sans quotité exploitable : conserver le flag mais tenter la ref.
+    if is_tp and heures >= 35.0 - 0.01 and q_contrat > 0:
+        heures = round(q_contrat * 12.0 / 52.0, 2) if q_contrat > 60 else round(q_contrat, 2)
+    elif is_tp and heures >= 35.0 - 0.01 and q_ref > 0 and q_contrat > 0:
+        heures = round(q_contrat * 12.0 / 52.0, 2) if q_contrat > 60 else round(q_contrat, 2)
+
+    from app.modules.employees.domain.rules import normalize_temps_travail_fields
+
+    return normalize_temps_travail_fields(is_tp, heures)
 
 
 def map_sexe(code: str) -> Optional[str]:

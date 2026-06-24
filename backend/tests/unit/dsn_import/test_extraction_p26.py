@@ -46,6 +46,21 @@ def test_temps_partiel_defaut_sans_info():
     assert heures == 35.0
 
 
+def test_temps_partiel_modalite_sans_quotite_reste_flag_pour_relecture():
+    is_tp, heures = map_temps_partiel_dsn("20", "10", "", "151.67")
+    assert is_tp is True
+    assert heures == 35.0
+
+
+def test_review_temps_partiel_incoherent():
+    from app.modules.dsn_import.application.mapping import compute_review_reasons_from_payload
+
+    reasons = compute_review_reasons_from_payload(
+        {"is_temps_partiel": True, "duree_hebdomadaire": 35.0, "salaire_de_base": {"valeur": 1800}}
+    )
+    assert "temps_partiel_incoherent" in reasons
+
+
 def test_map_sexe():
     assert map_sexe("01") == "M"
     assert map_sexe("02") == "F"

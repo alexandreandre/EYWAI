@@ -20,5 +20,7 @@ export const DSN_IMPORT_ISSUE_HINTS: Record<string, string> = {
     "Une fin de contrat est indiquée dans la DSN — clôturez le départ ou ouvrez le parcours complet.",
   workforce_active_without_nir:
     "Ces salariés n'ont pas de NIR : la comparaison automatique avec la DSN est impossible.",
+  payroll_field_conflict:
+    "Une valeur existe déjà en base — cochez le champ dans « Paramètres paie extraits » pour l'écraser.",
   unknown: "Consultez le détail ou contactez le support si le problème persiste.",
 };

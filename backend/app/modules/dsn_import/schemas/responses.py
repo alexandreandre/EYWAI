@@ -174,6 +174,7 @@ class DsnCoverageResponse(BaseModel):
     dsn_sync_mode: str
     status: str
     expected_last_period: str
+    next_import_period: Optional[str] = None
     last_period: Optional[str] = None
     last_import_at: Optional[str] = None
     months_covered: List[str] = Field(default_factory=list)

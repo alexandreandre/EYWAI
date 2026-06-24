@@ -36,7 +36,14 @@ def employee_payload():
 
 def test_create_employee_imported_no_auth(employee_payload):
     company_id = str(uuid.uuid4())
-    with patch("app.modules.employees.application.commands._employee_repository") as repo:
+    with patch(
+        "app.modules.employees.application.commands.allocate_collaborator_username",
+        return_value="jean.martin",
+    ), patch(
+        "app.modules.employees.application.credentials_pdf.store_credentials_pdf_for_employee"
+    ) as mock_store_pdf, patch(
+        "app.modules.employees.application.commands._employee_repository"
+    ) as repo:
         repo.create.return_value = {
             "id": "emp-1",
             "employee_folder_name": "MARTIN_Jean",
@@ -49,3 +56,7 @@ def test_create_employee_imported_no_auth(employee_payload):
         call_data = repo.create.call_args[0][0]
         assert call_data.get("user_id") is None
         assert call_data.get("employment_status") == "actif"
+        assert call_data.get("username") == "jean.martin"
+        mock_store_pdf.assert_called_once()
+        assert mock_store_pdf.call_args.args == ("emp-1", company_id)
+        assert mock_store_pdf.call_args.kwargs["username"] == "jean.martin"

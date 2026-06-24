@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { FolderPlus } from 'lucide-react';
 import { AdminPageHeader } from '@/features/admin/components/eywai/AdminPageHeader';
 import { DsnCoverageMatrix } from '@/features/dsn-import/components/DsnCoverageMatrix';
 import { DsnImportHistory } from '@/features/dsn-import/components/DsnImportHistory';
@@ -9,11 +8,26 @@ import { DsnImportQuickStrip } from '@/features/dsn-import/components/DsnImportQ
 import { DsnImportSheet } from '@/features/dsn-import/components/DsnImportSheet';
 import { DsnPeriodActionDialog } from '@/features/dsn-import/components/DsnPeriodActionDialog';
 import { useDsnImportCommitWatcher } from '@/features/dsn-import/hooks/useDsnImportCommitWatcher';
-import { RibImportPanel } from '@/features/admin-import/components/RibImportPanel';
+import { PayrollExportImportPanel } from '@/features/admin-import/components/PayrollExportImportPanel';
 import { CpImportPanel } from '@/features/admin-import/components/CpImportPanel';
+import { CompanySetupHub } from '@/features/admin-import/components/CompanySetupHub';
+import {
+  CompanySetupStepHeading,
+  CompanySetupStepNav,
+} from '@/features/admin-import/components/CompanySetupStepNav';
+import {
+  CompanySetupContentShell,
+  CompanySetupPickCompanyHint,
+} from '@/features/admin-import/components/CompanySetupContentShell';
+import { CompanySetupWizard } from '@/features/admin-import/components/CompanySetupWizard';
+import { CompanySetupParamsStep } from '@/features/admin-import/components/CompanySetupParamsStep';
+import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
+import {
+  CompanyImportProvider,
+  useCompanyImport,
+} from '@/features/admin-import/context/CompanyImportContext';
+import type { CompanySetupTab } from '@/features/admin-import/lib/companySetupSteps';
 import type { DsnImportLaunchConfig, DsnImportMode } from '@/api/dsnImport';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -25,12 +39,17 @@ import {
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
-export default function DsnImport() {
+function DsnImportPageContent() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('dsn');
+  const {
+    companyId,
+    setCompanyId,
+    activeTab,
+    setActiveTab,
+    openWizard,
+  } = useCompanyImport();
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [stripCompanyId, setStripCompanyId] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [launchConfig, setLaunchConfig] = useState<DsnImportLaunchConfig | null>(null);
   const [initialFiles, setInitialFiles] = useState<File[] | undefined>();
@@ -65,7 +84,22 @@ export default function DsnImport() {
     void queryClient.refetchQueries({ queryKey: ['dsn-admin-matrix'] });
     void queryClient.refetchQueries({ queryKey: ['dsn-admin-late-summary'] });
     void queryClient.refetchQueries({ queryKey: ['dsn-import-batches'] });
-  }, [queryClient]);
+    if (companyId) {
+      void queryClient.invalidateQueries({ queryKey: ['company-setup-status', companyId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ['dsn-coverage'] });
+  }, [queryClient, companyId]);
+
+  const handleContinueOnboarding = useCallback(
+    (targetCompanyId: string) => {
+      setCompanyId(targetCompanyId);
+      setSheetOpen(false);
+      setLaunchConfig(null);
+      setInitialFiles(undefined);
+      openWizard('payroll-export');
+    },
+    [setCompanyId, openWizard],
+  );
 
   const handleHistoryResume = useCallback(
     (batch: { id: string; summary?: Record<string, unknown> }) => {
@@ -79,15 +113,15 @@ export default function DsnImport() {
   );
 
   useEffect(() => {
-    const companyId = searchParams.get('companyId');
+    const urlCompanyId = searchParams.get('companyId');
     const mode = searchParams.get('mode');
-    if (companyId && mode === 'monthly') {
+    if (urlCompanyId && mode === 'monthly' && !searchParams.get('wizard')) {
       setActiveTab('dsn');
-      setStripCompanyId(companyId);
-      openSheet({ mode: 'monthly', targetCompanyId: companyId });
+      setCompanyId(urlCompanyId);
+      openSheet({ mode: 'monthly', targetCompanyId: urlCompanyId });
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, openSheet, setSearchParams]);
+  }, [searchParams, openSheet, setSearchParams, setCompanyId, setActiveTab]);
 
   useEffect(() => {
     const resumeBatch = searchParams.get('resumeBatch');
@@ -98,42 +132,44 @@ export default function DsnImport() {
       resumeBatchId: resumeBatch,
     });
     setSearchParams({}, { replace: true });
-  }, [searchParams, openSheet, setSearchParams]);
+  }, [searchParams, openSheet, setSearchParams, setActiveTab]);
 
   const handleStripAnalyze = useCallback(
-    (files: File[]) => {
-      if (!stripCompanyId) return;
+    (files: File[], suggestedPeriod?: string | null) => {
+      if (!companyId) return;
       openSheet(
         {
           mode: 'monthly',
-          targetCompanyId: stripCompanyId,
+          targetCompanyId: companyId,
+          suggestedPeriod: suggestedPeriod ?? undefined,
         },
         files,
       );
     },
-    [stripCompanyId, openSheet],
+    [companyId, openSheet],
   );
 
   const handleCellClick = useCallback(
     (
-      companyId: string,
+      cellCompanyId: string,
       period: string,
       state: 'covered' | 'missing' | 'future' | 'preview',
       companyName?: string | null,
     ) => {
-      setStripCompanyId(companyId);
+      setCompanyId(cellCompanyId);
+      setActiveTab('dsn');
       if (state === 'covered') {
-        setPeriodAction({ companyId, companyName, period });
+        setPeriodAction({ companyId: cellCompanyId, companyName, period });
         return;
       }
       openSheet({
         mode: 'monthly',
-        targetCompanyId: companyId,
+        targetCompanyId: cellCompanyId,
         suggestedPeriod: period,
         reimport: false,
       });
     },
-    [openSheet],
+    [openSheet, setCompanyId, setActiveTab],
   );
 
   const handlePeriodRevoked = useCallback(() => {
@@ -142,20 +178,21 @@ export default function DsnImport() {
   }, [queryClient]);
 
   const handleImportCompany = useCallback(
-    (companyId: string) => {
-      setStripCompanyId(companyId);
+    (importCompanyId: string) => {
+      setCompanyId(importCompanyId);
+      setActiveTab('dsn');
       openSheet({
         mode: 'monthly',
-        targetCompanyId: companyId,
+        targetCompanyId: importCompanyId,
       });
     },
-    [openSheet],
+    [openSheet, setCompanyId, setActiveTab],
   );
 
   const yearSelector = useMemo(
     () => (
       <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v, 10))}>
-        <SelectTrigger className="h-9 w-[100px]">
+        <SelectTrigger className="h-8 w-[92px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -170,62 +207,112 @@ export default function DsnImport() {
     [year],
   );
 
+  const handleTabChange = useCallback(
+    (tab: CompanySetupTab) => setActiveTab(tab),
+    [setActiveTab],
+  );
+
+  const stepContent = () => {
+    switch (activeTab) {
+      case 'dsn':
+        return (
+          <div className="space-y-6">
+            {companyId ? (
+              <DsnImportQuickStrip
+                selectedCompanyId={companyId}
+                onCompanyChange={setCompanyId}
+                onAnalyze={handleStripAnalyze}
+                hideCompanySelector
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-4">
+                Sélectionnez une entreprise pour importer un mois précis, ou parcourez la matrice
+                ci-dessous pour toutes les filiales.
+              </p>
+            )}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Couverture DSN — groupe</h3>
+                {yearSelector}
+              </div>
+              <DsnCoverageMatrix
+                year={year}
+                onCellClick={handleCellClick}
+                onImportCompany={handleImportCompany}
+              />
+            </div>
+            <DsnImportHistory onResume={handleHistoryResume} />
+          </div>
+        );
+      case 'payroll-export':
+        return (
+          <PayrollExportImportPanel
+            fixedCompanyId={companyId}
+            hideCompanySelector={Boolean(companyId)}
+            onCompanyChange={setCompanyId}
+            embedded
+            showContext
+          />
+        );
+      case 'cp':
+        return (
+          <CpImportPanel
+            embedded
+            fixedCompanyId={companyId || undefined}
+          />
+        );
+      case 'params':
+        return companyId ? (
+          <CompanySetupParamsStep companyId={companyId} />
+        ) : (
+          <CompanySetupPickCompanyHint />
+        );
+      case 'planning':
+        return companyId ? (
+          <PlanningImportPanel companyId={companyId} embedded />
+        ) : (
+          <CompanySetupPickCompanyHint />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 max-w-6xl">
       <AdminPageHeader
-        title="Import"
-        description="Import DSN mensuelle par entreprise, import RIB salariés et import soldes CP depuis bulletins PDF."
+        title="Configuration entreprise"
+        description="Parcours guidé pour paramétrer une filiale : imports, soldes et paramètres paie."
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="dsn">Import DSN</TabsTrigger>
-          <TabsTrigger value="rib">Import RIB</TabsTrigger>
-          <TabsTrigger value="cp">Import CP</TabsTrigger>
-        </TabsList>
+      <CompanySetupHub
+        onStartWizard={() => openWizard('intro')}
+        onNewDsnFolder={() => openSheet({ mode: 'onboarding' })}
+      />
 
-        <TabsContent value="dsn" className="mt-4 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Vue mensuelle par entreprise — case verte = DSN importée, ambre = mois manquant.
-            </p>
-            <div className="flex items-center gap-2">
-              {yearSelector}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => openSheet({ mode: 'onboarding' })}
-              >
-                <FolderPlus className="mr-1.5 h-4 w-4" />
-                Nouveau dossier (onboarding)
-              </Button>
-            </div>
-          </div>
+      <CompanySetupStepNav
+        companyId={companyId}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
 
-          <DsnImportQuickStrip
-            selectedCompanyId={stripCompanyId}
-            onCompanyChange={setStripCompanyId}
-            onAnalyze={handleStripAnalyze}
-          />
+      {activeTab === 'dsn' ? (
+        stepContent()
+      ) : (
+        <CompanySetupContentShell>
+          <CompanySetupStepHeading activeTab={activeTab} />
+          {stepContent()}
+        </CompanySetupContentShell>
+      )}
 
-          <DsnCoverageMatrix
-            year={year}
-            onCellClick={handleCellClick}
-            onImportCompany={handleImportCompany}
-          />
-
-          <DsnImportHistory onResume={handleHistoryResume} />
-        </TabsContent>
-
-        <TabsContent value="rib" className="mt-4">
-          <RibImportPanel />
-        </TabsContent>
-
-        <TabsContent value="cp" className="mt-4">
-          <CpImportPanel />
-        </TabsContent>
-      </Tabs>
+      <CompanySetupWizard
+        onOpenDsnOnboarding={() => openSheet({ mode: 'onboarding' })}
+        onOpenDsnForCompany={(id) =>
+          openSheet({ mode: 'monthly', targetCompanyId: id })
+        }
+        onAnalyzeDsn={handleStripAnalyze}
+        onDsnCellClick={handleCellClick}
+      />
 
       <DsnImportSheet
         open={sheetOpen}
@@ -237,6 +324,7 @@ export default function DsnImport() {
         initialFiles={initialFiles}
         sessionKey={sessionKey}
         onCommitStarted={handleCommitStarted}
+        onContinueOnboarding={handleContinueOnboarding}
       />
 
       {periodAction && (
@@ -261,5 +349,13 @@ export default function DsnImport() {
         />
       )}
     </div>
+  );
+}
+
+export default function DsnImport() {
+  return (
+    <CompanyImportProvider>
+      <DsnImportPageContent />
+    </CompanyImportProvider>
   );
 }

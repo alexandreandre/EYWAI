@@ -51,6 +51,14 @@ import {
 import { formatEuroAmount } from '@/lib/careerFormat';
 import { applyDsnImportCommitted } from '@/lib/dsnCoverageCache';
 import { DsnImportAttributionCard } from './DsnImportAttributionCard';
+import {
+  DsnCompanyPayrollExtractCard,
+  type PayrollField,
+} from './DsnCompanyPayrollExtractCard';
+import {
+  DsnImportCommitStatsCard,
+  DsnImportHistoricalCard,
+} from './DsnImportHistoricalCard';
 import { DsnCoverageTimeline } from './DsnCoverageTimeline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -377,12 +385,14 @@ export function DsnImportWizard({
   launchConfig,
   onResetLaunch,
   onCommitStarted,
+  onContinueOnboarding,
   initialFiles,
   embedded = false,
 }: {
   launchConfig?: DsnImportLaunchConfig | null;
   onResetLaunch?: () => void;
   onCommitStarted?: (batchId: string) => void;
+  onContinueOnboarding?: (companyId: string) => void;
   initialFiles?: File[];
   embedded?: boolean;
 }) {
@@ -397,6 +407,7 @@ export function DsnImportWizard({
   const [parseResult, setParseResult] = useState<DsnImportParseResponse | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [payloadEdits, setPayloadEdits] = useState<Record<string, Record<string, string>>>({});
+  const [payrollApplyFields, setPayrollApplyFields] = useState<Set<PayrollField>>(new Set());
   const [fieldErrors, setFieldErrors] = useState<Record<string, Record<string, string>>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [employeesOpen, setEmployeesOpen] = useState(false);
@@ -987,6 +998,36 @@ export function DsnImportWizard({
     }, {});
   }, [parseResult]);
 
+  const establishmentItem = useMemo(
+    () => parseResult?.items.find((it) => it.item_type === 'establishment') ?? null,
+    [parseResult],
+  );
+
+  const handlePayrollFieldToggle = useCallback(
+    (field: PayrollField, checked: boolean) => {
+      setPayrollApplyFields((prev) => {
+        const next = new Set(prev);
+        if (checked) next.add(field);
+        else next.delete(field);
+        return next;
+      });
+      if (!establishmentItem) return;
+      const ref = establishmentItem.source_ref;
+      const val = establishmentItem.mapped_payload?.[field];
+      setPayloadEdits((prev) => {
+        const row = { ...(prev[ref] ?? {}) };
+        if (checked && val != null && val !== '') row[field] = String(val);
+        else delete row[field];
+        if (Object.keys(row).length === 0) {
+          const { [ref]: _, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [ref]: row };
+      });
+    },
+    [establishmentItem],
+  );
+
   const hasScaffoldGroup = useMemo(
     () => parseResult?.items.some((i) => i.item_type === 'group' && i.is_scaffold) ?? false,
     [parseResult],
@@ -1470,6 +1511,14 @@ export function DsnImportWizard({
               locked={Boolean(lockedTargetCompanyId)}
             />
 
+            <DsnCompanyPayrollExtractCard
+              establishmentItem={establishmentItem}
+              applyFields={payrollApplyFields}
+              onToggleField={handlePayrollFieldToggle}
+            />
+
+            <DsnImportHistoricalCard items={parseResult.items} />
+
             {coverageQuery.data ? (
               <Card>
                 <CardHeader className="pb-2">
@@ -1895,6 +1944,11 @@ export function DsnImportWizard({
                     </span>
                   )}
                 </div>
+                <DsnImportCommitStatsCard
+                  stats={
+                    (commitReport as { dsn_import_stats?: Record<string, number> }).dsn_import_stats
+                  }
+                />
                 {(commitReport.group_id || Object.keys(commitReport.companies).length > 0) && (
                   <div className="rounded-lg border bg-muted/30 p-3">
                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1918,6 +1972,28 @@ export function DsnImportWizard({
                         </Button>
                       ))}
                     </div>
+                  </div>
+                )}
+                {importMode === 'onboarding' && onContinueOnboarding && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 space-y-2">
+                    <p className="text-sm font-medium text-emerald-900">
+                      Suite du parcours onboarding
+                    </p>
+                    <p className="text-xs text-emerald-800">
+                      Enrichissement salariés, RIB, soldes CP et paramètres entreprise.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        const cid =
+                          commitReport.target_company_id ||
+                          Object.values(commitReport.companies)[0];
+                        if (cid) onContinueOnboarding(String(cid));
+                      }}
+                    >
+                      Continuer l&apos;onboarding
+                    </Button>
                   </div>
                 )}
                 {normalizeCommitErrors(commitReport.errors, commitReport.error_messages).length > 0 && (

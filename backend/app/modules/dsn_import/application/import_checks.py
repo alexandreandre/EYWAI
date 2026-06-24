@@ -174,6 +174,7 @@ def attach_import_context_warnings(
     summary.pop("siret_mismatch", None)
     summary.pop("detected_period", None)
     summary.pop("expected_import_period", None)
+    summary.pop("next_import_period", None)
 
     if mode != "monthly" or not target_company_id:
         return
@@ -186,29 +187,47 @@ def attach_import_context_warnings(
     if detected:
         summary["detected_period"] = detected
 
-    from app.modules.dsn_import.application.coverage import compute_coverage
+    from app.modules.dsn_import.application.coverage import (
+        compute_coverage,
+        resolve_next_import_period,
+    )
 
     cov = compute_coverage(company)
     expected = cov.get("expected_last_period")
-    gaps: List[str] = list(cov.get("gaps") or [])
+    next_import = resolve_next_import_period(cov)
+    months_covered = set(cov.get("months_covered") or [])
     if expected:
         summary["expected_import_period"] = expected
+    if next_import:
+        summary["next_import_period"] = next_import
 
-    if detected and expected and detected != expected:
-        user_chose_this_month = bool(intended_period and intended_period == detected)
-        backfill_missing_month = bool(gaps and detected in gaps)
-        if not user_chose_this_month and not backfill_missing_month:
-            summary["period_mismatch"] = {"expected": expected, "detected": detected}
+    reference_period = intended_period or next_import
+    if detected and reference_period and detected != reference_period:
+        explicit_reimport = (
+            bool(intended_period)
+            and intended_period == detected
+            and detected in months_covered
+        )
+        if not explicit_reimport:
+            summary["period_mismatch"] = {
+                "expected": reference_period,
+                "detected": detected,
+                "next_import_period": next_import,
+            }
             anomalies.append(
                 _warning(
                     type_="period_mismatch",
                     message=(
                         f"La DSN concerne {format_period_fr(detected)}, "
-                        f"alors que le prochain mois attendu pour cette entreprise est "
-                        f"{format_period_fr(expected)}. "
-                        f"Vous pouvez confirmer l'import pour {format_period_fr(detected)}."
+                        f"alors que le prochain mois à importer est "
+                        f"{format_period_fr(reference_period)}. "
+                        f"Confirmez pour importer {format_period_fr(detected)} quand même."
                     ),
-                    meta={"expected": expected, "detected": detected},
+                    meta={
+                        "expected": reference_period,
+                        "detected": detected,
+                        "next_import_period": next_import,
+                    },
                 )
             )
 

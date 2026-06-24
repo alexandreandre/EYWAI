@@ -109,7 +109,7 @@ def list_companies_with_dsn_mode() -> List[Dict[str, Any]]:
             client.table("companies")
             .select(
                 "id, company_name, siret, siren, dsn_sync_mode, "
-                "paie_occurrence, paie_jour_de_fin, group_id, is_active"
+                "paie_occurrence, paie_jour_de_fin, taux_at_mp, group_id, is_active"
             )
             .order("company_name")
             .execute()
@@ -160,13 +160,30 @@ def update_company_dsn_sync_mode_if_native(company_id: str, mode: str) -> None:
 def insert_items(items: List[Dict[str, Any]]) -> int:
     if not items:
         return 0
-    try:
-        client = get_supabase_admin_client()
-        resp = client.table(ITEMS_TABLE).insert(items).execute()
+    client = get_supabase_admin_client()
+
+    def _insert(rows: List[Dict[str, Any]]) -> int:
+        resp = client.table(ITEMS_TABLE).insert(rows).execute()
         return len(resp.data or [])
+
+    try:
+        return _insert(items)
     except Exception:
         logger.exception("Insertion dsn_import_items échouée")
-        return 0
+        deferred_types = {"absence", "exit"}
+        filtered = [row for row in items if row.get("item_type") not in deferred_types]
+        if len(filtered) == len(items):
+            return 0
+        skipped = len(items) - len(filtered)
+        logger.warning(
+            "Retry insertion dsn_import_items sans absence/exit (%d items ignorés)",
+            skipped,
+        )
+        try:
+            return _insert(filtered)
+        except Exception:
+            logger.exception("Insertion dsn_import_items (sans absence/exit) échouée")
+            return 0
 
 
 def list_items(batch_id: str) -> List[Dict[str, Any]]:

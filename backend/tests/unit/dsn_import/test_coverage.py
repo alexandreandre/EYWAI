@@ -4,8 +4,11 @@ from datetime import date
 
 from app.modules.dsn_import.application.coverage import (
     compute_coverage,
+    count_timeline_coverage,
     expected_last_period,
+    is_dsn_coverage_complete,
     merge_dsn_alerts_into_overview,
+    resolve_next_import_period,
 )
 
 
@@ -132,3 +135,45 @@ def test_compute_coverage_excludes_revoked_periods():
     assert "2026-02" not in cov["months_covered"]
     feb = next(m for m in cov["timeline"] if m["period"] == "2026-02")
     assert feb["state"] == "missing"
+
+
+def test_resolve_next_import_period_first_missing():
+    cov = {
+        "timeline": [
+            {"period": "2026-01", "state": "missing"},
+            {"period": "2026-02", "state": "missing"},
+            {"period": "2026-06", "state": "future"},
+        ],
+        "gaps": [],
+    }
+    assert resolve_next_import_period(cov) == "2026-01"
+
+
+def test_compute_coverage_includes_next_import_period():
+    company = {
+        "id": "c1",
+        "dsn_sync_mode": "external",
+        "siret": "11111111100011",
+        "siren": "111111111",
+    }
+    cov = compute_coverage(company, batches=[], reference=date(2026, 6, 16))
+    assert cov["next_import_period"] == "2026-01"
+
+
+def test_count_timeline_coverage_and_complete():
+    coverage = {
+        "status": "ok",
+        "timeline": [
+            {"period": "2026-01", "state": "covered"},
+            {"period": "2026-02", "state": "covered"},
+            {"period": "2026-03", "state": "missing"},
+            {"period": "2026-04", "state": "future"},
+        ],
+    }
+    covered, total = count_timeline_coverage(coverage)
+    assert covered == 2
+    assert total == 3
+    assert is_dsn_coverage_complete(coverage) is True
+
+    coverage["status"] = "missing"
+    assert is_dsn_coverage_complete(coverage) is False

@@ -20,7 +20,14 @@ from app.modules.dsn_import.domain.normalize import (
     normalize_date_dsn,
 )
 from app.modules.dsn_import.application.cumuls import extract_monthly_totals
+from app.modules.dsn_import.domain.establishment_extract import enrich_establishment_payload
+from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
+    build_absence_payload_from_arret,
+    build_absence_payload_from_suspension,
+    build_exit_payload_from_fin_contrat,
+)
 from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
+from app.modules.employees.domain.rules import is_temps_travail_incoherent
 
 # Champs modifiables en preview (clé payload -> libellé UI)
 EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
@@ -35,6 +42,9 @@ EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
         "adresse_rue": "Adresse",
         "adresse_code_postal": "Code postal",
         "adresse_ville": "Ville",
+        "taux_at_mp": "Taux AT/MP (%)",
+        "paie_jour_de_fin": "Jour fin période paie",
+        "paie_occurrence": "Occurrence paie",
     },
     "employee": {
         "last_name": "Nom",
@@ -44,6 +54,8 @@ EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
         "job_title": "Poste",
         "hire_date": "Date d'embauche",
         "salaire_brut": "Salaire brut mensuel",
+        "is_temps_partiel": "Temps partiel",
+        "duree_hebdomadaire": "Durée hebdomadaire (h)",
     },
 }
 
@@ -51,6 +63,7 @@ EDITABLE_FIELDS: Dict[str, Dict[str, str]] = {
 REVIEW_REASON_LABELS: Dict[str, str] = {
     "brut_absent": "Brut non extrait de la DSN",
     "nir_incomplet": "NIR absent (NTT ou matricule utilisé)",
+    "temps_partiel_incoherent": "Temps partiel détecté sans durée hebdo (< 35 h)",
 }
 
 
@@ -67,6 +80,11 @@ def compute_review_reasons_from_payload(
         reasons.append("brut_absent")
     if not payload.get("nir") and (payload.get("ntt") or payload.get("matricule")):
         reasons.append("nir_incomplet")
+    if is_temps_travail_incoherent(
+        payload.get("is_temps_partiel"),
+        payload.get("duree_hebdomadaire"),
+    ):
+        reasons.append("temps_partiel_incoherent")
     return reasons
 
 
@@ -85,26 +103,47 @@ def apply_review_flags(item: Dict[str, Any], *, effective_action: Optional[str] 
     item["review_reasons"] = reasons
     cols = dict(item.get("preview_columns") or {})
     cols["brut"] = (payload.get("salaire_de_base") or {}).get("valeur")
+    cols["is_temps_partiel"] = payload.get("is_temps_partiel")
+    cols["duree_hebdomadaire"] = payload.get("duree_hebdomadaire")
     item["preview_columns"] = cols
 
 
 def normalize_employee_edits(edits: Dict[str, Any]) -> Dict[str, Any]:
     """Normalise les éditions preview salarié (clé plate salaire_brut -> salaire_de_base)."""
     out = dict(edits)
-    if "salaire_brut" not in out:
-        return out
-    raw = out.pop("salaire_brut")
-    try:
-        val = float(str(raw).replace(",", ".").replace(" ", ""))
-    except (ValueError, TypeError):
-        val = 0.0
-    sb = out.get("salaire_de_base")
-    if not isinstance(sb, dict):
-        sb = {"type": "mensuel"}
-    sb = dict(sb)
-    sb["valeur"] = round(val, 2)
-    sb["a_verifier"] = val <= 0
-    out["salaire_de_base"] = sb
+    if "salaire_brut" in out:
+        raw = out.pop("salaire_brut")
+        try:
+            val = float(str(raw).replace(",", ".").replace(" ", ""))
+        except (ValueError, TypeError):
+            val = 0.0
+        sb = out.get("salaire_de_base")
+        if not isinstance(sb, dict):
+            sb = {"type": "mensuel"}
+        sb = dict(sb)
+        sb["valeur"] = round(val, 2)
+        sb["a_verifier"] = val <= 0
+        out["salaire_de_base"] = sb
+
+    if "is_temps_partiel" in out or "duree_hebdomadaire" in out:
+        from app.modules.employees.domain.rules import normalize_temps_travail_fields
+
+        raw_tp = out.get("is_temps_partiel")
+        if isinstance(raw_tp, str):
+            raw_tp = raw_tp.strip().lower() in ("1", "true", "oui", "yes")
+        elif raw_tp is not None:
+            raw_tp = bool(raw_tp)
+
+        raw_duree = out.get("duree_hebdomadaire")
+        try:
+            duree = float(str(raw_duree).replace(",", ".")) if raw_duree not in (None, "") else None
+        except (ValueError, TypeError):
+            duree = None
+
+        is_tp, heures = normalize_temps_travail_fields(raw_tp, duree)
+        out["is_temps_partiel"] = is_tp
+        out["duree_hebdomadaire"] = heures
+
     return out
 
 
@@ -265,7 +304,7 @@ def map_establishment_payload(
         "is_active": True,
         **flatten_company_address(addr),
     }
-    return payload
+    return enrich_establishment_payload(payload, etab, parsed)
 
 
 def _looks_like_code(value: str) -> bool:
@@ -350,6 +389,25 @@ def map_employee_payload(
     psc_block = build_specificites_paie_psc(contrat, organismes_psc=etab.organismes_psc)
     psc_meta = psc_block.pop("_psc_meta", {})
 
+    anciennete_dates = [
+        normalize_date_dsn(a.date_debut)
+        for a in contrat.anciennetes
+        if normalize_date_dsn(a.date_debut)
+    ]
+    date_anciennete = min(anciennete_dates) if anciennete_dates else hire
+
+    primes_dsn = [
+        {
+            "code": p.code,
+            "montant": round(p.montant, 2),
+            "date_debut": normalize_date_dsn(p.date_debut),
+            "date_fin": normalize_date_dsn(p.date_fin),
+        }
+        for v in contrat.versements
+        for p in v.primes
+        if p.montant > 0
+    ]
+
     payload: Dict[str, Any] = {
         "first_name": ind.prenom,
         "last_name": ind.nom,
@@ -383,11 +441,20 @@ def map_employee_payload(
             "position": contrat.position_conv or None,
             "dispositif_politique_publique": contrat.dispositif or None,
             "numero_contrat_dsn": contrat.numero_contrat or None,
+            "classification_dsn": contrat.rubriques.get("S21.G00.40.040"),
+            "niveau_dsn": contrat.rubriques.get("S21.G00.40.041"),
+            "taux_at_individuel_dsn": contrat.rubriques.get("S21.G00.40.043"),
         },
-        "elements_variables": {},
+        "elements_variables": {"primes_dsn": primes_dsn} if primes_dsn else {},
         "specificites_paie": {
             **psc_block,
             "prelevement_a_la_source": pas,
+            "dsn_anciennete": {
+                "date_anciennete": date_anciennete,
+                "segments": len(contrat.anciennetes),
+            }
+            if contrat.anciennetes
+            else None,
         },
         "collective_agreement_idcc": contrat.idcc,
         # Salariés en activité chez l'établisseur externe — pas le flux onboarding EYWAI.
@@ -435,6 +502,95 @@ def collect_idcc_by_establishment(parsed: ParsedDsnSet) -> Dict[str, List[str]]:
     return {k: list(v) for k, v in out.items()}
 
 
+def _build_absence_exit_items(
+    etab: EtablissementBlock,
+    siret: str,
+) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    for ind in etab.individus:
+        ident = ind.identifiant or ind.nom
+        label = _employee_label(ind)
+        contrat = ind.contrats[0] if ind.contrats else None
+        if not contrat:
+            continue
+
+        if contrat.fin_contrat and contrat.fin_contrat.date_fin:
+            exit_payload = build_exit_payload_from_fin_contrat(
+                contrat.fin_contrat,
+                siret=siret,
+                nir=ind.nir or ident,
+                employee_label=label,
+            )
+            if exit_payload:
+                ref = f"exit:{siret}:{ident}:{exit_payload['source_key']}"
+                items.append(
+                    {
+                        "item_type": "exit",
+                        "source_ref": ref,
+                        "action": "create",
+                        "mapped_payload": exit_payload,
+                        "label": f"Sortie — {label}",
+                        "preview_columns": {
+                            "exit_type": exit_payload.get("exit_type"),
+                            "last_working_day": exit_payload.get("last_working_day"),
+                            "motif_dsn": exit_payload.get("motif_dsn"),
+                        },
+                    }
+                )
+
+        for arret in contrat.arrets:
+            abs_payload = build_absence_payload_from_arret(
+                arret,
+                siret=siret,
+                nir=ind.nir or ident,
+                employee_label=label,
+            )
+            if not abs_payload:
+                continue
+            ref = f"abs:{siret}:{ident}:{abs_payload['source_key']}"
+            items.append(
+                {
+                    "item_type": "absence",
+                    "source_ref": ref,
+                    "action": "create",
+                    "mapped_payload": abs_payload,
+                    "label": f"Arrêt — {label}",
+                    "preview_columns": {
+                        "absence_type": abs_payload.get("absence_type"),
+                        "date_debut": abs_payload.get("date_debut"),
+                        "date_fin": abs_payload.get("date_fin"),
+                    },
+                }
+            )
+
+        for suspension in contrat.suspensions:
+            abs_payload = build_absence_payload_from_suspension(
+                suspension,
+                siret=siret,
+                nir=ind.nir or ident,
+                employee_label=label,
+            )
+            if not abs_payload:
+                continue
+            ref = f"abs:{siret}:{ident}:{abs_payload['source_key']}"
+            items.append(
+                {
+                    "item_type": "absence",
+                    "source_ref": ref,
+                    "action": "create",
+                    "mapped_payload": abs_payload,
+                    "label": f"Suspension — {label}",
+                    "preview_columns": {
+                        "absence_type": abs_payload.get("absence_type"),
+                        "date_debut": abs_payload.get("date_debut"),
+                        "date_fin": abs_payload.get("date_fin"),
+                    },
+                }
+            )
+
+    return items
+
+
 def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Construit les items de preview et le résumé."""
     items: List[Dict[str, Any]] = []
@@ -470,6 +626,8 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
                 "label": etab_payload.get("company_name") or siret,
                 "employee_count": len(etab.individus),
                 "editable_fields": EDITABLE_FIELDS["establishment"],
+                "payroll_extract": etab_payload.get("_dsn_extracted") or {},
+                "payroll_conflicts": etab_payload.get("_payroll_conflicts") or {},
             }
         )
         for idcc in idcc_map.get(siret, []):
@@ -497,11 +655,15 @@ def build_preview_items(parsed: ParsedDsnSet) -> Tuple[List[Dict[str, Any]], Dic
                     "job_title": emp_payload.get("job_title"),
                     "hire_date": emp_payload.get("hire_date"),
                     "brut": emp_payload.get("salaire_de_base", {}).get("valeur"),
+                    "is_temps_partiel": emp_payload.get("is_temps_partiel"),
+                    "duree_hebdomadaire": emp_payload.get("duree_hebdomadaire"),
                 },
                 "editable_fields": EDITABLE_FIELDS["employee"],
             }
             apply_review_flags(emp_item)
             items.append(emp_item)
+
+        items.extend(_build_absence_exit_items(etab, siret))
 
     summary = {
         "siren": siren,

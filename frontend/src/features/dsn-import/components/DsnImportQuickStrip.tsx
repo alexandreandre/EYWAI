@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useId } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, Check, ChevronsUpDown, FileText, Loader2, Upload } from 'lucide-react';
 import {
@@ -61,8 +61,10 @@ function companyCommandValue(c: DsnImportCompany): string {
 type Props = {
   selectedCompanyId: string;
   onCompanyChange: (companyId: string) => void;
-  onAnalyze: (files: File[]) => void;
+  onAnalyze: (files: File[], suggestedPeriod?: string | null) => void;
   isAnalyzing?: boolean;
+  hideCompanySelector?: boolean;
+  embedded?: boolean;
 };
 
 export function DsnImportQuickStrip({
@@ -70,7 +72,10 @@ export function DsnImportQuickStrip({
   onCompanyChange,
   onAnalyze,
   isAnalyzing = false,
+  hideCompanySelector = false,
+  embedded = false,
 }: Props) {
+  const inputId = useId();
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -104,22 +109,31 @@ export function DsnImportQuickStrip({
     setSelectedFiles(Array.from(e.dataTransfer.files).slice(0, 1));
   }, []);
 
+  const nextImportLabel = formatPeriodLabel(
+    coverage?.next_import_period ?? coverage?.expected_last_period,
+  );
+
   const handleAnalyze = () => {
     if (selectedFiles.length === 0 || !selectedCompanyId) return;
-    onAnalyze(selectedFiles);
+    onAnalyze(selectedFiles, coverage?.next_import_period ?? null);
     setSelectedFiles([]);
   };
 
-  const periodLabel = formatPeriodLabel(coverage?.expected_last_period);
-
   return (
-    <Card className="border-primary/20 bg-muted/20">
-      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          {loadingCompanies ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : (
-            <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+    <Card className={cn('border-primary/20 bg-muted/20', embedded && 'shadow-none')}>
+      <CardContent
+        className={cn(
+          'flex flex-col gap-3 p-3',
+          !embedded && 'p-4 sm:flex-row sm:items-center sm:gap-4',
+        )}
+      >
+        {!embedded ? (
+        <div className="flex min-w-0 shrink-0 flex-col gap-2 sm:min-w-[12rem] sm:max-w-[45%]">
+          {!hideCompanySelector ? (
+            loadingCompanies ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
@@ -169,18 +183,19 @@ export function DsnImportQuickStrip({
                 </Command>
               </PopoverContent>
             </Popover>
-          )}
+            )
+          ) : null}
 
-          <p className="text-sm text-muted-foreground">
+          <p className="min-w-0 text-sm text-muted-foreground">
             {selectedCompanyId ? (
               <>
-                Import mensuel —{' '}
-                <span className="font-medium text-foreground">{selected.company_name}</span>
-                {coverage?.expected_last_period ? (
+                {hideCompanySelector ? 'Import mensuel — ' : null}
+                <span className="font-medium text-foreground">{selected?.company_name}</span>
+                {coverage?.next_import_period ?? coverage?.expected_last_period ? (
                   <>
                     {' '}
                     <span className="text-muted-foreground">
-                      (prochain mois attendu : {periodLabel})
+                      (prochain mois à importer : {nextImportLabel})
                     </span>
                   </>
                 ) : null}
@@ -190,25 +205,36 @@ export function DsnImportQuickStrip({
             )}
           </p>
         </div>
+        ) : selectedCompanyId && (coverage?.next_import_period ?? coverage?.expected_last_period) ? (
+          <p className="text-xs text-muted-foreground">
+            Prochain mois à importer :{' '}
+            <span className="font-medium text-foreground">{nextImportLabel}</span>
+          </p>
+        ) : null}
 
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div
+          className={cn(
+            'flex min-w-0 items-center gap-2',
+            embedded ? 'w-full flex-col sm:flex-row' : 'w-full sm:min-w-0 sm:flex-1',
+          )}
+        >
           <div
             className={cn(
-              'flex min-h-[44px] flex-1 cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm transition',
+              'flex min-h-[44px] w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm transition',
               selectedFiles.length > 0
                 ? 'border-primary/40 bg-background'
                 : 'border-muted-foreground/30 hover:border-primary/40',
             )}
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDrop}
-            onClick={() => document.getElementById('dsn-quick-strip-input')?.click()}
+            onClick={() => document.getElementById(inputId)?.click()}
           >
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate text-muted-foreground">
               {selectedFiles[0]?.name ?? 'Déposer 1 fichier DSN (.txt, .dsn)'}
             </span>
             <input
-              id="dsn-quick-strip-input"
+              id={inputId}
               type="file"
               accept=".txt,.dsn,.edi"
               className="hidden"
@@ -218,6 +244,7 @@ export function DsnImportQuickStrip({
           <Button
             type="button"
             size="sm"
+            className={cn(embedded && 'w-full sm:w-auto shrink-0')}
             disabled={!selectedCompanyId || selectedFiles.length === 0 || isAnalyzing}
             onClick={handleAnalyze}
           >

@@ -69,6 +69,7 @@ function MatrixMonthCell({
   onCellClick,
   companyId,
   companyName,
+  compact = false,
 }: {
   month: DsnCoverageTimelineMonth;
   onCellClick?: (
@@ -79,6 +80,7 @@ function MatrixMonthCell({
   ) => void;
   companyId: string;
   companyName?: string | null;
+  compact?: boolean;
 }) {
   const letter = MONTH_SHORT[month.month - 1] ?? '?';
   const clickable =
@@ -104,7 +106,8 @@ function MatrixMonthCell({
           : undefined
       }
       className={cn(
-        'relative flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg border-2 text-xs font-semibold transition-all sm:h-11 sm:w-11',
+        'relative flex shrink-0 flex-col items-center justify-center rounded-md border-2 font-semibold transition-all',
+        compact ? 'h-8 w-full min-w-0 text-[10px] rounded-md' : 'h-10 w-10 text-xs sm:h-11 sm:w-11 rounded-lg',
         month.state === 'covered' && 'border-emerald-600 bg-emerald-500 text-white shadow-sm shadow-emerald-500/25',
         month.state === 'missing' && 'border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
         month.state === 'future' && 'border-border bg-muted/40 text-muted-foreground/60',
@@ -115,16 +118,16 @@ function MatrixMonthCell({
     >
       {month.state === 'covered' ? (
         <>
-          <Check className="h-4 w-4 sm:h-[18px] sm:w-[18px]" strokeWidth={3} />
+          <Check className={cn(compact ? 'h-3 w-3' : 'h-4 w-4 sm:h-[18px] sm:w-[18px]')} strokeWidth={3} />
           <span className="sr-only">{letter}</span>
         </>
       ) : month.state === 'missing' ? (
         <>
-          <AlertCircle className="mb-0.5 h-3 w-3 opacity-80" />
-          <span className="text-[9px] leading-none opacity-90">{letter}</span>
+          <AlertCircle className={cn('opacity-80', compact ? 'h-2.5 w-2.5' : 'mb-0.5 h-3 w-3')} />
+          <span className={cn('leading-none opacity-90', compact ? 'text-[8px]' : 'text-[9px]')}>{letter}</span>
         </>
       ) : (
-        <span className="text-[10px] font-medium opacity-70">{letter}</span>
+        <span className={cn('font-medium opacity-70', compact ? 'text-[9px]' : 'text-[10px]')}>{letter}</span>
       )}
     </div>
   );
@@ -148,7 +151,7 @@ function MatrixMonthCell({
   );
 }
 
-function CoverageLegend() {
+export function CoverageLegend({ compact = false }: { compact?: boolean }) {
   const items = [
     {
       className: 'border-emerald-600 bg-emerald-500',
@@ -164,29 +167,36 @@ function CoverageLegend() {
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
-      <span className="font-medium text-muted-foreground">Légende</span>
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/20 text-muted-foreground',
+        compact ? 'px-2.5 py-2 text-[11px]' : 'gap-x-4 gap-y-2 px-3 py-2 text-xs',
+      )}
+    >
+      <span className="font-medium">Légende</span>
       {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5">
+        <div key={item.label} className="flex items-center gap-1">
           <div
             className={cn(
-              'flex h-6 w-6 items-center justify-center rounded border-2 text-[10px] font-semibold',
+              'flex items-center justify-center rounded border-2 font-semibold',
+              compact ? 'h-5 w-5 text-[9px]' : 'h-6 w-6 text-[10px]',
               item.className,
             )}
           >
             {item.icon}
           </div>
-          <span className="text-muted-foreground">{item.label}</span>
+          <span>{item.label}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function CompanyCoverageRow({
+export function CompanyCoverageRow({
   company,
   onCellClick,
   onImportCompany,
+  embedded = false,
 }: {
   company: DsnCoverageMatrixCompany;
   onCellClick?: (
@@ -196,55 +206,81 @@ function CompanyCoverageRow({
     companyName?: string | null,
   ) => void;
   onImportCompany?: (companyId: string) => void;
+  embedded?: boolean;
 }) {
   const { covered, expected, pct } = countCoverage(company);
   const displayStatus = companyDisplayStatus(company);
 
   return (
-    <div className="rounded-xl border bg-card p-3 shadow-sm sm:p-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-semibold sm:text-base">
-              {company.company_name ?? company.company_id.slice(0, 8)}
-            </h3>
-            <Badge variant={displayStatus.variant} className="shrink-0 text-xs">
-              {displayStatus.label}
-            </Badge>
-            {company.dsn_sync_mode === 'native' && (
-              <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
-                Paie EYWAI
-              </Badge>
-            )}
-          </div>
-          {company.group_name && (
-            <p className="truncate text-xs text-muted-foreground">{company.group_name}</p>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="text-right">
-            <p className="text-lg font-bold tabular-nums leading-none text-foreground">
+    <div
+      className={cn(
+        'rounded-lg border bg-card',
+        embedded ? 'p-3' : 'rounded-xl p-3 shadow-sm sm:p-4',
+      )}
+    >
+      {embedded ? (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <Badge variant={displayStatus.variant} className="shrink-0 text-xs">
+            {displayStatus.label}
+          </Badge>
+          <div className="text-right leading-tight">
+            <p className="text-base font-bold tabular-nums text-foreground">
               {covered}
               <span className="text-sm font-normal text-muted-foreground">/{expected}</span>
             </p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">mois importés</p>
           </div>
-          {onImportCompany && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1"
-              title="Importer une DSN mensuelle"
-              onClick={() => onImportCompany(company.company_id)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Importer</span>
-            </Button>
-          )}
         </div>
-      </div>
+      ) : (
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-sm font-semibold sm:text-base">
+                {company.company_name ?? company.company_id.slice(0, 8)}
+              </h3>
+              <Badge variant={displayStatus.variant} className="shrink-0 text-xs">
+                {displayStatus.label}
+              </Badge>
+              {company.dsn_sync_mode === 'native' && (
+                <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
+                  Paie EYWAI
+                </Badge>
+              )}
+              {company.at_mp_configured === false && (
+                <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-[10px] text-amber-900">
+                  AT/MP manquant
+                </Badge>
+              )}
+            </div>
+            {company.group_name && (
+              <p className="truncate text-xs text-muted-foreground">{company.group_name}</p>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="text-right">
+              <p className="text-lg font-bold tabular-nums leading-none text-foreground">
+                {covered}
+                <span className="text-sm font-normal text-muted-foreground">/{expected}</span>
+              </p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">mois importés</p>
+            </div>
+            {onImportCompany && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1"
+                title="Importer une DSN mensuelle"
+                onClick={() => onImportCompany(company.company_id)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Importer</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {expected > 0 && (
         <div className="mb-3 h-2 overflow-hidden rounded-full bg-muted">
@@ -258,31 +294,46 @@ function CompanyCoverageRow({
         </div>
       )}
 
-      <div className="overflow-x-auto pb-1">
-        <div className="flex min-w-max flex-col gap-1.5">
-          <div className="flex gap-1.5 sm:gap-2">
-            {company.timeline.map((m) => (
-              <div
-                key={`h-${m.period}`}
-                className="flex h-4 w-10 shrink-0 items-center justify-center text-[10px] font-medium text-muted-foreground sm:w-11"
-              >
-                {MONTH_SHORT[m.month - 1]}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-1.5 sm:gap-2">
-            {company.timeline.map((m) => (
-              <MatrixMonthCell
-                key={m.period}
-                month={m}
-                companyId={company.company_id}
-                companyName={company.company_name}
-                onCellClick={onCellClick}
-              />
-            ))}
+      {embedded ? (
+        <div className="grid grid-cols-12 gap-1">
+          {company.timeline.map((m) => (
+            <MatrixMonthCell
+              key={m.period}
+              month={m}
+              companyId={company.company_id}
+              companyName={company.company_name}
+              onCellClick={onCellClick}
+              compact
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div className="flex min-w-max flex-col gap-1.5">
+            <div className="flex gap-1.5 sm:gap-2">
+              {company.timeline.map((m) => (
+                <div
+                  key={`h-${m.period}`}
+                  className="flex h-4 w-10 shrink-0 items-center justify-center text-[10px] font-medium text-muted-foreground sm:w-11"
+                >
+                  {MONTH_SHORT[m.month - 1]}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-1.5 sm:gap-2">
+              {company.timeline.map((m) => (
+                <MatrixMonthCell
+                  key={m.period}
+                  month={m}
+                  companyId={company.company_id}
+                  companyName={company.company_name}
+                  onCellClick={onCellClick}
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

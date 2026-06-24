@@ -323,8 +323,18 @@ def _enrich_actions(
                 it["action"] = "update"
         elif item_type == "establishment":
             siret = payload.get("siret")
-            if target_co or (siret and repo.find_company_by_siret(siret)):
+            existing_co = target_co or (repo.find_company_by_siret(siret) if siret else None)
+            if target_co or existing_co:
                 it["action"] = "update"
+            if existing_co:
+                from app.modules.dsn_import.domain.establishment_extract import (
+                    compute_payroll_merge_conflicts,
+                )
+
+                conflicts = compute_payroll_merge_conflicts(payload, existing_co)
+                it["payroll_conflicts"] = conflicts
+                payload["_payroll_conflicts"] = conflicts
+                it["mapped_payload"] = payload
         elif item_type == "employee":
             company_id = target_cid
             if company_id is None:

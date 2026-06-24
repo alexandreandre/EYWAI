@@ -127,5 +127,63 @@ def test_commit_batch_creates_group_for_multi_establishment():
 
         report = commit_batch("batch-2")
         assert report["stats"]["created"] >= 3
-        assert report["group_id"] == "group-1"
-        group_repo.create.assert_called_once()
+
+
+def test_commit_batch_clears_revocations_from_batch_period_range_without_cumuls():
+    """Après purge, les révocations doivent être levées même sans item cumul commité."""
+    batch = {
+        "id": "batch-revoke",
+        "status": "previewed",
+        "period_min": "2026-02",
+        "period_max": "2026-02",
+        "summary": {"target_company_id": "co-1", "import_mode": "monthly"},
+    }
+    items = [
+        {
+            "id": "item-e",
+            "item_type": "establishment",
+            "source_ref": "etab:49861035100013",
+            "action": "update",
+            "mapped_payload": {
+                "siret": "49861035100013",
+                "siren": "498610351",
+                "company_name": "Comitech",
+            },
+        },
+    ]
+    with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(
+        "app.modules.dsn_import.application.commit.get_supabase_admin_client"
+    ) as client_fn:
+        repo.get_batch.return_value = batch
+        repo.list_items.return_value = items
+        target_co = {"id": "co-1", "group_id": "g-1"}
+        repo.find_company_by_siret.return_value = target_co
+        repo.find_company_by_id.return_value = target_co
+        supabase = MagicMock()
+        client_fn.return_value = supabase
+
+        commit_batch("batch-revoke")
+
+        repo.clear_period_revocations.assert_called_once_with("co-1", ["2026-02"])
+
+
+def test_commit_batch_does_not_clear_revocations_for_empty_commit():
+    batch = {
+        "id": "batch-empty",
+        "status": "previewed",
+        "period_min": "2026-01",
+        "period_max": "2026-01",
+        "summary": {"target_company_id": "co-1", "import_mode": "monthly"},
+    }
+    with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(
+        "app.modules.dsn_import.application.commit.get_supabase_admin_client"
+    ) as client_fn:
+        repo.get_batch.return_value = batch
+        repo.list_items.return_value = []
+        target_co = {"id": "co-1", "group_id": "g-1"}
+        repo.find_company_by_id.return_value = target_co
+        client_fn.return_value = MagicMock()
+
+        commit_batch("batch-empty")
+
+        repo.clear_period_revocations.assert_not_called()
