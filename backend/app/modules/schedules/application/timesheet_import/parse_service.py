@@ -23,8 +23,10 @@ from app.modules.schedules.application.timesheet_import.registry import (
     parse_document,
 )
 from app.modules.schedules.application.timesheet_import.tabular_period import (
-    apply_tabular_period_to_rows,
+    ImportPeriodConfig,
+    apply_import_period_to_rows,
     collect_dates_from_proposal,
+    collect_dates_from_rows,
     finalize_tabular_proposal,
 )
 from app.modules.schedules.application.timesheet_import.structured_parser import (
@@ -78,9 +80,15 @@ def parse_structured_file(
     column_mapping: Optional[Dict[str, str]] = None,
     options: Optional[Dict[str, Any]] = None,
     profile_name: str | None = None,
+    period_config: ImportPeriodConfig | None = None,
+    allow_reimport: bool = False,
 ) -> TimesheetImportParseResponse:
+    period_config = period_config or ImportPeriodConfig(
+        mode="month", year=year, month=month
+    )
     file_hash = hashlib.sha256(content).hexdigest()
-    assert_not_committed_duplicate(company_id, file_hash)
+    if not allow_reimport:
+        assert_not_committed_duplicate(company_id, file_hash)
 
     cached = find_cached_preview(company_id, file_hash, year=year, month=month)
     source_type = detect_source_type(filename)
@@ -138,23 +146,45 @@ def parse_structured_file(
     )
 
     parsed = attempt.parse_result
+    month_groups: List[Dict[str, Any]] | None = None
+    period_resolution = None
+    full_period_rows = None
     if (
         attempt.parser_key in ("tabular_generic", "tabular_punch_pairs")
         and parsed is not None
     ):
-        period = apply_tabular_period_to_rows(
-            parsed.rows,
-            requested_year=year,
-            requested_month=month,
-        )
-        parsed.rows = period.rows
+        rows_before = list(parsed.rows)
+        period_resolution = apply_import_period_to_rows(parsed.rows, config=period_config)
+        full_period_rows = list(period_resolution.rows)
+        parsed.rows = full_period_rows
         if not parsed.rows:
+            from app.modules.schedules.application.timesheet_import.tabular_period import (
+                period_filter_empty_message,
+            )
+
             raise ScheduleAppError(
                 "validation",
-                "Aucune ligne exploitable pour la période détectée dans ce fichier.",
+                period_filter_empty_message(rows_before=rows_before, config=period_config),
                 status_code=422,
             )
-        year, month = period.year, period.month
+        year, month = period_resolution.year, period_resolution.month
+
+        from app.modules.schedules.application.timesheet_import.multi_month import (
+            build_month_groups_from_rows,
+            unique_months_in_rows,
+        )
+
+        months_in_file = unique_months_in_rows(full_period_rows)
+        is_multi = period_config.mode != "month" or len(months_in_file) > 1
+        if is_multi:
+            month_groups = build_month_groups_from_rows(full_period_rows, roster)
+            anchor_rows = [
+                r for r in full_period_rows if r.year == year and r.month == month
+            ]
+            from dataclasses import replace
+
+            parsed = replace(parsed, rows=anchor_rows or full_period_rows)
+        attempt.parse_result = parsed
 
     proposal = build_proposal_from_attempt(
         attempt, year=year, month=month, roster=roster
@@ -169,19 +199,45 @@ def parse_structured_file(
     if (
         attempt.parser_key in ("tabular_generic", "tabular_punch_pairs")
         and parsed is not None
+        and period_resolution is not None
     ):
-        dates = collect_dates_from_proposal(proposal)
+        dates = (
+            collect_dates_from_rows(full_period_rows or [])
+            if month_groups
+            else collect_dates_from_proposal(proposal)
+        )
         proposal = finalize_tabular_proposal(
             proposal,
             dates=dates,
-            requested_year=period.requested_year,
-            requested_month=period.requested_month,
+            requested_year=period_resolution.requested_year,
+            requested_month=period_resolution.requested_month,
             roster=roster,
             company_id=company_id,
             parser_key=attempt.parser_key,
             parse_confidence=attempt.confidence,
             extraction_warnings=attempt.warnings,
         )
+        if month_groups:
+            from app.modules.schedules.schemas.ai import AffectedMonth
+
+            proposal = proposal.model_copy(
+                update={
+                    "affected_months": [
+                        AffectedMonth(
+                            year=g["year"],
+                            month=g["month"],
+                            days=sorted(
+                                {
+                                    d["jour"]
+                                    for emp in g["employees"]
+                                    for d in emp["days"]
+                                }
+                            ),
+                        )
+                        for g in month_groups
+                    ],
+                }
+            )
     else:
         from calendar import monthrange
         from datetime import date
@@ -221,6 +277,15 @@ def parse_structured_file(
     except Exception:
         pass
 
+    extra_summary: Dict[str, Any] | None = None
+    if month_groups:
+        extra_summary = {
+            "multi_month": True,
+            "period_mode": period_config.mode,
+            "month_groups": month_groups,
+            "months_count": len(month_groups),
+        }
+
     batch = create_batch_from_proposal(
         company_id=company_id,
         user_id=user_id,
@@ -231,6 +296,7 @@ def parse_structured_file(
         file_hash=file_hash,
         file_storage_path=storage_path,
         file_content=content,
+        extra_summary=extra_summary,
     )
 
     if column_mapping and source_type in ("csv", "xlsx"):

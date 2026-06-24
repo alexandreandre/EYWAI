@@ -34,6 +34,37 @@ class TimesheetImportRepository:
         )
         return bool(resp.data)
 
+    def release_committed_file_hash_lock(
+        self,
+        company_id: str,
+        file_hash: str,
+        *,
+        keep_batch_id: str,
+    ) -> None:
+        """Retire file_hash des batches déjà validés pour autoriser un ré-import."""
+        if not file_hash:
+            return
+        resp = (
+            _admin()
+            .table(BATCHES)
+            .select("id")
+            .eq("company_id", company_id)
+            .eq("file_hash", file_hash)
+            .eq("status", "committed")
+            .execute()
+        )
+        for row in resp.data or []:
+            row_id = str(row["id"])
+            if row_id == keep_batch_id:
+                continue
+            (
+                _admin()
+                .table(BATCHES)
+                .update({"file_hash": None, "updated_at": _now_iso()})
+                .eq("id", row_id)
+                .execute()
+            )
+
     def find_recent_preview_by_hash(
         self,
         company_id: str,

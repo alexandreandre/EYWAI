@@ -53,6 +53,14 @@ def begin_commit_batch(
     if status == "committing":
         return False
 
+    file_hash = batch.get("file_hash")
+    if file_hash:
+        timesheet_import_repository.release_committed_file_hash_lock(
+            company_id,
+            str(file_hash),
+            keep_batch_id=batch_id,
+        )
+
     summary = batch.get("summary_json") or {}
     timesheet_import_repository.update_batch(
         batch_id,
@@ -101,46 +109,14 @@ def _employees_from_batch(
     return employees
 
 
-def commit_batch_bulk(
-    batch_id: str,
+def _upsert_employees_for_month(
     *,
     company_id: str,
-    request: TimesheetImportCommitRequest,
-    user_id: str | None = None,
-) -> Dict[str, Any]:
-    batch = timesheet_import_repository.get_batch(batch_id, company_id=company_id)
-    if not batch:
-        raise ScheduleAppError("validation", "Batch introuvable.", status_code=404)
-
-    preview = batch.get("preview_json") or {}
-    proposal = AiCalendarProposalResponse.model_validate(preview)
-    year, month = proposal.year, proposal.month
-    employees = _employees_from_batch(batch, filter_ids=request.employee_ids)
-
-    if not employees:
-        raise ScheduleAppError(
-            "validation",
-            "Aucun salarié prêt à enregistrer dans ce batch.",
-            status_code=400,
-        )
-
-    unmatched = [
-        e.raw_name
-        for e in proposal.employees
-        if not e.employee_id and e.review_status not in ("empty",)
-    ]
-    if unmatched and not request.allow_partial:
-        raise ScheduleAppError(
-            "validation",
-            f"{len(unmatched)} salarié(s) non rapproché(s) — corrigez ou activez allow_partial.",
-            status_code=422,
-        )
-
-    employee_ids = [e.employee_id for e in employees]
-    existing_rows = schedule_repository.list_schedules_for_employees(
-        employee_ids, year, month
-    )
-
+    year: int,
+    month: int,
+    employees: List[PersistTimesheetEmployee],
+    existing_rows: Dict[str, Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]]]:
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
     total_days = 0
@@ -215,6 +191,343 @@ def commit_batch_bulk(
         except Exception as exc:
             errors.append({"employee_id": emp.employee_id, "message": str(exc)})
 
+    return upsert_payloads, total_days, errors
+
+
+def _employees_from_month_group(group: Dict[str, Any]) -> List[PersistTimesheetEmployee]:
+    employees: List[PersistTimesheetEmployee] = []
+    for emp in group.get("employees") or []:
+        if not emp.get("employee_id"):
+            continue
+        if emp.get("review_status") == "error":
+            continue
+        days = emp.get("days") or []
+        if not days:
+            continue
+        employees.append(
+            PersistTimesheetEmployee(
+                employee_id=str(emp["employee_id"]),
+                days=[AiDayEntry(**day) for day in days],
+            )
+        )
+    return employees
+
+
+def _build_planning_employee_commit_plan(
+    month_groups: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    by_id: Dict[str, Dict[str, Any]] = {}
+    for group in month_groups:
+        year, month = int(group["year"]), int(group["month"])
+        for emp in group.get("employees") or []:
+            employee_id = emp.get("employee_id")
+            if not employee_id or emp.get("review_status") == "error":
+                continue
+            days = emp.get("days") or []
+            if not days:
+                continue
+            label = str(emp.get("matched_name") or emp.get("raw_name") or employee_id).strip()
+            row = by_id.get(str(employee_id))
+            if not row:
+                by_id[str(employee_id)] = {
+                    "employee_id": str(employee_id),
+                    "label": label,
+                    "months": [(year, month, days)],
+                }
+                continue
+            row["months"].append((year, month, days))
+            if label and (not row.get("label") or len(label) > len(str(row.get("label") or ""))):
+                row["label"] = label
+    return sorted(by_id.values(), key=lambda item: str(item["label"]).lower())
+
+
+def _commit_failure_message(exc: Exception) -> str:
+    raw = str(exc)
+    if "schedule_import_batches_company_hash_committed_idx" in raw or (
+        "23505" in raw and "file_hash" in raw
+    ):
+        return (
+            "Ce fichier a déjà été enregistré pour cette entreprise. "
+            "Réanalysez le fichier puis relancez l'enregistrement."
+        )
+    return raw or "Erreur commit import."
+
+
+def _finalize_batch_as_committed(
+    batch_id: str,
+    *,
+    company_id: str,
+    file_hash: str | None,
+    summary: Dict[str, Any],
+    extra_summary_fields: Dict[str, Any],
+) -> None:
+    if file_hash:
+        timesheet_import_repository.release_committed_file_hash_lock(
+            company_id,
+            file_hash,
+            keep_batch_id=batch_id,
+        )
+    timesheet_import_repository.update_batch(
+        batch_id,
+        {
+            "status": "committed",
+            "completed_at": _now_iso(),
+            "error_message": None,
+            "summary_json": {**summary, **extra_summary_fields},
+        },
+    )
+
+
+def _emit_planning_commit_progress(
+    batch_id: str,
+    summary: Dict[str, Any],
+    *,
+    done: int,
+    total: int,
+    label: str,
+    phase: str = "employee",
+    employee_id: str | None = None,
+    employees_queue: List[str] | None = None,
+    completed_labels: List[str] | None = None,
+) -> Dict[str, Any]:
+    percent = 100 if total == 0 else min(100, round(done / total * 100))
+    progress: Dict[str, Any] = {
+        "done": done,
+        "total": total,
+        "percent": percent,
+        "phase": phase,
+        "phase_label": "Enregistrement des calendriers prévus",
+        "label": label,
+        "employee_id": employee_id,
+        "completed_labels": completed_labels or [],
+    }
+    if employees_queue is not None:
+        progress["employees_queue"] = employees_queue
+    summary = {**summary, "commit_progress": progress}
+    timesheet_import_repository.update_batch(batch_id, {"summary_json": summary})
+    return summary
+
+
+def _commit_multi_month_batch(
+    batch: Dict[str, Any],
+    *,
+    company_id: str,
+    request: TimesheetImportCommitRequest,
+    user_id: str | None = None,
+) -> Dict[str, Any]:
+    summary = batch.get("summary_json") or {}
+    month_groups = summary.get("month_groups") or []
+    batch_id = str(batch["id"])
+    preview = batch.get("preview_json") or {}
+    proposal = AiCalendarProposalResponse.model_validate(preview)
+
+    unmatched = [
+        emp.get("raw_name") or "?"
+        for group in month_groups
+        for emp in group.get("employees") or []
+        if not emp.get("employee_id") and emp.get("review_status") not in ("empty",)
+    ]
+    if unmatched and not request.allow_partial:
+        raise ScheduleAppError(
+            "validation",
+            f"{len(unmatched)} salarié(s) non rapproché(s) — corrigez ou activez allow_partial.",
+            status_code=422,
+        )
+
+    upsert_payloads: List[Dict[str, Any]] = []
+    errors: List[Dict[str, str]] = []
+    total_days = 0
+    recalc_targets: List[tuple[str, int, int]] = []
+
+    employees_plan = _build_planning_employee_commit_plan(month_groups)
+    if not employees_plan:
+        raise ScheduleAppError(
+            "validation",
+            "Aucun salarié prêt à enregistrer dans ce batch.",
+            status_code=400,
+        )
+
+    employees_queue = [str(plan["label"]) for plan in employees_plan]
+    total_employees = len(employees_plan)
+    completed_labels: List[str] = []
+    summary = _emit_planning_commit_progress(
+        batch_id,
+        summary,
+        done=0,
+        total=total_employees,
+        label="Préparation de l'enregistrement…",
+        phase="starting",
+        employees_queue=employees_queue,
+        completed_labels=completed_labels,
+    )
+
+    for index, plan in enumerate(employees_plan):
+        employee_id = str(plan["employee_id"])
+        label = str(plan["label"])
+        summary = _emit_planning_commit_progress(
+            batch_id,
+            summary,
+            done=index,
+            total=total_employees,
+            label=label,
+            phase="employee",
+            employee_id=employee_id,
+            employees_queue=employees_queue,
+            completed_labels=completed_labels,
+        )
+
+        employee_payloads: List[Dict[str, Any]] = []
+        for year, month, days in plan["months"]:
+            persist_emp = PersistTimesheetEmployee(
+                employee_id=employee_id,
+                days=[AiDayEntry(**day) for day in days],
+            )
+            existing_rows = schedule_repository.list_schedules_for_employees(
+                [employee_id], year, month
+            )
+            payloads, days_written, group_errors = _upsert_employees_for_month(
+                company_id=company_id,
+                year=year,
+                month=month,
+                employees=[persist_emp],
+                existing_rows=existing_rows,
+            )
+            employee_payloads.extend(payloads)
+            total_days += days_written
+            errors.extend(group_errors)
+            if payloads:
+                recalc_targets.append((employee_id, year, month))
+
+        if employee_payloads:
+            schedule_repository.bulk_upsert_schedules(employee_payloads)
+            upsert_payloads.extend(employee_payloads)
+
+        completed_labels.append(label)
+        summary = _emit_planning_commit_progress(
+            batch_id,
+            summary,
+            done=index + 1,
+            total=total_employees,
+            label=label,
+            phase="employee",
+            employee_id=employee_id,
+            employees_queue=employees_queue,
+            completed_labels=completed_labels,
+        )
+
+    if not upsert_payloads:
+        raise ScheduleAppError(
+            "validation",
+            "Aucun salarié prêt à enregistrer dans ce batch.",
+            status_code=400,
+        )
+
+    if request.recalculate_payroll:
+        from app.modules.schedules.application.commands import calculate_payroll_events
+
+        for employee_id, year, month in recalc_targets:
+            try:
+                calculate_payroll_events(employee_id, year, month)
+            except Exception as exc:
+                logger.warning("Recalc paie %s: %s", employee_id, exc)
+
+    _finalize_batch_as_committed(
+        batch_id,
+        company_id=company_id,
+        file_hash=batch.get("file_hash"),
+        summary=summary,
+        extra_summary_fields={
+            "committed_days": total_days,
+            "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
+            "months_committed": len(month_groups),
+            "commit_errors": errors,
+            "commit_progress": {
+                "phase": "completed",
+                "employees_done": len({p["employee_id"] for p in upsert_payloads}),
+            },
+        },
+    )
+
+    try:
+        record_schedule_import_run(
+            company_id=company_id,
+            user_id=user_id,
+            filename=batch.get("filename") or "",
+            proposal=proposal,
+            import_job_id=batch.get("import_job_id"),
+            batch_id=batch_id,
+            extraction_mode=batch.get("parser_key"),
+            days_written=total_days,
+        )
+    except Exception:
+        logger.exception("Audit import run post-commit")
+
+    return {
+        "batch_id": batch_id,
+        "status": "committed",
+        "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
+        "total_days_written": total_days,
+        "errors": errors,
+    }
+
+
+def commit_batch_bulk(
+    batch_id: str,
+    *,
+    company_id: str,
+    request: TimesheetImportCommitRequest,
+    user_id: str | None = None,
+) -> Dict[str, Any]:
+    batch = timesheet_import_repository.get_batch(batch_id, company_id=company_id)
+    if not batch:
+        raise ScheduleAppError("validation", "Batch introuvable.", status_code=404)
+
+    summary = batch.get("summary_json") or {}
+    if summary.get("multi_month") and summary.get("month_groups"):
+        return _commit_multi_month_batch(
+            batch,
+            company_id=company_id,
+            request=request,
+            user_id=user_id,
+        )
+
+    preview = batch.get("preview_json") or {}
+    proposal = AiCalendarProposalResponse.model_validate(preview)
+    year, month = proposal.year, proposal.month
+    employees = _employees_from_batch(batch, filter_ids=request.employee_ids)
+
+    if not employees:
+        raise ScheduleAppError(
+            "validation",
+            "Aucun salarié prêt à enregistrer dans ce batch.",
+            status_code=400,
+        )
+
+    unmatched = [
+        e.raw_name
+        for e in proposal.employees
+        if not e.employee_id and e.review_status not in ("empty",)
+    ]
+    if unmatched and not request.allow_partial:
+        raise ScheduleAppError(
+            "validation",
+            f"{len(unmatched)} salarié(s) non rapproché(s) — corrigez ou activez allow_partial.",
+            status_code=422,
+        )
+
+    employee_ids = [e.employee_id for e in employees]
+    existing_rows = schedule_repository.list_schedules_for_employees(
+        employee_ids, year, month
+    )
+
+    upsert_payloads, total_days, errors = _upsert_employees_for_month(
+        company_id=company_id,
+        year=year,
+        month=month,
+        employees=employees,
+        existing_rows=existing_rows,
+    )
+
     if upsert_payloads:
         schedule_repository.bulk_upsert_schedules(upsert_payloads)
 
@@ -230,20 +543,18 @@ def commit_batch_bulk(
                 logger.warning("Recalc paie %s: %s", emp.employee_id, exc)
 
     summary = batch.get("summary_json") or {}
-    timesheet_import_repository.update_batch(
+    _finalize_batch_as_committed(
         batch_id,
-        {
-            "status": "committed",
-            "completed_at": _now_iso(),
-            "summary_json": {
-                **summary,
-                "committed_days": total_days,
-                "employees_processed": len(upsert_payloads),
-                "commit_errors": errors,
-                "commit_progress": {
-                    "phase": "completed",
-                    "employees_done": len(upsert_payloads),
-                },
+        company_id=company_id,
+        file_hash=batch.get("file_hash"),
+        summary=summary,
+        extra_summary_fields={
+            "committed_days": total_days,
+            "employees_processed": len(upsert_payloads),
+            "commit_errors": errors,
+            "commit_progress": {
+                "phase": "completed",
+                "employees_done": len(upsert_payloads),
             },
         },
     )
@@ -293,11 +604,11 @@ def run_commit_batch(
             batch_id,
             {
                 "status": "failed",
-                "error_message": str(exc) or "Erreur commit import.",
+                "error_message": _commit_failure_message(exc),
                 "completed_at": _now_iso(),
                 "summary_json": {
                     **summary,
-                    "commit_progress": {"phase": "failed", "error": str(exc)},
+                    "commit_progress": {"phase": "failed", "error": _commit_failure_message(exc)},
                 },
             },
         )

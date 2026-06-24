@@ -76,9 +76,14 @@ def create_batch_from_proposal(
     file_storage_path: str | None = None,
     import_job_id: str | None = None,
     file_content: bytes | None = None,
+    extra_summary: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     if file_content and not file_hash:
         file_hash = hashlib.sha256(file_content).hexdigest()
+
+    summary = _batch_summary(proposal)
+    if extra_summary:
+        summary = {**summary, **extra_summary}
 
     batch = timesheet_import_repository.insert_batch(
         {
@@ -103,7 +108,7 @@ def create_batch_from_proposal(
                 else None
             ),
             "preview_json": proposal.model_dump(mode="json"),
-            "summary_json": _batch_summary(proposal),
+            "summary_json": summary,
             "import_job_id": import_job_id,
         }
     )
