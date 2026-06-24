@@ -31,7 +31,7 @@ Options :
   6. Catalogue primes (prime annuelle médaille 30 €)
   7. Stubs salariés absents du DSN (BOUALI, GENAND)
   8. Formations / habilitations / budget 2026 (registre Excel RH Comitech Composite)
-  9. Suivi médical : activation module + registre SPST du 23/06/2026
+  9. Suivi médical : activation module + registre SPST du 24/06/2026
  10. Protection sociale : catalogue mutuelle Quadra + réconciliation DSN + prévoyance / retraite sup
  11. Participation 2025 : simulation Quadra + campagne bulletin d'option (avances incluses)
  12. Contingent HS : plafond 360 h, pauses, contrat 39 h/semaine, RCR 2025 (reprise Excel)
@@ -151,9 +151,9 @@ CET_GROUP_PAYLOAD_V1: dict[str, Any] = {
 }
 
 # ---------------------------------------------------------------------------
-# Comitech Composite — registre SPST (23/06/2026)
+# Comitech Composite — registre SPST (24/06/2026)
 # ---------------------------------------------------------------------------
-MEDICAL_REGISTRY_SOURCE = "Registre SPST Comitech Composite — 23/06/2026"
+MEDICAL_REGISTRY_SOURCE = "Registre SPST Comitech Composite — 24/06/2026"
 
 TRIGGER_BY_VISIT: dict[str, str] = {
     "vip": "periodicite_vip",
@@ -1208,6 +1208,7 @@ def seed_medical_registry(
             _sync_next_due_from_registry(
                 supabase, company_id, employee_id, row, dry_run=False
             )
+            compute_obligations_for_employee(company_id, employee_id)
         elif row.renew_before:
             print(
                 f"[dry-run] recalc SPST Comitech Composite {label} "
@@ -1228,6 +1229,71 @@ def seed_medical_registry(
         "skipped": skipped,
         "missing": missing,
         "touched_employee_count": len(touched),
+    }
+
+
+def cleanup_comitech_medical_phantoms(
+    supabase,
+    company_id: str,
+    employees: list[dict],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """
+    Recalcule le suivi médical pour tout l'effectif actif Comitech Composite
+    afin d'annuler les obligations obsolètes (aptitude SIR, mi-carrière, VIP SIR).
+    """
+    from app.modules.medical_follow_up.application.service import (
+        compute_obligations_for_employee,
+    )
+
+    active_statuses = {"actif", "active", "en_onboarding", "en_sortie"}
+    active_employees = [
+        e
+        for e in employees
+        if (e.get("employment_status") or "actif").lower() in active_statuses
+    ]
+
+    if dry_run:
+        print(
+            f"[dry-run] reconcile suivi médical pour {len(active_employees)} salarié(s)"
+        )
+        return {"reconciled_employees": len(active_employees), "dry_run": True}
+
+    overdue_before = (
+        supabase.table("medical_follow_up_obligations")
+        .select("id", count="exact")
+        .eq("company_id", company_id)
+        .in_("status", ["a_faire", "planifiee"])
+        .lt("due_date", date.today().isoformat())
+        .execute()
+        .count
+        or 0
+    )
+
+    for emp in active_employees:
+        compute_obligations_for_employee(company_id, str(emp["id"]))
+
+    overdue_after = (
+        supabase.table("medical_follow_up_obligations")
+        .select("id", count="exact")
+        .eq("company_id", company_id)
+        .in_("status", ["a_faire", "planifiee"])
+        .lt("due_date", date.today().isoformat())
+        .execute()
+        .count
+        or 0
+    )
+
+    print(
+        "Suivi médical Comitech Composite — réconciliation effectif : "
+        f"{len(active_employees)} salarié(s), "
+        f"retards {overdue_before} → {overdue_after}"
+    )
+    return {
+        "reconciled_employees": len(active_employees),
+        "overdue_before": overdue_before,
+        "overdue_after": overdue_after,
     }
 
 
@@ -2634,6 +2700,10 @@ def run_comitech_composite_setup(options: SetupOptions) -> dict[str, Any]:
         medical_summary = seed_medical_registry(
             supabase, company_id, employees, dry_run=options.dry_run
         )
+        cleanup_summary = cleanup_comitech_medical_phantoms(
+            supabase, company_id, employees, dry_run=options.dry_run
+        )
+        medical_summary = {**medical_summary, **cleanup_summary}
 
     participation_summary: dict[str, Any] = {"skipped": True}
     if options.seed_participation:

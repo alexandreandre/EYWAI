@@ -8,6 +8,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -105,6 +106,88 @@ def main() -> int:
         or []
     )
     report["medical_spst_import"] = len(med_spst)
+
+    today_iso = date.today().isoformat()
+    phantom_types = ("aptitude_sir_avant_affectation", "mi_carriere_45")
+    all_med = (
+        supabase.table("medical_follow_up_obligations")
+        .select(
+            "employee_id, visit_type, due_date, status, completed_date"
+        )
+        .eq("company_id", CID)
+        .neq("status", "annulee")
+        .execute()
+        .data
+        or []
+    )
+    report["medical_phantom_overdue"] = sum(
+        1
+        for o in all_med
+        if o.get("visit_type") in phantom_types
+        and o.get("status") in ("a_faire", "planifiee")
+        and o.get("due_date")
+        and o["due_date"] < today_iso
+    )
+    report["medical_sir_vip_overdue"] = sum(
+        1
+        for o in all_med
+        if o.get("visit_type") in ("sir", "vip")
+        and o.get("status") in ("a_faire", "planifiee")
+        and o.get("due_date")
+        and o["due_date"] < today_iso
+    )
+
+    registry_checks: list[dict[str, Any]] = []
+    for row in COMITECH_MEDICAL_REGISTRY:
+        emp = resolve_employee(emps, row.last_name, row.first_hint, row.last_name_aliases)
+        label = f"{row.last_name} {row.first_hint or ''}".strip()
+        if not emp:
+            registry_checks.append({"employee": label, "ok": False, "reason": "missing"})
+            continue
+        emp_obs = [o for o in all_med if o["employee_id"] == emp["id"]]
+        active = [
+            o
+            for o in emp_obs
+            if o.get("status") in ("a_faire", "planifiee")
+        ]
+        realised = [
+            o
+            for o in emp_obs
+            if o.get("visit_type") == row.visit_type
+            and o.get("status") == "realisee"
+            and o.get("completed_date") == row.visit_date.isoformat()
+        ]
+        periodic_active = [
+            o for o in active if o.get("visit_type") == row.visit_type
+        ]
+        phantoms = [
+            o
+            for o in active
+            if o.get("visit_type") in phantom_types
+        ]
+        ok = (
+            bool(realised)
+            and len(periodic_active) <= 1
+            and len(phantoms) == 0
+            and (
+                not row.renew_before
+                or any(
+                    o.get("due_date") == row.renew_before.isoformat()
+                    for o in periodic_active
+                )
+            )
+        )
+        registry_checks.append(
+            {
+                "employee": label,
+                "ok": ok,
+                "realised": bool(realised),
+                "periodic_active": len(periodic_active),
+                "phantom_active": len(phantoms),
+            }
+        )
+    report["medical_registry_checks"] = registry_checks
+    report["medical_registry_ok"] = all(c.get("ok") for c in registry_checks)
 
     report["participation_bulletins"] = (
         supabase.table("participation_bulletins")
