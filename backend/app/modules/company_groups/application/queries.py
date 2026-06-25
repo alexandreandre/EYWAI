@@ -154,6 +154,12 @@ def get_group_consolidated_stats(
 
     result = _fetch_consolidated_for_period(company_ids, sy, sm, ey, em)
 
+    if sy == ey and sm == em:
+        from app.modules.payroll.application.payroll_kpi_queries import enrich_consolidated_with_dsn
+
+        period = f"{ey}-{em:02d}"
+        result = enrich_consolidated_with_dsn(result, company_ids, period)
+
     comparison_bounds = resolve_comparison_period(
         compare_to or "off",
         year=year,
@@ -166,6 +172,14 @@ def get_group_consolidated_stats(
     if comparison_bounds:
         csy, csm, cey, cem = comparison_bounds
         comparison = _fetch_consolidated_for_period(company_ids, csy, csm, cey, cem)
+        if csy == cey and csm == cem:
+            from app.modules.payroll.application.payroll_kpi_queries import (
+                enrich_consolidated_with_dsn,
+            )
+
+            comparison = enrich_consolidated_with_dsn(
+                comparison, company_ids, f"{cey}-{cem:02d}"
+            )
         result = {
             **result,
             "comparison": {

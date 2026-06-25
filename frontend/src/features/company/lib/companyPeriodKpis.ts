@@ -11,6 +11,9 @@ export type PeriodPayrollSnapshot = {
   payrollTaxRate: number;
   previousGross: number;
   previousTotalCost: number;
+  payrollSource?: import('@/features/dashboard/types').PayrollSource;
+  payrollSourceLabel?: string;
+  payrollPartial?: boolean;
 };
 
 function evolutionSeries(kpis: CompanyKPIs): MonthlyEvolution[] {
@@ -91,6 +94,9 @@ export function computePeriodPayroll(
   const snap = snapshotFromRow(current);
   snap.previousGross = previous.masse_salariale_brute;
   snap.previousTotalCost = previous.cout_total_employeur;
+  snap.payrollSource = current.payroll_source;
+  snap.payrollSourceLabel = current.payroll_source_label;
+  snap.payrollPartial = current.payroll_partial;
   if (period.granularity === "annual") {
     snap.previousGross = kpis.previous_year_gross_salary ?? previous.masse_salariale_brute;
     snap.previousTotalCost = kpis.previous_year_total_cost ?? previous.cout_total_employeur;

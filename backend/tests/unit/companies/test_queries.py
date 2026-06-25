@@ -34,6 +34,9 @@ class TestGetCompanyDetailsAndKpis:
                 "employees": employees,
                 "payslips": payslips,
             },
+        ), patch(
+            "app.modules.payroll.application.payroll_kpi_queries.resolve_company_payroll_series",
+            return_value=[],
         ):
             result = queries.get_company_details_and_kpis(
                 company_id="c1",

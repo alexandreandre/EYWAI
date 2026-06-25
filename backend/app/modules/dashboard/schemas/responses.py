@@ -11,6 +11,16 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel
 
 
+class PayrollKpiMeta(BaseModel):
+    source: Literal["payslip", "dsn", "none"]
+    source_label: str
+    gross: float = 0
+    employer_cost: float = 0
+    net: float = 0
+    partial: bool = False
+    has_mixed_sources: bool = False
+
+
 class KpiData(BaseModel):
     coutTotal: float
     netVerse: float
@@ -23,12 +33,15 @@ class KpiData(BaseModel):
     hommesCount: Optional[int] = None
     femmesCount: Optional[int] = None
     handicapesCount: Optional[int] = None
+    payroll: PayrollKpiMeta
 
 
 class ChartDataPoint(BaseModel):
     name: str
     Net_Verse: float
     Charges: float
+    source: Optional[Literal["payslip", "dsn", "none"]] = None
+    period: Optional[str] = None
 
 
 class ActionItems(BaseModel):
@@ -128,3 +141,4 @@ class AnalyticsAvances(BaseModel):
     age_moyen: float = 0.0
     anciennete_moyenne_annees: float = 0.0
     masse_salariale_brute_totale: float = 0.0
+    masse_salariale_source: Literal["contractual_base"] = "contractual_base"

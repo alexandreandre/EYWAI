@@ -48,7 +48,18 @@ def get_company_details_and_kpis(
     if not company_data:
         raise LookupError("Données de l'entreprise non trouvées.")
 
-    kpis = compute_company_kpis(employees, payslips)
+    from app.modules.payroll.application.payroll_kpi_queries import (
+        resolve_company_payroll_series,
+    )
+
+    dsn_sync_mode = str(company_data.get("dsn_sync_mode") or "native").strip().lower()
+    payroll_series = resolve_company_payroll_series(
+        company_id,
+        months=24,
+        payslips=payslips,
+        dsn_sync_mode=dsn_sync_mode,
+    )
+    kpis = compute_company_kpis(employees, payroll_series)
     return CompanyDetailsWithKpisDto(company_data=company_data, kpis=kpis)
 
 

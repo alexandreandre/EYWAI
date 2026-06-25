@@ -53,6 +53,7 @@ import {
   type GroupDetails,
 } from "@/api/companyGroups";
 import { KpiCard } from "@/components/analytics/KpiCard";
+import { PayrollSourceBadge } from "@/components/analytics/PayrollSourceBadge";
 import { SectionSkeleton } from "@/components/analytics/SectionSkeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -1117,6 +1118,15 @@ export function GroupDashboard() {
                                 <div className="font-medium">
                                   {formatCurrency(company.gross_salary)}
                                 </div>
+                                {company.payroll_source === 'dsn' ? (
+                                  <div className="mt-1 flex justify-end">
+                                    <PayrollSourceBadge
+                                      source="dsn"
+                                      sourceLabel={company.payroll_source_label}
+                                      partial={company.payroll_partial}
+                                    />
+                                  </div>
+                                ) : null}
                                 {grossDelta != null && compareTo !== "off" ? (
                                   <div
                                     className={`text-xs ${grossDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}

@@ -17,6 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import type { CompanyKPIs } from "@/api/company";
+import { PayrollSourceBadge } from "@/components/analytics/PayrollSourceBadge";
 import { AnalyticsPeriodControls } from "@/components/analytics/AnalyticsPeriodControls";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,25 @@ export function CompanyPilotageSection({
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {payroll.payrollSource ? (
+          <PayrollSourceBadge
+            source={payroll.payrollSource}
+            sourceLabel={payroll.payrollSourceLabel}
+            partial={payroll.payrollPartial}
+          />
+        ) : kpis.payroll_source ? (
+          <PayrollSourceBadge
+            source={kpis.payroll_source}
+            sourceLabel={kpis.payroll_source_label}
+            partial={kpis.payroll_partial}
+          />
+        ) : null}
+        {kpis.payroll_has_mixed_sources ? (
+          <span className="text-xs text-muted-foreground">Série mixte bulletins / DSN</span>
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Effectif actif"
@@ -134,13 +154,18 @@ export function CompanyPilotageSection({
         />
         <KpiCard
           label="Masse salariale brute"
-          value={eur.format(payroll.gross)}
-          delta={deltaFromPayroll(payroll.gross, payroll.previousGross, false)}
+          value={payroll.gross > 0 ? eur.format(payroll.gross) : "—"}
+          delta={deltaFromPayroll(payroll.gross, payroll.previousGross, false, payroll.payrollSource)}
         />
         <KpiCard
           label="Coût total employeur"
-          value={eur.format(payroll.totalCost)}
-          delta={deltaFromPayroll(payroll.totalCost, payroll.previousTotalCost, false)}
+          value={payroll.totalCost > 0 ? eur.format(payroll.totalCost) : "—"}
+          delta={deltaFromPayroll(
+            payroll.totalCost,
+            payroll.previousTotalCost,
+            false,
+            payroll.payrollSource === 'payslip' ? 'payslip' : 'none',
+          )}
         />
         <KpiCard
           label="Taux de charges"
@@ -350,7 +375,9 @@ function deltaFromPayroll(
   current: number,
   previous: number,
   worseIfPositive: boolean,
+  source?: import('@/features/dashboard/types').PayrollSource,
 ): { value: number; worseIfPositive: boolean } | undefined {
+  if (source === 'none' || current <= 0 || previous <= 0) return undefined;
   const d = percentDelta(current, previous);
   if (d == null) return undefined;
   return { value: d, worseIfPositive };

@@ -37,6 +37,7 @@ export interface AnalyticsAvances {
   age_moyen: number;
   anciennete_moyenne_annees: number;
   masse_salariale_brute_totale: number;
+  masse_salariale_source?: 'contractual_base';
 }
 
 export async function getAnalyticsAvances(

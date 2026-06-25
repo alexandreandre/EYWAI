@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { PayrollSourceBadge } from '@/components/analytics/PayrollSourceBadge';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import type { ChartDataPoint, KpiData } from '@/features/dashboard/types';
 import { formatMonthOverMonthDelta } from '@/features/dashboard/widgets/dashboardFormatters';
@@ -21,18 +22,26 @@ interface CoutsCardProps {
 }
 
 export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
+  const payroll = kpis.payroll;
+  const showEmployerCost = payroll?.source === 'payslip' && payroll.employer_cost > 0;
+  const primaryAmount = showEmployerCost ? payroll.employer_cost : payroll?.gross ?? 0;
+  const primaryLabel = showEmployerCost ? 'Coût employeur' : 'Masse brute';
+  const hasMixedSources = payroll?.has_mixed_sources ?? false;
+
   let coutDeltaPct: number | null = null;
   let netDeltaPct: number | null = null;
-  if (chartData.length >= 2) {
+  if (chartData.length >= 2 && payroll?.source !== 'none') {
     const prev = chartData[chartData.length - 2];
     const last = chartData[chartData.length - 1];
-    const prevCout = prev.Net_Verse + prev.Charges;
-    const lastCout = last.Net_Verse + last.Charges;
-    if (prevCout > 0) {
-      coutDeltaPct = ((lastCout - prevCout) / prevCout) * 100;
-    }
-    if (prev.Net_Verse > 0) {
-      netDeltaPct = ((last.Net_Verse - prev.Net_Verse) / prev.Net_Verse) * 100;
+    if (prev.source !== 'none' && last.source !== 'none') {
+      const prevCout = prev.Net_Verse + prev.Charges;
+      const lastCout = last.Net_Verse + last.Charges;
+      if (prevCout > 0) {
+        coutDeltaPct = ((lastCout - prevCout) / prevCout) * 100;
+      }
+      if (prev.Net_Verse > 0) {
+        netDeltaPct = ((last.Net_Verse - prev.Net_Verse) / prev.Net_Verse) * 100;
+      }
     }
   }
   const coutDeltaLabel = formatMonthOverMonthDelta(coutDeltaPct);
@@ -41,37 +50,60 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">Coûts</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-lg font-semibold">Coûts</CardTitle>
+          {payroll ? (
+            <PayrollSourceBadge
+              source={payroll.source}
+              sourceLabel={payroll.source_label}
+              partial={payroll.partial}
+            />
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            Masse salariale {kpis.currentMonth}
+            {primaryLabel} {kpis.currentMonth}
           </h3>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground font-medium mb-1">Coût total</p>
-              <div className="text-2xl font-bold text-foreground tabular-nums">
-                {kpis.coutTotal.toLocaleString('fr-FR')} €
+          {payroll?.source === 'none' ? (
+            <p className="text-sm text-muted-foreground">
+              Aucune masse disponible pour ce mois. Importez une DSN mensuelle ou générez les
+              bulletins dans EYWAI.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground font-medium mb-1">{primaryLabel}</p>
+                <div className="text-2xl font-bold text-foreground tabular-nums">
+                  {primaryAmount.toLocaleString('fr-FR')} €
+                </div>
+                {coutDeltaLabel && showEmployerCost ? (
+                  <p className="text-xs text-muted-foreground mt-1">{coutDeltaLabel}</p>
+                ) : null}
               </div>
-              {coutDeltaLabel && (
-                <p className="text-xs text-muted-foreground mt-1">{coutDeltaLabel}</p>
-              )}
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground font-medium mb-1">Net versé</p>
-              <div className="text-2xl font-bold text-foreground tabular-nums">
-                {kpis.netVerse.toLocaleString('fr-FR')} €
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground font-medium mb-1">
+                  {payroll?.source === 'dsn' ? 'Net imposable (DSN)' : 'Net versé'}
+                </p>
+                <div className="text-2xl font-bold text-foreground tabular-nums">
+                  {(payroll?.net ?? kpis.netVerse).toLocaleString('fr-FR')} €
+                </div>
+                {netDeltaLabel ? (
+                  <p className="text-xs text-muted-foreground mt-1">{netDeltaLabel}</p>
+                ) : null}
               </div>
-              {netDeltaLabel && (
-                <p className="text-xs text-muted-foreground mt-1">{netDeltaLabel}</p>
-              )}
             </div>
-          </div>
+          )}
         </div>
 
         <div className="pt-4 border-t">
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Évolution (12 derniers mois)</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Évolution (12 derniers mois)</h3>
+            {hasMixedSources ? (
+              <span className="text-xs text-muted-foreground">Série mixte bulletins / DSN</span>
+            ) : null}
+          </div>
           <ChartContainer config={chartConfig} className="h-[250px] w-full">
             <BarChart data={chartData}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />

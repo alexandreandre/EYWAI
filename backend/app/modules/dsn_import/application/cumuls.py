@@ -427,6 +427,54 @@ def delete_cumuls_file(employee_folder_name: str, month: int) -> bool:
         return False
 
 
+def aggregate_cumuls_by_company_period(
+    cumul_items: List[Dict[str, Any]],
+    *,
+    resolve_company_id,
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """
+    Agrège les month_totals par (company_id, period).
+
+    resolve_company_id(siret) -> company_id ou None.
+    Retourne { company_id: { period: { gross_salary, net_imposable, pas, ... } } }.
+    """
+    out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+    for it in cumul_items:
+        if it.get("item_type") != "cumul":
+            continue
+        payload = it.get("mapped_payload") or {}
+        siret = str(payload.get("siret") or "").strip()
+        period = str(payload.get("period") or "").strip()
+        if not siret or not period:
+            continue
+        company_id = resolve_company_id(siret)
+        if not company_id:
+            continue
+        month_totals = payload.get("month_totals") or {}
+        brut = float(month_totals.get("brut") or 0)
+        bucket = out.setdefault(str(company_id), {}).setdefault(
+            period,
+            {
+                "gross_salary": 0.0,
+                "net_imposable": 0.0,
+                "pas": 0.0,
+                "employee_count": 0,
+                "employees_with_gross": 0,
+            },
+        )
+        bucket["employee_count"] += 1
+        if brut > 0:
+            bucket["employees_with_gross"] += 1
+        bucket["gross_salary"] = round(bucket["gross_salary"] + brut, 2)
+        bucket["net_imposable"] = round(
+            bucket["net_imposable"] + float(month_totals.get("net_imposable") or 0), 2
+        )
+        bucket["pas"] = round(bucket["pas"] + float(month_totals.get("pas") or 0), 2)
+
+    return out
+
+
 def rebuild_cumuls_with_previous_on_disk(
     employee_folder_name: str,
     month: int,

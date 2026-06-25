@@ -3,12 +3,17 @@ import { downloadBlob } from '@/lib/downloadBlob';
 import type { DsnCoverage, DsnSyncMode } from '@/api/dsnImport';
 import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 
+import type { PayrollSource } from '@/features/dashboard/types';
+
 export interface MonthlyEvolution {
   month: string;
   masse_salariale_brute: number;
   net_verse: number;
   charges_totales: number;
   cout_total_employeur: number;
+  payroll_source?: PayrollSource;
+  payroll_source_label?: string;
+  payroll_partial?: boolean;
 }
 
 export interface CompanyKPIs {
@@ -30,6 +35,11 @@ export interface CompanyKPIs {
   evolution_24_months?: MonthlyEvolution[];
   previous_year_gross_salary?: number;
   previous_year_total_cost?: number;
+  payroll_source?: PayrollSource;
+  payroll_source_label?: string;
+  payroll_partial?: boolean;
+  payroll_has_mixed_sources?: boolean;
+  last_month_payroll_source?: PayrollSource;
 }
 
 export interface CompanyDetails {

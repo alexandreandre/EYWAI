@@ -1,3 +1,15 @@
+export type PayrollSource = 'payslip' | 'dsn' | 'none';
+
+export interface PayrollKpiMeta {
+  source: PayrollSource;
+  source_label: string;
+  gross: number;
+  employer_cost: number;
+  net: number;
+  partial: boolean;
+  has_mixed_sources: boolean;
+}
+
 export interface KpiData {
   coutTotal: number;
   netVerse: number;
@@ -10,12 +22,15 @@ export interface KpiData {
   hommesCount?: number | null;
   femmesCount?: number | null;
   handicapesCount?: number | null;
+  payroll: PayrollKpiMeta;
 }
 
 export interface ChartDataPoint {
   name: string;
   Net_Verse: number;
   Charges: number;
+  source?: PayrollSource;
+  period?: string;
 }
 
 export interface ActionItems {

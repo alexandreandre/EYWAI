@@ -8,6 +8,7 @@ from typing import Any, Dict
 from app.core.logging import get_logger
 from app.modules.dsn_import.application.coverage import compute_coverage
 from app.modules.dsn_import.application.cumuls import delete_cumuls_file
+from app.modules.dsn_import.infrastructure import payroll_totals_repository as totals_repo
 from app.modules.dsn_import.infrastructure import repository as repo
 
 logger = get_logger("modules.dsn_import.revoke_period")
@@ -47,6 +48,7 @@ def revoke_period_import(
         raise ValueError("Période invalide (mois hors plage).")
 
     repo.upsert_period_revocation(company_id, period, revoked_by=revoked_by)
+    totals_repo.delete_period(company_id, period)
 
     cumuls_deleted = 0
     for emp in repo.list_employees_with_folder(company_id):

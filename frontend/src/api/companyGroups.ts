@@ -30,6 +30,9 @@ export interface CompanyStats {
   gross_salary: number;
   net_salary: number;
   employer_charges: number;
+  payroll_source?: 'payslip' | 'dsn' | 'none';
+  payroll_source_label?: string;
+  payroll_partial?: boolean;
 }
 
 export interface ConsolidatedStats {
@@ -42,6 +45,7 @@ export interface ConsolidatedStats {
     period_start_month?: number;
     period_end_year?: number;
     period_end_month?: number;
+    has_mixed_sources?: boolean;
   };
   totals: {
     total_employees: number;

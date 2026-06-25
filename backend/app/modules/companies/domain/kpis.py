@@ -1,97 +1,74 @@
 """
 Règles métier pures : calcul des KPIs entreprise.
 
-Aucune I/O, aucun FastAPI. Utilisé par la couche application.
-Comportement identique à l'ancien routeur (agrégations mensuelles, répartitions, etc.).
+Agrégation paie déléguée au resolver (bulletins vs DSN) via payroll_series.
 """
 
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.modules.payroll.domain.payroll_kpi_resolver import PayrollPeriodSnapshot
 
 
 def compute_company_kpis(
     all_employees: List[Dict[str, Any]],
-    payslips: List[Dict[str, Any]],
+    payroll_series: List["PayrollPeriodSnapshot"],
 ) -> Dict[str, Any]:
     """
-    Calcule les KPIs dashboard à partir des données brutes (employees, payslips).
-    Règle pure : pas d'accès DB ni à des services externes.
+    Calcule les KPIs dashboard à partir des employés et d'une série paie résolue.
     """
     kpis: Dict[str, Any] = {}
     kpis["total_employees"] = len(all_employees)
 
-    monthly_data = defaultdict(
-        lambda: {
-            "masse_salariale_brute": 0,
-            "net_verse": 0,
-            "charges_patronales": 0,
-            "charges_salariales": 0,
-            "cout_total_employeur": 0,
-            "employee_count": 0,
+    monthly_data: Dict[str, Dict[str, Any]] = {}
+    for snap in payroll_series:
+        key = snap.period
+        monthly_data[key] = {
+            "masse_salariale_brute": snap.gross,
+            "net_verse": snap.net,
+            "charges_patronales": snap.employer_charges,
+            "charges_salariales": snap.employee_charges,
+            "cout_total_employeur": snap.employer_cost,
+            "employee_count": snap.employee_count or 0,
+            "payroll_source": snap.source,
+            "payroll_source_label": snap.source_label,
+            "payroll_partial": snap.partial,
         }
-    )
-
-    for payslip in payslips:
-        month = payslip.get("month")
-        year = payslip.get("year")
-        payslip_data = payslip.get("payslip_data", {})
-
-        if month is not None and year is not None and isinstance(payslip_data, dict):
-            key = f"{year}-{month:02d}"
-
-            remuneration = payslip_data.get("remuneration", {})
-            brut = remuneration.get("brut", 0) or 0
-            monthly_data[key]["masse_salariale_brute"] += brut
-
-            net_a_payer = payslip_data.get("net_a_payer", 0) or 0
-            monthly_data[key]["net_verse"] += net_a_payer
-
-            cotisations = payslip_data.get("cotisations", [])
-            for cotisation in cotisations:
-                part_patronale = cotisation.get("part_patronale", 0) or 0
-                part_salariale = cotisation.get("part_salariale", 0) or 0
-                monthly_data[key]["charges_patronales"] += part_patronale
-                monthly_data[key]["charges_salariales"] += part_salariale
-
-            pied_de_page = payslip_data.get("pied_de_page", {})
-            cout_employeur = pied_de_page.get("cout_total_employeur", 0) or 0
-            monthly_data[key]["cout_total_employeur"] += cout_employeur
-            monthly_data[key]["employee_count"] += 1
 
     today = date.today()
     last_month = today.replace(day=1) - timedelta(days=1)
     last_month_key = f"{last_month.year}-{last_month.month:02d}"
     current_month_key = f"{today.year}-{today.month:02d}"
 
-    last_month_data = monthly_data.get(
-        last_month_key,
-        {
-            "masse_salariale_brute": 0,
-            "net_verse": 0,
-            "charges_patronales": 0,
-            "charges_salariales": 0,
-            "cout_total_employeur": 0,
-            "employee_count": 0,
-        },
-    )
+    empty_month = {
+        "masse_salariale_brute": 0,
+        "net_verse": 0,
+        "charges_patronales": 0,
+        "charges_salariales": 0,
+        "cout_total_employeur": 0,
+        "employee_count": 0,
+        "payroll_source": "none",
+        "payroll_source_label": "Donnée indisponible",
+        "payroll_partial": False,
+    }
+    last_month_data = monthly_data.get(last_month_key, empty_month)
 
     kpis["last_month_gross_salary"] = round(last_month_data["masse_salariale_brute"], 2)
     kpis["last_month_net_salary"] = round(last_month_data["net_verse"], 2)
-    kpis["last_month_employer_charges"] = round(
-        last_month_data["charges_patronales"], 2
-    )
-    kpis["last_month_employee_charges"] = round(
-        last_month_data["charges_salariales"], 2
-    )
+    kpis["last_month_employer_charges"] = round(last_month_data["charges_patronales"], 2)
+    kpis["last_month_employee_charges"] = round(last_month_data["charges_salariales"], 2)
     kpis["last_month_total_cost"] = round(last_month_data["cout_total_employeur"], 2)
     kpis["last_month_total_charges"] = round(
         last_month_data["charges_patronales"] + last_month_data["charges_salariales"], 2
     )
+    kpis["last_month_payroll_source"] = last_month_data["payroll_source"]
+    kpis["payroll_source"] = last_month_data["payroll_source"]
+    kpis["payroll_source_label"] = last_month_data["payroll_source_label"]
+    kpis["payroll_partial"] = last_month_data["payroll_partial"]
 
-    sorted_months = sorted([k for k in monthly_data.keys() if k < current_month_key])[
-        -24:
-    ]
+    sorted_months = sorted([k for k in monthly_data.keys() if k < current_month_key])[-24:]
     evolution_data = []
     for month_key in sorted_months:
         data = monthly_data[month_key]
@@ -104,10 +81,16 @@ def compute_company_kpis(
                     data["charges_patronales"] + data["charges_salariales"], 2
                 ),
                 "cout_total_employeur": round(data["cout_total_employeur"], 2),
+                "payroll_source": data["payroll_source"],
+                "payroll_source_label": data["payroll_source_label"],
+                "payroll_partial": data["payroll_partial"],
             }
         )
     kpis["evolution_12_months"] = evolution_data[-12:]
     kpis["evolution_24_months"] = evolution_data
+
+    sources = {d["payroll_source"] for d in evolution_data if d["payroll_source"] != "none"}
+    kpis["payroll_has_mixed_sources"] = len(sources) > 1
 
     last_12_keys = sorted_months[-12:]
     prev_12_keys = sorted_months[-24:-12] if len(sorted_months) >= 24 else []
@@ -162,10 +145,10 @@ def compute_company_kpis(
     else:
         kpis["payroll_tax_rate"] = 0
 
+    emp_count = last_month_data.get("employee_count") or kpis["total_employees"]
     if kpis["total_employees"] > 0 and last_month_data["cout_total_employeur"] > 0:
         kpis["average_cost_per_employee"] = round(
-            last_month_data["cout_total_employeur"]
-            / last_month_data.get("employee_count", kpis["total_employees"]),
+            last_month_data["cout_total_employeur"] / max(emp_count, 1),
             2,
         )
     else:

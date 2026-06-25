@@ -13,7 +13,9 @@ def test_revoke_period_import_success():
         "app.modules.dsn_import.application.revoke_period.compute_coverage"
     ) as cov, patch(
         "app.modules.dsn_import.application.revoke_period.delete_cumuls_file"
-    ) as delete_file:
+    ) as delete_file, patch(
+        "app.modules.dsn_import.application.revoke_period.totals_repo.delete_period"
+    ) as delete_totals:
         repo.find_company_by_id.return_value = company
         repo.list_committed_batches.return_value = []
         repo.list_revoked_periods.return_value = []
@@ -29,6 +31,7 @@ def test_revoke_period_import_success():
     repo.upsert_period_revocation.assert_called_once_with(
         "co-1", "2026-03", revoked_by="admin-1"
     )
+    delete_totals.assert_called_once_with("co-1", "2026-03")
     assert delete_file.call_count == 2
     assert result["cumuls_deleted"] == 1
     assert result["period"] == "2026-03"

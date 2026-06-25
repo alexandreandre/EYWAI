@@ -16,8 +16,6 @@ from app.core.database import get_supabase_client
 from app.modules.dashboard.application.dto import MONTH_NAMES_FR
 from app.modules.dashboard.domain import rules as domain_rules
 from app.modules.dashboard.infrastructure.mappers import (
-    aggregate_payslip_costs_and_net,
-    to_chart_data_points,
     to_simple_employees,
     to_team_pulse_employees,
     to_team_pulse_events,
@@ -38,13 +36,19 @@ from app.modules.dashboard.schemas.responses import (
     ActionItems,
     AlertItems,
     AnalyticsAvances,
+    ChartDataPoint,
     DashboardData,
     KpiData,
+    PayrollKpiMeta,
     PayrollStatus,
     PyramideAge,
     ResidencePermitStats,
     TeamPulse,
     TurnoverStats,
+)
+from app.modules.payroll.application.payroll_kpi_queries import (
+    chart_point_from_snapshot,
+    resolve_company_payroll_dashboard,
 )
 
 
@@ -139,25 +143,31 @@ def build_full_dashboard(company_id: str) -> DashboardData:
     )
     upcoming_events = to_team_pulse_events(events_raw)
 
-    # Paie : agrégation par mois
+    # Paie : resolver bulletins vs DSN
     payslips = repo.get_payslips_by_company(company_id)
-    costs_by_month, net_by_month = aggregate_payslip_costs_and_net(payslips)
+    payroll_payload = resolve_company_payroll_dashboard(company_id, payslips=payslips)
+    last_snap = payroll_payload.last_month
 
-    current_month = today.month
-    all_months = set(costs_by_month.keys()) | set(net_by_month.keys())
-    sorted_months = domain_rules.get_last_n_past_months(all_months, current_month, n=12)
-    chart_data = to_chart_data_points(
-        costs_by_month,
-        net_by_month,
-        sorted_months,
-        month_names=MONTH_NAMES_FR,
-    )
+    chart_rows = [chart_point_from_snapshot(s) for s in payroll_payload.series_12]
+    chart_data = [
+        ChartDataPoint(
+            name=row["name"],
+            Net_Verse=row["Net_Verse"],
+            Charges=row["Charges"],
+            source=row.get("source"),
+            period=row.get("period"),
+        )
+        for row in chart_rows
+    ]
+    if not chart_data:
+        chart_data = [
+            ChartDataPoint(name="Aucune donnée", Net_Verse=0, Charges=0, source="none")
+        ]
 
-    # KPIs : mois précédent
     prev_month_num, prev_year = domain_rules.get_previous_month(today)
     current_month_str = f"{prev_month_num:02d}/{prev_year}"
-    cout_total_mois_actuel = costs_by_month.get(prev_month_num, 0)
-    net_verse_mois_actuel = net_by_month.get(prev_month_num, 0)
+    cout_total_mois_actuel = last_snap.employer_cost if last_snap.source == "payslip" else 0.0
+    net_verse_mois_actuel = last_snap.net
 
     # Taux d'absentéisme (règles pures + données infra)
     employee_ids = [e["id"] for e in all_employees]
@@ -198,6 +208,15 @@ def build_full_dashboard(company_id: str) -> DashboardData:
         hommesCount=None,
         femmesCount=None,
         handicapesCount=handicapes_count,
+        payroll=PayrollKpiMeta(
+            source=last_snap.source,
+            source_label=last_snap.source_label,
+            gross=round(last_snap.gross, 2),
+            employer_cost=round(last_snap.employer_cost, 2),
+            net=round(last_snap.net, 2),
+            partial=last_snap.partial,
+            has_mixed_sources=payroll_payload.has_mixed_sources,
+        ),
     )
 
     simple_employees_list = to_simple_employees(all_employees)
@@ -578,4 +597,5 @@ def build_analytics_avances(company_id: str) -> AnalyticsAvances:
         age_moyen=age_moyen,
         anciennete_moyenne_annees=anciennete_moyenne_annees,
         masse_salariale_brute_totale=masse_salariale_brute_totale,
+        masse_salariale_source="contractual_base",
     )
