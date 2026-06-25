@@ -11,7 +11,12 @@ from app.modules.dsn_import.application.cumuls import (
     rebuild_cumuls_with_previous_on_disk,
     write_cumuls_file,
 )
-from app.modules.dsn_import.domain.user_messages import humanize_commit_error, issue_to_legacy_string
+from app.modules.dsn_import.domain.user_messages import (
+    absence_blocked_by_exit_skip_issue,
+    humanize_commit_error,
+    is_absence_blocked_by_exit,
+    issue_to_legacy_string,
+)
 from app.modules.dsn_import.application.mapping import normalize_employee_edits
 from app.modules.dsn_import.domain.establishment_extract import apply_payroll_merge
 from app.modules.dsn_import.application.psc_catalog import sync_employee_psc_catalog
@@ -285,8 +290,8 @@ def commit_batch(
         "establishment",
         "collective_agreement",
         "employee",
-        "exit",
         "absence",
+        "exit",
         "cumul",
     ]
     items_sorted = sorted(
@@ -406,13 +411,29 @@ def commit_batch(
                 dsn_import_stats["exits_created"] += 1
                 stats["created"] += 1
             elif item_type == "absence":
-                _commit_absence(
+                absence_result = _commit_absence(
                     payload,
                     source_ref,
                     company_by_siret,
                     employee_by_ref,
                     current_user_id,
                 )
+                if absence_result.get("skipped"):
+                    skip_issue = absence_blocked_by_exit_skip_issue(
+                        source_ref=source_ref,
+                        item_label=_item_label(item),
+                    )
+                    warnings.append(skip_issue)
+                    repo.update_item(
+                        item_id,
+                        {
+                            "status": "skipped",
+                            "action": action,
+                            "target_id": None,
+                        },
+                    )
+                    stats["skipped"] += 1
+                    continue
                 dsn_import_stats["absences_created"] += 1
                 stats["created"] += 1
             elif item_type == "collective_agreement":
@@ -468,6 +489,15 @@ def commit_batch(
                 },
             )
         except Exception as exc:
+            if item_type == "absence" and is_absence_blocked_by_exit(exc):
+                skip_issue = absence_blocked_by_exit_skip_issue(
+                    source_ref=source_ref,
+                    item_label=_item_label(item),
+                )
+                warnings.append(skip_issue)
+                repo.update_item(item_id, {"status": "skipped", "action": action})
+                stats["skipped"] += 1
+                continue
             logger.exception("Commit item %s échoué", source_ref)
             issue = humanize_commit_error(
                 exc,
@@ -532,6 +562,31 @@ def commit_batch(
     )
     if status == "committed":
         _mark_companies_dsn_transition(set(company_by_siret.values()), target_cid)
+        try:
+            from app.modules.dsn_import.application.payroll_totals_persist import (
+                persist_batch_dsn_payroll_totals,
+            )
+
+            cumul_items = [i for i in items_sorted if i.get("item_type") == "cumul"]
+
+            def _resolve_company_for_totals(siret: str) -> Optional[str]:
+                cid = company_by_siret.get(siret)
+                if cid:
+                    return str(cid)
+                if target_cid:
+                    return str(target_cid)
+                co = repo.find_company_by_siret(siret)
+                return str(co["id"]) if co else None
+
+            persist_batch_dsn_payroll_totals(
+                cumul_items,
+                resolve_company_id=_resolve_company_for_totals,
+                batch_id=batch_id,
+            )
+        except Exception:
+            logger.exception(
+                "Persist company_dsn_payroll_totals échoué batch=%s", batch_id
+            )
         if (import_mode or "").strip().lower() == "onboarding":
             _bootstrap_leave_settings_for_companies(
                 set(company_by_siret.values()), target_cid
@@ -866,14 +921,14 @@ def _commit_absence(
     company_by_siret: Dict[str, str],
     employee_by_ref: Dict[str, Dict[str, Any]],
     current_user_id: Optional[str],
-) -> None:
+) -> Dict[str, Any]:
     from app.modules.absences.application.commands import create_reconciliation_absence
 
     employee_id, company_id = _resolve_employee_for_dsn_item(
         payload, company_by_siret, employee_by_ref
     )
     user_id = current_user_id or "dsn-import-system"
-    create_reconciliation_absence(
+    return create_reconciliation_absence(
         employee_id,
         company_id,
         user_id,

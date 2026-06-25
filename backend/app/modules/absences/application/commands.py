@@ -457,7 +457,7 @@ def create_reconciliation_absence(
     sb = supabase_client or supabase
     emp_res = (
         sb.table("employees")
-        .select("id, company_id")
+        .select("id, company_id, employment_status")
         .eq("id", employee_id)
         .maybe_single()
         .execute()
@@ -465,6 +465,14 @@ def create_reconciliation_absence(
     employee = emp_res.data if emp_res else None
     if not employee or str(employee.get("company_id")) != str(company_id):
         raise LookupError("Employé non trouvé.")
+
+    employment_status = str(employee.get("employment_status") or "actif").lower()
+    if employment_status in ("en_sortie", "parti"):
+        return {
+            "skipped": True,
+            "reason": "exit_in_progress",
+            "employee_id": employee_id,
+        }
 
     days_iso = [
         d.isoformat() if hasattr(d, "isoformat") else str(d)[:10]
@@ -496,7 +504,16 @@ def create_reconciliation_absence(
     if arret_type:
         db_data["arret_type"] = arret_type
 
-    created = absence_repository.create(db_data)
+    try:
+        created = absence_repository.create(db_data)
+    except Exception as exc:
+        if "processus de sortie" in str(exc).lower():
+            return {
+                "skipped": True,
+                "reason": "exit_in_progress",
+                "employee_id": employee_id,
+            }
+        raise
 
     try:
         days_to_update = [date.fromisoformat(d) for d in days_iso]

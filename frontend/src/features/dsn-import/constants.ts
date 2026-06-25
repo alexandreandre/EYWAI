@@ -22,5 +22,13 @@ export const DSN_IMPORT_ISSUE_HINTS: Record<string, string> = {
     "Ces salariés n'ont pas de NIR : la comparaison automatique avec la DSN est impossible.",
   payroll_field_conflict:
     "Une valeur existe déjà en base — cochez le champ dans « Paramètres paie extraits » pour l'écraser.",
+  exit_transition_invalid:
+    "La clôture automatique du départ DSN a échoué — ouvrez le parcours départ manuellement.",
+  absence_blocked_by_exit:
+    "Absence ignorée car le salarié est déjà en sortie — l'import continue normalement.",
+  exit_type_not_supported:
+    "Type de sortie non supporté en base — migration ou clôture manuelle requise.",
+  network_error: "Connexion interrompue — réessayez dans quelques instants.",
+  batch_creation_failed: "Le lot d'import n'a pas pu être enregistré — réessayez.",
   unknown: "Consultez le détail ou contactez le support si le problème persiste.",
 };

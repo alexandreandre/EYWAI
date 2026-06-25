@@ -292,11 +292,84 @@ def _parse_runtime_message(msg: str) -> Optional[Dict[str, Any]]:
             meta={"siret": siret},
         )
 
+    if msg == "Impossible de créer le batch d'import":
+        return build_issue(
+            "batch_creation_failed",
+            "Impossible d'enregistrer le lot d'import en base.",
+            hint="Vérifiez votre connexion et réessayez. Si le problème persiste, contactez le support.",
+            severity="error",
+        )
+
     return None
+
+
+def _parse_raw_error_message(raw: str) -> Optional[Dict[str, Any]]:
+    """Détecte des motifs d'erreur courants dans le texte brut (PostgREST, réseau, etc.)."""
+    lower = raw.lower()
+    if "employee_exits_exit_type_check" in raw or (
+        "23514" in raw and "fin_periode_essai" in raw
+    ):
+        return build_issue(
+            "exit_type_not_supported",
+            "Le type de sortie « fin de période d'essai » n'est pas encore autorisé en base.",
+            hint=(
+                "Appliquez la migration employee_exits ou clôturez ce départ manuellement "
+                "depuis la fiche salarié."
+            ),
+            severity="error",
+            meta={"technical": raw},
+        )
+    if "processus de sortie" in lower:
+        return build_issue(
+            "absence_blocked_by_exit",
+            "Impossible d'importer cette absence : le salarié est déjà en cours de sortie.",
+            hint=(
+                "Vérifiez que les sorties DSN du lot ont bien été enregistrées, "
+                "ou saisissez l'absence manuellement si elle est antérieure au départ."
+            ),
+            severity="error",
+            meta={"technical": raw},
+        )
+    if "ssl" in lower or "bad_record_mac" in lower or "readerror" in lower:
+        return build_issue(
+            "network_error",
+            "Connexion interrompue avec le serveur pendant l'import.",
+            hint="Réessayez dans quelques instants.",
+            severity="error",
+            meta={"technical": raw},
+        )
+    return None
+
+
+def is_absence_blocked_by_exit(exc: BaseException) -> bool:
+    """Indique si la création d'absence est refusée car le salarié est en sortie."""
+    return "processus de sortie" in str(exc).lower()
+
+
+def absence_blocked_by_exit_skip_issue(
+    *,
+    source_ref: str = "",
+    item_label: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Avertissement non bloquant : absence DSN ignorée (salarié déjà en sortie)."""
+    return build_issue(
+        "absence_blocked_by_exit",
+        "Absence DSN ignorée : le salarié est déjà en cours de sortie.",
+        hint=(
+            "Normal si le départ du lot a déjà été enregistré — "
+            "l'absence historique peut être saisie manuellement si nécessaire."
+        ),
+        severity="warning",
+        source_ref=source_ref or None,
+        item_label=item_label,
+    )
 
 
 def _parse_api_error(exc: Exception) -> Optional[Dict[str, Any]]:
     raw = str(exc)
+    parsed = _parse_raw_error_message(raw)
+    if parsed:
+        return parsed
     if "employees_nir_key" in raw or (
         "23505" in raw and "nir" in raw.lower()
     ):
@@ -327,6 +400,29 @@ def humanize_commit_error(
 ) -> Dict[str, Any]:
     """Traduit une exception commit en message métier structuré."""
     context = context or {}
+
+    from app.modules.employee_exits.application.dto import EmployeeExitApplicationError
+
+    if isinstance(exc, EmployeeExitApplicationError):
+        detail = exc.detail or str(exc)
+        if "Transition invalide" in detail:
+            return build_issue(
+                "exit_transition_invalid",
+                "La clôture automatique du départ a échoué (étape de workflow incompatible).",
+                hint=detail,
+                severity="error",
+                source_ref=source_ref or None,
+                item_label=item_label,
+                meta={"technical": detail},
+            )
+        return build_issue(
+            "exit_error",
+            detail,
+            severity="error",
+            source_ref=source_ref or None,
+            item_label=item_label,
+            meta={"technical": detail},
+        )
 
     if isinstance(exc, EmployeeCreateValidationError):
         fields = getattr(exc, "field_errors", None) or {}
@@ -392,6 +488,11 @@ def humanize_commit_error(
         )
 
     technical = str(exc)
+    parsed_raw = _parse_raw_error_message(technical)
+    if parsed_raw:
+        parsed_raw["source_ref"] = source_ref or parsed_raw.get("source_ref")
+        parsed_raw["item_label"] = item_label
+        return parsed_raw
     return build_issue(
         "unknown",
         "Une erreur inattendue est survenue pendant l'import.",

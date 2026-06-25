@@ -187,3 +187,90 @@ def test_commit_batch_does_not_clear_revocations_for_empty_commit():
         commit_batch("batch-empty")
 
         repo.clear_period_revocations.assert_not_called()
+
+
+def test_commit_batch_skips_absence_when_employee_in_exit():
+    batch = {
+        "id": "batch-abs-skip",
+        "status": "previewed",
+        "summary": {"target_company_id": "co-1"},
+    }
+    items = [
+        {
+            "id": "item-abs",
+            "item_type": "absence",
+            "source_ref": "abs:95147478200020:1880879329011:2026-01-05:2026-01-31:sans_solde:suspension",
+            "action": "create",
+            "mapped_payload": {
+                "siret": "95147478200020",
+                "nir": "1880879329011",
+                "absence_type": "sans_solde",
+                "selected_days": ["2026-01-05", "2026-01-31"],
+            },
+        },
+    ]
+    with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(
+        "app.modules.dsn_import.application.commit._resolve_employee_for_dsn_item",
+        return_value=("emp-1", "co-1"),
+    ), patch(
+        "app.modules.absences.application.commands.create_reconciliation_absence",
+        return_value={"skipped": True, "reason": "exit_in_progress", "employee_id": "emp-1"},
+    ) as mock_absence:
+        repo.get_batch.return_value = batch
+        repo.list_items.return_value = items
+        repo.find_company_by_id.return_value = {"id": "co-1", "group_id": "g-1"}
+
+        report = commit_batch("batch-abs-skip")
+
+        mock_absence.assert_called_once()
+        assert report["stats"]["skipped"] == 1
+        assert report["stats"]["failed"] == 0
+        assert report["errors"] == []
+        assert len(report["warnings"]) == 1
+        assert report["warnings"][0]["code"] == "absence_blocked_by_exit"
+        assert report["warnings"][0]["severity"] == "warning"
+
+
+def test_commit_batch_orders_absence_before_exit():
+    batch = {"id": "batch-order", "status": "previewed", "summary": {}}
+    items = [
+        {
+            "id": "item-exit",
+            "item_type": "exit",
+            "source_ref": "exit:1",
+            "action": "create",
+            "mapped_payload": {"siret": "95147478200020", "nir": "1"},
+        },
+        {
+            "id": "item-abs",
+            "item_type": "absence",
+            "source_ref": "abs:1",
+            "action": "create",
+            "mapped_payload": {"siret": "95147478200020", "nir": "1", "selected_days": ["2026-01-01"]},
+        },
+    ]
+    call_order: list[str] = []
+
+    def fake_exit(*_args, **_kwargs):
+        call_order.append("exit")
+
+    def fake_absence(*_args, **_kwargs):
+        call_order.append("absence")
+        return {"id": "abs-1"}
+
+    with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(
+        "app.modules.dsn_import.application.commit._commit_exit",
+        side_effect=fake_exit,
+    ), patch(
+        "app.modules.dsn_import.application.commit._commit_absence",
+        side_effect=fake_absence,
+    ), patch(
+        "app.modules.dsn_import.application.commit._resolve_employee_for_dsn_item",
+        return_value=("emp-1", "co-1"),
+    ):
+        repo.get_batch.return_value = batch
+        repo.list_items.return_value = items
+
+        commit_batch("batch-order")
+
+        assert call_order == ["absence", "exit"]

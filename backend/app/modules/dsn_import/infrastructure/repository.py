@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -40,14 +41,31 @@ def employee_has_column(column: str) -> bool:
     return exists
 
 
+def _is_transient_db_error(exc: Exception) -> bool:
+    raw = str(exc)
+    return any(
+        token in raw
+        for token in ("SSL", "BAD_RECORD_MAC", "ReadError", "Connection reset")
+    )
+
+
 def insert_batch(record: Dict[str, Any]) -> Optional[str]:
-    try:
-        client = get_supabase_admin_client()
-        resp = client.table(BATCHES_TABLE).insert(record).execute()
-        if resp.data:
-            return str(resp.data[0]["id"])
-    except Exception:
-        logger.exception("Insertion dsn_import_batches échouée")
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            client = get_supabase_admin_client()
+            resp = client.table(BATCHES_TABLE).insert(record).execute()
+            if resp.data:
+                return str(resp.data[0]["id"])
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2 and _is_transient_db_error(exc):
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            logger.exception("Insertion dsn_import_batches échouée")
+            return None
+    if last_exc:
+        logger.exception("Insertion dsn_import_batches échouée après retries")
     return None
 
 

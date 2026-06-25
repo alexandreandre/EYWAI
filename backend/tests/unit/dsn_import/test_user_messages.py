@@ -72,3 +72,42 @@ def test_issue_to_legacy_string():
     issue = humanize_commit_error(RuntimeError("Salarié NIR 123 introuvable pour cumuls"))
     legacy = issue_to_legacy_string(issue)
     assert "cumuls" in legacy.lower()
+
+
+def test_humanize_commit_error_exit_transition():
+    from app.modules.employee_exits.application.dto import EmployeeExitApplicationError
+
+    issue = humanize_commit_error(
+        EmployeeExitApplicationError(
+            400,
+            "Transition invalide de 'licenciement_convocation' vers 'licenciement_effective'. "
+            "Transitions valides: licenciement_notifie, annulee",
+        ),
+        source_ref="exit:1:2:licenciement:031",
+    )
+    assert issue["code"] == "exit_transition_invalid"
+    assert "clôture automatique" in issue["message"].lower()
+
+
+def test_humanize_commit_error_fin_periode_essai_constraint():
+    exc = Exception(
+        "{'message': 'new row for relation \"employee_exits\" violates check constraint "
+        "\"employee_exits_exit_type_check\"', 'code': '23514', "
+        "'details': 'Failing row contains (..., fin_periode_essai, ...)'}"
+    )
+    issue = humanize_commit_error(exc, source_ref="exit:1:fin_periode_essai:037")
+    assert issue["code"] == "exit_type_not_supported"
+
+
+def test_humanize_commit_error_absence_blocked_by_exit():
+    exc = Exception(
+        "Impossible de créer une demande d'absence: le salarié est en processus de sortie "
+        "(dernier jour: 2026-01-31)"
+    )
+    issue = humanize_commit_error(exc, source_ref="abs:1")
+    assert issue["code"] == "absence_blocked_by_exit"
+
+
+def test_humanize_commit_error_batch_creation_failed():
+    issue = humanize_commit_error(RuntimeError("Impossible de créer le batch d'import"))
+    assert issue["code"] == "batch_creation_failed"
