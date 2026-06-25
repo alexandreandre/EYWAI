@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Trash2, UserMinus } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Trash2, UserMinus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { exitTypeLabels, type ExitType } from '@/api/employeeExits';
 import type { WorkforceGap, WorkforceResolution } from '@/api/dsnImport';
+import { cn } from '@/lib/utils';
 import { WorkforceNewHireGapRow } from './WorkforceNewHireGapRow';
 
 const DEPARTURE_GAP_LABELS: Record<'missing_from_dsn' | 'contract_end_in_dsn', string> = {
@@ -38,6 +40,14 @@ const IGNORE_REASONS = [
   { value: 'other', label: 'Autre motif' },
 ] as const;
 
+const EXIT_TYPES: { value: ExitType; label: string }[] = [
+  { value: 'demission', label: exitTypeLabels.demission },
+  { value: 'rupture_conventionnelle', label: exitTypeLabels.rupture_conventionnelle },
+  { value: 'licenciement', label: exitTypeLabels.licenciement },
+  { value: 'depart_retraite', label: exitTypeLabels.depart_retraite },
+  { value: 'fin_periode_essai', label: exitTypeLabels.fin_periode_essai },
+];
+
 const MONTHS_FR = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
@@ -51,12 +61,62 @@ function formatGapPeriodLabel(period?: string | null): string {
   return `${MONTHS_FR[mi - 1]} ${y}`;
 }
 
-const EXIT_TYPES = [
-  { value: 'demission', label: 'Démission' },
-  { value: 'licenciement', label: 'Licenciement' },
-  { value: 'depart_retraite', label: 'Départ retraite' },
-  { value: 'fin_periode_essai', label: "Fin période d'essai" },
-] as const;
+function formatDateFr(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso.slice(0, 10)).toLocaleDateString('fr-FR');
+  } catch {
+    return iso;
+  }
+}
+
+function ignoreReasonLabel(value?: string | null): string {
+  return IGNORE_REASONS.find((r) => r.value === value)?.label ?? value ?? '—';
+}
+
+function exitTypeLabel(value?: string | null): string {
+  if (!value) return 'Départ';
+  return exitTypeLabels[value as ExitType] ?? value;
+}
+
+function describeResolution(resolution: WorkforceResolution): {
+  title: string;
+  detail: string;
+  tone: 'default' | 'destructive' | 'muted';
+} {
+  switch (resolution.action) {
+    case 'close_departure':
+      return {
+        title: 'Clôture au moment de l’import',
+        detail: `Un départ « ${exitTypeLabel(resolution.exit_type)} » sera créé et le salarié passera en « parti » (dernier jour : ${formatDateFr(resolution.last_working_day)}). Vous pourrez compléter documents et solde ensuite.`,
+        tone: 'default',
+      };
+    case 'open_exit':
+      return {
+        title: 'Départ à traiter plus tard',
+        detail: `La décision « ${exitTypeLabel(resolution.exit_type)} » (${formatDateFr(resolution.last_working_day)}) sera enregistrée, mais la fiche restera active jusqu’à ce que vous finalisiez le parcours Départs.`,
+        tone: 'muted',
+      };
+    case 'ignore':
+      return {
+        title: 'Écart ignoré',
+        detail: `Motif : ${ignoreReasonLabel(resolution.ignore_reason)}. Aucun changement sur la fiche — l’import se poursuit.`,
+        tone: 'muted',
+      };
+    case 'delete_permanently':
+      return {
+        title: 'Suppression définitive prévue',
+        detail: 'La fiche sera supprimée à la validation de l’import.',
+        tone: 'destructive',
+      };
+    default:
+      return {
+        title: 'Décision enregistrée',
+        detail: 'Vous pourrez modifier ce choix avant de valider l’import.',
+        tone: 'default',
+      };
+  }
+}
 
 type Props = {
   gap: WorkforceGap;
@@ -66,19 +126,9 @@ type Props = {
   onResolutionClear?: (gapId: string) => void;
 };
 
-function resolutionBadge(resolution?: WorkforceResolution) {
-  if (!resolution) return null;
-  if (resolution.action === 'delete_permanently') {
-    return (
-      <Badge variant="destructive" className="text-xs">
-        Suppression prévue
-      </Badge>
-    );
-  }
+function ActionHint({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <Badge variant="secondary" className="text-xs">
-      Décision enregistrée
-    </Badge>
+    <p className={cn('text-xs leading-snug text-muted-foreground', className)}>{children}</p>
   );
 }
 
@@ -93,7 +143,9 @@ function WorkforceDepartureGapRow({
     gap.suggested_last_working_day?.slice(0, 10)
     ?? gap.contract_end_date?.slice(0, 10)
     ?? '';
-  const [exitType, setExitType] = useState(resolution?.exit_type ?? 'demission');
+  const [exitType, setExitType] = useState<ExitType>(
+    (resolution?.exit_type as ExitType | undefined) ?? 'demission',
+  );
   const [lastWorkingDay, setLastWorkingDay] = useState(
     resolution?.last_working_day?.slice(0, 10) ?? defaultDate,
   );
@@ -105,7 +157,8 @@ function WorkforceDepartureGapRow({
       ? DEPARTURE_GAP_LABELS[gap.gap_type]
       : 'Écart effectif';
   const isAbsentFromDsn = gap.gap_type === 'missing_from_dsn';
-  const isDeleteResolution = resolution?.action === 'delete_permanently';
+  const periodLabel = formatGapPeriodLabel(gap.period);
+  const hasDate = Boolean(lastWorkingDay || defaultDate);
 
   const applyResolution = useCallback(
     (action: WorkforceResolution['action']) => {
@@ -120,6 +173,7 @@ function WorkforceDepartureGapRow({
       }
       if (action === 'delete_permanently') {
         onResolutionChange(base);
+        setDeleteDialogOpen(false);
         return;
       }
       onResolutionChange({
@@ -137,40 +191,66 @@ function WorkforceDepartureGapRow({
 
   const exitDeepLink = `/employee-exits?create=1&employeeId=${encodeURIComponent(gap.employee_id)}&exitType=${encodeURIComponent(exitType)}&returnTo=dsn-import&batchId=${encodeURIComponent(batchId)}`;
 
-  const periodLabel = formatGapPeriodLabel(gap.period);
+  const resolutionSummary = resolution ? describeResolution(resolution) : null;
 
   return (
     <div className="rounded-lg border p-4 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{gap.employee_name}</p>
-            <Badge variant="outline" className="text-xs">
-              {gapLabel}
-            </Badge>
-            {resolutionBadge(resolution)}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            NIR {gap.nir_masked}
-            {gap.period && <> · DSN : {gap.period}</>}
-            {defaultDate && !isDeleteResolution && (
-              <>
-                {' '}
-                · Dernier jour suggéré :{' '}
-                {new Date(defaultDate).toLocaleDateString('fr-FR')}
-              </>
-            )}
-          </p>
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">{gap.employee_name}</p>
+          <Badge variant="outline" className="text-xs">
+            {gapLabel}
+          </Badge>
         </div>
+        <p className="text-xs text-muted-foreground">
+          NIR {gap.nir_masked}
+          {gap.period && <> · DSN : {gap.period}</>}
+          {defaultDate && (
+            <>
+              {' '}
+              · Dernier jour suggéré : {formatDateFr(defaultDate)}
+            </>
+          )}
+        </p>
+        {isAbsentFromDsn ? (
+          <p className="text-xs text-muted-foreground">
+            Ce salarié est actif en base mais n&apos;apparaît pas dans la DSN de {periodLabel}.
+            Indiquez ce qu&apos;il s&apos;est passé avant de valider l&apos;import.
+          </p>
+        ) : null}
       </div>
 
-      {isDeleteResolution ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm">
-          <p className="font-medium text-destructive">Suppression définitive prévue</p>
-          <p className="mt-1 text-muted-foreground">
-            La fiche de <strong>{gap.employee_name}</strong> sera supprimée à la validation de
-            l&apos;import (absent de la DSN de {periodLabel}).
-          </p>
+      {resolutionSummary ? (
+        <div
+          className={cn(
+            'rounded-md border px-3 py-3 text-sm',
+            resolutionSummary.tone === 'destructive' && 'border-destructive/30 bg-destructive/5',
+            resolutionSummary.tone === 'muted' && 'border-muted bg-muted/30',
+            resolutionSummary.tone === 'default' && 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30',
+          )}
+        >
+          <div className="flex items-start gap-2">
+            <CheckCircle2
+              className={cn(
+                'mt-0.5 h-4 w-4 shrink-0',
+                resolutionSummary.tone === 'destructive'
+                  ? 'text-destructive'
+                  : 'text-emerald-600 dark:text-emerald-400',
+              )}
+              aria-hidden
+            />
+            <div className="space-y-1">
+              <p
+                className={cn(
+                  'font-medium',
+                  resolutionSummary.tone === 'destructive' && 'text-destructive',
+                )}
+              >
+                {resolutionSummary.title}
+              </p>
+              <p className="text-muted-foreground">{resolutionSummary.detail}</p>
+            </div>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -183,83 +263,119 @@ function WorkforceDepartureGapRow({
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`exit-type-${gap.gap_id}`}>Type de sortie</Label>
-              <Select value={exitType} onValueChange={setExitType}>
-                <SelectTrigger id={`exit-type-${gap.gap_id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXIT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Si le salarié a quitté l&apos;entreprise
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={`exit-type-${gap.gap_id}`}>Type de sortie</Label>
+                <Select value={exitType} onValueChange={(v) => setExitType(v as ExitType)}>
+                  <SelectTrigger id={`exit-type-${gap.gap_id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXIT_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`lwd-${gap.gap_id}`}>Dernier jour travaillé</Label>
+                <Input
+                  id={`lwd-${gap.gap_id}`}
+                  type="date"
+                  value={lastWorkingDay}
+                  onChange={(e) => setLastWorkingDay(e.target.value)}
+                />
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor={`lwd-${gap.gap_id}`}>Dernier jour travaillé</Label>
-              <Input
-                id={`lwd-${gap.gap_id}`}
-                type="date"
-                value={lastWorkingDay}
-                onChange={(e) => setLastWorkingDay(e.target.value)}
-              />
+              <Button
+                type="button"
+                size="sm"
+                className="w-full justify-start sm:w-auto"
+                onClick={() => applyResolution('close_departure')}
+                disabled={!hasDate}
+              >
+                <UserMinus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                Clôturer le départ à la validation
+              </Button>
+              <ActionHint>
+                Crée le départ en base et passe le salarié en « parti » dès que vous validez
+                l&apos;import. Idéal si vous connaissez le motif et la date (démission, rupture
+                conventionnelle, licenciement…).
+              </ActionHint>
+            </div>
+
+            <div className="space-y-2 border-t border-border/60 pt-3">
+              <Button type="button" size="sm" variant="outline" className="w-full justify-start sm:w-auto" asChild>
+                <Link to={exitDeepLink} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-3.5 w-3.5 shrink-0" />
+                  Ouvrir le parcours Départs complet
+                </Link>
+              </Button>
+              <ActionHint>
+                Ouvre le module Départs dans un nouvel onglet (documents, solde, checklist). À
+                utiliser si le dossier nécessite un suivi détaillé — l&apos;import peut ensuite être
+                validé avec « départ à traiter » ci-dessous.
+              </ActionHint>
+            </div>
+
+            <div className="space-y-2 border-t border-border/60 pt-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="w-full justify-start sm:w-auto"
+                onClick={() => applyResolution('open_exit')}
+                disabled={!hasDate}
+              >
+                Enregistrer : départ à traiter plus tard
+              </Button>
+              <ActionHint>
+                Mémorise le type et la date sans clôturer la fiche. Le salarié reste actif en
+                attendant que vous finalisiez le départ dans le module Départs.
+              </ActionHint>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => applyResolution('close_departure')}
-              disabled={!lastWorkingDay && !defaultDate}
-            >
-              <UserMinus className="mr-2 h-3.5 w-3.5" />
-              Clôture rapide
-            </Button>
-            <Button type="button" size="sm" variant="outline" asChild>
-              <Link to={exitDeepLink} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                Parcours départ complet
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => applyResolution('open_exit')}
-              disabled={!lastWorkingDay && !defaultDate}
-            >
-              Marquer : départ à traiter
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-            <div className="min-w-[200px] flex-1 space-y-2">
-              <Label htmlFor={`ignore-${gap.gap_id}`}>Ou ignorer cet écart</Label>
-              <Select value={ignoreReason} onValueChange={setIgnoreReason}>
-                <SelectTrigger id={`ignore-${gap.gap_id}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {IGNORE_REASONS.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="rounded-md border border-dashed p-3 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Si ce n&apos;est pas un départ
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[200px] flex-1 space-y-2">
+                <Label htmlFor={`ignore-${gap.gap_id}`}>Motif d&apos;écart</Label>
+                <Select value={ignoreReason} onValueChange={setIgnoreReason}>
+                  <SelectTrigger id={`ignore-${gap.gap_id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IGNORE_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => applyResolution('ignore')}>
+                Ignorer cet écart
+              </Button>
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => applyResolution('ignore')}>
-              Ignorer
-            </Button>
+            <ActionHint>
+              Aucune modification sur la fiche. À choisir si la DSN est incomplète, si le salarié est
+              sur un autre établissement, ou si le départ est déjà géré ailleurs.
+            </ActionHint>
           </div>
 
           {isAbsentFromDsn && (
-            <div className="border-t pt-3">
+            <div className="border-t pt-2">
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogTrigger asChild>
                   <Button

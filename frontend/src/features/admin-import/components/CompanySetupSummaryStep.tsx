@@ -23,6 +23,7 @@ import {
   isSetupStepValidated,
   loadValidatedSetupSteps,
 } from '@/features/admin-import/lib/companySetupValidatedSteps';
+import { PayrollSourceBadge } from '@/components/analytics/PayrollSourceBadge';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
 
@@ -162,6 +163,34 @@ export function CompanySetupSummaryStep({
               </p>
             )}
           </div>
+          {data.payroll_kpi ? (
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Masse salariale (M-1)</span>
+                <PayrollSourceBadge
+                  source={data.payroll_kpi.source}
+                  sourceLabel={data.payroll_kpi.source_label}
+                  partial={data.payroll_kpi.partial}
+                />
+              </div>
+              {data.payroll_kpi.ready ? (
+                <p className="text-sm tabular-nums">
+                  {new Intl.NumberFormat('fr-FR', {
+                    style: 'currency',
+                    currency: 'EUR',
+                    maximumFractionDigits: 0,
+                  }).format(data.payroll_kpi.gross)}
+                  <span className="text-muted-foreground text-xs ml-2">
+                    · période {data.payroll_kpi.period}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Importez une DSN mensuelle pour afficher la masse déclarée sur le dashboard RH.
+                </p>
+              )}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

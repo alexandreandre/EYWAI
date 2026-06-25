@@ -70,6 +70,20 @@ export function extractCommittedCoverageFromBatch(
   return { companyId, periods: [...periods].sort() };
 }
 
+export function resolveNextImportPeriod(coverage: {
+  timeline?: DsnCoverageTimelineMonth[];
+  gaps?: string[];
+}): string | null {
+  const timeline = coverage.timeline ?? [];
+  const missing = timeline
+    .filter((m) => m.state === 'missing' && m.period)
+    .map((m) => m.period)
+    .sort();
+  if (missing.length > 0) return missing[0];
+  const gaps = [...(coverage.gaps ?? [])].map(String).sort();
+  return gaps[0] ?? null;
+}
+
 function recomputeCompanyStatus(
   timeline: DsnCoverageTimelineMonth[],
   monthsCovered: string[],
@@ -142,11 +156,13 @@ function patchSingleCoverage(coverage: DsnCoverage, periods: string[]): DsnCover
     coverage.expected_last_period,
     coverage.status,
   );
+  const nextImportPeriod = resolveNextImportPeriod({ timeline, gaps });
   return {
     ...coverage,
     months_covered: monthsCovered,
     timeline,
     gaps,
+    next_import_period: nextImportPeriod,
     last_period: monthsCovered[monthsCovered.length - 1] ?? coverage.last_period,
     status,
     last_import_at: new Date().toISOString(),
@@ -203,6 +219,13 @@ export async function refreshDsnCoverageQueries(
   await Promise.all(tasks);
 }
 
+function invalidateCompanySetupAfterDsnCommit(
+  queryClient: QueryClient,
+  companyId: string,
+): void {
+  void queryClient.invalidateQueries({ queryKey: ['company-setup-status', companyId] });
+}
+
 export async function applyDsnImportCommitted(
   queryClient: QueryClient,
   detail: DsnImportBatchDetail,
@@ -210,8 +233,18 @@ export async function applyDsnImportCommitted(
   const coverage = extractCommittedCoverageFromBatch(detail);
   if (coverage) {
     patchDsnCoverageMatrixCache(queryClient, coverage);
+    invalidateCompanySetupAfterDsnCommit(queryClient, coverage.companyId);
+    const coverageKey = ['dsn-coverage', coverage.companyId] as const;
+    if (!queryClient.getQueryData(coverageKey)) {
+      void queryClient.invalidateQueries({ queryKey: coverageKey });
+    }
   }
-  // Matrice / couverture : patch optimiste seulement (évite un refetch qui ramènerait
-  // l’ancien état si l’API n’a pas encore indexé le batch commité).
   await refreshDsnCoverageQueries(queryClient, { includeMatrix: false });
+  if (coverage) {
+    window.setTimeout(() => {
+      void queryClient.refetchQueries({ queryKey: ['dsn-coverage', coverage.companyId] });
+      void queryClient.refetchQueries({ queryKey: ['dsn-admin-matrix'] });
+      void queryClient.invalidateQueries({ queryKey: ['company-setup-status', coverage.companyId] });
+    }, 1500);
+  }
 }

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_admin_client
@@ -150,6 +150,24 @@ def _planning_months(company_id: str) -> int:
 
 def _block_score(ok: bool, weight: float = 1.0) -> float:
     return weight if ok else 0.0
+
+
+def _payroll_kpi_block(company_id: str) -> Dict[str, Any]:
+    from app.modules.payroll.application.payroll_kpi_queries import resolve_company_payroll_kpi
+
+    today = date.today()
+    last_month = today.replace(day=1) - timedelta(days=1)
+    period = f"{last_month.year}-{last_month.month:02d}"
+    snap = resolve_company_payroll_kpi(company_id, period)
+    return {
+        "ready": snap.source != "none" and snap.gross > 0,
+        "source": snap.source,
+        "source_label": snap.source_label,
+        "period": period,
+        "gross": round(snap.gross, 2),
+        "net": round(snap.net, 2),
+        "partial": snap.partial,
+    }
 
 
 def get_company_setup_status(company_id: str) -> Dict[str, Any]:
@@ -336,4 +354,5 @@ def get_company_setup_status(company_id: str) -> Dict[str, Any]:
             "oeth": {"configured": oeth_ok},
         },
         "next_actions": next_actions,
+        "payroll_kpi": _payroll_kpi_block(company_id),
     }

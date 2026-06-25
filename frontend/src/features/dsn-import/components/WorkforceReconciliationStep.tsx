@@ -42,16 +42,18 @@ export function WorkforceReconciliationStep({
         <CardHeader>
           <CardTitle className="text-base">Décisions par salarié</CardTitle>
           <CardDescription>
-            Chaque écart doit avoir une décision avant de valider l&apos;import.
+            Pour chaque écart, choisissez une action : clôturer le départ, reporter, ignorer
+            l&apos;écart ou supprimer une fiche erronée. Un résumé s&apos;affiche une fois la
+            décision enregistrée — vous pourrez la modifier avant de valider l&apos;import.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {gaps.map((gap: WorkforceGap) => (
             <WorkforceGapRow
-              key={gap.gap_id}
+              key={`${gap.gap_id}-${resolutions[gap.gap_id]?.action ?? 'open'}`}
               gap={gap}
               batchId={batchId}
-              resolution={resolutions[gap.gap_id] ?? gap.resolution ?? undefined}
+              resolution={resolutions[gap.gap_id]}
               onResolutionChange={onResolutionChange}
               onResolutionClear={onResolutionClear}
             />

@@ -49,11 +49,12 @@ export function CompanySetupDsnStepPanel({
   onAnalyze,
   onCellClick,
 }: Props) {
-  const { data: coverage, isLoading } = useQuery({
+  const { data: coverage, isLoading, isFetching } = useQuery({
     queryKey: ['dsn-coverage', companyId],
     queryFn: () => fetchDsnCoverage(companyId),
     enabled: Boolean(companyId),
-    staleTime: 15_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
   });
 
   const matrixCompany = useMemo(
@@ -95,6 +96,12 @@ export function CompanySetupDsnStepPanel({
       ) : matrixCompany ? (
         <TooltipProvider delayDuration={200}>
           <div className="space-y-3">
+            {isFetching && !isLoading ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Actualisation de la couverture DSN…
+              </p>
+            ) : null}
             <CompanyCoverageRow
               company={matrixCompany}
               onCellClick={onCellClick}

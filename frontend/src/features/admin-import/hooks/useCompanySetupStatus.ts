@@ -28,5 +28,6 @@ export function useRefreshCompanySetupStatus() {
   return (companyId: string) => {
     if (!companyId) return;
     void queryClient.invalidateQueries({ queryKey: companySetupStatusQueryKey(companyId) });
+    void queryClient.invalidateQueries({ queryKey: ['dsn-coverage', companyId] });
   };
 }

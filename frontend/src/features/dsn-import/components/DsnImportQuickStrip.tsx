@@ -85,11 +85,12 @@ export function DsnImportQuickStrip({
     staleTime: 60_000,
   });
 
-  const { data: coverage } = useQuery({
+  const { data: coverage, isFetching: coverageFetching } = useQuery({
     queryKey: ['dsn-coverage', selectedCompanyId],
     queryFn: () => fetchDsnCoverage(selectedCompanyId),
     enabled: Boolean(selectedCompanyId),
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
   });
 
   const grouped = useMemo(() => groupCompanies(companies ?? []), [companies]);
@@ -207,6 +208,9 @@ export function DsnImportQuickStrip({
         </div>
         ) : selectedCompanyId && (coverage?.next_import_period ?? coverage?.expected_last_period) ? (
           <p className="text-xs text-muted-foreground">
+            {coverageFetching ? (
+              <Loader2 className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />
+            ) : null}
             Prochain mois à importer :{' '}
             <span className="font-medium text-foreground">{nextImportLabel}</span>
           </p>

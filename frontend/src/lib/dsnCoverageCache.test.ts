@@ -6,7 +6,9 @@ import {
   expandPeriodRange,
   extractCommittedCoverageFromBatch,
   patchDsnCoverageMatrixCache,
+  resolveNextImportPeriod,
 } from '@/lib/dsnCoverageCache';
+import type { DsnCoverage } from '@/api/dsnImport';
 
 describe('dsnCoverageCache', () => {
   it('déploie une plage de périodes inclusive', () => {
@@ -78,5 +80,37 @@ describe('dsnCoverageCache', () => {
     expect(company?.timeline[1].state).toBe('covered');
     expect(company?.months_covered).toContain('2026-02');
     expect(company?.timeline[3].state).toBe('future');
+  });
+
+  it('recalcule next_import_period après patch couverture unitaire', () => {
+    const queryClient = new QueryClient();
+    const coverage: DsnCoverage = {
+      company_id: 'co-1',
+      dsn_sync_mode: 'external',
+      status: 'missing',
+      expected_last_period: '2026-03',
+      next_import_period: '2026-01',
+      months_covered: [],
+      gaps: ['2026-01', '2026-02', '2026-03'],
+      timeline: [
+        { period: '2026-01', month: 1, state: 'missing' },
+        { period: '2026-02', month: 2, state: 'missing' },
+        { period: '2026-03', month: 3, state: 'missing' },
+      ],
+      batch_count: 0,
+      recent_batches: [],
+      alerts: [],
+    };
+    queryClient.setQueryData(['dsn-coverage', 'co-1'], coverage);
+
+    patchDsnCoverageMatrixCache(queryClient, {
+      companyId: 'co-1',
+      periods: ['2026-01'],
+    });
+
+    const fresh = queryClient.getQueryData<DsnCoverage>(['dsn-coverage', 'co-1']);
+    expect(fresh?.timeline[0].state).toBe('covered');
+    expect(fresh?.next_import_period).toBe('2026-02');
+    expect(resolveNextImportPeriod(fresh!)).toBe('2026-02');
   });
 });

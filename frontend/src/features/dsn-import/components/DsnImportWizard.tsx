@@ -583,6 +583,28 @@ export function DsnImportWizard({
         }
         return next;
       });
+      setParseResult((prev) => {
+        if (!prev) return prev;
+        const wf = prev.summary?.workforce_reconciliation as WorkforceReconciliationSummary | undefined;
+        if (!wf?.gaps) return prev;
+        const nextResolutions = { ...(wf.resolutions ?? {}) };
+        delete nextResolutions[gapId];
+        return {
+          ...prev,
+          summary: {
+            ...prev.summary,
+            workforce_reconciliation: {
+              ...wf,
+              gaps: wf.gaps.map((g) =>
+                g.gap_id === gapId ? { ...g, resolution: null } : g,
+              ),
+              resolutions: nextResolutions,
+              resolved_count: Object.keys(nextResolutions).length,
+              unresolved_count: wf.gaps.length - Object.keys(nextResolutions).length,
+            },
+          },
+        };
+      });
     },
     [parseResult?.batch_id, saveWorkforceMutation],
   );
@@ -653,6 +675,17 @@ export function DsnImportWizard({
     finalizeResult(report, batchId);
     if (status === 'committed') {
       void applyDsnImportCommitted(queryClient, detail).then(() => {
+        const targetCompanyId =
+          (detail.summary?.target_company_id as string | undefined)
+          ?? (
+            (detail.summary?.commit_report as { target_company_id?: string } | undefined)
+              ?.target_company_id
+          );
+        if (targetCompanyId) {
+          void queryClient.invalidateQueries({
+            queryKey: ['company-setup-status', targetCompanyId],
+          });
+        }
         void queryClient.invalidateQueries({
           predicate: (query) =>
             Array.isArray(query.queryKey)
