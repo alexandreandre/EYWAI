@@ -52,6 +52,15 @@ _FRENCH_MONTHS = {
 
 _CEGID_BULLETIN = re.compile(r"BULLETIN DE SALAIRE", re.IGNORECASE)
 _EYWAI_SOLDE = re.compile(r"Solde de cong[eé]s au", re.IGNORECASE)
+_CIVILITY_NAME_RE = re.compile(
+    r"(?:Mr|M\.|Mme|MME|Me)\s+([^\n]{2,80})",
+    re.IGNORECASE,
+)
+_JUNK_PERSON_NAME_RE = re.compile(
+    r"presence|présence|jours?|acquis|solde|pris|bulletin|periode|période|"
+    r"heures?|minutes?|commentaires?|^\d",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -133,6 +142,52 @@ def _parse_float_pair(pattern: str, text: str) -> tuple[Optional[float], Optiona
     return float(match.group(1)), float(match.group(2))
 
 
+def _normalize_person_name_token(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return text.strip().lower()
+
+
+def _is_valid_payslip_person_name(name: str) -> bool:
+    raw = (name or "").strip()
+    if not raw or len(raw) < 4:
+        return False
+    if _JUNK_PERSON_NAME_RE.search(raw):
+        return False
+    tokens = [token for token in _normalize_person_name_token(raw).split() if token]
+    if len(tokens) < 2:
+        return False
+    if tokens[0] in {"de", "du", "des", "le", "la", "les", "d", "l"}:
+        return False
+    alpha_tokens = [token for token in tokens if any(ch.isalpha() for ch in token)]
+    return len(alpha_tokens) >= 2
+
+
+def _extract_cegid_employee_name(page_text: str, matricule: Optional[str] = None) -> Optional[str]:
+    """Extrait le nom salarié en évitant les faux positifs OCR (ex. « de présence »)."""
+    candidates: list[tuple[int, str]] = []
+    mat_tokens = [
+        token.upper()
+        for token in re.split(r"\s+", (matricule or "").strip())
+        if len(token) >= 3
+    ]
+
+    for match in _CIVILITY_NAME_RE.finditer(page_text):
+        candidate = match.group(1).strip()
+        if not _is_valid_payslip_person_name(candidate):
+            continue
+        score = len(candidate)
+        upper = candidate.upper()
+        if mat_tokens and any(token in upper for token in mat_tokens):
+            score += 100
+        candidates.append((score, candidate))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
 def _parse_cegid_clarifie(page_text: str) -> ParsedPayslipPage:
     page = ParsedPayslipPage(source_file="", page_index=0, parse_format="cegid_clarifie")
 
@@ -163,14 +218,6 @@ def _parse_cegid_clarifie(page_text: str) -> ParsedPayslipPage:
         r"Solde\s*:\s*([\d.]+)\s*/\s*([\d.]+)", page_text
     )
 
-    name_match = re.search(
-        r"(?:Mr|M\.|Mme|MME|Me)\s+([^\n]{2,80})",
-        page_text,
-        re.IGNORECASE,
-    )
-    if name_match:
-        page.raw_name = name_match.group(1).strip()
-
     matricule_match = re.search(
         r"Matricule\s*:\s*(.+?)\s+NoS[eé]cu",
         page_text,
@@ -178,6 +225,8 @@ def _parse_cegid_clarifie(page_text: str) -> ParsedPayslipPage:
     )
     if matricule_match:
         page.matricule = matricule_match.group(1).strip()
+
+    page.raw_name = _extract_cegid_employee_name(page_text, page.matricule)
 
     patronymic_match = re.search(
         r"Nom\s+Patronymique\s*:\s*([^\n]+)",

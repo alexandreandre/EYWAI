@@ -16,9 +16,15 @@ from app.modules.schedules.schemas.ai import AiEmployeeProposal, RosterEmployee
 MatchMethod = Literal["matricule", "name_exact", "name_fuzzy", "none"]
 ReviewStatus = Literal["ok", "warning", "error", "empty"]
 
+_NAME_PARTICLES = frozenset(
+    {"de", "du", "des", "le", "la", "les", "d", "l", "mr", "mme", "me", "m"}
+)
+
 _JUNK_NAME_RE = re.compile(
     r"édition|heures\s+et\s+minutes|pointages?|commentaires|retenu|"
-    r"entreprise|total\s+pour|semaine\s+du|du\s+\d{1,2}/\d{1,2}",
+    r"entreprise|total\s+pour|semaine\s+du|du\s+\d{1,2}/\d{1,2}|"
+    r"presence|présence|jours?\s+de|de\s+presence|de\s+présence|"
+    r"^\d|acquis|solde|total\s+pris",
     re.IGNORECASE,
 )
 
@@ -83,11 +89,13 @@ def _last_name_matches_ocr(ocr_last: str, emp_last: str) -> bool:
     last = _normalize(emp_last).replace(" ", "")
     if not o or not last:
         return False
+    if len(o) < 4 or o in _NAME_PARTICLES:
+        return False
     if o == last:
         return True
-    if len(last) >= 4 and (last in o or o in last):
+    if len(last) >= 4 and len(o) >= 4 and (last in o or o in last):
         return True
-    return _levenshtein(o, last) <= 2
+    return len(o) >= 4 and len(last) >= 4 and _levenshtein(o, last) <= 2
 
 
 def _first_name_matches_ocr(

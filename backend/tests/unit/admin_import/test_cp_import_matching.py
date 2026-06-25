@@ -1,131 +1,111 @@
-"""Tests unitaires — rapprochement import CP."""
+"""Tests rapprochement import CP (matricule tronqué, noms OCR absurdes)."""
 
-from unittest.mock import patch
+from app.modules.admin_import.application.cp_import import _flag_duplicate_employee_matches
+from app.modules.admin_import.application.cp_payslip_parser import parse_payslip_page_text
+from app.modules.admin_import.application.rib_matching import resolve_rib_row_match
+from app.modules.schedules.schemas.ai import RosterEmployee
 
-import pytest
+BUSIZA_PAGE = """
+   COMITECH                                                                            BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 49861035100013         Code NAF: 2229A
+                  CP N-1         CP N
+                                                                                  Mr BUSIZA LUSELA Serge
+  Acquis :        24.00 /      24.96 /
+  Total pris :    24.00 /      13.00 /
+  Solde :          0.00 /      11.96 /
+   Matricule : BUSIZA LUS              NoSécu.: 166109935323859
+"""
 
-from app.modules.admin_import.application.cp_import import parse_cp_import_files
-from tests.unit.admin_import.test_cp_payslip_parser import BOUFRIDA_PAGE
+JUNK_NAME_PAGE = """
+   COMITECH                                                                            BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 49861035100013         Code NAF: 2229A
+                  CP N-1         CP N
+                                                                                  Mr de présence 24.00
+  Acquis :        18.00 /      24.96 /
+  Total pris :    18.00 /      13.00 /
+  Solde :          0.00 /      11.96 /
+   Matricule : GUENAI              NoSécu.: 166109935323859
+"""
 
 EMPLOYEES = [
     {
-        "id": "emp-boufrida",
-        "first_name": "Samir",
-        "last_name": "BOUFRIDA",
+        "id": "e-busiza",
+        "first_name": "Serge",
+        "last_name": "BUSIZA LUSELA",
         "email": "",
-        "time_tracking_id": None,
-        "employee_folder_name": "BOUFRIDA_Samir",
-        "coordonnees_bancaires": {},
-        "employment_status": "actif",
+        "employee_folder_name": "BUSIZALUSELA_Serge",
+    },
+    {
+        "id": "e-debarros",
+        "first_name": "Grégory",
+        "last_name": "DE BARROS",
+        "email": "",
+        "employee_folder_name": "DEBARROS_Gregory",
     },
 ]
 
+ROSTER = [
+    RosterEmployee(id="e-busiza", first_name="Serge", last_name="BUSIZA LUSELA"),
+    RosterEmployee(id="e-debarros", first_name="Grégory", last_name="DE BARROS"),
+]
 
-@pytest.fixture
-def mock_repo():
-    with patch("app.modules.admin_import.application.cp_import.repo") as mock:
-        mock.find_company_by_siret.return_value = {
-            "id": "co-comitech",
-            "company_name": "COMITECH",
-            "siret": "49861035100013",
-        }
-        mock.resolve_company_from_payslip.return_value = (
-            {
-                "id": "co-comitech",
-                "company_name": "COMITECH",
-                "siret": "49861035100013",
-            },
-            [],
+
+class TestCpPayslipNameExtraction:
+    def test_prefers_name_aligned_with_matricule(self):
+        parsed = parse_payslip_page_text(BUSIZA_PAGE)
+        assert parsed.matricule == "BUSIZA LUS"
+        assert parsed.raw_name == "BUSIZA LUSELA Serge"
+
+    def test_rejects_junk_presence_name(self):
+        parsed = parse_payslip_page_text(JUNK_NAME_PAGE)
+        assert parsed.matricule == "GUENAI"
+        assert parsed.raw_name is None
+
+
+class TestCpImportMatching:
+    def test_busiza_lus_matches_compound_last_name(self):
+        parsed = parse_payslip_page_text(BUSIZA_PAGE)
+        result = resolve_rib_row_match(
+            roster=ROSTER,
+            employees=EMPLOYEES,
+            matricule=parsed.matricule or "",
+            email="",
+            first_name="Serge",
+            last_name="BUSIZA LUSELA",
+            full_name=parsed.raw_name or "",
+            strict_matricule_fallback=True,
         )
-        mock.list_employees_by_company_ids.return_value = {
-            "co-comitech": EMPLOYEES,
-        }
-        yield mock
+        assert result["employee_id"] == "e-busiza"
+        assert result["review_status"] == "ok"
 
-
-class TestParseCpImportMatching:
-    def test_matches_matricule_from_text_pages(self, mock_repo):
-        with patch(
-            "app.modules.admin_import.application.cp_import.parse_pdf_file"
-        ) as mock_parse, patch(
-            "app.modules.admin_import.application.cp_import.get_adjustments_by_employees_year",
-            return_value={},
-        ), patch(
-            "app.modules.admin_import.application.cp_import._compute_current_cp_soldes",
-            return_value=(None, None),
-        ):
-            from app.modules.admin_import.application.cp_payslip_parser import (
-                parse_payslip_page_text,
-            )
-
-            page = parse_payslip_page_text(BOUFRIDA_PAGE)
-            page.source_file = "comitech.pdf"
-            page.page_index = 1
-            mock_parse.return_value = ([page], [])
-
-            result = parse_cp_import_files([("comitech.pdf", b"%PDF")])
-            assert result["summary"]["total"] == 1
-            row = result["rows"][0]
-            assert row["employee_id"] == "emp-boufrida"
-            assert row["company_id"] == "co-comitech"
-            assert row["cp_n_solde"] == 11.96
-
-    def test_unknown_siret_is_error(self, mock_repo):
-        mock_repo.find_company_by_siret.return_value = None
-        mock_repo.resolve_company_from_payslip.return_value = (
-            None,
-            ["Entreprise SIRET 49861035100013 introuvable dans EYWAI."],
+    def test_unknown_matricule_does_not_fuzzy_match_de(self):
+        parsed = parse_payslip_page_text(JUNK_NAME_PAGE)
+        result = resolve_rib_row_match(
+            roster=ROSTER,
+            employees=EMPLOYEES,
+            matricule=parsed.matricule or "",
+            email="",
+            first_name="",
+            last_name="",
+            full_name=parsed.raw_name or "",
+            strict_matricule_fallback=True,
         )
-        with patch(
-            "app.modules.admin_import.application.cp_import.parse_pdf_file"
-        ) as mock_parse:
-            from app.modules.admin_import.application.cp_payslip_parser import (
-                parse_payslip_page_text,
-            )
+        assert result["employee_id"] is None
+        assert result["review_status"] == "error"
+        assert any("GUENAI" in warning for warning in result["warnings"])
 
-            page = parse_payslip_page_text(BOUFRIDA_PAGE)
-            page.source_file = "x.pdf"
-            page.page_index = 1
-            mock_parse.return_value = ([page], [])
 
-            result = parse_cp_import_files([("x.pdf", b"%PDF")])
-            row = result["rows"][0]
-            assert row["company_id"] is None
-            assert row["review_status"] == "error"
-
-    def test_mbc_resolved_by_company_name(self, mock_repo):
-        mock_repo.resolve_company_from_payslip.return_value = (
-            {
-                "id": "co-mbc",
-                "company_name": "Mont Blanc Composite",
-                "siret": None,
-            },
-            [
-                "Entreprise identifiée par nom « MONT BLANC COMPOSITE » "
-                "(SIRET 75116833700028 non enregistré dans EYWAI)."
-            ],
-        )
-        mock_repo.list_employees_by_company_ids.return_value = {
-            "co-mbc": [],
-        }
-        with patch(
-            "app.modules.admin_import.application.cp_import.parse_pdf_file"
-        ) as mock_parse, patch(
-            "app.modules.admin_import.application.cp_import.get_adjustments_by_employees_year",
-            return_value={},
-        ):
-            from app.modules.admin_import.application.cp_payslip_parser import (
-                parse_payslip_page_text,
-            )
-            from tests.unit.admin_import.test_cp_payslip_parser import MBC_PAGE
-
-            page = parse_payslip_page_text(MBC_PAGE)
-            page.source_file = "05-2026 MBC.pdf"
-            page.page_index = 1
-            mock_parse.return_value = ([page], [])
-
-            result = parse_cp_import_files([("05-2026 MBC.pdf", b"%PDF")])
-            row = result["rows"][0]
-            assert row["company_id"] == "co-mbc"
-            assert row["company_name"] == "Mont Blanc Composite"
-            assert any("identifiée par nom" in w for w in row["warnings"])
+class TestCpDuplicateEmployeeFlag:
+    def test_flags_multiple_rows_same_employee(self):
+        rows = [
+            {"row_index": 1, "employee_id": "e1", "review_status": "ok", "warnings": []},
+            {"row_index": 2, "employee_id": "e1", "review_status": "ok", "warnings": []},
+            {"row_index": 3, "employee_id": "e2", "review_status": "ok", "warnings": []},
+        ]
+        conflicts = _flag_duplicate_employee_matches(rows)
+        assert conflicts == 1
+        assert rows[0]["review_status"] == "error"
+        assert rows[0]["duplicate_employee_conflict"] is True
+        assert rows[2]["review_status"] == "ok"

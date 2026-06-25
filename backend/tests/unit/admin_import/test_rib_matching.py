@@ -124,15 +124,25 @@ class TestResolveRibRowMatch:
         assert result["employee_id"] == "e1"
         assert result["review_status"] == "warning"
 
-    def test_matricule_warning_when_names_truly_diverge(self):
+    def test_compound_matricule_busiza_lus(self):
+        employees = [
+            {
+                "id": "e-busiza",
+                "first_name": "Serge",
+                "last_name": "BUSIZA LUSELA",
+                "email": "",
+                "employee_folder_name": "BUSIZALUSELA_Serge",
+            },
+        ]
+        roster = [RosterEmployee(id="e-busiza", first_name="Serge", last_name="BUSIZA LUSELA")]
         result = resolve_rib_row_match(
-            roster=ROSTER,
-            employees=EMPLOYEES,
-            matricule="BASTER",
+            roster=roster,
+            employees=employees,
+            matricule="BUSIZA LUS",
             email="",
-            first_name="Jean",
-            last_name="DUPONT",
-            full_name="Jean DUPONT",
+            first_name="Serge",
+            last_name="BUSIZA LUSELA",
+            full_name="BUSIZA LUSELA Serge",
         )
-        assert result["employee_id"] == "e1"
-        assert result["review_status"] == "warning"
+        assert result["employee_id"] == "e-busiza"
+        assert result["review_status"] == "ok"

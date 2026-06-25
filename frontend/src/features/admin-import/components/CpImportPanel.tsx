@@ -74,9 +74,15 @@ function formatDelta(value: number | null | undefined): string {
   return value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
 }
 
-function isSavableRow(row: EditableRow, fixedCompanyId?: string): boolean {
+function isSavableRow(
+  row: EditableRow,
+  fixedCompanyId?: string,
+  duplicateEmployeeIds?: Set<string>,
+): boolean {
   if (!row.employee_id || !row.company_id) return false;
   if (fixedCompanyId && row.company_id !== fixedCompanyId) return false;
+  if (row.duplicate_employee_conflict) return false;
+  if (duplicateEmployeeIds?.has(row.employee_id)) return false;
   if (row.review_status === 'ok') return true;
   if (row.manuallyConfirmed && row.review_status === 'warning') return true;
   if (row.manuallyConfirmed && row.review_status === 'error' && row.employee_id) return true;
@@ -188,7 +194,7 @@ export function CpImportPanel({
   const commitMutation = useMutation({
     mutationFn: async () => {
       const payload = rows
-        .filter((row) => isSavableRow(row, fixedCompanyId))
+        .filter((row) => isSavableRow(row, fixedCompanyId, duplicateEmployeeIds))
         .map((row) => ({
           row_index: row.row_index,
           company_id: row.company_id as string,
@@ -302,7 +308,25 @@ export function CpImportPanel({
     return rows.filter((r) => r.company_id && r.company_id !== fixedCompanyId).length;
   }, [rows, fixedCompanyId]);
 
-  const savableCount = rows.filter((row) => isSavableRow(row, fixedCompanyId)).length;
+  const duplicateEmployeeIds = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.employee_id) continue;
+      counts.set(row.employee_id, (counts.get(row.employee_id) ?? 0) + 1);
+    }
+    return new Set(
+      [...counts.entries()].filter(([, count]) => count > 1).map(([employeeId]) => employeeId),
+    );
+  }, [rows]);
+
+  const duplicateConflictCount = useMemo(
+    () => rows.filter((row) => row.duplicate_employee_conflict || (row.employee_id != null && duplicateEmployeeIds.has(row.employee_id))).length,
+    [rows, duplicateEmployeeIds],
+  );
+
+  const savableCount = rows.filter((row) =>
+    isSavableRow(row, fixedCompanyId, duplicateEmployeeIds),
+  ).length;
   const verifyCount = rows.filter((r) => r.review_status !== 'ok' && r.employee_id).length;
 
   const handleFilesChange = (fileList: FileList | null) => {
@@ -394,6 +418,16 @@ export function CpImportPanel({
         </p>
       ) : null}
 
+      {duplicateConflictCount > 0 ? (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {duplicateConflictCount} bulletin(s) pointent vers le même salarié — corrigez le
+            rapprochement avant d&apos;enregistrer (un seul solde CP par personne).
+          </span>
+        </div>
+      ) : null}
+
       {companyMismatchCount > 0 ? (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -410,6 +444,14 @@ export function CpImportPanel({
           <span>{parseResult.summary.files_processed} fichier(s) traité(s)</span>
           <span>·</span>
           <span>{parseResult.summary.duplicates_removed} doublon(s) retiré(s)</span>
+          {(parseResult.summary.duplicate_conflicts ?? 0) > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-destructive">
+                {parseResult.summary.duplicate_conflicts} conflit(s) salarié
+              </span>
+            </>
+          )}
           {parseResult.summary.files_failed > 0 && (
             <>
               <span>·</span>

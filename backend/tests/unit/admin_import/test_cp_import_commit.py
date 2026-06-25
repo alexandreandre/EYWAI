@@ -56,3 +56,40 @@ class TestCommitCpImport:
         result = commit_cp_import(body)
         assert result["applied"] == 0
         assert result["skipped"] == 1
+
+    def test_rejects_duplicate_employee_same_year(self):
+        with patch(
+            "app.modules.admin_import.application.cp_import.repo"
+        ) as mock_repo, patch(
+            "app.modules.admin_import.application.cp_import.apply_cp_solde_import"
+        ) as mock_apply:
+            mock_repo.list_company_employees.return_value = [
+                {"id": "emp-1", "first_name": "Samir", "last_name": "BOUFRIDA"}
+            ]
+            body = CpImportCommitBody(
+                rows=[
+                    CpImportCommitRow(
+                        row_index=1,
+                        company_id="co-1",
+                        employee_id="emp-1",
+                        year=2026,
+                        cp_n1_solde=0.0,
+                        cp_n_solde=11.96,
+                        confirmed=True,
+                    ),
+                    CpImportCommitRow(
+                        row_index=2,
+                        company_id="co-1",
+                        employee_id="emp-1",
+                        year=2026,
+                        cp_n1_solde=1.0,
+                        cp_n_solde=10.0,
+                        confirmed=True,
+                    ),
+                ]
+            )
+            result = commit_cp_import(body)
+            assert result["applied"] == 1
+            assert result["skipped"] == 1
+            assert mock_apply.call_count == 1
+            assert any("même salarié" in err for err in result["errors"])

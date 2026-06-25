@@ -109,6 +109,35 @@ def _compute_current_cp_soldes(
     return float(periods["n1_remaining"]), float(periods["n_remaining"])
 
 
+def _flag_duplicate_employee_matches(previews: List[Dict[str, Any]]) -> int:
+    """Marque en erreur les lignes partageant le même salarié rapproché."""
+    by_employee: Dict[str, List[int]] = {}
+    for item in previews:
+        emp_id = item.get("employee_id")
+        if not emp_id:
+            continue
+        by_employee.setdefault(str(emp_id), []).append(int(item["row_index"]))
+
+    conflict_count = 0
+    for emp_id, row_indices in by_employee.items():
+        if len(row_indices) <= 1:
+            continue
+        conflict_count += 1
+        label = ", ".join(str(i) for i in sorted(row_indices))
+        warning = (
+            f"Plusieurs bulletins rapprochés au même salarié "
+            f"(lignes {label}) — un seul solde CP par personne."
+        )
+        for item in previews:
+            if str(item.get("employee_id")) != emp_id:
+                continue
+            item["review_status"] = "error"
+            item["duplicate_employee_conflict"] = True
+            if warning not in item["warnings"]:
+                item["warnings"].append(warning)
+    return conflict_count
+
+
 def parse_cp_import_files(
     files: List[Tuple[str, bytes]],
 ) -> Dict[str, Any]:
@@ -234,6 +263,7 @@ def parse_cp_import_files(
                 last_name=last_name,
                 full_name=page.raw_name or "",
                 patronymic_name=page.patronymic_name or "",
+                strict_matricule_fallback=True,
             )
             review_status = match.get("review_status") or "error"
             warnings.extend(match.get("warnings") or [])
@@ -294,6 +324,13 @@ def parse_cp_import_files(
         else:
             summary["error"] += 1
 
+    duplicate_conflicts = _flag_duplicate_employee_matches(previews)
+    if duplicate_conflicts:
+        summary["duplicate_conflicts"] = duplicate_conflicts
+        summary["ready"] = sum(1 for item in previews if item["review_status"] == "ok")
+        summary["warning"] = sum(1 for item in previews if item["review_status"] == "warning")
+        summary["error"] = sum(1 for item in previews if item["review_status"] == "error")
+
     if matched_employee_ids:
         years = set(row_years.values())
         adjustments_by_year: Dict[int, Dict[str, EmployeeLeaveAdjustment]] = {}
@@ -346,6 +383,7 @@ def commit_cp_import(body: CpImportCommitBody) -> Dict[str, Any]:
     errors: List[str] = []
 
     employees_cache: Dict[str, set[str]] = {}
+    seen_employee_year: set[tuple[str, str, int]] = set()
 
     for row in body.rows:
         if not row.confirmed:
@@ -362,6 +400,16 @@ def commit_cp_import(body: CpImportCommitBody) -> Dict[str, Any]:
                 f"Ligne {row.row_index} : employé hors entreprise."
             )
             continue
+
+        dedupe_key = (row.company_id, row.employee_id, row.year)
+        if dedupe_key in seen_employee_year:
+            skipped += 1
+            errors.append(
+                f"Ligne {row.row_index} : plusieurs bulletins pour le même salarié "
+                f"et la même année — un seul enregistrement autorisé."
+            )
+            continue
+        seen_employee_year.add(dedupe_key)
 
         note = None
         if row.period_label and row.source_file:
