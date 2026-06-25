@@ -68,6 +68,26 @@ def get_valid_status_transitions(exit_type: str, current_status: str) -> List[st
     return _TRANSITIONS.get(exit_type, {}).get(current_status, [])
 
 
+# Chaîne minimale pour clôturer un départ passé (import DSN / réconciliation effectifs).
+_RECONCILIATION_ARCHIVE_CHAIN: dict[str, List[str]] = {
+    "demission": ["demission_effective", "archivee"],
+    "licenciement": ["licenciement_notifie", "licenciement_effective", "archivee"],
+    "rupture_conventionnelle": [
+        "rupture_validee",
+        "rupture_homologuee",
+        "rupture_effective",
+        "archivee",
+    ],
+    "depart_retraite": ["archivee"],
+    "fin_periode_essai": ["archivee"],
+}
+
+
+def get_reconciliation_archive_chain(exit_type: str) -> List[str]:
+    """Statuts successifs à appliquer pour archiver un départ historique."""
+    return list(_RECONCILIATION_ARCHIVE_CHAIN.get(exit_type, ["archivee"]))
+
+
 def exit_block_reason(
     employee: Dict[str, Any], *, has_work_contract: bool
 ) -> Optional[str]:

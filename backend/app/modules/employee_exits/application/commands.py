@@ -24,6 +24,7 @@ from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employee_exits.domain.rules import (
     exit_block_reason,
     get_initial_status,
+    get_reconciliation_archive_chain,
     get_valid_status_transitions,
 )
 from app.modules.employee_exits.application.queries import (
@@ -253,41 +254,23 @@ def _fast_archive_reconciliation_exit(
     sb: Any,
 ) -> None:
     """Enchaîne les transitions minimales vers archivee pour un départ passé."""
-    if exit_type in ("depart_retraite", "fin_periode_essai"):
-        update_exit_status(
-            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
-        )
-        return
-    if exit_type == "demission":
-        if initial_status == "demission_recue":
-            update_exit_status(
-                exit_id,
-                company_id,
-                "demission_effective",
-                "Clôture réconciliation DSN",
-                current_user_id,
-                sb,
-            )
-        update_exit_status(
-            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
-        )
-        return
-    if exit_type == "licenciement":
+    exit_repo = EmployeeExitRepository(sb)
+    current = exit_repo.get_by_id(exit_id, company_id)
+    current_status = (current or {}).get("status") or initial_status
+    note = "Clôture réconciliation DSN"
+
+    for target_status in get_reconciliation_archive_chain(exit_type):
+        if current_status == target_status:
+            continue
         update_exit_status(
             exit_id,
             company_id,
-            "licenciement_effective",
-            "Clôture réconciliation DSN",
+            target_status,
+            note,
             current_user_id,
             sb,
         )
-        update_exit_status(
-            exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
-        )
-        return
-    update_exit_status(
-        exit_id, company_id, "archivee", "Clôture réconciliation DSN", current_user_id, sb
-    )
+        current_status = target_status
 
 
 def _format_last_working_day_fr(exit_full_data: Dict[str, Any]) -> str:

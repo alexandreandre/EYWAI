@@ -17,6 +17,7 @@ from app.modules.employee_exits.domain.entities import (
 from app.modules.employee_exits.domain.rules import (
     exit_block_reason,
     get_initial_status,
+    get_reconciliation_archive_chain,
     get_valid_status_transitions,
 )
 
@@ -244,6 +245,28 @@ class TestGetValidStatusTransitions:
     def test_type_inconnu_returns_empty(self):
         trans = get_valid_status_transitions("type_inconnu", "demission_recue")
         assert trans == []
+
+
+class TestReconciliationArchiveChain:
+    """Chaîne DSN : chaque pas doit être une transition valide depuis le statut initial."""
+
+    @pytest.mark.parametrize(
+        ("exit_type", "initial_status"),
+        [
+            ("demission", "demission_recue"),
+            ("licenciement", "licenciement_convocation"),
+            ("rupture_conventionnelle", "rupture_en_negociation"),
+            ("depart_retraite", "demission_effective"),
+            ("fin_periode_essai", "demission_effective"),
+        ],
+    )
+    def test_chain_steps_are_valid_transitions(self, exit_type, initial_status):
+        current = initial_status
+        for target in get_reconciliation_archive_chain(exit_type):
+            valid = get_valid_status_transitions(exit_type, current)
+            assert target in valid, f"{exit_type}: {current} → {target}"
+            current = target
+        assert current == "archivee"
 
 
 class TestExitBlockReason:
