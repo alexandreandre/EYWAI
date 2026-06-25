@@ -27,7 +27,7 @@ EXIT_DATE_ALIASES = ("date de sortie", "date sortie")
 CDD_ALIASES = ("cdd",)
 BASE_SALARY_ALIASES = ("salaire de base", "salaire base")
 MONTHLY_HOURS_ALIASES = ("nbheuremois", "nb heure mois", "heures mois")
-STREET_NUM_ALIASES = ("n°", "no", "numero")
+STREET_NUM_ALIASES = ("n°", "no")
 BTQ_ALIASES = ("btq",)
 STREET_ALIASES = ("voie", "rue")
 ADDRESS_EXTRA_ALIASES = ("complement", "complément")
@@ -52,6 +52,12 @@ def _match_header(header: str, aliases: Tuple[str, ...]) -> bool:
     if norm in aliases:
         return True
     return any(alias in norm for alias in aliases if len(alias) >= 3)
+
+
+def _match_street_num_header(header: str) -> bool:
+    """N° voie uniquement — pas la colonne « Numéro » (index de ligne Quadra)."""
+    norm = _normalize_header(header)
+    return norm in STREET_NUM_ALIASES
 
 
 def detect_payroll_export_column_mapping(headers: List[str]) -> Dict[str, str]:
@@ -87,7 +93,8 @@ def detect_payroll_export_column_mapping(headers: List[str]) -> Dict[str, str]:
         set_once("cdd", header, CDD_ALIASES)
         set_once("base_salary", header, BASE_SALARY_ALIASES)
         set_once("monthly_hours", header, MONTHLY_HOURS_ALIASES)
-        set_once("street_num", header, STREET_NUM_ALIASES)
+        if "street_num" not in mapping and _match_street_num_header(header):
+            mapping["street_num"] = header
         set_once("btq", header, BTQ_ALIASES)
         set_once("street", header, STREET_ALIASES)
         set_once("address_extra", header, ADDRESS_EXTRA_ALIASES)

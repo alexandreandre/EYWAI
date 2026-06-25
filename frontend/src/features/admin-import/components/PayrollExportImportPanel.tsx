@@ -45,6 +45,11 @@ import { EmployeeAssociateCombobox } from '@/components/schedules/assisted-fill/
 import type { RosterEmployee } from '@/api/calendar';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { PayrollExportFormatHelp } from '@/features/admin-import/components/PayrollExportFormatHelp';
+import {
+  buildPayrollPreviewFieldsFromRows,
+  formatPayrollPreviewCell,
+  type PayrollExportPreviewField,
+} from '@/features/admin-import/lib/payrollExportPreview';
 
 type EditableRow = PayrollExportRowPreview & {
   manuallyConfirmed: boolean;
@@ -74,14 +79,6 @@ function statusBadge(status: PayrollExportReviewStatus) {
     return <Badge variant="secondary" className="bg-amber-100 text-amber-900">À vérifier</Badge>;
   }
   return <Badge variant="destructive">Bloquant</Badge>;
-}
-
-function paymentLabel(method?: unknown): string {
-  const m = String(method ?? '').toLowerCase();
-  if (m === 'cheque') return 'Chèque';
-  if (m === 'especes') return 'Espèces';
-  if (m === 'virement') return 'Virement';
-  return '—';
 }
 
 function isSavableRow(row: EditableRow): boolean {
@@ -247,14 +244,11 @@ export function PayrollExportImportPanel({
 
   const savableCount = rows.filter(isSavableRow).length;
 
-  const showRibColumn = useMemo(
-    () =>
-      rows.some((row) => {
-        const cols = row.preview_columns ?? {};
-        return Boolean(cols.iban_masked ?? cols.rib_raw);
-      }),
-    [rows],
-  );
+  const previewFields: PayrollExportPreviewField[] = useMemo(() => {
+    if (!parseResult) return [];
+    if (parseResult.preview_fields?.length) return parseResult.preview_fields;
+    return buildPayrollPreviewFieldsFromRows(parseResult.column_mapping, rows);
+  }, [parseResult, rows]);
 
   const selectAllReady = () => {
     setRows((prev) =>
@@ -404,21 +398,30 @@ export function PayrollExportImportPanel({
               </div>
             </div>
 
+            {previewFields.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {previewFields.length} colonne(s) importable(s) détectée(s) dans le fichier — valeurs
+                affichées telles qu&apos;elles seront enregistrées.
+              </p>
+            ) : null}
+
             <div className="overflow-x-auto rounded-md border">
               <table className="w-max min-w-full caption-bottom text-sm">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10" />
-                    <TableHead className="min-w-[11rem]">Identité</TableHead>
-                    <TableHead className="min-w-[10rem]">Match</TableHead>
-                    <TableHead className="min-w-[9rem]">Email</TableHead>
-                    <TableHead className="min-w-[7rem]">Tél</TableHead>
-                    {showRibColumn ? (
-                      <TableHead className="min-w-[8rem] whitespace-nowrap">RIB</TableHead>
-                    ) : null}
-                    <TableHead className="min-w-[5.5rem] whitespace-nowrap">Paiement</TableHead>
-                    <TableHead className="min-w-[4.5rem]">Équipe</TableHead>
-                    <TableHead className="min-w-[5rem] whitespace-nowrap">TP</TableHead>
+                    <TableHead className="sticky left-0 z-20 w-10 bg-background" />
+                    <TableHead className="sticky left-10 z-20 min-w-[10rem] bg-background">
+                      Match EYWAI
+                    </TableHead>
+                    {previewFields.map((field) => (
+                      <TableHead
+                        key={field.key}
+                        className="min-w-[7rem] whitespace-nowrap"
+                        title={field.source_header ?? undefined}
+                      >
+                        {field.label}
+                      </TableHead>
+                    ))}
                     <TableHead className="min-w-[12rem]">Statut</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -427,7 +430,7 @@ export function PayrollExportImportPanel({
                     const cols = row.preview_columns ?? {};
                     return (
                       <TableRow key={row.row_index}>
-                        <TableCell>
+                        <TableCell className="sticky left-0 z-10 bg-background">
                           <Checkbox
                             checked={isSavableRow(row)}
                             disabled={!row.employee_id}
@@ -442,41 +445,36 @@ export function PayrollExportImportPanel({
                             }}
                           />
                         </TableCell>
-                        <TableCell className="min-w-[11rem]">
-                          <div className="font-medium">{row.raw_identity}</div>
-                          {row.nir && (
-                            <div className="text-xs text-muted-foreground">NIR {row.nir}</div>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky left-10 z-10 min-w-[10rem] bg-background">
                           {row.employee_id ? (
-                            <span>{row.matched_name}</span>
+                            <div>
+                              <div className="font-medium">{row.matched_name}</div>
+                              <div className="text-xs text-muted-foreground">{row.raw_identity}</div>
+                            </div>
                           ) : (
-                            <EmployeeAssociateCombobox
-                              roster={roster}
-                              value={null}
-                              onSelect={(id, label) =>
-                                handleAssociate(row.row_index, id, label)
-                              }
-                            />
+                            <div className="space-y-1">
+                              <div className="text-sm font-medium">{row.raw_identity}</div>
+                              <EmployeeAssociateCombobox
+                                roster={roster}
+                                value={null}
+                                onSelect={(id, label) =>
+                                  handleAssociate(row.row_index, id, label)
+                                }
+                              />
+                            </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm">{String(cols.email ?? row.email ?? '—')}</TableCell>
-                        <TableCell className="text-sm">{String(cols.phone ?? '—')}</TableCell>
-                        {showRibColumn ? (
-                          <TableCell className="text-sm font-mono text-xs">
-                            {String(cols.iban_masked ?? '—')}
+                        {previewFields.map((field) => (
+                          <TableCell
+                            key={field.key}
+                            className={cn(
+                              'text-sm',
+                              field.key === 'iban_masked' && 'font-mono text-xs',
+                            )}
+                          >
+                            {formatPayrollPreviewCell(field.key, cols[field.key])}
                           </TableCell>
-                        ) : null}
-                        <TableCell className="text-sm">
-                          {paymentLabel(cols.payment_method ?? row.employee_patch?.salary_payment_method)}
-                        </TableCell>
-                        <TableCell className="text-sm">{String(row.team_name ?? cols.team_name ?? '—')}</TableCell>
-                        <TableCell className="text-sm">
-                          {cols.is_temps_partiel
-                            ? `${cols.duree_hebdomadaire ?? '?'} h/sem`
-                            : '—'}
-                        </TableCell>
+                        ))}
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             {statusBadge(row.review_status)}

@@ -20,6 +20,9 @@ from app.modules.admin_import.application.payroll_export_parser import (
 )
 from app.modules.admin_import.application.rib_excel import row_value
 from app.modules.admin_import.application.rib_import import _build_roster, _employees_by_id
+from app.modules.admin_import.application.payroll_export_preview import (
+    build_preview_field_list,
+)
 from app.modules.admin_import.infrastructure import repository as repo
 from app.modules.admin_import.schemas.requests import PayrollExportCommitBody
 from app.modules.employees.application import commands as employee_commands
@@ -189,6 +192,7 @@ def parse_payroll_export_file(
         "company_name": company.get("company_name") or "Entreprise",
         "headers": sheet.headers,
         "column_mapping": mapping,
+        "preview_fields": build_preview_field_list(mapping, previews),
         "rows": previews,
         "roster": [
             {

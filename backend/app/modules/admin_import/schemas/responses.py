@@ -159,6 +159,7 @@ class PayrollExportParseResponse(BaseModel):
     company_name: str
     headers: List[str] = Field(default_factory=list)
     column_mapping: Dict[str, str] = Field(default_factory=dict)
+    preview_fields: List[Dict[str, Optional[str]]] = Field(default_factory=list)
     rows: List[PayrollExportRowPreview] = Field(default_factory=list)
     roster: List[RibImportRosterEmployee] = Field(default_factory=list)
     summary: Dict[str, int] = Field(default_factory=dict)

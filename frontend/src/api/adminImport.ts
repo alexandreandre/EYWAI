@@ -136,6 +136,7 @@ export type CpImportRowPreview = {
   delta_cp_n1?: number | null;
   delta_cp_n?: number | null;
   has_existing_adjustment: boolean;
+  duplicate_employee_conflict?: boolean;
 };
 
 export type CpImportRosterEmployee = RibImportRosterEmployee;
@@ -151,6 +152,7 @@ export type CpImportParseResponse = {
     files_processed: number;
     files_failed: number;
     duplicates_removed: number;
+    duplicate_conflicts?: number;
   };
   file_errors: string[];
 };
@@ -235,11 +237,18 @@ export type PayrollExportRowPreview = {
   raw_row: Record<string, string>;
 };
 
+export type PayrollExportPreviewField = {
+  key: string;
+  label: string;
+  source_header?: string | null;
+};
+
 export type PayrollExportParseResponse = {
   company_id: string;
   company_name: string;
   headers: string[];
   column_mapping: Record<string, string>;
+  preview_fields?: PayrollExportPreviewField[];
   rows: PayrollExportRowPreview[];
   roster: RibImportRosterEmployee[];
   summary: {

@@ -7,11 +7,13 @@ import {
 import { cn } from '@/lib/utils';
 
 const EXPECTED_COLUMNS = [
-  { label: 'Identité', cols: 'Nom, Prénom, N° SS / NIR' },
-  { label: 'Contacts', cols: 'e-mail, Tél' },
-  { label: 'Paie', cols: 'Paiement, Service (MOD/MOI), % activité, NbHeureMois' },
-  { label: 'RIB', cols: 'RIB ou IBAN' },
-  { label: 'Autres', cols: 'Handicapé, Catégorie TDS, adresse…' },
+  { label: 'Identité', cols: 'Matricule, Nom, Prénom, Nom marital, NIR' },
+  { label: 'Contacts', cols: 'E-mail, Tél., adresse (N°, voie, CP, ville…)' },
+  { label: 'État civil', cols: 'Sexe, Nationalité, Date / lieu de naissance' },
+  { label: 'Contrat', cols: 'Date entrée, Date sortie, CDD, Statut cadre, Jours anc.' },
+  { label: 'Paie', cols: 'Salaire base, % activité, Heures/mois, Paiement, RIB/IBAN' },
+  { label: 'Organisation', cols: 'Service (équipe MOD/MOI), Handicapé (Oui → code 01 RQTH)' },
+  { label: 'Titre séjour', cols: 'N° carte, dates obtention / expiration' },
 ];
 
 export function PayrollExportFormatHelp({ className }: { className?: string }) {
@@ -37,8 +39,9 @@ export function PayrollExportFormatHelp({ className }: { className?: string }) {
           ))}
         </ul>
         <p className="text-xs">
-          Les en-têtes sont reconnus automatiquement. Un numéro de téléphone placé dans la colonne
-          e-mail (sans adresse) est détecté et rangé au bon endroit.
+          Les en-têtes sont reconnus automatiquement. Le tableau de prévisualisation affiche
+          toutes les colonnes détectées avec les valeurs qui seront enregistrées. Un numéro de
+          téléphone placé dans la colonne e-mail (sans adresse) est détecté et rangé au bon endroit.
         </p>
       </CollapsibleContent>
     </Collapsible>

@@ -13,6 +13,9 @@ from app.modules.admin_import.application.payroll_export_mapping import (
     find_payroll_export_header_row_index,
     normalize_nir,
 )
+from app.modules.admin_import.application.payroll_export_preview import (
+    enrich_payroll_export_preview,
+)
 from app.modules.admin_import.application.rib_excel import (
     TabularSheet,
     _cell_str,
@@ -325,18 +328,13 @@ def parse_payroll_export_row(
             patch["residence_permit_type"] = f"Valide depuis {rp_from}"
 
     out["employee_patch"] = patch
-    out["preview"].update(
-        {
-            k: patch.get(k)
-            for k in (
-                "statut",
-                "salary_payment_method",
-                "team_name",
-            )
-            if k in patch or k == "team_name"
-        }
+    enrich_payroll_export_preview(
+        out["preview"],
+        row=row,
+        mapping=mapping,
+        patch=patch,
+        team_name=team_name,
+        monthly_hours=monthly_hours,
     )
-    if team_name:
-        out["preview"]["team_name"] = team_name
 
     return out
