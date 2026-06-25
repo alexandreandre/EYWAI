@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
@@ -109,6 +110,61 @@ def _compute_current_cp_soldes(
     return float(periods["n1_remaining"]), float(periods["n_remaining"])
 
 
+def _normalize_siret(value: Optional[str]) -> str:
+    return re.sub(r"\s", "", str(value or ""))
+
+
+def _target_company_fallback_warnings(
+    bulletin_siret: Optional[str],
+    target_company: Dict[str, Any],
+) -> List[str]:
+    """Avertissements non bloquants quand la filiale ciblée remplace la résolution SIRET."""
+    clean = _normalize_siret(bulletin_siret)
+    stored = _normalize_siret(target_company.get("siret"))
+    company_label = str(target_company.get("company_name") or "la filiale ciblée")
+    if clean and stored and stored != clean:
+        return [
+            f"SIRET bulletin ({clean}) différent du SIRET enregistré ({stored}) "
+            f"— rapprochement sur {company_label}."
+        ]
+    if clean and not stored:
+        return [
+            f"SIRET bulletin ({clean}) non enregistré pour {company_label} "
+            f"— rapprochement sur la filiale ciblée."
+        ]
+    if clean:
+        return [
+            f"SIRET bulletin ({clean}) introuvable — rapprochement sur {company_label}."
+        ]
+    return [f"Entreprise bulletin non identifiée — rapprochement sur {company_label}."]
+
+
+def _apply_target_company_scope(
+    company: Optional[Dict[str, Any]],
+    resolve_warnings: List[str],
+    target_company: Optional[Dict[str, Any]],
+    bulletin_siret: Optional[str],
+) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    """Force la filiale ciblée (parcours guidé) si le SIRET bulletin ne matche pas."""
+    if not target_company:
+        return company, resolve_warnings
+    target_id = str(target_company["id"])
+    if company and str(company["id"]) == target_id:
+        return company, resolve_warnings
+    if company and str(company["id"]) != target_id:
+        resolved_name = company.get("company_name") or "autre entreprise"
+        target_name = target_company.get("company_name") or "filiale ciblée"
+        return target_company, [
+            *resolve_warnings,
+            f"Bulletin résolu vers « {resolved_name} » ; "
+            f"rapprochement forcé sur « {target_name} » (filiale ciblée).",
+        ]
+    return target_company, _target_company_fallback_warnings(
+        bulletin_siret,
+        target_company,
+    )
+
+
 def _flag_duplicate_employee_matches(previews: List[Dict[str, Any]]) -> int:
     """Marque en erreur les lignes partageant le même salarié rapproché."""
     by_employee: Dict[str, List[int]] = {}
@@ -140,6 +196,7 @@ def _flag_duplicate_employee_matches(previews: List[Dict[str, Any]]) -> int:
 
 def parse_cp_import_files(
     files: List[Tuple[str, bytes]],
+    target_company_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     if len(files) > MAX_FILES:
         raise ValueError(f"Maximum {MAX_FILES} fichiers par import.")
@@ -177,6 +234,12 @@ def parse_cp_import_files(
     deduped, duplicates_removed, conflicts = _dedupe_pages(all_pages)
     file_errors.extend(conflicts)
 
+    target_company: Optional[Dict[str, Any]] = None
+    if target_company_id:
+        target_company = repo.find_company(target_company_id)
+        if not target_company:
+            raise ValueError(f"Entreprise cible {target_company_id} introuvable.")
+
     companies_by_page_key: Dict[str, Dict[str, Any]] = {}
     company_resolution_warnings: Dict[str, List[str]] = {}
     seen_page_keys: set[str] = set()
@@ -188,12 +251,22 @@ def parse_cp_import_files(
         company, resolve_warnings = repo.resolve_company_from_payslip(
             page.siret, page.company_name
         )
+        company, resolve_warnings = _apply_target_company_scope(
+            company,
+            resolve_warnings,
+            target_company,
+            page.siret,
+        )
         if company:
             companies_by_page_key[page_key] = company
         if resolve_warnings:
             company_resolution_warnings[page_key] = resolve_warnings
 
     company_ids = [str(c["id"]) for c in companies_by_page_key.values()]
+    if target_company:
+        target_id = str(target_company["id"])
+        if target_id not in company_ids:
+            company_ids.append(target_id)
     employees_by_company = repo.list_employees_by_company_ids(company_ids)
     rosters_by_company: Dict[str, List[Dict[str, Any]]] = {}
 

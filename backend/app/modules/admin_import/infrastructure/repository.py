@@ -149,7 +149,7 @@ def find_company(company_id: str) -> Optional[Dict[str, Any]]:
         client = get_supabase_admin_client()
         resp = (
             client.table("companies")
-            .select("id, company_name, idcc")
+            .select("id, company_name, idcc, siret, siren")
             .eq("id", company_id)
             .limit(1)
             .execute()

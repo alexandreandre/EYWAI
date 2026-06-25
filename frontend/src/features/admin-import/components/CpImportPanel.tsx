@@ -152,7 +152,7 @@ export function CpImportPanel({
   const previewFile = bulletinPreview ? fileByName.get(bulletinPreview.sourceFile) : null;
 
   const parseMutation = useMutation({
-    mutationFn: () => parseCpImportFiles(selectedFiles),
+    mutationFn: () => parseCpImportFiles(selectedFiles, fixedCompanyId),
     onSuccess: (data) => {
       setParseResult(data);
       const scopedRows = data.rows.map((row) =>
@@ -248,8 +248,13 @@ export function CpImportPanel({
                 employee_id: employeeId,
                 company_id: companyId ?? row.company_id,
                 matched_name: label,
-                review_status: row.review_status === 'error' ? 'warning' : row.review_status,
-                manuallyConfirmed: false,
+                match_method: 'none',
+                match_confidence: 'high',
+                review_status:
+                  row.warnings.filter((w) => !w.includes('associez manuellement')).length > 0
+                    ? 'warning'
+                    : 'ok',
+                manuallyConfirmed: true,
                 warnings: row.warnings.filter((w) => !w.includes('associez manuellement')),
               }
             : row,
@@ -318,6 +323,16 @@ export function CpImportPanel({
       [...counts.entries()].filter(([, count]) => count > 1).map(([employeeId]) => employeeId),
     );
   }, [rows]);
+
+  const assignedEmployeeIds = useMemo(
+    () =>
+      rows
+        .filter((row) => row.employee_id)
+        .map((row) => row.employee_id as string),
+    [rows],
+  );
+
+  const needsManualAssociation = useCallback((row: EditableRow): boolean => !row.employee_id, []);
 
   const duplicateConflictCount = useMemo(
     () => rows.filter((row) => row.duplicate_employee_conflict || (row.employee_id != null && duplicateEmployeeIds.has(row.employee_id))).length,
@@ -471,6 +486,13 @@ export function CpImportPanel({
                   <CardDescription>
                     {rows.length} salarié(s), {savableCount} prêt(s) à enregistrer
                     {verifyCount > 0 ? `, ${verifyCount} à vérifier` : ''}
+                    {assignedEmployeeIds.length > 0 ? (
+                      <>
+                        {' '}
+                        — le menu Associer ne propose que les salariés pas encore rapprochés dans
+                        ce lot.
+                      </>
+                    ) : null}
                   </CardDescription>
                 </div>
                 <Button
@@ -632,17 +654,25 @@ export function CpImportPanel({
                         )}
                       </TableCell>
                       <TableCell>
-                        {row.company_id ? (
+                        {!row.company_id ? (
+                          <span className="text-xs text-muted-foreground">SIRET inconnu</span>
+                        ) : needsManualAssociation(row) ? (
                           <EmployeeAssociateCombobox
                             roster={roster}
                             value={row.employee_id ?? null}
+                            excludeEmployeeIds={assignedEmployeeIds}
+                            othersGroupHeading="Salariés non rapprochés"
+                            emptyMessage="Tous les salariés de la filiale sont déjà rapprochés à un bulletin de ce lot."
                             onSelect={(id, label) =>
                               handleAssociate(row.row_index, id, label, row.company_id)
                             }
                             compact
                           />
                         ) : (
-                          <span className="text-xs text-muted-foreground">SIRET inconnu</span>
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+                            <UserCheck className="h-3.5 w-3.5 shrink-0" />
+                            Rapproché
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>

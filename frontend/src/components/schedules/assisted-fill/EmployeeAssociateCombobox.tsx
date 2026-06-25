@@ -22,6 +22,9 @@ interface EmployeeAssociateComboboxProps {
   compact?: boolean;
   excludeEmployeeIds?: string[];
   preferredEmployeeIds?: string[];
+  /** Message si la liste filtrée est vide (ex. tous les salariés déjà rapprochés). */
+  emptyMessage?: string;
+  othersGroupHeading?: string;
 }
 
 export function EmployeeAssociateCombobox({
@@ -33,6 +36,8 @@ export function EmployeeAssociateCombobox({
   compact = false,
   excludeEmployeeIds = [],
   preferredEmployeeIds = [],
+  emptyMessage = 'Aucun salarié disponible.',
+  othersGroupHeading,
 }: EmployeeAssociateComboboxProps) {
   const [open, setOpen] = useState(false);
 
@@ -97,14 +102,19 @@ export function EmployeeAssociateCombobox({
         <Command>
           <CommandInput placeholder="Taper nom, prénom ou matricule…" className="h-9" />
           <CommandList>
-            <CommandEmpty>Aucun salarié disponible.</CommandEmpty>
+            <CommandEmpty>{emptyMessage}</CommandEmpty>
             {suggested.length > 0 ? (
               <CommandGroup heading="Suggestions">
                 {suggested.map((emp) => renderEmployee(emp))}
               </CommandGroup>
             ) : null}
             {others.length > 0 ? (
-              <CommandGroup heading={suggested.length > 0 ? 'Autres salariés' : undefined}>
+              <CommandGroup
+                heading={
+                  othersGroupHeading ??
+                  (suggested.length > 0 ? 'Autres salariés' : undefined)
+                }
+              >
                 {others.map((emp) => renderEmployee(emp))}
               </CommandGroup>
             ) : null}

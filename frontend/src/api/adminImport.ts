@@ -185,7 +185,10 @@ export type CpImportCommitResponse = {
 
 const CP_MAX_FILES = 1000;
 
-export async function parseCpImportFiles(files: File[]): Promise<CpImportParseResponse> {
+export async function parseCpImportFiles(
+  files: File[],
+  companyId?: string,
+): Promise<CpImportParseResponse> {
   if (files.length === 0) {
     throw new Error('Aucun fichier sélectionné.');
   }
@@ -199,6 +202,7 @@ export async function parseCpImportFiles(files: File[]): Promise<CpImportParseRe
     form,
     {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: companyId ? { company_id: companyId } : undefined,
       timeout: 300_000,
     },
   );
@@ -347,6 +351,15 @@ export type CompanySetupStatus = {
     oeth: { configured: boolean };
   };
   next_actions: CompanySetupNextAction[];
+  payroll_kpi?: {
+    ready: boolean;
+    source: 'payslip' | 'dsn' | 'none';
+    source_label: string;
+    period: string;
+    gross: number;
+    net: number;
+    partial: boolean;
+  };
 };
 
 export async function getCompanySetupStatus(companyId: string): Promise<CompanySetupStatus> {

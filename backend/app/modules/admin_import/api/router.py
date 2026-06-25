@@ -256,6 +256,10 @@ def commit_rib_import(
 @router.post("/cp/parse", response_model=CpImportParseResponse)
 async def parse_cp_import(
     files: List[UploadFile] = File(...),
+    company_id: str | None = Query(
+        None,
+        description="Filiale ciblée (parcours guidé) — fallback si SIRET bulletin absent.",
+    ),
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> CpImportParseResponse:
     """Analyse un ou plusieurs bulletins PDF et extrait les soldes CP."""
@@ -266,7 +270,10 @@ async def parse_cp_import(
         content = await upload.read()
         payloads.append((upload.filename or "bulletin.pdf", content))
     try:
-        result = cp_import.parse_cp_import_files(payloads)
+        result = cp_import.parse_cp_import_files(
+            payloads,
+            target_company_id=company_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
