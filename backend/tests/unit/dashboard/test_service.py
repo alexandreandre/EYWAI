@@ -22,6 +22,29 @@ from app.modules.dashboard.schemas.responses import (
 COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 
 
+def _mock_payroll_dashboard():
+    from app.modules.payroll.application.payroll_kpi_queries import PayrollDashboardPayload
+    from app.modules.payroll.domain.payroll_kpi_resolver import PayrollPeriodSnapshot
+
+    snap = PayrollPeriodSnapshot(
+        period="2025-01",
+        source="none",
+        source_label="Aucune donnée paie",
+        gross=0.0,
+        net=0.0,
+        employer_cost=0.0,
+        employee_charges=0.0,
+        employer_charges=0.0,
+    )
+    return PayrollDashboardPayload(
+        last_month=snap,
+        series_12=[snap],
+        has_mixed_sources=False,
+        primary_source="none",
+        dsn_sync_mode="native",
+    )
+
+
 class TestGetResidencePermitStats:
     """Tests de get_residence_permit_stats (service)."""
 
@@ -101,11 +124,17 @@ class TestBuildFullDashboard:
     """Tests de build_full_dashboard (service)."""
 
     @patch(
+        "app.modules.dashboard.application.service.resolve_company_payroll_dashboard",
+        return_value=_mock_payroll_dashboard(),
+    )
+    @patch(
         "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
         return_value=0,
     )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
-    def test_returns_dashboard_data_structure(self, mock_get_repo, _mock_boeth):
+    def test_returns_dashboard_data_structure(
+        self, mock_get_repo, _mock_boeth, _mock_payroll
+    ):
         """build_full_dashboard retourne un DashboardData avec tous les champs."""
         mock_repo = MagicMock()
         mock_repo.get_employees_for_dashboard.return_value = [
@@ -142,11 +171,15 @@ class TestBuildFullDashboard:
         mock_repo.get_employees_for_dashboard.assert_called_once_with(COMPANY_ID)
 
     @patch(
+        "app.modules.dashboard.application.service.resolve_company_payroll_dashboard",
+        return_value=_mock_payroll_dashboard(),
+    )
+    @patch(
         "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
         return_value=0,
     )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
-    def test_contract_distribution_in_kpis(self, mock_get_repo, _mock_boeth):
+    def test_contract_distribution_in_kpis(self, mock_get_repo, _mock_boeth, _mock_payroll):
         """La répartition des contrats (CDI/CDD) est dans kpis.contractDistribution."""
         mock_repo = MagicMock()
         mock_repo.get_employees_for_dashboard.return_value = [
@@ -169,12 +202,16 @@ class TestBuildFullDashboard:
         assert result.kpis.cddCount == 1
 
     @patch(
+        "app.modules.dashboard.application.service.resolve_company_payroll_dashboard",
+        return_value=_mock_payroll_dashboard(),
+    )
+    @patch(
         "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
         return_value=0,
     )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
     def test_alerts_count_expiring_contracts_and_trial_periods(
-        self, mock_get_repo, _mock_boeth
+        self, mock_get_repo, _mock_boeth, _mock_payroll
     ):
         mock_repo = MagicMock()
         mock_repo.get_employees_for_dashboard.return_value = [

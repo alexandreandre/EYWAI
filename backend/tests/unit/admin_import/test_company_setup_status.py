@@ -23,13 +23,23 @@ def mock_company():
     }
 
 
+@patch("app.modules.admin_import.application.company_setup_status._payroll_kpi_block")
 @patch("app.modules.admin_import.application.company_setup_status._db")
 @patch("app.modules.admin_import.application.company_setup_status.compute_coverage")
 @patch("app.modules.admin_import.application.company_setup_status._company_row")
 def test_get_company_setup_status_ok(
-    mock_row, mock_coverage, mock_db, mock_company
+    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_company
 ):
     mock_row.return_value = mock_company
+    mock_payroll_kpi.return_value = {
+        "ready": False,
+        "source": "none",
+        "source_label": "Aucune donnée paie",
+        "period": "2026-05",
+        "gross": 0.0,
+        "net": 0.0,
+        "partial": False,
+    }
     mock_coverage.return_value = {
         "months_covered": ["2026-01", "2026-02"],
         "last_period": "2026-02",
@@ -96,13 +106,23 @@ def test_get_company_setup_status_ok(
     assert isinstance(result["next_actions"], list)
 
 
+@patch("app.modules.admin_import.application.company_setup_status._payroll_kpi_block")
 @patch("app.modules.admin_import.application.company_setup_status._db")
 @patch("app.modules.admin_import.application.company_setup_status.compute_coverage")
 @patch("app.modules.admin_import.application.company_setup_status._company_row")
 def test_get_company_setup_status_empty_employees(
-    mock_row, mock_coverage, mock_db, mock_company
+    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_company
 ):
     mock_row.return_value = mock_company
+    mock_payroll_kpi.return_value = {
+        "ready": False,
+        "source": "none",
+        "source_label": "Aucune donnée paie",
+        "period": "2026-05",
+        "gross": 0.0,
+        "net": 0.0,
+        "partial": False,
+    }
     mock_coverage.return_value = {
         "months_covered": ["2026-01", "2026-02", "2026-03"],
         "last_period": "2026-03",

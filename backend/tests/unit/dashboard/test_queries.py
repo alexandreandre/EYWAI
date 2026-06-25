@@ -23,6 +23,7 @@ def _make_minimal_dashboard_data():
         AlertItems,
         ChartDataPoint,
         KpiData,
+        PayrollKpiMeta,
         PayrollStatus,
         TeamPulse,
     )
@@ -37,6 +38,10 @@ def _make_minimal_dashboard_data():
             cdiCount=3,
             cddCount=2,
             contractDistribution={"CDI": 3, "CDD": 2},
+            payroll=PayrollKpiMeta(
+                source="none",
+                source_label="Aucune donnée paie",
+            ),
         ),
         chartData=[ChartDataPoint(name="Fév", Net_Verse=800.0, Charges=200.0)],
         actions=ActionItems(pendingAbsences=1, pendingExpenses=0),

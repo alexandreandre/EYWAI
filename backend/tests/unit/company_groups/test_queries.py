@@ -195,6 +195,10 @@ class TestGetGroupConsolidatedStats:
                 f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
                 return_value=dashboard_data,
             ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
+                side_effect=lambda payload, _ids, _period: payload,
+            ),
         ):
             result = queries.get_group_consolidated_stats(
                 "g1", user, year=2024, month=6
@@ -280,6 +284,10 @@ class TestGetGroupConsolidatedStats:
             patch(
                 f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
                 side_effect=[current, previous],
+            ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
+                side_effect=lambda payload, _ids, _period: payload,
             ),
         ):
             result = queries.get_group_consolidated_stats(
