@@ -385,6 +385,9 @@ def _enrich_actions(
                 if it.get("action") == "skip":
                     it["action"] = "create"
             apply_review_flags(it)
+            from app.modules.dsn_import.application.boeth_import import append_boeth_review_conflict
+
+            append_boeth_review_conflict(it, company_id)
 
 
 def _apply_review_to_employees(items: List[Dict[str, Any]]) -> None:

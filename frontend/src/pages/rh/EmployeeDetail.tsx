@@ -37,6 +37,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
 import { EmployeeBoethCard } from "@/features/employee-detail/components/EmployeeBoethCard";
+import { getEmployeeBoeth } from "@/api/oethSettings";
 import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
 import { EmployeeTimeTrackingCard } from "@/features/employee-detail/components/EmployeeTimeTrackingCard";
 import {
@@ -107,6 +108,7 @@ export default function EmployeeDetail() {
     return normalizeEmployeeDetailTab(params.get("tab"));
   });
   const [profileEditOpen, setProfileEditOpen] = useState(false);
+  const [boethSheetOpen, setBoethSheetOpen] = useState(false);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
 
   const {
@@ -167,6 +169,12 @@ export default function EmployeeDetail() {
     queryFn: () => getTeams(false),
     enabled: Boolean(employeeId && employeeReady),
     staleTime: 5 * 60_000,
+  });
+  const employeeBoethQuery = useQuery({
+    queryKey: ["employee-boeth", employeeId],
+    queryFn: () => getEmployeeBoeth(employeeId!),
+    enabled: Boolean(employeeId && employeeReady),
+    staleTime: 60_000,
   });
   const activeTeamsSorted = useMemo(
     () =>
@@ -509,7 +517,20 @@ export default function EmployeeDetail() {
         isSavingCC={isSavingCC}
         onSaveCollectiveAgreement={handleSaveCollectiveAgreement}
         companyHasCollectiveAgreements={companyAgreements.length > 0}
+        boethProfile={employeeBoethQuery.data ?? null}
+        canEditBoeth={canEditEmployeePaySettings}
+        onOpenBoethSheet={() => setBoethSheetOpen(true)}
       />
+
+      {employeeId && employee && (employeeBoethQuery.data || canEditEmployeePaySettings) ? (
+        <EmployeeBoethCard
+          employeeId={employeeId}
+          profile={employeeBoethQuery.data ?? null}
+          canEdit={canEditEmployeePaySettings}
+          sheetOpen={boethSheetOpen}
+          onSheetOpenChange={setBoethSheetOpen}
+        />
+      ) : null}
 
       {employeeId && employee && (
         <EmployeeDetailTrialPeriodCard
@@ -602,13 +623,10 @@ export default function EmployeeDetail() {
 
         <TabsContent value="documents" className="mt-4 space-y-4">
           {employeeId && employee ? (
-            <>
-              <EmployeeBoethCard employeeId={employeeId} />
-              <EmployeeDetailDocumentsTab
-                employeeId={employeeId}
-                employee={employee}
-              />
-            </>
+            <EmployeeDetailDocumentsTab
+              employeeId={employeeId}
+              employee={employee}
+            />
           ) : (
             <TabPanelSkeleton />
           )}

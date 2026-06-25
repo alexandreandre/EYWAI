@@ -271,6 +271,7 @@ def commit_batch(
     stats = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
     errors: List[Dict[str, Any]] = []
     error_messages: List[str] = []
+    warnings: List[Dict[str, Any]] = []
     imported_employees: List[Dict[str, Any]] = []
     periods_committed: set = set()
     dsn_import_stats = {
@@ -423,6 +424,22 @@ def commit_batch(
                 )
                 stats["created" if created else "updated"] += 1
                 employee_by_ref[source_ref] = emp_row or {}
+                if target_id and emp_row:
+                    from app.modules.dsn_import.application.boeth_import import apply_dsn_boeth_on_commit
+
+                    emp_company_id = str(emp_row.get("company_id") or "")
+                    if emp_company_id:
+                        boeth_warning = apply_dsn_boeth_on_commit(
+                            emp_company_id, target_id, payload
+                        )
+                        if boeth_warning:
+                            warnings.append(
+                                {
+                                    "source_ref": source_ref,
+                                    "type": "boeth_conflict",
+                                    "message": boeth_warning,
+                                }
+                            )
                 if target_id and emp_row and created and not emp_row.get("user_id"):
                     imported_employees.append(
                         {
@@ -488,6 +505,7 @@ def commit_batch(
         "stats": stats,
         "errors": errors,
         "error_messages": error_messages,
+        "warnings": warnings,
         "group_id": group_id,
         "companies": company_by_siret,
         "imported_employees": imported_employees,

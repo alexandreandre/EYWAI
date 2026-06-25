@@ -27,6 +27,10 @@ from app.modules.dsn_import.domain.dsn_absence_exit_mapping import (
     build_exit_payload_from_fin_contrat,
 )
 from app.modules.dsn_import.domain.psc import build_specificites_paie_psc
+from app.modules.dsn_import.application.boeth_import import (
+    boeth_preview_columns,
+    extract_boeth_from_contrat,
+)
 from app.modules.employees.domain.rules import is_temps_travail_incoherent
 
 # Champs modifiables en preview (clé payload -> libellé UI)
@@ -64,6 +68,7 @@ REVIEW_REASON_LABELS: Dict[str, str] = {
     "brut_absent": "Brut non extrait de la DSN",
     "nir_incomplet": "NIR absent (NTT ou matricule utilisé)",
     "temps_partiel_incoherent": "Temps partiel détecté sans durée hebdo (< 35 h)",
+    "boeth_conflict": "Conflit BOETH — la fiche sera conservée",
 }
 
 
@@ -105,6 +110,9 @@ def apply_review_flags(item: Dict[str, Any], *, effective_action: Optional[str] 
     cols["brut"] = (payload.get("salaire_de_base") or {}).get("valeur")
     cols["is_temps_partiel"] = payload.get("is_temps_partiel")
     cols["duree_hebdomadaire"] = payload.get("duree_hebdomadaire")
+    boeth = payload.get("_boeth")
+    if boeth:
+        cols.update(boeth_preview_columns(boeth))
     item["preview_columns"] = cols
 
 
@@ -476,6 +484,10 @@ def map_employee_payload(
     if contract_type in ("apprentissage", "professionnalisation") and hire:
         payload["date_debut_execution"] = hire
         payload["date_conclusion_contrat"] = hire
+
+    boeth = extract_boeth_from_contrat(contrat, valid_from=hire)
+    if boeth:
+        payload["_boeth"] = boeth
 
     return payload
 

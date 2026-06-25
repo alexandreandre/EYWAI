@@ -96,6 +96,8 @@ export type DsnImportItemPreview = {
   is_existing?: boolean | null;
   existing_employee_id?: string | null;
   existing_company_id?: string | null;
+  existing_company_name?: string | null;
+  boeth_conflict?: { dsn_code: string; profile_code: string } | null;
   payroll_conflicts?: Record<string, { existing: unknown; dsn: unknown }> | null;
   payroll_extract?: Record<string, unknown> | null;
 };
@@ -453,6 +455,8 @@ export const DSN_IMPORT_REVIEW_REASON_LABELS: Record<string, string> = {
   brut_absent: 'Brut non extrait de la DSN',
   nir_incomplet: 'NIR absent (NTT ou matricule utilisé)',
   identifiant_absent: 'NIR / matricule absent',
+  temps_partiel_incoherent: 'Temps partiel détecté sans durée hebdo (< 35 h)',
+  boeth_conflict: 'Conflit BOETH',
 };
 
 export const DSN_IMPORT_ACTION_LABELS: Record<string, string> = {

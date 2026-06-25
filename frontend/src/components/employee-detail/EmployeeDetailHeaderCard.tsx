@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
+  Accessibility,
   ClipboardList,
   Loader2,
   MoreHorizontal,
@@ -21,7 +22,9 @@ import {
 } from '@/lib/employeeProfileUtils';
 import { ResidencePermitBadge } from '@/components/ResidencePermitBadge';
 import { TrialPeriodBadge } from '@/components/TrialPeriodBadge';
+import { BoethBadge } from '@/features/employee-detail/components/BoethBadge';
 import { EmployeeDeleteConfirmDialog } from '@/features/employee-detail/components/EmployeeDeleteConfirmDialog';
+import type { EmployeeBoethProfile } from '@/api/oethSettings';
 import type { CompanyCollectiveAgreementWithDetails } from '@/api/collectiveAgreements';
 import type { Team } from '@/api/teams';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -94,6 +97,9 @@ interface EmployeeDetailHeaderCardProps {
   onSaveCollectiveAgreement: () => void | Promise<void>;
   companyHasCollectiveAgreements?: boolean;
   onEditProfile?: () => void;
+  boethProfile?: EmployeeBoethProfile | null;
+  canEditBoeth?: boolean;
+  onOpenBoethSheet?: () => void;
 }
 
 function MetadataField({
@@ -144,6 +150,9 @@ export function EmployeeDetailHeaderCard({
   onSaveCollectiveAgreement,
   companyHasCollectiveAgreements = false,
   onEditProfile,
+  boethProfile,
+  canEditBoeth = false,
+  onOpenBoethSheet,
 }: EmployeeDetailHeaderCardProps) {
   const fullName = `${employee.first_name} ${employee.last_name}`.trim();
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
@@ -184,6 +193,18 @@ export function EmployeeDetailHeaderCard({
             <UserPlus className="mr-2 h-4 w-4" />
             PDF création de compte
           </a>
+        </DropdownMenuItem>
+      ),
+    });
+  }
+
+  if (canEditBoeth && onOpenBoethSheet) {
+    menuItems.push({
+      key: 'boeth',
+      node: (
+        <DropdownMenuItem onClick={onOpenBoethSheet}>
+          <Accessibility className="mr-2 h-4 w-4" />
+          {boethProfile ? 'Statut BOETH…' : 'Déclarer un statut BOETH…'}
         </DropdownMenuItem>
       ),
     });
@@ -457,6 +478,7 @@ export function EmployeeDetailHeaderCard({
               employee.residence_permit_data_complete ?? null,
           }}
         />
+        <BoethBadge profile={boethProfile} />
         <TrialPeriodBadge
           data={{
             trial_period_applicable: employee.trial_period_applicable,
@@ -466,6 +488,15 @@ export function EmployeeDetailHeaderCard({
             trial_period_renewal_possible: employee.trial_period_renewal_possible,
           }}
         />
+        {canEditBoeth && !boethProfile && onOpenBoethSheet ? (
+          <button
+            type="button"
+            onClick={onOpenBoethSheet}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Déclarer un statut BOETH
+          </button>
+        ) : null}
       </CardContent>
     </Card>
   );

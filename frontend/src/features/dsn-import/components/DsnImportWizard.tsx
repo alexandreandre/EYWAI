@@ -2394,6 +2394,9 @@ function ItemsTable({
   rowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>;
 }) {
   const isEmployeeList = items[0]?.item_type === 'employee';
+  const showBoethColumn =
+    isEmployeeList &&
+    items.some((it) => Boolean(it.preview_columns?.boeth_label ?? it.preview_columns?.boeth_code));
 
   return (
     <div className={cn(isEmployeeList && items.length > 8 && 'max-h-[420px] overflow-y-auto')}>
@@ -2407,6 +2410,9 @@ function ItemsTable({
                 <TableHead className="hidden md:table-cell">Poste</TableHead>
                 <TableHead className="hidden lg:table-cell w-[100px]">Embauche</TableHead>
                 <TableHead className="hidden text-right xl:table-cell w-[90px]">Brut</TableHead>
+                {showBoethColumn ? (
+                  <TableHead className="hidden lg:table-cell w-[120px]">BOETH</TableHead>
+                ) : null}
               </>
             )}
             {showActionColumn && (
@@ -2435,7 +2441,7 @@ function ItemsTable({
             const cols = it.preview_columns ?? {};
             const colSpan =
               2 +
-              (isEmployeeList ? 4 : 0) +
+              (isEmployeeList ? 4 + (showBoethColumn ? 1 : 0) : 0) +
               (showActionColumn ? 1 : 0);
             const brutValue = Number((cols.brut ?? getPayloadValue(it, 'salaire_brut')) || 0);
             const hasBrutAbsent = effectiveReviewReasons(
@@ -2488,6 +2494,11 @@ function ItemsTable({
                           '—'
                         )}
                       </TableCell>
+                      {showBoethColumn ? (
+                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">
+                          {String(cols.boeth_label ?? cols.boeth_code ?? '—')}
+                        </TableCell>
+                      ) : null}
                     </>
                   )}
                   {showActionColumn && (
@@ -2535,11 +2546,37 @@ function ItemsTable({
                         it,
                         overrides[it.source_ref],
                         payloadEdits[it.source_ref],
-                      ).map((reason) => (
-                        <Badge key={reason} variant="outline" className="font-normal text-[10px]">
-                          {DSN_IMPORT_REVIEW_REASON_LABELS[reason] ?? reason}
-                        </Badge>
-                      ))}
+                      ).map((reason) => {
+                        const isBoethConflict = reason === 'boeth_conflict';
+                        const badge = (
+                          <Badge
+                            key={reason}
+                            variant="outline"
+                            className={cn(
+                              'font-normal text-[10px]',
+                              isBoethConflict &&
+                                'border-amber-300 bg-amber-50 text-amber-900 cursor-help',
+                            )}
+                          >
+                            {DSN_IMPORT_REVIEW_REASON_LABELS[reason] ?? reason}
+                          </Badge>
+                        );
+                        if (isBoethConflict && it.boeth_conflict) {
+                          return (
+                            <Tooltip key={reason}>
+                              <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  DSN ({it.boeth_conflict.dsn_code}) vs fiche (
+                                  {it.boeth_conflict.profile_code}) — le profil manuel sera
+                                  conservé à l&apos;import.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return badge;
+                      })}
                       {it.employee_count != null && (
                         <span className="text-xs text-muted-foreground">
                           {it.employee_count} sal.
