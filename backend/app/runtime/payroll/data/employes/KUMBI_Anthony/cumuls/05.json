@@ -1,0 +1,13 @@
+{
+  "cumuls": {
+    "brut_total": 12005.23,
+    "net_imposable": 9423.15,
+    "impot_preleve_a_la_source": 0.0,
+    "heures_supplementaires_remunerees": 0.0,
+    "heures_remunerees": 152.49,
+    "reduction_generale_patronale": 0.0
+  },
+  "periode": {
+    "dernier_mois_calcule": 5
+  }
+}

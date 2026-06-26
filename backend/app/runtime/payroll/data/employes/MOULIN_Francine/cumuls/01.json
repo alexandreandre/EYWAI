@@ -1,0 +1,44 @@
+{
+  "cumuls": {
+    "brut_total": 2460.08,
+    "net_imposable": 1907.16,
+    "heures_remunerees": 6.0,
+    "impot_preleve_a_la_source": 0.0,
+    "reduction_generale_patronale": 0.0,
+    "heures_supplementaires_remunerees": 0.0
+  },
+  "periode": {
+    "dernier_mois_calcule": 1
+  },
+  "dsn_source": {
+    "primes": [
+      {
+        "code": "92",
+        "montant": 58.03
+      },
+      {
+        "code": "93",
+        "montant": 17.96
+      }
+    ],
+    "bases_assujetties": {
+      "01": 1895.15,
+      "02": 2460.08,
+      "03": 2460.08,
+      "04": 17.96,
+      "05": 75.99,
+      "07": 2460.08,
+      "11": 2460.08,
+      "20": 58.03,
+      "57": 2460.08
+    },
+    "cotisations_agregees": [
+      {
+        "base": "02",
+        "code": "07",
+        "taux": 274.0,
+        "montant": 0.0
+      }
+    ]
+  }
+}
