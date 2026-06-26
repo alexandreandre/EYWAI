@@ -1,0 +1,31 @@
+{
+  "cumuls": {
+    "brut_total": 1985.79,
+    "net_imposable": 1495.08,
+    "heures_remunerees": 10.83,
+    "impot_preleve_a_la_source": 0.0,
+    "reduction_generale_patronale": 0.0,
+    "heures_supplementaires_remunerees": 0.0
+  },
+  "periode": {
+    "dernier_mois_calcule": 3
+  },
+  "dsn_source": {
+    "bases_assujetties": {
+      "01": 1953.21,
+      "02": 1985.79,
+      "03": 1985.79,
+      "04": 1951.04,
+      "07": 1985.79,
+      "57": 1985.79
+    },
+    "cotisations_agregees": [
+      {
+        "base": "01",
+        "code": "07",
+        "taux": 30.0,
+        "montant": 0.0
+      }
+    ]
+  }
+}

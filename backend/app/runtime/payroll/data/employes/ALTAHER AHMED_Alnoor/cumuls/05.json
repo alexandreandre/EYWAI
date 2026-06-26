@@ -1,6 +1,6 @@
 {
   "cumuls": {
-    "brut_total": 1672.5,
+    "brut_total": 1794.53,
     "net_imposable": 1672.5,
     "heures_remunerees": 0.0,
     "impot_preleve_a_la_source": 8.36,
@@ -9,5 +9,29 @@
   },
   "periode": {
     "dernier_mois_calcule": 5
+  },
+  "dsn_source": {
+    "primes": [
+      {
+        "code": "11",
+        "montant": 1794.53
+      },
+      {
+        "code": "37",
+        "montant": 1794.53
+      }
+    ],
+    "bases_assujetties": {
+      "01": 1823.03,
+      "04": 1794.53
+    },
+    "cotisations_agregees": [
+      {
+        "base": "02",
+        "code": "07",
+        "taux": 40.0,
+        "montant": 0.0
+      }
+    ]
   }
 }
