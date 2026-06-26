@@ -5,9 +5,34 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from postgrest.exceptions import APIError
+
 from app.core.database import get_supabase_admin_client
+from app.core.logging import get_logger
+
+logger = get_logger("modules.dsn_import.payroll_totals_repository")
 
 TABLE = "company_dsn_payroll_totals"
+_MIGRATION = "supabase/migrations/20260625150000_company_dsn_payroll_totals.sql"
+_SCHEMA_MISSING_LOGGED = False
+
+
+def _is_schema_missing(exc: Exception) -> bool:
+    msg = str(exc)
+    return "PGRST205" in msg or "Could not find the table" in msg
+
+
+def _log_schema_missing_once(context: str) -> None:
+    global _SCHEMA_MISSING_LOGGED
+    if _SCHEMA_MISSING_LOGGED:
+        return
+    _SCHEMA_MISSING_LOGGED = True
+    logger.warning(
+        "%s : table %s absente — appliquer la migration %s",
+        context,
+        TABLE,
+        _MIGRATION,
+    )
 
 
 def upsert_totals(
@@ -34,41 +59,65 @@ def upsert_totals(
         "last_batch_id": last_batch_id,
         "updated_at": now,
     }
-    client.table(TABLE).upsert(row, on_conflict="company_id,period").execute()
+    try:
+        client.table(TABLE).upsert(row, on_conflict="company_id,period").execute()
+    except APIError as exc:
+        if _is_schema_missing(exc):
+            _log_schema_missing_once("upsert_totals")
+            return
+        raise
 
 
 def delete_period(company_id: str, period: str) -> None:
     client = get_supabase_admin_client()
-    (
-        client.table(TABLE)
-        .delete()
-        .eq("company_id", company_id)
-        .eq("period", period)
-        .execute()
-    )
+    try:
+        (
+            client.table(TABLE)
+            .delete()
+            .eq("company_id", company_id)
+            .eq("period", period)
+            .execute()
+        )
+    except APIError as exc:
+        if _is_schema_missing(exc):
+            _log_schema_missing_once("delete_period")
+            return
+        raise
 
 
 def list_by_company(company_id: str, *, limit: int = 36) -> List[Dict[str, Any]]:
     client = get_supabase_admin_client()
-    resp = (
-        client.table(TABLE)
-        .select("*")
-        .eq("company_id", company_id)
-        .order("period", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return resp.data or []
+    try:
+        resp = (
+            client.table(TABLE)
+            .select("*")
+            .eq("company_id", company_id)
+            .order("period", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return resp.data or []
+    except APIError as exc:
+        if _is_schema_missing(exc):
+            _log_schema_missing_once("list_by_company")
+            return []
+        raise
 
 
 def get_period(company_id: str, period: str) -> Optional[Dict[str, Any]]:
     client = get_supabase_admin_client()
-    resp = (
-        client.table(TABLE)
-        .select("*")
-        .eq("company_id", company_id)
-        .eq("period", period)
-        .maybe_single()
-        .execute()
-    )
-    return resp.data if resp and resp.data else None
+    try:
+        resp = (
+            client.table(TABLE)
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("period", period)
+            .maybe_single()
+            .execute()
+        )
+        return resp.data if resp and resp.data else None
+    except APIError as exc:
+        if _is_schema_missing(exc):
+            _log_schema_missing_once("get_period")
+            return None
+        raise
