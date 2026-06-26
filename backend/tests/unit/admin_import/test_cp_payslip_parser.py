@@ -108,6 +108,7 @@ class TestParseCegidClarifie:
         assert parsed.siret == "75116833700028"
         assert parsed.company_name == "MONT BLANC COMPOSITE"
         assert parsed.matricule == "IBRAHIMA N"
+        assert parsed.raw_name == "IBRAHIMA NDAO NGOM"
         assert parsed.year == 2026
         assert parsed.month == 5
         assert parsed.period_label == "Mai 2026"
@@ -115,6 +116,41 @@ class TestParseCegidClarifie:
         assert parsed.cp_n_solde == 11.96
 
 
+MBC_JUNK_NAME_PAGE = """
+   MONT BLANC COMPOSITE                                                                       BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 75116833700028          Code NAF: 2229A
+                 CP N-1         CP N
+                                                     M. Assiduité Atelier 50.00
+  Acquis :        30.00 /      25.96 /
+  Total pris :    30.00 /      13.00 /
+  Solde :          0.00 /      12.96 /
+   Matricule : BOUSSANOR              NoSécu.: 166109935323859
+"""
+
+MBC_PANIER_JUNK_PAGE = """
+   MONT BLANC COMPOSITE                                                                       BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 75116833700028          Code NAF: 2229A
+                 CP N-1         CP N
+                                                     M. panier soumises 2.50 15.0000
+  Acquis :         0.00 /      16.96 /
+  Total pris :     0.00 /       0.00 /
+  Solde :          0.00 /      16.96 /
+   Matricule : ZZSORTI113             NoSécu.: 166109935323859
+"""
+
+
+class TestMbcJunkNameExtraction:
+    def test_rejects_payroll_rubric_as_name(self):
+        parsed = parse_payslip_page_text(MBC_JUNK_NAME_PAGE)
+        assert parsed.matricule == "BOUSSANOR"
+        assert parsed.raw_name is None
+
+    def test_rejects_panier_line_as_name(self):
+        parsed = parse_payslip_page_text(MBC_PANIER_JUNK_PAGE)
+        assert parsed.matricule == "ZZSORTI113"
+        assert parsed.raw_name is None
     def test_gros_patronymic_pronier(self):
         parsed = parse_payslip_page_text(GROS_PRONIER_PAGE)
         assert parsed.matricule == "GROS"

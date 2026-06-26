@@ -23,6 +23,10 @@ from app.modules.admin_import.application.rib_import import _build_roster, _empl
 from app.modules.admin_import.application.payroll_export_preview import (
     build_preview_field_list,
 )
+from app.modules.admin_import.application.payroll_export_teams import (
+    mod_moi_team_mapping_info,
+    resolve_mod_moi_team_mapping,
+)
 from app.modules.admin_import.infrastructure import repository as repo
 from app.modules.admin_import.schemas.requests import PayrollExportCommitBody
 from app.modules.employees.application import commands as employee_commands
@@ -69,6 +73,8 @@ def parse_payroll_export_file(
     content: bytes,
     filename: str,
     company_id: str,
+    *,
+    map_mod_moi_teams: Optional[bool] = None,
 ) -> Dict[str, Any]:
     company = repo.find_company(company_id)
     if not company:
@@ -95,6 +101,11 @@ def parse_payroll_export_file(
 
     roster = _build_roster(employees)
     by_id = _employees_by_id(employees)
+    mapping_info = mod_moi_team_mapping_info(company_id)
+    map_teams = resolve_mod_moi_team_mapping(
+        company_id,
+        explicit=map_mod_moi_teams,
+    )
 
     previews: List[Dict[str, Any]] = []
     summary = {"total": 0, "ready": 0, "warning": 0, "error": 0, "unmatched": 0, "rib_rows": 0, "rib_valid_rows": 0}
@@ -112,7 +123,7 @@ def parse_payroll_export_file(
         if not fn and not ln and not nir:
             continue
 
-        parsed = parse_payroll_export_row(row, mapping)
+        parsed = parse_payroll_export_row(row, mapping, map_mod_moi_teams=map_teams)
         match = resolve_payroll_export_row_match(
             roster=roster,
             employees=employees,
@@ -190,6 +201,8 @@ def parse_payroll_export_file(
     return {
         "company_id": company_id,
         "company_name": company.get("company_name") or "Entreprise",
+        "mod_moi_team_mapping": map_teams,
+        "mod_moi_team_mapping_default": mapping_info["mod_moi_team_mapping_default"],
         "headers": sheet.headers,
         "column_mapping": mapping,
         "preview_fields": build_preview_field_list(mapping, previews),

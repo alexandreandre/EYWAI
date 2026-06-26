@@ -13,6 +13,9 @@ from app.modules.dsn_import.application.coverage import (
     is_dsn_coverage_complete,
 )
 from app.modules.onboarding.domain.profile import is_profile_complete, missing_payroll_fields
+from app.modules.admin_import.application.payroll_export_teams import (
+    mod_moi_team_mapping_info,
+)
 from app.shared.utils.iban import has_valid_iban
 
 
@@ -309,6 +312,7 @@ def get_company_setup_status(company_id: str) -> Dict[str, Any]:
         )
 
     next_actions.sort(key=lambda x: x["priority"])
+    team_mapping = mod_moi_team_mapping_info(company_id)
 
     return {
         "company_id": company_id,
@@ -335,6 +339,10 @@ def get_company_setup_status(company_id: str) -> Dict[str, Any]:
                 "profile_complete_pct": emp_stats["profile_complete_pct"],
                 "missing_rib_count": emp_stats["missing_rib_count"],
                 "empty": employees_empty,
+                "mod_moi_team_mapping": team_mapping["mod_moi_team_mapping"],
+                "mod_moi_team_mapping_default": team_mapping[
+                    "mod_moi_team_mapping_default"
+                ],
             },
             "cp": {
                 "adjusted_count": cp_count,

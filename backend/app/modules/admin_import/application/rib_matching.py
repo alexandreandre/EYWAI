@@ -16,8 +16,9 @@ _NAME_PARTICLES = frozenset(
     {"de", "du", "des", "le", "la", "les", "d", "l", "mr", "mme", "me", "m"}
 )
 _JUNK_NAME_TOKEN_RE = re.compile(
-    r"presence|présence|jours?|acquis|solde|pris|bulletin|periode|période|"
-    r"heures?|minutes?|commentaires?",
+    r"presence|présence|assiduit|atelier|panier|soumises?|prime|indemn|"
+    r"jours?|acquis|solde|pris|bulletin|periode|période|"
+    r"heures?|minutes?|commentaires?|montant|taux|retenue|ouvr",
     re.IGNORECASE,
 )
 
@@ -137,6 +138,26 @@ def _matricule_match_score(matricule: str, emp: Dict[str, Any]) -> int:
     return best
 
 
+def _match_by_time_tracking_id(
+    matricule: str,
+    employees: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Matricule paie exact (ex. MIRZADA2, ZZSORTI113) → time_tracking_id salarié."""
+    from app.modules.schedules.application.employee_match import _normalize_matricule
+
+    norm_mat = _normalize_matricule(matricule)
+    if not norm_mat:
+        return None
+    matches = [
+        emp
+        for emp in employees
+        if _normalize_matricule(str(emp.get("time_tracking_id") or "")) == norm_mat
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def _match_by_payroll_matricule(
     matricule: str,
     employees: List[Dict[str, Any]],
@@ -181,6 +202,8 @@ def _is_reliable_payslip_identity(
     if tokens[0] in _NAME_PARTICLES:
         return False
     if any(_JUNK_NAME_TOKEN_RE.search(token) for token in tokens):
+        return False
+    if any(any(ch.isdigit() for ch in token) for token in tokens):
         return False
     alpha_tokens = [token for token in tokens if any(ch.isalpha() for ch in token)]
     return len(alpha_tokens) >= 2
@@ -257,6 +280,10 @@ def resolve_rib_row_match(
             return _result(found, "patronymic_matricule", "high", "ok", warnings)
 
     if mat:
+        found = _match_by_time_tracking_id(mat, employees)
+        if found:
+            return _result(found, "matricule", "high", "ok", warnings)
+
         found = _match_by_payroll_matricule(mat, employees)
         if found:
             label = f"{found.get('first_name', '')} {found.get('last_name', '')}".strip()

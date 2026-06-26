@@ -157,6 +157,8 @@ class PayrollExportRowPreview(BaseModel):
 class PayrollExportParseResponse(BaseModel):
     company_id: str
     company_name: str
+    mod_moi_team_mapping: bool = False
+    mod_moi_team_mapping_default: bool = False
     headers: List[str] = Field(default_factory=list)
     column_mapping: Dict[str, str] = Field(default_factory=dict)
     preview_fields: List[Dict[str, Optional[str]]] = Field(default_factory=list)

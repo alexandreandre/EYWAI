@@ -37,6 +37,15 @@ def test_parse_temps_partiel_and_payment():
     assert patch["statut"] == "Non-Cadre"
 
 
+def test_service_ignored_when_mod_moi_mapping_disabled():
+    mapping = {"first_name": "Prénom", "last_name": "Nom", "service": "Service"}
+    row = {"Prénom": "A", "Nom": "B", "Service": "MOD"}
+    parsed = parse_payroll_export_row(row, mapping, map_mod_moi_teams=False)
+    assert parsed["team_name"] is None
+    assert parsed["preview"]["service"] == "MOD"
+    assert "team_name" not in parsed["preview"]
+
+
 def test_service_cad_maps_to_moi():
     assert map_service_to_team_name("CAD") == "MOI"
     assert map_service_to_team_name("MOI") == "MOI"

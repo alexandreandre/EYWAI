@@ -96,6 +96,80 @@ class TestCpImportMatching:
         assert result["review_status"] == "error"
         assert any("GUENAI" in warning for warning in result["warnings"])
 
+    def test_time_tracking_id_matricule_matches(self):
+        employees = [
+            {
+                "id": "e-mirzada",
+                "first_name": "Mir Said Jan",
+                "last_name": "MIRZADA",
+                "time_tracking_id": "MIRZADA2",
+            }
+        ]
+        roster = [
+            RosterEmployee(
+                id="e-mirzada",
+                first_name="Mir Said Jan",
+                last_name="MIRZADA",
+                time_tracking_id="MIRZADA2",
+            )
+        ]
+        result = resolve_rib_row_match(
+            roster=roster,
+            employees=employees,
+            matricule="MIRZADA2",
+            email="",
+            first_name="",
+            last_name="",
+            full_name="panier soumises 2.50 15.0000",
+            strict_matricule_fallback=True,
+        )
+        assert result["employee_id"] == "e-mirzada"
+        assert result["review_status"] == "ok"
+        assert result["match_method"] == "matricule"
+
+    def test_junk_name_does_not_block_matricule_match(self):
+        parsed = parse_payslip_page_text(
+            """
+   MONT BLANC COMPOSITE                                                                       BULLETIN DE SALAIRE
+   Période : Mai 2026
+   Siret : 75116833700028
+                 CP N-1         CP N
+                                                     M. Assiduité Atelier 50.00
+  Acquis :        30.00 /      25.96 /
+  Solde :          0.00 /      12.96 /
+   Matricule : BOUSSANOR              NoSécu.: 166109935323859
+"""
+        )
+        employees = [
+            {
+                "id": "e-bouss",
+                "first_name": "Mohamed",
+                "last_name": "BOUSSANOR",
+                "time_tracking_id": "BOUSSANOR",
+            }
+        ]
+        roster = [
+            RosterEmployee(
+                id="e-bouss",
+                first_name="Mohamed",
+                last_name="BOUSSANOR",
+                time_tracking_id="BOUSSANOR",
+            )
+        ]
+        result = resolve_rib_row_match(
+            roster=roster,
+            employees=employees,
+            matricule=parsed.matricule or "",
+            email="",
+            first_name="",
+            last_name="",
+            full_name=parsed.raw_name or "",
+            strict_matricule_fallback=True,
+        )
+        assert parsed.raw_name is None
+        assert result["employee_id"] == "e-bouss"
+        assert result["review_status"] == "ok"
+
 
 class TestCpDuplicateEmployeeFlag:
     def test_flags_multiple_rows_same_employee(self):

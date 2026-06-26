@@ -57,9 +57,14 @@ _CIVILITY_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 _JUNK_PERSON_NAME_RE = re.compile(
-    r"presence|présence|jours?|acquis|solde|pris|bulletin|periode|période|"
-    r"heures?|minutes?|commentaires?|^\d",
+    r"presence|présence|assiduit|atelier|panier|soumises?|prime|indemn|"
+    r"jours?|acquis|solde|pris|bulletin|periode|période|"
+    r"heures?|minutes?|commentaires?|montant|taux|retenue|ouvr|^\d",
     re.IGNORECASE,
+)
+_RIGHT_ALIGNED_CIVILITY_RE = re.compile(
+    r"^\s{24,}(?:Mr|M\.|Mme|MME|Me)\s+([^\n]{2,80})\s*$",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 
@@ -148,6 +153,10 @@ def _normalize_person_name_token(value: str) -> str:
     return text.strip().lower()
 
 
+def _token_has_digit(token: str) -> bool:
+    return any(ch.isdigit() for ch in token)
+
+
 def _is_valid_payslip_person_name(name: str) -> bool:
     raw = (name or "").strip()
     if not raw or len(raw) < 4:
@@ -157,10 +166,22 @@ def _is_valid_payslip_person_name(name: str) -> bool:
     tokens = [token for token in _normalize_person_name_token(raw).split() if token]
     if len(tokens) < 2:
         return False
+    if any(_token_has_digit(token) for token in tokens):
+        return False
     if tokens[0] in {"de", "du", "des", "le", "la", "les", "d", "l"}:
         return False
     alpha_tokens = [token for token in tokens if any(ch.isalpha() for ch in token)]
     return len(alpha_tokens) >= 2
+
+
+def _score_cegid_name_candidate(candidate: str, mat_tokens: list[str], *, right_aligned: bool) -> int:
+    score = len(candidate)
+    upper = candidate.upper()
+    if mat_tokens and any(token in upper for token in mat_tokens):
+        score += 100
+    if right_aligned:
+        score += 50
+    return score
 
 
 def _extract_cegid_employee_name(page_text: str, matricule: Optional[str] = None) -> Optional[str]:
@@ -172,15 +193,21 @@ def _extract_cegid_employee_name(page_text: str, matricule: Optional[str] = None
         if len(token) >= 3
     ]
 
+    for match in _RIGHT_ALIGNED_CIVILITY_RE.finditer(page_text):
+        candidate = match.group(1).strip()
+        if not _is_valid_payslip_person_name(candidate):
+            continue
+        candidates.append(
+            (_score_cegid_name_candidate(candidate, mat_tokens, right_aligned=True), candidate)
+        )
+
     for match in _CIVILITY_NAME_RE.finditer(page_text):
         candidate = match.group(1).strip()
         if not _is_valid_payslip_person_name(candidate):
             continue
-        score = len(candidate)
-        upper = candidate.upper()
-        if mat_tokens and any(token in upper for token in mat_tokens):
-            score += 100
-        candidates.append((score, candidate))
+        candidates.append(
+            (_score_cegid_name_candidate(candidate, mat_tokens, right_aligned=False), candidate)
+        )
 
     if not candidates:
         return None

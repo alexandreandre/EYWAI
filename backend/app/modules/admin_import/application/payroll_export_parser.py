@@ -156,6 +156,8 @@ def coerce_email_and_phone(email: str, phone: str) -> tuple[str, str]:
 def parse_payroll_export_row(
     row: Dict[str, str],
     mapping: Dict[str, str],
+    *,
+    map_mod_moi_teams: bool = True,
 ) -> Dict[str, Any]:
     """Transforme une ligne brute en champs applicables + preview."""
     out: Dict[str, Any] = {
@@ -305,11 +307,14 @@ def parse_payroll_export_row(
         out["preview"]["handicap"] = False
 
     service = row_value(row, mapping.get("service"))
-    team_name = map_service_to_team_name(service)
-    if team_name:
-        out["team_name"] = team_name
+    team_name = None
+    if service:
         out["preview"]["service"] = service
-        out["preview"]["team_name"] = team_name
+    if map_mod_moi_teams:
+        team_name = map_service_to_team_name(service)
+        if team_name:
+            out["team_name"] = team_name
+            out["preview"]["team_name"] = team_name
 
     prior_days = _parse_int(row_value(row, mapping.get("prior_service_days")))
     if prior_days is not None and prior_days > 0:

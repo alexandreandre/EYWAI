@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 
@@ -295,6 +295,10 @@ def commit_cp_import(
 async def parse_payroll_export_import(
     file: UploadFile = File(...),
     company_id: str = Query(..., description="Entreprise cible"),
+    map_mod_moi_teams: Optional[bool] = Query(
+        None,
+        description="Mapper la colonne Service vers les équipes MOD/MOI (None = auto)",
+    ),
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> PayrollExportParseResponse:
     """Analyse un export paie Quadra/Cegid et rapproche les salariés existants."""
@@ -306,6 +310,7 @@ async def parse_payroll_export_import(
             content,
             file.filename or "export.xlsx",
             company_id,
+            map_mod_moi_teams=map_mod_moi_teams,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
