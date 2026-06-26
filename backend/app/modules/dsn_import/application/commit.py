@@ -17,11 +17,14 @@ from app.modules.dsn_import.domain.user_messages import (
     is_absence_blocked_by_exit,
     issue_to_legacy_string,
 )
-from app.modules.dsn_import.application.mapping import normalize_employee_edits
-from app.modules.dsn_import.domain.establishment_extract import apply_payroll_merge
+from app.modules.dsn_import.domain.establishment_extract import (
+    AUTO_FILL_IF_EMPTY_FROM_DSN,
+    AUTO_OVERWRITE_FROM_DSN,
+    apply_payroll_merge,
+)
 from app.modules.dsn_import.application.psc_catalog import sync_employee_psc_catalog
 from app.modules.dsn_import.application.coverage import _periods_from_batch
-from app.modules.dsn_import.infrastructure import repository as repo
+from app.modules.dsn_import.application.system_user import resolve_dsn_workflow_user_id
 from app.modules.employees.application.commands import create_employee_imported, update_employee
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 
@@ -66,7 +69,7 @@ def _apply_workforce_resolutions(
 
     from app.modules.employee_exits.application.commands import create_reconciliation_exit
 
-    user_id = current_user_id or "dsn-import-system"
+    user_id = resolve_dsn_workflow_user_id(current_user_id)
 
     for res in resolutions:
         gap_id = str(res.get("gap_id") or "")
@@ -93,14 +96,39 @@ def _apply_workforce_resolutions(
             )
             continue
         if action == "open_exit":
-            report["open_exit_deferred"].append(
-                {
-                    "gap_id": gap_id,
-                    "employee_id": employee_id,
-                    "exit_type": res.get("exit_type") or "demission",
-                    "last_working_day": res.get("last_working_day"),
-                }
-            )
+            try:
+                created = create_reconciliation_exit(
+                    employee_id,
+                    company_id,
+                    user_id,
+                    exit_type=str(res.get("exit_type") or "demission"),
+                    last_working_day=res.get("last_working_day"),
+                    exit_reason=res.get("exit_reason")
+                    or f"Départ à finaliser — réconciliation DSN ({gap_id})",
+                    fast_archive=False,
+                    source="dsn_reconciliation",
+                )
+                report["open_exit_deferred"].append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                        "exit_id": str(created.get("id", "")),
+                        "exit_type": res.get("exit_type") or "demission",
+                        "last_working_day": res.get("last_working_day"),
+                    }
+                )
+            except Exception as exc:
+                logger.exception(
+                    "Ouverture départ différé réconciliation échouée pour %s",
+                    employee_id,
+                )
+                report.setdefault("failed", []).append(
+                    {
+                        "gap_id": gap_id,
+                        "employee_id": employee_id,
+                        "error": str(exc),
+                    }
+                )
             continue
         if action == "delete_permanently":
             from app.modules.employees.application.commands import delete_employee
@@ -445,6 +473,9 @@ def commit_batch(
                 )
                 stats["created" if created else "updated"] += 1
                 employee_by_ref[source_ref] = emp_row or {}
+                in_activation_list = bool(
+                    target_id and emp_row and created and not emp_row.get("user_id")
+                )
                 if target_id and emp_row:
                     from app.modules.dsn_import.application.boeth_import import apply_dsn_boeth_on_commit
 
@@ -461,7 +492,7 @@ def commit_batch(
                                     "message": boeth_warning,
                                 }
                             )
-                if target_id and emp_row and created and not emp_row.get("user_id"):
+                if target_id and emp_row and in_activation_list:
                     imported_employees.append(
                         {
                             "employee_id": target_id,
@@ -691,6 +722,14 @@ def _commit_establishment_payroll_fields(
         val = payload.get(field)
         if val is None:
             continue
+        if field in AUTO_OVERWRITE_FROM_DSN:
+            update_data[field] = val
+            continue
+        if field in AUTO_FILL_IF_EMPTY_FROM_DSN:
+            if existing and existing.get(field) not in (None, ""):
+                continue
+            update_data[field] = val
+            continue
         if existing and existing.get(field) not in (None, ""):
             continue
         update_data[field] = val
@@ -901,7 +940,7 @@ def _commit_exit(
     employee_id, company_id = _resolve_employee_for_dsn_item(
         payload, company_by_siret, employee_by_ref
     )
-    user_id = current_user_id or "dsn-import-system"
+    user_id = resolve_dsn_workflow_user_id(current_user_id)
     create_reconciliation_exit(
         employee_id,
         company_id,
@@ -927,7 +966,7 @@ def _commit_absence(
     employee_id, company_id = _resolve_employee_for_dsn_item(
         payload, company_by_siret, employee_by_ref
     )
-    user_id = current_user_id or "dsn-import-system"
+    user_id = resolve_dsn_workflow_user_id(current_user_id)
     return create_reconciliation_absence(
         employee_id,
         company_id,

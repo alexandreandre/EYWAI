@@ -20,6 +20,12 @@ PAYROLL_MERGE_FIELDS = (
     "effectif",
 )
 
+# Écrasés à chaque import DSN sans confirmation utilisateur.
+AUTO_OVERWRITE_FROM_DSN = frozenset({"taux_at_mp", "paie_occurrence"})
+
+# Remplis silencieusement uniquement si la base est vide (pas de case à cocher).
+AUTO_FILL_IF_EMPTY_FROM_DSN = frozenset({"paie_jour_de_fin", "effectif"})
+
 
 def extract_taux_at_mp(etab: EtablissementBlock) -> Optional[float]:
     """Retourne le taux AT/MP (%) : max des composants code 100 sur la période."""
@@ -141,8 +147,8 @@ def enrich_establishment_payload(
         payload["taux_at_mp"] = taux
         dsn_extracted["taux_at_mp"] = taux
     if calendar.get("paie_jour_de_fin") is not None:
+        # Conservé pour remplissage silencieux au commit, absent de la preview.
         payload["paie_jour_de_fin"] = calendar["paie_jour_de_fin"]
-        dsn_extracted["paie_jour_de_fin"] = calendar["paie_jour_de_fin"]
     if calendar.get("paie_occurrence") is not None:
         payload["paie_occurrence"] = calendar["paie_occurrence"]
         dsn_extracted["paie_occurrence"] = calendar["paie_occurrence"]
@@ -165,20 +171,8 @@ def compute_payroll_merge_conflicts(
     payload: Dict[str, Any],
     existing: Optional[Dict[str, Any]],
 ) -> Dict[str, Dict[str, Any]]:
-    """Compare champs extraits DSN vs entreprise existante."""
-    conflicts: Dict[str, Dict[str, Any]] = {}
-    if not existing:
-        return conflicts
-    for field in PAYROLL_MERGE_FIELDS:
-        new_val = payload.get(field)
-        if new_val is None:
-            continue
-        old_val = existing.get(field)
-        if old_val is None or old_val == "":
-            continue
-        if str(old_val) != str(new_val):
-            conflicts[field] = {"existing": old_val, "dsn": new_val}
-    return conflicts
+    """Conflits restants (aucun pour les champs gérés automatiquement à l'import)."""
+    return {}
 
 
 def apply_payroll_merge(
@@ -186,10 +180,9 @@ def apply_payroll_merge(
     existing: Optional[Dict[str, Any]],
     apply_fields: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
-    """Ne remplit que les champs NULL ou explicitement demandés."""
+    """Fusionne les paramètres paie DSN : AT/MP et occurrence écrasés, reste si vide."""
     merged = dict(payload)
-    conflicts = compute_payroll_merge_conflicts(payload, existing)
-    merged["_payroll_conflicts"] = conflicts
+    merged["_payroll_conflicts"] = {}
 
     if not existing:
         return merged
@@ -199,13 +192,11 @@ def apply_payroll_merge(
         if new_val is None:
             merged.pop(field, None)
             continue
+        if field in AUTO_OVERWRITE_FROM_DSN:
+            merged[field] = new_val
+            continue
         old_val = existing.get(field)
-        if field in conflicts:
-            if apply_fields and field in apply_fields:
-                merged[field] = new_val
-            else:
-                merged.pop(field, None)
-        elif old_val is None or old_val == "":
+        if old_val is None or old_val == "":
             merged[field] = new_val
         else:
             merged.pop(field, None)

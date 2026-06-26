@@ -351,6 +351,30 @@ class TestApplyWorkforceResolutions:
         assert report["closed"] == []
         assert report["open_exit_deferred"] == []
 
+    def test_open_exit_creates_deferred_exit_without_archive(self):
+        with patch(
+            "app.modules.employee_exits.application.commands.create_reconciliation_exit"
+        ) as mock_create:
+            mock_create.return_value = {"id": "exit-deferred-1"}
+            report = _apply_workforce_resolutions(
+                [
+                    {
+                        "gap_id": "missing:emp-a",
+                        "employee_id": "emp-a",
+                        "action": "open_exit",
+                        "exit_type": "demission",
+                        "last_working_day": "2026-05-31",
+                    }
+                ],
+                COMPANY_ID,
+                "user-1",
+            )
+        mock_create.assert_called_once()
+        _, kwargs = mock_create.call_args
+        assert kwargs["fast_archive"] is False
+        assert len(report["open_exit_deferred"]) == 1
+        assert report["open_exit_deferred"][0]["exit_id"] == "exit-deferred-1"
+
     def test_delete_permanently_calls_delete_employee(self):
         with patch(
             "app.modules.employees.application.commands.delete_employee"
