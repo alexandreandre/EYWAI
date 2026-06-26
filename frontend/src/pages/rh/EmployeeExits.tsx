@@ -55,6 +55,15 @@ const EmployeeExitsPage = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const exitId = searchParams.get('exitId');
+    if (!exitId || exits.length === 0) return;
+    const found = exits.find((item) => item.id === exitId);
+    if (found) {
+      setSelectedExit(found);
+    }
+  }, [searchParams, exits]);
+
   const createPrefillEmployeeId = searchParams.get('employeeId') ?? undefined;
   const createPrefillExitType = searchParams.get('exitType') as ExitType | null;
   const returnTo = searchParams.get('returnTo');

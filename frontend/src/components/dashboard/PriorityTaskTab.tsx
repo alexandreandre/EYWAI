@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { KPIs } from "@/api/medicalFollowUp";
+import { RIB_ALERTS_UI_ENABLED } from "@/lib/productFeatureFlags";
 
 const STORAGE_KEY_REAL = "eywai.dashboard.priorityTask.validatedIds.v1";
 const STORAGE_KEY_DEMO = "eywai.dashboard.priorityTask.validatedIds.demo.v1";
@@ -164,7 +165,7 @@ function buildQueue(
           }
         : null,
     rib:
-      ribTotal > 0
+      RIB_ALERTS_UI_ENABLED && ribTotal > 0
         ? {
             id: "rib",
             title: "Alertes RIB",

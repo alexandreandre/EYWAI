@@ -63,9 +63,9 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
                 </Badge>
               )}
               {employee.employment_status === "en_sortie" && (
-                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                <Badge variant="outline" className="text-xs flex items-center gap-1 bg-amber-50 text-amber-900 border-amber-200">
                   <UserMinus className="h-3 w-3" />
-                  En départ
+                  Départ à finaliser
                 </Badge>
               )}
               {employee.employment_status === "parti" && (

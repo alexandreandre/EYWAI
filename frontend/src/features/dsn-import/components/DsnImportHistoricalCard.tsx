@@ -30,8 +30,8 @@ export function DsnImportHistoricalCard({ items }: { items: DsnImportItemPreview
               </TableRow>
             </TableHeader>
             <TableBody>
-              {exits.map((it) => (
-                <TableRow key={it.source_ref}>
+              {exits.map((it, index) => (
+                <TableRow key={`exit:${it.source_ref}:${index}`}>
                   <TableCell>{it.label}</TableCell>
                   <TableCell>{String(it.preview_columns?.exit_type ?? '—')}</TableCell>
                   <TableCell>{String(it.preview_columns?.last_working_day ?? '—')}</TableCell>
@@ -54,8 +54,8 @@ export function DsnImportHistoricalCard({ items }: { items: DsnImportItemPreview
               </TableRow>
             </TableHeader>
             <TableBody>
-              {absences.map((it) => (
-                <TableRow key={it.source_ref}>
+              {absences.map((it, index) => (
+                <TableRow key={`abs:${it.source_ref}:${index}`}>
                   <TableCell>{it.label}</TableCell>
                   <TableCell>{String(it.preview_columns?.absence_type ?? '—')}</TableCell>
                   <TableCell>

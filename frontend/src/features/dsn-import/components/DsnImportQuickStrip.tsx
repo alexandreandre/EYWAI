@@ -17,6 +17,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { scopedDsnCoverage } from '@/lib/dsnCoverageCache';
 import { cn } from '@/lib/utils';
 
 const MONTHS_FR = [
@@ -85,13 +86,16 @@ export function DsnImportQuickStrip({
     staleTime: 60_000,
   });
 
-  const { data: coverage, isFetching: coverageFetching } = useQuery({
+  const { data: rawCoverage, isFetching: coverageFetching } = useQuery({
     queryKey: ['dsn-coverage', selectedCompanyId],
     queryFn: () => fetchDsnCoverage(selectedCompanyId),
     enabled: Boolean(selectedCompanyId),
-    staleTime: 5_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
+
+  const coverage = scopedDsnCoverage(rawCoverage, selectedCompanyId);
 
   const grouped = useMemo(() => groupCompanies(companies ?? []), [companies]);
 

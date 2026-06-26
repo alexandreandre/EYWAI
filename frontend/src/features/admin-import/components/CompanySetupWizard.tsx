@@ -135,7 +135,7 @@ export function CompanySetupWizard({
     });
   }, [wizardOpen, wizardStep]);
 
-  const employeesEmpty = (status?.blocks.employees.total ?? 0) === 0;
+  const employeesEmpty = Boolean(status) && status.blocks.employees.total === 0;
 
   const skipCp = employeesEmpty;
   const skipPlanning = employeesEmpty;

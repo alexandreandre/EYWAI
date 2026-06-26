@@ -30,6 +30,7 @@ import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDial
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
+import { invalidateDsnCoverageForCompany } from '@/lib/dsnCoverageCache';
 import { toast } from '@/hooks/use-toast';
 import { CheckCircle2, Pencil, Plus, Trash2 } from 'lucide-react';
 
@@ -284,7 +285,7 @@ export default function CompanyDetails() {
     await loadCompanyDetails();
     await loadUsers(selectedRole || undefined);
     if (companyId) {
-      void queryClient.invalidateQueries({ queryKey: ['company-setup-status', companyId] });
+      invalidateDsnCoverageForCompany(queryClient, companyId);
     }
 
     if (result.failed.length > 0) {

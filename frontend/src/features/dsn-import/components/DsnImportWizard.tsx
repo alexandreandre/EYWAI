@@ -53,7 +53,6 @@ import { applyDsnImportCommitted } from '@/lib/dsnCoverageCache';
 import { DsnImportAttributionCard } from './DsnImportAttributionCard';
 import {
   DsnCompanyPayrollExtractCard,
-  type PayrollField,
 } from './DsnCompanyPayrollExtractCard';
 import {
   DsnImportCommitStatsCard,
@@ -407,7 +406,6 @@ export function DsnImportWizard({
   const [parseResult, setParseResult] = useState<DsnImportParseResponse | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [payloadEdits, setPayloadEdits] = useState<Record<string, Record<string, string>>>({});
-  const [payrollApplyFields, setPayrollApplyFields] = useState<Set<PayrollField>>(new Set());
   const [fieldErrors, setFieldErrors] = useState<Record<string, Record<string, string>>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [employeesOpen, setEmployeesOpen] = useState(false);
@@ -1036,31 +1034,6 @@ export function DsnImportWizard({
     [parseResult],
   );
 
-  const handlePayrollFieldToggle = useCallback(
-    (field: PayrollField, checked: boolean) => {
-      setPayrollApplyFields((prev) => {
-        const next = new Set(prev);
-        if (checked) next.add(field);
-        else next.delete(field);
-        return next;
-      });
-      if (!establishmentItem) return;
-      const ref = establishmentItem.source_ref;
-      const val = establishmentItem.mapped_payload?.[field];
-      setPayloadEdits((prev) => {
-        const row = { ...(prev[ref] ?? {}) };
-        if (checked && val != null && val !== '') row[field] = String(val);
-        else delete row[field];
-        if (Object.keys(row).length === 0) {
-          const { [ref]: _, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [ref]: row };
-      });
-    },
-    [establishmentItem],
-  );
-
   const hasScaffoldGroup = useMemo(
     () => parseResult?.items.some((i) => i.item_type === 'group' && i.is_scaffold) ?? false,
     [parseResult],
@@ -1544,11 +1517,7 @@ export function DsnImportWizard({
               locked={Boolean(lockedTargetCompanyId)}
             />
 
-            <DsnCompanyPayrollExtractCard
-              establishmentItem={establishmentItem}
-              applyFields={payrollApplyFields}
-              onToggleField={handlePayrollFieldToggle}
-            />
+            <DsnCompanyPayrollExtractCard establishmentItem={establishmentItem} />
 
             <DsnImportHistoricalCard items={parseResult.items} />
 
@@ -1982,6 +1951,12 @@ export function DsnImportWizard({
                     (commitReport as { dsn_import_stats?: Record<string, number> }).dsn_import_stats
                   }
                 />
+                {commitReport.imported_employees.length === 0 && (
+                  <p className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+                    Aucun nouveau salarié à activer — les fiches existantes ont été reconnues par
+                    NIR. Les cumuls et données du mois ont été mis à jour.
+                  </p>
+                )}
                 {(commitReport.group_id || Object.keys(commitReport.companies).length > 0) && (
                   <div className="rounded-lg border bg-muted/30 p-3">
                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -2672,6 +2647,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const IMPORT_ACCOUNT_PENDING_LABEL = 'Compte non créé';
+const IMPORT_ACCOUNT_ACTIVE_LABEL = 'Compte actif';
+
 function ImportedEmployeesActivationPanel({
   employees,
   emails,
@@ -2702,7 +2680,7 @@ function ImportedEmployeesActivationPanel({
       ...employees.map((e) => [
         e.full_name,
         emails[e.employee_id] ?? '',
-        activatedIds[e.employee_id] ? 'Compte actif' : 'En onboarding',
+        activatedIds[e.employee_id] ? IMPORT_ACCOUNT_ACTIVE_LABEL : IMPORT_ACCOUNT_PENDING_LABEL,
       ]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
@@ -2763,8 +2741,8 @@ function ImportedEmployeesActivationPanel({
               Activation des comptes salariés ({employees.length})
             </CardTitle>
             <CardDescription>
-              Les salariés importés sont en brouillon. Créez leur compte quand vous avez leur email
-              professionnel.
+              Nouveaux salariés sans compte utilisateur. Créez leur accès collaborateur quand vous
+              avez leur email professionnel.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={exportCsv}>
@@ -2811,9 +2789,9 @@ function ImportedEmployeesActivationPanel({
                     </TableCell>
                     <TableCell>
                       {pwd ? (
-                        <Badge variant="secondary">Compte actif</Badge>
+                        <Badge variant="secondary">{IMPORT_ACCOUNT_ACTIVE_LABEL}</Badge>
                       ) : (
-                        <Badge variant="outline">En onboarding</Badge>
+                        <Badge variant="outline">{IMPORT_ACCOUNT_PENDING_LABEL}</Badge>
                       )}
                     </TableCell>
                     <TableCell>

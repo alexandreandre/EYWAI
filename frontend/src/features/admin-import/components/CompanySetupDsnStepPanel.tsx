@@ -13,6 +13,7 @@ import {
   CoverageLegend,
 } from '@/features/dsn-import/components/DsnCoverageMatrix';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { scopedDsnCoverage } from '@/lib/dsnCoverageCache';
 
 function toMatrixCompany(coverage: DsnCoverage, companyName: string): DsnCoverageMatrixCompany {
   return {
@@ -49,13 +50,16 @@ export function CompanySetupDsnStepPanel({
   onAnalyze,
   onCellClick,
 }: Props) {
-  const { data: coverage, isLoading, isFetching } = useQuery({
+  const { data: rawCoverage, isLoading, isFetching } = useQuery({
     queryKey: ['dsn-coverage', companyId],
     queryFn: () => fetchDsnCoverage(companyId),
     enabled: Boolean(companyId),
-    staleTime: 5_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
+
+  const coverage = scopedDsnCoverage(rawCoverage, companyId);
 
   const matrixCompany = useMemo(
     () => (coverage ? toMatrixCompany(coverage, companyName) : null),

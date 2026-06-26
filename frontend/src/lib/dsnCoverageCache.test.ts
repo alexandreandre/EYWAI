@@ -7,6 +7,7 @@ import {
   extractCommittedCoverageFromBatch,
   patchDsnCoverageMatrixCache,
   resolveNextImportPeriod,
+  scopedDsnCoverage,
 } from '@/lib/dsnCoverageCache';
 import type { DsnCoverage } from '@/api/dsnImport';
 
@@ -112,5 +113,22 @@ describe('dsnCoverageCache', () => {
     expect(fresh?.timeline[0].state).toBe('covered');
     expect(fresh?.next_import_period).toBe('2026-02');
     expect(resolveNextImportPeriod(fresh!)).toBe('2026-02');
+  });
+
+  it('ignore la couverture si company_id ne correspond pas', () => {
+    const coverage: DsnCoverage = {
+      company_id: 'co-other',
+      dsn_sync_mode: 'external',
+      status: 'ok',
+      expected_last_period: '2026-05',
+      months_covered: ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'],
+      gaps: [],
+      timeline: [],
+      batch_count: 5,
+      recent_batches: [],
+      alerts: [],
+    };
+    expect(scopedDsnCoverage(coverage, 'co-1')).toBeUndefined();
+    expect(scopedDsnCoverage(coverage, 'co-other')).toBe(coverage);
   });
 });

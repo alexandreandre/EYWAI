@@ -55,12 +55,14 @@ export function PayrollSourceBadge({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge
-            variant="outline"
-            className={cn('font-normal text-xs', variantClass[source], className)}
-          >
-            {badgeLabel(source, partial)}
-          </Badge>
+          <span className="inline-flex cursor-default">
+            <Badge
+              variant="outline"
+              className={cn('font-normal text-xs', variantClass[source], className)}
+            >
+              {badgeLabel(source, partial)}
+            </Badge>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs text-xs">
           {tooltipText(source, sourceLabel, partial)}

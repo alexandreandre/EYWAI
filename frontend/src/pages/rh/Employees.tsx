@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEmployeesQuery, type EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import { RIB_ALERTS_UI_ENABLED } from "@/lib/productFeatureFlags";
 import { TableSkeleton } from "@/components/skeletons/TableSkeleton";
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from "@/components/skeletons/PageFetchIndicator";
@@ -67,7 +68,7 @@ export default function Employees() {
       });
       return res.data.alerts ?? [];
     },
-    enabled: Boolean(companyId),
+    enabled: Boolean(companyId) && RIB_ALERTS_UI_ENABLED,
   });
   const ribAlerts = ribAlertsQuery.data ?? [];
 
@@ -204,7 +205,7 @@ export default function Employees() {
           </CardContent>
         </Card>
       )}
-      {ribAlerts.length > 0 && (
+      {RIB_ALERTS_UI_ENABLED && ribAlerts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-base">

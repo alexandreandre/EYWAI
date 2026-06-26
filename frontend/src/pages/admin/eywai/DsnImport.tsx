@@ -28,6 +28,7 @@ import {
 } from '@/features/admin-import/context/CompanyImportContext';
 import type { CompanySetupTab } from '@/features/admin-import/lib/companySetupSteps';
 import type { DsnImportLaunchConfig, DsnImportMode } from '@/api/dsnImport';
+import { invalidateDsnCoverageForCompany } from '@/lib/dsnCoverageCache';
 import {
   Select,
   SelectContent,
@@ -173,9 +174,14 @@ function DsnImportPageContent() {
   );
 
   const handlePeriodRevoked = useCallback(() => {
+    if (periodAction?.companyId) {
+      invalidateDsnCoverageForCompany(queryClient, periodAction.companyId);
+      return;
+    }
     void queryClient.invalidateQueries({ queryKey: ['dsn-admin-matrix'] });
     void queryClient.invalidateQueries({ queryKey: ['dsn-admin-late-summary'] });
-  }, [queryClient]);
+    void queryClient.invalidateQueries({ queryKey: ['dsn-coverage'] });
+  }, [queryClient, periodAction?.companyId]);
 
   const handleImportCompany = useCallback(
     (importCompanyId: string) => {

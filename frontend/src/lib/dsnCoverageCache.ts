@@ -9,6 +9,27 @@ import type {
   DsnImportBatchDetail,
 } from '@/api/dsnImport';
 
+/** Ne renvoie la couverture que si elle correspond à la filiale demandée. */
+export function scopedDsnCoverage(
+  coverage: DsnCoverage | undefined,
+  companyId: string,
+): DsnCoverage | undefined {
+  if (!companyId || !coverage) return undefined;
+  return coverage.company_id === companyId ? coverage : undefined;
+}
+
+/** Invalide les caches couverture DSN après révocation ou reset onboarding. */
+export function invalidateDsnCoverageForCompany(
+  queryClient: QueryClient,
+  companyId: string,
+): void {
+  if (!companyId) return;
+  void queryClient.invalidateQueries({ queryKey: ['dsn-coverage', companyId] });
+  void queryClient.invalidateQueries({ queryKey: ['company-setup-status', companyId] });
+  void queryClient.invalidateQueries({ queryKey: ['dsn-admin-matrix'] });
+  void queryClient.invalidateQueries({ queryKey: ['dsn-admin-late-summary'] });
+}
+
 export function expandPeriodRange(
   periodMin?: string | null,
   periodMax?: string | null,

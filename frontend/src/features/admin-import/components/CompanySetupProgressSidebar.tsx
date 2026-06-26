@@ -5,7 +5,10 @@ import {
   getCompanySetupStepState,
 } from '@/features/admin-import/lib/companySetupSteps';
 import { isSetupStepValidated } from '@/features/admin-import/lib/companySetupValidatedSteps';
-import { useCompanySetupStatus } from '@/features/admin-import/hooks/useCompanySetupStatus';
+import {
+  scopedCompanySetupStatus,
+  useCompanySetupStatus,
+} from '@/features/admin-import/hooks/useCompanySetupStatus';
 import { cn } from '@/lib/utils';
 
 const WIZARD_STEPS = [
@@ -39,8 +42,8 @@ export function CompanySetupProgressSidebar({
     refetchInterval: statusProp ? false : 30_000,
   });
 
-  const status = statusProp ?? fetchedStatus;
-  const initialLoad = isLoading && !status;
+  const status = scopedCompanySetupStatus(statusProp ?? fetchedStatus, companyId);
+  const initialLoad = (isLoading && !status) || (Boolean(companyId) && !status && !statusProp);
 
   return (
     <aside className={cn('space-y-4', className)}>

@@ -1,6 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, CalendarDays, ChevronDown, Percent } from "lucide-react";
+import { AlertTriangle, CalendarDays, Percent } from "lucide-react";
 import type { CompanyDetails } from "@/api/company";
 import type { DsnCoverage } from "@/api/dsnImport";
 import CollectiveAgreementCard from "@/components/CollectiveAgreementCard";
@@ -32,15 +32,25 @@ import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetE
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { WorkTimeHubIntro } from "@/features/work-time-tracking/components/WorkTimeHubIntro";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
+import {
+  DEFAULT_OPEN_PAYROLL_SECTIONS,
+  PAYROLL_SECTION_KEYS,
+  PayrollSettingsSection,
+  type PayrollSectionKey,
+} from "@/features/company/components/PayrollSettingsSection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+
+const ANCHOR_TO_SECTION: Record<ComplianceAnchor, PayrollSectionKey> = {
+  "convention-collective": "convention-collective",
+  jei: "exoneration",
+  "taux-at-mp": "taux-paie",
+  "taux-vm": "taux-paie",
+  cse: "dialogue-social",
+  "temps-travail": "temps-travail",
+};
 
 const formatPayday = (day: number | null | undefined): string => {
   if (day === null || day === undefined) return "Non défini";
@@ -77,11 +87,22 @@ const formatPercentage = (value: number | null | undefined) => {
   return `${percent.toFixed(2)} %`;
 };
 
-function SectionHeading({ children }: { children: ReactNode }) {
+function PayrollSectionsToolbar({
+  onExpandAll,
+  onCollapseAll,
+}: {
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+}) {
   return (
-    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-      {children}
-    </h3>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button type="button" variant="ghost" size="sm" onClick={onExpandAll}>
+        Tout développer
+      </Button>
+      <Button type="button" variant="ghost" size="sm" onClick={onCollapseAll}>
+        Tout replier
+      </Button>
+    </div>
   );
 }
 
@@ -107,55 +128,142 @@ export function CompanyPayrollTab({
   const cc = formatCollectiveAgreementLabel(company.collective_agreement, company.idcc);
   const anchorRefs = useRef<Partial<Record<ComplianceAnchor, HTMLElement | null>>>({});
 
+  const [openSections, setOpenSections] = useState<Set<PayrollSectionKey>>(
+    () => new Set(DEFAULT_OPEN_PAYROLL_SECTIONS),
+  );
+
+  const expandAll = useCallback(() => {
+    setOpenSections(new Set(PAYROLL_SECTION_KEYS));
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setOpenSections(new Set());
+  }, []);
+
+  const setSectionOpen = useCallback((key: PayrollSectionKey, open: boolean) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     if (!scrollAnchor) return;
-    const el = anchorRefs.current[scrollAnchor];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    const section = ANCHOR_TO_SECTION[scrollAnchor];
+    setOpenSections((prev) => {
+      if (prev.has(section)) return prev;
+      const next = new Set(prev);
+      next.add(section);
+      return next;
+    });
+
+    const timer = window.setTimeout(() => {
+      const el = anchorRefs.current[scrollAnchor];
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+
+    return () => window.clearTimeout(timer);
   }, [scrollAnchor]);
 
   const setAnchorRef = (anchor: ComplianceAnchor) => (el: HTMLElement | null) => {
     anchorRefs.current[anchor] = el;
   };
 
+  const renderSection = (
+    key: PayrollSectionKey,
+    title: string,
+    description: string | undefined,
+    children: ReactNode,
+  ) => (
+    <PayrollSettingsSection
+      key={key}
+      title={title}
+      description={description}
+      open={openSections.has(key)}
+      onOpenChange={(open) => setSectionOpen(key, open)}
+    >
+      {children}
+    </PayrollSettingsSection>
+  );
+
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <SectionHeading>Convention collective</SectionHeading>
-        {!cc.configured ? (
-          <Alert className="border-amber-200 bg-amber-50/80">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription>
-              Aucune convention collective n&apos;est configurée. Elle est indispensable pour le
-              calcul de la paie et l&apos;application des grilles salariales.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <div id="convention-collective" ref={setAnchorRef("convention-collective")}>
-          <CollectiveAgreementCard companyId={company.id} companyName={company.company_name} />
-        </div>
-        <PrimeAncienneteSettingsCard />
-      </section>
+    <div className="space-y-3">
+      <PayrollSectionsToolbar onExpandAll={expandAll} onCollapseAll={collapseAll} />
 
-      <section
-        className="space-y-3"
-        id="jei"
-        ref={setAnchorRef("jei")}
-      >
-        <SectionHeading>Dispositifs d&apos;exonération</SectionHeading>
-        <JeiSettingsCard />
-      </section>
+      {renderSection(
+        "convention-collective",
+        "Convention collective",
+        "CCN, prime d'ancienneté et règles associées",
+        <>
+          {!cc.configured ? (
+            <Alert className="border-amber-200 bg-amber-50/80">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription>
+                Aucune convention collective n&apos;est configurée. Elle est indispensable pour
+                le calcul de la paie et l&apos;application des grilles salariales.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <div id="convention-collective" ref={setAnchorRef("convention-collective")}>
+            <CollectiveAgreementCard companyId={company.id} companyName={company.company_name} />
+          </div>
+          <PrimeAncienneteSettingsCard />
+        </>,
+      )}
 
-      <section className="space-y-3">
-        <SectionHeading>Taux et période de paie</SectionHeading>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div id="taux-at-mp" ref={setAnchorRef("taux-at-mp")}>
+      {renderSection(
+        "taux-paie",
+        "Taux et période de paie",
+        "AT/MP, versement mobilité, FNAL et calendrier de paie",
+        <>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="taux-at-mp" ref={setAnchorRef("taux-at-mp")}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-base">
+                    <Percent className="mr-2 h-5 w-5 text-amber-600" />
+                    Taux spécifiques
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground">
+                          Taux Accident Travail (AT/MP)
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {formatPercentage(company.taux_at_mp)}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground">
+                          Taux Versement Mobilité (VM)
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {formatPercentage(company.taux_vm)}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground">Taux FNAL</TableCell>
+                        <TableCell className="font-semibold">
+                          {formatPercentage(company.taux_fnal)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+            <div id="taux-vm" ref={setAnchorRef("taux-vm")} className="sr-only" aria-hidden />
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-base">
-                  <Percent className="mr-2 h-5 w-5 text-amber-600" />
-                  Taux spécifiques
+                  <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
+                  Paramètres de période de paie
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -163,158 +271,169 @@ export function CompanyPayrollTab({
                   <TableBody>
                     <TableRow>
                       <TableCell className="font-medium text-muted-foreground">
-                        Taux Accident Travail (AT/MP)
+                        Jour de fin de période
                       </TableCell>
-                      <TableCell className="font-semibold">
-                        {formatPercentage(company.taux_at_mp)}
+                      <TableCell className="font-medium">
+                        {formatPayday(company.paie_jour_de_fin)}
                       </TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell className="font-medium text-muted-foreground">
-                        Taux Versement Mobilité (VM)
+                        Occurrence de la paie
                       </TableCell>
-                      <TableCell className="font-semibold">
-                        {formatPercentage(company.taux_vm)}
+                      <TableCell className="font-medium">
+                        {formatOccurrence(company.paie_occurrence)}
                       </TableCell>
                     </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium text-muted-foreground">Taux FNAL</TableCell>
-                    <TableCell className="font-semibold">
-                      {formatPercentage(company.taux_fnal)}
-                    </TableCell>
-                  </TableRow>
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </div>
-          <div id="taux-vm" ref={setAnchorRef("taux-vm")} className="sr-only" aria-hidden />
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center text-base">
-                <CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />
-                Paramètres de période de paie
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium text-muted-foreground">
-                      Jour de fin de période
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatPayday(company.paie_jour_de_fin)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium text-muted-foreground">
-                      Occurrence de la paie
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatOccurrence(company.paie_occurrence)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-        <CompanyPayrollParamsEditCard
-          company={company}
-          canEdit={canEditPayrollParams}
-          onSaved={onPayrollParamsUpdated}
-        />
-      </section>
-
-      {cseObligation ? (
-        <section className="space-y-3" id="cse" ref={setAnchorRef("cse")}>
-          <SectionHeading>Dialogue social</SectionHeading>
-          <CseStatusCard />
-          <Card>
-            <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Gérez les élections, réunions et documents CSE depuis le module dédié.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/cse">Ouvrir CSE & Dialogue Social</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      ) : (
-        <div id="cse" ref={setAnchorRef("cse")} className="hidden" aria-hidden />
+          <CompanyPayrollParamsEditCard
+            company={company}
+            canEdit={canEditPayrollParams}
+            onSaved={onPayrollParamsUpdated}
+          />
+        </>,
       )}
 
-      <section className="space-y-3">
-        <SectionHeading>Déclarations</SectionHeading>
-        <DsnSyncModeCard
-          company={company}
-          coverage={dsnCoverage}
-          readOnly={!canEditDsn}
-          onUpdated={onDsnUpdated}
-        />
-        <NetEntreprisesConfigCard />
-      </section>
+      {renderSection(
+        "declarations",
+        "Déclarations",
+        "Synchronisation DSN, télétransmission Net-entreprises",
+        <>
+          <DsnSyncModeCard
+            company={company}
+            coverage={dsnCoverage}
+            readOnly={!canEditDsn}
+            onUpdated={onDsnUpdated}
+          />
+          <NetEntreprisesConfigCard />
+        </>,
+      )}
 
-      <section className="space-y-3">
-        <SectionHeading>Primes et distinctions</SectionHeading>
-        <WorkMedalSettingsCard />
-        <WorkMedalCasesList statusFilter="awaiting_rh" />
-      </section>
+      {renderSection(
+        "temps-travail",
+        "Temps de travail",
+        "Congés, RTT, modulation, plafond HS, pointages",
+        <div id="temps-travail" ref={setAnchorRef("temps-travail")} className="space-y-4">
+          <WorkTimeHubIntro />
 
-      <section className="space-y-3">
-        <SectionHeading>OETH / DOETH</SectionHeading>
-        <OethSettingsCard />
-      </section>
+          <PayrollSettingsSection
+            nested
+            title="Jours fériés & congés"
+            description="Fériés légaux, CP, RTT, CP ancienneté, fractionnement"
+            defaultOpen
+          >
+            <PublicHolidaysSettingsCard />
+            <LeaveSettingsCard />
+            <CpSenioritySettingsCard />
+            <CpFractionnementSettingsCard />
+          </PayrollSettingsSection>
 
-      <section
-        className="space-y-3"
-        id="temps-travail"
-        ref={setAnchorRef("temps-travail")}
-      >
-        <SectionHeading>Temps de travail</SectionHeading>
-        <WorkTimeHubIntro />
-        <PublicHolidaysSettingsCard />
-        <LeaveSettingsCard />
-        <CpSenioritySettingsCard />
-        <CpFractionnementSettingsCard />
-        <ModulationSettingsCard />
-        <WorkTimePeriodsCard />
-        <OvertimeContingentSettingsCard />
-        <CetSettingsCard />
-        <IjssImportProfileCard />
-        <PunchAccountingSettingsCard />
-        <TimesheetImportSettingsCard />
-      </section>
+          <PayrollSettingsSection
+            nested
+            title="Organisation du temps & compte d'heures"
+            description="Modulation, périodes horaires, plafond HS, CET"
+            defaultOpen={false}
+          >
+            <ModulationSettingsCard />
+            <WorkTimePeriodsCard />
+            <OvertimeContingentSettingsCard />
+            <CetSettingsCard />
+          </PayrollSettingsSection>
 
-      <section className="space-y-3">
-        <SectionHeading>Planning &amp; primes équipe</SectionHeading>
-        <WeekTemplatesSettingsCard />
-        <PlanningSettingsCard />
-      </section>
+          <PayrollSettingsSection
+            nested
+            title="Pointages & imports"
+            description="Comptabilisation, imports CSV, profils IJSS"
+            defaultOpen={false}
+          >
+            <IjssImportProfileCard />
+            <PunchAccountingSettingsCard />
+            <TimesheetImportSettingsCard />
+          </PayrollSettingsSection>
+        </div>,
+      )}
 
-      <section className="space-y-3">
-        <SectionHeading>Variables de paie</SectionHeading>
-        <PayrollSpecialDaysCard />
-        <PayrollVariableRulesCard />
-      </section>
+      {renderSection(
+        "exoneration",
+        "Dispositifs d'exonération",
+        "Statut JEI et personnel R&D éligible",
+        <div id="jei" ref={setAnchorRef("jei")}>
+          <JeiSettingsCard />
+        </div>,
+      )}
 
-      <section className="space-y-3">
-        <SectionHeading>Avancé</SectionHeading>
-        <Collapsible defaultOpen={false}>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              Maintien de salaire (paramètres avancés)
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-4">
-            <MaintenanceSettingsCard />
-          </CollapsibleContent>
-        </Collapsible>
-      </section>
+      {cseObligation
+        ? renderSection(
+            "dialogue-social",
+            "Dialogue social",
+            "CSE, élections et obligations légales",
+            <div id="cse" ref={setAnchorRef("cse")} className="space-y-4">
+              <CseStatusCard />
+              <Card>
+                <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Gérez les élections, réunions et documents CSE depuis le module dédié.
+                  </p>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/cse">Ouvrir CSE & Dialogue Social</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>,
+          )
+        : null}
+
+      {!cseObligation ? (
+        <div id="cse" ref={setAnchorRef("cse")} className="hidden" aria-hidden />
+      ) : null}
+
+      {renderSection(
+        "primes-distinctions",
+        "Primes et distinctions",
+        "Médailles du travail et dossiers en attente",
+        <>
+          <WorkMedalSettingsCard />
+          <WorkMedalCasesList statusFilter="awaiting_rh" />
+        </>,
+      )}
+
+      {renderSection(
+        "oeth",
+        "OETH / DOETH",
+        "Obligation d'emploi TH et déclaration annuelle",
+        <OethSettingsCard />,
+      )}
+
+      {renderSection(
+        "planning",
+        "Planning & primes équipe",
+        "Modèles de semaine, types de poste, paniers et nuit",
+        <>
+          <WeekTemplatesSettingsCard />
+          <PlanningSettingsCard />
+        </>,
+      )}
+
+      {renderSection(
+        "variables-paie",
+        "Variables de paie",
+        "Jours spéciaux, règles récurrentes et génération mensuelle",
+        <>
+          <PayrollSpecialDaysCard />
+          <PayrollVariableRulesCard />
+        </>,
+      )}
+
+      {renderSection(
+        "avance",
+        "Avancé",
+        "Maintien de salaire et paramètres expert",
+        <MaintenanceSettingsCard />,
+      )}
     </div>
   );
 }

@@ -51,6 +51,7 @@ import TeamAnalyticsSection from '@/components/dashboard/TeamAnalyticsSection';
 import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from '@/api/annualReviews';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { queryKeys } from '@/lib/queryKeys';
+import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { FormationTalentsDashboardWidget } from '@/features/dashboard/widgets/FormationTalentsDashboardWidget';
 import { DashboardHeader } from '@/features/dashboard/widgets/DashboardHeader';
 import { ResidencePermitCard } from '@/features/dashboard/widgets/ResidencePermitCard';
@@ -242,14 +243,18 @@ export default function Dashboard() {
       icon: CreditCard,
       hint: 'En attente de traitement',
     },
-    {
-      key: 'rib',
-      label: 'Alertes RIB',
-      count: ribAlertTotal,
-      href: '/employees',
-      icon: Landmark,
-      hint: 'Contrôles administratifs',
-    },
+    ...(RIB_ALERTS_UI_ENABLED
+      ? [
+          {
+            key: 'rib' as const,
+            label: 'Alertes RIB',
+            count: ribAlertTotal,
+            href: '/employees',
+            icon: Landmark,
+            hint: 'Contrôles administratifs',
+          },
+        ]
+      : []),
     {
       key: 'medical',
       label: 'Suivi médical',
@@ -488,15 +493,17 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <PendingSignaturesWidget mode="rh" />
             <RhParticipationCampaignWidget />
-            <RibAlertsCard
-              alerts={ribAlerts}
-              loading={ribAlertsLoading}
-              onRefresh={() => {
-                void queryClient.invalidateQueries({
-                  queryKey: queryKeys.ribAlerts(companyId),
-                });
-              }}
-            />
+            {RIB_ALERTS_UI_ENABLED ? (
+              <RibAlertsCard
+                alerts={ribAlerts}
+                loading={ribAlertsLoading}
+                onRefresh={() => {
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.ribAlerts(companyId),
+                  });
+                }}
+              />
+            ) : null}
             {medicalModuleEnabled ? (
               <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
             ) : (

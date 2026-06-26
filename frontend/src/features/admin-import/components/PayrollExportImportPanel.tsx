@@ -114,6 +114,10 @@ export function PayrollExportImportPanel({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<PayrollExportParseResponse | null>(null);
   const [rows, setRows] = useState<EditableRow[]>([]);
+  const [mapModMoiTeams, setMapModMoiTeams] = useState(false);
+  const [teamsMappingInitializedFor, setTeamsMappingInitializedFor] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (fixedCompanyId) setCompanyId(fixedCompanyId);
@@ -123,6 +127,23 @@ export function PayrollExportImportPanel({
     enabled: Boolean(companyId) && showContext && !setupStatusProp,
   });
   const setupStatus = setupStatusProp ?? fetchedSetupStatus;
+
+  useEffect(() => {
+    setTeamsMappingInitializedFor(null);
+    setParseResult(null);
+    setRows([]);
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId || teamsMappingInitializedFor === companyId) return;
+    if (!setupStatus || setupStatus.company_id !== companyId) return;
+    const defaultMapping =
+      setupStatus.blocks.employees.mod_moi_team_mapping_default ??
+      setupStatus.blocks.employees.mod_moi_team_mapping ??
+      false;
+    setMapModMoiTeams(defaultMapping);
+    setTeamsMappingInitializedFor(companyId);
+  }, [companyId, setupStatus, teamsMappingInitializedFor]);
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
     queryKey: ['dsn-import-companies'],
@@ -152,10 +173,17 @@ export function PayrollExportImportPanel({
       if (!companyId || !selectedFile) {
         throw new Error('Sélectionnez une entreprise et un fichier.');
       }
-      return parsePayrollExportFile(companyId, selectedFile);
+      return parsePayrollExportFile(
+        companyId,
+        selectedFile,
+        showContext ? { mapModMoiTeams } : undefined,
+      );
     },
     onSuccess: (data) => {
       setParseResult(data);
+      if (data.mod_moi_team_mapping !== undefined) {
+        setMapModMoiTeams(data.mod_moi_team_mapping);
+      }
       setRows(
         data.rows.map((row) => ({
           ...row,
@@ -185,7 +213,7 @@ export function PayrollExportImportPanel({
           row_index: row.row_index,
           employee_id: row.employee_id as string,
           employee_patch: row.employee_patch,
-          team_name: row.team_name,
+          team_name: mapModMoiTeams ? row.team_name : null,
           boeth: row.boeth,
           confirmed: true,
         }));
@@ -194,7 +222,7 @@ export function PayrollExportImportPanel({
       }
       return commitPayrollExport({
         company_id: parseResult.company_id,
-        create_teams_if_missing: true,
+        create_teams_if_missing: mapModMoiTeams,
         rows: payload,
       });
     },
@@ -246,9 +274,13 @@ export function PayrollExportImportPanel({
 
   const previewFields: PayrollExportPreviewField[] = useMemo(() => {
     if (!parseResult) return [];
-    if (parseResult.preview_fields?.length) return parseResult.preview_fields;
-    return buildPayrollPreviewFieldsFromRows(parseResult.column_mapping, rows);
-  }, [parseResult, rows]);
+    const fields =
+      parseResult.preview_fields?.length
+        ? parseResult.preview_fields
+        : buildPayrollPreviewFieldsFromRows(parseResult.column_mapping, rows);
+    if (mapModMoiTeams) return fields;
+    return fields.filter((field) => field.key !== 'team_name');
+  }, [parseResult, rows, mapModMoiTeams]);
 
   const selectAllReady = () => {
     setRows((prev) =>
@@ -278,7 +310,34 @@ export function PayrollExportImportPanel({
           </div>
         ) : null}
 
-        {showContext ? <PayrollExportFormatHelp /> : null}
+        {showContext ? (
+          <PayrollExportFormatHelp modMoiTeams={mapModMoiTeams} />
+        ) : null}
+
+        {showContext ? (
+          <label className="flex items-start gap-2 rounded-lg border bg-background px-3 py-2.5 text-sm">
+            <Checkbox
+              checked={mapModMoiTeams}
+              onCheckedChange={(checked) => {
+                const enabled = checked === true;
+                setMapModMoiTeams(enabled);
+                setParseResult(null);
+                setRows([]);
+              }}
+              className="mt-0.5"
+            />
+            <span className="text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Mapper la colonne Service vers les équipes MOD/MOI
+              </span>
+              <span className="mt-0.5 block text-xs">
+                À activer uniquement si l&apos;entreprise organise ses effectifs en équipes MOD et
+                MOI (MOD, MOI ou CAD dans le fichier). Sinon, la colonne Service est ignorée pour
+                l&apos;affectation d&apos;équipe.
+              </span>
+            </span>
+          </label>
+        ) : null}
 
         <div className="flex flex-wrap items-end gap-3">
           {!hideCompanySelector ? (
@@ -510,8 +569,9 @@ export function PayrollExportImportPanel({
           Import export paie salariés
         </CardTitle>
         <CardDescription>
-          Complète les fiches importées via DSN : contacts, RIB, équipes MOD/MOI, temps partiel,
-          BOETH et moyen de paiement. Format Excel/CSV Quadra ou Cegid.
+          Complète les fiches importées via DSN : contacts, RIB, temps partiel, BOETH et moyen de
+          paiement. Le mapping vers les équipes MOD/MOI est optionnel selon l&apos;entreprise.
+          Format Excel/CSV Quadra ou Cegid.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

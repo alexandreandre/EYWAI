@@ -15,6 +15,7 @@ import * as ribAlertsApi from '@/api/ribAlerts';
 import { getPendingSignaturesRH } from '@/api/signatures';
 import { listOnboardingHub } from '@/api/onboarding';
 import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
+import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
 
@@ -71,7 +72,7 @@ export function useRibAlertsDashboardQuery(enabled = true) {
             : (res.data.alerts ?? []).length,
       };
     },
-    enabled: enabled && Boolean(companyId),
+    enabled: enabled && Boolean(companyId) && RIB_ALERTS_UI_ENABLED,
     placeholderData: { alerts: [], total: 0 },
   });
 }

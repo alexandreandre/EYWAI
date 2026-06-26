@@ -338,8 +338,9 @@ function WorkforceDepartureGapRow({
                 Enregistrer : départ à traiter plus tard
               </Button>
               <ActionHint>
-                Mémorise le type et la date sans clôturer la fiche. Le salarié reste actif en
-                attendant que vous finalisiez le départ dans le module Départs.
+                Ouvre le départ en base (statut « en départ ») avec le type et la date saisis.
+                Le salarié n&apos;apparaît plus comme collaborateur actif : finalisez le dossier
+                dans le module Départs quand vous le souhaitez.
               </ActionHint>
             </div>
           </div>

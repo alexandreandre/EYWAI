@@ -6,6 +6,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { deleteEmployee, updateEmployee } from "@/api/employees";
 import apiClient from "@/api/apiClient";
 import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
+import { EmployeePendingExitBanner } from "@/features/employee-detail/components/EmployeePendingExitBanner";
 import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
 import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import * as saisiesApi from "@/api/saisies";
@@ -522,6 +523,14 @@ export default function EmployeeDetail() {
         onOpenBoethSheet={() => setBoethSheetOpen(true)}
       />
 
+      {employee.employment_status === 'en_sortie' ? (
+        <EmployeePendingExitBanner
+          employeeId={employeeId!}
+          exitId={employee.current_exit_id}
+          fullName={`${employee.first_name} ${employee.last_name}`.trim()}
+        />
+      ) : null}
+
       {employeeId && employee && (employeeBoethQuery.data || canEditEmployeePaySettings) ? (
         <EmployeeBoethCard
           employeeId={employeeId}
@@ -550,7 +559,7 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {employeeId && employee && (
+      {employeeId && employee && employee.employment_status !== 'en_sortie' && (
         <EmployeeOnboardingCompletion
           employeeId={employeeId}
           employee={employee}

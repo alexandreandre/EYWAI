@@ -7,6 +7,7 @@ import apiClient from "@/api/apiClient";
 import { getRttYearEndOverview } from '@/api/leaveSettings';
 import { getMedicalSettings, getKPIs } from "@/api/medicalFollowUp";
 import { getRibAlerts } from "@/api/ribAlerts";
+import { RIB_ALERTS_UI_ENABLED } from "@/lib/productFeatureFlags";
 import {
   getAllAnnualReviews,
   countUpcomingPlannedAnnualReviews,
@@ -151,7 +152,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
       const res = await getRibAlerts({ is_read: false, is_resolved: false, limit: 1 });
       return typeof res.data.total === "number" ? res.data.total : (res.data.alerts?.length ?? 0);
     },
-    enabled,
+    enabled: enabled && RIB_ALERTS_UI_ENABLED,
     staleTime: 30_000,
   });
 
@@ -280,7 +281,7 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     for (const v of Object.values(counts)) {
       s += v;
     }
-    s += ribAlertsQuery.data ?? 0;
+    s += RIB_ALERTS_UI_ENABLED ? (ribAlertsQuery.data ?? 0) : 0;
     return s;
   }, [counts, ribAlertsQuery.data]);
 

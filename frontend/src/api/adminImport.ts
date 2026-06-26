@@ -250,6 +250,8 @@ export type PayrollExportPreviewField = {
 export type PayrollExportParseResponse = {
   company_id: string;
   company_name: string;
+  mod_moi_team_mapping?: boolean;
+  mod_moi_team_mapping_default?: boolean;
   headers: string[];
   column_mapping: Record<string, string>;
   preview_fields?: PayrollExportPreviewField[];
@@ -280,6 +282,7 @@ export type PayrollExportCommitResponse = RibImportCommitResponse;
 export async function parsePayrollExportFile(
   companyId: string,
   file: File,
+  options?: { mapModMoiTeams?: boolean },
 ): Promise<PayrollExportParseResponse> {
   const form = new FormData();
   form.append('file', file);
@@ -287,7 +290,12 @@ export async function parsePayrollExportFile(
     '/api/admin-import/payroll-export/parse',
     form,
     {
-      params: { company_id: companyId },
+      params: {
+        company_id: companyId,
+        ...(options?.mapModMoiTeams !== undefined
+          ? { map_mod_moi_teams: options.mapModMoiTeams }
+          : {}),
+      },
       headers: { 'Content-Type': 'multipart/form-data' },
     },
   );
@@ -335,6 +343,8 @@ export type CompanySetupStatus = {
       total: number;
       profile_complete_pct: number;
       missing_rib_count: number;
+      mod_moi_team_mapping?: boolean;
+      mod_moi_team_mapping_default?: boolean;
     };
     cp: { adjusted_count: number; total_active: number };
     leave_settings: { configured: boolean };

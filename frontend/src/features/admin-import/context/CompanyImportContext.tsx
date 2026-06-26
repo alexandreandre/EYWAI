@@ -6,7 +6,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { getCompanySetupStatus } from '@/api/adminImport';
+import { companySetupStatusQueryKey } from '@/features/admin-import/hooks/useCompanySetupStatus';
 
 export type CompanyImportTab =
   | 'dsn'
@@ -47,6 +50,7 @@ function normalizeWizardStep(step: string): string {
 }
 
 export function CompanyImportProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const urlCompanyId = searchParams.get('companyId') ?? '';
@@ -75,8 +79,14 @@ export function CompanyImportProvider({ children }: { children: ReactNode }) {
   const setCompanyId = useCallback(
     (id: string) => {
       syncParams({ companyId: id || null });
+      if (id) {
+        void queryClient.prefetchQuery({
+          queryKey: companySetupStatusQueryKey(id),
+          queryFn: () => getCompanySetupStatus(id),
+        });
+      }
     },
-    [syncParams],
+    [syncParams, queryClient],
   );
 
   const setActiveTab = useCallback(

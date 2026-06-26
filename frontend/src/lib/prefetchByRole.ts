@@ -6,6 +6,7 @@ import { getAllAnnualReviews } from '@/api/annualReviews';
 import { getMedicalSettings, getKPIs } from '@/api/medicalFollowUp';
 import { getCandidates, getRecruitmentSettings } from '@/api/recruitment';
 import * as ribAlertsApi from '@/api/ribAlerts';
+import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { getPendingSignaturesRH } from '@/api/signatures';
 import { getAdminGlobalStats } from '@/api/adminEYWAI';
 import { queryKeys } from '@/lib/queryKeys';
@@ -63,17 +64,21 @@ export function prefetchRhSecondary(queryClient: QueryClient, companyId: string)
       queryFn: async () =>
         (await apiClient.get('/api/dashboard/residence-permit-stats')).data,
     }),
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.ribAlerts(companyId),
-      queryFn: async () => {
-        const res = await ribAlertsApi.getRibAlerts({
-          is_read: false,
-          is_resolved: false,
-          limit: 5,
-        });
-        return res.data;
-      },
-    }),
+    ...(RIB_ALERTS_UI_ENABLED
+      ? [
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.ribAlerts(companyId),
+            queryFn: async () => {
+              const res = await ribAlertsApi.getRibAlerts({
+                is_read: false,
+                is_resolved: false,
+                limit: 5,
+              });
+              return res.data;
+            },
+          }),
+        ]
+      : []),
     queryClient.prefetchQuery({
       queryKey: queryKeys.pendingSignaturesRh(companyId),
       queryFn: getPendingSignaturesRH,

@@ -29,7 +29,7 @@ export const COMPANY_SETUP_STEPS: CompanySetupStepDef[] = [
     label: 'Enrichissement salariés',
     shortLabel: 'Salariés',
     description:
-      'Export paie Quadra/Cegid : contacts, RIB, équipes MOD/MOI, temps partiel, moyen de paiement, BOETH',
+      'Export paie Quadra/Cegid : contacts, RIB, temps partiel, moyen de paiement, BOETH',
   },
   {
     id: 'cp',
