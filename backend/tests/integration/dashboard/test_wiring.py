@@ -75,6 +75,7 @@ class TestDashboardFlowE2E:
             ChartDataPoint,
             DashboardData,
             KpiData,
+            PayrollKpiMeta,
             PayrollStatus,
             ResidencePermitStats,
             TeamPulse,
@@ -90,6 +91,10 @@ class TestDashboardFlowE2E:
                 cdiCount=0,
                 cddCount=0,
                 contractDistribution={},
+                payroll=PayrollKpiMeta(
+                    source="none",
+                    source_label="Aucune donnée paie",
+                ),
             ),
             chartData=[ChartDataPoint(name="Jan", Net_Verse=0, Charges=0)],
             actions=ActionItems(pendingAbsences=0, pendingExpenses=0),
@@ -140,6 +145,7 @@ class TestDashboardFlowE2E:
             ChartDataPoint,
             DashboardData,
             KpiData,
+            PayrollKpiMeta,
             PayrollStatus,
             TeamPulse,
         )
@@ -154,6 +160,10 @@ class TestDashboardFlowE2E:
                 cdiCount=0,
                 cddCount=0,
                 contractDistribution={},
+                payroll=PayrollKpiMeta(
+                    source="none",
+                    source_label="Aucune donnée paie",
+                ),
             ),
             chartData=[ChartDataPoint(name="Jan", Net_Verse=0, Charges=0)],
             actions=ActionItems(pendingAbsences=0, pendingExpenses=0),

@@ -132,6 +132,7 @@ class TestDashboardAll:
             ChartDataPoint,
             DashboardData,
             KpiData,
+            PayrollKpiMeta,
             PayrollStatus,
             TeamPulse,
         )
@@ -146,6 +147,10 @@ class TestDashboardAll:
                 cdiCount=2,
                 cddCount=1,
                 contractDistribution={"CDI": 2, "CDD": 1},
+                payroll=PayrollKpiMeta(
+                    source="none",
+                    source_label="Aucune donnée paie",
+                ),
             ),
             chartData=[ChartDataPoint(name="Fév", Net_Verse=800.0, Charges=200.0)],
             actions=ActionItems(pendingAbsences=1, pendingExpenses=0),
