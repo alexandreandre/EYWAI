@@ -23,13 +23,18 @@ def mock_company():
     }
 
 
+@patch("app.modules.admin_import.application.company_setup_status.mod_moi_team_mapping_info")
 @patch("app.modules.admin_import.application.company_setup_status._payroll_kpi_block")
 @patch("app.modules.admin_import.application.company_setup_status._db")
 @patch("app.modules.admin_import.application.company_setup_status.compute_coverage")
 @patch("app.modules.admin_import.application.company_setup_status._company_row")
 def test_get_company_setup_status_ok(
-    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_company
+    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_team_mapping, mock_company
 ):
+    mock_team_mapping.return_value = {
+        "mod_moi_team_mapping": False,
+        "mod_moi_team_mapping_default": False,
+    }
     mock_row.return_value = mock_company
     mock_payroll_kpi.return_value = {
         "ready": False,
@@ -106,13 +111,18 @@ def test_get_company_setup_status_ok(
     assert isinstance(result["next_actions"], list)
 
 
+@patch("app.modules.admin_import.application.company_setup_status.mod_moi_team_mapping_info")
 @patch("app.modules.admin_import.application.company_setup_status._payroll_kpi_block")
 @patch("app.modules.admin_import.application.company_setup_status._db")
 @patch("app.modules.admin_import.application.company_setup_status.compute_coverage")
 @patch("app.modules.admin_import.application.company_setup_status._company_row")
 def test_get_company_setup_status_empty_employees(
-    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_company
+    mock_row, mock_coverage, mock_db, mock_payroll_kpi, mock_team_mapping, mock_company
 ):
+    mock_team_mapping.return_value = {
+        "mod_moi_team_mapping": False,
+        "mod_moi_team_mapping_default": False,
+    }
     mock_row.return_value = mock_company
     mock_payroll_kpi.return_value = {
         "ready": False,

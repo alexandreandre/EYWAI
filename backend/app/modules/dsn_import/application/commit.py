@@ -25,6 +25,7 @@ from app.modules.dsn_import.domain.establishment_extract import (
 from app.modules.dsn_import.application.psc_catalog import sync_employee_psc_catalog
 from app.modules.dsn_import.application.coverage import _periods_from_batch
 from app.modules.dsn_import.application.system_user import resolve_dsn_workflow_user_id
+from app.modules.dsn_import.infrastructure import repository as repo
 from app.modules.employees.application.commands import create_employee_imported, update_employee
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 
