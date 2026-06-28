@@ -225,6 +225,7 @@ async def update_employee_exit(
 ):
     """Met à jour une sortie de salarié."""
     company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "edit")
     update_data = exit_update.model_dump(exclude_unset=True)
     for k, v in list(update_data.items()):
         if hasattr(v, "isoformat"):

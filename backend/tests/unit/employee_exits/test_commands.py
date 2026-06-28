@@ -264,6 +264,76 @@ class TestUpdateEmployeeExit:
         assert result == existing
         mock_repo.update.assert_not_called()
 
+    @patch("app.modules.employee_exits.application.commands.get_employee_full")
+    @patch("app.modules.employee_exits.application.commands.get_indemnity_calculator")
+    @patch("app.modules.employee_exits.application.commands.ExitDocumentRepository")
+    def test_exit_type_change_resets_status_recalculates_and_flags_documents(
+        self,
+        mock_doc_repo_class,
+        mock_calculator_provider,
+        mock_get_employee_full,
+        mock_repo_class,
+    ):
+        existing = _make_exit_record(status="demission_recue", exit_type="demission")
+        generated_doc = {
+            "document_type": "solde_tout_compte",
+            "document_category": "generated",
+        }
+        mock_doc_repo = MagicMock()
+        mock_doc_repo.list_by_exit.return_value = [generated_doc]
+        mock_doc_repo_class.return_value = mock_doc_repo
+
+        indemnities = {
+            "indemnite_conges": {"jours_restants": 4.5},
+            "total_net_indemnities": 1200,
+        }
+        mock_calculator = MagicMock()
+        mock_calculator.calculate.return_value = indemnities
+        mock_calculator_provider.return_value = mock_calculator
+        mock_get_employee_full.return_value = {"id": EMPLOYEE_ID}
+
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _exit_id, _company_id, data: {
+            **existing,
+            **data,
+        }
+        mock_repo_class.return_value = mock_repo
+
+        result = update_employee_exit(
+            EXIT_ID,
+            COMPANY_ID,
+            {"exit_type": "fin_periode_essai"},
+            supabase_client=MagicMock(),
+        )
+
+        assert result["exit_type"] == "fin_periode_essai"
+        assert result["status"] == "demission_effective"
+        assert result["calculated_indemnities"] == indemnities
+        assert result["remaining_vacation_days"] == 4.5
+        assert result["final_net_amount"] == 1200
+        note = result["exit_notes"]["exit_type_change"]
+        assert note["previous_exit_type"] == "demission"
+        assert note["new_exit_type"] == "fin_periode_essai"
+        assert note["generated_documents_to_review"] == ["solde_tout_compte"]
+
+    def test_exit_type_change_rejected_when_archived(self, mock_repo_class):
+        existing = _make_exit_record(status="archivee", exit_type="demission")
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo_class.return_value = mock_repo
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            update_employee_exit(
+                EXIT_ID,
+                COMPANY_ID,
+                {"exit_type": "fin_periode_essai"},
+                supabase_client=MagicMock(),
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "archivé ou annulé" in exc_info.value.detail
+
 
 @patch(
     "app.modules.employee_exits.application.commands.update_employee_employment_status"

@@ -295,6 +295,7 @@ export interface CreateEmployeeExitRequest {
 }
 
 export interface UpdateEmployeeExitRequest {
+  exit_type?: ExitType;
   status?: ExitStatus;
   notice_start_date?: string;
   notice_end_date?: string;
@@ -302,6 +303,9 @@ export interface UpdateEmployeeExitRequest {
   final_settlement_date?: string;
   exit_reason?: string;
   exit_notes?: Record<string, any>;
+  notice_period_days?: number;
+  is_gross_misconduct?: boolean;
+  notice_indemnity_type?: 'paid' | 'waived' | 'not_applicable';
 }
 
 export interface StatusUpdateRequest {

@@ -15,7 +15,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +37,9 @@ import {
   deleteExitDocument,
   publishExitDocuments,
   archiveEmployeeExit,
+  updateEmployeeExit,
   EmployeeExitWithDetails,
+  ExitType,
   ExitDocument,
   ChecklistItem,
   ExitIndemnityCalculation,
@@ -106,6 +110,14 @@ const UPLOADABLE_DOCUMENTS: { type: string; label: string }[] = [
   { type: 'justificatif_autre', label: 'Autre justificatif' },
 ];
 
+const EXIT_TYPE_OPTIONS: { value: ExitType; label: string }[] = [
+  { value: 'demission', label: 'Démission' },
+  { value: 'rupture_conventionnelle', label: 'Rupture conventionnelle' },
+  { value: 'licenciement', label: 'Licenciement' },
+  { value: 'depart_retraite', label: 'Départ à la retraite' },
+  { value: 'fin_periode_essai', label: "Fin de période d'essai" },
+];
+
 export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetailsPanelProps) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -121,6 +133,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [hasPublishPermission, setHasPublishPermission] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [editingExitType, setEditingExitType] = useState(false);
+  const [draftExitType, setDraftExitType] = useState<ExitType>('demission');
+  const [savingExitType, setSavingExitType] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadType, setPendingUploadType] = useState<string>('justificatif_autre');
 
@@ -135,6 +150,12 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       checkPublishPermission();
     }
   }, [exitDetails, user]);
+
+  useEffect(() => {
+    if (exitDetails) {
+      setDraftExitType(exitDetails.exit_type);
+    }
+  }, [exitDetails]);
 
   const checkPublishPermission = async () => {
     if (!user || !exitDetails) return;
@@ -209,6 +230,46 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
     } finally {
       setArchiving(false);
+    }
+  };
+
+  const handleExitTypeSave = async () => {
+    if (!exitId || !exitDetails || draftExitType === exitDetails.exit_type) {
+      setEditingExitType(false);
+      return;
+    }
+
+    const generatedDocsCount = documents.filter((doc) => doc.document_category === 'generated').length;
+    const message = generatedDocsCount > 0
+      ? `Changer le type de départ recalculera les indemnités et signalera ${generatedDocsCount} document(s) généré(s) à revoir. Régénérez les PDF concernés après validation.`
+      : 'Changer le type de départ recalculera les indemnités et réalignera le workflow.';
+
+    if (!confirm(message)) return;
+
+    setSavingExitType(true);
+    try {
+      const updated = await updateEmployeeExit(exitId, { exit_type: draftExitType });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: 'Type de départ modifié',
+        description:
+          generatedDocsCount > 0
+            ? 'Les indemnités ont été recalculées. Pensez à régénérer les documents officiels.'
+            : 'Le dossier a été réaligné avec le nouveau type de départ.',
+      });
+      setEditingExitType(false);
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de la modification du type de départ:', error);
+      toast({
+        title: 'Erreur',
+        description: error.response?.data?.detail || 'Impossible de modifier le type de départ',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingExitType(false);
     }
   };
 
@@ -476,6 +537,25 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const employee = exitDetails.employee;
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
+  const generatedDocuments = documents.filter((doc) => doc.document_category === 'generated');
+  const exitTypeChangeNote = exitDetails.exit_notes?.exit_type_change;
+  const changedAt = typeof exitTypeChangeNote?.timestamp === 'string'
+    ? new Date(exitTypeChangeNote.timestamp).getTime()
+    : 0;
+  const documentTypesToReview = Array.isArray(exitTypeChangeNote?.generated_documents_to_review)
+    ? exitTypeChangeNote.generated_documents_to_review.filter(
+        (type: unknown): type is ExitDocument['document_type'] => typeof type === 'string',
+      )
+    : [];
+  const hasDocumentsToReview =
+    changedAt > 0 &&
+    documentTypesToReview.some(
+      (type) =>
+        !generatedDocuments.some((doc) => {
+          const generatedAt = doc.generated_at || doc.created_at;
+          return doc.document_type === type && new Date(generatedAt).getTime() > changedAt;
+        }),
+    );
   const completionRate = exitDetails.checklist_completion_rate || 0;
   const isArchived = exitDetails.status === 'archivee';
   const isCancelled = exitDetails.status === 'annulee';
@@ -500,9 +580,64 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
             <Badge variant={getStatusVariant(exitDetails.status)}>
               {statusLabels[exitDetails.status]}
             </Badge>
-            <span className="text-sm text-muted-foreground">
-              {exitTypeLabels[exitDetails.exit_type]}
-            </span>
+            {editingExitType ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={draftExitType}
+                  onValueChange={(value) => setDraftExitType(value as ExitType)}
+                  disabled={savingExitType}
+                >
+                  <SelectTrigger className="h-9 w-[230px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXIT_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleExitTypeSave}
+                  disabled={savingExitType}
+                >
+                  {savingExitType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enregistrer
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDraftExitType(exitDetails.exit_type);
+                    setEditingExitType(false);
+                  }}
+                  disabled={savingExitType}
+                >
+                  Annuler
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {exitTypeLabels[exitDetails.exit_type]}
+                </span>
+                {!isArchived && !isCancelled && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingExitType(true)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Modifier le type
+                  </Button>
+                )}
+              </div>
+            )}
             {canArchive && (
               <Button
                 type="button"
@@ -619,6 +754,17 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
             )}
           </CardContent>
         </Card>
+
+        {hasDocumentsToReview && (
+          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Documents à revoir</AlertTitle>
+            <AlertDescription>
+              Le type de départ a été modifié après génération de documents. Régénérez les pièces
+              officielles concernées avant publication ou remise au collaborateur.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="checklist" className="space-y-4">

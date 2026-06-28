@@ -61,6 +61,15 @@ from app.modules.notifications.application.employee_document_alerts import (
 ELIGIBLE_PORTABILITY_MOTIFS = frozenset(
     {"licenciement", "fin_cdd", "rupture_conventionnelle"}
 )
+EDITABLE_EXIT_TYPES = frozenset(
+    {
+        "demission",
+        "rupture_conventionnelle",
+        "licenciement",
+        "depart_retraite",
+        "fin_periode_essai",
+    }
+)
 
 
 def create_employee_exit(
@@ -573,6 +582,72 @@ def update_employee_exit(
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
     if not update_data:
         return existing
+    update_data = dict(update_data)
+    new_exit_type = update_data.get("exit_type")
+    if new_exit_type and new_exit_type != existing.get("exit_type"):
+        if new_exit_type not in EDITABLE_EXIT_TYPES:
+            raise EmployeeExitApplicationError(
+                400, f"Type de départ non supporté: {new_exit_type}"
+            )
+        if existing.get("status") in ("archivee", "annulee"):
+            raise EmployeeExitApplicationError(
+                400,
+                "Impossible de modifier le type d'un départ archivé ou annulé.",
+            )
+
+        old_exit_type = str(existing.get("exit_type") or "")
+        now = datetime.now(timezone.utc).isoformat()
+        exit_notes = existing.get("exit_notes") or {}
+        if not isinstance(exit_notes, dict):
+            exit_notes = {}
+
+        generated_docs = [
+            doc
+            for doc in ExitDocumentRepository(sb).list_by_exit(exit_id, company_id)
+            if doc.get("document_category") == "generated"
+        ]
+        exit_notes["exit_type_change"] = {
+            "timestamp": now,
+            "previous_exit_type": old_exit_type,
+            "new_exit_type": new_exit_type,
+            "generated_documents_to_review": [doc.get("document_type") for doc in generated_docs],
+        }
+
+        update_data.update(
+            {
+                "status": get_initial_status(str(new_exit_type)),
+                "validated_by": None,
+                "validation_date": None,
+                "archived_by": None,
+                "archived_at": None,
+                "exit_notes": exit_notes,
+                "updated_at": now,
+            }
+        )
+
+        try:
+            employee_id = str(existing.get("employee_id") or "")
+            employee_full = get_employee_full(employee_id, sb) if employee_id else {}
+            recalculation_context = {**existing, **update_data}
+            indemnities = get_indemnity_calculator().calculate(
+                employee_full or {}, recalculation_context, sb
+            )
+            update_data["calculated_indemnities"] = indemnities
+            update_data["remaining_vacation_days"] = indemnities.get(
+                "indemnite_conges", {}
+            ).get("jours_restants", 0)
+            update_data["final_net_amount"] = indemnities.get(
+                "total_net_indemnities", 0
+            )
+        except Exception as exc:
+            logger.warning(
+                "Recalcul indemnités après changement de type sortie %s: %s",
+                exit_id,
+                exc,
+            )
+            update_data["calculated_indemnities"] = None
+            update_data["remaining_vacation_days"] = None
+            update_data["final_net_amount"] = None
     updated = exit_repo.update(exit_id, company_id, update_data)
     return updated if updated is not None else existing
 

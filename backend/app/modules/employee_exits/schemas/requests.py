@@ -96,6 +96,7 @@ class EmployeeExitCreate(BaseModel):
 class EmployeeExitUpdate(BaseModel):
     """Schéma pour mettre à jour un processus de sortie"""
 
+    exit_type: Optional[ExitType] = None
     status: Optional[ExitStatus] = None
     notice_start_date: Optional[date] = None
     notice_end_date: Optional[date] = None

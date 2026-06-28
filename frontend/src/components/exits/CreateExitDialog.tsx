@@ -296,7 +296,7 @@ export function CreateExitDialog({
         <DialogHeader>
           <DialogTitle>Nouveau départ de collaborateur</DialogTitle>
           <DialogDescription>
-            Créer un nouveau processus de départ (démission, rupture conventionnelle ou licenciement)
+            Choisissez le type de départ : il pilote le workflow, les indemnités et les documents générés.
           </DialogDescription>
         </DialogHeader>
 
@@ -493,11 +493,15 @@ export function CreateExitDialog({
             <Label htmlFor="exit_reason">Motif de départ</Label>
             <Textarea
               id="exit_reason"
-              placeholder="Raison du départ (optionnel)"
+              placeholder="Précision interne optionnelle : initiative salarié/employeur, contexte, référence courrier..."
               value={exitReason}
               onChange={(e) => setExitReason(e.target.value)}
               rows={3}
             />
+            <p className="text-sm text-muted-foreground">
+              Le type sélectionné ci-dessus est le motif juridique structurant. Ce champ sert seulement
+              à ajouter une précision RH au dossier.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

@@ -102,6 +102,14 @@ const EmployeeExitsPage = () => {
     return exits.filter((e) => e.exit_type === selectedExitType);
   }, [exits, selectedExitType]);
 
+  const exitTypeTabs: Array<{ value: ExitType; label: string }> = [
+    { value: 'demission', label: 'Démissions' },
+    { value: 'rupture_conventionnelle', label: 'Ruptures conv.' },
+    { value: 'licenciement', label: 'Licenciements' },
+    { value: 'fin_periode_essai', label: "Périodes d'essai" },
+    { value: 'depart_retraite', label: 'Retraites' },
+  ];
+
   const handleDeleteExit = async (exitId: string, employeeName: string) => {
     const confirmMessage = `Êtes-vous sûr de vouloir supprimer le départ de ${employeeName} ?\n\nCette action est irréversible et :\n- Supprimera tous les documents associés\n- Supprimera la checklist\n- Remettra l'employé en statut "actif"`;
 
@@ -128,7 +136,7 @@ const EmployeeExitsPage = () => {
     <div className="space-y-6">
       <RhPageHeader
         title="Départs"
-        description="Gérez les processus de départ des collaborateurs (démissions, ruptures conventionnelles, licenciements)"
+        description="Gérez les processus de départ des collaborateurs et leurs documents de fin de contrat"
         actions={
           <Button onClick={() => setShowCreateDialog(true)}>
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -183,15 +191,11 @@ const EmployeeExitsPage = () => {
       <Tabs value={selectedExitType} onValueChange={setSelectedExitType}>
         <TabsList>
           <TabsTrigger value="all">Toutes ({exits.length})</TabsTrigger>
-          <TabsTrigger value="demission">
-            Démissions ({exits.filter(e => e.exit_type === 'demission').length})
-          </TabsTrigger>
-          <TabsTrigger value="rupture_conventionnelle">
-            Ruptures conv. ({exits.filter(e => e.exit_type === 'rupture_conventionnelle').length})
-          </TabsTrigger>
-          <TabsTrigger value="licenciement">
-            Licenciements ({exits.filter(e => e.exit_type === 'licenciement').length})
-          </TabsTrigger>
+          {exitTypeTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label} ({exits.filter((e) => e.exit_type === tab.value).length})
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value={selectedExitType} className="mt-6">
