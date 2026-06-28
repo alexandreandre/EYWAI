@@ -103,15 +103,31 @@ def _fetch_consolidated_for_period(
     end_year: int,
     end_month: int,
 ) -> Any:
-    """Charge et agrège les stats sur une plage de mois."""
-    if (start_year, start_month) == (end_year, end_month):
-        return call_get_group_consolidated_dashboard(
-            company_ids, end_year, end_month
+    """Charge et agrège les stats sur une plage de mois (fallback DSN à chaque mois)."""
+    from app.modules.payroll.application.payroll_kpi_queries import (
+        ConsolidatedPayrollContext,
+        enrich_consolidated_with_dsn,
+    )
+
+    payroll_ctx = ConsolidatedPayrollContext.build(company_ids)
+
+    def _load_month(year: int, month: int) -> Any:
+        payload = call_get_group_consolidated_dashboard(company_ids, year, month)
+        if not payload:
+            return payload
+        return enrich_consolidated_with_dsn(
+            payload,
+            company_ids,
+            f"{year}-{month:02d}",
+            ctx=payroll_ctx,
         )
+
+    if (start_year, start_month) == (end_year, end_month):
+        return _load_month(end_year, end_month)
 
     monthly: List[Any] = []
     for y, m in _month_range(start_year, start_month, end_year, end_month):
-        payload = call_get_group_consolidated_dashboard(company_ids, y, m)
+        payload = _load_month(y, m)
         if payload:
             monthly.append(payload)
     return aggregate_consolidated_dashboards(
@@ -154,12 +170,6 @@ def get_group_consolidated_stats(
 
     result = _fetch_consolidated_for_period(company_ids, sy, sm, ey, em)
 
-    if sy == ey and sm == em:
-        from app.modules.payroll.application.payroll_kpi_queries import enrich_consolidated_with_dsn
-
-        period = f"{ey}-{em:02d}"
-        result = enrich_consolidated_with_dsn(result, company_ids, period)
-
     comparison_bounds = resolve_comparison_period(
         compare_to or "off",
         year=year,
@@ -172,14 +182,6 @@ def get_group_consolidated_stats(
     if comparison_bounds:
         csy, csm, cey, cem = comparison_bounds
         comparison = _fetch_consolidated_for_period(company_ids, csy, csm, cey, cem)
-        if csy == cey and csm == cem:
-            from app.modules.payroll.application.payroll_kpi_queries import (
-                enrich_consolidated_with_dsn,
-            )
-
-            comparison = enrich_consolidated_with_dsn(
-                comparison, company_ids, f"{cey}-{cem:02d}"
-            )
         result = {
             **result,
             "comparison": {
@@ -211,9 +213,14 @@ def get_group_payroll_evolution(
     company_ids = get_company_ids_for_group(group_id, current_user)
     if not company_ids:
         raise PermissionError("Aucune entreprise accessible dans ce groupe")
-    return call_get_group_payroll_evolution(
+    raw = call_get_group_payroll_evolution(
         company_ids, start_year, start_month, end_year, end_month
     )
+    from app.modules.payroll.application.payroll_kpi_queries import (
+        enrich_payroll_evolution_with_dsn,
+    )
+
+    return enrich_payroll_evolution_with_dsn(raw or [], company_ids)
 
 
 def get_group_company_comparison(

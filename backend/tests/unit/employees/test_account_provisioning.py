@@ -66,3 +66,20 @@ def test_provision_collaborator_account_creates_auth_and_pdf(
     mock_repo.update.assert_called_once()
     mock_grant.assert_called_once_with("user-new", "company-1", "rh-1")
     storage.upload.assert_called_once()
+
+
+@patch("app.modules.employees.application.account_provisioning._employee_repository")
+def test_provision_collaborator_account_rejects_dsn_placeholder_email(
+    mock_repo: MagicMock,
+) -> None:
+    mock_repo.get_by_id.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "first_name": "Jean",
+        "last_name": "Martin",
+        "email": "import.jean.martin.123448@802485169.dsn-import.local",
+        "username": "jean.martin",
+    }
+
+    with pytest.raises(ValueError, match="email professionnel"):
+        provision_collaborator_account("emp-1", "company-1")

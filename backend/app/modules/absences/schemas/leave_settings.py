@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 CpCountingUnit = Literal["ouvrable", "ouvre"]
+LeaveNotificationRole = Literal["admin", "rh", "collaborateur_rh"]
 
 
 class LeaveSettingsUpdate(BaseModel):
@@ -57,3 +58,13 @@ class LeaveAdjustmentImportRequest(BaseModel):
 class RttYearEndCloseRequest(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     employee_ids: List[str] = Field(..., min_length=1)
+
+
+class LeaveNotificationSettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    notify_on_employee_request: Optional[bool] = None
+    notify_after_manager_approval: Optional[bool] = None
+    recipient_roles: Optional[List[LeaveNotificationRole]] = None
+    extra_recipient_emails: Optional[List[str]] = None
+
+    model_config = {"extra": "ignore"}

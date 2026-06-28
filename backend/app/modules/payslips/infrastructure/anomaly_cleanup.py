@@ -62,7 +62,7 @@ def _fetch_employee_payslips(
 ) -> List[Dict[str, Any]]:
     r = (
         supabase_client.table("payslips")
-        .select("id, year, month, status, payslip_data")
+        .select("id, year, month, status, payslip_data, bulletin_kind")
         .eq("employee_id", employee_id)
         .eq("company_id", company_id)
         .execute()
@@ -92,6 +92,12 @@ def cleanup_payslips_on_exit_archived(
         year = int(row.get("year") or 0)
         month = int(row.get("month") or 0)
         status = str(row.get("status") or "brouillon")
+
+        # Les bulletins de régularisation (ex. participation versée l'année suivant
+        # le départ) sont par nature postérieurs au dernier jour travaillé : ils ne
+        # doivent jamais être supprimés à l'archivage de la sortie.
+        if row.get("bulletin_kind"):
+            continue
 
         if lwd and is_period_after_last_working_day(lwd, year, month):
             if status != "valide":

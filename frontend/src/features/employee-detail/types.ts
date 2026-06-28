@@ -14,6 +14,7 @@ export interface Employee {
     coefficient?: number;
   } | null;
   prior_service_months?: number | null;
+  seniority_reference_date?: string | null;
   email?: string | null;
   phone_number?: string | null;
   salary_payment_method?: 'virement' | 'cheque' | 'especes' | null;

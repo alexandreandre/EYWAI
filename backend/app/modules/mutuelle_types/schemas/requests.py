@@ -29,6 +29,8 @@ class MutuelleTypeCreate(BaseModel):
     code_option_dsn: str | None = Field(None, max_length=32)
     code_organisme_dsn: str | None = Field(None, max_length=32)
     reference_contrat_dsn: str | None = Field(None, max_length=64)
+    organisme_label: str | None = Field(None, max_length=128)
+    note: str | None = Field(None, max_length=500)
     employee_ids: List[str] = Field(default_factory=list)
 
 
@@ -49,4 +51,6 @@ class MutuelleTypeUpdate(BaseModel):
     code_option_dsn: str | None = Field(None, max_length=32)
     code_organisme_dsn: str | None = Field(None, max_length=32)
     reference_contrat_dsn: str | None = Field(None, max_length=64)
+    organisme_label: str | None = Field(None, max_length=128)
+    note: str | None = Field(None, max_length=500)
     employee_ids: List[str] | None = None

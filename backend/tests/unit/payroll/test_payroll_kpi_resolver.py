@@ -45,6 +45,8 @@ def test_resolve_period_dsn_when_no_payslip_and_transition():
         dsn_totals=DsnPeriodTotals(
             gross=12000.0,
             net_imposable=9000.0,
+            employee_charges=3000.0,
+            employer_charges=3500.0,
             employee_count=10,
             employees_with_gross=9,
         ),
@@ -52,7 +54,18 @@ def test_resolve_period_dsn_when_no_payslip_and_transition():
     )
     assert snap.source == "dsn"
     assert snap.gross == 12000.0
+    assert snap.employee_charges == 3000.0
+    assert snap.employer_cost == 15500.0
     assert snap.partial is True
+
+
+def test_dsn_row_to_totals_fallback_employee_charges():
+    from app.modules.payroll.domain.payroll_kpi_resolver import dsn_row_to_totals
+
+    totals = dsn_row_to_totals(
+        {"gross_salary": 24049.34, "net_imposable": 19547.93, "employee_count": 5}
+    )
+    assert totals.employee_charges == round(24049.34 - 19547.93, 2)
 
 
 def test_resolve_period_native_no_dsn_fallback():

@@ -141,6 +141,28 @@ export async function generateCampaignPayrollLines(
   return data.campaign;
 }
 
+export interface RegularisationPayslipResult {
+  detail: string;
+  payslip_id?: string | null;
+  download_url: string;
+  year: number;
+  month: number;
+  employee_id: string;
+}
+
+/**
+ * Génère un bulletin de paie de régularisation participation pour un bénéficiaire,
+ * y compris un salarié déjà sorti (versement de la participation l'année suivante).
+ */
+export async function generateRegularisationPayslip(
+  bulletinId: string,
+): Promise<RegularisationPayslipResult> {
+  const { data } = await apiClient.post<RegularisationPayslipResult>(
+    `/api/participation/bulletins/${bulletinId}/regularisation-payslip`,
+  );
+  return data;
+}
+
 export async function listMyParticipationBulletins(): Promise<ParticipationBulletin[]> {
   const { data } = await apiClient.get<{ bulletins: ParticipationBulletin[] }>(
     '/api/participation/me/participation-bulletins',

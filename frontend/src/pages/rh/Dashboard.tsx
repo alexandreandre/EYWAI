@@ -1,59 +1,41 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import {
-  useAnnualReviewsPriorityQuery,
   useDashboardAllQuery,
   useMedicalDashboardQuery,
   useOnboardingDashboardQuery,
-  usePendingSignaturesRhQuery,
-  useRecruitmentPriorityQuery,
   useResidencePermitStatsQuery,
   useRibAlertsDashboardQuery,
 } from '@/hooks/queries/useDashboardQueries';
+import { useRhPendingTasks } from '@/hooks/useRhPendingTasks';
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { CopilotModalAgent } from '@/components/CopilotModalAgent';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Progress } from '@/components/ui/progress';
 import {
   AlertTriangle,
   Inbox,
-  CalendarCheck,
-  CreditCard,
-  FileWarning,
-  UserPlus,
-  PartyPopper,
-  Landmark,
   Stethoscope,
-  TrendingUp,
-  Mail,
   BarChart3,
-  UserRoundPlus,
 } from 'lucide-react';
 import { CSEDashboardBlock } from '@/components/CSEDashboardBlock';
 import { RhParticipationCampaignWidget } from '@/components/dashboard/RhParticipationCampaignWidget';
 import { PendingSignaturesWidget } from '@/components/dashboard/PendingSignaturesWidget';
 import TeamAnalyticsSection from '@/components/dashboard/TeamAnalyticsSection';
-import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from '@/api/annualReviews';
-import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { queryKeys } from '@/lib/queryKeys';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { FormationTalentsDashboardWidget } from '@/features/dashboard/widgets/FormationTalentsDashboardWidget';
 import { DashboardHeader } from '@/features/dashboard/widgets/DashboardHeader';
+import { DashboardPriorityPanel } from '@/features/dashboard/widgets/DashboardPriorityPanel';
 import { ResidencePermitCard } from '@/features/dashboard/widgets/ResidencePermitCard';
 import { MedicalFollowUpCard } from '@/features/dashboard/widgets/MedicalFollowUpCard';
 import { RibAlertsCard } from '@/features/dashboard/widgets/RibAlertsCard';
@@ -61,13 +43,7 @@ import { RecruitmentKpisCard } from '@/features/dashboard/widgets/RecruitmentKpi
 import { IncompleteEmployeesCard } from '@/features/dashboard/widgets/IncompleteEmployeesCard';
 import { EffectifPanorama } from '@/features/dashboard/widgets/EffectifPanorama';
 import { CoutsCard } from '@/features/dashboard/widgets/CoutsCard';
-import type {
-  DashboardData,
-  DashboardPriorityKey,
-  PriorityValidationByCount,
-} from '@/features/dashboard/types';
-
-const PRIORITY_DAY_STORAGE_KEY = 'eywai.dashboard.priority-day.validated.v1';
+import type { DashboardData } from '@/features/dashboard/types';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -79,10 +55,8 @@ export default function Dashboard() {
   const residenceQuery = useResidencePermitStatsQuery(Boolean(companyId));
   const ribQuery = useRibAlertsDashboardQuery(Boolean(companyId));
   const medical = useMedicalDashboardQuery(Boolean(companyId));
-  const annualReviewsQuery = useAnnualReviewsPriorityQuery(Boolean(companyId));
-  const recruitment = useRecruitmentPriorityQuery(Boolean(companyId));
-  const pendingSignaturesQuery = usePendingSignaturesRhQuery(Boolean(companyId));
   const onboardingQuery = useOnboardingDashboardQuery(Boolean(companyId));
+  const pendingTasks = useRhPendingTasks(Boolean(companyId), companyId);
 
   const data = dashboardQuery.data as DashboardData | undefined;
   const loading = dashboardQuery.isLoading && !dashboardQuery.data;
@@ -96,25 +70,10 @@ export default function Dashboard() {
   const residencePermitStats = residenceQuery.data ?? null;
   const residencePermitLoading = residenceQuery.isLoading && !residenceQuery.data;
   const ribAlerts = ribQuery.data?.alerts ?? [];
-  const ribAlertTotal = ribQuery.data?.total ?? 0;
   const ribAlertsLoading = ribQuery.isLoading && !ribQuery.data;
   const medicalModuleEnabled = medical.medicalModuleEnabled;
   const medicalKpis = medical.medicalKpis;
   const medicalKpisLoading = medical.isLoading;
-  const annualReviewsUpcomingCount = annualReviewsQuery.data ?? 0;
-  const recruitmentPendingCount = recruitment.pendingCount;
-  const recruitmentPendingPreview = useMemo(() => {
-    const candidates = recruitment.candidatesQuery.data;
-    if (!candidates?.length) return null;
-    const pending = candidates.filter(isRecruitmentPriorityCandidate);
-    if (pending.length === 0) return null;
-    return pending
-      .slice(0, 2)
-      .map((c) => `${c.first_name} ${c.last_name}`)
-      .join(' · ');
-  }, [recruitment.candidatesQuery.data]);
-
-  const pendingSignaturesCount = pendingSignaturesQuery.data?.total ?? 0;
 
   const onboardingItems = useMemo(
     () => onboardingQuery.data?.items ?? [],
@@ -124,16 +83,7 @@ export default function Dashboard() {
     () => onboardingItems.filter((item) => !item.profile_complete),
     [onboardingItems],
   );
-  const incompleteEmployeesCount =
-    onboardingQuery.data?.kpis.profile_incomplete ?? incompleteEmployees.length;
   const incompleteEmployeesLoading = onboardingQuery.isLoading && !onboardingQuery.data;
-  const incompleteEmployeesPreview = useMemo(() => {
-    if (incompleteEmployees.length === 0) return null;
-    return incompleteEmployees
-      .slice(0, 2)
-      .map((item) => `${item.first_name} ${item.last_name}`.trim())
-      .join(' · ');
-  }, [incompleteEmployees]);
 
   const isFetching =
     dashboardQuery.isFetching ||
@@ -143,24 +93,6 @@ export default function Dashboard() {
     onboardingQuery.isFetching;
 
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const [selectedPriorityKey, setSelectedPriorityKey] = useState<DashboardPriorityKey | null>(null);
-  const [validatedPriorityByCount, setValidatedPriorityByCount] = useState<PriorityValidationByCount>(() => {
-    try {
-      const raw = sessionStorage.getItem(PRIORITY_DAY_STORAGE_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const out: PriorityValidationByCount = {};
-        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-          if (typeof k === 'string' && typeof v === 'number') out[k] = v;
-        }
-        return out;
-      }
-      return {};
-    } catch {
-      return {};
-    }
-  });
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -211,140 +143,6 @@ export default function Dashboard() {
     );
   }
 
-  const residencePendingTotal =
-    (residencePermitStats?.total_expire || 0) +
-    (residencePermitStats?.total_a_renouveler || 0) +
-    (residencePermitStats?.total_a_renseigner || 0);
-  const medicalPendingTotal =
-    medicalModuleEnabled && medicalKpis
-      ? medicalKpis.overdue_count + medicalKpis.due_within_30_count
-      : 0;
-  const mainFocusCandidates: Array<{
-    key: DashboardPriorityKey;
-    label: string;
-    count: number;
-    href: string;
-    icon: typeof CalendarCheck;
-    hint: string;
-  }> = [
-    {
-      key: 'leaves',
-      label: "Demandes d'absences",
-      count: data.actions.pendingAbsences,
-      href: '/leaves',
-      icon: CalendarCheck,
-      hint: "À valider aujourd'hui",
-    },
-    {
-      key: 'expenses',
-      label: 'Notes de frais',
-      count: data.actions.pendingExpenses,
-      href: '/expenses',
-      icon: CreditCard,
-      hint: 'En attente de traitement',
-    },
-    ...(RIB_ALERTS_UI_ENABLED
-      ? [
-          {
-            key: 'rib' as const,
-            label: 'Alertes RIB',
-            count: ribAlertTotal,
-            href: '/employees',
-            icon: Landmark,
-            hint: 'Contrôles administratifs',
-          },
-        ]
-      : []),
-    {
-      key: 'medical',
-      label: 'Suivi médical',
-      count: medicalPendingTotal,
-      href: '/medical-follow-up',
-      icon: Stethoscope,
-      hint: 'Visites à planifier',
-    },
-    {
-      key: 'residence',
-      label: 'Titres de séjour',
-      count: residencePendingTotal,
-      href: '/residence-permits',
-      icon: FileWarning,
-      hint: 'Échéances à surveiller',
-    },
-    {
-      key: 'contracts',
-      label: "Contrats & périodes d'essai",
-      count: data.alerts.expiringContracts + data.alerts.endOfTrialPeriods,
-      href: '/employees?alert=deadlines',
-      icon: UserPlus,
-      hint: 'Fin de CDD ou période d\'essai sous 15 jours',
-    },
-    {
-      key: 'annualReviews',
-      label: 'Entretiens planifiés',
-      count: annualReviewsUpcomingCount,
-      href: '/annual-reviews?focus=upcoming',
-      icon: CalendarCheck,
-      hint: `Planifiés dans ${ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS} jours`,
-    },
-    {
-      key: 'recruitment',
-      label: 'Recrutement',
-      count: recruitmentPendingCount,
-      href: '/recruitment',
-      icon: UserPlus,
-      hint: recruitmentPendingPreview
-        ? `Candidats à traiter : ${recruitmentPendingPreview}`
-        : 'Candidatures en cours',
-    },
-    {
-      key: 'onboardingProfiles',
-      label: 'Nouveaux salariés à compléter',
-      count: incompleteEmployeesCount,
-      href:
-        incompleteEmployees.length === 1
-          ? `/employees/${incompleteEmployees[0].employee_id}`
-          : '/onboarding',
-      icon: UserRoundPlus,
-      hint: incompleteEmployeesPreview
-        ? `Fiche paie à finaliser : ${incompleteEmployeesPreview}`
-        : 'Fiches paie à finaliser',
-    },
-    {
-      key: 'rates',
-      label: 'Taux de cotisations',
-      count: data.alerts.obsoleteRates,
-      href: '/rates',
-      icon: TrendingUp,
-      hint: 'Mises à jour nécessaires',
-    },
-    {
-      key: 'pendingSignatures',
-      label: 'Signatures en attente',
-      count: pendingSignaturesCount,
-      href: '/annual-reviews?signature_status=pending',
-      icon: Mail,
-      hint: 'Procédures à relancer',
-    },
-  ];
-  const availablePriorityItems = mainFocusCandidates.filter((item) => item.count > 0);
-  const pendingPriorityItems = availablePriorityItems.filter(
-    (item) => validatedPriorityByCount[item.key] !== item.count,
-  );
-  const selectedPriorityItem =
-    pendingPriorityItems.find((item) => item.key === selectedPriorityKey) ||
-    pendingPriorityItems[0] ||
-    null;
-  const mainFocus = selectedPriorityItem;
-  const remainingMainFocus = pendingPriorityItems.length > 1 ? pendingPriorityItems.length - 1 : 0;
-  const priorityProgressTotal = availablePriorityItems.length;
-  const priorityProgressDone = availablePriorityItems.filter(
-    (item) => validatedPriorityByCount[item.key] === item.count,
-  ).length;
-  const priorityProgressPct =
-    priorityProgressTotal > 0
-      ? Math.round((priorityProgressDone / priorityProgressTotal) * 100)
-      : 100;
   const todayLabelRaw = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -353,21 +151,6 @@ export default function Dashboard() {
   });
   const todayLabel =
     todayLabelRaw.charAt(0).toUpperCase() + todayLabelRaw.slice(1);
-
-  const handleValidateAndNext = () => {
-    if (!selectedPriorityItem) return;
-    const nextValidated: PriorityValidationByCount = {
-      ...validatedPriorityByCount,
-      [selectedPriorityItem.key]: selectedPriorityItem.count,
-    };
-    setValidatedPriorityByCount(nextValidated);
-    sessionStorage.setItem(PRIORITY_DAY_STORAGE_KEY, JSON.stringify(nextValidated));
-  };
-
-  const handleResetPriorities = () => {
-    setValidatedPriorityByCount({});
-    sessionStorage.removeItem(PRIORITY_DAY_STORAGE_KEY);
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -378,108 +161,18 @@ export default function Dashboard() {
         onCopilotClick={() => setIsCopilotOpen(true)}
       />
       <div className="space-y-6">
-        <Card className="border-l-4 border-l-primary shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-2 min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Priorité du jour
-                </p>
-                {mainFocus ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <mainFocus.icon className="h-5 w-5 text-primary shrink-0" />
-                    <p className="text-lg font-semibold text-foreground">
-                      {mainFocus.label} ({mainFocus.count})
-                    </p>
-                    <Badge variant="secondary" className="max-w-full truncate">
-                      {mainFocus.hint}
-                    </Badge>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <PartyPopper className="h-5 w-5 text-emerald-600 shrink-0" />
-                      <p className="text-lg font-semibold text-foreground">
-                        Aucun blocage prioritaire détecté
-                      </p>
-                    </div>
-                    <Button variant="link" className="h-auto p-0 text-sm" asChild>
-                      <Link to="/analytics">Voir les indicateurs de pilotage →</Link>
-                    </Button>
-                  </div>
-                )}
-                {pendingPriorityItems.length > 0 && (
-                  <div className="max-w-md space-y-2">
-                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {priorityProgressDone}/{priorityProgressTotal} tâches traitées
-                      </span>
-                      {remainingMainFocus > 0 && (
-                        <span>
-                          Reste : {remainingMainFocus} tâche{remainingMainFocus > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                    <Progress value={priorityProgressPct} className="h-1.5" />
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Changer de tâche</Label>
-                      <Select
-                        value={selectedPriorityItem?.key}
-                        onValueChange={(value) =>
-                          setSelectedPriorityKey(value as DashboardPriorityKey)
-                        }
-                      >
-                        <SelectTrigger className="mt-1 h-9">
-                          <SelectValue placeholder="Choisir une tâche" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pendingPriorityItems.map((task) => (
-                            <SelectItem key={task.key} value={task.key}>
-                              {task.label} ({task.count})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
-                {availablePriorityItems.length > 0 &&
-                  Object.keys(validatedPriorityByCount).length > 0 &&
-                  !mainFocus && (
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                      onClick={handleResetPriorities}
-                    >
-                      Reprendre la file depuis le début
-                    </button>
-                  )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                {mainFocus ? (
-                  <>
-                    <Button asChild>
-                      <Link to={mainFocus.href}>Ouvrir le module</Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleValidateAndNext}
-                    >
-                      Valider et passer à l&apos;étape suivante
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <DashboardPriorityPanel
+          items={pendingTasks.items}
+          sidebarTotal={pendingTasks.sidebarTotal}
+          loading={pendingTasks.isLoading}
+          refreshing={pendingTasks.isRefreshing}
+        />
 
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
           <div>
-            <h2 className="text-xl font-semibold">À traiter aujourd&apos;hui</h2>
+            <h2 className="text-xl font-semibold">Détail par module</h2>
             <p className="text-sm text-muted-foreground">
-              Détail des dossiers à traiter — signatures, alertes et conformité.
+              Signatures, alertes et conformité — complément au récapitulatif ci-dessus.
             </p>
           </div>
 

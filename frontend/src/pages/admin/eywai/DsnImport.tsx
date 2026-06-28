@@ -19,6 +19,7 @@ import {
   CompanySetupContentShell,
   CompanySetupPickCompanyHint,
 } from '@/features/admin-import/components/CompanySetupContentShell';
+import { SeniorityImportPanel } from '@/features/admin-import/components/SeniorityImportPanel';
 import { CompanySetupWizard } from '@/features/admin-import/components/CompanySetupWizard';
 import { CompanySetupParamsStep } from '@/features/admin-import/components/CompanySetupParamsStep';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
@@ -249,6 +250,12 @@ function DsnImportPageContent() {
             </div>
             <DsnImportHistory onResume={handleHistoryResume} />
           </div>
+        );
+      case 'seniority':
+        return companyId ? (
+          <SeniorityImportPanel companyId={companyId} standalone />
+        ) : (
+          <CompanySetupPickCompanyHint />
         );
       case 'payroll-export':
         return (

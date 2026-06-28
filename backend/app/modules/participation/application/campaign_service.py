@@ -548,6 +548,28 @@ def remind_late(
     return len(late)
 
 
+_EXITED_STATUSES = frozenset({"parti", "en_sortie"})
+
+
+def _employment_statuses(
+    employee_ids: List[str], company_id: str
+) -> Dict[str, str]:
+    """Statut d'emploi (employment_status) par salarié."""
+    if not employee_ids:
+        return {}
+    res = (
+        supabase.table("employees")
+        .select("id, employment_status")
+        .eq("company_id", company_id)
+        .in_("id", employee_ids)
+        .execute()
+    )
+    return {
+        str(r["id"]): str(r.get("employment_status") or "actif").lower()
+        for r in (res.data or [])
+    }
+
+
 def generate_payroll_lines(
     campaign_id: str,
     company_id: str,
@@ -570,8 +592,38 @@ def generate_payroll_lines(
     year = int(campaign["year"])
     payloads: List[MonthlyInput] = []
 
+    # Les salariés déjà sortis ne peuvent pas recevoir de bulletin mensuel : on leur
+    # produit directement un bulletin de régularisation participation. Les actifs
+    # passent par une saisie de paie (monthly_inputs) intégrée à leur bulletin du mois.
+    from app.modules.participation.application.regularisation_bulletin_service import (
+        generate_regularisation_participation_payslip,
+    )
+
+    statuses = _employment_statuses(
+        [str(b["employee_id"]) for b in actionable], company_id
+    )
+    regularisation_count = 0
+
     for bulletin in actionable:
         emp_id = str(bulletin["employee_id"])
+
+        if statuses.get(emp_id, "actif") in _EXITED_STATUSES:
+            try:
+                generate_regularisation_participation_payslip(
+                    str(bulletin["id"]),
+                    company_id,
+                    year=body.payroll_year,
+                    month=body.payroll_month,
+                )
+                regularisation_count += 1
+            except Exception as exc:
+                logger.warning(
+                    "[participation] bulletin régularisation non généré (%s): %s",
+                    emp_id,
+                    exc,
+                )
+            continue
+
         dispositif = str(bulletin["dispositif_type"])
         label = dispositif_label(dispositif)
         cash = float(bulletin.get("cash_amount") or 0)
@@ -607,22 +659,23 @@ def generate_payroll_lines(
                 )
             )
 
-    if not payloads:
+    if not payloads and regularisation_count == 0:
         raise ValueError("Aucune ligne de paie à créer.")
 
-    create_monthly_inputs_batch(payloads)
-    # Traçabilité campagne sur les lignes créées (best effort)
-    try:
-        supabase.table("monthly_inputs").update(
-            {"participation_campaign_id": campaign_id}
-        ).eq("year", body.payroll_year).eq("month", body.payroll_month).is_(
-            "participation_campaign_id", "null"
-        ).execute()
-    except Exception as exc:
-        logger.info("[participation] campaign_id trace skipped: %s", exc)
+    if payloads:
+        create_monthly_inputs_batch(payloads)
+        # Traçabilité campagne sur les lignes créées (best effort)
+        try:
+            supabase.table("monthly_inputs").update(
+                {"participation_campaign_id": campaign_id}
+            ).eq("year", body.payroll_year).eq("month", body.payroll_month).is_(
+                "participation_campaign_id", "null"
+            ).execute()
+        except Exception as exc:
+            logger.info("[participation] campaign_id trace skipped: %s", exc)
 
     updated = campaign_repository.update_campaign(campaign_id, {"status": "closed"})
-    return _campaign_detail(updated), len(payloads)
+    return _campaign_detail(updated), len(payloads) + regularisation_count
 
 
 def list_employee_bulletins(

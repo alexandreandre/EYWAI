@@ -19,6 +19,7 @@ from .baremes_loader import (
     controler_integrite_baremes,
 )
 from . import legal_constants as lc
+from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 
 
 def ChargerContexte(
@@ -47,6 +48,10 @@ def ChargerContexte(
                 },
                 "emploi": employee_data.get("emploi", ""),
                 "date_entree": employee_data.get("date_entree", ""),
+                "seniority_reference_date": employee_data.get(
+                    "seniority_reference_date"
+                )
+                or "",
                 "date_conclusion_contrat": employee_data.get(
                     "date_conclusion_contrat"
                 )
@@ -411,6 +416,14 @@ class ContextePaie:
     @property
     def date_entree(self) -> str:
         return self.contrat.get("contrat", {}).get("date_entree") or ""
+
+    @property
+    def date_anciennete_prime(self) -> str:
+        """Date reprise ou embauche pour prime d'ancienneté."""
+        ref = resolve_date_anciennete_from_contrat(self.contrat)
+        if ref:
+            return ref
+        return self.date_entree
 
     @property
     def date_fin_contrat(self) -> str:

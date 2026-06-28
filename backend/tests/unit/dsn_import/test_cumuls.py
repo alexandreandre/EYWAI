@@ -9,7 +9,7 @@ from app.modules.dsn_import.application.cumuls import (
     extract_monthly_totals,
     plan_cumul_items,
 )
-from app.modules.dsn_import.domain.model import RemunerationBlock, VersementBlock
+from app.modules.dsn_import.domain.model import CotisationBlock, RemunerationBlock, VersementBlock
 from app.modules.dsn_import.domain.parser import parse_dsn_files
 
 
@@ -78,4 +78,22 @@ def test_brut_fallback_from_pas_assiette_when_primary_zero():
 def test_brut_fallback_not_used_without_zero_primary_line():
     ver = VersementBlock(montant_soumis_pas=1880.0, remunerations=[])
     assert _brut_from_versement(ver) == 0.0
+
+
+def test_extract_monthly_totals_sums_cotisations():
+    from app.modules.dsn_import.domain.model import ContratBlock, IndividuBlock
+
+    ver = VersementBlock(
+        net_fiscal=1950.0,
+        remunerations=[RemunerationBlock(type_code="001", montant=2400.0)],
+        cotisations=[
+            CotisationBlock(montant_salarial=300.0, montant_patronal=450.0),
+            CotisationBlock(montant_salarial=150.0, montant_patronal=200.0),
+        ],
+    )
+    ind = IndividuBlock(contrats=[ContratBlock(versements=[ver])])
+    totals = extract_monthly_totals(ind)
+    assert totals["brut"] == 2400.0
+    assert totals["employee_charges"] == 450.0
+    assert totals["employer_charges"] == 650.0
 

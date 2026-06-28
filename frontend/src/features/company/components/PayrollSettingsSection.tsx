@@ -95,6 +95,7 @@ export const PAYROLL_SECTION_KEYS = [
   "convention-collective",
   "taux-paie",
   "declarations",
+  "mutuelle",
   "temps-travail",
   "exoneration",
   "dialogue-social",

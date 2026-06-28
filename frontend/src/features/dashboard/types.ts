@@ -1,5 +1,7 @@
 export type PayrollSource = 'payslip' | 'dsn' | 'none';
 
+export type ChartStackMode = 'employer_cost' | 'gross';
+
 export interface PayrollKpiMeta {
   source: PayrollSource;
   source_label: string;
@@ -29,6 +31,7 @@ export interface ChartDataPoint {
   name: string;
   Net_Verse: number;
   Charges: number;
+  stackMode?: ChartStackMode;
   source?: PayrollSource;
   period?: string;
 }

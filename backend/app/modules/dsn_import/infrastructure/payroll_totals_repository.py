@@ -44,6 +44,8 @@ def upsert_totals(
     pas: float,
     employee_count: int,
     employees_with_gross: int,
+    employee_charges: float = 0.0,
+    employer_charges: float = 0.0,
     last_batch_id: Optional[str] = None,
 ) -> None:
     client = get_supabase_admin_client()
@@ -54,6 +56,8 @@ def upsert_totals(
         "gross_salary": round(float(gross_salary), 2),
         "net_imposable": round(float(net_imposable), 2),
         "pas": round(float(pas), 2),
+        "employee_charges": round(float(employee_charges), 2),
+        "employer_charges": round(float(employer_charges), 2),
         "employee_count": int(employee_count),
         "employees_with_gross": int(employees_with_gross),
         "last_batch_id": last_batch_id,
@@ -100,6 +104,40 @@ def list_by_company(company_id: str, *, limit: int = 36) -> List[Dict[str, Any]]
     except APIError as exc:
         if _is_schema_missing(exc):
             _log_schema_missing_once("list_by_company")
+            return []
+        raise
+
+
+def list_by_companies(
+    company_ids: List[str], *, limit_per_company: int = 36
+) -> List[Dict[str, Any]]:
+    if not company_ids:
+        return []
+    client = get_supabase_admin_client()
+    try:
+        resp = (
+            client.table(TABLE)
+            .select("*")
+            .in_("company_id", company_ids)
+            .order("period", desc=True)
+            .execute()
+        )
+        rows = resp.data or []
+        if limit_per_company <= 0:
+            return rows
+        counts: Dict[str, int] = {}
+        kept: List[Dict[str, Any]] = []
+        for row in rows:
+            cid = str(row.get("company_id") or "")
+            n = counts.get(cid, 0)
+            if n >= limit_per_company:
+                continue
+            counts[cid] = n + 1
+            kept.append(row)
+        return kept
+    except APIError as exc:
+        if _is_schema_missing(exc):
+            _log_schema_missing_once("list_by_companies")
             return []
         raise
 

@@ -429,6 +429,9 @@ def process_payslip_generation(
             },
             "contrat": {
                 "date_entree": employee_data.get("hire_date"),
+                "seniority_reference_date": employee_data.get(
+                    "seniority_reference_date"
+                ),
                 "type_contrat": employee_data.get("contract_type"),
                 "date_conclusion_contrat": employee_data.get(
                     "date_conclusion_contrat"

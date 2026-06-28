@@ -28,13 +28,15 @@ def _build_libelle(
     montant_sal: float,
     montant_pat: float,
 ) -> str:
-    parts = ["Mutuelle"]
+    """Libellé catalogue sans montants (affichés à part dans l'UI)."""
+    parts: list[str] = []
     if pack and pack in PACK_LABELS:
         parts.append(PACK_LABELS[pack])
     if statut in STATUT_LABELS:
-        parts.append(f"({STATUT_LABELS[statut]})")
-    parts.append(f"{montant_sal:.2f}€ / {montant_pat:.2f}€")
-    return " ".join(parts)
+        parts.append(STATUT_LABELS[statut])
+    if not parts:
+        parts.append("Formule mutuelle")
+    return " · ".join(parts)
 
 
 def _find_existing_type(

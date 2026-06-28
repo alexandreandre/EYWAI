@@ -888,12 +888,25 @@ def _commit_employee(
             action = "update"
         # Ne jamais écraser le statut RH (en_sortie / parti) via l'import DSN.
         clean_payload.pop("employment_status", None)
-        update_employee(str(existing["id"]), clean_payload)
+        employee_id = str(existing["id"])
+        update_employee(employee_id, clean_payload)
         try:
-            sync_employee_psc_catalog(company_id, str(existing["id"]), payload)
+            sync_employee_psc_catalog(company_id, employee_id, payload)
         except Exception:
-            logger.exception("Sync PSC mutuelle échoué pour %s", existing["id"])
-        return str(existing["id"]), False, existing
+            logger.exception("Sync PSC mutuelle échoué pour %s", employee_id)
+        if not existing.get("user_id"):
+            try:
+                from app.modules.employees.application.credentials_pdf import (
+                    ensure_credentials_pdf,
+                )
+
+                ensure_credentials_pdf(employee_id)
+            except Exception:
+                logger.exception(
+                    "PDF identifiants non garanti après mise à jour DSN pour %s",
+                    employee_id,
+                )
+        return employee_id, False, existing
 
     row = create_employee_imported(clean_payload, company_id)
     try:

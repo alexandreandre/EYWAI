@@ -88,6 +88,58 @@ def get_reconciliation_archive_chain(exit_type: str) -> List[str]:
     return list(_RECONCILIATION_ARCHIVE_CHAIN.get(exit_type, ["archivee"]))
 
 
+# Priorité pour choisir la transition « la plus avancée » vers l'archivage
+# (on saute les statuts intermédiaires de préavis pour aller vers l'effectivité).
+_FORWARD_PRIORITY: dict[str, int] = {
+    "preavis": 1,
+    "notifie": 2,
+    "validee": 2,
+    "homologuee": 3,
+    "effective": 4,
+}
+
+
+def _forward_rank(status: str) -> int:
+    return max(
+        (rank for keyword, rank in _FORWARD_PRIORITY.items() if keyword in status),
+        default=0,
+    )
+
+
+def resolve_archive_path(exit_type: str, current_status: str) -> List[str]:
+    """
+    Suite de statuts à appliquer pour mener un départ jusqu'à « archivee »
+    depuis son statut courant, en respectant les transitions valides.
+
+    On privilégie à chaque étape la transition la plus avancée (effective,
+    homologuée…) et on ignore « annulee ». Le passage par « homologuee » pour
+    la rupture conventionnelle évite de buter sur la rétractation de 15 jours
+    (contrôlée uniquement sur la transition directe validée → effective).
+    """
+    if current_status == "archivee":
+        return []
+    path: List[str] = []
+    seen = {current_status}
+    status = current_status
+    while status != "archivee":
+        valid = get_valid_status_transitions(exit_type, status)
+        if not valid:
+            break
+        if "archivee" in valid:
+            next_status = "archivee"
+        else:
+            candidates = [s for s in valid if s != "annulee"]
+            if not candidates:
+                break
+            next_status = max(candidates, key=_forward_rank)
+        if next_status in seen:
+            break
+        seen.add(next_status)
+        path.append(next_status)
+        status = next_status
+    return path
+
+
 def exit_block_reason(
     employee: Dict[str, Any], *, has_work_contract: bool
 ) -> Optional[str]:

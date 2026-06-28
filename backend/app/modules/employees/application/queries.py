@@ -78,18 +78,50 @@ def get_identity_document_urls(employee_id: str) -> tuple[Optional[str], Optiona
     return None, None
 
 
-def get_credentials_pdf_urls(employee_id: str) -> tuple[Optional[str], Optional[str]]:
-    """URLs signées (téléchargement, aperçu) du PDF identifiants."""
+def get_credentials_pdf_urls(
+    employee_id: str,
+    *,
+    preview_path: str | None = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """URLs signées (téléchargement) + chemin API pour l'aperçu inline."""
     from app.modules.employees.application.credentials_pdf import (
+        CREDENTIALS_BUCKET,
         ensure_credentials_pdf,
     )
 
     path = ensure_credentials_pdf(employee_id)
     if not path:
         return None, None
-    from app.modules.employees.application.credentials_pdf import CREDENTIALS_BUCKET
 
-    return _storage_signed_urls(CREDENTIALS_BUCKET, path)
+    download_url, _ = _storage_signed_urls(CREDENTIALS_BUCKET, path)
+    preview_url = preview_path or f"/api/employees/{employee_id}/credentials-pdf/content"
+    return download_url, preview_url
+
+
+def get_credentials_pdf_content(employee_id: str) -> tuple[bytes, str]:
+    """Contenu binaire du PDF identifiants et nom de fichier suggéré."""
+    from app.modules.employees.application.credentials_pdf import (
+        CREDENTIALS_BUCKET,
+        ensure_credentials_pdf,
+    )
+
+    path = ensure_credentials_pdf(employee_id)
+    if not path:
+        raise LookupError("PDF identifiants introuvable pour ce salarié.")
+
+    content = get_storage_provider().download(CREDENTIALS_BUCKET, path)
+    if not content or not content.startswith(b"%PDF"):
+        raise ValueError("Le fichier PDF identifiants est absent ou invalide.")
+
+    employee = _employee_repository.get_by_id_only(employee_id) or {}
+    first_name = str(employee.get("first_name") or "").strip()
+    last_name = str(employee.get("last_name") or "").strip()
+    if first_name or last_name:
+        safe_name = "_".join(part for part in (first_name, last_name) if part).replace(" ", "_")
+        filename = f"Compte_{safe_name}.pdf"
+    else:
+        filename = "creation_compte.pdf"
+    return content, filename
 
 
 def employee_has_work_contract(employee_id: str, company_id: str) -> bool:

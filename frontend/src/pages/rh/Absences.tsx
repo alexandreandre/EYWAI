@@ -46,6 +46,7 @@ import { AbsenceIjssStatusBadge } from '@/components/absences/AbsenceIjssStatusB
 import { getAbsenceIjssStatus } from '@/api/ijssTracking';
 import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
+import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
@@ -587,6 +588,7 @@ export default function AbsencesPage() {
       />
       <div className="space-y-4">
         <LeaveCampaignSection />
+        <LeaveNotificationSettingsPanel />
         <RttYearEndRhSection />
         <p className="text-sm text-muted-foreground">
           <Link to="/company?tab=paie#soldes-rtt" className="text-primary underline-offset-4 hover:underline">

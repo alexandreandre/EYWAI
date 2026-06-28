@@ -178,6 +178,40 @@ class TestSuperAdminCompanyDetails:
         assert response.status_code == 404
 
 
+class TestSuperAdminCompanyMutuelleTypes:
+    """GET /api/super-admin/companies/{company_id}/mutuelle-types."""
+
+    def test_returns_200_with_mutuelle_catalog(self, client: TestClient):
+        gu, vsa = _apply_super_admin_overrides()
+        try:
+            with (
+                patch(
+                    "app.modules.super_admin.api.router.queries.get_company_details",
+                    return_value={"id": "c1", "company_name": "Test"},
+                ),
+                patch(
+                    "app.modules.super_admin.api.router.list_mutuelle_types",
+                    return_value=[
+                        {
+                            "id": "m1",
+                            "libelle": "Formule isolé",
+                            "montant_salarial": 30.0,
+                            "montant_patronal": 45.0,
+                            "is_active": True,
+                            "employee_ids": [],
+                        }
+                    ],
+                ),
+            ):
+                response = client.get("/api/super-admin/companies/c1/mutuelle-types")
+        finally:
+            _clear_super_admin_overrides(gu, vsa)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["libelle"] == "Formule isolé"
+
+
 class TestSuperAdminCompanyCreate:
     """POST /api/super-admin/companies."""
 

@@ -26,6 +26,8 @@ Table 'employees': Fiche salarié — source principale effectifs et contrat.
   - hire_date (date): Date d'embauche. Cruciale pour calculer l'ancienneté.
   - seniority_reference_date (date): Date de référence ancienneté (reprise / accord).
   - date_naissance (date): Date de naissance.
+  - sexe (text): Donnée état civil DSN si renseignée.
+  - nom_usage (text): Nom d'usage DSN si différent.
   - contract_type (text): Type de contrat (ex: 'CDI', 'CDD', 'Apprenti').
   - statut (text): Classification (Valeurs: 'Cadre', 'Non-Cadre').
   - employment_status (text): Statut RH (Valeurs: 'actif', 'active', 'en_onboarding',
@@ -81,6 +83,8 @@ Table 'payslips': Stocke les bulletins de paie générés (un par mois/employé)
     -- Net à Payer: (payslip_data->>'net_a_payer')::numeric
     -- Coût Total Employeur: (payslip_data->'pied_de_page'->>'cout_total_employeur')::numeric
     -- Net Imposable: (payslip_data->'synthese_net'->>'net_imposable')::numeric
+  - bulletin_kind (text): NULL = bulletin mensuel standard ;
+    'regularisation_participation' = régularisation participation/intéressement.
 
 ---
 Table 'absence_requests': Stocke toutes les demandes d'absence des employés.
@@ -100,7 +104,16 @@ Table 'company_leave_settings': Paramètres congés payés et RTT par entreprise
   - cp_acquisition_days_per_month (numeric), rtt_annual_days (numeric)
   - rtt_use_calendar_formula (boolean), rtt_use_forfait_jours_formula (boolean)
   - rtt_forfait_annual_days (int), rtt_forfait_cp_ouvres_deduction (numeric)
-  - rtt_year_end_reminder_enabled (boolean)
+  - rtt_year_end_reminder_enabled (boolean), rtt_forfait_cadres_only (boolean)
+
+---
+Table 'company_leave_notification_settings': Paramètres de rappels congés annuels.
+  - company_id (uuid, PK)
+  - enabled (boolean)
+  - notify_on_employee_request (boolean): email RH à la demande salarié.
+  - notify_after_manager_approval (boolean): email RH après validation manager.
+  - recipient_roles (text[]): ex. ['rh', 'admin']
+  - extra_recipient_emails (text[]): destinataires additionnels.
 
 ---
 Table 'employee_leave_adjustments': Soldes d'ouverture CP/RTT par salarié et année.
@@ -214,6 +227,11 @@ Table 'participation_bulletins': Bulletins d'option par salarié et campagne.
   - dispositif_type (text): 'participation', 'interessement'
   - status (text): 'draft', 'sent', 'responded', 'late', 'default_pee'
   - gross_amount (numeric), choice_type (text)
+
+---
+Table 'participation_campaign_advances': Avances/régularisations de campagne participation.
+  - campaign_id (uuid), employee_id (uuid), company_id (uuid)
+  - amount (numeric), status (text), created_at (timestamptz)
 
 ---
 Table 'expense_reports': Stocke les notes de frais soumises par les employés.
@@ -399,10 +417,36 @@ Table 'teams': Équipes de l'entreprise.
 ---
 Table 'companies': Entreprises clientes.
   - id (uuid, PK), company_name (text), is_active (boolean), group_id (uuid)
-  - dsn_sync_mode (text): mode synchronisation DSN
+  - dsn_sync_mode (text): mode synchronisation DSN (Valeurs: 'external', 'native', 'transition')
+  - nom_signataire_rh, qualite_signataire_rh (text): signataire RH des documents PDF.
   - service_sante_travail_nom, service_sante_travail_telephone, service_sante_travail_email (text)
   - service_sante_travail_adresse_rue, service_sante_travail_adresse_code_postal,
     service_sante_travail_adresse_ville (text)
+
+---
+Table 'company_dsn_payroll_totals': Agrégats mensuels de paie importés depuis DSN.
+  - company_id (uuid), period (text 'YYYY-MM')
+  - gross_salary, net_imposable, pas (numeric): brut, net imposable et PAS agrégés.
+  - employee_charges, employer_charges (numeric): charges salariales et patronales agrégées.
+  - employee_count (int), employees_with_gross (int)
+  - last_batch_id (uuid), imported_at (timestamptz)
+
+---
+Table 'company_psc_settings': Paramètres protection sociale complémentaire.
+  - company_id (uuid, PK), mutuelle_organisme_label (text)
+  - mutuelle_employee_self_service (boolean): choix formule ouvert aux salariés.
+
+---
+Table 'company_mutuelle_types': Catalogue mutuelle/prévoyance entreprise.
+  - id (uuid, PK), company_id (uuid), libelle (text), organisme_label (text), note (text)
+  - pack_couverture (text), statut_categoriel (text), code_option_dsn (text)
+  - code_organisme_dsn (text), reference_contrat_dsn (text), source (text)
+
+---
+Table 'employee_mutuelle_types': Choix mutuelle/prévoyance par salarié.
+  - employee_id (uuid), mutuelle_type_id (uuid)
+  - created_by (uuid), created_at (timestamptz)
+  - Jointures: employee_id → employees.id, mutuelle_type_id → company_mutuelle_types.id
 
 ---
 Table 'recruitment_jobs': Offres de recrutement.
@@ -446,10 +490,30 @@ Table 'training_enrollments': Inscriptions aux formations.
   - status (text): ex. 'planifie', 'realise', 'approuve_rh', 'completed'
 
 ---
+Table 'employee_objectives': Objectifs individuels et KPI.
+  - id (uuid, PK), company_id (uuid), employee_id (uuid), service_id (uuid)
+  - title (text), status (text), progress (numeric), period_year (int)
+
+---
+Table 'employee_competencies': Compétences associées aux salariés.
+  - id (uuid, PK), company_id (uuid), employee_id (uuid), competency_id (uuid)
+  - level (text/numeric selon référentiel), target_level (text/numeric)
+
+---
+Table 'employee_certifications': Habilitations/certifications salariés.
+  - id (uuid, PK), company_id (uuid), employee_id (uuid), certification_id (uuid)
+  - expiry_date (date), status (text)
+
+---
 Table 'generated_documents': Documents RH générés (contrats, attestations, bulletins).
   - id (uuid, PK), company_id (uuid), employee_id (uuid)
   - document_type (text), status (text): 'brouillon', 'envoye', 'signe'
   - created_at (timestamptz)
+
+---
+Table 'employee_documents': Documents salariés publiés/consultables.
+  - employee_id (uuid), company_id (uuid), document_type (text), title (text)
+  - category (text), status (text), created_at (timestamptz)
 
 ---
 Table 'medical_follow_up_obligations': Obligations de visite médicale.
@@ -488,6 +552,7 @@ Table 'employees': Fiche salarié (effectifs, contrat, paie).
 
 Table 'payslips': Bulletins de paie mensuels.
   - employee_id, month, year, payslip_data (jsonb: salaire_brut, net_a_payer, cout_total_employeur)
+  - bulletin_kind (null ou regularisation_participation)
 
 Table 'salary_history': Évolutions de salaire.
   - employee_id, effective_date, ancien_salaire/nouveau_salaire (jsonb), motif
@@ -509,6 +574,10 @@ Table 'absence_requests': Demandes d'absence.
 
 Table 'company_leave_settings': Paramètres CP/RTT entreprise.
   - company_id, cp_counting_unit, rtt_annual_days, rtt_use_forfait_jours_formula
+
+Table 'company_leave_notification_settings': Emails RH pour congés/absences.
+  - company_id, enabled, notify_on_employee_request, notify_after_manager_approval
+  - recipient_roles (text[]), extra_recipient_emails (text[])
 
 Table 'employee_leave_adjustments': Soldes ouverture CP/RTT par salarié.
   - employee_id, year, cp_n_opening_balance, rtt_opening_balance
@@ -557,6 +626,9 @@ Table 'participation_campaigns': Campagnes participation/intéressement.
 Table 'participation_bulletins': Bulletins d'option salariés.
   - campaign_id, employee_id, status, gross_amount, choice_type
 
+Table 'participation_campaign_advances': Avances/régularisations participation.
+  - campaign_id, employee_id, amount, status
+
 Table 'expense_reports': Notes de frais.
   - employee_id, date, amount, type, status (pending/validated/rejected)
 
@@ -569,6 +641,20 @@ Table 'company_bonus_types': Catalogue primes entreprise.
 
 Table 'company_payroll_variable_rules': Règles génération variables paie (astreinte, équipes, présence…).
   - company_id, code, rule_type, bonus_type_id, amount, generation_mode
+
+Table 'company_dsn_payroll_totals': Agrégats mensuels DSN.
+  - company_id, period (YYYY-MM), gross_salary, net_imposable, pas
+  - employee_charges, employer_charges, employee_count, employees_with_gross
+
+Table 'company_psc_settings': Paramètres PSC / mutuelle entreprise.
+  - company_id, mutuelle_organisme_label, mutuelle_employee_self_service
+
+Table 'company_mutuelle_types': Catalogue formules mutuelle/prévoyance.
+  - company_id, libelle, montant_salarial, montant_patronal, organisme_label
+  - pack_couverture (isole/famille/duo/autre), statut_categoriel (cadre/non_cadre/tous)
+
+Table 'employee_mutuelle_types': Formules mutuelle choisies par salarié.
+  - employee_id, mutuelle_type_id (+ jointure employees pour company_id)
 
 Table 'employee_time_entries': Pointages badgeuse bruts.
   - employee_id, company_id, timestamp, event_type (ENTREE/SORTIE), source
@@ -624,6 +710,15 @@ Table 'training_enrollments': Formations inscrites.
 Table 'training_budget': Budget formation annuel par entreprise.
   - company_id, year, global_envelope (numeric), service_breakdown (jsonb)
 
+Table 'employee_objectives': Objectifs individuels.
+  - employee_id, title, status, progress, period_year
+
+Table 'employee_competencies': Compétences salariés.
+  - employee_id, competency_id, level, target_level
+
+Table 'employee_certifications': Certifications/habilitations salariés.
+  - employee_id, certification_id, expiry_date, status
+
 Table 'medical_follow_up_obligations': Visites médicales à planifier.
   - employee_id, due_date, status (a_faire/planifiee/realisee)
 
@@ -632,6 +727,9 @@ Table 'employee_work_medal_cases': Médailles du travail.
 
 Table 'generated_documents': Documents générés.
   - employee_id, document_type, status
+
+Table 'employee_documents': Documents salariés publiés.
+  - employee_id, document_type, title, category, status
 
 Table 'collective_agreements_catalog': Catalogue CC (id, name, idcc, sector).
 Table 'company_collective_agreements': CC assignées (company_id, collective_agreement_id).

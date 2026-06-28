@@ -14,6 +14,7 @@ import { CompanySetupSummaryStep } from '@/features/admin-import/components/Comp
 import { PayrollExportImportPanel } from '@/features/admin-import/components/PayrollExportImportPanel';
 import { CpImportPanel } from '@/features/admin-import/components/CpImportPanel';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
+import { SeniorityImportPanel } from '@/features/admin-import/components/SeniorityImportPanel';
 import { CompanySetupDsnStepPanel } from '@/features/admin-import/components/CompanySetupDsnStepPanel';
 import { CompanySetupWizardFooter } from '@/features/admin-import/components/CompanySetupWizardFooter';
 import { useCompanyImport } from '@/features/admin-import/context/CompanyImportContext';
@@ -32,6 +33,7 @@ import type { DsnCoverageTimelineMonth } from '@/api/dsnImport';
 const WIZARD_STEP_ORDER = [
   'intro',
   'dsn',
+  'seniority',
   'payroll-export',
   'cp',
   'params',
@@ -142,6 +144,7 @@ export function CompanySetupWizard({
 
   const shouldSkipWizardStep = useCallback(
     (step: string) => {
+      if (step === 'seniority' && employeesEmpty) return true;
       if (step === 'payroll-export' && employeesEmpty) return true;
       if (step === 'cp' && skipCp) return true;
       if (step === 'planning' && skipPlanning) return true;
@@ -207,6 +210,14 @@ export function CompanySetupWizard({
             onAnalyze={(files) => onAnalyzeDsn?.(files)}
             onCellClick={onDsnCellClick}
           />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Sélectionnez une entreprise à l&apos;étape précédente.
+          </p>
+        );
+      case 'seniority':
+        return companyId ? (
+          <SeniorityImportPanel companyId={companyId} onComplete={afterStepAction} standalone />
         ) : (
           <p className="text-sm text-muted-foreground">
             Sélectionnez une entreprise à l&apos;étape précédente.

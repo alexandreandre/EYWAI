@@ -7,6 +7,7 @@ export { CompanyIdentityTab } from './components/CompanyIdentityTab';
 export { CompanyPayrollTab } from './components/CompanyPayrollTab';
 export { CompanyGroupPositionBand } from './components/CompanyGroupPositionBand';
 export { default as MutuelleManagementTab } from './components/MutuelleManagementTab';
+export { CompanyMutuelleSection } from './components/CompanyMutuelleSection';
 export { default as DocumentLibraryTab } from './components/DocumentLibraryTab';
 export { useCompanyPeriod } from './hooks/useCompanyPeriod';
 export {

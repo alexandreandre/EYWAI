@@ -30,6 +30,8 @@ def persist_batch_dsn_payroll_totals(
                 gross_salary=totals["gross_salary"],
                 net_imposable=totals["net_imposable"],
                 pas=totals["pas"],
+                employee_charges=totals.get("employee_charges", 0.0),
+                employer_charges=totals.get("employer_charges", 0.0),
                 employee_count=totals["employee_count"],
                 employees_with_gross=totals["employees_with_gross"],
                 last_batch_id=batch_id,

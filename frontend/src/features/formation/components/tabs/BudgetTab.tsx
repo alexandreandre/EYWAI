@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import axios from "axios";
 
 import {
   getAllBudgets,
@@ -136,13 +135,11 @@ export default function BudgetTab() {
   const notFound =
     budgetQuery.isFetched &&
     !budgetQuery.isLoading &&
-    (budgetQuery.isError || !budgetQuery.data) &&
-    axios.isAxiosError(budgetQuery.error) &&
-    budgetQuery.error.response?.status === 404;
+    budgetQuery.data == null &&
+    !budgetQuery.isError;
 
   const errOther =
-    budgetQuery.isError &&
-    (!axios.isAxiosError(budgetQuery.error) || budgetQuery.error.response?.status !== 404);
+    budgetQuery.isError;
 
   const gaugeData = budgetQuery.data;
   const fill = gaugeData

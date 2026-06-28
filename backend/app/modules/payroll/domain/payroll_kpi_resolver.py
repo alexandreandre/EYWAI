@@ -43,6 +43,8 @@ class DsnPeriodTotals:
     gross: float = 0.0
     net_imposable: float = 0.0
     pas: float = 0.0
+    employee_charges: float = 0.0
+    employer_charges: float = 0.0
     employee_count: int = 0
     employees_with_gross: int = 0
 
@@ -124,10 +126,18 @@ def aggregate_payslips_by_period(
 def dsn_row_to_totals(row: Optional[Dict[str, Any]]) -> DsnPeriodTotals:
     if not row:
         return DsnPeriodTotals()
+    gross = float(row.get("gross_salary") or 0)
+    net_imposable = float(row.get("net_imposable") or 0)
+    employee_charges = float(row.get("employee_charges") or 0)
+    employer_charges = float(row.get("employer_charges") or 0)
+    if employee_charges <= 0 and gross > net_imposable:
+        employee_charges = round(gross - net_imposable, 2)
     return DsnPeriodTotals(
-        gross=float(row.get("gross_salary") or 0),
-        net_imposable=float(row.get("net_imposable") or 0),
+        gross=gross,
+        net_imposable=net_imposable,
         pas=float(row.get("pas") or 0),
+        employee_charges=employee_charges,
+        employer_charges=employer_charges,
         employee_count=int(row.get("employee_count") or 0),
         employees_with_gross=int(row.get("employees_with_gross") or 0),
     )
@@ -173,15 +183,20 @@ def resolve_period_snapshot(
             dsn_totals.employee_count > 0
             and dsn_totals.employees_with_gross < dsn_totals.employee_count
         )
+        employee_charges = dsn_totals.employee_charges
+        employer_charges = dsn_totals.employer_charges
+        employer_cost = (
+            round(dsn_totals.gross + employer_charges, 2) if employer_charges > 0 else 0.0
+        )
         return PayrollPeriodSnapshot(
             period=period,
             source="dsn",
             source_label=f"Masse déclarée (DSN) · {period_label}",
             gross=dsn_totals.gross,
             net=dsn_totals.net_imposable,
-            employer_cost=0.0,
-            employee_charges=0.0,
-            employer_charges=0.0,
+            employer_cost=employer_cost,
+            employee_charges=employee_charges,
+            employer_charges=employer_charges,
             partial=partial,
             employee_count=dsn_totals.employee_count or None,
         )

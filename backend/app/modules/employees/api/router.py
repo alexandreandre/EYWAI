@@ -7,10 +7,11 @@ Comportement HTTP identique à api/routers/employees.py (legacy).
 
 import json
 import traceback
+from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from app.core.security import get_current_user
@@ -604,14 +605,37 @@ def get_employee_credentials_pdf_url(
 ):
     """(Espace RH) URL signée du PDF de création de compte."""
     try:
-        url = queries.get_credentials_pdf_url(employee_id)
-        preview_url = queries.get_credentials_pdf_preview_url(employee_id)
+        url, preview_url = queries.get_credentials_pdf_urls(employee_id)
         return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+
+@router.get("/{employee_id}/credentials-pdf/content")
+def stream_employee_credentials_pdf(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """(Espace RH) Aperçu inline du PDF identifiants (proxy storage authentifié)."""
+    try:
+        pdf_bytes, filename = queries.get_credentials_pdf_content(employee_id)
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}") from e
 
 
 @router.get("/{employee_id}/identity-document", response_model=ContractResponse)

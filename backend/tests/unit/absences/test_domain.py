@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
+from app.modules.absences.domain.cp_seniority import EmployeeCpSeniorityContext
 from app.modules.absences.domain.entities import AbsenceRequestEntity
 from app.modules.absences.domain.enums import (
     SALARY_CERTIFICATE_ABSENCE_TYPES,
@@ -439,3 +440,34 @@ class TestRttPolicy:
             hire_date, [], ref_year, policy=policy, adjustment=adjustment
         )
         assert status["already_closed"] is True
+
+    def test_year_end_status_requires_forfait_context_when_cadres_only(self):
+        hire_date = date(2020, 1, 1)
+        ref_year = 2026
+        policy = LeavePolicySettings(
+            rtt_use_forfait_jours_formula=True,
+            rtt_forfait_cadres_only=True,
+        )
+        forfait_ctx = EmployeeCpSeniorityContext(
+            hire_date=hire_date,
+            statut="Cadre forfait jour",
+        )
+        non_forfait_ctx = EmployeeCpSeniorityContext(
+            hire_date=hire_date,
+            statut="Employé",
+        )
+
+        without_ctx = get_rtt_year_end_status(
+            hire_date, [], ref_year, policy=policy
+        )
+        with_forfait = get_rtt_year_end_status(
+            hire_date, [], ref_year, policy=policy, employee_ctx=forfait_ctx
+        )
+        with_non_forfait = get_rtt_year_end_status(
+            hire_date, [], ref_year, policy=policy, employee_ctx=non_forfait_ctx
+        )
+
+        assert without_ctx["remaining"] == 0.0
+        assert with_non_forfait["remaining"] == 0.0
+        assert with_forfait["remaining"] > 0.0
+        assert with_forfait["closure_required"] is True

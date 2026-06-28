@@ -24,8 +24,8 @@ from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employee_exits.domain.rules import (
     exit_block_reason,
     get_initial_status,
-    get_reconciliation_archive_chain,
     get_valid_status_transitions,
+    resolve_archive_path,
 )
 from app.modules.employee_exits.application.queries import (
     EDIT_HISTORY_META_KEY,
@@ -245,6 +245,27 @@ def create_reconciliation_exit(
     return created
 
 
+def _advance_exit_to_archive(
+    exit_id: str,
+    company_id: str,
+    current_user_id: str,
+    exit_type: str,
+    current_status: str,
+    note: str,
+    sb: Any,
+) -> None:
+    """Applique les transitions successives menant un départ jusqu'à « archivee »."""
+    for target_status in resolve_archive_path(exit_type, current_status):
+        update_exit_status(
+            exit_id,
+            company_id,
+            target_status,
+            note,
+            current_user_id,
+            sb,
+        )
+
+
 def _fast_archive_reconciliation_exit(
     exit_id: str,
     company_id: str,
@@ -254,23 +275,62 @@ def _fast_archive_reconciliation_exit(
     sb: Any,
 ) -> None:
     """Enchaîne les transitions minimales vers archivee pour un départ passé."""
-    exit_repo = EmployeeExitRepository(sb)
-    current = exit_repo.get_by_id(exit_id, company_id)
-    current_status = (current or {}).get("status") or initial_status
-    note = "Clôture réconciliation DSN"
+    _advance_exit_to_archive(
+        exit_id,
+        company_id,
+        current_user_id,
+        exit_type,
+        initial_status,
+        "Clôture réconciliation DSN",
+        sb,
+    )
 
-    for target_status in get_reconciliation_archive_chain(exit_type):
-        if current_status == target_status:
-            continue
-        update_exit_status(
-            exit_id,
-            company_id,
-            target_status,
-            note,
-            current_user_id,
-            sb,
+
+def close_and_archive_exit(
+    exit_id: str,
+    company_id: str,
+    current_user_id: str,
+    *,
+    note: Optional[str] = None,
+    supabase_client: Any = None,
+) -> Dict[str, Any]:
+    """
+    Clôture un départ en l'amenant jusqu'au statut « archivee » depuis son statut
+    courant (enchaîne les transitions réglementaires valides).
+
+    Réutilise ``update_exit_status`` : conserve les effets de l'archivage (salarié
+    marqué « parti », nettoyage des bulletins). Idempotent si déjà archivé.
+    """
+    sb = supabase_client or supabase
+    exit_repo = EmployeeExitRepository(sb)
+    exit_data = exit_repo.get_by_id(exit_id, company_id)
+    if not exit_data:
+        raise EmployeeExitApplicationError(404, "Départ non trouvé")
+    current_status = str(exit_data.get("status") or "")
+    if current_status == "archivee":
+        return exit_data
+    if current_status == "annulee":
+        raise EmployeeExitApplicationError(
+            400, "Un départ annulé ne peut pas être archivé."
         )
-        current_status = target_status
+    exit_type = str(exit_data.get("exit_type") or "")
+    path = resolve_archive_path(exit_type, current_status)
+    if not path or path[-1] != "archivee":
+        raise EmployeeExitApplicationError(
+            400,
+            "Impossible de déterminer le chemin d'archivage pour ce départ.",
+        )
+    _advance_exit_to_archive(
+        exit_id,
+        company_id,
+        current_user_id,
+        exit_type,
+        current_status,
+        note or "Clôture du départ",
+        sb,
+    )
+    refreshed = exit_repo.get_by_id(exit_id, company_id)
+    return refreshed or exit_data
 
 
 def _format_last_working_day_fr(exit_full_data: Dict[str, Any]) -> str:

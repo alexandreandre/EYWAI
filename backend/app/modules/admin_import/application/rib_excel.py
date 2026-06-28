@@ -6,6 +6,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.shared.utils.xlsx_safe import iter_sheet_rows
@@ -141,6 +142,10 @@ def find_header_row_index(raw_rows: List[List[str]], *, max_scan: int = MAX_HEAD
 def _cell_str(value: Any) -> str:
     if value is None:
         return ""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value).strip()

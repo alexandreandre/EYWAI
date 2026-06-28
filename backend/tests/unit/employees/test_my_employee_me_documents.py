@@ -97,13 +97,9 @@ class TestMyEmployeeMeDocumentsResolve:
                     return_value=TEST_EMPLOYEE_ID,
                 ),
                 patch(
-                    "app.modules.employees.api.router_me.queries.get_credentials_pdf_url",
-                    return_value="https://signed-credentials",
+                    "app.modules.employees.api.router_me.queries.get_credentials_pdf_urls",
+                    return_value=("https://signed-credentials", "/api/employees/me/credentials-pdf/content"),
                 ) as mock_credentials,
-                patch(
-                    "app.modules.employees.api.router_me.queries.get_credentials_pdf_preview_url",
-                    return_value="https://preview-credentials",
-                ),
             ):
                 response = client.get("/api/employees/me/credentials-pdf")
         finally:
@@ -111,7 +107,11 @@ class TestMyEmployeeMeDocumentsResolve:
 
         assert response.status_code == 200
         assert response.json()["url"] == "https://signed-credentials"
-        mock_credentials.assert_called_once_with(TEST_EMPLOYEE_ID)
+        assert response.json()["preview_url"] == "/api/employees/me/credentials-pdf/content"
+        mock_credentials.assert_called_once_with(
+            TEST_EMPLOYEE_ID,
+            preview_path="/api/employees/me/credentials-pdf/content",
+        )
 
     def test_get_my_published_exit_documents_uses_resolved_employee_id(
         self, client: TestClient

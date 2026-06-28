@@ -33,6 +33,8 @@ import { OnboardingHubPage } from "@/components/onboarding/OnboardingHubPage";
 import { OnboardingKpiBand } from "@/components/onboarding/OnboardingKpiBand";
 import { OnboardingTaskItem } from "@/components/onboarding/OnboardingTaskItem";
 import { EmployeeOnboardingCompletion } from "@/features/employee-detail/components/EmployeeOnboardingCompletion";
+import { EmployeeMutuelleChoiceCard } from "@/features/onboarding/components/EmployeeMutuelleChoiceCard";
+import { RhOnboardingMutuelleBanner } from "@/features/onboarding/components/RhOnboardingMutuelleBanner";
 import { EmployeeProfileEditDialog } from "@/features/employee-detail/components/EmployeeProfileEditDialog";
 import { isProfileIncomplete } from "@/features/employee-detail/components/employeeProfileFormUtils";
 import { OnboardingTimeline } from "@/components/onboarding/OnboardingTimeline";
@@ -370,6 +372,19 @@ export default function OnboardingPage() {
             l&apos;avancement sans les modifier.
           </AlertDescription>
         </Alert>
+      ) : null}
+
+      {isEmployeeView ? (
+        <div className="print:hidden">
+          <EmployeeMutuelleChoiceCard employeeStatut={employee?.statut} />
+        </div>
+      ) : null}
+
+      {isRh && employee ? (
+        <RhOnboardingMutuelleBanner
+          employee={employee}
+          onOpenEdit={() => setProfileEditOpen(true)}
+        />
       ) : null}
 
       {isEmployeeView ? (

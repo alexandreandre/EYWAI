@@ -93,6 +93,11 @@ class IStorageProvider(ABC):
     ) -> None:
         pass
 
+    @abstractmethod
+    def download(self, bucket: str, path: str) -> bytes:
+        """Télécharge le contenu binaire d'un objet storage."""
+        pass
+
 
 class ICompanyReader(ABC):
     """Port pour la lecture des données entreprise (company_name, siret, email)."""

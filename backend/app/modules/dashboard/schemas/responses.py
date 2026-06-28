@@ -40,6 +40,7 @@ class ChartDataPoint(BaseModel):
     name: str
     Net_Verse: float
     Charges: float
+    stackMode: Optional[Literal["employer_cost", "gross"]] = "employer_cost"
     source: Optional[Literal["payslip", "dsn", "none"]] = None
     period: Optional[str] = None
 

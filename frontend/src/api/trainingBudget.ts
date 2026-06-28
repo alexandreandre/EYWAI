@@ -1,3 +1,4 @@
+import axios from 'axios';
 import apiClient from "./apiClient";
 
 export type TrainingBudgetAlertLevel = "none" | "warning" | "critical";
@@ -28,9 +29,16 @@ export type TrainingBudgetSave = {
   service_breakdown?: Record<string, unknown>;
 };
 
-export async function getBudget(year: number): Promise<TrainingBudgetWithConsumption> {
-  const res = await apiClient.get<TrainingBudgetWithConsumption>(`/api/training-budget/${year}`);
-  return res.data;
+export async function getBudget(year: number): Promise<TrainingBudgetWithConsumption | null> {
+  try {
+    const res = await apiClient.get<TrainingBudgetWithConsumption>(`/api/training-budget/${year}`);
+    return res.data;
+  } catch (e) {
+    if (axios.isAxiosError(e) && e.response?.status === 404) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function getAllBudgets(): Promise<TrainingBudgetWithConsumption[]> {

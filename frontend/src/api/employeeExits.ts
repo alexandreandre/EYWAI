@@ -426,6 +426,17 @@ export async function updateExitStatus(
 }
 
 /**
+ * Clôture et archive un départ (enchaîne les transitions jusqu'à « archivée »).
+ * Marque le salarié comme « parti ».
+ */
+export async function archiveEmployeeExit(
+  exitId: string
+): Promise<{ success: boolean; exit: EmployeeExit; message?: string }> {
+  const response = await apiClient.post(`/api/employee-exits/${exitId}/archive`);
+  return response.data;
+}
+
+/**
  * Supprime une sortie (admin seulement)
  */
 export async function deleteEmployeeExit(exitId: string): Promise<void> {

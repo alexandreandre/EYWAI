@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Set
 
 from app.modules.collective_agreements.rules.prime_calcul import (
+    cap_anciennete_annees,
     check_eligibilite_prime_anciennete,
     compute_anciennete_annees,
     calculer_prime_anciennete_plein_mois,
@@ -17,6 +18,7 @@ from app.modules.collective_agreements.rules.resolver import (
 )
 from app.modules.payroll.engine.contexte import ContextePaie
 from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
+from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 
 
 def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> dict[str, Any]:
@@ -37,11 +39,15 @@ def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> d
 
 
 def _resolve_date_entree(contexte: ContextePaie | Any) -> str:
-    """Date d'entrée — property ContextePaie ou chemin contrat (mocks legacy)."""
+    """Date d'ancienneté pour la prime — reprise prioritaire sur date d'embauche."""
+    contrat = getattr(contexte, "contrat", None) or {}
+    if isinstance(contrat, dict):
+        ref = resolve_date_anciennete_from_contrat(contrat)
+        if ref:
+            return ref
     direct = getattr(contexte, "date_entree", None)
     if direct:
         return str(direct)
-    contrat = getattr(contexte, "contrat", None) or {}
     if isinstance(contrat, dict):
         return contrat.get("contrat", {}).get("date_entree") or ""
     return ""
@@ -88,6 +94,7 @@ def calculer_ligne_prime_anciennete(
     anciennete_annees = compute_anciennete_annees(
         date_entree, date_fin_periode, mode="floor"
     )
+    anciennete_annees = cap_anciennete_annees(anciennete_annees, regles_prime)
 
     eligible, motif = check_eligibilite_prime_anciennete(
         regles_prime=regles_prime,

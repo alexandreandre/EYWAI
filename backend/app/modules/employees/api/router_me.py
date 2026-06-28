@@ -5,6 +5,8 @@ from __future__ import annotations
 import traceback
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 
 from app.core.security import get_current_user
 from app.modules.employees.api.deps import resolve_my_employee_id
@@ -77,14 +79,38 @@ def get_my_credentials_pdf(current_user: User = Depends(get_current_user)):
     """(Espace Employé) URL signée du PDF identifiants de connexion."""
     try:
         employee_id = resolve_my_employee_id(current_user)
-        url = queries.get_credentials_pdf_url(employee_id)
-        preview_url = queries.get_credentials_pdf_preview_url(employee_id)
+        url, preview_url = queries.get_credentials_pdf_urls(
+            employee_id,
+            preview_path="/api/employees/me/credentials-pdf/content",
+        )
         return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
         raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+
+@me_router.get("/me/credentials-pdf/content")
+def stream_my_credentials_pdf(current_user: User = Depends(get_current_user)):
+    """(Espace Employé) Aperçu inline du PDF identifiants."""
+    try:
+        employee_id = resolve_my_employee_id(current_user)
+        pdf_bytes, filename = queries.get_credentials_pdf_content(employee_id)
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}") from e
 
 
 @me_router.get("/me/published-exit-documents")

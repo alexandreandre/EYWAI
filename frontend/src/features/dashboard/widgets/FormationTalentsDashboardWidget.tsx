@@ -30,13 +30,10 @@ export function FormationTalentsDashboardWidget() {
   const expired = certs.isError ? null : (certs.data?.expired ?? 0);
   const expiring = certs.isError ? null : (certs.data?.expiring ?? 0);
   const overdueCount = overdue.isError ? null : (overdue.data?.count ?? 0);
+  const budgetData = budget.data ?? null;
   const pct =
-    budget.isError || !budget.data
-      ? null
-      : Math.min(100, Math.max(0, budget.data.consumption_pct));
-  const alertLevel: TrainingBudgetAlertLevel | null = budget.isError
-    ? null
-    : (budget.data?.alert_level ?? 'none');
+    budgetData == null ? null : Math.min(100, Math.max(0, budgetData.consumption_pct));
+  const alertLevel: TrainingBudgetAlertLevel | null = budgetData?.alert_level ?? null;
   const rate =
     achievement.isError || achievement.data?.rate == null
       ? null
@@ -122,6 +119,10 @@ export function FormationTalentsDashboardWidget() {
             <span className="text-xs font-medium text-muted-foreground">Budget formation consommé</span>
             {budget.isLoading ? (
               <FormationTalentsCellLoader />
+            ) : budget.isError ? (
+              <p className="mt-3 text-sm text-muted-foreground">Indisponible</p>
+            ) : budgetData == null ? (
+              <p className="mt-3 text-sm text-muted-foreground">Non configuré</p>
             ) : pct == null || alertLevel == null ? (
               <p className="mt-3 text-sm text-muted-foreground">—</p>
             ) : (

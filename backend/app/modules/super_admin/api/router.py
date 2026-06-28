@@ -9,13 +9,31 @@ Module autonome : ne dépend pas de app.modules.users ni app.modules.companies.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 
+from app.modules.mutuelle_types.application.commands import (
+    create_mutuelle_type,
+    delete_mutuelle_type,
+    update_mutuelle_type,
+)
+from app.modules.mutuelle_types.application.psc_settings import (
+    get_psc_settings,
+    upsert_psc_settings,
+)
+from app.modules.mutuelle_types.application.queries import list_mutuelle_types
+from app.modules.mutuelle_types.schemas import (
+    MutuelleTypeCreate,
+    MutuelleTypeUpdate,
+)
+from app.modules.mutuelle_types.schemas.psc_settings import (
+    PscSettingsResponse,
+    PscSettingsUpdate,
+)
 from app.modules.super_admin.application import commands, queries
 from app.modules.super_admin.application.service import (
     SuperAdminAccessError,
@@ -77,6 +95,11 @@ def _map_exceptions(e: Exception) -> HTTPException:
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail=f"Erreur : {str(e)}",
     )
+
+
+def _super_admin_actor_id(super_admin: Dict[str, Any]) -> str:
+    """Identifiant auth de l'admin plateforme (audit created_by)."""
+    return str(super_admin.get("user_id") or super_admin.get("id") or "")
 
 
 # ----- Dashboard & statistiques -----
@@ -249,6 +272,109 @@ async def purge_all_company_employees_stream(
             ) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+
+@router.get("/companies/{company_id}/mutuelle-types")
+async def get_company_mutuelle_types(
+    company_id: str,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> List[dict]:
+    """Catalogue mutuelle d'une entreprise (pilotage plateforme)."""
+    _ = super_admin
+    try:
+        queries.get_company_details(company_id)
+        return list_mutuelle_types(company_id)
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.post("/companies/{company_id}/mutuelle-types", status_code=201)
+async def create_company_mutuelle_type(
+    company_id: str,
+    payload: MutuelleTypeCreate,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
+    """Crée une formule mutuelle pour une entreprise."""
+    try:
+        queries.get_company_details(company_id)
+        return create_mutuelle_type(
+            company_id,
+            _super_admin_actor_id(super_admin),
+            payload,
+        )
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.put("/companies/{company_id}/mutuelle-types/{mutuelle_type_id}")
+async def update_company_mutuelle_type(
+    company_id: str,
+    mutuelle_type_id: str,
+    payload: MutuelleTypeUpdate,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
+    """Met à jour une formule mutuelle d'une entreprise."""
+    try:
+        queries.get_company_details(company_id)
+        return update_mutuelle_type(
+            mutuelle_type_id,
+            company_id,
+            _super_admin_actor_id(super_admin),
+            payload,
+        )
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.delete("/companies/{company_id}/mutuelle-types/{mutuelle_type_id}")
+async def delete_company_mutuelle_type(
+    company_id: str,
+    mutuelle_type_id: str,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
+    """Supprime une formule mutuelle d'une entreprise."""
+    _ = super_admin
+    try:
+        queries.get_company_details(company_id)
+        return delete_mutuelle_type(mutuelle_type_id, company_id)
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.get(
+    "/companies/{company_id}/psc-settings",
+    response_model=PscSettingsResponse,
+)
+async def get_company_psc_settings(
+    company_id: str,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
+    """Paramètres PSC (organisme mutuelle) d'une entreprise."""
+    _ = super_admin
+    try:
+        queries.get_company_details(company_id)
+        return get_psc_settings(company_id)
+    except Exception as e:
+        raise _map_exceptions(e)
+
+
+@router.put(
+    "/companies/{company_id}/psc-settings",
+    response_model=PscSettingsResponse,
+)
+async def update_company_psc_settings(
+    company_id: str,
+    payload: PscSettingsUpdate,
+    super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
+    """Met à jour les paramètres PSC d'une entreprise."""
+    _ = super_admin
+    try:
+        queries.get_company_details(company_id)
+        data = payload.model_dump(exclude_unset=True)
+        return upsert_psc_settings(company_id, **data)
+    except Exception as e:
+        raise _map_exceptions(e)
 
 
 # ----- Users (global) -----

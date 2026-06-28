@@ -16,7 +16,10 @@ from app.modules.employees.application.credentials_pdf import (
     CREDENTIALS_FILENAME,
     find_credentials_pdf_path,
 )
-from app.modules.employees.domain.rules import default_company_data_fallback
+from app.modules.employees.domain.rules import (
+    default_company_data_fallback,
+    is_dsn_import_placeholder_email,
+)
 from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.infrastructure.providers import (
     generate_credentials_pdf,
@@ -73,6 +76,10 @@ def provision_collaborator_account(
     email = str(employee.get("email") or "").strip()
     if not email:
         raise ValueError("Email obligatoire pour créer le compte collaborateur")
+    if is_dsn_import_placeholder_email(email):
+        raise ValueError(
+            "Compte non activé : renseignez un email professionnel avant de créer l'accès."
+        )
 
     first_name = str(employee.get("first_name") or "").strip()
     last_name = str(employee.get("last_name") or "").strip()

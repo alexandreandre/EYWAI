@@ -28,6 +28,8 @@ class MutuelleType:
     code_option_dsn: Optional[str] = None
     code_organisme_dsn: Optional[str] = None
     reference_contrat_dsn: Optional[str] = None
+    organisme_label: Optional[str] = None
+    note: Optional[str] = None
     source: str = "manual"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

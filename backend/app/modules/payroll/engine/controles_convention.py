@@ -223,7 +223,7 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     if not regles_prime:
         return []
 
-    date_entree = contexte.date_entree
+    date_entree = getattr(contexte, "date_anciennete_prime", None) or contexte.date_entree
     if not date_entree:
         return []
 
@@ -232,6 +232,9 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     ref = getattr(contexte, "date_fin_periode", None) or date_cls.today()
     resolved = resolve_prime_anciennete_config(regles_prime, contexte.entreprise)
     anciennete = compute_anciennete_annees(date_entree, ref, mode="floor")
+    from app.modules.collective_agreements.rules.prime_calcul import cap_anciennete_annees
+
+    anciennete = cap_anciennete_annees(anciennete, regles_prime)
     eligible, motif = check_eligibilite_prime_anciennete(
         regles_prime=regles_prime,
         contrat=contexte.contrat,

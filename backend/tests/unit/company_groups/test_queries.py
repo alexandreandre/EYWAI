@@ -196,8 +196,12 @@ class TestGetGroupConsolidatedStats:
                 return_value=dashboard_data,
             ),
             patch(
+                "app.modules.payroll.application.payroll_kpi_queries.ConsolidatedPayrollContext.build",
+                return_value=MagicMock(),
+            ),
+            patch(
                 "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
-                side_effect=lambda payload, _ids, _period: payload,
+                side_effect=lambda payload, _ids, _period, **kwargs: payload,
             ),
         ):
             result = queries.get_group_consolidated_stats(
@@ -251,6 +255,14 @@ class TestGetGroupConsolidatedStats:
                 f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
                 side_effect=[month_a, month_b],
             ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.ConsolidatedPayrollContext.build",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
+                side_effect=lambda payload, _ids, _period, **kwargs: payload,
+            ),
         ):
             result = queries.get_group_consolidated_stats(
                 "g1",
@@ -286,8 +298,12 @@ class TestGetGroupConsolidatedStats:
                 side_effect=[current, previous],
             ),
             patch(
+                "app.modules.payroll.application.payroll_kpi_queries.ConsolidatedPayrollContext.build",
+                return_value=MagicMock(),
+            ),
+            patch(
                 "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
-                side_effect=lambda payload, _ids, _period: payload,
+                side_effect=lambda payload, _ids, _period, **kwargs: payload,
             ),
         ):
             result = queries.get_group_consolidated_stats(
@@ -338,6 +354,10 @@ class TestGetGroupPayrollEvolution:
             patch(
                 f"{MODULE_QUERIES}.call_get_group_payroll_evolution",
                 return_value=evolution,
+            ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.enrich_payroll_evolution_with_dsn",
+                side_effect=lambda points, _ids: points,
             ),
         ):
             result = queries.get_group_payroll_evolution(

@@ -70,6 +70,8 @@ class MutuelleTypesService:
             code_option_dsn=payload.code_option_dsn,
             code_organisme_dsn=payload.code_organisme_dsn,
             reference_contrat_dsn=payload.reference_contrat_dsn,
+            organisme_label=payload.organisme_label,
+            note=payload.note,
             created_at=None,
             updated_at=None,
             created_by=None,

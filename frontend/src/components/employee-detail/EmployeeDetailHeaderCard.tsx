@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { EmployeeDetailLeaveBalancesSummary } from '@/components/employee-detail/EmployeeDetailLeaveBalancesSummary';
+import { openSignedUrlPreview } from '@/lib/openSignedUrlPreview';
 export interface EmployeeDetailHeaderEmployee {
   id: string;
   first_name: string;
@@ -79,6 +80,7 @@ export interface EmployeeDetailHeaderEmployee {
 interface EmployeeDetailHeaderCardProps {
   employee: EmployeeDetailHeaderEmployee;
   credentialsPdfUrl: string | null;
+  credentialsPdfPreviewUrl?: string | null;
   onDelete: () => void | Promise<void>;
   isDeleting?: boolean;
   activeTeams: Team[];
@@ -132,6 +134,7 @@ function TeamColorDot({ color }: { color: string }) {
 export function EmployeeDetailHeaderCard({
   employee,
   credentialsPdfUrl,
+  credentialsPdfPreviewUrl = null,
   onDelete,
   isDeleting = false,
   activeTeams,
@@ -178,21 +181,30 @@ export function EmployeeDetailHeaderCard({
 
   const pdfFileName = `Compte_${employee.first_name}_${employee.last_name}.pdf`;
 
+  const hasCredentialsPdf = Boolean(credentialsPdfUrl || credentialsPdfPreviewUrl);
+
+  const openCredentialsPdfPreview = () => {
+    const previewUrl = credentialsPdfPreviewUrl ?? credentialsPdfUrl;
+    if (!previewUrl) return;
+    openSignedUrlPreview(previewUrl, {
+      title: 'Identifiants de connexion',
+      downloadUrl: credentialsPdfUrl ?? previewUrl,
+      downloadName: pdfFileName,
+    });
+  };
+
   const menuItems: Array<{ key: string; node: React.ReactNode }> = [];
 
-  if (credentialsPdfUrl && showOnboarding) {
+  if (hasCredentialsPdf) {
     menuItems.push({
       key: 'pdf',
       node: (
-        <DropdownMenuItem asChild>
-          <a
-            href={credentialsPdfUrl}
-            download={pdfFileName}
-            className="flex cursor-pointer items-center"
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            PDF création de compte
-          </a>
+        <DropdownMenuItem
+          className="flex cursor-pointer items-center"
+          onClick={openCredentialsPdfPreview}
+        >
+          <UserPlus className="mr-2 h-4 w-4" />
+          PDF création de compte
         </DropdownMenuItem>
       ),
     });
@@ -284,14 +296,6 @@ export function EmployeeDetailHeaderCard({
                   <ClipboardList className="mr-2 h-4 w-4" />
                   Voir l&apos;onboarding
                 </Link>
-              </Button>
-            ) : null}
-            {credentialsPdfUrl && !showOnboarding ? (
-              <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
-                <a href={credentialsPdfUrl} download={pdfFileName} title={pdfFileName}>
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  PDF compte
-                </a>
               </Button>
             ) : null}
             {showActionsMenu ? (

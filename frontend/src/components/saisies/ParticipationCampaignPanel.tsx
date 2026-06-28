@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Download, Megaphone, RefreshCw, Send } from 'lucide-react';
+import { Download, FileText, Megaphone, RefreshCw, Send } from 'lucide-react';
 
 import {
   bulletinStatusLabel,
@@ -8,6 +8,7 @@ import {
   closeCampaignDefaults,
   createCampaign,
   generateCampaignPayrollLines,
+  generateRegularisationPayslip,
   listCampaignBulletins,
   listCampaigns,
   publishCampaign,
@@ -209,6 +210,28 @@ export function ParticipationCampaignPanel({
         'Génération impossible.';
       toast({ title: 'Erreur', description: String(detail), variant: 'destructive' });
     },
+  });
+
+  const [regulPendingId, setRegulPendingId] = useState<string | null>(null);
+  const regulMut = useMutation({
+    mutationFn: (bulletinId: string) => generateRegularisationPayslip(bulletinId),
+    onMutate: (bulletinId: string) => setRegulPendingId(bulletinId),
+    onSuccess: (data) => {
+      if (data.download_url) {
+        window.open(data.download_url, '_blank', 'noopener');
+      }
+      toast({
+        title: 'Bulletin de régularisation généré',
+        description: `Participation versée sur la paie ${String(data.month).padStart(2, '0')}/${data.year}.`,
+      });
+    },
+    onError: (e: unknown) => {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Génération impossible.';
+      toast({ title: 'Erreur', description: String(detail), variant: 'destructive' });
+    },
+    onSettled: () => setRegulPendingId(null),
   });
 
   const exportNatixisCsv = () => {
@@ -422,6 +445,7 @@ export function ParticipationCampaignPanel({
                   <TableHead>Choix</TableHead>
                   <TableHead className="text-right">PEE</TableHead>
                   <TableHead className="text-right">Numéraire</TableHead>
+                  <TableHead className="text-right">Bulletin</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,6 +463,18 @@ export function ParticipationCampaignPanel({
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(b.cash_amount ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Générer un bulletin de paie de régularisation (y compris salarié parti)"
+                        disabled={regulMut.isPending && regulPendingId === b.id}
+                        onClick={() => regulMut.mutate(b.id)}
+                      >
+                        <FileText className="mr-1 h-4 w-4" />
+                        Régularisation
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

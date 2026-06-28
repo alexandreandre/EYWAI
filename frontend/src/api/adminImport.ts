@@ -102,6 +102,90 @@ export async function commitRibImport(payload: {
   return data;
 }
 
+export type SeniorityImportRowPreview = {
+  row_index: number;
+  raw_identity: string;
+  matricule?: string | null;
+  seniority_date_raw: string;
+  seniority_date?: string | null;
+  employee_id?: string | null;
+  matched_name?: string | null;
+  match_confidence: RibMatchConfidence;
+  match_method: RibMatchMethod;
+  review_status: RibReviewStatus;
+  warnings: string[];
+  current_seniority_date?: string | null;
+  current_hire_date?: string | null;
+  unchanged: boolean;
+  raw_row: Record<string, string>;
+};
+
+export type SeniorityImportMissingEmployee = {
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  current_seniority_date?: string | null;
+  current_hire_date?: string | null;
+};
+
+export type SeniorityImportParseResponse = {
+  company_id: string;
+  company_name: string;
+  headers: string[];
+  column_mapping: Record<string, string>;
+  rows: SeniorityImportRowPreview[];
+  roster: RibImportRosterEmployee[];
+  missing_employees: SeniorityImportMissingEmployee[];
+  summary: {
+    total: number;
+    ready: number;
+    warning: number;
+    error: number;
+    unchanged: number;
+    skipped_junk?: number;
+    active_employees?: number;
+    matched_employees?: number;
+    missing_employees?: number;
+  };
+};
+
+export type SeniorityImportCommitRow = {
+  row_index: number;
+  employee_id: string;
+  seniority_date: string;
+  confirmed: boolean;
+};
+
+export type SeniorityImportCommitResponse = RibImportCommitResponse;
+
+export async function parseSeniorityImportFile(
+  companyId: string,
+  file: File,
+): Promise<SeniorityImportParseResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post<SeniorityImportParseResponse>(
+    '/api/admin-import/seniority/parse',
+    form,
+    {
+      params: { company_id: companyId },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    },
+  );
+  return data;
+}
+
+export async function commitSeniorityImport(payload: {
+  company_id: string;
+  rows: SeniorityImportCommitRow[];
+}): Promise<SeniorityImportCommitResponse> {
+  const { data } = await apiClient.post<SeniorityImportCommitResponse>(
+    '/api/admin-import/seniority/commit',
+    payload,
+  );
+  return data;
+}
+
 export type CpMatchConfidence = RibMatchConfidence;
 export type CpReviewStatus = RibReviewStatus;
 export type CpMatchMethod = RibMatchMethod;

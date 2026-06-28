@@ -85,3 +85,13 @@ class LeaveAdjustmentImportResult(BaseModel):
 class RttYearEndCloseResult(BaseModel):
     closed_count: int
     total_days_forfeited: float
+
+
+class LeaveNotificationSettingsResponse(BaseModel):
+    company_id: str
+    enabled: bool
+    notify_on_employee_request: bool
+    notify_after_manager_approval: bool
+    recipient_roles: List[str]
+    extra_recipient_emails: List[str]
+    configured: bool = False

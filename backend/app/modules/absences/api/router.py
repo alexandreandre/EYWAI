@@ -41,6 +41,7 @@ from app.modules.absences.application import (
     cp_seniority_queries,
     fractionnement_queries,
     leave_campaign_queries,
+    leave_notification_settings,
     leave_settings_commands,
     leave_settings_queries,
     notifications as absence_notif,
@@ -51,6 +52,7 @@ from app.modules.absences.schemas.leave_settings import (
     EmployeeLeaveAdjustmentUpdate,
     EmployeeRttSoldeUpdate,
     LeaveAdjustmentImportRequest,
+    LeaveNotificationSettingsUpdate,
     LeaveSettingsUpdate,
     RttYearEndCloseRequest,
 )
@@ -58,6 +60,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
     EmployeeLeaveAdjustmentResponse,
     LeaveAdjustmentImportResult,
     LeaveBalancesOverviewResponse,
+    LeaveNotificationSettingsResponse,
     LeaveSettingsResponse,
     RttYearEndCloseResult,
     RttYearEndOverviewResponse,
@@ -131,6 +134,16 @@ def _require_rh_company_context(current_user: User) -> str:
     if current_user.is_platform_admin:
         return company_id
     if not current_user.has_rh_access_in_company(company_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    return company_id
+
+
+def _require_leave_notification_settings_write(current_user: User) -> str:
+    company_id = _require_rh_company_context(current_user)
+    if current_user.is_platform_admin:
+        return company_id
+    role = current_user.get_role_in_company(company_id)
+    if role not in ("admin", "rh"):
         raise HTTPException(status_code=403, detail="Accès non autorisé")
     return company_id
 
@@ -212,7 +225,9 @@ def _resolve_create_absence_employee_id(
     company_id = current_user.active_company_id
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active.")
-    my_id = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
+    my_id = absence_router.resolve_employee_id_for_user(
+        str(current_user.id), str(company_id)
+    )
     if not my_id:
         raise HTTPException(
             status_code=404,
@@ -259,10 +274,7 @@ async def create_absence_request(
             company_id is not None
             and current_user.has_rh_access_in_company(str(company_id))
         )
-        if (
-            not is_rh
-            and request_data.type in SALARY_CERTIFICATE_ABSENCE_TYPES
-        ):
+        if not is_rh and request_data.type in SALARY_CERTIFICATE_ABSENCE_TYPES:
             raise HTTPException(
                 status_code=403,
                 detail=(
@@ -278,9 +290,7 @@ async def create_absence_request(
             current_user, request_data.employee_id
         )
         if employee_id != request_data.employee_id:
-            request_data = request_data.model_copy(
-                update={"employee_id": employee_id}
-            )
+            request_data = request_data.model_copy(update={"employee_id": employee_id})
         data = commands.create_absence_request(
             request_data,
             enforce_conge_paye_balance=not is_rh,
@@ -297,9 +307,7 @@ async def create_absence_request(
                 "validated",
                 current_user_id=str(current_user.id),
             )
-            data2 = absence_router.update_absence(
-                rid, {"workflow_step": "approved_rh"}
-            )
+            data2 = absence_router.update_absence(rid, {"workflow_step": "approved_rh"})
             data = data2 or data
             try:
                 _notify_rh_status_change(req_before, "validated")
@@ -328,6 +336,10 @@ async def create_absence_request(
                         d0,
                         d1,
                     )
+                absence_notif.notify_leave_request_email(
+                    data,
+                    event="employee_request",
+                )
             except Exception:
                 _log.exception("[absences] notifications création ignorées")
         r = _enrich_single_absence_row(dict(data))
@@ -462,7 +474,9 @@ async def list_pending_manager_approval(
         company_id = _require_active_company_absences(current_user)
         rows = absence_router.list_pending_manager_approval(company_id)
         if not current_user.has_rh_access_in_company(company_id):
-            me = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
+            me = absence_router.resolve_employee_id_for_user(
+                str(current_user.id), str(company_id)
+            )
             if not me:
                 raise HTTPException(
                     status_code=403,
@@ -498,7 +512,9 @@ async def manager_approve_absence(
                 raise ValueError("Un motif de refus est requis.")
 
         if not current_user.has_rh_access_in_company(company_id):
-            me = absence_router.resolve_employee_id_for_user(str(current_user.id), str(company_id))
+            me = absence_router.resolve_employee_id_for_user(
+                str(current_user.id), str(company_id)
+            )
             if not me:
                 raise HTTPException(
                     status_code=403,
@@ -507,9 +523,7 @@ async def manager_approve_absence(
             row = absence_router.get_absence_by_id(absence_id)
             if not row:
                 raise LookupError("Demande introuvable.")
-            mgr = absence_router.get_team_manager_employee_id(
-                str(row["employee_id"])
-            )
+            mgr = absence_router.get_team_manager_employee_id(str(row["employee_id"]))
             if mgr != me:
                 raise HTTPException(
                     status_code=403,
@@ -530,6 +544,10 @@ async def manager_approve_absence(
             at = str(data.get("type") or "")
             if body.approved:
                 absence_notif.notify_absence_approved(eid, cid, at, d0, d1)
+                absence_notif.notify_leave_request_email(
+                    data,
+                    event="manager_approval",
+                )
             else:
                 absence_notif.notify_absence_rejected(
                     eid,
@@ -820,6 +838,36 @@ async def mark_salary_certificate_transmitted(
 
 
 # ----- Paramètres congés / RTT -----
+
+
+@router.get(
+    "/leave-notification-settings",
+    response_model=LeaveNotificationSettingsResponse,
+)
+async def get_leave_notification_settings_route(
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_rh_company_context(current_user)
+    return leave_notification_settings.get_settings(str(cid))
+
+
+@router.put(
+    "/leave-notification-settings",
+    response_model=LeaveNotificationSettingsResponse,
+)
+async def update_leave_notification_settings_route(
+    body: LeaveNotificationSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    cid = _require_leave_notification_settings_write(current_user)
+    try:
+        return leave_notification_settings.update_settings(
+            str(cid),
+            body,
+            updated_by=str(current_user.id),
+        )
+    except (ValueError, LookupError, RuntimeError) as e:
+        _handle_application_errors(e)
 
 
 @router.get("/leave-settings", response_model=LeaveSettingsResponse)

@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { AlertCircle, CalendarDays } from 'lucide-react';
+import { AlertCircle, ChevronRight } from 'lucide-react';
+import { TAB_SOLDE_CONGES } from '@/features/employee-detail/utils/tabs';
 import { useEmployeeAbsenceBalancesQuery } from '@/hooks/queries/useEmployeeAbsenceBalancesQuery';
 import {
   formatBalanceRemaining,
@@ -29,9 +30,9 @@ export function EmployeeDetailLeaveBalancesSummary({
   const visibleBalances =
     balancesQuery.data?.filter(isRhLeaveBalanceVisible) ?? [];
 
-  const calendarHref = {
+  const detailHref = {
     pathname: location.pathname,
-    search: '?tab=calendrier',
+    search: `?tab=${TAB_SOLDE_CONGES}`,
   };
 
   return (
@@ -41,11 +42,11 @@ export function EmployeeDetailLeaveBalancesSummary({
           Soldes congés
         </p>
         <Link
-          to={calendarHref}
+          to={detailHref}
           className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
         >
-          <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-          Voir le calendrier
+          Voir le détail
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
 

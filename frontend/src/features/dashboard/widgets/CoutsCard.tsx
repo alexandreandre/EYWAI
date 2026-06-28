@@ -3,18 +3,12 @@ import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/compone
 import { PayrollSourceBadge } from '@/components/analytics/PayrollSourceBadge';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import type { ChartDataPoint, KpiData } from '@/features/dashboard/types';
+import {
+  resolveChartStackLabels,
+  resolvePrimaryPayrollMetric,
+} from '@/features/dashboard/lib/chartStackLabels';
 import { formatMonthOverMonthDelta } from '@/features/dashboard/widgets/dashboardFormatters';
-
-const chartConfig = {
-  Net_Verse: {
-    label: 'Net Versé',
-    color: 'hsl(142, 76%, 36%)',
-  },
-  Charges: {
-    label: 'Charges',
-    color: 'hsl(0, 80%, 50%)',
-  },
-} satisfies ChartConfig;
+import { useMemo } from 'react';
 
 interface CoutsCardProps {
   kpis: KpiData;
@@ -23,10 +17,26 @@ interface CoutsCardProps {
 
 export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
   const payroll = kpis.payroll;
-  const showEmployerCost = payroll?.source === 'payslip' && payroll.employer_cost > 0;
-  const primaryAmount = showEmployerCost ? payroll.employer_cost : payroll?.gross ?? 0;
-  const primaryLabel = showEmployerCost ? 'Coût employeur' : 'Masse brute';
-  const hasMixedSources = payroll?.has_mixed_sources ?? false;
+  const primary = resolvePrimaryPayrollMetric(payroll);
+  const chartLabels = useMemo(
+    () => resolveChartStackLabels(payroll, chartData),
+    [payroll, chartData],
+  );
+
+  const chartConfig = useMemo(
+    () =>
+      ({
+        Net_Verse: {
+          label: chartLabels.netLabel,
+          color: 'hsl(142, 76%, 36%)',
+        },
+        Charges: {
+          label: chartLabels.chargesLabel,
+          color: 'hsl(24, 95%, 53%)',
+        },
+      }) satisfies ChartConfig,
+    [chartLabels],
+  );
 
   let coutDeltaPct: number | null = null;
   let netDeltaPct: number | null = null;
@@ -46,6 +56,7 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
   }
   const coutDeltaLabel = formatMonthOverMonthDelta(coutDeltaPct);
   const netDeltaLabel = formatMonthOverMonthDelta(netDeltaPct);
+  const showPrimaryDelta = primary.label === 'Coût employeur' && coutDeltaLabel;
 
   return (
     <Card>
@@ -64,7 +75,7 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
       <CardContent className="space-y-6">
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-3">
-            {primaryLabel} {kpis.currentMonth}
+            {primary.label} {kpis.currentMonth}
           </h3>
           {payroll?.source === 'none' ? (
             <p className="text-sm text-muted-foreground">
@@ -74,17 +85,17 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="text-center">
-                <p className="text-xs text-muted-foreground font-medium mb-1">{primaryLabel}</p>
+                <p className="text-xs text-muted-foreground font-medium mb-1">{primary.label}</p>
                 <div className="text-2xl font-bold text-foreground tabular-nums">
-                  {primaryAmount.toLocaleString('fr-FR')} €
+                  {primary.amount.toLocaleString('fr-FR')} €
                 </div>
-                {coutDeltaLabel && showEmployerCost ? (
+                {showPrimaryDelta ? (
                   <p className="text-xs text-muted-foreground mt-1">{coutDeltaLabel}</p>
                 ) : null}
               </div>
               <div className="text-center">
                 <p className="text-xs text-muted-foreground font-medium mb-1">
-                  {payroll?.source === 'dsn' ? 'Net imposable (DSN)' : 'Net versé'}
+                  {primary.secondaryLabel}
                 </p>
                 <div className="text-2xl font-bold text-foreground tabular-nums">
                   {(payroll?.net ?? kpis.netVerse).toLocaleString('fr-FR')} €
@@ -98,9 +109,16 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
         </div>
 
         <div className="pt-4 border-t">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <h3 className="text-sm font-medium text-muted-foreground">Évolution (12 derniers mois)</h3>
-            {hasMixedSources ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Évolution (12 derniers mois)
+              </h3>
+              {chartLabels.subtitle ? (
+                <p className="text-xs text-muted-foreground mt-0.5">{chartLabels.subtitle}</p>
+              ) : null}
+            </div>
+            {payroll?.has_mixed_sources ? (
               <span className="text-xs text-muted-foreground">Série mixte bulletins / DSN</span>
             ) : null}
           </div>
@@ -128,14 +146,14 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
                 stackId="a"
                 fill="var(--color-Net_Verse)"
                 radius={[0, 0, 0, 0]}
-                name="Net Versé"
+                name={chartLabels.netLabel}
               />
               <Bar
                 dataKey="Charges"
                 stackId="a"
                 fill="var(--color-Charges)"
                 radius={[4, 4, 0, 0]}
-                name="Charges"
+                name={chartLabels.chargesLabel}
               />
             </BarChart>
           </ChartContainer>

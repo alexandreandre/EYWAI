@@ -685,13 +685,19 @@ def get_rtt_year_end_status(
     *,
     policy: LeavePolicySettings | None = None,
     adjustment: EmployeeLeaveAdjustment | None = None,
+    employee_ctx: EmployeeCpSeniorityContext | None = None,
 ) -> dict[str, float | bool]:
     """État RTT en fin d'année pour clôture RH."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
     ref = date(year, 12, 31)
     rtt = compute_rtt_balance(
-        hire_date, validated_requests, ref, policy=policy, adjustment=adjustment
+        hire_date,
+        validated_requests,
+        ref,
+        policy=policy,
+        adjustment=adjustment,
+        employee_ctx=employee_ctx,
     )
     remaining = max(0.0, float(rtt["solde"]))
     already_closed = adjustment.rtt_forfeited_at is not None

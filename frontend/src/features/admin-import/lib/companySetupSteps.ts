@@ -2,6 +2,7 @@ import type { CompanySetupStatus } from '@/api/adminImport';
 
 export type CompanySetupTab =
   | 'dsn'
+  | 'seniority'
   | 'payroll-export'
   | 'cp'
   | 'params'
@@ -22,6 +23,14 @@ export const COMPANY_SETUP_STEPS: CompanySetupStepDef[] = [
     label: 'Import DSN',
     shortLabel: 'DSN',
     description: 'Structure entreprise, salariés, cumuls et historique',
+  },
+  {
+    id: 'seniority',
+    tab: 'seniority',
+    label: 'Dates d\'ancienneté',
+    shortLabel: 'Ancienneté',
+    description:
+      'Import Excel des dates de reprise (prime d\'ancienneté, rachat d\'entreprise)',
   },
   {
     id: 'payroll-export',
@@ -54,7 +63,7 @@ export const COMPANY_SETUP_STEPS: CompanySetupStepDef[] = [
   },
 ];
 
-const EMPLOYEE_DEPENDENT_STEPS = new Set(['payroll-export', 'cp', 'planning']);
+const EMPLOYEE_DEPENDENT_STEPS = new Set(['seniority', 'payroll-export', 'cp', 'planning']);
 
 export function isCompanySetupEmployeesEmpty(
   status: CompanySetupStatus | undefined,
@@ -128,6 +137,9 @@ export function getCompanySetupStepSummaryLine(
       const base = `${b.dsn.applicable_covered_months}/${b.dsn.applicable_months} mois couverts · ${b.employees.total} salarié(s)`;
       return gaps > 0 ? `${base} · ${gaps} mois manquant(s)` : base;
     }
+    case 'seniority':
+      if (b.employees.total === 0) return 'En attente de l’import DSN';
+      return 'Import Excel NOM / PRENOM / Date ancienneté (reprise / prime)';
     case 'payroll-export':
       if (b.employees.total === 0) return 'En attente de l’import DSN';
       return `${b.employees.profile_complete_pct}% fiches complètes · ${b.employees.missing_rib_count} RIB manquant(s)`;

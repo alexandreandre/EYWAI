@@ -60,6 +60,25 @@ def _make_non_rh_user():
     )
 
 
+def _make_collaborateur_rh_user():
+    access = CompanyAccess(
+        company_id=TEST_COMPANY_ID,
+        company_name="Test Co",
+        role="collaborateur_rh",
+        is_primary=True,
+    )
+    return User(
+        id="user-collab-rh-absences-test",
+        email="collab-rh@absences.test",
+        first_name="Collab",
+        last_name="RH",
+        is_super_admin=False,
+        is_group_admin=False,
+        accessible_companies=[access],
+        active_company_id=TEST_COMPANY_ID,
+    )
+
+
 # --- GET /api/absences/ (liste RH) ---
 
 
@@ -71,9 +90,7 @@ class TestGetAbsenceRequests:
         response = client.get("/api/absences/")
         assert response.status_code == 401
 
-    def test_get_absence_requests_returns_403_for_non_rh_user(
-        self, client: TestClient
-    ):
+    def test_get_absence_requests_returns_403_for_non_rh_user(self, client: TestClient):
         """Utilisateur sans accès RH → 403."""
         from app.core.security import get_current_user
 
@@ -123,9 +140,7 @@ class TestGetAbsenceRequests:
 class TestCreateAbsenceRequest:
     """POST /api/absences/requests — création d'une demande d'absence."""
 
-    def test_create_absence_request_without_auth_returns_401(
-        self, client: TestClient
-    ):
+    def test_create_absence_request_without_auth_returns_401(self, client: TestClient):
         """Sans token → 401."""
         response = client.post(
             "/api/absences/requests",
@@ -228,21 +243,28 @@ class TestCreateAbsenceRequest:
             "jours_payes": None,
         }
         try:
-            with patch(
-                "app.modules.absences.api.router.absence_router.employee_company_id",
-                return_value=TEST_COMPANY_ID,
-            ), patch(
-                "app.modules.absences.api.router.commands.create_absence_request"
-            ) as create_cmd, patch(
-                "app.modules.absences.api.router.commands.update_absence_request_status"
-            ) as validate_cmd, patch(
-                "app.modules.absences.api.router.absence_router.update_absence",
-                return_value=validated_row,
-            ), patch(
-                "app.modules.absences.api.router._notify_rh_status_change",
-            ), patch(
-                "app.modules.absences.api.router._enrich_single_absence_row",
-                side_effect=lambda row: row,
+            with (
+                patch(
+                    "app.modules.absences.api.router.absence_router.employee_company_id",
+                    return_value=TEST_COMPANY_ID,
+                ),
+                patch(
+                    "app.modules.absences.api.router.commands.create_absence_request"
+                ) as create_cmd,
+                patch(
+                    "app.modules.absences.api.router.commands.update_absence_request_status"
+                ) as validate_cmd,
+                patch(
+                    "app.modules.absences.api.router.absence_router.update_absence",
+                    return_value=validated_row,
+                ),
+                patch(
+                    "app.modules.absences.api.router._notify_rh_status_change",
+                ),
+                patch(
+                    "app.modules.absences.api.router._enrich_single_absence_row",
+                    side_effect=lambda row: row,
+                ),
             ):
                 create_cmd.return_value = {
                     **validated_row,
@@ -308,14 +330,17 @@ class TestCreateAbsenceRequest:
 
         app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
         try:
-            with patch(
-                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
-                return_value="emp-resolved",
-            ), patch(
-                "app.modules.absences.application.queries.assert_employee_conge_paye_request_allowed",
-                side_effect=ValueError(
-                    "Solde de congés payés insuffisant. Rapprochez-vous de votre direction "
-                    "pour toute demande hors droits acquis."
+            with (
+                patch(
+                    "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                    return_value="emp-resolved",
+                ),
+                patch(
+                    "app.modules.absences.application.queries.assert_employee_conge_paye_request_allowed",
+                    side_effect=ValueError(
+                        "Solde de congés payés insuffisant. Rapprochez-vous de votre direction "
+                        "pour toute demande hors droits acquis."
+                    ),
                 ),
             ):
                 response = client.post(
@@ -337,39 +362,50 @@ class TestCreateAbsenceRequest:
 
         app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
         try:
-            with patch(
-                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
-                return_value="emp-resolved",
-            ), patch(
-                "app.modules.absences.api.router.commands.create_absence_request"
-            ) as create_cmd, patch(
-                "app.modules.absences.api.router.absence_router.get_team_manager_employee_id",
-                return_value=None,
-            ), patch(
-                "app.modules.absences.api.router.absence_router.update_absence",
-                side_effect=lambda rid, payload: {
-                    "id": rid,
-                    "employee_id": "emp-resolved",
-                    "company_id": TEST_COMPANY_ID,
-                    "type": "conge_paye",
-                    "selected_days": ["2025-06-10", "2025-06-11"],
-                    "status": "pending",
-                    "comment": None,
-                    "created_at": "2025-06-01T09:00:00",
-                    "manager_id": None,
-                    "attachment_url": None,
-                    "filename": None,
-                    "event_subtype": None,
-                    "jours_payes": None,
-                    **payload,
-                },
-            ), patch(
-                "app.modules.absences.api.router.absence_notif.notify_absence_submitted",
-            ), patch(
-                "app.modules.absences.api.router.absence_notif.notify_manager_new_request",
-            ), patch(
-                "app.modules.absences.api.router._enrich_single_absence_row",
-                side_effect=lambda row: row,
+            with (
+                patch(
+                    "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                    return_value="emp-resolved",
+                ),
+                patch(
+                    "app.modules.absences.api.router.commands.create_absence_request"
+                ) as create_cmd,
+                patch(
+                    "app.modules.absences.api.router.absence_router.get_team_manager_employee_id",
+                    return_value=None,
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_router.update_absence",
+                    side_effect=lambda rid, payload: {
+                        "id": rid,
+                        "employee_id": "emp-resolved",
+                        "company_id": TEST_COMPANY_ID,
+                        "type": "conge_paye",
+                        "selected_days": ["2025-06-10", "2025-06-11"],
+                        "status": "pending",
+                        "comment": None,
+                        "created_at": "2025-06-01T09:00:00",
+                        "manager_id": None,
+                        "attachment_url": None,
+                        "filename": None,
+                        "event_subtype": None,
+                        "jours_payes": None,
+                        **payload,
+                    },
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_notif.notify_absence_submitted",
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_notif.notify_manager_new_request",
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_notif.notify_leave_request_email",
+                ),
+                patch(
+                    "app.modules.absences.api.router._enrich_single_absence_row",
+                    side_effect=lambda row: row,
+                ),
             ):
                 create_cmd.return_value = {
                     "id": "created-1",
@@ -403,6 +439,169 @@ class TestCreateAbsenceRequest:
         assert "selected_days" in data
         create_cmd.assert_called_once()
         assert create_cmd.call_args[0][0].employee_id == "emp-resolved"
+
+    def test_create_absence_request_triggers_leave_email_best_effort(
+        self, client: TestClient
+    ):
+        """Une création salarié déclenche le hook email RH best effort."""
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            with (
+                patch(
+                    "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                    return_value="emp-resolved",
+                ),
+                patch(
+                    "app.modules.absences.api.router.commands.create_absence_request"
+                ) as create_cmd,
+                patch(
+                    "app.modules.absences.api.router.absence_router.get_team_manager_employee_id",
+                    return_value=None,
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_router.update_absence",
+                    side_effect=lambda rid, payload: {
+                        "id": rid,
+                        "employee_id": "emp-resolved",
+                        "company_id": TEST_COMPANY_ID,
+                        "type": "conge_paye",
+                        "selected_days": ["2025-06-10"],
+                        "status": "pending",
+                        "comment": None,
+                        "created_at": "2025-06-01T09:00:00",
+                        "manager_id": None,
+                        "attachment_url": None,
+                        "filename": None,
+                        "event_subtype": None,
+                        "jours_payes": None,
+                        **payload,
+                    },
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_notif.notify_absence_submitted",
+                ),
+                patch(
+                    "app.modules.absences.api.router.absence_notif.notify_leave_request_email",
+                ) as email_hook,
+                patch(
+                    "app.modules.absences.api.router._enrich_single_absence_row",
+                    side_effect=lambda row: row,
+                ),
+            ):
+                create_cmd.return_value = {
+                    "id": "created-email-1",
+                    "employee_id": "emp-resolved",
+                    "company_id": TEST_COMPANY_ID,
+                    "type": "conge_paye",
+                    "selected_days": ["2025-06-10"],
+                    "status": "pending",
+                    "comment": None,
+                    "created_at": "2025-06-01T09:00:00",
+                    "manager_id": None,
+                    "attachment_url": None,
+                    "filename": None,
+                    "event_subtype": None,
+                    "jours_payes": None,
+                }
+                response = client.post(
+                    "/api/absences/requests",
+                    json={
+                        "employee_id": "user-non-rh-absences-test",
+                        "type": "conge_paye",
+                        "selected_days": ["2025-06-10"],
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 201
+        email_hook.assert_called_once()
+        assert email_hook.call_args.kwargs["event"] == "employee_request"
+
+
+class TestLeaveNotificationSettings:
+    """GET/PUT /api/absences/leave-notification-settings."""
+
+    def test_get_settings_requires_rh_access(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+        try:
+            response = client.get("/api/absences/leave-notification-settings")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+    def test_get_settings_returns_default_for_rh(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.leave_notification_settings.get_settings",
+            ) as get_settings:
+                get_settings.return_value = {
+                    "company_id": TEST_COMPANY_ID,
+                    "enabled": False,
+                    "notify_on_employee_request": True,
+                    "notify_after_manager_approval": True,
+                    "recipient_roles": ["rh", "admin"],
+                    "extra_recipient_emails": [],
+                    "configured": False,
+                }
+                response = client.get("/api/absences/leave-notification-settings")
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["recipient_roles"] == ["rh", "admin"]
+
+    def test_put_settings_forbidden_for_collaborateur_rh(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: (
+            _make_collaborateur_rh_user()
+        )
+        try:
+            response = client.put(
+                "/api/absences/leave-notification-settings",
+                json={"enabled": True},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+
+    def test_put_settings_allowed_for_rh(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.absences.api.router.leave_notification_settings.update_settings",
+            ) as update_settings:
+                update_settings.return_value = {
+                    "company_id": TEST_COMPANY_ID,
+                    "enabled": True,
+                    "notify_on_employee_request": True,
+                    "notify_after_manager_approval": False,
+                    "recipient_roles": ["rh"],
+                    "extra_recipient_emails": ["paie@example.fr"],
+                    "configured": True,
+                }
+                response = client.put(
+                    "/api/absences/leave-notification-settings",
+                    json={
+                        "enabled": True,
+                        "notify_after_manager_approval": False,
+                        "recipient_roles": ["rh"],
+                        "extra_recipient_emails": ["paie@example.fr"],
+                    },
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 200
+        assert response.json()["enabled"] is True
+        update_settings.assert_called_once()
 
 
 # --- GET /api/absences/employees/{employee_id} ---
@@ -588,13 +787,16 @@ class TestGetMyAbsencesPageData:
             "calendar_days": [],
             "history": [],
         }
-        with patch(
-            "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
-            return_value="emp-resolved",
-        ), patch(
-            "app.modules.absences.api.router.queries.get_my_absences_page_data",
-            return_value=page_payload,
-        ) as mock_page:
+        with (
+            patch(
+                "app.modules.absences.api.router.absence_router.resolve_employee_id_for_user",
+                return_value="emp-resolved",
+            ),
+            patch(
+                "app.modules.absences.api.router.queries.get_my_absences_page_data",
+                return_value=page_payload,
+            ) as mock_page,
+        ):
             app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
             try:
                 response = client.get(
@@ -728,9 +930,7 @@ class TestLeaveCampaignRoutes:
         assert data["grant_year"] == 2026
         assert data["cp_seniority"]["employee_count"] == 2
 
-    def test_validate_cp_seniority_without_auth_returns_401(
-        self, client: TestClient
-    ):
+    def test_validate_cp_seniority_without_auth_returns_401(self, client: TestClient):
         response = client.post(
             "/api/absences/cp-seniority-settings/validate?grant_year=2026"
         )
@@ -758,12 +958,8 @@ class TestLeaveCampaignRoutes:
         assert response.json()["validated_count"] == 5
         mock_validate.assert_called_once()
 
-    def test_validate_fractionnement_without_auth_returns_401(
-        self, client: TestClient
-    ):
-        response = client.post(
-            "/api/absences/fractionnement/validate?grant_year=2026"
-        )
+    def test_validate_fractionnement_without_auth_returns_401(self, client: TestClient):
+        response = client.post("/api/absences/fractionnement/validate?grant_year=2026")
         assert response.status_code == 401
 
     def test_validate_fractionnement_calls_query(self, client: TestClient):

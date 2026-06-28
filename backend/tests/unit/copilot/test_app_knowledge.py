@@ -96,3 +96,21 @@ def test_guide_covers_cse_status_in_mon_entreprise():
     """Le guide documente le statut CSE dans Mon Entreprise."""
     assert "Statut CSE" in APP_FEATURE_GUIDE
     assert "carence" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_mutuelle_self_service():
+    """Le guide documente le paramétrage mutuelle et le choix salarié optionnel."""
+    assert "Mon Entreprise" in APP_FEATURE_GUIDE
+    assert "Mutuelle" in APP_FEATURE_GUIDE
+    assert "choix salarié" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_dsn_import_payroll_context():
+    """Le guide mentionne l'import DSN comme source de reprise paie/RH."""
+    assert "Import DSN" in APP_FEATURE_GUIDE or "imports DSN" in APP_FEATURE_GUIDE
+    assert "agrégats de paie" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_leave_notification_settings():
+    """Le guide documente les rappels/notifications congés côté entreprise."""
+    assert "rappels de congés" in APP_FEATURE_GUIDE.lower() or "rappels congés" in APP_FEATURE_GUIDE.lower()

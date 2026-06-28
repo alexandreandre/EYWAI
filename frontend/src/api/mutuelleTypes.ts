@@ -15,6 +15,8 @@ export interface MutuelleType {
   code_option_dsn?: string | null;
   code_organisme_dsn?: string | null;
   reference_contrat_dsn?: string | null;
+  organisme_label?: string | null;
+  note?: string | null;
   source?: 'manual' | 'dsn_import';
   employee_ids?: string[];
   created_at?: string;
@@ -33,6 +35,8 @@ export interface MutuelleTypeCreate {
   code_option_dsn?: string | null;
   code_organisme_dsn?: string | null;
   reference_contrat_dsn?: string | null;
+  organisme_label?: string | null;
+  note?: string | null;
   employee_ids?: string[];
 }
 
@@ -47,6 +51,8 @@ export interface MutuelleTypeUpdate {
   code_option_dsn?: string | null;
   code_organisme_dsn?: string | null;
   reference_contrat_dsn?: string | null;
+  organisme_label?: string | null;
+  note?: string | null;
   employee_ids?: string[];
 }
 
@@ -82,3 +88,62 @@ export const mutuelleTypesApi = {
     await apiClient.delete(`/api/mutuelle-types/${id}`);
   },
 };
+
+function adminMutuelleBase(companyId: string): string {
+  return `/api/super-admin/companies/${companyId}/mutuelle-types`;
+}
+
+/** Catalogue mutuelle — pilotage plateforme (fiche entreprise Super Admin). */
+export const adminMutuelleTypesApi = {
+  async getMutuelleTypes(companyId: string): Promise<MutuelleType[]> {
+    const response = await apiClient.get<MutuelleType[]>(adminMutuelleBase(companyId));
+    return response.data;
+  },
+
+  async createMutuelleType(
+    companyId: string,
+    data: MutuelleTypeCreate,
+  ): Promise<MutuelleType> {
+    const response = await apiClient.post<MutuelleType>(
+      adminMutuelleBase(companyId),
+      data,
+    );
+    return response.data;
+  },
+
+  async updateMutuelleType(
+    companyId: string,
+    id: string,
+    data: MutuelleTypeUpdate,
+  ): Promise<MutuelleType> {
+    const response = await apiClient.put<MutuelleType>(
+      `${adminMutuelleBase(companyId)}/${id}`,
+      data,
+    );
+    return response.data;
+  },
+
+  async deleteMutuelleType(companyId: string, id: string): Promise<void> {
+    await apiClient.delete(`${adminMutuelleBase(companyId)}/${id}`);
+  },
+};
+
+export type MutuelleTypesClient = typeof mutuelleTypesApi;
+
+export function mutuelleTypesClientForCompany(companyId?: string): {
+  getMutuelleTypes: () => Promise<MutuelleType[]>;
+  createMutuelleType: (data: MutuelleTypeCreate) => Promise<MutuelleType>;
+  updateMutuelleType: (id: string, data: MutuelleTypeUpdate) => Promise<MutuelleType>;
+  deleteMutuelleType: (id: string) => Promise<void>;
+} {
+  if (!companyId) {
+    return mutuelleTypesApi;
+  }
+  return {
+    getMutuelleTypes: () => adminMutuelleTypesApi.getMutuelleTypes(companyId),
+    createMutuelleType: (data) => adminMutuelleTypesApi.createMutuelleType(companyId, data),
+    updateMutuelleType: (id, data) =>
+      adminMutuelleTypesApi.updateMutuelleType(companyId, id, data),
+    deleteMutuelleType: (id) => adminMutuelleTypesApi.deleteMutuelleType(companyId, id),
+  };
+}

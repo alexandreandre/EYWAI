@@ -31,7 +31,7 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 --- Section « EYWAI Team » (gestion des effectifs et du suivi documentaire) ---
 
 — Analytics Team (« Analytics Team ») : KPIs effectifs, turnover, absentéisme,
-  masse salariale, journal d'audit.
+  masse salariale, coûts RH, alertes prioritaires, journal d'audit.
 
 — Collaborateurs (« Collaborateurs ») : liste de tous les salariés, recherche,
   création d'un collaborateur. En cliquant sur un collaborateur on ouvre sa
@@ -54,13 +54,15 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   l'e-mail et le mot de passe temporaire (à transmettre une seule fois). Le PDF
   « Identifiants de connexion » est ensuite disponible dans Documents → Autres.
 
-— Onboarding (« Onboarding ») : hub des intégrations en cours. La checklist
-  détaillée d'un nouvel arrivant (administratif, matériel, accès, formation)
-  s'ouvre en cliquant sur un collaborateur.
+— Onboarding (« Onboarding ») : hub des intégrations en cours, avec étapes de
+  création société, import salariés, reprises DSN et préparation des dossiers.
+  La checklist détaillée d'un nouvel arrivant (administratif, matériel, accès,
+  formation) s'ouvre en cliquant sur un collaborateur.
 
 — Départs (« Départs ») : gestion des sorties (démission, rupture
-  conventionnelle, licenciement, fin de période d'essai, retraite), génération
-  des documents de fin de contrat (solde de tout compte, attestations).
+  conventionnelle, licenciement, fin de période d'essai, départ ou mise à la
+  retraite), clôture/archivage du salarié et génération des documents de fin de
+  contrat (solde de tout compte, attestations).
 
 — Équipes (« Équipes ») : création et gestion des équipes, désignation des
   managers, affectation des collaborateurs.
@@ -120,12 +122,14 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   contrats, attestations et fiches de poste (variables au format {{nom}},
   {{prenom}}, {{poste}}, {{missions}}, etc.). L'onglet Paie permet de
   configurer les médailles du travail (activation, paliers, scan des éligibles),
-  valider les dossiers en attente RH, paramétrer le temps de travail (jours
-  fériés, congés/RTT, CP ancienneté, fractionnement CP, périodes de référence
-  horaire, modulation 32h/37h, contingent HS, politique de routage HS,
-  comptabilisation badgeuse, CET) et les variables de paie récurrentes
-  (astreinte, équipes/postes, présence sans absence, modulation, km week-end
-  astreinte, majorations week-end).
+  valider les dossiers en attente RH, paramétrer les rappels de congés annuels,
+  paramétrer le temps de travail (jours fériés, congés/RTT, CP ancienneté,
+  fractionnement CP, périodes de référence horaire, modulation 32h/37h,
+  contingent HS, politique de routage HS, comptabilisation badgeuse, CET) et les
+  variables de paie récurrentes (astreinte, équipes/postes, présence sans absence,
+  modulation, km week-end astreinte, majorations week-end). L'onglet Mutuelle
+  permet de gérer les formules de mutuelle/prévoyance, l'organisme, les notes
+  d'aide et l'ouverture du choix de formule aux salariés.
 
 — Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
   documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
@@ -188,7 +192,9 @@ Autres outils de la section paie :
   exports RH, exports planifiés, historique.
 — Paie (« Paie ») : consultation des bulletins (par collaborateur ou par mois) ;
   l'édition d'un bulletin donne accès aux onglets Édition, Aperçu, Historique,
-  Comparaison N-1, Tendance.
+  Comparaison N-1, Tendance. Les régularisations participation/intéressement
+  peuvent générer un bulletin de régularisation consultable avec les autres
+  bulletins.
 
 --- Pied de barre latérale RH ---
 — Support (« Support ») : assistant de création de ticket en plusieurs étapes et
@@ -237,6 +243,10 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
 — Mes documents (« Mes documents ») : consulter ses documents RH. Le PDF
   « Identifiants de connexion » (nom d'utilisateur et mot de passe temporaire)
   est dans le dossier « Autres ».
+— Mutuelle / prévoyance : lorsque l'entreprise ouvre le choix salarié, le
+  collaborateur peut choisir sa formule depuis son espace salarié ou son profil ;
+  sinon la gestion reste côté RH dans Mon Entreprise → Mutuelle et la fiche
+  Collaborateur.
 — Ma formation (« Ma formation ») : ses entretiens, objectifs, compétences,
   formations, habilitations, obligations légales et son onboarding.
 — Mon suivi médical (« Mon suivi médical », si le module est activé) : prochaines
@@ -300,8 +310,8 @@ FAQ RH TRANSVERSES
 — Temps de travail (Mon Entreprise → Paie) : section « Temps de travail » avec
   jours fériés, congés/RTT (mode forfait-jours cadres), CP ancienneté (presets
   plasturgie / métallurgie 3248 / LEWIS / règles personnalisées), campagne congés
-  annuelle (validation juin CP anc., octobre fractionnement), fractionnement CP
-  (formule MBC, légale ou manuelle), périodes de référence horaire, modulation
+  annuelle et rappels de fin d'année, fractionnement CP (formule MBC, légale ou
+  manuelle), périodes de référence horaire, modulation
   32h/37h, routage HS (payer / comptabiliser / manuel), contingent HS, comptabilisation
   badgeuse, CET. Section « Variables de paie » : règles astreinte, équipes/postes,
   présence sans absence, modulation, km week-end → génération dans Primes →
@@ -318,6 +328,11 @@ FAQ RH TRANSVERSES
 — Suivi IJSS : EYWAI Paie → Suivi IJSS / CPAM (étape ③ du workflow paie).
 — Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
   ou consultée via l'assistant IA pour les questions réglementaires.
+— Mutuelle / prévoyance : paramétrage RH dans Mon Entreprise → Mutuelle ;
+  choix salarié possible uniquement si l'entreprise a activé le libre-service.
+— Import DSN et reprise paie : les imports DSN servent à initialiser les salariés,
+  RIB, soldes et agrégats de paie d'onboarding ; côté RH, les résultats utiles
+  remontent dans les tableaux de bord, la paie et les fiches salariés.
 — Multi-entreprises : un gestionnaire RH peut basculer d'entreprise via le
   sélecteur en haut de l'écran ; les données affichées concernent l'entreprise active.
 — Identifiants collaborateur : voir section dédiée ci-dessus (Documents → Autres).

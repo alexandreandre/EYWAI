@@ -30,10 +30,9 @@ import {
 import { normalizeNir } from '@/features/employee-detail/components/employeeProfileFormUtils';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import { queryKeys } from '@/lib/queryKeys';
+import { MutuelleSelectionField } from '@/components/mutuelle/MutuelleSelectionField';
 import {
   filterMutuellesForEmployee,
-  formatMutuelleOptionLabel,
-  PACK_COUVERTURE_LABELS,
 } from '@/lib/mutuelleUtils';
 import { PrevoyanceAffiliationFields } from '@/features/employees/components/PrevoyanceAffiliationFields';
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
@@ -46,6 +45,7 @@ interface EmployeeProfileEditFormProps {
   activeTeams: Team[];
   availableMutuelles: MutuelleType[];
   loadingMutuelles: boolean;
+  companyOrganismeLabel?: string | null;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -61,6 +61,7 @@ export function EmployeeProfileEditForm({
   activeTeams,
   availableMutuelles,
   loadingMutuelles,
+  companyOrganismeLabel,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
@@ -461,7 +462,12 @@ export function EmployeeProfileEditForm({
         <SectionTitle>Paie sociale</SectionTitle>
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-sm font-medium">Mutuelle</p>
+            <p className="mb-1 text-sm font-medium">Mutuelle</p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Affectation paie : choisissez la formule correspondant au bulletin d&apos;adhésion
+              {companyOrganismeLabel ? ` ${companyOrganismeLabel}` : ' de l\'organisme'} et au
+              statut du salarié.
+            </p>
             {loadingMutuelles ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : availableMutuelles.length === 0 ? (
@@ -478,25 +484,19 @@ export function EmployeeProfileEditForm({
                 name="specificites_paie.mutuelle.mutuelle_type_ids"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="space-y-2">
-                      {filteredMutuelles.map((m) => (
-                        <div key={m.id} className="flex items-center gap-2 rounded-md border p-2">
-                          <Checkbox
-                            checked={field.value?.includes(m.id) ?? false}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked ? [m.id] : []);
-                            }}
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{formatMutuelleOptionLabel(m)}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Salarial {m.montant_salarial.toFixed(2)} € · Patronal {m.montant_patronal.toFixed(2)} €
-                              {m.pack_couverture ? ` · ${PACK_COUVERTURE_LABELS[m.pack_couverture]}` : ''}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <MutuelleSelectionField
+                      mutuelles={availableMutuelles}
+                      value={field.value?.[0] ?? null}
+                      onChange={(id) => field.onChange([id])}
+                      employeeStatut={statut}
+                      companyOrganismeLabel={companyOrganismeLabel}
+                      loading={loadingMutuelles}
+                      emptyMessage={
+                        filteredMutuelles.length === 0
+                          ? `Aucune formule compatible avec le statut ${statut ?? 'du salarié'}.`
+                          : 'Aucune formule configurée dans Mon Entreprise.'
+                      }
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

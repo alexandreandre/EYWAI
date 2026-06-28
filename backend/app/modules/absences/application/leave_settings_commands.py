@@ -12,6 +12,9 @@ from app.modules.absences.application.leave_settings_queries import (
 )
 from app.modules.absences.application.cp_seniority_queries import (
     build_employee_cp_seniority_context,
+    employee_cp_seniority_select,
+    employee_cp_seniority_select_without_cadre_dirigeant,
+    is_missing_cadre_dirigeant_column_error,
 )
 from app.modules.absences.domain.rules import (
     _rtt_eligible_for_employee,
@@ -31,7 +34,6 @@ from app.modules.absences.infrastructure.queries import get_employee_hire_date
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.absences.schemas.leave_settings import (
     EmployeeLeaveAdjustmentUpdate,
-    EmployeeRttSoldeUpdate,
     LeaveAdjustmentImportRequest,
     LeaveSettingsUpdate,
     RttYearEndCloseRequest,
@@ -42,6 +44,7 @@ from app.modules.absences.schemas.leave_settings_responses import (
     LeaveSettingsResponse,
     RttYearEndCloseResult,
 )
+
 
 def bulletin_reference_date(year: int, month: int | None = None) -> date:
     """Date de référence pour un solde CP issu d'un bulletin (fin de période paie)."""
@@ -135,11 +138,7 @@ def apply_rtt_solde_manual(
     hire_raw = get_employee_hire_date(employee_id)
     if not hire_raw:
         raise ValueError("Date d'embauche manquante.")
-    hire_date = (
-        date.fromisoformat(hire_raw)
-        if isinstance(hire_raw, str)
-        else hire_raw
-    )
+    hire_date = date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
 
     emp_resp = (
         supabase.table("employees")
@@ -210,11 +209,7 @@ def apply_cp_solde_import(
     hire_raw = get_employee_hire_date(employee_id)
     if not hire_raw:
         raise ValueError("Date d'embauche manquante.")
-    hire_date = (
-        date.fromisoformat(hire_raw)
-        if isinstance(hire_raw, str)
-        else hire_raw
-    )
+    hire_date = date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
     policy = get_leave_policy(company_id)
     validated = absence_repository.list_validated_for_employees([employee_id])
     ref = bulletin_reference_date(year, month)
@@ -301,18 +296,48 @@ def close_rtt_year_end(
         from datetime import date
 
         hire_date = (
-            date.fromisoformat(hire_raw)
-            if isinstance(hire_raw, str)
-            else hire_raw
+            date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
         )
         validated = absence_repository.list_validated_for_employees([employee_id])
         adj = get_employee_adjustment(employee_id, body.year)
+        try:
+            emp_resp = (
+                supabase.table("employees")
+                .select(
+                    employee_cp_seniority_select(include_id=True, include_status=True)
+                )
+                .eq("id", employee_id)
+                .eq("company_id", company_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            if not is_missing_cadre_dirigeant_column_error(exc):
+                raise
+            emp_resp = (
+                supabase.table("employees")
+                .select(
+                    employee_cp_seniority_select_without_cadre_dirigeant(
+                        include_id=True,
+                        include_status=True,
+                    )
+                )
+                .eq("id", employee_id)
+                .eq("company_id", company_id)
+                .limit(1)
+                .execute()
+            )
+        emp_rows = emp_resp.data or []
+        employee_ctx = (
+            build_employee_cp_seniority_context(emp_rows[0]) if emp_rows else None
+        )
         status = get_rtt_year_end_status(
             hire_date,
             validated,
             body.year,
             policy=policy,
             adjustment=adj,
+            employee_ctx=employee_ctx,
         )
         remaining = float(status["remaining"])
         if remaining <= 0 or status["already_closed"]:
@@ -355,9 +380,8 @@ def _match_employee(employees: list[dict], row) -> dict | None:
         fn = row.first_name.strip().lower()
         ln = row.last_name.strip().lower()
         for e in employees:
-            if (
-                (e.get("first_name") or "").lower() == fn
-                and (e.get("last_name") or "").lower() == ln
-            ):
+            if (e.get("first_name") or "").lower() == fn and (
+                e.get("last_name") or ""
+            ).lower() == ln:
                 return e
     return None

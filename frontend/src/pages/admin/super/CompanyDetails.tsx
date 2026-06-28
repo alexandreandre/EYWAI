@@ -1,5 +1,5 @@
 // frontend/src/pages/super-admin/CompanyDetails.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../../../api/apiClient';
@@ -27,12 +27,18 @@ import {
   type JeiFormValues,
 } from '@/features/company/components/JeiSettingsFormFields';
 import { EditCompanyDialog } from '@/pages/admin/eywai/companies/EditCompanyDialog';
+import { CompanyMutuelleSection } from '@/features/company/components/CompanyMutuelleSection';
 
 import { log } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errorMessages';
 import { invalidateDsnCoverageForCompany } from '@/lib/dsnCoverageCache';
 import { toast } from '@/hooks/use-toast';
-import { CheckCircle2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  getRoleDisplayLabel,
+  ROLE_BADGE_CLASS,
+  type AppUserRole,
+} from '@/lib/userRoleLabels';
 
 function formatCompanyAddress(company: AdminCompanyDetails): string | null {
   if (company.adresse_rue) {
@@ -62,6 +68,14 @@ interface User {
   last_name: string;
   role: string;
   created_at: string;
+}
+
+function roleLabel(role: string): string {
+  return getRoleDisplayLabel(role as AppUserRole);
+}
+
+function userCountLabel(count: number): string {
+  return count <= 1 ? '1 utilisateur' : `${count} utilisateurs`;
 }
 
 export default function CompanyDetails() {
@@ -99,6 +113,7 @@ export default function CompanyDetails() {
   const [showDeleteAllEmployees, setShowDeleteAllEmployees] = useState(false);
   const [jeiForm, setJeiForm] = useState<JeiFormValues>(defaultJeiFormValues);
   const [savingJei, setSavingJei] = useState(false);
+  const usersSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadCompanyDetails();
@@ -137,14 +152,24 @@ export default function CompanyDetails() {
     }
   };
 
+  const scrollToUsersSection = () => {
+    usersSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const handleRoleClick = (role: string) => {
     if (selectedRole === role) {
       setSelectedRole(null);
       loadUsers();
-    } else {
-      setSelectedRole(role);
-      loadUsers(role);
+      return;
     }
+    setSelectedRole(role);
+    loadUsers(role);
+    requestAnimationFrame(() => scrollToUsersSection());
+  };
+
+  const clearRoleFilter = () => {
+    setSelectedRole(null);
+    loadUsers();
   };
 
   const createUser = async (e: React.FormEvent) => {
@@ -516,22 +541,41 @@ export default function CompanyDetails() {
 
       {/* Répartition par rôle */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Répartition des utilisateurs par rôle</h2>
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Répartition des utilisateurs par rôle</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cliquez sur un rôle pour filtrer la liste des utilisateurs ci-dessous.
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.entries(company.stats.users_by_role).map(([role, count]) => (
-            <div
-              key={role}
-              onClick={() => handleRoleClick(role)}
-              className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                selectedRole === role
-                  ? 'border-indigo-500 bg-indigo-50 shadow-md'
-                  : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
-              }`}
-            >
-              <p className="text-sm text-gray-600 capitalize mb-1">{role}</p>
-              <p className="text-2xl font-bold text-gray-900">{count}</p>
-            </div>
-          ))}
+          {Object.entries(company.stats.users_by_role).map(([role, count]) => {
+            const isSelected = selectedRole === role;
+            return (
+              <button
+                key={role}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={`Filtrer par ${roleLabel(role)} (${userCountLabel(count)})`}
+                onClick={() => handleRoleClick(role)}
+                className={`rounded-lg border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
+                  isSelected
+                    ? 'border-indigo-500 bg-indigo-50 shadow-md ring-2 ring-indigo-200'
+                    : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-700">{roleLabel(role)}</p>
+                  {isSelected && (
+                    <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                      Filtre actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{count}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{userCountLabel(count)}</p>
+              </button>
+            );
+          })}
         </div>
 
         {Object.keys(company.stats.users_by_role).length === 0 && (
@@ -543,6 +587,13 @@ export default function CompanyDetails() {
       {companyId && (
         <div className="mb-6">
           <CollectiveAgreementCard companyId={companyId} companyName={company.company_name} />
+        </div>
+      )}
+
+      {/* Mutuelle & complémentaire santé */}
+      {companyId && (
+        <div className="mb-6">
+          <CompanyMutuelleSection companyId={companyId} canEdit />
         </div>
       )}
 
@@ -584,25 +635,46 @@ export default function CompanyDetails() {
       )}
 
       {/* Liste des utilisateurs */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div
+        ref={usersSectionRef}
+        id="company-users-section"
+        className="scroll-mt-6 rounded-lg bg-white p-6 shadow"
+      >
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              Utilisateurs
-              {selectedRole && <span className="text-indigo-600"> - {selectedRole}</span>}
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {selectedRole ? `Filtré par rôle "${selectedRole}"` : 'Tous les utilisateurs'}
+            <h2 className="text-xl font-bold text-gray-900">Utilisateurs</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              {selectedRole
+                ? `Filtré par le rôle « ${roleLabel(selectedRole)} »`
+                : 'Tous les utilisateurs de l’entreprise'}
             </p>
           </div>
           <button
             onClick={() => setShowCreateUserModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
+            className="flex shrink-0 items-center space-x-2 rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700"
           >
             <span>+</span>
             <span>Créer un utilisateur</span>
           </button>
         </div>
+
+        {selectedRole && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3">
+            <p className="text-sm text-indigo-900">
+              Affichage des utilisateurs avec le rôle{' '}
+              <span className="font-semibold">{roleLabel(selectedRole)}</span>
+              {' '}({users.length} sur {company.stats.users_by_role[selectedRole] ?? users.length})
+            </p>
+            <button
+              type="button"
+              onClick={clearRoleFilter}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+              Effacer le filtre
+            </button>
+          </div>
+        )}
 
         {loadingUsers ? (
           <SharkFinLoader label="Chargement des utilisateurs…" />
@@ -641,8 +713,13 @@ export default function CompanyDetails() {
                         <div className="text-sm text-gray-600">{user.email || '-'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 capitalize">
-                          {user.role}
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold leading-5 ${
+                            ROLE_BADGE_CLASS[user.role as AppUserRole] ??
+                            'border-border bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {roleLabel(user.role)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -671,7 +748,7 @@ export default function CompanyDetails() {
             {users.length === 0 && (
               <p className="text-gray-500 text-center py-8">
                 {selectedRole
-                  ? `Aucun utilisateur avec le rôle "${selectedRole}"`
+                  ? `Aucun utilisateur avec le rôle « ${roleLabel(selectedRole)} »`
                   : 'Aucun utilisateur pour le moment'}
               </p>
             )}

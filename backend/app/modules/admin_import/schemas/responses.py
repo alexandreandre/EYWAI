@@ -72,6 +72,50 @@ class RibImportCommitResponse(BaseModel):
     errors: List[str] = Field(default_factory=list)
 
 
+class SeniorityImportRowPreview(BaseModel):
+    row_index: int
+    raw_identity: str = ""
+    matricule: Optional[str] = None
+    seniority_date_raw: str = ""
+    seniority_date: Optional[str] = None
+    employee_id: Optional[str] = None
+    matched_name: Optional[str] = None
+    match_confidence: MatchConfidence = "none"
+    match_method: MatchMethod = "none"
+    review_status: ReviewStatus = "error"
+    warnings: List[str] = Field(default_factory=list)
+    current_seniority_date: Optional[str] = None
+    current_hire_date: Optional[str] = None
+    unchanged: bool = False
+    raw_row: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SeniorityImportMissingEmployee(BaseModel):
+    employee_id: str
+    first_name: str = ""
+    last_name: str = ""
+    current_seniority_date: Optional[str] = None
+    current_hire_date: Optional[str] = None
+
+
+class SeniorityImportParseResponse(BaseModel):
+    company_id: str
+    company_name: str
+    headers: List[str] = Field(default_factory=list)
+    column_mapping: Dict[str, str] = Field(default_factory=dict)
+    rows: List[SeniorityImportRowPreview] = Field(default_factory=list)
+    roster: List[RibImportRosterEmployee] = Field(default_factory=list)
+    missing_employees: List[SeniorityImportMissingEmployee] = Field(default_factory=list)
+    summary: Dict[str, int] = Field(default_factory=dict)
+
+
+class SeniorityImportCommitResponse(BaseModel):
+    applied: int
+    skipped: int
+    results: List[RibImportCommitResultItem] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+
+
 class CpImportRowPreview(BaseModel):
     row_index: int
     source_file: str = ""

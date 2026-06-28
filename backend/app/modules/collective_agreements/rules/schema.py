@@ -93,6 +93,7 @@ class BaseCalculPrime(BaseModel):
 
 class PrimeAncienneteEligibilite(BaseModel):
     min_annees: float = 0.0
+    max_annees: Optional[float] = None
     statuts_exclus: list[str] = Field(default_factory=list)
     classe_max_taux: int = 10
 

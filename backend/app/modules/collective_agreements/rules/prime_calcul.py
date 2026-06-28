@@ -86,11 +86,29 @@ def _eligibilite_config(regles_prime: dict[str, Any]) -> dict[str, Any]:
     raw = regles_prime.get("eligibilite") or {}
     if not isinstance(raw, dict):
         raw = {}
+    max_raw = raw.get("max_annees")
+    try:
+        max_annees = float(max_raw) if max_raw is not None else None
+    except (TypeError, ValueError):
+        max_annees = None
     return {
         "min_annees": float(raw.get("min_annees") or 0),
+        "max_annees": max_annees,
         "statuts_exclus": list(raw.get("statuts_exclus") or []),
         "classe_max_taux": int(raw.get("classe_max_taux") or 10),
     }
+
+
+def cap_anciennete_annees(
+    anciennete_annees: float,
+    regles_prime: dict[str, Any],
+) -> float:
+    """Plafonne les années retenues pour le calcul (ex. métallurgie : 15 ans max)."""
+    elig = _eligibilite_config(regles_prime)
+    max_annees = elig.get("max_annees")
+    if max_annees is not None and max_annees > 0:
+        return min(float(anciennete_annees), float(max_annees))
+    return anciennete_annees
 
 
 def check_eligibilite_prime_anciennete(
@@ -182,6 +200,7 @@ def calculer_prime_anciennete_plein_mois(
     taux_par_classe = regles_prime.get("taux_par_classe") or {}
     elig = _eligibilite_config(regles_prime)
     classe_max = elig["classe_max_taux"]
+    anciennete_annees = cap_anciennete_annees(anciennete_annees, regles_prime)
 
     if methode == "metallurgie_prime_anciennete" or (
         methode == "valeur_du_point" and taux_par_classe

@@ -18,6 +18,9 @@ from app.modules.companies.domain.public_holidays import normalize_observed_holi
 from app.modules.absences.application.cp_seniority_queries import (
     build_employee_cp_seniority_context,
     compute_and_persist_grant,
+    employee_cp_seniority_select,
+    employee_cp_seniority_select_without_cadre_dirigeant,
+    is_missing_cadre_dirigeant_column_error,
 )
 from app.modules.absences.application.queries import _cp_balance_extras
 from app.modules.absences.infrastructure.cp_seniority_repository import (
@@ -71,12 +74,12 @@ def _load_observed_holiday_ids(company_id: str) -> list[str] | None:
     return normalize_observed_holiday_ids([str(h) for h in raw_ids])
 
 
-def _policy_to_response(company_id: str, policy: LeavePolicySettings) -> LeaveSettingsResponse:
+def _policy_to_response(
+    company_id: str, policy: LeavePolicySettings
+) -> LeaveSettingsResponse:
     year = date.today().year
     observed = _load_observed_holiday_ids(company_id)
-    computed_rtt = resolve_rtt_annual_base(
-        year, policy, observed_holiday_ids=observed
-    )
+    computed_rtt = resolve_rtt_annual_base(year, policy, observed_holiday_ids=observed)
     return LeaveSettingsResponse(
         company_id=company_id,
         cp_acquisition_days_per_month=policy.cp_acquisition_days_per_month,
@@ -146,9 +149,7 @@ def get_leave_balances_overview(
         if not hire_raw:
             continue
         hire_date = (
-            date.fromisoformat(hire_raw)
-            if isinstance(hire_raw, str)
-            else hire_raw
+            date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
         )
         emp_validated = [r for r in validated if r["employee_id"] == eid]
         adj = adjustments.get(eid)
@@ -183,9 +184,7 @@ def get_leave_balances_overview(
                 cp_total_remaining=max(0.0, float(cp.get("solde", 0))),
                 cp_legal_days=float(soldes.get("cp_legal_days") or 0),
                 cp_seniority_days=float(soldes.get("cp_seniority_days") or 0),
-                fractionnement_days=float(
-                    (frac_grant or {}).get("days_granted") or 0
-                ),
+                fractionnement_days=float((frac_grant or {}).get("days_granted") or 0),
                 cp_seniority_status=(cp_grant or {}).get("status"),
                 rtt_remaining=max(0.0, float(soldes["rtt"].get("solde", 0))),
                 rtt_opening_balance=float(adj.rtt_opening_balance or 0) if adj else 0.0,
@@ -217,18 +216,18 @@ def get_rtt_year_end_overview(
         if not hire_raw:
             continue
         hire_date = (
-            date.fromisoformat(hire_raw)
-            if isinstance(hire_raw, str)
-            else hire_raw
+            date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
         )
         emp_validated = [r for r in validated if r["employee_id"] == eid]
         adj = adjustments.get(eid)
+        employee_ctx = build_employee_cp_seniority_context(emp)
         status = get_rtt_year_end_status(
             hire_date,
             emp_validated,
             ref_year,
             policy=policy,
             adjustment=adj,
+            employee_ctx=employee_ctx,
         )
         if float(status["remaining"]) <= 0 and not status["already_closed"]:
             continue
@@ -263,9 +262,7 @@ def compute_balances_for_employee(
     rtt_base = resolve_rtt_annual_base(
         ref_date.year, policy, observed_holiday_ids=observed
     )
-    extras = _cp_balance_extras(
-        employee_id, ref_date, company_id, policy, cp_seniority
-    )
+    extras = _cp_balance_extras(employee_id, ref_date, company_id, policy, cp_seniority)
     soldes = compute_absence_balances(
         hire_date,
         validated_requests,
@@ -280,16 +277,29 @@ def compute_balances_for_employee(
 
 
 def _list_active_employees(company_id: str) -> list[dict[str, Any]]:
-    resp = (
-        supabase.table("employees")
-        .select(
-            "id, first_name, last_name, email, hire_date, employment_status, "
-            "statut, prior_service_months, specificites_paie, date_naissance"
-        )
-        .eq("company_id", company_id)
-        .in_("employment_status", ["actif", "active", "en_onboarding"])
-        .execute()
+    select_fields = (
+        f"{employee_cp_seniority_select(include_id=True, include_status=True)}, email"
     )
+    try:
+        resp = (
+            supabase.table("employees")
+            .select(select_fields)
+            .eq("company_id", company_id)
+            .in_("employment_status", ["actif", "active", "en_onboarding"])
+            .execute()
+        )
+    except Exception as exc:
+        if not is_missing_cadre_dirigeant_column_error(exc):
+            raise
+        resp = (
+            supabase.table("employees")
+            .select(
+                f"{employee_cp_seniority_select_without_cadre_dirigeant(include_id=True, include_status=True)}, email"
+            )
+            .eq("company_id", company_id)
+            .in_("employment_status", ["actif", "active", "en_onboarding"])
+            .execute()
+        )
     return resp.data or []
 
 

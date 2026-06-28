@@ -207,6 +207,44 @@ class SupabaseMutuelleTypeRepository:
             {"specificites_paie": specificites}
         ).eq("id", employee_id).execute()
 
+    def replace_employee_mutuelle(
+        self,
+        employee_id: str,
+        mutuelle_type_id: str,
+        created_by: str,
+    ) -> None:
+        """Remplace toutes les formules mutuelle du salarié par une seule."""
+        self._supabase.table("employee_mutuelle_types").delete().eq(
+            "employee_id", employee_id
+        ).execute()
+        self._supabase.table("employee_mutuelle_types").insert(
+            {
+                "employee_id": employee_id,
+                "mutuelle_type_id": mutuelle_type_id,
+                "created_by": created_by,
+            }
+        ).execute()
+        emp_res = (
+            self._supabase.table("employees")
+            .select("specificites_paie")
+            .eq("id", employee_id)
+            .single()
+            .execute()
+        )
+        if not emp_res.data:
+            return
+        specificites = emp_res.data.get("specificites_paie", {}) or {}
+        mutuelle_spec = specificites.get("mutuelle", {}) or {}
+        if not isinstance(mutuelle_spec, dict):
+            mutuelle_spec = {}
+        mutuelle_spec["mutuelle_type_ids"] = [mutuelle_type_id]
+        mutuelle_spec["adhesion"] = True
+        mutuelle_spec["lignes_specifiques"] = []
+        specificites["mutuelle"] = mutuelle_spec
+        self._supabase.table("employees").update(
+            {"specificites_paie": specificites}
+        ).eq("id", employee_id).execute()
+
     def _sync_employee_mutuelle_remove(
         self, employee_id: str, mutuelle_type_id: str
     ) -> None:

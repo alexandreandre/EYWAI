@@ -111,6 +111,13 @@ def employee_to_payroll_payload(
     if not isinstance(specificites, dict):
         specificites = parse_json_dict(specificites)
     hire_date = employee.get("hire_date") or ""
+    from app.shared.seniority_reference import (
+        resolve_date_anciennete_prime,
+        resolve_seniority_reference_date,
+    )
+
+    seniority_ref = resolve_seniority_reference_date(employee) or ""
+    date_anciennete_prime = resolve_date_anciennete_prime(employee) or hire_date
     return {
         "id": employee.get("id"),
         "first_name": employee.get("first_name") or "",
@@ -122,7 +129,8 @@ def employee_to_payroll_payload(
         "job_title": employee.get("job_title") or "",
         "emploi": employee.get("job_title") or "",
         "hire_date": hire_date,
-        "date_entree": hire_date,
+        "seniority_reference_date": seniority_ref or None,
+        "date_entree": date_anciennete_prime,
         "type_contrat": employee.get("contract_type") or "",
         "date_conclusion_contrat": employee.get("date_conclusion_contrat") or "",
         "date_debut_execution": employee.get("date_debut_execution") or "",

@@ -9,7 +9,10 @@ import string
 from typing import Any, Optional
 
 from app.core.logging import get_logger
-from app.modules.employees.domain.rules import default_company_data_fallback
+from app.modules.employees.domain.rules import (
+    default_company_data_fallback,
+    is_dsn_import_placeholder_email,
+)
 from app.modules.employees.infrastructure.providers import (
     generate_credentials_pdf,
     get_auth_provider,
@@ -171,7 +174,12 @@ def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
     user_id = str(employee.get("user_id") or "").strip() or None
     folder_name = str(employee.get("employee_folder_name") or "").strip() or None
 
-    if not user_id and employee.get("email"):
+    email = str(employee.get("email") or "").strip()
+    if (
+        not user_id
+        and email
+        and not is_dsn_import_placeholder_email(email)
+    ):
         try:
             from app.modules.employees.application.account_provisioning import (
                 provision_collaborator_account,

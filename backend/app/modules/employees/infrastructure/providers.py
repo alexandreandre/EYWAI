@@ -67,6 +67,17 @@ class SupabaseStorageProvider(IStorageProvider):
             file_options={"x-upsert": "true", "content-type": content_type},
         )
 
+    def download(self, bucket: str, path: str) -> bytes:
+        def _download() -> bytes:
+            data = supabase.storage.from_(bucket).download(path)
+            if hasattr(data, "read"):
+                return data.read()
+            if isinstance(data, bytes):
+                return data
+            return bytes(data) if data else b""
+
+        return execute_with_retry(_download)
+
 
 class SupabaseAuthProvider(IAuthProvider):
     """Implémentation Supabase Auth de IAuthProvider."""

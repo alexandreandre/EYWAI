@@ -17,11 +17,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
-import {
-  filterMutuellesForEmployee,
-  formatMutuelleOptionLabel,
-  PACK_COUVERTURE_LABELS,
-} from "@/lib/mutuelleUtils";
+import { getPscSettings } from "@/api/pscSettings";
+import { MutuelleSelectionField } from "@/components/mutuelle/MutuelleSelectionField";
+import { filterMutuellesForEmployee } from "@/lib/mutuelleUtils";
 import { PrevoyanceAffiliationFields } from "@/features/employees/components/PrevoyanceAffiliationFields";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
 import { getTeams } from "@/api/teams";
@@ -233,14 +231,19 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   // Charger les mutuelles disponibles
   const [availableMutuelles, setAvailableMutuelles] = useState<MutuelleType[]>([]);
   const [loadingMutuelles, setLoadingMutuelles] = useState(false);
+  const [companyOrganismeLabel, setCompanyOrganismeLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isDialogOpen) return;
     const loadMutuelles = async () => {
       try {
         setLoadingMutuelles(true);
-        const mutuelles = await mutuelleTypesApi.getMutuelleTypes();
+        const [mutuelles, psc] = await Promise.all([
+          mutuelleTypesApi.getMutuelleTypes(),
+          getPscSettings().catch(() => null),
+        ]);
         setAvailableMutuelles(mutuelles.filter((m) => m.is_active));
+        setCompanyOrganismeLabel(psc?.mutuelle_organisme_label ?? null);
       } catch (error) {
         log.error("Erreur lors du chargement des mutuelles:", error);
       } finally {
@@ -1548,31 +1551,20 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   name="specificites_paie.mutuelle.mutuelle_type_ids"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel>Sélectionner la formule de mutuelle (pack)</FormLabel>
-                                      <div className="space-y-2 mt-2">
-                                        {filteredMutuelles.map((mutuelle) => (
-                                          <div key={mutuelle.id} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-muted/50">
-                                            <Checkbox
-                                              checked={field.value?.includes(mutuelle.id) || false}
-                                              onCheckedChange={(checked) => {
-                                                field.onChange(checked ? [mutuelle.id] : []);
-                                              }}
-                                            />
-                                            <div className="flex-1">
-                                              <div className="font-medium">{formatMutuelleOptionLabel(mutuelle)}</div>
-                                              <div className="text-sm text-muted-foreground">
-                                                Salarial: {mutuelle.montant_salarial.toFixed(2)} € | 
-                                                Patronal: {mutuelle.montant_patronal.toFixed(2)} €
-                                                {mutuelle.pack_couverture ? (
-                                                  <span className="ml-2 text-xs">
-                                                    ({PACK_COUVERTURE_LABELS[mutuelle.pack_couverture]})
-                                                  </span>
-                                                ) : null}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
+                                      <FormLabel>Sélectionner la formule de mutuelle</FormLabel>
+                                      <MutuelleSelectionField
+                                        mutuelles={availableMutuelles}
+                                        value={field.value?.[0] ?? null}
+                                        onChange={(id) => field.onChange([id])}
+                                        employeeStatut={employeeStatut}
+                                        companyOrganismeLabel={companyOrganismeLabel}
+                                        loading={loadingMutuelles}
+                                        emptyMessage={
+                                          filteredMutuelles.length === 0
+                                            ? `Aucune formule compatible avec le statut ${employeeStatut ?? 'sélectionné'}.`
+                                            : "Aucune formule de mutuelle disponible. Veuillez en créer dans l'onglet Mutuelle de Mon Entreprise."
+                                        }
+                                      />
                                       <FormMessage />
                                     </FormItem>
                                   )}

@@ -78,15 +78,15 @@ export function AccountingIntegrationPanel() {
   const [cegidWizardMode, setCegidWizardMode] = useState<'new' | 'edit'>('new');
   const [cegidAuthMode, setCegidAuthMode] = useState<'shared' | 'dedicated'>('shared');
 
-  const useSharedCabinetKeys =
-    Boolean(config?.has_platform_cegid_credentials) && cegidAuthMode === 'shared';
-
   const { data: config, isLoading, isFetching } = useQuery({
     queryKey: ['accounting-integration-config', companyId],
     queryFn: () => getAccountingConfig(companyId),
     enabled: Boolean(companyId),
     ...exportsLiveQueryOptions,
   });
+
+  const useSharedCabinetKeys =
+    Boolean(config?.has_platform_cegid_credentials) && cegidAuthMode === 'shared';
 
   const { data: providers = [] } = useQuery({
     queryKey: ['accounting-integration-providers', companyId],

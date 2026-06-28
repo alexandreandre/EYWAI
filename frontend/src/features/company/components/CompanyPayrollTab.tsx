@@ -11,6 +11,7 @@ import JeiSettingsCard from "@/features/company/components/JeiSettingsCard";
 import WorkMedalSettingsCard from "@/features/company/components/WorkMedalSettingsCard";
 import { DsnSyncModeCard } from "@/features/dsn-import/components/DsnSyncModeCard";
 import { CompanyPayrollParamsEditCard } from "@/features/company/components/CompanyPayrollParamsEditCard";
+import { CompanyMutuelleSection } from "@/features/company/components/CompanyMutuelleSection";
 import { WorkMedalCasesList } from "@/features/work-medals/components/WorkMedalCasesList";
 import OethSettingsCard from "@/features/company/components/OethSettingsCard";
 import OvertimeContingentSettingsCard from "@/features/company/components/OvertimeContingentSettingsCard";
@@ -311,6 +312,13 @@ export function CompanyPayrollTab({
           />
           <NetEntreprisesConfigCard />
         </>,
+      )}
+
+      {renderSection(
+        "mutuelle",
+        "Mutuelle & complémentaire santé",
+        "Organisme, catalogue de formules et affectation salariés",
+        <CompanyMutuelleSection canEdit={canEditPayrollParams} embedded />,
       )}
 
       {renderSection(

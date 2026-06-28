@@ -453,6 +453,37 @@ def generate_payroll_lines_route(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/bulletins/{bulletin_id}/regularisation-payslip")
+def generate_regularisation_payslip_route(
+    bulletin_id: str,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> dict:
+    """Génère le bulletin de paie de régularisation participation d'un bénéficiaire.
+
+    Fonctionne y compris pour un salarié déjà sorti (statut « parti »).
+    """
+    from app.modules.participation.application.regularisation_bulletin_service import (
+        RegularisationBulletinError,
+        generate_regularisation_participation_payslip,
+    )
+
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        result = generate_regularisation_participation_payslip(bulletin_id, company_id)
+        return {
+            "detail": "Bulletin de régularisation participation généré.",
+            **result,
+        }
+    except RegularisationBulletinError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/me/participation-bulletins",
     response_model=EmployeeParticipationBulletinListResponse,

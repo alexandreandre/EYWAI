@@ -5,7 +5,7 @@ import { queryKeys } from '@/lib/queryKeys';
 
 export function useEmployeeAbsenceBalancesQuery(employeeId: string | undefined) {
   const { activeCompany } = useCompany();
-  const companyId = activeCompany?.id;
+  const companyId = activeCompany?.company_id;
 
   return useQuery({
     queryKey: queryKeys.employeeAbsenceBalances(companyId, employeeId),

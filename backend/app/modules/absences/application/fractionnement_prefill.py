@@ -50,18 +50,29 @@ def build_employee_cp_seniority_context_from_db(employee_id: str):
     from app.core.database import supabase
     from app.modules.absences.application.cp_seniority_queries import (
         build_employee_cp_seniority_context,
+        employee_cp_seniority_select,
+        employee_cp_seniority_select_without_cadre_dirigeant,
+        is_missing_cadre_dirigeant_column_error,
     )
 
-    resp = (
-        supabase.table("employees")
-        .select(
-            "hire_date, date_naissance, statut, prior_service_months, "
-            "specificites_paie, seniority_reference_date, is_cadre_dirigeant"
+    try:
+        resp = (
+            supabase.table("employees")
+            .select(employee_cp_seniority_select())
+            .eq("id", employee_id)
+            .limit(1)
+            .execute()
         )
-        .eq("id", employee_id)
-        .limit(1)
-        .execute()
-    )
+    except Exception as exc:
+        if not is_missing_cadre_dirigeant_column_error(exc):
+            raise
+        resp = (
+            supabase.table("employees")
+            .select(employee_cp_seniority_select_without_cadre_dirigeant())
+            .eq("id", employee_id)
+            .limit(1)
+            .execute()
+        )
     rows = resp.data or []
     if not rows:
         from app.modules.absences.domain.cp_seniority import EmployeeCpSeniorityContext

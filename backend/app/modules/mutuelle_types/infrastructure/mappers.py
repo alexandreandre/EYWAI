@@ -47,6 +47,8 @@ def row_to_mutuelle_type(row: dict) -> MutuelleType:
         code_option_dsn=row.get("code_option_dsn"),
         code_organisme_dsn=row.get("code_organisme_dsn"),
         reference_contrat_dsn=row.get("reference_contrat_dsn"),
+        organisme_label=row.get("organisme_label"),
+        note=row.get("note"),
         source=row.get("source") or "manual",
         created_at=_parse_datetime(row.get("created_at")),
         updated_at=_parse_datetime(row.get("updated_at")),
@@ -74,6 +76,10 @@ def mutuelle_type_to_row(entity: MutuelleType) -> dict:
         row["code_organisme_dsn"] = entity.code_organisme_dsn
     if entity.reference_contrat_dsn is not None:
         row["reference_contrat_dsn"] = entity.reference_contrat_dsn
+    if entity.organisme_label is not None:
+        row["organisme_label"] = entity.organisme_label
+    if entity.note is not None:
+        row["note"] = entity.note
     if entity.id is not None:
         row["id"] = str(entity.id)
     if entity.created_at is not None:
@@ -100,6 +106,8 @@ def entity_to_response_dict(entity: MutuelleType, employee_ids: list[str]) -> di
         "code_option_dsn": entity.code_option_dsn,
         "code_organisme_dsn": entity.code_organisme_dsn,
         "reference_contrat_dsn": entity.reference_contrat_dsn,
+        "organisme_label": entity.organisme_label,
+        "note": entity.note,
         "source": entity.source,
         "created_at": (entity.created_at.isoformat() if entity.created_at else None),
         "updated_at": (entity.updated_at.isoformat() if entity.updated_at else None),

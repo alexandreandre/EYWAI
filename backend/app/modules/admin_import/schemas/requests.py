@@ -20,6 +20,18 @@ class RibImportCommitBody(BaseModel):
     rows: List[RibImportCommitRow] = Field(default_factory=list)
 
 
+class SeniorityImportCommitRow(BaseModel):
+    row_index: int
+    employee_id: str
+    seniority_date: str
+    confirmed: bool = True
+
+
+class SeniorityImportCommitBody(BaseModel):
+    company_id: str
+    rows: List[SeniorityImportCommitRow] = Field(default_factory=list)
+
+
 class CpImportCommitRow(BaseModel):
     row_index: int
     company_id: str

@@ -31,6 +31,17 @@ export function isProfileIncomplete(employee: Employee): boolean {
   return (employee.missing_payroll_fields?.length ?? 0) > 0;
 }
 
+/** Aucune formule mutuelle catalogue (ni lignes legacy) sur la fiche. */
+export function isMutuelleMissing(employee: Employee): boolean {
+  const mutuelle = employee.specificites_paie?.mutuelle;
+  if (!mutuelle || typeof mutuelle !== 'object') return true;
+  const ids = mutuelle.mutuelle_type_ids;
+  if (Array.isArray(ids) && ids.length > 0) return false;
+  const lignes = mutuelle.lignes_specifiques;
+  if (Array.isArray(lignes) && lignes.length > 0) return false;
+  return true;
+}
+
 export function isCddOrStage(contractType: string | null | undefined): boolean {
   return needsContractEndDate(contractType);
 }

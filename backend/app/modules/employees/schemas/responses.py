@@ -109,6 +109,7 @@ class FullEmployee(BaseModel):
     # Section Contrat
     hire_date: date | None = None
     prior_service_months: int | None = 0
+    seniority_reference_date: date | None = None
     contract_type: str | None = None
     statut: str | None = None
     job_title: str | None = None

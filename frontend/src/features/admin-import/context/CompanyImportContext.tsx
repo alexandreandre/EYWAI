@@ -13,6 +13,7 @@ import { companySetupStatusQueryKey } from '@/features/admin-import/hooks/useCom
 
 export type CompanyImportTab =
   | 'dsn'
+  | 'seniority'
   | 'payroll-export'
   | 'cp'
   | 'params'
@@ -34,6 +35,7 @@ const CompanyImportContext = createContext<CompanyImportContextValue | null>(nul
 
 const VALID_TABS: CompanyImportTab[] = [
   'dsn',
+  'seniority',
   'payroll-export',
   'cp',
   'params',

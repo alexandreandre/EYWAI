@@ -154,6 +154,7 @@ def build_full_dashboard(company_id: str) -> DashboardData:
             name=row["name"],
             Net_Verse=row["Net_Verse"],
             Charges=row["Charges"],
+            stackMode=row.get("stackMode", "employer_cost"),
             source=row.get("source"),
             period=row.get("period"),
         )
@@ -166,7 +167,7 @@ def build_full_dashboard(company_id: str) -> DashboardData:
 
     prev_month_num, prev_year = domain_rules.get_previous_month(today)
     current_month_str = f"{prev_month_num:02d}/{prev_year}"
-    cout_total_mois_actuel = last_snap.employer_cost if last_snap.source == "payslip" else 0.0
+    cout_total_mois_actuel = round(last_snap.employer_cost, 2) if last_snap.employer_cost > 0 else 0.0
     net_verse_mois_actuel = last_snap.net
 
     # Taux d'absentéisme (règles pures + données infra)

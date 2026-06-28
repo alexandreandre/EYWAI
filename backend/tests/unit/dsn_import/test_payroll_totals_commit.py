@@ -23,7 +23,13 @@ def test_aggregate_cumuls_by_company_period():
             "mapped_payload": {
                 "siret": "80248516900022",
                 "period": "2026-01",
-                "month_totals": {"brut": 2500.0, "net_imposable": 2000.0, "pas": 80.0},
+                "month_totals": {
+                    "brut": 2500.0,
+                    "net_imposable": 2000.0,
+                    "pas": 80.0,
+                    "employee_charges": 500.0,
+                    "employer_charges": 700.0,
+                },
             },
         },
     ]
@@ -33,6 +39,24 @@ def test_aggregate_cumuls_by_company_period():
     assert agg["co-1"]["2026-01"]["gross_salary"] == 5500.0
     assert agg["co-1"]["2026-01"]["employee_count"] == 2
     assert agg["co-1"]["2026-01"]["employees_with_gross"] == 2
+    assert agg["co-1"]["2026-01"]["employee_charges"] == 500.0
+
+
+def test_aggregate_cumuls_fallback_employee_charges():
+    items = [
+        {
+            "item_type": "cumul",
+            "mapped_payload": {
+                "siret": "80248516900022",
+                "period": "2026-03",
+                "month_totals": {"brut": 24049.34, "net_imposable": 19547.93, "pas": 0.0},
+            },
+        },
+    ]
+    agg = aggregate_cumuls_by_company_period(
+        items, resolve_company_id=lambda siret: "co-1" if siret else None
+    )
+    assert agg["co-1"]["2026-03"]["employee_charges"] == round(24049.34 - 19547.93, 2)
 
 
 def test_persist_batch_dsn_payroll_totals():
@@ -58,4 +82,5 @@ def test_persist_batch_dsn_payroll_totals():
     upsert.assert_called_once()
     kwargs = upsert.call_args.kwargs
     assert kwargs["gross_salary"] == 1000.0
+    assert kwargs["employee_charges"] == 200.0
     assert kwargs["last_batch_id"] == "batch-1"

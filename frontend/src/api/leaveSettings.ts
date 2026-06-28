@@ -108,6 +108,29 @@ export interface RttYearEndOverview {
   employees: RttYearEndOverviewItem[];
 }
 
+export type LeaveNotificationRole = 'admin' | 'rh' | 'collaborateur_rh';
+
+export interface LeaveNotificationSettings {
+  company_id: string;
+  enabled: boolean;
+  notify_on_employee_request: boolean;
+  notify_after_manager_approval: boolean;
+  recipient_roles: LeaveNotificationRole[];
+  extra_recipient_emails: string[];
+  configured: boolean;
+}
+
+export type LeaveNotificationSettingsUpdate = Partial<
+  Pick<
+    LeaveNotificationSettings,
+    | 'enabled'
+    | 'notify_on_employee_request'
+    | 'notify_after_manager_approval'
+    | 'recipient_roles'
+    | 'extra_recipient_emails'
+  >
+>;
+
 export interface LeaveAdjustmentImportRow {
   email?: string;
   matricule?: string;
@@ -209,5 +232,22 @@ export async function closeRttYearEnd(
     closed_count: number;
     total_days_forfeited: number;
   }>('/api/absences/rtt-year-end/close', { year, employee_ids: employeeIds });
+  return data;
+}
+
+export async function getLeaveNotificationSettings(): Promise<LeaveNotificationSettings> {
+  const { data } = await apiClient.get<LeaveNotificationSettings>(
+    '/api/absences/leave-notification-settings',
+  );
+  return data;
+}
+
+export async function updateLeaveNotificationSettings(
+  payload: LeaveNotificationSettingsUpdate,
+): Promise<LeaveNotificationSettings> {
+  const { data } = await apiClient.put<LeaveNotificationSettings>(
+    '/api/absences/leave-notification-settings',
+    payload,
+  );
   return data;
 }

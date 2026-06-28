@@ -10,7 +10,7 @@ from app.modules.admin_import.api.dependencies import (
     super_admin_auth_user_id,
     verify_super_admin,
 )
-from app.modules.admin_import.application import cp_import, payroll_export_import, rib_import
+from app.modules.admin_import.application import cp_import, payroll_export_import, rib_import, seniority_import
 from app.modules.admin_import.application.ccn_preset_apply import apply_ccn_setup_presets
 from app.modules.admin_import.application.company_setup_status import get_company_setup_status
 from app.modules.admin_import.application.planning_import import (
@@ -27,6 +27,7 @@ from app.modules.admin_import.schemas.requests import (
     PayrollExportCommitBody,
     PlanningImportApplyMappingsBody,
     RibImportCommitBody,
+    SeniorityImportCommitBody,
 )
 from app.modules.admin_import.schemas.responses import (
     CcnPresetApplyResponse,
@@ -41,6 +42,8 @@ from app.modules.admin_import.schemas.responses import (
     PlanningImportParseResponse,
     RibImportCommitResponse,
     RibImportParseResponse,
+    SeniorityImportCommitResponse,
+    SeniorityImportParseResponse,
 )
 
 router = APIRouter(prefix="/api/admin-import", tags=["Import"])
@@ -251,6 +254,42 @@ def commit_rib_import(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return RibImportCommitResponse(**result)
+
+
+@router.post("/seniority/parse", response_model=SeniorityImportParseResponse)
+async def parse_seniority_import(
+    file: UploadFile = File(...),
+    company_id: str = Query(..., description="Entreprise cible"),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> SeniorityImportParseResponse:
+    """Analyse un fichier Excel/CSV de dates d'ancienneté (reprise / prime)."""
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+    try:
+        result = seniority_import.parse_seniority_import_file(
+            content,
+            file.filename or "anciennete.xlsx",
+            company_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SeniorityImportParseResponse(**result)
+
+
+@router.post("/seniority/commit", response_model=SeniorityImportCommitResponse)
+def commit_seniority_import(
+    body: SeniorityImportCommitBody,
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> SeniorityImportCommitResponse:
+    """Enregistre les dates d'ancienneté validées."""
+    try:
+        result = seniority_import.commit_seniority_import(body)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return SeniorityImportCommitResponse(**result)
 
 
 @router.post("/cp/parse", response_model=CpImportParseResponse)

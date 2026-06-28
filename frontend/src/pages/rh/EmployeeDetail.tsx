@@ -13,7 +13,7 @@ import * as saisiesApi from "@/api/saisies";
 import { useCalendar } from "@/hooks/useCalendar";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ArrowLeft, ClipboardEdit, MessageSquare, Calendar as CalendarIcon, FileText, TrendingUp, Stethoscope, ScanLine } from "lucide-react";
+import { Loader2, ArrowLeft, ClipboardEdit, MessageSquare, Calendar as CalendarIcon, FileText, TrendingUp, Stethoscope, ScanLine, Palmtree } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/EmployeeDetailBadgeuseSection";
 import { getEmployeeDaysSummary } from "@/api/badgeuse";
@@ -37,6 +37,7 @@ import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFoll
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
 import { EmployeeDetailDocumentsTab } from "@/components/employee-detail/EmployeeDetailDocumentsTab";
+import { EmployeeDetailLeaveBalancesTab } from "@/components/employee-detail/EmployeeDetailLeaveBalancesTab";
 import { EmployeeBoethCard } from "@/features/employee-detail/components/EmployeeBoethCard";
 import { getEmployeeBoeth } from "@/api/oethSettings";
 import { EmployeePasSettingsCard } from "@/features/employee-detail/components/EmployeePasSettingsCard";
@@ -55,7 +56,7 @@ import {
   resolveDefaultCollectiveAgreementId,
   sortAffiliatedCompanyAgreements,
 } from '@/lib/companyCollectiveAgreementUtils';
-import { TAB_AUGMENTATIONS_PROMOTIONS, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
+import { TAB_AUGMENTATIONS_PROMOTIONS, TAB_SOLDE_CONGES, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
 import type { Employee } from "@/features/employee-detail/types";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
 import { WorkMedalEmployeeSection } from "@/features/work-medals/components/WorkMedalEmployeeSection";
@@ -366,16 +367,21 @@ export default function EmployeeDetail() {
   const credentialsPdfQuery = useQuery({
     queryKey: ["employee", employeeId, "credentials-pdf"],
     queryFn: async () => {
-      const res = await apiClient.get<{ url?: string | null }>(
-        `/api/employees/${employeeId}/credentials-pdf`,
-      );
-      return res.data.url ?? null;
+      const res = await apiClient.get<{
+        url?: string | null;
+        preview_url?: string | null;
+      }>(`/api/employees/${employeeId}/credentials-pdf`);
+      return {
+        downloadUrl: res.data.url ?? null,
+        previewUrl: res.data.preview_url ?? res.data.url ?? null,
+      };
     },
     enabled: Boolean(employeeId),
     retry: false,
     staleTime: 5 * 60_000,
   });
-  const credentialsPdfUrl = credentialsPdfQuery.data ?? null;
+  const credentialsPdfUrl = credentialsPdfQuery.data?.downloadUrl ?? null;
+  const credentialsPdfPreviewUrl = credentialsPdfQuery.data?.previewUrl ?? null;
 
   const handleDeleteEmployee = async () => {
     if (!employeeId) return;
@@ -500,6 +506,7 @@ export default function EmployeeDetail() {
       <EmployeeDetailHeaderCard
         employee={employee}
         credentialsPdfUrl={credentialsPdfUrl}
+        credentialsPdfPreviewUrl={credentialsPdfPreviewUrl}
         onDelete={handleDeleteEmployee}
         isDeleting={isDeletingEmployee}
         onEditProfile={() => setProfileEditOpen(true)}
@@ -577,31 +584,24 @@ export default function EmployeeDetail() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="documents" className="w-full">
-        <TabsList
-          className={cn(
-            "grid h-auto min-h-10 w-full gap-0.5 p-1",
-            medicalModuleEnabled
-              ? "grid-cols-[minmax(0,0.85fr)_minmax(0,1.1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,0.85fr)_minmax(0,0.8fr)]"
-              : "grid-cols-[minmax(0,0.88fr)_minmax(0,1.14fr)_minmax(0,0.88fr)_minmax(0,0.88fr)_minmax(0,0.88fr)_minmax(0,0.82fr)]",
-          )}
-        >
-          <TabsTrigger value="documents" className="px-2 py-1.5 text-[13px]">
+        <TabsList className="flex h-auto w-full gap-0.5 p-1 max-lg:justify-start max-lg:overflow-x-auto">
+          <TabsTrigger value="documents" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <FileText className="mr-1.5 h-4 w-4 shrink-0" />
             Documents
           </TabsTrigger>
           <TabsTrigger
             value={TAB_AUGMENTATIONS_PROMOTIONS}
-            className="min-w-0 px-2 py-1.5 text-[13px] leading-snug"
+            className="min-w-0 flex-[1.15] px-2 py-1.5 text-[13px] leading-snug max-lg:flex-none max-lg:shrink-0"
             title="Augmentations et Promotions"
           >
             <TrendingUp className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
-            <span className="whitespace-nowrap">Augmentations et Promotions</span>
+            <span className="truncate">Augmentations et Promotions</span>
           </TabsTrigger>
-          <TabsTrigger value="saisie" className="px-2 py-1.5 text-[13px]">
+          <TabsTrigger value="saisie" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <ClipboardEdit className="mr-1.5 h-4 w-4 shrink-0" />
-            Primes et autres
+            <span className="truncate">Primes et autres</span>
           </TabsTrigger>
-          <TabsTrigger value="entretiens" className="relative gap-1.5 px-2 py-1.5 text-[13px]">
+          <TabsTrigger value="entretiens" className="relative min-w-0 flex-1 gap-1.5 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <MessageSquare className="h-4 w-4 shrink-0" aria-hidden />
             Entretiens
             {annualReviewTabHasAlert && (
@@ -609,24 +609,28 @@ export default function EmployeeDetail() {
             )}
           </TabsTrigger>
           {medicalModuleEnabled && (
-            <TabsTrigger value="suivi_medical" className="relative gap-1.5 px-2 py-1.5 text-[13px]">
+            <TabsTrigger value="suivi_medical" className="relative min-w-0 flex-1 gap-1.5 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
               <Stethoscope className="h-4 w-4 shrink-0" aria-hidden />
-              Suivi médical
+              <span className="truncate">Suivi médical</span>
               {medicalTabHasOverdue && (
                 <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" aria-label="Visite en retard" />
               )}
             </TabsTrigger>
           )}
-          <TabsTrigger value="calendrier" className="px-2 py-1.5 text-[13px]">
+          <TabsTrigger value="calendrier" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
             Calendrier
           </TabsTrigger>
-          <TabsTrigger value="badgeuse" className="relative px-2 py-1.5 text-[13px]">
+          <TabsTrigger value="badgeuse" className="relative min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
             Badgeuse
             {badgeuseTabHasAnomaly && (
               <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" aria-label="Anomalie de pointage sur les 7 derniers jours" />
             )}
+          </TabsTrigger>
+          <TabsTrigger value={TAB_SOLDE_CONGES} className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
+            <Palmtree className="mr-1.5 h-4 w-4 shrink-0" />
+            <span className="truncate">Soldes congés</span>
           </TabsTrigger>
         </TabsList>
 
@@ -772,6 +776,17 @@ export default function EmployeeDetail() {
               isForfaitJour={isForfaitJour}
               isTabActive={activeTab === "badgeuse"}
             />
+          )}
+        </TabsContent>
+
+        <TabsContent value={TAB_SOLDE_CONGES} className="mt-4">
+          {employeeId && employee ? (
+            <EmployeeDetailLeaveBalancesTab
+              employeeId={employeeId}
+              hireDate={employee.hire_date}
+            />
+          ) : (
+            <TabPanelSkeleton />
           )}
         </TabsContent>
       </Tabs>

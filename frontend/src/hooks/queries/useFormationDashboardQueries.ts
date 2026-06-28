@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardCounts } from '@/api/certifications';
 import { getOverdueCount } from '@/api/legalObligations';
-import { getBudget } from '@/api/trainingBudget';
+import { getAllBudgets } from '@/api/trainingBudget';
 import { getAchievementRate } from '@/api/objectives';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
@@ -24,8 +24,12 @@ export function useFormationDashboardQueries(year = new Date().getFullYear()) {
 
   const budget = useQuery({
     queryKey: queryKeys.formationDashboardBudget(companyId, year),
-    queryFn: () => getBudget(year),
+    queryFn: async () => {
+      const all = await getAllBudgets();
+      return all.find((row) => row.year === year) ?? null;
+    },
     enabled,
+    retry: false,
   });
 
   const achievement = useQuery({

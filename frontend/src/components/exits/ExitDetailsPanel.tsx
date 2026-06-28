@@ -5,7 +5,7 @@
 
 import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
 import { log } from '@/lib/logger';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +16,12 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -28,6 +34,7 @@ import {
   createExitDocument,
   deleteExitDocument,
   publishExitDocuments,
+  archiveEmployeeExit,
   EmployeeExitWithDetails,
   ExitDocument,
   ChecklistItem,
@@ -54,11 +61,14 @@ import {
   Edit,
   FolderOpen,
   AlertTriangle,
+  FilePlus,
+  Archive,
 } from 'lucide-react';
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -78,6 +88,24 @@ interface ExitDetailsPanelProps {
   onUpdate?: () => void;
 }
 
+const GENERATABLE_DOCUMENTS: {
+  type: 'certificat_travail' | 'attestation_pole_emploi' | 'solde_tout_compte';
+  label: string;
+}[] = [
+  { type: 'certificat_travail', label: 'Certificat de travail' },
+  { type: 'attestation_pole_emploi', label: 'Attestation employeur' },
+  { type: 'solde_tout_compte', label: 'Solde de tout compte' },
+];
+
+const UPLOADABLE_DOCUMENTS: { type: string; label: string }[] = [
+  { type: 'lettre_demission', label: 'Lettre de démission' },
+  { type: 'convention_rupture_signee', label: 'Convention de rupture signée' },
+  { type: 'lettre_licenciement', label: 'Lettre de licenciement' },
+  { type: 'accuse_reception', label: 'Accusé de réception' },
+  { type: 'convocation_entretien', label: 'Convocation à un entretien' },
+  { type: 'justificatif_autre', label: 'Autre justificatif' },
+];
+
 export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetailsPanelProps) {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -91,6 +119,10 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishingDocuments, setPublishingDocuments] = useState(false);
   const [hasPublishPermission, setHasPublishPermission] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadType, setPendingUploadType] = useState<string>('justificatif_autre');
 
   useEffect(() => {
     if (open && exitId) {
@@ -152,6 +184,31 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleArchiveExit = async () => {
+    if (!exitId) return;
+
+    setArchiving(true);
+    try {
+      await archiveEmployeeExit(exitId);
+      toast({
+        title: 'Départ archivé',
+        description: 'Le départ a été clôturé et le collaborateur marqué « parti ».',
+      });
+      setShowArchiveModal(false);
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de l\'archivage:', error);
+      toast({
+        title: 'Erreur',
+        description: error.response?.data?.detail || 'Impossible d\'archiver le départ',
+        variant: 'destructive',
+      });
+    } finally {
+      setArchiving(false);
     }
   };
 
@@ -281,6 +338,19 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
     }
   };
 
+  const triggerUpload = (documentType: string) => {
+    setPendingUploadType(documentType);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleUploadDocument(file, pendingUploadType);
+    }
+    event.target.value = '';
+  };
+
   const handleDeleteDocument = async (documentId: string) => {
     if (!exitId) return;
 
@@ -407,6 +477,17 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
   const completionRate = exitDetails.checklist_completion_rate || 0;
+  const isArchived = exitDetails.status === 'archivee';
+  const isCancelled = exitDetails.status === 'annulee';
+  const canArchive = !isArchived && !isCancelled;
+  const lastWorkingDayPassed = (() => {
+    const raw = exitDetails.last_working_day;
+    if (!raw) return false;
+    const parsed = new Date(String(raw).slice(0, 10));
+    if (Number.isNaN(parsed.getTime())) return false;
+    const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return startOf(parsed) <= startOf(new Date());
+  })();
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -415,13 +496,30 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
           <SheetTitle className="text-2xl">
             {employee?.first_name} {employee?.last_name}
           </SheetTitle>
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <Badge variant={getStatusVariant(exitDetails.status)}>
               {statusLabels[exitDetails.status]}
             </Badge>
             <span className="text-sm text-muted-foreground">
               {exitTypeLabels[exitDetails.exit_type]}
             </span>
+            {canArchive && (
+              <Button
+                type="button"
+                variant={lastWorkingDayPassed ? 'default' : 'outline'}
+                size="sm"
+                className="ml-auto"
+                onClick={() => setShowArchiveModal(true)}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Clôturer le départ
+              </Button>
+            )}
+            {isArchived && (
+              <Badge variant="outline" className="ml-auto">
+                Départ clôturé
+              </Badge>
+            )}
           </div>
         </SheetHeader>
 
@@ -607,7 +705,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                   <div>
                     <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                      Les documents obligatoires sont générés automatiquement lors de l'initiation du départ
+                      Générez les documents officiels de fin de contrat ou téléversez vos propres pièces.
                     </CardDescription>
                   </div>
                   {hasPublishPermission && documents.filter(d => d.document_category === 'generated').length > 0 && (
@@ -624,9 +722,80 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Actions : générer / téléverser (toujours disponibles) */}
+                <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={generatingDocument !== null}
+                      >
+                        {generatingDocument !== null ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FilePlus className="h-4 w-4" />
+                        )}
+                        Générer un document
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {GENERATABLE_DOCUMENTS.map(({ type, label }) => (
+                        <DropdownMenuItem
+                          key={type}
+                          disabled={generatingDocument !== null}
+                          onClick={() => handleGenerateDocument(type)}
+                        >
+                          {generatingDocument === type ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileText className="mr-2 h-4 w-4" />
+                          )}
+                          {label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={uploadingDocument}
+                      >
+                        {uploadingDocument ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileUp className="h-4 w-4" />
+                        )}
+                        Téléverser
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {UPLOADABLE_DOCUMENTS.map(({ type, label }) => (
+                        <DropdownMenuItem key={type} onClick={() => triggerUpload(type)}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          {label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                    onChange={handleFileSelected}
+                  />
+                </div>
+
                 {documents.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Aucun document pour le moment. Les documents seront générés automatiquement.
+                    Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation employeur, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -846,6 +1015,53 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
           </TabsContent>
         </Tabs>
       </SheetContent>
+
+      {/* Modal de confirmation de clôture / archivage */}
+      <Dialog open={showArchiveModal} onOpenChange={setShowArchiveModal}>
+        <DialogContent className="z-[100]">
+          <DialogHeader>
+            <DialogTitle>Clôturer et archiver le départ</DialogTitle>
+            <DialogDescription>
+              Le départ sera marqué comme « archivé » et le collaborateur passera au statut
+              « parti ». Les documents générés restent consultables et modifiables après
+              l'archivage.
+            </DialogDescription>
+          </DialogHeader>
+          {!lastWorkingDayPassed && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  Le dernier jour travaillé ({formatDate(exitDetails.last_working_day)})
+                  n'est pas encore passé. Vous pouvez tout de même clôturer, mais vérifiez la date.
+                </span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowArchiveModal(false)}
+              disabled={archiving}
+            >
+              Annuler
+            </Button>
+            <Button onClick={handleArchiveExit} disabled={archiving}>
+              {archiving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Archivage en cours...
+                </>
+              ) : (
+                <>
+                  <Archive className="mr-2 h-4 w-4" />
+                  Clôturer et archiver
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de confirmation de publication */}
       <Dialog open={showPublishModal} onOpenChange={setShowPublishModal}>

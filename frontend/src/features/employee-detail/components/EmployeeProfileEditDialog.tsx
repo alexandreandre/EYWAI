@@ -7,6 +7,7 @@ import { CheckCircle2, Loader2, X } from 'lucide-react';
 import { updateEmployee } from '@/api/employees';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { mutuelleTypesApi, type MutuelleType } from '@/api/mutuelleTypes';
+import { getPscSettings } from '@/api/pscSettings';
 import { getTeams } from '@/api/teams';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,6 +67,7 @@ export function EmployeeProfileEditDialog({
   const [activeTeams, setActiveTeams] = useState<Awaited<ReturnType<typeof getTeams>>['teams']>([]);
   const [availableMutuelles, setAvailableMutuelles] = useState<MutuelleType[]>([]);
   const [loadingMutuelles, setLoadingMutuelles] = useState(false);
+  const [companyOrganismeLabel, setCompanyOrganismeLabel] = useState<string | null>(null);
 
   const defaultValues = useMemo(() => buildDefaultValues(employee), [employee]);
   const wasOnboarding = employee.employment_status === 'en_onboarding';
@@ -105,6 +107,9 @@ export function EmployeeProfileEditDialog({
       .then((list) => setAvailableMutuelles(list.filter((m) => m.is_active)))
       .catch(() => setAvailableMutuelles([]))
       .finally(() => setLoadingMutuelles(false));
+    getPscSettings()
+      .then((psc) => setCompanyOrganismeLabel(psc.mutuelle_organisme_label ?? null))
+      .catch(() => setCompanyOrganismeLabel(null));
   }, [open]);
 
   useEffect(() => {
@@ -189,6 +194,7 @@ export function EmployeeProfileEditDialog({
               activeTeams={activeTeams}
               availableMutuelles={availableMutuelles}
               loadingMutuelles={loadingMutuelles}
+              companyOrganismeLabel={companyOrganismeLabel}
             />
 
             <DialogFooter className="gap-2 sm:gap-0">

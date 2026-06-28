@@ -84,6 +84,7 @@ def _build_prime() -> PrimeAnciennete:
         taux_par_classe=dict(_TAUX_PRIME_PAR_CLASSE),
         eligibilite=PrimeAncienneteEligibilite(
             min_annees=3.0,
+            max_annees=15.0,
             statuts_exclus=["Cadre"],
             classe_max_taux=10,
         ),
@@ -106,6 +107,12 @@ def _build_prime() -> PrimeAnciennete:
                 zone_libelle="Deux-Sèvres — valeur du point",
                 departements=["79"],
                 valeur=5.70,
+            ),
+            ValeurPointZone(
+                zone_type="departemental",
+                zone_libelle="Seine-et-Marne — valeur du point",
+                departements=["77"],
+                valeur=5.24,
             ),
         ],
     )

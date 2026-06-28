@@ -113,6 +113,7 @@ def test_ensure_credentials_pdf_generates_when_auth_user_missing(
         "first_name": "Jean",
         "last_name": "Dupont",
         "username": "jean.dupont",
+        "email": "jean.dupont@example.com",
     }
     mock_repo.get_by_id.return_value = mock_repo.get_by_id_only.return_value
     storage = MagicMock()
@@ -130,6 +131,50 @@ def test_ensure_credentials_pdf_generates_when_auth_user_missing(
     storage.upload.assert_called_once()
     mock_generate_pdf.assert_called_once()
     assert "contactez les RH" in mock_generate_pdf.call_args.kwargs["password"]
+
+
+@patch("app.modules.employees.application.credentials_pdf.store_credentials_pdf_for_employee")
+@patch("app.modules.employees.application.credentials_pdf.find_credentials_pdf_path")
+@patch("app.modules.employees.application.credentials_pdf.get_storage_provider")
+@patch("app.modules.employees.application.credentials_pdf.get_employee_company_id")
+@patch("app.modules.employees.application.credentials_pdf._employee_repository")
+def test_ensure_credentials_pdf_skips_provision_for_dsn_placeholder_email(
+    mock_repo: MagicMock,
+    mock_company_id: MagicMock,
+    mock_storage_provider: MagicMock,
+    mock_find_path: MagicMock,
+    mock_store_pdf: MagicMock,
+) -> None:
+    from app.modules.employees.application.credentials_pdf import (
+        CREDENTIALS_PASSWORD_UNAVAILABLE,
+        ensure_credentials_pdf,
+    )
+
+    mock_company_id.return_value = "company-1"
+    mock_repo.get_by_id_only.return_value = {
+        "id": "emp-1",
+        "company_id": "company-1",
+        "user_id": None,
+        "first_name": "Jean",
+        "last_name": "Martin",
+        "username": "jean.martin",
+        "email": "import.jean.martin.123448@802485169.dsn-import.local",
+    }
+    mock_find_path.return_value = None
+    mock_store_pdf.return_value = "company-1/emp-1/creation_compte.pdf"
+
+    with patch(
+        "app.modules.employees.application.account_provisioning.provision_collaborator_account"
+    ) as mock_provision:
+        path = ensure_credentials_pdf("emp-1")
+
+    assert path == "company-1/emp-1/creation_compte.pdf"
+    mock_provision.assert_not_called()
+    mock_store_pdf.assert_called_once_with(
+        "emp-1",
+        "company-1",
+        password=CREDENTIALS_PASSWORD_UNAVAILABLE,
+    )
 
 
 @patch("app.modules.employees.application.credentials_pdf.generate_credentials_pdf")

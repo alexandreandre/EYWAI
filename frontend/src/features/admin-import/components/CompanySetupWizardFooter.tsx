@@ -22,7 +22,7 @@ type Props = {
 };
 
 /** Étapes que l'on peut quitter sans avoir tout complété. */
-const SKIPPABLE_INCOMPLETE = new Set(['payroll-export', 'cp', 'params', 'planning']);
+const SKIPPABLE_INCOMPLETE = new Set(['seniority', 'payroll-export', 'cp', 'params', 'planning']);
 
 function canAdvance(
   step: string,

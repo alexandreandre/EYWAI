@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { SignedPdfPreviewDialog } from '@/components/documents/SignedPdfPreviewDialog';
+import apiClient, { getApiBaseUrl } from '@/api/apiClient';
 import { createBlobPreviewUrl, downloadBlob } from '@/lib/downloadBlob';
 import { registerSignedPdfPreviewOpener, registerSignedPdfBlobOpener } from '@/lib/openSignedUrlPreview';
 
@@ -50,26 +51,45 @@ type SignedPdfPreviewContextValue = {
 
 const SignedPdfPreviewContext = createContext<SignedPdfPreviewContextValue | null>(null);
 
+function resolveApiPath(url: string): string | null {
+  const trimmed = url.trim();
+  if (trimmed.startsWith('/api/')) {
+    return trimmed;
+  }
+  const base = getApiBaseUrl()?.replace(/\/$/, '');
+  if (base && trimmed.startsWith(`${base}/api/`)) {
+    return trimmed.slice(base.length);
+  }
+  return null;
+}
+
+function blobFromResponseData(data: Blob): Blob {
+  if (data.size === 0) {
+    throw new Error(PREVIEW_LOAD_ERROR);
+  }
+  const type = data.type.toLowerCase();
+  if (type.includes('json') || type.includes('html')) {
+    throw new Error(PREVIEW_LOAD_ERROR);
+  }
+  if (type.includes('pdf') || type.startsWith('image/')) {
+    return data;
+  }
+  return new Blob([data], { type: 'application/pdf' });
+}
+
 async function fetchPreviewBlob(url: string): Promise<Blob> {
+  const apiPath = resolveApiPath(url);
+  if (apiPath) {
+    const response = await apiClient.get<Blob>(apiPath, { responseType: 'blob' });
+    return blobFromResponseData(response.data);
+  }
+
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(PREVIEW_LOAD_ERROR);
   }
   const blob = await response.blob();
-  if (blob.size === 0) {
-    throw new Error(PREVIEW_LOAD_ERROR);
-  }
-  const type = blob.type.toLowerCase();
-  if (type.includes('json') || type.includes('html')) {
-    throw new Error(PREVIEW_LOAD_ERROR);
-  }
-  if (type.includes('pdf')) {
-    return blob;
-  }
-  if (type.startsWith('image/')) {
-    return blob;
-  }
-  return new Blob([blob], { type: 'application/pdf' });
+  return blobFromResponseData(blob);
 }
 
 export function SignedPdfPreviewProvider({ children }: { children: ReactNode }) {
@@ -143,6 +163,20 @@ export function SignedPdfPreviewProvider({ children }: { children: ReactNode }) 
           });
         } catch {
           if (loadIdRef.current !== loadId) return;
+          const apiPath = resolveApiPath(trimmed);
+          if (!apiPath && trimmed.startsWith('http')) {
+            setState((current) => {
+              if (loadIdRef.current !== loadId) return current;
+              return {
+                ...current,
+                pdfUrl: trimmed,
+                loading: false,
+                error: null,
+                blob: null,
+              };
+            });
+            return;
+          }
           setState((current) => ({
             ...current,
             loading: false,

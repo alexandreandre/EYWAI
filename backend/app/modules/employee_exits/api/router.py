@@ -261,6 +261,29 @@ async def update_exit_status(
         raise _to_http(e)
 
 
+@router.post("/{exit_id}/archive", response_model=StatusTransitionResponse)
+async def archive_employee_exit(
+    exit_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Clôture et archive un départ (enchaîne les transitions jusqu'à « archivée »)."""
+    company_id = _company_id_required(current_user)
+    _check_exit_permission(current_user, company_id, "edit")
+    try:
+        updated = commands.close_and_archive_exit(
+            str(exit_id),
+            company_id,
+            str(current_user.id),
+        )
+        return StatusTransitionResponse(
+            success=True,
+            exit=EmployeeExit(**updated),
+            message="Départ clôturé et archivé",
+        )
+    except EmployeeExitApplicationError as e:
+        raise _to_http(e)
+
+
 @router.delete("/{exit_id}", status_code=204)
 async def delete_employee_exit(
     exit_id: str,
