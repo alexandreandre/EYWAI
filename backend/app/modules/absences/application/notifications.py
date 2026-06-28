@@ -8,6 +8,7 @@ from typing import Any, List
 
 from app.core.database import supabase
 from app.modules.absences.application import leave_notification_settings
+from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
 from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
 )
@@ -176,7 +177,7 @@ def _clean_email_list(emails: list[str]) -> list[str]:
     cleaned: list[str] = []
     for raw in emails:
         email = str(raw or "").strip().lower()
-        if not email or "@" not in email or email.endswith(".dsn-import.local"):
+        if not email or "@" not in email or is_dsn_import_placeholder_email(email):
             continue
         if email not in seen:
             cleaned.append(email)

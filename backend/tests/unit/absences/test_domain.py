@@ -303,7 +303,12 @@ class TestComputeAbsenceBalances:
         ]
         balances = compute_absence_balances(hire_date, requests, ref)
         cp = balances["conges_payes"]
-        assert cp["acquis"] == calculate_acquired_cp(hire_date, ref)
+        periods = compute_cp_period_balances(hire_date, requests, ref)
+        assert cp["acquis"] == round(
+            periods["periode_precedente"]["acquis"]
+            + periods["periode_courante"]["acquis"],
+            2,
+        )
         assert cp["pris"] == 2.0
         assert cp["solde"] == pytest.approx(cp["acquis"] - 2.0)
 
@@ -345,20 +350,20 @@ class TestCongePayeAvailability:
             },
         ]
         from app.modules.absences.domain.rules import (
-            calculate_acquired_cp,
+            compute_cp_period_balances,
             get_available_conge_paye_days,
             validate_conge_paye_request_days,
         )
 
-        acquis = calculate_acquired_cp(hire_date, ref)
+        periods = compute_cp_period_balances(hire_date, [], ref)
         available = get_available_conge_paye_days(hire_date, requests, ref)
-        assert available == acquis - 2
+        assert available == periods["total_remaining"] - 2
 
         validate_conge_paye_request_days(
             hire_date, requests, [date(2026, 3, 12)], ref_date=ref
         )
 
-        remaining = int(acquis - 2)
+        remaining = int(periods["total_remaining"] - 2)
         start = date(2026, 3, 12)
         too_many_days = [start + timedelta(days=i) for i in range(remaining + 1)]
         with pytest.raises(ValueError, match="insuffisant"):
@@ -371,13 +376,17 @@ class TestCongePayeAvailability:
 
 
 class TestCpCarryover:
-    def test_carryover_disabled_matches_legacy_single_period(self):
+    def test_carryover_disabled_includes_n1_and_n_in_total(self):
         hire_date = date(2020, 1, 1)
         ref = date(2026, 3, 1)
         policy = LeavePolicySettings(cp_carryover_enabled=False)
         balances = compute_absence_balances(hire_date, [], ref, policy=policy)
-        assert balances["conges_payes"]["acquis"] == calculate_acquired_cp(
-            hire_date, ref, policy=policy
+        periods = compute_cp_period_balances(hire_date, [], ref, policy=policy)
+        assert balances["conges_payes"]["solde"] == periods["total_remaining"]
+        assert balances["conges_payes"]["acquis"] == round(
+            periods["periode_precedente"]["acquis"]
+            + periods["periode_courante"]["acquis"],
+            2,
         )
 
     def test_carryover_n1_consumed_before_n(self):

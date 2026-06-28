@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import calendar
 import math
+import re
+import unicodedata
 from datetime import date, timedelta
 
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
@@ -257,11 +259,15 @@ def count_absence_days_taken(
     return total
 
 
-def _balance(acquis: float, pris: float) -> dict[str, float]:
+def _balance(
+    acquis: float, pris: float, *, solde: float | None = None
+) -> dict[str, float]:
+    """Acquis/pris = droits officiels ; solde peut intégrer une reprise (ajustement d'ouverture)."""
+    resolved = round(acquis - pris, 2) if solde is None else round(solde, 2)
     return {
-        "acquis": acquis,
-        "pris": pris,
-        "solde": round(acquis - pris, 2),
+        "acquis": round(acquis, 2),
+        "pris": round(pris, 2),
+        "solde": resolved,
     }
 
 
@@ -286,6 +292,216 @@ def _supplemental_cp_for_period_end(
     return grant.days_granted
 
 
+_BULLETIN_MONTH_RE = re.compile(
+    r"(janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)\s+(\d{4})",
+    re.IGNORECASE,
+)
+_BULLETIN_MONTH_NUM = {
+    "janvier": 1,
+    "fevrier": 2,
+    "février": 2,
+    "mars": 3,
+    "avril": 4,
+    "mai": 5,
+    "juin": 6,
+    "juillet": 7,
+    "aout": 8,
+    "août": 8,
+    "septembre": 9,
+    "octobre": 10,
+    "novembre": 11,
+    "decembre": 12,
+    "décembre": 12,
+}
+
+
+def _normalize_month_name(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return text.strip().lower()
+
+
+def _is_bulletin_cp_import(adjustment: EmployeeLeaveAdjustment) -> bool:
+    return bool(adjustment.note and "Import CP bulletin" in adjustment.note)
+
+
+def _bulletin_import_reference_date(
+    adjustment: EmployeeLeaveAdjustment, fallback_year: int
+) -> date | None:
+    """Date de référence du bulletin (fin de mois paie) extraite de la note d'import."""
+    if not _is_bulletin_cp_import(adjustment):
+        return None
+    match = _BULLETIN_MONTH_RE.search(adjustment.note or "")
+    if match:
+        month = _BULLETIN_MONTH_NUM.get(_normalize_month_name(match.group(1)))
+        ref_year = int(match.group(2))
+        if month:
+            _, last_day = calendar.monthrange(ref_year, month)
+            return min(date(ref_year, month, last_day), date.today())
+    if fallback_year < date.today().year:
+        return date(fallback_year, 12, 31)
+    return min(date.today(), date(fallback_year, 12, 31))
+
+
+def _bulletin_faithful_cp_solde(
+    hire_date: date,
+    validated_requests: list[dict],
+    ref_date: date,
+    adjustment: EmployeeLeaveAdjustment,
+    *,
+    policy: LeavePolicySettings,
+    cp_seniority: CpSenioritySettings | None = None,
+    employee_ctx: EmployeeCpSeniorityContext | None = None,
+) -> dict[str, float] | None:
+    """
+    Solde CP = bulletin importé − pris depuis le bulletin (pas d'acquisition théorique en plus).
+    """
+    import_ref = _bulletin_import_reference_date(adjustment, ref_date.year)
+    if import_ref is None or ref_date < import_ref:
+        return None
+
+    at_import = compute_cp_period_balances(
+        hire_date,
+        validated_requests,
+        import_ref,
+        policy=policy,
+        adjustment=adjustment,
+        cp_seniority=cp_seniority,
+        employee_ctx=employee_ctx,
+        _skip_adjustment_roll=True,
+    )
+    baseline = round(
+        max(0.0, float(at_import["n1_remaining"]))
+        + max(0.0, float(at_import["n_remaining"])),
+        2,
+    )
+    pris_since = count_absence_days_taken(
+        validated_requests,
+        "conge_paye",
+        ref_date,
+        period_start=import_ref + timedelta(days=1),
+        period_end=ref_date,
+    )
+    solde = max(0.0, round(baseline - pris_since, 2))
+    return {
+        "acquis": baseline,
+        "pris": round(pris_since, 2),
+        "solde": solde,
+        "n1_remaining": max(0.0, float(at_import["n1_remaining"])),
+        "n_remaining": solde,
+    }
+
+
+def _bulletin_faithful_rtt_balance(
+    hire_date: date,
+    validated_requests: list[dict],
+    ref_date: date,
+    adjustment: EmployeeLeaveAdjustment,
+    *,
+    policy: LeavePolicySettings,
+    rtt_annual_base: float | None = None,
+    employee_ctx: EmployeeCpSeniorityContext | None = None,
+) -> dict[str, float] | None:
+    import_ref = _bulletin_import_reference_date(adjustment, ref_date.year)
+    if import_ref is None or ref_date < import_ref:
+        return None
+
+    at_import = compute_rtt_balance(
+        hire_date,
+        validated_requests,
+        import_ref,
+        policy=policy,
+        adjustment=adjustment,
+        rtt_annual_base=rtt_annual_base,
+        employee_ctx=employee_ctx,
+    )
+    baseline = max(0.0, float(at_import["solde"]))
+    period_start, period_end = _rtt_period_bounds(ref_date.year, policy)
+    pris_since = count_absence_days_taken(
+        validated_requests,
+        "rtt",
+        ref_date,
+        period_start=max(period_start, import_ref + timedelta(days=1)),
+        period_end=period_end,
+    )
+    forfeited = float(adjustment.rtt_forfeited_days or 0) if ref_date >= import_ref else 0.0
+    pris = round(pris_since + forfeited, 2)
+    solde = max(0.0, round(baseline - pris_since - forfeited, 2))
+    return _balance(0.0, pris, solde=solde)
+
+
+def _resolve_cp_adjustment_for_ref_date(
+    ref_date: date,
+    hire_date: date,
+    validated_requests: list[dict],
+    adjustment: EmployeeLeaveAdjustment,
+    policy: LeavePolicySettings,
+    *,
+    cp_seniority: CpSenioritySettings | None = None,
+    employee_ctx: EmployeeCpSeniorityContext | None = None,
+) -> EmployeeLeaveAdjustment:
+    """
+    Après le 1er jour d'une nouvelle période CP (ex. 1er juin), le solde N importé
+    au bulletin précédent devient le stock N-1 — on recale l'ajustement d'ouverture.
+    """
+    if adjustment.cp_n_opening_balance == 0:
+        return adjustment
+
+    start_month = policy.cp_reference_period_start_month
+    # Reprise bulletin calibrée sur la période N en cours à l'import (souvent fin mai).
+    # Au 1er jour de la nouvelle période CP (ex. 1er juin), le solde N devient N-1.
+    if ref_date.month < start_month:
+        return adjustment
+    period_opening = date(ref_date.year, start_month, 1)
+    if ref_date < period_opening:
+        return adjustment
+
+    prev_period_last = period_opening - timedelta(days=1)
+
+    prev_periods = compute_cp_period_balances(
+        hire_date,
+        validated_requests,
+        prev_period_last,
+        policy=policy,
+        adjustment=adjustment,
+        cp_seniority=cp_seniority,
+        employee_ctx=employee_ctx,
+        _skip_adjustment_roll=True,
+    )
+    closing_prev_n = float(prev_periods["n_remaining"])
+
+    prev_start, prev_end = get_cp_previous_reference_period(
+        ref_date, start_month=start_month
+    )
+    prev_acquis = calculate_acquired_cp_for_period(
+        hire_date, prev_start, prev_end, policy=policy
+    )
+    prev_supp = _supplemental_cp_for_period_end(
+        prev_end,
+        cp_seniority=cp_seniority,
+        employee_ctx=employee_ctx,
+        policy=policy,
+    )
+    prev_acquis += prev_supp
+    prev_pris = count_absence_days_taken(
+        validated_requests,
+        "conge_paye",
+        ref_date,
+        period_start=prev_start,
+        period_end=prev_end,
+    )
+    rolled_n1_opening = round(closing_prev_n - (prev_acquis - prev_pris), 2)
+
+    return EmployeeLeaveAdjustment(
+        cp_n1_opening_balance=rolled_n1_opening,
+        cp_n_opening_balance=0.0,
+        rtt_opening_balance=adjustment.rtt_opening_balance,
+        rtt_forfeited_at=adjustment.rtt_forfeited_at,
+        rtt_forfeited_days=adjustment.rtt_forfeited_days,
+        note=adjustment.note,
+    )
+
+
 def compute_cp_period_balances(
     hire_date: date,
     validated_requests: list[dict],
@@ -295,10 +511,21 @@ def compute_cp_period_balances(
     adjustment: EmployeeLeaveAdjustment | None = None,
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
+    _skip_adjustment_roll: bool = False,
 ) -> dict[str, dict[str, float]]:
     """Soldes CP période N-1 et N avec report optionnel."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
+    if not _skip_adjustment_roll:
+        adjustment = _resolve_cp_adjustment_for_ref_date(
+            ref_date,
+            hire_date,
+            validated_requests,
+            adjustment,
+            policy,
+            cp_seniority=cp_seniority,
+            employee_ctx=employee_ctx,
+        )
     start_month = policy.cp_reference_period_start_month
 
     current_start, current_end = get_cp_reference_period(
@@ -352,20 +579,28 @@ def compute_cp_period_balances(
             current_acquis + adjustment.cp_n_opening_balance - taken_from_n, 2
         )
     else:
+        taken_from_n1 = 0.0
         n1_remaining = round(n1_available, 2) if n1_available > 0 else 0.0
         taken_from_n = days_taken_current
         n_remaining = round(
             current_acquis + adjustment.cp_n_opening_balance - taken_from_n, 2
         )
 
+    n1_pris = round(prev_pris + taken_from_n1, 2)
+    n_remaining_capped = max(0.0, n_remaining)
+
     return {
-        "periode_precedente": _balance(n1_available, n1_available - n1_remaining),
+        "periode_precedente": _balance(
+            prev_acquis, n1_pris, solde=n1_remaining
+        ),
         "periode_courante": _balance(
-            current_acquis + adjustment.cp_n_opening_balance, taken_from_n
+            current_acquis, taken_from_n, solde=n_remaining_capped
         ),
         "n1_remaining": n1_remaining,
-        "n_remaining": max(0.0, n_remaining),
-        "total_remaining": max(0.0, round(n1_remaining + max(0.0, n_remaining), 2)),
+        "n_remaining": n_remaining_capped,
+        "total_remaining": max(
+            0.0, round(n1_remaining + n_remaining_capped, 2)
+        ),
         "cp_seniority_n1": prev_supp,
         "cp_seniority_n": current_supp,
     }
@@ -445,9 +680,8 @@ def compute_rtt_balance(
     )
     period_start, period_end = _rtt_period_bounds(ref_date.year, policy)
 
-    rtt_acquis = (
-        calculate_acquired_rtt(hire_date, ref_date, rtt_base, policy=policy)
-        + adjustment.rtt_opening_balance
+    rtt_acquis = calculate_acquired_rtt(
+        hire_date, ref_date, rtt_base, policy=policy
     )
     rtt_pris = count_absence_days_taken(
         validated_requests,
@@ -458,7 +692,10 @@ def compute_rtt_balance(
     )
     forfeited = float(adjustment.rtt_forfeited_days or 0)
     effective_pris = rtt_pris + forfeited
-    return _balance(rtt_acquis, effective_pris)
+    rtt_solde = round(
+        rtt_acquis + adjustment.rtt_opening_balance - effective_pris, 2
+    )
+    return _balance(rtt_acquis, effective_pris, solde=max(0.0, rtt_solde))
 
 
 def compute_absence_balances(
@@ -504,12 +741,28 @@ def compute_absence_balances(
             "n_remaining": cp_periods["n_remaining"],
         }
     else:
+        n1 = cp_periods["periode_precedente"]
         current = cp_periods["periode_courante"]
         cp = {
-            "acquis": current["acquis"],
-            "pris": current["pris"],
-            "solde": max(0.0, current["solde"]),
+            "acquis": round(n1["acquis"] + current["acquis"], 2),
+            "pris": round(n1["pris"] + current["pris"], 2),
+            "solde": cp_periods["total_remaining"],
+            "n1_remaining": cp_periods["n1_remaining"],
+            "n_remaining": cp_periods["n_remaining"],
         }
+
+    if _is_bulletin_cp_import(adjustment):
+        faithful_cp = _bulletin_faithful_cp_solde(
+            hire_date,
+            validated_requests,
+            ref_date,
+            adjustment,
+            policy=policy,
+            cp_seniority=cp_seniority,
+            employee_ctx=employee_ctx,
+        )
+        if faithful_cp:
+            cp = faithful_cp
 
     rtt = compute_rtt_balance(
         hire_date,
@@ -520,6 +773,18 @@ def compute_absence_balances(
         rtt_annual_base=rtt_annual_base,
         employee_ctx=employee_ctx,
     )
+    if _is_bulletin_cp_import(adjustment):
+        faithful_rtt = _bulletin_faithful_rtt_balance(
+            hire_date,
+            validated_requests,
+            ref_date,
+            adjustment,
+            policy=policy,
+            rtt_annual_base=rtt_annual_base,
+            employee_ctx=employee_ctx,
+        )
+        if faithful_rtt:
+            rtt = faithful_rtt
 
     repos_pris = count_absence_days_taken(
         validated_requests,
@@ -607,34 +872,41 @@ def get_available_conge_paye_days(
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
     extra = max(0.0, float(extra_committed_days))
 
-    if policy.cp_carryover_enabled:
-        validated = [r for r in requests if r.get("status") == "validated"]
-        cp_periods = compute_cp_period_balances(
+    if _is_bulletin_cp_import(adjustment):
+        faithful = _bulletin_faithful_cp_solde(
             hire_date,
-            validated,
+            [r for r in requests if r.get("status") == "validated"],
             ref_date,
+            adjustment,
             policy=policy,
-            adjustment=adjustment,
             cp_seniority=cp_seniority,
             employee_ctx=employee_ctx,
         )
-        pending_days = _count_cp_days_in_requests(
-            requests, ref_date, policy=policy, statuses=("pending",)
-        )
-        return max(0.0, round(cp_periods["total_remaining"] - pending_days - extra, 2))
+        if faithful is not None:
+            pending_days = _count_cp_days_in_requests(
+                requests, ref_date, policy=policy, statuses=("pending",)
+            )
+            return max(
+                0.0, round(faithful["solde"] - pending_days - extra, 2)
+            )
 
-    committed = count_conge_paye_days_committed(requests, ref_date, policy=policy)
+    validated = [r for r in requests if r.get("status") == "validated"]
+
     cp_periods = compute_cp_period_balances(
         hire_date,
-        [r for r in requests if r.get("status") == "validated"],
+        validated,
         ref_date,
         policy=policy,
         adjustment=adjustment,
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
     )
-    acquis = cp_periods["periode_courante"]["acquis"]
-    return max(0.0, round(acquis - committed - extra, 2))
+    pending_days = _count_cp_days_in_requests(
+        requests, ref_date, policy=policy, statuses=("pending",)
+    )
+    return max(
+        0.0, round(cp_periods["total_remaining"] - pending_days - extra, 2)
+    )
 
 
 def validate_conge_paye_request_days(

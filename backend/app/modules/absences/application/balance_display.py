@@ -6,6 +6,22 @@ from app.modules.absences.domain.cp_seniority import CpSenioritySettings
 from app.modules.absences.domain.leave_policy import LeavePolicySettings
 
 
+def _official_balance_row(row: dict[str, float]) -> dict[str, float]:
+    """
+    Ligne affichée RH / salarié : acquis = pris + restant (compteur paie cohérent).
+
+    Les droits théoriques (embauche) et la reprise bulletin peuvent diverger ;
+    seul le triplet pris + restant reflète le solde officiel utilisable.
+    """
+    pris = round(float(row.get("pris") or 0), 2)
+    restant = round(max(0.0, float(row.get("solde") or 0)), 2)
+    return {
+        "acquired": round(restant + pris, 2),
+        "taken": pris,
+        "remaining": restant,
+    }
+
+
 def balances_to_api_list(
     soldes: dict[str, dict[str, float]],
     *,
@@ -18,42 +34,37 @@ def balances_to_api_list(
     if policy.cp_carryover_enabled:
         n1 = soldes.get("conges_payes_n1") or {}
         n = soldes.get("conges_payes_n") or {}
+        n1_row = _official_balance_row(n1)
+        n_row = _official_balance_row(n)
         result.append(
             {
                 "type": "Congés Payés (période précédente)",
-                "acquired": n1.get("acquis", 0),
-                "taken": n1.get("pris", 0),
-                "remaining": max(0.0, n1.get("solde", 0)),
+                **n1_row,
             }
         )
         result.append(
             {
                 "type": "Congés Payés (période en cours)",
-                "acquired": n.get("acquis", 0),
-                "taken": n.get("pris", 0),
-                "remaining": max(0.0, n.get("solde", 0)),
+                **n_row,
             }
         )
 
-    cp = soldes["conges_payes"]
+    cp = _official_balance_row(soldes["conges_payes"])
     result.append(
         {
             "type": "Congés Payés",
-            "acquired": cp["acquis"],
-            "taken": cp["pris"],
-            "remaining": cp["solde"],
+            **cp,
         }
     )
 
     seniority_days = float(soldes.get("cp_seniority_days") or 0)
     if cp_seniority and cp_seniority.is_active and seniority_days > 0:
         anciennete = soldes.get("conges_payes_anciennete") or {}
+        anc_row = _official_balance_row(anciennete)
         result.append(
             {
                 "type": "Congés Payés (ancienneté)",
-                "acquired": anciennete.get("acquis", seniority_days),
-                "taken": anciennete.get("pris", 0),
-                "remaining": anciennete.get("solde", seniority_days),
+                **anc_row,
             }
         )
 
@@ -68,33 +79,28 @@ def balances_to_api_list(
             }
         )
 
-    rtt = soldes["rtt"]
+    rtt = _official_balance_row(soldes["rtt"])
     result.append(
         {
             "type": "RTT",
-            "acquired": rtt["acquis"],
-            "taken": rtt["pris"],
-            "remaining": rtt["solde"],
+            **rtt,
         }
     )
 
-    repos = soldes["repos_compensateur"]
+    repos = _official_balance_row(soldes["repos_compensateur"])
     result.append(
         {
             "type": "Repos compensateur",
-            "acquired": repos["acquis"],
-            "taken": repos["pris"],
-            "remaining": repos["solde"],
+            **repos,
         }
     )
     mod = soldes.get("compte_modulation")
     if mod:
+        mod_row = _official_balance_row(mod)
         result.append(
             {
                 "type": "Compte modulation",
-                "acquired": mod.get("acquis", 0),
-                "taken": mod.get("pris", 0),
-                "remaining": mod.get("solde", 0),
+                **mod_row,
             }
         )
     result.append(

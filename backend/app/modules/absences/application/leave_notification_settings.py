@@ -11,6 +11,7 @@ from app.modules.absences.schemas.leave_settings import LeaveNotificationSetting
 from app.modules.absences.schemas.leave_settings_responses import (
     LeaveNotificationSettingsResponse,
 )
+from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
 
 ALLOWED_RECIPIENT_ROLES = ("admin", "rh", "collaborateur_rh")
 
@@ -35,7 +36,7 @@ def _clean_emails(raw: list[str] | None) -> list[str]:
     emails: list[str] = []
     for item in raw:
         email = str(item).strip().lower()
-        if not email or "@" not in email or email.endswith(".dsn-import.local"):
+        if not email or "@" not in email or is_dsn_import_placeholder_email(email):
             continue
         if email not in seen:
             emails.append(email)
