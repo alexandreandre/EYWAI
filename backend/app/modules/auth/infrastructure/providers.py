@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from app.core.database import get_supabase_admin_client, supabase
+from app.core.logging import get_logger
 from app.core.security import get_current_user
 from app.core.settings import SUPABASE_KEY, SUPABASE_URL
 from app.modules.auth.domain.interfaces import (
@@ -78,7 +79,7 @@ class UserByLoginResolver(IUserByLoginResolver):
             return login_input
         resp = (
             supabase.table("employees")
-            .select("email, username")
+            .select("email, username, user_id")
             .eq("username", login_input)
             .execute()
         )
@@ -88,7 +89,25 @@ class UserByLoginResolver(IUserByLoginResolver):
         if len(rows) > 1:
             # Username ambigu (doublons en base) — forcer la connexion par email
             return None
-        return rows[0]["email"]
+        row = rows[0]
+        user_id = str(row.get("user_id") or "").strip() or None
+        if user_id:
+            # L'email métier (employees.email) peut diverger de l'email Auth
+            # (ex. import DSN avec email technique puis mise à jour côté RH).
+            # On interroge Supabase Auth pour récupérer l'email réellement
+            # rattaché au compte.
+            try:
+                admin_client = get_supabase_admin_client()
+                resp_user = admin_client.auth.admin.get_user_by_id(user_id)
+                auth_user = getattr(resp_user, "user", None) or resp_user
+                auth_email = getattr(auth_user, "email", None)
+                if auth_email:
+                    return auth_email
+            except Exception as exc:
+                get_logger("modules.auth.resolver").debug(
+                    "Lookup auth user %s impossible: %s", user_id, exc
+                )
+        return row.get("email")
 
 
 class EmailSenderProvider(IEmailSender):

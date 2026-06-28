@@ -68,9 +68,26 @@ def test_provision_collaborator_account_creates_auth_and_pdf(
     storage.upload.assert_called_once()
 
 
+@patch(
+    "app.modules.employees.application.account_provisioning.allocate_collaborator_username",
+    return_value="jean.martin",
+)
+@patch("app.modules.employees.application.commands._grant_collaborator_company_access")
+@patch("app.modules.employees.application.account_provisioning.generate_credentials_pdf")
+@patch("app.modules.employees.application.account_provisioning.get_auth_provider")
+@patch("app.modules.employees.application.account_provisioning.get_company_reader")
+@patch("app.modules.employees.application.account_provisioning.get_storage_provider")
+@patch("app.modules.employees.application.account_provisioning._profile_repository")
 @patch("app.modules.employees.application.account_provisioning._employee_repository")
-def test_provision_collaborator_account_rejects_dsn_placeholder_email(
+def test_provision_collaborator_account_accepts_dsn_placeholder_email(
     mock_repo: MagicMock,
+    mock_profile: MagicMock,
+    mock_storage_provider: MagicMock,
+    mock_company_reader: MagicMock,
+    mock_auth_provider: MagicMock,
+    mock_generate_pdf: MagicMock,
+    mock_grant: MagicMock,
+    mock_allocate_username: MagicMock,
 ) -> None:
     mock_repo.get_by_id.return_value = {
         "id": "emp-1",
@@ -80,6 +97,24 @@ def test_provision_collaborator_account_rejects_dsn_placeholder_email(
         "email": "import.jean.martin.123448@802485169.dsn-import.local",
         "username": "jean.martin",
     }
+    auth = MagicMock()
+    auth.create_user.return_value = "user-1"
+    mock_auth_provider.return_value = auth
+    mock_company_reader.return_value.get_company_data.return_value = {
+        "company_name": "Test SA"
+    }
+    mock_generate_pdf.return_value = b"%PDF-1.4"
+    storage = MagicMock()
+    storage.list_files.return_value = []
+    mock_storage_provider.return_value = storage
 
-    with pytest.raises(ValueError, match="email professionnel"):
-        provision_collaborator_account("emp-1", "company-1")
+    result = provision_collaborator_account("emp-1", "company-1")
+
+    assert result["user_id"] == "user-1"
+    assert result["generated_password"]
+    auth.create_user.assert_called_once_with(
+        email="import.jean.martin.123448@802485169.dsn-import.local",
+        password=result["generated_password"],
+    )
+    mock_profile.upsert.assert_called_once()
+    mock_grant.assert_called_once_with("user-1", "company-1", None)

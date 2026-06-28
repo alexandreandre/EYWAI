@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
+    build_dsn_import_auth_email,
     build_employee_folder_name,
     default_company_data_fallback,
     normalize_temps_travail_fields,
@@ -97,6 +98,22 @@ def _grant_collaborator_company_access(
             company_id,
             granted_by_user_id,
         )
+
+
+def _create_user_with_technical_fallback(
+    auth: Any,
+    *,
+    email: str,
+    password: str,
+    fallback_seed: str,
+) -> tuple[str, str]:
+    try:
+        return auth.create_user(email=email, password=password), email
+    except Exception:
+        fallback_email = build_dsn_import_auth_email(fallback_seed)
+        if fallback_email == email:
+            raise
+        return auth.create_user(email=fallback_email, password=password), fallback_email
 
 
 async def create_employee(
@@ -372,43 +389,94 @@ def create_employee_imported(
     company_id: str,
 ) -> Dict[str, Any]:
     """
-    Crée un salarié importé (DSN) sans compte Auth.
-    Génère le PDF identifiants (sans mot de passe tant que le compte n'est pas activé).
-    Statut actif par défaut ; activation du compte utilisateur différée.
+    Crée un salarié importé (DSN) avec compte Auth collaborateur.
+    Génère le PDF identifiants avec un mot de passe temporaire réel.
     """
     first_name = employee_data["first_name"]
     last_name = employee_data["last_name"]
-    email = employee_data.get("email") or f"import.{uuid.uuid4().hex[:8]}@dsn-import.local"
+    technical_email_seed = uuid.uuid4().hex
+    email = employee_data.get("email") or build_dsn_import_auth_email(
+        technical_email_seed
+    )
 
     normalized_last_name = remove_accents(last_name).upper()
     normalized_first_name = remove_accents(first_name).capitalize()
     folder_name = build_employee_folder_name(normalized_last_name, normalized_first_name)
     username = allocate_collaborator_username(first_name, last_name)
+    alphabet = string.ascii_letters + string.digits + "!@#$%*?"
+    password = "".join(secrets.choice(alphabet) for _ in range(12))
 
-    new_id = str(uuid.uuid4())
+    auth = get_auth_provider()
+    new_user_id: Optional[str] = None
+    try:
+        new_user_id, email = _create_user_with_technical_fallback(
+            auth,
+            email=email,
+            password=password,
+            fallback_seed=technical_email_seed,
+        )
+    except RuntimeError as auth_err:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossible de créer le compte collaborateur importé : {auth_err}",
+        ) from auth_err
+
     db_insert_data = prepare_employee_insert_data(
         employee_data,
-        new_user_id=new_id,
+        new_user_id=str(new_user_id),
         company_id=company_id,
         username=username,
         folder_name=folder_name,
     )
-    db_insert_data["user_id"] = None
     db_insert_data["employment_status"] = employee_data.get("employment_status") or "actif"
     db_insert_data["email"] = email
 
-    new_employee_db = _employee_repository.create(db_insert_data)
-    employee_id = str(new_employee_db.get("id") or new_id)
+    try:
+        new_employee_db = _employee_repository.create(db_insert_data)
+    except Exception:
+        try:
+            auth.delete_user(str(new_user_id))
+        except Exception:
+            pass
+        raise
+
+    employee_id = str(new_employee_db.get("id") or new_user_id)
+
+    try:
+        _profile_repository.upsert(
+            {
+                "id": str(new_user_id),
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": "collaborateur",
+                "company_id": company_id,
+                "job_title": employee_data.get("job_title") or "",
+            }
+        )
+        _grant_collaborator_company_access(str(new_user_id), company_id, None)
+    except Exception as access_err:
+        try:
+            _employee_repository.delete(employee_id)
+        except Exception:
+            pass
+        try:
+            auth.delete_user(str(new_user_id))
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail="Compte importé créé mais échec du profil ou de l'accès entreprise.",
+        ) from access_err
+
     try:
         from app.modules.employees.application.credentials_pdf import (
-            CREDENTIALS_PASSWORD_UNAVAILABLE,
             store_credentials_pdf_for_employee,
         )
 
         store_credentials_pdf_for_employee(
             employee_id,
             company_id,
-            password=CREDENTIALS_PASSWORD_UNAVAILABLE,
+            password=password,
             username=username,
         )
     except Exception as pdf_err:
@@ -417,7 +485,9 @@ def create_employee_imported(
             employee_id,
             pdf_err,
         )
-    return dict(new_employee_db)
+    response = dict(new_employee_db)
+    response["generated_password"] = password
+    return response
 
 
 def activate_imported_employee_account(

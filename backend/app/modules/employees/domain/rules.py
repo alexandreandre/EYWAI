@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 DEFAULT_EMPLOYMENT_STATUS = "actif"
 DEFAULT_RESIDENCE_PERMIT_SUBJECT = False
 DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX = ".dsn-import.local"
+DSN_IMPORT_AUTH_EMAIL_DOMAIN = "dsn-import.eywai.fr"
 DUREE_LEGALE_HEBDO = 35.0
 
 
@@ -52,7 +53,18 @@ def is_dsn_import_placeholder_email(email: str | None) -> bool:
     """True si l'email est le placeholder technique généré à l'import DSN."""
     if not email:
         return False
-    return str(email).strip().lower().endswith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX)
+    value = str(email).strip().lower()
+    return value.endswith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX) or value.endswith(
+        f"@{DSN_IMPORT_AUTH_EMAIL_DOMAIN}"
+    )
+
+
+def build_dsn_import_auth_email(seed: str) -> str:
+    """Email technique valide côté Auth pour comptes issus d'une DSN sans email exploitable."""
+    cleaned = "".join(ch for ch in str(seed or "") if ch.isalnum()).lower()
+    if not cleaned:
+        cleaned = "employee"
+    return f"import.{cleaned}@{DSN_IMPORT_AUTH_EMAIL_DOMAIN}"
 
 
 def build_employee_folder_name(

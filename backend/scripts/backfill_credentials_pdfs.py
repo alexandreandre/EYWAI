@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Génère les PDF « Identifiants de connexion » manquants pour Comitech Composite.
+Crée/répare les comptes collaborateurs et leurs PDF « Identifiants de connexion ».
 
-Ne réinitialise pas les mots de passe : le PDF indique de contacter les RH ou
-d'utiliser « Mot de passe oublié » si le compte existe déjà.
+Pour chaque salarié ciblé :
+- sans compte Auth : crée le compte, le profil, l'accès entreprise et le PDF ;
+- avec compte Auth : régénère un mot de passe temporaire et remplace le PDF.
 
 Usage (depuis backend/, venv activé) :
   python scripts/backfill_credentials_pdfs.py
+  python scripts/backfill_credentials_pdfs.py --company-id <uuid>
   python scripts/backfill_credentials_pdfs.py --dry-run
 """
 
@@ -28,15 +30,24 @@ try:
 except ImportError:
     pass
 
-from setup_comitech_composite import find_company  # noqa: E402
-
 from app.core.database import supabase
+from app.modules.employees.application.account_provisioning import (
+    provision_collaborator_account,
+    reset_collaborator_credentials,
+)
 from app.modules.employees.application.credentials_pdf import (
-    CREDENTIALS_PASSWORD_UNAVAILABLE,
+    _is_unavailable_password_pdf,
     find_credentials_pdf_path,
-    store_credentials_pdf_for_employee,
 )
 from app.modules.employees.infrastructure.providers import get_storage_provider
+
+
+def _list_companies(company_id: str | None = None) -> list[dict]:
+    query = supabase.table("companies").select("id, company_name, raison_sociale")
+    if company_id:
+        query = query.eq("id", company_id)
+    resp = query.order("company_name").execute()
+    return [dict(row) for row in (resp.data or [])]
 
 
 def _list_employees(company_id: str) -> list[dict]:
@@ -71,7 +82,6 @@ def backfill_company(company_id: str, *, dry_run: bool = False) -> dict[str, int
         user_id = str(emp.get("user_id") or "").strip() or None
         folder_name = str(emp.get("employee_folder_name") or "").strip() or None
         name = f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip()
-
         existing = find_credentials_pdf_path(
             storage,
             company_id,
@@ -79,25 +89,37 @@ def backfill_company(company_id: str, *, dry_run: bool = False) -> dict[str, int
             user_id,
             folder_name,
         )
-        if existing:
+        has_bad_pdf = bool(
+            user_id
+            and existing
+            and _is_unavailable_password_pdf(storage, existing)
+        )
+
+        if user_id and existing and not has_bad_pdf:
             stats["skipped"] += 1
             continue
 
         if dry_run:
-            print(f"[dry-run] manquant : {name} ({employee_id})")
+            action = (
+                "remplacer PDF incomplet"
+                if has_bad_pdf
+                else "créer compte + PDF"
+            )
+            print(f"[dry-run] {action} : {name} ({employee_id})")
             stats["created"] += 1
             continue
 
-        path = store_credentials_pdf_for_employee(
-            employee_id,
-            company_id,
-            password=CREDENTIALS_PASSWORD_UNAVAILABLE,
-        )
-        if path:
+        try:
+            result = (
+                reset_collaborator_credentials(employee_id, company_id)
+                if has_bad_pdf
+                else provision_collaborator_account(employee_id, company_id)
+            )
+            path = result.get("credentials_pdf_path")
             print(f"OK  : {name} → {path}")
             stats["created"] += 1
-        else:
-            print(f"KO  : {name} ({employee_id})")
+        except Exception as exc:
+            print(f"KO  : {name} ({employee_id}) — {exc}")
             stats["failed"] += 1
 
     return stats
@@ -105,7 +127,11 @@ def backfill_company(company_id: str, *, dry_run: bool = False) -> dict[str, int
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Backfill PDF identifiants de connexion — Comitech Composite uniquement",
+        description="Backfill comptes collaborateurs + PDF identifiants de connexion",
+    )
+    parser.add_argument(
+        "--company-id",
+        help="Limiter le rattrapage à une entreprise précise",
     )
     parser.add_argument(
         "--dry-run",
@@ -114,25 +140,32 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    company = find_company(supabase)
-    if not company:
-        print(
-            "Entreprise Comitech Composite introuvable — "
-            "lancer setup_comitech_composite.py d'abord."
-        )
+    companies = _list_companies(args.company_id)
+    if not companies:
+        print("Aucune entreprise trouvée pour ce périmètre.")
         return 1
 
-    company_id = str(company["id"])
-    print(f"Entreprise : {company.get('company_name')} ({company_id})")
+    total = {"total": 0, "created": 0, "skipped": 0, "failed": 0}
     if args.dry_run:
         print("Mode dry-run — aucun fichier ne sera créé.\n")
 
-    stats = backfill_company(company_id, dry_run=args.dry_run)
+    for company in companies:
+        company_id = str(company["id"])
+        name = company.get("company_name") or company.get("raison_sociale") or "Entreprise"
+        print(f"\nEntreprise : {name} ({company_id})")
+        stats = backfill_company(company_id, dry_run=args.dry_run)
+        for key in total:
+            total[key] += stats[key]
+        print(
+            f"Résumé entreprise : {stats['total']} salariés — "
+            f"{stats['created']} réparés, {stats['skipped']} ignorés, {stats['failed']} échecs"
+        )
+
     print(
-        f"\nRésumé : {stats['total']} salariés — "
-        f"{stats['created']} créés, {stats['skipped']} déjà présents, {stats['failed']} échecs"
+        f"\nRésumé global : {total['total']} salariés — "
+        f"{total['created']} réparés, {total['skipped']} ignorés, {total['failed']} échecs"
     )
-    return 0 if stats["failed"] == 0 else 2
+    return 0 if total["failed"] == 0 else 2
 
 
 if __name__ == "__main__":

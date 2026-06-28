@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import secrets
 import string
+from io import BytesIO
 from typing import Any, Optional
 
 from app.core.logging import get_logger
 from app.modules.employees.domain.rules import (
     default_company_data_fallback,
-    is_dsn_import_placeholder_email,
 )
 from app.modules.employees.infrastructure.providers import (
     generate_credentials_pdf,
@@ -81,6 +81,29 @@ CREDENTIALS_PASSWORD_UNAVAILABLE = (
     "— contactez les RH ou utilisez « Mot de passe oublié » sur la page de connexion"
 )
 _PASSWORD_UNAVAILABLE = CREDENTIALS_PASSWORD_UNAVAILABLE
+
+
+def _extract_pdf_text(pdf_content: bytes) -> str:
+    try:
+        import PyPDF2
+
+        reader = PyPDF2.PdfReader(BytesIO(pdf_content))
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception as exc:
+        logger.debug("Extraction PDF identifiants impossible: %s", exc)
+        return ""
+
+
+def _is_unavailable_password_pdf(storage: Any, path: str) -> bool:
+    try:
+        content = storage.download(CREDENTIALS_BUCKET, path)
+    except Exception as exc:
+        logger.debug("Téléchargement PDF identifiants impossible (%s): %s", path, exc)
+        return False
+    text = _extract_pdf_text(content).lower()
+    if not text:
+        return False
+    return "contactez les rh" in text
 
 
 def _resolve_temp_password(auth: Any, user_id: str) -> str:
@@ -174,12 +197,7 @@ def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
     user_id = str(employee.get("user_id") or "").strip() or None
     folder_name = str(employee.get("employee_folder_name") or "").strip() or None
 
-    email = str(employee.get("email") or "").strip()
-    if (
-        not user_id
-        and email
-        and not is_dsn_import_placeholder_email(email)
-    ):
+    if not user_id:
         try:
             from app.modules.employees.application.account_provisioning import (
                 provision_collaborator_account,
@@ -196,6 +214,14 @@ def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
             )
 
     storage = get_storage_provider()
+
+    if not user_id:
+        return store_credentials_pdf_for_employee(
+            employee_id,
+            company_id,
+            password=_PASSWORD_UNAVAILABLE,
+        )
+
     existing = find_credentials_pdf_path(
         storage,
         company_id,
@@ -204,9 +230,16 @@ def ensure_credentials_pdf(employee_id: str) -> Optional[str]:
         folder_name,
     )
     if existing:
+        if _is_unavailable_password_pdf(storage, existing):
+            password = _resolve_temp_password(get_auth_provider(), user_id)
+            return store_credentials_pdf_for_employee(
+                employee_id,
+                company_id,
+                password=password,
+            )
         return existing
 
-    password = _resolve_temp_password(get_auth_provider(), user_id) if user_id else _PASSWORD_UNAVAILABLE
+    password = _resolve_temp_password(get_auth_provider(), user_id)
     return store_credentials_pdf_for_employee(
         employee_id,
         company_id,

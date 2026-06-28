@@ -17,8 +17,8 @@ from app.modules.employees.application.credentials_pdf import (
     find_credentials_pdf_path,
 )
 from app.modules.employees.domain.rules import (
+    build_dsn_import_auth_email,
     default_company_data_fallback,
-    is_dsn_import_placeholder_email,
 )
 from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.infrastructure.providers import (
@@ -58,6 +58,22 @@ def _derive_username(
     )
 
 
+def _create_user_with_technical_fallback(
+    auth: Any,
+    *,
+    email: str,
+    password: str,
+    fallback_seed: str,
+) -> tuple[str, str]:
+    try:
+        return auth.create_user(email=email, password=password), email
+    except Exception:
+        fallback_email = build_dsn_import_auth_email(fallback_seed)
+        if fallback_email == email:
+            raise
+        return auth.create_user(email=fallback_email, password=password), fallback_email
+
+
 def provision_collaborator_account(
     employee_id: str,
     company_id: str,
@@ -75,11 +91,7 @@ def provision_collaborator_account(
 
     email = str(employee.get("email") or "").strip()
     if not email:
-        raise ValueError("Email obligatoire pour créer le compte collaborateur")
-    if is_dsn_import_placeholder_email(email):
-        raise ValueError(
-            "Compte non activé : renseignez un email professionnel avant de créer l'accès."
-        )
+        email = build_dsn_import_auth_email(employee_id)
 
     first_name = str(employee.get("first_name") or "").strip()
     last_name = str(employee.get("last_name") or "").strip()
@@ -116,7 +128,12 @@ def provision_collaborator_account(
 
     if not user_id:
         try:
-            user_id = auth.create_user(email=email, password=password)
+            user_id, email = _create_user_with_technical_fallback(
+                auth,
+                email=email,
+                password=password,
+                fallback_seed=employee_id,
+            )
         except RuntimeError as exc:
             raise ValueError(
                 f"Impossible de créer le compte utilisateur pour {email}: {exc}"
@@ -136,6 +153,7 @@ def provision_collaborator_account(
         _employee_repository.update(
             employee_id,
             {
+                "email": email,
                 "user_id": str(user_id),
                 "username": username,
             },
