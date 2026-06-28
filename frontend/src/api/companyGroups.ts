@@ -46,6 +46,11 @@ export interface ConsolidatedStats {
     period_end_year?: number;
     period_end_month?: number;
     has_mixed_sources?: boolean;
+    requested_year?: number;
+    requested_month?: number;
+    payroll_fallback_applied?: boolean;
+    payroll_period_year?: number;
+    payroll_period_month?: number;
   };
   totals: {
     total_employees: number;

@@ -9,7 +9,6 @@ from app.modules.payroll.application.payroll_kpi_queries import (
 from app.modules.payroll.domain.payroll_kpi_resolver import (
     DsnPeriodTotals,
     PayrollPeriodSnapshot,
-    PayslipPeriodTotals,
 )
 
 
@@ -50,7 +49,13 @@ class TestEnrichConsolidatedWithDsn:
         ctx = ConsolidatedPayrollContext(
             modes={"c1": "transition"},
             payslips_by_company={"c1": []},
-            dsn_by_company_period={"c1": {"2024-06": DsnPeriodTotals(gross=5000, net_imposable=3800, employer_charges=2100)}},
+            dsn_by_company_period={
+                "c1": {
+                    "2024-06": DsnPeriodTotals(
+                        gross=5000, net_imposable=3800, employer_charges=2100
+                    )
+                }
+            },
         )
 
         result = enrich_consolidated_with_dsn(payload, ["c1"], "2024-06", ctx=ctx)
@@ -62,6 +67,121 @@ class TestEnrichConsolidatedWithDsn:
         assert row["payroll_source"] == "dsn"
         assert result["totals"]["total_gross_salary"] == 5000.0
         assert result["totals"]["total_employer_charges"] == 2100.0
+
+    def test_uses_dsn_fallback_even_when_company_mode_is_native(self):
+        payload = {
+            "metadata": {"reference_year": 2024, "reference_month": 6},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "gross_salary": 0,
+                    "net_salary": 0,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        ctx = ConsolidatedPayrollContext(
+            modes={"c1": "native"},
+            payslips_by_company={"c1": []},
+            dsn_by_company_period={
+                "c1": {
+                    "2024-06": DsnPeriodTotals(
+                        gross=5000,
+                        net_imposable=3800,
+                        employer_charges=2100,
+                    )
+                }
+            },
+        )
+
+        result = enrich_consolidated_with_dsn(payload, ["c1"], "2024-06", ctx=ctx)
+
+        assert result["by_company"][0]["gross_salary"] == 5000.0
+        assert result["by_company"][0]["payroll_source"] == "dsn"
+
+    def test_recalculates_employee_counts_from_active_employees_and_dsn(self):
+        payload = {
+            "metadata": {"reference_year": 2024, "reference_month": 6},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "total_employee_count": 2,
+                    "employee_count": 1,
+                    "rh_count": 1,
+                    "gross_salary": 0,
+                    "net_salary": 0,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        ctx = ConsolidatedPayrollContext(
+            modes={"c1": "native"},
+            payslips_by_company={"c1": []},
+            dsn_by_company_period={
+                "c1": {
+                    "2024-06": DsnPeriodTotals(
+                        gross=5000,
+                        net_imposable=3800,
+                        employer_charges=2100,
+                        employee_count=12,
+                    )
+                }
+            },
+            active_employee_counts={"c1": 8},
+        )
+
+        result = enrich_consolidated_with_dsn(payload, ["c1"], "2024-06", ctx=ctx)
+
+        row = result["by_company"][0]
+        assert row["employee_count"] == 12
+        assert row["total_employee_count"] == 13
+        assert result["totals"]["total_employees"] == 13
+        assert result["totals"]["total_employees_excluding_rh"] == 12
+
+    def test_falls_back_to_latest_company_dsn_period_when_requested_period_is_empty(self):
+        payload = {
+            "metadata": {"reference_year": 2026, "reference_month": 5},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "gross_salary": 0,
+                    "net_salary": 0,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        ctx = ConsolidatedPayrollContext(
+            modes={"c1": "native"},
+            payslips_by_company={"c1": []},
+            dsn_by_company_period={
+                "c1": {
+                    "2026-03": DsnPeriodTotals(
+                        gross=120000,
+                        net_imposable=92000,
+                        employer_charges=0,
+                        employee_count=40,
+                    )
+                }
+            },
+        )
+
+        result = enrich_consolidated_with_dsn(payload, ["c1"], "2026-05", ctx=ctx)
+
+        row = result["by_company"][0]
+        assert row["gross_salary"] == 120000.0
+        assert row["payroll_source"] == "dsn"
+        assert row["payroll_source_label"] == "Masse déclarée (DSN) · mars 2026"
+        assert result["metadata"]["payroll_fallback_applied"] is True
+        assert result["metadata"]["requested_year"] == 2026
+        assert result["metadata"]["requested_month"] == 5
+        assert result["metadata"]["payroll_period_year"] == 2026
+        assert result["metadata"]["payroll_period_month"] == 3
 
     def test_keeps_payslip_row_and_backfills_charges(self):
         payload = {
@@ -144,12 +264,16 @@ class TestFetchConsolidatedMultiMonthDsn:
         month_a = {
             "metadata": {"reference_year": 2024, "reference_month": 1},
             "totals": {},
-            "by_company": [{"company_id": "c1", "gross_salary": 0, "employer_charges": 0}],
+            "by_company": [
+                {"company_id": "c1", "gross_salary": 0, "employer_charges": 0}
+            ],
         }
         month_b = {
             "metadata": {"reference_year": 2024, "reference_month": 2},
             "totals": {},
-            "by_company": [{"company_id": "c1", "gross_salary": 0, "employer_charges": 0}],
+            "by_company": [
+                {"company_id": "c1", "gross_salary": 0, "employer_charges": 0}
+            ],
         }
 
         def _enrich(payload, _ids, period, *, ctx=None):

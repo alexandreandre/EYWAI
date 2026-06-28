@@ -175,6 +175,24 @@ export function parsePeriodFromSearchParams(
 } {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
+  const hasExplicitPeriod =
+    params.has("mode") ||
+    params.has("preset") ||
+    params.has("year") ||
+    params.has("month") ||
+    params.has("startYear") ||
+    params.has("startMonth") ||
+    params.has("endYear") ||
+    params.has("endMonth");
+  if (!hasExplicitPeriod) {
+    return {
+      period: applyPreset("previous_month", now),
+      compareTo: "off",
+      selectedCompanyIds: null,
+      searchTerm: params.get("q") ?? "",
+    };
+  }
+
   const mode = (params.get("mode") as PeriodMode) || "month";
   const preset = (params.get("preset") as PeriodPreset) || "current_month";
   const compareRaw = params.get("compare") as import("@/api/companyGroups").CompareToMode | null;

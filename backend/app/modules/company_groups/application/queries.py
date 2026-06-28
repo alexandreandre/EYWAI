@@ -36,6 +36,70 @@ from app.modules.company_groups.infrastructure.repository import (
     CompanyGroupRepository,
     company_group_repository,
 )
+from app.modules.dsn_import.infrastructure import payroll_totals_repository as dsn_totals_repo
+
+
+def _period_key(year: int, month: int) -> str:
+    return f"{int(year):04d}-{int(month):02d}"
+
+
+def _parse_period_key(period: str) -> tuple[int, int] | None:
+    try:
+        year_raw, month_raw = str(period).split("-", 1)
+        year, month = int(year_raw), int(month_raw)
+    except (TypeError, ValueError):
+        return None
+    if month < 1 or month > 12:
+        return None
+    return year, month
+
+
+def _latest_available_payroll_period(
+    company_ids: List[str],
+    *,
+    requested_year: int,
+    requested_month: int,
+) -> tuple[int, int] | None:
+    requested = _period_key(requested_year, requested_month)
+    rows = dsn_totals_repo.list_by_companies(company_ids, limit_per_company=36)
+    candidates: set[str] = set()
+    for row in rows:
+        period = str(row.get("period") or "")
+        if period <= requested and float(row.get("gross_salary") or 0) > 0:
+            candidates.add(period)
+    if not candidates:
+        return None
+    return _parse_period_key(max(candidates))
+
+
+def _total_gross(payload: Any) -> float:
+    if not isinstance(payload, dict):
+        return 0.0
+    totals = payload.get("totals") or {}
+    return float(totals.get("total_gross_salary") or 0)
+
+
+def _mark_payroll_period_fallback(
+    payload: dict,
+    *,
+    requested_year: int,
+    requested_month: int,
+    effective_year: int,
+    effective_month: int,
+) -> dict:
+    metadata = dict(payload.get("metadata") or {})
+    metadata.update(
+        {
+            "requested_year": requested_year,
+            "requested_month": requested_month,
+            "payroll_fallback_applied": True,
+            "payroll_period_year": effective_year,
+            "payroll_period_month": effective_month,
+            "reference_year": effective_year,
+            "reference_month": effective_month,
+        }
+    )
+    return {**payload, "metadata": metadata}
 
 
 def _to_group_with_companies_dto(g: dict) -> GroupWithCompaniesDto:
@@ -123,7 +187,31 @@ def _fetch_consolidated_for_period(
         )
 
     if (start_year, start_month) == (end_year, end_month):
-        return _load_month(end_year, end_month)
+        payload = _load_month(end_year, end_month)
+        if not isinstance(payload, dict) or "totals" not in payload:
+            return payload
+        if _total_gross(payload) > 0:
+            return payload
+
+        fallback_period = _latest_available_payroll_period(
+            company_ids,
+            requested_year=end_year,
+            requested_month=end_month,
+        )
+        if not fallback_period or fallback_period == (end_year, end_month):
+            return payload
+
+        fallback_year, fallback_month = fallback_period
+        fallback_payload = _load_month(fallback_year, fallback_month)
+        if not isinstance(fallback_payload, dict) or _total_gross(fallback_payload) <= 0:
+            return payload
+        return _mark_payroll_period_fallback(
+            fallback_payload,
+            requested_year=end_year,
+            requested_month=end_month,
+            effective_year=fallback_year,
+            effective_month=fallback_month,
+        )
 
     monthly: List[Any] = []
     for y, m in _month_range(start_year, start_month, end_year, end_month):

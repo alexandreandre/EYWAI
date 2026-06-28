@@ -276,6 +276,77 @@ class TestGetGroupConsolidatedStats:
         assert result["by_company"][0]["gross_salary"] == 3000
         assert result["by_company"][0]["total_employee_count"] == 15
 
+    def test_single_month_falls_back_to_latest_available_payroll_period(self):
+        mock_repo = MagicMock()
+        mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]
+        user = _make_user(is_platform_admin=True)
+        current = {
+            "metadata": {"reference_year": 2026, "reference_month": 6, "company_count": 1},
+            "totals": {"total_gross_salary": 0},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "total_employee_count": 10,
+                    "employee_count": 10,
+                    "rh_count": 0,
+                    "payslip_count": 0,
+                    "gross_salary": 0,
+                    "net_salary": 0,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        latest = {
+            "metadata": {"reference_year": 2026, "reference_month": 5, "company_count": 1},
+            "totals": {"total_gross_salary": 5000},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Co",
+                    "total_employee_count": 10,
+                    "employee_count": 10,
+                    "rh_count": 0,
+                    "payslip_count": 0,
+                    "gross_salary": 5000,
+                    "net_salary": 3800,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        with (
+            patch(f"{MODULE_QUERIES}.company_group_repository", mock_repo),
+            patch(f"{MODULE_QUERIES}.get_company_ids_for_group", return_value=["c1"]),
+            patch(
+                f"{MODULE_QUERIES}.call_get_group_consolidated_dashboard",
+                side_effect=[current, latest],
+            ),
+            patch(
+                f"{MODULE_QUERIES}.dsn_totals_repo.list_by_companies",
+                return_value=[
+                    {"company_id": "c1", "period": "2026-05", "gross_salary": 5000}
+                ],
+            ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.ConsolidatedPayrollContext.build",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "app.modules.payroll.application.payroll_kpi_queries.enrich_consolidated_with_dsn",
+                side_effect=lambda payload, _ids, _period, **kwargs: payload,
+            ),
+        ):
+            result = queries.get_group_consolidated_stats(
+                "g1", user, year=2026, month=6
+            )
+
+        assert result["totals"]["total_gross_salary"] == 5000
+        assert result["metadata"]["payroll_fallback_applied"] is True
+        assert result["metadata"]["requested_year"] == 2026
+        assert result["metadata"]["requested_month"] == 6
+        assert result["metadata"]["reference_year"] == 2026
+        assert result["metadata"]["reference_month"] == 5
+
     def test_includes_comparison_block(self):
         mock_repo = MagicMock()
         mock_repo.get_companies_for_group_stats.return_value = [{"id": "c1"}]

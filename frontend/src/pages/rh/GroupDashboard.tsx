@@ -371,6 +371,36 @@ export function GroupDashboard() {
       ? filteredTotals.total_gross_salary / filteredTotals.total_employees
       : 0;
   const totalEmployerCostValue = totalsEmployerCost(filteredTotals);
+  const effectivePeriodLabel = useMemo(() => {
+    const fallbackYear = stats?.metadata.payroll_period_year;
+    const fallbackMonth = stats?.metadata.payroll_period_month;
+    if (stats?.metadata.payroll_fallback_applied && fallbackYear && fallbackMonth) {
+      return `${formatMonthLabel(fallbackMonth)} ${fallbackYear}`;
+    }
+    return periodBounds.label;
+  }, [periodBounds.label, stats?.metadata]);
+  const requestedPeriodLabel = useMemo(() => {
+    const requestedYear = stats?.metadata.requested_year;
+    const requestedMonth = stats?.metadata.requested_month;
+    if (stats?.metadata.payroll_fallback_applied && requestedYear && requestedMonth) {
+      return `${formatMonthLabel(requestedMonth)} ${requestedYear}`;
+    }
+    return periodBounds.label;
+  }, [periodBounds.label, stats?.metadata]);
+  const effectivePeriodExportKey = useMemo(() => {
+    const fallbackYear = stats?.metadata.payroll_period_year;
+    const fallbackMonth = stats?.metadata.payroll_period_month;
+    if (stats?.metadata.payroll_fallback_applied && fallbackYear && fallbackMonth) {
+      return `${fallbackYear}-${String(fallbackMonth).padStart(2, "0")}`;
+    }
+    if (
+      periodBounds.startYear === periodBounds.endYear &&
+      periodBounds.startMonth === periodBounds.endMonth
+    ) {
+      return `${periodBounds.endYear}-${String(periodBounds.endMonth).padStart(2, "0")}`;
+    }
+    return `${periodBounds.startYear}${String(periodBounds.startMonth).padStart(2, "0")}-${periodBounds.endYear}${String(periodBounds.endMonth).padStart(2, "0")}`;
+  }, [periodBounds, stats?.metadata]);
 
   const kpiDeltas = useMemo(() => {
     if (!comparisonTotals) return null;
@@ -520,17 +550,11 @@ export function GroupDashboard() {
     if (!stats) return;
     setIsExporting(true);
     try {
-      const periodExportKey =
-        periodBounds.startYear === periodBounds.endYear &&
-        periodBounds.startMonth === periodBounds.endMonth
-          ? `${periodBounds.endYear}-${String(periodBounds.endMonth).padStart(2, "0")}`
-          : `${periodBounds.startYear}${String(periodBounds.startMonth).padStart(2, "0")}-${periodBounds.endYear}${String(periodBounds.endMonth).padStart(2, "0")}`;
-
       await exportGroupDashboardXlsx({
         groupName: groupDetails?.group_name ?? "Groupe",
         siren: groupDetails?.siren,
-        periodLabel: periodBounds.label,
-        periodExportKey,
+        periodLabel: effectivePeriodLabel,
+        periodExportKey: effectivePeriodExportKey,
         compareTo,
         companies: filteredAndSortedCompanies,
         totals: filteredTotals,
@@ -564,16 +588,10 @@ export function GroupDashboard() {
     if (!stats) return;
     setIsExportingTable(true);
     try {
-      const periodExportKey =
-        periodBounds.startYear === periodBounds.endYear &&
-        periodBounds.startMonth === periodBounds.endMonth
-          ? `${periodBounds.endYear}-${String(periodBounds.endMonth).padStart(2, "0")}`
-          : `${periodBounds.startYear}${String(periodBounds.startMonth).padStart(2, "0")}-${periodBounds.endYear}${String(periodBounds.endMonth).padStart(2, "0")}`;
-
       await exportGroupDashboardTableXlsx({
         groupName: groupDetails?.group_name ?? "Groupe",
-        periodLabel: periodBounds.label,
-        periodExportKey,
+        periodLabel: effectivePeriodLabel,
+        periodExportKey: effectivePeriodExportKey,
         compareTo,
         companies: filteredAndSortedCompanies,
         totals: filteredTotals,
@@ -637,7 +655,7 @@ export function GroupDashboard() {
             <span>•</span>
             <span className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              {periodBounds.label}
+              {effectivePeriodLabel}
             </span>
           </div>
         </div>
@@ -675,6 +693,28 @@ export function GroupDashboard() {
           </DropdownMenu>
         </div>
       </div>
+
+      {stats?.metadata.payroll_fallback_applied ? (
+        <Alert>
+          <AlertDescription>
+            {stats.metadata.payroll_period_year && stats.metadata.payroll_period_month ? (
+              <>
+                Données paie affichées sur {effectivePeriodLabel}, dernière période disponible.
+                {requestedPeriodLabel !== effectivePeriodLabel
+                  ? ` ${requestedPeriodLabel} n'est pas encore importé.`
+                  : null}
+              </>
+            ) : (
+              <>
+                Données paie issues des dernières périodes disponibles par entreprise.
+                {requestedPeriodLabel
+                  ? ` ${requestedPeriodLabel} n'est pas encore importé.`
+                  : null}
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Card>
         <CardHeader className="pb-3">
@@ -1126,6 +1166,10 @@ export function GroupDashboard() {
                                       partial={company.payroll_partial}
                                     />
                                   </div>
+                                ) : company.gross_salary <= 0 && company.employee_count > 0 ? (
+                                  <div className="mt-1 flex justify-end">
+                                    <PayrollSourceBadge source="none" />
+                                  </div>
                                 ) : null}
                                 {grossDelta != null && compareTo !== "off" ? (
                                   <div
@@ -1493,7 +1537,7 @@ export function GroupDashboard() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Évolution temporelle</CardTitle>
-                    <CardDescription>{periodBounds.label}</CardDescription>
+                    <CardDescription>{effectivePeriodLabel}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={400}>
