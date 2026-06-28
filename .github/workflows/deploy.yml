@@ -66,6 +66,29 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker --quiet
 
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Pre-pull images de base (mirror GCR, retry)
+        run: |
+          images=(
+            "mirror.gcr.io/library/python:3.11-slim"
+            "mirror.gcr.io/library/node:22-alpine"
+            "mirror.gcr.io/library/nginx:alpine"
+          )
+          for img in "${images[@]}"; do
+            for attempt in 1 2 3; do
+              echo "Pull ${img} (tentative ${attempt}/3)"
+              if docker pull "${img}"; then
+                break
+              fi
+              if [ "${attempt}" -eq 3 ]; then
+                echo "::error::Échec pull ${img} après 3 tentatives"
+                exit 1
+              fi
+              sleep 20
+            done
+          done
+
       - id: images
         run: |
           P="${{ vars.GCP_PROJECT_ID }}"

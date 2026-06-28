@@ -1,6 +1,7 @@
 # Image API SIRH — répertoire de build : backend/
 
-FROM python:3.11-slim
+# mirror.gcr.io : cache Google de Docker Hub (évite les timeouts registry-1.docker.io en CI)
+FROM mirror.gcr.io/library/python:3.11-slim
 
 # Empêcher la création de fichiers .pyc + logs non bufferisés
 ENV PYTHONDONTWRITEBYTECODE=1

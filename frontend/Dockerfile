@@ -1,7 +1,7 @@
 # Fichier: frontend/Dockerfile
 
 # --- ÉTAPE 1 : BUILD ---
-FROM node:20-alpine AS builder
+FROM mirror.gcr.io/library/node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -15,7 +15,7 @@ ENV VITE_APP_BUILD_ID=${VITE_APP_BUILD_ID}
 RUN npm run build
 
 # --- ÉTAPE 2 : PRODUCTION ---
-FROM nginx:alpine
+FROM mirror.gcr.io/library/nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.template.conf /etc/nginx/nginx.template.conf
 
