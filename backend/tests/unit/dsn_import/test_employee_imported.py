@@ -1,6 +1,6 @@
-"""Tests salarié importé sans Auth."""
+"""Tests salarié importé avec Auth."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import uuid
 
 import pytest
@@ -34,7 +34,7 @@ def employee_payload():
     }
 
 
-def test_create_employee_imported_no_auth(employee_payload):
+def test_create_employee_imported_creates_auth_and_credentials_pdf(employee_payload):
     company_id = str(uuid.uuid4())
     with patch(
         "app.modules.employees.application.commands.allocate_collaborator_username",
@@ -42,21 +42,35 @@ def test_create_employee_imported_no_auth(employee_payload):
     ), patch(
         "app.modules.employees.application.credentials_pdf.store_credentials_pdf_for_employee"
     ) as mock_store_pdf, patch(
+        "app.modules.employees.application.commands.get_auth_provider"
+    ) as mock_auth_provider, patch(
+        "app.modules.employees.application.commands._profile_repository"
+    ) as mock_profile_repo, patch(
+        "app.modules.employees.application.commands._grant_collaborator_company_access"
+    ) as mock_grant_access, patch(
         "app.modules.employees.application.commands._employee_repository"
     ) as repo:
+        auth = MagicMock()
+        auth.create_user.return_value = "user-1"
+        mock_auth_provider.return_value = auth
         repo.create.return_value = {
-            "id": "emp-1",
+            "id": "user-1",
             "employee_folder_name": "MARTIN_Jean",
             "employment_status": "actif",
-            "user_id": None,
+            "user_id": "user-1",
         }
         row = create_employee_imported(employee_payload, company_id)
         assert row["employment_status"] == "actif"
+        assert row["generated_password"]
+        auth.create_user.assert_called_once()
+        mock_profile_repo.upsert.assert_called_once()
+        mock_grant_access.assert_called_once_with("user-1", company_id, None)
         repo.create.assert_called_once()
         call_data = repo.create.call_args[0][0]
-        assert call_data.get("user_id") is None
+        assert call_data.get("user_id") == "user-1"
         assert call_data.get("employment_status") == "actif"
         assert call_data.get("username") == "jean.martin"
         mock_store_pdf.assert_called_once()
-        assert mock_store_pdf.call_args.args == ("emp-1", company_id)
+        assert mock_store_pdf.call_args.args == ("user-1", company_id)
         assert mock_store_pdf.call_args.kwargs["username"] == "jean.martin"
+        assert mock_store_pdf.call_args.kwargs["password"] == row["generated_password"]

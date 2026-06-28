@@ -131,6 +131,11 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_AFF_NB_ENFANTS,
     R_S21_AFF_REF_CONTRAT,
     R_S21_CI_ASSIETTE,
+    R_S21_CI_MONTANT,
+    R_S21_CI_MONTANT_PAT,
+    R_S21_CI_MONTANT_SAL,
+    R_S21_CI_OPS_IDENT,
+    R_S21_CI_TAUX,
     R_S21_ANC_DEB,
     R_S21_ANC_FIN,
     R_S21_ANC_TYPE,
@@ -189,8 +194,6 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_VER_NET_VERSE,
     R_S21_VER_PAS,
     R_S21_CI_IDENT_AFF,
-    R_S21_CI_MONTANT_PAT,
-    R_S21_CI_MONTANT_SAL,
     R_S21_VER_NUMERO,
     R_S21_VER_PAS_ASSIETTE,
     R_S21_VER_PAS_ID,
@@ -1024,19 +1027,29 @@ class _ParseContext:
                 ver.rubriques.setdefault("bases", {})
                 if isinstance(ver.rubriques["bases"], dict):
                     ver.rubriques["bases"][valeur] = 0.0
-        elif rubrique in (R_S21_BASE_MONTANT, R_S21_CI_ASSIETTE):
+        elif rubrique in (R_S21_BASE_MONTANT, R_S21_CI_OPS_IDENT):
             if self.cotisation_ind is not None:
-                self._ensure_cotisation_ind().montant_assiette = _float_val(valeur)
+                ci = self._ensure_cotisation_ind()
+                if self.dsn_format == "modern":
+                    ci.rubriques["ops_ident"] = valeur.strip()
+                else:
+                    ci.montant_assiette = _float_val(valeur)
             else:
                 ver = self._ensure_versement()
                 bases = ver.rubriques.get("bases")
                 if isinstance(bases, dict) and bases:
                     last_key = list(bases.keys())[-1]
                     bases[last_key] = _float_val(valeur)
-        elif rubrique == R_S21_CI_MONTANT_SAL:
-            self._ensure_cotisation_ind().montant_salarial = _float_val(valeur)
-        elif rubrique == R_S21_CI_MONTANT_PAT:
+        elif rubrique in (R_S21_CI_ASSIETTE, R_S21_CI_MONTANT_SAL):
+            ci = self._ensure_cotisation_ind()
+            if self.dsn_format == "modern":
+                ci.montant_assiette = _float_val(valeur)
+            else:
+                ci.montant_salarial = _float_val(valeur)
+        elif rubrique in (R_S21_CI_MONTANT, R_S21_CI_MONTANT_PAT):
             self._ensure_cotisation_ind().montant_patronal = _float_val(valeur)
+        elif rubrique == R_S21_CI_TAUX:
+            self._ensure_cotisation_ind().rubriques[rubrique] = valeur.strip()
         elif rubrique == R_S21_CI_IDENT_AFF:
             self._ensure_cotisation_ind().identifiant_affiliation = valeur.strip()
         elif rubrique == R_S21_ORG_REF:

@@ -1,11 +1,40 @@
 """Tests persistance totaux DSN au commit."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.modules.dsn_import.application.cumuls import aggregate_cumuls_by_company_period
 from app.modules.dsn_import.application.payroll_totals_persist import (
+    build_resolve_company_id_for_totals,
+    build_resolve_company_id_from_batch,
     persist_batch_dsn_payroll_totals,
 )
+
+
+def test_build_resolve_company_id_for_totals_uses_target_company():
+    resolve = build_resolve_company_id_for_totals(target_company_id="cartol-id")
+    assert resolve("95147478200020") == "cartol-id"
+
+
+def test_build_resolve_company_id_from_batch_uses_establishment_mapping():
+    batch_id = "batch-cartol"
+    with (
+        patch(
+            "app.modules.dsn_import.application.payroll_totals_persist.repo.get_batch",
+            return_value={"summary": {"target_company_id": "cartol-id"}},
+        ),
+        patch(
+            "app.modules.dsn_import.application.payroll_totals_persist.repo.list_items",
+            return_value=[
+                {
+                    "item_type": "establishment",
+                    "target_id": "cartol-id",
+                    "mapped_payload": {"siret": "95147478200020"},
+                }
+            ],
+        ),
+    ):
+        resolve = build_resolve_company_id_from_batch(batch_id)
+    assert resolve("95147478200020") == "cartol-id"
 
 
 def test_aggregate_cumuls_by_company_period():

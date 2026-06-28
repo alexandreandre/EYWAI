@@ -209,13 +209,18 @@ R_S21_CTR_TAUX_AT = "S21.G00.40.043"
 R_S21_CTR_STATUT_BOETH = "S21.G00.40.072"
 R_S21_CHG_ANCIEN_BOETH = "S21.G00.41.048"
 
-# --- Base assujettie S21.G00.81 (legacy parser) / cotisation individuelle (norme) ---
+# --- Cotisation individuelle S21.G00.81 ---
 R_S21_BASE_CODE = "S21.G00.81.001"
+# Legacy : .002 = montant ; norme P22+ : .002 = identifiant OPS, .003 = assiette, .004 = cotisation
 R_S21_BASE_MONTANT = "S21.G00.81.002"
-R_S21_CI_ASSIETTE = "S21.G00.81.002"
-R_S21_CI_MONTANT_SAL = "S21.G00.81.003"
-R_S21_CI_MONTANT_PAT = "S21.G00.81.004"
+R_S21_CI_OPS_IDENT = "S21.G00.81.002"
+R_S21_CI_ASSIETTE = "S21.G00.81.003"
+R_S21_CI_MONTANT = "S21.G00.81.004"
+# Alias historiques (tests / imports existants)
+R_S21_CI_MONTANT_SAL = R_S21_CI_ASSIETTE
+R_S21_CI_MONTANT_PAT = R_S21_CI_MONTANT
 R_S21_CI_IDENT_AFF = "S21.G00.81.005"
+R_S21_CI_TAUX = "S21.G00.81.007"
 
 # --- Organisme PSC S21.G00.15 (établissement) ---
 R_S21_ORG_REF = "S21.G00.15.001"

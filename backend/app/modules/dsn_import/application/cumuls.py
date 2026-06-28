@@ -160,6 +160,11 @@ def _brut_from_versement(versement) -> float:
     return ver_brut
 
 
+def _cotisation_individuelle_amount(cot) -> float:
+    """Montant de cotisation déclaré (.004 en norme P22+)."""
+    return float(cot.montant_patronal or 0)
+
+
 def _cotisations_from_versement(versement) -> Tuple[float, float]:
     """Retourne (cotisations salariales, cotisations patronales) d'un versement DSN."""
     cot_sal = 0.0
@@ -168,9 +173,24 @@ def _cotisations_from_versement(versement) -> Tuple[float, float]:
         cot_sal += float(cot.montant_salarial or 0)
         cot_pat += float(cot.montant_patronal or 0)
     for cot in versement.cotisations_individuelles:
-        cot_sal += float(cot.montant_salarial or 0)
-        cot_pat += float(cot.montant_patronal or 0)
+        amount = _cotisation_individuelle_amount(cot)
+        if amount == 0:
+            continue
+        # Bloc G00.81 P22+ : un seul montant (.004), généralement patronal (y.c. réductions négatives).
+        cot_pat += amount
     return cot_sal, cot_pat
+
+
+def _normalize_employee_charges(
+    employee_charges: float, *, brut: float, net_imposable: float
+) -> float:
+    """Évite les cumuls d'assiettes Cegid pris pour des cotisations salariales."""
+    inferred = round(max(brut - net_imposable, 0.0), 2) if brut > net_imposable else 0.0
+    if employee_charges <= 0:
+        return inferred
+    if employee_charges > brut or employee_charges > inferred * 1.5:
+        return inferred
+    return round(employee_charges, 2)
 
 
 def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
@@ -197,8 +217,9 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
                 if cot.code in REDUCTION_GENERALE_COT_CODES:
                     reduction_pat += abs(cot.montant_patronal)
 
-    if employee_charges <= 0 and brut > net_imposable:
-        employee_charges = brut - net_imposable
+    employee_charges = _normalize_employee_charges(
+        employee_charges, brut=brut, net_imposable=net_imposable
+    )
 
     return {
         "brut": round(brut, 2),
@@ -507,6 +528,11 @@ def aggregate_cumuls_by_company_period(
         for bucket in periods.values():
             gross = float(bucket.get("gross_salary") or 0)
             net = float(bucket.get("net_imposable") or 0)
+            bucket["employee_charges"] = _normalize_employee_charges(
+                float(bucket.get("employee_charges") or 0),
+                brut=gross,
+                net_imposable=net,
+            )
             if float(bucket.get("employee_charges") or 0) <= 0 and gross > net:
                 bucket["employee_charges"] = round(gross - net, 2)
 

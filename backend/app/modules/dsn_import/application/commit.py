@@ -596,23 +596,18 @@ def commit_batch(
         _mark_companies_dsn_transition(set(company_by_siret.values()), target_cid)
         try:
             from app.modules.dsn_import.application.payroll_totals_persist import (
+                build_resolve_company_id_for_totals,
                 persist_batch_dsn_payroll_totals,
             )
 
             cumul_items = [i for i in items_sorted if i.get("item_type") == "cumul"]
-
-            def _resolve_company_for_totals(siret: str) -> Optional[str]:
-                cid = company_by_siret.get(siret)
-                if cid:
-                    return str(cid)
-                if target_cid:
-                    return str(target_cid)
-                co = repo.find_company_by_siret(siret)
-                return str(co["id"]) if co else None
-
+            resolve_company_for_totals = build_resolve_company_id_for_totals(
+                company_by_siret=company_by_siret,
+                target_company_id=target_cid,
+            )
             persist_batch_dsn_payroll_totals(
                 cumul_items,
-                resolve_company_id=_resolve_company_for_totals,
+                resolve_company_id=resolve_company_for_totals,
                 batch_id=batch_id,
             )
         except Exception:
