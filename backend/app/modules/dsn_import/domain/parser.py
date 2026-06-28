@@ -1065,18 +1065,21 @@ class _ParseContext:
 
 
 def _normalize_psc_cotisations_contrat(contrat: ContratBlock) -> None:
-    """Corrige les exports Cegid où seul G00.81.004 est renseigné (montant salarial)."""
+    """Répartit salarial/patronal sur les blocs PSC (code 059) G00.81 après parse P26."""
     for ver in contrat.versements:
         for ci in ver.cotisations_individuelles:
             if (ci.code or "").strip() != "059":
                 continue
-            if (
-                ci.montant_salarial == 0
-                and ci.montant_patronal > 0
-                and ci.montant_assiette == 0
-            ):
+            if ci.montant_salarial > 0:
+                continue
+            if ci.montant_patronal > 0 and ci.montant_assiette == 0:
+                # Export Cegid : montant unique en .004 → part salariale.
                 ci.montant_salarial = ci.montant_patronal
                 ci.montant_patronal = 0.0
+            elif ci.montant_patronal > 0 and ci.montant_assiette > 0:
+                # P26 : .003 = part salariale, .004 = part patronale (pas assiette paie).
+                ci.montant_salarial = ci.montant_assiette
+                ci.montant_assiette = 0.0
 
 
 def _sync_bases_from_blocks(etab: EtablissementBlock) -> None:
