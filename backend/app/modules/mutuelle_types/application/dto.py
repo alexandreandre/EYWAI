@@ -1,8 +1,13 @@
-"""
-DTOs applicatifs pour mutuelle_types.
+"""DTOs et exceptions applicatives du module mutuelle_types."""
 
-Les entrées/sorties des commandes utilisent les schémas requests/responses.
-Pas de DTO interne supplémentaire pour l’instant ; à compléter si besoin.
-"""
 
-from __future__ import annotations
+class MutuelleTypeApplicationError(Exception):
+    """Erreur métier ou validation à mapper par la couche API."""
+
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(detail)
+
+
+__all__ = ["MutuelleTypeApplicationError"]

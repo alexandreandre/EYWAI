@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import HTTPException
-
 from app.core.database import supabase
+from app.modules.mutuelle_types.application.dto import MutuelleTypeApplicationError
 
 
 def get_psc_settings(company_id: str) -> dict[str, Any]:
@@ -61,9 +60,9 @@ def upsert_psc_settings(
         .execute()
     )
     if not resp.data:
-        raise HTTPException(
-            status_code=500,
-            detail="Impossible d'enregistrer les paramètres PSC.",
+        raise MutuelleTypeApplicationError(
+            500,
+            "Impossible d'enregistrer les paramètres PSC.",
         )
     row = resp.data[0]
     return {

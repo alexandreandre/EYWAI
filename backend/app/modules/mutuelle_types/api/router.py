@@ -19,6 +19,7 @@ from app.modules.mutuelle_types.application.commands import (
     delete_mutuelle_type,
     update_mutuelle_type,
 )
+from app.modules.mutuelle_types.application.dto import MutuelleTypeApplicationError
 from app.modules.mutuelle_types.application.employee_choice import (
     assign_employee_mutuelle_choice,
     get_employee_mutuelle_choices,
@@ -41,6 +42,10 @@ from app.modules.mutuelle_types.schemas.psc_settings import (
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Mutuelle Types"])
+
+
+def _to_http(exc: MutuelleTypeApplicationError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.get("/api/mutuelle-types")
@@ -116,7 +121,10 @@ def get_psc_settings_route(user: User = Depends(get_current_user)) -> dict:
     company_id = user.active_company_id
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active")
-    return get_psc_settings(str(company_id))
+    try:
+        return get_psc_settings(str(company_id))
+    except MutuelleTypeApplicationError as exc:
+        raise _to_http(exc) from exc
 
 
 @router.put("/api/psc-settings", response_model=PscSettingsResponse)
@@ -131,7 +139,10 @@ def update_psc_settings_route(
     if not user.has_rh_access_in_company(str(company_id)):
         raise HTTPException(status_code=403, detail="Accès réservé au profil RH.")
     data = payload.model_dump(exclude_unset=True)
-    return upsert_psc_settings(str(company_id), **data)
+    try:
+        return upsert_psc_settings(str(company_id), **data)
+    except MutuelleTypeApplicationError as exc:
+        raise _to_http(exc) from exc
 
 
 @router.get(
@@ -144,7 +155,10 @@ def get_my_mutuelle_choices(user: User = Depends(get_current_user)) -> dict:
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active")
     employee_id = resolve_my_employee_id(user)
-    return get_employee_mutuelle_choices(str(company_id), employee_id)
+    try:
+        return get_employee_mutuelle_choices(str(company_id), employee_id)
+    except MutuelleTypeApplicationError as exc:
+        raise _to_http(exc) from exc
 
 
 @router.put(
@@ -160,9 +174,12 @@ def set_my_mutuelle_choice(
     if not company_id:
         raise HTTPException(status_code=400, detail="Aucune entreprise active")
     employee_id = resolve_my_employee_id(user)
-    return assign_employee_mutuelle_choice(
-        str(company_id),
-        employee_id,
-        payload.mutuelle_type_id,
-        str(user.id),
-    )
+    try:
+        return assign_employee_mutuelle_choice(
+            str(company_id),
+            employee_id,
+            payload.mutuelle_type_id,
+            str(user.id),
+        )
+    except MutuelleTypeApplicationError as exc:
+        raise _to_http(exc) from exc
