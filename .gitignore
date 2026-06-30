@@ -123,6 +123,16 @@ backend/.venv-ci-local
 # Artefacts locaux (génération OpenAPI, etc.)
 backend/openapi-local.json
 *.local.json
+supabase/local/
+supabase/.branches/
+supabase/.temp/
+.supabase-local/
+
+# Données client locales (DSN, paies, pointages) — ne jamais versionner
+/Config/
+/CARTOL_*.dsn
+/*.dsn
+backend/reports/
 
 # Spyder project settings
 .spyderproject
@@ -315,6 +325,7 @@ $RECYCLE.BIN/
 *.sql
 # Migrations Supabase versionnées (CI / tests : test_planning.py)
 !supabase/migrations/*.sql
+!supabase/seed.sql
 
 # ===================================
 # Logs and temporary files
@@ -336,6 +347,10 @@ temp/
 .env.*
 !.env.example
 !.env.template
+!backend/.env.local.example
+!backend/.env.prod.example
+!frontend/.env.local.example
+!frontend/.env.prod.example
 
 # Credentials
 credentials.json
