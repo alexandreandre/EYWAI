@@ -11,6 +11,7 @@ from typing import Any
 
 from app.shared.infrastructure.ai.client import chat_completions_create, require_llm_api_key
 from app.shared.infrastructure.ai.structured_extractor import StructuredExtractionResult
+from app.shared.infrastructure.documents.text_extraction import ensure_vision_image_under_limit
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def extract_structured_json_from_image(
     Retry une fois en cas d'échec de parsing JSON.
     """
     require_llm_api_key()
+    image_bytes, mime_type = ensure_vision_image_under_limit(image_bytes, mime_type)
     data_url = _image_data_url(image_bytes, mime_type)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},

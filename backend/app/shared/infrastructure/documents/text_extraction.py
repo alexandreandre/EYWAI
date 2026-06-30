@@ -54,9 +54,13 @@ _CEGID_PARTIAL_SIGNATURE = re.compile(
     r"pointages?\s+[\"']?retenu|Total\s+pour\s+la\s+semaine",
     re.IGNORECASE,
 )
+_BANQUE_HEURES_SIGNATURE = re.compile(r"BANQUE\s+HEURES", re.IGNORECASE)
+_OCR_RELIABILITY_MIN_SCORE = 8
 _OCR_PSM_MODES = (3, 4, 6)
 _DEFAULT_OCR_MAX_PAGES = 120
 _DEFAULT_OCR_DPI = 300
+_DEFAULT_VISION_MAX_BYTES = 8 * 1024 * 1024
+_DEFAULT_VISION_MAX_EDGE = 2400
 
 
 @dataclass
@@ -93,6 +97,22 @@ def _ocr_dpi() -> int:
         return _DEFAULT_OCR_DPI
 
 
+def _vision_max_bytes() -> int:
+    raw = os.getenv("TIMESHEET_VISION_MAX_BYTES", str(_DEFAULT_VISION_MAX_BYTES)).strip()
+    try:
+        return max(512_000, int(raw))
+    except ValueError:
+        return _DEFAULT_VISION_MAX_BYTES
+
+
+def _vision_max_edge() -> int:
+    raw = os.getenv("TIMESHEET_VISION_MAX_EDGE", str(_DEFAULT_VISION_MAX_EDGE)).strip()
+    try:
+        return max(800, int(raw))
+    except ValueError:
+        return _DEFAULT_VISION_MAX_EDGE
+
+
 def is_supported_document(filename: str | None) -> bool:
     if not filename:
         return False
@@ -117,22 +137,102 @@ def _ocr_image_with_psm(image: "Image.Image", psm: int) -> str:
     return pytesseract.image_to_string(processed, lang="fra", config=config)
 
 
-def _score_cegid_text(text: str) -> int:
-    """Score heuristique : plus c'est haut, plus le texte ressemble à un relevé Cegid."""
+def score_timesheet_ocr_text(text: str) -> int:
+    """Score heuristique : plus c'est haut, plus le texte ressemble à un relevé pointage."""
     if not text:
         return 0
     score = 0
     if _CEGID_PARTIAL_SIGNATURE.search(text):
         score += 3
+    if _BANQUE_HEURES_SIGNATURE.search(text):
+        score += 5
     score += len(re.findall(r"#\s*\d{1,2}[:.;]\d{2}", text))
     score += len(re.findall(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", text))
     score += len(re.findall(r"Total\s+pour\s+la\s+semaine", text, re.IGNORECASE)) * 5
+    score += len(re.findall(r"^\d{4,6}\s+[A-Za-zÀ-ÿ]", text, re.MULTILINE)) * 2
     return score
 
 
-def _ocr_image_adaptive(image: "Image.Image") -> tuple[str, int]:
+def is_ocr_text_reliable(text: str) -> bool:
+    """True si l'OCR est assez riche et structuré pour se passer de la vision."""
+    cleaned = (text or "").strip()
+    if len(cleaned) < 80:
+        return False
+    has_structure = bool(
+        _CEGID_PARTIAL_SIGNATURE.search(cleaned)
+        or _BANQUE_HEURES_SIGNATURE.search(cleaned)
+    )
+    if not has_structure:
+        return False
+    return _ocr_quality_score(cleaned) >= _OCR_RELIABILITY_MIN_SCORE
+
+
+def _score_cegid_text(text: str) -> int:
+    return score_timesheet_ocr_text(text)
+
+
+def _ocr_quality_score(text: str) -> int:
+    """Score orienté qualité parseur (pas seulement densité de dates OCR bruitées)."""
+    score = score_timesheet_ocr_text(text)
+    if _CEGID_PARTIAL_SIGNATURE.search(text or ""):
+        score += 15
+    if _BANQUE_HEURES_SIGNATURE.search(text or ""):
+        score += 15
+    if re.search(r"^\d{4,6}\s+[A-Za-zÀ-ÿ]", text or "", re.MULTILINE):
+        score += 5
+    return score
+
+
+def _osd_rotate_image(image: "Image.Image") -> "Image.Image":
     if not _OCR_AVAILABLE:
-        return "", 6
+        return image
+    try:
+        osd = pytesseract.image_to_osd(_preprocess_image(image))
+        conf_match = re.search(r"Orientation confidence:\s+([\d.]+)", osd)
+        rotate_match = re.search(r"Rotate:\s+(\d+)", osd)
+        if conf_match and rotate_match:
+            confidence = float(conf_match.group(1))
+            angle = int(rotate_match.group(1)) % 360
+            if confidence >= 5.0 and angle:
+                return image.rotate(360 - angle, expand=True)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("OSD Tesseract ignoré: %s", exc)
+    return image
+
+
+def _orientation_quality_score(text: str) -> int:
+    """Score pour choisir la rotation (inclut feuilles manuscrites DEBUT/FIN)."""
+    score = _ocr_quality_score(text)
+    upper = (text or "").upper()
+    for day in (
+        "LUNDI",
+        "MARDI",
+        "MERCREDI",
+        "JEUDI",
+        "VENDREDI",
+        "SAMEDI",
+        "DIMANCHE",
+    ):
+        score += upper.count(day) * 5
+    for label in ("DEBUT", "FIN"):
+        score += upper.count(label) * 4
+    if re.search(r"\bS\d{1,2}\b", upper):
+        score += 8
+    return score
+
+
+def _orientation_variants(image: "Image.Image") -> list[tuple["Image.Image", int]]:
+    """Variantes d'orientation à tester (image, angle appliqué depuis l'original)."""
+    variants: list[tuple[Image.Image, int]] = [(image, 0)]
+    oriented = _osd_rotate_image(image)
+    if oriented is not image:
+        variants.append((oriented, 0))
+    for angle in (90, 180, 270):
+        variants.append((image.rotate(angle, expand=True), angle))
+    return variants
+
+
+def _ocr_image_for_orientation(image: "Image.Image") -> tuple[str, int, int]:
     best_text = ""
     best_score = -1
     best_psm = 6
@@ -141,14 +241,44 @@ def _ocr_image_adaptive(image: "Image.Image") -> tuple[str, int]:
             text = _ocr_image_with_psm(image, psm)
         except Exception:  # pragma: no cover
             continue
-        score = _score_cegid_text(text)
+        score = _ocr_quality_score(text)
         if score > best_score or (score == best_score and len(text) > len(best_text)):
             best_text = text
             best_score = score
             best_psm = psm
     if not best_text:
         best_text = _ocr_image_with_psm(image, 6)
-    return best_text, best_psm
+        best_score = _ocr_quality_score(best_text)
+    return best_text, best_psm, best_score
+
+
+def _ocr_image_adaptive(image: "Image.Image") -> tuple[str, int, "Image.Image", int]:
+    """
+    OCR avec auto-rotation. Retourne (texte, psm, image orientée, angle°).
+    """
+    if not _OCR_AVAILABLE:
+        return "", 6, image, 0
+
+    baseline_text, baseline_psm, _ = _ocr_image_for_orientation(image)
+    if _orientation_quality_score(baseline_text) >= _OCR_RELIABILITY_MIN_SCORE:
+        return baseline_text, baseline_psm, image, 0
+
+    best_text, best_psm = baseline_text, baseline_psm
+    best_score = _orientation_quality_score(baseline_text)
+    best_image = image
+    best_angle = 0
+
+    for candidate, angle in _orientation_variants(image):
+        if candidate is image and angle == 0:
+            continue
+        text, psm, _ = _ocr_image_for_orientation(candidate)
+        score = _orientation_quality_score(text)
+        if score > best_score or (score == best_score and len(text) > len(best_text)):
+            best_text, best_psm, best_score = text, psm, score
+            best_image = candidate
+            best_angle = angle
+
+    return best_text, best_psm, best_image, best_angle
 
 
 def _post_process_ocr_text(text: str) -> str:
@@ -242,6 +372,7 @@ def _extract_pdf_ocr(
     parts: list[str] = []
     psm_used = 6
     calibrated_psm: int | None = None
+    page_rotation: int = 0
 
     try:
         for page_num in range(1, pages_to_process + 1):
@@ -256,11 +387,17 @@ def _extract_pdf_ocr(
                 break
             img = images[0]
             if page_num == 1:
-                part, psm_used = _ocr_image_adaptive(img)
+                part, psm_used, _, page_rotation = _ocr_image_adaptive(img)
                 calibrated_psm = psm_used
             else:
                 assert calibrated_psm is not None
-                part = _ocr_image_with_psm(img, calibrated_psm)
+                oriented = (
+                    img.rotate(page_rotation, expand=True)
+                    if page_rotation
+                    else img
+                )
+                part = _ocr_image_with_psm(oriented, calibrated_psm)
+                psm_used = calibrated_psm
             parts.append(part)
     except Exception as exc:  # pragma: no cover
         logger.warning("OCR PDF a échoué: %s", exc)
@@ -280,7 +417,7 @@ def _extract_image(file_content: bytes) -> tuple[str, int]:
         )
     try:
         image = Image.open(io.BytesIO(file_content))
-        text, psm = _ocr_image_adaptive(image)
+        text, psm, _, _ = _ocr_image_adaptive(image)
         return text.strip(), psm
     except DocumentExtractionError:
         raise
@@ -309,6 +446,7 @@ class RenderedPage:
     png_bytes: bytes
     ocr_text: str
     ocr_psm: int | None = None
+    vision_mime_type: str = "image/jpeg"
 
 
 @dataclass
@@ -324,6 +462,73 @@ def _image_to_png_bytes(image: "Image.Image") -> bytes:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _encode_vision_jpeg(image: "Image.Image", *, quality: int) -> bytes:
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=quality, optimize=True)
+    return buf.getvalue()
+
+
+def _image_to_vision_bytes(image: "Image.Image") -> tuple[bytes, str]:
+    """
+    Image optimisée pour l'API vision (JPEG, redimensionnée si nécessaire).
+    OpenRouter refuse les payloads > ~30 Mo (scans phone en PNG 300 dpi).
+    """
+    if not _OCR_AVAILABLE:
+        return _image_to_png_bytes(image.convert("RGB")), "image/png"
+
+    rgb = image.convert("RGB")
+    max_edge = _vision_max_edge()
+    width, height = rgb.size
+    if max(width, height) > max_edge:
+        scale = max_edge / max(width, height)
+        rgb = rgb.resize(
+            (max(1, int(width * scale)), max(1, int(height * scale))),
+            Image.LANCZOS,
+        )
+
+    cap = _vision_max_bytes()
+    quality = 88
+    while True:
+        best = _encode_vision_jpeg(rgb, quality=quality)
+        if len(best) <= cap:
+            return best, "image/jpeg"
+
+        if quality > 45:
+            quality -= 8
+            continue
+
+        width, height = rgb.size
+        if max(width, height) <= 400:
+            logger.warning(
+                "Image vision encore volumineuse (%s octets) après compression.",
+                len(best),
+            )
+            return best, "image/jpeg"
+
+        rgb = rgb.resize(
+            (max(1, width * 3 // 4), max(1, height * 3 // 4)),
+            Image.LANCZOS,
+        )
+        quality = 80
+
+
+def ensure_vision_image_under_limit(
+    image_bytes: bytes,
+    mime_type: str = "image/png",
+) -> tuple[bytes, str]:
+    """Repli : compresse un payload image déjà encodé avant envoi LLM."""
+    if len(image_bytes) <= _vision_max_bytes():
+        return image_bytes, mime_type
+    if not _OCR_AVAILABLE:
+        return image_bytes, mime_type
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        return _image_to_vision_bytes(image)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Compression vision de repli échouée: %s", exc)
+        return image_bytes, mime_type
 
 
 def render_document_pages(
@@ -349,15 +554,17 @@ def render_document_pages(
                 "La lecture des images nécessite l'OCR (Tesseract), indisponible sur ce serveur."
             )
         image = Image.open(io.BytesIO(file_content))
-        text, psm = _ocr_image_adaptive(image)
+        text, psm, oriented, _ = _ocr_image_adaptive(image)
         text = _post_process_ocr_text(text)
+        vision_bytes, vision_mime = _image_to_vision_bytes(oriented)
         return RenderedDocument(
             pages=[
                 RenderedPage(
                     page_index=1,
-                    png_bytes=_image_to_png_bytes(image.convert("RGB")),
+                    png_bytes=vision_bytes,
                     ocr_text=text,
                     ocr_psm=psm,
+                    vision_mime_type=vision_mime,
                 )
             ],
             pages_total=1,
@@ -369,6 +576,7 @@ def render_document_pages(
     pages_to_process = min(pages_total, cap)
     rendered: list[RenderedPage] = []
     calibrated_psm: int | None = None
+    page_rotation = 0
 
     if not _OCR_AVAILABLE:
         raise DocumentExtractionError(
@@ -387,19 +595,24 @@ def render_document_pages(
                 break
             img = images[0]
             if page_num == 1:
-                text, psm = _ocr_image_adaptive(img)
+                text, psm, oriented, page_rotation = _ocr_image_adaptive(img)
                 calibrated_psm = psm
             else:
                 assert calibrated_psm is not None
-                text = _ocr_image_with_psm(img, calibrated_psm)
+                oriented = (
+                    img.rotate(page_rotation, expand=True) if page_rotation else img
+                )
+                text = _ocr_image_with_psm(oriented, calibrated_psm)
                 psm = calibrated_psm
             text = _post_process_ocr_text(text)
+            vision_bytes, vision_mime = _image_to_vision_bytes(oriented)
             rendered.append(
                 RenderedPage(
                     page_index=page_num,
-                    png_bytes=_image_to_png_bytes(img),
+                    png_bytes=vision_bytes,
                     ocr_text=text,
                     ocr_psm=psm,
+                    vision_mime_type=vision_mime,
                 )
             )
     except Exception as exc:
@@ -506,7 +719,10 @@ __all__ = [
     "RenderedDocument",
     "RenderedPage",
     "SUPPORTED_EXTENSIONS",
+    "ensure_vision_image_under_limit",
     "extract_document_text",
+    "is_ocr_text_reliable",
     "is_supported_document",
     "render_document_pages",
+    "score_timesheet_ocr_text",
 ]

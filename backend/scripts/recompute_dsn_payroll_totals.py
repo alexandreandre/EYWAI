@@ -20,7 +20,10 @@ from app.modules.dsn_import.application.payroll_totals_recompute import (  # noq
 def _default_search_dirs(extra: list[str]) -> list[Path]:
     dirs = [REPO_ROOT, REPO_ROOT / "data" / "dsn", BACKEND_ROOT / "data" / "dsn"]
     for raw in extra:
-        dirs.append(Path(raw).expanduser())
+        path = Path(raw).expanduser()
+        dirs.append(path)
+        if path.is_dir() and path.name.upper() != "DSN":
+            dirs.extend(p for p in path.rglob("DSN") if p.is_dir())
     return dirs
 
 
