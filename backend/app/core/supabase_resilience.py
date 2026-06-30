@@ -9,6 +9,7 @@ from typing import Callable, TypeVar
 import httpx
 
 _TRANSIENT_ERRNOS = frozenset({errno.EAGAIN, errno.EWOULDBLOCK, 35, 11})
+_TRANSIENT_HTTP_STATUSES = frozenset({429, 502, 503, 504, 520, 521, 522, 523, 524})
 _TRANSIENT_MARKERS = (
     "resource temporarily unavailable",
     "errno 35",
@@ -30,14 +31,25 @@ def is_transient_supabase_error(exc: BaseException) -> bool:
         exc,
         (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError, httpx.TimeoutException),
     ):
-        msg = str(exc).lower()
-        if any(m in msg for m in _TRANSIENT_MARKERS):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = getattr(exc.response, "status_code", None)
+        if status in _TRANSIENT_HTTP_STATUSES:
             return True
+    # supabase_auth.errors.AuthRetryableError signale explicitement un retry.
+    if exc.__class__.__name__ == "AuthRetryableError":
+        return True
     cause = exc.__cause__
     if cause is not None and cause is not exc:
         return is_transient_supabase_error(cause)
     msg = str(exc).lower()
-    return any(m in msg for m in _TRANSIENT_MARKERS)
+    if any(m in msg for m in _TRANSIENT_MARKERS):
+        return True
+    # Détection par message pour les codes HTTP transitoires remontés via str(exc).
+    return any(
+        f" {status} " in msg or f"'{status} " in msg or f'"{status} ' in msg
+        for status in _TRANSIENT_HTTP_STATUSES
+    )
 
 
 def create_supabase_httpx_client() -> httpx.Client:
