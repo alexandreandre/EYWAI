@@ -17,7 +17,7 @@ class TestExtractPdfOcr:
             return_value=[fake_img],
         ) as mock_convert, patch(
             "app.shared.infrastructure.documents.text_extraction._ocr_image_adaptive",
-            return_value=("page text", 6),
+            return_value=("page text", 6, fake_img, 0),
         ) as mock_adaptive, patch(
             "app.shared.infrastructure.documents.text_extraction._ocr_image_with_psm",
             return_value="page text",
@@ -42,7 +42,7 @@ class TestExtractPdfOcr:
             return_value=[fake_img],
         ), patch(
             "app.shared.infrastructure.documents.text_extraction._ocr_image_adaptive",
-            return_value=("x", 4),
+            return_value=("x", 4, fake_img, 0),
         ), patch(
             "app.shared.infrastructure.documents.text_extraction._ocr_image_with_psm",
             return_value="x",

@@ -111,3 +111,16 @@ def test_humanize_commit_error_absence_blocked_by_exit():
 def test_humanize_commit_error_batch_creation_failed():
     issue = humanize_commit_error(RuntimeError("Impossible de créer le batch d'import"))
     assert issue["code"] == "batch_creation_failed"
+
+
+def test_humanize_commit_error_employee_check_constraint():
+    issue = humanize_commit_error(
+        RuntimeError(
+            'new row for relation "employees" violates check constraint '
+            '"employees_salary_payment_method_check"'
+        ),
+        source_ref="emp:1:2",
+    )
+    assert issue["code"] == "employee_validation"
+    assert "mode de paiement" in issue["message"]
+    assert issue["meta"]["constraint"] == "employees_salary_payment_method_check"

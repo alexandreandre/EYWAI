@@ -68,6 +68,43 @@ class TestEnrichConsolidatedWithDsn:
         assert result["totals"]["total_gross_salary"] == 5000.0
         assert result["totals"]["total_employer_charges"] == 2100.0
 
+    def test_caps_partial_dsn_net_below_gross(self):
+        payload = {
+            "metadata": {"reference_year": 2026, "reference_month": 1},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "company_name": "Cartol",
+                    "gross_salary": 0,
+                    "net_salary": 0,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        ctx = ConsolidatedPayrollContext(
+            modes={"c1": "transition"},
+            payslips_by_company={"c1": []},
+            dsn_by_company_period={
+                "c1": {
+                    "2026-01": DsnPeriodTotals(
+                        gross=255336.0,
+                        net_imposable=278361.0,
+                        employee_count=107,
+                        employees_with_gross=89,
+                    )
+                }
+            },
+        )
+
+        result = enrich_consolidated_with_dsn(payload, ["c1"], "2026-01", ctx=ctx)
+
+        row = result["by_company"][0]
+        assert row["gross_salary"] == 255336.0
+        assert row["net_salary"] <= row["gross_salary"]
+        assert row["payroll_source"] == "dsn"
+        assert row["payroll_partial"] is True
+
     def test_uses_dsn_fallback_even_when_company_mode_is_native(self):
         payload = {
             "metadata": {"reference_year": 2024, "reference_month": 6},
@@ -138,9 +175,11 @@ class TestEnrichConsolidatedWithDsn:
 
         row = result["by_company"][0]
         assert row["employee_count"] == 12
+        assert row["active_employee_count"] == 8
         assert row["total_employee_count"] == 13
         assert result["totals"]["total_employees"] == 13
         assert result["totals"]["total_employees_excluding_rh"] == 12
+        assert result["totals"]["total_active_employees_excluding_rh"] == 8
 
     def test_falls_back_to_latest_company_dsn_period_when_requested_period_is_empty(self):
         payload = {
@@ -208,6 +247,31 @@ class TestEnrichConsolidatedWithDsn:
         assert row["employer_charges"] == 1800.0
         assert result["totals"]["total_employer_charges"] == 1800.0
 
+    def test_backfills_charges_from_dsn_when_gross_already_present(self):
+        payload = {
+            "metadata": {},
+            "totals": {},
+            "by_company": [
+                {
+                    "company_id": "c1",
+                    "gross_salary": 4000,
+                    "net_salary": 3000,
+                    "employer_charges": 0,
+                }
+            ],
+        }
+        ctx = MagicMock()
+        ctx.resolve_snapshot.return_value = _snapshot(
+            source="dsn", gross=4000, net=3000, employer_charges=1600
+        )
+
+        result = enrich_consolidated_with_dsn(payload, ["c1"], "2024-06", ctx=ctx)
+
+        row = result["by_company"][0]
+        assert row["payroll_source"] == "payslip"
+        assert row["employer_charges"] == 1600.0
+        assert result["totals"]["total_employer_charges"] == 1600.0
+
 
 class TestEnrichPayrollEvolutionWithDsn:
     def test_fills_zero_gross_points_from_dsn(self):
@@ -248,6 +312,33 @@ class TestEnrichPayrollEvolutionWithDsn:
         assert result[0]["total_net"] == 3800.0
         assert result[0]["total_employer_charges"] == 2100.0
         assert result[0]["employee_count"] == 12
+
+    def test_backfills_charges_from_dsn_when_gross_already_present(self):
+        from app.modules.payroll.application.payroll_kpi_queries import (
+            enrich_payroll_evolution_with_dsn,
+        )
+
+        points = [
+            {
+                "company_id": "c1",
+                "company_name": "Co",
+                "year": 2024,
+                "month": 6,
+                "total_gross": 5000,
+                "total_net": 3800,
+                "total_employer_charges": 0,
+                "employee_count": 12,
+            }
+        ]
+        ctx = MagicMock()
+        ctx.resolve_snapshot.return_value = _snapshot(
+            source="dsn", gross=5000, net=3800, employer_charges=2100
+        )
+
+        result = enrich_payroll_evolution_with_dsn(points, ["c1"], ctx=ctx)
+
+        assert result[0]["total_gross"] == 5000
+        assert result[0]["total_employer_charges"] == 2100.0
 
 
 class TestFetchConsolidatedMultiMonthDsn:

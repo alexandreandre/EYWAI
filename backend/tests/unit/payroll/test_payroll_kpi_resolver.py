@@ -4,6 +4,7 @@ from app.modules.payroll.domain.payroll_kpi_resolver import (
     DsnPeriodTotals,
     PayslipPeriodTotals,
     aggregate_payslips_by_period,
+    align_net_with_gross,
     build_period_series,
     extract_payslip_period_totals,
     resolve_period_snapshot,
@@ -54,9 +55,57 @@ def test_resolve_period_dsn_when_no_payslip_and_transition():
     )
     assert snap.source == "dsn"
     assert snap.gross == 12000.0
+    assert snap.net == 9000.0
+    assert snap.net <= snap.gross
     assert snap.employee_charges == 3000.0
+    assert snap.employer_charges == 3500.0
     assert snap.employer_cost == 15500.0
     assert snap.partial is True
+
+
+def test_resolve_period_dsn_partial_net_capped_when_exceeds_gross():
+    snap = resolve_period_snapshot(
+        "2026-02",
+        payslip_totals=PayslipPeriodTotals(),
+        dsn_totals=DsnPeriodTotals(
+            gross=255336.0,
+            net_imposable=278361.0,
+            employee_count=107,
+            employees_with_gross=89,
+        ),
+        dsn_sync_mode="transition",
+    )
+    assert snap.source == "dsn"
+    assert snap.net <= snap.gross
+    assert snap.partial is True
+
+
+def test_resolve_period_dsn_partial_keeps_employer_charges():
+    snap = resolve_period_snapshot(
+        "2026-02",
+        payslip_totals=PayslipPeriodTotals(),
+        dsn_totals=DsnPeriodTotals(
+            gross=255336.0,
+            net_imposable=247742.0,
+            employee_count=100,
+            employees_with_gross=89,
+            employer_charges=145000.0,
+        ),
+        dsn_sync_mode="transition",
+    )
+    assert snap.partial is True
+    assert snap.employer_charges == 145000.0
+    assert snap.employer_cost == round(255336.0 + 145000.0, 2)
+
+
+def test_align_net_with_gross_caps_above_gross():
+    net = align_net_with_gross(
+        1000.0,
+        1500.0,
+        employee_charges=220.0,
+    )
+    assert net == 780.0
+    assert net <= 1000.0
 
 
 def test_dsn_row_to_totals_fallback_employee_charges():

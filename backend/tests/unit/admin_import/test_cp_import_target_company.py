@@ -53,6 +53,55 @@ class TestApplyTargetCompanyScope:
         assert company is CARTOL
         assert any("rapprochement forcé" in w for w in warnings)
 
+    def test_forced_scope_blocks_automatic_employee_match(self):
+        page = ParsedPayslipPage(
+            source_file="05-26 CARTOL.pdf",
+            page_index=29,
+            parse_format="cegid_clarifie",
+            siret="95147478200020",
+            company_name="CARTOL",
+            matricule="DIGUET",
+            raw_name="DIGUET PASCAL",
+            year=2026,
+            month=5,
+            period_label="Mai 2026",
+            cp_n1_solde=0.0,
+            cp_n_solde=25.96,
+        )
+        cartol_employees = [
+            {
+                "id": "e-wrong",
+                "first_name": "Miguel",
+                "last_name": "GONCALVES DE PINHO",
+                "email": "",
+                "employee_folder_name": "GONCALVES_Miguel",
+                "time_tracking_id": "DIGUET",
+            },
+        ]
+
+        with patch(
+            "app.modules.admin_import.application.cp_import.parse_pdf_file",
+            return_value=([page], []),
+        ), patch(
+            "app.modules.admin_import.application.cp_import.repo.find_company",
+            return_value=CARTOL,
+        ), patch(
+            "app.modules.admin_import.application.cp_import.repo.resolve_company_from_payslip",
+            return_value=(LEWIS, []),
+        ), patch(
+            "app.modules.admin_import.application.cp_import.repo.list_employees_by_company_ids",
+            return_value={"co-cartol": cartol_employees},
+        ):
+            result = parse_cp_import_files(
+                [("05-26 CARTOL.pdf", b"%PDF")],
+                target_company_id="co-cartol",
+            )
+
+        row = result["rows"][0]
+        assert row["employee_id"] is None
+        assert row["review_status"] == "error"
+        assert any("autre filiale" in w for w in row["warnings"])
+
 
 class TestParseCpImportTargetCompany:
     def test_unknown_siret_uses_target_company_for_matching(self):

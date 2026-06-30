@@ -67,6 +67,37 @@ def test_build_cumuls_summary():
     assert summary["by_period"][0]["employees_without_brut"] == 1
 
 
+def test_brut_from_remunerations_uses_max_primary_type():
+    from app.modules.dsn_import.application.cumuls import _brut_from_remunerations
+    from app.modules.dsn_import.domain.model import RemunerationBlock
+
+    rems = [
+        RemunerationBlock(type_code="001", montant=124.41),
+        RemunerationBlock(type_code="003", montant=2174.18),
+        RemunerationBlock(type_code="010", montant=2049.77),
+    ]
+    assert _brut_from_remunerations(rems) == 2174.18
+
+
+def test_extract_monthly_totals_caps_net_above_brut():
+    from app.modules.dsn_import.domain.model import (
+        ContratBlock,
+        IndividuBlock,
+        RemunerationBlock,
+        VersementBlock,
+    )
+
+    ver = VersementBlock(
+        net_fiscal=4108.39,
+        montant_soumis_pas=2111.41,
+        remunerations=[RemunerationBlock(type_code="001", montant=2111.41)],
+    )
+    ind = IndividuBlock(contrats=[ContratBlock(versements=[ver])])
+    totals = extract_monthly_totals(ind)
+    assert totals["brut"] == 2111.41
+    assert totals["net_imposable"] <= totals["brut"]
+
+
 def test_brut_fallback_from_pas_assiette_when_primary_zero():
     ver = VersementBlock(
         montant_soumis_pas=1880.0,

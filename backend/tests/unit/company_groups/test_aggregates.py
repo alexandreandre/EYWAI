@@ -16,6 +16,7 @@ def _monthly(company_id: str, gross: float, employees: int) -> dict:
                 "company_name": "Co",
                 "total_employee_count": employees,
                 "employee_count": employees - 1,
+                "active_employee_count": employees - 2,
                 "rh_count": 1,
                 "payslip_count": 1,
                 "gross_salary": gross,
@@ -41,6 +42,8 @@ class TestAggregateConsolidatedDashboards:
         row = result["by_company"][0]
         assert row["gross_salary"] == 3000
         assert row["total_employee_count"] == 15  # moyenne 10 et 20
+        assert row["active_employee_count"] == 13
+        assert result["totals"]["total_active_employees_excluding_rh"] == 13
 
     def test_empty_returns_empty_structure(self):
         result = aggregate_consolidated_dashboards(

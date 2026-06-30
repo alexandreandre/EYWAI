@@ -57,9 +57,19 @@ class TestEmployeeMatch:
         assert p.employee_id == "e2"
         assert p.match_confidence == "high"
 
-    def test_homonym_first_name_not_resolved(self):
+    def test_unique_first_name_resolved_with_warning(self):
         p = resolve_employee_for_timesheet(
             raw_name="Rina", matricule=None, roster=ROSTER
+        )
+        assert p.employee_id == "e3"
+        assert p.review_status == "warning"
+
+    def test_homonym_first_name_not_resolved(self):
+        roster = ROSTER + [
+            RosterEmployee(id="e11", first_name="Rina", last_name="Martin")
+        ]
+        p = resolve_employee_for_timesheet(
+            raw_name="Rina", matricule=None, roster=roster
         )
         assert p.employee_id is None
         assert p.review_status == "error"
@@ -104,6 +114,7 @@ class TestEmployeeMatch:
 
     def test_junk_ocr_line(self):
         assert is_junk_employee_name("Édition en heures et minutes")
+        assert is_junk_employee_name("AH 9 lANOHINV")
         p = resolve_employee_for_timesheet(
             raw_name="Édition en heures et minutes",
             matricule="1616",

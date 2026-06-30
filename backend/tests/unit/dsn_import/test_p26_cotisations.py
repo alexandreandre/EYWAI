@@ -39,8 +39,8 @@ def test_cartol_jan_aggregate_employer_charges():
     sal = sum(i["mapped_payload"]["month_totals"]["employee_charges"] for i in items)
     brut = sum(i["mapped_payload"]["month_totals"]["brut"] for i in items)
     assert 100_000 <= pat <= 140_000
-    assert 30_000 <= sal <= 50_000
-    assert abs(brut - 192_678.79) < 1.0
+    assert 30_000 <= sal <= 60_000
+    assert abs(brut - 205_521.06) < 1.0
 
 
 def test_sanitize_stored_month_totals_fixes_missing_charges():
@@ -65,4 +65,15 @@ def test_locate_dsn_file_finds_duplicate_suffix(tmp_path: Path):
     dsn = tmp_path / "CARTOL_0126_000001 (1).dsn"
     dsn.write_text("S10.G00.00.001,'x'\n", encoding="latin-1")
     found = locate_dsn_file(["CARTOL_0126_000001.dsn"], [tmp_path])
+    assert found == dsn
+
+
+def test_locate_dsn_file_finds_file_from_expanded_dsn_dir(tmp_path: Path):
+    dsn_dir = tmp_path / "Config" / "Colorplast" / "DSN"
+    dsn_dir.mkdir(parents=True)
+    dsn = dsn_dir / "000005_0526_000001 (2).dsn"
+    dsn.write_text("S10.G00.00.001,'x'\n", encoding="latin-1")
+
+    found = locate_dsn_file(["000005_0526_000001.dsn"], [dsn_dir])
+
     assert found == dsn

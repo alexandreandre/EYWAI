@@ -274,3 +274,57 @@ def test_commit_batch_orders_absence_before_exit():
         commit_batch("batch-order")
 
         assert call_order == ["absence", "exit"]
+
+
+def test_commit_batch_skips_cumul_after_employee_failure():
+    batch = {"id": "batch-emp-fail", "status": "previewed", "summary": {}}
+    items = [
+        {
+            "id": "item-emp",
+            "item_type": "employee",
+            "source_ref": "emp:80248516900022:1770373054016",
+            "action": "create",
+            "mapped_payload": {
+                "siret": "80248516900022",
+                "first_name": "Paul",
+                "last_name": "Martin",
+                "nir": "1770373054016",
+            },
+        },
+        {
+            "id": "item-cumul",
+            "item_type": "cumul",
+            "source_ref": "cumul:80248516900022:1770373054016:2026-05",
+            "action": "create",
+            "mapped_payload": {
+                "siret": "80248516900022",
+                "nir": "1770373054016",
+                "employee_key": "1770373054016",
+                "month": 5,
+                "period": "2026-05",
+                "month_totals": {"brut": 2000.0},
+                "cumuls_document": {"periode": {"mois": 5}},
+            },
+        },
+    ]
+
+    with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(
+        "app.modules.dsn_import.application.commit.create_employee_imported",
+        side_effect=RuntimeError("new row violates check constraint \"employees_salary_payment_method_check\""),
+    ), patch(
+        "app.modules.dsn_import.application.commit._commit_cumul"
+    ) as commit_cumul:
+        repo.get_batch.return_value = batch
+        repo.list_items.return_value = items
+        repo.find_company_by_siret.return_value = {"id": "co-1"}
+        repo.find_employee_by_nir.return_value = None
+        repo.find_employee_by_nir_global.return_value = None
+        repo.employee_has_column.return_value = True
+
+        report = commit_batch("batch-emp-fail")
+
+    commit_cumul.assert_not_called()
+    assert report["stats"]["failed"] == 1
+    assert report["stats"]["skipped"] == 1
+    assert report["errors"][0]["code"] == "employee_validation"
+    assert report["warnings"][0]["code"] == "cumul_skipped_employee_failed"

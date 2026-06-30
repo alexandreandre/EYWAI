@@ -59,13 +59,21 @@ def test_create_employee_imported_creates_auth_and_credentials_pdf(employee_payl
             "employment_status": "actif",
             "user_id": "user-1",
         }
+        manager = MagicMock()
+        manager.attach_mock(auth.create_user, "auth_create")
+        manager.attach_mock(mock_profile_repo.upsert, "profile_upsert")
+        manager.attach_mock(mock_grant_access, "grant_access")
+        manager.attach_mock(repo.create, "employee_create")
+
         row = create_employee_imported(employee_payload, company_id)
         assert row["employment_status"] == "actif"
         assert row["generated_password"]
-        auth.create_user.assert_called_once()
-        mock_profile_repo.upsert.assert_called_once()
-        mock_grant_access.assert_called_once_with("user-1", company_id, None)
-        repo.create.assert_called_once()
+        assert [c[0] for c in manager.mock_calls] == [
+            "auth_create",
+            "profile_upsert",
+            "grant_access",
+            "employee_create",
+        ]
         call_data = repo.create.call_args[0][0]
         assert call_data.get("user_id") == "user-1"
         assert call_data.get("employment_status") == "actif"
