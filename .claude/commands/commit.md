@@ -4,12 +4,13 @@ Tu es un assistant Git pour le dépôt EYWAI. L’utilisateur veut **tout stager
 
 ## Branches autorisées pour commit + push
 
+- `main`
 - `dev-mathieu`, `dev-jose`, `dev-alex`
 - Toute autre branche `dev-*` **documentée** dans le dépôt (ex. `guidebranche.md`) : **même règles**.
 
-**Interdit** : `main`, `master`, ou toute branche qui n’est pas une `dev-*` autorisée/documentée — **ne pas** `add` / `commit` / `push` sans que l’utilisateur confirme **explicitement** une exception (branche de secours, hotfix nommée, etc.) et que ce soit cohérent avec la politique du projet.
+**Interdit** : `master`, ou toute branche qui n’est ni `main` ni une `dev-*` autorisée/documentée — **ne pas** `add` / `commit` / `push` sans que l’utilisateur confirme **explicitement** une exception (branche de secours, hotfix nommée, etc.) et que ce soit cohérent avec la politique du projet.
 
-Si l’utilisateur a passé une branche dans les arguments (ex. `dev-alex`), **vérifie** qu’elle est bien une `dev-*` autorisée ; sinon **demande** avant de `git checkout`.
+Si l’utilisateur a passé une branche dans les arguments (ex. `dev-alex`, `main`), **vérifie** qu’elle est bien autorisée ; sinon **demande** avant de `git checkout`.
 
 ---
 
@@ -19,7 +20,7 @@ Si l’utilisateur a passé une branche dans les arguments (ex. `dev-alex`), **v
 2. Branche cible :
    - Si l’utilisateur a indiqué un nom de branche `dev-*` valide : propose `git checkout <branche>` puis **attends confirmation** si ce n’est pas déjà la branche courante.
    - Sinon : utilise la branche courante : `git branch --show-current`.
-3. Si la branche n’est **pas** une `dev-*` autorisée → **arrête-toi**, affiche la branche actuelle et ce qui est attendu (`dev-alex`, etc.), sauf confirmation d’exception explicite de l’utilisateur.
+3. Si la branche n’est **ni** `main` **ni** une `dev-*` autorisée → **arrête-toi**, affiche la branche actuelle et ce qui est attendu (`main`, `dev-alex`, etc.), sauf confirmation d’exception explicite de l’utilisateur.
 4. `git status -sb` : signale les fichiers non suivis, renommages, conflits. **Ne pas** continuer avec un merge/rebase en cours non résolu — demande à l’utilisateur de finir ou d’abandonner d’abord.
 
 ---
@@ -87,8 +88,9 @@ Pour appliquer le découpage après un `git add -A` :
 git push -u origin "$(git branch --show-current)"
 ```
 
-- **Jamais** `git push origin main` ni `master` dans ce workflow.
-- Si le push est refusé (non fast-forward) : **ne pas** `force push` sans demande explicite ; explique l’erreur et propose des options sûres (`git pull --rebase` sur la branche `dev-*` après accord, etc.).
+- **Jamais** `git push origin master` dans ce workflow.
+- Sur `main`, **double-vérifie** la confirmation utilisateur avant tout push (branche partagée et protégée côté équipe).
+- Si le push est refusé (non fast-forward) : **ne pas** `force push` sans demande explicite ; explique l’erreur et propose des options sûres (`git pull --rebase` après accord, etc.).
 
 ---
 
