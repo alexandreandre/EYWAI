@@ -12,6 +12,8 @@ import { WeekTemplateForm } from "@/features/employee-detail/components/calendar
 import { YearCalendarView } from "@/features/employee-detail/components/calendar/YearCalendarView";
 import { AssistedFillDialog } from "@/components/schedules/assisted-fill/AssistedFillDialog";
 import { PointageImportDialog } from "@/components/schedules/assisted-fill/PointageImportDialog";
+import { PointageImportBanner } from "@/components/schedules/assisted-fill/PointageImportBanner";
+import { usePointageImportJobs, type PointageImportJob } from "@/hooks/usePointageImportJobs";
 import type { Employee } from "@/features/employee-detail/types";
 import { WeekTemplate } from "@/hooks/useCalendar";
 import type { DayData } from "@/components/ScheduleModal";
@@ -85,6 +87,13 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
 
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
+  const [pointageReviewJob, setPointageReviewJob] = useState<PointageImportJob | null>(null);
+  const {
+    activeJobs: pointageActiveJobs,
+    reviewJobs: pointageReviewJobs,
+    cancelJob: cancelPointageJob,
+    dismissReview: dismissPointageReview,
+  } = usePointageImportJobs();
 
   const roster = useMemo(
     () => [
@@ -112,6 +121,16 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
               Saisie en heures
             </div>
           )}
+          <PointageImportBanner
+            className="mb-2"
+            jobs={[...pointageActiveJobs, ...pointageReviewJobs]}
+            onReview={(job) => {
+              setPointageReviewJob(job);
+              setPointageImportOpen(true);
+            }}
+            onCancel={(job) => void cancelPointageJob(job.localId)}
+            onDismiss={(job) => dismissPointageReview(job.localId)}
+          />
           <Card className="mt-3">
              <CardHeader className="flex flex-row justify-between items-center">
                 <div className="flex items-center gap-4">
@@ -364,6 +383,8 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
         month={selectedDate.month}
         roster={roster}
         singleEmployee
+        pendingReview={pointageReviewJob}
+        onPendingReviewConsumed={() => setPointageReviewJob(null)}
         onApplied={reloadCalendar}
         onNavigateToMonth={(y, m) => setSelectedDate({ year: y, month: m })}
       />

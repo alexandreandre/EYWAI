@@ -73,7 +73,7 @@ async function fetchCurrentUser(): Promise<User> {
     return await requestMe();
   } catch (error) {
     if (isAxiosError(error) && error.response?.status === 401 && hasRefreshToken()) {
-      const renewed = await refreshAccessToken({ clearOnFailure: false });
+      const renewed = await refreshAccessToken();
       if (renewed) {
         applyAccessToken(renewed);
         return await requestMe();

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, XCircle } from 'lucide-react';
 import {
   Dialog,
@@ -41,6 +41,10 @@ import {
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
+import {
+  usePointageImportJobs,
+  type PointageImportJob,
+} from '@/hooks/usePointageImportJobs';
 
 const MONTHS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -134,6 +138,8 @@ interface PointageImportDialogProps {
   singleEmployee?: boolean;
   onNavigateToMonth?: (year: number, month: number) => void;
   onFocusPlanningWeek?: (weekIndex: number) => void;
+  pendingReview?: PointageImportJob | null;
+  onPendingReviewConsumed?: () => void;
 }
 
 export function PointageImportDialog({
@@ -146,8 +152,11 @@ export function PointageImportDialog({
   singleEmployee = false,
   onNavigateToMonth,
   onFocusPlanningWeek,
+  pendingReview = null,
+  onPendingReviewConsumed,
 }: PointageImportDialogProps) {
   const { toast } = useToast();
+  const { registerJob, detachJob, removeJob } = usePointageImportJobs();
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -160,6 +169,7 @@ export function PointageImportDialog({
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [localJobId, setLocalJobId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
   const [weekAnchorDate, setWeekAnchorDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
@@ -179,6 +189,7 @@ export function PointageImportDialog({
     setProposal(null);
     setBatchId(null);
     setActiveJobId(null);
+    setLocalJobId(null);
     setIsAnalyzing(false);
     setQueueProgress(0);
     setPageProgress(null);
@@ -187,18 +198,30 @@ export function PointageImportDialog({
     setHelpOpen(false);
   };
 
+  useEffect(() => {
+    if (!open || !pendingReview?.proposal) return;
+    setProposal(pendingReview.proposal);
+    setBatchId(pendingReview.batchId);
+    onPendingReviewConsumed?.();
+  }, [open, pendingReview, onPendingReviewConsumed]);
+
   const stopAnalysis = async (notify = false) => {
     abortRef.current?.abort();
     abortRef.current = null;
     const jobId = activeJobId;
+    const trackedId = localJobId;
     setActiveJobId(null);
+    setLocalJobId(null);
     setIsAnalyzing(false);
     setPageProgress(null);
+    if (trackedId) {
+      removeJob(trackedId);
+    }
     if (jobId) {
       try {
         await cancelTimesheetExtractJob(jobId);
       } catch {
-        // best-effort : le job peut déjà être terminé
+        // best-effort
       }
     }
     if (notify) {
@@ -206,20 +229,48 @@ export function PointageImportDialog({
     }
   };
 
-  const handleClose = (next: boolean) => {
-    if (!next) {
-      const jobId = activeJobId;
-      abortRef.current?.abort();
-      abortRef.current = null;
-      reset();
-      if (jobId) {
-        void cancelTimesheetExtractJob(jobId).catch(() => {});
-      }
-    }
-    onOpenChange(next);
+  const continueInBackground = () => {
+    if (!localJobId) return;
+    detachJob(localJobId);
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setActiveJobId(null);
+    setLocalJobId(null);
+    setIsAnalyzing(false);
+    setPageProgress(null);
+    setFiles([]);
+    onOpenChange(false);
+    toast({
+      title: 'Import en arrière-plan',
+      description: 'L’analyse continue. Suivez la progression sur le calendrier.',
+    });
   };
 
-  const showProposal = (result: AiCalendarProposal, fileCount = 1) => {
+  const handleClose = (next: boolean) => {
+    if (next) {
+      onOpenChange(true);
+      return;
+    }
+    if (isAnalyzing && localJobId) {
+      continueInBackground();
+      return;
+    }
+    if (isAnalyzing) {
+      void stopAnalysis(false);
+    }
+    reset();
+    onOpenChange(false);
+  };
+
+  const showProposal = (
+    result: AiCalendarProposal,
+    fileCount = 1,
+    trackedId: string | null = localJobId,
+  ) => {
+    if (trackedId) {
+      removeJob(trackedId);
+      setLocalJobId(null);
+    }
     if (result.employees.length === 0) {
       toast({
         title: 'Aucune donnée détectée',
@@ -257,6 +308,20 @@ export function PointageImportDialog({
     setProposal(result);
   };
 
+  const registerBackendJob = (jobId: string, label: string) => {
+    const registered = registerJob({
+      jobId,
+      label,
+      year,
+      month,
+      roster,
+      singleEmployee,
+    });
+    setLocalJobId(registered.localId);
+    setActiveJobId(jobId);
+    return registered.localId;
+  };
+
   const runStructuredParse = async (file: File, abort: AbortController) => {
     const parsed = await parseStructuredTimesheet(file, year, month, roster);
     if (abort.signal.aborted) return null;
@@ -279,6 +344,7 @@ export function PointageImportDialog({
     setPageProgress(null);
     const abort = new AbortController();
     abortRef.current = abort;
+    let trackedId: string | null = null;
     try {
       const results: AiCalendarProposal[] = [];
       let lastBatchId: string | null = null;
@@ -289,7 +355,10 @@ export function PointageImportDialog({
           singleEmployee,
           documentScope,
         });
-        setActiveJobId(started.job_id);
+        trackedId = registerBackendJob(
+          started.job_id,
+          `${files.length} relevés`,
+        );
         const jobResult = await waitForTimesheetExtractJob(
           started.job_id,
           (p) => {
@@ -303,7 +372,7 @@ export function PointageImportDialog({
           { signal: abort.signal },
         );
         setBatchId(lastBatchId);
-        showProposal(jobResult, files.length);
+        showProposal(jobResult, files.length, trackedId);
         return;
       }
 
@@ -322,7 +391,7 @@ export function PointageImportDialog({
             documentScope,
             weekAnchorDate: weekAnchorDate || null,
           });
-          setActiveJobId(started.job_id);
+          trackedId = registerBackendJob(started.job_id, file.name);
           result = await waitForTimesheetExtractJob(
             started.job_id,
             (p) => {
@@ -335,6 +404,11 @@ export function PointageImportDialog({
             },
             { signal: abort.signal },
           );
+          if (trackedId) {
+            removeJob(trackedId);
+            trackedId = null;
+            setLocalJobId(null);
+          }
         }
         results.push(result);
         setQueueProgress(Math.round(((i + 1) / files.length) * 100));
@@ -342,7 +416,7 @@ export function PointageImportDialog({
       }
       setBatchId(lastBatchId);
       const merged = results.length === 1 ? results[0] : mergeProposals(results);
-      showProposal(merged, files.length);
+      showProposal(merged, files.length, trackedId);
     } catch (e) {
       if (abort.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
         return;
@@ -350,6 +424,9 @@ export function PointageImportDialog({
       const message = e instanceof Error ? e.message : aiFillErrorMessage(e);
       if (message.includes('annulé')) {
         return;
+      }
+      if (trackedId) {
+        removeJob(trackedId);
       }
       toast({
         title: 'Analyse impossible',
@@ -359,6 +436,7 @@ export function PointageImportDialog({
     } finally {
       abortRef.current = null;
       setActiveJobId(null);
+      setLocalJobId(null);
       setIsAnalyzing(false);
     }
   };
@@ -433,6 +511,7 @@ export function PointageImportDialog({
                   <li>Le mois affiché est ajusté automatiquement si le PDF concerne un autre mois.</li>
                   <li>Format Cegid « Pointages retenu » : extraction IA hybride vision + OCR par page.</li>
                   <li>Déposez plusieurs PDF d&apos;un coup (S19–S22) : traitement séquentiel puis revue unique.</li>
+                  <li>Vous pouvez fermer cette fenêtre pendant l&apos;analyse : elle continue en arrière-plan.</li>
                 </ol>
               </CollapsibleContent>
             </Collapsible>
@@ -545,16 +624,27 @@ export function PointageImportDialog({
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               {isAnalyzing ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void stopAnalysis(true)}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Annuler l&apos;analyse
-                </Button>
+                <>
+                  {localJobId && (
+                    <Button type="button" variant="secondary" onClick={continueInBackground}>
+                      Continuer en arrière-plan
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void stopAnalysis(true)}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Annuler
+                  </Button>
+                  <Button type="button" disabled>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyse…
+                  </Button>
+                </>
               ) : (
                 <>
                   {files.length > 0 && (
@@ -571,12 +661,6 @@ export function PointageImportDialog({
                     Analyser {files.length > 1 ? `(${files.length})` : 'le relevé'}
                   </Button>
                 </>
-              )}
-              {isAnalyzing && (
-                <Button type="button" disabled>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyse…
-                </Button>
               )}
             </div>
             </div>

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
-import { ibanFieldSchema } from '@/lib/ibanSchema';
+import { bicFieldSchema, ibanFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 export const employeeProfileEditSchema = z
@@ -23,7 +23,7 @@ export const employeeProfileEditSchema = z
     }),
     coordonnees_bancaires: z.object({
       iban: ibanFieldSchema,
-      bic: z.string().min(8, { message: 'BIC invalide.' }),
+      bic: bicFieldSchema,
     }),
     hire_date: z.string().refine((d) => d && !Number.isNaN(Date.parse(d)), {
       message: "Date d'entrée requise.",

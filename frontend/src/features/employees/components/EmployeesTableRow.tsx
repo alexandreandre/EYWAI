@@ -11,6 +11,27 @@ import type { EmployeeDetailLocationState } from "@/features/employees/utils/emp
 
 import type { EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
 
+function formatEmployeeListDate(dateValue: string | null | undefined): string | null {
+  if (!dateValue) return null;
+  const [year, month, day] = dateValue.slice(0, 10).split("-");
+  if (!year || !month || !day) return null;
+  return `${day}/${month}/${year}`;
+}
+
+export function getEmployeeListDateDisplay(employee: EmployeeListItem): {
+  label: "Entrée" | "Ancienneté";
+  value: string | null;
+} {
+  const hireDate = employee.hire_date?.slice(0, 10) || null;
+  const seniorityDate = employee.seniority_reference_date?.slice(0, 10) || null;
+  const dateToDisplay = seniorityDate && seniorityDate !== hireDate ? seniorityDate : hireDate;
+
+  return {
+    label: seniorityDate && seniorityDate !== hireDate ? "Ancienneté" : "Entrée",
+    value: formatEmployeeListDate(dateToDisplay),
+  };
+}
+
 export function getContractBadge(type: string) {
   const variants = { CDI: "bg-blue-100 text-blue-800", CDD: "bg-purple-100 text-purple-800" };
   return <Badge variant="default" className={variants[type as keyof typeof variants] || "bg-gray-100 text-gray-800"}>{type}</Badge>;
@@ -35,6 +56,8 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
       state: { employeePreview: employee } satisfies EmployeeDetailLocationState,
     });
   }, [navigate, queryClient, companyId, employee]);
+
+  const dateDisplay = getEmployeeListDateDisplay(employee);
 
   return (
     <TableRow
@@ -84,10 +107,7 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
                 )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Entrée:{" "}
-              {employee.hire_date
-                ? new Date(employee.hire_date).toLocaleDateString("fr-FR")
-                : "N/A"}
+              {dateDisplay.label}: {dateDisplay.value ?? "N/A"}
             </p>
           </div>
         </div>

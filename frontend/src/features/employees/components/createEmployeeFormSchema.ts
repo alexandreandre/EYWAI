@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ibanFieldSchema } from "@/lib/ibanSchema";
+import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 
 export const createEmployeeFormSchema = z.object({
@@ -18,7 +18,7 @@ export const createEmployeeFormSchema = z.object({
   }),
   coordonnees_bancaires: z.object({
     iban: ibanFieldSchema,
-    bic: z.string().min(8, { message: "BIC invalide." }),
+    bic: bicFieldSchema,
   }),
   
   // --- SECTION TITRE DE SÉJOUR (OPTIONNEL) ---
@@ -175,4 +175,3 @@ export const translateFieldName = (fieldPath: string): string => {
   };
   return translations[fieldPath] || fieldPath;
 };
-

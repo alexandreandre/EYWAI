@@ -25,6 +25,7 @@ export interface CompanyStats {
   siret?: string;
   total_employee_count: number;
   employee_count: number;
+  active_employee_count?: number;
   rh_count: number;
   payslip_count: number;
   gross_salary: number;
@@ -55,6 +56,7 @@ export interface ConsolidatedStats {
   totals: {
     total_employees: number;
     total_employees_excluding_rh: number;
+    total_active_employees_excluding_rh?: number;
     total_rh: number;
     total_payslip_count: number;
     total_gross_salary: number;

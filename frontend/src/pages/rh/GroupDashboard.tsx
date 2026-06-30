@@ -300,6 +300,7 @@ export function GroupDashboard() {
       return {
         total_employees: 0,
         total_employees_excluding_rh: 0,
+        total_active_employees_excluding_rh: 0,
         total_rh: 0,
         total_payslip_count: 0,
         total_gross_salary: 0,
@@ -315,6 +316,8 @@ export function GroupDashboard() {
       (acc, company) => {
         acc.total_employees += company.total_employee_count;
         acc.total_employees_excluding_rh += company.employee_count;
+        acc.total_active_employees_excluding_rh +=
+          company.active_employee_count ?? company.employee_count;
         acc.total_rh += company.rh_count;
         acc.total_payslip_count += company.payslip_count;
         acc.total_gross_salary += company.gross_salary;
@@ -325,6 +328,7 @@ export function GroupDashboard() {
       {
         total_employees: 0,
         total_employees_excluding_rh: 0,
+        total_active_employees_excluding_rh: 0,
         total_rh: 0,
         total_payslip_count: 0,
         total_gross_salary: 0,
@@ -1146,7 +1150,14 @@ export function GroupDashboard() {
                                 ) : null}
                               </td>
                               <td className="text-right p-3">
-                                <Badge variant="secondary">{company.employee_count}</Badge>
+                                <div className="inline-flex flex-col items-end gap-1">
+                                  <Badge variant="secondary">{company.employee_count}</Badge>
+                                  {company.active_employee_count != null ? (
+                                    <span className="text-[11px] leading-none text-muted-foreground">
+                                      {company.active_employee_count} actifs
+                                    </span>
+                                  ) : null}
+                                </div>
                               </td>
                               <td className="text-right p-3">
                                 <Badge variant="outline">{company.rh_count}</Badge>
@@ -1202,7 +1213,14 @@ export function GroupDashboard() {
                         <tr className="border-t-2 font-bold bg-muted/50">
                           <td className="p-3">Total</td>
                           <td className="text-right p-3">
-                            {filteredTotals.total_employees_excluding_rh}
+                            <div className="inline-flex flex-col items-end gap-1">
+                              <span>{filteredTotals.total_employees_excluding_rh}</span>
+                              {filteredTotals.total_active_employees_excluding_rh != null ? (
+                                <span className="text-[11px] leading-none font-normal text-muted-foreground">
+                                  {filteredTotals.total_active_employees_excluding_rh} actifs
+                                </span>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="text-right p-3">{filteredTotals.total_rh}</td>
                           <td className="text-right p-3">{filteredTotals.total_payslip_count}</td>

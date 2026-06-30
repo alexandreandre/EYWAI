@@ -143,7 +143,7 @@ export function PlanningImportMatchReview({
             {items.map((item) => {
               const isPending = pendingSheet === item.raw_name && applyMutation.isPending;
               const preferredIds = (item.suggested_employee_ids ?? []).filter(
-                (id) => !assignedEmployeeIds.includes(id) || id === item.employee_id,
+                (id) => !assignedEmployeeIds.includes(id),
               );
               const topSuggestionId = preferredIds[0] ?? null;
               const topSuggestion = topSuggestionId ? rosterById.get(topSuggestionId) : undefined;
@@ -195,6 +195,7 @@ export function PlanningImportMatchReview({
                         roster={roster}
                         value={item.employee_id ?? null}
                         excludeEmployeeIds={assignedEmployeeIds}
+                        includeSelectedWhenExcluded={false}
                         preferredEmployeeIds={preferredIds}
                         placeholder="Choisir un salarié…"
                         onSelect={(employeeId) => {

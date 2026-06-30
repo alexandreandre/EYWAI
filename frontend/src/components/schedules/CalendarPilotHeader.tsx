@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { pageTitleClassName } from '@/components/layout';
-import { Sparkles, Upload } from 'lucide-react';
+import { CalendarPlus, Sparkles, Upload } from 'lucide-react';
 import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -35,6 +35,7 @@ interface CalendarPilotHeaderProps {
   onMonthChange: (month: number) => void;
   kpis: GlobalOverviewKpis;
   onOpenAssistedFill: () => void;
+  onOpenCalendarImport: () => void;
   onOpenPointageImport: () => void;
   isLoading?: boolean;
 }
@@ -46,6 +47,7 @@ export function CalendarPilotHeader({
   onMonthChange,
   kpis,
   onOpenAssistedFill,
+  onOpenCalendarImport,
   onOpenPointageImport,
   isLoading = false,
 }: CalendarPilotHeaderProps) {
@@ -63,56 +65,70 @@ export function CalendarPilotHeader({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1">
-            <Label className="text-xs">Mois</Label>
-            <Select value={String(month)} onValueChange={(v) => onMonthChange(Number(v))}>
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((m, i) => (
-                  <SelectItem key={i} value={String(i + 1)}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-xs">Année</Label>
-            <Select value={String(year)} onValueChange={(v) => onYearChange(Number(v))}>
-              <SelectTrigger className="w-[100px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[year - 1, year, year + 1, year + 2].map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-col gap-3 lg:items-end">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-1">
+              <Label className="text-xs">Mois</Label>
+              <Select value={String(month)} onValueChange={(v) => onMonthChange(Number(v))}>
+                <SelectTrigger className="h-9 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => (
+                    <SelectItem key={i} value={String(i + 1)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-xs">Année</Label>
+              <Select value={String(year)} onValueChange={(v) => onYearChange(Number(v))}>
+                <SelectTrigger className="h-9 w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[year - 1, year, year + 1, year + 2].map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <Button
-            type="button"
-            onClick={onOpenAssistedFill}
-            className="h-9 border-0 bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-500 text-white shadow-md shadow-pink-500/30 hover:from-pink-600 hover:via-rose-600 hover:to-fuchsia-600 hover:shadow-lg hover:shadow-pink-500/40 transition-all"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            Remplissage par IA
-          </Button>
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <Button
+              type="button"
+              onClick={onOpenAssistedFill}
+              className="h-9 border-0 bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-500 text-white shadow-md shadow-pink-500/30 hover:from-pink-600 hover:via-rose-600 hover:to-fuchsia-600 hover:shadow-lg hover:shadow-pink-500/40 transition-all"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Remplissage par IA
+            </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onOpenPointageImport}
-            className="h-9"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Importer des pointages
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onOpenCalendarImport}
+              className="h-9"
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Importer un calendrier
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onOpenPointageImport}
+              className="h-9"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Importer des pointages
+            </Button>
+          </div>
         </div>
       </div>
 

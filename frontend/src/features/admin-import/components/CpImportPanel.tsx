@@ -98,7 +98,7 @@ function applyCompanyScope(
 ): EditableRow {
   const base: EditableRow = {
     ...row,
-    manuallyConfirmed: row.review_status === 'ok',
+    manuallyConfirmed: false,
   };
   if (!fixedCompanyId || !row.company_id || row.company_id === fixedCompanyId) {
     return base;
@@ -331,8 +331,6 @@ export function CpImportPanel({
         .map((row) => row.employee_id as string),
     [rows],
   );
-
-  const needsManualAssociation = useCallback((row: EditableRow): boolean => !row.employee_id, []);
 
   const duplicateConflictCount = useMemo(
     () => rows.filter((row) => row.duplicate_employee_conflict || (row.employee_id != null && duplicateEmployeeIds.has(row.employee_id))).length,
@@ -656,23 +654,26 @@ export function CpImportPanel({
                       <TableCell>
                         {!row.company_id ? (
                           <span className="text-xs text-muted-foreground">SIRET inconnu</span>
-                        ) : needsManualAssociation(row) ? (
-                          <EmployeeAssociateCombobox
-                            roster={roster}
-                            value={row.employee_id ?? null}
-                            excludeEmployeeIds={assignedEmployeeIds}
-                            othersGroupHeading="Salariés non rapprochés"
-                            emptyMessage="Tous les salariés de la filiale sont déjà rapprochés à un bulletin de ce lot."
-                            onSelect={(id, label) =>
-                              handleAssociate(row.row_index, id, label, row.company_id)
-                            }
-                            compact
-                          />
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
-                            <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                            Rapproché
-                          </span>
+                          <div className="space-y-1">
+                            {row.employee_id ? (
+                              <p className="text-[10px] text-muted-foreground">
+                                {row.matched_name ?? 'Salarié associé'}
+                              </p>
+                            ) : null}
+                            <EmployeeAssociateCombobox
+                              roster={roster}
+                              value={row.employee_id ?? null}
+                              placeholder={row.employee_id ? 'Changer…' : 'Associer…'}
+                              excludeEmployeeIds={assignedEmployeeIds}
+                              othersGroupHeading="Salariés non rapprochés"
+                              emptyMessage="Tous les salariés de la filiale sont déjà rapprochés à un bulletin de ce lot."
+                              onSelect={(id, label) =>
+                                handleAssociate(row.row_index, id, label, row.company_id)
+                              }
+                              compact
+                            />
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>

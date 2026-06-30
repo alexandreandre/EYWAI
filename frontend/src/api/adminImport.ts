@@ -559,6 +559,19 @@ export type PlanningImportParseResponse = {
   file_hash?: string | null;
 };
 
+export type PlanningImportParseStartResponse = {
+  job_id: string;
+  status: string;
+};
+
+export type PlanningImportParseJobStatus = {
+  job_id: string;
+  status: string;
+  progress?: Record<string, unknown>;
+  result?: PlanningImportParseResponse | null;
+  error_message?: string | null;
+};
+
 export type PlanningImportPeriodParams = {
   periodMode: PlanningPeriodMode;
   year: number;
@@ -605,6 +618,53 @@ export async function parsePlanningImport(
   return data;
 }
 
+export async function startPlanningImportParse(
+  companyId: string,
+  period: PlanningImportPeriodParams,
+  file: File,
+): Promise<PlanningImportParseStartResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const params: Record<string, string | number> = {
+    company_id: companyId,
+    year: period.year,
+    period_mode: period.periodMode,
+  };
+  if (period.periodMode === 'month' && period.month != null) {
+    params.month = period.month;
+  }
+  if (period.periodMode === 'range') {
+    params.start_year = period.startYear ?? period.year;
+    params.start_month = period.startMonth ?? 1;
+    params.end_year = period.endYear ?? period.year;
+    params.end_month = period.endMonth ?? 12;
+  }
+  if (period.periodMode === 'auto' && period.month != null) {
+    params.month = period.month;
+  }
+  const { data } = await apiClient.post<PlanningImportParseStartResponse>(
+    '/api/admin-import/planning/parse/start',
+    form,
+    {
+      params,
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300_000,
+    },
+  );
+  return data;
+}
+
+export async function getPlanningImportParseJob(
+  jobId: string,
+  companyId: string,
+): Promise<PlanningImportParseJobStatus> {
+  const { data } = await apiClient.get<PlanningImportParseJobStatus>(
+    `/api/admin-import/planning/parse/jobs/${jobId}`,
+    { params: { company_id: companyId } },
+  );
+  return data;
+}
+
 export async function applyPlanningImportMappings(
   batchId: string,
   companyId: string,
@@ -629,6 +689,18 @@ export async function commitPlanningImport(batchId: string, companyId: string): 
     '/api/admin-import/planning/commit',
     null,
     { params: { batch_id: batchId, company_id: companyId } },
+  );
+  return data;
+}
+
+export async function cancelPlanningImport(
+  batchId: string,
+  companyId: string,
+): Promise<{ batch_id: string; status: string }> {
+  const { data } = await apiClient.post<{ batch_id: string; status: string }>(
+    `/api/admin-import/planning/batches/${batchId}/cancel`,
+    null,
+    { params: { company_id: companyId } },
   );
   return data;
 }

@@ -15,6 +15,7 @@ export function employeePlaceholderFromList(item: EmployeeListItem): Employee {
     contract_type: item.contract_type ?? '',
     statut: '',
     hire_date: item.hire_date ?? '',
+    seniority_reference_date: item.seniority_reference_date ?? null,
     employment_status: item.employment_status ?? 'actif',
   };
 }

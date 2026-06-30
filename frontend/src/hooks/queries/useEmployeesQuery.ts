@@ -11,6 +11,7 @@ export type EmployeeListItem = {
   job_title?: string | null;
   contract_type?: string | null;
   hire_date?: string | null;
+  seniority_reference_date?: string | null;
   employment_status?: string | null;
   current_exit_id?: string | null;
   duree_hebdomadaire?: number | null;

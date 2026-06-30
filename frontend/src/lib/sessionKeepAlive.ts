@@ -92,7 +92,7 @@ async function runRefreshIfNeeded(
   if (!hasRefreshToken()) return;
   if (!force && !shouldRefreshAccessToken()) return;
 
-  const token = await refreshWithRetry(false);
+  const token = await refreshWithRetry(true);
   if (token) {
     options.onRefreshed?.(token);
   }

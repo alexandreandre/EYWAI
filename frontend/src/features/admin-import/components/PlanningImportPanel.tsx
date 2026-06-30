@@ -5,6 +5,7 @@ import {
   commitPlanningImport,
   getPlanningImportBatch,
   parsePlanningImport,
+  startPlanningImportParse,
   type PlanningImportCommitProgress,
   type PlanningImportParseResponse,
   type PlanningPeriodMode,
@@ -12,6 +13,10 @@ import {
 import { PlanningImportCommitOverlay } from '@/features/admin-import/components/PlanningImportCommitOverlay';
 import { PlanningImportMatchReview } from '@/features/admin-import/components/PlanningImportMatchReview';
 import { PlanningImportPreviewSummary } from '@/features/admin-import/components/PlanningImportPreviewSummary';
+import {
+  registerPlanningImportJob,
+  registerPlanningImportParseJob,
+} from '@/hooks/planningImportJobStore';
 import type { PlanningImportSummary } from '@/api/adminImport';
 import type { RosterEmployee } from '@/api/calendar';
 import { Button } from '@/components/ui/button';
@@ -31,7 +36,11 @@ import { getUserErrorMessage } from '@/lib/errorMessages';
 
 type Props = {
   companyId: string;
+  initialParseResult?: PlanningImportParseResponse | null;
   onComplete?: () => void;
+  onParseStarted?: () => void;
+  onCommitStarted?: () => void;
+  backgroundCommit?: boolean;
   embedded?: boolean;
 };
 
@@ -46,7 +55,15 @@ function buildYearOptions(nowYear: number, span = 6): number[] {
   return Array.from({ length: span }, (_, i) => nowYear - 2 + i);
 }
 
-export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) {
+export function PlanningImportPanel({
+  companyId,
+  initialParseResult,
+  onComplete,
+  onParseStarted,
+  onCommitStarted,
+  backgroundCommit = false,
+  embedded,
+}: Props) {
   const { toast } = useToast();
   const now = new Date();
   const [periodMode, setPeriodMode] = useState<PlanningPeriodMode>('year');
@@ -76,6 +93,15 @@ export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) 
 
   const yearOptions = useMemo(() => buildYearOptions(now.getFullYear()), [now]);
 
+  useEffect(() => {
+    if (!initialParseResult) return;
+    setParseResult(initialParseResult);
+    setLiveSummary(initialParseResult.summary ?? null);
+    setCommitPhase('idle');
+    setCommitError(null);
+    setCommitProgress(null);
+  }, [initialParseResult]);
+
   const periodParams = useMemo(
     () => ({
       periodMode,
@@ -99,9 +125,26 @@ export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) 
   const parseMutation = useMutation({
     mutationFn: async () => {
       if (!companyId || !file) throw new Error('Fichier et entreprise requis.');
+      if (backgroundCommit) {
+        return startPlanningImportParse(companyId, periodParams, file);
+      }
       return parsePlanningImport(companyId, periodParams, file);
     },
     onSuccess: (data) => {
+      if ('job_id' in data) {
+        registerPlanningImportParseJob({
+          jobId: data.job_id,
+          companyId,
+          label: file?.name ?? 'Calendrier',
+          status: data.status || 'parsing',
+        });
+        toast({
+          title: 'Analyse calendrier lancée',
+          description: "Vous pouvez quitter le module, l'analyse continue en arrière-plan.",
+        });
+        onParseStarted?.();
+        return;
+      }
       setParseResult(data);
       setLiveSummary(data.summary ?? null);
       const s = data.summary;
@@ -122,7 +165,33 @@ export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) 
       if (!parseResult?.batch_id) throw new Error("Analysez un fichier d'abord.");
       return commitPlanningImport(parseResult.batch_id, companyId);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (backgroundCommit) {
+        const batchId = data.batch_id || parseResult?.batch_id;
+        if (!batchId) {
+          toast({
+            title: 'Erreur',
+            description: "Impossible de suivre l'import calendrier : batch introuvable.",
+            variant: 'destructive',
+          });
+          return;
+        }
+        registerPlanningImportJob({
+          batchId,
+          companyId,
+          label: liveSummary?.period_label ?? file?.name ?? 'Calendrier',
+          status: data.status === 'committed' ? 'committing' : data.status || 'committing',
+        });
+        toast({
+          title: 'Import calendrier lancé',
+          description: "L'enregistrement continue en arrière-plan.",
+        });
+        setParseResult(null);
+        setFile(null);
+        setLiveSummary(null);
+        onCommitStarted?.();
+        return;
+      }
       handledCommitRef.current = false;
       setCommitPhase('committing');
       setCommitError(null);
@@ -139,7 +208,7 @@ export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) 
   const commitPollQuery = useQuery({
     queryKey: ['planning-import-commit', commitBatchId, companyId],
     queryFn: () => getPlanningImportBatch(commitBatchId as string, companyId),
-    enabled: isCommitting && Boolean(commitBatchId),
+    enabled: !backgroundCommit && isCommitting && Boolean(commitBatchId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === 'committed' || status === 'failed' ? false : 800;
@@ -184,7 +253,8 @@ export function PlanningImportPanel({ companyId, onComplete, embedded }: Props) 
   }
 
   const canCommit = liveSummary?.ready_to_commit ?? parseResult?.summary?.ready_to_commit ?? false;
-  const showCommitOverlay = commitPhase === 'committing' || commitPhase === 'failed';
+  const showCommitOverlay =
+    !backgroundCommit && (commitPhase === 'committing' || commitPhase === 'failed');
 
   return (
     <Card className="relative">

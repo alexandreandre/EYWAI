@@ -21,6 +21,7 @@ interface EmployeeAssociateComboboxProps {
   className?: string;
   compact?: boolean;
   excludeEmployeeIds?: string[];
+  includeSelectedWhenExcluded?: boolean;
   preferredEmployeeIds?: string[];
   /** Message si la liste filtrée est vide (ex. tous les salariés déjà rapprochés). */
   emptyMessage?: string;
@@ -35,13 +36,16 @@ export function EmployeeAssociateCombobox({
   className,
   compact = false,
   excludeEmployeeIds = [],
+  includeSelectedWhenExcluded = true,
   preferredEmployeeIds = [],
   emptyMessage = 'Aucun salarié disponible.',
   othersGroupHeading,
 }: EmployeeAssociateComboboxProps) {
   const [open, setOpen] = useState(false);
 
-  const excluded = new Set(excludeEmployeeIds.filter((id) => id && id !== value));
+  const excluded = new Set(
+    excludeEmployeeIds.filter((id) => id && (!includeSelectedWhenExcluded || id !== value)),
+  );
   const available = roster.filter((emp) => !excluded.has(emp.id));
   const preferred = new Set(preferredEmployeeIds.filter(Boolean));
   const suggested = available.filter((emp) => preferred.has(emp.id));

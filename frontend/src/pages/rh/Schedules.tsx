@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { RefreshCw } from 'lucide-react';
@@ -17,7 +17,13 @@ import { CalendarBulkActionsBar } from '@/components/schedules/CalendarBulkActio
 import { ApplyModelDialog } from '@/components/schedules/ApplyModelDialog';
 import { AssistedFillDialog } from '@/components/schedules/assisted-fill/AssistedFillDialog';
 import { PointageImportDialog } from '@/components/schedules/assisted-fill/PointageImportDialog';
+import { PointageImportBanner } from '@/components/schedules/assisted-fill/PointageImportBanner';
+import { usePointageImportJobs, type PointageImportJob } from '@/hooks/usePointageImportJobs';
+import { PlanningImportBanner } from '@/components/schedules/PlanningImportBanner';
+import { usePlanningImportJobs, type PlanningImportJob } from '@/hooks/usePlanningImportJobs';
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
+import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import type {
   ModeFilter,
   SaisieStatusFilter,
@@ -25,6 +31,7 @@ import type {
   SortKey,
   ViewMode,
 } from '@/components/schedules/types';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 
 function employeesLoadErrorMessage(error: unknown): string {
@@ -50,12 +57,16 @@ interface Employee extends SchedulesEmployeeInput {
 export default function Schedules() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   const employeesQuery = useEmployeesQuery();
-  const employees = (employeesQuery.data ?? []) as Employee[];
+  const employees = useMemo(
+    () => (employeesQuery.data ?? []) as Employee[],
+    [employeesQuery.data],
+  );
   const employeesLoading = employeesQuery.isLoading && !employeesQuery.data;
   const employeesLoadError = employeesQuery.isError;
   const refetchEmployees = employeesQuery.refetch;
@@ -70,7 +81,23 @@ export default function Schedules() {
   const [applyModelOpen, setApplyModelOpen] = useState(false);
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [aiTargetIds, setAiTargetIds] = useState<string[] | null>(null);
+  const [calendarImportOpen, setCalendarImportOpen] = useState(false);
+  const [planningReviewJob, setPlanningReviewJob] = useState<PlanningImportJob | null>(null);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
+  const [pointageReviewJob, setPointageReviewJob] = useState<PointageImportJob | null>(null);
+  const {
+    activeJobs: pointageActiveJobs,
+    reviewJobs: pointageReviewJobs,
+    cancelJob: cancelPointageJob,
+    dismissReview: dismissPointageReview,
+  } = usePointageImportJobs();
+  const {
+    activeJobs: planningActiveJobs,
+    finishedJobs: planningFinishedJobs,
+    dismissJob: dismissPlanningJob,
+    cancelJob: cancelPlanningJob,
+  } = usePlanningImportJobs();
+  const handledPlanningImportJobsRef = useRef<Set<string>>(new Set());
   const [planningFocusWeek, setPlanningFocusWeek] = useState<number | null>(null);
   const [planningHighlightDays, setPlanningHighlightDays] = useState<number[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -81,7 +108,7 @@ export default function Schedules() {
     queryFn: () => getTeams(false),
   });
 
-  const teams: Team[] = teamsData?.teams ?? [];
+  const teams: Team[] = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
   const teamsById = useMemo(
     () => new Map(teams.map((t) => [t.id, t])),
     [teams]
@@ -102,7 +129,7 @@ export default function Schedules() {
     isLoading ||
     (employees.length > 0 && rows.length === 0);
 
-    useEffect(() => {
+  useEffect(() => {
     if (loadErrors > 0) {
       toast({
         title: 'Attention',
@@ -111,6 +138,40 @@ export default function Schedules() {
       });
     }
   }, [loadErrors, toast]);
+
+  useEffect(() => {
+    planningFinishedJobs.forEach((job) => {
+      if (handledPlanningImportJobsRef.current.has(job.localId)) return;
+      handledPlanningImportJobsRef.current.add(job.localId);
+
+      if (job.status === 'committed') {
+        refreshCalendars();
+        toast({
+          title: 'Calendrier enregistré',
+          description: `${job.employeesProcessed ?? 0} salarié(s), ${(job.totalDaysWritten ?? 0).toLocaleString('fr-FR')} jour(s) de calendrier prévu.`,
+        });
+        return;
+      }
+
+      if (job.status === 'failed') {
+        toast({
+          title: 'Import calendrier interrompu',
+          description: job.errorMessage ?? "L'enregistrement a échoué.",
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (job.status === 'cancelled') {
+        refreshCalendars();
+        toast({
+          title: 'Import calendrier annulé',
+          description:
+            job.errorMessage ?? 'Les mois déjà enregistrés ont été conservés.',
+        });
+      }
+    });
+  }, [planningFinishedJobs, refreshCalendars, toast]);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -303,7 +364,32 @@ export default function Schedules() {
         kpis={globalKpis}
         isLoading={isPageLoading}
         onOpenAssistedFill={openAssistedFillForAll}
+        onOpenCalendarImport={() => {
+          setPlanningReviewJob(null);
+          setCalendarImportOpen(true);
+        }}
         onOpenPointageImport={() => setPointageImportOpen(true)}
+      />
+
+      <PointageImportBanner
+        jobs={[...pointageActiveJobs, ...pointageReviewJobs]}
+        onReview={(job) => {
+          setPointageReviewJob(job);
+          setPointageImportOpen(true);
+        }}
+        onCancel={(job) => void cancelPointageJob(job.localId)}
+        onDismiss={(job) => dismissPointageReview(job.localId)}
+      />
+
+      <PlanningImportBanner
+        jobs={[...planningActiveJobs, ...planningFinishedJobs]}
+        onReview={(job) => {
+          if (!job.parseResult) return;
+          setPlanningReviewJob(job);
+          setCalendarImportOpen(true);
+        }}
+        onCancel={(job) => void cancelPlanningJob(job.localId)}
+        onDismiss={(job) => dismissPlanningJob(job.localId)}
       />
 
       {employeesLoadError && (
@@ -437,12 +523,50 @@ export default function Schedules() {
         onApplied={refreshCalendars}
       />
 
+      <Dialog
+        open={calendarImportOpen}
+        onOpenChange={(open) => {
+          setCalendarImportOpen(open);
+          if (!open) setPlanningReviewJob(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto p-0">
+          {companyId ? (
+            <PlanningImportPanel
+              companyId={companyId}
+              initialParseResult={planningReviewJob?.parseResult ?? null}
+              embedded
+              backgroundCommit
+              onParseStarted={() => {
+                setPlanningReviewJob(null);
+                setCalendarImportOpen(false);
+              }}
+              onCommitStarted={() => {
+                if (planningReviewJob) dismissPlanningJob(planningReviewJob.localId);
+                setPlanningReviewJob(null);
+                setCalendarImportOpen(false);
+              }}
+              onComplete={() => {
+                setCalendarImportOpen(false);
+                refreshCalendars();
+              }}
+            />
+          ) : (
+            <div className="p-6 text-sm text-muted-foreground">
+              Sélectionnez une entreprise pour importer un calendrier.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <PointageImportDialog
         open={pointageImportOpen}
         onOpenChange={setPointageImportOpen}
         year={selectedYear}
         month={selectedMonth}
         roster={assistedFillRoster}
+        pendingReview={pointageReviewJob}
+        onPendingReviewConsumed={() => setPointageReviewJob(null)}
         onApplied={(meta) => {
           refreshCalendars();
           if (meta?.focusWeekIndex != null) {
