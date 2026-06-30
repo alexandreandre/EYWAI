@@ -101,6 +101,12 @@ def aggregate_consolidated_dashboards(
                 existing["_sum_employee_count"] = existing.get(
                     "_sum_employee_count", existing.get("employee_count", 0)
                 ) + company.get("employee_count", 0)
+                existing["_sum_active_employee_count"] = existing.get(
+                    "_sum_active_employee_count",
+                    existing.get("active_employee_count", existing.get("employee_count", 0)),
+                ) + company.get(
+                    "active_employee_count", company.get("employee_count", 0)
+                )
                 existing["_sum_rh_count"] = existing.get(
                     "_sum_rh_count", existing.get("rh_count", 0)
                 ) + company.get("rh_count", 0)
@@ -112,15 +118,21 @@ def aggregate_consolidated_dashboards(
         if "_sum_total_employees" in row:
             row["total_employee_count"] = round(row["_sum_total_employees"] / n)
             row["employee_count"] = round(row["_sum_employee_count"] / n)
+            row["active_employee_count"] = round(row["_sum_active_employee_count"] / n)
             row["rh_count"] = round(row["_sum_rh_count"] / n)
             row.pop("_sum_total_employees", None)
             row.pop("_sum_employee_count", None)
+            row.pop("_sum_active_employee_count", None)
             row.pop("_sum_rh_count", None)
         by_company.append(row)
 
     totals = {
         "total_employees": sum(c.get("total_employee_count", 0) for c in by_company),
         "total_employees_excluding_rh": sum(c.get("employee_count", 0) for c in by_company),
+        "total_active_employees_excluding_rh": sum(
+            c.get("active_employee_count", c.get("employee_count", 0))
+            for c in by_company
+        ),
         "total_rh": sum(c.get("rh_count", 0) for c in by_company),
         "total_payslip_count": sum(c.get("payslip_count", 0) for c in by_company),
         "total_gross_salary": sum(c.get("gross_salary", 0) for c in by_company),

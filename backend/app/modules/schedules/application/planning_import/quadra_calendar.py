@@ -233,26 +233,52 @@ def build_default_month_calendar(
     return entries
 
 
-def _parse_sheet_month_blocks(ws) -> list[tuple[int, int]]:
-    blocks: list[tuple[int, int]] = []
-    for col in range(1, ws.max_column + 1, 4):
-        month = _parse_month_header(ws.cell(1, col).value)
-        if month:
-            blocks.append((month, col))
-    return blocks
+def _header_rows_snapshot(ws, *, max_rows: int = 6) -> list[list[Any]]:
+    """Lit les premières lignes du sheet en une passe (compatible read_only)."""
+    rows: list[list[Any]] = []
+    for row in ws.iter_rows(min_row=1, max_row=max_rows, values_only=True):
+        rows.append(list(row))
+        if len(rows) >= max_rows:
+            break
+    return rows
 
 
-def parse_employee_sheet(
-    ws,
+def _parse_sheet_month_blocks_from_rows(
+    header_rows: list[list[Any]],
+) -> list[tuple[int, int, int]]:
+    """Retourne [(month, base_col_1based, header_row_1based)] à partir des premières lignes."""
+    for row_idx, values in enumerate(header_rows, start=1):
+        row_blocks: list[tuple[int, int, int]] = []
+        for col_idx in range(0, len(values), 4):
+            month = _parse_month_header(values[col_idx])
+            if month:
+                row_blocks.append((month, col_idx + 1, row_idx))
+        if row_blocks:
+            return row_blocks
+    return []
+
+
+def _parse_sheet_month_blocks(ws) -> list[tuple[int, int, int]]:
+    return _parse_sheet_month_blocks_from_rows(_header_rows_snapshot(ws))
+
+
+def _parse_employee_sheet_from_rows(
+    day_rows: list[list[Any]],
+    blocks: list[tuple[int, int, int]],
     *,
     year: int,
-    daily_hours: float = DEFAULT_DAILY_HOURS,
+    daily_hours: float,
 ) -> dict[int, list[dict[str, Any]]]:
     by_month: dict[int, list[dict[str, Any]]] = {}
-    for month, base_col in _parse_sheet_month_blocks(ws):
+    for month, base_col, _header_row in blocks:
         entries: list[dict[str, Any]] = []
-        for row in range(2, 33):
-            day_raw = ws.cell(row, base_col + 1).value
+        day_col = base_col  # base_col+1 1-based → index base_col in 0-based of slice
+        hab_col = base_col + 1
+        cp_col = base_col + 2
+        for values in day_rows:
+            if day_col >= len(values):
+                continue
+            day_raw = values[day_col]
             if day_raw is None:
                 continue
             try:
@@ -263,12 +289,44 @@ def parse_employee_sheet(
                 day_date = date(year, month, jour)
             except ValueError:
                 continue
-            hab = ws.cell(row, base_col + 2).value
-            cp = ws.cell(row, base_col + 3).value
+            hab = values[hab_col] if hab_col < len(values) else None
+            cp = values[cp_col] if cp_col < len(values) else None
             entries.append(classify_planned_day(day_date, hab, cp, daily_hours=daily_hours))
         if entries:
             by_month[month] = sorted(entries, key=lambda e: e["jour"])
     return by_month
+
+
+def parse_employee_sheet(
+    ws,
+    *,
+    year: int,
+    daily_hours: float = DEFAULT_DAILY_HOURS,
+) -> dict[int, list[dict[str, Any]]]:
+    header_rows = _header_rows_snapshot(ws)
+    blocks = _parse_sheet_month_blocks_from_rows(header_rows)
+    if not blocks:
+        return {}
+    header_row = blocks[0][2]
+    day_rows = list(
+        ws.iter_rows(
+            min_row=header_row + 1,
+            max_row=header_row + 31,
+            values_only=True,
+        )
+    )
+    day_rows = [list(r) for r in day_rows]
+    return _parse_employee_sheet_from_rows(
+        day_rows, blocks, year=year, daily_hours=daily_hours
+    )
+
+
+def _load_workbook_read_only(content: bytes):
+    import openpyxl
+
+    return openpyxl.load_workbook(
+        io.BytesIO(content), data_only=True, read_only=True
+    )
 
 
 def is_quadra_planning_workbook(content: bytes, filename: str) -> bool:
@@ -276,23 +334,26 @@ def is_quadra_planning_workbook(content: bytes, filename: str) -> bool:
     if not lower.endswith((".xlsx", ".xls")):
         return False
     try:
-        import openpyxl
-
-        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+        wb = _load_workbook_read_only(content)
     except Exception:
         return False
-
-    sheet_keys = {_sheet_key(name) for name in wb.sheetnames}
-    if "MODELE" in sheet_keys:
-        return True
-    for name in wb.sheetnames:
-        key = _sheet_key(name)
-        if key in SKIP_SHEETS:
-            continue
-        ws = wb[name]
-        if _parse_sheet_month_blocks(ws):
+    try:
+        sheet_keys = {_sheet_key(name) for name in wb.sheetnames}
+        if "MODELE" in sheet_keys:
             return True
-    return False
+        for name in wb.sheetnames:
+            key = _sheet_key(name)
+            if key in SKIP_SHEETS:
+                continue
+            ws = wb[name]
+            if _parse_sheet_month_blocks(ws):
+                return True
+        return False
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
 
 
 def _iter_target_months(config: ImportPeriodConfig) -> set[tuple[int, int]] | None:
@@ -350,29 +411,70 @@ def _build_sommaire_hints(wb, employee_sheet_keys: set[str]) -> dict[str, str]:
     if not sommaire_ws:
         return hints
 
-    for row in range(1, sommaire_ws.max_row + 1):
-        full = str(sommaire_ws.cell(row, 1).value or "").strip()
+    key_cache: list[tuple[str, str, set[str]]] = []
+    for key in employee_sheet_keys:
+        key_norm = _normalize_text(key)
+        key_cache.append((key, key_norm, set(key_norm.split())))
+
+    for row_values in sommaire_ws.iter_rows(min_row=1, max_col=2, values_only=True):
+        last = str(row_values[0] or "").strip() if len(row_values) > 0 else ""
+        first = str(row_values[1] or "").strip() if len(row_values) > 1 else ""
+        full = " ".join(part for part in (last, first) if part).strip()
         if not full or len(full.split()) < 2:
             continue
         full_norm = _normalize_text(full)
+        full_tokens = set(full_norm.split())
         best_key: str | None = None
         best_score = 0
-        for key in employee_sheet_keys:
-            key_norm = _normalize_text(key)
-            score = 0
+        for key, key_norm, key_tokens in key_cache:
             if key_norm and key_norm in full_norm:
                 score = len(key_norm) + 20
+            elif key_tokens and key_tokens.issubset(full_tokens):
+                score = len(key_tokens) * 10
             else:
-                key_tokens = set(_normalize_text(key).split())
-                full_tokens = set(full_norm.split())
-                if key_tokens and key_tokens.issubset(full_tokens):
-                    score = len(key_tokens) * 10
+                continue
             if score > best_score:
                 best_key = key
                 best_score = score
         if best_key:
             hints[best_key] = full
     return hints
+
+
+def _extract_sheet_employee_hint_from_rows(
+    header_rows: list[list[Any]], sheet_name: str
+) -> str | None:
+    sheet_key = _sheet_key(sheet_name)
+    if not sheet_key:
+        return None
+
+    best: str | None = None
+    best_score = 0
+    for row_idx, values in enumerate(header_rows[:3], start=1):
+        for col_idx, raw in enumerate(values[:16]):
+            if raw is None:
+                continue
+            text = str(raw).strip()
+            if not text or len(text.split()) < 2:
+                continue
+            norm = _normalize_text(text)
+            if sheet_key not in norm:
+                continue
+            score = len(sheet_key)
+            if norm != sheet_key:
+                score += 30
+            if row_idx == 1:
+                score += 5
+            if score > best_score:
+                best = text
+                best_score = score
+    return best
+
+
+def _extract_sheet_employee_hint(ws, sheet_name: str) -> str | None:
+    return _extract_sheet_employee_hint_from_rows(
+        _header_rows_snapshot(ws), sheet_name
+    )
 
 
 def parse_quadra_planning_workbook(
@@ -384,76 +486,104 @@ def parse_quadra_planning_workbook(
     roster: Sequence[RosterEmployee],
     daily_hours: float = DEFAULT_DAILY_HOURS,
 ) -> QuadraPlanningParseResult:
-    import openpyxl
+    wb = _load_workbook_read_only(content)
+    try:
+        target_months = _iter_target_months(period_config)
+        warnings: List[str] = []
+        groups_map: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
+        sheets_parsed = 0
+        sheets_unmatched: List[str] = []
+        used_employee_ids: set[str] = set()
+        roster_list = list(roster)
 
-    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
-    target_months = _iter_target_months(period_config)
-    warnings: List[str] = []
-    groups_map: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
-    sheets_parsed = 0
-    sheets_unmatched: List[str] = []
-    used_employee_ids: set[str] = set()
-
-    employee_sheets: List[tuple[str, Any]] = []
-    for sheet_name in wb.sheetnames:
-        sheet_key = _sheet_key(sheet_name)
-        if sheet_key in SKIP_SHEETS:
-            continue
-        ws = wb[sheet_name]
-        if _parse_sheet_month_blocks(ws):
-            employee_sheets.append((sheet_name, ws))
-
-    sommaire_hints = _build_sommaire_hints(
-        wb, {_sheet_key(name) for name, _ in employee_sheets}
-    )
-
-    for sheet_name, ws in sorted(employee_sheets, key=lambda item: _sheet_key(item[0])):
-        sheet_key = _sheet_key(sheet_name)
-        sheets_parsed += 1
-        hint_name = sommaire_hints.get(sheet_key)
-        match = resolve_employee_for_planning_sheet(
-            sheet_name.strip(),
-            list(roster),
-            exclude_employee_ids=used_employee_ids,
-            hint_name=hint_name,
-        )
-        suggestions = rank_planning_sheet_candidates(
-            sheet_name.strip(),
-            list(roster),
-            exclude_employee_ids=used_employee_ids,
-            hint_name=hint_name,
-            limit=5,
-        )
-        if match.employee_id and match.review_status in ("ok", "warning"):
-            used_employee_ids.add(str(match.employee_id))
-
-        parsed = parse_employee_sheet(ws, year=year, daily_hours=daily_hours)
-
-        for month_num, entries in parsed.items():
-            if target_months is not None and (year, month_num) not in target_months:
+        employee_sheets: List[tuple[str, list[list[Any]], list[tuple[int, int, int]]]] = []
+        for sheet_name in wb.sheetnames:
+            sheet_key = _sheet_key(sheet_name)
+            if sheet_key in SKIP_SHEETS:
                 continue
-            days = [_entry_to_ai_day(entry) for entry in entries]
-            if not days:
-                continue
-            groups_map.setdefault((year, month_num), []).append(
-                {
-                    "employee_id": match.employee_id,
-                    "raw_name": match.raw_name or sheet_name.strip(),
-                    "matched_name": match.matched_name,
-                    "time_tracking_id": match.time_tracking_id,
-                    "review_status": match.review_status,
-                    "match_method": match.match_method,
-                    "match_confidence": match.match_confidence,
-                    "suggested_employee_ids": [e.id for e in suggestions],
-                    "sommaire_hint": hint_name,
-                    "days": [d.model_dump(mode="json") for d in days],
-                }
+            ws = wb[sheet_name]
+            header_rows = _header_rows_snapshot(ws)
+            blocks = _parse_sheet_month_blocks_from_rows(header_rows)
+            if blocks:
+                employee_sheets.append((sheet_name, header_rows, blocks))
+
+        sommaire_hints = _build_sommaire_hints(
+            wb, {_sheet_key(name) for name, _, _ in employee_sheets}
+        )
+
+        for sheet_name, header_rows, blocks in sorted(
+            employee_sheets, key=lambda item: _sheet_key(item[0])
+        ):
+            sheet_key = _sheet_key(sheet_name)
+            sheets_parsed += 1
+            hint_name = _extract_sheet_employee_hint_from_rows(
+                header_rows, sheet_name
+            ) or sommaire_hints.get(sheet_key)
+            ranked = rank_planning_sheet_candidates(
+                sheet_name.strip(),
+                roster_list,
+                exclude_employee_ids=used_employee_ids,
+                hint_name=hint_name,
+                limit=8,
             )
-            if match.review_status == "error" and sheet_name.strip() not in sheets_unmatched:
-                sheets_unmatched.append(sheet_name.strip())
-            for w in match.warnings:
-                if w not in warnings:
-                    warnings.append(w)
+            suggestions = ranked[:5]
+            match = resolve_employee_for_planning_sheet(
+                sheet_name.strip(),
+                roster_list,
+                exclude_employee_ids=used_employee_ids,
+                hint_name=hint_name,
+                precomputed_candidates=ranked,
+            )
+            if match.employee_id and match.review_status in ("ok", "warning"):
+                used_employee_ids.add(str(match.employee_id))
+
+            header_row = blocks[0][2]
+            ws = wb[sheet_name]
+            day_rows = [
+                list(r)
+                for r in ws.iter_rows(
+                    min_row=header_row + 1,
+                    max_row=header_row + 31,
+                    values_only=True,
+                )
+            ]
+            parsed = _parse_employee_sheet_from_rows(
+                day_rows, blocks, year=year, daily_hours=daily_hours
+            )
+
+            for month_num, entries in parsed.items():
+                if target_months is not None and (year, month_num) not in target_months:
+                    continue
+                days = [_entry_to_ai_day(entry) for entry in entries]
+                if not days:
+                    continue
+                groups_map.setdefault((year, month_num), []).append(
+                    {
+                        "employee_id": match.employee_id,
+                        "raw_name": match.raw_name or sheet_name.strip(),
+                        "matched_name": match.matched_name,
+                        "time_tracking_id": match.time_tracking_id,
+                        "review_status": match.review_status,
+                        "match_method": match.match_method,
+                        "match_confidence": match.match_confidence,
+                        "suggested_employee_ids": [e.id for e in suggestions],
+                        "sommaire_hint": hint_name,
+                        "days": [d.model_dump(mode="json") for d in days],
+                    }
+                )
+                if (
+                    match.review_status == "error"
+                    and sheet_name.strip() not in sheets_unmatched
+                ):
+                    sheets_unmatched.append(sheet_name.strip())
+                for w in match.warnings:
+                    if w not in warnings:
+                        warnings.append(w)
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
 
     if sheets_parsed == 0:
         raise ValueError(

@@ -421,6 +421,28 @@ def create_employee_imported(
             detail=f"Impossible de créer le compte collaborateur importé : {auth_err}",
         ) from auth_err
 
+    try:
+        _profile_repository.upsert(
+            {
+                "id": str(new_user_id),
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": "collaborateur",
+                "company_id": company_id,
+                "job_title": employee_data.get("job_title") or "",
+            }
+        )
+        _grant_collaborator_company_access(str(new_user_id), company_id, None)
+    except Exception as access_err:
+        try:
+            auth.delete_user(str(new_user_id))
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail="Compte importé créé mais échec du profil ou de l'accès entreprise.",
+        ) from access_err
+
     db_insert_data = prepare_employee_insert_data(
         employee_data,
         new_user_id=str(new_user_id),
@@ -441,32 +463,6 @@ def create_employee_imported(
         raise
 
     employee_id = str(new_employee_db.get("id") or new_user_id)
-
-    try:
-        _profile_repository.upsert(
-            {
-                "id": str(new_user_id),
-                "first_name": first_name,
-                "last_name": last_name,
-                "role": "collaborateur",
-                "company_id": company_id,
-                "job_title": employee_data.get("job_title") or "",
-            }
-        )
-        _grant_collaborator_company_access(str(new_user_id), company_id, None)
-    except Exception as access_err:
-        try:
-            _employee_repository.delete(employee_id)
-        except Exception:
-            pass
-        try:
-            auth.delete_user(str(new_user_id))
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=500,
-            detail="Compte importé créé mais échec du profil ou de l'accès entreprise.",
-        ) from access_err
 
     try:
         from app.modules.employees.application.credentials_pdf import (

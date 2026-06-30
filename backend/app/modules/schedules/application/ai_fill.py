@@ -987,7 +987,7 @@ def _extract_timesheet_hybrid_path(
     default_nature = "reel"
     detected_format = "hybrid_vision_ocr"
     if hybrid.used_cegid_fallback:
-        detected_format = "cegid_weekly"
+        detected_format = detected_parser or "cegid_weekly"
 
     source_label = (
         f"relevé IA hybride ({method})"
@@ -1080,8 +1080,8 @@ def extract_timesheet(
     skip_audit: bool = False,
 ) -> AiCalendarProposalResponse:
     """Lit un relevé de pointeuse (PDF/image) et en extrait une proposition."""
-    from app.modules.schedules.application.parsers.cegid_weekly import (
-        try_parse_cegid_weekly,
+    from app.modules.schedules.application.timesheet_import.registry import (
+        best_deterministic_parse,
     )
     from app.modules.schedules.application.roster_enrichment import (
         enrich_roster_time_tracking_ids,
@@ -1144,23 +1144,25 @@ def extract_timesheet(
         year, month = eff_year, eff_month
         align_period_warnings(period_detection, year, month)
 
-    cegid_result = try_parse_cegid_weekly(
-        text, target_year=year, target_month=month
-    )
+    deterministic = best_deterministic_parse(text, year=year, month=month)
+    cegid_result = deterministic.parse_result
+    detected_parser = deterministic.parser_key
     use_cegid = (
-        cegid_result.format_detected
+        cegid_result
+        and cegid_result.format_detected
         and cegid_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD
         and cegid_result.employees
     )
     use_cegid_single = (
         single_employee
+        and cegid_result
         and cegid_result.format_detected
         and cegid_result.confidence >= 0.5
         and len(cegid_result.employees) == 1
         and roster
     )
 
-    if cegid_result.format_detected and cegid_result.confidence >= 0.5:
+    if cegid_result and cegid_result.format_detected and cegid_result.confidence >= 0.5:
         period_detection.scope = "weekly"
         if cegid_result.period_start:
             period_detection.start_date = cegid_result.period_start
@@ -1192,7 +1194,7 @@ def extract_timesheet(
                 roster=roster,
                 default_nature=default_nature,
             )
-        detected_format = "cegid_weekly"
+        detected_format = detected_parser or "cegid_weekly"
         parse_confidence = cegid_result.confidence
     else:
         if not is_llm_configured():
@@ -1205,7 +1207,7 @@ def extract_timesheet(
                     roster=roster,
                     default_nature=default_nature,
                 )
-                detected_format = "cegid_weekly"
+                detected_format = detected_parser or "cegid_weekly"
                 parse_confidence = cegid_result.confidence
             else:
                 raise ScheduleAppError(
@@ -1301,7 +1303,7 @@ def extract_timesheet(
                         roster=roster,
                         default_nature=default_nature,
                     )
-                    detected_format = "cegid_weekly"
+                    detected_format = detected_parser or "cegid_weekly"
                     parse_confidence = cegid_result.confidence
                 else:
                     raise ScheduleAppError(

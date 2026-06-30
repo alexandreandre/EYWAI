@@ -129,10 +129,43 @@ class TimesheetImportRepository:
         resp = q.maybe_single().execute()
         return resp.data
 
+    def is_cancel_requested(self, batch_id: str) -> bool:
+        try:
+            resp = (
+                _admin()
+                .table(BATCHES)
+                .select("summary_json")
+                .eq("id", batch_id)
+                .maybe_single()
+                .execute()
+            )
+        except Exception:
+            return False
+        summary = ((resp.data or {}) or {}).get("summary_json") or {}
+        return bool(summary.get("cancel_requested"))
+
+    def request_cancel_batch(
+        self, batch_id: str, *, company_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        q = _admin().table(BATCHES).select("status,summary_json").eq("id", batch_id)
+        if company_id:
+            q = q.eq("company_id", company_id)
+        resp = q.maybe_single().execute()
+        row = resp.data or {}
+        if not row:
+            return {"status": "unknown", "cancel_requested": False}
+        status = row.get("status")
+        summary = row.get("summary_json") or {}
+        if status in ("committed", "failed", "cancelled"):
+            return {"status": status, "cancel_requested": False, "summary": summary}
+        summary = {**summary, "cancel_requested": True}
+        self.update_batch(batch_id, {"summary_json": summary})
+        return {"status": status, "cancel_requested": True, "summary": summary}
+
     def insert_items(self, items: List[Dict[str, Any]]) -> None:
         if not items:
             return
-        chunk = 200
+        chunk = 1000
         for i in range(0, len(items), chunk):
             _admin().table(ITEMS).insert(items[i : i + chunk]).execute()
 

@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.parsers.cegid_weekly import try_parse_cegid_weekly
+from app.modules.schedules.application.parsers.cegid_horizontal import (
+    try_parse_cegid_horizontal,
+)
+from app.modules.schedules.application.parsers.banque_heures import try_parse_banque_heures
 from app.modules.schedules.application.parsers.kelio_weekly import try_parse_kelio_weekly
 from app.modules.schedules.application.timesheet_import.structured_parser import (
     parse_tabular_file,
@@ -54,6 +58,30 @@ def _try_cegid(text: str, *, year: int, month: int) -> ParseAttempt:
     )
 
 
+def _try_cegid_horizontal(text: str, *, year: int, month: int) -> ParseAttempt:
+    result = try_parse_cegid_horizontal(text, target_year=year, target_month=month)
+    return ParseAttempt(
+        parser_key="cegid_horizontal",
+        confidence=result.confidence if result.format_detected else 0.0,
+        text=text,
+        extraction_method="ocr",
+        parse_result=result,
+        warnings=list(result.parse_warnings),
+    )
+
+
+def _try_banque_heures(text: str, *, year: int, month: int) -> ParseAttempt:
+    result = try_parse_banque_heures(text, target_year=year, target_month=month)
+    return ParseAttempt(
+        parser_key="banque_heures",
+        confidence=result.confidence if result.format_detected else 0.0,
+        text=text,
+        extraction_method="pdf_native",
+        parse_result=result,
+        warnings=list(result.parse_warnings),
+    )
+
+
 def _try_kelio(text: str, *, year: int, month: int) -> ParseAttempt:
     result = try_parse_kelio_weekly(text, target_year=year, target_month=month)
     return ParseAttempt(
@@ -67,11 +95,13 @@ def _try_kelio(text: str, *, year: int, month: int) -> ParseAttempt:
 
 
 def _best_deterministic(text: str, *, year: int, month: int) -> ParseAttempt:
-    cegid = _try_cegid(text, year=year, month=month)
-    kelio = _try_kelio(text, year=year, month=month)
-    if kelio.confidence > cegid.confidence:
-        return kelio
-    return cegid
+    attempts = [
+        _try_cegid(text, year=year, month=month),
+        _try_cegid_horizontal(text, year=year, month=month),
+        _try_banque_heures(text, year=year, month=month),
+        _try_kelio(text, year=year, month=month),
+    ]
+    return max(attempts, key=lambda attempt: attempt.confidence)
 
 
 def _try_tabular(
@@ -135,6 +165,18 @@ def parse_document(
         attempt.extraction_method = method
         return attempt
 
+    if parser_key == "cegid_horizontal":
+        text, method, _meta = extract_document_text(content, filename)
+        attempt = _try_cegid_horizontal(text, year=year, month=month)
+        attempt.extraction_method = method
+        return attempt
+
+    if parser_key == "banque_heures":
+        text, method, _meta = extract_document_text(content, filename)
+        attempt = _try_banque_heures(text, year=year, month=month)
+        attempt.extraction_method = method
+        return attempt
+
     if parser_key == "kelio_weekly":
         text, method, _meta = extract_document_text(content, filename)
         attempt = _try_kelio(text, year=year, month=month)
@@ -164,14 +206,14 @@ def parse_document(
     except DocumentExtractionError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e
 
-    cegid = _best_deterministic(text, year=year, month=month)
-    cegid.extraction_method = method
-    if cegid.confidence >= 0.75 and cegid.parse_result and cegid.parse_result.employees:
-        return cegid
+    best = _best_deterministic(text, year=year, month=month)
+    best.extraction_method = method
+    if best.confidence >= 0.75 and best.parse_result and best.parse_result.employees:
+        return best
 
     if skip_llm:
-        if cegid.confidence >= 0.5:
-            return cegid
+        if best.confidence >= 0.5:
+            return best
         raise ScheduleAppError(
             "validation",
             "Format non reconnu sans assistant IA.",
@@ -180,12 +222,17 @@ def parse_document(
 
     return ParseAttempt(
         parser_key="llm_required",
-        confidence=cegid.confidence,
+        confidence=best.confidence,
         text=text,
         extraction_method=method,
-        parse_result=cegid.parse_result if cegid.confidence >= 0.5 else None,
-        warnings=list(meta.warnings) + cegid.warnings,
+        parse_result=best.parse_result if best.confidence >= 0.5 else None,
+        warnings=list(meta.warnings) + best.warnings,
     )
 
 
-__all__ = ["ParseAttempt", "detect_source_type", "parse_document"]
+def best_deterministic_parse(text: str, *, year: int, month: int) -> ParseAttempt:
+    """Choisit le parseur déterministe le plus confiant pour un texte extrait."""
+    return _best_deterministic(text, year=year, month=month)
+
+
+__all__ = ["ParseAttempt", "best_deterministic_parse", "detect_source_type", "parse_document"]

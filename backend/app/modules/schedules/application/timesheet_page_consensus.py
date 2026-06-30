@@ -9,6 +9,11 @@ from app.modules.schedules.application.employee_match import (
     _normalize_matricule,
     is_junk_employee_name,
 )
+from app.modules.schedules.application.handwritten_weekly import (
+    FORMAT_HINT,
+    detect_handwritten_weekly_payload,
+    normalize_handwritten_weekly_payload,
+)
 
 HOURS_MATCH_OK = 0.25
 HOURS_MISMATCH_WARN = 0.5
@@ -44,14 +49,18 @@ def _employee_key(raw_name: str, matricule: str | None) -> str:
     return f"name:{(raw_name or '').strip().lower()}"
 
 
-def _parse_channel_data(data: dict[str, Any] | None) -> list[dict[str, Any]]:
+def _parse_channel_data(
+    data: dict[str, Any] | None,
+    *,
+    format_hint: str | None = None,
+) -> list[dict[str, Any]]:
     if not data:
         return []
     employees = data.get("employees") or []
     out: list[dict[str, Any]] = []
     for emp in employees:
         raw_name = str(emp.get("raw_name") or "").strip()
-        if not raw_name or is_junk_employee_name(raw_name):
+        if not raw_name or is_junk_employee_name(raw_name, format_hint=format_hint):
             continue
         out.append(emp)
     return out
@@ -131,10 +140,27 @@ def build_page_consensus(
     vision_data: dict[str, Any] | None,
     text_data: dict[str, Any] | None,
     tokens_used: int = 0,
+    year: int | None = None,
+    month: int | None = None,
+    format_hint: str | None = None,
 ) -> PageExtractionResult:
     """Fusionne les extractions vision et texte d'une même page."""
-    vision_emps = _parse_channel_data(vision_data)
-    text_emps = _parse_channel_data(text_data)
+    detected_hint = format_hint
+    if not detected_hint and (
+        detect_handwritten_weekly_payload(vision_data)
+        or detect_handwritten_weekly_payload(text_data)
+    ):
+        detected_hint = FORMAT_HINT
+    if detected_hint == FORMAT_HINT and year is not None and month is not None:
+        vision_data = normalize_handwritten_weekly_payload(
+            vision_data, year=year, month=month
+        )
+        text_data = normalize_handwritten_weekly_payload(
+            text_data, year=year, month=month
+        )
+
+    vision_emps = _parse_channel_data(vision_data, format_hint=detected_hint)
+    text_emps = _parse_channel_data(text_data, format_hint=detected_hint)
     prefer_vision = _vision_confidence(vision_data) >= _text_confidence(text_data)
 
     index: dict[str, tuple[dict[str, Any] | None, dict[str, Any] | None]] = {}
@@ -176,7 +202,8 @@ def build_page_consensus(
                     days=merged_days,
                     confidence=min(
                         1.0,
-                        (_vision_confidence(vision_data) + _text_confidence(text_data)) / 2,
+                        (_vision_confidence(vision_data) + _text_confidence(text_data))
+                        / 2,
                     ),
                     warnings=[],
                     source_channels=["vision", "text"],

@@ -169,28 +169,55 @@ class ScheduleRepository(IScheduleRepository):
     ) -> Dict[str, Dict[str, Any]]:
         if not employee_ids:
             return {}
-        response = (
-            supabase.table("employee_schedules")
-            .select("employee_id, planned_calendar, actual_hours, company_id")
-            .in_("employee_id", employee_ids)
-            .eq("year", year)
-            .eq("month", month)
-            .execute()
-        )
         out: Dict[str, Dict[str, Any]] = {}
-        for row in response.data or []:
-            out[str(row["employee_id"])] = row
+        read_chunk = 40
+        unique_ids = list(dict.fromkeys(employee_ids))
+        for i in range(0, len(unique_ids), read_chunk):
+            batch = unique_ids[i : i + read_chunk]
+            response = (
+                supabase.table("employee_schedules")
+                .select("employee_id, planned_calendar, actual_hours, company_id")
+                .in_("employee_id", batch)
+                .eq("year", year)
+                .eq("month", month)
+                .execute()
+            )
+            for row in response.data or []:
+                out[str(row["employee_id"])] = row
         return out
 
     def bulk_upsert_schedules(self, payloads: List[Dict[str, Any]]) -> None:
         if not payloads:
             return
-        chunk = 100
-        for i in range(0, len(payloads), chunk):
-            supabase.table("employee_schedules").upsert(
-                payloads[i : i + chunk],
-                on_conflict="employee_id,year,month",
-            ).execute()
+        self._upsert_chunked(payloads, chunk=20)
+
+    def _upsert_chunked(self, payloads: List[Dict[str, Any]], *, chunk: int) -> None:
+        from postgrest.exceptions import APIError
+
+        i = 0
+        n = len(payloads)
+        while i < n:
+            batch = payloads[i : i + chunk]
+            try:
+                supabase.table("employee_schedules").upsert(
+                    batch,
+                    on_conflict="employee_id,year,month",
+                ).execute()
+                i += chunk
+            except APIError as exc:
+                code = getattr(exc, "code", None) or (
+                    exc.args[0].get("code") if exc.args and isinstance(exc.args[0], dict) else None
+                )
+                if code == "57014" and chunk > 1:
+                    new_chunk = max(1, chunk // 2)
+                    logger.warning(
+                        "Upsert employee_schedules statement_timeout (chunk=%s) → retry chunk=%s",
+                        chunk,
+                        new_chunk,
+                    )
+                    chunk = new_chunk
+                    continue
+                raise
 
 
 # Instance pour l'application

@@ -34,6 +34,11 @@ def sanitize_stored_month_totals(month_totals: Dict[str, Any]) -> Dict[str, floa
     employer_charges = round(float(month_totals.get("employer_charges") or 0), 2)
     if employer_charges < 0 and brut > 0:
         employer_charges = 0.0
+    if brut > 0 and net > brut:
+        if employee_charges > 0:
+            net = round(max(brut - employee_charges, 0.0), 2)
+        else:
+            net = round(brut * 0.78, 2)
     return {
         "brut": brut,
         "net_imposable": net,

@@ -9,6 +9,9 @@ PAGE_DAY_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "properties": {
         "jour": {"type": "integer"},
+        "weekday": {"type": ["string", "integer", "null"]},
+        "debut": {"type": ["string", "null"]},
+        "fin": {"type": ["string", "null"]},
         "heures": {"type": ["number", "null"]},
         "type": {"type": "string"},
     },
@@ -21,6 +24,7 @@ PAGE_EMPLOYEE_SCHEMA: dict[str, Any] = {
     "properties": {
         "raw_name": {"type": "string"},
         "matricule": {"type": ["string", "null"]},
+        "week_number": {"type": ["integer", "null"]},
         "weekly_total_pdf": {"type": ["number", "null"]},
         "days": {
             "type": "array",
@@ -64,6 +68,15 @@ def build_page_system_prompt(*, year: int, month: int, channel: str) -> str:
         "- warnings : toujours [] (tableau vide). N'écris aucun commentaire, note "
         "interprétative ni alerte sur les congés/annotations du PDF.\n"
         "- Ne pas inventer de salariés ni de jours absents de la page.\n"
+        "- Formats possibles : bloc vertical par salarié OU tableau horizontal (jours en colonnes).\n"
+        "- Feuille manuscrite photo (prénoms en majuscules, colonnes DEBUT/FIN par jour) : "
+        "calculer les heures travaillées (FIN − DEBUT, déduire ~1 h de pause si créneau matin/après-midi), "
+        "matricule null, lire la semaine en en-tête (ex. S18).\n"
+        "- Pour une feuille manuscrite DEBUT/FIN : lire ligne par ligne ; le prénom est en colonne gauche ; "
+        "renseigner week_number depuis l'en-tête Sxx ; renseigner weekday, debut et fin ; "
+        "ne jamais inventer de matricule ; ignorer ruban jaune, signatures, gribouillis et cellules illisibles.\n"
+        "- Si une cellule manuscrite est illisible, mettre heures null et baisser confidence.\n"
+        "- Si le relevé est un tableau paysage (Lundi|Mardi|… en colonnes), lire ligne par ligne.\n"
         "- Ignorer pieds de page (« Édition en heures et minutes », totaux globaux sans salarié).\n"
     )
 
@@ -92,7 +105,9 @@ def build_page_user_prompt_vision(
     return (
         f"Page {page_index}/{pages_total} du relevé scanné ci-joint.\n"
         f"{matricule_hint}\n"
-        "Extrais tous les blocs salariés visibles sur cette page."
+        "Extrais tous les blocs salariés visibles sur cette page. "
+        "Si feuille manuscrite avec DEBUT/FIN, lis chaque ligne prénom par prénom, "
+        "extrais Sxx comme week_number, n'invente aucun matricule et calcule les heures par jour."
     )
 
 

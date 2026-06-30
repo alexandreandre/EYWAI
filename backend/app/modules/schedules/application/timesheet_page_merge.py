@@ -9,6 +9,10 @@ from app.modules.schedules.application.employee_match import (
     _normalize_matricule,
     is_junk_employee_name,
 )
+from app.modules.schedules.application.handwritten_weekly import (
+    FORMAT_HINT,
+    detect_handwritten_weekly_payload,
+)
 from app.modules.schedules.application.timesheet_page_consensus import (
     PageEmployee,
     PageExtractionResult,
@@ -75,6 +79,8 @@ def _merge_day_lists(
 
 def merge_page_results(
     page_results: list[PageExtractionResult],
+    *,
+    format_hint: str | None = None,
 ) -> MergedExtractionResult:
     """Agrège les salariés extraits page par page."""
     merged: dict[str, MergedEmployee] = {}
@@ -89,8 +95,20 @@ def merge_page_results(
         global_warnings.extend(page.warnings)
         conflicts_total += page.conflicts_count
 
+        page_format_hint = format_hint
+        if not page_format_hint and (
+            detect_handwritten_weekly_payload(page.vision_data)
+            or detect_handwritten_weekly_payload(page.text_data)
+            or any(
+                d.get("weekday") or d.get("debut") or d.get("fin")
+                for e in page.employees
+                for d in e.days
+            )
+        ):
+            page_format_hint = FORMAT_HINT
+
         for emp in page.employees:
-            if is_junk_employee_name(emp.raw_name):
+            if is_junk_employee_name(emp.raw_name, format_hint=page_format_hint):
                 continue
             key = _merge_key(emp)
             if key not in merged:

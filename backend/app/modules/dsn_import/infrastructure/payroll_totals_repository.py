@@ -63,6 +63,11 @@ def upsert_totals(
         "last_batch_id": last_batch_id,
         "updated_at": now,
     }
+    incoming_pat = float(row["employer_charges"])
+    if incoming_pat <= 0:
+        existing = get_period(company_id, period)
+        if existing and float(existing.get("employer_charges") or 0) > 0:
+            row["employer_charges"] = round(float(existing["employer_charges"]), 2)
     try:
         client.table(TABLE).upsert(row, on_conflict="company_id,period").execute()
     except APIError as exc:

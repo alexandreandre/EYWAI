@@ -242,23 +242,29 @@ def parse_cp_import_files(
 
     companies_by_page_key: Dict[str, Dict[str, Any]] = {}
     company_resolution_warnings: Dict[str, List[str]] = {}
+    auto_match_by_page_key: Dict[str, bool] = {}
     seen_page_keys: set[str] = set()
     for page in deduped:
         page_key = f"{page.siret or ''}|{page.company_name or ''}"
         if page_key in seen_page_keys:
             continue
         seen_page_keys.add(page_key)
-        company, resolve_warnings = repo.resolve_company_from_payslip(
+        resolved_company, resolve_warnings = repo.resolve_company_from_payslip(
             page.siret, page.company_name
         )
         company, resolve_warnings = _apply_target_company_scope(
-            company,
+            resolved_company,
             resolve_warnings,
             target_company,
             page.siret,
         )
+        auto_match = True
+        if target_company and resolved_company:
+            if str(resolved_company["id"]) != str(target_company["id"]):
+                auto_match = False
         if company:
             companies_by_page_key[page_key] = company
+        auto_match_by_page_key[page_key] = auto_match
         if resolve_warnings:
             company_resolution_warnings[page_key] = resolve_warnings
 
@@ -315,7 +321,8 @@ def parse_cp_import_files(
             "warnings": [],
         }
 
-        if company_id:
+        allow_auto_match = auto_match_by_page_key.get(page_key, True)
+        if company_id and allow_auto_match:
             employees = employees_by_company.get(company_id, [])
             roster = _build_roster(employees)
             rosters_by_company[company_id] = [
@@ -340,6 +347,30 @@ def parse_cp_import_files(
             )
             review_status = match.get("review_status") or "error"
             warnings.extend(match.get("warnings") or [])
+            if (
+                match.get("employee_id")
+                and review_status == "warning"
+                and match.get("match_confidence") != "high"
+            ):
+                match = {
+                    **match,
+                    "employee_id": None,
+                    "matched_name": None,
+                    "match_confidence": "none",
+                    "match_method": "none",
+                    "review_status": "error",
+                    "warnings": [
+                        *warnings,
+                        "Rapprochement automatique incertain — associez le salarié manuellement.",
+                    ],
+                }
+                review_status = "error"
+                warnings = list(match.get("warnings") or [])
+        elif company_id and not allow_auto_match:
+            warnings.append(
+                "Bulletin rattaché à une autre filiale (SIRET) — associez le salarié manuellement."
+            )
+            review_status = "error"
 
         if page.cp_n1_solde is None or page.cp_n_solde is None:
             review_status = "error"

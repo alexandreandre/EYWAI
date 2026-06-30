@@ -12,6 +12,9 @@ import unicodedata
 from typing import List, Literal, Optional, Tuple
 
 from app.modules.schedules.schemas.ai import AiEmployeeProposal, RosterEmployee
+from app.modules.schedules.application.handwritten_weekly import (
+    is_handwritten_weekly_format,
+)
 
 MatchMethod = Literal["matricule", "name_exact", "name_fuzzy", "none"]
 ReviewStatus = Literal["ok", "warning", "error", "empty"]
@@ -46,6 +49,55 @@ def _tokens(value: str) -> set[str]:
     return set(_normalize(value).split())
 
 
+def _word_parts(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", _normalize(value))
+
+
+def _compact_name(value: str) -> str:
+    return "".join(_word_parts(value))
+
+
+def _first_name_matches_code(code: str, first_name: str) -> bool:
+    code_parts = _word_parts(code)
+    first_parts = _word_parts(first_name)
+    if not code_parts or not first_parts:
+        return False
+
+    compact_code = "".join(code_parts)
+    initials = "".join(part[0] for part in first_parts if part)
+    if compact_code == initials:
+        return True
+
+    if len(compact_code) >= 2 and any(
+        part.startswith(compact_code) for part in first_parts
+    ):
+        return True
+
+    return len(compact_code) == 1 and first_parts[0].startswith(compact_code)
+
+
+def _planning_first_name_code(source: str, last_name: str) -> str:
+    source_parts = _word_parts(source)
+    last_parts = _word_parts(last_name)
+    if not source_parts or not last_parts:
+        return ""
+
+    for start in range(0, len(source_parts) - len(last_parts) + 1):
+        if source_parts[start : start + len(last_parts)] == last_parts:
+            return " ".join(source_parts[start + len(last_parts) :])
+    return ""
+
+
+def is_single_name_allowed(raw_name: str, format_hint: str | None = None) -> bool:
+    """Autorise les prénoms seuls sur feuilles manuscrites hebdo."""
+    if not is_handwritten_weekly_format(format_hint):
+        return False
+    raw = (raw_name or "").strip()
+    if len(raw.split()) != 1:
+        return False
+    return re.fullmatch(r"[A-Za-zÀ-ÿ'\-]{3,}", raw) is not None
+
+
 def _levenshtein(a: str, b: str) -> int:
     if a == b:
         return 0
@@ -63,15 +115,20 @@ def _levenshtein(a: str, b: str) -> int:
     return prev[-1]
 
 
-def is_junk_employee_name(raw_name: str) -> bool:
+def is_junk_employee_name(raw_name: str, format_hint: str | None = None) -> bool:
     """Filtre les lignes OCR non salarié (pied de page Cegid, en-têtes…)."""
     if not raw_name or not raw_name.strip():
         return True
+    if is_single_name_allowed(raw_name, format_hint):
+        return False
     if _JUNK_NAME_RE.search(raw_name):
         return True
     parts = raw_name.split()
     if len(parts) < 2:
         return True
+    if any(re.fullmatch(r"\d+", p) for p in parts):
+        if not re.match(r"^\d{3,6}\s", raw_name.strip()):
+            return True
     letter_parts = sum(1 for p in parts if re.search(r"[A-Za-zÀ-ÿ]", p))
     return letter_parts < 2
 
@@ -118,12 +175,16 @@ def _first_name_matches_ocr(
     return True
 
 
-def _employees_with_last_name(roster: List[RosterEmployee], last: str) -> List[RosterEmployee]:
+def _employees_with_last_name(
+    roster: List[RosterEmployee], last: str
+) -> List[RosterEmployee]:
     norm_last = _normalize(last)
     return [e for e in roster if _normalize(e.last_name) == norm_last]
 
 
-def _employees_with_first_name(roster: List[RosterEmployee], first: str) -> List[RosterEmployee]:
+def _employees_with_first_name(
+    roster: List[RosterEmployee], first: str
+) -> List[RosterEmployee]:
     norm_first = _normalize(first)
     return [e for e in roster if _normalize(e.first_name) == norm_first]
 
@@ -148,7 +209,9 @@ def _match_by_cegid_name_order(
         chosen = by_last[0]
     else:
         by_first = [
-            e for e in by_last if _first_name_matches_ocr(ocr_first, e.first_name, strict=True)
+            e
+            for e in by_last
+            if _first_name_matches_ocr(ocr_first, e.first_name, strict=True)
         ]
         if len(by_first) == 1:
             chosen = by_first[0]
@@ -200,7 +263,9 @@ def _match_by_cegid_name_order(
     return proposal
 
 
-def _fuzzy_name_match(raw_name: str, roster: List[RosterEmployee]) -> List[RosterEmployee]:
+def _fuzzy_name_match(
+    raw_name: str, roster: List[RosterEmployee]
+) -> List[RosterEmployee]:
     norm_raw = _normalize(raw_name)
     raw_parts = norm_raw.split()
     if len(raw_parts) < 2:
@@ -223,7 +288,9 @@ def _fuzzy_name_match(raw_name: str, roster: List[RosterEmployee]) -> List[Roste
             candidates.append((dist, emp))
             continue
         if len(last) >= 4 and last in norm_raw:
-            overlap = len(_tokens(raw_name) & _tokens(f"{emp.first_name} {emp.last_name}"))
+            overlap = len(
+                _tokens(raw_name) & _tokens(f"{emp.first_name} {emp.last_name}")
+            )
             if overlap >= 2:
                 candidates.append((3, emp))
             elif len(_employees_with_last_name(roster, emp.last_name)) == 1:
@@ -237,11 +304,42 @@ def resolve_employee_for_timesheet(
     raw_name: str,
     matricule: str | None,
     roster: List[RosterEmployee],
+    format_hint: str | None = None,
 ) -> AiEmployeeProposal:
-    if is_junk_employee_name(raw_name):
+    single_tokens = _normalize(raw_name).split()
+    if len(single_tokens) == 1 and roster:
+        token = single_tokens[0]
+        by_first = _employees_with_first_name(roster, token)
+        if len(by_first) == 1:
+            emp = by_first[0]
+            proposal = AiEmployeeProposal(raw_name=raw_name or "")
+            proposal.time_tracking_id = matricule
+            proposal.employee_id = emp.id
+            proposal.matched_name = f"{emp.first_name} {emp.last_name}"
+            proposal.match_confidence = "medium"
+            proposal.match_method = "name_exact"
+            proposal.review_status = "warning"
+            proposal.warnings.append(
+                f"Prénom seul « {raw_name} » rapproché de {proposal.matched_name}."
+            )
+            return proposal
+        if len(by_first) > 1:
+            proposal = AiEmployeeProposal(raw_name=raw_name or "")
+            proposal.time_tracking_id = matricule
+            labels = ", ".join(f"{e.first_name} {e.last_name}" for e in by_first[:3])
+            proposal.warnings.append(
+                f"Prénom seul « {raw_name} » ambigu ({labels}) — associez manuellement."
+            )
+            proposal.match_method = "name_exact"
+            proposal.review_status = "error"
+            return proposal
+
+    if is_junk_employee_name(raw_name, format_hint=format_hint):
         proposal = AiEmployeeProposal(raw_name=raw_name or "")
         proposal.time_tracking_id = matricule
-        proposal.warnings.append(f"Ligne ignorée (texte OCR non salarié) : « {raw_name} ».")
+        proposal.warnings.append(
+            f"Ligne ignorée (texte OCR non salarié) : « {raw_name} »."
+        )
         proposal.match_method = "none"
         proposal.review_status = "error"
         return proposal
@@ -252,9 +350,7 @@ def resolve_employee_for_timesheet(
 
     if norm_mat:
         mat_matches = [
-            e
-            for e in roster
-            if _normalize_matricule(e.time_tracking_id) == norm_mat
+            e for e in roster if _normalize_matricule(e.time_tracking_id) == norm_mat
         ]
         if len(mat_matches) == 1:
             emp = mat_matches[0]
@@ -385,6 +481,7 @@ def resolve_employee_for_planning_sheet(
     *,
     exclude_employee_ids: set[str] | None = None,
     hint_name: str | None = None,
+    precomputed_candidates: List[RosterEmployee] | None = None,
 ) -> AiEmployeeProposal:
     """Rapproche une feuille Excel calendrier (souvent nom de famille seul)."""
     raw = (sheet_name or "").strip()
@@ -404,15 +501,27 @@ def resolve_employee_for_planning_sheet(
         proposal.review_status = "error"
         return proposal
 
-    candidates = rank_planning_sheet_candidates(
-        raw,
-        roster,
-        exclude_employee_ids=excluded,
-        hint_name=hint_name,
-        limit=8,
-    )
+    if precomputed_candidates is not None:
+        candidates = [e for e in precomputed_candidates if e.id not in excluded][:8]
+    else:
+        candidates = rank_planning_sheet_candidates(
+            raw,
+            roster,
+            exclude_employee_ids=excluded,
+            hint_name=hint_name,
+            limit=8,
+        )
+    exact_candidates = [emp for emp in candidates if _is_exact_sheet_match(raw, emp)]
+    if len(exact_candidates) == 1:
+        candidates = exact_candidates
+    if len(candidates) > 1:
+        picked = _pick_planning_code_disambiguated_candidate(candidates, raw)
+        if picked is not None:
+            candidates = [picked]
     if len(candidates) > 1 and hint_name:
-        picked = _pick_hint_disambiguated_candidate(candidates, hint_name)
+        picked = _pick_planning_code_disambiguated_candidate(candidates, hint_name)
+        if picked is None:
+            picked = _pick_hint_disambiguated_candidate(candidates, hint_name)
         if picked is not None:
             candidates = [picked]
 
@@ -424,9 +533,15 @@ def resolve_employee_for_planning_sheet(
         emp = candidates[0]
         proposal.employee_id = emp.id
         proposal.matched_name = f"{emp.first_name} {emp.last_name}"
-        proposal.match_confidence = "high" if _is_exact_sheet_match(raw, emp) else "medium"
-        proposal.match_method = "name_exact" if proposal.match_confidence == "high" else "name_fuzzy"
-        proposal.review_status = "ok" if proposal.match_confidence == "high" else "warning"
+        proposal.match_confidence = (
+            "high" if _is_confident_planning_match(raw, emp, hint_name) else "medium"
+        )
+        proposal.match_method = (
+            "name_exact" if proposal.match_confidence == "high" else "name_fuzzy"
+        )
+        proposal.review_status = (
+            "ok" if proposal.match_confidence == "high" else "warning"
+        )
         if proposal.review_status == "warning":
             proposal.warnings.append(
                 f"Feuille « {raw} » rapprochée de {proposal.matched_name} — confirmez si besoin."
@@ -442,7 +557,23 @@ def resolve_employee_for_planning_sheet(
         proposal.review_status = "error"
         return proposal
 
-    proposal.warnings.append(f"Aucun employé disponible reconnu pour la feuille « {raw} ».")
+    first_name_match = _pick_unique_first_name_hint_candidate(
+        available, hint_name, raw
+    )
+    if first_name_match is not None:
+        proposal.employee_id = first_name_match.id
+        proposal.matched_name = f"{first_name_match.first_name} {first_name_match.last_name}"
+        proposal.match_confidence = "high"
+        proposal.match_method = "name_fuzzy"
+        proposal.review_status = "ok"
+        proposal.warnings.append(
+            f"Indice « {hint_name} » rapproché par prénom unique de {proposal.matched_name}."
+        )
+        return proposal
+
+    proposal.warnings.append(
+        f"Aucun employé disponible reconnu pour la feuille « {raw} »."
+    )
     proposal.match_method = "none"
     proposal.review_status = "error"
     return proposal
@@ -519,7 +650,8 @@ def _pick_hint_disambiguated_candidate(
         first_matches = [
             emp
             for emp in candidates
-            if _first_name_matches_ocr(hint_first, emp.first_name, strict=True)
+            if _planning_first_name_code(hint_name, emp.last_name)
+            and _first_name_matches_ocr(hint_first, emp.first_name, strict=True)
         ]
         if len(first_matches) == 1:
             return first_matches[0]
@@ -527,9 +659,92 @@ def _pick_hint_disambiguated_candidate(
     return None
 
 
+def _pick_planning_code_disambiguated_candidate(
+    candidates: List[RosterEmployee],
+    source: str,
+) -> RosterEmployee | None:
+    """Désambiguïse les feuilles NOM + initiales/préfixe prénom."""
+    if len(candidates) < 2 or not source:
+        return None
+
+    matches = [
+        emp
+        for emp in candidates
+        if (
+            code := _planning_first_name_code(source, emp.last_name)
+        )
+        and _first_name_matches_code(code, emp.first_name)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _pick_unique_first_name_hint_candidate(
+    available: List[RosterEmployee],
+    hint_name: str | None,
+    sheet_name: str,
+) -> RosterEmployee | None:
+    if not available or not hint_name:
+        return None
+    if len(_word_parts(sheet_name)) < 2:
+        return None
+    hint_first = _planning_first_name_code(hint_name, sheet_name)
+    if not hint_first:
+        return None
+    matches = [
+        emp
+        for emp in available
+        if _first_name_matches_ocr(hint_first, emp.first_name, strict=True)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def _is_exact_sheet_match(sheet_name: str, emp: RosterEmployee) -> bool:
     norm_sheet = _normalize(sheet_name)
-    return norm_sheet == _normalize(emp.last_name)
+    return norm_sheet == _normalize(emp.last_name) or _compact_name(
+        sheet_name
+    ) == _compact_name(emp.last_name)
+
+
+def _is_confident_planning_match(
+    sheet_name: str,
+    emp: RosterEmployee,
+    hint_name: str | None,
+) -> bool:
+    if _is_exact_sheet_match(sheet_name, emp):
+        return True
+
+    raw_code = _planning_first_name_code(sheet_name, emp.last_name)
+    if raw_code and _first_name_matches_code(raw_code, emp.first_name):
+        return True
+
+    if hint_name:
+        hint_norm = _normalize(hint_name)
+        full_a = _normalize(f"{emp.first_name} {emp.last_name}")
+        full_b = _normalize(f"{emp.last_name} {emp.first_name}")
+        if hint_norm in (full_a, full_b):
+            return True
+
+        hint_code = _planning_first_name_code(hint_name, emp.last_name)
+        if hint_code and _first_name_matches_code(hint_code, emp.first_name):
+            return True
+
+        sheet_compact = _compact_name(sheet_name)
+        last_compact = _compact_name(emp.last_name)
+        hint_first = _first_name_hint(hint_name)
+        if (
+            sheet_compact
+            and last_compact
+            and sheet_compact in last_compact
+            and hint_first
+            and _first_name_matches_ocr(hint_first, emp.first_name, strict=True)
+        ):
+            return True
+
+    return False
 
 
 def _score_planning_candidate(
@@ -543,11 +758,14 @@ def _score_planning_candidate(
 ) -> int:
     score = 0
     last_norm = _normalize(emp.last_name)
+    last_compact = _compact_name(emp.last_name)
+    sheet_compact = _compact_name(norm_sheet)
+    hint_compact = _compact_name(hint_name or "")
     full_a = _normalize(f"{emp.first_name} {emp.last_name}")
     full_b = _normalize(f"{emp.last_name} {emp.first_name}")
     emp_tokens = _tokens(f"{emp.first_name} {emp.last_name}")
 
-    if norm_sheet == last_norm:
+    if norm_sheet == last_norm or (sheet_compact and sheet_compact == last_compact):
         score += 100
     if norm_sheet in (full_a, full_b):
         score += 95
@@ -555,7 +773,11 @@ def _score_planning_candidate(
         score += 80
     elif emp_tokens.issubset(sheet_tokens) and len(sheet_tokens) >= 2:
         score += 75
-    elif len(last_norm) >= 4 and (last_norm in norm_sheet or norm_sheet in last_norm):
+    elif (
+        len(last_compact) >= 4
+        and sheet_compact
+        and (last_compact in sheet_compact or sheet_compact in last_compact)
+    ):
         score += 55
 
     if hint_norm:
@@ -564,10 +786,21 @@ def _score_planning_candidate(
         elif hint_norm in full_a or full_a in hint_norm or full_b in hint_norm:
             score += 70
         hint_tokens = _tokens(hint_name or "")
+        last_tokens = _tokens(emp.last_name)
+        hint_has_last = (
+            bool(last_compact)
+            and bool(hint_compact)
+            and (last_compact in hint_compact or hint_compact in last_compact)
+        ) or (bool(last_tokens) and last_tokens.issubset(hint_tokens))
         overlap = hint_tokens & emp_tokens
-        if overlap:
+        if hint_has_last and overlap:
             score += 20 + 10 * len(overlap)
-        if hint_first and _first_name_matches_ocr(hint_first, emp.first_name):
+        if (
+            hint_first
+            and hint_has_last
+            and _planning_first_name_code(hint_name or "", emp.last_name)
+            and _first_name_matches_ocr(hint_first, emp.first_name)
+        ):
             score += 35
 
     if score > 0 and score < 100:
@@ -617,6 +850,7 @@ def _candidate_warnings(
 __all__ = [
     "ReviewStatus",
     "is_junk_employee_name",
+    "is_single_name_allowed",
     "rank_planning_sheet_candidates",
     "resolve_employee_for_planning_sheet",
     "resolve_employee_for_timesheet",

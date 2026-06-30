@@ -13,6 +13,7 @@ from app.modules.schedules.application.schedule_import_audit import (
     record_schedule_import_run,
 )
 from app.modules.schedules.application.service import get_employee_company_and_statut
+from app.modules.admin_import.infrastructure import repository as admin_repo
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
@@ -25,6 +26,10 @@ from app.modules.schedules.schemas.persist import (
 from app.modules.schedules.schemas.timesheet_import import TimesheetImportCommitRequest
 
 logger = logging.getLogger(__name__)
+
+
+class CommitCancelled(Exception):
+    """Levée quand l'utilisateur a demandé l'annulation du commit en cours."""
 
 
 def _now_iso() -> str:
@@ -125,6 +130,92 @@ def _upsert_employees_for_month(
     for emp in employees:
         try:
             company_id_emp, _ = get_employee_company_and_statut(emp.employee_id)
+            if company_id_emp != company_id:
+                errors.append(
+                    {
+                        "employee_id": emp.employee_id,
+                        "message": "Employé hors entreprise active.",
+                    }
+                )
+                continue
+
+            row = existing_rows.get(emp.employee_id, {})
+            prevu_days = [d for d in emp.days if d.nature == "prevu"]
+            reel_days = [d for d in emp.days if d.nature == "reel"]
+
+            planned_existing: list = []
+            actual_existing: list = []
+            if row:
+                pc = row.get("planned_calendar") or {}
+                ah = row.get("actual_hours") or {}
+                planned_existing = pc.get("calendrier_prevu") or []
+                actual_existing = ah.get("calendrier_reel") or []
+
+            merged_planned = planned_existing
+            merged_actual = actual_existing
+            days_written = 0
+
+            if prevu_days:
+                merged_planned = _merge_days(planned_existing, prevu_days, "prevu")
+                days_written += len(prevu_days)
+            if reel_days:
+                merged_actual = _merge_days(actual_existing, reel_days, "reel")
+                days_written += len(reel_days)
+
+            payload: Dict[str, Any] = {
+                "employee_id": emp.employee_id,
+                "company_id": company_id_emp,
+                "year": year,
+                "month": month,
+            }
+            if prevu_days:
+                payload["planned_calendar"] = {
+                    "periode": {"mois": month, "annee": year},
+                    "calendrier_prevu": merged_planned,
+                }
+            if reel_days:
+                payload["actual_hours"] = {
+                    "periode": {"mois": month, "annee": year},
+                    "calendrier_reel": merged_actual,
+                }
+            if not row and not prevu_days and reel_days:
+                payload["planned_calendar"] = {
+                    "periode": {"mois": month, "annee": year},
+                    "calendrier_prevu": [
+                        {
+                            "jour": j,
+                            "type": _default_type_for_day(year, month, j),
+                            "heures_prevues": None,
+                        }
+                        for j in range(1, days_in_month + 1)
+                    ],
+                }
+
+            upsert_payloads.append(payload)
+            total_days += days_written
+        except Exception as exc:
+            errors.append({"employee_id": emp.employee_id, "message": str(exc)})
+
+    return upsert_payloads, total_days, errors
+
+
+def _upsert_employees_for_month_fast(
+    *,
+    company_id: str,
+    year: int,
+    month: int,
+    employees: List[PersistTimesheetEmployee],
+    existing_rows: Dict[str, Dict[str, Any]],
+    employee_company_ids: Dict[str, str],
+) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]]]:
+    upsert_payloads: List[Dict[str, Any]] = []
+    errors: List[Dict[str, str]] = []
+    total_days = 0
+    days_in_month = cal_mod.monthrange(year, month)[1]
+
+    for emp in employees:
+        try:
+            company_id_emp = employee_company_ids.get(emp.employee_id)
             if company_id_emp != company_id:
                 errors.append(
                     {
@@ -347,78 +438,134 @@ def _commit_multi_month_batch(
             status_code=400,
         )
 
-    employees_queue = [str(plan["label"]) for plan in employees_plan]
-    total_employees = len(employees_plan)
-    completed_labels: List[str] = []
+    employee_meta = {
+        str(emp["id"]): emp
+        for emp in admin_repo.list_company_employees(company_id)
+        if emp.get("id")
+    }
+
+    by_month: Dict[tuple[int, int], List[PersistTimesheetEmployee]] = {}
+    rejected_unknown: List[str] = []
+
+    for plan in employees_plan:
+        employee_id = str(plan["employee_id"])
+        if employee_id not in employee_meta:
+            rejected_unknown.append(employee_id)
+            errors.append(
+                {
+                    "employee_id": employee_id,
+                    "message": "Employé hors entreprise active.",
+                }
+            )
+            continue
+        for year, month, days in plan["months"]:
+            by_month.setdefault((int(year), int(month)), []).append(
+                PersistTimesheetEmployee(
+                    employee_id=employee_id,
+                    days=[AiDayEntry(**day) for day in days],
+                )
+            )
+
+    month_keys = sorted(by_month)
+    month_queue = [f"{month:02d}/{year}" for year, month in month_keys]
     summary = _emit_planning_commit_progress(
         batch_id,
         summary,
         done=0,
-        total=total_employees,
+        total=len(month_queue),
         label="Préparation de l'enregistrement…",
         phase="starting",
-        employees_queue=employees_queue,
-        completed_labels=completed_labels,
+        employees_queue=month_queue,
+        completed_labels=[],
     )
 
-    for index, plan in enumerate(employees_plan):
-        employee_id = str(plan["employee_id"])
-        label = str(plan["label"])
+    processed_employee_ids: Set[str] = set()
+    for month_index, (year, month) in enumerate(month_keys):
+        if timesheet_import_repository.is_cancel_requested(batch_id):
+            raise CommitCancelled(
+                f"Annulation après {month_index} mois traité(s) sur {len(month_keys)}."
+            )
+        month_employees = by_month[(year, month)]
+        employee_ids = [emp.employee_id for emp in month_employees]
+        label = f"{month:02d}/{year}"
         summary = _emit_planning_commit_progress(
             batch_id,
             summary,
-            done=index,
-            total=total_employees,
+            done=month_index,
+            total=len(month_queue),
             label=label,
             phase="employee",
-            employee_id=employee_id,
-            employees_queue=employees_queue,
-            completed_labels=completed_labels,
+            employees_queue=month_queue,
+            completed_labels=month_queue[:month_index],
         )
-
-        employee_payloads: List[Dict[str, Any]] = []
-        for year, month, days in plan["months"]:
-            persist_emp = PersistTimesheetEmployee(
-                employee_id=employee_id,
-                days=[AiDayEntry(**day) for day in days],
+        existing_rows = schedule_repository.list_schedules_for_employees(
+            employee_ids, year, month
+        )
+        payloads, days_written, group_errors = _upsert_employees_for_month_fast(
+            company_id=company_id,
+            year=year,
+            month=month,
+            employees=month_employees,
+            existing_rows=existing_rows,
+            employee_company_ids={
+                emp_id: str(meta.get("company_id") or "")
+                for emp_id, meta in employee_meta.items()
+            },
+        )
+        errors.extend(group_errors)
+        if payloads:
+            schedule_repository.bulk_upsert_schedules(payloads)
+            upsert_payloads.extend(payloads)
+            recalc_targets.extend(
+                (str(payload["employee_id"]), year, month) for payload in payloads
             )
-            existing_rows = schedule_repository.list_schedules_for_employees(
-                [employee_id], year, month
-            )
-            payloads, days_written, group_errors = _upsert_employees_for_month(
-                company_id=company_id,
-                year=year,
-                month=month,
-                employees=[persist_emp],
-                existing_rows=existing_rows,
-            )
-            employee_payloads.extend(payloads)
             total_days += days_written
-            errors.extend(group_errors)
-            if payloads:
-                recalc_targets.append((employee_id, year, month))
+            for payload in payloads:
+                processed_employee_ids.add(str(payload["employee_id"]))
 
-        if employee_payloads:
-            schedule_repository.bulk_upsert_schedules(employee_payloads)
-            upsert_payloads.extend(employee_payloads)
-
-        completed_labels.append(label)
         summary = _emit_planning_commit_progress(
             batch_id,
             summary,
-            done=index + 1,
-            total=total_employees,
+            done=month_index + 1,
+            total=len(month_queue),
             label=label,
             phase="employee",
-            employee_id=employee_id,
-            employees_queue=employees_queue,
-            completed_labels=completed_labels,
+            employees_queue=month_queue,
+            completed_labels=month_queue[: month_index + 1],
         )
 
     if not upsert_payloads:
+        plan_count = len(employees_plan)
+        unknown_count = len(rejected_unknown)
+        upsert_error_count = len(errors) - unknown_count
+        logger.error(
+            "Batch %s: aucun upsert produit — plan=%s, hors_entreprise=%s, erreurs_upsert=%s, "
+            "company_id=%s, employee_meta_size=%s, sample_unknown=%s, sample_meta_ids=%s",
+            batch_id,
+            plan_count,
+            unknown_count,
+            upsert_error_count,
+            company_id,
+            len(employee_meta),
+            rejected_unknown[:5],
+            list(employee_meta.keys())[:5],
+        )
+        if plan_count and unknown_count == plan_count:
+            raise ScheduleAppError(
+                "validation",
+                (
+                    f"Aucun des {plan_count} salarié(s) du batch n'appartient à l'entreprise "
+                    f"active ({company_id}). Vérifiez que l'entreprise sélectionnée correspond "
+                    "bien à l'import."
+                ),
+                status_code=400,
+            )
         raise ScheduleAppError(
             "validation",
-            "Aucun salarié prêt à enregistrer dans ce batch.",
+            (
+                f"Aucun salarié prêt à enregistrer (plan={plan_count}, "
+                f"hors entreprise={unknown_count}, erreurs upsert={upsert_error_count})."
+            ),
             status_code=400,
         )
 
@@ -596,22 +743,58 @@ def run_commit_batch(
             request=request,
             user_id=user_id,
         )
+    except CommitCancelled as exc:
+        logger.info("Commit batch %s annulé par l'utilisateur: %s", batch_id, exc)
+        try:
+            batch = timesheet_import_repository.get_batch(batch_id) or {}
+            summary = batch.get("summary_json") or {}
+            previous_progress = summary.get("commit_progress") or {}
+            summary.pop("cancel_requested", None)
+            timesheet_import_repository.update_batch(
+                batch_id,
+                {
+                    "status": "cancelled",
+                    "completed_at": _now_iso(),
+                    "error_message": "Import annulé par l'utilisateur.",
+                    "summary_json": {
+                        **summary,
+                        "commit_progress": {
+                            **previous_progress,
+                            "phase": "cancelled",
+                            "phase_label": "Import annulé",
+                            "label": str(exc) or "Annulé",
+                        },
+                    },
+                },
+            )
+        except Exception:
+            logger.exception(
+                "Echec persistance statut 'cancelled' pour batch %s", batch_id
+            )
     except Exception as exc:
         logger.exception("Commit batch %s échoué", batch_id)
-        batch = timesheet_import_repository.get_batch(batch_id) or {}
-        summary = batch.get("summary_json") or {}
-        timesheet_import_repository.update_batch(
-            batch_id,
-            {
-                "status": "failed",
-                "error_message": _commit_failure_message(exc),
-                "completed_at": _now_iso(),
-                "summary_json": {
-                    **summary,
-                    "commit_progress": {"phase": "failed", "error": _commit_failure_message(exc)},
+        try:
+            batch = timesheet_import_repository.get_batch(batch_id) or {}
+            summary = batch.get("summary_json") or {}
+            timesheet_import_repository.update_batch(
+                batch_id,
+                {
+                    "status": "failed",
+                    "error_message": _commit_failure_message(exc),
+                    "completed_at": _now_iso(),
+                    "summary_json": {
+                        **summary,
+                        "commit_progress": {
+                            "phase": "failed",
+                            "error": _commit_failure_message(exc),
+                        },
+                    },
                 },
-            },
-        )
+            )
+        except Exception:
+            logger.exception(
+                "Echec persistance statut 'failed' pour batch %s", batch_id
+            )
 
 
 def commit_from_persist_request(

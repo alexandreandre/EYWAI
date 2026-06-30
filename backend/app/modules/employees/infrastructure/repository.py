@@ -164,7 +164,8 @@ class EmployeeRepository(IEmployeeRepository):
         """Liste allégée sans enrichissement (performances listes / planning)."""
         select_cols = (
             "id, first_name, last_name, job_title, contract_type, "
-            "hire_date, employment_status, current_exit_id, duree_hebdomadaire"
+            "hire_date, seniority_reference_date, employment_status, "
+            "current_exit_id, duree_hebdomadaire"
         )
         if payroll_ready_only:
             select_cols += (

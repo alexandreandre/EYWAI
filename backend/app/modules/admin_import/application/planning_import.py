@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
+from app.core.supabase_resilience import execute_with_retry, is_transient_supabase_error
 from app.modules.admin_import.infrastructure import repository as repo
 from app.modules.admin_import.application.planning_import_summary import (
     build_planning_import_summary,
@@ -140,6 +142,100 @@ def begin_planning_import_commit(
         "batch_id": batch_id,
         "status": "committing",
         "launch_background": started,
+    }
+
+
+def run_planning_import_parse_job(job_id: str, content: bytes) -> None:
+    """Analyse un calendrier en arrière-plan (suivi via /planning/parse/jobs/{id})."""
+    from app.modules.schedules.application.timesheet_import_service import (
+        _update_job,
+        get_import_job,
+    )
+
+    job = get_import_job(job_id)
+    if not job:
+        return
+    if job.get("status") == "cancelled":
+        return
+
+    request = job.get("request_json") or {}
+    company_id = str(job.get("company_id") or request.get("company_id") or "")
+    user_id = job.get("user_id")
+    filename = str(job.get("filename") or "import.xlsx")
+
+    try:
+        _update_job(
+            job_id,
+            {
+                "status": "extracting",
+                "progress_json": {
+                    "phase": "parsing",
+                    "label": "Analyse du fichier calendrier",
+                    "percent": 12,
+                },
+            },
+        )
+        result = execute_with_retry(
+            lambda: parse_planning_import(
+                content,
+                filename,
+                company_id,
+                int(request.get("year")),
+                int(request["month"]) if request.get("month") is not None else None,
+                period_mode=request.get("period_mode") or "month",
+                start_year=request.get("start_year"),
+                start_month=request.get("start_month"),
+                end_year=request.get("end_year"),
+                end_month=request.get("end_month"),
+                user_id=str(user_id) if user_id else None,
+            ),
+            retries=4,
+            base_delay_s=0.2,
+        )
+        _update_job(
+            job_id,
+            {
+                "status": "completed",
+                "proposal_json": result,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "progress_json": {
+                    "phase": "completed",
+                    "label": "Analyse terminée",
+                    "percent": 100,
+                    "batch_id": str(result.get("batch_id") or ""),
+                },
+            },
+        )
+    except Exception as exc:
+        if is_transient_supabase_error(exc):
+            message = (
+                "Connexion réseau instable avec Supabase pendant l'analyse du calendrier. "
+                "Réessayez dans quelques instants."
+            )
+        else:
+            message = str(exc) or "Erreur inattendue lors de l'analyse."
+        _update_job(
+            job_id,
+            {
+                "status": "failed",
+                "error_message": message,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+
+def cancel_planning_import_commit(
+    batch_id: str,
+    company_id: str,
+) -> Dict[str, Any]:
+    """Demande l'annulation du commit en cours. Effet réel pris en compte entre 2 mois."""
+    result = timesheet_import_repository.request_cancel_batch(
+        batch_id, company_id=company_id
+    )
+    return {
+        "batch_id": batch_id,
+        "status": str(result.get("status") or "unknown"),
+        "cancel_requested": bool(result.get("cancel_requested")),
     }
 
 

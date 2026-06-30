@@ -90,24 +90,25 @@ def build_proposal_from_attempt(
             roster=roster,
             source=f"relevé tabulaire ({attempt.extraction_method or 'fichier'})",
         )
-    if attempt.parser_key == "cegid_weekly" and attempt.parse_result:
+    if attempt.parser_key in (
+        "cegid_weekly",
+        "cegid_horizontal",
+        "banque_heures",
+        "kelio_weekly",
+    ) and attempt.parse_result:
         from app.modules.schedules.application.ai_fill import _build_proposal_from_cegid
 
+        labels = {
+            "cegid_weekly": "Cegid",
+            "cegid_horizontal": "Cegid tableau",
+            "banque_heures": "Banque heures",
+            "kelio_weekly": "Kelio",
+        }
+        label = labels.get(attempt.parser_key, "relevé")
         return _build_proposal_from_cegid(
             year=year,
             month=month,
-            source=f"relevé Cegid ({attempt.extraction_method or 'ocr'})",
-            parse_result=attempt.parse_result,
-            roster=roster,
-            default_nature="reel",
-        )
-    if attempt.parser_key == "kelio_weekly" and attempt.parse_result:
-        from app.modules.schedules.application.ai_fill import _build_proposal_from_cegid
-
-        return _build_proposal_from_cegid(
-            year=year,
-            month=month,
-            source=f"relevé Kelio ({attempt.extraction_method or 'ocr'})",
+            source=f"relevé {label} ({attempt.extraction_method or 'ocr'})",
             parse_result=attempt.parse_result,
             roster=roster,
             default_nature="reel",

@@ -18,6 +18,22 @@ from app.modules.dsn_import.domain.rubriques import (
     REMUNERATION_HEURES_TYPES,
 )
 
+# Bruts DSN stockés avant re-parse : certains salariés ont un montant résiduel (< 700 €)
+# au lieu de 0 quand l'extraction a échoué. On bascule en mode « fiable » si plusieurs cas.
+RELIABLE_GROSS_MIN = 700.0
+LOW_BRUT_PARTIAL_TRIGGER = 4
+
+
+def _month_totals_has_countable_gross(
+    month_totals: Dict[str, Any], *, require_reliable: bool
+) -> bool:
+    brut = float(month_totals.get("brut") or 0)
+    if brut <= 0:
+        return False
+    if require_reliable and brut < RELIABLE_GROSS_MIN:
+        return False
+    return True
+
 
 def _month_from_period(period: Optional[str]) -> Optional[int]:
     if not period or len(period) < 7:
@@ -70,7 +86,7 @@ def _is_brut_remuneration(type_code: str, montant: float) -> bool:
 
 
 def _brut_from_remunerations(rems: List) -> float:
-    """Retourne le brut du versement (type 001 prioritaire, sans cumuler 001+002+003+010)."""
+    """Retourne le brut du versement (max des types primaires, sans les cumuler)."""
     by_type: Dict[str, float] = {}
     fallback = 0.0
     for rem in rems:
@@ -79,12 +95,11 @@ def _brut_from_remunerations(rems: List) -> float:
             continue
         normalized = _normalize_rem_type(rem.type_code)
         if normalized in REMUNERATION_BRUT_PRIMARY:
-            by_type[normalized] = by_type.get(normalized, 0.0) + montant
+            by_type[normalized] = max(by_type.get(normalized, 0.0), montant)
         elif _is_brut_remuneration(rem.type_code, montant):
             fallback = max(fallback, montant)
-    for code in REMUNERATION_BRUT_PRIMARY:
-        if by_type.get(code, 0.0) > 0:
-            return round(by_type[code], 2)
+    if by_type:
+        return round(max(by_type.values()), 2)
     return round(fallback, 2)
 
 
@@ -220,6 +235,21 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
     employee_charges = _normalize_employee_charges(
         employee_charges, brut=brut, net_imposable=net_imposable
     )
+
+    if brut > 0 and net_imposable > brut:
+        pas_assiettes = [
+            float(ver.montant_soumis_pas or 0)
+            for contrat in ind.contrats
+            for ver in contrat.versements
+            if float(ver.montant_soumis_pas or 0) > 0
+        ]
+        if pas_assiettes:
+            net_imposable = round(min(net_imposable, max(pas_assiettes)), 2)
+        if net_imposable > brut:
+            if employee_charges > 0:
+                net_imposable = round(max(brut - employee_charges, 0.0), 2)
+            else:
+                net_imposable = round(brut * 0.78, 2)
 
     return {
         "brut": round(brut, 2),
@@ -471,6 +501,17 @@ def delete_cumuls_file(employee_folder_name: str, month: int) -> bool:
         return False
 
 
+def _infer_employer_charges(gross: float, employee_charges: float) -> float:
+    """Estime les charges patronales quand la DSN P26 ne les expose pas dans les cumuls."""
+    gross = round(float(gross or 0), 2)
+    if gross <= 0:
+        return 0.0
+    sal = round(float(employee_charges or 0), 2)
+    if sal > 0:
+        return round(max(sal * 1.35, gross * 0.57), 2)
+    return round(gross * 0.57, 2)
+
+
 def aggregate_cumuls_by_company_period(
     cumul_items: List[Dict[str, Any]],
     *,
@@ -483,6 +524,7 @@ def aggregate_cumuls_by_company_period(
     Retourne { company_id: { period: { gross_salary, net_imposable, pas, ... } } }.
     """
     out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    pending: List[Tuple[str, str, Dict[str, Any]]] = []
 
     for it in cumul_items:
         if it.get("item_type") != "cumul":
@@ -496,7 +538,6 @@ def aggregate_cumuls_by_company_period(
         if not company_id:
             continue
         month_totals = payload.get("month_totals") or {}
-        brut = float(month_totals.get("brut") or 0)
         bucket = out.setdefault(str(company_id), {}).setdefault(
             period,
             {
@@ -507,11 +548,24 @@ def aggregate_cumuls_by_company_period(
                 "employer_charges": 0.0,
                 "employee_count": 0,
                 "employees_with_gross": 0,
+                "_low_brut_count": 0,
             },
         )
         bucket["employee_count"] += 1
-        if brut > 0:
-            bucket["employees_with_gross"] += 1
+        brut = float(month_totals.get("brut") or 0)
+        if 0 < brut < RELIABLE_GROSS_MIN:
+            bucket["_low_brut_count"] += 1
+        pending.append((str(company_id), period, month_totals))
+
+    for company_id, period, month_totals in pending:
+        bucket = out[company_id][period]
+        require_reliable = int(bucket.get("_low_brut_count") or 0) >= LOW_BRUT_PARTIAL_TRIGGER
+        if not _month_totals_has_countable_gross(
+            month_totals, require_reliable=require_reliable
+        ):
+            continue
+        brut = float(month_totals.get("brut") or 0)
+        bucket["employees_with_gross"] += 1
         bucket["gross_salary"] = round(bucket["gross_salary"] + brut, 2)
         bucket["net_imposable"] = round(
             bucket["net_imposable"] + float(month_totals.get("net_imposable") or 0), 2
@@ -526,6 +580,7 @@ def aggregate_cumuls_by_company_period(
 
     for periods in out.values():
         for bucket in periods.values():
+            bucket.pop("_low_brut_count", None)
             gross = float(bucket.get("gross_salary") or 0)
             net = float(bucket.get("net_imposable") or 0)
             bucket["employee_charges"] = _normalize_employee_charges(
@@ -535,6 +590,24 @@ def aggregate_cumuls_by_company_period(
             )
             if float(bucket.get("employee_charges") or 0) <= 0 and gross > net:
                 bucket["employee_charges"] = round(gross - net, 2)
+            if gross > 0 and net > gross:
+                sal = float(bucket.get("employee_charges") or 0)
+                if sal <= 0:
+                    sal = round(gross * 0.22, 2)
+                    bucket["employee_charges"] = sal
+                bucket["net_imposable"] = round(max(gross - sal, 0.0), 2)
+                net = float(bucket["net_imposable"])
+            emp_count = int(bucket.get("employee_count") or 0)
+            with_gross = int(bucket.get("employees_with_gross") or 0)
+            is_partial = emp_count > 0 and with_gross < emp_count
+            if (
+                float(bucket.get("employer_charges") or 0) <= 0
+                and gross > 0
+                and not is_partial
+            ):
+                bucket["employer_charges"] = _infer_employer_charges(
+                    gross, float(bucket.get("employee_charges") or 0)
+                )
 
     return out
 

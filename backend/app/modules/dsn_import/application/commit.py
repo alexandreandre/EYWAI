@@ -11,8 +11,10 @@ from app.modules.dsn_import.application.cumuls import (
     rebuild_cumuls_with_previous_on_disk,
     write_cumuls_file,
 )
+from app.modules.dsn_import.application.mapping import normalize_employee_edits
 from app.modules.dsn_import.domain.user_messages import (
     absence_blocked_by_exit_skip_issue,
+    cumul_skipped_after_employee_error_issue,
     humanize_commit_error,
     is_absence_blocked_by_exit,
     issue_to_legacy_string,
@@ -258,6 +260,13 @@ def _item_label(item: Optional[Dict[str, Any]]) -> Optional[str]:
     return item.get("source_ref")
 
 
+def _employee_ref_from_payload(payload: Dict[str, Any], source_ref: str = "") -> str:
+    parts = source_ref.split(":")
+    siret = parts[1] if len(parts) > 1 else str(payload.get("siret") or "")
+    emp_key = payload.get("employee_key") or payload.get("nir")
+    return f"emp:{siret}:{emp_key}" if siret and emp_key else ""
+
+
 def commit_batch(
     batch_id: str,
     overrides: Optional[Dict[str, str]] = None,
@@ -308,6 +317,7 @@ def commit_batch(
     warnings: List[Dict[str, Any]] = []
     imported_employees: List[Dict[str, Any]] = []
     periods_committed: set = set()
+    failed_employee_refs: set[str] = set()
     dsn_import_stats = {
         "exits_created": 0,
         "absences_created": 0,
@@ -506,6 +516,18 @@ def commit_batch(
                         }
                     )
             elif item_type == "cumul":
+                employee_ref = _employee_ref_from_payload(payload, source_ref)
+                if employee_ref and employee_ref in failed_employee_refs:
+                    warnings.append(
+                        cumul_skipped_after_employee_error_issue(
+                            source_ref=source_ref,
+                            item_label=_item_label(item),
+                            nir=payload.get("nir"),
+                        )
+                    )
+                    repo.update_item(item_id, {"status": "skipped", "action": action})
+                    stats["skipped"] += 1
+                    continue
                 _commit_cumul(payload, company_by_siret, employee_by_ref)
                 period = payload.get("period")
                 if period:
@@ -538,6 +560,11 @@ def commit_batch(
             )
             errors.append(issue)
             error_messages.append(issue_to_legacy_string(issue))
+            if item_type == "employee":
+                failed_employee_refs.add(source_ref)
+                employee_ref = _employee_ref_from_payload(payload, source_ref)
+                if employee_ref:
+                    failed_employee_refs.add(employee_ref)
             repo.update_item(item_id, {"status": "failed"})
             stats["failed"] += 1
 

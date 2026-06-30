@@ -123,6 +123,33 @@ def aggregate_payslips_by_period(
     return out
 
 
+def align_net_with_gross(
+    gross: float,
+    net: float,
+    *,
+    employee_charges: float = 0.0,
+    employee_count: int = 0,
+    employees_with_gross: int = 0,
+) -> float:
+    """
+    Borne le net imposable au brut agrégé (garde-fou affichage).
+
+    L'extraction DSN corrigée doit déjà garantir net <= brut ; cette fonction
+    couvre les agrégats historiques persistés avant recalcul.
+    """
+    gross = round(float(gross or 0), 2)
+    net = round(float(net or 0), 2)
+    if gross <= 0:
+        return net
+    if net <= gross:
+        return net
+
+    charges = round(float(employee_charges or 0), 2)
+    if charges <= 0:
+        charges = round(gross * 0.22, 2)
+    return round(max(gross - charges, 0.0), 2)
+
+
 def dsn_row_to_totals(row: Optional[Dict[str, Any]]) -> DsnPeriodTotals:
     if not row:
         return DsnPeriodTotals()
@@ -184,16 +211,27 @@ def resolve_period_snapshot(
             and dsn_totals.employees_with_gross < dsn_totals.employee_count
         )
         employee_charges = dsn_totals.employee_charges
+        net = align_net_with_gross(
+            dsn_totals.gross,
+            dsn_totals.net_imposable,
+            employee_charges=employee_charges,
+            employee_count=dsn_totals.employee_count,
+            employees_with_gross=dsn_totals.employees_with_gross,
+        )
+        if employee_charges <= 0 and dsn_totals.gross > net:
+            employee_charges = round(dsn_totals.gross - net, 2)
         employer_charges = dsn_totals.employer_charges
         employer_cost = (
-            round(dsn_totals.gross + employer_charges, 2) if employer_charges > 0 else 0.0
+            round(dsn_totals.gross + employer_charges, 2)
+            if employer_charges > 0
+            else round(dsn_totals.gross, 2)
         )
         return PayrollPeriodSnapshot(
             period=period,
             source="dsn",
             source_label=f"Masse déclarée (DSN) · {period_label}",
             gross=dsn_totals.gross,
-            net=dsn_totals.net_imposable,
+            net=net,
             employer_cost=employer_cost,
             employee_charges=employee_charges,
             employer_charges=employer_charges,

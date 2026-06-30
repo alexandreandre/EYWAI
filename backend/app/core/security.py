@@ -25,7 +25,7 @@ try:
 except ImportError:  # compat anciennes installs
     from gotrue.errors import AuthApiError  # type: ignore[no-redef]
 
-from app.core.database import supabase
+from app.core.database import get_supabase_admin_client, supabase
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.core.supabase_resilience import (
     execute_with_retry,
@@ -107,9 +107,11 @@ def get_current_user(
         if not user:
             raise HTTPException(status_code=401, detail="Utilisateur non trouvé")
 
+        data_client = get_supabase_admin_client()
+
         # 2. Récupérer le profil de base
         profile_response = execute_with_retry(
-            lambda: supabase.table("profiles")
+            lambda: data_client.table("profiles")
             .select("first_name, last_name")
             .eq("id", user.id)
             .execute()
@@ -122,7 +124,7 @@ def get_current_user(
 
         # 3. Vérifier si super admin
         super_admin_response = execute_with_retry(
-            lambda: supabase.table("super_admins")
+            lambda: data_client.table("super_admins")
             .select("*")
             .eq("user_id", user.id)
             .eq("is_active", True)
@@ -134,7 +136,7 @@ def get_current_user(
 
         # 4. Charger les accès multi-entreprises
         accesses_response = execute_with_retry(
-            lambda: supabase.table("user_company_accesses")
+            lambda: data_client.table("user_company_accesses")
             .select(
                 "company_id, role, is_primary, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
             )

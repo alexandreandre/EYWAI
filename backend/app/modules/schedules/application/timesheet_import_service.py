@@ -29,6 +29,21 @@ def _db():
     return get_supabase_admin_client()
 
 
+def _detect_upload_mime(file_content: bytes, filename: str) -> str:
+    name = filename.lower()
+    if file_content[:4] == b"%PDF" or name.endswith(".pdf"):
+        return "application/pdf"
+    if name.endswith(".png"):
+        return "image/png"
+    if name.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if name.endswith(".webp"):
+        return "image/webp"
+    if name.endswith(".heic"):
+        return "image/heic"
+    return "application/pdf"
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -68,9 +83,11 @@ def create_import_job(
     filename: str,
     file_content: bytes,
     request_json: dict[str, Any],
+    cancel_active: bool = True,
 ) -> dict[str, Any]:
     file_hash = hashlib.sha256(file_content).hexdigest()
-    cancel_active_import_jobs(company_id)
+    if cancel_active:
+        cancel_active_import_jobs(company_id)
 
     insert_payload = {
         "company_id": company_id,
@@ -93,7 +110,7 @@ def create_import_job(
     try:
         storage_path = upload_schedule_import_file(
             file_content,
-            "application/pdf" if filename.lower().endswith(".pdf") else "application/octet-stream",
+            _detect_upload_mime(file_content, filename),
             filename,
             company_id,
             job_id,

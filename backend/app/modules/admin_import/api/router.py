@@ -15,7 +15,9 @@ from app.modules.admin_import.application.ccn_preset_apply import apply_ccn_setu
 from app.modules.admin_import.application.company_setup_status import get_company_setup_status
 from app.modules.admin_import.application.planning_import import (
     begin_planning_import_commit,
+    cancel_planning_import_commit,
     parse_planning_import,
+    run_planning_import_parse_job,
     run_planning_import_commit,
 )
 from app.modules.schedules.application.exceptions import ScheduleAppError
@@ -39,7 +41,9 @@ from app.modules.admin_import.schemas.responses import (
     PlanningImportApplyMappingsResponse,
     PlanningImportBatchStatusResponse,
     PlanningImportCommitResponse,
+    PlanningImportParseJobResponse,
     PlanningImportParseResponse,
+    PlanningImportParseStartResponse,
     RibImportCommitResponse,
     RibImportParseResponse,
     SeniorityImportCommitResponse,
@@ -138,6 +142,93 @@ async def parse_planning_import_route(
     )
 
 
+@router.post("/planning/parse/start", response_model=PlanningImportParseStartResponse)
+async def start_planning_import_parse_route(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    company_id: str = Query(...),
+    year: int = Query(...),
+    period_mode: str = Query("month", pattern="^(auto|month|year|range)$"),
+    month: int | None = Query(None, ge=1, le=12),
+    start_year: int | None = Query(None),
+    start_month: int | None = Query(None, ge=1, le=12),
+    end_year: int | None = Query(None),
+    end_month: int | None = Query(None, ge=1, le=12),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> PlanningImportParseStartResponse:
+    from app.modules.schedules.application.timesheet_import.job_runner import (
+        BackgroundTasksRunner,
+    )
+    from app.modules.schedules.application.timesheet_import_service import create_import_job
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Fichier vide.")
+    if period_mode == "month" and month is None:
+        raise HTTPException(status_code=400, detail="Le mois est requis pour un import mensuel.")
+    if period_mode == "range" and (
+        start_year is None or start_month is None or end_year is None or end_month is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Précisez le début et la fin de la plage (année et mois).",
+        )
+
+    request_json = {
+        "company_id": company_id,
+        "year": year,
+        "month": month,
+        "period_mode": period_mode,
+        "start_year": start_year,
+        "start_month": start_month,
+        "end_year": end_year,
+        "end_month": end_month,
+    }
+    try:
+        job = create_import_job(
+            company_id=company_id,
+            user_id=super_admin_auth_user_id(_super_admin),
+            filename=file.filename or "import.xlsx",
+            file_content=content,
+            request_json=request_json,
+            cancel_active=False,
+        )
+        job_id = str(job["id"])
+        runner = BackgroundTasksRunner(background_tasks)
+        runner.enqueue(run_planning_import_parse_job, job_id, content)
+    except ScheduleAppError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return PlanningImportParseStartResponse(job_id=job_id, status="extracting")
+
+
+@router.get("/planning/parse/jobs/{job_id}", response_model=PlanningImportParseJobResponse)
+def get_planning_import_parse_job_route(
+    job_id: str,
+    company_id: str = Query(...),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> PlanningImportParseJobResponse:
+    from app.modules.schedules.application.timesheet_import_service import get_import_job
+
+    job = get_import_job(job_id, company_id=company_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job introuvable.")
+
+    result = None
+    if job.get("status") == "completed" and job.get("proposal_json"):
+        result = PlanningImportParseResponse(**job["proposal_json"])
+
+    return PlanningImportParseJobResponse(
+        job_id=job_id,
+        status=str(job.get("status") or "queued"),
+        progress=job.get("progress_json") or {},
+        result=result,
+        error_message=job.get("error_message"),
+    )
+
+
 @router.post("/planning/commit", response_model=PlanningImportCommitResponse)
 async def commit_planning_import_route(
     background_tasks: BackgroundTasks,
@@ -168,6 +259,19 @@ async def commit_planning_import_route(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return PlanningImportCommitResponse(**result)
+
+
+@router.post("/planning/batches/{batch_id}/cancel", response_model=PlanningImportCommitResponse)
+def cancel_planning_import_route(
+    batch_id: str,
+    company_id: str = Query(...),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> PlanningImportCommitResponse:
+    result = cancel_planning_import_commit(batch_id, company_id)
+    return PlanningImportCommitResponse(
+        batch_id=str(result.get("batch_id") or batch_id),
+        status=str(result.get("status") or "cancelling"),
+    )
 
 
 @router.get("/planning/batches/{batch_id}", response_model=PlanningImportBatchStatusResponse)

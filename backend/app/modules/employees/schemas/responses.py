@@ -77,6 +77,7 @@ class EmployeeSummary(BaseModel):
     job_title: str | None = None
     contract_type: str | None = None
     hire_date: date | None = None
+    seniority_reference_date: date | None = None
     employment_status: str | None = None
     current_exit_id: str | None = None
     duree_hebdomadaire: float | None = None

@@ -264,6 +264,19 @@ class PlanningImportParseResponse(BaseModel):
     file_hash: Optional[str] = None
 
 
+class PlanningImportParseStartResponse(BaseModel):
+    job_id: str
+    status: str = "extracting"
+
+
+class PlanningImportParseJobResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: Dict[str, Any] = Field(default_factory=dict)
+    result: Optional[PlanningImportParseResponse] = None
+    error_message: Optional[str] = None
+
+
 class PlanningImportApplyMappingsResponse(BaseModel):
     batch_id: str
     summary: Dict[str, Any]

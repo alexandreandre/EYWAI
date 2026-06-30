@@ -16,6 +16,7 @@ from app.modules.payroll.domain.payroll_kpi_resolver import (
     PayrollPeriodSnapshot,
     PayslipPeriodTotals,
     aggregate_payslips_by_period,
+    align_net_with_gross,
     build_period_series,
     dsn_row_to_totals,
     primary_source,
@@ -205,6 +206,7 @@ class ConsolidatedPayrollContext:
         default_factory=dict
     )
     active_employee_counts: Dict[str, int] = field(default_factory=dict)
+    active_non_rh_employee_counts: Dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def build(cls, company_ids: List[str]) -> ConsolidatedPayrollContext:
@@ -247,9 +249,11 @@ class ConsolidatedPayrollContext:
                 dsn_by_company_period[cid][period] = dsn_row_to_totals(row)
 
         active_employee_counts: Dict[str, int] = {cid: 0 for cid in company_ids}
+        active_non_rh_employee_counts: Dict[str, int] = {cid: 0 for cid in company_ids}
+        active_employee_user_refs: list[tuple[str, str | None]] = []
         employees_resp = (
             client.table("employees")
-            .select("company_id, employment_status")
+            .select("company_id, employment_status, user_id")
             .in_("company_id", company_ids)
             .execute()
         )
@@ -259,12 +263,36 @@ class ConsolidatedPayrollContext:
             status = str(row.get("employment_status") or "actif").strip().lower()
             if cid in active_employee_counts and status not in inactive_statuses:
                 active_employee_counts[cid] += 1
+                user_id = row.get("user_id")
+                active_employee_user_refs.append((cid, str(user_id) if user_id else None))
+
+        rh_accesses: set[tuple[str, str]] = set()
+        user_ids = sorted({uid for _, uid in active_employee_user_refs if uid})
+        if user_ids:
+            access_resp = (
+                client.table("user_company_accesses")
+                .select("user_id, company_id, role")
+                .in_("user_id", user_ids)
+                .in_("company_id", company_ids)
+                .execute()
+            )
+            rh_roles = {"admin", "rh", "collaborateur_rh"}
+            for row in access_resp.data or []:
+                role = str(row.get("role") or "").strip().lower()
+                if role in rh_roles:
+                    rh_accesses.add(
+                        (str(row.get("company_id") or ""), str(row.get("user_id") or ""))
+                    )
+        for cid, user_id in active_employee_user_refs:
+            if not user_id or (cid, user_id) not in rh_accesses:
+                active_non_rh_employee_counts[cid] += 1
 
         return cls(
             modes=modes,
             payslips_by_company=payslips_by_company,
             dsn_by_company_period=dsn_by_company_period,
             active_employee_counts=active_employee_counts,
+            active_non_rh_employee_counts=active_non_rh_employee_counts,
         )
 
     def resolve_snapshot(
@@ -312,6 +340,11 @@ class ConsolidatedPayrollContext:
             int(dsn_count or 0),
         )
 
+    def active_non_rh_employee_count(self, company_id: str) -> int:
+        if self.active_non_rh_employee_counts:
+            return int(self.active_non_rh_employee_counts.get(company_id, 0) or 0)
+        return int(self.active_employee_counts.get(company_id, 0) or 0)
+
 
 def _recalculate_enriched_totals(
     by_company: List[Dict[str, Any]],
@@ -335,6 +368,10 @@ def _recalculate_enriched_totals(
     )
     next_totals["total_employees_excluding_rh"] = sum(
         int(c.get("employee_count") or 0) for c in by_company
+    )
+    next_totals["total_active_employees_excluding_rh"] = sum(
+        int(c.get("active_employee_count") or c.get("employee_count") or 0)
+        for c in by_company
     )
     next_totals["total_rh"] = sum(int(c.get("rh_count") or 0) for c in by_company)
     next_totals["total_payslip_count"] = sum(
@@ -380,6 +417,13 @@ def enrich_consolidated_with_dsn(
             if isinstance(payroll_ctx, ConsolidatedPayrollContext)
             else 0
         )
+        active_non_rh_employee_count = (
+            payroll_ctx.active_non_rh_employee_count(cid)
+            if isinstance(payroll_ctx, ConsolidatedPayrollContext)
+            else 0
+        )
+        if isinstance(payroll_ctx, ConsolidatedPayrollContext):
+            row["active_employee_count"] = active_non_rh_employee_count
         if active_employee_count > int(row.get("employee_count") or 0):
             row["employee_count"] = active_employee_count
             row["total_employee_count"] = active_employee_count + int(
@@ -388,12 +432,28 @@ def enrich_consolidated_with_dsn(
         if float(row.get("gross_salary") or 0) > 0:
             row["payroll_source"] = "payslip"
             sources_seen.add("payslip")
-            if float(row.get("employer_charges") or 0) <= 0:
-                snap = payroll_ctx.resolve_snapshot(
-                    cid, period, allow_any_dsn_mode=True
+            gross = float(row.get("gross_salary") or 0)
+            net = float(row.get("net_salary") or 0)
+            needs_snap = net > gross or float(row.get("employer_charges") or 0) <= 0
+            snap = (
+                payroll_ctx.resolve_snapshot(cid, period, allow_any_dsn_mode=True)
+                if needs_snap
+                else None
+            )
+            if net > gross:
+                dsn_totals = payroll_ctx.dsn_by_company_period.get(cid, {}).get(
+                    snap.period if snap else period,
+                    DsnPeriodTotals(),
                 )
-                if snap.source == "payslip" and snap.employer_charges > 0:
-                    row["employer_charges"] = snap.employer_charges
+                row["net_salary"] = align_net_with_gross(
+                    gross,
+                    snap.net if snap and snap.net > 0 else net,
+                    employee_charges=snap.employee_charges if snap else 0.0,
+                    employee_count=dsn_totals.employee_count,
+                    employees_with_gross=dsn_totals.employees_with_gross,
+                )
+            if float(row.get("employer_charges") or 0) <= 0 and snap and snap.employer_charges > 0:
+                row["employer_charges"] = snap.employer_charges
             continue
         snap = payroll_ctx.resolve_snapshot(cid, period, allow_any_dsn_mode=True)
         if snap.source == "dsn" and snap.gross > 0:
@@ -469,7 +529,7 @@ def enrich_payroll_evolution_with_dsn(
         period = f"{int(year)}-{int(month):02d}"
         if float(row.get("total_gross") or 0) > 0:
             if float(row.get("total_employer_charges") or 0) <= 0:
-                snap = payroll_ctx.resolve_snapshot(cid, period)
+                snap = payroll_ctx.resolve_snapshot(cid, period, allow_any_dsn_mode=True)
                 if snap.employer_charges > 0:
                     row["total_employer_charges"] = snap.employer_charges
             enriched.append(row)

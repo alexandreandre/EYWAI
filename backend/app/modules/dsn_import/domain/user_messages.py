@@ -214,6 +214,24 @@ def psc_warning_anomaly(*, source_ref: str, message: str, employee_label: str) -
     )
 
 
+def cumul_skipped_after_employee_error_issue(
+    *,
+    source_ref: str = "",
+    item_label: Optional[str] = None,
+    nir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Avertissement non bloquant : cumul ignoré car la fiche salarié a échoué avant."""
+    return build_issue(
+        "cumul_skipped_employee_failed",
+        f"Cumuls ignorés : la fiche salarié liée au NIR {_mask_nir(nir)} n'a pas été enregistrée.",
+        hint="Corrigez d'abord l'erreur de création du salarié, puis relancez l'import.",
+        severity="warning",
+        source_ref=source_ref or None,
+        item_label=item_label,
+        meta={"nir": nir},
+    )
+
+
 def _parse_runtime_message(msg: str) -> Optional[Dict[str, Any]]:
     m = re.match(
         r"NIR (.+) déjà enregistré chez (.+) — ignorez ce salarié",
@@ -306,6 +324,25 @@ def _parse_runtime_message(msg: str) -> Optional[Dict[str, Any]]:
 def _parse_raw_error_message(raw: str) -> Optional[Dict[str, Any]]:
     """Détecte des motifs d'erreur courants dans le texte brut (PostgREST, réseau, etc.)."""
     lower = raw.lower()
+    if "check constraint" in lower and "employees_" in lower:
+        constraint_match = re.search(r'check constraint "?([^"\'} ]+)"?', raw, re.IGNORECASE)
+        constraint = constraint_match.group(1) if constraint_match else None
+        if constraint == "employees_salary_payment_method_check":
+            message = "La fiche salarié contient un mode de paiement salaire non autorisé."
+            hint = "Utilisez l'une des valeurs acceptées : virement, cheque ou especes."
+        elif constraint == "employees_employment_status_check":
+            message = "La fiche salarié contient un statut RH non autorisé."
+            hint = "Utilisez un statut accepté par la base : actif, en_sortie, en_onboarding, parti ou inactif."
+        else:
+            message = "La fiche salarié contient une valeur refusée par une contrainte de base."
+            hint = "Consultez le détail technique pour identifier le champ à corriger dans la preview."
+        return build_issue(
+            "employee_validation",
+            message,
+            hint=hint,
+            severity="error",
+            meta={"constraint": constraint, "technical": raw},
+        )
     if "employee_exits_exit_type_check" in raw or (
         "23514" in raw and "fin_periode_essai" in raw
     ):
@@ -335,6 +372,17 @@ def _parse_raw_error_message(raw: str) -> Optional[Dict[str, Any]]:
             "network_error",
             "Connexion interrompue avec le serveur pendant l'import.",
             hint="Réessayez dans quelques instants.",
+            severity="error",
+            meta={"technical": raw},
+        )
+    if "n'appartient pas à la même entreprise que l'employé" in lower:
+        return build_issue(
+            "employee_user_company_mismatch",
+            "Le compte utilisateur n'est pas encore rattaché à l'entreprise du salarié.",
+            hint=(
+                "Réessayez l'import : le profil et l'accès entreprise doivent être créés "
+                "avant la fiche salarié."
+            ),
             severity="error",
             meta={"technical": raw},
         )

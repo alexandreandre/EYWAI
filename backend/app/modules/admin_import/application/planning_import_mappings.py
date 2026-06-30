@@ -103,6 +103,7 @@ def apply_planning_manual_mappings(
     employees = repo.list_company_employees(company_id)
     emp_by_id = {str(row["id"]): row for row in employees}
     mapping_by_norm: Dict[str, str] = {}
+    target_employee_ids: set[str] = set()
     for item in mappings:
         raw_name = str(item.get("raw_name") or "").strip()
         employee_id = str(item.get("employee_id") or "").strip()
@@ -114,6 +115,13 @@ def apply_planning_manual_mappings(
                 f"Salarié introuvable dans l'entreprise ({employee_id}).",
                 status_code=422,
             )
+        if employee_id in target_employee_ids:
+            raise ScheduleAppError(
+                "validation",
+                "Ce salarié est déjà sélectionné pour une autre feuille Excel.",
+                status_code=422,
+            )
+        target_employee_ids.add(employee_id)
         mapping_by_norm[_normalize_sheet_name(raw_name)] = employee_id
 
     if not mapping_by_norm:
@@ -122,10 +130,10 @@ def apply_planning_manual_mappings(
     current_assigned = _assigned_by_sheet(month_groups)
     for raw_norm, employee_id in mapping_by_norm.items():
         for other_norm, other_id in current_assigned.items():
-            if other_id == employee_id and other_norm != raw_norm:
+            if other_id == employee_id:
                 raise ScheduleAppError(
                     "validation",
-                    "Ce salarié est déjà associé à une autre feuille Excel.",
+                    "Ce salarié est déjà associé à une feuille Excel.",
                     status_code=422,
                 )
 
