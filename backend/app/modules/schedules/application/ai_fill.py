@@ -290,6 +290,8 @@ def _build_proposal_from_cegid(
                     heures=d.heures,
                     type="travail",
                     nature=default_nature,
+                    year=d.year if (d.year, d.month) != (year, month) else None,
+                    month=d.month if (d.year, d.month) != (year, month) else None,
                 )
             )
         proposal.days = days
@@ -333,7 +335,14 @@ def _build_single_employee_from_cegid(
     block = parse_result.employees[0]
     full_name = f"{target.first_name} {target.last_name}"
     days: List[AiDayEntry] = [
-        AiDayEntry(jour=d.jour, heures=d.heures, type="travail", nature=default_nature)
+        AiDayEntry(
+            jour=d.jour,
+            heures=d.heures,
+            type="travail",
+            nature=default_nature,
+            year=d.year if (d.year, d.month) != (year, month) else None,
+            month=d.month if (d.year, d.month) != (year, month) else None,
+        )
         for d in block.days
     ]
     proposal = AiEmployeeProposal(
@@ -922,6 +931,7 @@ def _extract_timesheet_hybrid_path(
     from app.modules.schedules.application.timesheet_period import (
         align_period_warnings,
         detect_timesheet_period,
+        format_week_anchor_context,
         resolve_effective_target_month,
     )
     from app.shared.infrastructure.documents import (
@@ -957,6 +967,11 @@ def _extract_timesheet_hybrid_path(
     known_mats = [
         e.time_tracking_id for e in roster if (e.time_tracking_id or "").strip()
     ]
+    week_anchor_context = ""
+    if week_anchor_date is not None:
+        week_anchor_context = format_week_anchor_context(
+            week_anchor_date, year, month
+        )
     try:
         hybrid = extract_timesheet_hybrid(
             file_content=file_content,
@@ -965,6 +980,8 @@ def _extract_timesheet_hybrid_path(
             month=month,
             known_matricules=known_mats,
             on_progress=on_progress,
+            week_anchor_context=week_anchor_context,
+            week_anchor_date=week_anchor_date,
         )
     except DocumentExtractionError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e
@@ -983,6 +1000,15 @@ def _extract_timesheet_hybrid_path(
         if parse_result.confidence >= _CEGID_CONFIDENCE_THRESHOLD:
             period_detection.confidence = "high"
         align_period_warnings(period_detection, year, month)
+
+    if (
+        week_anchor_date is not None
+        and period_detection.start_date is None
+        and period_detection.end_date is None
+    ):
+        period_detection.scope = "weekly"
+        period_detection.start_date = week_anchor_date
+        period_detection.end_date = week_anchor_date + timedelta(days=6)
 
     default_nature = "reel"
     detected_format = "hybrid_vision_ocr"

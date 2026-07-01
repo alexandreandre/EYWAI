@@ -471,7 +471,7 @@ def format_week_anchor_context(anchor: date, target_year: int, target_month: int
     ]
     lines = [
         f"Ancrage hebdomadaire : la semaine commence le {_fmt_fr(anchor)}.",
-        "Correspondance colonnes → numéro de jour du mois cible :",
+        "Correspondance colonnes → numéro de jour du mois :",
     ]
     for offset in range(7):
         d = anchor + timedelta(days=offset)
@@ -480,13 +480,39 @@ def format_week_anchor_context(anchor: date, target_year: int, target_month: int
             lines.append(f"  - {wd} → jour {d.day}")
         else:
             lines.append(
-                f"  - {wd} ({d.day}/{d.month}) → hors mois cible, ignorer"
+                f"  - {wd} → jour {d.day} (appartient au mois {d.month}/{d.year}, "
+                "hors du mois cible affiché ci-dessus — extraire quand même, "
+                "ne pas ignorer)"
             )
     lines.append(
         "Si le relevé n'affiche que Lun/Mar/Mer… sans dates, utiliser cette "
-        "correspondance pour déterminer `jour`."
+        "correspondance pour déterminer `jour`. Ne jamais supposer que la "
+        "semaine commence le 1er du mois : toujours se fier à l'ancrage "
+        "ci-dessus, y compris pour les jours situés dans le mois précédent "
+        "ou suivant."
     )
     return "\n".join(lines)
+
+
+def resolve_anchor_day_date(
+    jour: int, anchor: date | None, target_year: int, target_month: int
+) -> tuple[int, int]:
+    """Résout le (year, month) réel d'un `jour` extrait, à partir de l'ancrage
+    hebdomadaire fourni par l'utilisateur.
+
+    Le LLM ne renvoie qu'un numéro de jour du mois (`jour`), jamais le mois lui
+    même. Pour une semaine à cheval sur deux mois, ce numéro est ambigu (ex.
+    jour=1 peut être le 1er du mois cible ou le 1er du mois suivant). On lève
+    l'ambiguïté en comparant `jour` aux 7 dates réelles de la semaine ancrée.
+    Sans ancrage, ou si `jour` ne correspond à aucun jour de la semaine
+    ancrée, on retombe sur le mois cible (comportement historique).
+    """
+    if anchor is not None:
+        for offset in range(7):
+            d = anchor + timedelta(days=offset)
+            if d.day == jour:
+                return d.year, d.month
+    return target_year, target_month
 
 
 def suggested_target_month(
@@ -636,6 +662,7 @@ __all__ = [
     "detect_timesheet_period_from_dates",
     "format_period_context",
     "format_week_anchor_context",
+    "resolve_anchor_day_date",
     "resolve_effective_target_month",
     "suggested_target_month",
 ]

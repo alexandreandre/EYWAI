@@ -106,6 +106,8 @@ def _employees_from_batch(
                         heures=d.heures,
                         type=d.type,
                         nature=d.nature,
+                        year=d.year,
+                        month=d.month,
                     )
                     for d in emp.days
                 ],
@@ -797,6 +799,51 @@ def run_commit_batch(
             )
 
 
+def _month_groups_from_persist_payload(
+    payload: PersistTimesheetRequest,
+) -> List[Dict[str, Any]] | None:
+    """Regroupe les jours du payload par (year, month) réel quand certains
+    jours portent un mois différent de celui de la requête (semaine
+    hebdomadaire à cheval sur deux mois, ancrée via `week_anchor_date` à
+    l'extraction). Retourne None si tous les jours sont dans le mois de la
+    requête, pour laisser le chemin mono-mois existant inchangé.
+    """
+    has_override = any(
+        (d.year is not None and d.year != payload.year)
+        or (d.month is not None and d.month != payload.month)
+        for e in payload.employees
+        for d in e.days
+    )
+    if not has_override:
+        return None
+
+    groups: Dict[tuple[int, int], Dict[str, Any]] = {}
+    for emp in payload.employees:
+        by_month: Dict[tuple[int, int], List[Dict[str, Any]]] = {}
+        for d in emp.days:
+            key = (d.year or payload.year, d.month or payload.month)
+            by_month.setdefault(key, []).append(
+                {
+                    "jour": d.jour,
+                    "heures": d.heures,
+                    "type": d.type,
+                    "nature": d.nature,
+                }
+            )
+        for key, days in by_month.items():
+            group = groups.setdefault(
+                key, {"year": key[0], "month": key[1], "employees": []}
+            )
+            group["employees"].append(
+                {
+                    "employee_id": emp.employee_id,
+                    "raw_name": emp.employee_id,
+                    "days": days,
+                }
+            )
+    return [groups[k] for k in sorted(groups)]
+
+
 def commit_from_persist_request(
     payload: PersistTimesheetRequest,
     *,
@@ -839,12 +886,23 @@ def commit_from_persist_request(
         source="persist-direct",
         employees=employees,
     )
+    month_groups = _month_groups_from_persist_payload(payload)
+    extra_summary = (
+        {
+            "multi_month": True,
+            "month_groups": month_groups,
+            "months_count": len(month_groups),
+        }
+        if month_groups
+        else None
+    )
     batch = create_batch_from_proposal(
         company_id=company_id,
         user_id=user_id,
         proposal=proposal,
         source_type="nl_text",
         parser_key="manual",
+        extra_summary=extra_summary,
     )
     return commit_batch_bulk(
         str(batch["id"]),

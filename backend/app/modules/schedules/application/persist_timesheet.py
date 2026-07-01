@@ -96,12 +96,19 @@ def persist_timesheet_batch(
 
 
 def validate_persist_payload(payload: PersistTimesheetRequest) -> None:
-    days_in_month = cal_mod.monthrange(payload.year, payload.month)[1]
+    default_days_in_month = cal_mod.monthrange(payload.year, payload.month)[1]
     for emp in payload.employees:
         for day in emp.days:
+            eff_year = day.year or payload.year
+            eff_month = day.month or payload.month
+            days_in_month = (
+                default_days_in_month
+                if (eff_year, eff_month) == (payload.year, payload.month)
+                else cal_mod.monthrange(eff_year, eff_month)[1]
+            )
             if day.jour < 1 or day.jour > days_in_month:
                 raise ValueError(
-                    f"Jour {day.jour} hors limites pour {payload.month}/{payload.year}."
+                    f"Jour {day.jour} hors limites pour {eff_month}/{eff_year}."
                 )
 
 

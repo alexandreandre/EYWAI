@@ -50,18 +50,25 @@ PAGE_EXTRACTION_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
-def build_page_system_prompt(*, year: int, month: int, channel: str) -> str:
+def build_page_system_prompt(
+    *, year: int, month: int, channel: str, week_anchor_context: str = ""
+) -> str:
     channel_label = "IMAGE" if channel == "vision" else "TEXTE OCR"
+    anchor_block = f"\n{week_anchor_context}\n" if week_anchor_context else ""
     return (
         "Assistant RH : extrais les pointages d'UN SEUL relevé de pointeuse "
         f"(canal {channel_label}) pour la page fournie.\n"
-        f"Période cible : mois {month}/{year}.\n\n"
+        f"Période cible : mois {month}/{year}.\n"
+        f"{anchor_block}\n"
         "Règles :\n"
         "- Extraire UNIQUEMENT les salariés visibles sur CETTE page.\n"
         "- raw_name : nom tel qu'affiché (souvent NOM Prénom).\n"
         "- matricule : numéro GTA si présent, sinon null.\n"
         "- days : jours du mois cible avec heures (null si absent), type travail|conge|ferie|absence.\n"
-        "- Utiliser les dates JJ/MM visibles pour déterminer `jour` du mois.\n"
+        "- Utiliser les dates JJ/MM visibles pour déterminer `jour` du mois. "
+        "Si aucune date JJ/MM n'est visible et qu'un ancrage hebdomadaire est fourni "
+        "ci-dessus, utiliser cet ancrage (jamais une hypothèse par défaut comme "
+        "« la semaine commence le 1er du mois »).\n"
         "- weekly_total_pdf : total hebdo si affiché, sinon null.\n"
         "- page_period_hint : ex. « SEMAINE 22 » si visible.\n"
         "- confidence : 0 à 1 selon la lisibilité.\n"

@@ -57,6 +57,11 @@ class AiDayEntry(BaseModel):
     punch_exit_raw: Optional[str] = None
     shift_code: Optional[str] = None
     planned_paid_break_minutes: Optional[int] = None
+    # Mois/année réels du jour si différents du (year, month) de la proposition
+    # (semaine hebdomadaire à cheval sur deux mois). None = utiliser le mois de
+    # la proposition, pour compatibilité avec les imports non ancrés.
+    year: Optional[int] = None
+    month: Optional[int] = None
 
 
 class TimesheetQualityCheck(BaseModel):

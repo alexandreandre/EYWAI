@@ -100,7 +100,9 @@ def apply_punch_accounting_to_proposal(
             )
 
             if result.needs_review and emp.employee_id:
-                work_date = date(proposal.year, proposal.month, day.jour)
+                work_date = date(
+                    day.year or proposal.year, day.month or proposal.month, day.jour
+                )
                 entry_min = parse_hhmm_value(entry_raw)
                 exit_min = parse_hhmm_value(exit_raw)
                 repo.upsert_overtime_review(

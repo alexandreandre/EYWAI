@@ -43,7 +43,11 @@ def proposal_to_items(
                     "match_method": emp.match_method,
                     "match_confidence": emp.match_confidence,
                     "anomalies": emp.warnings,
-                    "raw_payload": {},
+                    "raw_payload": (
+                        {"year": day.year, "month": day.month}
+                        if day.year or day.month
+                        else {}
+                    ),
                 }
             )
             row_index += 1

@@ -32,13 +32,20 @@ def enrich_employee_days(
     max_hours_per_day: float = MAX_HOURS_PER_DAY,
 ) -> AiEmployeeProposal:
     """Applique les règles RH sur les jours d'un employé."""
-    holiday_days = day_numbers_observed_holidays(year, month, company_id)
+    holiday_cache: dict[tuple[int, int], set[int]] = {}
     enriched: List[AiDayEntry] = []
 
     for day in proposal.days:
         jour = day.jour
         heures = day.heures
         day_type = day.type
+        day_year = day.year or year
+        day_month = day.month or month
+
+        holiday_days = holiday_cache.setdefault(
+            (day_year, day_month),
+            day_numbers_observed_holidays(day_year, day_month, company_id),
+        )
 
         if jour in holiday_days:
             if heures is not None and heures > 0:
@@ -49,7 +56,7 @@ def enrich_employee_days(
             else:
                 day_type = "ferie"
                 heures = None
-        elif _is_weekend(year, month, jour):
+        elif _is_weekend(day_year, day_month, jour):
             if heures is None or heures <= 0:
                 if day_type in ("absence", "travail"):
                     day_type = "weekend"
@@ -67,6 +74,8 @@ def enrich_employee_days(
                 heures=heures,
                 type=day_type,
                 nature=day.nature,
+                year=day.year,
+                month=day.month,
             )
         )
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Callable
 
 from app.modules.schedules.application.parsers.cegid_weekly import (
@@ -87,6 +88,7 @@ def _extract_single_page_hybrid(
     pages_total: int,
     matricule_hint: str,
     format_hint: str | None = None,
+    week_anchor_context: str = "",
 ) -> PageExtractionResult:
     tokens = 0
     vision_data: dict[str, Any] | None = None
@@ -105,7 +107,10 @@ def _extract_single_page_hybrid(
         if not skip_vision:
             vision_result = extract_structured_json_from_image(
                 system_prompt=build_page_system_prompt(
-                    year=year, month=month, channel="vision"
+                    year=year,
+                    month=month,
+                    channel="vision",
+                    week_anchor_context=week_anchor_context,
                 ),
                 user_prompt=build_page_user_prompt_vision(
                     page_index=page.page_index,
@@ -126,7 +131,10 @@ def _extract_single_page_hybrid(
         if ocr_text and not skip_text_llm:
             text_result = extract_structured_json(
                 system_prompt=build_page_system_prompt(
-                    year=year, month=month, channel="text"
+                    year=year,
+                    month=month,
+                    channel="text",
+                    week_anchor_context=week_anchor_context,
                 ),
                 user_prompt=build_page_user_prompt_text(
                     ocr_text=page.ocr_text,
@@ -160,7 +168,12 @@ def _merged_to_cegid_result(
     target_year: int,
     target_month: int,
     cegid_fallback: CegidParseResult | None = None,
+    week_anchor_date: date | None = None,
 ) -> CegidParseResult:
+    from app.modules.schedules.application.timesheet_period import (
+        resolve_anchor_day_date,
+    )
+
     employees: list[CegidEmployeeBlock] = []
     for emp in merged.employees:
         days_in_month = [d for d in emp.days if d.get("jour") is not None]
@@ -188,11 +201,14 @@ def _merged_to_cegid_result(
                 heures_val = 0.0 if heures is None else float(heures)
             except (TypeError, ValueError):
                 heures_val = 0.0
+            day_year, day_month = resolve_anchor_day_date(
+                jour, week_anchor_date, target_year, target_month
+            )
             block.days.append(
                 CegidDayEntry(
                     jour=jour,
-                    month=target_month,
-                    year=target_year,
+                    month=day_month,
+                    year=day_year,
                     heures=heures_val,
                 )
             )
@@ -224,6 +240,8 @@ def extract_timesheet_hybrid(
     month: int,
     known_matricules: list[str] | None = None,
     on_progress: ProgressCallback | None = None,
+    week_anchor_context: str = "",
+    week_anchor_date: date | None = None,
 ) -> HybridExtractResult:
     """
     Extraction hybride page par page avec consensus vision/OCR.
@@ -264,6 +282,7 @@ def extract_timesheet_hybrid(
                 pages_total=pages_total,
                 matricule_hint=mat_hint,
                 format_hint=format_hint,
+                week_anchor_context=week_anchor_context,
             ): page.page_index
             for page in rendered.pages
         }
@@ -313,6 +332,7 @@ def extract_timesheet_hybrid(
                 target_year=year,
                 target_month=month,
                 cegid_fallback=cegid_fallback,
+                week_anchor_date=week_anchor_date,
             )
     else:
         parse_result = _merged_to_cegid_result(
@@ -320,6 +340,7 @@ def extract_timesheet_hybrid(
             target_year=year,
             target_month=month,
             cegid_fallback=cegid_fallback,
+            week_anchor_date=week_anchor_date,
         )
 
     warnings = list(rendered.warnings)
