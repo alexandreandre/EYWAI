@@ -35,6 +35,7 @@ import {
   cancelObjective,
   createCompanyService,
   createObjective,
+  deleteObjective,
   declineObjectiveToTeam,
   evaluateObjective,
   getAchievementRate,
@@ -192,6 +193,7 @@ export default function ObjectivesTab({
   const [evalDate, setEvalDate] = useState(new Date().toISOString().slice(0, 10));
 
   const [cancelTarget, setCancelTarget] = useState<EmployeeObjective | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeObjective | null>(null);
 
   const [newServiceName, setNewServiceName] = useState("");
 
@@ -434,6 +436,22 @@ export default function ObjectivesTab({
     },
     onError: () => {
       toast({ variant: "destructive", title: "Erreur", description: "Annulation impossible." });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteObjective(id),
+    onSuccess: (_data, deletedId) => {
+      toast({ title: "Objectif supprimé définitivement" });
+      setDeleteTarget(null);
+      if (detailId === deletedId) {
+        setDetailOpen(false);
+        setDetailId(null);
+      }
+      invalidate();
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Erreur", description: "Suppression impossible." });
     },
   });
 
@@ -864,8 +882,12 @@ export default function ObjectivesTab({
                           </Button>
                         )}
                         <Button size="sm" variant="outline" onClick={() => setCancelTarget(o)}>
-                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          <Target className="mr-1 h-3.5 w-3.5" />
                           Annuler
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(o)}>
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          Supprimer
                         </Button>
                       </>
                     ) : null}
@@ -1254,6 +1276,27 @@ export default function ObjectivesTab({
             <AlertDialogCancel>Retour</AlertDialogCancel>
             <AlertDialogAction onClick={() => cancelTarget && cancelMutation.mutate(cancelTarget.id)}>
               Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer définitivement cet objectif ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action supprimera l’objectif, ses jalons et ses points de suivi. Elle est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Retour</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Supprimer définitivement"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

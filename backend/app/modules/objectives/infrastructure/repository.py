@@ -326,6 +326,21 @@ class SupabaseObjectivesRepository(AbstractObjectivesRepository):
         if not u.data:
             raise LookupError("Objectif non trouvé.")
 
+    def delete(self, objective_id: str, company_id: str) -> None:
+        chk = (
+            supabase.table("employee_objectives")
+            .select("id")
+            .eq("id", objective_id)
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if not chk.data:
+            raise LookupError("Objectif non trouvé.")
+        supabase.table("employee_objectives").delete().eq("id", objective_id).eq(
+            "company_id", company_id
+        ).execute()
+
     def evaluate(
         self, objective_id: str, company_id: str, payload: Dict[str, Any]
     ) -> Dict[str, Any]:

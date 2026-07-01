@@ -54,6 +54,10 @@ class AbstractObjectivesRepository(ABC):
         ...
 
     @abstractmethod
+    def delete(self, objective_id: str, company_id: str) -> None:
+        ...
+
+    @abstractmethod
     def evaluate(
         self, objective_id: str, company_id: str, payload: Dict[str, Any]
     ) -> Dict[str, Any]:

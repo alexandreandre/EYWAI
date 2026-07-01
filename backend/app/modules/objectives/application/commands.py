@@ -74,6 +74,10 @@ def cancel_objective(objective_id: str, company_id: str) -> None:
     objectives_repository.cancel(objective_id, company_id)
 
 
+def delete_objective(objective_id: str, company_id: str) -> None:
+    objectives_repository.delete(objective_id, company_id)
+
+
 def evaluate_objective(
     objective_id: str, company_id: str, data: ObjectiveEvaluate
 ) -> EmployeeObjective:

@@ -160,6 +160,10 @@ export async function cancelObjective(id: string): Promise<void> {
   await apiClient.post(`/api/objectives/${id}/cancel`);
 }
 
+export async function deleteObjective(id: string): Promise<void> {
+  await apiClient.delete(`/api/objectives/${id}`);
+}
+
 export async function evaluateObjective(
   id: string,
   body: ObjectiveEvaluate,

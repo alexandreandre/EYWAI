@@ -240,6 +240,21 @@ def route_cancel_objective(
         _handle_application_errors(e)
 
 
+@router.delete("/{objective_id}", status_code=204)
+def route_delete_objective(
+    objective_id: str, current_user: User = Depends(get_current_user)
+):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    try:
+        commands.delete_objective(objective_id, _company_id(current_user))
+        return Response(status_code=204)
+    except HTTPException:
+        raise
+    except Exception as e:
+        _handle_application_errors(e)
+
+
 @router.post("/{objective_id}/evaluate", response_model=EmployeeObjective)
 def route_evaluate(
     objective_id: str,
