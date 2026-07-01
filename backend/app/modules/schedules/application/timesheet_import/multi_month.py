@@ -38,6 +38,39 @@ def pick_anchor_month(rows: Sequence[TabularDayRow]) -> Tuple[int, int]:
     return 2026, 1
 
 
+_STATUS_RANK = {"ok": 3, "warning": 2, "error": 1, "empty": 0}
+
+
+def _dedupe_group_employees(emps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Empêche qu'un même employee_id soit rapproché deux fois dans le même
+    groupe mois (deux raw_name distincts matchés au même salarié)."""
+    by_employee: Dict[str, List[int]] = defaultdict(list)
+    for idx, emp in enumerate(emps):
+        if emp.get("employee_id"):
+            by_employee[emp["employee_id"]].append(idx)
+
+    for indices in by_employee.values():
+        if len(indices) < 2:
+            continue
+        best_idx = max(
+            indices,
+            key=lambda i: (
+                _STATUS_RANK.get(emps[i].get("review_status") or "error", 0),
+                len(emps[i].get("days") or []),
+            ),
+        )
+        winner_name = emps[best_idx].get("raw_name")
+        for idx in indices:
+            if idx == best_idx:
+                continue
+            emps[idx]["employee_id"] = None
+            emps[idx]["review_status"] = "error"
+            emps[idx].setdefault("warnings", []).append(
+                f"Même salarié que « {winner_name} » — associez manuellement le bon salarié."
+            )
+    return emps
+
+
 def build_month_groups_from_rows(
     rows: Sequence[TabularDayRow],
     roster: List[RosterEmployee],
@@ -82,7 +115,7 @@ def build_month_groups_from_rows(
         )
 
     return [
-        {"year": y, "month": m, "employees": emps}
+        {"year": y, "month": m, "employees": _dedupe_group_employees(emps)}
         for (y, m), emps in sorted(groups_map.items())
     ]
 

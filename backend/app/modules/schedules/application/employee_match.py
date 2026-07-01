@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 from app.modules.schedules.schemas.ai import AiEmployeeProposal, RosterEmployee
 from app.modules.schedules.application.handwritten_weekly import (
@@ -299,6 +299,46 @@ def _fuzzy_name_match(
     return [e for _, e in candidates]
 
 
+def _compact_fuzzy_match(
+    raw_name: str, roster: List[RosterEmployee]
+) -> List[RosterEmployee]:
+    """Rattrape les noms dont l'OCR a inséré des espaces au mauvais endroit
+    (ex: « F RERE G UV » pour « FRERE Guy », « DOVH OPOL OI » pour
+    « DOVHOPOL Oleksandr »). Compare les noms compactés (sans espaces) par
+    distance d'édition relative, insensible à la découpe en tokens."""
+    compact_raw = _compact_name(raw_name)
+    if len(compact_raw) < 6:
+        return []
+
+    scored: List[Tuple[int, RosterEmployee]] = []
+    for emp in roster:
+        compact_last_first = _compact_name(f"{emp.last_name}{emp.first_name}")
+        compact_first_last = _compact_name(f"{emp.first_name}{emp.last_name}")
+        if not compact_last_first:
+            continue
+        dist = min(
+            _levenshtein(compact_raw, compact_last_first),
+            _levenshtein(compact_raw, compact_first_last),
+        )
+        max_len = max(len(compact_raw), len(compact_last_first))
+        if max_len == 0:
+            continue
+        ratio = 1 - dist / max_len
+        if ratio >= 0.6:
+            scored.append((dist, emp))
+
+    scored.sort(key=lambda x: x[0])
+    if not scored:
+        return []
+    if len(scored) == 1:
+        return [scored[0][1]]
+    # N'accepte un candidat unique que s'il se détache nettement du suivant ;
+    # sinon on remonte tous les candidats proches pour arbitrage manuel.
+    if scored[0][0] + 2 <= scored[1][0]:
+        return [scored[0][1]]
+    return [e for _, e in scored]
+
+
 def resolve_employee_for_timesheet(
     *,
     raw_name: str,
@@ -460,6 +500,30 @@ def resolve_employee_for_timesheet(
     if len(fuzzy) > 1:
         proposal.warnings.append(
             f"« {raw_name} » : plusieurs candidats proches — associez manuellement."
+        )
+        proposal.match_method = "name_fuzzy"
+        proposal.review_status = "error"
+        return proposal
+
+    compact_fuzzy = _compact_fuzzy_match(raw_name, roster)
+    if len(compact_fuzzy) == 1:
+        emp = compact_fuzzy[0]
+        proposal.employee_id = emp.id
+        proposal.matched_name = f"{emp.first_name} {emp.last_name}"
+        proposal.match_confidence = "medium"
+        proposal.match_method = "name_fuzzy"
+        proposal.review_status = "warning"
+        proposal.warnings.append(
+            f"Nom OCR fragmenté « {raw_name} » reconstruit → "
+            f"{proposal.matched_name} (à vérifier)."
+        )
+        return proposal
+
+    if len(compact_fuzzy) > 1:
+        labels = ", ".join(f"{e.first_name} {e.last_name}" for e in compact_fuzzy[:3])
+        proposal.warnings.append(
+            f"« {raw_name} » (OCR fragmenté) : plusieurs candidats proches "
+            f"({labels}) — associez manuellement."
         )
         proposal.match_method = "name_fuzzy"
         proposal.review_status = "error"
@@ -847,8 +911,59 @@ def _candidate_warnings(
     return warnings
 
 
+_CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1, "none": 0}
+_STATUS_RANK = {"ok": 3, "warning": 2, "error": 1, "empty": 0}
+
+
+def deduplicate_employee_matches(
+    employees: List[AiEmployeeProposal],
+) -> List[AiEmployeeProposal]:
+    """Un même salarié ne doit jamais être rapproché par deux lignes du même
+    document (ex: deux noms OCR différents matchés au même employee_id, ou le
+    même salarié présent sur deux fichiers d'un import multi-fichiers). En cas
+    de collision, on garde la ligne la plus fiable et on repasse les autres en
+    attente d'association manuelle plutôt que d'écraser silencieusement les
+    heures de l'une par l'autre."""
+    by_employee: Dict[str, List[int]] = {}
+    for idx, emp in enumerate(employees):
+        if emp.employee_id:
+            by_employee.setdefault(emp.employee_id, []).append(idx)
+
+    for indices in by_employee.values():
+        if len(indices) < 2:
+            continue
+
+        def _rank(i: int) -> tuple:
+            emp = employees[i]
+            return (
+                _CONFIDENCE_RANK.get(emp.match_confidence or "none", 0),
+                _STATUS_RANK.get(emp.review_status or "error", 0),
+                len(emp.days),
+            )
+
+        best_idx = max(indices, key=_rank)
+        winner = employees[best_idx]
+        for idx in indices:
+            if idx == best_idx:
+                continue
+            loser = employees[idx]
+            loser.employee_id = None
+            loser.matched_name = None
+            loser.match_confidence = "none"
+            loser.match_method = "none"
+            loser.review_status = "error"
+            loser.warnings.append(
+                f"Même salarié que « {winner.raw_name} » (déjà rapproché à "
+                f"{winner.matched_name or winner.raw_name}) — associez "
+                "manuellement le bon salarié."
+            )
+
+    return employees
+
+
 __all__ = [
     "ReviewStatus",
+    "deduplicate_employee_matches",
     "is_junk_employee_name",
     "is_single_name_allowed",
     "rank_planning_sheet_candidates",

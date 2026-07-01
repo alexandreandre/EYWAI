@@ -34,7 +34,7 @@ _BLOCK_HEADER_RE = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 _DATE_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
-_DAY_MARKER_RE = re.compile(r"[#§nN]\s*(?:[^\d\n]{0,8})?(\d{1,2})[:.;](\d{2})")
+_DAY_MARKER_RE = re.compile(r"[#§]\s*(?:[^\d\n]{0,8})?(\d{1,2})[:.;](\d{2})")
 _TIME_PAIR_RE = re.compile(r"\b(\d{1,2})[:.;](\d{2})\b")
 
 
@@ -100,11 +100,9 @@ def _is_plausible_daily_hours(hours: float) -> bool:
     return 0 <= hours <= MAX_HOURS_PER_DAY
 
 
-def _segment_for_day(block: str, date_end: int) -> str:
-    """Contexte texte d'un jour, sans déborder sur le total hebdo ni le jour suivant."""
-    next_date = _DATE_RE.search(block, date_end + 1)
-    segment_end = next_date.start() if next_date else min(len(block), date_end + 220)
-    ctx = block[date_end:segment_end]
+def _segment_for_day(block: str, seg_start: int, seg_end: int) -> str:
+    """Contexte texte d'un jour, sans déborder sur le total hebdo."""
+    ctx = block[seg_start:seg_end]
     total_idx = re.search(r"Total\s+pour\s+la\s+semaine", ctx, re.IGNORECASE)
     if total_idx:
         ctx = ctx[: total_idx.start()]
@@ -134,9 +132,9 @@ def _sum_time_pairs(segment: str) -> Optional[float]:
     return hours if _is_plausible_daily_hours(hours) else None
 
 
-def _extract_day_hours(block: str, date_end: int) -> Optional[float]:
+def _extract_day_hours(block: str, seg_start: int, seg_end: int) -> Optional[float]:
     """Total journalier : # H:MM, repli paires horaires, ou dernière H:MM plausible."""
-    ctx = _segment_for_day(block, date_end)
+    ctx = _segment_for_day(block, seg_start, seg_end)
 
     match = _DAY_MARKER_RE.search(ctx)
     if match:
@@ -188,11 +186,49 @@ def _split_blocks(text: str) -> List[str]:
     if not indices:
         return []
     blocks: List[str] = []
+    matricules: List[str | None] = []
     for i, start in enumerate(indices):
         end = indices[i + 1] if i + 1 < len(indices) else len(text)
         chunk = text[start:end]
+        header = _BLOCK_HEADER_RE.search(chunk)
         blocks.append(chunk)
-    return blocks
+        matricules.append(header.group(1).strip() if header else None)
+
+    # Un salarié coupé par un saut de page (en-tête réimprimé sans les jours,
+    # ou ligne « Total pour la semaine » isolée dans un bloc orphelin) produit
+    # deux blocs consécutifs partageant le même matricule : on les fusionne
+    # plutôt que de les traiter comme deux salariés distincts.
+    result: List[str] = []
+    prev_matricule: str | None = None
+    for matricule, chunk in zip(matricules, blocks):
+        if result and matricule and matricule == prev_matricule:
+            result[-1] += chunk
+        else:
+            result.append(chunk)
+        prev_matricule = matricule
+    return result
+
+
+_WEEKDAY_NAME_RE = re.compile(
+    r"(Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\b", re.IGNORECASE
+)
+
+
+def _dates_trail_their_hours(block: str, date_matches: List[re.Match]) -> bool:
+    """True si la date DD/MM/YY suit les horaires du jour (mise en page « date
+    en pied », ex: « Lundi 6:47 ... 8:33 \\n 27/04/26 »), False si elle les
+    précède (mise en page « date en tête », ex: « Lundi 25/05/26 \\n 8:00 ... »)."""
+    for m in date_matches:
+        tail = block[m.end() : m.end() + 25].strip()
+        if not tail:
+            return True
+        if _WEEKDAY_NAME_RE.match(tail):
+            return True
+        if re.match(r"Total\s+pour\s+la\s+semaine", tail, re.IGNORECASE):
+            return True
+        if re.match(r"\d{1,2}[:.;]\d{2}", tail):
+            return False
+    return False
 
 
 def _parse_block(
@@ -223,7 +259,25 @@ def _parse_block(
     seen: set[tuple[int, int, int]] = set()
     parsed_in_period = 0
 
-    for date_match in _DATE_RE.finditer(block):
+    # Deux mises en page Cegid coexistent selon l'export :
+    # - « date en tête » : Lundi 25/05/26 \n horaires... \n # total (la date
+    #   précède les horaires du même jour) ;
+    # - « date en pied » : Lundi horaires... total \n 27/04/26 (la date suit
+    #   les horaires, c'est en fait le label du jour qui vient de se terminer).
+    # On détecte la direction une fois par bloc puis on lit les heures du bon
+    # côté de chaque date (après elle, ou avant elle jusqu'à la date précédente).
+    date_matches = list(_DATE_RE.finditer(block))
+    date_trails = _dates_trail_their_hours(block, date_matches)
+    prev_end = header.end()
+    for idx, date_match in enumerate(date_matches):
+        if date_trails:
+            seg_start, seg_end = prev_end, date_match.start()
+        else:
+            next_date = date_matches[idx + 1] if idx + 1 < len(date_matches) else None
+            seg_start = date_match.end()
+            seg_end = next_date.start() if next_date else len(block)
+        prev_end = date_match.end()
+
         ctx_before = block[max(0, date_match.start() - 40) : date_match.start()]
         if re.search(r"Total\s+pour\s+la\s+semaine", ctx_before, re.IGNORECASE):
             continue
@@ -243,7 +297,7 @@ def _parse_block(
         if period_start and period_end:
             if day_date < period_start or day_date > period_end:
                 continue
-        hours = _extract_day_hours(block, date_match.end())
+        hours = _extract_day_hours(block, seg_start, seg_end)
         if hours is None:
             continue
         seen.add(key)

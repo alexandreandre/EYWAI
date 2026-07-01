@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Dict, List
 
+from app.modules.schedules.application.employee_match import deduplicate_employee_matches
 from app.modules.schedules.application.timesheet_quality import average_coverage
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
@@ -85,6 +86,7 @@ def create_batch_from_proposal(
     if file_content and not file_hash:
         file_hash = hashlib.sha256(file_content).hexdigest()
 
+    proposal.employees = deduplicate_employee_matches(list(proposal.employees))
     summary = _batch_summary(proposal)
     if extra_summary:
         summary = {**summary, **extra_summary}

@@ -428,12 +428,24 @@ def _extract_image(file_content: bytes) -> tuple[str, int]:
 
 
 def _should_force_ocr(native_text: str) -> bool:
-    """Force OCR si signature Cegid partielle mais peu de marqueurs exploitables."""
+    """Force OCR si signature Cegid partielle mais peu de contenu exploitable.
+
+    Certaines variantes Cegid (« Pointages retenu ») n'utilisent jamais de
+    marqueur `#HH:MM` : le total journalier est juste en fin de ligne, et les
+    lignes « Total pour la semaine » répétées suffisent à prouver que le texte
+    natif est riche. N'exiger des marqueurs `#` que quand ce signal-là est
+    absent évite de jeter un texte natif propre au profit d'un OCR plus bruité.
+    """
     if not _CEGID_PARTIAL_SIGNATURE.search(native_text or ""):
         return False
     if _score_cegid_text(native_text) < 8:
         return True
-    if len(re.findall(r"#\s*\d", native_text or "")) < 3:
+    has_hash_markers = len(re.findall(r"#\s*\d", native_text or "")) >= 3
+    has_weekly_totals = (
+        len(re.findall(r"Total\s+pour\s+la\s+semaine", native_text or "", re.IGNORECASE))
+        >= 2
+    )
+    if not has_hash_markers and not has_weekly_totals:
         return True
     return False
 

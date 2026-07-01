@@ -89,7 +89,11 @@ def _employees_from_batch(
     preview = batch.get("preview_json") or {}
     proposal = AiCalendarProposalResponse.model_validate(preview)
     allowed: Optional[Set[str]] = set(filter_ids) if filter_ids else None
-    employees: List[PersistTimesheetEmployee] = []
+    # Un même employé peut apparaître dans plusieurs entrées de la proposition
+    # (ex: import multi-fichiers où il figure sur plusieurs relevés). On fusionne
+    # ses jours par employee_id, sinon l'upsert Supabase reçoit deux fois la même
+    # clé (employee_id, year, month) dans la même commande et échoue.
+    by_employee_id: Dict[str, List[AiDayEntry]] = {}
     for emp in proposal.employees:
         if not emp.employee_id or not emp.days:
             continue
@@ -97,23 +101,21 @@ def _employees_from_batch(
             continue
         if allowed is not None and emp.employee_id not in allowed:
             continue
-        employees.append(
-            PersistTimesheetEmployee(
-                employee_id=emp.employee_id,
-                days=[
-                    AiDayEntry(
-                        jour=d.jour,
-                        heures=d.heures,
-                        type=d.type,
-                        nature=d.nature,
-                        year=d.year,
-                        month=d.month,
-                    )
-                    for d in emp.days
-                ],
+        by_employee_id.setdefault(emp.employee_id, []).extend(
+            AiDayEntry(
+                jour=d.jour,
+                heures=d.heures,
+                type=d.type,
+                nature=d.nature,
+                year=d.year,
+                month=d.month,
             )
+            for d in emp.days
         )
-    return employees
+    return [
+        PersistTimesheetEmployee(employee_id=employee_id, days=days)
+        for employee_id, days in by_employee_id.items()
+    ]
 
 
 def _upsert_employees_for_month(
@@ -328,7 +330,17 @@ def _build_planning_employee_commit_plan(
                     "months": [(year, month, days)],
                 }
                 continue
-            row["months"].append((year, month, days))
+            # Deux groupes différents (ex: semaines distinctes) peuvent porter sur le
+            # même (year, month) pour cet employé : on fusionne plutôt que de dupliquer,
+            # sinon l'upsert Supabase échoue (même clé employee_id/year/month deux fois
+            # dans la même commande ON CONFLICT).
+            existing_months = row["months"]
+            for idx, (existing_year, existing_month, existing_days) in enumerate(existing_months):
+                if existing_year == year and existing_month == month:
+                    existing_months[idx] = (existing_year, existing_month, existing_days + days)
+                    break
+            else:
+                existing_months.append((year, month, days))
             if label and (not row.get("label") or len(label) > len(str(row.get("label") or ""))):
                 row["label"] = label
     return sorted(by_id.values(), key=lambda item: str(item["label"]).lower())
