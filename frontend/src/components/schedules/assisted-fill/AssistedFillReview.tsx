@@ -435,14 +435,46 @@ export function AssistedFillReview({
 
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
 
+  const takenEmployeeIds = useMemo(
+    () => rows.filter((r) => r.employeeId).map((r) => r.employeeId as string),
+    [rows],
+  );
+
   const associateEmployee = (rowKey: string, employeeId: string, matchedName: string) => {
-    updateRow(rowKey, {
-      employeeId,
-      matchedName,
-      confidence: 'high',
-      reviewStatus: 'ok',
-      manuallyConfirmed: true,
-      qualityIssue: null,
+    setRows((prev) => {
+      const conflicting = prev.find(
+        (r) => r.key !== rowKey && r.employeeId === employeeId,
+      );
+      if (conflicting) {
+        toast({
+          title: 'Salarié réassigné',
+          description: `${matchedName} était déjà associé à « ${conflicting.rawName} » — cette ligne repasse en attente de rapprochement.`,
+        });
+      }
+      return prev.map((r) => {
+        if (r.key === rowKey) {
+          return {
+            ...r,
+            employeeId,
+            matchedName,
+            confidence: 'high' as const,
+            reviewStatus: 'ok' as const,
+            manuallyConfirmed: true,
+            qualityIssue: null,
+          };
+        }
+        if (conflicting && r.key === conflicting.key) {
+          return {
+            ...r,
+            employeeId: null,
+            matchedName: null,
+            confidence: 'none' as const,
+            reviewStatus: 'error' as const,
+            manuallyConfirmed: false,
+          };
+        }
+        return r;
+      });
     });
   };
 
@@ -525,7 +557,7 @@ export function AssistedFillReview({
             month: d.month ?? null,
           })),
         })),
-        { batchId: batchId ?? undefined },
+        { batchId: batchId ?? undefined, allowPartial: true },
       );
 
       if (batchId && result.total_days_written === 0) {
@@ -825,6 +857,8 @@ export function AssistedFillReview({
                       value={row.employeeId}
                       compact
                       placeholder="Associer…"
+                      excludeEmployeeIds={takenEmployeeIds}
+                      emptyMessage="Tous les salariés proposés sont déjà rapprochés — réassignez depuis leur ligne si besoin."
                       onSelect={(id, label) => associateEmployee(row.key, id, label)}
                     />
                   )}
@@ -858,6 +892,8 @@ export function AssistedFillReview({
                         <EmployeeAssociateCombobox
                           roster={sortedRoster}
                           value={row.employeeId}
+                          excludeEmployeeIds={takenEmployeeIds}
+                          emptyMessage="Tous les salariés proposés sont déjà rapprochés — réassignez depuis leur ligne si besoin."
                           onSelect={(id, label) => associateEmployee(row.key, id, label)}
                         />
                       </div>
