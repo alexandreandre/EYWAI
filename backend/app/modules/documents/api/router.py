@@ -88,6 +88,8 @@ def _row_to_generated(row: dict) -> GeneratedDocument:
         is_eywai_template=bool(row.get("is_eywai_template")),
         file_url=str(row["file_url"]) if row.get("file_url") else None,
         file_name=str(row["file_name"]) if row.get("file_name") else None,
+        docx_file_url=str(row["docx_file_url"]) if row.get("docx_file_url") else None,
+        docx_file_name=str(row["docx_file_name"]) if row.get("docx_file_name") else None,
         status=str(row["status"]),
         generation_context=gc,
         generated_by=str(row["generated_by"]) if row.get("generated_by") else None,
@@ -209,14 +211,15 @@ def generate_document_route(
 @router.get("/{document_id}/download", response_model=DownloadUrlResponse)
 def download_document_route(
     document_id: str,
+    format: str = Query("pdf", pattern="^(pdf|docx)$"),
     current_user: User = Depends(get_current_user),
 ) -> DownloadUrlResponse:
-    """Retourne une URL signée pour téléchargement."""
+    """Retourne une URL signée pour téléchargement (PDF ou Word)."""
     cid = _company_id(current_user)
     _require_company_access(current_user, cid)
     try:
         if current_user.has_rh_access_in_company(cid):
-            url = queries.get_download_url(document_id, cid)
+            url = queries.get_download_url(document_id, cid, fmt=format)
             return DownloadUrlResponse(signed_url=url)
         my_emp = _employee_scope_id(current_user, cid)
         if not my_emp:
@@ -230,7 +233,7 @@ def download_document_route(
         if str(row.get("employee_id") or "") != str(my_emp):
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
         _assert_employee_can_access_document(row)
-        url = queries.get_download_url(document_id, cid)
+        url = queries.get_download_url(document_id, cid, fmt=format)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:
         traceback.print_exc()

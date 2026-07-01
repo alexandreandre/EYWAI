@@ -136,7 +136,7 @@ class SupabaseDocumentsRepository:
     def delete(self, document_id: str, company_id: str) -> None:
         r = (
             supabase.table("generated_documents")
-            .select("id, status")
+            .select("id")
             .eq("id", document_id)
             .eq("company_id", company_id)
             .maybe_single()
@@ -145,8 +145,6 @@ class SupabaseDocumentsRepository:
         row = _data(r)
         if not row:
             raise LookupError("Document introuvable")
-        if str(row.get("status") or "") != "brouillon":
-            raise ValueError("Suppression réservée aux documents au statut « brouillon ».")
         supabase.table("generated_documents").delete().eq("id", document_id).eq(
             "company_id", company_id
         ).execute()

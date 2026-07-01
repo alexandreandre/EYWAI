@@ -314,6 +314,7 @@ class DocumentService:
         template_version_id: Optional[str] = None
         is_eywai_template = True
         pdf_bytes: Optional[bytes] = None
+        docx_bytes: Optional[bytes] = None
         file_format = ""
 
         if tpl_bundle:
@@ -331,6 +332,8 @@ class DocumentService:
                         "La conversion du modèle Word en PDF a échoué. "
                         "Vérifiez le fichier ou contactez le support."
                     )
+                if pdf_bytes:
+                    docx_bytes = docx_result
             elif file_format == "html":
                 html_src = file_bytes.decode("utf-8", errors="replace")
                 html_out = document_engine.inject_html(html_src, variables)
@@ -358,6 +361,17 @@ class DocumentService:
                 is_eywai_template = True
                 template_id = None
                 template_version_id = None
+                try:
+                    from app.shared.infrastructure.pdf.contract_docx import (
+                        generate_contract_docx,
+                    )
+
+                    docx_bytes = generate_contract_docx(
+                        employee_data=employee_for_contract,
+                        company_data=company_data,
+                    )
+                except Exception as e:
+                    logger.warning("generate_contract_docx (bibliothèque): %s", e)
             except Exception as e:
                 logger.warning("generate_contract_pdf (bibliothèque): %s", e)
                 pdf_bytes = None
@@ -389,6 +403,18 @@ class DocumentService:
                 is_eywai_template = True
                 template_id = None
                 template_version_id = None
+                try:
+                    from app.shared.infrastructure.pdf.avenant_docx import (
+                        generate_avenant_docx,
+                    )
+
+                    docx_bytes = generate_avenant_docx(
+                        employee_data=employee_data,
+                        company_data=company_data,
+                        context=ctx,
+                    )
+                except Exception as e:
+                    logger.warning("generate_avenant_docx (bibliothèque): %s", e)
             except Exception as e:
                 logger.warning("generate_avenant_pdf (bibliothèque): %s", e)
                 pdf_bytes = None
@@ -438,6 +464,7 @@ class DocumentService:
         if not persist:
             return {
                 "pdf_bytes": pdf_bytes,
+                "docx_bytes": docx_bytes,
                 "is_eywai_template": is_eywai_template,
                 "document_type": document_type,
                 "template_id": template_id,
@@ -461,6 +488,28 @@ class DocumentService:
             file_url_db = storage_path
             file_name_db = filename
 
+        docx_file_url_db: Optional[str] = None
+        docx_file_name_db: Optional[str] = None
+
+        if docx_bytes:
+            docx_filename = f"{safe_type}_{ts}.docx"
+            docx_storage_path = f"{company_id}/{employee_id}/{docx_filename}"
+            try:
+                supabase.storage.from_(BUCKET_GENERATED).upload(
+                    docx_storage_path,
+                    docx_bytes,
+                    {
+                        "content-type": (
+                            "application/vnd.openxmlformats-officedocument"
+                            ".wordprocessingml.document"
+                        )
+                    },
+                )
+                docx_file_url_db = docx_storage_path
+                docx_file_name_db = docx_filename
+            except Exception as e:
+                logger.warning("Upload docx generated_documents: %s", e)
+
         row = {
             "company_id": company_id,
             "employee_id": employee_id,
@@ -471,6 +520,8 @@ class DocumentService:
             "is_eywai_template": is_eywai_template,
             "file_url": file_url_db,
             "file_name": file_name_db,
+            "docx_file_url": docx_file_url_db,
+            "docx_file_name": docx_file_name_db,
             "status": "brouillon",
             "generation_context": ctx,
             "generated_by": generated_by,

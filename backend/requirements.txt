@@ -18,6 +18,10 @@ Jinja2>=3.1.6
 weasyprint==68.1
 reportlab
 
+# --- Export Word (contrats/avenants, modèles client .docx) ---
+python-docx
+docxtpl
+
 # --- Utilities ---
 requests
 httpx

@@ -21,6 +21,8 @@ export interface GeneratedDocument {
   is_eywai_template: boolean;
   file_url: string | null;
   file_name: string | null;
+  docx_file_url?: string | null;
+  docx_file_name?: string | null;
   status: string;
   generation_context: Record<string, unknown>;
   generated_by: string | null;
@@ -148,8 +150,15 @@ export type DocumentDownloadResult = {
   file_name?: string | null;
 };
 
-export async function downloadDocument(id: string): Promise<DocumentDownloadResult> {
-  const response = await apiClient.get<DocumentDownloadResult>(`/api/documents/${id}/download`);
+export type DocumentFileFormat = 'pdf' | 'docx';
+
+export async function downloadDocument(
+  id: string,
+  format: DocumentFileFormat = 'pdf'
+): Promise<DocumentDownloadResult> {
+  const response = await apiClient.get<DocumentDownloadResult>(`/api/documents/${id}/download`, {
+    params: { format },
+  });
   return response.data;
 }
 
@@ -166,7 +175,9 @@ export function triggerSignedDocumentDownload(
   fallbackFileName = 'document.pdf'
 ): void {
   const raw = (result.file_name && result.file_name.trim()) || fallbackFileName.trim() || 'document.pdf';
-  const downloadName = raw.toLowerCase().endsWith('.pdf') ? raw : `${raw}.pdf`;
+  const hasExtension = /\.[a-z0-9]+$/i.test(raw);
+  const fallbackExt = /\.([a-z0-9]+)$/i.exec(fallbackFileName)?.[1] ?? 'pdf';
+  const downloadName = hasExtension ? raw : `${raw}.${fallbackExt}`;
 
   const a = document.createElement('a');
   a.href = result.signed_url;

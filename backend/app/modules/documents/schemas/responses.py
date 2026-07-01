@@ -19,6 +19,8 @@ class GeneratedDocument(BaseModel):
     is_eywai_template: bool
     file_url: Optional[str] = None
     file_name: Optional[str] = None
+    docx_file_url: Optional[str] = None
+    docx_file_name: Optional[str] = None
     status: str
     generation_context: Dict[str, Any] = Field(default_factory=dict)
     generated_by: Optional[str] = None

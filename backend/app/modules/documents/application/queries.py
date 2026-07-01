@@ -39,21 +39,27 @@ def get_employee_id_for_user_scope(user_id: str, company_id: str) -> Optional[st
 
 
 def _signed_url_for_document_row(
-    row: dict, *, download: bool
+    row: dict, *, download: bool, fmt: str = "pdf"
 ) -> str:
-    path = row.get("file_url") or ""
+    path_key = "docx_file_url" if fmt == "docx" else "file_url"
+    path = row.get(path_key) or ""
     if not path or str(path).lower().startswith("http"):
-        raise ValueError("Aucun fichier PDF associé à ce document.")
+        message = (
+            "Aucun fichier Word disponible pour ce document."
+            if fmt == "docx"
+            else "Aucun fichier PDF associé à ce document."
+        )
+        raise ValueError(message)
     if download:
         return documents_repository.create_signed_download_url(str(path))
     return documents_repository.create_signed_preview_url(str(path))
 
 
-def get_download_url(document_id: str, company_id: str) -> str:
+def get_download_url(document_id: str, company_id: str, fmt: str = "pdf") -> str:
     row = documents_repository.get_by_id(document_id, company_id)
     if not row:
         raise LookupError("Document introuvable")
-    return _signed_url_for_document_row(row, download=True)
+    return _signed_url_for_document_row(row, download=True, fmt=fmt)
 
 
 def get_preview_url(document_id: str, company_id: str) -> str:

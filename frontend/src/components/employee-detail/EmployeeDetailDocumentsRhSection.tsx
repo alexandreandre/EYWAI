@@ -38,6 +38,7 @@ import {
   getDocuments,
   updateDocumentStatus,
   type DocumentCategory,
+  type DocumentFileFormat,
   type GeneratedDocument,
 } from '@/api/documents';
 import { DOCUMENT_TYPE_LABELS, getTemplates, type DocumentTemplate } from '@/api/documentLibrary';
@@ -120,7 +121,7 @@ export interface EmployeeDocumentGenerationHandlers {
   openFichePoste: (options?: { jobId?: string; missions?: string }) => void;
   hasFichePosteTemplate: boolean;
   handleView: (id: string) => Promise<void>;
-  handleDownload: (id: string, fileName?: string | null) => Promise<void>;
+  handleDownload: (id: string, fileName?: string | null, format?: DocumentFileFormat) => Promise<void>;
   handleDelete: (id: string) => void;
   handleSend: (id: string) => void;
   deletingId: string | null;
@@ -376,11 +377,16 @@ export function useEmployeeDocumentGeneration(
     }
   };
 
-  const handleDownload = async (id: string, fileName?: string | null) => {
+  const handleDownload = async (
+    id: string,
+    fileName?: string | null,
+    format: DocumentFileFormat = 'pdf'
+  ) => {
     setLoadingAction({ id, kind: 'download' });
     try {
-      const res = await downloadDocument(id);
-      triggerSignedDocumentDownload(res, fileName || 'document.pdf');
+      const res = await downloadDocument(id, format);
+      const fallback = format === 'docx' ? 'document.docx' : 'document.pdf';
+      triggerSignedDocumentDownload(res, fileName || fallback);
     } catch {
       toast({ title: 'Téléchargement', description: 'Lien indisponible.', variant: 'destructive' });
     } finally {
@@ -798,22 +804,54 @@ export function GeneratedDocActions({
         )}
         <span className="sr-only">Visualiser</span>
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
-        title="Télécharger"
-        onClick={() => void handlers.handleDownload(doc.id, doc.file_name)}
-      >
-        {downloadLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <ArrowDownToLine className="h-4 w-4" />
-        )}
-        <span className="sr-only">Télécharger</span>
-      </Button>
+      {doc.docx_file_url ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
+              title="Télécharger"
+            >
+              {downloadLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-4 w-4" />
+              )}
+              <span className="sr-only">Télécharger</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => void handlers.handleDownload(doc.id, doc.file_name, 'pdf')}>
+              PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void handlers.handleDownload(doc.id, doc.docx_file_name, 'docx')}
+            >
+              Word (.docx) — à retravailler
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={!hasFile || viewLoading || downloadLoading || isDeleting || isSending}
+          title="Télécharger"
+          onClick={() => void handlers.handleDownload(doc.id, doc.file_name)}
+        >
+          {downloadLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ArrowDownToLine className="h-4 w-4" />
+          )}
+          <span className="sr-only">Télécharger</span>
+        </Button>
+      )}
       <Button
         type="button"
         variant="ghost"
