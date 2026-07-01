@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from app.modules.schedules.application.employee_match import is_junk_employee_name
 from app.modules.schedules.application.parsers.cegid_weekly import (

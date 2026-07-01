@@ -6,7 +6,7 @@ Aucune I/O, aucun FastAPI. Utilisé par l’infrastructure (repository) après l
 """
 
 from datetime import date, timedelta
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 
 def birth_at_age(birth_date: date, years: int) -> date:

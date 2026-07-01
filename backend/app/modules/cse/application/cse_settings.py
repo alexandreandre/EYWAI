@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from app.modules.cse.infrastructure.cse_settings_repository import cse_settings_repository
 from app.modules.cse.schemas.responses import CompanyCseSettings

@@ -15,12 +15,11 @@ Usage (depuis backend/, venv activé) :
 from __future__ import annotations
 
 import argparse
-import io
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Iterable
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:

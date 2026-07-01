@@ -1588,7 +1588,7 @@ def _should_expand_gan_single_line(ligne: dict) -> bool:
 def _is_alptis_like(lignes: list[dict]) -> bool:
     if len(lignes) >= 3:
         return True
-    total_pat = sum(float(l.get("patronal") or 0) for l in lignes)
+    total_pat = sum(float(ligne.get("patronal") or 0) for ligne in lignes)
     return total_pat > 0.025
 
 
@@ -2391,7 +2391,6 @@ def seed_planned_calendar_2026(
     from app.shared.public_holidays import day_numbers_observed_holidays
     from scripts.comitech_calendar_data import (
         CALENDAR_DAILY_HOURS,
-        CALENDAR_SOURCE,
         CALENDAR_YEAR,
     )
     from scripts.comitech_calendar_parser import (

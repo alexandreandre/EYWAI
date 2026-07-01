@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from app.modules.admin_import.application.payroll_export_mapping import (
-    normalize_nir,
     nir_match_key,
 )
 from app.modules.admin_import.application.rib_matching import (

@@ -215,7 +215,6 @@ def period_filter_empty_message(
     config: ImportPeriodConfig,
 ) -> str:
     from app.modules.schedules.application.timesheet_import.multi_month import (
-        row_date,
         unique_months_in_rows,
     )
 

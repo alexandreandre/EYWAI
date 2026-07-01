@@ -1,6 +1,6 @@
 """Tests persistance totaux DSN au commit."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from app.modules.dsn_import.application.cumuls import aggregate_cumuls_by_company_period
 from app.modules.dsn_import.application.payroll_totals_persist import (

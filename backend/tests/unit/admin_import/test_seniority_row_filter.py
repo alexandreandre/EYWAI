@@ -1,6 +1,5 @@
 """Tests filtre lignes notes Excel — import ancienneté."""
 
-import pytest
 
 from app.modules.admin_import.application.seniority_row_filter import (
     should_skip_seniority_row,

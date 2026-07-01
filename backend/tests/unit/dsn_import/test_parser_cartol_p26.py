@@ -52,7 +52,6 @@ def test_establishment_payroll_inference():
 
 
 def test_establishment_payload_enriched():
-    dsn = _parse_fixture()
     parsed = parse_dsn_files([(str(FIXTURE), FIXTURE.read_bytes())])
     etabs = parsed.etablissements_by_siret()
     siret, etab = next(iter(etabs.items()))

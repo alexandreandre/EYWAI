@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.timesheet_import.cache_service import (

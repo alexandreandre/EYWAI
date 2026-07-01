@@ -1,6 +1,5 @@
 """Tests unitaires — parsing cellule RIB."""
 
-import pytest
 
 from app.modules.admin_import.application.rib_parser import (
     build_coordonnees_bancaires,

@@ -14,7 +14,6 @@ from app.modules.schedules.application.planning_import.quadra_calendar import (
 )
 from scripts.comitech_calendar_data import (
     CALENDAR_SOURCE,
-    CALENDAR_YEAR,
     COMITECH_CALENDAR_SHEETS,
     CalendarSheetMapping,
     DEFAULT_XLSX,

@@ -12,7 +12,6 @@ from app.modules.employees.domain.rules import (
     DEFAULT_EMPLOYMENT_STATUS,
     DEFAULT_RESIDENCE_PERMIT_SUBJECT,
     DUREE_LEGALE_HEBDO,
-    build_collaborator_username_base,
     build_employee_folder_name,
     default_company_data_fallback,
     derive_collaborator_username,

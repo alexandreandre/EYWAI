@@ -6,7 +6,6 @@ import re
 from typing import Dict, List, Tuple
 
 from app.modules.admin_import.application.rib_excel import (
-    _match_alias,
     _normalize_header,
 )
 

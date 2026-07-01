@@ -4,9 +4,8 @@ Règles métier pures : calcul des KPIs entreprise.
 Agrégation paie déléguée au resolver (bulletins vs DSN) via payroll_series.
 """
 
-from collections import defaultdict
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.modules.payroll.domain.payroll_kpi_resolver import PayrollPeriodSnapshot

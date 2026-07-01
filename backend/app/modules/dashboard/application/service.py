@@ -13,7 +13,6 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.core.database import get_supabase_client
-from app.modules.dashboard.application.dto import MONTH_NAMES_FR
 from app.modules.dashboard.domain import rules as domain_rules
 from app.modules.dashboard.infrastructure.mappers import (
     to_simple_employees,

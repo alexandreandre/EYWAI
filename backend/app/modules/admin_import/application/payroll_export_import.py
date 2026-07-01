@@ -152,11 +152,9 @@ def parse_payroll_export_file(
             summary["unmatched"] += 1
 
         current_email = None
-        current_team = None
         if emp_id and emp_id in by_id:
             emp = by_id[emp_id]
             current_email = emp.get("email")
-            current_team = emp.get("team_id")
 
         line_no = data_start_line + offset + 1
         patch = parsed.get("employee_patch") or {}

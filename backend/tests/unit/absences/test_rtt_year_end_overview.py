@@ -1,6 +1,5 @@
 """Tests unitaires — clôture RTT fin d'année (overview RH)."""
 
-from datetime import date
 from unittest.mock import patch
 
 from app.modules.absences.application.leave_settings_queries import (

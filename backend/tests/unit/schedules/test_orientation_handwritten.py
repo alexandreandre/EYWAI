@@ -1,7 +1,6 @@
 """Tests auto-rotation pour feuilles manuscrites photographiées."""
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 

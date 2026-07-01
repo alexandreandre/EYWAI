@@ -6,7 +6,6 @@ import calendar
 from typing import Any, Dict, List, Optional, Set
 
 from app.modules.dsn_import.domain.model import (
-    ComposantCotisationEtabBlock,
     EtablissementBlock,
     ParsedDsnSet,
 )

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from app.modules.dsn_import.application.cumuls import (
-    aggregate_cumuls_by_company_period,
     plan_cumul_items,
     _normalize_employee_charges,
 )

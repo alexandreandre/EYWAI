@@ -70,7 +70,6 @@ def detect_seniority_column_mapping(headers: List[str]) -> Dict[str, str]:
     for header in headers:
         if not header:
             continue
-        norm = _normalize_header(header)
         if "seniority_date" not in mapping and _is_seniority_date_header(header):
             mapping["seniority_date"] = header
         elif "last_name" not in mapping and _match_alias(header, LAST_NAME_ALIASES):

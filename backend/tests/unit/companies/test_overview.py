@@ -1,6 +1,6 @@
 """Tests unitaires domain/overview et query get_company_overview."""
 
-from datetime import date, timedelta, timedelta
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 

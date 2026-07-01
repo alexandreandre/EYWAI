@@ -5,7 +5,7 @@ Règles pures : résolution source paie (bulletins vs DSN) pour KPIs dashboard.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional
 
 PayrollMetric = Literal["gross", "employer_cost", "net"]
 PayrollSource = Literal["payslip", "dsn", "none"]
