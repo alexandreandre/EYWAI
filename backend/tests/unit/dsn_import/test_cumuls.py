@@ -9,7 +9,12 @@ from app.modules.dsn_import.application.cumuls import (
     extract_monthly_totals,
     plan_cumul_items,
 )
-from app.modules.dsn_import.domain.model import CotisationBlock, RemunerationBlock, VersementBlock
+from app.modules.dsn_import.domain.model import (
+    CotisationBlock,
+    CotisationIndividuelleBlock,
+    RemunerationBlock,
+    VersementBlock,
+)
 from app.modules.dsn_import.domain.parser import parse_dsn_files
 
 
@@ -128,3 +133,28 @@ def test_extract_monthly_totals_sums_cotisations():
     assert totals["employee_charges"] == 450.0
     assert totals["employer_charges"] == 650.0
 
+
+def test_extract_monthly_totals_classifies_p26_individual_cotisations():
+    from app.modules.dsn_import.domain.model import ContratBlock, IndividuBlock
+
+    ver = VersementBlock(
+        net_fiscal=1950.0,
+        remunerations=[RemunerationBlock(type_code="001", montant=2400.0)],
+        cotisations_individuelles=[
+            CotisationIndividuelleBlock(code="045", montant_patronal=70.0),
+            CotisationIndividuelleBlock(code="072", montant_patronal=180.0),
+            CotisationIndividuelleBlock(code="018", montant_patronal=25.0),
+            CotisationIndividuelleBlock(code="999", montant_patronal=12.0),
+        ],
+    )
+    ind = IndividuBlock(contrats=[ContratBlock(versements=[ver])])
+
+    totals = extract_monthly_totals(ind)
+
+    assert totals["employer_charges"] == 45.0
+    assert totals["employer_charges_source"] == "dsn_classified"
+    detail = totals["dsn_cotisations_detail"]
+    assert detail["employer_codes"] == {"045": 70.0}
+    assert detail["reduction_codes"] == {"018": -25.0}
+    assert detail["ignored_codes"] == {"072": 180.0}
+    assert detail["unknown_codes"] == {"999": 12.0}

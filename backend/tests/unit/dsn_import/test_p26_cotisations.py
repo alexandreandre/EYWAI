@@ -27,7 +27,10 @@ def test_cartol_jan_p26_cotisations_extraction():
     assert totals["brut"] == 2475.52
     assert totals["net_imposable"] == 1998.95
     assert 400 <= totals["employee_charges"] <= 500
-    assert 1000 <= totals["employer_charges"] <= 1600
+    assert 400 <= totals["employer_charges"] <= 500
+    assert totals["employer_charges_source"] == "dsn_classified"
+    assert "072" in totals["dsn_cotisations_detail"]["ignored_codes"]
+    assert "142" in totals["dsn_cotisations_detail"]["employer_codes"]
 
 
 def test_cartol_jan_aggregate_employer_charges():
@@ -38,7 +41,7 @@ def test_cartol_jan_aggregate_employer_charges():
     pat = sum(i["mapped_payload"]["month_totals"]["employer_charges"] for i in items)
     sal = sum(i["mapped_payload"]["month_totals"]["employee_charges"] for i in items)
     brut = sum(i["mapped_payload"]["month_totals"]["brut"] for i in items)
-    assert 100_000 <= pat <= 140_000
+    assert 45_000 <= pat <= 55_000
     assert 30_000 <= sal <= 60_000
     assert abs(brut - 205_521.06) < 1.0
 

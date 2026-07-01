@@ -23,6 +23,57 @@ from app.modules.dsn_import.domain.rubriques import (
 RELIABLE_GROSS_MIN = 700.0
 LOW_BRUT_PARTIAL_TRIGGER = 4
 
+DSN_EMPLOYER_COTISATION_CODES = frozenset(
+    {
+        # Assurance chômage, AT/MP, AGS, maladie, allocations, CSA, formation,
+        # taxe apprentissage, versement mobilité, dialogue social, etc.
+        "040",
+        "045",
+        "048",
+        "049",
+        "068",
+        "073",
+        "074",
+        "075",
+        "081",
+        "100",
+        "102",
+        "128",
+        "129",
+        "130",
+        "142",
+        "146",
+        "907",
+    }
+)
+
+DSN_EMPLOYER_REDUCTION_CODES = frozenset(
+    {
+        # Réductions / déductions patronales : elles diminuent les charges employeur.
+        "018",
+        "021",
+        "106",
+        "114",
+    }
+)
+
+DSN_EMPLOYEE_OR_MIXED_COTISATION_CODES = frozenset(
+    {
+        # CSG/CRDS et cotisations non ventilées dans les DSN P26 du dossier Config.
+        # Ces montants ne doivent pas être ajoutés tels quels aux charges patronales.
+        "002",
+        "059",
+        "071",
+        "072",
+        "076",
+        "079",
+        "093",
+        "109",
+        "131",
+        "132",
+    }
+)
+
 
 def _month_totals_has_countable_gross(
     month_totals: Dict[str, Any], *, require_reliable: bool
@@ -180,20 +231,65 @@ def _cotisation_individuelle_amount(cot) -> float:
     return float(cot.montant_patronal or 0)
 
 
-def _cotisations_from_versement(versement) -> Tuple[float, float]:
+def _normalize_dsn_cotisation_code(code: str) -> str:
+    raw = str(code or "").strip()
+    if " - " in raw:
+        raw = raw.split(" - ", 1)[0].strip()
+    return raw.zfill(3) if raw.isdigit() else raw
+
+
+def _classified_individual_cotisations(versement) -> Tuple[float, Dict[str, Any]]:
+    employer = 0.0
+    detail: Dict[str, Any] = {
+        "employer_codes": {},
+        "reduction_codes": {},
+        "ignored_codes": {},
+        "unknown_codes": {},
+    }
+
+    def add(bucket: str, code: str, amount: float) -> None:
+        by_code = detail[bucket]
+        by_code[code] = round(float(by_code.get(code, 0.0)) + amount, 2)
+
+    for cot in versement.cotisations_individuelles:
+        amount = _cotisation_individuelle_amount(cot)
+        if amount == 0:
+            continue
+        code = _normalize_dsn_cotisation_code(getattr(cot, "code", ""))
+        if code in DSN_EMPLOYER_COTISATION_CODES:
+            employer += amount
+            add("employer_codes", code, amount)
+        elif code in DSN_EMPLOYER_REDUCTION_CODES:
+            signed = -abs(amount) if amount > 0 else amount
+            employer += signed
+            add("reduction_codes", code, signed)
+        elif code in DSN_EMPLOYEE_OR_MIXED_COTISATION_CODES:
+            add("ignored_codes", code, amount)
+        else:
+            add("unknown_codes", code or "__empty__", amount)
+
+    return round(employer, 2), detail
+
+
+def _merge_cotisation_detail(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    for bucket in ("employer_codes", "reduction_codes", "ignored_codes", "unknown_codes"):
+        dst = target.setdefault(bucket, {})
+        for code, amount in (source.get(bucket) or {}).items():
+            dst[code] = round(float(dst.get(code, 0.0)) + float(amount or 0), 2)
+
+
+def _cotisations_from_versement(
+    versement,
+) -> Tuple[float, float, Dict[str, Any]]:
     """Retourne (cotisations salariales, cotisations patronales) d'un versement DSN."""
     cot_sal = 0.0
     cot_pat = 0.0
     for cot in versement.cotisations:
         cot_sal += float(cot.montant_salarial or 0)
         cot_pat += float(cot.montant_patronal or 0)
-    for cot in versement.cotisations_individuelles:
-        amount = _cotisation_individuelle_amount(cot)
-        if amount == 0:
-            continue
-        # Bloc G00.81 P22+ : un seul montant (.004), généralement patronal (y.c. réductions négatives).
-        cot_pat += amount
-    return cot_sal, cot_pat
+    classified_pat, detail = _classified_individual_cotisations(versement)
+    cot_pat += classified_pat
+    return cot_sal, cot_pat, detail
 
 
 def _normalize_employee_charges(
@@ -217,6 +313,12 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
     reduction_pat = 0.0
     employee_charges = 0.0
     employer_charges = 0.0
+    cotisations_detail: Dict[str, Any] = {
+        "employer_codes": {},
+        "reduction_codes": {},
+        "ignored_codes": {},
+        "unknown_codes": {},
+    }
 
     for contrat in ind.contrats:
         for ver in contrat.versements:
@@ -225,9 +327,10 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
             ver_brut = _brut_from_versement(ver)
             brut += ver_brut
             heures += _heures_from_versement(ver)
-            ver_cot_sal, ver_cot_pat = _cotisations_from_versement(ver)
+            ver_cot_sal, ver_cot_pat, ver_cot_detail = _cotisations_from_versement(ver)
             employee_charges += ver_cot_sal
             employer_charges += ver_cot_pat
+            _merge_cotisation_detail(cotisations_detail, ver_cot_detail)
             for cot in ver.cotisations:
                 if cot.code in REDUCTION_GENERALE_COT_CODES:
                     reduction_pat += abs(cot.montant_patronal)
@@ -259,6 +362,10 @@ def extract_monthly_totals(ind: IndividuBlock) -> Dict[str, float]:
         "reduction_generale_patronale": round(-reduction_pat, 2) if reduction_pat else 0.0,
         "employee_charges": round(employee_charges, 2),
         "employer_charges": round(employer_charges, 2),
+        "employer_charges_source": (
+            "dsn_classified" if employer_charges else "missing"
+        ),
+        "dsn_cotisations_detail": cotisations_detail,
     }
 
 
@@ -548,6 +655,14 @@ def aggregate_cumuls_by_company_period(
                 "employer_charges": 0.0,
                 "employee_count": 0,
                 "employees_with_gross": 0,
+                "employees_with_classified_employer_charges": 0,
+                "employer_charges_source": "missing",
+                "dsn_cotisations_detail": {
+                    "employer_codes": {},
+                    "reduction_codes": {},
+                    "ignored_codes": {},
+                    "unknown_codes": {},
+                },
                 "_low_brut_count": 0,
             },
         )
@@ -577,6 +692,11 @@ def aggregate_cumuls_by_company_period(
         bucket["employer_charges"] = round(
             bucket["employer_charges"] + float(month_totals.get("employer_charges") or 0), 2
         )
+        if str(month_totals.get("employer_charges_source") or "") == "dsn_classified":
+            bucket["employees_with_classified_employer_charges"] += 1
+        detail = month_totals.get("dsn_cotisations_detail")
+        if isinstance(detail, dict):
+            _merge_cotisation_detail(bucket["dsn_cotisations_detail"], detail)
 
     for periods in out.values():
         for bucket in periods.values():
@@ -600,14 +720,22 @@ def aggregate_cumuls_by_company_period(
             emp_count = int(bucket.get("employee_count") or 0)
             with_gross = int(bucket.get("employees_with_gross") or 0)
             is_partial = emp_count > 0 and with_gross < emp_count
+            has_classified_pat = (
+                int(bucket.get("employees_with_classified_employer_charges") or 0) > 0
+                or float(bucket.get("employer_charges") or 0) > 0
+            )
             if (
                 float(bucket.get("employer_charges") or 0) <= 0
                 and gross > 0
                 and not is_partial
+                and not has_classified_pat
             ):
                 bucket["employer_charges"] = _infer_employer_charges(
                     gross, float(bucket.get("employee_charges") or 0)
                 )
+                bucket["employer_charges_source"] = "estimated"
+            elif has_classified_pat:
+                bucket["employer_charges_source"] = "dsn_classified"
 
     return out
 
