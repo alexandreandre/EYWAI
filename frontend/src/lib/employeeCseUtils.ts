@@ -11,6 +11,7 @@ const MEETING_STATUS_ORDER: Record<MeetingStatus, number> = {
   a_venir: 0,
   en_cours: 1,
   terminee: 2,
+  archivee: 3,
 };
 
 export function sortMeetingsByUrgency(meetings: MeetingListItem[]): MeetingListItem[] {

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import {
+  deleteMeeting,
   getMeetings,
   updateMeetingStatus,
   type MeetingListItem,
@@ -45,7 +46,7 @@ import {
   MEETING_STATUS_BADGE_CLASSES,
   MEETING_TYPE_LABELS,
 } from "@/lib/cseLabels";
-import { Plus, Calendar, Users, Eye, Pencil, Play } from "lucide-react";
+import { Plus, Calendar, Users, Eye, Pencil, Play, Archive, Loader2, Trash2 } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { MeetingModal } from "@/components/cse/MeetingModal";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "a_venir", label: MEETING_STATUS_LABELS.a_venir },
   { value: "en_cours", label: MEETING_STATUS_LABELS.en_cours },
   { value: "terminee", label: MEETING_STATUS_LABELS.terminee },
+  { value: "archivee", label: MEETING_STATUS_LABELS.archivee },
 ];
 
 const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
@@ -113,6 +115,7 @@ export default function MeetingsTab() {
     status: MeetingStatus;
     title: string;
   } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<MeetingListItem | null>(null);
 
   const { data: meetings = [], isLoading } = useQuery({
     queryKey: ["cse", "meetings", statusFilter, typeFilter],
@@ -142,6 +145,25 @@ export default function MeetingsTab() {
         error && typeof error === "object" && "message" in error
           ? String((error as { message?: string }).message)
           : "Erreur lors de la mise à jour";
+      toast({ title: "Erreur", description: msg, variant: "destructive" });
+    },
+  });
+
+  const deleteMeetingMutation = useMutation({
+    mutationFn: deleteMeeting,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cse", "meetings"] });
+      toast({
+        title: "Réunion supprimée",
+        description: "La réunion CSE a été retirée définitivement.",
+      });
+      setDeleteConfirm(null);
+    },
+    onError: (error: unknown) => {
+      const msg =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: string }).message)
+          : "Erreur lors de la suppression";
       toast({ title: "Erreur", description: msg, variant: "destructive" });
     },
   });
@@ -319,6 +341,7 @@ export default function MeetingsTab() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            title="Terminer la réunion"
                             onClick={() =>
                               setStatusConfirm({
                                 meetingId: meeting.id,
@@ -330,6 +353,33 @@ export default function MeetingsTab() {
                             Terminer
                           </Button>
                         )}
+                        {meeting.status !== "archivee" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Archiver"
+                            className="h-8 w-8 p-0"
+                            onClick={() =>
+                              setStatusConfirm({
+                                meetingId: meeting.id,
+                                status: "archivee",
+                                title: meeting.title,
+                              })
+                            }
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Supprimer"
+                          aria-label="Supprimer la réunion"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteConfirm(meeting)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -358,7 +408,9 @@ export default function MeetingsTab() {
             <AlertDialogDescription>
               {statusConfirm?.status === "en_cours"
                 ? `Démarrer la réunion « ${statusConfirm?.title} » ?`
-                : `Marquer « ${statusConfirm?.title} » comme terminée ?`}
+                : statusConfirm?.status === "archivee"
+                  ? `Archiver la réunion « ${statusConfirm?.title} » ? Elle disparaîtra de la vue courante.`
+                  : `Marquer « ${statusConfirm?.title} » comme terminée ?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -372,8 +424,47 @@ export default function MeetingsTab() {
                   });
                 }
               }}
+              disabled={updateStatusMutation.isPending}
             >
-              Confirmer
+              {updateStatusMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mise à jour...
+                </>
+              ) : (
+                "Confirmer"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la réunion CSE ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La réunion « {deleteConfirm?.title} » sera supprimée définitivement, avec ses
+              participants et enregistrements liés. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirm) deleteMeetingMutation.mutate(deleteConfirm.id);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMeetingMutation.isPending}
+            >
+              {deleteMeetingMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Suppression...
+                </>
+              ) : (
+                "Supprimer"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -15,7 +15,7 @@ ElectedMemberRole = Literal[
     "titulaire", "suppleant", "secretaire", "tresorier", "autre"
 ]
 MeetingType = Literal["ordinaire", "extraordinaire", "cssct", "autre"]
-MeetingStatus = Literal["a_venir", "en_cours", "terminee"]
+MeetingStatus = Literal["a_venir", "en_cours", "terminee", "archivee"]
 ParticipantRole = Literal["participant", "observateur"]
 BDESDocumentType = Literal["bdes", "pv", "pv_carence", "autre"]
 

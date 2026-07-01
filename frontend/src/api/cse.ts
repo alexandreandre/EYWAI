@@ -10,7 +10,7 @@ import apiClient from "./apiClient";
 
 export type ElectedMemberRole = "titulaire" | "suppleant" | "secretaire" | "tresorier" | "autre";
 export type MeetingType = "ordinaire" | "extraordinaire" | "cssct" | "autre";
-export type MeetingStatus = "a_venir" | "en_cours" | "terminee";
+export type MeetingStatus = "a_venir" | "en_cours" | "terminee" | "archivee";
 export type ParticipantRole = "participant" | "observateur";
 export type BDESDocumentType = "bdes" | "pv" | "pv_carence" | "autre";
 export type ElectionCycleStatus = "in_progress" | "completed";
@@ -538,6 +538,10 @@ export async function updateMeetingStatus(
     params: { status },
   });
   return response.data;
+}
+
+export async function deleteMeeting(meetingId: string): Promise<void> {
+  await apiClient.delete(`/api/cse/meetings/${meetingId}`);
 }
 
 // ============================================================================

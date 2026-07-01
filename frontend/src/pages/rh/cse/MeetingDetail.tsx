@@ -11,6 +11,7 @@ import {
   updateMeeting,
   updateMeetingStatus,
   updateMeetingParticipantAttendance,
+  type MeetingStatus,
 } from "@/api/cse";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -192,7 +193,7 @@ export default function MeetingDetail() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: (status: "en_cours" | "terminee") => updateMeetingStatus(meetingId!, status),
+    mutationFn: (status: MeetingStatus) => updateMeetingStatus(meetingId!, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cse", "meeting-detail", meetingId] });
       queryClient.invalidateQueries({ queryKey: ["cse", "meetings"] });

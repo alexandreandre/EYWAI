@@ -497,6 +497,7 @@ def get_meetings(
             meeting_id,
             cse_meetings!inner(
                 id,
+                company_id,
                 title,
                 meeting_date,
                 meeting_time,
@@ -518,8 +519,15 @@ def get_meetings(
         meetings = []
         for participant in response.data or []:
             meeting = participant.get("cse_meetings", {})
-            if meeting and meeting.get("company_id") == company_id:
-                meetings.append(meeting)
+            if not meeting or meeting.get("company_id") != company_id:
+                continue
+            if status and meeting.get("status") != status:
+                continue
+            if not status and meeting.get("status") == "archivee":
+                continue
+            if meeting_type and meeting.get("meeting_type") != meeting_type:
+                continue
+            meetings.append(meeting)
     else:
         # Sinon, récupérer toutes les réunions de l'entreprise
         query = (
@@ -546,6 +554,8 @@ def get_meetings(
 
         if status:
             query = query.eq("status", status)
+        else:
+            query = query.neq("status", "archivee")
         if meeting_type:
             query = query.eq("meeting_type", meeting_type)
 
@@ -560,6 +570,31 @@ def get_meetings(
         meetings = response.data or []
 
     return [_build_meeting_list_item(meeting) for meeting in meetings]
+
+
+def delete_meeting(meeting_id: str, company_id: str) -> None:
+    """Supprime une réunion CSE et ses données directement rattachées."""
+    _check_module_active(company_id)
+
+    existing = (
+        supabase.table("cse_meetings")
+        .select("id")
+        .eq("id", meeting_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    supabase.table("cse_meeting_participants").delete().eq(
+        "meeting_id", meeting_id
+    ).execute()
+    supabase.table("cse_meeting_recordings").delete().eq(
+        "meeting_id", meeting_id
+    ).execute()
+    supabase.table("cse_meetings").delete().eq("id", meeting_id).eq(
+        "company_id", company_id
+    ).execute()
 
 
 def create_meeting(

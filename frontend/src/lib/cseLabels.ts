@@ -27,12 +27,14 @@ export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
   a_venir: "À venir",
   en_cours: "En cours",
   terminee: "Terminée",
+  archivee: "Archivée",
 };
 
 export const MEETING_STATUS_BADGE_CLASSES: Record<MeetingStatus, string> = {
   a_venir: "bg-blue-100 text-blue-800 border-blue-200",
   en_cours: "bg-amber-100 text-amber-800 border-amber-200",
   terminee: "bg-green-100 text-green-800 border-green-200",
+  archivee: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
 export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {

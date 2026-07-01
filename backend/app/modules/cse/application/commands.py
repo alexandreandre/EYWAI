@@ -42,6 +42,14 @@ def update_meeting(meeting_id: str, company_id: str, data: Any) -> Any:
     return _update(meeting_id, company_id, data)
 
 
+def delete_meeting(meeting_id: str, company_id: str) -> None:
+    from app.modules.cse.infrastructure.cse_service_impl import (
+        delete_meeting as _delete,
+    )
+
+    return _delete(meeting_id, company_id)
+
+
 def add_participants(meeting_id: str, employee_ids: List[str]) -> List[Any]:
     from app.modules.cse.infrastructure.cse_service_impl import add_participants as _add
 

@@ -357,6 +357,18 @@ def update_meeting_status_endpoint(
     return commands.update_meeting(meeting_id, company_id, MeetingUpdate(status=status))
 
 
+@router.delete("/meetings/{meeting_id}", status_code=204)
+def delete_meeting_endpoint(
+    meeting_id: str,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Supprime une réunion CSE. RH uniquement."""
+    _require_rh(current_user)
+    company_id = _get_company_id(current_user)
+    queries.check_module_active(company_id)
+    commands.delete_meeting(meeting_id, company_id)
+
+
 # ---------------------------------------------------------------------------
 # PV et documents BDES
 # ---------------------------------------------------------------------------
