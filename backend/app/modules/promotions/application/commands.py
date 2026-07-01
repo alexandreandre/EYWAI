@@ -335,17 +335,12 @@ def mark_effective_promotion_cmd(promotion_id: str, company_id: str) -> Promotio
 
 
 def delete_promotion_cmd(promotion_id: str, company_id: str) -> None:
-    """Supprime une promotion (statuts draft ou pending_approval)."""
+    """Supprime un dossier de promotion du registre."""
     try:
         repo = get_promotion_repository()
         current_promo = repo.get_by_id(promotion_id, company_id)
         if current_promo is None:
             raise HTTPException(status_code=404, detail="Promotion non trouvée")
-        if current_promo.status not in ("draft", "pending_approval"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Impossible de supprimer une promotion en statut '{current_promo.status}'",
-            )
         repo.delete(promotion_id, company_id)
     except HTTPException:
         raise

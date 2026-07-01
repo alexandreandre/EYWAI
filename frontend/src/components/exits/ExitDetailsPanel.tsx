@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -136,6 +137,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [editingExitType, setEditingExitType] = useState(false);
   const [draftExitType, setDraftExitType] = useState<ExitType>('demission');
   const [savingExitType, setSavingExitType] = useState(false);
+  const [editingLastWorkingDay, setEditingLastWorkingDay] = useState(false);
+  const [draftLastWorkingDay, setDraftLastWorkingDay] = useState('');
+  const [savingLastWorkingDay, setSavingLastWorkingDay] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadType, setPendingUploadType] = useState<string>('justificatif_autre');
 
@@ -154,6 +158,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   useEffect(() => {
     if (exitDetails) {
       setDraftExitType(exitDetails.exit_type);
+      setDraftLastWorkingDay(String(exitDetails.last_working_day || '').slice(0, 10));
     }
   }, [exitDetails]);
 
@@ -270,6 +275,51 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
     } finally {
       setSavingExitType(false);
+    }
+  };
+
+  const handleLastWorkingDaySave = async () => {
+    if (!exitId || !exitDetails) {
+      setEditingLastWorkingDay(false);
+      return;
+    }
+    const currentValue = String(exitDetails.last_working_day || '').slice(0, 10);
+    if (!draftLastWorkingDay || draftLastWorkingDay === currentValue) {
+      setEditingLastWorkingDay(false);
+      return;
+    }
+
+    const generatedDocsCount = documents.filter((doc) => doc.document_category === 'generated').length;
+    const message = generatedDocsCount > 0
+      ? `Corriger le dernier jour travaillé recalculera les indemnités et signalera ${generatedDocsCount} document(s) généré(s) à revoir. Régénérez les PDF concernés après validation.`
+      : 'Corriger le dernier jour travaillé recalculera les indemnités.';
+
+    if (!confirm(message)) return;
+
+    setSavingLastWorkingDay(true);
+    try {
+      const updated = await updateEmployeeExit(exitId, { last_working_day: draftLastWorkingDay });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: 'Dernier jour travaillé corrigé',
+        description:
+          generatedDocsCount > 0
+            ? 'Les indemnités ont été recalculées. Pensez à régénérer les documents officiels.'
+            : 'Les indemnités ont été recalculées avec la nouvelle date.',
+      });
+      setEditingLastWorkingDay(false);
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de la correction du dernier jour travaillé:', error);
+      toast({
+        title: 'Erreur',
+        description: error.response?.data?.detail || 'Impossible de modifier le dernier jour travaillé',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingLastWorkingDay(false);
     }
   };
 
@@ -538,24 +588,29 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
   const generatedDocuments = documents.filter((doc) => doc.document_category === 'generated');
-  const exitTypeChangeNote = exitDetails.exit_notes?.exit_type_change;
-  const changedAt = typeof exitTypeChangeNote?.timestamp === 'string'
-    ? new Date(exitTypeChangeNote.timestamp).getTime()
-    : 0;
-  const documentTypesToReview = Array.isArray(exitTypeChangeNote?.generated_documents_to_review)
-    ? exitTypeChangeNote.generated_documents_to_review.filter(
-        (type: unknown): type is ExitDocument['document_type'] => typeof type === 'string',
-      )
-    : [];
-  const hasDocumentsToReview =
-    changedAt > 0 &&
-    documentTypesToReview.some(
+  const pendingReviewFromNote = (note: unknown): ExitDocument['document_type'][] => {
+    const changedAt = typeof (note as any)?.timestamp === 'string'
+      ? new Date((note as any).timestamp).getTime()
+      : 0;
+    if (!changedAt) return [];
+    const docTypes = Array.isArray((note as any)?.generated_documents_to_review)
+      ? (note as any).generated_documents_to_review.filter(
+          (type: unknown): type is ExitDocument['document_type'] => typeof type === 'string',
+        )
+      : [];
+    return docTypes.filter(
       (type) =>
         !generatedDocuments.some((doc) => {
           const generatedAt = doc.generated_at || doc.created_at;
           return doc.document_type === type && new Date(generatedAt).getTime() > changedAt;
         }),
     );
+  };
+  const documentTypesToReview = [
+    ...pendingReviewFromNote(exitDetails.exit_notes?.exit_type_change),
+    ...pendingReviewFromNote(exitDetails.exit_notes?.last_working_day_change),
+  ];
+  const hasDocumentsToReview = documentTypesToReview.length > 0;
   const completionRate = exitDetails.checklist_completion_rate || 0;
   const isArchived = exitDetails.status === 'archivee';
   const isCancelled = exitDetails.status === 'annulee';
@@ -686,7 +741,60 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
               )}
               <div>
                 <Label className="text-muted-foreground">Dernier jour travaillé</Label>
-                <p className="font-medium">{formatDate(exitDetails.last_working_day)}</p>
+                {editingLastWorkingDay ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      type="date"
+                      value={draftLastWorkingDay}
+                      onChange={(e) => setDraftLastWorkingDay(e.target.value)}
+                      disabled={savingLastWorkingDay}
+                      className="h-8 w-[160px]"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={handleLastWorkingDaySave}
+                      disabled={savingLastWorkingDay}
+                      title="Enregistrer"
+                    >
+                      {savingLastWorkingDay ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setDraftLastWorkingDay(String(exitDetails.last_working_day || '').slice(0, 10));
+                        setEditingLastWorkingDay(false);
+                      }}
+                      disabled={savingLastWorkingDay}
+                      title="Annuler"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium">{formatDate(exitDetails.last_working_day)}</p>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={() => setEditingLastWorkingDay(true)}
+                      title="Corriger la date"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
               {exitDetails.final_settlement_date && (
                 <div>

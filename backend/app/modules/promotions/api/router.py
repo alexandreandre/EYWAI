@@ -223,7 +223,7 @@ def delete_promotion_endpoint(
     _user: User = Depends(require_rh),
     company_id: str = Depends(get_company_id_required),
 ):
-    """Supprime une promotion (brouillon ou en attente d'approbation). Rôle RH requis."""
+    """Supprime un dossier de promotion du registre. Rôle RH requis."""
     delete_promotion_cmd(promotion_id=promotion_id, company_id=company_id)
 
 

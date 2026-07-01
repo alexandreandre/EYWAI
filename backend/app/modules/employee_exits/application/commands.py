@@ -584,18 +584,24 @@ def update_employee_exit(
         return existing
     update_data = dict(update_data)
     new_exit_type = update_data.get("exit_type")
-    if new_exit_type and new_exit_type != existing.get("exit_type"):
-        if new_exit_type not in EDITABLE_EXIT_TYPES:
-            raise EmployeeExitApplicationError(
-                400, f"Type de départ non supporté: {new_exit_type}"
-            )
-        if existing.get("status") in ("archivee", "annulee"):
-            raise EmployeeExitApplicationError(
-                400,
-                "Impossible de modifier le type d'un départ archivé ou annulé.",
-            )
+    exit_type_changed = bool(new_exit_type and new_exit_type != existing.get("exit_type"))
+    if exit_type_changed and new_exit_type not in EDITABLE_EXIT_TYPES:
+        raise EmployeeExitApplicationError(
+            400, f"Type de départ non supporté: {new_exit_type}"
+        )
+    if exit_type_changed and existing.get("status") in ("archivee", "annulee"):
+        raise EmployeeExitApplicationError(
+            400,
+            "Impossible de modifier le type d'un départ archivé ou annulé.",
+        )
 
-        old_exit_type = str(existing.get("exit_type") or "")
+    new_last_working_day = update_data.get("last_working_day")
+    last_working_day_changed = bool(
+        new_last_working_day
+        and str(new_last_working_day)[:10] != str(existing.get("last_working_day") or "")[:10]
+    )
+
+    if exit_type_changed or last_working_day_changed:
         now = datetime.now(timezone.utc).isoformat()
         exit_notes = existing.get("exit_notes") or {}
         if not isinstance(exit_notes, dict):
@@ -606,24 +612,36 @@ def update_employee_exit(
             for doc in ExitDocumentRepository(sb).list_by_exit(exit_id, company_id)
             if doc.get("document_category") == "generated"
         ]
-        exit_notes["exit_type_change"] = {
-            "timestamp": now,
-            "previous_exit_type": old_exit_type,
-            "new_exit_type": new_exit_type,
-            "generated_documents_to_review": [doc.get("document_type") for doc in generated_docs],
-        }
+        docs_to_review = [doc.get("document_type") for doc in generated_docs]
 
-        update_data.update(
-            {
-                "status": get_initial_status(str(new_exit_type)),
-                "validated_by": None,
-                "validation_date": None,
-                "archived_by": None,
-                "archived_at": None,
-                "exit_notes": exit_notes,
-                "updated_at": now,
+        if exit_type_changed:
+            old_exit_type = str(existing.get("exit_type") or "")
+            exit_notes["exit_type_change"] = {
+                "timestamp": now,
+                "previous_exit_type": old_exit_type,
+                "new_exit_type": new_exit_type,
+                "generated_documents_to_review": docs_to_review,
             }
-        )
+            update_data.update(
+                {
+                    "status": get_initial_status(str(new_exit_type)),
+                    "validated_by": None,
+                    "validation_date": None,
+                    "archived_by": None,
+                    "archived_at": None,
+                }
+            )
+
+        if last_working_day_changed:
+            exit_notes["last_working_day_change"] = {
+                "timestamp": now,
+                "previous_last_working_day": existing.get("last_working_day"),
+                "new_last_working_day": new_last_working_day,
+                "generated_documents_to_review": docs_to_review,
+            }
+
+        update_data["exit_notes"] = exit_notes
+        update_data["updated_at"] = now
 
         try:
             employee_id = str(existing.get("employee_id") or "")
@@ -641,7 +659,7 @@ def update_employee_exit(
             )
         except Exception as exc:
             logger.warning(
-                "Recalcul indemnités après changement de type sortie %s: %s",
+                "Recalcul indemnités après modification sortie %s: %s",
                 exit_id,
                 exc,
             )

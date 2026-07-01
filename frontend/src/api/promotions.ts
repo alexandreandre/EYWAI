@@ -317,7 +317,7 @@ export const markPromotionEffective = (promotionId: string) => {
 };
 
 /**
- * Supprime une promotion (uniquement si statut = draft)
+ * Supprime une promotion du registre.
  */
 export const deletePromotion = (promotionId: string) => {
   return apiClient.delete(`/api/promotions/${promotionId}`);

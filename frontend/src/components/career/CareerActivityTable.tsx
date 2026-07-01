@@ -1,13 +1,26 @@
 import { Fragment, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Trash2 } from "lucide-react";
 
+import { deleteDocument } from "@/api/documents";
 import type { GeneratedDocument } from "@/api/documents";
 import type { Promotion, PromotionListItem } from "@/api/promotions";
 import { AvenantRowActions } from "@/components/career/AvenantRowActions";
 import { CareerKindBadge, CareerStatusBadge } from "@/components/career/careerStatusBadge";
 import { PromotionsActions } from "@/components/career/PromotionsActions";
 import type { CareerActivityItem, SalaryReviewSession } from "@/components/career/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -23,6 +36,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateFR } from "@/lib/careerFormat";
+import { AVENANTS_QUERY_KEY } from "@/lib/careerActivity";
+import { toast } from "@/components/ui/use-toast";
 
 type CareerActivityTableProps = {
   items: CareerActivityItem[];
@@ -87,6 +102,78 @@ function SessionExpandRow({
         </TableCell>
       </TableRow>
     </>
+  );
+}
+
+function DeleteSessionButton({
+  session,
+  companyId,
+}: {
+  session: SalaryReviewSession;
+  companyId: string;
+}) {
+  const queryClient = useQueryClient();
+  const deleteSessionMut = useMutation({
+    mutationFn: async () => {
+      await Promise.all(session.documents.map((doc) => deleteDocument(doc.id)));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...AVENANTS_QUERY_KEY, companyId] });
+      toast({
+        title: "Campagne supprimée",
+        description: "Les avenants de cette augmentation ont été retirés du registre.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Suppression impossible",
+        description: "Un des avenants n'a pas pu être supprimé.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+          aria-label="Supprimer la campagne d'augmentation"
+          title="Supprimer la campagne"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Supprimer cette campagne ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Les {session.documents.length} avenant(s) de cette augmentation seront retirés du
+            registre. Cette action est irréversible.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => deleteSessionMut.mutate()}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={deleteSessionMut.isPending}
+          >
+            {deleteSessionMut.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Suppression...
+              </>
+            ) : (
+              "Supprimer"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -161,7 +248,7 @@ export function CareerActivityTable({
                     <AvenantRowActions document={avenant} companyId={companyId} />
                   )}
                   {session && (
-                    <span className="text-xs text-muted-foreground">Voir le détail</span>
+                    <DeleteSessionButton session={session} companyId={companyId} />
                   )}
                 </TableCell>
               </TableRow>
