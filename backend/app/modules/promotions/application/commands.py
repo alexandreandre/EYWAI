@@ -341,6 +341,11 @@ def delete_promotion_cmd(promotion_id: str, company_id: str) -> None:
         current_promo = repo.get_by_id(promotion_id, company_id)
         if current_promo is None:
             raise HTTPException(status_code=404, detail="Promotion non trouvée")
+        if current_promo.status == "effective":
+            raise HTTPException(
+                status_code=400,
+                detail="Impossible de supprimer une promotion déjà effective",
+            )
         repo.delete(promotion_id, company_id)
     except HTTPException:
         raise
