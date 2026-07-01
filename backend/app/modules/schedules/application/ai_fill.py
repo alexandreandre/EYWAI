@@ -1013,7 +1013,7 @@ def _extract_timesheet_hybrid_path(
     default_nature = "reel"
     detected_format = "hybrid_vision_ocr"
     if hybrid.used_cegid_fallback:
-        detected_format = detected_parser or "cegid_weekly"
+        detected_format = hybrid.fallback_parser_key or "cegid_weekly"
 
     source_label = (
         f"relevé IA hybride ({method})"

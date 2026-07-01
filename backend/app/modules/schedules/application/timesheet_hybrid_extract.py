@@ -72,6 +72,7 @@ class HybridExtractResult:
     tokens_used: int = 0
     consensus_conflicts: int = 0
     used_cegid_fallback: bool = False
+    fallback_parser_key: str | None = None
 
 
 def _matricule_hint(known_mats: list[str]) -> str:
@@ -370,6 +371,7 @@ def extract_timesheet_hybrid(
         tokens_used=tokens_total,
         consensus_conflicts=merged.conflicts_count,
         used_cegid_fallback=used_fallback,
+        fallback_parser_key=fallback_attempt.parser_key if used_fallback else None,
     )
 
 
