@@ -47,5 +47,8 @@ def test_generate_document_cdi_uses_contract_pdf(mock_supabase, _mock_tpl) -> No
     assert result["document_id"] == "doc-1"
     upload_call = mock_supabase.storage.from_.return_value.upload
     assert upload_call.called
-    pdf_bytes = upload_call.call_args[0][1]
+    pdf_call = next(
+        c for c in upload_call.call_args_list if c[0][2]["content-type"] == "application/pdf"
+    )
+    pdf_bytes = pdf_call[0][1]
     assert pdf_bytes.startswith(b"%PDF")
