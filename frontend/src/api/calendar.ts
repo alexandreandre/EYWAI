@@ -144,6 +144,10 @@ export interface AiDayEntry {
   heures: number | null;
   type: string;
   nature: DayNature;
+  // Mois/année réels du jour si différents du (year, month) de la proposition
+  // (semaine hebdomadaire à cheval sur deux mois). Absent = mois de la proposition.
+  year?: number | null;
+  month?: number | null;
 }
 
 export type AiMatchConfidence = 'high' | 'medium' | 'none';

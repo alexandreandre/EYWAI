@@ -56,6 +56,9 @@ interface EditableDay {
   heures: number | null;
   type: string;
   nature: DayNature;
+  // Mois/année réels si différents du mois affiché (semaine à cheval sur 2 mois).
+  year?: number | null;
+  month?: number | null;
 }
 
 interface EditableRow {
@@ -341,6 +344,8 @@ export function AssistedFillReview({
         heures: d.heures,
         type: d.type,
         nature: d.nature,
+        year: d.year ?? null,
+        month: d.month ?? null,
       })),
       weeklyTotalPdf: emp.weekly_total_pdf ?? null,
       weeklyTotalImported: emp.weekly_total_imported ?? null,
@@ -441,6 +446,15 @@ export function AssistedFillReview({
     });
   };
 
+  const confirmVerifiedRow = (rowKey: string) => {
+    updateRow(rowKey, {
+      confidence: 'high',
+      reviewStatus: 'ok',
+      manuallyConfirmed: true,
+      qualityIssue: null,
+    });
+  };
+
   const formatDocumentNameHint = (rawName: string) =>
     isTabularImport
       ? `Lu dans le fichier : « ${rawName} ».`
@@ -507,6 +521,8 @@ export function AssistedFillReview({
             heures: d.heures,
             type: d.type,
             nature: d.nature,
+            year: d.year ?? null,
+            month: d.month ?? null,
           })),
         })),
         { batchId: batchId ?? undefined },
@@ -755,6 +771,7 @@ export function AssistedFillReview({
             const expanded = expandedKeys.has(row.key);
             const daySum = row.days.reduce((a, d) => a + (d.heures ?? 0), 0);
             const needsAssociate = !row.employeeId || status === 'error';
+            const canConfirmVerification = !needsAssociate && isMatchVerificationRow(row);
             return (
               <div
                 key={row.key}
@@ -811,6 +828,18 @@ export function AssistedFillReview({
                       onSelect={(id, label) => associateEmployee(row.key, id, label)}
                     />
                   )}
+                  {canConfirmVerification && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 border-emerald-300 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                      onClick={() => confirmVerifiedRow(row.key)}
+                    >
+                      <Check className="mr-1 h-3.5 w-3.5" />
+                      Valider
+                    </Button>
+                  )}
                 </div>
 
                 {row.warnings.length > 0 && status !== 'ok' && (
@@ -838,8 +867,14 @@ export function AssistedFillReview({
                         key={day.jour}
                         className="flex flex-wrap items-center gap-1.5 rounded bg-muted/30 px-1.5 py-1"
                       >
-                        <span className="w-16 text-[11px] font-medium tabular-nums">
-                          {weekdayLabel(proposal.year, proposal.month, day.jour)} {day.jour}
+                        <span className="w-20 text-[11px] font-medium tabular-nums">
+                          {weekdayLabel(day.year ?? proposal.year, day.month ?? proposal.month, day.jour)}{' '}
+                          {day.jour}
+                          {(day.month ?? proposal.month) !== proposal.month && (
+                            <span className="text-muted-foreground">
+                              /{String(day.month ?? proposal.month).padStart(2, '0')}
+                            </span>
+                          )}
                         </span>
                         <Input
                           type="number"
