@@ -7,7 +7,9 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Invalide toutes les requêtes de compteurs sidebar RH pour forcer un rafraîchissement. */
 export function invalidateRhSidebarBadges(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: RH_SIDEBAR_BADGES_QUERY_KEY });
+  return queryClient.invalidateQueries({
+    predicate: (query) => query.queryKey.includes(RH_SIDEBAR_BADGES_QUERY_KEY[0]),
+  });
 }
 
 /**

@@ -26,6 +26,7 @@ import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import {
   buildRhPendingTasks,
   rhPendingTasksToSidebarCounts,
@@ -53,76 +54,80 @@ const STALE = 30_000;
 /**
  * File unifiée des actions RH à traiter — même périmètre que la pastille « Tableau de bord » sidebar.
  */
-export function useRhPendingTasks(enabled: boolean, companyId?: string | null) {
+export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string | null) {
+  const activeCompanyId = useActiveCompanyId();
+  const companyId = companyIdOverride ?? activeCompanyId ?? null;
+  const companyEnabled = enabled && Boolean(companyId);
+
   const dashboardQuery = useQuery({
-    queryKey: ['dashboard', 'all', 'sidebar-badges'],
+    queryKey: ['dashboard', 'all', 'sidebar-badges', companyId],
     queryFn: async () => {
       const res = await apiClient.get<DashboardSlice>('/api/dashboard/all');
       return res.data;
     },
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const residenceQuery = useQuery({
-    queryKey: ['dashboard', 'residence-permit-stats', 'sidebar-badges'],
+    queryKey: ['dashboard', 'residence-permit-stats', 'sidebar-badges', companyId],
     queryFn: async () => {
       const res = await apiClient.get<ResidenceSlice>(
         '/api/dashboard/residence-permit-stats',
       );
       return res.data;
     },
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const medicalSettingsQuery = useQuery({
-    queryKey: ['medical-follow-up', 'settings', 'sidebar-badges'],
+    queryKey: ['medical-follow-up', 'settings', 'sidebar-badges', companyId],
     queryFn: getMedicalSettings,
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const medicalKpisQuery = useQuery({
-    queryKey: ['medical-follow-up', 'kpis', 'sidebar-badges'],
+    queryKey: ['medical-follow-up', 'kpis', 'sidebar-badges', companyId],
     queryFn: getKPIs,
-    enabled: enabled && medicalSettingsQuery.data?.enabled === true,
+    enabled: companyEnabled && medicalSettingsQuery.data?.enabled === true,
     staleTime: STALE,
   });
 
   const ribAlertsQuery = useQuery({
-    queryKey: ['rib-alerts', 'sidebar-badges'],
+    queryKey: ['rib-alerts', 'sidebar-badges', companyId],
     queryFn: async () => {
       const res = await getRibAlerts({ is_read: false, is_resolved: false, limit: 1 });
       return typeof res.data.total === 'number'
         ? res.data.total
         : (res.data.alerts?.length ?? 0);
     },
-    enabled: enabled && RIB_ALERTS_UI_ENABLED,
+    enabled: companyEnabled && RIB_ALERTS_UI_ENABLED,
     staleTime: STALE,
   });
 
   const annualReviewsQuery = useQuery({
-    queryKey: ['annual-reviews', 'priority-window', 'sidebar-badges'],
+    queryKey: ['annual-reviews', 'priority-window', 'sidebar-badges', companyId],
     queryFn: async () => {
       const res = await getAllAnnualReviews();
       return countUpcomingPlannedAnnualReviews(res.data ?? []);
     },
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const recruitmentSettingsQuery = useQuery({
-    queryKey: ['recruitment', 'settings', 'sidebar-badges'],
+    queryKey: ['recruitment', 'settings', 'sidebar-badges', companyId],
     queryFn: getRecruitmentSettings,
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const recruitmentCandidatesQuery = useQuery({
-    queryKey: ['recruitment', 'candidates', 'sidebar-badges'],
+    queryKey: ['recruitment', 'candidates', 'sidebar-badges', companyId],
     queryFn: () => getCandidates(),
-    enabled: enabled && recruitmentSettingsQuery.data?.enabled === true,
+    enabled: companyEnabled && recruitmentSettingsQuery.data?.enabled === true,
     staleTime: STALE,
   });
 
@@ -131,7 +136,7 @@ export function useRhPendingTasks(enabled: boolean, companyId?: string | null) {
   const schedulesMonth = now.getMonth() + 1;
 
   const schedulesBadgeQuery = useQuery({
-    queryKey: ['schedules', 'sidebar-badges', schedulesYear, schedulesMonth],
+    queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],
     queryFn: async () => {
       const empRes = await apiClient.get<SchedulesEmployeeInput[]>('/api/employees');
       const employees = empRes.data ?? [];
@@ -139,49 +144,49 @@ export function useRhPendingTasks(enabled: boolean, companyId?: string | null) {
       const rows = await fetchAllEmployeesOverview(employees, schedulesYear, schedulesMonth);
       return countSchedulesToEnter(rows);
     },
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const workMedalsQuery = useQuery({
-    queryKey: ['work-medal-summary', 'sidebar-badges'],
+    queryKey: ['work-medal-summary', 'sidebar-badges', companyId],
     queryFn: getWorkMedalSummary,
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const rttYearEndQuery = useQuery({
-    queryKey: ['rtt-year-end', 'sidebar-badges'],
+    queryKey: ['rtt-year-end', 'sidebar-badges', companyId],
     queryFn: () => getRttYearEndOverview(),
-    enabled,
+    enabled: companyEnabled,
     staleTime: 60_000,
   });
 
   const modulationWorkflowQuery = useQuery({
-    queryKey: ['modulation', 'workflow-status', 'sidebar-badges'],
+    queryKey: ['modulation', 'workflow-status', 'sidebar-badges', companyId],
     queryFn: getModulationWorkflowStatus,
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const cetPendingQuery = useQuery({
-    queryKey: ['cet', 'pending', 'sidebar-badges'],
+    queryKey: ['cet', 'pending', 'sidebar-badges', companyId],
     queryFn: getCetPending,
-    enabled,
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const pendingSignaturesQuery = useQuery({
     queryKey: ['signatures', 'pending-rh', 'sidebar-badges', companyId],
     queryFn: getPendingSignaturesRH,
-    enabled: enabled && Boolean(companyId),
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
   const onboardingQuery = useQuery({
     queryKey: ['onboarding', 'hub-dashboard', 'sidebar-badges', companyId],
     queryFn: () => listOnboardingHub(companyId as string, ONBOARDING_LOOKBACK_DAYS),
-    enabled: enabled && Boolean(companyId),
+    enabled: companyEnabled,
     staleTime: STALE,
   });
 
@@ -288,14 +293,14 @@ export function useRhPendingTasks(enabled: boolean, companyId?: string | null) {
 
   /** Bloque l’UI seulement tant qu’on n’a pas les sources principales (pas les requêtes lentes type plannings). */
   const isLoading =
-    enabled &&
+    companyEnabled &&
     !hasCoreData &&
     (dashboardQuery.isPending ||
       residenceQuery.isPending ||
       medicalSettingsQuery.isPending);
 
   const isRefreshing =
-    enabled &&
+    companyEnabled &&
     hasCoreData &&
     (dashboardQuery.isFetching ||
       residenceQuery.isFetching ||
@@ -306,7 +311,7 @@ export function useRhPendingTasks(enabled: boolean, companyId?: string | null) {
     q.isPending || q.isFetching;
 
   const isPayrollPipelineLoading =
-    enabled &&
+    companyEnabled &&
     (queryInFlight(dashboardQuery) || queryInFlight(schedulesBadgeQuery));
 
   return {
