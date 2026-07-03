@@ -116,12 +116,13 @@ def apply_validated_ijss_to_payslip(
     emp_res = (
         get_supabase_admin_client()
         .table("employees")
-        .select("statut")
+        .select("statut, is_forfait_jour")
         .eq("id", employee_id)
         .maybe_single()
         .execute()
     )
-    statut = (emp_res.data or {}).get("statut") or ""
+    emp = emp_res.data or {}
+    statut = emp.get("statut") or ""
     from app.shared.domain.employment_rules import is_forfait_jour
 
     ijss_tracking_meta = {
@@ -133,7 +134,7 @@ def apply_validated_ijss_to_payslip(
         "applied_by": user_id,
     }
 
-    if is_forfait_jour(statut):
+    if is_forfait_jour(statut, emp.get("is_forfait_jour")):
         from app.modules.payroll.documents.payslip_generator_forfait import (
             process_payslip_generation_forfait,
         )

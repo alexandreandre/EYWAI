@@ -371,6 +371,7 @@ export function useRecruitmentPageModel() {
         job_title: data.job_title || undefined,
         contract_type: data.contract_type,
         statut: data.statut,
+        is_forfait_jour: Boolean(data.is_forfait_jour),
         contract_end_date: data.contract_end_date?.trim() || undefined,
         date_debut_execution: data.date_debut_execution?.trim() || undefined,
         date_conclusion_contrat: data.date_conclusion_contrat?.trim() || undefined,

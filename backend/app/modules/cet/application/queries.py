@@ -206,7 +206,7 @@ def get_settings(company_id: str) -> dict[str, Any]:
 def _get_employee_row(employee_id: str) -> dict[str, Any] | None:
     resp = (
         supabase.table("employees")
-        .select("id, company_id, statut, duree_hebdomadaire, first_name, last_name, team_id")
+        .select("id, company_id, statut, is_forfait_jour, duree_hebdomadaire, first_name, last_name, team_id")
         .eq("id", employee_id)
         .limit(1)
         .execute()
@@ -285,7 +285,9 @@ def build_employee_summary(
     y = year or today.year
     m = month or today.month
 
-    eligible = settings["cet_enabled"] and not is_forfait_jour(emp.get("statut"))
+    eligible = settings["cet_enabled"] and not is_forfait_jour(
+        emp.get("statut"), emp.get("is_forfait_jour")
+    )
     all_movements = cet_repo.list_movements_for_employee(employee_id)
     year_movements = cet_repo.list_movements_for_employee(employee_id, year=y)
     month_movements = cet_repo.list_movements_for_employee(employee_id, year=y, month=m)
@@ -363,7 +365,7 @@ def get_cet_overview(company_id: str, year: int | None = None) -> list[dict[str,
 
     emp_resp = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, team_id")
+        .select("id, first_name, last_name, statut, is_forfait_jour, team_id")
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active"])
         .execute()
@@ -371,7 +373,7 @@ def get_cet_overview(company_id: str, year: int | None = None) -> list[dict[str,
     overview: list[dict[str, Any]] = []
     for emp in emp_resp.data or []:
         employee_id = str(emp["id"])
-        if is_forfait_jour(emp.get("statut")):
+        if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
             continue
         try:
             summary = build_employee_summary(employee_id, year=ref_year)

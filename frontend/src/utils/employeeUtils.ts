@@ -5,7 +5,8 @@
 /**
  * Vérifie si un statut d'employé correspond à un forfait jour
  * 
- * Le forfait jour est déterminé par le statut de l'employé (ex: "Cadre au forfait jour").
+ * Le forfait jours est désormais un champ dédié (`is_forfait_jour`).
+ * Le statut historique contenant "forfait jour" reste supporté en lecture.
  * Les employés en forfait jour gèrent leur temps de travail par jours travaillés (0/1)
  * plutôt que par heures dans le calendrier.
  * 
@@ -19,9 +20,11 @@
  * isForfaitJour(null) // false
  * isForfaitJour(undefined) // false
  */
-export function isForfaitJour(statut: string | null | undefined): boolean {
+export function isForfaitJour(
+  statut: string | null | undefined,
+  explicit?: boolean | null,
+): boolean {
+  if (explicit !== undefined && explicit !== null) return Boolean(explicit);
   if (!statut) return false;
-  
-  // Vérification insensible à la casse
   return statut.toLowerCase().includes('forfait jour');
 }

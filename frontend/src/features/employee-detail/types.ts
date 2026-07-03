@@ -5,6 +5,7 @@ export interface Employee {
   job_title: string; 
   contract_type: string; 
   statut: string; 
+  is_forfait_jour?: boolean | null;
   hire_date: string;
   contract_end_date?: string | null;
   is_temps_partiel?: boolean | null;
@@ -101,4 +102,3 @@ export interface Employee {
     [key: string]: unknown;
   } | null;
 }
-

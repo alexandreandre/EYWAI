@@ -139,7 +139,10 @@ export default function EmployeeDetail() {
     bulkCopyPlannedToActual,
     isCopyingPrevMonth,
     refetch: refetchCalendar,
-  } = useCalendar(employeeId, employeeStatut, { enabled: activeTab === "calendrier" });
+  } = useCalendar(employeeId, employeeStatut, {
+    enabled: activeTab === "calendrier",
+    isForfaitJour: employee?.is_forfait_jour,
+  });
 
   const [saisieModalOpen, setSaisieModalOpen] = useState(false);
   const [isLoadingSaisies, setIsLoadingSaisies] = useState(false);

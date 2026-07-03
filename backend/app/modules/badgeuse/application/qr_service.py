@@ -176,7 +176,7 @@ def list_punch_candidates(
 
     emp_result = (
         supabase.table("employees")
-        .select("id, first_name, last_name, username, statut, job_title")
+        .select("id, first_name, last_name, username, statut, is_forfait_jour, job_title")
         .eq("company_id", company_id)
         .eq("employment_status", "actif")
         .order("last_name")
@@ -243,5 +243,4 @@ def list_punch_candidates(
         )
     )
     return candidates[: max(1, min(limit, 50))]
-
 

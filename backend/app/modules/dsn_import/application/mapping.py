@@ -416,6 +416,8 @@ def map_employee_payload(
         if p.montant > 0
     ]
 
+    statut_categoriel = map_statut_cadre(contrat.statut)
+
     payload: Dict[str, Any] = {
         "first_name": ind.prenom,
         "last_name": ind.nom,
@@ -431,7 +433,8 @@ def map_employee_payload(
         "hire_date": hire,
         "contract_type": contract_type,
         "contract_end_date": end,
-        "statut": map_statut_cadre(contrat.statut),
+        "statut": statut_categoriel,
+        "is_forfait_jour": statut_categoriel == "Cadre",
         "job_title": contrat.libelle_emploi or contrat.pcs or "Salarié",
         "is_temps_partiel": is_tp,
         "duree_hebdomadaire": heures,
@@ -444,7 +447,7 @@ def map_employee_payload(
             "idcc": contrat.idcc,
             "pcs": contrat.pcs,
             "libelle_emploi": contrat.libelle_emploi or None,
-            "statut_categoriel": map_statut_cadre(contrat.statut),
+            "statut_categoriel": statut_categoriel,
             "code_statut_dsn": contrat.statut or None,
             "position": contrat.position_conv or None,
             "dispositif_politique_publique": contrat.dispositif or None,

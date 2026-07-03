@@ -31,6 +31,7 @@ export const employeeProfileEditSchema = z
     job_title: z.string().min(2, { message: 'Intitulé du poste requis.' }),
     contract_type: z.string().min(2, { message: 'Type de contrat requis.' }),
     statut: z.string().min(2, { message: 'Statut requis.' }),
+    is_forfait_jour: z.boolean(),
     is_temps_partiel: z.boolean(),
     duree_hebdomadaire: z.coerce.number().positive({ message: 'Durée hebdomadaire requise.' }),
     contract_end_date: z.string().optional(),

@@ -77,8 +77,9 @@ def process_payslip_generation_forfait(
 
         employee_folder_name = employee_data["employee_folder_name"]
         statut = employee_data.get("statut")
+        is_forfait_flag = employee_data.get("is_forfait_jour")
 
-        if not is_forfait_jour(statut):
+        if not is_forfait_jour(statut, is_forfait_flag):
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -289,6 +290,7 @@ def process_payslip_generation_forfait(
                 "date_fin_contrat": employee_data.get("contract_end_date"),
                 "date_sortie": resolve_date_sortie(employee_data),
                 "statut": statut,
+                "is_forfait_jour": bool(is_forfait_flag),
                 "temps_travail": {"duree_hebdomadaire": duree_hebdo},
             },
             "remuneration": {

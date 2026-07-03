@@ -42,7 +42,7 @@ def _movement_rows(raw: list[dict[str, Any]]) -> list[CetMovementRow]:
 def _get_employee_row(employee_id: str) -> dict[str, Any] | None:
     resp = (
         supabase.table("employees")
-        .select("id, company_id, statut, duree_hebdomadaire, first_name, last_name, team_id")
+        .select("id, company_id, statut, is_forfait_jour, duree_hebdomadaire, first_name, last_name, team_id")
         .eq("id", employee_id)
         .limit(1)
         .execute()
@@ -147,7 +147,7 @@ def create_deposit(
     emp = _get_employee_row(employee_id)
     if not emp or str(emp["company_id"]) != company_id:
         raise LookupError("Employé introuvable.")
-    if is_forfait_jour(emp.get("statut")):
+    if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
         raise ValueError("Le CET n'est pas applicable aux salariés au forfait jour.")
 
     _enforce_deadline(settings)
@@ -198,7 +198,7 @@ def create_deposit_cp(
     emp = _get_employee_row(employee_id)
     if not emp or str(emp["company_id"]) != company_id:
         raise LookupError("Employé introuvable.")
-    if is_forfait_jour(emp.get("statut")):
+    if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
         raise ValueError("Le CET n'est pas applicable aux salariés au forfait jour.")
 
     _enforce_deadline(settings)

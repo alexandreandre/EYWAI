@@ -45,6 +45,7 @@ export type UpdateEmployeePayload = {
   job_title?: string;
   contract_type?: string;
   statut?: string;
+  is_forfait_jour?: boolean | null;
   is_temps_partiel?: boolean;
   duree_hebdomadaire?: number;
   classification_conventionnelle?: {

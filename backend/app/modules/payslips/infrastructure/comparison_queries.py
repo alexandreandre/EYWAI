@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.database import supabase
+from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 
 def _net_from_payslip_data(data: Any) -> float:
@@ -72,15 +73,16 @@ def fetch_validated_payslips_strictly_before(
 def fetch_employee_statut(employee_id: str) -> str | None:
     r = (
         supabase.table("employees")
-        .select("statut")
+        .select("statut, is_forfait_jour")
         .eq("id", employee_id)
         .maybe_single()
         .execute()
     )
     if not r or not r.data:
         return None
-    st = r.data.get("statut")
-    return str(st) if st is not None else None
+    return effective_statut_for_payroll(
+        r.data.get("statut"), r.data.get("is_forfait_jour")
+    )
 
 
 def fetch_recent_nets_asc_for_r10(

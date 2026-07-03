@@ -1,10 +1,8 @@
 /**
  * Constantes pour les types de contrat et statuts d'employés
  * 
- * IMPORTANT : Le forfait jour est déterminé par le STATUT de l'employé,
- * et non par le type de contrat. Un employé peut avoir un contrat CDI
- * avec le statut "Cadre au forfait jour", ce qui signifie qu'il travaille
- * en forfait jour (gestion par jours travaillés 0/1) plutôt qu'en heures.
+ * IMPORTANT : le forfait jours est un réglage dédié (`is_forfait_jour`),
+ * séparé du statut catégoriel affiché (`Cadre` / `Non-Cadre`).
  */
 
 /**
@@ -23,15 +21,11 @@ export const CONTRACT_TYPES = [
 /**
  * Liste des statuts d'employés disponibles
  * 
- * Note : Les statuts contenant "forfait jour" déterminent que l'employé
- * travaille en forfait jour (gestion par jours travaillés 0/1) plutôt
- * qu'en heures dans le calendrier.
+ * Le forfait jours ne pollue pas cette liste : il se règle via un champ séparé.
  */
 export const EMPLOYEE_STATUSES = [
   'Non-Cadre',
   'Cadre',
-  'Cadre au forfait jour',
-  'Non-Cadre au forfait jour',
 ] as const;
 
 /**
@@ -41,11 +35,15 @@ export type ContractType = typeof CONTRACT_TYPES[number];
 export type EmployeeStatus = typeof EMPLOYEE_STATUSES[number];
 
 /**
- * Fonction utilitaire pour vérifier si un statut correspond à un forfait jour
+ * Fonction utilitaire pour vérifier si un salarié est au forfait jours.
  */
-export function isForfaitJour(status: string | null | undefined): boolean {
+export function isForfaitJour(
+  status: string | null | undefined,
+  explicit?: boolean | null,
+): boolean {
+  if (explicit !== undefined && explicit !== null) return Boolean(explicit);
   if (!status) return false;
-  return status.includes('forfait jour');
+  return status.toLowerCase().includes('forfait jour');
 }
 
 export const DEFAULT_CONTRACT_TYPE: ContractType = 'CDI';
@@ -61,6 +59,7 @@ export const RECRUITMENT_JOB_CONTRACT_TYPES = [
 export type EmployeeContractConfigValues = {
   contract_type: string;
   statut: string;
+  is_forfait_jour?: boolean;
   contract_end_date?: string;
   date_debut_execution?: string;
   date_conclusion_contrat?: string;
@@ -70,6 +69,7 @@ export type EmployeeContractConfigValues = {
 export const EMPTY_EMPLOYEE_CONTRACT_CONFIG: EmployeeContractConfigValues = {
   contract_type: DEFAULT_CONTRACT_TYPE,
   statut: DEFAULT_EMPLOYEE_STATUT,
+  is_forfait_jour: false,
   contract_end_date: '',
   date_debut_execution: '',
   date_conclusion_contrat: '',

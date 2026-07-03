@@ -440,6 +440,7 @@ def process_payslip_generation(
                 "date_fin_contrat": employee_data.get("contract_end_date"),
                 "date_sortie": resolve_date_sortie(employee_data),
                 "statut": employee_data.get("statut"),
+                "is_forfait_jour": bool(employee_data.get("is_forfait_jour")),
                 "emploi": employee_data.get("job_title"),
                 "periode_essai": _parse_if_json_string(
                     employee_data.get("periode_essai")

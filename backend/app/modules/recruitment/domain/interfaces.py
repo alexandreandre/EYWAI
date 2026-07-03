@@ -141,6 +141,7 @@ class IEmployeeCreator(ABC):
         job_title: Optional[str] = None,
         contract_type: Optional[str] = None,
         statut: Optional[str] = None,
+        is_forfait_jour: bool = False,
         contract_end_date: Optional[str] = None,
         date_debut_execution: Optional[str] = None,
         date_conclusion_contrat: Optional[str] = None,

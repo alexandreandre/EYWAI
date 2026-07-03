@@ -2,6 +2,7 @@ import type { UpdateEmployeePayload } from '@/api/employees';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import { needsContractEndDate, normalizeContractType } from '@/constants/contracts';
+import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 export function normalizeNir(value: string | null | undefined): string {
   return (value ?? '').replace(/\s/g, '').slice(0, 15);
@@ -24,6 +25,13 @@ export function readWeeklyHours(employee: Employee): number {
     if (Number.isFinite(n) && n > 0) return n;
   }
   return 35;
+}
+
+function cleanEmployeeStatut(statut: string | null | undefined): string {
+  if (isEmployeeCadre(statut)) return 'Cadre';
+  const compact = (statut ?? '').trim().toLowerCase().replace(/\s+/g, '').replace(/-/g, '');
+  if (compact.includes('noncadre')) return 'Non-Cadre';
+  return statut ?? 'Non-Cadre';
 }
 
 export function isProfileIncomplete(employee: Employee): boolean {
@@ -96,7 +104,8 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
     hire_date: employee.hire_date?.slice(0, 10) ?? '',
     job_title: employee.job_title ?? employee.poste ?? '',
     contract_type: normalizeContractType(employee.contract_type),
-    statut: employee.statut ?? 'Non-Cadre',
+    statut: cleanEmployeeStatut(employee.statut),
+    is_forfait_jour: Boolean(employee.is_forfait_jour) || /forfait jour/i.test(employee.statut ?? ''),
     is_temps_partiel: Boolean((employee as Employee & { is_temps_partiel?: boolean }).is_temps_partiel),
     duree_hebdomadaire: readWeeklyHours(employee),
     contract_end_date: employee.contract_end_date?.slice(0, 10) ?? '',
@@ -178,6 +187,7 @@ export function buildUpdatePayload(
     job_title: values.job_title.trim(),
     contract_type: normalizeContractType(values.contract_type),
     statut: values.statut.trim(),
+    is_forfait_jour: values.is_forfait_jour,
     is_temps_partiel: values.is_temps_partiel,
     duree_hebdomadaire: values.duree_hebdomadaire,
     contract_end_date: needsContractEndDate(values.contract_type)

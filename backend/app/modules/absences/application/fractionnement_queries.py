@@ -111,7 +111,7 @@ def compute_fractionnement_for_employee(
 
     emp_resp = (
         supabase.table("employees")
-        .select("id, statut, first_name, last_name")
+        .select("id, statut, is_forfait_jour, first_name, last_name")
         .eq("id", employee_id)
         .eq("company_id", company_id)
         .limit(1)
@@ -121,7 +121,7 @@ def compute_fractionnement_for_employee(
     if not rows:
         return None
     emp = rows[0]
-    if is_forfait_jour(emp.get("statut")):
+    if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
         return None
 
     ratio = settings["ouvres_to_ouvrables_ratio"]
@@ -278,14 +278,14 @@ def apply_fractionnement_to_payslip_balances(
 def list_fractionnement_preview(company_id: str, grant_year: int) -> list[dict[str, Any]]:
     emp_resp = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut")
+        .select("id, first_name, last_name, statut, is_forfait_jour")
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active", "en_onboarding"])
         .execute()
     )
     rows: list[dict[str, Any]] = []
     for emp in emp_resp.data or []:
-        if is_forfait_jour(emp.get("statut")):
+        if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
             continue
         computed = compute_fractionnement_for_employee(
             str(emp["id"]), company_id, grant_year

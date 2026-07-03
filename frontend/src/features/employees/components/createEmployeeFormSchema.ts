@@ -36,6 +36,7 @@ export const createEmployeeFormSchema = z.object({
   // Fin de contrat planifiée (CDD / stage) — précarité et prorata de sortie.
   contract_end_date: z.string().optional(),
   statut: z.string().min(2),
+  is_forfait_jour: z.boolean().default(false),
   job_title: z.string().min(2),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
   team_id: z.string().optional(),

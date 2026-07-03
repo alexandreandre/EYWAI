@@ -50,6 +50,8 @@ def prepare_employee_insert_data(
 
     if data.get("is_subject_to_residence_permit") is None:
         data["is_subject_to_residence_permit"] = False
+    if data.get("is_forfait_jour") is None:
+        data["is_forfait_jour"] = False
 
     if "is_temps_partiel" in data or "duree_hebdomadaire" in data:
         is_tp, duree = normalize_temps_travail_fields(

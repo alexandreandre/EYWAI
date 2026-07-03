@@ -40,6 +40,7 @@ class NewFullEmployee(BaseModel):
     # Fin de contrat planifiée (CDD, stage) : précarité CDD et prorata de sortie.
     contract_end_date: date | None = None
     statut: str
+    is_forfait_jour: bool = False
     job_title: str
     periode_essai: Dict[str, Any] | None = None
     is_temps_partiel: bool
@@ -86,6 +87,7 @@ class UpdateEmployee(BaseModel):
     job_title: str | None = None
     contract_type: str | None = None
     statut: str | None = None
+    is_forfait_jour: bool | None = None
     is_temps_partiel: bool | None = None
     duree_hebdomadaire: float | None = None
     classification_conventionnelle: Dict[str, Any] | None = None

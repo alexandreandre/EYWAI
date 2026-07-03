@@ -19,7 +19,7 @@ import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-reac
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
 import { getPscSettings } from "@/api/pscSettings";
 import { MutuelleSelectionField } from "@/components/mutuelle/MutuelleSelectionField";
-import { filterMutuellesForEmployee } from "@/lib/mutuelleUtils";
+import { filterMutuellesForEmployee, isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { PrevoyanceAffiliationFields } from "@/features/employees/components/PrevoyanceAffiliationFields";
 import * as collectiveAgreementsApi from "@/api/collectiveAgreements";
 import { getTeams } from "@/api/teams";
@@ -116,7 +116,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       residence_permit_type: "",
       residence_permit_number: "",
       hire_date: new Date().toISOString().split('T')[0],
-      contract_type: "CDI", statut: "Non-Cadre", job_title: "",
+      contract_type: "CDI", statut: "Non-Cadre", is_forfait_jour: false, job_title: "",
       date_conclusion_contrat: "",
       date_debut_execution: "",
       contract_end_date: "",
@@ -260,6 +260,12 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
   const employeeStatut = form.watch("statut");
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, employeeStatut);
+
+  useEffect(() => {
+    if (isEmployeeCadre(employeeStatut) && !form.getValues("is_forfait_jour")) {
+      form.setValue("is_forfait_jour", true, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [employeeStatut, form]);
 
   const queryClient = useQueryClient();
 

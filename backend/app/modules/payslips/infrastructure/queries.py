@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.database import supabase
+from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
 from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
@@ -24,12 +25,15 @@ def get_employee_statut(employee_id: str) -> str | None:
     """Récupère le statut de l'employé (pour décision forfait jour vs heures)."""
     r = (
         supabase.table("employees")
-        .select("statut")
+        .select("statut, is_forfait_jour")
         .eq("id", employee_id)
         .single()
         .execute()
     )
-    return (r.data or {}).get("statut") if r else None
+    data = r.data or {}
+    return effective_statut_for_payroll(
+        data.get("statut"), data.get("is_forfait_jour")
+    ) if r else None
 
 
 def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:

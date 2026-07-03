@@ -43,6 +43,7 @@ def test_map_employee_contract_type():
     payload = map_employee_payload(ind, dsn.etablissement, dsn.etablissement.siret)
     assert payload["contract_type"] == "CDI"
     assert payload["statut"] == "Cadre"
+    assert payload["is_forfait_jour"] is True
     assert payload["employment_status"] == "actif"
 
 
@@ -65,4 +66,3 @@ def test_apply_legal_name_targets_company_not_group():
     assert items[0]["is_scaffold"] is True
     assert items[1]["mapped_payload"]["company_name"] == "CARTOL (CARTOL INDUSTRIE)"
     assert items[1]["label"] == "CARTOL (CARTOL INDUSTRIE)"
-

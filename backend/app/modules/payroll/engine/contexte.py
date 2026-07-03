@@ -38,6 +38,7 @@ def ChargerContexte(
         contrat = {
             "contrat": {
                 "statut": employee_data.get("statut", "Non-Cadre"),
+                "is_forfait_jour": bool(employee_data.get("is_forfait_jour")),
                 "type_contrat": employee_data.get("type_contrat")
                 or employee_data.get("contract_type")
                 or "",
@@ -315,8 +316,11 @@ class ContextePaie:
     def is_forfait_jour(self) -> bool:
         """
         Indique si le salarié est en forfait jour.
-        La détection se fait via le statut qui doit contenir "forfait jour" (insensible à la casse).
+        Le champ dédié est prioritaire ; le statut historique reste supporté.
         """
+        explicit = self.contrat.get("contrat", {}).get("is_forfait_jour")
+        if explicit is not None:
+            return bool(explicit)
         statut = self.statut_salarie
         if not statut:
             return False

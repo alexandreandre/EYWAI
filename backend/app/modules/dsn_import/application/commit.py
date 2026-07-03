@@ -888,7 +888,7 @@ def _commit_employee(
 
     # Colonnes optionnelles (état civil DSN) : on ne les envoie que si la migration
     # les a créées, sinon l'insert échouerait (column does not exist).
-    for optional_col in ("sexe", "nom_usage", "matricule"):
+    for optional_col in ("sexe", "nom_usage", "matricule", "is_forfait_jour"):
         if optional_col in clean_payload and not repo.employee_has_column(optional_col):
             clean_payload.pop(optional_col, None)
 

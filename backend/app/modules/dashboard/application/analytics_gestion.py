@@ -107,7 +107,7 @@ def _build_calendriers_overview(
 ) -> CalendriersAnalytics:
     emp_res = (
         supabase.table("employees")
-        .select("id, statut")
+        .select("id, statut, is_forfait_jour")
         .eq("company_id", company_id)
         .eq("employment_status", "actif")
         .execute()
@@ -150,7 +150,7 @@ def _build_calendriers_overview(
 
     for emp in employees:
         eid = str(emp["id"])
-        forfait = is_forfait_jour(emp.get("statut"))
+        forfait = is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour"))
         sched = schedule_by_emp.get(eid) or {}
         planned_raw = sched.get("planned_calendar") or {}
         actual_raw = sched.get("actual_hours") or {}

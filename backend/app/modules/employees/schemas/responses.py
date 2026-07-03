@@ -76,6 +76,8 @@ class EmployeeSummary(BaseModel):
     last_name: str
     job_title: str | None = None
     contract_type: str | None = None
+    statut: str | None = None
+    is_forfait_jour: bool | None = None
     hire_date: date | None = None
     seniority_reference_date: date | None = None
     employment_status: str | None = None
@@ -113,6 +115,7 @@ class FullEmployee(BaseModel):
     seniority_reference_date: date | None = None
     contract_type: str | None = None
     statut: str | None = None
+    is_forfait_jour: bool | None = None
     job_title: str | None = None
     periode_essai: Dict[str, Any] | None = None
     is_temps_partiel: bool | None = None

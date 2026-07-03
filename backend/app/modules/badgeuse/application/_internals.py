@@ -92,15 +92,16 @@ def resolve_my_employee_id_for_user(current_user: User) -> Optional[str]:
 
 def _user_is_forfait_jour(current_user: User) -> bool:
     # On réutilise la règle métier centrale is_forfait_jour à partir du statut
+    explicit = getattr(current_user, "is_forfait_jour", None)
     statut = getattr(current_user, "statut", None)
     if not statut and hasattr(current_user, "job_title"):
         statut = getattr(current_user, "job_title")
-    return is_forfait_jour(statut)
+    return is_forfait_jour(statut, explicit)
 
 
 def _employee_is_forfait_jour(employee_row: Dict[str, Any]) -> bool:
     statut = employee_row.get("statut") or employee_row.get("job_title")
-    return is_forfait_jour(statut)
+    return is_forfait_jour(statut, employee_row.get("is_forfait_jour"))
 
 
 def get_badgeuse_settings(company_id: str) -> Dict[str, bool]:
@@ -254,4 +255,3 @@ def _build_punch_response(
             else "Sortie enregistrée"
         ),
     }
-

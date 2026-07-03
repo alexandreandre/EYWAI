@@ -74,6 +74,11 @@ class TestIsForfaitJour:
         assert is_forfait_jour("Non-Cadre") is False
         assert is_forfait_jour("Agent de maîtrise") is False
 
+    def test_explicit_forfait_flag_overrides_clean_statut(self):
+        """Le champ dédié permet un statut affiché propre."""
+        assert is_forfait_jour("Cadre", True) is True
+        assert is_forfait_jour("Cadre au forfait jour", False) is False
+
     def test_none_statut_returns_false(self):
         """Statut None → False."""
         assert is_forfait_jour(None) is False

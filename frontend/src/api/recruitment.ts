@@ -299,6 +299,7 @@ export async function hireCandidate(
     job_title?: string;
     contract_type?: string;
     statut?: string;
+    is_forfait_jour?: boolean;
     contract_end_date?: string;
     date_debut_execution?: string;
     date_conclusion_contrat?: string;

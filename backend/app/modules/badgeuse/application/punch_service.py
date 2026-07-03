@@ -15,7 +15,7 @@ def get_dashboard_today(*, company_id: str) -> Dict[str, Any]:
 
     emp_result = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, job_title")
+        .select("id, first_name, last_name, statut, is_forfait_jour, job_title")
         .eq("company_id", company_id)
         .eq("employment_status", "actif")
         .execute()
@@ -484,5 +484,4 @@ def clear_accounted_hours_for_day(
         company_id=company_id,
         day=day,
     )
-
 

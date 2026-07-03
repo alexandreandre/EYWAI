@@ -22,6 +22,7 @@ import CpSenioritySettingsCard from "@/features/company/components/CpSenioritySe
 import ModulationSettingsCard from "@/features/company/components/ModulationSettingsCard";
 import WorkTimePeriodsCard from "@/features/company/components/WorkTimePeriodsCard";
 import WeekTemplatesSettingsCard from "@/features/company/components/WeekTemplatesSettingsCard";
+import { CompanySetupCalendarsPanel } from "@/features/admin-import/components/CompanySetupCalendarsPanel";
 import TimesheetImportSettingsCard from "@/features/company/components/TimesheetImportSettingsCard";
 import PunchAccountingSettingsCard from "@/features/company/components/PunchAccountingSettingsCard";
 import IjssImportProfileCard from "@/features/company/components/IjssImportProfileCard";
@@ -422,6 +423,7 @@ export function CompanyPayrollTab({
         "Modèles de semaine, types de poste, paniers et nuit",
         <>
           <WeekTemplatesSettingsCard />
+          <CompanySetupCalendarsPanel companyId={company.id} />
           <PlanningSettingsCard />
         </>,
       )}

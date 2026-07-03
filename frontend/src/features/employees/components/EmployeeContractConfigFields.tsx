@@ -38,6 +38,7 @@ type FormProps<T extends FieldValues> = {
   control: Control<T>;
   contractTypeName?: FieldPath<T>;
   statutName?: FieldPath<T>;
+  isForfaitJourName?: FieldPath<T>;
   contractEndDateName?: FieldPath<T>;
   dateDebutExecutionName?: FieldPath<T>;
   dateConclusionContratName?: FieldPath<T>;
@@ -92,6 +93,34 @@ function StatutSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function ForfaitJourToggle({
+  checked,
+  onCheckedChange,
+  id,
+}: {
+  checked?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  id?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-md border px-3 py-2">
+      <Checkbox
+        id={id}
+        checked={Boolean(checked)}
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+      />
+      <div className="space-y-0.5 leading-none">
+        <Label htmlFor={id} className="font-normal">
+          Forfait jours
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Calendrier en jours travaillés, sans modifier le statut.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -222,6 +251,12 @@ export function EmployeeContractConfigFields({
         onChange={(contract_end_date) => onChange({ contract_end_date })}
       />
 
+      <ForfaitJourToggle
+        id={`${idPrefix}-forfait-jour`}
+        checked={values.is_forfait_jour}
+        onCheckedChange={(is_forfait_jour) => onChange({ is_forfait_jour })}
+      />
+
       <AlternanceFields values={values} onChange={onChange} idPrefix={idPrefix} />
     </div>
   );
@@ -232,6 +267,7 @@ export function EmployeeContractConfigFormFields<T extends FieldValues>({
   control,
   contractTypeName = 'contract_type' as FieldPath<T>,
   statutName = 'statut' as FieldPath<T>,
+  isForfaitJourName = 'is_forfait_jour' as FieldPath<T>,
   contractEndDateName = 'contract_end_date' as FieldPath<T>,
   dateDebutExecutionName = 'date_debut_execution' as FieldPath<T>,
   dateConclusionContratName = 'date_conclusion_contrat' as FieldPath<T>,
@@ -290,6 +326,22 @@ export function EmployeeContractConfigFormFields<T extends FieldValues>({
           )}
         />
       ) : null}
+
+      <FormField
+        control={control}
+        name={isForfaitJourName}
+        render={({ field }) => (
+          <FormItem>
+            <FormControl>
+              <ForfaitJourToggle
+                checked={Boolean(field.value)}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
       {showAlternance ? (
         <div className="space-y-4 rounded-md border border-dashed p-4">

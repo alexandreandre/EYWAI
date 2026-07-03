@@ -90,7 +90,7 @@ def build_preflight_anomalies(
 ) -> PreflightAnomaliesResponse:
     emp_res = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, team_id")
+        .select("id, first_name, last_name, statut, is_forfait_jour, team_id")
         .eq("company_id", company_id)
         .eq("employment_status", "actif")
         .execute()
@@ -162,7 +162,7 @@ def build_preflight_anomalies(
         eid = str(emp["id"])
         name = _employee_name(emp.get("first_name"), emp.get("last_name"))
         team_id = str(emp["team_id"]) if emp.get("team_id") else None
-        forfait = is_forfait_jour(emp.get("statut"))
+        forfait = is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour"))
 
         sched = schedule_by_emp.get(eid) or {}
         planned_raw = sched.get("planned_calendar") or {}

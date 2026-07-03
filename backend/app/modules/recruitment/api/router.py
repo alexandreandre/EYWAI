@@ -557,6 +557,7 @@ def hire_candidate(
             job_title=body.job_title,
             contract_type=body.contract_type,
             statut=body.statut,
+            is_forfait_jour=body.is_forfait_jour,
             contract_end_date=body.contract_end_date,
             date_debut_execution=body.date_debut_execution,
             date_conclusion_contrat=body.date_conclusion_contrat,
