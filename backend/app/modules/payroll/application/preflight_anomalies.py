@@ -22,11 +22,11 @@ from app.modules.schedules.domain.ecart_rules import (
     compute_heures_supplementaires,
     compute_row_status,
     detect_absence_conflict_days,
-    is_forfait_jour,
     month_period_bounds,
     sum_hours,
     validated_absence_days_in_month,
 )
+from app.shared.domain.employment_rules import is_forfait_jour
 
 OPEN_STATUSES = frozenset({"a_traiter"})
 
