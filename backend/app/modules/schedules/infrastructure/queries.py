@@ -18,6 +18,7 @@ from app.modules.schedules.domain.exceptions import (
     ScheduleNotFoundError,
 )
 from app.modules.schedules.domain.interfaces import IEmployeeCompanyReader
+from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 
 class EmployeeCompanyReader(IEmployeeCompanyReader):
@@ -27,7 +28,7 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
         try:
             employee_res = (
                 supabase.table("employees")
-                .select("company_id, statut")
+                .select("company_id, statut, is_forfait_jour")
                 .eq("id", employee_id)
                 .single()
                 .execute()
@@ -38,7 +39,7 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
             try:
                 employee_res = (
                     supabase.table("employees")
-                    .select("company_id, statut")
+                    .select("company_id, statut, is_forfait_jour")
                     .eq("id", employee_id)
                     .single()
                     .execute()
@@ -54,7 +55,9 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
             raise ScheduleNotFoundError(
                 "Employé non trouvé ou sans entreprise associée"
             )
-        return employee_data["company_id"], employee_data.get("statut")
+        return employee_data["company_id"], effective_statut_for_payroll(
+            employee_data.get("statut"), employee_data.get("is_forfait_jour")
+        )
 
     def get_employee_folder_name(self, employee_id: str) -> str:
         try:
@@ -79,14 +82,18 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
     def get_employee_for_payroll_events(self, employee_id: str) -> Dict[str, Any]:
         response = (
             supabase.table("employees")
-            .select("employee_folder_name, duree_hebdomadaire, statut, company_id")
+            .select("employee_folder_name, duree_hebdomadaire, statut, is_forfait_jour, company_id")
             .eq("id", employee_id)
             .single()
             .execute()
         )
         if not response or not response.data:
             raise ScheduleNotFoundError("Employé non trouvé.")
-        return response.data
+        data = dict(response.data)
+        data["statut"] = effective_statut_for_payroll(
+            data.get("statut"), data.get("is_forfait_jour")
+        )
+        return data
 
     def get_company_parametres_paie(self, company_id: str) -> Optional[Dict[str, Any]]:
         response = (

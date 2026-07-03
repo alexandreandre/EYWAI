@@ -216,7 +216,7 @@ export function CalendarEmployeeTable({
                 className="flex items-center gap-1 font-medium ml-auto"
                 onClick={() => onSort('heures_prevues')}
               >
-                H. prévues
+                Prévu
                 <SortIcon column="heures_prevues" sortKey={sortKey} sortDir={sortDir} />
               </button>
             </TableHead>
@@ -226,7 +226,7 @@ export function CalendarEmployeeTable({
                 className="flex items-center gap-1 font-medium ml-auto"
                 onClick={() => onSort('heures_faites')}
               >
-                H. faites
+                Réel
                 <SortIcon column="heures_faites" sortKey={sortKey} sortDir={sortDir} />
               </button>
             </TableHead>
@@ -278,7 +278,6 @@ export function CalendarEmployeeTable({
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {row.employee.job_title ?? '—'}
-                    {row.isForfaitJour ? ' · Forfait jour' : ' · Horaire'}
                   </div>
                 </TableCell>
                 <TableCell>

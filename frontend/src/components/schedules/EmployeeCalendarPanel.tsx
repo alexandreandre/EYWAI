@@ -24,6 +24,7 @@ interface EmployeeCalendarPanelProps {
   employeeId: string;
   employeeName: string;
   employeeStatut?: string;
+  employeeIsForfaitJour?: boolean | null;
   initialYear?: number;
   initialMonth?: number;
   onSaved?: () => void;
@@ -33,6 +34,7 @@ export function EmployeeCalendarPanel({
   employeeId,
   employeeName,
   employeeStatut,
+  employeeIsForfaitJour,
   initialYear,
   initialMonth,
   onSaved,
@@ -61,7 +63,7 @@ export function EmployeeCalendarPanel({
     isForfaitJour,
     monthCompletionStatus,
     copyPlannedToActualForDay,
-  } = useCalendar(employeeId, employeeStatut);
+  } = useCalendar(employeeId, employeeStatut, { isForfaitJour: employeeIsForfaitJour });
 
   useEffect(() => {
     if (initialYear && initialMonth) {
@@ -100,7 +102,8 @@ export function EmployeeCalendarPanel({
     <div className="space-y-3 pb-24">
       {isForfaitJour && (
         <div className="rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950">
-          <span className="font-medium">Saisie en jours (forfait jour)</span>
+          <span className="font-medium">Cadre forfait jours</span>
+          <span className="text-amber-900/75"> — calendrier sans horaires</span>
         </div>
       )}
 

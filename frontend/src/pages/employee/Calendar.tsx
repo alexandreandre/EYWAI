@@ -64,6 +64,7 @@ export default function EmployeeCalendarPage() {
   } = useEmployeeProfileQuery(user?.id);
   const resolvedEmployeeId = profile?.id;
   const employeeStatut = profile?.statut ?? undefined;
+  const employeeIsForfaitJour = profile?.is_forfait_jour ?? undefined;
   const needsEmployeeProfile = hubView === 'month' || hubView === 'year';
   const profileUnavailable =
     needsEmployeeProfile &&
@@ -82,7 +83,9 @@ export default function EmployeeCalendarPage() {
     monthCompletionStatus,
     isForfaitJour,
     isMonthDataReady,
-  } = useCalendar(resolvedEmployeeId, employeeStatut);
+  } = useCalendar(resolvedEmployeeId, employeeStatut, {
+    isForfaitJour: employeeIsForfaitJour,
+  });
 
   const setHubView = useCallback(
     (view: CalendarHubView) => {
@@ -311,9 +314,9 @@ export default function EmployeeCalendarPage() {
 
       {isForfaitJour && hubView === 'month' && (
         <div className="rounded-md border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          <span className="font-medium">Forfait jour</span>
+          <span className="font-medium">Cadre forfait jours</span>
           {' — '}
-          les durées sont exprimées en jours travaillés (oui / non).
+          calendrier sans horaires, suivi en jours prévus / travaillés.
         </div>
       )}
 
@@ -325,6 +328,7 @@ export default function EmployeeCalendarPage() {
               onWeekStartChange={handleWeekStartChange}
               employeeId={resolvedEmployeeId}
               employeeStatut={employeeStatut}
+              employeeIsForfaitJour={employeeIsForfaitJour}
               onDayClick={handleWeekDayClick}
             />
           </CardContent>

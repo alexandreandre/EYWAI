@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { isObservedHolidayHeaderDay } from '@/lib/companyCalendarHolidays';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
+import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 const TYPE_BG: Record<string, string> = {
   travail: 'bg-sky-50 hover:bg-sky-100 border-sky-200/60',
@@ -286,7 +287,6 @@ export function TeamPlanningView({
                     </div>
                     <div className="text-[10px] text-muted-foreground truncate">
                       {row.employee.job_title ?? '—'}
-                      {row.isForfaitJour ? ' · Forfait' : ''}
                     </div>
                   </div>
                   {row.absenceConflictDays.length > 0 && (
@@ -326,21 +326,25 @@ export function TeamPlanningView({
                   const hasConflict = row.absenceConflictDays.includes(day);
 
                   const plannedDisplay =
-                    planned?.heures_prevues != null
-                      ? row.isForfaitJour
-                        ? planned.heures_prevues === 1
-                          ? 'J'
-                          : '–'
-                        : `${planned.heures_prevues}h`
+                    !row.isForfaitJour && planned?.heures_prevues != null
+                      ? `${planned.heures_prevues}h`
                       : null;
                   const actualDisplay =
-                    actual?.heures_faites != null
-                      ? row.isForfaitJour
-                        ? actual.heures_faites === 1
-                          ? 'J'
-                          : '–'
-                        : `${actual.heures_faites}h`
+                    !row.isForfaitJour && actual?.heures_faites != null
+                      ? `${actual.heures_faites}h`
                       : null;
+                  const forfaitDayDisplay = row.isForfaitJour
+                    ? actual?.heures_faites === 1
+                      ? 'Travaillé'
+                      : planned?.heures_prevues === 1
+                        ? 'Prévu'
+                        : null
+                    : null;
+                  const hasDisplayedHours = plannedDisplay != null || actualDisplay != null;
+                  const showCadreWithoutHours =
+                    !hasDisplayedHours &&
+                    !row.isForfaitJour &&
+                    isEmployeeCadre(row.employee.statut);
 
                   return (
                     <Popover
@@ -374,20 +378,37 @@ export function TeamPlanningView({
                             <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
                               {TYPE_LABEL[type] ?? type}
                             </span>
-                            <div className="flex items-baseline gap-1.5 text-xs tabular-nums">
-                              <span className="font-medium text-sky-700">
-                                {plannedDisplay ?? '–'}
+                            {row.isForfaitJour ? (
+                              forfaitDayDisplay ? (
+                                <span
+                                  className={cn(
+                                    'text-xs font-medium',
+                                    actual?.heures_faites === 1 ? 'text-teal-700' : 'text-sky-700'
+                                  )}
+                                >
+                                  {forfaitDayDisplay}
+                                </span>
+                              ) : null
+                            ) : showCadreWithoutHours ? (
+                              <span className="text-xs font-medium text-slate-700">
+                                Cadre
                               </span>
-                              <span className="text-muted-foreground/60">/</span>
-                              <span
-                                className={cn(
-                                  'font-medium',
-                                  actualDisplay ? 'text-teal-700' : 'text-muted-foreground/40'
-                                )}
-                              >
-                                {actualDisplay ?? '–'}
-                              </span>
-                            </div>
+                            ) : (
+                              <div className="flex items-baseline gap-1.5 text-xs tabular-nums">
+                                <span
+                                  className={cn(
+                                    'font-medium',
+                                    actualDisplay ? 'text-teal-700' : 'text-muted-foreground/40'
+                                  )}
+                                >
+                                  {actualDisplay ?? '–'}
+                                </span>
+                                <span className="text-muted-foreground/60">/</span>
+                                <span className="font-medium text-sky-700">
+                                  {plannedDisplay ?? '–'}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {hasConflict && (
                             <span
@@ -442,9 +463,9 @@ export function TeamPlanningView({
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="text-sky-700 font-medium">Prévu</span>
-          <span>/</span>
           <span className="text-teal-700 font-medium">Réel</span>
+          <span>/</span>
+          <span className="text-sky-700 font-medium">Prévu</span>
         </span>
       </div>
     </div>

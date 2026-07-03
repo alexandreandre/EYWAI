@@ -70,7 +70,7 @@ export function WeekTemplateForm({
                     htmlFor={`template-day-${day.key}`}
                     className="text-xs cursor-pointer flex-1"
                   >
-                    Jour travaillé
+                    Jour prévu
                   </label>
                 </div>
               ) : (

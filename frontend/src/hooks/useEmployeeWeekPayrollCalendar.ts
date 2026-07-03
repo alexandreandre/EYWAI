@@ -94,10 +94,11 @@ export function useEmployeeWeekPayrollCalendar(
   employeeId: string | undefined,
   weekStart: string,
   employeeStatut?: string,
+  employeeIsForfaitJour?: boolean | null,
   enabled = true,
   observedHolidayIds: readonly FrenchPublicHolidayId[] = []
 ) {
-  const forfaitJour = isForfaitJour(employeeStatut);
+  const forfaitJour = isForfaitJour(employeeStatut, employeeIsForfaitJour);
   const weekDaysIso = useMemo(() => weekDayIsos(weekStart), [weekStart]);
   const holidayKey = observedHolidayIds.join(',');
 

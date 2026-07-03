@@ -86,16 +86,16 @@ function HourGauges({
           barClass="bg-sky-500"
           trackClass="bg-sky-100"
           textClass="text-sky-800"
-          unit="jour"
+          unit="forfait"
         />
         <DayGaugeRow
-          label="Réel"
+          label="Travaillé"
           value={aVal}
           filled={aVal === 1}
           barClass="bg-teal-500"
           trackClass="bg-teal-100"
           textClass="text-teal-800"
-          unit="jour"
+          unit="forfait"
         />
       </div>
     );
@@ -156,8 +156,10 @@ function DayGaugeRow({
 }) {
   const display =
     value === null
-      ? '–'
-      : unit === 'jour'
+      ? unit === 'forfait'
+        ? ''
+        : '–'
+      : unit === 'forfait'
         ? value === 1
           ? 'Oui'
           : 'Non'
@@ -414,7 +416,7 @@ export function CalendarDayCell({
                   }
                   className="h-3.5 w-3.5"
                 />
-                Jour prévu
+                Prévu
               </label>
               <label className="flex items-center gap-2 text-xs">
                 <Checkbox
@@ -427,7 +429,7 @@ export function CalendarDayCell({
                   }
                   className="h-3.5 w-3.5"
                 />
-                Jour travaillé
+                Travaillé
               </label>
             </>
           ) : (

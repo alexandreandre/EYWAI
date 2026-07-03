@@ -167,7 +167,7 @@ export function PlanningDayEditor({
             </select>
           </div>
           <div>
-            <Label htmlFor="actual-fj" className="text-xs">Réel</Label>
+            <Label htmlFor="actual-fj" className="text-xs">Travaillé</Label>
             <select
               id="actual-fj"
               className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"

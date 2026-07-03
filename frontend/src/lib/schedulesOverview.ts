@@ -30,6 +30,7 @@ export interface SchedulesEmployeeInput {
   last_name: string;
   job_title?: string | null;
   statut?: string | null;
+  is_forfait_jour?: boolean | null;
   contract_type?: string | null;
   team_id?: string | null;
 }
@@ -77,7 +78,7 @@ async function fetchEmployeeOverview(
   month: number,
   observedHolidayIds?: readonly FrenchPublicHolidayId[] | null
 ): Promise<EmployeeCalendarOverviewRow> {
-  const forfait = isForfaitJour(employee.statut);
+  const forfait = isForfaitJour(employee.statut, employee.is_forfait_jour);
 
   try {
     const [plannedRes, actualRes, absencesRes] = await Promise.all([

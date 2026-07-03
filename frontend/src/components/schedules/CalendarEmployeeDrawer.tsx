@@ -120,6 +120,7 @@ export function CalendarEmployeeDrawer({
             employeeId={employee.id}
             employeeName={employeeName}
             employeeStatut={employee.statut ?? undefined}
+            employeeIsForfaitJour={employee.is_forfait_jour}
             initialYear={year}
             initialMonth={month}
             onSaved={onSaved}

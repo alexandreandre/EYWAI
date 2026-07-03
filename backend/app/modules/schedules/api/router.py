@@ -10,7 +10,7 @@ import json
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user
-from app.modules.schedules.application import ai_fill, commands, queries
+from app.modules.schedules.application import ai_fill, commands, plan_commands, queries
 from app.modules.schedules.application.badgeuse_import import (
     import_actual_hours_from_badgeuse,
     import_actual_hours_from_badgeuse_bulk,
@@ -20,8 +20,11 @@ from app.modules.schedules.schemas import (
     ActualHoursRequest,
     AiCalendarProposalResponse,
     ApplyModelRequest,
+    ApplyPresetRequest,
     CalendarResponse,
     CumulsResponse,
+    GenerateCalendarRequest,
+    SchedulePlanUpsert,
     ImportBadgeuseBulkRequest,
     ImportBadgeuseEmployeeRequest,
     ParseInstructionRequest,
@@ -203,6 +206,81 @@ async def apply_schedule_model(
     """Applique un modèle de planning à plusieurs employés pour un mois donné. Réservé aux RH."""
     try:
         return commands.apply_schedule_model(request, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+# ----- Plans de calendriers horaires + presets 2026 (RH) -----
+
+
+@router_rh.get("/plans")
+def list_schedule_plans(current_user: User = Depends(get_current_user)):
+    """Liste les plans de calendriers horaires de l'entreprise active."""
+    try:
+        return plan_commands.list_plans(current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/plans", status_code=201)
+def create_schedule_plan(
+    payload: SchedulePlanUpsert, current_user: User = Depends(get_current_user)
+):
+    try:
+        return plan_commands.create_plan(payload, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.put("/plans/{plan_id}")
+def update_schedule_plan(
+    plan_id: str,
+    payload: SchedulePlanUpsert,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return plan_commands.update_plan(plan_id, payload, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.delete("/plans/{plan_id}")
+def delete_schedule_plan(
+    plan_id: str, current_user: User = Depends(get_current_user)
+):
+    try:
+        return plan_commands.delete_plan(plan_id, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.get("/presets")
+def list_schedule_presets(current_user: User = Depends(get_current_user)):
+    """Bibliothèque de presets 2026 (modèles + plans éditables)."""
+    try:
+        return plan_commands.list_presets(current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/presets/apply")
+def apply_schedule_preset(
+    payload: ApplyPresetRequest, current_user: User = Depends(get_current_user)
+):
+    """Matérialise un preset en modèles + plans éditables pour l'entreprise active."""
+    try:
+        return plan_commands.apply_preset(payload.preset_key, current_user)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router_rh.post("/generate")
+def generate_planned_calendars(
+    payload: GenerateCalendarRequest, current_user: User = Depends(get_current_user)
+):
+    """Génère (ou prévisualise en dry-run) les calendriers d'un plan."""
+    try:
+        return plan_commands.generate(payload, current_user)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 

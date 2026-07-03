@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { CompanySetupIntroStep } from '@/features/admin-import/components/CompanySetupIntroStep';
 import { CompanySetupProgressSidebar } from '@/features/admin-import/components/CompanySetupProgressSidebar';
 import { CompanySetupParamsStep } from '@/features/admin-import/components/CompanySetupParamsStep';
+import { CompanySetupCalendarsPanel } from '@/features/admin-import/components/CompanySetupCalendarsPanel';
 import { CompanySetupSummaryStep } from '@/features/admin-import/components/CompanySetupSummaryStep';
 import { PayrollExportImportPanel } from '@/features/admin-import/components/PayrollExportImportPanel';
 import { CpImportPanel } from '@/features/admin-import/components/CpImportPanel';
@@ -247,7 +248,10 @@ export function CompanySetupWizard({
         return <CompanySetupParamsStep companyId={companyId} idcc={status?.idcc} />;
       case 'planning':
         return (
-          <PlanningImportPanel companyId={companyId} embedded onComplete={afterStepAction} />
+          <div className="space-y-6">
+            <CompanySetupCalendarsPanel companyId={companyId} />
+            <PlanningImportPanel companyId={companyId} embedded onComplete={afterStepAction} />
+          </div>
         );
       case 'summary':
         return (

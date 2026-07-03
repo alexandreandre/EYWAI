@@ -108,6 +108,7 @@ export interface EmployeePlanningWeekViewProps {
   onWeekStartChange: (iso: string) => void;
   employeeId?: string;
   employeeStatut?: string;
+  employeeIsForfaitJour?: boolean | null;
   onDayClick?: (payload: {
     iso: string;
     day: number;
@@ -124,6 +125,7 @@ export function EmployeePlanningWeekView({
   onWeekStartChange,
   employeeId,
   employeeStatut,
+  employeeIsForfaitJour,
   onDayClick,
   onPlanningStatusChange,
   showToolbar = true,
@@ -144,6 +146,7 @@ export function EmployeePlanningWeekView({
     employeeId,
     weekStart,
     employeeStatut,
+    employeeIsForfaitJour,
     Boolean(employeeId)
   );
 

@@ -23,10 +23,13 @@ export type WeekTemplate = {
 export function useCalendar(
   employeeId: string | undefined,
   employeeStatut?: string,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; isForfaitJour?: boolean | null },
 ) {
   const fetchEnabled = options?.enabled !== false;
-  const isForfaitJourMode = useMemo(() => isForfaitJour(employeeStatut), [employeeStatut]);
+  const isForfaitJourMode = useMemo(
+    () => isForfaitJour(employeeStatut, options?.isForfaitJour),
+    [employeeStatut, options?.isForfaitJour],
+  );
   const { observedHolidayIds } = useObservedPublicHolidays();
 
   const getInitialWeekTemplate = (forfaitJour: boolean): WeekTemplate =>
