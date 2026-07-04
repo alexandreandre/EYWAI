@@ -66,6 +66,9 @@ SUPPORT_RECIPIENTS = tuple(
     e.strip() for e in _support_raw.split(",") if e.strip()
 ) or ("contact@eywai.fr",)
 
+# Redirection temporaire des e-mails « nouveau bulletin » (vide = envoi au salarié).
+PAYSLIP_EMAIL_REDIRECT = os.getenv("PAYSLIP_EMAIL_REDIRECT", "").strip() or None
+
 
 def require_supabase_env() -> tuple[str, str]:
     """Retourne (SUPABASE_URL, SUPABASE_KEY) ou lève RuntimeError si manquants."""

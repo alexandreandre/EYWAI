@@ -7,6 +7,7 @@ import logging
 from typing import Optional, Tuple
 
 from app.core.database import supabase
+from app.core.settings import PAYSLIP_EMAIL_REDIRECT
 from app.modules.platform_settings.application.email_config import get_resolved_email_config
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 
@@ -134,6 +135,8 @@ def _send_email(
     document_label: str,
     page_path: str = "employee/documents",
     notification_type: str = NOTIFICATION_TYPE,
+    *,
+    subject_prefix: Optional[str] = None,
 ) -> bool:
     sender = get_smtp_mail_sender()
     config = get_resolved_email_config()
@@ -146,6 +149,8 @@ def _send_email(
         page_url,
         greeting,
     )
+    if subject_prefix:
+        subject = f"{subject_prefix} {subject}"
 
     ok, err = sender.send_multipart_email(
         to_email=to_email,
@@ -179,6 +184,17 @@ def notify_employee_new_document(
     _insert_notification(employee_id, company_id, message, notification_type)
 
     email, first_name = _load_employee_contact(employee_id)
+    subject_prefix = None
+    if notification_type == NOTIFICATION_TYPE_PAYSLIP and PAYSLIP_EMAIL_REDIRECT:
+        intended = email or "?"
+        email = PAYSLIP_EMAIL_REDIRECT
+        subject_prefix = f"[dest. {intended}]"
+        logger.info(
+            "[doc_notif] Bulletin redirigé vers %s (dest. prévue %s)",
+            email,
+            intended,
+        )
+
     if email:
         _send_email(
             email,
@@ -186,4 +202,5 @@ def notify_employee_new_document(
             label,
             page_path=page_path,
             notification_type=notification_type,
+            subject_prefix=subject_prefix,
         )
