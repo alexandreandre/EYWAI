@@ -33,6 +33,7 @@ import PublicHolidaysSettingsCard from "@/features/company/components/PublicHoli
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { WorkTimeHubIntro } from "@/features/work-time-tracking/components/WorkTimeHubIntro";
+import { PlanningHubIntro } from "@/features/work-time-tracking/components/PlanningHubIntro";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
 import {
   DEFAULT_OPEN_PAYROLL_SECTIONS,
@@ -422,6 +423,7 @@ export function CompanyPayrollTab({
         "Planning & primes équipe",
         "Modèles de semaine, types de poste, paniers et nuit",
         <>
+          <PlanningHubIntro />
           <WeekTemplatesSettingsCard />
           <CompanySetupCalendarsPanel companyId={company.id} />
           <PlanningSettingsCard />

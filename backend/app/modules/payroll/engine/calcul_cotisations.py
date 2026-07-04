@@ -3,7 +3,6 @@ from app.core.logging import get_logger, log_payroll_debug
 logger = get_logger("modules.payroll.engine.calcul_cotisations")
 # moteur_paie/calcul_cotisations.py
 
-import os
 from .contexte import ContextePaie
 from . import legal_constants as lc
 from .exoneration_alternance import (
@@ -18,7 +17,6 @@ from .exoneration_stage import (
 )
 from typing import Dict, Any, List, Tuple, Optional
 import json
-from supabase import create_client, Client
 from .cotisations_rubriques import enrichir_ligne_cotisation
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
@@ -115,24 +113,22 @@ def _calculer_assiettes(
         mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
         if mutuelle_type_ids:
             try:
-                supabase_url = os.environ.get("SUPABASE_URL")
-                supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-                if supabase_url and supabase_key:
-                    supabase_client: Client = create_client(supabase_url, supabase_key)
-                    mutuelles_response = (
-                        supabase_client.table("company_mutuelle_types")
-                        .select("*")
-                        .in_("id", mutuelle_type_ids)
-                        .eq("is_active", True)
-                        .execute()
-                    )
+                from app.core.database import supabase as supabase_client
 
-                    if mutuelles_response.data:
-                        for mutuelle in mutuelles_response.data:
-                            if mutuelle.get("part_patronale_soumise_a_csg", True):
-                                part_patronale_frais_sante += float(
-                                    mutuelle.get("montant_patronal", 0.0)
-                                )
+                mutuelles_response = (
+                    supabase_client.table("company_mutuelle_types")
+                    .select("*")
+                    .in_("id", mutuelle_type_ids)
+                    .eq("is_active", True)
+                    .execute()
+                )
+
+                if mutuelles_response.data:
+                    for mutuelle in mutuelles_response.data:
+                        if mutuelle.get("part_patronale_soumise_a_csg", True):
+                            part_patronale_frais_sante += float(
+                                mutuelle.get("montant_patronal", 0.0)
+                            )
             except Exception as e:
                 logger.warning(f'WARN: Impossible de charger les mutuelles pour CSG: {e}')
 
@@ -535,41 +531,37 @@ def calculer_cotisations(
         if mutuelle_type_ids:
             # Charger les formules depuis la base de données
             try:
-                supabase_url = os.environ.get("SUPABASE_URL")
-                supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-                if supabase_url and supabase_key:
-                    supabase_client: Client = create_client(supabase_url, supabase_key)
-                    mutuelles_response = (
-                        supabase_client.table("company_mutuelle_types")
-                        .select("*")
-                        .in_("id", mutuelle_type_ids)
-                        .eq("is_active", True)
-                        .execute()
-                    )
+                from app.core.database import supabase as supabase_client
 
-                    if mutuelles_response.data:
-                        for mutuelle in mutuelles_response.data:
-                            bulletin_cotisations.append(
-                                enrichir_ligne_cotisation(
-                                    {
-                                        "libelle": mutuelle.get(
-                                            "libelle", "Mutuelle Frais de Santé"
-                                        ),
-                                        "base": None,
-                                        "taux_salarial": None,
-                                        "montant_salarial": float(
-                                            mutuelle.get("montant_salarial", 0.0)
-                                        ),
-                                        "taux_patronal": None,
-                                        "montant_patronal": float(
-                                            mutuelle.get("montant_patronal", 0.0)
-                                        ),
-                                    },
-                                    coti_id="mutuelle",
-                                )
+                mutuelles_response = (
+                    supabase_client.table("company_mutuelle_types")
+                    .select("*")
+                    .in_("id", mutuelle_type_ids)
+                    .eq("is_active", True)
+                    .execute()
+                )
+
+                if mutuelles_response.data:
+                    for mutuelle in mutuelles_response.data:
+                        bulletin_cotisations.append(
+                            enrichir_ligne_cotisation(
+                                {
+                                    "libelle": mutuelle.get(
+                                        "libelle", "Mutuelle Frais de Santé"
+                                    ),
+                                    "base": None,
+                                    "taux_salarial": None,
+                                    "montant_salarial": float(
+                                        mutuelle.get("montant_salarial", 0.0)
+                                    ),
+                                    "taux_patronal": None,
+                                    "montant_patronal": float(
+                                        mutuelle.get("montant_patronal", 0.0)
+                                    ),
+                                },
+                                coti_id="mutuelle",
                             )
-                else:
-                    logger.warning('WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD')
+                        )
             except Exception as e:
                 logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
                 # Fallback sur l'ancien format si erreur

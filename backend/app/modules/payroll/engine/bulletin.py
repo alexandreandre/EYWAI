@@ -48,12 +48,21 @@ def _formater_classification(contrat: Dict[str, Any]) -> Optional[str]:
     )
     if not isinstance(classification, dict) or not classification:
         return None
+    coeff = classification.get("coefficient")
+    classe = classification.get("classe_emploi") or classification.get("classe")
+    if coeff is not None:
+        try:
+            coeff_num = float(coeff)
+            coeff_txt = str(int(coeff_num)) if coeff_num == int(coeff_num) else str(coeff)
+        except (TypeError, ValueError):
+            coeff_txt = str(coeff)
+        return coeff_txt
     parts = [
-        classification.get("coefficient"),
         classification.get("niveau"),
         classification.get("echelon"),
         classification.get("position"),
         classification.get("libelle"),
+        classe,
     ]
     texte = " ".join(str(p) for p in parts if p)
     return texte or None

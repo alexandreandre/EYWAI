@@ -166,7 +166,7 @@ class TestBulletinFinalOfficiel:
         assert bulletin["total_exonerations"] >= 0
         assert bulletin["synthese_net"]["montant_net_social"] is not None
         assert bulletin["en_tete"]["entreprise"]["naf_ape"] == "6201Z"
-        assert bulletin["en_tete"]["salarie"]["classification"] == "275 III"
+        assert bulletin["en_tete"]["salarie"]["classification"] == "275"
         assert "Syntec" in bulletin["en_tete"]["salarie"]["convention_collective"]
         assert bulletin["en_tete"]["date_paiement"]
         assert bulletin["pied_de_page"]["mentions_legales"]["conservation"]

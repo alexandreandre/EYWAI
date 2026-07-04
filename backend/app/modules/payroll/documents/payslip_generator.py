@@ -25,6 +25,8 @@ from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
+from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
+from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
 )
@@ -40,6 +42,76 @@ def _parse_if_json_string(value: Any) -> Any:
         except json.JSONDecodeError:
             return value
     return value
+
+
+def _is_heures_sup_conjoncturelle_input(row: dict) -> bool:
+    """True si la saisie mensuelle porte une quantité d'HS conjoncturelles (pas une prime €)."""
+    qty = row.get("payroll_quantity")
+    if qty is None:
+        return False
+    label = " ".join(
+        str(row.get(key) or "")
+        for key in ("name", "export_code", "description", "catalog_prime_id")
+    ).lower()
+    if "struct" in label:
+        return False
+    return (
+        ("heure" in label or label.strip().startswith("hs"))
+        and ("sup" in label or "hs" in label or "conjonct" in label)
+    )
+
+
+def _heures_sup_conjoncturelles_from_monthly_inputs(rows: list[dict]) -> float | None:
+    """Extrait les HS conjoncturelles déclarées (payroll_quantity) depuis monthly_inputs."""
+    total = 0.0
+    found = False
+    for row in rows:
+        if _is_heures_sup_conjoncturelle_input(row):
+            total += float(row["payroll_quantity"])
+            found = True
+    return total if found else None
+
+
+def _is_participation_numeraire_input(row: dict) -> bool:
+    """True si la saisie mensuelle est une somme de participation/intéressement.
+
+    Le montant (`amount`) est alors traité comme le **brut** de la part numéraire :
+    exonéré de cotisations, soumis à CSG/CRDS 9,7 % et imposable IR (régime géré
+    par le moteur, cf. `payslip_run_heures`). La part PEE (placée, exonérée IR)
+    est exclue ici.
+    """
+    # Seule une somme positive (le versement) est une part numéraire ; un montant
+    # négatif est une retenue (acompte déjà versé), pas une participation à verser.
+    if float(row.get("amount") or 0) <= 0:
+        return False
+
+    label = " ".join(
+        str(row.get(key) or "")
+        for key in ("name", "description", "catalog_prime_id", "export_code")
+    ).lower()
+
+    # Écarter les lignes connexes qui peuvent mentionner « participation » sans être
+    # la somme versée elle-même (acompte/avance, remboursement de frais, PEE).
+    exclusions = (
+        "acompte",
+        "avance",
+        "note de frais",
+        "remboursement",
+        "frais",
+        "pee",
+        "plan d'épargne",
+        "plan d'epargne",
+    )
+    if any(term in label for term in exclusions):
+        return False
+
+    return bool(
+        row.get("participation_campaign_id")
+        or row.get("participation_bulletin_id")
+        or "participation" in label
+        or "intéressement" in label
+        or "interessement" in label
+    )
 
 
 def resolve_date_sortie(employee_data: dict) -> Any:
@@ -236,6 +308,14 @@ def process_payslip_generation(
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
+        year_months = [(d["year"], d["month"]) for d in dates_to_process]
+        actual_data_all_months = appliquer_repli_sans_pointage_par_mois(
+            planned_data_all_months,
+            actual_data_all_months,
+            year_months,
+            is_forfait_jour=is_forfait_jour(employee_data.get("statut")),
+        )
+
         weekly_map = None
         if company_id:
             try:
@@ -301,6 +381,16 @@ def process_payslip_generation(
                 saisies_data["shift_payroll_summary"] = summary
 
         for row in saisies_res.data:
+            if _is_heures_sup_conjoncturelle_input(row):
+                continue
+            if _is_participation_numeraire_input(row):
+                saisies_data.setdefault("participations", []).append(
+                    {
+                        "libelle": row["name"],
+                        "brut": float(row["amount"]),
+                    }
+                )
+                continue
             catalog_id = row.get("catalog_prime_id")
             prime_id = catalog_id or row["name"].replace(" ", "_").lower()
             prime_entry = {
@@ -319,6 +409,10 @@ def process_payslip_generation(
             if catalog_id and ("panier" in str(catalog_id).lower() or "repas" in str(catalog_id).lower()):
                 prime_entry["type"] = "panier"
             saisies_data["primes"].append(prime_entry)
+
+        hs_conj = _heures_sup_conjoncturelles_from_monthly_inputs(saisies_res.data or [])
+        if hs_conj is not None:
+            saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj
 
         if expense_reports_res.data:
             log_payroll_debug(logger, f'DEBUG [Generator] - Ajout de {len(expense_reports_res.data)} note(s) de frais aux saisies.')
@@ -555,6 +649,14 @@ def process_payslip_generation(
                 "parametres_paie": {
                     "idcc": company_data.get("idcc"),
                     "effectif": company_data.get("effectif"),
+                    "periode_de_paie": {
+                        "jour_de_fin": company_data.get("paie_jour_de_fin", 4),
+                        "occurrence": (
+                            company_data.get("paie_occurrence")
+                            if company_data.get("paie_occurrence") is not None
+                            else -2
+                        ),
+                    },
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
                         "taux_versement_mobilite": company_data.get("taux_vm"),

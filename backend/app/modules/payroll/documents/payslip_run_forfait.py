@@ -469,6 +469,8 @@ def run_payslip_generation_forfait(
         smic_calcule_mois,
         pss_du_mois,
         employee_path,
+        heures_supplementaires_mois=total_heures_supp,
+        heures_remunerees_mois=heures_equivalentes,
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

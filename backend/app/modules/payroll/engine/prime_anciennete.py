@@ -19,6 +19,23 @@ from app.modules.collective_agreements.rules.resolver import (
 from app.modules.payroll.engine.contexte import ContextePaie
 from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
 from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
+from app.modules.payroll.engine.salaire_contractuel import (
+    salaire_contractuel_total_hors_hs_mode,
+    salaire_hors_hs_structurelles,
+)
+
+
+def _salaire_base_prime_anciennete(contexte: ContextePaie) -> float:
+    """Base prime : contractuel total (base + HS struct) si salaire hors HS struct."""
+    sb = contexte.salaire_base_mensuel
+    if not salaire_hors_hs_structurelles(contexte.contrat):
+        return sb
+    from app.modules.payroll.engine.calcul_brut import _taux_majoration_hs
+
+    maj = _taux_majoration_hs(contexte, 0) or 0.25
+    return salaire_contractuel_total_hors_hs_mode(
+        sb, contexte.duree_hebdo_contrat, maj
+    )
 
 
 def _prorata_config(regles_prime: dict[str, Any], resolved: dict[str, Any]) -> dict[str, Any]:
@@ -150,7 +167,7 @@ def calculer_ligne_prime_anciennete(
         regles_prime=regles_prime,
         contrat=contexte.contrat,
         anciennete_annees=anciennete_annees,
-        salaire_base_mensuel=contexte.salaire_base_mensuel,
+        salaire_base_mensuel=_salaire_base_prime_anciennete(contexte),
         minima_applicables=minima_applicables,
         valeur_point=resolved.get("valeur_point"),
     )

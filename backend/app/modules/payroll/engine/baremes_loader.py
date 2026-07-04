@@ -64,10 +64,42 @@ def charger_conventions_collectives(supabase) -> Dict[str, Any]:
                 idcc = row.get("idcc")
                 rules = ensure_dict(row.get("rules"))
                 if idcc:
-                    conventions[f"idcc_{idcc}"] = rules
+                    conventions[f"idcc_{idcc}"] = _enrich_cc_rules_with_seed(
+                        rules, str(idcc)
+                    )
     except Exception:
         pass
     return conventions
+
+
+def _enrich_cc_rules_with_seed(rules: dict[str, Any], idcc: str) -> dict[str, Any]:
+    """Complète les règles CCN manquantes (ex. prime d'ancienneté) via seed officiel."""
+    if rules.get("prime_anciennete"):
+        return rules
+    try:
+        from app.modules.collective_agreements.rules.schema import (
+            CCRulesDocument,
+            document_to_engine_rules,
+        )
+        from app.modules.collective_agreements.rules.seeds import (
+            apply_seed_to_document,
+            get_seed,
+        )
+
+        seed = get_seed(idcc)
+        if not seed or not seed.prime:
+            return rules
+        doc = CCRulesDocument(idcc=idcc)
+        doc = apply_seed_to_document(doc, seed)
+        engine_rules = document_to_engine_rules(doc)
+        prime = engine_rules.get("prime_anciennete")
+        if not prime:
+            return rules
+        merged = dict(rules)
+        merged["prime_anciennete"] = prime
+        return merged
+    except Exception:
+        return rules
 
 
 def _extract_primes_list(primes_data: Any) -> List[Dict[str, Any]]:

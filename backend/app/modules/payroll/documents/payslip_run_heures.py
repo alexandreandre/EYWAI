@@ -36,6 +36,7 @@ from app.modules.payroll.engine.ijss_bulletin import compute_ijss_csg_lines
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
+    heures_remunerees_mois_contrat,
     mettre_a_jour_cumuls,
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
@@ -396,6 +397,33 @@ def run_payslip_generation_heures(
                 else:
                     primes_non_soumises.append(prime_calculee)
 
+    # --- Participation / intéressement (part numéraire) : régime CSG 9,7 % seule ---
+    # Exonéré de cotisations sociales, soumis à CSG/CRDS (6,8 % déductible + 2,9 %
+    # non déductible) ; part numéraire imposable à l'IR. Traité hors des buckets de
+    # primes (pas de cotisations classiques) et injecté dans le calcul des nets.
+    from app.modules.participation.domain.bulletin_rules import (
+        compute_participation_csg,
+    )
+
+    participations_calc: List[Dict[str, Any]] = []
+    for part in saisie_du_mois.get("participations", []) or []:
+        brut_part = float(part.get("brut") or part.get("montant") or 0.0)
+        if brut_part <= 0:
+            continue
+        part_pee = float(part.get("part_pee") or 0.0)
+        non_ded, ded, total = compute_participation_csg(brut_part)
+        participations_calc.append(
+            {
+                "libelle": part.get("libelle") or "Participation",
+                "brut": round(brut_part, 2),
+                "part_pee": round(part_pee, 2),
+                "csg_deductible": float(ded),
+                "csg_non_deductible": float(non_ded),
+                "csg_total": float(total),
+                "acompte": float(part.get("acompte") or 0.0),
+            }
+        )
+
     arret_prefetch = _extraire_arret_pour_maintien(
         calendrier_etendu, contexte, date_debut_periode, date_fin_periode
     )
@@ -418,6 +446,12 @@ def run_payslip_generation_heures(
         date_debut_periode=date_debut_periode,
         date_fin_periode=date_fin_periode,
     )
+
+    hs_conj_decl = saisie_du_mois.get("heures_supplementaires_conjoncturelles")
+    if hs_conj_decl is not None and float(hs_conj_decl or 0) > 0:
+        contexte.contrat.setdefault("saisie_du_mois", {})[
+            "heures_supplementaires_conjoncturelles"
+        ] = float(hs_conj_decl)
 
     resultat_brut = calculer_salaire_brut(
         contexte,
@@ -457,17 +491,31 @@ def run_payslip_generation_heures(
             )
             salaire_brut_calcule = round(salaire_brut_calcule + gain_nuit, 2)
         if paid_break > 0 and taux_horaire > 0:
-            gain_pause = round(paid_break * taux_horaire, 2)
-            details_brut.append(
-                {
-                    "libelle": "Pause rémunérée (planning)",
-                    "quantite": paid_break,
-                    "taux": round(taux_horaire, 4),
-                    "gain": gain_pause,
-                    "perte": None,
-                }
-            )
-            salaire_brut_calcule = round(salaire_brut_calcule + gain_pause, 2)
+            include_paid_break_line = True
+            if company_id:
+                from app.modules.planning.infrastructure.repository import (
+                    planning_repository,
+                )
+
+                planning_settings = planning_repository.get_company_planning_settings(
+                    str(company_id)
+                )
+                if planning_settings and planning_settings.get(
+                    "paid_breaks_included_in_base", False
+                ):
+                    include_paid_break_line = False
+            if include_paid_break_line:
+                gain_pause = round(paid_break * taux_horaire, 2)
+                details_brut.append(
+                    {
+                        "libelle": "Pause rémunérée (planning)",
+                        "quantite": paid_break,
+                        "taux": round(taux_horaire, 4),
+                        "gain": gain_pause,
+                        "perte": None,
+                    }
+                )
+                salaire_brut_calcule = round(salaire_brut_calcule + gain_pause, 2)
 
     if modulation_result and modulation_result.hs_credited > 0:
         details_brut.append(
@@ -546,6 +594,43 @@ def run_payslip_generation_heures(
     if ijss_imposables:
         primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
 
+    # Participation : lignes d'affichage (gain brut + CSG/CRDS) sans impacter le
+    # brut cotisable ni le total des cotisations salariales de salaire.
+    for part in participations_calc:
+        details_brut.append(
+            {
+                "libelle": f"{part['libelle']} (brut, exonéré de cotisations)",
+                "quantite": None,
+                "taux": None,
+                "gain": part["brut"],
+                "perte": None,
+                "is_informative": True,
+            }
+        )
+        lignes_cotisations.append(
+            {
+                "libelle": f"CSG déductible — {part['libelle']}",
+                "base": part["brut"],
+                # Taux stocké en fraction (le template l'affiche ×100).
+                "taux_salarial": 0.068,
+                "taux_patronal": 0.0,
+                "montant_salarial": part["csg_deductible"],
+                "montant_patronal": 0.0,
+                "is_participation": True,
+            }
+        )
+        lignes_cotisations.append(
+            {
+                "libelle": f"CSG/CRDS non déductible — {part['libelle']}",
+                "base": part["brut"],
+                "taux_salarial": 0.029,
+                "taux_patronal": 0.0,
+                "montant_salarial": part["csg_non_deductible"],
+                "montant_patronal": 0.0,
+                "is_participation": True,
+            }
+        )
+
     duree_contrat_hebdo = contexte.duree_hebdo_contrat
     jours_ouvrables_du_mois = sum(
         1 for jour in calendrier_du_mois if jour.get("type") not in ["weekend"]
@@ -598,7 +683,10 @@ def run_payslip_generation_heures(
         remuneration_hs,
         montant_acompte,
         primes_soumises_impot,
+        participations_calc,
     )
+    if participations_calc:
+        resultats_nets["participations"] = participations_calc
 
     taux_vm = (
         contexte.entreprise.get("parametres_paie", {})
@@ -653,6 +741,8 @@ def run_payslip_generation_heures(
         smic_calcule_mois,
         pss_du_mois,
         employee_path,
+        heures_supplementaires_mois=total_heures_supp,
+        heures_remunerees_mois=heures_remunerees_mois_contrat(contexte, calendrier_etendu),
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

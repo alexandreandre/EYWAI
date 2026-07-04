@@ -75,3 +75,56 @@ class TestRepliPlanningForfait:
         )
         assert any(j.get("mois") == 5 for j in out)
         assert any(j.get("mois") == 6 for j in out)
+
+
+class TestRepliPlanningHeures:
+    def _prevu_heures(self, mois: int, jour: int, heures: float, *, annee: int = 2026):
+        return {
+            "annee": annee,
+            "mois": mois,
+            "jour": jour,
+            "type": "travail",
+            "heures_prevues": heures,
+        }
+
+    def test_sans_pointage_reprend_heures_prevues(self):
+        from app.modules.payroll.planning_repli import (
+            reel_heures_avec_repli_planning_si_sans_pointage,
+        )
+
+        prevu = [self._prevu_heures(4, 21, 8.0), self._prevu_heures(4, 22, 8.0)]
+        reel = [_jour(5, 3, 7.0)]
+        out = reel_heures_avec_repli_planning_si_sans_pointage(
+            prevu, reel, annee=2026, mois=4
+        )
+        avril = [j for j in out if j.get("mois") == 4]
+        assert len(avril) == 2
+        assert avril[0]["heures_faites"] == 8.0
+        assert avril[0].get("source_repli_planning") is True
+
+    def test_avec_pointage_inchange(self):
+        from app.modules.payroll.planning_repli import (
+            reel_heures_avec_repli_planning_si_sans_pointage,
+        )
+
+        prevu = [self._prevu_heures(4, 21, 8.0)]
+        reel = [_jour(4, 21, 7.5)]
+        out = reel_heures_avec_repli_planning_si_sans_pointage(
+            prevu, reel, annee=2026, mois=4
+        )
+        assert out == reel
+
+    def test_appliquer_repli_par_mois(self):
+        from app.modules.payroll.planning_repli import (
+            appliquer_repli_sans_pointage_par_mois,
+        )
+
+        prevu = [self._prevu_heures(4, 21, 8.0), self._prevu_heures(5, 5, 7.0)]
+        reel = [_jour(5, 5, 7.0)]
+        out = appliquer_repli_sans_pointage_par_mois(
+            prevu, reel, [(2026, 4), (2026, 5)], is_forfait_jour=False
+        )
+        assert any(
+            j.get("mois") == 4 and j.get("heures_faites") == 8.0 for j in out
+        )
+        assert any(j.get("mois") == 5 and j.get("heures_faites") == 7.0 for j in out)

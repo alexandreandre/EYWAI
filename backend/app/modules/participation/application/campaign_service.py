@@ -628,10 +628,20 @@ def generate_payroll_lines(
         label = dispositif_label(dispositif)
         cash = float(bulletin.get("cash_amount") or 0)
         pee = float(bulletin.get("pee_amount") or 0)
+        gross = float(bulletin.get("gross_amount") or 0)
+        net_total = cash + pee
         str(bulletin["id"])
 
         if cash > 0.005:
-            social, taxable = payroll_flags_for_amount(True)
+            # Le moteur mensuel traite le montant de la ligne « numéraire » comme le
+            # BRUT de la part versée (régime participation : exonéré de cotisations,
+            # CSG/CRDS 9,7 % recalculée, part numéraire imposable IR). On convertit
+            # donc le net choisi en brut au prorata de la part numéraire.
+            brut_numeraire = (
+                round(gross * (cash / net_total), 2)
+                if net_total > 0 and gross > 0
+                else round(cash, 2)
+            )
             payloads.append(
                 MonthlyInput(
                     employee_id=emp_id,  # type: ignore[arg-type]
@@ -639,9 +649,9 @@ def generate_payroll_lines(
                     month=body.payroll_month,
                     name=f"{label} {year} — numéraire",
                     description=f"{label} exercice {year} (partie versée)",
-                    amount=round(cash, 2),
-                    is_socially_taxed=social,
-                    is_taxable=taxable,
+                    amount=brut_numeraire,
+                    is_socially_taxed=False,
+                    is_taxable=True,
                 )
             )
         if pee > 0.005:

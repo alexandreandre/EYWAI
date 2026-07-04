@@ -77,6 +77,29 @@ def definir_periode_de_paie(
     return date_debut_periode, date_fin_periode
 
 
+def heures_remunerees_mois_contrat(
+    contexte: ContextePaie,
+    calendrier_etendu: list,
+) -> float:
+    """Heures rémunérées du mois = contractuel mensuel − absences injustifiées."""
+    from app.modules.payroll.engine import legal_constants as lc
+    from app.modules.payroll.engine.salaire_contractuel import (
+        heures_mensuelles_legales,
+        heures_sup_structurelles_mensuelles,
+    )
+
+    duree_hebdo = contexte.duree_hebdo_contrat
+    base = heures_mensuelles_legales()
+    if duree_hebdo > lc.DUREE_LEGALE_HEBDO:
+        base += heures_sup_structurelles_mensuelles(duree_hebdo)
+    heures_absence = sum(
+        float(j.get("heures") or 0)
+        for j in calendrier_etendu
+        if "absence_injustifiee" in str(j.get("type", ""))
+    )
+    return max(0.0, round(base - heures_absence, 2))
+
+
 def mettre_a_jour_cumuls(
     contexte: ContextePaie,
     salaire_brut_mois: float,
@@ -87,6 +110,9 @@ def mettre_a_jour_cumuls(
     smic_mois: float,
     pss_mois: float,
     chemin_employe: Path,
+    *,
+    heures_supplementaires_mois: float | None = None,
+    heures_remunerees_mois: float | None = None,
 ) -> None:
     """Écrit le fichier cumuls du mois avec les valeurs du bulletin."""
     nouveaux_cumuls_data = json.loads(json.dumps(contexte.cumuls))
@@ -101,10 +127,23 @@ def mettre_a_jour_cumuls(
     cumuls["impot_preleve_a_la_source"] = cumuls.get(
         "impot_preleve_a_la_source", 0.0
     ) + round(resultats_nets_mois.get("montant_impot_pas", 0.0), 2)
+    hs_heures = (
+        heures_supplementaires_mois
+        if heures_supplementaires_mois is not None
+        else 0.0
+    )
     cumuls["heures_supplementaires_remunerees"] = cumuls.get(
         "heures_supplementaires_remunerees", 0.0
-    ) + round(remuneration_hs_mois, 2)
-    cumuls.setdefault("heures_remunerees", 0.0)
+    ) + round(hs_heures, 2)
+    if heures_remunerees_mois is not None:
+        cumuls["heures_remunerees"] = cumuls.get("heures_remunerees", 0.0) + round(
+            heures_remunerees_mois, 2
+        )
+    else:
+        cumuls.setdefault("heures_remunerees", 0.0)
+    cumuls["montant_hs_remunerees"] = cumuls.get("montant_hs_remunerees", 0.0) + round(
+        remuneration_hs_mois, 2
+    )
 
     if reduction_generale_mois:
         nouveau_total = reduction_generale_mois.get(
@@ -158,10 +197,17 @@ def creer_calendrier_etendu(
         if chemin_fichier.exists():
             data = json.loads(chemin_fichier.read_text(encoding="utf-8"))
             for jour_data in data.get("calendrier_analyse", []):
-                jour_data["date_complete"] = date(
-                    annee, mois, jour_data["jour"]
-                ).isoformat()
-                calendrier_final.append(jour_data)
+                jour = jour_data.get("jour")
+                if jour is None:
+                    continue
+                ev_annee = int(jour_data.get("annee") or annee)
+                ev_mois = int(jour_data.get("mois") or mois)
+                date_complete = date(ev_annee, ev_mois, int(jour))
+                if not (date_debut_periode <= date_complete <= date_fin_periode):
+                    continue
+                entry = dict(jour_data)
+                entry["date_complete"] = date_complete.isoformat()
+                calendrier_final.append(entry)
         else:
             logger.warning(f'AVERTISSEMENT: Fichier événements {mois:02d}.json non trouvé.')
 

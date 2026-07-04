@@ -9,6 +9,13 @@ from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
 )
+from .salaire_contractuel import (
+    heures_mensuelles_legales,
+    heures_sup_structurelles_mensuelles as compute_hs_structurelles_mensuelles,
+    salaire_contractuel_total_hors_hs_mode,
+    salaire_hors_hs_structurelles,
+    taux_horaire_base_hors_hs_structurelles,
+)
 
 
 def _heures_journalieres_contrat(duree_hebdo: float) -> float:
@@ -287,9 +294,13 @@ def _taux_majoration_hc(contexte: ContextePaie, index: int = 0) -> Optional[floa
 def _get_salaire_horaire_base(
     contexte: ContextePaie, duree_hebdo_reelle: float
 ) -> float:
-    # Cette fonction reste inchangée
     salaire_mensuel = contexte.salaire_base_mensuel
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
+    if (
+        salaire_hors_hs_structurelles(contexte.contrat)
+        and duree_hebdo_reelle > duree_legale_hebdo
+    ):
+        return taux_horaire_base_hors_hs_structurelles(salaire_mensuel)
     if duree_hebdo_reelle <= duree_legale_hebdo:
         heures_mensuelles = round((duree_hebdo_reelle * 52) / 12, 2)
         return salaire_mensuel / heures_mensuelles if heures_mensuelles > 0 else 0.0
@@ -425,6 +436,7 @@ def calculer_salaire_brut(
     primes_saisies: List[Dict[str, Any]] = None,
     jours_maintien: Optional[set[int]] = None,
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
+    actual_hours_all_months: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
@@ -441,6 +453,16 @@ def calculer_salaire_brut(
     if facteur_prorata < 1.0:
         salaire_contractuel = round(salaire_contractuel * facteur_prorata, 2)
     taux_horaire_de_base = _get_salaire_horaire_base(contexte, duree_contrat_hebdo)
+
+    majoration_hs25 = _taux_majoration_hs(contexte, 0)
+    majoration_hs50 = _taux_majoration_hs(contexte, 1)
+    if majoration_hs25 is None:
+        majoration_hs25 = 0.0
+    if majoration_hs50 is None:
+        majoration_hs50 = 0.0
+
+    remuneration_hs_structurelles = 0.0
+    heures_sup_structurelles_mensuelles = 0.0
 
     # 1. Décomposition du salaire de base
     if duree_contrat_hebdo < duree_legale_hebdo:
@@ -464,18 +486,21 @@ def calculer_salaire_brut(
         remuneration_hs_structurelles = 0.0
         heures_sup_structurelles_mensuelles = 0.0
     else:
-        heures_mensuelles_legales = round((duree_legale_hebdo * 52) / 12, 2)
+        heures_mensuelles_legales_val = heures_mensuelles_legales()
+        hors_hs = salaire_hors_hs_structurelles(contexte.contrat)
         if facteur_prorata < 1.0:
             salaire_base_35h = round(salaire_contractuel, 2)
+        elif hors_hs:
+            salaire_base_35h = round(salaire_contractuel, 2)
         else:
-            salaire_base_35h = heures_mensuelles_legales * taux_horaire_de_base
+            salaire_base_35h = heures_mensuelles_legales_val * taux_horaire_de_base
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
-                "quantite": heures_mensuelles_legales,
+                "quantite": heures_mensuelles_legales_val,
                 "taux": round(
-                    salaire_base_35h / heures_mensuelles_legales
-                    if heures_mensuelles_legales
+                    salaire_base_35h / heures_mensuelles_legales_val
+                    if heures_mensuelles_legales_val
                     else taux_horaire_de_base,
                     4,
                 ),
@@ -486,10 +511,20 @@ def calculer_salaire_brut(
         remuneration_hs_structurelles = 0.0
         heures_sup_structurelles_mensuelles = 0.0
         if duree_contrat_hebdo > duree_legale_hebdo:
-            remuneration_hs_structurelles = salaire_contractuel - salaire_base_35h
-            heures_sup_structurelles_mensuelles = round(
-                ((duree_contrat_hebdo - duree_legale_hebdo) * 52) / 12, 2
+            heures_sup_structurelles_mensuelles = compute_hs_structurelles_mensuelles(
+                duree_contrat_hebdo
             )
+            if hors_hs:
+                taux_horaire_majore = taux_horaire_de_base * (1 + majoration_hs25)
+                remuneration_hs_structurelles = round(
+                    heures_sup_structurelles_mensuelles * taux_horaire_majore, 2
+                )
+                total_contractuel = round(
+                    salaire_base_35h + remuneration_hs_structurelles, 2
+                )
+            else:
+                remuneration_hs_structurelles = salaire_contractuel - salaire_base_35h
+                total_contractuel = salaire_contractuel
             taux_horaire_majore = (
                 remuneration_hs_structurelles / heures_sup_structurelles_mensuelles
                 if heures_sup_structurelles_mensuelles > 0
@@ -513,24 +548,17 @@ def calculer_salaire_brut(
                 {
                     "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
                     "quantite": round(
-                        heures_mensuelles_legales + heures_sup_structurelles_mensuelles,
+                        heures_mensuelles_legales_val + heures_sup_structurelles_mensuelles,
                         2,
                     ),
                     "taux": None,
-                    "gain": salaire_contractuel,
+                    "gain": total_contractuel,
                     "perte": None,
                     "is_sous_total": True,
                 }
             )
 
     # 2. Préparation des taux et des accumulateurs
-    majoration_hs25 = _taux_majoration_hs(contexte, 0)
-    majoration_hs50 = _taux_majoration_hs(contexte, 1)
-    if majoration_hs25 is None:
-        majoration_hs25 = 0.0
-    if majoration_hs50 is None:
-        majoration_hs50 = 0.0
-
     taux_hs25 = taux_horaire_de_base * (1 + majoration_hs25)
     taux_hs50 = taux_horaire_de_base * (1 + majoration_hs50)
 
@@ -590,6 +618,17 @@ def calculer_salaire_brut(
         elif type_ev == "travail_hc25":
             heures_travail_hc2_total += heures
         elif "absence_injustifiee" in type_ev:
+            if actual_hours_all_months is not None:
+                date_abs = date.fromisoformat(evenement["date_complete"])
+                from app.modules.payroll.planning_repli import mois_sans_pointage
+
+                if mois_sans_pointage(
+                    actual_hours_all_months,
+                    annee=date_abs.year,
+                    mois=date_abs.month,
+                ):
+                    continue
+
             taux_deduction = taux_horaire_de_base
             is_hs_absence = False
             if "hs25" in type_ev:
@@ -648,6 +687,14 @@ def calculer_salaire_brut(
                     "is_arret_maladie": True,
                 }
             )
+
+    # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées prime sur le badgeage.
+    declared_conj = float(contexte.heures_sup_du_mois or 0)
+    if declared_conj > 0:
+        calendar_conj = heures_travail_hs25_total + heures_travail_hs50_total
+        if abs(declared_conj - calendar_conj) > 0.001:
+            heures_travail_hs25_total = round(declared_conj, 2)
+            heures_travail_hs50_total = 0.0
 
     # 4. Ajout des lignes de GAIN pour les heures travaillées (après accumulation)
     # if heures_travail_base_total > 0:

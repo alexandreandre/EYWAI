@@ -1,10 +1,8 @@
 from app.core.logging import get_logger, log_payroll_debug
 
-import os
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
 from typing import Dict, Any, List
-from supabase import create_client, Client
 
 
 logger = get_logger("modules.payroll.engine.calcul_net")
@@ -13,6 +11,45 @@ def _get_safe_float(value: Any, default: float = 0.0) -> float:
     if value is None:
         return default
     return float(value)
+
+
+def _participation_aggregats(
+    participations: List[Dict[str, Any]] | None,
+) -> tuple[float, float, float]:
+    """Agrège les contributions des sommes de participation/intéressement (numéraire).
+
+    Régime social/fiscal (Code du travail art. L3325-1 ; BOSS) : sommes exonérées
+    de cotisations sociales, soumises à CSG/CRDS 9,7 % (6,8 % déductible + 2,9 %
+    non déductible). La **part numéraire** est imposable à l'IR ; la part placée
+    sur un plan d'épargne salariale (PEE) est exonérée d'IR.
+
+    Chaque entrée : {brut, csg_deductible, csg_non_deductible, csg_total,
+    acompte, part_pee}. Retourne (imposable, net_a_payer, net_social) :
+    - imposable  = Σ (brut_numéraire − CSG déductible)
+    - net_a_payer = Σ (brut − CSG totale − acompte déjà versé)  [part numéraire]
+    - net_social  = Σ (brut − CSG totale)                        [part numéraire]
+    """
+    imposable = 0.0
+    net = 0.0
+    net_social = 0.0
+    for p in participations or []:
+        brut = _get_safe_float(p.get("brut"))
+        part_pee = _get_safe_float(p.get("part_pee"))
+        brut_numeraire = max(0.0, brut - part_pee)
+        csg_ded = _get_safe_float(p.get("csg_deductible"))
+        csg_total = _get_safe_float(
+            p.get("csg_total"),
+            csg_ded + _get_safe_float(p.get("csg_non_deductible")),
+        )
+        acompte = _get_safe_float(p.get("acompte"))
+        # CSG déductible imputée au prorata de la part numéraire imposable.
+        csg_ded_numeraire = csg_ded * (brut_numeraire / brut) if brut > 0 else 0.0
+        csg_total_numeraire = csg_total * (brut_numeraire / brut) if brut > 0 else 0.0
+        imposable += brut_numeraire - csg_ded_numeraire
+        net_participation = brut_numeraire - csg_total_numeraire
+        net += net_participation - acompte
+        net_social += net_participation
+    return round(imposable, 2), round(net, 2), round(net_social, 2)
 
 
 # Dans le fichier moteur_paie/calcul_net.py
@@ -30,27 +67,24 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
     if mutuelle_type_ids:
         try:
-            supabase_url = os.environ.get("SUPABASE_URL")
-            supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-            if supabase_url and supabase_key:
-                supabase_client: Client = create_client(supabase_url, supabase_key)
-                mutuelles_response = (
-                    supabase_client.table("company_mutuelle_types")
-                    .select("*")
-                    .in_("id", mutuelle_type_ids)
-                    .eq("is_active", True)
-                    .execute()
-                )
-                if mutuelles_response.data:
-                    for mutuelle in mutuelles_response.data:
-                        if mutuelle.get("part_patronale_soumise_a_csg", True):
-                            part_patronale_mutuelle += _get_safe_float(
-                                mutuelle.get("montant_patronal")
-                            )
-            else:
-                logger.warning(
-                    "WARN: Variables Supabase non configurées, impossible de charger les mutuelles depuis la BDD"
-                )
+            # Client admin (service_role) : contourne la RLS pour lire les types de
+            # mutuelle d'entreprise (le client par défaut peut être bloqué).
+            from app.core.database import get_supabase_admin_client
+
+            supabase_client = get_supabase_admin_client()
+            mutuelles_response = (
+                supabase_client.table("company_mutuelle_types")
+                .select("*")
+                .in_("id", mutuelle_type_ids)
+                .eq("is_active", True)
+                .execute()
+            )
+            if mutuelles_response.data:
+                for mutuelle in mutuelles_response.data:
+                    if mutuelle.get("part_patronale_soumise_a_csg", True):
+                        part_patronale_mutuelle += _get_safe_float(
+                            mutuelle.get("montant_patronal")
+                        )
         except Exception as e:
             logger.warning(
                 f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
@@ -76,6 +110,7 @@ def calculer_montant_net_social(
     salaire_brut: float,
     total_cotisations_salariales: float,
     primes_non_soumises: List[Dict[str, Any]],
+    participations: List[Dict[str, Any]] | None = None,
 ) -> float:
     """
     Montant net social (BOSS, arrêté 25/02/2016 modifié).
@@ -91,11 +126,13 @@ def calculer_montant_net_social(
     total_primes_non_soumises = sum(
         _get_safe_float(p.get("montant")) for p in primes_non_soumises
     )
+    _, _, net_social_participation = _participation_aggregats(participations)
     mns = (
         _get_safe_float(salaire_brut)
         + part_patronale_mutuelle
         + total_primes_non_soumises
         - _get_safe_float(total_cotisations_salariales)
+        + net_social_participation
     )
     return round(mns, 2)
 
@@ -109,15 +146,26 @@ def _calculer_net_imposable(
     primes_soumises_impot: List[
         Dict[str, Any]
     ] = None,  # <-- NOUVEAU: Primes soumises à l'impôt (ex: PPV si effectif >= 50)
+    participations: List[Dict[str, Any]] | None = None,
 ) -> float:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
 
     montant_csg_non_deductible = 0.0
+    montant_csg_sur_hs = 0.0
     for ligne in lignes_cotisations:
+        # Les lignes CSG de participation sont traitées à part (elles ne
+        # s'appliquent pas au brut de salaire) : ne pas les réintégrer ici.
+        if ligne.get("is_participation"):
+            continue
         libelle = ligne.get("libelle", "").lower()
         if "csg/crds" in libelle and "non déductible" in libelle:
             montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
+        # CSG/CRDS assise sur les heures supplémentaires : elle reste due même si
+        # les HS sont exonérées d'impôt ; on la retranche donc du montant d'HS
+        # défiscalisé (l'exonération d'IR porte sur le NET des HS, pas le brut).
+        if "sur hs" in libelle:
+            montant_csg_sur_hs += _get_safe_float(ligne.get("montant_salarial"))
 
     part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
 
@@ -131,12 +179,14 @@ def _calculer_net_imposable(
         + part_patronale_mutuelle
     )
 
-    # --- NOUVEAU : Application de la défiscalisation des HS ---
-    # On soustrait le montant brut des HS (en s'assurant de ne pas dépasser le plafond annuel un jour)
-    # Pour l'instant, on applique la défiscalisation sur tout le montant.
-    net_imposable_apres_hs = (
-        net_imposable_avant_defiscalisation - remuneration_heures_supp
+    # --- Défiscalisation des heures supplémentaires (art. 81 quater CGI) ---
+    # L'exonération d'impôt porte sur le montant NET des HS = rémunération brute
+    # des HS moins la CSG/CRDS qui reste due sur ces heures. On ne défiscalise
+    # donc pas le brut mais le net imposable réellement attribuable aux HS.
+    hs_defiscalisees = max(
+        0.0, _get_safe_float(remuneration_heures_supp) - montant_csg_sur_hs
     )
+    net_imposable_apres_hs = net_imposable_avant_defiscalisation - hs_defiscalisees
 
     # --- NOUVEAU : Ajout des primes soumises à l'impôt (ex: PPV si effectif >= 50) ---
     montant_primes_soumises_impot = 0.0
@@ -144,7 +194,12 @@ def _calculer_net_imposable(
         montant_prime = _get_safe_float(prime.get("montant"))
         montant_primes_soumises_impot += montant_prime
 
-    net_imposable_final = net_imposable_apres_hs + montant_primes_soumises_impot
+    # --- Participation / intéressement (part numéraire imposable IR) ---
+    imposable_participation, _, _ = _participation_aggregats(participations)
+
+    net_imposable_final = (
+        net_imposable_apres_hs + montant_primes_soumises_impot + imposable_participation
+    )
 
     # Le bloc de debug détaillé
     log_payroll_debug(logger, '\n--- Calcul du Net Imposable ---')
@@ -153,9 +208,11 @@ def _calculer_net_imposable(
     log_payroll_debug(logger, f'\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €')
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €')
-    log_payroll_debug(logger, f'\t- Exonération Heures Supp.         : {remuneration_heures_supp:10.2f} €')
+    log_payroll_debug(logger, f'\t- Exonération Heures Supp. (net)   : {hs_defiscalisees:10.2f} €')
     if montant_primes_soumises_impot > 0:
         log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")
+    if imposable_participation:
+        log_payroll_debug(logger, f"\t+ Participation (num. imposable)   : {imposable_participation:10.2f} €")
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= NET IMPOSABLE                    : {round(net_imposable_final, 2):10.2f} €')
     log_payroll_debug(logger, '---------------------------------\n')
@@ -279,6 +336,7 @@ def _calculer_net_a_payer(
     primes_non_soumises: List[Dict[str, Any]],
     montant_acompte: float = 0.0,
     primes_soumises_impot: List[Dict[str, Any]] = None,
+    participations: List[Dict[str, Any]] | None = None,
 ) -> tuple[float, float, float]:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
@@ -335,7 +393,10 @@ def _calculer_net_a_payer(
         montant_prime = _get_safe_float(prime.get("montant"))
         montant_primes_non_soumises += montant_prime
 
-    if montant_primes_non_soumises > 0:
+    # Une entrée non soumise peut être négative (retenue nette : acompte déjà
+    # versé, régularisation…) : on l'applique quel que soit le signe, de façon
+    # cohérente avec le calcul du montant net social.
+    if montant_primes_non_soumises:
         log_payroll_debug(logger, f'\t+ Primes non soumises              : {montant_primes_non_soumises:10.2f} €')
         net_a_payer += montant_primes_non_soumises
 
@@ -349,6 +410,12 @@ def _calculer_net_a_payer(
     if montant_primes_soumises_impot > 0:
         log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")
         net_a_payer += montant_primes_soumises_impot
+
+    # --- Participation / intéressement : net numéraire (brut − CSG) − acompte ---
+    _, net_participation, _ = _participation_aggregats(participations)
+    if net_participation:
+        log_payroll_debug(logger, f'\t+ Participation (net numéraire)     : {net_participation:10.2f} €')
+        net_a_payer += net_participation
 
     if montant_acompte > 0:
         log_payroll_debug(logger, f'\t- Acompte versé                    : {montant_acompte:10.2f} €')
@@ -371,6 +438,7 @@ def calculer_net_et_impot(
     primes_soumises_impot: List[
         Dict[str, Any]
     ] = None,  # <-- NOUVEAU: Primes soumises à l'impôt (ex: PPV si effectif >= 50)
+    participations: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, float]:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
@@ -389,6 +457,7 @@ def calculer_net_et_impot(
         lignes_cotisations,
         remuneration_heures_supp,
         primes_soumises_impot,  # <-- NOUVEAU: Primes soumises à l'impôt
+        participations,
     )
 
     montant_impot = _calculer_prelevement_a_la_source(contexte, net_imposable)
@@ -398,6 +467,7 @@ def calculer_net_et_impot(
         salaire_brut,
         total_cotisations_salariales,
         primes_non_soumises,
+        participations,
     )
     net_a_payer, remboursement_transport, indemnite_transport_fixe = _calculer_net_a_payer(
         net_social,
@@ -406,6 +476,7 @@ def calculer_net_et_impot(
         primes_non_soumises,
         montant_acompte,  # <--- AJOUTEZ L'ARGUMENT ICI
         primes_soumises_impot,  # <-- NOUVEAU: Primes soumises à l'impôt
+        participations,
     )
     logger.info("INFO: Calcul des nets et de l'impôt terminé.")
     return {
