@@ -16,7 +16,8 @@ INDUSTRIAL_3X8_SHIFT_TYPES: list[dict[str, Any]] = [
         "default_end": "12:00",
         "allows_overnight": False,
         "meal_allowance_eligible": True,
-        "paid_break_minutes": 30,
+        "paid_break_minutes": 20,
+        "unpaid_break_minutes": 30,
         "night_windows": [],
     },
     {
@@ -27,7 +28,8 @@ INDUSTRIAL_3X8_SHIFT_TYPES: list[dict[str, Any]] = [
         "default_end": "20:00",
         "allows_overnight": False,
         "meal_allowance_eligible": True,
-        "paid_break_minutes": 30,
+        "paid_break_minutes": 20,
+        "unpaid_break_minutes": 30,
         "night_windows": [],
     },
     {
@@ -38,7 +40,8 @@ INDUSTRIAL_3X8_SHIFT_TYPES: list[dict[str, Any]] = [
         "default_end": "04:00",
         "allows_overnight": True,
         "meal_allowance_eligible": True,
-        "paid_break_minutes": 30,
+        "paid_break_minutes": 20,
+        "unpaid_break_minutes": 30,
         "night_windows": [{"start": "20:00", "end": "04:00", "rate": 0.25}],
     },
 ]

@@ -40,6 +40,7 @@ class PunchShiftSlotResponse(BaseModel):
     exit_time: str
     theoretical_gross_minutes: int = 465
     break_deduct_minutes: int = 45
+    paid_break_minutes: int = 0
     paid_lunch_break: bool = False
     sort_order: int = 0
 
@@ -51,6 +52,7 @@ class PunchShiftSlotCreate(BaseModel):
     exit_time: str
     theoretical_gross_minutes: int = Field(465, ge=1, le=960)
     break_deduct_minutes: int = Field(45, ge=0, le=180)
+    paid_break_minutes: int = Field(0, ge=0, le=180)
     paid_lunch_break: bool = False
     sort_order: int = 0
 
@@ -62,6 +64,7 @@ class PunchShiftSlotUpdate(BaseModel):
     exit_time: Optional[str] = None
     theoretical_gross_minutes: Optional[int] = Field(None, ge=1, le=960)
     break_deduct_minutes: Optional[int] = Field(None, ge=0, le=180)
+    paid_break_minutes: Optional[int] = Field(None, ge=0, le=180)
     paid_lunch_break: Optional[bool] = None
     sort_order: Optional[int] = None
 

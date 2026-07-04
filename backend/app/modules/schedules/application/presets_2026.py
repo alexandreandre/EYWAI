@@ -22,6 +22,7 @@ from app.modules.schedules.domain.calendar_generation_rules import (
     hhmm,
     week_weekly_hours,
 )
+from app.modules.schedules.domain.break_policy import INDUSTRIAL_2X10_MEAL_30
 
 
 # ----- helpers de construction -----
@@ -35,10 +36,11 @@ def _day(
     end: Optional[str] = None,
     brk: int = 0,
     paid: bool = False,
+    breaks: Optional[List[Dict[str, Any]]] = None,
     comment: Optional[str] = None,
     day_type: str = "travail",
 ) -> Dict[str, Any]:
-    return {
+    row = {
         "day": iso,
         "type": day_type,
         "hours": round(float(hours), 4),
@@ -48,6 +50,26 @@ def _day(
         "break_paid": paid,
         "comment": comment,
     }
+    if breaks:
+        row["breaks"] = breaks
+    return row
+
+
+def _industrial_work_day(
+    iso: int,
+    *,
+    hours: float = 7.5,
+    start: str = "08:00",
+    end: str = "16:00",
+) -> Dict[str, Any]:
+    """Journée type 2×10 min payées + 30 min repas (net contractuel)."""
+    return _day(
+        iso,
+        hours,
+        start=start,
+        end=end,
+        breaks=[dict(b) for b in INDUSTRIAL_2X10_MEAL_30],
+    )
 
 
 @dataclass
@@ -153,6 +175,14 @@ def _build_registry() -> Dict[str, Preset]:
         description="L-V 7,5h = 37,5h/semaine.",
         days=_uniform(7.5),
     )
+    mbc_3x8 = TemplateSpec(
+        name="MBC — 3×8 pauses (37,5h)",
+        description=(
+            "2×10 min payées (incluses) + 30 min repas non payée. "
+            "Net 7,5 h/jour — horaires indicatifs journée 08h–16h."
+        ),
+        days=[_industrial_work_day(d) for d in [1, 2, 3, 4, 5]],
+    )
     mbc_rina = TemplateSpec(
         name="MBC — Rina LIKA (20h)",
         description="L-V 4h = 20h/semaine.",
@@ -166,14 +196,25 @@ def _build_registry() -> Dict[str, Preset]:
     presets["mbc"] = Preset(
         key="mbc",
         company_label="MBC",
-        templates=[mbc_std, mbc_rina, mbc_sihem],
+        templates=[mbc_std, mbc_3x8, mbc_rina, mbc_sihem],
         plans=[
             PlanSpec(
                 name="MBC — Standard 2026",
                 template_names=[mbc_std.name],
                 scope_type="company",
                 start_date="2026-01-01",
+                end_date="2026-07-31",
+            ),
+            PlanSpec(
+                name="MBC — Pauses août 2026",
+                template_names=[mbc_3x8.name],
+                scope_type="company",
+                start_date="2026-08-01",
                 end_date="2026-12-31",
+                notes=(
+                    "Courrier employeur 01/06/2026 : 2×10 min payées + 30 min repas. "
+                    "Appliquer aussi le preset pointage « 3×8 industriel »."
+                ),
             ),
             PlanSpec(
                 name="MBC — Rina LIKA 2026",

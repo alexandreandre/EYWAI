@@ -5,9 +5,13 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, List
 
-from app.modules.schedules.domain.punch_accounting_entities import PlannedShiftBreak
+from app.modules.schedules.domain.punch_accounting_entities import (
+    PlannedShiftBreak,
+    PunchDayInput,
+)
 from app.modules.schedules.domain.punch_accounting_rules import (
     compute_from_raw_times,
+    compute_punch_day,
     minutes_to_time_string,
     parse_hhmm_value,
 )
@@ -135,6 +139,7 @@ def compute_accounted_hours_for_badgeuse_day(
     exit_minutes: int | None,
     shift_code: str | None = None,
     planned_paid_break_minutes: int = 0,
+    planned_unpaid_break_minutes: int | None = None,
 ) -> tuple[float, bool, float, str | None]:
     """Retourne (heures_comptabilisées, needs_review, overtime_hours, reason)."""
     settings = repo.get_settings(company_id)
@@ -145,17 +150,24 @@ def compute_accounted_hours_for_badgeuse_day(
         return 0.0, False, 0.0, None
 
     slots = repo.list_slots(company_id)
-    result = compute_from_raw_times(
-        entry_raw=entry_minutes,
-        exit_raw=exit_minutes,
-        shift_code=shift_code,
-        settings=settings,
-        slots=slots,
-        planned_shift=(
-            PlannedShiftBreak(paid_break_minutes=planned_paid_break_minutes)
-            if planned_paid_break_minutes
-            else None
+    planned_shift: PlannedShiftBreak | None = None
+    if planned_unpaid_break_minutes is not None or shift_code:
+        planned_shift = PlannedShiftBreak(
+            unpaid_break_minutes=planned_unpaid_break_minutes,
+            slot_code=shift_code,
+        )
+    elif planned_paid_break_minutes > 0:
+        planned_shift = PlannedShiftBreak(paid_break_minutes=planned_paid_break_minutes)
+
+    result = compute_punch_day(
+        PunchDayInput(
+            entry_minutes=entry_minutes,
+            exit_minutes=exit_minutes,
+            shift_code=shift_code,
+            planned_shift=planned_shift,
         ),
+        settings,
+        slots,
     )
     return (
         result.accounted_hours,

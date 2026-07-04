@@ -795,6 +795,7 @@ def parse_instruction(
         excluded_employees_from_instruction,
         is_broadcast_instruction,
         try_fast_parse_instruction,
+        try_mirror_planned_instruction,
     )
 
     target = roster[0] if (single_employee and roster) else None
@@ -805,6 +806,17 @@ def parse_instruction(
     )
     excluded_ids = {e.id for e in excluded}
     target_roster = [e for e in roster if e.id not in excluded_ids]
+
+    mirror = try_mirror_planned_instruction(
+        year=year,
+        month=month,
+        instruction=instruction,
+        roster=target_roster if collective else roster,
+        target=target,
+        force_broadcast=collective,
+    )
+    if mirror is not None:
+        return mirror
 
     # En mode mono-employé, on saute le fast-path (résolution par nom) pour
     # garantir l'attribution à la bonne personne via le LLM puis le forçage.

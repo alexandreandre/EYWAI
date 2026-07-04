@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import calendar as cal_mod
 import re
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from app.modules.schedules.application.ai_fill import (
     _VALID_NATURES,
+    _VALID_TYPES,
     _WEEKDAYS_FR,
     _build_broadcast_proposal,
     _build_proposal,
+    _coerce_days,
     _normalize,
     _resolve_employee,
 )
@@ -62,6 +64,40 @@ _BROADCAST_PHRASES = (
     "tous les collaborateurs",
     "tous les salaries",
     "everyone",
+)
+
+_MIRROR_PLANNING_PHRASES = (
+    "comme prevu",
+    "comme au prevu",
+    "comme au planning",
+    "selon le planning",
+    "selon le prevu",
+    "selon planning",
+    "conforme au planning",
+    "conforme au prevu",
+    "a fait le planning",
+    "a fait comme prevu",
+    "reprend le planning",
+    "reprend les heures prevues",
+    "toutes les heures prevues",
+    "toutes les heures qui lui etaient prevues",
+    "toutes les heures qui leur etaient prevues",
+    "exactement les heures prevues",
+    "exactement toutes les heures",
+)
+
+_MIRROR_REEL_HINTS = (
+    "fait",
+    "faite",
+    "faites",
+    "travaille",
+    "travaillees",
+    "effectue",
+    "realise",
+    "conforme",
+    "exactement",
+    "pas plus",
+    "pas moins",
 )
 
 
@@ -169,6 +205,146 @@ def _extract_days(instruction: str, year: int, month: int) -> Optional[List[int]
         return valid or None
 
     return None
+
+
+def is_mirror_planning_instruction(instruction: str) -> bool:
+    """Détecte une consigne « a fait exactement comme prévu / selon le planning »."""
+    norm = _normalize(instruction)
+    if any(phrase in norm for phrase in _MIRROR_PLANNING_PHRASES):
+        return True
+    if any(h in norm for h in ("prevu", "prevues", "planning")):
+        return any(h in norm for h in _MIRROR_REEL_HINTS)
+    return False
+
+
+def _default_load_planned_calendar(
+    employee_id: str, year: int, month: int
+) -> List[Dict[str, Any]]:
+    from app.modules.schedules.infrastructure.mappers import (
+        extract_calendrier_prevu_from_planned_calendar,
+    )
+    from app.modules.schedules.infrastructure.repository import schedule_repository
+
+    planned = schedule_repository.get_planned_calendar(employee_id, year, month)
+    return extract_calendrier_prevu_from_planned_calendar(planned)
+
+
+def _planned_entry_to_reel_day(entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    try:
+        jour = int(entry.get("jour"))
+    except (TypeError, ValueError):
+        return None
+
+    day_type = str(entry.get("type") or "travail").strip().lower()
+    if day_type == "work":
+        day_type = "travail"
+    if day_type not in _VALID_TYPES:
+        day_type = "travail"
+
+    heures_prevues = entry.get("heures_prevues")
+    try:
+        heures_val = None if heures_prevues is None else float(heures_prevues)
+    except (TypeError, ValueError):
+        heures_val = None
+    if heures_val is not None and heures_val < 0:
+        heures_val = 0.0
+
+    return {
+        "jour": jour,
+        "heures": heures_val,
+        "type": day_type,
+        "nature": "reel",
+    }
+
+
+def _planned_to_reel_days(calendrier_prevu: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    days: List[Dict[str, Any]] = []
+    seen: set[int] = set()
+    for entry in calendrier_prevu or []:
+        day = _planned_entry_to_reel_day(entry)
+        if day is None or day["jour"] in seen:
+            continue
+        seen.add(day["jour"])
+        days.append(day)
+    days.sort(key=lambda d: d["jour"])
+    return days
+
+
+def try_mirror_planned_instruction(
+    *,
+    year: int,
+    month: int,
+    instruction: str,
+    roster: List[RosterEmployee],
+    target: Optional[RosterEmployee] = None,
+    force_broadcast: bool = False,
+    load_planned: Callable[[str, int, int], List[Dict[str, Any]]] | None = None,
+) -> Optional[AiCalendarProposalResponse]:
+    """
+    Reprend les heures prévues en base comme heures réelles (nature=reel).
+
+    Utilisé quand la consigne dit « a fait exactement comme prévu », sans
+    détailler les heures jour par jour.
+    """
+    text = (instruction or "").strip()
+    if not text or not roster or not is_mirror_planning_instruction(text):
+        return None
+
+    loader = load_planned or _default_load_planned_calendar
+
+    if target is not None:
+        targets = [target]
+    elif force_broadcast or is_broadcast_instruction(text):
+        excluded_ids = {
+            e.id for e in excluded_employees_from_instruction(text, roster)
+        }
+        targets = [e for e in roster if e.id not in excluded_ids]
+    else:
+        mentioned = _employees_mentioned(text, roster)
+        if len(mentioned) == 1:
+            targets = mentioned
+        elif len(mentioned) > 1:
+            return None
+        else:
+            return None
+
+    if not targets:
+        return None
+
+    employees_out = []
+    global_warnings: List[str] = []
+    for emp in targets:
+        planned_days = loader(emp.id, year, month)
+        reel_days = _planned_to_reel_days(planned_days)
+        display_name = f"{emp.first_name} {emp.last_name}"
+        proposal = _resolve_employee(display_name, roster)
+        proposal.days = _coerce_days(reel_days, cal_mod.monthrange(year, month)[1], "reel")
+        if not proposal.days:
+            proposal.warnings.append(
+                "Aucun calendrier prévu renseigné pour ce mois — "
+                "complétez d'abord le planning prévu."
+            )
+            global_warnings.append(
+                f"{display_name} : aucun jour prévu exploitable pour {month:02d}/{year}."
+            )
+        employees_out.append(proposal)
+
+    if not employees_out:
+        return None
+
+    if len(employees_out) > 1:
+        global_warnings.insert(
+            0,
+            f"Reprise du planning prévu pour {len(employees_out)} collaborateur(s).",
+        )
+
+    return AiCalendarProposalResponse(
+        year=year,
+        month=month,
+        source="texte (reprise planning)",
+        employees=employees_out,
+        warnings=global_warnings,
+    )
 
 
 def is_broadcast_instruction(instruction: str) -> bool:
@@ -340,5 +516,7 @@ def try_fast_parse_instruction(
 __all__ = [
     "excluded_employees_from_instruction",
     "is_broadcast_instruction",
+    "is_mirror_planning_instruction",
     "try_fast_parse_instruction",
+    "try_mirror_planned_instruction",
 ]

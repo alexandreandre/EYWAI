@@ -23,6 +23,7 @@ export interface DayConfig {
   end?: string | null;
   break_minutes?: number;
   break_paid?: boolean;
+  breaks?: Array<{ minutes: number; paid: boolean; kind?: string }>;
   comment?: string | null;
 }
 

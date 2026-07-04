@@ -12,6 +12,7 @@ export interface ShiftType {
   allows_overnight?: boolean;
   meal_allowance_eligible?: boolean;
   paid_break_minutes?: number;
+  unpaid_break_minutes?: number;
   night_windows?: NightWindow[];
   premium_rule_code?: string | null;
   is_active?: boolean;
@@ -34,6 +35,7 @@ export interface PlanningSettings {
   team_view_default: boolean;
   payroll_shift_metrics_enabled: boolean;
   auto_generate_payroll_variables_before_payslip: boolean;
+  paid_breaks_included_in_base: boolean;
 }
 
 export interface PlanningSettingsUpdate {
@@ -41,6 +43,7 @@ export interface PlanningSettingsUpdate {
   team_view_default?: boolean;
   payroll_shift_metrics_enabled?: boolean;
   auto_generate_payroll_variables_before_payslip?: boolean;
+  paid_breaks_included_in_base?: boolean;
 }
 
 export interface ShiftTypeCreatePayload {
@@ -52,6 +55,7 @@ export interface ShiftTypeCreatePayload {
   allows_overnight?: boolean;
   meal_allowance_eligible?: boolean;
   paid_break_minutes?: number;
+  unpaid_break_minutes?: number;
   night_windows?: NightWindow[];
   premium_rule_code?: string | null;
   is_active?: boolean;

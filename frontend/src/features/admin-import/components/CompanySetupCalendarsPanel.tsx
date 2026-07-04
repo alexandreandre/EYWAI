@@ -91,10 +91,14 @@ export function CompanySetupCalendarsPanel({ companyId }: Props) {
 
   const applyMutation = useMutation({
     mutationFn: (presetKey: string) => applySchedulePreset(presetKey),
-    onSuccess: (res) => {
+    onSuccess: (res, presetKey) => {
+      const extra =
+        presetKey === 'mbc'
+          ? ' Étape 2 : appliquez le preset pointage « 3×8 industriel » (Temps de travail → Pointages).'
+          : '';
       toast({
         title: 'Preset appliqué',
-        description: `${res.templates_created} modèle(s) et ${res.plans_created} plan(s) créés. Modifiables avant génération.`,
+        description: `${res.templates_created} modèle(s) et ${res.plans_created} plan(s) créés.${extra}`,
       });
       queryClient.invalidateQueries({ queryKey: ['schedule-plans', companyId] });
     },

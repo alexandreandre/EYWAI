@@ -10,6 +10,7 @@ import {
   listPunchShiftSlots,
   updatePunchAccountingSettings,
   updatePunchOvertimeReview,
+  updatePunchShiftSlot,
   type PunchAccountingSettings,
   type PunchShiftSlot,
 } from '@/api/punchAccounting';
@@ -107,11 +108,38 @@ export default function PunchAccountingSettingsCard() {
       setForm(result.settings);
       toast({
         title: 'Preset équipes appliqué',
-        description: 'Créneaux avec pause déjeuner payée.',
+        description: 'Créneaux avec pause déjeuner payée (mode legacy).',
       });
     },
     onError: () => {
       toast({ title: 'Erreur', variant: 'destructive' });
+    },
+  });
+
+  const industrialPresetMut = useMutation({
+    mutationFn: () => applyPunchAccountingPreset('industrial_3x8_breaks'),
+    onSuccess: (result) => {
+      queryClient.setQueryData(
+        queryKeys.punchAccountingSettings(activeCompanyId),
+        result.settings,
+      );
+      queryClient.setQueryData(queryKeys.punchShiftSlots(activeCompanyId), result.slots);
+      setForm(result.settings);
+      toast({
+        title: 'Preset 3×8 industriel appliqué',
+        description: '2×10 min payées + 30 min repas déduite par créneau.',
+      });
+    },
+    onError: () => {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    },
+  });
+
+  const slotPatchMut = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updatePunchShiftSlot>[1] }) =>
+      updatePunchShiftSlot(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.punchShiftSlots(activeCompanyId) });
     },
   });
 
@@ -207,6 +235,15 @@ export default function PunchAccountingSettingsCard() {
               >
                 Preset : équipes pause payée
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={industrialPresetMut.isPending}
+                onClick={() => industrialPresetMut.mutate()}
+              >
+                Preset : 3×8 industriel
+              </Button>
             </div>
           )}
         </div>
@@ -228,7 +265,7 @@ export default function PunchAccountingSettingsCard() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="break">Pause déduite par défaut (min)</Label>
+            <Label htmlFor="break">Pause repas déduite par défaut (min)</Label>
             <Input
               id="break"
               type="number"
@@ -288,29 +325,113 @@ export default function PunchAccountingSettingsCard() {
           {slots.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun créneau — appliquez un preset ou ajoutez-en.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {slots.map((slot: PunchShiftSlot) => (
                 <div
                   key={slot.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                  className="rounded-md border px-3 py-2 text-sm space-y-2"
                 >
-                  <span>
-                    {slot.code ? `[${slot.code}] ` : ''}
-                    {slot.label || `${slot.entry_time} – ${slot.exit_time}`}
-                    {' · '}
-                    pause −{slot.break_deduct_minutes} min
-                    {slot.paid_lunch_break ? ' (déjeuner payé)' : ''}
-                  </span>
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteSlotMut.mutate(slot.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {slot.code ? `[${slot.code}] ` : ''}
+                      {slot.label || `${slot.entry_time} – ${slot.exit_time}`}
+                    </span>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteSlotMut.mutate(slot.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Entrée</Label>
+                      <Input
+                        type="time"
+                        className="h-8"
+                        defaultValue={slot.entry_time?.slice(0, 5)}
+                        disabled={!canEdit}
+                        onBlur={(e) => {
+                          const v = e.target.value;
+                          if (v && v !== slot.entry_time?.slice(0, 5)) {
+                            slotPatchMut.mutate({ id: slot.id, payload: { entry_time: v } });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Sortie</Label>
+                      <Input
+                        type="time"
+                        className="h-8"
+                        defaultValue={slot.exit_time?.slice(0, 5)}
+                        disabled={!canEdit}
+                        onBlur={(e) => {
+                          const v = e.target.value;
+                          if (v && v !== slot.exit_time?.slice(0, 5)) {
+                            slotPatchMut.mutate({ id: slot.id, payload: { exit_time: v } });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Repas déduit (min)</Label>
+                      <Input
+                        type="number"
+                        className="h-8"
+                        min={0}
+                        defaultValue={slot.break_deduct_minutes}
+                        disabled={!canEdit}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value) || 0;
+                          if (v !== slot.break_deduct_minutes) {
+                            slotPatchMut.mutate({
+                              id: slot.id,
+                              payload: { break_deduct_minutes: v },
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Payées incluses (min)</Label>
+                      <Input
+                        type="number"
+                        className="h-8"
+                        min={0}
+                        defaultValue={slot.paid_break_minutes ?? 0}
+                        disabled={!canEdit}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value) || 0;
+                          if (v !== (slot.paid_break_minutes ?? 0)) {
+                            slotPatchMut.mutate({
+                              id: slot.id,
+                              payload: { paid_break_minutes: v },
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Déjeuner payé (legacy)</Label>
+                      <div className="flex h-8 items-center">
+                        <Switch
+                          checked={slot.paid_lunch_break}
+                          disabled={!canEdit}
+                          onCheckedChange={(paid_lunch_break) =>
+                            slotPatchMut.mutate({
+                              id: slot.id,
+                              payload: { paid_lunch_break },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

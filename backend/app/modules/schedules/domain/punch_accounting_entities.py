@@ -30,6 +30,7 @@ class PunchShiftSlot:
     exit_minutes: int = 0
     theoretical_gross_minutes: int = 465
     break_deduct_minutes: int = 45
+    paid_break_minutes: int = 0
     paid_lunch_break: bool = False
     sort_order: int = 0
 
@@ -39,6 +40,7 @@ class PlannedShiftBreak:
     """Pause payée et créneau planifié (shift_types / calendrier prévu)."""
 
     paid_break_minutes: int = 0
+    unpaid_break_minutes: int | None = None
     planned_entry_minutes: int | None = None
     slot_code: str | None = None
 
@@ -117,5 +119,52 @@ EQUIPE_PAID_LUNCH_SLOTS_PRESET: tuple[dict, ...] = (
         "break_deduct_minutes": 15,
         "paid_lunch_break": True,
         "sort_order": 2,
+    },
+)
+
+INDUSTRIAL_3X8_BREAKS_PRESET: tuple[dict, ...] = (
+    {
+        "code": "MATIN",
+        "label": "Matin 04h00 – 12h00 (2×10 payées + repas 30)",
+        "entry_time": "04:00",
+        "exit_time": "12:00",
+        "theoretical_gross_minutes": 480,
+        "break_deduct_minutes": 30,
+        "paid_break_minutes": 20,
+        "paid_lunch_break": False,
+        "sort_order": 0,
+    },
+    {
+        "code": "APREM",
+        "label": "Après-midi 12h00 – 20h00 (2×10 payées + repas 30)",
+        "entry_time": "12:00",
+        "exit_time": "20:00",
+        "theoretical_gross_minutes": 480,
+        "break_deduct_minutes": 30,
+        "paid_break_minutes": 20,
+        "paid_lunch_break": False,
+        "sort_order": 1,
+    },
+    {
+        "code": "JOUR",
+        "label": "Journée 06h00 – 14h00 (2×10 payées + repas 30)",
+        "entry_time": "06:00",
+        "exit_time": "14:00",
+        "theoretical_gross_minutes": 480,
+        "break_deduct_minutes": 30,
+        "paid_break_minutes": 20,
+        "paid_lunch_break": False,
+        "sort_order": 2,
+    },
+    {
+        "code": "JOURNEE",
+        "label": "Journée 08h00 – 16h00 (2×10 payées + repas 30)",
+        "entry_time": "08:00",
+        "exit_time": "16:00",
+        "theoretical_gross_minutes": 480,
+        "break_deduct_minutes": 30,
+        "paid_break_minutes": 20,
+        "paid_lunch_break": False,
+        "sort_order": 3,
     },
 )

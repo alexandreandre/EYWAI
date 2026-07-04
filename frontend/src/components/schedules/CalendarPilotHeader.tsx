@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { pageTitleClassName } from '@/components/layout';
-import { CalendarPlus, Sparkles, Upload } from 'lucide-react';
+import { Sparkles, Upload } from 'lucide-react';
 import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -35,7 +35,6 @@ interface CalendarPilotHeaderProps {
   onMonthChange: (month: number) => void;
   kpis: GlobalOverviewKpis;
   onOpenAssistedFill: () => void;
-  onOpenCalendarImport: () => void;
   onOpenPointageImport: () => void;
   isLoading?: boolean;
 }
@@ -47,7 +46,6 @@ export function CalendarPilotHeader({
   onMonthChange,
   kpis,
   onOpenAssistedFill,
-  onOpenCalendarImport,
   onOpenPointageImport,
   isLoading = false,
 }: CalendarPilotHeaderProps) {
@@ -107,16 +105,6 @@ export function CalendarPilotHeader({
             >
               <Sparkles className="mr-2 h-4 w-4" />
               Remplissage par IA
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onOpenCalendarImport}
-              className="h-9"
-            >
-              <CalendarPlus className="mr-2 h-4 w-4" />
-              Importer un calendrier
             </Button>
 
             <Button

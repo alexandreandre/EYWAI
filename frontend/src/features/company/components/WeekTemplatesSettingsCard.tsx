@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, LayoutTemplate, Plus, Trash2 } from 'lucide-react';
 import {
@@ -40,6 +40,13 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  resolveBreaks,
+  syncLegacyBreakFields,
+  breaksFromLegacy,
+  type DayBreak,
+} from '@/lib/breakPolicy';
+import { DayBreaksEditor } from '@/features/company/components/DayBreaksEditor';
 
 // ─── Modèle d'édition jour par jour (lundi=1 … dimanche=7) ──────────────
 
@@ -53,6 +60,7 @@ type EditDay = {
   end: string;
   break_minutes: number;
   break_paid: boolean;
+  breaks: DayBreak[];
   comment: string;
 };
 
@@ -64,6 +72,7 @@ type RawDay = {
   end?: string | null;
   break_minutes?: number;
   break_paid?: boolean;
+  breaks?: DayBreak[];
   comment?: string | null;
 };
 
@@ -75,14 +84,21 @@ function buildEditDays(dayConfigs: Record<string, unknown>[]): EditDay[] {
   return [1, 2, 3, 4, 5, 6, 7].map((day) => {
     const r = byDay.get(day);
     const worked = Boolean(r) && (r?.type ?? 'travail') === 'travail';
+    const breaks = resolveBreaks({
+      breaks: r?.breaks,
+      break_minutes: r?.break_minutes,
+      break_paid: r?.break_paid,
+    });
+    const legacy = syncLegacyBreakFields(breaks);
     return {
       day,
       worked,
       hours: r?.hours ?? (day <= 5 ? 7 : 0),
       start: r?.start ?? '',
       end: r?.end ?? '',
-      break_minutes: r?.break_minutes ?? 0,
-      break_paid: Boolean(r?.break_paid),
+      break_minutes: legacy.break_minutes,
+      break_paid: legacy.break_paid,
+      breaks,
       comment: r?.comment ?? '',
     };
   });
@@ -91,16 +107,23 @@ function buildEditDays(dayConfigs: Record<string, unknown>[]): EditDay[] {
 function serializeDays(days: EditDay[]): Record<string, unknown>[] {
   return days
     .filter((d) => d.worked)
-    .map((d) => ({
-      day: d.day,
-      type: 'travail',
-      hours: Number(d.hours) || 0,
-      start: d.start || null,
-      end: d.end || null,
-      break_minutes: Number(d.break_minutes) || 0,
-      break_paid: d.break_paid,
-      comment: d.comment || null,
-    }));
+    .map((d) => {
+      const legacy = syncLegacyBreakFields(d.breaks);
+      const row: Record<string, unknown> = {
+        day: d.day,
+        type: 'travail',
+        hours: Number(d.hours) || 0,
+        start: d.start || null,
+        end: d.end || null,
+        break_minutes: legacy.break_minutes,
+        break_paid: legacy.break_paid,
+        comment: d.comment || null,
+      };
+      if (d.breaks.length > 0) {
+        row.breaks = d.breaks;
+      }
+      return row;
+    });
 }
 
 function weeklyTotal(days: EditDay[]): number {
@@ -139,6 +162,7 @@ export default function WeekTemplatesSettingsCard() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [breakDetailOpen, setBreakDetailOpen] = useState<Record<number, boolean>>({});
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.weekTemplates(companyId) });
@@ -176,6 +200,7 @@ export default function WeekTemplatesSettingsCard() {
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
+    setBreakDetailOpen({});
     setDialogOpen(true);
   };
 
@@ -187,6 +212,7 @@ export default function WeekTemplatesSettingsCard() {
       modulation_tier: (t.modulation_tier as FormState['modulation_tier']) ?? 'neutral',
       days: buildEditDays(t.day_configs ?? []),
     });
+    setBreakDetailOpen({});
     setDialogOpen(true);
   };
 
@@ -197,6 +223,7 @@ export default function WeekTemplatesSettingsCard() {
       modulation_tier: (t.modulation_tier as FormState['modulation_tier']) ?? 'neutral',
       days: buildEditDays(t.day_configs ?? []),
     });
+    setBreakDetailOpen({});
     setDialogOpen(true);
   };
 
@@ -322,59 +349,94 @@ export default function WeekTemplatesSettingsCard() {
                   </thead>
                   <tbody>
                     {form.days.map((d, idx) => (
-                      <tr key={d.day} className={d.worked ? '' : 'opacity-50'}>
-                        <td className="px-2 py-1 font-medium">{DAY_LABELS[d.day - 1]}</td>
-                        <td className="px-2 py-1 text-center">
-                          <Checkbox
-                            checked={d.worked}
-                            onCheckedChange={(v) => setDay(idx, { worked: Boolean(v) })}
-                          />
-                        </td>
-                        <td className="px-2 py-1">
-                          <Input
-                            type="number"
-                            step={0.05}
-                            className="h-8 w-20"
-                            disabled={!d.worked}
-                            value={d.hours}
-                            onChange={(e) => setDay(idx, { hours: Number(e.target.value) || 0 })}
-                          />
-                        </td>
-                        <td className="px-2 py-1">
-                          <Input
-                            type="time"
-                            className="h-8 w-28"
-                            disabled={!d.worked}
-                            value={d.start}
-                            onChange={(e) => setDay(idx, { start: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-2 py-1">
-                          <Input
-                            type="time"
-                            className="h-8 w-28"
-                            disabled={!d.worked}
-                            value={d.end}
-                            onChange={(e) => setDay(idx, { end: e.target.value })}
-                          />
-                        </td>
-                        <td className="px-2 py-1">
-                          <Input
-                            type="number"
-                            className="h-8 w-20"
-                            disabled={!d.worked}
-                            value={d.break_minutes}
-                            onChange={(e) => setDay(idx, { break_minutes: Number(e.target.value) || 0 })}
-                          />
-                        </td>
-                        <td className="px-2 py-1 text-center">
-                          <Checkbox
-                            checked={d.break_paid}
-                            disabled={!d.worked}
-                            onCheckedChange={(v) => setDay(idx, { break_paid: Boolean(v) })}
-                          />
-                        </td>
-                      </tr>
+                      <Fragment key={d.day}>
+                        <tr className={d.worked ? '' : 'opacity-50'}>
+                          <td className="px-2 py-1 font-medium">{DAY_LABELS[d.day - 1]}</td>
+                          <td className="px-2 py-1 text-center">
+                            <Checkbox
+                              checked={d.worked}
+                              onCheckedChange={(v) => setDay(idx, { worked: Boolean(v) })}
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              type="number"
+                              step={0.05}
+                              className="h-8 w-20"
+                              disabled={!d.worked}
+                              value={d.hours}
+                              onChange={(e) => setDay(idx, { hours: Number(e.target.value) || 0 })}
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              type="time"
+                              className="h-8 w-28"
+                              disabled={!d.worked}
+                              value={d.start}
+                              onChange={(e) => setDay(idx, { start: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              type="time"
+                              className="h-8 w-28"
+                              disabled={!d.worked}
+                              value={d.end}
+                              onChange={(e) => setDay(idx, { end: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-2 py-1">
+                            <Input
+                              type="number"
+                              className="h-8 w-20"
+                              disabled={!d.worked}
+                              value={d.break_minutes}
+                              onChange={(e) => {
+                                const break_minutes = Number(e.target.value) || 0;
+                                setDay(idx, {
+                                  break_minutes,
+                                  breaks: breaksFromLegacy(break_minutes, d.break_paid),
+                                });
+                              }}
+                            />
+                          </td>
+                          <td className="px-2 py-1 text-center">
+                            <Checkbox
+                              checked={d.break_paid}
+                              disabled={!d.worked}
+                              onCheckedChange={(v) => {
+                                const break_paid = Boolean(v);
+                                setDay(idx, {
+                                  break_paid,
+                                  breaks: breaksFromLegacy(d.break_minutes, break_paid),
+                                });
+                              }}
+                            />
+                          </td>
+                        </tr>
+                        {d.worked && (
+                          <tr>
+                            <td colSpan={7} className="px-2 pb-2">
+                              <DayBreaksEditor
+                                open={Boolean(breakDetailOpen[d.day])}
+                                onOpenChange={(open) =>
+                                  setBreakDetailOpen((prev) => ({ ...prev, [d.day]: open }))
+                                }
+                                breaks={d.breaks}
+                                hours={d.hours}
+                                start={d.start}
+                                end={d.end}
+                                disabled={!canEdit}
+                                onChange={(breaks) => {
+                                  const legacy = syncLegacyBreakFields(breaks);
+                                  setDay(idx, { breaks, ...legacy });
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

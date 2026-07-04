@@ -31,6 +31,7 @@ from app.modules.schedules.infrastructure.providers import (
 )
 from app.modules.schedules.infrastructure.queries import employee_company_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
+from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
 
 
 def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
@@ -254,6 +255,12 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
 
         planned_data_all_months, actual_data_all_months = (
             _build_planned_actual_from_rows(rows, dates_to_process)
+        )
+        actual_data_all_months = appliquer_repli_sans_pointage_par_mois(
+            planned_data_all_months,
+            actual_data_all_months,
+            year_months,
+            is_forfait_jour=is_employee_forfait_jour,
         )
 
         log_app_debug(logger, '\n' + '=' * 20 + " ESPION 2 : DONNÉES PRÊTES POUR L'ANALYSEUR " + '=' * 20)

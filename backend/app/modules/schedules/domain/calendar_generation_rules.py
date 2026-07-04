@@ -18,6 +18,8 @@ import calendar as _cal
 from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from app.modules.schedules.domain.break_policy import enrich_day_config_breaks
+
 # Types de jour considérés comme travaillés (les autres → 0 h).
 WORK_TYPES = {"work", "travail"}
 
@@ -68,7 +70,7 @@ def normalize_day_config(raw: Dict[str, Any]) -> Dict[str, Any]:
     hours = _to_float(raw.get("hours"))
     if hours is None:
         hours = 0.0 if not is_work else 0.0
-    return {
+    base = {
         "day": int(raw.get("day") or 0),
         "type": day_type,
         "hours": round(float(hours), 4),
@@ -78,6 +80,9 @@ def normalize_day_config(raw: Dict[str, Any]) -> Dict[str, Any]:
         "break_paid": bool(raw.get("break_paid", False)),
         "comment": raw.get("comment") or None,
     }
+    if raw.get("breaks"):
+        base["breaks"] = raw["breaks"]
+    return enrich_day_config_breaks(base)
 
 
 def week_weekly_hours(day_configs: Sequence[Dict[str, Any]]) -> float:
@@ -219,9 +224,20 @@ def _make_entry(
             entry["start"] = cfg["start"]
         if cfg.get("end"):
             entry["end"] = cfg["end"]
-        if cfg.get("break_minutes"):
+        unpaid = int(cfg.get("unpaid_break_minutes") or 0)
+        paid = int(cfg.get("paid_break_minutes") or 0)
+        if unpaid > 0:
+            entry["unpaid_break_minutes"] = unpaid
+            entry["pause_min"] = unpaid
+            entry["pause_payee"] = False
+        elif cfg.get("break_minutes"):
             entry["pause_min"] = cfg["break_minutes"]
             entry["pause_payee"] = bool(cfg.get("break_paid", False))
+        if paid > 0:
+            entry["paid_break_minutes"] = paid
+        breaks = cfg.get("breaks")
+        if isinstance(breaks, list) and breaks:
+            entry["breaks"] = breaks
         if cfg.get("comment"):
             entry["commentaire"] = cfg["comment"]
     return entry

@@ -1,6 +1,7 @@
 """Tests des presets 2026 : cohérence des totaux et matérialisation éditable."""
 from app.modules.schedules.application import preset_apply
 from app.modules.schedules.application.presets_2026 import get_registry, list_presets
+from app.modules.schedules.domain.calendar_generation_rules import normalize_day_config
 
 
 def test_registry_couvre_les_cinq_societes():
@@ -18,7 +19,17 @@ def test_totaux_hebdo_recalcules_coherents():
     assert by_name["Comitech — Hiver (39h)"] == 39.0
     assert by_name["Colorplast — Standard (39h)"] == 39.0
     assert by_name["MBC — Standard (37,5h)"] == 37.5
+    assert by_name["MBC — 3×8 pauses (37,5h)"] == 37.5
     assert by_name["Cartol — Bureau 35H (Tania Espirito Santo)"] == 35.0
+
+
+def test_mbc_3x8_template_breaks():
+    preset = get_registry()["mbc"]
+    tpl = next(t for t in preset.templates if t.name == "MBC — 3×8 pauses (37,5h)")
+    cfg = normalize_day_config(tpl.days[0])
+    assert cfg["hours"] == 7.5
+    assert cfg["paid_break_minutes"] == 20
+    assert cfg["unpaid_break_minutes"] == 30
 
 
 def test_plans_ambigus_flagges_needs_confirmation():
@@ -83,6 +94,10 @@ def test_apply_preset_flagge_affectation_non_resolue(monkeypatch):
     monkeypatch.setattr(
         preset_apply.plans_repo, "create_plan",
         lambda c, p: created_plans.append(p) or {"id": "x", **p},
+    )
+    monkeypatch.setattr(
+        "app.modules.planning.infrastructure.repository.planning_repository.update_company_planning_settings",
+        lambda c, p: p,
     )
 
     preset_apply.apply_preset("mbc", "mbc")

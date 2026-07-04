@@ -188,6 +188,7 @@ def get_company_settings(company_id: str) -> dict:
             "team_view_default": False,
             "payroll_shift_metrics_enabled": True,
             "auto_generate_payroll_variables_before_payslip": False,
+            "paid_breaks_included_in_base": False,
         }
     cc_id = row.get("collective_agreement_id")
     cc = None
@@ -209,6 +210,9 @@ def get_company_settings(company_id: str) -> dict:
         ),
         "auto_generate_payroll_variables_before_payslip": bool(
             row.get("auto_generate_payroll_variables_before_payslip", False)
+        ),
+        "paid_breaks_included_in_base": bool(
+            row.get("paid_breaks_included_in_base", False)
         ),
     }
 
@@ -238,6 +242,7 @@ def get_shift_types_for_company(company_id: str) -> list:
             "allows_overnight": bool(r.get("allows_overnight")),
             "meal_allowance_eligible": bool(r.get("meal_allowance_eligible", True)),
             "paid_break_minutes": int(r.get("paid_break_minutes") or 0),
+            "unpaid_break_minutes": int(r.get("unpaid_break_minutes") or 0),
             "night_windows": r.get("night_windows") or [],
             "premium_rule_code": r.get("premium_rule_code"),
             "is_active": bool(r.get("is_active", True)),

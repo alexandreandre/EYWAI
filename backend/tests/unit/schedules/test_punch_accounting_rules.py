@@ -1,6 +1,7 @@
 """Tests règles comptabilisation pointages."""
 
 from app.modules.schedules.domain.punch_accounting_entities import (
+    INDUSTRIAL_3X8_BREAKS_PRESET,
     PlannedShiftBreak,
     PunchAccountingSettings,
     PunchShiftSlot,
@@ -114,3 +115,71 @@ class TestLewisSampleRows:
             planned_shift=PlannedShiftBreak(paid_break_minutes=30),
         )
         assert abs(result.pointed_net_hours - 7.13) < 0.02
+
+
+class TestIndustrial3x8Breaks:
+    """Recette MBC — poste 04h–12h, repas 30 min déduit, net 7,5 h."""
+
+    def setup_method(self):
+        self.settings = PunchAccountingSettings(
+            enabled=True,
+            tolerance_minutes=30,
+            slot_detection="shift_code",
+        )
+        self.slots = [
+            slot_from_row({**row, "id": f"mbc-{i}"})
+            for i, row in enumerate(INDUSTRIAL_3X8_BREAKS_PRESET)
+        ]
+
+    def test_matin_shift_7_5_net(self):
+        result = compute_from_raw_times(
+            entry_raw=400,
+            exit_raw=1200,
+            shift_code="MATIN",
+            settings=self.settings,
+            slots=self.slots,
+        )
+        assert result.pointed_net_hours == 7.5
+        assert result.theoretical_net_hours == 7.5
+
+    def test_unpaid_from_calendar_overrides_slot(self):
+        result = compute_from_raw_times(
+            entry_raw=400,
+            exit_raw=1200,
+            shift_code="MATIN",
+            settings=self.settings,
+            slots=self.slots,
+            planned_shift=PlannedShiftBreak(unpaid_break_minutes=30),
+        )
+        assert result.pointed_net_hours == 7.5
+
+
+class TestBadgeuseMinutesSinceMidnight:
+    """Badgeuse fournit des minutes depuis minuit (240 = 04:00), pas du HHMM entier."""
+
+    def test_badgeuse_service_matin_7_5(self, monkeypatch):
+        from app.modules.schedules.application import punch_accounting_service as svc
+        from app.modules.schedules.domain.punch_accounting_entities import (
+            INDUSTRIAL_3X8_BREAKS_PRESET,
+            PunchAccountingSettings,
+        )
+        from app.modules.schedules.domain.punch_accounting_rules import slot_from_row
+
+        settings = PunchAccountingSettings(enabled=True, tolerance_minutes=30)
+        slots = [
+            slot_from_row({**row, "id": f"mbc-{i}"})
+            for i, row in enumerate(INDUSTRIAL_3X8_BREAKS_PRESET)
+        ]
+        monkeypatch.setattr(svc.repo, "get_settings", lambda _c: settings)
+        monkeypatch.setattr(svc.repo, "list_slots", lambda _c: slots)
+
+        heures, needs_review, overtime, _ = svc.compute_accounted_hours_for_badgeuse_day(
+            "company-1",
+            entry_minutes=240,
+            exit_minutes=720,
+            shift_code="MATIN",
+            planned_unpaid_break_minutes=30,
+        )
+        assert heures == 7.5
+        assert not needs_review
+        assert overtime == 0.0

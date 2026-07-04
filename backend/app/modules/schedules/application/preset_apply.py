@@ -86,6 +86,14 @@ def apply_preset(company_id: str, preset_key: str) -> Dict[str, Any]:
             row = plans_repo.create_plan(company_id, {**plan_payload, "status": "draft"})
         created_plans.append(row)
 
+    if preset_key == "mbc":
+        from app.modules.planning.infrastructure.repository import planning_repository
+
+        planning_repository.update_company_planning_settings(
+            company_id,
+            {"paid_breaks_included_in_base": True},
+        )
+
     return {
         "status": "success",
         "preset": preset.key,

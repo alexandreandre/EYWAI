@@ -108,6 +108,7 @@ class CompanyPlanningSettingsUpdate(BaseModel):
     team_view_default: Optional[bool] = None
     payroll_shift_metrics_enabled: Optional[bool] = None
     auto_generate_payroll_variables_before_payslip: Optional[bool] = None
+    paid_breaks_included_in_base: Optional[bool] = None
 
 
 class NightWindowSchema(BaseModel):
@@ -125,6 +126,7 @@ class ShiftTypeCreate(BaseModel):
     allows_overnight: bool = False
     meal_allowance_eligible: bool = True
     paid_break_minutes: int = 0
+    unpaid_break_minutes: int = 0
     night_windows: list[NightWindowSchema] = []
     premium_rule_code: Optional[str] = None
     is_active: bool = True
@@ -139,6 +141,7 @@ class ShiftTypeUpdate(BaseModel):
     allows_overnight: Optional[bool] = None
     meal_allowance_eligible: Optional[bool] = None
     paid_break_minutes: Optional[int] = None
+    unpaid_break_minutes: Optional[int] = None
     night_windows: Optional[list[NightWindowSchema]] = None
     premium_rule_code: Optional[str] = None
     is_active: Optional[bool] = None

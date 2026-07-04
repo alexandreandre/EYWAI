@@ -26,6 +26,7 @@ export interface PunchShiftSlot {
   exit_time: string;
   theoretical_gross_minutes: number;
   break_deduct_minutes: number;
+  paid_break_minutes: number;
   paid_lunch_break: boolean;
   sort_order: number;
 }
@@ -37,9 +38,12 @@ export interface PunchShiftSlotCreate {
   exit_time: string;
   theoretical_gross_minutes?: number;
   break_deduct_minutes?: number;
+  paid_break_minutes?: number;
   paid_lunch_break?: boolean;
   sort_order?: number;
 }
+
+export type PunchShiftSlotUpdate = Partial<PunchShiftSlotCreate>;
 
 export interface PunchOvertimeReview {
   id: string;
@@ -90,6 +94,17 @@ export const createPunchShiftSlot = async (
 ): Promise<PunchShiftSlot> => {
   const { data } = await apiClient.post<PunchShiftSlot>(
     '/api/schedules/punch-accounting/slots',
+    payload,
+  );
+  return data;
+};
+
+export const updatePunchShiftSlot = async (
+  slotId: string,
+  payload: PunchShiftSlotUpdate,
+): Promise<PunchShiftSlot> => {
+  const { data } = await apiClient.patch<PunchShiftSlot>(
+    `/api/schedules/punch-accounting/slots/${slotId}`,
     payload,
   );
   return data;

@@ -364,10 +364,6 @@ export default function Schedules() {
         kpis={globalKpis}
         isLoading={isPageLoading}
         onOpenAssistedFill={openAssistedFillForAll}
-        onOpenCalendarImport={() => {
-          setPlanningReviewJob(null);
-          setCalendarImportOpen(true);
-        }}
         onOpenPointageImport={() => setPointageImportOpen(true)}
       />
 

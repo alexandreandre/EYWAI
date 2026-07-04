@@ -333,6 +333,35 @@ class TestParseInstruction:
         mock_llm.assert_called_once()
         assert proposal.employees[0].employee_id == "e2"
 
+    def test_mirror_planned_skips_llm_for_exactly_as_planned(self):
+        planned = [
+            {"jour": 1, "type": "travail", "heures_prevues": 8.0},
+            {"jour": 2, "type": "travail", "heures_prevues": 7.0},
+        ]
+
+        def load_planned(_employee_id, _year, _month):
+            return planned
+
+        with patch(
+            "app.modules.schedules.application.nl_fast_path._default_load_planned_calendar",
+            side_effect=load_planned,
+        ), patch.object(ai_fill, "extract_structured_json") as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=5,
+                instruction=(
+                    "Michel Bugny a fait exactement toutes les heures "
+                    "qui lui étaient prévues"
+                ),
+                roster=ROSTER + [
+                    RosterEmployee(id="e-bugny", first_name="Michel", last_name="BUGNY"),
+                ],
+            )
+        mock_llm.assert_not_called()
+        assert proposal.source == "texte (reprise planning)"
+        assert proposal.employees[0].employee_id == "e-bugny"
+        assert len(proposal.employees[0].days) == 2
+
 
 # --- extract_timesheet ---
 

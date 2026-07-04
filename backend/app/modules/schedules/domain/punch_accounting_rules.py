@@ -72,6 +72,7 @@ def slot_from_row(row: dict) -> PunchShiftSlot:
         exit_min = time_string_to_minutes(str(exit_t))
     break_m = int(row.get("break_deduct_minutes") or 45)
     paid_lunch = bool(row.get("paid_lunch_break"))
+    paid_break = int(row.get("paid_break_minutes") or 0)
     if paid_lunch and break_m > 15:
         break_m = 15
     return PunchShiftSlot(
@@ -82,6 +83,7 @@ def slot_from_row(row: dict) -> PunchShiftSlot:
         exit_minutes=exit_min,
         theoretical_gross_minutes=int(row.get("theoretical_gross_minutes") or 465),
         break_deduct_minutes=break_m,
+        paid_break_minutes=paid_break,
         paid_lunch_break=paid_lunch,
         sort_order=int(row.get("sort_order") or 0),
     )
@@ -92,10 +94,26 @@ def resolve_break_minutes(
     settings: PunchAccountingSettings,
     planned: PlannedShiftBreak | None,
 ) -> int:
+    """Minutes à déduire du brut pointé (pauses non payées uniquement)."""
+    if planned and planned.unpaid_break_minutes is not None:
+        return max(0, int(planned.unpaid_break_minutes))
+
     base = settings.default_break_deduct_minutes
     if slot:
-        base = 15 if slot.paid_lunch_break else slot.break_deduct_minutes
-    if planned and planned.paid_break_minutes > 0:
+        if slot.paid_lunch_break:
+            # Legacy équipes : déduction nette après portion payée planifiée.
+            base = 15 if slot.break_deduct_minutes > 15 else slot.break_deduct_minutes
+            if planned and planned.paid_break_minutes > 0:
+                return max(0, base - planned.paid_break_minutes)
+            return base
+        base = slot.break_deduct_minutes
+    if (
+        planned
+        and planned.paid_break_minutes > 0
+        and planned.unpaid_break_minutes is None
+        and not (slot and slot.paid_lunch_break)
+    ):
+        # Legacy calendrier / proposition IA : réduit la déduction globale.
         return max(0, base - planned.paid_break_minutes)
     return base
 

@@ -93,6 +93,7 @@ def _slot_response(row: dict) -> PunchShiftSlotResponse:
         exit_time=exit_t,
         theoretical_gross_minutes=int(row.get("theoretical_gross_minutes") or 465),
         break_deduct_minutes=int(row.get("break_deduct_minutes") or 45),
+        paid_break_minutes=int(row.get("paid_break_minutes") or 0),
         paid_lunch_break=bool(row.get("paid_lunch_break")),
         sort_order=int(row.get("sort_order") or 0),
     )

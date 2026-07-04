@@ -101,6 +101,7 @@ export default function PlanningSettingsCard() {
   const [teamView, setTeamView] = useState(false);
   const [metricsEnabled, setMetricsEnabled] = useState(true);
   const [autoGenerate, setAutoGenerate] = useState(false);
+  const [paidBreaksInBase, setPaidBreaksInBase] = useState(false);
   const [draft, setDraft] = useState<ShiftTypeCreatePayload>(emptyShiftTypeDraft());
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export default function PlanningSettingsCard() {
     setTeamView(settings.team_view_default);
     setMetricsEnabled(settings.payroll_shift_metrics_enabled);
     setAutoGenerate(settings.auto_generate_payroll_variables_before_payslip);
+    setPaidBreaksInBase(settings.paid_breaks_included_in_base ?? false);
   }, [settings]);
 
   const saveSettings = useMutation({
@@ -118,6 +120,7 @@ export default function PlanningSettingsCard() {
         team_view_default: teamView,
         payroll_shift_metrics_enabled: metricsEnabled,
         auto_generate_payroll_variables_before_payslip: autoGenerate,
+        paid_breaks_included_in_base: paidBreaksInBase,
       }),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.planningSettings(activeCompanyId), saved);
@@ -189,7 +192,8 @@ export default function PlanningSettingsCard() {
         default_end: '13:00',
         allows_overnight: false,
         meal_allowance_eligible: true,
-        paid_break_minutes: 30,
+        paid_break_minutes: 20,
+        unpaid_break_minutes: 30,
         night_windows: DEFAULT_NIGHT_WINDOWS,
       },
       {
@@ -200,7 +204,8 @@ export default function PlanningSettingsCard() {
         default_end: '21:00',
         allows_overnight: false,
         meal_allowance_eligible: true,
-        paid_break_minutes: 30,
+        paid_break_minutes: 20,
+        unpaid_break_minutes: 30,
         night_windows: DEFAULT_NIGHT_WINDOWS,
       },
       {
@@ -211,7 +216,8 @@ export default function PlanningSettingsCard() {
         default_end: '06:00',
         allows_overnight: true,
         meal_allowance_eligible: true,
-        paid_break_minutes: 30,
+        paid_break_minutes: 20,
+        unpaid_break_minutes: 30,
         night_windows: DEFAULT_NIGHT_WINDOWS,
       },
     ];
@@ -296,6 +302,19 @@ export default function PlanningSettingsCard() {
                 disabled={!canEdit}
               />
             </div>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="paid-in-base">Pauses payées incluses dans le salaire de base</Label>
+              <Switch
+                id="paid-in-base"
+                checked={paidBreaksInBase}
+                onCheckedChange={setPaidBreaksInBase}
+                disabled={!canEdit}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Si activé, pas de ligne « Pause rémunérée » séparée sur le bulletin (détail repas
+              via modèles de semaine / pointage).
+            </p>
           </div>
         </div>
 
@@ -336,7 +355,8 @@ export default function PlanningSettingsCard() {
                   <TableHead>Code</TableHead>
                   <TableHead>Libellé</TableHead>
                   <TableHead>Horaires</TableHead>
-                  <TableHead>Pause (min)</TableHead>
+                  <TableHead>Payées (min)</TableHead>
+                  <TableHead>Repas (min)</TableHead>
                   <TableHead>Panier</TableHead>
                   <TableHead>Nuit</TableHead>
                 </TableRow>
@@ -372,6 +392,26 @@ export default function PlanningSettingsCard() {
                     </TableCell>
                     <TableCell>
                       {canEdit ? (
+                        <Input
+                          type="number"
+                          className="w-20"
+                          defaultValue={st.unpaid_break_minutes ?? 0}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value) || 0;
+                            if (v !== (st.unpaid_break_minutes ?? 0)) {
+                              patchType.mutate({
+                                id: st.id,
+                                payload: { unpaid_break_minutes: v },
+                              });
+                            }
+                          }}
+                        />
+                      ) : (
+                        st.unpaid_break_minutes ?? 0
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {canEdit ? (
                         <Checkbox
                           checked={st.meal_allowance_eligible ?? true}
                           onCheckedChange={(checked) =>
@@ -401,7 +441,7 @@ export default function PlanningSettingsCard() {
                 ))}
                 {shiftTypes.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground">
+                    <TableCell colSpan={8} className="text-muted-foreground">
                       Aucun type de poste. Configurez la CC planning puis créez des types
                       ou appliquez le modèle 3×8.
                     </TableCell>

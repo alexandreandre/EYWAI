@@ -81,12 +81,36 @@ def _first_last_punch_minutes(
     return entry_min, exit_min
 
 
+def _planned_entry_by_day(
+    calendrier_prevu: List[Dict[str, Any]],
+) -> Dict[int, Dict[str, Any]]:
+    out: Dict[int, Dict[str, Any]] = {}
+    for entry in calendrier_prevu:
+        try:
+            out[int(entry.get("jour"))] = entry
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _unpaid_break_from_planned(entry: Dict[str, Any] | None) -> int | None:
+    if not entry:
+        return None
+    if entry.get("unpaid_break_minutes") is not None:
+        return int(entry["unpaid_break_minutes"])
+    pause_min = entry.get("pause_min")
+    if pause_min and not entry.get("pause_payee"):
+        return int(pause_min)
+    return None
+
+
 def _accounted_hours_for_day(
     *,
     company_id: str,
     employee_id: str,
     day: date,
     dto,
+    planned_entry: Dict[str, Any] | None = None,
 ) -> float:
     from app.modules.schedules.application.punch_accounting_service import (
         compute_accounted_hours_for_badgeuse_day,
@@ -101,10 +125,17 @@ def _accounted_hours_for_day(
         return round(dto.effective_seconds / 3600.0, 2)
 
     entry_min, exit_min = _first_last_punch_minutes(employee_id, company_id, day)
+    shift_code = (
+        str(planned_entry.get("shift_code")).strip().upper()
+        if planned_entry and planned_entry.get("shift_code")
+        else None
+    )
     heures, needs_review, overtime_hours, reason = compute_accounted_hours_for_badgeuse_day(
         company_id,
         entry_minutes=entry_min,
         exit_minutes=exit_min,
+        shift_code=shift_code,
+        planned_unpaid_break_minutes=_unpaid_break_from_planned(planned_entry),
     )
     if needs_review and overtime_hours > 0:
         from app.modules.schedules.domain.punch_accounting_rules import (
@@ -157,6 +188,7 @@ def import_actual_hours_from_badgeuse(
     planned_types = _planned_type_by_day(
         calendrier_prevu, year, month, days_in_month
     )
+    planned_by_day = _planned_entry_by_day(calendrier_prevu)
 
     actual_raw = schedule_repository.get_actual_hours(employee_id, year, month)
     existing_reel = extract_calendrier_reel_from_actual_hours(actual_raw)
@@ -196,6 +228,7 @@ def import_actual_hours_from_badgeuse(
             employee_id=employee_id,
             day=d,
             dto=dto,
+            planned_entry=planned_by_day.get(jour),
         )
         existing_by_day[jour] = {
             "jour": jour,
