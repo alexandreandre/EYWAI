@@ -1,0 +1,5347 @@
+{
+  "f8e431a3-350b-471e-9b78-9bc9fd1ce8b9": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 2952.34,
+        "net_imposable": 5600.16,
+        "heures_remunerees": 169.0,
+        "brut_reference_n_1": 2952.34,
+        "montant_hs_remunerees": 577.09,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 190.41,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -547.66,
+        "heures_supplementaires_remunerees": 32.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "177037305401687",
+        "emploi": "Logisticien Polyvalent",
+        "statut": "Non-Cadre",
+        "date_entree": "2022-12-01",
+        "nom_complet": "Michel BUGNY",
+        "is_alternant": false,
+        "type_contrat": "CDI",
+        "classification": "720",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 5289.12,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 24.96,
+          "acquis": 30.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 15.0,
+          "acquis": 30.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 661.42,
+      "cout_total_employeur": 7216.64
+    },
+    "salaire_brut": 2952.34,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 5600.16,
+      "montant_net_social": 5479.53,
+      "net_social_avant_impot": 5479.53,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 5600.16,
+        "taux": 3.4,
+        "montant": 190.41
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 2165.85,
+        "taux": 14.28,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 309.34,
+        "taux": 17.85,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 2475.19,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      },
+      {
+        "gain": 267.75,
+        "taux": 17.85,
+        "perte": null,
+        "libelle": "Heures suppl. majorées à 25%",
+        "quantite": 15.0
+      },
+      {
+        "gain": 59.4,
+        "taux": 0.023998,
+        "perte": null,
+        "libelle": "Prime d'ancienneté (3 ans, 2 %)",
+        "quantite": 2475.19
+      },
+      {
+        "gain": 150.0,
+        "taux": null,
+        "perte": null,
+        "libelle": "Prime exceptionnelle",
+        "quantite": null
+      },
+      {
+        "gain": 3936.59,
+        "taux": null,
+        "perte": null,
+        "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+        "quantite": null,
+        "is_informative": true
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "net_superieur_brut",
+        "message": "Net > Brut",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 661.42,
+    "primes_non_soumises": [
+      {
+        "libelle": "Acompte participation 2025 (déjà versé)",
+        "montant": -1000.0,
+        "prime_id": "acompte_participation_2025_(déjà_versé)"
+      },
+      {
+        "libelle": "Remboursement note de frais (participation)",
+        "montant": 569.59,
+        "prime_id": "remboursement_note_de_frais_(participation)"
+      }
+    ],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 758.12,
+      "total_salarial": 978.99,
+      "bloc_allegements": [
+        {
+          "base": 577.09,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -65.27
+        },
+        {
+          "base": 32.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -48.49,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.1855,
+          "taux_salarial": null,
+          "montant_patronal": -547.66,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 547.66
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 2952.34,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 7.38,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 139.35,
+          "montant_salarial": 93.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 38.09,
+          "montant_salarial": 25.39
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 155.0,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 118.09,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2376.64,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 161.61
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 383.8,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 93.0,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 252.43,
+          "montant_salarial": 203.71
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 62.29,
+          "montant_salarial": 11.81
+        },
+        {
+          "base": null,
+          "coti_id": "mutuelle",
+          "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+          "rubrique": "sante",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": 29.23,
+          "montant_salarial": 29.24
+        },
+        {
+          "base": 2952.34,
+          "coti_id": "prevoyance_non_cadre",
+          "libelle": "Prévoyance Non-Cadre Tranche 1",
+          "rubrique": "cotisations_statutaires",
+          "taux_patronal": 0.00465,
+          "taux_salarial": 0.00465,
+          "montant_patronal": 13.73,
+          "montant_salarial": 13.73
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.068,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 267.69
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 696.24,
+        "montant_salarial": 740.91
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 2376.64,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 68.92
+        },
+        {
+          "base": 566.99,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 55.0
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.029,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 114.16
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 61.88,
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 29.52,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 8.86,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.47,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.95,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 17.42,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.66,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 383.8,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": null,
+            "coti_id": "mutuelle",
+            "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+            "rubrique": "sante",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": 29.23,
+            "montant_salarial": 29.24
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 413.03,
+        "total_salarial": 29.24
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 93.0,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 93.0,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 139.35,
+            "montant_salarial": 93.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 38.09,
+            "montant_salarial": 25.39
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 252.43,
+            "montant_salarial": 203.71
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 62.29,
+            "montant_salarial": 11.81
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 492.16,
+        "total_salarial": 333.91
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 155.0,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 155.0,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 7.38,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 118.09,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 125.47,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 29.52,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 8.86,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.47,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.95,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 17.42,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.66,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 61.88,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "cotisations_statutaires",
+        "lignes": [
+          {
+            "base": 2952.34,
+            "coti_id": "prevoyance_non_cadre",
+            "libelle": "Prévoyance Non-Cadre Tranche 1",
+            "rubrique": "cotisations_statutaires",
+            "taux_patronal": 0.00465,
+            "taux_salarial": 0.00465,
+            "montant_patronal": 13.73,
+            "montant_salarial": 13.73
+          }
+        ],
+        "libelle": "Cotisations statutaires et conventionnelles",
+        "total_patronal": 13.73,
+        "total_salarial": 13.73
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 2376.64,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 161.61
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.068,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 267.69
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 429.3
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 2376.64,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 68.92
+          },
+          {
+            "base": 566.99,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 55.0
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.029,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 114.16
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 238.08
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 577.09,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -65.27
+          },
+          {
+            "base": 32.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -48.49,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2952.34,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.1855,
+            "taux_salarial": null,
+            "montant_patronal": -547.66,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 547.66
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -596.15,
+        "total_salarial": -65.27
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "fb3ba0fd-ef02-4af9-a4fd-d72d503c161f": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 1850.37,
+        "net_imposable": 1308.72,
+        "heures_remunerees": 169.0,
+        "brut_reference_n_1": 1850.37,
+        "montant_hs_remunerees": 231.25,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 0.0,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -736.63,
+        "heures_supplementaires_remunerees": 17.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "198080103403415",
+        "emploi": "Préparateur peinture",
+        "statut": "Non-Cadre",
+        "date_entree": "2026-04-07",
+        "nom_complet": "Hugo FUCKAR",
+        "is_alternant": false,
+        "type_contrat": "CDD",
+        "classification": "200",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 1470.99,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 3.33,
+          "acquis": 5.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 788.77,
+      "cout_total_employeur": 1937.38
+    },
+    "salaire_brut": 1850.37,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 1308.72,
+      "montant_net_social": 1470.99,
+      "net_social_avant_impot": 1470.99,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 1308.72,
+        "taux": 0.0,
+        "montant": 0.0
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 1619.12,
+        "taux": 10.6753,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 231.25,
+        "taux": 13.3441,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 1850.37,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "prime_anciennete_classification_manquante",
+        "message": "Prime d'ancienneté non calculée : classification conventionnelle (classe) manquante ou incomplète.",
+        "critique": false,
+        "severity": "warning"
+      },
+      {
+        "code": "cc_classification_manquante",
+        "message": "Classification conventionnelle absente sur la fiche salarié (IDCC 0292). Impossible de contrôler le minimum conventionnel.",
+        "critique": true,
+        "severity": "warning",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 788.77,
+    "primes_non_soumises": [],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 87.01,
+      "total_salarial": 379.38,
+      "bloc_allegements": [
+        {
+          "base": 231.25,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -26.15
+        },
+        {
+          "base": 17.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -25.99,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.3981,
+          "taux_salarial": null,
+          "montant_patronal": -736.63,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 736.63
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 1850.37,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 4.63,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 87.34,
+          "montant_salarial": 58.29
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 23.87,
+          "montant_salarial": 15.91
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 97.14,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 74.01,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1618.54,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 110.06
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 240.55,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 58.29,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 158.21,
+          "montant_salarial": 127.68
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 39.04,
+          "montant_salarial": 7.4
+        },
+        {
+          "base": 1850.37,
+          "coti_id": "prevoyance_non_cadre",
+          "libelle": "Prévoyance (import DSN)",
+          "rubrique": "cotisations_statutaires",
+          "taux_patronal": 0.015,
+          "taux_salarial": 0.009303,
+          "montant_patronal": 27.76,
+          "montant_salarial": 17.21
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 48.22,
+        "montant_salarial": 310.4
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 1618.54,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 46.94
+        },
+        {
+          "base": 227.2,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 22.04
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 38.79,
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 18.5,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 5.55,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.3,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 1.85,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 10.92,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.67,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 240.55,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 240.55,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 58.29,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 58.29,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 87.34,
+            "montant_salarial": 58.29
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 23.87,
+            "montant_salarial": 15.91
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 158.21,
+            "montant_salarial": 127.68
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 39.04,
+            "montant_salarial": 7.4
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 308.46,
+        "total_salarial": 209.28
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 97.14,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 97.14,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 4.63,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 74.01,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 78.64,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 18.5,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 5.55,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.3,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 1.85,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 10.92,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.67,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 38.79,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "cotisations_statutaires",
+        "lignes": [
+          {
+            "base": 1850.37,
+            "coti_id": "prevoyance_non_cadre",
+            "libelle": "Prévoyance (import DSN)",
+            "rubrique": "cotisations_statutaires",
+            "taux_patronal": 0.015,
+            "taux_salarial": 0.009303,
+            "montant_patronal": 27.76,
+            "montant_salarial": 17.21
+          }
+        ],
+        "libelle": "Cotisations statutaires et conventionnelles",
+        "total_patronal": 27.76,
+        "total_salarial": 17.21
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 1618.54,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 110.06
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 110.06
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 1618.54,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 46.94
+          },
+          {
+            "base": 227.2,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 22.04
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 68.98
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 231.25,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -26.15
+          },
+          {
+            "base": 17.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -25.99,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1850.37,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.3981,
+            "taux_salarial": null,
+            "montant_patronal": -736.63,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 736.63
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -762.62,
+        "total_salarial": -26.15
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "c4b93225-bd1f-4d9e-9f70-ab408182e5c2": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 1780.93,
+        "net_imposable": 985.46,
+        "heures_remunerees": 132.0,
+        "brut_reference_n_1": 1780.93,
+        "montant_hs_remunerees": 556.85,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 0.0,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -708.99,
+        "heures_supplementaires_remunerees": 38.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "185031305553191",
+        "emploi": "Préparateur peinture",
+        "statut": "Non-Cadre",
+        "date_entree": "2026-03-23",
+        "nom_complet": "Aurélien DEMORY",
+        "is_alternant": false,
+        "type_contrat": "CDD",
+        "classification": "200",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 1453.59,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 3.78,
+          "acquis": 8.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 829.46,
+      "cout_total_employeur": 1832.17
+    },
+    "salaire_brut": 1780.93,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 985.46,
+      "montant_net_social": 1453.59,
+      "net_social_avant_impot": 1453.59,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 985.46,
+        "taux": 0.0,
+        "montant": 0.0
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 1619.12,
+        "taux": 10.6753,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 231.25,
+        "taux": 13.3441,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 1850.37,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      },
+      {
+        "gain": 53.38,
+        "taux": 13.3441,
+        "perte": null,
+        "libelle": "Heures suppl. majorées à 25%",
+        "quantite": 4.0
+      },
+      {
+        "gain": 272.22,
+        "taux": 16.0129,
+        "perte": null,
+        "libelle": "Heures suppl. majorées à 50%",
+        "quantite": 17.0
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "prime_anciennete_classification_manquante",
+        "message": "Prime d'ancienneté non calculée : classification conventionnelle (classe) manquante ou incomplète.",
+        "critique": false,
+        "severity": "warning"
+      },
+      {
+        "code": "cc_classification_manquante",
+        "message": "Classification conventionnelle absente sur la fiche salarié (IDCC 0292). Impossible de contrôler le minimum conventionnel.",
+        "critique": true,
+        "severity": "warning",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 04/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 05/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 06/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 90.74,
+        "libelle": "Absence injustifiée du 07/05/26 (base)",
+        "quantite": 8.5
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 53.38,
+        "libelle": "Absence injustifiée du 15/05/26 (base)",
+        "quantite": 5.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 18/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 19/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 20/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 90.74,
+        "libelle": "Absence injustifiée du 21/05/26 (base)",
+        "quantite": 8.5
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 53.38,
+        "libelle": "Absence injustifiée du 22/05/26 (base)",
+        "quantite": 5.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 26/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 27/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 28/05/26 (base)",
+        "quantite": 1.0
+      },
+      {
+        "gain": null,
+        "taux": 10.6753,
+        "perte": 10.68,
+        "libelle": "Absence injustifiée du 29/05/26 (base)",
+        "quantite": 1.0
+      }
+    ],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 829.46,
+    "primes_non_soumises": [],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 51.24,
+      "total_salarial": 327.34,
+      "bloc_allegements": [
+        {
+          "base": 556.85,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -62.98
+        },
+        {
+          "base": 38.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -57.49,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.3981,
+          "taux_salarial": null,
+          "montant_patronal": -708.99,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 708.99
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 1780.93,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 4.45,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 84.06,
+          "montant_salarial": 56.1
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 22.97,
+          "montant_salarial": 15.32
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 93.5,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 71.24,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1229.37,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 83.6
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 231.52,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 56.1,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 152.27,
+          "montant_salarial": 122.88
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 37.58,
+          "montant_salarial": 7.12
+        },
+        {
+          "base": 1780.93,
+          "coti_id": "prevoyance_non_cadre",
+          "libelle": "Prévoyance (import DSN)",
+          "rubrique": "cotisations_statutaires",
+          "taux_patronal": 0.015,
+          "taux_salarial": 0.009308,
+          "montant_patronal": 26.71,
+          "montant_salarial": 16.58
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 13.92,
+        "montant_salarial": 238.62
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 1229.37,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 35.65
+        },
+        {
+          "base": 547.11,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 53.07
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 37.32,
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 17.81,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 5.34,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.28,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 1.78,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 10.51,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.6,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 231.52,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 231.52,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 56.1,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 56.1,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 84.06,
+            "montant_salarial": 56.1
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 22.97,
+            "montant_salarial": 15.32
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 152.27,
+            "montant_salarial": 122.88
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 37.58,
+            "montant_salarial": 7.12
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 296.88,
+        "total_salarial": 201.42
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 93.5,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 93.5,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 4.45,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 71.24,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 75.69,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 17.81,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 5.34,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.28,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 1.78,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 10.51,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.6,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 37.32,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "cotisations_statutaires",
+        "lignes": [
+          {
+            "base": 1780.93,
+            "coti_id": "prevoyance_non_cadre",
+            "libelle": "Prévoyance (import DSN)",
+            "rubrique": "cotisations_statutaires",
+            "taux_patronal": 0.015,
+            "taux_salarial": 0.009308,
+            "montant_patronal": 26.71,
+            "montant_salarial": 16.58
+          }
+        ],
+        "libelle": "Cotisations statutaires et conventionnelles",
+        "total_patronal": 26.71,
+        "total_salarial": 16.58
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 1229.37,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 83.6
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 83.6
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 1229.37,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 35.65
+          },
+          {
+            "base": 547.11,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 53.07
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 88.72
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 556.85,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -62.98
+          },
+          {
+            "base": 38.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -57.49,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 1780.93,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.3981,
+            "taux_salarial": null,
+            "montant_patronal": -708.99,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 708.99
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -766.48,
+        "total_salarial": -62.98
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "53c92e83-4a1a-4214-b30d-577cd1ab9d2d": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 2798.4,
+        "net_imposable": 5667.66,
+        "heures_remunerees": 169.0,
+        "brut_reference_n_1": 2798.4,
+        "montant_hs_remunerees": 358.72,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 0.0,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -482.72,
+        "heures_supplementaires_remunerees": 18.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "186116926609242",
+        "emploi": "Peintre industriel",
+        "statut": "Non-Cadre",
+        "date_entree": "2021-08-23",
+        "nom_complet": "Anthony ESPINOSA",
+        "is_alternant": false,
+        "type_contrat": "CDI",
+        "classification": "200",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 5778.44,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 24.96,
+          "acquis": 30.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 4.0,
+          "acquis": 30.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 550.78,
+      "cout_total_employeur": 7496.96
+    },
+    "salaire_brut": 2798.4,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 5667.66,
+      "montant_net_social": 5778.44,
+      "net_social_avant_impot": 5778.44,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 5667.66,
+        "taux": 0.0,
+        "montant": 0.0
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 2374.55,
+        "taux": 15.656,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 339.15,
+        "taux": 19.5701,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 2713.7,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      },
+      {
+        "gain": 19.57,
+        "taux": 19.57,
+        "perte": null,
+        "libelle": "Heures suppl. majorées à 25%",
+        "quantite": 1.0
+      },
+      {
+        "gain": 65.13,
+        "taux": 0.024,
+        "perte": null,
+        "libelle": "Prime d'ancienneté (4 ans, 2 %)",
+        "quantite": 2713.7
+      },
+      {
+        "gain": 3936.59,
+        "taux": null,
+        "perte": null,
+        "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+        "quantite": null,
+        "is_informative": true
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "cc_classification_manquante",
+        "message": "Classification conventionnelle absente sur la fiche salarié (IDCC 0292). Impossible de contrôler le minimum conventionnel.",
+        "critique": true,
+        "severity": "warning",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "prime_anciennete_classification_manquante",
+        "message": "Prime d'ancienneté : classification conventionnelle (classe) manquante sur la fiche salarié.",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "net_superieur_brut",
+        "message": "Net > Brut",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 550.78,
+    "primes_non_soumises": [],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 761.97,
+      "total_salarial": 956.55,
+      "bloc_allegements": [
+        {
+          "base": 358.72,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -40.57
+        },
+        {
+          "base": 18.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -27.49,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.1725,
+          "taux_salarial": null,
+          "montant_patronal": -482.72,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 482.72
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 2798.4,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 7.0,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 132.08,
+          "montant_salarial": 88.15
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 36.1,
+          "montant_salarial": 24.07
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 146.92,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 111.94,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2426.22,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 164.98
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 363.79,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 88.15,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 239.26,
+          "montant_salarial": 193.09
+        },
+        {
+          "base": 2798.4,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 59.05,
+          "montant_salarial": 11.19
+        },
+        {
+          "base": null,
+          "coti_id": "mutuelle",
+          "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+          "rubrique": "sante",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": 29.23,
+          "montant_salarial": 29.24
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.068,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 267.69
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 703.31,
+        "montant_salarial": 737.84
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 2426.22,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 70.36
+        },
+        {
+          "base": 352.44,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 34.19
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.029,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 114.16
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 58.66,
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 27.98,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 8.4,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.45,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.8,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 16.51,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.52,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 363.79,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": null,
+            "coti_id": "mutuelle",
+            "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+            "rubrique": "sante",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": 29.23,
+            "montant_salarial": 29.24
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 393.02,
+        "total_salarial": 29.24
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 88.15,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 88.15,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 132.08,
+            "montant_salarial": 88.15
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 36.1,
+            "montant_salarial": 24.07
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 239.26,
+            "montant_salarial": 193.09
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 59.05,
+            "montant_salarial": 11.19
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 466.49,
+        "total_salarial": 316.5
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 146.92,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 146.92,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 7.0,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 111.94,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 118.94,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 2798.4,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 27.98,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 8.4,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.45,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.8,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 16.51,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.52,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 58.66,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 2426.22,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 164.98
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.068,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 267.69
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 432.67
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 2426.22,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 70.36
+          },
+          {
+            "base": 352.44,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 34.19
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.029,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 114.16
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 218.71
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 358.72,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -40.57
+          },
+          {
+            "base": 18.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -27.49,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2798.4,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.1725,
+            "taux_salarial": null,
+            "montant_patronal": -482.72,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 482.72
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -510.21,
+        "total_salarial": -40.57
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "1c4cc8b6-5f55-4d71-bba5-5acb8fa3efd2": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 2083.05,
+        "net_imposable": 5141.71,
+        "heures_remunerees": 150.0,
+        "brut_reference_n_1": 2083.05,
+        "montant_hs_remunerees": 284.71,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 82.27,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -778.64,
+        "heures_supplementaires_remunerees": 17.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "285077300803206",
+        "emploi": "Préparateur peintre",
+        "statut": "Non-Cadre",
+        "date_entree": "2021-09-13",
+        "nom_complet": "Marion GAUTHERON",
+        "is_alternant": false,
+        "type_contrat": "CDI",
+        "classification": "200",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 5121.54,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 14.96,
+          "acquis": 30.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 30.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 836.83,
+      "cout_total_employeur": 6169.44
+    },
+    "salaire_brut": 2083.05,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 5141.71,
+      "montant_net_social": 5203.81,
+      "net_social_avant_impot": 5203.81,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 5141.71,
+        "taux": 1.6,
+        "montant": 82.27
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 1993.4,
+        "taux": 13.143,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 284.71,
+        "taux": 16.4287,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 2278.11,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      },
+      {
+        "gain": 54.67,
+        "taux": 0.023998,
+        "perte": null,
+        "libelle": "Prime d'ancienneté (4 ans, 2 %)",
+        "quantite": 2278.11
+      },
+      {
+        "gain": 3936.59,
+        "taux": null,
+        "perte": null,
+        "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+        "quantite": null,
+        "is_informative": true
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "cc_classification_manquante",
+        "message": "Classification conventionnelle absente sur la fiche salarié (IDCC 0292). Impossible de contrôler le minimum conventionnel.",
+        "critique": true,
+        "severity": "warning",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "prime_anciennete_classification_manquante",
+        "message": "Prime d'ancienneté : classification conventionnelle (classe) manquante sur la fiche salarié.",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "net_superieur_brut",
+        "message": "Net > Brut",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [
+      {
+        "gain": null,
+        "taux": 13.143,
+        "perte": 111.72,
+        "libelle": "Absence injustifiée du 27/04/26 (base)",
+        "quantite": 8.5
+      },
+      {
+        "gain": null,
+        "taux": 13.143,
+        "perte": 111.72,
+        "libelle": "Absence injustifiée du 28/04/26 (base)",
+        "quantite": 8.5
+      },
+      {
+        "gain": null,
+        "taux": 13.143,
+        "perte": 26.29,
+        "libelle": "Absence injustifiée du 29/04/26 (base)",
+        "quantite": 2.0
+      }
+    ],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 836.83,
+    "primes_non_soumises": [],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 149.8,
+      "total_salarial": 815.83,
+      "bloc_allegements": [
+        {
+          "base": 284.71,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -32.2
+        },
+        {
+          "base": 17.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -25.99,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.3738,
+          "taux_salarial": null,
+          "montant_patronal": -778.64,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 778.64
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 2083.05,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 5.21,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 98.32,
+          "montant_salarial": 65.62
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 26.87,
+          "montant_salarial": 17.91
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 109.36,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 83.32,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 1796.1,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 122.13
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 270.8,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 65.62,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 178.1,
+          "montant_salarial": 143.73
+        },
+        {
+          "base": 2083.05,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 43.95,
+          "montant_salarial": 8.33
+        },
+        {
+          "base": null,
+          "coti_id": "mutuelle",
+          "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+          "rubrique": "sante",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": 29.23,
+          "montant_salarial": 29.24
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.068,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 267.69
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 106.15,
+        "montant_salarial": 622.45
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 1796.1,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 52.09
+        },
+        {
+          "base": 279.73,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 27.13
+        },
+        {
+          "base": 3936.59,
+          "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.029,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 114.16
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 43.65,
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 20.83,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 6.25,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.33,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.08,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 12.29,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.87,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 270.8,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": null,
+            "coti_id": "mutuelle",
+            "libelle": "Mutuelle Isolé (Non-Cadre) 29.24€ / 29.23€",
+            "rubrique": "sante",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": 29.23,
+            "montant_salarial": 29.24
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 300.03,
+        "total_salarial": 29.24
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 65.62,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 65.62,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 98.32,
+            "montant_salarial": 65.62
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 26.87,
+            "montant_salarial": 17.91
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 178.1,
+            "montant_salarial": 143.73
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 43.95,
+            "montant_salarial": 8.33
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 347.24,
+        "total_salarial": 235.59
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 109.36,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 109.36,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 5.21,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 83.32,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 88.53,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 2083.05,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 20.83,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 6.25,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.33,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.08,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 12.29,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 1.87,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 43.65,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 1796.1,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 122.13
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.068,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 267.69
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 389.82
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 1796.1,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 52.09
+          },
+          {
+            "base": 279.73,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 27.13
+          },
+          {
+            "base": 3936.59,
+            "coti_id": null,
+            "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.029,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 114.16
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 193.38
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 284.71,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -32.2
+          },
+          {
+            "base": 17.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -25.99,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2083.05,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.3738,
+            "taux_salarial": null,
+            "montant_patronal": -778.64,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 778.64
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -804.63,
+        "total_salarial": -32.2
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "e6d1588d-6b4a-4ff4-992f-279cdadd3c46": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 2444.33,
+        "net_imposable": 4763.79,
+        "heures_remunerees": 169.0,
+        "brut_reference_n_1": 2444.33,
+        "montant_hs_remunerees": 286.12,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 100.04,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": -603.02,
+        "heures_supplementaires_remunerees": 17.33
+      },
+      "periode": {
+        "annee_en_cours": 2026,
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "196070103402608",
+        "emploi": "Préparateur peinture",
+        "statut": "Non-Cadre",
+        "date_entree": "2021-01-04",
+        "nom_complet": "Léo COTTE",
+        "is_alternant": false,
+        "type_contrat": "CDI",
+        "classification": "710",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-29"
+    },
+    "net_a_payer": 3767.25,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 24.96,
+          "acquis": 30.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 30.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 661.37,
+      "cout_total_employeur": 5137.68
+    },
+    "salaire_brut": 2444.33,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 4763.79,
+      "montant_net_social": 3867.29,
+      "net_social_avant_impot": 3867.29,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 4763.79,
+        "taux": 2.1,
+        "montant": 100.04
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 2003.26,
+        "taux": 13.208,
+        "perte": null,
+        "libelle": "Salaire de base",
+        "quantite": 151.67
+      },
+      {
+        "gain": 286.12,
+        "taux": 16.5101,
+        "perte": null,
+        "libelle": "Heures suppl. structurelles majorées à 25%",
+        "quantite": 17.33
+      },
+      {
+        "gain": 2289.38,
+        "taux": null,
+        "perte": null,
+        "libelle": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+        "quantite": 169.0,
+        "is_sous_total": true
+      },
+      {
+        "gain": 54.95,
+        "taux": 0.024002,
+        "perte": null,
+        "libelle": "Prime d'ancienneté (5 ans, 2 %)",
+        "quantite": 2289.38
+      },
+      {
+        "gain": 100.0,
+        "taux": null,
+        "perte": null,
+        "libelle": "Prime exceptionnelle",
+        "quantite": null
+      },
+      {
+        "gain": 3225.33,
+        "taux": null,
+        "perte": null,
+        "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+        "quantite": null,
+        "is_informative": true
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "net_superieur_brut",
+        "message": "Net > Brut",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "modulation_account": {
+      "hs_paid": 0.0,
+      "hs_credited": 0.0,
+      "hs_realisees": 0.0
+    },
+    "total_exonerations": 661.37,
+    "primes_non_soumises": [
+      {
+        "libelle": "Acompte participation 2025 (déjà versé)",
+        "montant": -1000.0,
+        "prime_id": "acompte_participation_2025_(déjà_versé)"
+      }
+    ],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 468.02,
+      "total_salarial": 802.37,
+      "bloc_allegements": [
+        {
+          "base": 286.12,
+          "coti_id": "reduction_hs_salariale",
+          "libelle": "Réduction de cotisations sur heures sup.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": -0.1131,
+          "montant_patronal": 0.0,
+          "montant_salarial": -32.36
+        },
+        {
+          "base": 17.33,
+          "coti_id": "deduction_hs_patronale",
+          "libelle": "Déduction forfaitaire heures suppl. pat.",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": -25.99,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": 0.2467,
+          "taux_salarial": null,
+          "montant_patronal": -603.02,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 603.02
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 2444.33,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 6.11,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 115.37,
+          "montant_salarial": 77.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 31.53,
+          "montant_salarial": 21.02
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 128.33,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 97.77,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2131.81,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 144.96
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 317.76,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 77.0,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 208.99,
+          "montant_salarial": 168.66
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 51.58,
+          "montant_salarial": 9.78
+        },
+        {
+          "base": 2444.33,
+          "coti_id": "prevoyance_non_cadre",
+          "libelle": "Prévoyance Non-Cadre Tranche 1",
+          "rubrique": "cotisations_statutaires",
+          "taux_patronal": 0.00465,
+          "taux_salarial": 0.00465,
+          "montant_patronal": 11.37,
+          "montant_salarial": 11.37
+        },
+        {
+          "base": 3225.33,
+          "libelle": "CSG déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.068,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 219.32
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 416.8,
+        "montant_salarial": 619.75
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 2131.81,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 61.82
+        },
+        {
+          "base": 281.11,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS sur HS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.097,
+          "montant_patronal": 0.0,
+          "montant_salarial": 27.27
+        },
+        {
+          "base": 3225.33,
+          "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+          "taux_patronal": 0.0,
+          "taux_salarial": 0.029,
+          "is_participation": true,
+          "montant_patronal": 0.0,
+          "montant_salarial": 93.53
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 51.22,
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 24.44,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 7.33,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.39,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.44,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 14.42,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.2,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 317.76,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 317.76,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 77.0,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 77.0,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 115.37,
+            "montant_salarial": 77.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 31.53,
+            "montant_salarial": 21.02
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 208.99,
+            "montant_salarial": 168.66
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 51.58,
+            "montant_salarial": 9.78
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 407.47,
+        "total_salarial": 276.46
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 128.33,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 128.33,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 6.11,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 97.77,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 103.88,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 24.44,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 7.33,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.39,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 2.44,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 14.42,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 2.2,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 51.22,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "cotisations_statutaires",
+        "lignes": [
+          {
+            "base": 2444.33,
+            "coti_id": "prevoyance_non_cadre",
+            "libelle": "Prévoyance Non-Cadre Tranche 1",
+            "rubrique": "cotisations_statutaires",
+            "taux_patronal": 0.00465,
+            "taux_salarial": 0.00465,
+            "montant_patronal": 11.37,
+            "montant_salarial": 11.37
+          }
+        ],
+        "libelle": "Cotisations statutaires et conventionnelles",
+        "total_patronal": 11.37,
+        "total_salarial": 11.37
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 2131.81,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 144.96
+          },
+          {
+            "base": 3225.33,
+            "coti_id": null,
+            "libelle": "CSG déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.068,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 219.32
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 364.28
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 2131.81,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 61.82
+          },
+          {
+            "base": 281.11,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS sur HS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.097,
+            "montant_patronal": 0.0,
+            "montant_salarial": 27.27
+          },
+          {
+            "base": 3225.33,
+            "coti_id": null,
+            "libelle": "CSG/CRDS non déductible — Participation 2025 — numéraire",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": 0.0,
+            "taux_salarial": 0.029,
+            "is_participation": true,
+            "montant_patronal": 0.0,
+            "montant_salarial": 93.53
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 182.62
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 286.12,
+            "coti_id": "reduction_hs_salariale",
+            "libelle": "Réduction de cotisations sur heures sup.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": -0.1131,
+            "montant_patronal": 0.0,
+            "montant_salarial": -32.36
+          },
+          {
+            "base": 17.33,
+            "coti_id": "deduction_hs_patronale",
+            "libelle": "Déduction forfaitaire heures suppl. pat.",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": -25.99,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 2444.33,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": 0.2467,
+            "taux_salarial": null,
+            "montant_patronal": -603.02,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 603.02
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": -629.01,
+        "total_salarial": -32.36
+      }
+    ],
+    "donnees_non_officielles": false
+  },
+  "bceb467d-d0ac-454a-9084-4b20d3cd0e9e": {
+    "cumuls": {
+      "cumuls": {
+        "brut_total": 3406.44,
+        "net_imposable": 6539.4,
+        "heures_remunerees": 91.0,
+        "brut_reference_n_1": 3406.44,
+        "montant_hs_remunerees": 0.0,
+        "brut_reference_period_end": "2026-05-31",
+        "impot_preleve_a_la_source": 281.19,
+        "brut_reference_period_start": "2025-06-01",
+        "reduction_generale_patronale": 0.0,
+        "heures_supplementaires_remunerees": 0.0
+      },
+      "periode": {
+        "dernier_mois_calcule": 5
+      }
+    },
+    "en_tete": {
+      "periode": "Mai 2026",
+      "salarie": {
+        "nir": "177047306506218",
+        "emploi": null,
+        "statut": "Cadre",
+        "date_entree": "2014-09-01",
+        "nom_complet": "Fabrice GIRERD",
+        "is_alternant": false,
+        "type_contrat": "CDI",
+        "classification": "200",
+        "convention_collective": "IDCC 0292"
+      },
+      "entreprise": {
+        "siret": "80248516900022",
+        "adresse": {
+          "rue": "SUR LA VUAZ, ZA L'OUSSON NORD SOUS LA VUAZ",
+          "ville": "MAGNIEU",
+          "code_postal": "01300"
+        },
+        "naf_ape": "25.61Z",
+        "raison_sociale": "Colorplast"
+      },
+      "date_paiement": "2026-05-22"
+    },
+    "net_a_payer": 6161.15,
+    "pied_de_page": {
+      "solde_conges": {
+        "rtt": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes": {
+          "pris": 0.0,
+          "solde": 24.96,
+          "acquis": 30.0,
+          "periode": "01/06/2025 – 31/05/2026"
+        },
+        "date_reference": "31/05/2026",
+        "cp_seniority_days": 0.0,
+        "repos_compensateur": {
+          "pris": 0.0,
+          "solde": 0.0,
+          "acquis": 0.0
+        },
+        "conges_payes_periode_precedente": {
+          "pris": 0.0,
+          "solde": 2.0,
+          "acquis": 30.0,
+          "periode": "01/06/2024 – 31/05/2025"
+        }
+      },
+      "cumuls_annuels": {
+        "brut_cumule": 0.0,
+        "_commentaire": "Ces valeurs seraient calculées sur la base des bulletins précédents.",
+        "net_imposable_cumule": 0.0,
+        "heures_supplementaires_cumulees": 0
+      },
+      "mentions_legales": {
+        "information": "Pour en savoir plus : www.service-public.fr",
+        "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée."
+      },
+      "total_exonerations": 0.0,
+      "cout_total_employeur": 4920.69
+    },
+    "salaire_brut": 3406.44,
+    "synthese_net": {
+      "acompte_verse": 0.0,
+      "net_imposable": 6539.4,
+      "montant_net_social": 2505.75,
+      "net_social_avant_impot": 2505.75,
+      "exoneration_ir_apprenti": false,
+      "remboursement_transport": 0.0,
+      "indemnite_transport_fixe": 0.0,
+      "impot_prelevement_a_la_source": {
+        "base": 6539.4,
+        "taux": 4.3,
+        "montant": 281.19
+      }
+    },
+    "bloc_maintien": {},
+    "calcul_du_brut": [
+      {
+        "gain": 3147.46,
+        "taux": null,
+        "perte": null,
+        "libelle": "Salaire de base (forfait jour)",
+        "quantite": null
+      },
+      {
+        "gain": 258.98,
+        "taux": 0.071999,
+        "perte": null,
+        "libelle": "Prime d'ancienneté (11 ans, 7 %)",
+        "quantite": 3597.0
+      }
+    ],
+    "details_conges": [],
+    "alertes_baremes": [
+      {
+        "code": "cc_classification_manquante",
+        "message": "Classification conventionnelle absente sur la fiche salarié (IDCC 0292). Impossible de contrôler le minimum conventionnel.",
+        "critique": true,
+        "severity": "warning",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "prime_anciennete_classification_manquante",
+        "message": "Prime d'ancienneté : classification conventionnelle (classe) manquante sur la fiche salarié.",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      },
+      {
+        "code": "net_superieur_brut",
+        "message": "Net > Brut",
+        "critique": false,
+        "severity": "info",
+        "donnee_non_officielle": false
+      }
+    ],
+    "arbitrage_conges": null,
+    "details_absences": [],
+    "details_maintien": [],
+    "retenues_saisies": {
+      "saisies": [],
+      "total_preleve": 0.0
+    },
+    "total_exonerations": 0.0,
+    "primes_non_soumises": [],
+    "remboursements_prets": {
+      "prets": [],
+      "total_capital": 0.0,
+      "total_interets": 0.0,
+      "total_rembourse": 0.0,
+      "avantage_nature_interets": 0.0
+    },
+    "structure_cotisations": {
+      "total_patronal": 1514.25,
+      "total_salarial": 900.69,
+      "bloc_allegements": [
+        {
+          "base": 3406.44,
+          "coti_id": "reduction_generale",
+          "libelle": "Réduction générale de cotisations patronales",
+          "rubrique": "exonerations",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": 0.0,
+          "montant_salarial": 0.0,
+          "valeur_cumulative_a_enregistrer": 0.0
+        }
+      ],
+      "bloc_principales": [
+        {
+          "base": 3406.44,
+          "coti_id": "ags",
+          "libelle": "Cotisation AGS",
+          "rubrique": "chomage",
+          "taux_patronal": 0.0025,
+          "taux_salarial": null,
+          "montant_patronal": 8.52,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "retraite_comp_t1",
+          "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0472,
+          "taux_salarial": 0.0315,
+          "montant_patronal": 160.78,
+          "montant_salarial": 107.3
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "ceg_t1",
+          "libelle": "Contribution d'Équilibre Général (CEG) T1",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0129,
+          "taux_salarial": 0.0086,
+          "montant_patronal": 43.94,
+          "montant_salarial": 29.3
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "apec",
+          "libelle": "Cotisation APEC (Cadres)",
+          "rubrique": "retraite",
+          "taux_patronal": 0.00036,
+          "taux_salarial": 0.00024,
+          "montant_patronal": 1.23,
+          "montant_salarial": 0.82
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "allocations_familiales",
+          "libelle": "Allocations familiales",
+          "rubrique": "famille",
+          "taux_patronal": 0.0525,
+          "taux_salarial": null,
+          "montant_patronal": 178.84,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "assurance_chomage",
+          "libelle": "Assurance Chômage",
+          "rubrique": "chomage",
+          "taux_patronal": 0.04,
+          "taux_salarial": null,
+          "montant_patronal": 136.26,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 3346.83,
+          "coti_id": "csg_deductible",
+          "libelle": "CSG déductible",
+          "rubrique": "csg_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.068,
+          "montant_patronal": 0.0,
+          "montant_salarial": 227.58
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "securite_sociale_maladie",
+          "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+          "rubrique": "sante",
+          "taux_patronal": 0.13,
+          "taux_salarial": null,
+          "montant_patronal": 442.84,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "at_mp",
+          "libelle": "Accidents du travail",
+          "rubrique": "at_mp",
+          "taux_patronal": 0.0315,
+          "taux_salarial": null,
+          "montant_patronal": 107.3,
+          "montant_salarial": 0.0
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "retraite_secu_plafond",
+          "libelle": "Sécurité sociale Vieillesse plafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0855,
+          "taux_salarial": 0.069,
+          "montant_patronal": 291.25,
+          "montant_salarial": 235.04
+        },
+        {
+          "base": 3406.44,
+          "coti_id": "retraite_secu_deplafond",
+          "libelle": "Sécurité sociale Vieillesse déplafonnée",
+          "rubrique": "retraite",
+          "taux_patronal": 0.0211,
+          "taux_salarial": 0.004,
+          "montant_patronal": 71.88,
+          "montant_salarial": 13.63
+        },
+        {
+          "base": null,
+          "coti_id": "mutuelle",
+          "libelle": "Mutuelle Isolé (Cadre) 189.96€ / 0.00€",
+          "rubrique": "sante",
+          "taux_patronal": null,
+          "taux_salarial": null,
+          "montant_patronal": 0.0,
+          "montant_salarial": 189.96
+        }
+      ],
+      "total_avant_csg_crds": {
+        "libelle": "Total des retenues (avant CSG/CRDS non déductible)",
+        "montant_patronal": 1442.84,
+        "montant_salarial": 803.63
+      },
+      "bloc_csg_non_deductible": [
+        {
+          "base": 3346.83,
+          "coti_id": "csg_non_deductible",
+          "libelle": "CSG/CRDS non déductible",
+          "rubrique": "csg_non_deductible",
+          "taux_patronal": null,
+          "taux_salarial": 0.029,
+          "montant_patronal": 0.0,
+          "montant_salarial": 97.06
+        }
+      ],
+      "bloc_autres_contributions": {
+        "total": 71.41,
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 34.06,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 10.22,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.55,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 3.41,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 20.1,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 3.07,
+            "montant_salarial": 0.0
+          }
+        ]
+      }
+    },
+    "remboursements_avances": {
+      "avances": [],
+      "total_rembourse": 0.0,
+      "total_par_compte": {}
+    },
+    "cotisations_officielles": [
+      {
+        "code": "sante",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "rubrique": "sante",
+            "taux_patronal": 0.13,
+            "taux_salarial": null,
+            "montant_patronal": 442.84,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": null,
+            "coti_id": "mutuelle",
+            "libelle": "Mutuelle Isolé (Cadre) 189.96€ / 0.00€",
+            "rubrique": "sante",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": 0.0,
+            "montant_salarial": 189.96
+          }
+        ],
+        "libelle": "Santé",
+        "total_patronal": 442.84,
+        "total_salarial": 189.96
+      },
+      {
+        "code": "at_mp",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "at_mp",
+            "libelle": "Accidents du travail",
+            "rubrique": "at_mp",
+            "taux_patronal": 0.0315,
+            "taux_salarial": null,
+            "montant_patronal": 107.3,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Accidents du travail et maladies professionnelles",
+        "total_patronal": 107.3,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "retraite",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "retraite_comp_t1",
+            "libelle": "Retraite Complémentaire Tranche 1 (AGIRC-ARRCO)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0472,
+            "taux_salarial": 0.0315,
+            "montant_patronal": 160.78,
+            "montant_salarial": 107.3
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "ceg_t1",
+            "libelle": "Contribution d'Équilibre Général (CEG) T1",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0129,
+            "taux_salarial": 0.0086,
+            "montant_patronal": 43.94,
+            "montant_salarial": 29.3
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "apec",
+            "libelle": "Cotisation APEC (Cadres)",
+            "rubrique": "retraite",
+            "taux_patronal": 0.00036,
+            "taux_salarial": 0.00024,
+            "montant_patronal": 1.23,
+            "montant_salarial": 0.82
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "retraite_secu_plafond",
+            "libelle": "Sécurité sociale Vieillesse plafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0855,
+            "taux_salarial": 0.069,
+            "montant_patronal": 291.25,
+            "montant_salarial": 235.04
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "retraite_secu_deplafond",
+            "libelle": "Sécurité sociale Vieillesse déplafonnée",
+            "rubrique": "retraite",
+            "taux_patronal": 0.0211,
+            "taux_salarial": 0.004,
+            "montant_patronal": 71.88,
+            "montant_salarial": 13.63
+          }
+        ],
+        "libelle": "Retraite",
+        "total_patronal": 569.08,
+        "total_salarial": 386.09
+      },
+      {
+        "code": "famille",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "allocations_familiales",
+            "libelle": "Allocations familiales",
+            "rubrique": "famille",
+            "taux_patronal": 0.0525,
+            "taux_salarial": null,
+            "montant_patronal": 178.84,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Famille",
+        "total_patronal": 178.84,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "chomage",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "ags",
+            "libelle": "Cotisation AGS",
+            "rubrique": "chomage",
+            "taux_patronal": 0.0025,
+            "taux_salarial": null,
+            "montant_patronal": 8.52,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "assurance_chomage",
+            "libelle": "Assurance Chômage",
+            "rubrique": "chomage",
+            "taux_patronal": 0.04,
+            "taux_salarial": null,
+            "montant_patronal": 136.26,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Assurance chômage",
+        "total_patronal": 144.78,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "autres_contributions_employeur",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "CFP",
+            "libelle": "Contribution Formation Professionnelle",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.01,
+            "taux_salarial": null,
+            "montant_patronal": 34.06,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "csa",
+            "libelle": "Contribution Solidarité Autonomie (CSA)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.003,
+            "taux_salarial": null,
+            "montant_patronal": 10.22,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "dialogue_social",
+            "libelle": "Contribution au dialogue social",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.00016,
+            "taux_salarial": null,
+            "montant_patronal": 0.55,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "fnal",
+            "libelle": "Fonds National d’Aide au Logement (FNAL)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.001,
+            "taux_salarial": null,
+            "montant_patronal": 3.41,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "taxe_apprentissage",
+            "libelle": "Taxe d'Apprentissage (part principale)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0059,
+            "taux_salarial": null,
+            "montant_patronal": 20.1,
+            "montant_salarial": 0.0
+          },
+          {
+            "base": 3406.44,
+            "coti_id": "taxe_apprentissage_solde",
+            "libelle": "Taxe d'Apprentissage (solde)",
+            "rubrique": "autres_contributions_employeur",
+            "taux_patronal": 0.0009,
+            "taux_salarial": null,
+            "montant_patronal": 3.07,
+            "montant_salarial": 0.0
+          }
+        ],
+        "libelle": "Autres contributions dues par l'employeur",
+        "total_patronal": 71.41,
+        "total_salarial": 0.0
+      },
+      {
+        "code": "csg_deductible",
+        "lignes": [
+          {
+            "base": 3346.83,
+            "coti_id": "csg_deductible",
+            "libelle": "CSG déductible",
+            "rubrique": "csg_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.068,
+            "montant_patronal": 0.0,
+            "montant_salarial": 227.58
+          }
+        ],
+        "libelle": "CSG déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 227.58
+      },
+      {
+        "code": "csg_non_deductible",
+        "lignes": [
+          {
+            "base": 3346.83,
+            "coti_id": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "rubrique": "csg_non_deductible",
+            "taux_patronal": null,
+            "taux_salarial": 0.029,
+            "montant_patronal": 0.0,
+            "montant_salarial": 97.06
+          }
+        ],
+        "libelle": "CSG/CRDS non déductible",
+        "total_patronal": 0.0,
+        "total_salarial": 97.06
+      },
+      {
+        "code": "exonerations",
+        "lignes": [
+          {
+            "base": 3406.44,
+            "coti_id": "reduction_generale",
+            "libelle": "Réduction générale de cotisations patronales",
+            "rubrique": "exonerations",
+            "taux_patronal": null,
+            "taux_salarial": null,
+            "montant_patronal": 0.0,
+            "montant_salarial": 0.0,
+            "valeur_cumulative_a_enregistrer": 0.0
+          }
+        ],
+        "libelle": "Exonérations, allègements et réductions",
+        "total_patronal": 0.0,
+        "total_salarial": 0.0
+      }
+    ],
+    "donnees_non_officielles": false
+  }
+}
