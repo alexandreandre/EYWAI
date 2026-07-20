@@ -4,8 +4,16 @@
     "net_imposable": 1640.18,
     "impot_preleve_a_la_source": 0.0,
     "heures_supplementaires_remunerees": 0.0,
-    "heures_remunerees": 0.0,
-    "reduction_generale_patronale": -462.52
+    "heures_remunerees": 151.67,
+    "montant_hs_remunerees": 0.0,
+    "hs_exonerees_ir_cumul": 0.0,
+    "cumul_brut_agirc_arrco": 2000.0,
+    "cumul_pss_agirc_arrco": 4005.0,
+    "cumul_tranche_2_appliquee": 0.0,
+    "reduction_generale_patronale": -629.4,
+    "brut_reference_n_1": 2000.0,
+    "brut_reference_period_start": "2025-06-01",
+    "brut_reference_period_end": "2026-05-31"
   },
   "periode": {
     "dernier_mois_calcule": 4
