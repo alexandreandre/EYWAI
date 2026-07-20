@@ -310,7 +310,7 @@ def update_user_with_permissions(
         raise LookupError("Utilisateur n'a pas d'accès à cette entreprise")
     target_role = access["role"]
 
-    if not getattr(current_user, 'is_platform_admin', False) or current_user.is_platform_admin:
+    if not getattr(current_user, "is_platform_admin", False):
         if not current_user.has_access_to_company(company_id):
             raise PermissionError("Vous n'avez pas accès à cette entreprise")
         creator_role = current_user.get_role_in_company(company_id) or ""
@@ -341,17 +341,19 @@ def update_user_with_permissions(
     if profile_updates:
         user_repo.update(user_id, profile_updates)
 
+    # Persiste le rôle et/ou le template. On resynchronise role_template_id dès
+    # qu'un édit de permissions est soumis (permission_ids fourni), même si le
+    # rôle est inchangé — sinon un simple changement de template ne serait pas
+    # stocké. On ne touche pas au template lors d'un update de profil seul.
+    access_updates: dict = {}
     if data.base_role:
-        access_repo.update(
-            user_id,
-            company_id,
-            {
-                "role": data.base_role,
-                "role_template_id": str(data.role_template_id)
-                if data.role_template_id
-                else None,
-            },
+        access_updates["role"] = data.base_role
+    if data.base_role or data.permission_ids is not None:
+        access_updates["role_template_id"] = (
+            str(data.role_template_id) if data.role_template_id else None
         )
+    if access_updates:
+        access_repo.update(user_id, company_id, access_updates)
 
     if data.permission_ids is not None:
         perm_repo.delete_for_user_company(user_id, company_id)

@@ -371,3 +371,93 @@ class TestUpdateUserWithPermissions:
 
         assert result.user_id == "target-1"
         get_user_repo.return_value.update.assert_called_once()
+
+    @patch("app.modules.users.application.commands.get_user_permission_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_platform_admin_can_update_admin_in_company(
+        self, get_user_repo, get_access_repo, get_perm_repo
+    ):
+        """Un platform admin doit pouvoir modifier un utilisateur admin (bypass hiérarchie)."""
+        company_id = "660e8400-e29b-41d4-a716-446655440001"
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = {
+            "role": "admin",
+            "role_template_id": None,
+        }
+        data = MagicMock()
+        data.company_id = UUID(company_id)
+        data.first_name = "Jean"
+        data.last_name = "Dupont"
+        data.job_title = None
+        data.base_role = None
+        data.role_template_id = None
+        data.permission_ids = None
+
+        current = _current_user(id_="super-1", is_platform_admin=True)
+
+        result = commands.update_user_with_permissions("target-1", data, current)
+
+        assert result.user_id == "target-1"
+        get_user_repo.return_value.update.assert_called_once()
+
+    @patch("app.modules.users.application.commands.check_role_hierarchy")
+    @patch("app.modules.users.application.commands.get_user_permission_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_platform_admin_can_promote_to_admin(
+        self, get_user_repo, get_access_repo, get_perm_repo, check_hierarchy
+    ):
+        """Un platform admin doit pouvoir attribuer le rôle admin via l'édition."""
+        company_id = "660e8400-e29b-41d4-a716-446655440001"
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = {
+            "role": "rh",
+            "role_template_id": None,
+        }
+        data = MagicMock()
+        data.company_id = UUID(company_id)
+        data.first_name = None
+        data.last_name = None
+        data.job_title = None
+        data.base_role = "admin"
+        data.role_template_id = None
+        data.permission_ids = None
+
+        current = _current_user(id_="super-1", is_platform_admin=True)
+
+        result = commands.update_user_with_permissions("target-1", data, current)
+
+        assert result.user_id == "target-1"
+        get_access_repo.return_value.update.assert_called_once_with(
+            "target-1", company_id, {"role": "admin", "role_template_id": None}
+        )
+
+    @patch("app.modules.users.application.commands.get_user_permission_repository")
+    @patch("app.modules.users.application.commands.get_user_company_access_repository")
+    @patch("app.modules.users.application.commands.get_user_repository")
+    def test_template_change_without_role_change_persists_template_id(
+        self, get_user_repo, get_access_repo, get_perm_repo
+    ):
+        """Changer de template sans changer de rôle doit persister role_template_id sur l'accès."""
+        company_id = "660e8400-e29b-41d4-a716-446655440001"
+        new_template_id = "770e8400-e29b-41d4-a716-446655440099"
+        get_access_repo.return_value.get_by_user_and_company_with_template.return_value = {
+            "role": "collaborateur_rh",
+            "role_template_id": "old-template",
+        }
+        data = MagicMock()
+        data.company_id = UUID(company_id)
+        data.first_name = None
+        data.last_name = None
+        data.job_title = None
+        data.base_role = None  # rôle inchangé
+        data.role_template_id = UUID(new_template_id)
+        data.permission_ids = []  # edit de permissions soumis
+
+        current = _current_user(id_="super-1", is_platform_admin=True)
+
+        result = commands.update_user_with_permissions("target-1", data, current)
+
+        assert result.user_id == "target-1"
+        get_access_repo.return_value.update.assert_called_once_with(
+            "target-1", company_id, {"role_template_id": new_template_id}
+        )
