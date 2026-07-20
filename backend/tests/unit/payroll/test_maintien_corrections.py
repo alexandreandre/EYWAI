@@ -108,6 +108,68 @@ class TestCarenceEmployeur:
         assert "AT/MP" in c["motif_carence"]
 
 
+class TestCongeMaternite:
+    """Régime de parentalité : maintien 100 % inconditionnel, sans barème
+    dégressif D1226-1 (propre à la maladie) ni carence. Réf. Code du travail
+    L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92 (maintien 100 %)."""
+
+    def test_qualification_maternite(self):
+        q = _qualifier_arret("maternite")
+        assert q["est_maternite"] is True
+        assert q["carence_ss_jours"] == 0  # IJSS maternité dès le 1er jour
+        assert q["est_at_mp"] is False
+
+    def test_maladie_non_maternite(self):
+        assert _qualifier_arret("maladie_simple")["est_maternite"] is False
+
+    def test_pas_de_carence_employeur_maternite(self):
+        d0 = date(2026, 5, 1)
+        qual = _qualifier_arret("maternite")
+        c = _calculer_carence({"arret_type": "maternite"}, qual, _settings(), d0, [])
+        assert c["carence_employeur_jours"] == 0
+        assert c["carence_ss_jours"] == 0
+
+    def test_maintien_100_pct_plein_mois_sans_palier(self):
+        # Congé maternité tout le mois de mai : maintien = 100 % du salaire,
+        # AUCUNE carence (contrairement aux 7 j employeur de la maladie),
+        # AUCUN barème dégressif → maintien couvre les 31 jours calendaires.
+        p_debut, p_fin = date(2026, 5, 1), date(2026, 5, 31)
+        arret = {
+            "arret_type": "maternite",
+            "date_debut": "2026-05-01",
+            "date_fin": "2026-05-31",
+            "subrogation_active": True,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(salaire_mensuel=1870.83)
+        r = calculer_maintien(arret, ctx, _settings(), p_debut, p_fin)
+        m = r["maintien"]
+        assert m["maintien_applicable"] is True
+        assert m["taux_maintien"] == pytest.approx(1.0)
+        assert m["carence_employeur_jours"] == 0
+        assert m["nb_jours_maintien"] == 31
+        assert m.get("est_maternite") is True
+        # brut_journalier = salaire / 30,42 ; maintien = 31 j × brut_journalier
+        brut_j = 1870.83 / 30.42
+        assert m["maintien_cible"] == pytest.approx(round(brut_j * 31, 2), abs=0.05)
+
+    def test_maternite_ignore_le_bareme_maladie_degressif(self):
+        # Un arrêt maladie long verrait son taux baisser après le 1er palier ;
+        # la maternité reste à 100 % quelle que soit l'ancienneté / la durée.
+        p_debut, p_fin = date(2026, 5, 1), date(2026, 5, 31)
+        base = {
+            "date_debut": "2026-05-01",
+            "date_fin": "2026-05-31",
+            "subrogation_active": True,
+            "nombre_enfants": 0,
+            "salaire_periode_reelle": 0.0,
+        }
+        ctx = _ctx(salaire_mensuel=1870.83, date_entree="2010-01-01")
+        mat = calculer_maintien({**base, "arret_type": "maternite"}, ctx, _settings(), p_debut, p_fin)
+        assert mat["maintien"]["taux_maintien"] == pytest.approx(1.0)
+
+
 class TestMajoration3Enfants:
     def test_taux_avant_j31(self):
         assert _taux_ijss_pour_jour_arret("maladie_simple", 30, 3) == pytest.approx(0.50)

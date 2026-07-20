@@ -115,6 +115,58 @@ def _extraire_employee_id(contexte: ContextePaie) -> Optional[str]:
     return None
 
 
+def _participation_brut_numeraire(lignes_brut: List[Dict[str, Any]]) -> float:
+    """Brut participation / intéressement (numéraire), hors salaire_brut."""
+    total = 0.0
+    for ligne in lignes_brut:
+        libelle = (ligne.get("libelle") or "").lower()
+        if "participation" in libelle and "brut" in libelle:
+            total += float(ligne.get("gain") or 0)
+    return round(total, 2)
+
+
+def _acompte_participation_deja_verse(
+    primes_non_soumises: List[Dict[str, Any]],
+) -> float:
+    """Acompte participation déjà versé (retenue nette du mois, non une réduction de masse)."""
+    total = 0.0
+    for prime in primes_non_soumises:
+        libelle = (prime.get("libelle") or "").lower()
+        montant = float(prime.get("montant") or 0)
+        if montant < 0 and "acompte" in libelle and "participation" in libelle:
+            total += abs(montant)
+    return round(total, 2)
+
+
+def _calculer_cout_total_employeur(
+    salaire_brut: float,
+    total_cotisations_patronales: float,
+    primes_non_soumises: List[Dict[str, Any]],
+    lignes_brut: List[Dict[str, Any]],
+) -> float:
+    """
+    Coût total employeur (alignement Cegid) :
+    brut salaire + charges patronales + participation brute versée
+    − acompte déjà payé + primes non soumises positives (remboursements…).
+
+    Les retenues nettes négatives (acompte participation) ne réduisent pas la masse
+    salariale : elles régularisent un versement antérieur.
+    """
+    participation_brut = _participation_brut_numeraire(lignes_brut)
+    acompte = _acompte_participation_deja_verse(primes_non_soumises)
+    primes_positives = sum(
+        max(0.0, float(p.get("montant") or 0)) for p in primes_non_soumises
+    )
+    return round(
+        float(salaire_brut)
+        + float(total_cotisations_patronales)
+        + participation_brut
+        - acompte
+        + primes_positives,
+        2,
+    )
+
+
 def creer_bulletin_final(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -215,10 +267,6 @@ def creer_bulletin_final(
         for row in bloc_principales + bloc_allegements
     )
 
-    total_primes_non_soumises = sum(
-        p.get("montant", 0.0) or 0.0 for p in primes_non_soumises
-    )
-
     cotisations_officielles, total_exonerations = construire_cotisations_officielles(
         lignes_cotisations
     )
@@ -251,8 +299,21 @@ def creer_bulletin_final(
         and base_pas < resultats_nets.get("net_imposable")
     )
 
+    # Net avant impôt = net à payer + PAS réintégré (pas le montant net social :
+    # celui-ci peut différer du net réellement dû ce mois-ci quand une partie de
+    # la rémunération est différée/non cash, ex. participation placée en PEE, ou
+    # qu'une régularisation de net à payer négatif ne doit pas impacter le net
+    # social — cf. Cegid GAUTHERON/GIRERD mai 2026).
+    net_avant_impot = resultats_nets.get("net_a_payer")
+    if net_avant_impot is not None and resultats_nets.get("montant_impot_pas") is not None:
+        net_avant_impot = round(net_avant_impot + resultats_nets["montant_impot_pas"], 2)
+    elif net_avant_impot is None:
+        net_avant_impot = resultats_nets.get("montant_net_social") or resultats_nets.get(
+            "net_social"
+        )
+
     synthese_net: Dict[str, Any] = {
-        "net_social_avant_impot": resultats_nets.get("net_social"),
+        "net_social_avant_impot": net_avant_impot,
         "montant_net_social": resultats_nets.get("montant_net_social"),
         "net_imposable": resultats_nets.get("net_imposable"),
         "exoneration_ir_apprenti": exoneration_ir_apprenti,
@@ -391,9 +452,11 @@ def creer_bulletin_final(
         "primes_non_soumises": primes_non_soumises,
         "net_a_payer": resultats_nets.get("net_a_payer"),
         "pied_de_page": {
-            "cout_total_employeur": round(
-                salaire_brut + total_cotisations_patronales + total_primes_non_soumises,
-                2,
+            "cout_total_employeur": _calculer_cout_total_employeur(
+                salaire_brut,
+                total_cotisations_patronales,
+                primes_non_soumises,
+                autres_lignes_brut,
             ),
             "total_exonerations": total_exonerations,
             "solde_conges": build_solde_conges_pied_de_page(

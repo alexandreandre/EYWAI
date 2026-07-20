@@ -19,9 +19,16 @@ from .salaire_contractuel import (
 
 
 def _heures_journalieres_contrat(duree_hebdo: float) -> float:
-    """Durée journalière contractuelle (lun–ven), repli 7 h si durée nulle."""
+    """Durée journalière de référence (lun–ven) pour un jour d'absence isolé.
+
+    Basée sur la durée légale (35 h) et non la durée contractuelle : une journée
+    d'arrêt maladie/férié non payé se valorise sur la référence légale pour les
+    salariés à temps plein (au-delà de 35 h, les heures sont structurelles et
+    n'ont pas à être perdues sur une simple journée d'absence) ; en deçà (temps
+    partiel), on garde le prorata contractuel.
+    """
     if duree_hebdo and duree_hebdo > 0:
-        return duree_hebdo / 5.0
+        return min(duree_hebdo, lc.DUREE_LEGALE_HEBDO) / 5.0
     return 7.0
 
 
@@ -71,6 +78,48 @@ def _facteur_prorata_entree_sortie(
     if jours_calendaires_mois <= 0:
         return 1.0
     return jours_presence / jours_calendaires_mois
+
+
+def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> bool:
+    """Jour férié chômé payé, sauf condition d'ancienneté minimale (specificites_paie).
+
+    Certaines CCN/usages subordonnent le maintien de salaire du jour férié chômé à une
+    ancienneté minimale (ex. 3 mois) pour les salariés non mensualisés. Paramétré par
+    l'entreprise via specificites_paie.jours_feries_anciennete_min_mois (absent = toujours payé).
+    """
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    seuil_mois = spec.get("jours_feries_anciennete_min_mois")
+    if not seuil_mois:
+        return True
+
+    date_ferie = _parse_date_contrat(evenement.get("date_complete"))
+    if not date_ferie:
+        return True
+
+    # 1er mai : chômé et payé sans condition d'ancienneté (art. L3133-4/5 C. trav.).
+    if date_ferie.month == 5 and date_ferie.day == 1:
+        return True
+
+    # Journée de solidarité : jour férié travaillé/neutre par convention, sans effet
+    # de paie ; date paramétrée par l'entreprise (parametres_paie.jour_solidarite).
+    jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
+        "jour_solidarite"
+    )
+    if jour_solidarite and _parse_date_contrat(jour_solidarite) == date_ferie:
+        return True
+
+    date_entree = _parse_date_contrat(
+        contexte.contrat.get("contrat", {}).get("date_entree")
+    )
+    if not date_entree:
+        return True
+
+    mois_anciennete = (date_ferie.year - date_entree.year) * 12 + (
+        date_ferie.month - date_entree.month
+    )
+    if date_ferie.day < date_entree.day:
+        mois_anciennete -= 1
+    return mois_anciennete >= float(seuil_mois)
 
 
 def _calculer_prime_precarite_cdd(
@@ -437,9 +486,29 @@ def calculer_salaire_brut(
     jours_maintien: Optional[set[int]] = None,
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
     actual_hours_all_months: Optional[List[Dict[str, Any]]] = None,
+    nb_jours_travail_planifies: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
+
+    ``nb_jours_travail_planifies`` (optionnel) : nombre de jours de type
+    ``"travail"`` OU ``"conges_payes"`` dans le `planned_calendar` BRUT du mois
+    (avant analyse) — les congés payés comptent aussi comme "couvert" (le
+    salarié est normalement rémunéré via l'indemnité de CP, ce n'est PAS une
+    absence intégrale non rémunérée). Sert UNIQUEMENT à détecter une absence
+    couvrant l'intégralité du mois calendaire (aucun jour de travail NI de CP
+    planifié nulle part), afin de compléter la retenue jusqu'au montant
+    mensualisé total (fériés/repos inclus, cf. Cegid MBC mai 2026 SAFI2/BABA).
+    ⚠️ Ne PAS utiliser les accumulateurs d'heures travaillées
+    du présent calcul pour cette détection : `heures_travail_base_total` est
+    TOUJOURS à 0 pour un salarié "heures" (le type d'événement "travail_base"
+    n'est émis que par le chemin forfait-jour, jamais par
+    `analyser_horaires_du_mois`) — l'utiliser comme signal a provoqué une
+    régression sur FUCKAR (Colorplast, mois normal sans pointage soumis) lors
+    d'une première tentative. Le signal fiable est le calendrier BRUT, pas les
+    événements analysés. Si `None` (valeur par défaut, tous les appelants
+    existants sauf `payslip_run_heures.py`), le complément ne se déclenche
+    jamais — comportement strictement inchangé.
     """
     lignes_composants_brut = []
     duree_legale_hebdo = lc.DUREE_LEGALE_HEBDO
@@ -558,6 +627,16 @@ def calculer_salaire_brut(
                 }
             )
 
+    # Montant mensualisé total du salaire de base (+ HS structurelles si contrat
+    # au-dessus de la durée légale) — référence pour la retenue "mois complet
+    # d'absence" ci-dessous (indépendant du branchement temps plein/temps
+    # partiel/HS structurelles).
+    montant_base_mensualise = (
+        gain_base
+        if duree_contrat_hebdo < duree_legale_hebdo
+        else round(salaire_base_35h + remuneration_hs_structurelles, 2)
+    )
+
     # 2. Préparation des taux et des accumulateurs
     taux_hs25 = taux_horaire_de_base * (1 + majoration_hs25)
     taux_hs50 = taux_horaire_de_base * (1 + majoration_hs50)
@@ -595,14 +674,27 @@ def calculer_salaire_brut(
         j
         for j in calendrier_saisie
         if "date_complete" in j
-        and date_debut_periode
-        <= date.fromisoformat(j["date_complete"])
-        <= date_fin_periode
+        and (
+            date_debut_periode
+            <= date.fromisoformat(j["date_complete"])
+            <= date_fin_periode
+            # Régularisation antérieure (cf. payslip_run_common
+            # .regularisation_events_from_calendar) : sa date d'origine est
+            # volontairement antérieure au mois de paie courant, mais son
+            # effet doit bien être appliqué sur CE bulletin.
+            or j.get("is_regularisation_anterieure")
+        )
     ]
 
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
     deduction_arret_maladie_total = 0.0
+    jours_absence_legale_equivalents = 0.0
+    # Cumul des retenues "absence non rémunérée" / "arrêt maladie" / "réduction
+    # HS structurelles" déjà appliquées jour par jour — comparé au montant
+    # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
+    # (aucun jour "travail" dans le calendrier BRUT du mois, cf. docstring).
+    montant_absence_pleine_total = 0.0
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -659,6 +751,18 @@ def calculer_salaire_brut(
         elif type_ev == "absence_non_remuneree":
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            # Une régularisation antérieure (cf. `is_regularisation_anterieure`)
+            # ne doit PAS contribuer à la quote-part des HS structurelles
+            # mensualisées DU MOIS COURANT (cette quote-part concerne le mois
+            # d'origine, déjà clos — Cegid ne réduit pas les HS structurelles
+            # de mai pour une absence d'avril rattachée au bulletin de mai,
+            # cf. KIRMIZI mai 2026 MBC : sans cette exclusion, la retenue est
+            # sur-évaluée d'une réduction HS structurelles fantôme).
+            if not evenement.get("is_regularisation_anterieure"):
+                jours_absence_legale_equivalents += (
+                    heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                )
+                montant_absence_pleine_total += montant_deduction
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -673,10 +777,47 @@ def calculer_salaire_brut(
             )
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
-        elif type_ev == "arret_maladie":
+        elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            if not evenement.get("is_regularisation_anterieure"):
+                jours_absence_legale_equivalents += (
+                    heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                )
+            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
+                "%d/%m/%y"
+            )
+            lignes_composants_brut.append(
+                {
+                    "libelle": f"Abs. jour férié non payé du {date_absence}",
+                    "quantite": heures_abs,
+                    "taux": round(taux_horaire_de_base, 4),
+                    "gain": None,
+                    "perte": montant_deduction,
+                }
+            )
+        elif type_ev == "arret_maladie":
+            # La retenue d'un jour d'arrêt maladie se valorise sur la référence
+            # journalière LÉGALE (7 h temps plein), jamais sur les heures
+            # planifiées du jour (souvent 7,5 h contractuelles issues d'un
+            # template) : le salaire de base est mensualisé sur 151,67 h légales
+            # et la quote-part d'HS structurelle est déjà retirée séparément par
+            # la ligne « Réduction HS structurelles ». Déduire 7,5 h au taux de
+            # base retirerait deux fois la part structurelle (sur-déduction, cf.
+            # OSMANI2 MBC mai 2026 : 7,5 h vs 7 h → −0,5 h/jour de trop). Le
+            # `min` préserve les arrêts fractionnaires (demi-journée < réf.
+            # légale, ex. 3,5 h), imputés à leur valeur réelle.
+            heures_abs = min(
+                _heures_evenement_absence(evenement, duree_contrat_hebdo),
+                _heures_journalieres_contrat(duree_contrat_hebdo),
+            )
+            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             deduction_arret_maladie_total += montant_deduction
+            if not evenement.get("is_regularisation_anterieure"):
+                jours_absence_legale_equivalents += (
+                    heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                )
+                montant_absence_pleine_total += montant_deduction
             lignes_composants_brut.append(
                 {
                     "libelle": "Absence arrêt maladie (jours déduction)",
@@ -688,13 +829,73 @@ def calculer_salaire_brut(
                 }
             )
 
-    # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées prime sur le badgeage.
+    # Réduction proportionnelle des HS structurelles mensualisées (salaire_hors_hs_structurelles)
+    # pour les journées d'absence déduites sur la référence légale : le salarié absent un
+    # jour ne génère pas non plus sa quote-part de l'heure supplémentaire structurelle de
+    # ce jour-là (17,33 h/mois répartis sur les jours ouvrés légaux du mois).
+    if jours_absence_legale_equivalents > 0 and heures_sup_structurelles_mensuelles > 0:
+        jours_legaux_mensuels = heures_mensuelles_legales() / (
+            lc.DUREE_LEGALE_HEBDO / 5
+        )
+        heures_hs_perdues = round(
+            heures_sup_structurelles_mensuelles
+            * jours_absence_legale_equivalents
+            / jours_legaux_mensuels,
+            2,
+        )
+        if heures_hs_perdues > 0:
+            montant_reduction_hs = round(heures_hs_perdues * taux_horaire_majore, 2)
+            montant_absence_pleine_total += montant_reduction_hs
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Réduction HS structurelles (jours d'absence)",
+                    "quantite": heures_hs_perdues,
+                    "taux": round(taux_horaire_majore, 4),
+                    "gain": None,
+                    "perte": montant_reduction_hs,
+                    "is_reduction_hs": True,
+                }
+            )
+
+    # Absence couvrant l'INTÉGRALITÉ du mois calendaire (cf. Cegid MBC mai 2026
+    # SAFI2/BABA — arrêt maladie/prolongation de rechute, AUCUN jour "travail"
+    # planifié nulle part dans le calendrier BRUT du mois, pas seulement "zéro
+    # heure travaillée" au sens des accumulateurs ci-dessus qui sont TOUJOURS à
+    # 0 pour un salarié "heures", cf. docstring). La retenue jour-ouvré-par-
+    # jour-ouvré ne déduit pas les jours fériés/repos compris dans la période
+    # (ils ne sont ni travaillés ni "absents" au sens du calendrier), mais
+    # Cegid déduit alors l'intégralité du salaire mensualisé. Gaté strictement
+    # sur `nb_jours_travail_planifies == 0` (calendrier brut fourni par
+    # l'appelant, cf. payslip_run_heures.py) : ne peut PAS se déclencher pour
+    # un salarié qui a ne serait-ce qu'un seul jour "travail" planifié dans le
+    # mois, quel que soit l'état du pointage.
+    if (
+        nb_jours_travail_planifies == 0
+        and montant_absence_pleine_total > 0
+    ):
+        complement_absence_pleine = round(
+            montant_base_mensualise - montant_absence_pleine_total, 2
+        )
+        if complement_absence_pleine > 0.01:
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Complément retenue absence intégrale du mois "
+                    "(jours fériés/repos inclus)",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": None,
+                    "perte": complement_absence_pleine,
+                }
+            )
+
+    # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées sans badgeage.
     declared_conj = float(contexte.heures_sup_du_mois or 0)
-    if declared_conj > 0:
+    declared_conj_50 = float(contexte.heures_sup_du_mois_50 or 0)
+    if declared_conj > 0 or declared_conj_50 > 0:
         calendar_conj = heures_travail_hs25_total + heures_travail_hs50_total
-        if abs(declared_conj - calendar_conj) > 0.001:
+        if abs((declared_conj + declared_conj_50) - calendar_conj) > 0.001:
             heures_travail_hs25_total = round(declared_conj, 2)
-            heures_travail_hs50_total = 0.0
+            heures_travail_hs50_total = round(declared_conj_50, 2)
 
     # 4. Ajout des lignes de GAIN pour les heures travaillées (après accumulation)
     # if heures_travail_base_total > 0:
@@ -880,10 +1081,13 @@ def calculer_salaire_brut(
     pertes_heures_supp = sum(
         ligne.get("perte", 0.0)
         for ligne in lignes_composants_brut
-        if "absence" in ligne.get("libelle", "").lower()
-        and (
-            "hs25" in ligne.get("libelle", "").lower()
-            or "hs50" in ligne.get("libelle", "").lower()
+        if ligne.get("is_reduction_hs")
+        or (
+            "absence" in ligne.get("libelle", "").lower()
+            and (
+                "hs25" in ligne.get("libelle", "").lower()
+                or "hs50" in ligne.get("libelle", "").lower()
+            )
         )
     )
 
@@ -914,6 +1118,10 @@ def calculer_salaire_brut(
         "lignes_composants_brut": lignes_composants_brut,
         "remuneration_brute_heures_supp": round(remuneration_hs_totale, 2),
         "total_heures_supp": round(total_heures_supp_mois, 2),
+        # HS conjoncturelles seules (au-delà de l'horaire contractuel) : utile
+        # pour le SMIC de référence de la réduction (heures rémunérées = contrat
+        # + conjoncturelles + complémentaires), sans double-compter le structurel.
+        "heures_sup_conjoncturelles": round(heures_sup_conjoncturelles, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total + heures_travail_hc2_total, 2

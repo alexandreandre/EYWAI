@@ -104,3 +104,60 @@ class TestApprentiMutuelleToujoursDue:
         assert mutuelle and mutuelle[0]["montant_salarial"] == pytest.approx(
             25.0, abs=0.01
         )
+
+
+class TestApprentiReductionHeuresSupp:
+    """Réduction salariale HS d'un apprenti : proratisée sur la part non exonérée.
+
+    BOSS/Urssaf : la fraction de rémunération sous le plafond étant déjà exonérée
+    de toutes les cotisations salariales, la réduction HS ne porte que sur la part
+    excédant le plafond, à proportion des HS dans le brut total.
+    """
+
+    def _ligne_reduction(self, ctx, brut, rem_hs):
+        lignes, _ = calculer_cotisations(ctx, brut, rem_hs, 1.0)
+        return next(
+            (l for l in lignes if l["libelle"] == "Réduction de cotisations sur heures sup."),
+            None,
+        )
+
+    def test_base_proratisee_sur_part_non_exoneree(self):
+        b = baremes_snapshot_csg_unifie()
+        ctx = build_test_contexte(
+            salaire_base=1200.0,
+            type_contrat="Apprentissage",
+            date_debut_execution="2025-09-01",
+            baremes=b,
+        )
+        brut, rem_hs = 1200.0, 100.0
+        plafond = round(ctx.smic_mensuel * 0.50, 2)
+        residuel = round(brut - plafond, 2)
+        base_attendue = round(rem_hs * residuel / brut, 2)
+
+        ligne = self._ligne_reduction(ctx, brut, rem_hs)
+        assert ligne is not None
+        assert ligne["base"] == pytest.approx(base_attendue, abs=0.01)
+        # La base proratisée est strictement inférieure à la rémunération des HS.
+        assert ligne["base"] < rem_hs
+
+    def test_aucune_reduction_si_brut_totalement_exonere(self):
+        """Brut < plafond : aucune cotisation due, donc aucune réduction HS."""
+        b = baremes_snapshot_csg_unifie()
+        ctx = build_test_contexte(
+            salaire_base=600.0,
+            type_contrat="Apprentissage",
+            date_debut_execution="2024-09-01",
+            baremes=b,
+        )
+        ligne = self._ligne_reduction(ctx, 600.0, 100.0)
+        assert ligne is None or ligne["montant_salarial"] == pytest.approx(0.0, abs=0.01)
+
+    def test_non_apprenti_conserve_la_base_pleine(self):
+        """Non-régression : hors apprenti, la base reste la rémunération des HS."""
+        b = baremes_snapshot_csg_unifie()
+        ctx = build_test_contexte(
+            salaire_base=2000.0, type_contrat="CDI", baremes=b
+        )
+        ligne = self._ligne_reduction(ctx, 2000.0, 100.0)
+        assert ligne is not None
+        assert ligne["base"] == pytest.approx(100.0, abs=0.01)

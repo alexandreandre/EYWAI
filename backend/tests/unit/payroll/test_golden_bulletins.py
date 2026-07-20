@@ -44,9 +44,19 @@ class TestGoldenBulletins:
     def test_non_cadre_temps_partiel(self):
         """Verrou anti-régression temps partiel.
 
-        La RGDU calcule le SMIC de référence par heures rémunérées cumulées :
-        un temps partiel est donc jugé contre un SMIC proratisé (et non plein),
-        ce qui préserve une réduction correcte. La part salariale reste inchangée.
+        SMIC de référence de la RGDU = SMIC horaire × heures rémunérées du mois
+        (règle URSSAF/BOSS, proportionnelle aux heures payées, sans passer par un
+        ratio heures/contrat). Pour un temps partiel dont les heures rémunérées du
+        mois égalent exactement les heures contractuelles (28h/sem ici, cas de ce
+        test), l'ancienne formule (SMIC mensuel plein × ratio heures/contrat) se
+        simplifiait à un ratio de 1 et retombait à tort sur le SMIC mensuel PLEIN
+        (1867,02 €, valeur 35h) au lieu du SMIC proratisé au temps partiel réel
+        (12,31 × 121,33h = 1493,57 €) — sur-évaluant la réduction patronale pour
+        tout temps partiel. Corrigé dans `calcul_reduction_generale.py`
+        (`_calculer_smic_de_reference_cumule`, multiplication directe SMIC
+        horaire × heures, sans dénominateur contractuel). Valeurs ci-dessous
+        recalculées avec la formule corrigée. La part salariale reste inchangée
+        (seul le SMIC de référence patronal était affecté).
         """
         ctx = build_test_contexte(
             salaire_base=1500.0, statut="Non-Cadre", duree_hebdo=28.0
@@ -54,10 +64,10 @@ class TestGoldenBulletins:
         r = run_bulletin_pipeline_heures(ctx)
         assert r["brut"] == pytest.approx(1500.0, abs=0.02)
         assert r["total_cotisations_salariales"] == pytest.approx(251.09, abs=0.02)
-        assert r["total_cotisations_patronales"] == pytest.approx(-223.05, abs=0.05)
+        assert r["total_cotisations_patronales"] == pytest.approx(-216.75, abs=0.05)
         assert r["net_imposable"] == pytest.approx(1284.28, abs=0.02)
         assert r["net_a_payer"] == pytest.approx(1248.91, abs=0.02)
-        assert r["cout_employeur"] == pytest.approx(1276.95, abs=0.05)
+        assert r["cout_employeur"] == pytest.approx(1283.25, abs=0.05)
 
     def test_forfait_jours(self):
         ctx = build_test_contexte(

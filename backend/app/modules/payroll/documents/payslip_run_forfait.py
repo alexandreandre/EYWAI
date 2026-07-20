@@ -146,8 +146,17 @@ def run_payslip_generation_forfait(
         )
 
     employee_id = contexte.contrat.get("employee_id")
-    company_id = (contexte.entreprise or {}).get("id") or contexte.contrat.get(
-        "company_id"
+    # Le `company_id` de l'appelant fait foi (comme sur le chemin horaire, qui
+    # n'utilise que le paramètre) ; le contexte n'est qu'un repli. L'écrasement
+    # inconditionnel par le contexte annulait un company_id pourtant fourni dès
+    # que `entreprise.id`/`contrat.company_id` étaient absents, ce qui désactivait
+    # SILENCIEUSEMENT (garde `if company_id:`, sans exception ni log) le moteur de
+    # maintien pour tout salarié forfait-jour en arrêt : absence déduite, maintien
+    # employeur jamais réinjecté.
+    company_id = (
+        company_id
+        or (contexte.entreprise or {}).get("id")
+        or contexte.contrat.get("company_id")
     )
     if employee_id and company_id:
         try:
@@ -295,6 +304,36 @@ def run_payslip_generation_forfait(
                 else:
                     primes_non_soumises.append(prime_calculee)
 
+    # --- Participation / intéressement (part numéraire) : régime CSG 9,7 % seule ---
+    # Exonéré de cotisations sociales, soumis à CSG/CRDS (6,8 % déductible + 2,9 %
+    # non déductible) ; part numéraire imposable à l'IR. Traité hors des buckets de
+    # primes (pas de cotisations classiques) et injecté dans le calcul des nets —
+    # miroir de la logique payslip_run_heures.py (absente ici jusqu'alors, ce qui
+    # cassait montant_net_social et/ou net_imposable pour les forfait-jour ayant
+    # une participation, cf. GAUDEY/DEPONGE/BORDELIER/BLONDEAU/GILLET/DROZ/LABBE).
+    from app.modules.participation.domain.bulletin_rules import (
+        compute_participation_csg,
+    )
+
+    participations_calc: List[Dict[str, Any]] = []
+    for part in saisie_du_mois.get("participations", []) or []:
+        brut_part = float(part.get("brut") or part.get("montant") or 0.0)
+        if brut_part <= 0:
+            continue
+        part_pee = float(part.get("part_pee") or 0.0)
+        non_ded, ded, total = compute_participation_csg(brut_part)
+        participations_calc.append(
+            {
+                "libelle": part.get("libelle") or "Participation",
+                "brut": round(brut_part, 2),
+                "part_pee": round(part_pee, 2),
+                "csg_deductible": float(ded),
+                "csg_non_deductible": float(non_ded),
+                "csg_total": float(total),
+                "acompte": float(part.get("acompte") or 0.0),
+            }
+        )
+
     arret_prefetch = _extraire_arret_pour_maintien(
         calendrier_etendu, contexte, date_debut_periode, date_fin_periode
     )
@@ -327,6 +366,8 @@ def run_payslip_generation_forfait(
             override = saisie_du_mois.get("ijss_brut_override")
             if override is not None:
                 arret_data["ijss_brut_override"] = override
+            if saisie_du_mois.get("maintien_base_ouvree"):
+                arret_data["maintien_base_ouvree"] = True
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,
@@ -414,7 +455,10 @@ def run_payslip_generation_forfait(
         remuneration_hs,
         montant_acompte,
         primes_soumises_impot,
+        participations_calc,
     )
+    if participations_calc:
+        resultats_nets["participations"] = participations_calc
 
     taux_vm = (
         contexte.entreprise.get("parametres_paie", {})

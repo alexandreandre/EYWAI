@@ -238,7 +238,16 @@ def company_to_payroll_payload(company: Dict[str, Any]) -> Dict[str, Any]:
                 company.get("employee_count") or company.get("effectif") or 0
             ),
             "idcc": company.get("idcc") or "",
-            "taux_specifiques": company.get("taux_specifiques") or {},
+            # Les taux spécifiques vivent en colonnes à plat sur `companies`
+            # (taux_at_mp, taux_vm, taux_fnal) : il n'existe pas de colonne
+            # `taux_specifiques`. On reconstruit le dict attendu par le moteur
+            # (cf. calcul_cotisations : parametres_paie.taux_specifiques.taux_at_mp).
+            "taux_specifiques": (company.get("taux_specifiques") or {})
+            or {
+                "taux_at_mp": company.get("taux_at_mp"),
+                "taux_vm": company.get("taux_vm"),
+                "taux_fnal": company.get("taux_fnal"),
+            },
         },
     }
 

@@ -36,7 +36,17 @@ from app.core.paths import (
 
 
 from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
-from app.modules.payroll.documents.payslip_generator import resolve_date_sortie
+from app.modules.payroll.documents.payslip_generator import (
+    resolve_date_sortie,
+    _is_heures_sup_conjoncturelle_input,
+    _heures_sup_conjoncturelles_from_monthly_inputs,
+    _is_net_a_payer_only_correction_input,
+    _is_cantine_input,
+    _is_frais_pro_non_soumis_input,
+    _is_participation_pee_input,
+    _is_participation_numeraire_input,
+    _is_ijss_override_input,
+)
 
 
 def process_payslip_generation_forfait(
@@ -181,14 +191,65 @@ def process_payslip_generation_forfait(
         if ijss_brut_override is not None:
             saisies_data["ijss_brut_override"] = float(ijss_brut_override)
 
+        net_a_payer_only_correction_total = 0.0
         for row in saisies_res.data:
+            if _is_heures_sup_conjoncturelle_input(row):
+                continue
+            if _is_cantine_input(row):
+                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
+                saisies_data["primes"].append({
+                    "prime_id": row["name"].replace(" ", "_"),
+                    "libelle": row["name"],
+                    "montant": float(row["amount"]),
+                    "soumise_a_cotisations": False,
+                    "soumise_a_impot": False,
+                })
+                continue
+            if _is_net_a_payer_only_correction_input(row):
+                net_a_payer_only_correction_total += -float(row["amount"])
+                continue
+            if _is_frais_pro_non_soumis_input(row):
+                net_a_payer_only_correction_total -= float(row["amount"])
+                continue
+            if _is_ijss_override_input(row):
+                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
+                saisies_data["maintien_base_ouvree"] = True
+                continue
+            if _is_participation_pee_input(row):
+                saisies_data.setdefault("participations", []).append(
+                    {
+                        "libelle": row["name"],
+                        "brut": float(row["amount"]),
+                        "part_pee": float(row["amount"]),
+                    }
+                )
+                continue
+            if _is_participation_numeraire_input(row):
+                saisies_data.setdefault("participations", []).append(
+                    {
+                        "libelle": row["name"],
+                        "brut": float(row["amount"]),
+                    }
+                )
+                continue
             prime_entry = {
                 "prime_id": row["name"].replace(" ", "_"),
+                "libelle": row["name"],
                 "montant": row["amount"],
                 "soumise_a_cotisations": row.get("is_socially_taxed", True),
                 "soumise_a_impot": row.get("is_taxable", True),
             }
+            if row.get("payroll_quantity") is not None:
+                prime_entry["quantity"] = float(row["payroll_quantity"])
             saisies_data["primes"].append(prime_entry)
+
+        hs_conj_25, hs_conj_50 = _heures_sup_conjoncturelles_from_monthly_inputs(
+            saisies_res.data or []
+        )
+        if hs_conj_25 is not None:
+            saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj_25
+        if hs_conj_50 is not None:
+            saisies_data["heures_supplementaires_conjoncturelles_50"] = hs_conj_50
 
         if expense_reports_res.data:
             for expense in expense_reports_res.data:
@@ -239,6 +300,9 @@ def process_payslip_generation_forfait(
             logging.warning(
                 "Erreur lors du calcul des avances à rembourser (forfait): %s", e
             )
+
+        if net_a_payer_only_correction_total:
+            saisies_data["acompte"] = net_a_payer_only_correction_total
 
         # --- ÉTAPE 3 : PRÉPARATION DES FICHIERS TEMPORAIRES ---
         employee_path = payroll_engine_employee_folder(employee_folder_name)
@@ -406,22 +470,23 @@ def process_payslip_generation_forfait(
                 employee_path / "horaires" / f"{m:02d}.json", actual_hours_data
             )
 
-        if cumuls_res and cumuls_res.data and cumuls_res.data.get("cumuls"):
-            previous_cumuls_data = cumuls_res.data.get("cumuls", {})
-            if not isinstance(previous_cumuls_data, dict):
-                previous_cumuls_data = {}
-        else:
-            previous_cumuls_data = {}
-
-        cumuls_structure = {
-            "cumuls": previous_cumuls_data
-            if isinstance(previous_cumuls_data, dict)
-            else {},
-            "periode": {},
-        }
+        # ⚠ `cumuls_res.data.get("cumuls")` est déjà la valeur CANONIQUE de la
+        # colonne (`{"cumuls": {...}, "periode": {...}}`, cf. le chemin
+        # "heures" équivalent dans `payslip_generator.py` qui l'écrit tel
+        # quel) — l'envelopper une seconde fois ici cassait tout mécanisme
+        # lisant `contexte.cumuls.cumuls.X` (ex. `brut_reference_n_1` pour
+        # l'arbitrage CP 1/10e, cf. NOBLE Lewis mai 2026 : le 1/10e était
+        # toujours à 0 malgré la donnée correctement injectée en base, faute
+        # de ce double-enveloppage). Fix : ne plus ré-envelopper, comme le
+        # chemin heures.
+        previous_cumuls_data = (
+            (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
+        )
+        if not isinstance(previous_cumuls_data, dict):
+            previous_cumuls_data = {"cumuls": {}, "periode": {}}
 
         write_temp_json(
-            employee_path / "cumuls" / f"{prev_month:02d}.json", cumuls_structure
+            employee_path / "cumuls" / f"{prev_month:02d}.json", previous_cumuls_data
         )
 
         write_temp_json(employee_path / "saisies" / f"{month:02d}.json", saisies_data)

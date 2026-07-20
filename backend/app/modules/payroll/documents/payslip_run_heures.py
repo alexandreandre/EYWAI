@@ -18,6 +18,7 @@ from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
+from app.modules.payroll.engine import legal_constants as lc
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,
@@ -83,7 +84,19 @@ def _appliquer_maintien_arret_maladie(
 
     lignes_csg_ijss: List[Dict[str, Any]] = []
     ijss_imposables: List[Dict[str, Any]] = []
-    if subrogation and ijss_theorique > 0:
+    # Mode « jours ouvrés » (Cegid MBC) : le maintien versé (complément = cible −
+    # IJSS) figure déjà au brut ; l'IJSS est versée au salarié directement par la
+    # CPAM (hors bulletin) et NE doit PAS être réintégrée au net imposable / net à
+    # payer, sous peine de double compte.
+    ijss_hors_bulletin = bool(resultats_maintien.get("maintien_base_ouvree"))
+    # Congé de parentalité : le maintien employeur = 100 % du salaire plein, il
+    # absorbe déjà les IJSS maternité (récupérées par l'employeur via subrogation
+    # mais non ré-affichées). Les réintégrer au net imposable / net à payer
+    # créerait un double compte. Le brut reconstruit (= salaire plein) suffit.
+    est_maternite = bool(
+        (resultats_maintien.get("qualification", {}) or {}).get("est_maternite")
+    )
+    if subrogation and ijss_theorique > 0 and not ijss_hors_bulletin and not est_maternite:
         cfg_maladie = (contexte.baremes.get("maladie", {}) or {})
         lignes_csg_ijss, _, _ = compute_ijss_csg_lines(ijss_theorique, cfg_maladie)
         base = round(ijss_theorique, 2)
@@ -298,6 +311,11 @@ def run_payslip_generation_heures(
     primes_soumises = []
     primes_non_soumises = []
     primes_soumises_impot = []
+    # Indemnités d'activité partielle (chômage partiel) : revenus de remplacement
+    # exonérés de cotisations sociales, soumis CSG/CRDS au taux réduit des revenus
+    # de remplacement (même 3,8 %/2,9 % que les IJSS), imposables. Traitées via le
+    # même canal que les IJSS subrogées (cf. plus bas).
+    indemnites_remplacement: List[Dict[str, Any]] = []
     catalogue_primes = {p["id"]: p for p in contexte.baremes["primes"]}
     effectif_entreprise = contexte.effectif
 
@@ -313,6 +331,16 @@ def run_payslip_generation_heures(
                 or saisie.get("name")
                 or prime_id.replace("_", " ")
             )
+
+            _lib_low = f"{prime_id} {libelle}".lower()
+            if "indemn" in _lib_low and ("activit" in _lib_low and "partiel" in _lib_low):
+                # Indemnité d'activité partielle : revenu de remplacement (pas une
+                # prime soumise). Routée hors du circuit primes, CSG appliquée plus bas.
+                if montant > 0:
+                    indemnites_remplacement.append(
+                        {"prime_id": "indemnite_activite_partielle", "libelle": libelle, "montant": round(montant, 2)}
+                    )
+                continue
 
             is_panier = (
                 "panier" in str(prime_id).lower()
@@ -448,10 +476,44 @@ def run_payslip_generation_heures(
     )
 
     hs_conj_decl = saisie_du_mois.get("heures_supplementaires_conjoncturelles")
-    if hs_conj_decl is not None and float(hs_conj_decl or 0) > 0:
-        contexte.contrat.setdefault("saisie_du_mois", {})[
-            "heures_supplementaires_conjoncturelles"
-        ] = float(hs_conj_decl)
+    hs_conj_decl_50 = saisie_du_mois.get("heures_supplementaires_conjoncturelles_50")
+    if (hs_conj_decl is not None and float(hs_conj_decl or 0) > 0) or (
+        hs_conj_decl_50 is not None and float(hs_conj_decl_50 or 0) > 0
+    ):
+        saisie_mois_contexte = contexte.contrat.setdefault("saisie_du_mois", {})
+        saisie_mois_contexte["heures_supplementaires_conjoncturelles"] = float(
+            hs_conj_decl or 0
+        )
+        saisie_mois_contexte["heures_supplementaires_conjoncturelles_50"] = float(
+            hs_conj_decl_50 or 0
+        )
+
+    # Nombre de jours "travail" OU "conges_payes" dans le calendrier BRUT du
+    # mois (avant analyse) : sert uniquement à détecter une absence couvrant
+    # l'intégralité du mois calendaire (cf. docstring `calculer_salaire_brut`)
+    # — ne PAS remplacer par les accumulateurs d'heures travaillées du calcul
+    # lui-même, qui sont toujours à 0 pour un salarié "heures" (régression
+    # FUCKAR déjà rencontrée). Les congés payés DOIVENT aussi compter comme
+    # "couvert" (≠ absence intégrale) : un salarié entièrement en CP ce mois
+    # a également 0 jour "travail" au planning mais est rémunéré normalement
+    # via l'indemnité de CP — sans cette exclusion, le complément "absence
+    # intégrale" se déclenchait à tort et écrasait son brut (régression
+    # CHEVALLIER, Mont Blanc Composite, détectée à la vérification anti-
+    # régression après le fix FUCKAR).
+    nb_jours_travail_planifies = None
+    chemin_calendrier_prevu_mois = employee_path / "calendriers" / f"{month:02d}.json"
+    if chemin_calendrier_prevu_mois.exists():
+        try:
+            calendrier_prevu_mois = json.loads(
+                chemin_calendrier_prevu_mois.read_text(encoding="utf-8")
+            ).get("calendrier_prevu", [])
+            nb_jours_travail_planifies = sum(
+                1
+                for j in calendrier_prevu_mois
+                if j.get("type") in ("travail", "conges_payes")
+            )
+        except (json.JSONDecodeError, OSError):
+            nb_jours_travail_planifies = None
 
     resultat_brut = calculer_salaire_brut(
         contexte,
@@ -461,6 +523,7 @@ def run_payslip_generation_heures(
         primes_saisies=primes_soumises,
         jours_maintien=jours_maintien,
         actual_hours_raw=calendrier_du_mois,
+        nb_jours_travail_planifies=nb_jours_travail_planifies,
     )
     salaire_brut_calcule = resultat_brut["salaire_brut_total"]
     details_brut = resultat_brut["lignes_composants_brut"]
@@ -540,6 +603,8 @@ def run_payslip_generation_heures(
             override = saisie_du_mois.get("ijss_brut_override")
             if override is not None:
                 arret_data["ijss_brut_override"] = override
+            if saisie_du_mois.get("maintien_base_ouvree"):
+                arret_data["maintien_base_ouvree"] = True
             try:
                 from app.modules.maintenance_settings.application.queries import (
                     get_maintenance_settings,
@@ -570,6 +635,13 @@ def run_payslip_generation_heures(
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(
         contexte, resultats_maintien, details_brut
     )
+    # Indemnités d'activité partielle : revenu de remplacement exonéré de
+    # cotisations, imposable. Ajoutées comme les IJSS via `ijss_imposables` (→
+    # net imposable + net à payer + MNS) ; la CSG/CRDS des revenus de remplacement
+    # est déjà appliquée en aval sur ces montants, il ne faut PAS l'ajouter ici
+    # (double compte, vérifié CLEMENT/MANDANGUY Lewis juin 2026).
+    if indemnites_remplacement:
+        ijss_imposables = list(ijss_imposables) + list(indemnites_remplacement)
     if brut_modifie:
         salaire_brut_calcule = round(
             sum(
@@ -651,6 +723,18 @@ def run_payslip_generation_heures(
     heures_contractuelles_mois = (duree_contrat_hebdo * 52) / 12
     total_heures_mois = heures_contractuelles_mois + heures_sup_conjoncturelles_mois
 
+    # Heures rémunérées pour le SMIC de référence de la réduction générale :
+    # base LÉGALE (min contrat/légal) + TOUTES les heures supp (`total_heures_supp`,
+    # fiable quel que soit le canal — calendrier ou saisies manuelles) + heures
+    # complémentaires. Ne pas réutiliser `heures_sup_conjoncturelles_mois` (issue
+    # du seul calendrier : nulle quand les HS sont saisies manuellement).
+    heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
+    heures_remunerees_reduction = (
+        min(heures_contractuelles_mois, heures_legales_mois)
+        + float(total_heures_supp or 0.0)
+        + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
+    )
+
     ligne_exoneration_jei = calculer_exoneration_jei(
         contexte,
         lignes_cotisations,
@@ -669,7 +753,7 @@ def run_payslip_generation_heures(
     ligne_reduction_generale = None
     if not jei_applicable(contexte, year, month):
         ligne_reduction_generale = calculer_reduction_generale(
-            contexte, salaire_brut_calcule, total_heures_mois
+            contexte, salaire_brut_calcule, heures_remunerees_reduction
         )
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)

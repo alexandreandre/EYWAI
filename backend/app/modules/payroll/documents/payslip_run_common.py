@@ -45,18 +45,32 @@ def _get_end_date_for_month(
         )
 
 
+def _periode_calendaire(annee: int, mois: int) -> tuple[date, date]:
+    """Période de paie = mois calendaire plein (du 1er au dernier jour du mois)."""
+    _, num_days = calendar.monthrange(annee, mois)
+    return date(annee, mois, 1), date(annee, mois, num_days)
+
+
 def definir_periode_de_paie(
     contexte: ContextePaie, annee: int, mois: int
 ) -> tuple[date, date]:
     """
     Détermine la période de paie en lisant les règles depuis la configuration de l'entreprise.
     La période de travail s'arrête le dimanche de la semaine du jour de référence.
+
+    Repli sur un mois calendaire plein (1er au dernier jour du mois) si `jour_de_fin`
+    n'est pas un jour de semaine valide (0-6) — configuration entreprise à mois
+    calendaire classique (ex. Mont Blanc Composite), plutôt que le cycle glissant par
+    semaine (ex. Colorplast) qui exige un jour de référence.
     """
     regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
         "periode_de_paie", {}
     )
     jour_reference = regles_paie.get("jour_de_fin", 4)
     occurrence_reference = regles_paie.get("occurrence", -2)
+
+    if jour_reference is None or not (0 <= jour_reference <= 6):
+        return _periode_calendaire(annee, mois)
 
     date_de_reference = _get_end_date_for_month(
         annee, mois, jour_reference, occurrence_reference
@@ -145,6 +159,57 @@ def mettre_a_jour_cumuls(
         remuneration_hs_mois, 2
     )
 
+    # Plafond ANNUEL d'exonération IR des HS/HC (art. 81 quater CGI, 7 500 €
+    # net/an, cf. legal_constants.PLAFOND_EXONERATION_IR_HS_ANNUEL_NET).
+    # Compteur DÉDIÉ, reset explicite au 1ᵉʳ janvier UNIQUEMENT pour cette clé
+    # — ne touche à AUCUN autre cumul (`brut_total`, `net_imposable`, etc. ont
+    # des règles de fenêtre différentes et volontaires, ne pas y toucher ici).
+    base_hs_exonerees_ir = 0.0 if mois == 1 else cumuls.get("hs_exonerees_ir_cumul", 0.0)
+    cumuls["hs_exonerees_ir_cumul"] = round(
+        base_hs_exonerees_ir
+        + round(resultats_nets_mois.get("hs_exonerees_ir_mois", 0.0), 2),
+        2,
+    )
+
+    # Cumuls ANNÉE CIVILE dédiés à la régularisation progressive Agirc-Arrco
+    # de la tranche 2 (cf. calcul_cotisations._cumul_agirc_arrco_debut_mois).
+    # Reset explicite au 1ᵉʳ janvier UNIQUEMENT pour ces 3 clés — ne touche à
+    # aucun autre cumul existant. Calculés et exposés en side-channel sur
+    # `contexte` par calcul_cotisations.py (déjà incluent ce mois, prêts à
+    # être stockés tels quels comme nouvelle base pour le mois suivant).
+    agirc_arrco_cumuls = getattr(contexte, "agirc_arrco_cumuls_mois_courant", None)
+    if isinstance(agirc_arrco_cumuls, dict):
+        if mois == 1:
+            cumuls["cumul_brut_agirc_arrco"] = round(
+                agirc_arrco_cumuls.get("cumul_brut_agirc_arrco", 0.0), 2
+            )
+            cumuls["cumul_pss_agirc_arrco"] = round(
+                agirc_arrco_cumuls.get("cumul_pss_agirc_arrco", 0.0), 2
+            )
+            cumuls["cumul_tranche_2_appliquee"] = round(
+                agirc_arrco_cumuls.get("cumul_tranche_2_appliquee", 0.0), 2
+            )
+        else:
+            cumuls["cumul_brut_agirc_arrco"] = round(
+                agirc_arrco_cumuls.get(
+                    "cumul_brut_agirc_arrco", cumuls.get("cumul_brut_agirc_arrco", 0.0)
+                ),
+                2,
+            )
+            cumuls["cumul_pss_agirc_arrco"] = round(
+                agirc_arrco_cumuls.get(
+                    "cumul_pss_agirc_arrco", cumuls.get("cumul_pss_agirc_arrco", 0.0)
+                ),
+                2,
+            )
+            cumuls["cumul_tranche_2_appliquee"] = round(
+                agirc_arrco_cumuls.get(
+                    "cumul_tranche_2_appliquee",
+                    cumuls.get("cumul_tranche_2_appliquee", 0.0),
+                ),
+                2,
+            )
+
     if reduction_generale_mois:
         nouveau_total = reduction_generale_mois.get(
             "valeur_cumulative_a_enregistrer", 0.0
@@ -203,7 +268,16 @@ def creer_calendrier_etendu(
                 ev_annee = int(jour_data.get("annee") or annee)
                 ev_mois = int(jour_data.get("mois") or mois)
                 date_complete = date(ev_annee, ev_mois, int(jour))
-                if not (date_debut_periode <= date_complete <= date_fin_periode):
+                # Un événement de régularisation antérieure (cf.
+                # `regularisation_events_from_calendar`) porte volontairement une
+                # date d'origine ANTÉRIEURE au mois de paie en cours (l'événement
+                # réel s'est produit un mois précédent mais son effet financier
+                # est rattaché au bulletin du mois courant, cf. DSN
+                # S21.G00.65 / pratique Cegid "rattachement"). Il ne doit PAS être
+                # exclu par le filtre de période normal.
+                if not (
+                    date_debut_periode <= date_complete <= date_fin_periode
+                ) and not jour_data.get("is_regularisation_anterieure"):
                     continue
                 entry = dict(jour_data)
                 entry["date_complete"] = date_complete.isoformat()
@@ -212,6 +286,93 @@ def creer_calendrier_etendu(
             logger.warning(f'AVERTISSEMENT: Fichier événements {mois:02d}.json non trouvé.')
 
     return sorted(calendrier_final, key=lambda j: j["date_complete"])
+
+
+# Types d'événement acceptés pour une régularisation antérieure — mêmes types
+# que ceux déjà interprétés par `calcul_brut.calculer_salaire_brut` pour un
+# événement du mois courant (cf. boucle `for evenement in jours_dans_periode`).
+# Volontairement restreint aux absences/arrêts (le cas d'usage identifié —
+# OZEN/KIRMIZI mai 2026 MBC — est une absence dont la retenue n'a été
+# rattachée qu'au bulletin du mois suivant) ; un futur besoin d'un autre type
+# (ex. heures sup. oubliées) devra être évalué au cas par cas avant extension.
+REGULARISATION_TYPES_ACCEPTES = frozenset(
+    {
+        "absence_non_remuneree",
+        "absence_injustifiee_base",
+        "absence_injustifiee_hs25",
+        "arret_maladie",
+        "ferie",
+    }
+)
+
+
+def regularisation_events_from_calendar(
+    planned_calendar: dict | None,
+) -> list[dict]:
+    """Convertit `planned_calendar.regularisations_anterieures` (saisie mensuelle,
+    cf. `specificites_paie` — NON, volontairement PAS dans specificites_paie qui
+    est une config permanente : ceci est ponctuel, scopé au mois de paie où la
+    régularisation est rattachée) en événements de paie compatibles avec
+    `calcul_brut.py` / `creer_calendrier_etendu`.
+
+    Chaque entrée attendue :
+        {"date_complete": "2026-04-27", "type": "absence_non_remuneree",
+         "heures": 7.0}
+    `date_complete` est la date RÉELLE (antérieure) de l'événement — elle est
+    conservée telle quelle (affichée sur le bulletin, comme le fait Cegid :
+    ex. "Absence maladie 040526-310526" ou "Rappel ... de 04/26 à 04/26") ;
+    seul le drapeau `is_regularisation_anterieure` permet aux filtres de
+    période de la laisser passer malgré une date hors du mois de paie.
+    """
+    if not isinstance(planned_calendar, dict):
+        return []
+    raw_entries = planned_calendar.get("regularisations_anterieures") or []
+    if not isinstance(raw_entries, list):
+        return []
+
+    events: list[dict] = []
+    for raw in raw_entries:
+        if not isinstance(raw, dict):
+            continue
+        type_ev = raw.get("type")
+        date_str = raw.get("date_complete")
+        heures = raw.get("heures")
+        if type_ev not in REGULARISATION_TYPES_ACCEPTES:
+            logger.warning(
+                "regularisation_events_from_calendar: type inconnu/non "
+                f"supporté ignoré: {type_ev!r}"
+            )
+            continue
+        if not date_str:
+            logger.warning(
+                "regularisation_events_from_calendar: entrée sans "
+                f"date_complete ignorée: {raw!r}"
+            )
+            continue
+        try:
+            d = date.fromisoformat(str(date_str)[:10])
+        except ValueError:
+            logger.warning(
+                "regularisation_events_from_calendar: date_complete invalide "
+                f"ignorée: {date_str!r}"
+            )
+            continue
+        try:
+            heures_f = float(heures) if heures is not None else 0.0
+        except (TypeError, ValueError):
+            heures_f = 0.0
+        events.append(
+            {
+                "jour": d.day,
+                "mois": d.month,
+                "annee": d.year,
+                "type": type_ev,
+                "heures": heures_f,
+                "date_complete": d.isoformat(),
+                "is_regularisation_anterieure": True,
+            }
+        )
+    return events
 
 
 def resolve_exit_state_for_payslip(

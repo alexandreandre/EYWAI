@@ -15,6 +15,7 @@ Le forfait jour fonctionne différemment du mode horaire :
 from .contexte import ContextePaie
 from datetime import date
 from typing import Dict, Any, List, Optional
+from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
@@ -80,6 +81,14 @@ def _calculer_prime_anciennete(
     jours_maintien: Optional[set[int]] = None,
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any] | None:
+    # La prime d'ancienneté de la CCN plasturgie (IDCC 292) est réservée aux
+    # non-cadres (ouvriers/employés/techniciens). Les salariés en forfait jour
+    # cadres n'y ont pas droit — les bulletins Cegid ne la portent pas
+    # (cf. LABBE/DROZ/GILLET/BORDELIER/BLONDEAU mai 2026 : base = brut exact,
+    # sans ligne prime d'ancienneté).
+    if is_cadre(contexte.statut_salarie):
+        return None
+
     from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 
     ligne = calculer_ligne_prime_anciennete(
@@ -94,6 +103,23 @@ def _calculer_prime_anciennete(
         return None
     ligne.pop("meta", None)
     return ligne
+
+
+def _jours_evenement_absence(evenement: Dict[str, Any]) -> float:
+    """Jours imputés sur un jour d'absence en forfait jour.
+
+    En forfait jour l'unité portante est le JOUR (`heures = 1` signifie 1 jour) :
+    un jour d'arrêt est posé `heures_prevues=0` — côté horaire c'est le signal
+    d'imputer la journée entière (`calcul_brut._heures_evenement_absence` replie
+    sur la référence journalière légale), ici il vaut donc 1 jour. Le plafond à 1
+    garantit qu'un jour calendaire ne peut jamais coûter plus d'une journée de
+    forfait, même si la quantité du jour a été saisie en heures (7,0/7,5) par un
+    template horaire.
+    """
+    heures = evenement.get("heures")
+    if heures is None or heures == 0:
+        return 1.0
+    return min(float(heures), 1.0)
 
 
 def _calculer_deduction_absence_forfait_jour(
@@ -218,6 +244,28 @@ def calculer_salaire_brut_forfait(
                 {
                     "libelle": f"Absence non rémunérée du {date_absence} ({heures:.0f} jour{'s' if heures > 1 else ''})",
                     "quantite": heures,
+                    "taux": round(salaire_journalier, 4),
+                    "gain": None,
+                    "perte": montant_deduction,
+                }
+            )
+        elif type_ev == "arret_maladie":
+            # Symétrique de la branche `arret_maladie` du mode horaire
+            # (`calcul_brut`) : sans elle, un jour d'arrêt était purement ignoré
+            # en forfait jour — aucune retenue, brut = forfait plein — alors que
+            # le maintien employeur, lui, était bien réinjecté par
+            # `_appliquer_maintien_arret_maladie`. La retenue se valorise sur la
+            # journée de forfait ; le maintien (et les IJSS subrogées) sont
+            # ajoutés en aval par le moteur maintien, pas ici.
+            jours_abs = _jours_evenement_absence(evenement)
+            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
+                "%d/%m/%y"
+            )
+            montant_deduction = round(jours_abs * salaire_journalier, 2)
+            lignes_composants_brut.append(
+                {
+                    "libelle": f"Absence maladie du {date_absence}",
+                    "quantite": jours_abs,
                     "taux": round(salaire_journalier, 4),
                     "gain": None,
                     "perte": montant_deduction,

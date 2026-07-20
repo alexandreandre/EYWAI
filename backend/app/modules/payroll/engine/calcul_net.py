@@ -2,6 +2,7 @@ from app.core.logging import get_logger, log_payroll_debug
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
+from . import legal_constants as lc
 from typing import Dict, Any, List
 
 
@@ -48,7 +49,15 @@ def _participation_aggregats(
         imposable += brut_numeraire - csg_ded_numeraire
         net_participation = brut_numeraire - csg_total_numeraire
         net += net_participation - acompte
-        net_social += net_participation
+        # Net social : part numéraire nette de CSG (comme le net à payer) + la
+        # CSG/CRDS totale attribuable à la part PEE. La part PEE elle-même
+        # (placée, non perçue ce mois-ci) ne contribue pas en brut au net
+        # social, mais la CSG qui la grève reste une charge sociale déclarée
+        # au titre du mois (cf. DSN GIRERD mai 2026, S21.G00.58 type 03 :
+        # participation 100 % PEE, CSG totale 517,16 €, contribution MNS
+        # exactement 517,16 €, pas 0 € ni le brut intégral).
+        csg_total_pee = csg_total - csg_total_numeraire
+        net_social += net_participation + csg_total_pee
     return round(imposable, 2), round(net, 2), round(net_social, 2)
 
 
@@ -58,10 +67,23 @@ def _participation_aggregats(
 
 
 def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
-    """Part patronale mutuelle soumise à CSG (incluse dans le MNS)."""
+    """Part patronale mutuelle réintégrée au NET IMPOSABLE (avantage taxable).
+
+    Utilisée UNIQUEMENT par `_calculer_net_imposable` (pas par le MNS).
+
+    Cas particulier `part_patronale_reintegree_impot=False` : certaines
+    contributions patronales complémentaires (options « famille » Salarié+
+    conjoint+enfants chez GAN, cf. Cegid MBC mai 2026 MOUSSAFIR/MARZOUG/SPIGA)
+    sont bien soumises à CSG (donc restent dans le calcul des cotisations et du
+    MNS) mais ne sont PAS réintégrées au net imposable par le cabinet. Le flag,
+    posé au niveau de `specificites_paie.mutuelle`, permet de neutraliser cette
+    réintégration sans toucher à la CSG. Défaut = True (comportement historique,
+    Colorplast/BUGNY inchangés)."""
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
     part_patronale_mutuelle = 0.0
     if not mutuelle_spec.get("adhesion"):
+        return part_patronale_mutuelle
+    if not mutuelle_spec.get("part_patronale_reintegree_impot", True):
         return part_patronale_mutuelle
 
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
@@ -111,30 +133,76 @@ def calculer_montant_net_social(
     total_cotisations_salariales: float,
     primes_non_soumises: List[Dict[str, Any]],
     participations: List[Dict[str, Any]] | None = None,
+    primes_soumises_impot: List[Dict[str, Any]] | None = None,
 ) -> float:
     """
-    Montant net social (BOSS, arrêté 25/02/2016 modifié).
+    Montant net social (BOSS, arrêté 31/01/2023 modifié — en vigueur 07/2023).
 
     MNS = brut
-        + part patronale complémentaire santé (non soumise)
-        + primes non soumises
+        + primes non soumises (compléments de rémunération net-only)
+        + primes non soumises à cotisations mais imposables (revenus de
+          remplacement versés par l'employeur : IJSS subrogées, PPV imposable,
+          remboursement de prévoyance non cotisé mais imposable…)
         − cotisations sociales obligatoires salariales (CSG/CRDS incluses)
 
-    Hors PAS, remboursements de frais professionnels et IJSS.
+    Justification : l'arrêté du 31 janvier 2023 définit le montant net social
+    comme l'ensemble des sommes versées au salarié (rémunérations, primes,
+    avantages ET revenus de remplacement complémentaires versés par
+    l'employeur) diminuées des seules cotisations et contributions sociales
+    obligatoires. Une prime « non soumise à cotisations mais soumise à l'impôt »
+    est une somme effectivement versée au salarié — elle fait donc partie du
+    MNS au même titre qu'une prime non soumise classique. Elle était jusqu'ici
+    ajoutée au net imposable et au net à payer mais omise du MNS, ce qui
+    laissait le MNS inférieur au net à payer avant impôt dès qu'un tel élément
+    existait (ex. « NPRV Remboursement prévoyance » net-only imposable, IJSS
+    subrogées imposables). Vérifié sur BASTER (Lewis, mai 2026) : le MNS réel
+    Cegid inclut bien le remboursement de prévoyance imposable net-only.
+
+    La part patronale de la complémentaire santé n'est PAS ajoutée au MNS
+    (alignement sur la référence cabinet Cegid : MNS = net à payer avant impôt).
+    Elle reste en revanche réintégrée au NET IMPOSABLE (avantage taxable, cf.
+    `_calculer_net_imposable`).
+
+    Hors PAS et remboursements de frais professionnels réels.
     """
-    part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
     total_primes_non_soumises = sum(
         _get_safe_float(p.get("montant")) for p in primes_non_soumises
+    )
+    total_primes_soumises_impot = sum(
+        _get_safe_float(p.get("montant")) for p in (primes_soumises_impot or [])
     )
     _, _, net_social_participation = _participation_aggregats(participations)
     mns = (
         _get_safe_float(salaire_brut)
-        + part_patronale_mutuelle
         + total_primes_non_soumises
+        + total_primes_soumises_impot
         - _get_safe_float(total_cotisations_salariales)
         + net_social_participation
     )
     return round(mns, 2)
+
+
+def _cumul_hs_exonerees_ir_debut_mois(contexte: ContextePaie) -> float:
+    """Cumul NET des HS/HC déjà exonérées d'IR depuis le 1ᵉʳ janvier de l'année
+    civile en cours, AVANT le mois traité (art. 81 quater CGI, plafond annuel
+    7 500 €). Reset explicite au mois de janvier UNIQUEMENT pour ce compteur —
+    ne touche pas aux autres cumuls (`brut_total`, `net_imposable`, etc.) qui
+    ont des logiques de fenêtre différentes et volontaires (cf.
+    `mettre_a_jour_cumuls`).
+    """
+    mois = getattr(contexte, "month", None)
+    if mois == 1:
+        return 0.0
+    cumuls_racine = getattr(contexte, "cumuls", None) or {}
+    if not isinstance(cumuls_racine, dict):
+        return 0.0
+    cumuls = cumuls_racine.get("cumuls") or {}
+    if not isinstance(cumuls, dict):
+        return 0.0
+    try:
+        return float(cumuls.get("hs_exonerees_ir_cumul", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _calculer_net_imposable(
@@ -147,7 +215,7 @@ def _calculer_net_imposable(
         Dict[str, Any]
     ] = None,  # <-- NOUVEAU: Primes soumises à l'impôt (ex: PPV si effectif >= 50)
     participations: List[Dict[str, Any]] | None = None,
-) -> float:
+) -> tuple[float, float]:
     if primes_soumises_impot is None:
         primes_soumises_impot = []
 
@@ -159,13 +227,15 @@ def _calculer_net_imposable(
         if ligne.get("is_participation"):
             continue
         libelle = ligne.get("libelle", "").lower()
-        if "csg/crds" in libelle and "non déductible" in libelle:
-            montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
-        # CSG/CRDS assise sur les heures supplémentaires : elle reste due même si
-        # les HS sont exonérées d'impôt ; on la retranche donc du montant d'HS
-        # défiscalisé (l'exonération d'IR porte sur le NET des HS, pas le brut).
+        # CSG/CRDS assise sur les heures supplémentaires : elle sert UNIQUEMENT à
+        # défiscaliser le NET des HS (l'exonération d'IR porte sur le net, pas le
+        # brut). Elle ne doit PAS être réintégrée au net imposable : les HS étant
+        # exonérées d'IR, réintégrer leur fraction CSG regonflerait indûment
+        # l'imposable. On la traite donc en exclusion de la réintégration CSG.
         if "sur hs" in libelle:
             montant_csg_sur_hs += _get_safe_float(ligne.get("montant_salarial"))
+        elif "csg/crds" in libelle and "non déductible" in libelle:
+            montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
 
     part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
 
@@ -183,9 +253,20 @@ def _calculer_net_imposable(
     # L'exonération d'impôt porte sur le montant NET des HS = rémunération brute
     # des HS moins la CSG/CRDS qui reste due sur ces heures. On ne défiscalise
     # donc pas le brut mais le net imposable réellement attribuable aux HS.
-    hs_defiscalisees = max(
+    hs_defiscalisees_theorique = max(
         0.0, _get_safe_float(remuneration_heures_supp) - montant_csg_sur_hs
     )
+    # --- Plafond ANNUEL d'exonération (art. 81 quater CGI, 7 500 € net/an,
+    # cf. legal_constants.PLAFOND_EXONERATION_IR_HS_ANNUEL_NET) : le montant
+    # exonéré ce mois-ci est plafonné au solde restant sur l'année civile.
+    # Au-delà, le surplus redevient imposable (pas de défiscalisation IR sur
+    # ce surplus, la réduction de cotisations salariales à 11,31% n'est PAS
+    # concernée — mécanisme distinct, cf. calcul_cotisations.py).
+    cumul_avant_ce_mois = _cumul_hs_exonerees_ir_debut_mois(contexte)
+    solde_plafond_restant = max(
+        0.0, lc.PLAFOND_EXONERATION_IR_HS_ANNUEL_NET - cumul_avant_ce_mois
+    )
+    hs_defiscalisees = min(hs_defiscalisees_theorique, solde_plafond_restant)
     net_imposable_apres_hs = net_imposable_avant_defiscalisation - hs_defiscalisees
 
     # --- NOUVEAU : Ajout des primes soumises à l'impôt (ex: PPV si effectif >= 50) ---
@@ -208,7 +289,7 @@ def _calculer_net_imposable(
     log_payroll_debug(logger, f'\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €')
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €')
-    log_payroll_debug(logger, f'\t- Exonération Heures Supp. (net)   : {hs_defiscalisees:10.2f} €')
+    log_payroll_debug(logger, f'\t- Exonération Heures Supp. (net)   : {hs_defiscalisees:10.2f} € (théorique {hs_defiscalisees_theorique:10.2f} €, plafond annuel restant {solde_plafond_restant:10.2f} €, cumul avant ce mois {cumul_avant_ce_mois:10.2f} €)')
     if montant_primes_soumises_impot > 0:
         log_payroll_debug(logger, f"\t+ Primes soumises à l'impôt        : {montant_primes_soumises_impot:10.2f} €")
     if imposable_participation:
@@ -217,7 +298,7 @@ def _calculer_net_imposable(
     log_payroll_debug(logger, f'\t= NET IMPOSABLE                    : {round(net_imposable_final, 2):10.2f} €')
     log_payroll_debug(logger, '---------------------------------\n')
 
-    return round(net_imposable_final, 2)
+    return round(net_imposable_final, 2), round(hs_defiscalisees, 2)
 
 
 def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> float:
@@ -417,8 +498,12 @@ def _calculer_net_a_payer(
         log_payroll_debug(logger, f'\t+ Participation (net numéraire)     : {net_participation:10.2f} €')
         net_a_payer += net_participation
 
-    if montant_acompte > 0:
-        log_payroll_debug(logger, f'\t- Acompte versé                    : {montant_acompte:10.2f} €')
+    if montant_acompte:
+        # Signe positif : acompte déjà versé (retenue). Signe négatif : régularisation
+        # nette à ajouter (ex. remboursement panier/frais pro hors assiette sociale,
+        # cf. ASKARI Mont Blanc Composite mai 2026) — dans les deux cas, un ajustement
+        # qui ne doit toucher QUE le net à payer, jamais le net imposable ni le MNS.
+        log_payroll_debug(logger, f'\t- Acompte/régularisation nette      : {montant_acompte:10.2f} €')
         net_a_payer -= montant_acompte
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= NET À PAYER                      : {round(net_a_payer, 2):10.2f} €')
@@ -450,7 +535,7 @@ def calculer_net_et_impot(
     )
 
     # MODIFIÉ: On passe la nouvelle variable à la fonction de calcul
-    net_imposable = _calculer_net_imposable(
+    net_imposable, hs_exonerees_ir_mois = _calculer_net_imposable(
         contexte,
         salaire_brut,
         total_cotisations_salariales,
@@ -468,6 +553,7 @@ def calculer_net_et_impot(
         total_cotisations_salariales,
         primes_non_soumises,
         participations,
+        primes_soumises_impot,
     )
     net_a_payer, remboursement_transport, indemnite_transport_fixe = _calculer_net_a_payer(
         net_social,
@@ -489,4 +575,9 @@ def calculer_net_et_impot(
         "remboursement_transport": remboursement_transport,
         "indemnite_transport_fixe": indemnite_transport_fixe,
         "acompte_verse": montant_acompte,  # <--- AJOUTEZ CETTE LIGNE
+        # Montant NET des HS/HC effectivement exonéré d'IR ce mois-ci, après
+        # écrêtement au plafond annuel 7 500 € (art. 81 quater CGI) — à
+        # cumuler dans `employee_schedules.cumuls.hs_exonerees_ir_cumul`
+        # (cf. `mettre_a_jour_cumuls`).
+        "hs_exonerees_ir_mois": hs_exonerees_ir_mois,
     }

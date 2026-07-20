@@ -58,6 +58,45 @@ def _sommer_part_patronale_lignes_taux(
     return total
 
 
+def _cumul_agirc_arrco_debut_mois(
+    contexte: ContextePaie,
+) -> Tuple[float, float, float]:
+    """Cumuls ANNÉE CIVILE (reset au 1er janvier, UNIQUEMENT pour ces 3 clés —
+    ne touche à aucun autre cumul existant) nécessaires à la régularisation
+    progressive Agirc-Arrco de la tranche 2 : (cumul_brut, cumul_pss,
+    cumul_tranche_2_déjà_appliquée), AVANT le mois courant.
+
+    Principe (régularisation progressive Agirc-Arrco, cf. doctrine Agirc-Arrco
+    sur le lissage des tranches en cas de rémunération variable) : chaque mois,
+    la tranche 2 « correcte » est recalculée sur le CUMUL annuel (cumul brut vs
+    cumul PMSS), puis on ne retient que la DIFFÉRENCE avec ce qui a déjà été
+    appliqué les mois précédents. Un pic de rémunération suivi d'un mois plus
+    bas peut donc légitimement produire une assiette tranche 2 NÉGATIVE un
+    mois donné (régularisation à la baisse) — comportement confirmé sur les
+    bulletins réels HIRARD/NOBLE (Lewis mai 2026 : ligne « E_V7 PREVOYANCE NON
+    CADRE TU2 META » à base négative -220,31 €, et « Complémentaire Tranche 2 »
+    à base négative -220,31 € également, cohérent avec un même mécanisme
+    appliqué uniformément à toutes les cotisations assises sur la tranche 2).
+    """
+    mois = getattr(contexte, "month", None)
+    if mois == 1:
+        return 0.0, 0.0, 0.0
+    cumuls_racine = getattr(contexte, "cumuls", None) or {}
+    if not isinstance(cumuls_racine, dict):
+        return 0.0, 0.0, 0.0
+    cumuls = cumuls_racine.get("cumuls") or {}
+    if not isinstance(cumuls, dict):
+        return 0.0, 0.0, 0.0
+    try:
+        return (
+            float(cumuls.get("cumul_brut_agirc_arrco", 0.0) or 0.0),
+            float(cumuls.get("cumul_pss_agirc_arrco", 0.0) or 0.0),
+            float(cumuls.get("cumul_tranche_2_appliquee", 0.0) or 0.0),
+        )
+    except (TypeError, ValueError):
+        return 0.0, 0.0, 0.0
+
+
 def _calculer_assiettes(
     contexte: ContextePaie, salaire_brut: float, remuneration_heures_supp: float
 ) -> Dict[str, float]:
@@ -96,12 +135,51 @@ def _calculer_assiettes(
     # --- FIN DU NOUVEAU BLOC ---
 
     # Assiettes conditionnelles
-    assiette_tranche_2 = 0.0
     assiette_cet = 0.0
     # On utilise maintenant le pss_calcule (proratisé ou non)
     if salaire_brut > pss_calcule:
-        assiette_tranche_2 = max(0, min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule) - pss_calcule)
+        # La CET (Contribution d'Équilibre Technique) suit sa propre logique
+        # (assiette = brut plafonné à 8×PSS, PAS de régularisation progressive
+        # tranche 1/tranche 2 — traitée séparément, comportement inchangé).
         assiette_cet = min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule)
+
+    # --- Tranche 2 : régularisation progressive Agirc-Arrco (cumul annuel) ---
+    # Remplace l'ancien calcul purement mensuel (assiette_tranche_2 = max(0,
+    # min(brut, 8×PSS) - PSS)) par une régularisation sur le cumul de l'année
+    # civile : la tranche 2 correcte est recalculée chaque mois sur le cumul
+    # brut vs cumul PMSS, et seule la DIFFÉRENCE avec ce qui a déjà été
+    # appliqué les mois précédents est retenue ce mois-ci — SANS jamais
+    # plancher à zéro (peut être négative en cas de régularisation à la
+    # baisse). Pour un salarié à rémunération stable, cette formule est
+    # mathématiquement ÉQUIVALENTE à l'ancien calcul mensuel (linéarité),
+    # donc sans risque de régression pour l'immense majorité des salariés ;
+    # elle ne diverge que lorsque le cumul brut/PSS fluctue de façon non
+    # proportionnelle d'un mois à l'autre (nouvel embauché en cours d'année,
+    # mois à rémunération variable...).
+    cumul_brut_avant, cumul_pss_avant, cumul_t2_applique_avant = (
+        _cumul_agirc_arrco_debut_mois(contexte)
+    )
+    cumul_brut_incl = cumul_brut_avant + salaire_brut
+    cumul_pss_incl = cumul_pss_avant + pss_calcule
+    cumul_tranche_2_correct = max(
+        0.0,
+        min(cumul_brut_incl, lc.FACTEUR_PLAFOND_TRANCHE_2 * cumul_pss_incl)
+        - cumul_pss_incl,
+    )
+    assiette_tranche_2 = round(cumul_tranche_2_correct - cumul_t2_applique_avant, 2)
+    # Cumuls à jour (année civile), exposés via contexte pour persistance par
+    # mettre_a_jour_cumuls (cf. payslip_run_common.py) — jamais un `if` sur un
+    # salarié précis, s'applique uniformément à tous.
+    try:
+        contexte.agirc_arrco_cumuls_mois_courant = {
+            "cumul_brut_agirc_arrco": round(cumul_brut_incl, 2),
+            "cumul_pss_agirc_arrco": round(cumul_pss_incl, 2),
+            "cumul_tranche_2_appliquee": round(
+                cumul_t2_applique_avant + assiette_tranche_2, 2
+            ),
+        }
+    except Exception:
+        pass
 
     # Parts patronales pour la base CSG (inchangé)
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
@@ -211,6 +289,15 @@ def _calculer_assiettes(
         "assiette_cet": round(assiette_cet, 2),
         "csg_crds_base_normale": round(base_csg_normale, 2),
         "csg_crds_base_hs": round(base_csg_hs, 2),
+        # Parts patronales entrant dans la base CSG SANS abattement frais pro
+        # (elles ne sont pas de la rémunération). Exposées pour que le régime
+        # apprenti reconstruise la même base sur sa fraction résiduelle.
+        "csg_parts_patronales": round(
+            part_patronale_prevoyance
+            + part_patronale_retraite_sup
+            + part_patronale_frais_sante,
+            2,
+        ),
     }
 
 
@@ -220,8 +307,20 @@ def _calculer_une_ligne(
     taux_salarial: float,
     taux_patronal: float,
     coti_id: Optional[str] = None,
+    autoriser_assiette_negative: bool = False,
 ) -> Dict[str, Any] | None:
-    if assiette <= 0 and not (taux_salarial is None and taux_patronal is None):
+    # Garde-fou générique : on écarte les lignes à assiette nulle/négative,
+    # SAUF quand l'appelant signale explicitement (via `autoriser_assiette_negative`)
+    # qu'une assiette négative est légitime — cas de la régularisation progressive
+    # Agirc-Arrco tranche 2 (le cumul annuel peut requalifier T1/T2 à la baisse
+    # un mois donné, cf. HIRARD/NOBLE Lewis mai 2026). Généraliste : ne dépend
+    # d'aucun salarié particulier, uniquement de la base de cotisation utilisée.
+    if taux_salarial is None and taux_patronal is None:
+        pass
+    elif assiette < 0:
+        if not autoriser_assiette_negative:
+            return None
+    elif assiette == 0:
         return None
     montant_salarial = round(assiette * (taux_salarial or 0.0), 2)
     montant_patronal = round(assiette * (taux_patronal or 0.0), 2)
@@ -308,9 +407,18 @@ def calculer_cotisations(
         # --- FIN DU BLOC ---
 
         # Filtres d'application
-        if (
-            coti_id == "prevoyance_cadre" or coti_id == "apec"
-        ) and not is_cadre(contexte.statut_salarie):
+        if coti_id == "apec":
+            # APEC réservée aux cadres au sens AGIRC (statut catégoriel DSN) : un
+            # salarié « Cadre » en paie mais déclaré « Non-Cadre » en DSN (forfait-
+            # jour non-cadre CCN plasturgie, cf. GAILLET/BLONDEAU/GILLET/DROZ MBC
+            # mai 2026) n'y est pas assujetti, même si son statut de paie sert de
+            # base au calcul du brut forfait.
+            cat_dsn = (contexte.statut_categoriel_dsn or "").strip().lower()
+            if ("non" in cat_dsn and "cadre" in cat_dsn) or not is_cadre(
+                contexte.statut_salarie
+            ):
+                continue
+        elif coti_id == "prevoyance_cadre" and not is_cadre(contexte.statut_salarie):
             continue
         if coti_id == "prevoyance_non_cadre" and is_cadre(contexte.statut_salarie):
             continue
@@ -413,13 +521,29 @@ def calculer_cotisations(
                 if not exo_apprenti["csg_crds_assujettie"]:
                     # Régime ancien : apprenti totalement exonéré de CSG/CRDS.
                     continue
-                # Régime récent : CSG/CRDS sur la fraction au-delà du plafond,
-                # après abattement frais pro. Sans parts patronales mutuelle/prévoyance.
+                # Régime récent : CSG/CRDS sur la seule fraction au-delà du
+                # plafond, mais construite comme le droit commun — abattement
+                # frais pro sur la rémunération, puis ajout des parts patronales
+                # prévoyance/frais santé (non abattues), et isolement de la
+                # quote-part d'heures sup. (CSG intégralement non déductible).
+                # La quote-part d'HS résiduelle suit la même proratisation que
+                # la réduction salariale HS (cf. plus bas) : les HS sont réputées
+                # réparties uniformément entre fraction exonérée et fraction due.
+                residuel = assiette_residuelle(
+                    brut_cotisable, exo_apprenti["plafond"]
+                )
+                part_remuneration = 1.0 - exo_apprenti["abattement_csg"]
+                residuel_hs = (
+                    round(remuneration_heures_supp * residuel / brut_cotisable, 2)
+                    if brut_cotisable > 0
+                    else 0.0
+                )
                 base_csg_apprenti = round(
-                    assiette_residuelle(brut_cotisable, exo_apprenti["plafond"])
-                    * (1.0 - exo_apprenti["abattement_csg"]),
+                    (residuel - residuel_hs) * part_remuneration
+                    + assiettes["csg_parts_patronales"],
                     2,
                 )
+                base_csg_apprenti_hs = round(residuel_hs * part_remuneration, 2)
                 for ligne in [
                     _calculer_une_ligne(
                         "CSG déductible",
@@ -432,6 +556,13 @@ def calculer_cotisations(
                         "CSG/CRDS non déductible",
                         base_csg_apprenti,
                         taux_csg_non_deductible,
+                        None,
+                        coti_id="csg_non_deductible",
+                    ),
+                    _calculer_une_ligne(
+                        "CSG/CRDS sur HS non déductible",
+                        base_csg_apprenti_hs,
+                        taux_csg_total,
                         None,
                         coti_id="csg_non_deductible",
                     ),
@@ -471,7 +602,15 @@ def calculer_cotisations(
             taux_patronal_final = 0.0
 
         ligne_calculee = _calculer_une_ligne(
-            libelle, assiette, taux_salarial, taux_patronal_final, coti_id=coti_id
+            libelle,
+            assiette,
+            taux_salarial,
+            taux_patronal_final,
+            coti_id=coti_id,
+            # Base "tranche_2" : régularisation progressive Agirc-Arrco, cf.
+            # `_cumul_agirc_arrco_debut_mois` — l'assiette peut légitimement
+            # devenir négative (jamais plafonnée à 0) un mois donné.
+            autoriser_assiette_negative=(base_id == "tranche_2"),
         )
 
         if ligne_calculee:
@@ -728,13 +867,49 @@ def calculer_cotisations(
             .get("taux_reduction", {})
             .get("plafond_legal", 0.0)
         )
-        montant_reduction = round(-remuneration_heures_supp * taux_reduction, 2)
+        # Apprenti : la fraction de rémunération <= plafond est déjà exonérée de
+        # TOUTES les cotisations salariales, donc aucune cotisation n'est due sur
+        # la quote-part d'heures sup. qu'elle contient. La réduction ne porte que
+        # sur la part excédant le plafond, à proportion des HS dans le brut
+        # (BOSS-Exo.HS / Urssaf : réduction limitée aux cotisations effectivement
+        # dues). Vaut pour les deux régimes (79 % et 50 % du SMIC).
+        base_reduction = remuneration_heures_supp
+        if exo_apprenti is not None and brut_cotisable > 0:
+            base_reduction = round(
+                remuneration_heures_supp
+                * assiette_residuelle(brut_cotisable, exo_apprenti["plafond"])
+                / brut_cotisable,
+                2,
+            )
+        montant_reduction_theorique = round(base_reduction * taux_reduction, 2)
+        # Plafond légal MENSUEL (BOSS-Exo.HS-40, URSSAF) : la réduction ne peut
+        # jamais excéder les cotisations salariales réellement dues par le
+        # salarié sur la période — ce n'est PAS un plafond annuel cumulé (à ne
+        # pas confondre avec le plafond fiscal IR de 7 500 €, mécanisme distinct).
+        # On plafonne donc au total des cotisations salariales déjà calculées
+        # à ce stade (toutes les lignes précédentes, exonérations incluses).
+        cotisations_salariales_dues = round(
+            sum(
+                ligne.get("montant_salarial", 0.0) or 0.0
+                for ligne in bulletin_cotisations
+            ),
+            2,
+        )
+        montant_reduction_plafonne = min(
+            montant_reduction_theorique, max(cotisations_salariales_dues, 0.0)
+        )
+        montant_reduction = round(-montant_reduction_plafonne, 2)
+        taux_salarial_effectif = (
+            round(montant_reduction / base_reduction, 6)
+            if base_reduction
+            else -taux_reduction
+        )
         bulletin_cotisations.append(
             enrichir_ligne_cotisation(
                 {
                     "libelle": "Réduction de cotisations sur heures sup.",
-                    "base": remuneration_heures_supp,
-                    "taux_salarial": -taux_reduction,
+                    "base": base_reduction,
+                    "taux_salarial": taux_salarial_effectif,
                     "montant_salarial": montant_reduction,
                     "taux_patronal": None,
                     "montant_patronal": 0.0,

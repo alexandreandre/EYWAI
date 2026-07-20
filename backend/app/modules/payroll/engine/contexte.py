@@ -290,6 +290,18 @@ class ContextePaie:
         return self.contrat.get("contrat", {}).get("statut", "Non-Cadre")
 
     @property
+    def statut_categoriel_dsn(self) -> str:
+        """Statut catégoriel AGIRC issu de la classification DSN (peut différer du
+        statut de paie). Sert notamment à l'éligibilité APEC, réservée aux cadres
+        au sens AGIRC : un salarié « Cadre » en paie mais déclaré « Non-Cadre » en
+        DSN (ex. forfait-jour non-cadre CCN plasturgie) n'y est pas assujetti."""
+        classif = (
+            self.contrat.get("remuneration", {}).get("classification_conventionnelle")
+            or {}
+        )
+        return classif.get("statut_categoriel") or ""
+
+    @property
     def salaire_base_mensuel(self) -> float:
         """Retourne le salaire de base brut mensuel."""
         return (
@@ -525,8 +537,13 @@ class ContextePaie:
 
     @property
     def heures_sup_du_mois(self) -> float:
-        """Retourne les heures supplémentaires conjoncturelles du mois."""
+        """Retourne les heures supplémentaires conjoncturelles du mois (majorées à 25 %)."""
         return self.saisie_du_mois.get("heures_supplementaires_conjoncturelles", 0.0)
+
+    @property
+    def heures_sup_du_mois_50(self) -> float:
+        """Retourne les heures supplémentaires conjoncturelles du mois majorées à 50 %."""
+        return self.saisie_du_mois.get("heures_supplementaires_conjoncturelles_50", 0.0)
 
     @property
     def heures_absence_du_mois(self) -> float:

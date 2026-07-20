@@ -18,6 +18,37 @@ import json
 from app.modules.payroll.planning_repli import (
     reel_forfait_avec_repli_planning_si_sans_pointage,
 )
+from app.modules.payroll.application.analyzer import (
+    _MAINTIEN_EVENT_META_KEYS,
+    TYPES_SIGNIFICATIFS_A_ZERO_HEURE,
+)
+
+
+def _metadata_for_aggregated_event_forfait(
+    evenements_finaux: List[Dict[str, Any]],
+    mois: int,
+    annee: int,
+    jour: int,
+    type_ev: str,
+) -> Dict[str, Any]:
+    """Reprend les métadonnées perdues lors de l'agrégation (ex. arret_type).
+
+    Équivalent forfait de `analyzer._metadata_for_aggregated_event`, qui n'apparie
+    que sur le mois : ici la clé d'agrégation porte aussi l'année, l'appariement la
+    reprend pour ne pas confondre deux mois homonymes d'années différentes.
+    """
+    meta: Dict[str, Any] = {}
+    for ev in evenements_finaux:
+        if ev.get("mois", mois) != mois or ev.get("annee", annee) != annee:
+            continue
+        if ev.get("jour") != jour or ev.get("type") != type_ev:
+            continue
+        for k in _MAINTIEN_EVENT_META_KEYS:
+            if k in ev and k not in meta:
+                meta[k] = ev[k]
+        if meta.get("arret_type"):
+            break
+    return meta
 
 
 def analyser_jours_forfait_du_mois(
@@ -233,12 +264,32 @@ def analyser_jours_forfait_du_mois(
             # Jours sans heures (weekends, etc.) - préserver mois et année
             jours_sans_heures[key] = {**ev, "mois": ev_mois, "annee": ev_annee}
 
-    # Créer la liste finale des événements agrégés avec mois et année
-    evenements_agreges = [
-        {"jour": k[0], "mois": k[1], "annee": k[2], "type": k[3], "heures": round(v, 2)}
-        for k, v in agregats.items()
-        if v > 0
-    ]
+    # Créer la liste finale des événements agrégés avec mois et année.
+    # Un jour d'arrêt est posé `heures_prevues=0` : sans l'exception
+    # TYPES_SIGNIFICATIFS_A_ZERO_HEURE (miroir de l'analyseur horaire), le filtre
+    # `v > 0` le supprimait ici même — l'arrêt n'atteignait jamais
+    # `calcul_brut_forfait` et n'était donc jamais déduit, alors que le maintien
+    # employeur, lui, était bien réinjecté en aval.
+    evenements_agreges: List[Dict[str, Any]] = []
+    for k, v in agregats.items():
+        jour_ev, mois_ev, annee_ev, type_ev = k
+        if v <= 0 and type_ev not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+            continue
+        ev_out: Dict[str, Any] = {
+            "jour": jour_ev,
+            "mois": mois_ev,
+            "annee": annee_ev,
+            "type": type_ev,
+            "heures": round(v, 2),
+        }
+        # Métadonnées perdues par l'agrégation (arret_type, subrogation_active…) :
+        # `_extraire_arret_pour_maintien` en dépend pour qualifier l'arrêt.
+        ev_out.update(
+            _metadata_for_aggregated_event_forfait(
+                evenements_finaux, mois_ev, annee_ev, jour_ev, type_ev
+            )
+        )
+        evenements_agreges.append(ev_out)
     evenements_agreges.extend(jours_sans_heures.values())
 
     # Debug : Compter les absences par mois

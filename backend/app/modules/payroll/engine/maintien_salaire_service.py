@@ -115,10 +115,33 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
             "rechute_at",
         }
     )
+    # Congés liés à la parentalité : régime légal DISTINCT de la maladie —
+    # IJSS versées dès le 1er jour (pas de carence SS de 3 jours), et le maintien
+    # employeur conventionnel est à 100 % SANS barème dégressif par ancienneté
+    # (le barème D1226-1, propre à la maladie, ne s'applique PAS). Cf. Code du
+    # travail L1225-17 et s. (maternité), L1225-35 (paternité/accueil de
+    # l'enfant), L1225-37 (adoption) ; CCN métallurgie IDCC 3248 art. 92
+    # (maintien 100 % sous condition d'ancienneté ≥ 1 an, gérée par le seuil
+    # `min_seniority_months` des settings comme pour la maladie).
+    types_maternite = frozenset(
+        {
+            "maternite",
+            "paternite",
+            "adoption",
+            "maternite_paternite",
+            "paternite_accueil_enfant",
+            "conge_naissance_supplementaire",
+        }
+    )
+
+    est_maternite = t in types_maternite
 
     if t in types_at_mp:
         carence_ss_jours = 0
         taux_ijss_base = lc.TAUX_IJSS_AT_MP_J1_28
+    elif est_maternite:
+        carence_ss_jours = 0  # maternité/paternité/adoption : IJSS dès le 1er jour
+        taux_ijss_base = lc.TAUX_IJSS_MALADIE
     elif t in types_3j_ss:
         carence_ss_jours = 3
         taux_ijss_base = lc.TAUX_IJSS_MALADIE
@@ -133,6 +156,7 @@ def _qualifier_arret(arret_type: str) -> Dict[str, Any]:
         "taux_ijss_base": taux_ijss_base,
         "est_at_mp": t in types_at_mp,
         "est_ald": est_ald,
+        "est_maternite": est_maternite,
     }
 
 
@@ -187,9 +211,15 @@ def _calculer_carence(
 
     # Le délai de carence employeur (7 j) est supprimé de plein droit en cas
     # d'accident du travail / maladie professionnelle (art. L1226-1 et D1226-3).
+    # Il ne s'applique pas non plus aux congés de parentalité (maternité,
+    # paternité, adoption) : le maintien couvre l'intégralité du congé dès le
+    # 1er jour (art. L1225-17 et s.).
     if qualification.get("est_at_mp"):
         carence_emp = 0
         motif_emp = "AT/MP : pas de carence employeur (supprimée de plein droit)."
+    elif qualification.get("est_maternite"):
+        carence_emp = 0
+        motif_emp = "Congé de parentalité : pas de carence employeur (maintien dès le 1er jour)."
     elif settings.get("remove_employer_waiting"):
         carence_emp = 0
         motif_emp = "Carence employeur supprimée (paramétrage entreprise)."
@@ -524,9 +554,31 @@ def _calculer_maintien_employeur(
         }
 
     salaire_mensuel = float(contexte.salaire_base_mensuel or 0.0)
-    brut_journalier = (
-        salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
-    )
+    # Mode « jours ouvrés » (opt-in par arrêt) : le maintien est calculé sur le
+    # salaire journalier RÉEL des jours ouvrés (taux horaire de base × 7 h légales),
+    # décompté sur les seuls jours ouvrés (samedi/dimanche exclus), conformément à
+    # la pratique Cegid (le maintien couvre l'absence déduite jour ouvré par jour
+    # ouvré). Par défaut (flag absent) : ancien modèle salaire mensuel / 30,42 j
+    # calendaires, préservé pour la compatibilité (tests + autres clients).
+    maintien_base_ouvree = bool(arret.get("maintien_base_ouvree"))
+    if maintien_base_ouvree:
+        try:
+            from .calcul_brut import _get_salaire_horaire_base
+
+            taux_horaire_base = _get_salaire_horaire_base(
+                contexte, float(contexte.duree_hebdo_contrat or 0.0)
+            )
+        except Exception:
+            taux_horaire_base = (
+                salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES
+                if salaire_mensuel
+                else 0.0
+            )
+        brut_journalier = taux_horaire_base * (lc.DUREE_LEGALE_HEBDO / 5.0)
+    else:
+        brut_journalier = (
+            salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
+        )
 
     apply_legal = bool(settings.get("apply_legal_maintenance"))
 
@@ -548,10 +600,55 @@ def _calculer_maintien_employeur(
     jours_intersection = _compter_jours_calendaires(inter_d, inter_f)
     offset = (inter_d - date_debut_arret).days
 
+    # --- Congé de parentalité (maternité / paternité / adoption) : maintien à
+    # 100 % du salaire, INCONDITIONNEL sur toute la durée du congé, sans barème
+    # dégressif D1226-1 (propre à la maladie) et sans carence employeur. Le brut
+    # reconstruit = salaire plein (l'absence déduite est exactement compensée par
+    # le maintien). Les IJSS maternité, versées dès J1 et récupérées par
+    # l'employeur via subrogation, n'apparaissent PAS séparément au brut (le
+    # maintien affiché EST le salaire plein) : on ne les soustrait donc pas du
+    # maintien versé, contrairement au régime maladie. La condition d'ancienneté
+    # conventionnelle (métallurgie : ≥ 1 an) est déjà appliquée en amont via le
+    # seuil `min_seniority_months` (return anticipé si non éligible).
+    # Réf. : Code du travail L1225-17 et s. ; CCN métallurgie IDCC 3248 art. 92.
+    if bool(qualification.get("est_maternite")):
+        jours_maintien_mat = 0
+        for k in range(jours_intersection):
+            if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
+                continue  # mode jours ouvrés : week-ends non maintenus
+            jours_maintien_mat += 1
+        maintien_cible_mat = brut_journalier * jours_maintien_mat  # taux 100 %
+
+        prorat_tp_mat = False
+        if bool(arret.get("is_temps_partiel")):
+            qtp = float(arret.get("quotite_temps_partiel") or 1.0)
+            if qtp > 0:
+                maintien_cible_mat *= qtp
+                prorat_tp_mat = True
+
+        salaire_reel_mat = float(arret.get("salaire_periode_reelle") or 0.0)
+        return {
+            "maintien_applicable": True,
+            "taux_maintien": 1.0,
+            "maintien_cible": round(maintien_cible_mat, 2),
+            "maintien_verse": round(maintien_cible_mat, 2),
+            "nb_jours_maintien": jours_maintien_mat,
+            "complement_employeur": round(maintien_cible_mat - salaire_reel_mat, 2),
+            "conflit_convention": False,
+            "motif_non_maintien": None,
+            "proratisation_temps_partiel": prorat_tp_mat,
+            "carence_employeur_jours": 0,
+            "duree_par_taux_jours": 0,
+            "duree_maintien_legale_jours": 0,
+            "est_maternite": True,
+        }
+
     maintien_total_legal = 0.0
     maintien_total_conv = 0.0
     nb_jours_maintien = 0
     for k in range(jours_intersection):
+        if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
+            continue  # mode jours ouvrés : week-ends non maintenus
         jour_arret = offset + k + 1  # rang calendaire dans l'arrêt
         jour_maintien = jour_arret - carence_emp  # rang après carence employeur
         if jour_maintien < 1:
@@ -1078,6 +1175,7 @@ def calculer_maintien(
         "prevoyance": prevoyance,
         "alertes": alertes,
         "subrogation_active": bool(arret.get("subrogation_active")),
+        "maintien_base_ouvree": bool(arret.get("maintien_base_ouvree")),
         "type_arret": arret_type,
         "nb_jours_arret_total": nb_jours_arret_total,
         "anciennete_mois": anciennete_mois,

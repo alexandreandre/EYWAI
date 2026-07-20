@@ -17,6 +17,13 @@ from collections import defaultdict
 
 logger = get_logger("modules.payroll.application.analyzer")
 
+# Types dont l'effet paie dépend d'un repli à durée nulle (ex. déduction arrêt
+# maladie / jour férié non payé calculée sur la durée contractuelle du jour quand
+# heures_prevues=0) : ne jamais les filtrer même à 0 h, sinon l'événement n'atteint
+# jamais calcul_brut et l'absence n'est jamais déduite. Partagé avec l'analyseur
+# forfait-jour (`engine.analyser_jours_forfait`), qui a le même repli.
+TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset({"arret_maladie", "ferie"})
+
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "arret_type",
     "subrogation_active",
@@ -277,9 +284,9 @@ def analyser_horaires_du_mois(
 
     evenements_agreges: List[Dict[str, Any]] = []
     for k, v in agregats.items():
-        if v <= 0:
-            continue
         jour_ev, type_ev = k[0], k[1]
+        if v <= 0 and type_ev not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+            continue
         ev_out: Dict[str, Any] = {
             "jour": jour_ev,
             "type": type_ev,

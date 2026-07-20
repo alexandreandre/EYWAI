@@ -48,10 +48,31 @@ def calculer_indemnite_conges(
     log_payroll_debug(logger, "INFO: Démarrage du calcul de l'indemnité de congés payés...")
 
     params = lire_parametres_conges(getattr(contexte, "baremes", None))
-    heures_normales_par_jour = lc.DUREE_LEGALE_HEBDO / 5
-    heures_supp_structurelles_par_jour = (
-        contexte.duree_hebdo_contrat - lc.DUREE_LEGALE_HEBDO
-    ) / 5
+    # Base journalière "normale" du maintien : plafonnée à la durée légale pour
+    # un temps plein/temps majoré (comportement historique inchangé), mais
+    # PRORATÉE pour un temps partiel — sinon l'indemnité de CP d'un salarié à
+    # temps partiel est calculée sur une journée légale (7 h) au lieu de sa
+    # journée contractuelle réelle, la sur-évaluant fortement (cf. Cegid MBC
+    # mai 2026 LIKA, temps partiel 20,08 h/sem ≈ 4 h/j : indemnité EYWAI sur 7
+    # h/j au lieu de ~4,02 h/j, écart net +197,31 € alors que Cegid neutralise
+    # exactement la retenue par l'indemnité). Même pattern que le repli
+    # journalier d'absence (`_heures_journalieres_contrat`, `min(contrat,35)/5`).
+    heures_normales_par_jour = (
+        min(contexte.duree_hebdo_contrat, lc.DUREE_LEGALE_HEBDO) / 5
+    )
+    # Plafonnée à 0 : pour un temps partiel (contrat < légal), il n'existe pas
+    # d'heures sup. structurelles à indemniser — sans ce plancher, la
+    # soustraction devient NÉGATIVE et `calculer_maintien_horaire` (qui
+    # calcule ensuite `part_normale = total - part_hs`) déduit un `part_hs`
+    # négatif, ce qui GONFLE artificiellement `part_normale` (la ligne
+    # réellement ajoutée au brut) bien au-dessus du total réel de l'indemnité
+    # — même cas LIKA que ci-dessus, bug distinct découvert en creusant le
+    # premier fix (le total `maintien.total` était déjà correct, seul le
+    # découpage part_normale/part_hs affichée-et-utilisée-pour-le-brut était
+    # faux).
+    heures_supp_structurelles_par_jour = max(
+        0.0, (contexte.duree_hebdo_contrat - lc.DUREE_LEGALE_HEBDO) / 5
+    )
     majoration_hs = _lire_majoration_hs(contexte)
 
     maintien = calculer_maintien_horaire(

@@ -30,6 +30,9 @@ from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
 )
+from app.modules.payroll.documents.payslip_run_common import (
+    regularisation_events_from_calendar,
+)
 
 logger = get_logger("modules.payroll.documents.payslip_generator")
 
@@ -61,15 +64,32 @@ def _is_heures_sup_conjoncturelle_input(row: dict) -> bool:
     )
 
 
-def _heures_sup_conjoncturelles_from_monthly_inputs(rows: list[dict]) -> float | None:
-    """Extrait les HS conjoncturelles déclarées (payroll_quantity) depuis monthly_inputs."""
-    total = 0.0
+def _is_heures_sup_50_label(row: dict) -> bool:
+    """True si la saisie d'HS conjoncturelle précise une majoration à 50 % (sinon 25 % par défaut)."""
+    label = " ".join(
+        str(row.get(key) or "")
+        for key in ("name", "export_code", "description", "catalog_prime_id")
+    ).lower()
+    return "50" in label
+
+
+def _heures_sup_conjoncturelles_from_monthly_inputs(
+    rows: list[dict],
+) -> tuple[float | None, float | None]:
+    """Extrait les HS conjoncturelles déclarées (payroll_quantity), scindées 25 %/50 %."""
+    total_25 = 0.0
+    total_50 = 0.0
     found = False
     for row in rows:
         if _is_heures_sup_conjoncturelle_input(row):
-            total += float(row["payroll_quantity"])
             found = True
-    return total if found else None
+            if _is_heures_sup_50_label(row):
+                total_50 += float(row["payroll_quantity"])
+            else:
+                total_25 += float(row["payroll_quantity"])
+    if not found:
+        return None, None
+    return total_25, total_50
 
 
 def _is_participation_numeraire_input(row: dict) -> bool:
@@ -112,6 +132,141 @@ def _is_participation_numeraire_input(row: dict) -> bool:
         or "intéressement" in label
         or "interessement" in label
     )
+
+
+def _is_net_a_payer_only_correction_input(row: dict) -> bool:
+    """True si la saisie est une régularisation qui ne réduit que le NET À
+    PAYER du mois (comme un acompte sur salaire), sans toucher au montant net
+    social ni au net imposable.
+
+    Deux cas rencontrés, absents de la DSN (vérifié : ni le montant ni le
+    libellé n'apparaissent dans les blocs S21.G00.50/54/58 de la DSN réelle
+    Colorplast 05/2026), donc purement des ajustements de trésorerie du
+    cabinet, hors assiette sociale/fiscale déclarée :
+    - « Report NAP négatif » (régularisation d'un trop-versé antérieur,
+      cf. Cegid GAUTHERON mai 2026 : -115,11 €).
+    - « SMU2 GAN MUTUELLE FAMILLE » (cf. Cegid ESPINOSA/GAUTHERON/GIRERD
+      mai 2026 : -98,12 € identique sur les 3, donc indépendant du salaire —
+      probablement une régularisation de cotisation mutuelle famille).
+    """
+    if float(row.get("amount") or 0) >= 0:
+        return False
+    label = " ".join(
+        str(row.get(key) or "") for key in ("name", "description")
+    ).lower()
+    if "report" in label and "nap" in label:
+        return True
+    if "mutuelle" in label and "famille" in label:
+        return True
+    # « Acompte MM/AAAA » (avance sur salaire versée en cours de mois, cf. Cegid
+    # MBC mai 2026 : AWAD 300 €, GOISSAUD 500 €, etc.) : réduit uniquement le net
+    # à payer, hors assiette sociale/fiscale. On exclut « acompte sur/de
+    # participation » (SINT), qui lui réduit aussi le montant net social et suit
+    # le mécanisme dédié de la participation.
+    if "acompte" in label and "participation" not in label:
+        return True
+    # « Saisie » (saisie-arrêt sur salaire, ordonnée par tribunal/trésor
+    # public) et « Virement salaire du DD/MM » (régularisation d'un virement
+    # déjà effectué sur une période antérieure) : purs ajustements de
+    # trésorerie, hors assiette sociale/fiscale (cf. Cegid OVIE mai 2026).
+    if "saisie" in label:
+        return True
+    return "virement" in label and "salaire" in label
+
+
+def _is_cantine_input(row: dict) -> bool:
+    """True si la saisie est une retenue « Cantine » (participation salariale aux
+    repas). N'entre pas dans l'assiette brute (le brut reste la base sans cantine)
+    ni au net imposable, MAIS réduit le montant net social ET le net à payer
+    (cf. Cegid GILLET/PORRAL/BOUVIER Mont Blanc Composite mai 2026 : la retenue
+    apparaît juste avant la ligne MONTANT NET SOCIAL, qui l'inclut). On la route
+    donc comme une prime NON soumise (montant négatif) plutôt qu'un acompte pur
+    (net à payer seulement), pour que le MNS la reflète comme chez Cegid."""
+    if float(row.get("amount") or 0) >= 0:
+        return False
+    label = " ".join(str(row.get(key) or "") for key in ("name", "description")).lower()
+    return "cantine" in label
+
+
+def _is_frais_pro_non_soumis_input(row: dict) -> bool:
+    """True si la saisie est un remboursement de frais professionnels non soumis
+    (panier repas, indemnité de déplacement forfaitaire, etc.) : ajouté au net à
+    payer, mais exclu du montant net social et du net imposable (frais pro, pas de
+    la rémunération).
+
+    Cf. Cegid ASKARI Mont Blanc Composite mai 2026 : « Paniers Jours non soumis »
+    120 € présent au net à payer (1781,38 €) mais absent du montant net social
+    (1661,38 €) — écart de 120 € exactement. Même constat sur MEUNIER pour une
+    « Indemnité forfaitaire dep. » (déplacement) de 100 €.
+    """
+    if float(row.get("amount") or 0) <= 0:
+        return False
+    if row.get("is_socially_taxed", True):
+        return False
+    label = " ".join(
+        str(row.get(key) or "") for key in ("name", "description")
+    ).lower()
+    # "Remboursement de notes de frais" (dépenses réelles avec justificatif) reste
+    # dans le net social normal (cf. Cegid BUGNY mai 2026 : inclus dans le MNS) —
+    # seules les indemnités forfaitaires (panier, déplacement forfaitaire) en sont
+    # exclues. Exclusion explicite pour ne pas les confondre.
+    # « Remboursement de notes de frais » (BUGNY Colorplast) reste dans le MNS ;
+    # « Rbst note de frais » (SNDF, LABBE/BORDELIER MBC) est un frais pro hors MNS.
+    if "remboursement de note" in label:
+        return False
+    return any(
+        term in label
+        for term in ("panier", "indemnité forfaitaire", "indemnite forfaitaire",
+                     "déplacement", "deplacement", "rbst note de frais", "note de frais")
+    )
+
+
+def _is_panier_input(row: dict) -> bool:
+    """True si la saisie est un panier repas (indemnité de panier)."""
+    label = " ".join(
+        str(row.get(key) or "") for key in ("name", "description")
+    ).lower()
+    return "panier" in label
+
+
+def _is_ijss_override_input(row: dict) -> bool:
+    """True si la saisie porte un override d'IJSS subrogées back-calculé depuis le
+    bulletin (arrêt maladie avec maintien). Sa présence pilote le moteur maintien :
+    - IJSS subrogées forcées au montant fourni (`ijss_brut_override`) ;
+    - base de maintien calculée sur les jours ouvrés au salaire réel
+      (`maintien_base_ouvree`), conforme au décompte Cegid.
+
+    Cf. SERE/OZEN Mont Blanc Composite mai 2026 : IJSS = absence 100 % − maintien
+    du bulletin (non dérivable des seules données CPAM). N'entre ni au brut ni aux
+    primes : purement un paramètre du calcul de maintien."""
+    label = " ".join(
+        str(row.get(key) or "") for key in ("name", "description")
+    ).lower()
+    return "ijss" in label and "override" in label
+
+
+def _is_participation_pee_input(row: dict) -> bool:
+    """True si la saisie est la part participation/intéressement placée sur un PEE.
+
+    Exonérée de cotisations ET d'IR (seule la CSG/CRDS 9,7 % s'applique) : traitée
+    dans le même bucket `participations` que la part numéraire, mais avec
+    `part_pee` = montant total (cf. calcul_net._participation_aggregats).
+    """
+    if float(row.get("amount") or 0) <= 0:
+        return False
+    label = " ".join(
+        str(row.get(key) or "")
+        for key in ("name", "description", "catalog_prime_id", "export_code")
+    ).lower()
+    is_participation = bool(
+        row.get("participation_campaign_id")
+        or row.get("participation_bulletin_id")
+        or "participation" in label
+        or "intéressement" in label
+        or "interessement" in label
+    )
+    is_pee = "pee" in label or "plan d'épargne" in label or "plan d'epargne" in label
+    return is_participation and is_pee
 
 
 def resolve_date_sortie(employee_data: dict) -> Any:
@@ -338,6 +493,16 @@ def process_payslip_generation(
             employee_folder_name,
             modulation_weekly_hours=weekly_map,
         )
+        # Régularisations antérieures (absence/arrêt d'un mois précédent dont la
+        # retenue n'est rattachée qu'au bulletin du mois courant, cf. DSN
+        # S21.G00.65 / pratique Cegid) : saisie ponctuelle sur le
+        # planned_calendar DU MOIS COURANT (jamais sur le mois d'origine, déjà
+        # clos/payé), voir `regularisation_events_from_calendar` docstring.
+        current_month_row = db_data_map.get((year, month))
+        if current_month_row:
+            payroll_events_list = payroll_events_list + regularisation_events_from_calendar(
+                current_month_row.get("planned_calendar")
+            )
         payroll_events_json = {
             "periode": {"annee": year, "mois": month},
             "calendrier_analyse": payroll_events_list,
@@ -380,8 +545,60 @@ def process_payslip_generation(
             if isinstance(summary, dict) and summary:
                 saisies_data["shift_payroll_summary"] = summary
 
+        paniers_non_soumis_dans_mns = bool(
+            (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns")
+        )
+        net_a_payer_only_correction_total = 0.0
         for row in saisies_res.data:
             if _is_heures_sup_conjoncturelle_input(row):
+                continue
+            if _is_cantine_input(row):
+                # Retenue repas : réduit MNS + net à payer, hors brut/imposable.
+                saisies_data["primes"].append({
+                    "prime_id": row.get("catalog_prime_id") or row["name"].replace(" ", "_").lower(),
+                    "libelle": row["name"],
+                    "montant": float(row["amount"]),
+                    "soumise_a_cotisations": False,
+                    "soumise_a_impot": False,
+                })
+                continue
+            if _is_net_a_payer_only_correction_input(row):
+                net_a_payer_only_correction_total += -float(row["amount"])
+                continue
+            if _is_frais_pro_non_soumis_input(row):
+                # Convention (paramétrable) : selon la CCN, le panier repas non
+                # soumis est soit un remboursement de frais professionnels (exclu
+                # du montant net social — défaut, ex. CCN plasturgie SPAN), soit un
+                # complément de rémunération inclus au MNS et au net à payer (ex.
+                # CCN métallurgie panier équipe SPAJ). Piloté par le paramètre
+                # entreprise `paniers_non_soumis_dans_mns`.
+                if paniers_non_soumis_dans_mns and _is_panier_input(row):
+                    saisies_data["primes"].append({
+                        "prime_id": row.get("catalog_prime_id")
+                        or row["name"].replace(" ", "_").lower(),
+                        "libelle": row["name"],
+                        "montant": float(row["amount"]),
+                        "soumise_a_cotisations": False,
+                        "soumise_a_impot": False,
+                    })
+                    continue
+                # Ajout net (signe négatif de l'accumulateur "acompte" = ajout au net
+                # à payer, cf. calcul_net._calculer_net_a_payer) sans passer par le
+                # brut/les cotisations ni le montant net social.
+                net_a_payer_only_correction_total -= float(row["amount"])
+                continue
+            if _is_ijss_override_input(row):
+                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
+                saisies_data["maintien_base_ouvree"] = True
+                continue
+            if _is_participation_pee_input(row):
+                saisies_data.setdefault("participations", []).append(
+                    {
+                        "libelle": row["name"],
+                        "brut": float(row["amount"]),
+                        "part_pee": float(row["amount"]),
+                    }
+                )
                 continue
             if _is_participation_numeraire_input(row):
                 saisies_data.setdefault("participations", []).append(
@@ -410,9 +627,13 @@ def process_payslip_generation(
                 prime_entry["type"] = "panier"
             saisies_data["primes"].append(prime_entry)
 
-        hs_conj = _heures_sup_conjoncturelles_from_monthly_inputs(saisies_res.data or [])
-        if hs_conj is not None:
-            saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj
+        hs_conj_25, hs_conj_50 = _heures_sup_conjoncturelles_from_monthly_inputs(
+            saisies_res.data or []
+        )
+        if hs_conj_25 is not None:
+            saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj_25
+        if hs_conj_50 is not None:
+            saisies_data["heures_supplementaires_conjoncturelles_50"] = hs_conj_50
 
         if expense_reports_res.data:
             log_payroll_debug(logger, f'DEBUG [Generator] - Ajout de {len(expense_reports_res.data)} note(s) de frais aux saisies.')
@@ -460,7 +681,34 @@ def process_payslip_generation(
                 total_advances_repayment += repayment_amount
                 log_payroll_debug(logger, f"[DEBUG GENERATOR] Avance {advance.get('id')}: {float(repayment_amount)}€ à rembourser ce mois")
 
-            saisies_data["acompte"] = float(total_advances_repayment)
+            # Remboursement de PRÊT SALARIÉ (table `salary_advances`, distinct des
+            # acomptes/saisies saisis en `monthly_inputs`) : un prêt employeur est
+            # une transaction financière séparée, pas une avance sur la
+            # rémunération du mois restant due — il ne doit donc PAS entrer dans
+            # le Montant Net Social (MNS), qui ne reflète QUE la rémunération.
+            # Routé comme une prime NON SOUMISE (cotisations/impôt) au montant
+            # négatif — mécanisme déjà existant et éprouvé côté forfait-jour
+            # (cf. payslip_generator_forfait.py, "remboursement_avance_salaire"),
+            # généralisé ici au chemin heures pour cohérence. Ce canal réduit à
+            # la fois le net à payer ET le MNS de façon symétrique
+            # (`_calculer_net_a_payer` et `calculer_montant_net_social` lisent
+            # tous deux `primes_non_soumises`), contrairement à l'ancien canal
+            # "acompte" qui ne touchait que le net à payer — comportement
+            # volontairement conservé tel quel pour les acomptes/saisies
+            # monthly_inputs (vérifié correct sur 5 cas convergés : FEDRIGONI/
+            # DICK/MENIN/LACROSSE/BUSIZA, Lewis mai 2026 — ceux-ci ne doivent
+            # JAMAIS toucher le MNS, distinction gardée nette).
+            if total_advances_repayment > 0:
+                saisies_data.setdefault("primes", []).append(
+                    {
+                        "prime_id": "remboursement_pret_salarie",
+                        "libelle": "Remboursement prêt salarié",
+                        "montant": -float(total_advances_repayment),
+                        "soumise_a_cotisations": False,
+                        "soumise_a_impot": False,
+                    }
+                )
+            saisies_data["acompte"] = net_a_payer_only_correction_total
             log_payroll_debug(logger, f"[DEBUG GENERATOR] Total des remboursements d'avances à déduire: {float(total_advances_repayment)}€")
         except Exception as e:
             logging.warning(f"Erreur lors du calcul des avances à rembourser: {e}")
@@ -664,6 +912,9 @@ def process_payslip_generation(
                     },
                     "jei": jei_bloc,
                     "prime_anciennete": prime_anciennete_overrides or None,
+                    "jour_solidarite": (company_data.get("settings") or {}).get(
+                        "jour_solidarite"
+                    ),
                 },
             },
         }

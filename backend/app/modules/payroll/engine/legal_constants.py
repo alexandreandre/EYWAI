@@ -37,3 +37,15 @@ TRANCHE_MAINTIEN_66 = 2.0 / 3.0
 
 # Transport
 TAUX_REMBOURSEMENT_TRANSPORT = 0.50
+
+# Exonération IR heures supplémentaires/complémentaires (art. 81 quater CGI,
+# loi pouvoir d'achat n°2022-1158 du 16 août 2022, applicable aux
+# rémunérations versées à compter du 1ᵉʳ janvier 2022) : plafond ANNUEL,
+# exprimé en montant NET imposable des HS/HC (i.e. rémunération brute des
+# HS/HC diminuée de la CSG/CRDS qui reste due dessus), apprécié par salarié
+# tous employeurs confondus, sur l'année CIVILE. Au-delà, le surplus
+# redevient imposable au barème progressif (reste exonéré de cotisations
+# sociales salariales à 11,31 %, mécanisme distinct — cf.
+# `calcul_cotisations.py`). Source : BOI-RSA-CHAMP-20-50-20-40, BOSS
+# Exo-HS-30, service-public.gouv.fr.
+PLAFOND_EXONERATION_IR_HS_ANNUEL_NET = 7500.0

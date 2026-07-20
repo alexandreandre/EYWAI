@@ -80,6 +80,18 @@ def calculer_ligne_prime_anciennete(
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any] | None:
     """Calcule la ligne bulletin prime d'ancienneté (avec prorata si activé)."""
+    specificites = contexte.contrat.get("specificites_paie", {}) or {}
+    if isinstance(specificites, dict):
+        prime_anc_spec = specificites.get("prime_anciennete", {}) or {}
+        if isinstance(prime_anc_spec, dict) and prime_anc_spec.get(
+            "incluse_dans_salaire_base"
+        ):
+            # La prime d'ancienneté est fondue dans le salaire de base
+            # contractuel de ce salarié (cas rare mais réel : le bulletin
+            # réel ne l'affiche pas comme ligne séparée). Le calcul reste
+            # actif et correct pour tous les autres salariés — ce flag est
+            # scopé par salarié via specificites_paie, jamais un hard-code.
+            return None
     date_entree = _resolve_date_entree(contexte)
     if not date_entree:
         return None

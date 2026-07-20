@@ -86,25 +86,31 @@ def _calculer_parametre_T(contexte: ContextePaie) -> float:
 def _calculer_smic_de_reference_cumule(
     contexte: ContextePaie, heures_remunerees_cumulees: float
 ) -> float:
-    """SMIC de référence cumulé, aligné sur `smic_mensuel_brut` (barèmes).
+    """SMIC de référence cumulé = SMIC horaire de référence × heures rémunérées.
 
-    Pro-rata linéaire sur les heures rémunérées cumulées vs heures mensuelles
-    contractuelles (sans arrondi intermédiaire sur les heures mensuelles).
-    Évite l'écart horaire×heures arrondies vs smic_mensuel_brut au plafond 3× SMIC.
+    Règle URSSAF : le SMIC de référence de la réduction est proportionnel aux
+    heures rémunérées, **majorées des heures supplémentaires et complémentaires**
+    (comptées au taux normal). On multiplie donc directement un SMIC horaire par
+    le total des heures rémunérées cumulées — valable pour temps plein, 39 h ou
+    temps partiel (pas de dénominateur `duree_hebdo`, qui faussait le taux
+    horaire effectif pour les contrats ≠ 35 h).
+
+    Le SMIC horaire de référence est **gelé** (LFSS 2025) : on lit une valeur
+    dédiée `smic_reference_horaire` dans la config réduction si présente, sinon
+    on retombe sur le SMIC horaire courant du barème.
     """
+    config_red = contexte.baremes.get("reduction_generale", {}) or {}
     smic_data = contexte.baremes.get("smic", {}) or {}
-    smic_mensuel = float(
-        smic_data.get("smic_mensuel_brut") or contexte.smic_mensuel_proratise()
+    smic_horaire = float(
+        config_red.get("smic_reference_horaire")
+        or smic_data.get("smic_horaire_brut")
+        or smic_data.get("cas_general")
+        or 0.0
     )
-    heures_mensuelles_contrat = (contexte.duree_hebdo_contrat * 52) / 12
-    if heures_mensuelles_contrat <= 0:
-        raise ValueError("Durée contractuelle invalide pour SMIC de référence.")
-    if not smic_mensuel:
-        raise ValueError("SMIC mensuel non trouvé dans les barèmes.")
+    if smic_horaire <= 0:
+        raise ValueError("SMIC horaire de référence introuvable pour la réduction.")
 
-    smic_reference_cumule = round(
-        smic_mensuel * (heures_remunerees_cumulees / heures_mensuelles_contrat), 2
-    )
+    smic_reference_cumule = round(smic_horaire * heures_remunerees_cumulees, 2)
 
     log_payroll_debug(
         logger,

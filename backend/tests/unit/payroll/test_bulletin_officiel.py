@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 from jinja2 import Environment, FileSystemLoader
 
-from app.modules.payroll.engine.bulletin import creer_bulletin_final
+from app.modules.payroll.engine.bulletin import (
+    _calculer_cout_total_employeur,
+    creer_bulletin_final,
+)
 from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
 from app.modules.payroll.engine.calcul_net import calculer_montant_net_social, calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import calculer_reduction_generale
@@ -41,6 +44,8 @@ class TestMontantNetSocial:
         assert mns == pytest.approx(2500.0 + 500.0 - total_sal, abs=0.01)
 
     def test_mns_avec_mutuelle_patronale(self):
+        """La part patronale mutuelle n'entre pas dans le MNS (aligné Cegid) ;
+        elle reste réintégrée au net imposable (cf. _calculer_net_imposable)."""
         ctx = build_test_contexte(
             salaire_base=2000.0,
             specificites_extra={
@@ -54,8 +59,50 @@ class TestMontantNetSocial:
         )
         lignes, total_sal = calculer_cotisations(ctx, 2000.0)
         mns = calculer_montant_net_social(ctx, 2000.0, total_sal, [])
-        assert mns == pytest.approx(2000.0 + 30.0 - total_sal, abs=0.01)
+        assert mns == pytest.approx(2000.0 - total_sal, abs=0.01)
         assert any(l.get("coti_id") == "mutuelle" for l in lignes)
+
+
+class TestCoutTotalEmployeur:
+    def test_sans_participation_brut_plus_charges_patronales(self):
+        cout = _calculer_cout_total_employeur(
+            2444.33,
+            468.02,
+            [],
+            [],
+        )
+        assert cout == pytest.approx(2912.35, abs=0.01)
+
+    def test_avec_participation_et_acompte_non_retenu_sur_masse(self):
+        """Référence Cegid COTTE mai 2026 : brut + pat + participation − acompte."""
+        brut_lines = [
+            {
+                "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+                "gain": 3225.33,
+            }
+        ]
+        primes = [
+            {
+                "libelle": "Acompte participation 2025 (déjà versé)",
+                "montant": -1000.0,
+            }
+        ]
+        cout = _calculer_cout_total_employeur(2444.33, 468.02, primes, brut_lines)
+        assert cout == pytest.approx(5137.68, abs=0.01)
+
+    def test_mns_utilise_montant_net_social_pour_net_avant_impot(self):
+        ctx = build_test_contexte(salaire_base=2444.33)
+        nets = {
+            "net_social": 1954.81,
+            "montant_net_social": 3867.29,
+            "net_imposable": 4763.79,
+            "net_a_payer": 3767.25,
+            "montant_impot_pas": 100.04,
+        }
+        bulletin = creer_bulletin_final(ctx, 2444.33, [], [], nets, [], 2026, 5)
+        assert bulletin["synthese_net"]["net_social_avant_impot"] == pytest.approx(
+            3867.29, abs=0.01
+        )
 
 
 class TestCotisationsRubriques:
