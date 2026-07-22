@@ -17,6 +17,7 @@ class TextToSqlInput:
 
     prompt: str
     user_id: str
+    active_company_id: Optional[str] = None
 
 
 @dataclass

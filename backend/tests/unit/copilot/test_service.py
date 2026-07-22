@@ -35,12 +35,14 @@ class TestGenerateSqlFromPrompt:
         mock_provider.generate_sql_from_prompt.return_value = "SELECT 1"
         mock_get_provider.return_value = mock_provider
 
-        result = generate_sql_from_prompt("Combien d'employés ?")
+        result = generate_sql_from_prompt("Combien d'employés ?", "company-123")
 
         assert result == "SELECT 1"
         mock_provider.generate_sql_from_prompt.assert_called_once()
         call_args = mock_provider.generate_sql_from_prompt.call_args
         assert call_args[0][0] == "Combien d'employés ?"
+        # Le company_id de l'entreprise active est transmis au provider (3e arg).
+        assert call_args[0][2] == "company-123"
 
 
 class TestFormatAnswerFromData:
@@ -102,11 +104,15 @@ class TestFuzzySearchEmployee:
         ]
         mock_get_provider.return_value = mock_provider
 
-        result = fuzzy_search_employee("Jean Dupont", threshold=0.6)
+        result = fuzzy_search_employee(
+            "Jean Dupont", threshold=0.6, company_id="company-123"
+        )
 
         assert len(result) == 1
         assert result[0]["employee"]["first_name"] == "Jean"
-        mock_provider.fuzzy_search_by_name.assert_called_once_with("Jean Dupont", 0.6)
+        mock_provider.fuzzy_search_by_name.assert_called_once_with(
+            "Jean Dupont", 0.6, "company-123"
+        )
 
 
 class TestGetCompanyCollectiveAgreements:

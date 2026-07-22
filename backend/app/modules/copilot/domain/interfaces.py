@@ -21,8 +21,10 @@ class ISqlExecutor(Protocol):
 class IOpenAIProvider(Protocol):
     """Fournit les appels LLM (génération SQL, formatage, intent, synthèse, convention collective)."""
 
-    def generate_sql_from_prompt(self, prompt: str, schema_context: str) -> str:
-        """Génère une requête SQL à partir du prompt et du schéma BDD."""
+    def generate_sql_from_prompt(
+        self, prompt: str, schema_context: str, company_id: Optional[str] = None
+    ) -> str:
+        """Génère une requête SQL à partir du prompt et du schéma BDD, filtrée sur l'entreprise active."""
         ...
 
     def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
@@ -70,9 +72,12 @@ class IEmployeeSearch(Protocol):
     """Recherche floue d'employés par nom."""
 
     def fuzzy_search_by_name(
-        self, name_query: str, threshold: float = 0.6
+        self,
+        name_query: str,
+        threshold: float = 0.6,
+        company_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Retourne les employés dont le nom correspond (similarité >= threshold)."""
+        """Retourne les employés (de l'entreprise active si fournie) dont le nom correspond (similarité >= threshold)."""
         ...
 
 

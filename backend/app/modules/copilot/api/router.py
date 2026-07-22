@@ -39,7 +39,11 @@ async def handle_query(
     """POST /query : délègue à commands.execute_text_to_sql, retourne QueryResponse."""
     try:
         result = commands.execute_text_to_sql(
-            TextToSqlInput(prompt=request.prompt, user_id=current_user.id)
+            TextToSqlInput(
+                prompt=request.prompt,
+                user_id=current_user.id,
+                active_company_id=getattr(current_user, "active_company_id", None),
+            )
         )
         debug = is_app_debug_enabled()
         return QueryResponse(

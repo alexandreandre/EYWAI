@@ -46,7 +46,11 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
             "Le service Copilote n'est pas configuré (OPENROUTER_API_KEY manquante)."
         )
 
-    sql_query = generate_sql_from_prompt(input_.prompt)
+    # Entreprise active : header X-Active-Company puis repli sur le profil.
+    # Injectée dans la génération SQL pour filtrer sur la bonne entreprise.
+    company_id = input_.active_company_id or get_company_id_for_user(input_.user_id)
+
+    sql_query = generate_sql_from_prompt(input_.prompt, company_id)
 
     if not only_select_allowed(sql_query):
         logging.warning(f"Requête non-SELECT bloquée: {sql_query}")
@@ -181,9 +185,13 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
             + f"\n\nConvention utilisée: {selected_agreement['name']}",
         )
 
-    context = {}
+    # company_id injecté dans le contexte : sert de filtre obligatoire pour
+    # toutes les requêtes SQL générées à partir des étapes du plan.
+    context = {"company_id": company_id}
     if plan.get("requires_employee_search") and plan.get("employee_query"):
-        employee_matches = fuzzy_search_employee(plan.get("employee_query"))
+        employee_matches = fuzzy_search_employee(
+            plan.get("employee_query"), company_id=company_id
+        )
 
         if not employee_matches:
             return AgentQueryResult(

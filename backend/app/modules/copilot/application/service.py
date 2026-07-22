@@ -28,10 +28,16 @@ from app.modules.copilot.infrastructure.sql_executor import get_sql_executor
 # --- Text-to-SQL ---
 
 
-def generate_sql_from_prompt(prompt: str) -> str:
-    """Génère une requête SQL à partir du prompt. Délègue à OpenAIProvider."""
+def generate_sql_from_prompt(prompt: str, company_id: str | None = None) -> str:
+    """Génère une requête SQL à partir du prompt. Délègue à OpenAIProvider.
+
+    ``company_id`` est injecté dans le schéma pour forcer le filtrage sur
+    l'entreprise active (sinon le LLM recopie le placeholder et ne trouve rien).
+    """
     openai_provider = get_openai_provider()
-    return openai_provider.generate_sql_from_prompt(prompt, DATABASE_SCHEMA_TEXT_TO_SQL)
+    return openai_provider.generate_sql_from_prompt(
+        prompt, DATABASE_SCHEMA_TEXT_TO_SQL, company_id
+    )
 
 
 def format_answer_from_data(prompt: str, data: Any, sql_query: str) -> str:
@@ -53,10 +59,12 @@ def get_company_id_for_user(user_id: str) -> str | None:
 
 
 def fuzzy_search_employee(
-    name_query: str, threshold: float = 0.6
+    name_query: str, threshold: float = 0.6, company_id: str | None = None
 ) -> List[Dict[str, Any]]:
-    """Recherche floue d'employés par nom. Délègue à EmployeeSearchProvider."""
-    return get_employee_search_provider().fuzzy_search_by_name(name_query, threshold)
+    """Recherche floue d'employés par nom, limitée à l'entreprise active. Délègue à EmployeeSearchProvider."""
+    return get_employee_search_provider().fuzzy_search_by_name(
+        name_query, threshold, company_id
+    )
 
 
 def get_company_collective_agreements(company_id: str) -> List[Dict[str, Any]]:

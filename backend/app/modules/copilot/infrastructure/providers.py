@@ -22,12 +22,46 @@ from app.modules.copilot.infrastructure.queries import (
 )
 
 
-def _clean_generated_sql(raw_sql: str) -> str:
-    """Retire les marqueurs ``` et le point-virgule final du SQL généré par le LLM."""
+def _clean_generated_sql(raw_sql: str, company_id: str | None = None) -> str:
+    """Retire les marqueurs ``` et le point-virgule final du SQL généré par le LLM.
+
+    Garde-fou : si le LLM a recopié le placeholder ``<company_id>``, on le
+    remplace par l'UUID réel de l'entreprise active (évite un WHERE qui ne
+    matche aucune ligne).
+    """
     sql = raw_sql.strip()
     if sql.startswith("```"):
         sql = sql.split("\n", 1)[1].rsplit("\n", 1)[0]
-    return sql.strip().rstrip(";")
+    sql = sql.strip().rstrip(";")
+    if company_id and "<company_id>" in sql:
+        sql = sql.replace("<company_id>", str(company_id))
+    return sql
+
+
+def _inject_runtime_context(schema: str, company_id: str | None) -> str:
+    """Remplace les placeholders {today} et <company_id> par les valeurs réelles.
+
+    Sans cette substitution, le LLM recopie littéralement le placeholder
+    ``'<company_id>'`` dans le WHERE, ce qui ne matche aucune ligne et donne
+    l'impression que l'assistant « ne trouve pas » les salariés.
+    """
+    result = schema.replace("{today}", date.today().isoformat()) if "{today}" in schema else schema
+    if company_id:
+        result = result.replace("<company_id>", str(company_id))
+    return result
+
+
+def _company_scope_hint(company_id: str | None) -> str:
+    """Instruction explicite pour forcer le filtrage sur l'entreprise active."""
+    if not company_id:
+        return ""
+    return (
+        f"\n\nCONTEXTE ENTREPRISE ACTIVE : company_id = '{company_id}'.\n"
+        f"- Filtre TOUJOURS sur cette entreprise : employees.company_id = '{company_id}' "
+        f"(ou la colonne company_id de la table, ou une jointure via employees).\n"
+        f"- Utilise cette valeur exacte. N'écris JAMAIS le texte littéral <company_id> "
+        f"ni un placeholder : la requête doit contenir l'UUID ci-dessus."
+    )
 
 
 # --- OpenAI Provider (IOpenAIProvider) ---
@@ -36,19 +70,18 @@ def _clean_generated_sql(raw_sql: str) -> str:
 class OpenAIProvider:
     """Implémentation des appels LLM (OpenRouter) pour Text-to-SQL et Agent."""
 
-    def generate_sql_from_prompt(self, prompt: str, schema_context: str) -> str:
+    def generate_sql_from_prompt(
+        self, prompt: str, schema_context: str, company_id: str | None = None
+    ) -> str:
         today = date.today().isoformat()
-        schema = (
-            schema_context.replace("{today}", today)
-            if "{today}" in schema_context
-            else schema_context
-        )
+        schema = _inject_runtime_context(schema_context, company_id)
         system_prompt = f"""
         Tu es un expert en génération de SQL PostgreSQL.
         En te basant sur le schéma de BDD suivant, génère une requête SQL (SELECT uniquement)
         pour répondre à la question de l'utilisateur.
         Ne réponds que par le code SQL, sans aucune explication.
         Aujourd'hui, nous sommes le {today}.
+        {_company_scope_hint(company_id)}
 
         Schéma:
         {schema}
@@ -62,7 +95,7 @@ class OpenAIProvider:
             temperature=0,
         )
         sql_query = (response.choices[0].message.content or "").strip()
-        return _clean_generated_sql(sql_query)
+        return _clean_generated_sql(sql_query, company_id)
 
     def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
         if data is None or data == []:
@@ -274,13 +307,16 @@ Règles de réponse:
     def generate_sql_for_step(
         self, step_description: str, context: Dict[str, Any]
     ) -> str:
+        company_id = context.get("company_id")
+        schema = _inject_runtime_context(DATABASE_SCHEMA_AGENT, company_id)
         system_prompt = f"""Tu es un expert en génération de SQL PostgreSQL.
 Génère une requête SQL SELECT pour: {step_description}
 
 Contexte: {json.dumps(context, default=str)}
+{_company_scope_hint(company_id)}
 
 Schéma de la base de données:
-{DATABASE_SCHEMA_AGENT}
+{schema}
 
 Date actuelle: {date.today().isoformat()}
 
@@ -291,10 +327,8 @@ Réponds UNIQUEMENT avec la requête SQL, sans ```sql ni explication."""
             messages=[{"role": "system", "content": system_prompt}],
             temperature=0,
         )
-        sql_query = (response.choices[0].message.content or "").strip().rstrip(";")
-        if sql_query.startswith("```"):
-            sql_query = sql_query.split("\n", 1)[1].rsplit("\n", 1)[0]
-        return sql_query.strip()
+        sql_query = (response.choices[0].message.content or "").strip()
+        return _clean_generated_sql(sql_query, company_id)
 
     def answer_collective_agreement_question(
         self, prompt: str, agreement: Dict[str, Any], plan: Dict[str, Any]
@@ -428,10 +462,13 @@ class EmployeeSearchProvider:
     """Recherche floue d'employés par nom (comportement identique au legacy)."""
 
     def fuzzy_search_by_name(
-        self, name_query: str, threshold: float = 0.6
+        self,
+        name_query: str,
+        threshold: float = 0.6,
+        company_id: str | None = None,
     ) -> List[Dict[str, Any]]:
         try:
-            all_employees = get_employees_for_fuzzy_search()
+            all_employees = get_employees_for_fuzzy_search(company_id)
             if not all_employees:
                 return []
 
