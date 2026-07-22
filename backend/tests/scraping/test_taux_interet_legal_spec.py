@@ -1,13 +1,6 @@
-import sys
-from pathlib import Path
+from _spec_loader import load_spec
 
-FOLDER = Path(__file__).resolve().parents[2] / "scraping" / "taux_interet_legal"
-SCRAPING = Path(__file__).resolve().parents[2] / "scraping"
-for p in (str(SCRAPING), str(FOLDER)):
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-from spec import SPEC  # noqa: E402  (spec.py du dossier taux_interet_legal)
+SPEC = load_spec("taux_interet_legal")
 
 
 def test_spec_identity():
