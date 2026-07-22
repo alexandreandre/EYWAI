@@ -130,9 +130,15 @@ supabase/.temp/
 
 # Données client locales (DSN, paies, pointages) — ne jamais versionner
 /Config/
+/Bulletins/
 /CARTOL_*.dsn
 /*.dsn
 backend/reports/
+/backend/app/runtime/payroll/data/
+/backend/scripts/backtest/_mbc_backup/
+
+# Espaces de travail Git locaux
+/.worktrees/
 
 # Spyder project settings
 .spyderproject
