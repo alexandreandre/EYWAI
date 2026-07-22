@@ -193,8 +193,8 @@ class TestCopilotQuery:
         assert response.status_code == 200
         data = response.json()
         assert data["answer"] == "Il y a 5 employés."
-        assert data["sql_query"] == ""
-        assert data["data"] is None
+        assert "sql_query" not in data
+        assert "data" not in data
         mock_execute.assert_called_once()
         call_input = mock_execute.call_args[0][0]
         assert call_input.prompt == "Combien d'employés ?"
@@ -208,6 +208,19 @@ class TestCopilotQuery:
         response = client_with_copilot_user.post(
             "/api/copilot/query",
             json={"prompt": "Combien d'employés ?"},
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == COPILOT_DATA_UNAVAILABLE_MESSAGE
+
+    def test_query_stays_disabled_when_flag_is_true(
+        self, client_with_copilot_user: TestClient, monkeypatch
+    ):
+        monkeypatch.setenv("COPILOT_RH_DATA_ENABLED", "true")
+
+        response = client_with_copilot_user.post(
+            "/api/copilot/query",
+            json={"prompt": "SELECT * FROM employees"},
         )
 
         assert response.status_code == 503
@@ -227,10 +240,9 @@ class TestCopilotQuery:
         assert "Copilote" in response.json().get("detail", "")
 
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
-    def test_query_permission_error_returns_403(
+    def test_query_permission_error_is_generic(
         self, mock_execute, client_with_copilot_user: TestClient
     ):
-        """PermissionError (requête non SELECT) → 403."""
         mock_execute.side_effect = PermissionError(
             "Requête non autorisée. Seuls les SELECT sont permis."
         )
@@ -238,8 +250,8 @@ class TestCopilotQuery:
             "/api/copilot/query",
             json={"prompt": "Supprime tous les employés"},
         )
-        assert response.status_code == 403
-        assert "SELECT" in response.json().get("detail", "")
+        assert response.status_code == 500
+        assert "SELECT" not in response.json().get("detail", "")
 
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_lookup_error_returns_404(
@@ -301,9 +313,9 @@ class TestCopilotQueryAgent:
         data = response.json()
         assert data["answer"] == "Votre entreprise compte 10 employés."
         assert data["needs_clarification"] is False
-        assert data["sql_queries"] is None
-        assert data["data"] is None
-        assert data["thought_process"] is None
+        assert "sql_queries" not in data
+        assert "data" not in data
+        assert "thought_process" not in data
         mock_handle.assert_called_once()
         call_input = mock_handle.call_args[0][0]
         assert call_input.prompt == "Combien d'employés ?"
@@ -337,6 +349,20 @@ class TestCopilotQueryAgent:
             json={"prompt": "Combien d'employés ?", "conversation_history": []},
         )
         assert response.status_code == 500
+        assert "pas configuré" not in response.json()["detail"]
+
+    @patch("app.modules.copilot.api.router.commands.handle_agent_query")
+    def test_query_agent_unexpected_error_is_generic(
+        self, mock_handle, client_with_copilot_user: TestClient
+    ):
+        mock_handle.side_effect = RuntimeError("secret interne MAJI")
+        response = client_with_copilot_user.post(
+            "/api/copilot/query-agent",
+            json={"prompt": "Combien d'employés ?", "conversation_history": []},
+        )
+        assert response.status_code == 500
+        assert "secret" not in response.json()["detail"]
+        assert "MAJI" not in response.json()["detail"]
 
     def test_query_agent_missing_prompt_returns_422(
         self, client_with_copilot_user: TestClient

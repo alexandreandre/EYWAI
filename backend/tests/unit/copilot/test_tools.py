@@ -73,6 +73,43 @@ class TestParseToolCalls:
         with pytest.raises(ValueError):
             parse_tool_calls([{"tool": "employee_count", "arguments": "actif"}])
 
+    @pytest.mark.parametrize(
+        ("tool", "arguments"),
+        [
+            ("employee_count", {"unexpected": "x"}),
+            ("employee_search", {"employee_id": "internal-id"}),
+            ("payroll_summary", {"year": 2026}),
+            ("absence_summary", {"date_start": "2026-01-01"}),
+            ("planning_summary", {"status": "locked"}),
+            ("hr_indicators", {"detail": True}),
+        ],
+    )
+    def test_unknown_argument_for_each_tool_is_rejected(self, tool, arguments):
+        with pytest.raises(ValueError, match="non autorisé"):
+            parse_tool_calls([{"tool": tool, "arguments": arguments}])
+
+    @pytest.mark.parametrize(
+        ("tool", "arguments"),
+        [
+            ("employee_count", {"employment_status": 1}),
+            ("employee_search", {"name": ["Jean"]}),
+            ("employee_search", {"limit": "10"}),
+            ("employee_search", {"limit": True}),
+            ("payroll_summary", {"period": 202601}),
+            ("absence_summary", {"status": False}),
+            ("planning_summary", {"date_start": 20260101}),
+        ],
+    )
+    def test_wrong_argument_type_is_rejected(self, tool, arguments):
+        with pytest.raises(ValueError, match="invalide"):
+            parse_tool_calls([{"tool": tool, "arguments": arguments}])
+
+    def test_unknown_call_level_key_is_rejected(self):
+        with pytest.raises(ValueError, match="appel d'outil"):
+            parse_tool_calls(
+                [{"tool": "employee_count", "arguments": {}, "query": "SELECT 1"}]
+            )
+
     def test_non_dict_item_is_rejected(self):
         with pytest.raises(ValueError):
             parse_tool_calls(["employee_count"])

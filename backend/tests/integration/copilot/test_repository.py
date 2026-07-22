@@ -89,31 +89,36 @@ class TestGetEmployeesForFuzzySearch:
                 "job_title": "RH",
             },
         ]
-        mock_sb.table.return_value.select.return_value.execute.return_value = (
-            mock_response
-        )
+        query = mock_sb.table.return_value.select.return_value
+        query.eq.return_value.execute.return_value = mock_response
         mock_get_supabase.return_value = mock_sb
 
-        result = get_employees_for_fuzzy_search()
+        result = get_employees_for_fuzzy_search("company-mbc")
 
         assert len(result) == 2
         assert result[0]["first_name"] == "Jean"
         mock_sb.table.assert_called_once_with("employees")
         mock_sb.table().select.assert_called_once()
+        query.eq.assert_called_once_with("company_id", "company-mbc")
 
     @patch("app.modules.copilot.infrastructure.queries.get_supabase_client")
     def test_returns_empty_list_when_no_data(self, mock_get_supabase):
         mock_sb = MagicMock()
         mock_response = MagicMock()
         mock_response.data = None
-        mock_sb.table.return_value.select.return_value.execute.return_value = (
-            mock_response
-        )
+        query = mock_sb.table.return_value.select.return_value
+        query.eq.return_value.execute.return_value = mock_response
         mock_get_supabase.return_value = mock_sb
 
-        result = get_employees_for_fuzzy_search()
+        result = get_employees_for_fuzzy_search("company-mbc")
 
         assert result == []
+
+    @patch("app.modules.copilot.infrastructure.queries.get_supabase_client")
+    def test_rejects_missing_company_before_query(self, mock_get_supabase):
+        with pytest.raises(ValueError, match="company_id"):
+            get_employees_for_fuzzy_search("")
+        mock_get_supabase.assert_not_called()
 
 
 class TestGetCompanyCollectiveAgreements:

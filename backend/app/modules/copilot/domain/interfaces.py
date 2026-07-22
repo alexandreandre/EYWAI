@@ -10,26 +10,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Protocol
 
 
-class ISqlExecutor(Protocol):
-    """Exécute une requête SQL en lecture (SELECT) et retourne les données brutes."""
-
-    def execute_read_only(self, query: str) -> Any:
-        """Exécute une requête SQL (SELECT uniquement). Retourne les lignes ou structure attendue."""
-        ...
-
-
 class IOpenAIProvider(Protocol):
-    """Fournit les appels LLM (génération SQL, formatage, intent, synthèse, convention collective)."""
-
-    def generate_sql_from_prompt(
-        self, prompt: str, schema_context: str, company_id: Optional[str] = None
-    ) -> str:
-        """Génère une requête SQL à partir du prompt et du schéma BDD, filtrée sur l'entreprise active."""
-        ...
-
-    def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
-        """Formate les données brutes en réponse naturelle."""
-        ...
+    """Fournit la planification, la synthèse et les réponses documentaires."""
 
     def analyze_intent_and_plan(
         self,
@@ -38,12 +20,6 @@ class IOpenAIProvider(Protocol):
         company_agreements_summary: str,
     ) -> Dict[str, Any]:
         """Analyse l'intention et retourne un plan (intent, clarification, steps, etc.)."""
-        ...
-
-    def generate_sql_for_step(
-        self, step_description: str, context: Dict[str, Any]
-    ) -> str:
-        """Génère une requête SQL pour une étape de récupération."""
         ...
 
     def answer_collective_agreement_question(
@@ -74,10 +50,10 @@ class IEmployeeSearch(Protocol):
     def fuzzy_search_by_name(
         self,
         name_query: str,
+        company_id: str,
         threshold: float = 0.6,
-        company_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Retourne les employés (de l'entreprise active si fournie) dont le nom correspond (similarité >= threshold)."""
+        """Retourne les employés de l'entreprise active correspondant au nom."""
         ...
 
 

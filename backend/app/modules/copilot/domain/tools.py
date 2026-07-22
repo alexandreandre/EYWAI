@@ -63,6 +63,47 @@ FORBIDDEN_ARGUMENT_KEYS: frozenset[str] = frozenset(
 MAX_TOOL_CALLS = 5
 
 
+_ARGUMENT_TYPES: dict[ToolName, dict[str, type]] = {
+    ToolName.EMPLOYEE_COUNT: {"employment_status": str},
+    ToolName.EMPLOYEE_SEARCH: {
+        "name": str,
+        "employment_status": str,
+        "limit": int,
+    },
+    ToolName.PAYROLL_SUMMARY: {"period": str},
+    ToolName.ABSENCE_SUMMARY: {"status": str, "type": str},
+    ToolName.PLANNING_SUMMARY: {"date_start": str, "date_end": str},
+    ToolName.HR_INDICATORS: {},
+}
+
+
+def _validate_arguments(tool: ToolName, arguments: dict[str, Any]) -> None:
+    """Valide les clés et types autorisés pour un outil précis."""
+    forbidden = FORBIDDEN_ARGUMENT_KEYS.intersection(arguments)
+    if forbidden:
+        raise ValueError(
+            "Arguments interdits fournis par le LLM : "
+            f"{', '.join(sorted(forbidden))}."
+        )
+
+    schema = _ARGUMENT_TYPES[tool]
+    unknown = set(arguments).difference(schema)
+    if unknown:
+        raise ValueError(
+            f"Argument non autorisé pour {tool.value} : "
+            f"{', '.join(sorted(unknown))}."
+        )
+
+    for key, value in arguments.items():
+        expected = schema[key]
+        # ``bool`` est un sous-type de ``int`` en Python : on le refuse
+        # explicitement pour éviter qu'un booléen soit accepté comme limite.
+        if type(value) is not expected:
+            raise ValueError(
+                f"Type invalide pour l'argument {key} de {tool.value}."
+            )
+
+
 def parse_tool_calls(raw: Any) -> list[ToolCall]:
     """Valide et convertit la sortie LLM brute en liste d'``ToolCall``.
 
@@ -82,6 +123,9 @@ def parse_tool_calls(raw: Any) -> list[ToolCall]:
     for item in raw:
         if not isinstance(item, dict):
             raise ValueError("Chaque appel d'outil doit être un objet.")
+        unknown_call_keys = set(item).difference({"tool", "arguments"})
+        if unknown_call_keys:
+            raise ValueError("Clé non autorisée dans un appel d'outil.")
 
         raw_name = item.get("tool")
         try:
@@ -95,12 +139,7 @@ def parse_tool_calls(raw: Any) -> list[ToolCall]:
         if not isinstance(arguments, dict):
             raise ValueError("Les arguments d'un outil doivent être un objet.")
 
-        forbidden = FORBIDDEN_ARGUMENT_KEYS.intersection(arguments.keys())
-        if forbidden:
-            raise ValueError(
-                "Arguments interdits fournis par le LLM : "
-                f"{', '.join(sorted(forbidden))}."
-            )
+        _validate_arguments(tool, arguments)
 
         calls.append(ToolCall(tool=tool, arguments=dict(arguments)))
 

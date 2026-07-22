@@ -11,14 +11,10 @@ import pytest
 
 from app.modules.copilot.application.dto import AgentMessageDto
 from app.modules.copilot.application.service import (
-    generate_sql_from_prompt,
-    format_answer_from_data,
-    execute_sql_query,
     get_company_id_for_user,
     fuzzy_search_employee,
     get_company_collective_agreements,
     analyze_intent_and_plan,
-    execute_retrieval_step,
     execute_tool_calls,
     answer_app_usage_question,
     answer_collective_agreement_question,
@@ -27,57 +23,6 @@ from app.modules.copilot.application.service import (
 
 
 pytestmark = pytest.mark.unit
-
-
-class TestGenerateSqlFromPrompt:
-    @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_delegates_to_provider_and_returns_sql(self, mock_get_provider):
-        mock_provider = MagicMock()
-        mock_provider.generate_sql_from_prompt.return_value = "SELECT 1"
-        mock_get_provider.return_value = mock_provider
-
-        result = generate_sql_from_prompt("Combien d'employés ?", "company-123")
-
-        assert result == "SELECT 1"
-        mock_provider.generate_sql_from_prompt.assert_called_once()
-        call_args = mock_provider.generate_sql_from_prompt.call_args
-        assert call_args[0][0] == "Combien d'employés ?"
-        # Le company_id de l'entreprise active est transmis au provider (3e arg).
-        assert call_args[0][2] == "company-123"
-
-
-class TestFormatAnswerFromData:
-    @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_delegates_to_provider_and_returns_formatted_answer(
-        self, mock_get_provider
-    ):
-        mock_provider = MagicMock()
-        mock_provider.format_answer_from_data.return_value = "Il y a 5 employés."
-        mock_get_provider.return_value = mock_provider
-
-        result = format_answer_from_data(
-            "Combien d'employés ?", [{"count": 5}], "SELECT COUNT(*) FROM employees"
-        )
-
-        assert result == "Il y a 5 employés."
-        mock_provider.format_answer_from_data.assert_called_once_with(
-            "Combien d'employés ?", [{"count": 5}], "SELECT COUNT(*) FROM employees"
-        )
-
-
-class TestExecuteSqlQuery:
-    @patch("app.modules.copilot.application.service.get_sql_executor")
-    def test_delegates_to_executor_and_returns_data(self, mock_get_executor):
-        mock_executor = MagicMock()
-        mock_executor.execute_read_only.return_value = [{"id": "1", "name": "Test"}]
-        mock_get_executor.return_value = mock_executor
-
-        result = execute_sql_query("SELECT * FROM employees LIMIT 1")
-
-        assert result == [{"id": "1", "name": "Test"}]
-        mock_executor.execute_read_only.assert_called_once_with(
-            "SELECT * FROM employees LIMIT 1"
-        )
 
 
 class TestGetCompanyIdForUser:
@@ -112,7 +57,7 @@ class TestFuzzySearchEmployee:
         assert len(result) == 1
         assert result[0]["employee"]["first_name"] == "Jean"
         mock_provider.fuzzy_search_by_name.assert_called_once_with(
-            "Jean Dupont", 0.6, "company-123"
+            "Jean Dupont", "company-123", 0.6
         )
 
 
@@ -140,7 +85,7 @@ class TestAnalyzeIntentAndPlan:
             "intent": "count_employees",
             "needs_clarification": False,
             "requires_data_retrieval": True,
-            "data_retrieval_steps": ["Compter les employés"],
+            "data_tool_calls": [{"tool": "employee_count", "arguments": {}}],
         }
         mock_get_provider.return_value = mock_provider
         history = [AgentMessageDto(role="user", content="Combien d'employés ?")]
@@ -153,40 +98,6 @@ class TestAnalyzeIntentAndPlan:
         call_args = mock_provider.analyze_intent_and_plan.call_args
         assert call_args[0][0] == "Combien d'employés ?"
         assert call_args[0][1] == [{"role": "user", "content": "Combien d'employés ?"}]
-
-
-class TestExecuteRetrievalStep:
-    @patch("app.modules.copilot.application.service.get_sql_executor")
-    @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_select_query_executes_and_returns_data(
-        self, mock_get_openai, mock_get_executor
-    ):
-        mock_openai = MagicMock()
-        mock_openai.generate_sql_for_step.return_value = (
-            "SELECT COUNT(*) FROM employees"
-        )
-        mock_get_openai.return_value = mock_openai
-        mock_executor = MagicMock()
-        mock_executor.execute_read_only.return_value = [{"count": 10}]
-        mock_get_executor.return_value = mock_executor
-
-        result = execute_retrieval_step("Compter les employés", {})
-
-        assert result["success"] is True
-        assert result["sql"] == "SELECT COUNT(*) FROM employees"
-        assert result["data"] == [{"count": 10}]
-
-    @patch("app.modules.copilot.application.service.get_openai_provider")
-    def test_non_select_returns_error_dict(self, mock_get_openai):
-        mock_openai = MagicMock()
-        mock_openai.generate_sql_for_step.return_value = "DELETE FROM employees"
-        mock_get_openai.return_value = mock_openai
-
-        result = execute_retrieval_step("Supprimer", {})
-
-        assert result["success"] is False
-        assert "error" in result
-
 
 class TestExecuteToolCalls:
     """Dispatch fermé au niveau service : le company_id serveur est toujours imposé."""
@@ -234,7 +145,10 @@ class TestExecuteToolCalls:
             [{"tool": "employee_count", "arguments": {}}], company_id="c1"
         )
         assert results[0]["success"] is False
-        assert "boom" in results[0]["error"]
+        assert "boom" not in results[0]["error"]
+        assert results[0]["error"] == (
+            "L'outil de données est temporairement indisponible."
+        )
 
 
 class TestProviderPlanSchema:

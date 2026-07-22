@@ -14,7 +14,6 @@ from typing import Any, Dict, List
 
 from app.shared.infrastructure.ai import MODEL_COPILOT, chat_completions_create
 from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
-from app.modules.copilot.infrastructure.schema_context import DATABASE_SCHEMA_AGENT
 from app.modules.copilot.infrastructure.queries import (
     get_company_collective_agreements as queries_get_company_agreements,
     get_company_id_for_user as queries_get_company_id,
@@ -22,106 +21,11 @@ from app.modules.copilot.infrastructure.queries import (
 )
 
 
-def _clean_generated_sql(raw_sql: str, company_id: str | None = None) -> str:
-    """Retire les marqueurs ``` et le point-virgule final du SQL généré par le LLM.
-
-    Garde-fou : si le LLM a recopié le placeholder ``<company_id>``, on le
-    remplace par l'UUID réel de l'entreprise active (évite un WHERE qui ne
-    matche aucune ligne).
-    """
-    sql = raw_sql.strip()
-    if sql.startswith("```"):
-        sql = sql.split("\n", 1)[1].rsplit("\n", 1)[0]
-    sql = sql.strip().rstrip(";")
-    if company_id and "<company_id>" in sql:
-        sql = sql.replace("<company_id>", str(company_id))
-    return sql
-
-
-def _inject_runtime_context(schema: str, company_id: str | None) -> str:
-    """Remplace les placeholders {today} et <company_id> par les valeurs réelles.
-
-    Sans cette substitution, le LLM recopie littéralement le placeholder
-    ``'<company_id>'`` dans le WHERE, ce qui ne matche aucune ligne et donne
-    l'impression que l'assistant « ne trouve pas » les salariés.
-    """
-    result = schema.replace("{today}", date.today().isoformat()) if "{today}" in schema else schema
-    if company_id:
-        result = result.replace("<company_id>", str(company_id))
-    return result
-
-
-def _company_scope_hint(company_id: str | None) -> str:
-    """Instruction explicite pour forcer le filtrage sur l'entreprise active."""
-    if not company_id:
-        return ""
-    return (
-        f"\n\nCONTEXTE ENTREPRISE ACTIVE : company_id = '{company_id}'.\n"
-        f"- Filtre TOUJOURS sur cette entreprise : employees.company_id = '{company_id}' "
-        f"(ou la colonne company_id de la table, ou une jointure via employees).\n"
-        f"- Utilise cette valeur exacte. N'écris JAMAIS le texte littéral <company_id> "
-        f"ni un placeholder : la requête doit contenir l'UUID ci-dessus."
-    )
-
-
 # --- OpenAI Provider (IOpenAIProvider) ---
 
 
 class OpenAIProvider:
-    """Implémentation des appels LLM (OpenRouter) pour Text-to-SQL et Agent."""
-
-    def generate_sql_from_prompt(
-        self, prompt: str, schema_context: str, company_id: str | None = None
-    ) -> str:
-        today = date.today().isoformat()
-        schema = _inject_runtime_context(schema_context, company_id)
-        system_prompt = f"""
-        Tu es un expert en génération de SQL PostgreSQL.
-        En te basant sur le schéma de BDD suivant, génère une requête SQL (SELECT uniquement)
-        pour répondre à la question de l'utilisateur.
-        Ne réponds que par le code SQL, sans aucune explication.
-        Aujourd'hui, nous sommes le {today}.
-        {_company_scope_hint(company_id)}
-
-        Schéma:
-        {schema}
-        """
-        response = chat_completions_create(
-            model=MODEL_COPILOT,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0,
-        )
-        sql_query = (response.choices[0].message.content or "").strip()
-        return _clean_generated_sql(sql_query, company_id)
-
-    def format_answer_from_data(self, prompt: str, data: Any, sql_query: str) -> str:
-        if data is None or data == []:
-            data_str = "[] (Aucun résultat)"
-        else:
-            data_str = json.dumps(data, indent=2, default=str)
-        system_prompt = f"""
-        Tu es un assistant RH. Réponds à la question de l'utilisateur en te basant
-        sur les données brutes suivantes (résultat de la requête SQL).
-        Sois concis et direct. Si les données sont vides ou '[]',
-        indique simplement qu'aucun résultat n'a été trouvé.
-        Question: {prompt}
-        Requête SQL: {sql_query}
-        Données:
-        {data_str}
-        """
-        try:
-            response = chat_completions_create(
-                model=MODEL_COPILOT,
-                messages=[{"role": "system", "content": system_prompt}],
-                temperature=0,
-            )
-            return (response.choices[0].message.content or "").strip()
-        except Exception as e:
-            logging.error("Erreur lors du formatage de la réponse: %s", e)
-            return "J'ai trouvé des données, mais je n'ai pas pu les formater. (Erreur LLM)"
+    """Implémentation des appels LLM de planification et de synthèse."""
 
     def analyze_intent_and_plan(
         self,
@@ -134,15 +38,13 @@ class OpenAIProvider:
             for msg in conversation_history[-5:]
         )
         system_prompt = f"""Tu es un agent RH intelligent. Tu réponds à TROIS familles de questions :
-1. Les données RH de l'entreprise (employés, paie, absences, etc.) → via SQL.
+1. Les données RH de l'entreprise (employés, paie, absences, etc.) → via les outils autorisés.
 2. Les conventions collectives → via leur texte.
 3. L'aide à l'utilisation du logiciel EYWAI (« comment faire X ? », « où trouver Y ? »,
    « à quoi sert tel module ? ») → via le guide produit.
 
 Date actuelle: {date.today().isoformat()}
 
-Schéma de la base de données:
-{DATABASE_SCHEMA_AGENT}
 {company_agreements_summary}
 
 Historique de conversation récent:
@@ -156,8 +58,6 @@ Tu dois retourner un JSON avec cette structure:
   "needs_clarification": true/false,
   "clarification_question": "question à poser si besoin de clarification" ou null,
   "requires_app_help": true/false,
-  "requires_employee_search": true/false,
-  "employee_query": "nom de l'employé à rechercher" ou null,
   "requires_collective_agreement": true/false,
   "collective_agreement_query": "convention collective concernée ou null si ambiguë" ou null,
   "agreement_id_if_unique": "id de la convention si une seule existe" ou null,
@@ -172,7 +72,7 @@ CATALOGUE FERMÉ D'OUTILS DE DONNÉES (aucun autre n'existe) :
 - "employee_search" — recherche un salarié par nom. arguments: {{"name": "<nom>", "employment_status": "actif"|"inactif" (optionnel), "limit": <entier> (optionnel)}}.
 - "payroll_summary" — synthèse paie d'une période. arguments: {{"period": "AAAA-MM"}} (optionnel, défaut mois courant).
 - "absence_summary" — synthèse des absences. arguments: {{"status": "<statut>", "type": "<type>"}} (optionnels).
-- "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-JJ-MM", "date_end": "AAAA-MM-JJ"}} (optionnels).
+- "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (optionnels).
 - "hr_indicators" — indicateurs RH (turnover, absentéisme, effectifs). arguments: {{}}.
 
 RÈGLES STRICTES POUR data_tool_calls :
@@ -188,8 +88,9 @@ Règles importantes:
    un bouton, ou demande de l'aide pour naviguer, active requires_app_help: true et NE déclenche
    ni recherche employé, ni convention, ni requête de données (mets les autres à false).
    Ce type de question ne nécessite jamais de clarification.
-2. Si le nom d'un employé est mentionné mais semble incomplet ou ambigu, demande une clarification
-3. Si la question nécessite plusieurs données (ex: "combien gagne X et Y"), prévois plusieurs étapes
+2. Si le nom d'un employé est mentionné mais semble incomplet ou ambigu, demande une clarification.
+   Sinon utilise l'outil employee_search avec le nom dans son argument "name".
+3. Si la question nécessite plusieurs données, prévois plusieurs appels d'outils autorisés
 4. Si la question (de données) est vague (ex: "combien d'employés"), demande de préciser (type de contrat? statut?)
 5. Si la question concerne une convention collective, active requires_collective_agreement: true
 6. Si plusieurs conventions existent et que la question ne précise pas laquelle, demande une clarification
@@ -265,7 +166,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
                 "intent": "Unknown",
                 "needs_clarification": False,
                 "requires_app_help": False,
-                "requires_employee_search": False,
                 "requires_collective_agreement": False,
                 "requires_data_retrieval": False,
                 "data_tool_calls": [],
@@ -325,32 +225,6 @@ Règles de réponse:
                 "Je rencontre des difficultés pour répondre à votre question sur "
                 "l'utilisation du logiciel. Pouvez-vous reformuler ?"
             )
-
-    def generate_sql_for_step(
-        self, step_description: str, context: Dict[str, Any]
-    ) -> str:
-        company_id = context.get("company_id")
-        schema = _inject_runtime_context(DATABASE_SCHEMA_AGENT, company_id)
-        system_prompt = f"""Tu es un expert en génération de SQL PostgreSQL.
-Génère une requête SQL SELECT pour: {step_description}
-
-Contexte: {json.dumps(context, default=str)}
-{_company_scope_hint(company_id)}
-
-Schéma de la base de données:
-{schema}
-
-Date actuelle: {date.today().isoformat()}
-
-Réponds UNIQUEMENT avec la requête SQL, sans ```sql ni explication."""
-
-        response = chat_completions_create(
-            model=MODEL_COPILOT,
-            messages=[{"role": "system", "content": system_prompt}],
-            temperature=0,
-        )
-        sql_query = (response.choices[0].message.content or "").strip()
-        return _clean_generated_sql(sql_query, company_id)
 
     def answer_collective_agreement_question(
         self, prompt: str, agreement: Dict[str, Any], plan: Dict[str, Any]
@@ -425,7 +299,10 @@ Réponds à cette question en te basant sur le texte de la convention collective
             logging.error(
                 "Erreur lors de la réponse sur la convention collective: %s", e
             )
-            return f"Je rencontre des difficultés pour répondre à votre question sur la convention collective. Erreur: {str(e)}"
+            return (
+                "Je rencontre des difficultés pour répondre à votre question "
+                "sur la convention collective. Veuillez réessayer."
+            )
 
     def synthesize_final_answer(
         self,
@@ -437,11 +314,13 @@ Réponds à cette question en te basant sur le texte de la convention collective
         for i, result in enumerate(retrieval_results):
             if result.get("success"):
                 results_summary.append(
-                    f"Étape {i + 1} - SQL: {result.get('sql')}\nDonnées: "
+                    f"Outil {result.get('tool') or i + 1} - Données: "
                     f"{json.dumps(result.get('data'), default=str, ensure_ascii=False)}"
                 )
             else:
-                results_summary.append(f"Étape {i + 1} - Erreur: {result.get('error')}")
+                results_summary.append(
+                    f"Outil {result.get('tool') or i + 1} indisponible."
+                )
         results_text = "\n\n".join(results_summary)
 
         system_prompt = f"""Tu es un assistant RH professionnel et convivial, expert en données RH et en conventions collectives.
@@ -450,7 +329,7 @@ Question de l'utilisateur: {prompt}
 
 Plan d'action: {json.dumps(plan, ensure_ascii=False)}
 
-Résultats des requêtes:
+Résultats des outils autorisés:
 {results_text}
 
 Date actuelle: {date.today().isoformat()}
@@ -463,7 +342,7 @@ Génère une réponse claire, professionnelle et concise en français.
 - Ajoute du contexte si utile (ex: "Ce qui représente X% du salaire total")
 - Si la question concerne des éléments qui pourraient être régis par une convention collective (congés, RTT, période d'essai, etc.), mentionne-le et suggère de consulter la convention collective de l'entreprise pour plus de détails
 
-Ne mentionne JAMAIS les détails techniques (SQL, tables, etc.). Réponds comme un collègue RH serviable et expert."""
+Ne mentionne JAMAIS les détails techniques internes. Réponds comme un collègue RH serviable et expert."""
 
         try:
             response = chat_completions_create(
@@ -486,8 +365,8 @@ class EmployeeSearchProvider:
     def fuzzy_search_by_name(
         self,
         name_query: str,
+        company_id: str,
         threshold: float = 0.6,
-        company_id: str | None = None,
     ) -> List[Dict[str, Any]]:
         try:
             all_employees = get_employees_for_fuzzy_search(company_id)

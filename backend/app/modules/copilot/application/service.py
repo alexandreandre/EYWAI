@@ -1,9 +1,4 @@
-"""
-Service applicatif du module copilot.
-
-Orchestration uniquement : délègue au domain (règles) et à l'infrastructure (providers, sql_executor, queries).
-Aucun accès direct à la DB ni à OpenAI ; comportement strictement identique au legacy.
-"""
+"""Service applicatif du Copilot à catalogue fermé d'outils."""
 
 from __future__ import annotations
 
@@ -12,7 +7,6 @@ from typing import Any, Dict, List
 
 from app.modules.copilot.application.dto import AgentMessageDto
 from app.modules.copilot.application.tool_service import execute_tool
-from app.modules.copilot.domain.rules import only_select_allowed
 from app.modules.copilot.domain.tools import parse_tool_calls
 from app.modules.copilot.infrastructure.providers import (
     get_collective_agreement_provider,
@@ -21,35 +15,6 @@ from app.modules.copilot.infrastructure.providers import (
     get_user_company_resolver,
 )
 from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
-from app.modules.copilot.infrastructure.schema_context import (
-    DATABASE_SCHEMA_TEXT_TO_SQL,
-)
-from app.modules.copilot.infrastructure.sql_executor import get_sql_executor
-
-
-# --- Text-to-SQL ---
-
-
-def generate_sql_from_prompt(prompt: str, company_id: str | None = None) -> str:
-    """Génère une requête SQL à partir du prompt. Délègue à OpenAIProvider.
-
-    ``company_id`` est injecté dans le schéma pour forcer le filtrage sur
-    l'entreprise active (sinon le LLM recopie le placeholder et ne trouve rien).
-    """
-    openai_provider = get_openai_provider()
-    return openai_provider.generate_sql_from_prompt(
-        prompt, DATABASE_SCHEMA_TEXT_TO_SQL, company_id
-    )
-
-
-def format_answer_from_data(prompt: str, data: Any, sql_query: str) -> str:
-    """Formate les données brutes en réponse naturelle. Délègue à OpenAIProvider."""
-    return get_openai_provider().format_answer_from_data(prompt, data, sql_query)
-
-
-def execute_sql_query(query: str) -> Any:
-    """Exécute une requête SQL en lecture. Délègue à SupabaseSqlExecutor."""
-    return get_sql_executor().execute_read_only(query)
 
 
 # --- Agent : résolution contexte et données ---
@@ -61,11 +26,11 @@ def get_company_id_for_user(user_id: str) -> str | None:
 
 
 def fuzzy_search_employee(
-    name_query: str, threshold: float = 0.6, company_id: str | None = None
+    name_query: str, company_id: str, threshold: float = 0.6
 ) -> List[Dict[str, Any]]:
     """Recherche floue d'employés par nom, limitée à l'entreprise active. Délègue à EmployeeSearchProvider."""
     return get_employee_search_provider().fuzzy_search_by_name(
-        name_query, threshold, company_id
+        name_query, company_id, threshold
     )
 
 
@@ -104,25 +69,6 @@ def analyze_intent_and_plan(
     )
 
 
-def execute_retrieval_step(
-    step_description: str, context: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Exécute une étape de récupération : génération SQL (OpenAI) + règle SELECT (domain) + exécution (infra)."""
-    openai_provider = get_openai_provider()
-    sql_executor = get_sql_executor()
-    try:
-        sql_query = openai_provider.generate_sql_for_step(step_description, context)
-        if not only_select_allowed(sql_query):
-            logging.warning("Requête non-SELECT bloquée: %s", sql_query)
-            return {"error": "Requête non autorisée", "success": False}
-        logging.info("Exécution SQL: %s", sql_query)
-        raw_data = sql_executor.execute_read_only(sql_query)
-        return {"sql": sql_query, "data": raw_data, "success": True}
-    except Exception as e:
-        logging.error("Erreur lors de l'exécution de l'étape: %s", e)
-        return {"error": str(e), "success": False}
-
-
 def execute_tool_calls(
     raw_tool_calls: Any, company_id: str
 ) -> List[Dict[str, Any]]:
@@ -140,7 +86,13 @@ def execute_tool_calls(
         calls = parse_tool_calls(raw_tool_calls)
     except ValueError as exc:
         logging.warning("Appels d'outils Copilot invalides: %s", exc)
-        return [{"tool": None, "success": False, "error": str(exc)}]
+        return [
+            {
+                "tool": None,
+                "success": False,
+                "error": "Appel d'outil invalide.",
+            }
+        ]
 
     results: List[Dict[str, Any]] = []
     for call in calls:
@@ -150,9 +102,18 @@ def execute_tool_calls(
                 {"tool": str(call.tool), "success": True, "data": data}
             )
         except Exception as exc:  # noqa: BLE001 - on isole chaque outil
-            logging.error("Erreur d'exécution de l'outil %s: %s", call.tool, exc)
+            logging.error(
+                "Erreur d'exécution de l'outil %s: %s",
+                call.tool,
+                exc,
+                exc_info=True,
+            )
             results.append(
-                {"tool": str(call.tool), "success": False, "error": str(exc)}
+                {
+                    "tool": str(call.tool),
+                    "success": False,
+                    "error": "L'outil de données est temporairement indisponible.",
+                }
             )
     return results
 

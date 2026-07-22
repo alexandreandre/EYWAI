@@ -28,19 +28,20 @@ def get_company_id_for_user(user_id: str) -> str | None:
     return response.data["company_id"]
 
 
-def get_employees_for_fuzzy_search(
-    company_id: str | None = None,
-) -> list[dict[str, Any]]:
+def get_employees_for_fuzzy_search(company_id: str) -> list[dict[str, Any]]:
     """Retourne la liste minimale des employés (id, first_name, last_name, job_title) pour la recherche floue.
 
-    Filtre sur l'entreprise active lorsque ``company_id`` est fourni : indispensable
-    pour un groupe multi-entreprises (évite de matcher un homonyme d'une autre filiale)
-    et pour ne renvoyer que des salariés visibles dans le périmètre de l'utilisateur.
+    Le filtre entreprise est obligatoire afin d'éviter de matcher un homonyme
+    d'une autre filiale.
     """
+    if not company_id or not company_id.strip():
+        raise ValueError("company_id obligatoire pour la recherche d'employés.")
     supabase = get_supabase_client()
-    query = supabase.table("employees").select("id, first_name, last_name, job_title")
-    if company_id:
-        query = query.eq("company_id", company_id)
+    query = (
+        supabase.table("employees")
+        .select("id, first_name, last_name, job_title")
+        .eq("company_id", company_id)
+    )
     response = query.execute()
     return response.data or []
 

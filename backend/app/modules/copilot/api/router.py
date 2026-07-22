@@ -24,7 +24,10 @@ from app.modules.copilot.application.dto import (
     AgentQueryInput,
     TextToSqlInput,
 )
-from app.modules.copilot.domain.data_access import DataRetrievalDisabledError
+from app.modules.copilot.domain.data_access import (
+    COPILOT_DATA_UNAVAILABLE_MESSAGE,
+    DataRetrievalDisabledError,
+)
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Copilot (Text-to-SQL)"])
@@ -45,19 +48,19 @@ async def handle_query(
                 active_company_id=current_user.active_company_id,
             )
         )
-        return QueryResponse(
-            answer=result.answer,
-            sql_query="",
-            data=None,
+        return QueryResponse(answer=result.answer)
+    except DataRetrievalDisabledError:
+        raise HTTPException(
+            status_code=503,
+            detail=COPILOT_DATA_UNAVAILABLE_MESSAGE,
         )
-    except DataRetrievalDisabledError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Entreprise active introuvable.")
+    except ValueError:
+        raise HTTPException(
+            status_code=500,
+            detail="Le Copilote ne peut pas traiter la demande.",
+        )
     except (AuthenticationError, APIConnectionError, RateLimitError) as e:
         logging.warning(
             "Copilote : échec appel fournisseur LLM (%s)", type(e).__name__
@@ -68,8 +71,10 @@ async def handle_query(
         )
     except Exception as e:
         logging.error("Erreur dans le Copilote: %s", e, exc_info=True)
-        detail = getattr(e, "message", str(e))
-        raise HTTPException(status_code=500, detail=f"Erreur du Copilote: {detail}")
+        raise HTTPException(
+            status_code=500,
+            detail="Le Copilote ne peut pas traiter la demande.",
+        )
 
 
 @router_agent.post("/query-agent", response_model=AgentResponse)
@@ -95,14 +100,14 @@ async def handle_agent_query(
             answer=result.answer,
             needs_clarification=result.needs_clarification,
             clarification_question=result.clarification_question,
-            sql_queries=None,
-            data=None,
-            thought_process=None,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(
+            status_code=500,
+            detail="Le Copilote ne peut pas traiter la demande.",
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Entreprise active introuvable.")
     except (AuthenticationError, APIConnectionError, RateLimitError) as e:
         logging.warning(
             "Copilote agent : échec appel fournisseur LLM (%s)", type(e).__name__
@@ -113,4 +118,7 @@ async def handle_agent_query(
         )
     except Exception as e:
         logging.error("Erreur dans l'agent: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Erreur de l'agent: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Le Copilote ne peut pas traiter la demande.",
+        )

@@ -17,6 +17,7 @@ Invariants de sécurité (fail-closed) :
 from __future__ import annotations
 
 from datetime import date, timedelta
+from difflib import SequenceMatcher
 from typing import Any
 
 from app.core.database import get_supabase_client
@@ -133,8 +134,6 @@ def search_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]
 
 
 def _rank_by_name(rows: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:
-    from difflib import SequenceMatcher
-
     scored: list[tuple[float, dict[str, Any]]] = []
     for row in rows:
         first = str(row.get("first_name") or "").lower()

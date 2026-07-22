@@ -151,11 +151,9 @@ class TestCopilotEndToEndFlow:
         assert response.status_code == 200
         body = response.json()
         assert "answer" in body
-        assert "sql_query" in body
-        assert "data" in body
         assert body["answer"] == "Il y a 3 employés."
-        assert body["sql_query"] == ""
-        assert body["data"] is None
+        assert "sql_query" not in body
+        assert "data" not in body
 
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
     def test_agent_e2e_response_shape(
@@ -182,6 +180,6 @@ class TestCopilotEndToEndFlow:
         body = response.json()
         assert body["answer"] == "Votre entreprise compte 3 employés."
         assert body["needs_clarification"] is False
-        assert body["thought_process"] is None
-        assert body["sql_queries"] is None
-        assert body["data"] is None
+        assert "thought_process" not in body
+        assert "sql_queries" not in body
+        assert "data" not in body
