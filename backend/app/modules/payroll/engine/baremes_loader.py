@@ -5,6 +5,7 @@ Chargement centralisé des barèmes payroll_config (moteur + simulation + tests)
 from __future__ import annotations
 
 import json
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 
@@ -413,15 +414,33 @@ def controler_integrite_baremes(baremes: Dict[str, Any]) -> List[Dict[str, Any]]
 
 
 def _normaliser_taux_vm_decimal(raw: Any) -> Optional[float]:
-    """Convertit une valeur barème VM en décimal (0.025), sans défaut arbitraire."""
+    """Convertit une valeur barème VM en décimal (0.025), sans défaut arbitraire.
+
+    Deux représentations coexistent dans les barèmes scrapés :
+    - numérique déjà décimal (0.0015) ou pourcentage numérique (0.15 → /100) ;
+    - chaîne avec « % » (« 0,15% » = 0,15 % = 0.0015) : le signe pilote la
+      division par 100, sinon « 0,15% » serait lu comme 0.15 (soit 15 %).
+    """
     if raw is None:
         return None
-    try:
-        if isinstance(raw, str):
-            raw = raw.replace(",", ".").replace("%", "").strip()
-        val = float(raw)
-    except (TypeError, ValueError):
-        return None
+    had_percent = False
+    if isinstance(raw, str):
+        s = raw.strip()
+        had_percent = "%" in s
+        s = s.replace(",", ".").replace("%", "").strip()
+        if not s:
+            return None
+        try:
+            val = float(s)
+        except ValueError:
+            return None
+    else:
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            return None
+    if had_percent:
+        return val / 100.0
     if abs(val) > 1:
         val = val / 100.0
     return val
@@ -438,21 +457,39 @@ def _lignes_vmrr(taux_vmrr: Any) -> List[Dict[str, Any]]:
 
 
 def _libelle_commune_vmrr(row: Dict[str, Any]) -> str:
-    for key, val in row.items():
-        key_l = str(key).lower()
-        if val is None or not str(val).strip():
-            continue
-        if key_l in ("commune", "libelle", "libcom", "libcommune") or "commune" in key_l:
-            return str(val).strip()
-    for key in ("commune", "libelle", "Commune", "LIBCOM"):
+    """Libellé de la commune d'une ligne VM, tous schémas scrapés confondus.
+
+    Ne jamais renvoyer un champ de code : le barème fichierdirect URSSAF expose
+    « Code commune INSEE » ET « Communes concernées ». Comme « code commune »
+    contient le mot « commune », l'ancienne heuristique renvoyait le code INSEE
+    (ex. « 79062 ») au lieu du nom (« CERIZAY ») → aucune commune ne matchait.
+    """
+    # 1) Clés de nom explicites (Open Data canonique + fichierdirect XLSX).
+    for key in (
+        "nom_commune",
+        "commune",
+        "Communes concernées",
+        "libelle",
+        "Commune",
+        "LIBCOM",
+        "libcom",
+        "libcommune",
+    ):
         val = row.get(key)
         if val is not None and str(val).strip():
+            return str(val).strip()
+    # 2) Générique : une clé mentionnant « commune » mais qui n'est pas un code.
+    for key, val in row.items():
+        if val is None or not str(val).strip():
+            continue
+        key_l = str(key).lower()
+        if "commune" in key_l and "code" not in key_l and "insee" not in key_l:
             return str(val).strip()
     return ""
 
 
 def _taux_ligne_vmrr(row: Dict[str, Any]) -> Optional[float]:
-    for key in ("taux", "Taux", "taux_vm", "TAUX", "Taux VM", "TauxVM"):
+    for key in ("taux", "Taux", "taux_vm", "TAUX", "Taux VM", "TauxVM", "Taux\nVMRR"):
         if key in row:
             taux = _normaliser_taux_vm_decimal(row[key])
             if taux is not None:
@@ -556,8 +593,14 @@ def resoudre_taux_vm_officiel(
 
 
 def _normaliser_libelle_commune(value: str) -> str:
-    """Normalise un libellé commune pour comparaison VM (casse, tirets, espaces)."""
+    """Normalise un libellé commune pour comparaison VM (casse, accents, tirets).
+
+    Les accents sont retirés pour que la commune de l'entreprise (« Cérizay »)
+    matche le barème URSSAF (« CERIZAY »), qui est en majuscules non accentuées.
+    """
     s = str(value or "").strip().lower()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
     for old, new in (("-", " "), ("'", " "), ("’", " ")):
         s = s.replace(old, new)
     return " ".join(s.split())
