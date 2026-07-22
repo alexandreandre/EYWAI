@@ -11,8 +11,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from openai import APIConnectionError, AuthenticationError, RateLimitError
 
-from app.core.security import get_current_user
-from app.modules.copilot.api.dependencies import AuthenticatedUser
+from app.modules.copilot.api.dependencies import require_copilot_rh_user
 from app.modules.copilot.schemas import (
     AgentRequest,
     AgentResponse,
@@ -26,6 +25,7 @@ from app.modules.copilot.application.dto import (
     TextToSqlInput,
 )
 from app.modules.copilot.domain.data_access import DataRetrievalDisabledError
+from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Copilot (Text-to-SQL)"])
 router_agent = APIRouter(tags=["Copilot Agent"])
@@ -34,7 +34,7 @@ router_agent = APIRouter(tags=["Copilot Agent"])
 @router.post("/query", response_model=QueryResponse)
 async def handle_query(
     request: QueryRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: User = Depends(require_copilot_rh_user),
 ):
     """POST /query : délègue à commands.execute_text_to_sql, retourne QueryResponse."""
     try:
@@ -42,7 +42,7 @@ async def handle_query(
             TextToSqlInput(
                 prompt=request.prompt,
                 user_id=current_user.id,
-                active_company_id=getattr(current_user, "active_company_id", None),
+                active_company_id=current_user.active_company_id,
             )
         )
         return QueryResponse(
@@ -73,7 +73,7 @@ async def handle_query(
 @router_agent.post("/query-agent", response_model=AgentResponse)
 async def handle_agent_query(
     request: AgentRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: User = Depends(require_copilot_rh_user),
 ):
     """POST /query-agent : délègue à commands.handle_agent_query, retourne AgentResponse."""
     try:
@@ -86,7 +86,7 @@ async def handle_agent_query(
                 prompt=request.prompt,
                 conversation_history=history,
                 user_id=current_user.id,
-                active_company_id=getattr(current_user, "active_company_id", None),
+                active_company_id=current_user.active_company_id,
             )
         )
         return AgentResponse(

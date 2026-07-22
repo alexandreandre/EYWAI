@@ -54,9 +54,9 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
             "Le service Copilote n'est pas configuré (OPENROUTER_API_KEY manquante)."
         )
 
-    # Entreprise active : header X-Active-Company puis repli sur le profil.
-    # Injectée dans la génération SQL pour filtrer sur la bonne entreprise.
-    company_id = input_.active_company_id or get_company_id_for_user(input_.user_id)
+    company_id = input_.active_company_id
+    if not company_id:
+        raise LookupError("Company ID non trouvé pour cet utilisateur")
 
     sql_query = generate_sql_from_prompt(input_.prompt, company_id)
 
@@ -88,10 +88,8 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
     prompt = input_.prompt
     conversation_history = input_.conversation_history or []
 
-    # Entreprise active : priorité au contexte de la requête (header X-Active-Company,
-    # géré côté auth) puis repli sur le company_id du profil. L'aide à l'utilisation du
-    # logiciel ne dépend pas de l'entreprise et reste accessible même sans company_id.
-    company_id = input_.active_company_id or get_company_id_for_user(input_.user_id)
+    # L'entreprise active, validée par la dépendance HTTP, est l'unique contexte permis.
+    company_id = input_.active_company_id
 
     company_agreements = (
         get_company_collective_agreements(company_id) if company_id else []

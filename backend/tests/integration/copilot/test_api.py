@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
 from app.modules.copilot.domain.data_access import COPILOT_DATA_UNAVAILABLE_MESSAGE
+from app.modules.users.schemas.responses import CompanyAccess, User
 
 
 pytestmark = pytest.mark.integration
@@ -24,10 +25,19 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def fake_user():
-    """Utilisateur minimal pour les routes copilot (contract: .id utilisé par les commandes)."""
-    u = MagicMock()
-    u.id = "test-user-id-copilot"
-    return u
+    """Utilisateur RH autorisé sur son entreprise active."""
+    return User(
+        id="test-user-id-copilot",
+        active_company_id="company-mbc",
+        accessible_companies=[
+            CompanyAccess(
+                company_id="company-mbc",
+                company_name="MBC",
+                role="rh",
+                is_primary=True,
+            )
+        ],
+    )
 
 
 @pytest.fixture
@@ -40,6 +50,74 @@ def client_with_copilot_user(client: TestClient, fake_user):
         yield client
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.parametrize(
+    "path,payload",
+    [
+        ("/api/copilot/query", {"prompt": "Combien d'employés ?"}),
+        (
+            "/api/copilot/query-agent",
+            {"prompt": "Combien d'employés ?", "conversation_history": []},
+        ),
+    ],
+)
+def test_collaborator_cannot_call_copilot(client: TestClient, path, payload):
+    from app.main import app
+
+    collaborator = User(
+        id="collaborator-mbc",
+        active_company_id="company-mbc",
+        accessible_companies=[
+            CompanyAccess(
+                company_id="company-mbc",
+                company_name="MBC",
+                role="collaborateur",
+                is_primary=True,
+            )
+        ],
+    )
+    app.dependency_overrides[get_current_user] = lambda: collaborator
+    try:
+        response = client.post(path, json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "path,payload",
+    [
+        ("/api/copilot/query", {"prompt": "Comment lancer la paie ?"}),
+        (
+            "/api/copilot/query-agent",
+            {"prompt": "Comment lancer la paie ?", "conversation_history": []},
+        ),
+    ],
+)
+def test_unknown_active_company_is_rejected(client: TestClient, path, payload):
+    from app.main import app
+
+    rh_with_unknown_active_company = User(
+        id="rh-mbc",
+        active_company_id="company-maji",
+        accessible_companies=[
+            CompanyAccess(
+                company_id="company-mbc",
+                company_name="MBC",
+                role="rh",
+                is_primary=True,
+            )
+        ],
+    )
+    app.dependency_overrides[get_current_user] = lambda: rh_with_unknown_active_company
+    try:
+        response = client.post(path, json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 403
 
 
 class TestCopilotQuery:

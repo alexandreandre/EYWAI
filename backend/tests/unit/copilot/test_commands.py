@@ -5,10 +5,11 @@ Repositories et service mockés : pas d'appel réel à OpenRouter ni à la DB.
 """
 
 import os
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from app.modules.copilot.application import commands
 from app.modules.copilot.application.commands import (
     execute_text_to_sql,
     handle_agent_query,
@@ -73,7 +74,11 @@ class TestExecuteTextToSql:
         mock_format.return_value = "Il y a 5 employés."
 
         result = execute_text_to_sql(
-            TextToSqlInput(prompt="Combien d'employés ?", user_id="user-1")
+            TextToSqlInput(
+                prompt="Combien d'employés ?",
+                user_id="user-1",
+                active_company_id="company-123",
+            )
         )
 
         assert isinstance(result, TextToSqlResult)
@@ -122,7 +127,11 @@ class TestExecuteTextToSql:
 
         with pytest.raises(PermissionError, match="non autorisée|SELECT"):
             execute_text_to_sql(
-                TextToSqlInput(prompt="Supprime tout", user_id="user-1")
+                TextToSqlInput(
+                    prompt="Supprime tout",
+                    user_id="user-1",
+                    active_company_id="company-123",
+                )
             )
 
 
@@ -141,6 +150,37 @@ class TestHandleAgentQuery:
                         user_id="user-1",
                     )
                 )
+
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    def test_data_question_without_active_company_does_not_use_profile_fallback(
+        self, mock_get_agreements, mock_analyze, monkeypatch
+    ):
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        profile_lookup = Mock(return_value="profile-company")
+        monkeypatch.setattr(
+            commands, "get_company_id_for_user", profile_lookup, raising=False
+        )
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": False,
+            "requires_collective_agreement": False,
+            "requires_data_retrieval": True,
+            "data_retrieval_steps": ["Compter les employés"],
+        }
+
+        with pytest.raises(LookupError, match="Company ID"):
+            handle_agent_query(
+                AgentQueryInput(
+                    prompt="Combien d'employés ?",
+                    conversation_history=[],
+                    user_id="user-1",
+                    active_company_id=None,
+                )
+            )
+
+        profile_lookup.assert_not_called()
 
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
@@ -296,6 +336,7 @@ class TestHandleAgentQuery:
                 prompt="Combien d'employés ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -337,6 +378,7 @@ class TestHandleAgentQuery:
                 prompt="Comment lancer la paie ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -379,6 +421,7 @@ class TestHandleAgentQuery:
                 prompt="Combien d'employés ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -430,6 +473,7 @@ class TestHandleAgentQuery:
                 prompt="Combien gagne Jean Dupont ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -456,6 +500,7 @@ class TestHandleAgentQuery:
                 prompt="Combien de jours de congés payés ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -500,6 +545,7 @@ class TestHandleAgentQuery:
                 prompt="Combien de jours de congés payés ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
@@ -529,6 +575,7 @@ class TestHandleAgentQuery:
                 prompt="Combien gagne Jean Dupont ?",
                 conversation_history=[],
                 user_id="user-1",
+                active_company_id="company-123",
             )
         )
 
