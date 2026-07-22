@@ -2,7 +2,7 @@
 
 import os
 import csv
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -183,6 +183,28 @@ def iso_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _next_config_version(supabase, config_key: str) -> int:
+    """Prochaine version = max(version) sur TOUTES les lignes + 1.
+
+    La contrainte d'unicité porte sur (company_id, config_key, version), quelle
+    que soit ``is_active``. Se baser sur la seule ligne active peut donc entrer
+    en collision avec une ligne inactive laissée par une exécution interrompue.
+    """
+    r = (
+        supabase.table("payroll_config")
+        .select("version")
+        .eq("config_key", config_key)
+        .is_("company_id", "null")
+        .order("version", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = r.data or []
+    if not rows or rows[0].get("version") is None:
+        return 1
+    return int(rows[0]["version"]) + 1
+
+
 def upsert_payroll_config(
     config_key: str, config_data: dict | list, source_links: list[str] | None = None
 ):
@@ -199,15 +221,24 @@ def upsert_payroll_config(
             .limit(1)
             .execute()
         )
-        row = (r.data or [None])[0]
+        active_row = (r.data or [None])[0]
     except Exception as e:
         print(f"❌ Lecture config existante: {e}")
         raise
 
+    # Inchangé : on rafraîchit seulement last_checked_at.
+    if active_row is not None and active_row.get("config_data") == config_data:
+        supabase.table("payroll_config").update(
+            {"last_checked_at": iso_now(), "source_links": source_links}
+        ).eq("id", active_row["id"]).execute()
+        print(f"✅ {config_key}: inchangé, last_checked_at mis à jour.")
+        return
+
+    new_version = _next_config_version(supabase, config_key)
     new_row = {
         "config_key": config_key,
         "config_data": config_data,
-        "version": 1 if not row else row["version"] + 1,
+        "version": new_version,
         "is_active": True,
         "comment": f"Mise à jour VM: {config_key}",
         "last_checked_at": iso_now(),
@@ -215,26 +246,21 @@ def upsert_payroll_config(
         "company_id": None,
     }
 
-    if row is None:
+    # Désactive l'ancienne active (le cas échéant), insère la nouvelle, et
+    # réactive l'ancienne si l'insertion échoue — jamais d'état sans ligne active.
+    if active_row is not None:
+        supabase.table("payroll_config").update({"is_active": False}).eq(
+            "id", active_row["id"]
+        ).execute()
+    try:
         supabase.table("payroll_config").insert(new_row).execute()
-        print(f"✅ {config_key}: v1 créée dans payroll_config.")
-        return
-
-    if row.get("config_data") == config_data:
-        supabase.table("payroll_config").update(
-            {
-                "last_checked_at": iso_now(),
-                "source_links": source_links,
-            }
-        ).eq("id", row["id"]).execute()
-        print(f"✅ {config_key}: inchangé, last_checked_at mis à jour.")
-        return
-
-    supabase.table("payroll_config").update({"is_active": False}).eq(
-        "id", row["id"]
-    ).execute()
-    supabase.table("payroll_config").insert(new_row).execute()
-    print(f"✅ {config_key}: v{new_row['version']} créée dans payroll_config.")
+    except Exception:
+        if active_row is not None:
+            supabase.table("payroll_config").update({"is_active": True}).eq(
+                "id", active_row["id"]
+            ).execute()
+        raise
+    print(f"✅ {config_key}: v{new_version} créée dans payroll_config.")
 
 
 def download_file(url, folder, headers, timeout=FICHIERDIRECT_DOWNLOAD_TIMEOUT):
@@ -292,16 +318,38 @@ def convert_csv_to_data(csv_path):
     return records
 
 
+def _json_safe(value):
+    """Rend une valeur issue de pandas sérialisable en JSON.
+
+    - NaN / NaT -> None
+    - Timestamp / datetime / date -> ISO 8601 (date seule si minuit)
+    - scalaire numpy (int64, float64, bool_) -> type Python natif
+    """
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, pd.Timestamp):
+        if value.hour == value.minute == value.second == value.microsecond == 0:
+            return value.date().isoformat()
+        return value.isoformat()
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if hasattr(value, "item"):  # scalaire numpy
+        return value.item()
+    return value
+
+
 def convert_xlsx_to_data(xlsx_path):
-    """Convertit un XLSX en liste de dicts."""
+    """Convertit un XLSX en liste de dicts JSON-sérialisables."""
     print(f"Conversion de '{os.path.basename(xlsx_path)}'...")
     df = pd.read_excel(xlsx_path)
     data = df.to_dict(orient="records")
-    # Normaliser pour JSON (NaN -> None)
+    # Normaliser pour JSON : NaN/NaT -> None, Timestamp -> ISO, numpy -> natif
     for row in data:
         for k, v in list(row.items()):
-            if pd.isna(v):
-                row[k] = None
+            row[k] = _json_safe(v)
     print(f"✅ {len(data)} enregistrements.")
     return data
 

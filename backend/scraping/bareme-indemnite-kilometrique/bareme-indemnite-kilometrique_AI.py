@@ -12,6 +12,7 @@ if str(_SCRAPING) not in sys.path:
 
 from core.ai_extractor import extract_with_web_search  # noqa: E402
 from core.year_utils import current_year  # noqa: E402
+from openrouter_client import MODEL_WEB_SEARCH_PRO  # noqa: E402
 
 URL = "https://bofip.impots.gouv.fr/bofip/"
 
@@ -92,15 +93,24 @@ def main() -> None:
     cy = current_year()
     data = extract_with_web_search(
         task_prompt=(
-            f"Extrais le barème kilométrique fiscal France {cy} (BOFiP) pour voitures, "
-            f"motocyclettes et cyclomoteurs. Chaque formule : coût = a × d + b "
-            f"(a en €/km, b en €). Voitures : 5 tranches CV, segments d≤5000 / 5001–20000 / >20000. "
+            f"Extrais le barème kilométrique fiscal officiel EN VIGUEUR pour la "
+            f"déclaration {cy} (revenus {cy - 1}), tel que publié au BOFiP / "
+            f"service-public.fr. Utilise IMPÉRATIVEMENT la dernière version "
+            f"revalorisée du barème ; n'utilise JAMAIS un barème d'une année "
+            f"antérieure (les coefficients d'avant 2023 sont périmés). "
+            f"Voitures, motocyclettes et cyclomoteurs. "
+            f"Chaque formule : coût = a × d + b (a en €/km, b en €, d en km). "
+            f"Voitures : 5 tranches de puissance (≤3 CV, 4 CV, 5 CV, 6 CV, ≥7 CV), "
+            f"segments d≤5000 / 5001–20000 / >20000. "
             f"Motos : 3 tranches CV, segments d≤3000 / 3001–6000 / >6000. "
-            f"Cyclomoteurs : 1 tranche, mêmes segments que motos."
+            f"Cyclomoteurs : 1 tranche, mêmes segments que motos. "
+            f"Reporte les coefficients EXACTEMENT tels qu'ils figurent dans le "
+            f"barème officiel le plus récent."
         ),
         json_schema=SCHEMA,
         schema_name="bareme_km",
         include_domains=OFFICIAL,
+        model=MODEL_WEB_SEARCH_PRO,
     )
     if not data or not validate_payload(data):
         print("ERREUR CRITIQUE: extraction IA barème km échouée.", file=sys.stderr)

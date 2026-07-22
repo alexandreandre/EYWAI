@@ -298,6 +298,20 @@ SCRAPER_MANIFEST: tuple[ScraperEntry, ...] = (
         tier="static",
         checks=(ScraperCheck(path=["data"], not_null=True),),
     ),
+    ScraperEntry(
+        name="ALTERNANCE",
+        dir="alternance",
+        config_key="alternance",
+        tier="critical",
+        checks=(
+            ScraperCheck(
+                path=["data", "apprenti_exo_pct_smic"],
+                not_null=True,
+                min=0.3,
+                max=1.0,
+            ),
+        ),
+    ),
 )
 
 

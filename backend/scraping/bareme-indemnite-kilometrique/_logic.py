@@ -100,7 +100,12 @@ def _eq_tranches(a: List[Dict[str, Any]], b: List[Dict[str, Any]]) -> bool:
     if len(a) != len(b):
         return False
     for ta, tb in zip(a, b):
-        if ta["cv_min"] != tb["cv_min"] or ta["cv_max"] != tb["cv_max"]:
+        # cv_min est une borne basse redondante (déductible du cv_max de la
+        # tranche précédente) et encodée de façons équivalentes selon la source
+        # pour la tranche la plus basse : null / 0 / 1. Seuls cv_max et les
+        # coefficients (a, b) définissent réellement le barème — on compare donc
+        # ces derniers, sans faire échouer le consensus sur une pure convention.
+        if ta["cv_max"] != tb["cv_max"]:
             return False
         if not _eq_formulas(ta["formules"], tb["formules"]):
             return False

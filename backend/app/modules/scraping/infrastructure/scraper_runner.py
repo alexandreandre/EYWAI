@@ -89,6 +89,7 @@ SOURCE_KEY_TO_FOLDER_MAPPING = {
     "PREVOYANCE_CADRE": "prevoyance",
     "PREVOYANCE_NON_CADRE": "prevoyance",
     "VM": "versement_mobilite",
+    "ALTERNANCE": "alternance",
 }
 
 

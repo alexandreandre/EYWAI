@@ -20,6 +20,11 @@ MODEL_SCRAPING_EXTRACTION = "openai/gpt-4o-mini"
 # Modèle avec recherche web native (Perplexity Sonar) — tous les scripts *_AI.py
 MODEL_WEB_SEARCH = "perplexity/sonar"
 
+# Variante premium (recherche plus profonde, meilleure fraîcheur) — sources
+# tabulaires exigeantes type barème kilométrique où sonar de base renvoie des
+# valeurs périmées. Plus coûteux : à réserver aux scrapers qui le justifient.
+MODEL_WEB_SEARCH_PRO = "perplexity/sonar-pro"
+
 # Agent de réparation scraping (code / URL)
 MODEL_CODE_REPAIR = "moonshotai/kimi-k2.6"
 MODEL_CODE_REPAIR_RETRY = "moonshotai/kimi-k2.6"
@@ -30,6 +35,7 @@ _MODEL_ALIASES: dict[str, str] = {
     "kimi-k2.6": MODEL_CODE_REPAIR,
     "kimi-k2.5": "moonshotai/kimi-k2.5",
     "sonar": MODEL_WEB_SEARCH,
+    "sonar-pro": MODEL_WEB_SEARCH_PRO,
 }
 
 

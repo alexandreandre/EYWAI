@@ -343,44 +343,54 @@ def run_orchestrator(spec: RateSpec, *, argv: list[str] | None = None) -> int:
 
             if gate:
                 # Gate : tier critique — aucune écriture directe, validation humaine.
-                requires_review = True
-                current_emit = (current_row or {}).get("config_data")
-                proposed_emit = new_data
-                if decision.ai_divergence:
-                    warnings.append("IA divergente — valeur à valider (tripwire).")
-                create_pending_change(
-                    supabase,
-                    scraper_name=spec.scraper_name,
-                    config_key=spec.config_key,
-                    tier=effective_tier,
-                    persistence_mode=spec.persistence_mode.value,
-                    proposed_config_data=new_data,
-                    current_row=current_row,
-                    source_links=source_links,
-                    decision_case=decision.case,
-                    sources_agreement=decision.sources_agreement,
-                    discrepancies=decision.discrepancies,
-                    ai_candidate=ai_candidate,
-                    warnings=warnings,
-                    source_id=resolve_source_id(
-                        supabase, spec.source_key or spec.scraper_name
-                    ),
-                )
-                logger.info(
-                    "Tier critique : changement déposé en validation humaine "
-                    "(payroll_config inchangé)."
-                )
-                if decision.case == "B":
-                    from core.parser_repair import maybe_propose_parser_repair
-
-                    maybe_propose_parser_repair(
+                # On ne dépose une revue que s'il y a vraiment quelque chose à
+                # valider (changement réel ou IA divergente). Une valeur critique
+                # confirmée inchangée (ex. source unique, cas B) ne doit pas créer
+                # de pending « no-op » : on rafraîchit simplement last_checked_at.
+                if changed or decision.ai_divergence:
+                    requires_review = True
+                    current_emit = (current_row or {}).get("config_data")
+                    proposed_emit = new_data
+                    if decision.ai_divergence:
+                        warnings.append("IA divergente — valeur à valider (tripwire).")
+                    create_pending_change(
                         supabase,
                         scraper_name=spec.scraper_name,
                         config_key=spec.config_key,
+                        tier=effective_tier,
+                        persistence_mode=spec.persistence_mode.value,
+                        proposed_config_data=new_data,
+                        current_row=current_row,
+                        source_links=source_links,
+                        decision_case=decision.case,
+                        sources_agreement=decision.sources_agreement,
+                        discrepancies=decision.discrepancies,
+                        ai_candidate=ai_candidate,
+                        warnings=warnings,
                         source_id=resolve_source_id(
                             supabase, spec.source_key or spec.scraper_name
                         ),
-                        source_links=source_links,
+                    )
+                    logger.info(
+                        "Tier critique : changement déposé en validation humaine "
+                        "(payroll_config inchangé)."
+                    )
+                    if decision.case == "B":
+                        from core.parser_repair import maybe_propose_parser_repair
+
+                        maybe_propose_parser_repair(
+                            supabase,
+                            scraper_name=spec.scraper_name,
+                            config_key=spec.config_key,
+                            source_id=resolve_source_id(
+                                supabase, spec.source_key or spec.scraper_name
+                            ),
+                            source_links=source_links,
+                        )
+                else:
+                    logger.info(
+                        "Tier critique : valeur confirmée inchangée — "
+                        "aucune revue nécessaire, last_checked_at mis à jour."
                     )
                 touch_last_checked_at(
                     supabase,
