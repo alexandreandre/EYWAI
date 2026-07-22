@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
+from app.modules.copilot.domain.data_access import DataRetrievalDisabledError
 
 
 pytestmark = pytest.mark.integration
@@ -56,7 +57,7 @@ class TestCopilotQuery:
     def test_query_with_auth_returns_200_and_response_body(
         self, mock_execute, _mock_debug, client_with_copilot_user: TestClient
     ):
-        """Avec auth (override) et commande mockée → 200, answer + sql_query + data."""
+        """Les détails SQL et données ne sortent jamais dans la réponse HTTP."""
         mock_execute.return_value = MagicMock(
             answer="Il y a 5 employés.",
             sql_query="SELECT COUNT(*) FROM employees",
@@ -69,12 +70,25 @@ class TestCopilotQuery:
         assert response.status_code == 200
         data = response.json()
         assert data["answer"] == "Il y a 5 employés."
-        assert data["sql_query"] == "SELECT COUNT(*) FROM employees"
-        assert data["data"] == [{"count": 5}]
+        assert data["sql_query"] == ""
+        assert data["data"] is None
         mock_execute.assert_called_once()
         call_input = mock_execute.call_args[0][0]
         assert call_input.prompt == "Combien d'employés ?"
         assert call_input.user_id == "test-user-id-copilot"
+
+    @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
+    def test_query_data_retrieval_disabled_returns_503(
+        self, mock_execute, client_with_copilot_user: TestClient
+    ):
+        mock_execute.side_effect = DataRetrievalDisabledError()
+
+        response = client_with_copilot_user.post(
+            "/api/copilot/query",
+            json={"prompt": "Combien d'employés ?"},
+        )
+
+        assert response.status_code == 503
 
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_value_error_returns_500(
@@ -128,7 +142,7 @@ class TestCopilotQueryAgent:
     def test_query_agent_with_auth_returns_200_and_response_body(
         self, mock_handle, _mock_debug, client_with_copilot_user: TestClient
     ):
-        """Avec auth (override) et commande mockée → 200, answer, needs_clarification, etc."""
+        """Les détails internes de l'agent ne sortent jamais, même en debug."""
         mock_handle.return_value = MagicMock(
             answer="Votre entreprise compte 10 employés.",
             needs_clarification=False,
@@ -150,7 +164,9 @@ class TestCopilotQueryAgent:
         data = response.json()
         assert data["answer"] == "Votre entreprise compte 10 employés."
         assert data["needs_clarification"] is False
-        assert data["sql_queries"] == ["SELECT COUNT(*) FROM employees"]
+        assert data["sql_queries"] is None
+        assert data["data"] is None
+        assert data["thought_process"] is None
         mock_handle.assert_called_once()
         call_input = mock_handle.call_args[0][0]
         assert call_input.prompt == "Combien d'employés ?"

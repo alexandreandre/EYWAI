@@ -31,6 +31,11 @@ from app.modules.copilot.application.service import (
     get_company_id_for_user,
     synthesize_final_answer,
 )
+from app.modules.copilot.domain.data_access import (
+    COPILOT_DATA_UNAVAILABLE_MESSAGE,
+    DataRetrievalDisabledError,
+    is_rh_data_enabled,
+)
 from app.modules.copilot.domain.rules import only_select_allowed
 
 logger = get_logger(__name__)
@@ -41,6 +46,9 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
     Exécute une requête Text-to-SQL : génération SQL via LLM, vérification SELECT, exécution, formatage.
     Comportement identique à api/routers/copilot.py handle_query.
     """
+    if not is_rh_data_enabled():
+        raise DataRetrievalDisabledError
+
     if not is_llm_configured():
         raise ValueError(
             "Le service Copilote n'est pas configuré (OPENROUTER_API_KEY manquante)."
@@ -183,6 +191,12 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
             needs_clarification=False,
             thought_process=thought_process
             + f"\n\nConvention utilisée: {selected_agreement['name']}",
+        )
+
+    if plan.get("requires_data_retrieval") and not is_rh_data_enabled():
+        return AgentQueryResult(
+            answer=COPILOT_DATA_UNAVAILABLE_MESSAGE,
+            needs_clarification=False,
         )
 
     # company_id injecté dans le contexte : sert de filtre obligatoire pour

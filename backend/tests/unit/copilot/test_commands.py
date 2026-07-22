@@ -18,9 +18,19 @@ from app.modules.copilot.application.dto import (
     TextToSqlInput,
     TextToSqlResult,
 )
+from app.modules.copilot.domain.data_access import (
+    COPILOT_DATA_UNAVAILABLE_MESSAGE,
+    DataRetrievalDisabledError,
+)
 
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def enable_rh_data_for_existing_tests(monkeypatch):
+    """Les flux historiques restent testés avec l'activation explicite."""
+    monkeypatch.setenv("COPILOT_RH_DATA_ENABLED", "true")
 
 
 class TestExecuteTextToSql:
@@ -34,6 +44,18 @@ class TestExecuteTextToSql:
                 execute_text_to_sql(
                     TextToSqlInput(prompt="Combien d'employés ?", user_id="user-1")
                 )
+
+    def test_text_to_sql_is_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
+
+        with pytest.raises(DataRetrievalDisabledError):
+            execute_text_to_sql(
+                TextToSqlInput(
+                    prompt="Combien d'employés ?",
+                    user_id="rh-mbc",
+                    active_company_id="mbc",
+                )
+            )
 
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.generate_sql_from_prompt")
@@ -122,6 +144,33 @@ class TestHandleAgentQuery:
 
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    def test_agent_data_question_returns_containment_message(
+        self, mock_get_agreements, mock_analyze, monkeypatch
+    ):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
+        mock_get_agreements.return_value = []
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": False,
+            "requires_collective_agreement": False,
+            "requires_data_retrieval": True,
+        }
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Donne les salaires",
+                conversation_history=[],
+                user_id="rh-mbc",
+                active_company_id="mbc",
+            )
+        )
+
+        assert result.answer == COPILOT_DATA_UNAVAILABLE_MESSAGE
+        assert result.data is None
+        assert result.sql_queries is None
+
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     def test_raises_lookup_error_when_no_company_for_data_question(
         self, mock_get_company, mock_get_agreements, mock_analyze
@@ -154,9 +203,15 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     def test_app_help_works_without_company(
-        self, mock_get_company, mock_get_agreements, mock_analyze, mock_app_help
+        self,
+        mock_get_company,
+        mock_get_agreements,
+        mock_analyze,
+        mock_app_help,
+        monkeypatch,
     ):
         # L'aide à l'utilisation du logiciel ne dépend pas de l'entreprise.
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         mock_get_company.return_value = None
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {
@@ -223,8 +278,9 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     def test_needs_clarification_returns_result(
-        self, mock_analyze, mock_get_company, mock_get_agreements
+        self, mock_analyze, mock_get_company, mock_get_agreements, monkeypatch
     ):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
@@ -253,8 +309,14 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     def test_requires_app_help_returns_usage_answer(
-        self, mock_analyze, mock_get_company, mock_get_agreements, mock_app_help
+        self,
+        mock_analyze,
+        mock_get_company,
+        mock_get_agreements,
+        mock_app_help,
+        monkeypatch,
     ):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
@@ -376,8 +438,9 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     def test_requires_collective_agreement_no_agreements_returns_message(
-        self, mock_analyze, mock_get_company, mock_get_agreements
+        self, mock_analyze, mock_get_company, mock_get_agreements, monkeypatch
     ):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = []
@@ -406,8 +469,14 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     def test_requires_collective_agreement_single_agreement_calls_answer(
-        self, mock_analyze, mock_get_company, mock_get_agreements, mock_answer
+        self,
+        mock_analyze,
+        mock_get_company,
+        mock_get_agreements,
+        mock_answer,
+        monkeypatch,
     ):
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
         mock_get_company.return_value = "company-123"
         mock_get_agreements.return_value = [

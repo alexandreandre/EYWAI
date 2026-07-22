@@ -119,7 +119,7 @@ class TestCopilotEndToEndFlow:
     def test_text_to_sql_e2e_response_shape(
         self, mock_execute, _mock_debug, client: TestClient, app_with_copilot_user
     ):
-        """Réponse QueryResponse contient answer, sql_query, data."""
+        """La réponse HTTP masque SQL et données même en mode debug."""
         mock_execute.return_value = MagicMock(
             answer="Il y a 3 employés.",
             sql_query="SELECT COUNT(*) FROM employees",
@@ -136,15 +136,15 @@ class TestCopilotEndToEndFlow:
         assert "sql_query" in body
         assert "data" in body
         assert body["answer"] == "Il y a 3 employés."
-        assert body["sql_query"] == "SELECT COUNT(*) FROM employees"
-        assert body["data"] == [{"count": 3}]
+        assert body["sql_query"] == ""
+        assert body["data"] is None
 
     @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
     def test_agent_e2e_response_shape(
         self, mock_handle, _mock_debug, client: TestClient, app_with_copilot_user
     ):
-        """Réponse AgentResponse contient answer, needs_clarification, thought_process, etc."""
+        """La réponse agent masque tous les détails internes même en debug."""
         mock_handle.return_value = MagicMock(
             answer="Votre entreprise compte 3 employés.",
             needs_clarification=False,
@@ -162,5 +162,6 @@ class TestCopilotEndToEndFlow:
         body = response.json()
         assert body["answer"] == "Votre entreprise compte 3 employés."
         assert body["needs_clarification"] is False
-        assert body["thought_process"] == "Plan: count employees"
-        assert body["sql_queries"] == ["SELECT COUNT(*) FROM employees"]
+        assert body["thought_process"] is None
+        assert body["sql_queries"] is None
+        assert body["data"] is None

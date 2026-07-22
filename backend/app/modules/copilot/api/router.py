@@ -26,6 +26,7 @@ from app.modules.copilot.application.dto import (
     AgentQueryInput,
     TextToSqlInput,
 )
+from app.modules.copilot.domain.data_access import DataRetrievalDisabledError
 
 router = APIRouter(tags=["Copilot (Text-to-SQL)"])
 router_agent = APIRouter(tags=["Copilot Agent"])
@@ -45,12 +46,13 @@ async def handle_query(
                 active_company_id=getattr(current_user, "active_company_id", None),
             )
         )
-        debug = is_app_debug_enabled()
         return QueryResponse(
             answer=result.answer,
-            sql_query=result.sql_query if debug else "",
-            data=result.data if debug else None,
+            sql_query="",
+            data=None,
         )
+    except DataRetrievalDisabledError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except PermissionError as e:
@@ -88,14 +90,13 @@ async def handle_agent_query(
                 active_company_id=getattr(current_user, "active_company_id", None),
             )
         )
-        debug = is_app_debug_enabled()
         return AgentResponse(
             answer=result.answer,
             needs_clarification=result.needs_clarification,
             clarification_question=result.clarification_question,
-            sql_queries=result.sql_queries if debug else None,
-            data=result.data if debug else None,
-            thought_process=result.thought_process if debug else None,
+            sql_queries=None,
+            data=None,
+            thought_process=None,
         )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
