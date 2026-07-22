@@ -40,6 +40,11 @@ class TestSalaireActifADate:
         tl = [_entry("2026-07-01", 2200, 2500)]
         assert salaire_actif_a_date(tl, date(2026, 6, 30), 2200) == 2200.0
 
+    def test_avant_premiere_evolution_retourne_ancien_salaire_historise(self):
+        tl = [_entry("2026-06-01", 1823.07, 1867.06)]
+
+        assert salaire_actif_a_date(tl, date(2026, 5, 31), 1867.06) == 1823.07
+
 
 class TestProrataMois:
     def test_effet_premier_du_mois(self):
@@ -57,6 +62,15 @@ class TestProrataMois:
 
 
 class TestRappel:
+    def test_entree_initiale_ne_genere_pas_de_rappel_de_salaire(self):
+        tl = [_entry("2026-03-23", 0, 1850.37)]
+
+        r = calculer_rappel_mois_anterieurs(tl, 2026, 6)
+
+        assert r["montant"] == 0.0
+        assert r["periode_debut"] is None
+        assert r["periode_fin"] is None
+
     def test_rappel_mars_a_mai_sur_bulletin_juin(self):
         tl = [_entry("2026-03-01", 2000, 2200)]
         r = calculer_rappel_mois_anterieurs(tl, 2026, 6)
@@ -70,8 +84,27 @@ class TestRappel:
         # Mars : 21/30 × 200 ; avril + mai : 400
         assert r["montant"] == pytest.approx(200 * 21 / 30 + 400, abs=0.02)
 
+    def test_pas_rappel_si_historique_deja_paye(self):
+        entry = _entry("2026-04-01", 1911.04, 1956.94)
+        entry["nouveau_salaire"]["rappel_deja_verse"] = True
+
+        r = calculer_rappel_mois_anterieurs([entry], 2026, 6)
+
+        assert r["montant"] == 0.0
+        assert r["periode_debut"] is None
+        assert r["periode_fin"] is None
+
 
 class TestEvolutionMois:
+    def test_entree_initiale_en_cours_de_mois_n_est_pas_une_revalorisation(self):
+        tl = [_entry("2026-03-23", 0, 1850.37)]
+
+        evo = construire_evolution_salaire_mois(tl, 2026, 3, 1867.06)
+
+        assert evo["salaire_debut_mois"] == 1850.37
+        assert evo["salaire_fin_mois"] == 1850.37
+        assert evo["prorata"] is None
+
     def test_changement_mi_mois_juin(self):
         tl = [_entry("2026-06-09", 2600, 2678)]
         evo = construire_evolution_salaire_mois(tl, 2026, 6, 2600)

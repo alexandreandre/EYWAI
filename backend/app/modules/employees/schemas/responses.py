@@ -79,6 +79,8 @@ class EmployeeSummary(BaseModel):
     statut: str | None = None
     is_forfait_jour: bool | None = None
     hire_date: date | None = None
+    date_debut_execution: date | None = None
+    contract_end_date: date | None = None
     seniority_reference_date: date | None = None
     employment_status: str | None = None
     current_exit_id: str | None = None

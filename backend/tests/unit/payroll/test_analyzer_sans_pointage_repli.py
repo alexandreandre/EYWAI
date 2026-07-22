@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from app.modules.payroll.application.analyzer import analyser_horaires_du_mois
+from datetime import date
+from types import SimpleNamespace
+
+from app.modules.payroll.application.analyzer import (
+    _metadata_for_aggregated_event,
+    analyser_horaires_du_mois,
+)
+from app.modules.payroll.documents.payslip_run_heures import (
+    _extraire_arret_pour_maintien,
+)
 from app.modules.payroll.planning_repli import (
     appliquer_repli_sans_pointage_par_mois,
     mois_sans_pointage,
@@ -21,6 +30,41 @@ def _prevu(mois: int, jour: int, heures: float, *, annee: int = 2026) -> dict:
 
 
 class TestAnalyzerSansPointageRepli:
+    def test_preserve_maintien_base_ouvree_sur_arret(self):
+        meta = _metadata_for_aggregated_event(
+            [
+                {
+                    "mois": 3,
+                    "jour": 26,
+                    "type": "arret_maladie",
+                    "maintien_base_ouvree": True,
+                }
+            ],
+            3,
+            26,
+            "arret_maladie",
+        )
+
+        assert meta["maintien_base_ouvree"] is True
+
+    def test_transmet_maintien_base_ouvree_au_calcul(self):
+        arret = _extraire_arret_pour_maintien(
+            [
+                {
+                    "date_complete": "2026-03-26",
+                    "type": "arret_maladie",
+                    "arret_type": "maladie_simple",
+                    "maintien_base_ouvree": True,
+                }
+            ],
+            SimpleNamespace(contrat={"contrat": {"temps_travail": {}}}),
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+        )
+
+        assert arret is not None
+        assert arret["maintien_base_ouvree"] is True
+
     def test_repli_injecte_heures_planning_avril(self):
         prevu = [_prevu(4, d, 8.0) for d in (20, 21, 22, 23, 24)]
         reel: list[dict] = []
@@ -63,3 +107,22 @@ class TestAnalyzerSansPointageRepli:
             prevu, reel, annee=2026, mois=4
         )
         assert out == reel
+
+    def test_repli_planning_ne_cree_pas_heures_supplementaires(self):
+        prevu = [
+            _prevu(6, jour, heures)
+            for jour, heures in zip(
+                (1, 2, 3, 4, 5),
+                (7.8333, 7.8333, 7.8333, 7.8333, 3.75),
+                strict=True,
+            )
+        ]
+        actual = reel_heures_avec_repli_planning_si_sans_pointage(
+            prevu, [], annee=2026, mois=6
+        )
+
+        events = analyser_horaires_du_mois(
+            prevu, actual, 35.0, 2026, 6, "Lucas ALVES"
+        )
+
+        assert not any(e.get("type") in {"travail_hs25", "travail_hs50"} for e in events)

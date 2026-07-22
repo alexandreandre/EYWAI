@@ -48,6 +48,40 @@ def test_prevoyance_non_cadre_via_lignes_specifiques_ta_tb():
     assert tb["base"] == round(max(0, min(5000.0, 8 * pss) - pss), 2)
 
 
+def test_forfait_social_non_cadre_inclut_mutuelle_et_prevoyance():
+    ctx = build_test_contexte(
+        statut="Non-Cadre",
+        salaire_base=2356.03,
+        specificites_extra={
+            "mutuelle": {
+                "adhesion": True,
+                "montant_salarial": 58.03,
+                "montant_patronal": 58.03,
+            },
+            "prevoyance": {
+                "adhesion": True,
+                "lignes_specifiques": [
+                    {
+                        "id": "prev_meta_tu1",
+                        "libelle": "Prévoyance META TU1",
+                        "salarial": 0.007299,
+                        "patronal": 0.007299,
+                        "base": "brut_plafonne",
+                        "forfait_social": 0.08,
+                    }
+                ],
+            },
+        },
+    )
+
+    lignes, _ = calculer_cotisations(ctx, 2356.03, 0.0, 0.0)
+
+    forfait_social = _find_ligne(lignes, "forfait_social")
+    assert forfait_social is not None
+    assert forfait_social["base"] == 75.23
+    assert forfait_social["montant_patronal"] == 6.02
+
+
 def test_prevoyance_cadre_forfait_jour_via_lignes_specifiques():
     ctx = build_test_contexte(
         statut="Cadre au forfait jour",

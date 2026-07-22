@@ -161,3 +161,23 @@ class TestApprentiReductionHeuresSupp:
         ligne = self._ligne_reduction(ctx, 2000.0, 100.0)
         assert ligne is not None
         assert ligne["base"] == pytest.approx(100.0, abs=0.01)
+
+    def test_reduction_ne_rend_jamais_les_cotisations_salariales_negatives(self):
+        """Une saisie HS élevée ne peut pas produire un net supérieur au brut."""
+        b = baremes_snapshot_csg_unifie()
+        ctx = build_test_contexte(
+            salaire_base=1315.16, type_contrat="CDI", baremes=b
+        )
+
+        lignes, total = calculer_cotisations(
+            ctx,
+            salaire_brut=1315.16,
+            remuneration_heures_supp=10_000.0,
+            total_heures_supp=0.0,
+        )
+        reduction = next(
+            l for l in lignes if l["coti_id"] == "reduction_hs_salariale"
+        )
+
+        assert reduction["montant_salarial"] <= 0
+        assert total >= 0

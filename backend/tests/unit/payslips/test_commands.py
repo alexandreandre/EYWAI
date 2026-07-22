@@ -24,6 +24,7 @@ from app.modules.payslips.application.dto import (
 _COMPLETE_EMPLOYEE = {
     "id": "emp-1",
     "employment_status": "actif",
+    "hire_date": "2020-01-15",
     "nir": "1850574001234",
     "date_naissance": "1985-05-01",
     "adresse": {"ville": "Paris"},
@@ -34,6 +35,76 @@ _COMPLETE_EMPLOYEE = {
 
 class TestGeneratePayslipCommand:
     """Tests de la commande generate_payslip."""
+
+    @pytest.mark.parametrize("month", [1, 2])
+    def test_refuses_month_before_employee_entry(self, month):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=month)
+        with (
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "hire_date": "2026-03-23",
+            }
+            with pytest.raises(PayslipBadRequestError) as exc:
+                generate_payslip(cmd)
+
+        assert "pas encore présent" in str(exc.value)
+        mock_provider.generate_heures.assert_not_called()
+        mock_provider.generate_forfait.assert_not_called()
+
+    def test_allows_hiring_month_when_employee_arrives_mid_month(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=3)
+        mock_result = {"status": "ok", "message": "Généré", "download_url": ""}
+        with (
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands.employee_statut_reader"
+            ) as mock_reader,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "hire_date": "2026-03-23",
+            }
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = mock_result
+
+            generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_called_once_with(
+            employee_id="emp-1", year=2026, month=3
+        )
+
+    def test_refuses_month_after_employee_exit(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
+        with (
+            patch(
+                "app.modules.payslips.application.commands._employee_repository"
+            ) as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands.payslip_generator_provider"
+            ) as mock_provider,
+        ):
+            mock_repo.get_by_id_only.return_value = {
+                **_COMPLETE_EMPLOYEE,
+                "contract_end_date": "2026-04-10",
+            }
+            with pytest.raises(PayslipBadRequestError) as exc:
+                generate_payslip(cmd)
+
+        assert "plus présent" in str(exc.value)
+        mock_provider.generate_heures.assert_not_called()
+        mock_provider.generate_forfait.assert_not_called()
 
     def test_raises_when_employee_onboarding_incomplete(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)

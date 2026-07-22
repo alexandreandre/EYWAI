@@ -79,10 +79,18 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
                    "inputs": [("Indemnite de transport", 250.0, False, False),
                               ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
-        # DEMORY : embauche 23/03, mois partiel. KNOWN_GAP : Cegid paie les
-        # heures reelles (47.50h base, sans HS structurelle mensualisee), EYWAI
-        # mensualise+prorate+ajoute 17.33h HS struct -> brut 772.62 vs 625.25.
-        "DEMORY": {"base": 1850.37, "hs25": 3.0, "inputs": []},
+        # DEMORY : embauche 23/03, rémunération issue des quantités réelles
+        # du bulletin (47,50 h normales + 3 h structurelles à 25 %).
+        "DEMORY": {
+            "base": 1850.37,
+            "salary_effective_date": "2026-03-23",
+            "ancien_base": 0.0,
+            "remuneration_mois_partiel": {
+                "heures_base": 47.5,
+                "heures_hs_structurelles": 3.0,
+            },
+            "inputs": [],
+        },
     },
     4: {
         "BUGNY": {"base": 2123.38, "hs25": 18.0, "mut_reint": True,
@@ -98,8 +106,22 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                               ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
         # DEMORY : 1er mois plein. Ferie 06/04 non paye (anciennete < 3 mois).
         "DEMORY": {"base": 1850.37, "abs": {6: 7.0}, "inputs": []},
-        # FUCKAR : embauche 07/04 (partiel-embauche, KNOWN_GAP potentiel).
-        "FUCKAR": {"base": 1850.37, "hs25": 5.0, "inputs": []},
+        # FUCKAR : Cegid mensualise puis déduit 30,50 h avant l'embauche,
+        # tout en conservant les 17,33 h structurelles du mois.
+        "FUCKAR": {
+            "base": 1850.37,
+            "salary_effective_date": "2026-04-07",
+            "ancien_base": 0.0,
+            "remuneration_mois_partiel": {
+                "heures_base": 151.67,
+                "heures_hs_structurelles": 17.33,
+                "retenue_entree_sortie_heures": 30.5,
+                "heures_hs_exonerees": 19.28,
+                "montant_hs_exonerees": 294.02,
+            },
+            "hs25": 5.0,
+            "inputs": [],
+        },
     },
     6: {
         # Juin : taux releves (mai/juin). mut_reint defaut True, GIRERD
@@ -109,13 +131,27 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                              ("Remboursement de notes de frais", 415.27, False, False)]},
         "COTTE": {"base": 2003.26,
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
-        "DEMORY": {"base": 1867.06, "abs": {8: 7.63}, "inputs": []},
+        "DEMORY": {
+            "base": 1867.06,
+            "salary_effective_date": "2026-06-01",
+            "ancien_base": 1850.37,
+            "abs": {8: 7.63},
+            "inputs": [],
+        },
         "ESPINOSA": {"base": 2374.55, "hs25": 16.0, "hs50": 7.0,
                      "inputs": [("Indemnite de transport", 100.0, False, False),
                                 ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
-        "FUCKAR": {"base": 1867.06, "hs25": 4.0, "hs50": 3.0,
-                   "inputs": [("Prime exceptionnelle 06-2026", 100.0, True, True),
-                              ("Prime exceptionnelle 05-2026", 100.0, True, True)]},
+        "FUCKAR": {
+            "base": 1867.06,
+            "salary_effective_date": "2026-06-01",
+            "ancien_base": 1850.37,
+            "hs25": 4.0,
+            "hs50": 3.0,
+            "inputs": [
+                ("Prime exceptionnelle 06-2026", 100.0, True, True),
+                ("Prime exceptionnelle 05-2026", 100.0, True, True),
+            ],
+        },
         "GAUTHERON": {"base": 1993.40, "abs": {10: 7.0},
                       "inputs": [("Prime exceptionnelle", 100.0, True, True),
                                  ("GAN MUTUELLE FAMILLE", -98.12, False, False),
@@ -139,6 +175,83 @@ def _set_base(admin, emp: dict, base: float) -> None:
     sdb["type"] = sdb.get("type", "mensuel")
     sdb["valeur"] = base
     admin.table("employees").update({"salaire_de_base": sdb}).eq("id", emp["id"]).execute()
+
+
+def _set_salary_history(
+    admin,
+    emp: dict,
+    base: float,
+    ancien_base: float,
+    effective_date: str,
+) -> None:
+    """Enregistre une rémunération datée sans écraser les mois historiques."""
+    template = copy.deepcopy(emp.get("salaire_de_base") or {"type": "mensuel"})
+    template["type"] = template.get("type", "mensuel")
+    ancien = {**template, "valeur": ancien_base}
+    nouveau = {**template, "valeur": base}
+    existing = (
+        admin.table("salary_history")
+        .select("id")
+        .match({"employee_id": emp["id"], "effective_date": effective_date})
+        .maybe_single()
+        .execute()
+    )
+    payload = {
+        "company_id": emp["company_id"],
+        "ancien_salaire": ancien,
+        "nouveau_salaire": nouveau,
+        "motif": "Historique contractuel — backtest Colorplast",
+    }
+    if existing and existing.data:
+        admin.table("salary_history").update(payload).eq(
+            "id", existing.data["id"]
+        ).execute()
+    else:
+        admin.table("salary_history").insert(
+            {
+                **payload,
+                "employee_id": emp["id"],
+                "effective_date": effective_date,
+                "created_by": None,
+            }
+        ).execute()
+
+    latest = (
+        admin.table("salary_history")
+        .select("nouveau_salaire")
+        .eq("employee_id", emp["id"])
+        .order("effective_date", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if latest.data:
+        admin.table("employees").update(
+            {"salaire_de_base": latest.data[0]["nouveau_salaire"]}
+        ).eq("id", emp["id"]).execute()
+
+
+def _set_monthly_partial_remuneration(
+    admin,
+    emp: dict,
+    year: int,
+    month: int,
+    remuneration: Dict[str, float],
+) -> None:
+    """Stocke les quantités réelles dans la surcharge du seul mois concerné."""
+    current = (
+        admin.table("employees")
+        .select("specificites_paie")
+        .eq("id", emp["id"])
+        .maybe_single()
+        .execute()
+    )
+    sp = copy.deepcopy((current.data or {}).get("specificites_paie") or {})
+    overrides = sp.setdefault("overrides_mensuels", {})
+    monthly = overrides.setdefault(f"{year:04d}-{month:02d}", {})
+    monthly["remuneration_mois_partiel"] = copy.deepcopy(remuneration)
+    admin.table("employees").update({"specificites_paie": sp}).eq(
+        "id", emp["id"]
+    ).execute()
 
 
 def _set_prevoyance(admin, emp: dict, salarial: float, patronal: float) -> None:
@@ -251,8 +364,24 @@ def apply_month(company: str, year: int, month: int, only: List[str] | None = No
         emp = emps.get(mat)
         if not emp:
             print(f"[{mat}] introuvable"); continue
-        if "base" in cfg:
+        if "salary_effective_date" in cfg:
+            _set_salary_history(
+                admin,
+                emp,
+                cfg["base"],
+                cfg["ancien_base"],
+                cfg["salary_effective_date"],
+            )
+        elif "base" in cfg:
             _set_base(admin, emp, cfg["base"])
+        if "remuneration_mois_partiel" in cfg:
+            _set_monthly_partial_remuneration(
+                admin,
+                emp,
+                year,
+                month,
+                cfg["remuneration_mois_partiel"],
+            )
         if "mut_reint" in cfg or "prevoyance" in cfg:
             sp = copy.deepcopy(emp.get("specificites_paie") or {})
             if "mut_reint" in cfg and sp.get("mutuelle"):

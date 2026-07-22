@@ -30,6 +30,8 @@ from app.modules.notifications.application.employee_document_alerts import (
     NOTIFICATION_TYPE_PAYSLIP,
     notify_employee_new_document,
 )
+from app.modules.employees.application.service import enrich_employee_with_exit_context
+from app.shared.domain.employment_rules import payslip_employment_period_block_reason
 
 _employee_repository = EmployeeRepository()
 logger = logging.getLogger(__name__)
@@ -92,6 +94,12 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     block_reason = payroll_block_reason(employee)
     if block_reason:
         raise PayslipBadRequestError(block_reason)
+    employee = enrich_employee_with_exit_context(employee)
+    period_block_reason = payslip_employment_period_block_reason(
+        employee, cmd.year, cmd.month
+    )
+    if period_block_reason:
+        raise PayslipBadRequestError(period_block_reason)
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):

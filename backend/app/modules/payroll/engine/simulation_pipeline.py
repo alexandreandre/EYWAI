@@ -69,6 +69,7 @@ def run_simulation_bulletin_pipeline(
     date_debut = date(year, month, 1)
     _, num_days = calendar.monthrange(year, month)
     date_fin = date(year, month, num_days)
+    contexte.date_fin_periode = date_fin
 
     duree_hebdo = contexte.duree_hebdo_contrat or 35.0
     heures_jour = round(duree_hebdo / 5, 2)

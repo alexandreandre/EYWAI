@@ -133,6 +133,22 @@ class TestDefinirPeriodeDePaie:
         assert date_debut < date_fin
         assert date_debut.month in (12, 1) and date_fin.month in (1, 2)
 
+    def test_definir_periode_mois_calendaire_si_jour_hors_semaine(self):
+        """DSN / MBC : paie_jour_de_fin=31 (jour du mois) → mois calendaire, pas weekday."""
+
+        class ContexteCalendaire:
+            entreprise = {
+                "parametres_paie": {
+                    "periode_de_paie": {"jour_de_fin": 31, "occurrence": -1},
+                }
+            }
+
+        ctx = ContexteCalendaire()
+        for mois, dernier in ((2, 28), (3, 31), (4, 30)):
+            debut, fin = definir_periode_de_paie(ctx, 2026, mois)
+            assert debut == date(2026, mois, 1)
+            assert fin == date(2026, mois, dernier)
+
     def test_definir_periode_utilise_regles_contexte(self):
         """La période dépend des paramètres entreprise (jour_de_fin, occurrence)."""
 

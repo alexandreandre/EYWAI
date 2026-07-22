@@ -177,6 +177,9 @@ class ContextePaie:
         # Période du bulletin (année). Posée par les run_* après construction.
         # Sert d'aiguillage Fillon (< 2026) / RGDU (>= 2026) sans threader les signatures.
         self.year: Optional[int] = None
+        # Dernier jour de la période de paie courante. Posé par les run_* ;
+        # sert à dater le régime apprenti (bascule droit commun -> apprenti).
+        self.date_fin_periode: Optional[date] = None
 
         if baremes_override is not None:
             self.baremes = baremes_override
@@ -347,8 +350,30 @@ class ContextePaie:
 
     @property
     def is_apprenti(self) -> bool:
-        """Vrai si le contrat est un contrat d'apprentissage."""
-        return "apprentissage" in self.type_contrat.lower()
+        """Vrai si le contrat est un contrat d'apprentissage.
+
+        Si la période de paie courante (``date_fin_periode``) est renseignée et
+        qu'une date de début d'exécution est connue, le régime apprenti ne
+        s'applique qu'à partir de cette date : un salarié embauché d'abord en
+        droit commun puis passé en apprentissage est cotisé plein avant la
+        bascule. Sans période renseignée : comportement statique (historique).
+        """
+        if "apprentissage" not in self.type_contrat.lower():
+            return False
+        if self.date_fin_periode is None:
+            return True
+        # Date d'effet du régime apprenti (bascule droit commun -> apprenti en
+        # cours d'emploi). Champ dédié, distinct de date_debut_execution (qui
+        # sert aussi au contrôle de présence dans l'entreprise).
+        spec = self.contrat.get("specificites_paie", {}) or {}
+        effet = spec.get("apprenti_date_effet")
+        if not effet:
+            return True
+        try:
+            date_effet = date.fromisoformat(str(effet)[:10])
+        except ValueError:
+            return True
+        return self.date_fin_periode >= date_effet
 
     @property
     def is_professionnalisation(self) -> bool:

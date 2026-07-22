@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,16 @@ function matchesSearch(emp: EmployeeListItem, q: string): boolean {
   return full.includes(needle) || job.includes(needle);
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest('[role="listbox"], [role="dialog"], [role="menu"], [role="combobox"]')
+  );
+}
+
 export function PayrollEmployeeExplorer({
   employees,
   selectedEmployeeId,
@@ -66,12 +76,57 @@ export function PayrollEmployeeExplorer({
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(true);
 
-  const filtered = employees.filter((e) => matchesSearch(e, search));
+  const filtered = useMemo(
+    () => employees.filter((e) => matchesSearch(e, search)),
+    [employees, search]
+  );
   const selected = employees.find((e) => e.id === selectedEmployeeId);
 
   useEffect(() => {
     setSearch('');
   }, [selectedYear]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (filtered.length === 0 || loadingEmployees) return;
+      if (isTypingTarget(e.target)) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+      e.preventDefault();
+
+      const currentIndex = selectedEmployeeId
+        ? filtered.findIndex((emp) => emp.id === selectedEmployeeId)
+        : -1;
+
+      let nextIndex: number;
+      if (e.key === 'ArrowDown') {
+        nextIndex = currentIndex < 0 ? 0 : Math.min(currentIndex + 1, filtered.length - 1);
+      } else {
+        nextIndex = currentIndex < 0 ? 0 : Math.max(currentIndex - 1, 0);
+      }
+
+      const next = filtered[nextIndex];
+      if (next && next.id !== selectedEmployeeId) {
+        onSelectEmployee(next.id);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [filtered, selectedEmployeeId, onSelectEmployee, loadingEmployees]);
+
+  useEffect(() => {
+    if (!selectedEmployeeId) return;
+    const nodes = document.querySelectorAll(
+      `[data-payroll-employee-id="${CSS.escape(selectedEmployeeId)}"]`
+    );
+    nodes.forEach((node) => {
+      if (node instanceof HTMLElement) {
+        node.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }, [selectedEmployeeId]);
 
   const renderEmployeeButton = (
     emp: EmployeeListItem,
@@ -84,6 +139,8 @@ export function PayrollEmployeeExplorer({
       <button
         type="button"
         key={emp.id}
+        data-payroll-employee-id={emp.id}
+        aria-current={isSelected ? 'true' : undefined}
         onClick={() => {
           onSelectEmployee(emp.id);
           if (variant === 'mobile') setMobileOpen(false);

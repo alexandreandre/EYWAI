@@ -29,13 +29,22 @@ from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
 from app.modules.jei_settings.application.queries import get_jei_settings_raw
+from app.modules.payroll.application.monthly_specificites import (
+    resolve_monthly_specificites,
+)
+from app.modules.collective_agreements.domain.classification import (
+    normalize_classification_for_payroll,
+)
 from app.core.paths import (
     payroll_engine_root,
     payroll_engine_employee_folder,
 )
 
 
-from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
+from app.shared.domain.employment_rules import (
+    is_forfait_jour as is_forfait_jour,
+    payslip_employment_period_block_reason,
+)
 from app.modules.payroll.documents.payslip_generator import (
     resolve_date_sortie,
     _is_heures_sup_conjoncturelle_input,
@@ -47,6 +56,17 @@ from app.modules.payroll.documents.payslip_generator import (
     _is_participation_numeraire_input,
     _is_ijss_override_input,
 )
+
+
+def _periode_de_paie_company(company_data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "jour_de_fin": company_data.get("paie_jour_de_fin", 4),
+        "occurrence": (
+            company_data.get("paie_occurrence")
+            if company_data.get("paie_occurrence") is not None
+            else -2
+        ),
+    }
 
 
 def process_payslip_generation_forfait(
@@ -77,6 +97,16 @@ def process_payslip_generation_forfait(
         )
         if not employee_data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
+
+        employee_data = {
+            **employee_data,
+            "exit_last_working_day": resolve_date_sortie(employee_data),
+        }
+        period_block_reason = payslip_employment_period_block_reason(
+            employee_data, year, month
+        )
+        if period_block_reason:
+            raise HTTPException(status_code=400, detail=period_block_reason)
 
         company_id = employee_data.get("company_id")
         if not company_id:
@@ -359,15 +389,19 @@ def process_payslip_generation_forfait(
             },
             "remuneration": {
                 "salaire_de_base": {"valeur": salaire_base_valeur},
-                "classification_conventionnelle": employee_data.get(
-                    "classification_conventionnelle", {}
+                "classification_conventionnelle": normalize_classification_for_payroll(
+                    employee_data.get("classification_conventionnelle", {})
                 ),
                 "convention_collective": build_convention_collective_payload(
                     employee_data, company_data
                 ),
                 "avantages_en_nature": employee_data.get("avantages_en_nature") or {},
             },
-            "specificites_paie": employee_data.get("specificites_paie", {}),
+            "specificites_paie": resolve_monthly_specificites(
+                employee_data.get("specificites_paie", {}),
+                year,
+                month,
+            ),
             "saisie_du_mois": saisies_data,
         }
 
@@ -441,6 +475,7 @@ def process_payslip_generation_forfait(
                 "parametres_paie": {
                     "idcc": company_data.get("idcc"),
                     "effectif": company_data.get("effectif"),
+                    "periode_de_paie": _periode_de_paie_company(company_data),
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
                         "taux_versement_mobilite": company_data.get("taux_vm"),

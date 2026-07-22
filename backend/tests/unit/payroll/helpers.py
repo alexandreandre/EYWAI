@@ -40,6 +40,7 @@ def build_test_contexte(
     date_naissance: str = "",
     date_entree: str = "2020-01-01",
     date_fin_contrat: str = "",
+    prior_service_months: int | None = None,
     maintien_regime_apprenti: bool = False,
     cumuls: Optional[Dict[str, Any]] = None,
     specificites_extra: Optional[Dict[str, Any]] = None,
@@ -60,6 +61,7 @@ def build_test_contexte(
         "contrat": {
             "date_entree": date_entree,
             "date_fin_contrat": date_fin_contrat,
+            "prior_service_months": prior_service_months,
             "statut": statut,
             "emploi": "Employé",
             "type_contrat": type_contrat,

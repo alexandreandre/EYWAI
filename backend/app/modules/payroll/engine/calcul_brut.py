@@ -2,7 +2,7 @@
 
 from .contexte import ContextePaie
 from . import legal_constants as lc
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
 from .salary_evolution_brut import (
@@ -56,7 +56,7 @@ def _facteur_prorata_entree_sortie(
     date_debut_periode: date,
     date_fin_periode: date,
 ) -> float:
-    """Prorata calendaire entrée / sortie en cours de mois (jours présents / jours du mois)."""
+    """Prorata entrée/sortie selon les jours ouvrés réellement sous contrat."""
     contrat = contexte.contrat.get("contrat", {}) or {}
     date_entree = _parse_date_contrat(contrat.get("date_entree"))
     date_sortie = _parse_date_contrat(
@@ -73,23 +73,40 @@ def _facteur_prorata_entree_sortie(
     if fin_effective < debut_effectif:
         return 0.0
 
-    jours_calendaires_mois = (date_fin_periode - date_debut_periode).days + 1
-    jours_presence = (fin_effective - debut_effectif).days + 1
-    if jours_calendaires_mois <= 0:
+    jours_ouvres_mois = sum(
+        1
+        for offset in range((date_fin_periode - date_debut_periode).days + 1)
+        if (date_debut_periode + timedelta(days=offset)).weekday() < 5
+    )
+    jours_presence = sum(
+        1
+        for offset in range((fin_effective - debut_effectif).days + 1)
+        if (debut_effectif + timedelta(days=offset)).weekday() < 5
+    )
+    if jours_ouvres_mois <= 0:
         return 1.0
-    return jours_presence / jours_calendaires_mois
+    return jours_presence / jours_ouvres_mois
 
 
 def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> bool:
-    """Jour férié chômé payé, sauf condition d'ancienneté minimale (specificites_paie).
+    """Jour férié chômé payé, sous condition légale d'ancienneté (art. L3133-3 C. trav.).
 
-    Certaines CCN/usages subordonnent le maintien de salaire du jour férié chômé à une
-    ancienneté minimale (ex. 3 mois) pour les salariés non mensualisés. Paramétré par
-    l'entreprise via specificites_paie.jours_feries_anciennete_min_mois (absent = toujours payé).
+    Le maintien de salaire d'un jour férié chômé (hors 1er mai) suppose au moins
+    3 mois d'ancienneté dans l'entreprise — c'est le défaut légal appliqué ici.
+    Une CCN/usage plus favorable peut abaisser le seuil (0 = payé dès l'embauche)
+    via specificites_paie.jours_feries_anciennete_min_mois. L'ancienneté retenue
+    tient compte d'une reprise éventuelle (seniority_reference_date / DSN).
     """
     spec = contexte.contrat.get("specificites_paie", {}) or {}
-    seuil_mois = spec.get("jours_feries_anciennete_min_mois")
-    if not seuil_mois:
+    seuil_raw = spec.get("jours_feries_anciennete_min_mois")
+    if seuil_raw is None:
+        seuil_mois = 3.0  # défaut légal L3133-3
+    else:
+        try:
+            seuil_mois = float(seuil_raw)
+        except (TypeError, ValueError):
+            seuil_mois = 3.0
+    if seuil_mois <= 0:
         return True
 
     date_ferie = _parse_date_contrat(evenement.get("date_complete"))
@@ -102,24 +119,46 @@ def _jour_ferie_est_paye(contexte: ContextePaie, evenement: Dict[str, Any]) -> b
 
     # Journée de solidarité : jour férié travaillé/neutre par convention, sans effet
     # de paie ; date paramétrée par l'entreprise (parametres_paie.jour_solidarite).
+    # À défaut d'accord (art. L3133-11), c'est le lundi de Pentecôte.
     jour_solidarite = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
         "jour_solidarite"
     )
-    if jour_solidarite and _parse_date_contrat(jour_solidarite) == date_ferie:
+    date_solidarite = _parse_date_contrat(jour_solidarite) if jour_solidarite else None
+    if date_solidarite is None:
+        from app.modules.absences.domain.rtt_forfait import _easter_sunday
+
+        date_solidarite = _easter_sunday(date_ferie.year) + timedelta(days=50)
+    if date_solidarite == date_ferie:
         return True
 
-    date_entree = _parse_date_contrat(
-        contexte.contrat.get("contrat", {}).get("date_entree")
-    )
-    if not date_entree:
-        return True
+    # Ancienneté = date la plus favorable (embauche ou reprise d'ancienneté).
+    from app.shared.seniority_reference import resolve_date_anciennete_from_contrat
 
-    mois_anciennete = (date_ferie.year - date_entree.year) * 12 + (
-        date_ferie.month - date_entree.month
+    contrat_block = contexte.contrat.get("contrat", {}) or {}
+    ancres = [
+        _parse_date_contrat(contrat_block.get("date_entree")),
+        _parse_date_contrat(resolve_date_anciennete_from_contrat(contexte.contrat)),
+    ]
+    ancres = [d for d in ancres if d]
+    if not ancres:
+        return True
+    date_ref = min(ancres)
+
+    mois_anciennete = (date_ferie.year - date_ref.year) * 12 + (
+        date_ferie.month - date_ref.month
     )
-    if date_ferie.day < date_entree.day:
+    if date_ferie.day < date_ref.day:
         mois_anciennete -= 1
-    return mois_anciennete >= float(seuil_mois)
+
+    # Reprise d'ancienneté : mois de service antérieurs (contrat précédent,
+    # groupe...) comptés dans l'ancienneté entreprise au sens de L3133-3.
+    prior = contrat_block.get("prior_service_months")
+    try:
+        mois_anciennete += int(prior) if prior else 0
+    except (TypeError, ValueError):
+        pass
+
+    return mois_anciennete >= seuil_mois
 
 
 def _calculer_prime_precarite_cdd(
@@ -438,6 +477,20 @@ def _calculer_prime_anciennete(
     return ligne
 
 
+def _prime_anciennete_deja_saisie(
+    primes_saisies: Optional[List[Dict[str, Any]]],
+) -> bool:
+    """Une saisie mensuelle explicite remplace le calcul conventionnel automatique."""
+    for prime in primes_saisies or []:
+        label = " ".join(
+            str(prime.get(key) or "")
+            for key in ("prime_id", "libelle", "name")
+        ).lower()
+        if "anciennet" in label:
+            return True
+    return False
+
+
 # def _calculer_hs_semaine(heures_travaillees: float, duree_contrat_hebdo: float, regles_majoration: List[Dict]) -> Dict[float, float]:
 #     """
 #     Calcule la répartition des heures supplémentaires pour UNE semaine.
@@ -519,9 +572,53 @@ def calculer_salaire_brut(
     facteur_prorata = _facteur_prorata_entree_sortie(
         contexte, date_debut_periode, date_fin_periode
     )
-    if facteur_prorata < 1.0:
-        salaire_contractuel = round(salaire_contractuel * facteur_prorata, 2)
+    jours_ouvres_mois = sum(
+        1
+        for offset in range((date_fin_periode - date_debut_periode).days + 1)
+        if (date_debut_periode + timedelta(days=offset)).weekday() < 5
+    )
+    jours_ouvres_presence = round(jours_ouvres_mois * facteur_prorata)
     taux_horaire_de_base = _get_salaire_horaire_base(contexte, duree_contrat_hebdo)
+    remuneration_mois_partiel: Dict[str, Any] = {}
+    if facteur_prorata < 1.0:
+        specificites = contexte.contrat.get("specificites_paie", {}) or {}
+        candidate = specificites.get("remuneration_mois_partiel")
+        if isinstance(candidate, dict):
+            remuneration_mois_partiel = candidate
+
+    heures_base_reelles = remuneration_mois_partiel.get("heures_base")
+    if not isinstance(heures_base_reelles, (int, float)) or isinstance(
+        heures_base_reelles, bool
+    ) or heures_base_reelles < 0:
+        heures_base_reelles = None
+
+    heures_hs_structurelles_reelles = remuneration_mois_partiel.get(
+        "heures_hs_structurelles"
+    )
+    if not isinstance(heures_hs_structurelles_reelles, (int, float)) or isinstance(
+        heures_hs_structurelles_reelles, bool
+    ) or heures_hs_structurelles_reelles < 0:
+        heures_hs_structurelles_reelles = None
+
+    retenue_entree_sortie_heures = remuneration_mois_partiel.get(
+        "retenue_entree_sortie_heures"
+    )
+    if not isinstance(retenue_entree_sortie_heures, (int, float)) or isinstance(
+        retenue_entree_sortie_heures, bool
+    ) or retenue_entree_sortie_heures <= 0:
+        retenue_entree_sortie_heures = None
+
+    heures_hs_exonerees = remuneration_mois_partiel.get("heures_hs_exonerees")
+    if not isinstance(heures_hs_exonerees, (int, float)) or isinstance(
+        heures_hs_exonerees, bool
+    ) or heures_hs_exonerees < 0:
+        heures_hs_exonerees = None
+
+    montant_hs_exonerees = remuneration_mois_partiel.get("montant_hs_exonerees")
+    if not isinstance(montant_hs_exonerees, (int, float)) or isinstance(
+        montant_hs_exonerees, bool
+    ) or montant_hs_exonerees < 0:
+        montant_hs_exonerees = None
 
     majoration_hs25 = _taux_majoration_hs(contexte, 0)
     majoration_hs50 = _taux_majoration_hs(contexte, 1)
@@ -536,18 +633,20 @@ def calculer_salaire_brut(
     # 1. Décomposition du salaire de base
     if duree_contrat_hebdo < duree_legale_hebdo:
         heures_mensuelles_contrat = round((duree_contrat_hebdo * 52) / 12, 2)
-        gain_base = round(salaire_contractuel, 2)
         if facteur_prorata < 1.0:
-            taux_affichage = (
-                gain_base / heures_mensuelles_contrat if heures_mensuelles_contrat else 0
+            heures_mensuelles_contrat = round(
+                jours_ouvres_presence * duree_contrat_hebdo / 5, 2
+            )
+            gain_base = round(
+                heures_mensuelles_contrat * taux_horaire_de_base, 2
             )
         else:
-            taux_affichage = round(taux_horaire_de_base, 4)
+            gain_base = round(salaire_contractuel, 2)
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
                 "quantite": heures_mensuelles_contrat,
-                "taux": round(taux_affichage, 4),
+                "taux": round(taux_horaire_de_base, 4),
                 "gain": gain_base,
                 "perte": None,
             }
@@ -558,7 +657,15 @@ def calculer_salaire_brut(
         heures_mensuelles_legales_val = heures_mensuelles_legales()
         hors_hs = salaire_hors_hs_structurelles(contexte.contrat)
         if facteur_prorata < 1.0:
-            salaire_base_35h = round(salaire_contractuel, 2)
+            heures_mensuelles_legales_val = round(
+                heures_base_reelles
+                if heures_base_reelles is not None
+                else jours_ouvres_presence * duree_legale_hebdo / 5,
+                2,
+            )
+            salaire_base_35h = round(
+                heures_mensuelles_legales_val * taux_horaire_de_base, 2
+            )
         elif hors_hs:
             salaire_base_35h = round(salaire_contractuel, 2)
         else:
@@ -580,10 +687,30 @@ def calculer_salaire_brut(
         remuneration_hs_structurelles = 0.0
         heures_sup_structurelles_mensuelles = 0.0
         if duree_contrat_hebdo > duree_legale_hebdo:
-            heures_sup_structurelles_mensuelles = compute_hs_structurelles_mensuelles(
-                duree_contrat_hebdo
-            )
+            if facteur_prorata < 1.0:
+                heures_sup_structurelles_mensuelles = round(
+                    heures_hs_structurelles_reelles
+                    if heures_hs_structurelles_reelles is not None
+                    else (
+                        jours_ouvres_presence
+                        * (duree_contrat_hebdo - duree_legale_hebdo)
+                        / 5
+                    ),
+                    2,
+                )
+            else:
+                heures_sup_structurelles_mensuelles = (
+                    compute_hs_structurelles_mensuelles(duree_contrat_hebdo)
+                )
             if hors_hs:
+                taux_horaire_majore = taux_horaire_de_base * (1 + majoration_hs25)
+                remuneration_hs_structurelles = round(
+                    heures_sup_structurelles_mensuelles * taux_horaire_majore, 2
+                )
+                total_contractuel = round(
+                    salaire_base_35h + remuneration_hs_structurelles, 2
+                )
+            elif facteur_prorata < 1.0:
                 taux_horaire_majore = taux_horaire_de_base * (1 + majoration_hs25)
                 remuneration_hs_structurelles = round(
                     heures_sup_structurelles_mensuelles * taux_horaire_majore, 2
@@ -626,6 +753,19 @@ def calculer_salaire_brut(
                     "is_sous_total": True,
                 }
             )
+
+    if retenue_entree_sortie_heures is not None:
+        lignes_composants_brut.append(
+            {
+                "libelle": "Absence pour entrée ou sortie",
+                "quantite": round(retenue_entree_sortie_heures, 2),
+                "taux": round(taux_horaire_de_base, 4),
+                "gain": None,
+                "perte": round(
+                    retenue_entree_sortie_heures * taux_horaire_de_base, 2
+                ),
+            }
+        )
 
     # Montant mensualisé total du salaire de base (+ HS structurelles si contrat
     # au-dessus de la durée légale) — référence pour la retenue "mois complet
@@ -670,21 +810,28 @@ def calculer_salaire_brut(
     heures_travail_hc2_total = 0.0
     heures_absence_hs_total = 0.0  #
 
-    jours_dans_periode = [
-        j
-        for j in calendrier_saisie
-        if "date_complete" in j
-        and (
-            date_debut_periode
-            <= date.fromisoformat(j["date_complete"])
-            <= date_fin_periode
-            # Régularisation antérieure (cf. payslip_run_common
-            # .regularisation_events_from_calendar) : sa date d'origine est
-            # volontairement antérieure au mois de paie courant, mais son
-            # effet doit bien être appliqué sur CE bulletin.
-            or j.get("is_regularisation_anterieure")
-        )
-    ]
+    contrat_dates = contexte.contrat.get("contrat", {}) or {}
+    date_entree_contrat = _parse_date_contrat(contrat_dates.get("date_entree"))
+    date_sortie_contrat = _parse_date_contrat(
+        contrat_dates.get("date_sortie") or contrat_dates.get("date_fin_contrat")
+    )
+    jours_dans_periode = []
+    for evenement in calendrier_saisie:
+        try:
+            date_evenement = date.fromisoformat(evenement["date_complete"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        # Une régularisation antérieure reste rattachée au bulletin courant,
+        # mais aucun événement ne peut produire de paie hors contrat.
+        if not evenement.get("is_regularisation_anterieure") and not (
+            date_debut_periode <= date_evenement <= date_fin_periode
+        ):
+            continue
+        if date_entree_contrat and date_evenement < date_entree_contrat:
+            continue
+        if date_sortie_contrat and date_evenement > date_sortie_contrat:
+            continue
+        jours_dans_periode.append(evenement)
 
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
@@ -834,8 +981,10 @@ def calculer_salaire_brut(
     # jour ne génère pas non plus sa quote-part de l'heure supplémentaire structurelle de
     # ce jour-là (17,33 h/mois répartis sur les jours ouvrés légaux du mois).
     if jours_absence_legale_equivalents > 0 and heures_sup_structurelles_mensuelles > 0:
-        jours_legaux_mensuels = heures_mensuelles_legales() / (
-            lc.DUREE_LEGALE_HEBDO / 5
+        jours_legaux_mensuels = (
+            jours_ouvres_presence
+            if facteur_prorata < 1.0
+            else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
         )
         heures_hs_perdues = round(
             heures_sup_structurelles_mensuelles
@@ -994,14 +1143,16 @@ def calculer_salaire_brut(
             )
 
     # 6. Ajout des primes, avantages et calcul des totaux
-    ligne_prime_anciennete = _calculer_prime_anciennete(
-        contexte,
-        calendrier_saisie=calendrier_saisie,
-        date_debut_periode=date_debut_periode,
-        date_fin_periode=date_fin_periode,
-        jours_maintien=jours_maintien,
-        actual_hours_raw=actual_hours_raw,
-    )
+    ligne_prime_anciennete = None
+    if not _prime_anciennete_deja_saisie(primes_saisies):
+        ligne_prime_anciennete = _calculer_prime_anciennete(
+            contexte,
+            calendrier_saisie=calendrier_saisie,
+            date_debut_periode=date_debut_periode,
+            date_fin_periode=date_fin_periode,
+            jours_maintien=jours_maintien,
+            actual_hours_raw=actual_hours_raw,
+        )
     if ligne_prime_anciennete:
         lignes_composants_brut.append(ligne_prime_anciennete)
     if primes_saisies:
@@ -1101,6 +1252,10 @@ def calculer_salaire_brut(
     total_heures_supp_mois = (
         heures_sup_structurelles_mensuelles + heures_sup_conjoncturelles
     ) - heures_absence_hs_total
+    if heures_hs_exonerees is not None:
+        total_heures_supp_mois = heures_hs_exonerees
+    if montant_hs_exonerees is not None:
+        remuneration_hs_totale = montant_hs_exonerees
 
     # --- FIN DU BLOC CORRIGÉ ---
 

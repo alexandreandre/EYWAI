@@ -7,11 +7,62 @@ from app.modules.payroll.engine.baremes_loader import (
     baremes_lookup,
     comparer_taux_vm_entreprise,
     controler_integrite_baremes,
+    ensure_config_data,
+    ensure_dict,
     resoudre_taux_vm_officiel,
     resoudre_taux_vm_pour_paie,
 )
 from app.modules.payroll.application.simulation_queries import load_baremes
 from tests.unit.payroll.fixtures.baremes_snapshot import baremes_snapshot
+
+
+def test_ensure_config_data_preserve_liste_taux_vmrr():
+    """taux_vmrr est stocké comme liste de communes — ne pas la réduire à {}."""
+    rows = [
+        {"commune": "CHAMBERY", "taux": 0.02},
+        {"commune": "CERIZAY", "taux": 0.0025},
+    ]
+    assert ensure_config_data(rows) is rows
+    assert ensure_config_data({"rows": rows}) == {"rows": rows}
+    assert ensure_config_data(None) == {}
+    assert ensure_dict(rows) == {}  # historique : ne garde que les dicts
+
+
+def test_load_baremes_preserve_taux_vmrr_liste(monkeypatch):
+    from app.modules.payroll.infrastructure import simulation_repository
+
+    vm_rows = [{"commune": "CHAMBERY", "taux": 0.02, "nom_commune": "CHAMBERY"}]
+    snap = baremes_snapshot()
+    db_rows = [
+        {"config_key": "smic", "config_data": snap["smic"]},
+        {"config_key": "pss", "config_data": snap["pss"]},
+        {"config_key": "cotisations", "config_data": snap["cotisations"]},
+        {"config_key": "pas", "config_data": {"baremes": snap["pas"]}},
+        {"config_key": "primes", "config_data": {"primes": snap["primes"]}},
+        {"config_key": "ij_plafonds", "config_data": snap["ij_plafonds"]},
+        {"config_key": "taux_vmrr", "config_data": vm_rows},
+    ]
+    monkeypatch.setattr(
+        simulation_repository,
+        "fetch_active_payroll_config_rows",
+        lambda: db_rows,
+    )
+    monkeypatch.setattr(
+        simulation_repository,
+        "fetch_convention_collective_rules",
+        lambda: {},
+    )
+    loaded = load_baremes()
+    assert isinstance(loaded["taux_vmrr"], list)
+    assert len(loaded["taux_vmrr"]) == 1
+
+    entreprise = {
+        "identification": {"adresse": {"ville": "CHAMBERY"}},
+        "parametres_paie": {"taux_specifiques": {}},
+    }
+    alertes: list = []
+    assert resoudre_taux_vm_pour_paie(loaded, entreprise, alertes=alertes) == 0.02
+    assert alertes == []
 
 
 def test_assembler_baremes_inclut_ij_km_vm():
@@ -72,6 +123,23 @@ def test_resoudre_taux_vm_officiel_depuis_bareme():
     baremes = baremes_snapshot()
     taux = resoudre_taux_vm_officiel(baremes["taux_vmrr"], "Paris")
     assert taux == 0.025
+
+
+def test_resoudre_taux_vm_ne_matche_pas_sous_commune_courte():
+    """Régression : 'EU' ne doit pas matcher 'MAGNIEU', 'RI' ne doit pas matcher 'CERIZAY'."""
+    rows = [
+        {"commune": "EU", "taux": 0.003},
+        {"commune": "RI", "taux": 0.0045},
+        {"commune": "CERIZAY", "taux": 0.0025},
+        {"commune": "CHAMBERY", "taux": 0.02},
+        {"commune": "MAGNIEU", "taux": 0.0},
+    ]
+    assert resoudre_taux_vm_officiel(rows, "MAGNIEU") == 0.0
+    assert resoudre_taux_vm_officiel(rows, "CERIZAY") == 0.0025
+    assert resoudre_taux_vm_officiel(rows, "CHAMBERY") == 0.02
+    # Contenance ville → libellé plus long (OK) : « Aix » dans « Aix en Provence »
+    rows_aix = [{"commune": "AIX EN PROVENCE", "taux": 0.0208}]
+    assert resoudre_taux_vm_officiel(rows_aix, "Aix en Provence") == 0.0208
 
 
 def test_resoudre_taux_vm_absent_sans_defaut():

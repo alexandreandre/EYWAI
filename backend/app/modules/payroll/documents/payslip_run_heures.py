@@ -32,7 +32,10 @@ from app.modules.payroll.engine.baremes_loader import (
 )
 from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
 from app.modules.payroll.engine.contexte import ContextePaie
-from app.modules.payroll.engine.ijss_bulletin import compute_ijss_csg_lines
+from app.modules.payroll.engine.ijss_bulletin import (
+    build_rappel_ijss_net_prime,
+    compute_ijss_csg_lines,
+)
 
 from .payslip_run_common import (
     creer_calendrier_etendu,
@@ -141,9 +144,19 @@ def _extraire_arret_pour_maintien(
     temps_travail = (
         (contexte.contrat or {}).get("contrat", {}).get("temps_travail", {}) or {}
     )
+    # Vrai début de l'arrêt (fait métier déclaré : peut être antérieur au mois
+    # courant pour un arrêt qui se poursuit). Sert au décompte du rang de jour de
+    # maintien (barème D1226-1) : un arrêt long voit son maintien s'épuiser. Sans
+    # cette info, on retombe sur le 1er jour d'arrêt du mois (comportement
+    # historique — arrêt réputé débuter dans le mois).
+    date_debut_reel = next(
+        (ev.get("date_debut_arret_reel") for _, ev in candidats
+         if ev.get("date_debut_arret_reel")),
+        None,
+    )
     return {
         "arret_type": first_ev["arret_type"],
-        "date_debut": first_d.isoformat(),
+        "date_debut": date_debut_reel or first_d.isoformat(),
         "date_fin": last_d.isoformat(),
         "subrogation_active": bool(first_ev.get("subrogation_active", True)),
         "nombre_enfants": int(first_ev.get("nombre_enfants") or 0),
@@ -160,6 +173,7 @@ def _extraire_arret_pour_maintien(
         "historique_arrets_annee": first_ev.get("historique_arrets_annee") or [],
         "date_dernier_arret": first_ev.get("date_dernier_arret"),
         "salaire_periode_reelle": float(first_ev.get("salaire_periode_reelle") or 0.0),
+        "maintien_base_ouvree": bool(first_ev.get("maintien_base_ouvree")),
     }
 
 
@@ -258,6 +272,7 @@ def run_payslip_generation_heures(
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
+    contexte.date_fin_periode = date_fin_periode
     logging.info(
         "Période de paie : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),
@@ -316,6 +331,7 @@ def run_payslip_generation_heures(
     # de remplacement (même 3,8 %/2,9 % que les IJSS), imposables. Traitées via le
     # même canal que les IJSS subrogées (cf. plus bas).
     indemnites_remplacement: List[Dict[str, Any]] = []
+    heures_activite_partielle = 0.0
     catalogue_primes = {p["id"]: p for p in contexte.baremes["primes"]}
     effectif_entreprise = contexte.effectif
 
@@ -332,7 +348,30 @@ def run_payslip_generation_heures(
                 or prime_id.replace("_", " ")
             )
 
+            rappel_ijss_net = build_rappel_ijss_net_prime(
+                prime_id=str(prime_id),
+                libelle=str(libelle),
+                montant=montant,
+                baremes_maladie=contexte.baremes.get("maladie"),
+            )
+            if rappel_ijss_net:
+                # La saisie négative continue son parcours normal afin de
+                # corriger le brut et les assiettes ; seule sa contrepartie
+                # nette est ajoutée hors cotisations et hors net imposable.
+                primes_non_soumises.append(rappel_ijss_net)
+
             _lib_low = f"{prime_id} {libelle}".lower()
+            if (
+                montant < 0
+                and ("chôm" in _lib_low or "chom" in _lib_low)
+                and "act" in _lib_low
+                and "part" in _lib_low
+            ):
+                # Le SMIC de référence de la réduction générale doit être
+                # proratisé des heures chômées non rémunérées. Le montant seul
+                # ne permet pas de retrouver ces heures de manière fiable :
+                # elles sont donc portées explicitement par la saisie.
+                heures_activite_partielle += abs(float(saisie.get("quantity") or 0.0))
             if "indemn" in _lib_low and ("activit" in _lib_low and "partiel" in _lib_low):
                 # Indemnité d'activité partielle : revenu de remplacement (pas une
                 # prime soumise). Routée hors du circuit primes, CSG appliquée plus bas.
@@ -730,7 +769,11 @@ def run_payslip_generation_heures(
     # du seul calendrier : nulle quand les HS sont saisies manuellement).
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
     heures_remunerees_reduction = (
-        min(heures_contractuelles_mois, heures_legales_mois)
+        max(
+            0.0,
+            min(heures_contractuelles_mois, heures_legales_mois)
+            - heures_activite_partielle,
+        )
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
     )
@@ -809,6 +852,7 @@ def run_payslip_generation_heures(
             year,
             month,
             resultats_maintien=resultats_maintien,
+            primes_soumises_impot=primes_soumises_impot,
         )
 
     smic_calcule_mois = (

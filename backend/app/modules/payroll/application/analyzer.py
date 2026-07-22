@@ -33,6 +33,8 @@ _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "historique_arrets_annee",
     "date_dernier_arret",
     "salaire_periode_reelle",
+    "maintien_base_ouvree",
+    "date_debut_arret_reel",  # vrai début d'un arrêt multi-mois (épuisement maintien)
 )
 
 
@@ -138,6 +140,11 @@ def analyser_horaires_du_mois(
 
             debut_compteur = compteur_heures_semaine_centiemes
             fin_compteur = compteur_heures_semaine_centiemes + heures_jour_centiemes
+            if jour_reel.get("source_repli_planning"):
+                # Le repli représente l'horaire prévu faute de pointage fiable :
+                # il couvre les jours attendus sans créer d'HS/HC fictives.
+                compteur_heures_semaine_centiemes = fin_compteur
+                continue
             seuil_base_legal = 3500
             seuil_hs25_legal = 4300
 

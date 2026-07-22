@@ -21,6 +21,7 @@ from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
+from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,
@@ -180,6 +181,7 @@ def run_payslip_generation_forfait(
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
+    contexte.date_fin_periode = date_fin_periode
     logging.info(
         "Période de paie forfait : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),
@@ -257,6 +259,14 @@ def run_payslip_generation_forfait(
                 or saisie.get("name")
                 or prime_id.replace("_", " ")
             )
+            rappel_ijss_net = build_rappel_ijss_net_prime(
+                prime_id=str(prime_id),
+                libelle=str(libelle),
+                montant=montant,
+                baremes_maladie=contexte.baremes.get("maladie"),
+            )
+            if rappel_ijss_net:
+                primes_non_soumises.append(rappel_ijss_net)
             if cle == "notes_de_frais" and montant > 0:
                 _exo, reint, _plafond = appliquer_exoneration_note_frais(
                     saisie, contexte.baremes.get("frais_pro")
@@ -420,6 +430,42 @@ def run_payslip_generation_forfait(
     if ijss_imposables:
         primes_soumises_impot = list(primes_soumises_impot) + ijss_imposables
 
+    # Mêmes lignes informatives que le moteur horaire : la participation reste
+    # hors brut cotisable, mais doit apparaître sur le bulletin forfait jours.
+    for part in participations_calc:
+        details_brut.append(
+            {
+                "libelle": f"{part['libelle']} (brut, exonéré de cotisations)",
+                "quantite": None,
+                "taux": None,
+                "gain": part["brut"],
+                "perte": None,
+                "is_informative": True,
+            }
+        )
+        lignes_cotisations.extend(
+            [
+                {
+                    "libelle": f"CSG déductible — {part['libelle']}",
+                    "base": part["brut"],
+                    "taux_salarial": 0.068,
+                    "taux_patronal": 0.0,
+                    "montant_salarial": part["csg_deductible"],
+                    "montant_patronal": 0.0,
+                    "is_participation": True,
+                },
+                {
+                    "libelle": f"CSG/CRDS non déductible — {part['libelle']}",
+                    "base": part["brut"],
+                    "taux_salarial": 0.029,
+                    "taux_patronal": 0.0,
+                    "montant_salarial": part["csg_non_deductible"],
+                    "montant_patronal": 0.0,
+                    "is_participation": True,
+                },
+            ]
+        )
+
     nombre_jours_travailles = resultat_brut.get("nombre_jours_travailles", 0)
     heures_equivalentes = nombre_jours_travailles * 7.0
 
@@ -497,6 +543,7 @@ def run_payslip_generation_forfait(
             year,
             month,
             resultats_maintien=resultats_maintien,
+            primes_soumises_impot=primes_soumises_impot,
         )
 
     smic_calcule_mois = (

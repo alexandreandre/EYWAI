@@ -21,7 +21,7 @@ def _float_in_range(value: Any, *, name: str, min_v: float, max_v: float) -> Opt
 
 
 def ensure_dict(val: Any) -> Dict[str, Any]:
-    """Normalise config_data (dict ou chaîne JSON)."""
+    """Normalise une valeur attendue en dict (règles CCN, etc.)."""
     if val is None:
         return {}
     if isinstance(val, str):
@@ -31,6 +31,27 @@ def ensure_dict(val: Any) -> Dict[str, Any]:
         except json.JSONDecodeError:
             return {}
     return val if isinstance(val, dict) else {}
+
+
+def ensure_config_data(val: Any) -> Any:
+    """Normalise payroll_config.config_data (dict, liste JSON, ou chaîne JSON).
+
+    Important : certains barèmes (ex. taux_vmrr) sont stockés comme listes de
+    lignes — ne pas les réduire à {} via ensure_dict.
+    """
+    if val is None:
+        return {}
+    if isinstance(val, (dict, list)):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, (dict, list)):
+            return parsed
+        return {}
+    return {}
 
 
 def charger_db_baremes(supabase) -> Dict[str, Any]:
@@ -46,7 +67,8 @@ def charger_db_baremes(supabase) -> Dict[str, Any]:
             "Aucune configuration de paie active trouvée dans Supabase."
         )
     return {
-        c["config_key"]: ensure_dict(c.get("config_data")) for c in configs.data
+        c["config_key"]: ensure_config_data(c.get("config_data"))
+        for c in configs.data
     }
 
 
@@ -74,8 +96,6 @@ def charger_conventions_collectives(supabase) -> Dict[str, Any]:
 
 def _enrich_cc_rules_with_seed(rules: dict[str, Any], idcc: str) -> dict[str, Any]:
     """Complète les règles CCN manquantes (ex. prime d'ancienneté) via seed officiel."""
-    if rules.get("prime_anciennete"):
-        return rules
     try:
         from app.modules.collective_agreements.rules.schema import (
             CCRulesDocument,
@@ -96,7 +116,35 @@ def _enrich_cc_rules_with_seed(rules: dict[str, Any], idcc: str) -> dict[str, An
         if not prime:
             return rules
         merged = dict(rules)
-        merged["prime_anciennete"] = prime
+        existing = rules.get("prime_anciennete")
+        if not isinstance(existing, dict) or not existing:
+            merged["prime_anciennete"] = prime
+            return merged
+
+        # Une extraction Légifrance partielle ne doit pas neutraliser les
+        # compléments déterministes du seed (plafond d'ancienneté, zones de
+        # valeur du point, prorata…). Les valeurs extraites restent prioritaires.
+        enriched_prime = dict(prime)
+        enriched_prime.update(existing)
+        for key in (
+            "base_de_calcul",
+            "eligibilite",
+            "prorata",
+            "taux_par_classe",
+        ):
+            defaults = prime.get(key)
+            current = existing.get(key)
+            if isinstance(defaults, dict) and isinstance(current, dict):
+                enriched_prime[key] = {**defaults, **current}
+
+        seed_zones = prime.get("valeurs_point") or []
+        current_zones = existing.get("valeurs_point") or []
+        if isinstance(seed_zones, list) and isinstance(current_zones, list):
+            enriched_prime["valeurs_point"] = list(current_zones) + [
+                zone for zone in seed_zones if zone not in current_zones
+            ]
+
+        merged["prime_anciennete"] = enriched_prime
         return merged
     except Exception:
         return rules
@@ -474,15 +522,25 @@ def resoudre_taux_vm_officiel(
         )
         return None
 
-    commune_norm = commune_clean.lower()
+    commune_norm = _normaliser_libelle_commune(commune_clean)
+
+    # 1) Égalité exacte (prioritaire) — évite EU⊂MAGNIEU, RI⊂CERIZAY
     for row in rows:
-        lib = _libelle_commune_vmrr(row).lower()
-        if not lib:
-            continue
-        if commune_norm in lib or lib in commune_norm:
+        lib = _normaliser_libelle_commune(_libelle_commune_vmrr(row))
+        if lib and lib == commune_norm:
             taux = _taux_ligne_vmrr(row)
             if taux is not None:
                 return taux
+
+    # 2) Contenance ville → libellé plus long uniquement (ex. « Aix » ⊂ « Aix en Provence »)
+    #    Jamais l'inverse (libellé court ⊂ ville).
+    if len(commune_norm) >= 4:
+        for row in rows:
+            lib = _normaliser_libelle_commune(_libelle_commune_vmrr(row))
+            if lib and commune_norm in lib and lib != commune_norm:
+                taux = _taux_ligne_vmrr(row)
+                if taux is not None:
+                    return taux
 
     _ajouter_alerte(
         alertes,
@@ -495,6 +553,14 @@ def resoudre_taux_vm_officiel(
         ),
     )
     return None
+
+
+def _normaliser_libelle_commune(value: str) -> str:
+    """Normalise un libellé commune pour comparaison VM (casse, tirets, espaces)."""
+    s = str(value or "").strip().lower()
+    for old, new in (("-", " "), ("'", " "), ("’", " ")):
+        s = s.replace(old, new)
+    return " ".join(s.split())
 
 
 def taux_vm_entreprise_depuis_donnees(entreprise: Dict[str, Any]) -> Optional[float]:

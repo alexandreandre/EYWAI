@@ -90,6 +90,38 @@ class TestCoutTotalEmployeur:
         cout = _calculer_cout_total_employeur(2444.33, 468.02, primes, brut_lines)
         assert cout == pytest.approx(5137.68, abs=0.01)
 
+    def test_rappel_ijss_net_n_augmente_pas_le_cout_employeur(self):
+        primes = [
+            {
+                "libelle": "IJSS nettes (rappel)",
+                "montant": 38.15,
+                "is_rappel_ijss": True,
+            }
+        ]
+
+        cout = _calculer_cout_total_employeur(2356.03, 704.01, primes, [])
+
+        assert cout == pytest.approx(3060.04, abs=0.01)
+
+    def test_indemnite_activite_partielle_augmente_le_cout_employeur(self):
+        revenus_remplacement = [
+            {
+                "prime_id": "indemnite_activite_partielle",
+                "libelle": "Indemnité activité partielle",
+                "montant": 533.12,
+            }
+        ]
+
+        cout = _calculer_cout_total_employeur(
+            1520.75,
+            480.94,
+            [],
+            [],
+            revenus_remplacement,
+        )
+
+        assert cout == pytest.approx(2534.81, abs=0.01)
+
     def test_mns_utilise_montant_net_social_pour_net_avant_impot(self):
         ctx = build_test_contexte(salaire_base=2444.33)
         nets = {
@@ -230,6 +262,102 @@ class TestBulletinFinalOfficiel:
         bulletin = creer_bulletin_final(ctx, 1000.0, [], [], nets, [], 2026, 6)
         codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
         assert "net_superieur_brut" in codes
+
+    def test_pas_alerte_net_superieur_brut_si_participation_numeraire(self):
+        ctx = build_test_contexte(salaire_base=1000.0)
+        nets = {
+            "net_a_payer": 1800.0,
+            "net_imposable": 1750.0,
+            "montant_net_social": 1780.0,
+            "impot_prelevement_a_la_source": 0.0,
+        }
+        details_brut = [
+            {
+                "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
+                "gain": 1000.0,
+                "is_informative": True,
+            }
+        ]
+
+        bulletin = creer_bulletin_final(
+            ctx, 1000.0, details_brut, [], nets, [], 2026, 5
+        )
+
+        codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
+        assert "net_superieur_brut" not in codes
+
+    def test_pas_alerte_net_superieur_brut_si_participation_forfait(self):
+        ctx = build_test_contexte(salaire_base=3984.0)
+        nets = {
+            "net_a_payer": 6722.64,
+            "net_imposable": 8500.0,
+            "montant_net_social": 6700.0,
+            "impot_prelevement_a_la_source": 0.0,
+            "participations": [
+                {
+                    "libelle": "Participation 2025 — numéraire",
+                    "brut": 5818.27,
+                    "part_pee": 0.0,
+                }
+            ],
+        }
+
+        bulletin = creer_bulletin_final(
+            ctx, 3984.0, [], [], nets, [], 2026, 5
+        )
+
+        codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
+        assert "net_superieur_brut" not in codes
+        assert bulletin["participations"][0]["brut"] == 5818.27
+
+    def test_pas_alerte_net_superieur_brut_si_activite_partielle(self):
+        ctx = build_test_contexte(salaire_base=1520.75)
+        nets = {
+            "net_a_payer": 1661.11,
+            "net_imposable": 1764.48,
+            "montant_net_social": 1661.11,
+            "impot_prelevement_a_la_source": 0.0,
+        }
+        revenus_remplacement = [
+            {
+                "prime_id": "indemnite_activite_partielle",
+                "libelle": "Indemnité activité partielle",
+                "montant": 533.12,
+            }
+        ]
+
+        bulletin = creer_bulletin_final(
+            ctx,
+            1520.75,
+            [],
+            [],
+            nets,
+            [],
+            2026,
+            6,
+            primes_soumises_impot=revenus_remplacement,
+        )
+
+        codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
+        assert "net_superieur_brut" not in codes
+        assert bulletin["revenus_hors_brut_imposables"] == revenus_remplacement
+
+    def test_pas_alerte_net_superieur_brut_si_frais_pro_hors_brut(self):
+        ctx = build_test_contexte(salaire_base=125.65)
+        nets = {
+            "net_a_payer": 244.23,
+            "net_imposable": 146.05,
+            "montant_net_social": 94.23,
+            "impot_prelevement_a_la_source": 0.0,
+            "acompte_verse": -150.0,
+        }
+
+        bulletin = creer_bulletin_final(
+            ctx, 125.65, [], [], nets, [], 2026, 6
+        )
+
+        codes = [a.get("code") for a in bulletin.get("alertes_baremes") or []]
+        assert "net_superieur_brut" not in codes
 
     def test_pipeline_golden_inclut_mns(self):
         ctx = build_test_contexte(salaire_base=2000.0)

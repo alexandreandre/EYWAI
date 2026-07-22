@@ -803,6 +803,7 @@ def calculer_cotisations(
                 logger,
                 f'  -> Lignes spécifiques non-cadre: {len(lignes_specifiques)}',
             )
+            taux_forfait_social = 0.0
             for ligne in lignes_specifiques:
                 base_id = ligne.get("base", "brut_plafonne")
                 assiette = assiettes.get(base_id, 0.0)
@@ -815,6 +816,32 @@ def calculer_cotisations(
                 )
                 if ligne_calculee:
                     bulletin_cotisations.append(ligne_calculee)
+                taux_forfait_social = max(
+                    taux_forfait_social,
+                    float(ligne.get("forfait_social") or 0.0),
+                )
+            if taux_forfait_social > 0:
+                # Pour les employeurs assujettis, le forfait social à 8 %
+                # porte sur l'ensemble des contributions patronales de
+                # prévoyance complémentaire, frais de santé inclus.
+                base_forfait_social = round(
+                    sum(
+                        float(cotisation.get("montant_patronal") or 0.0)
+                        for cotisation in bulletin_cotisations
+                        if cotisation.get("coti_id")
+                        in {"mutuelle", "prevoyance_non_cadre"}
+                    ),
+                    2,
+                )
+                ligne_fs = _calculer_une_ligne(
+                    f"Forfait social {taux_forfait_social * 100:.0f}% sur prévoyance",
+                    base_forfait_social,
+                    None,
+                    taux_forfait_social,
+                    coti_id="forfait_social",
+                )
+                if ligne_fs:
+                    bulletin_cotisations.append(ligne_fs)
         else:
             coti_data = contexte.get_cotisation_by_id("prevoyance_non_cadre")
             if coti_data:

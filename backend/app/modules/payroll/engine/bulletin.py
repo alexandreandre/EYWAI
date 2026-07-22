@@ -31,13 +31,18 @@ def _get_end_date_for_month(
 
 
 def _calculer_date_paiement(contexte: ContextePaie, annee: int, mois: int) -> str:
+    from app.modules.payroll.engine.period_forfait import est_mode_mois_calendaire
+
     regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
         "periode_de_paie", {}
     )
     jour_reference = regles_paie.get("jour_de_fin", 4)
     occurrence_reference = regles_paie.get("occurrence", -2)
+    if est_mode_mois_calendaire(jour_reference):
+        _, num_days = calendar.monthrange(annee, mois)
+        return date(annee, mois, num_days).isoformat()
     date_paiement = _get_end_date_for_month(
-        annee, mois, jour_reference, occurrence_reference
+        annee, mois, int(jour_reference), int(occurrence_reference)
     )
     return date_paiement.isoformat()
 
@@ -125,6 +130,20 @@ def _participation_brut_numeraire(lignes_brut: List[Dict[str, Any]]) -> float:
     return round(total, 2)
 
 
+def _participation_numeraire_depuis_resultats(
+    resultats_nets: Dict[str, Any],
+) -> float:
+    """Participation effectivement versée en numéraire (hors part placée en PEE)."""
+    total = 0.0
+    for participation in resultats_nets.get("participations") or []:
+        if not isinstance(participation, dict):
+            continue
+        brut = float(participation.get("brut") or 0)
+        part_pee = float(participation.get("part_pee") or 0)
+        total += max(0.0, brut - part_pee)
+    return round(total, 2)
+
+
 def _acompte_participation_deja_verse(
     primes_non_soumises: List[Dict[str, Any]],
 ) -> float:
@@ -143,6 +162,7 @@ def _calculer_cout_total_employeur(
     total_cotisations_patronales: float,
     primes_non_soumises: List[Dict[str, Any]],
     lignes_brut: List[Dict[str, Any]],
+    primes_soumises_impot: Optional[List[Dict[str, Any]]] = None,
 ) -> float:
     """
     Coût total employeur (alignement Cegid) :
@@ -155,14 +175,22 @@ def _calculer_cout_total_employeur(
     participation_brut = _participation_brut_numeraire(lignes_brut)
     acompte = _acompte_participation_deja_verse(primes_non_soumises)
     primes_positives = sum(
-        max(0.0, float(p.get("montant") or 0)) for p in primes_non_soumises
+        max(0.0, float(p.get("montant") or 0))
+        for p in primes_non_soumises
+        if not p.get("is_rappel_ijss")
+    )
+    indemnites_activite_partielle = sum(
+        max(0.0, float(p.get("montant") or 0))
+        for p in primes_soumises_impot or []
+        if p.get("prime_id") == "indemnite_activite_partielle"
     )
     return round(
         float(salaire_brut)
         + float(total_cotisations_patronales)
         + participation_brut
         - acompte
-        + primes_positives,
+        + primes_positives
+        + indemnites_activite_partielle,
         2,
     )
 
@@ -177,6 +205,7 @@ def creer_bulletin_final(
     annee: int,
     mois: int,
     resultats_maintien: Optional[Dict[str, Any]] = None,
+    primes_soumises_impot: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Assemble tous les éléments calculés en une structure de données finale
@@ -387,8 +416,34 @@ def creer_bulletin_final(
 
     net_a_payer_val = resultats_nets.get("net_a_payer")
     if net_a_payer_val is not None:
+        # Une participation/intéressement numéraire augmente légitimement le net
+        # sans entrer dans le salaire_brut. Le contrôle doit comparer au brut
+        # total versé, sinon il produit un faux positif (ex. MBC mai 2026).
+        participation_resultats = _participation_numeraire_depuis_resultats(
+            resultats_nets
+        )
+        brut_reference_net = salaire_brut + (
+            participation_resultats
+            if participation_resultats
+            else _participation_brut_numeraire(details_brut)
+        )
+        # Les frais professionnels hors brut sont transportés comme une
+        # correction nette négative d'acompte (ex. indemnité de déplacement).
+        brut_reference_net += max(
+            0.0, -float(resultats_nets.get("acompte_verse") or 0)
+        )
+        brut_reference_net += sum(
+            max(0.0, float(prime.get("montant") or 0))
+            for prime in primes_non_soumises
+            if isinstance(prime, dict)
+        )
+        brut_reference_net += sum(
+            max(0.0, float(prime.get("montant") or 0))
+            for prime in primes_soumises_impot or []
+            if isinstance(prime, dict)
+        )
         for alerte_net in controle_net_superieur_brut(
-            salaire_brut, float(net_a_payer_val)
+            brut_reference_net, float(net_a_payer_val)
         ):
             contexte.alertes_baremes.append(alerte_net)
 
@@ -450,6 +505,8 @@ def creer_bulletin_final(
         "total_exonerations": total_exonerations,
         "synthese_net": synthese_net,
         "primes_non_soumises": primes_non_soumises,
+        "revenus_hors_brut_imposables": list(primes_soumises_impot or []),
+        "participations": resultats_nets.get("participations") or [],
         "net_a_payer": resultats_nets.get("net_a_payer"),
         "pied_de_page": {
             "cout_total_employeur": _calculer_cout_total_employeur(
@@ -457,6 +514,7 @@ def creer_bulletin_final(
                 total_cotisations_patronales,
                 primes_non_soumises,
                 autres_lignes_brut,
+                primes_soumises_impot,
             ),
             "total_exonerations": total_exonerations,
             "solde_conges": build_solde_conges_pied_de_page(

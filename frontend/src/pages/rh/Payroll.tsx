@@ -28,6 +28,7 @@ import {
   buildYearOptions,
   PAYROLL_MONTHS,
 } from '@/features/payroll/utils/payrollMonth';
+import { payrollEmploymentBlockReason } from '@/features/payroll/utils/employmentPeriod';
 
 type PayrollView = 'employee' | 'month';
 
@@ -83,7 +84,7 @@ function buildRowState(
 
 function buildMonthStatuses(
   payslipsForYear: PayslipInfo[],
-  employeeId: string,
+  employee: EmployeeListItem,
   year: number,
   generation: {
     currentJob: { employeeId: string; year: number; month: number } | null;
@@ -95,9 +96,18 @@ function buildMonthStatuses(
   const map: MonthStatusMap = {};
   for (const month of PAYROLL_MONTHS) {
     const payslip = payslipsForYear.find((p) => p.month === month);
-    map[month] = buildRowState(payslip, employeeId, year, month, generation);
+    const state = buildRowState(payslip, employee.id, year, month, generation);
+    const unavailableReason = payrollEmploymentBlockReason(employee, year, month);
+    map[month] =
+      unavailableReason && state.status !== 'success' && state.status !== 'loading'
+        ? { status: 'unavailable', errorMessage: unavailableReason }
+        : state;
   }
   return map;
+}
+
+function canGeneratePayslip(state: PayslipRowState | undefined): boolean {
+  return state?.status === 'idle' || state?.status === 'error';
 }
 
 export default function Payroll() {
@@ -214,9 +224,9 @@ export default function Payroll() {
   );
 
   const monthStatuses = useMemo(() => {
-    if (!selectedEmployeeId) return {};
-    return buildMonthStatuses(payslipsForYear, selectedEmployeeId, selectedYear, generationState);
-  }, [selectedEmployeeId, payslipsForYear, selectedYear, generationState]);
+    if (!selectedEmployee) return {};
+    return buildMonthStatuses(payslipsForYear, selectedEmployee, selectedYear, generationState);
+  }, [selectedEmployee, payslipsForYear, selectedYear, generationState]);
 
   const payslipsByEmployee = useMemo(() => {
     const map: Record<string, PayslipInfo[]> = {};
@@ -244,15 +254,30 @@ export default function Payroll() {
       const payslip = (payslipsByEmployee[emp.id] ?? []).find(
         (p) => p.year === selectedYear && p.month === selectedMonth
       );
+      const state = buildRowState(
+        payslip,
+        emp.id,
+        selectedYear,
+        selectedMonth,
+        generationState
+      );
+      const unavailableReason = payrollEmploymentBlockReason(
+        emp,
+        selectedYear,
+        selectedMonth
+      );
       return {
         employee: emp,
-        state: buildRowState(payslip, emp.id, selectedYear, selectedMonth, generationState),
+        state:
+          unavailableReason && state.status !== 'success' && state.status !== 'loading'
+            ? { status: 'unavailable' as const, errorMessage: unavailableReason }
+            : state,
       };
     });
   }, [employees, payslipsByEmployee, selectedYear, selectedMonth, generationState]);
 
   const monthMissingCount = useMemo(
-    () => monthEmployeeStates.filter((row) => row.state.status !== 'success').length,
+    () => monthEmployeeStates.filter((row) => canGeneratePayslip(row.state)).length,
     [monthEmployeeStates]
   );
 
@@ -276,7 +301,7 @@ export default function Payroll() {
   );
 
   const handleGenerateYear = useCallback(() => {
-    const missing = PAYROLL_MONTHS.filter((m) => monthStatuses[m]?.status !== 'success');
+    const missing = PAYROLL_MONTHS.filter((m) => canGeneratePayslip(monthStatuses[m]));
     enqueueGeneration(missing);
   }, [monthStatuses, enqueueGeneration]);
 
@@ -284,6 +309,7 @@ export default function Payroll() {
     (employeeId: string) => {
       const emp = employees.find((e) => e.id === employeeId);
       if (!emp) return;
+      if (payrollEmploymentBlockReason(emp, selectedYear, selectedMonth)) return;
       generation.generateJobs([
         {
           employeeId: emp.id,
@@ -298,7 +324,7 @@ export default function Payroll() {
 
   const handleGenerateWholeMonth = useCallback(() => {
     const jobs = monthEmployeeStates
-      .filter((row) => row.state.status !== 'success')
+      .filter((row) => canGeneratePayslip(row.state))
       .map((row) => ({
         employeeId: row.employee.id,
         employeeName: employeeDisplayName(row.employee),
@@ -332,7 +358,7 @@ export default function Payroll() {
   );
 
   const missingMonthsCount = useMemo(
-    () => PAYROLL_MONTHS.filter((m) => monthStatuses[m]?.status !== 'success').length,
+    () => PAYROLL_MONTHS.filter((m) => canGeneratePayslip(monthStatuses[m])).length,
     [monthStatuses]
   );
 

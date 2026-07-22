@@ -557,89 +557,11 @@ def generate_dsn_xml(
     employee_ids: Optional[List[str]] = None,
     establishment_id: Optional[str] = None,
 ) -> bytes:
-    """
-    Génère le fichier DSN XML conforme
+    """Délègue au générateur canonique P26V01 (fichier plat)."""
+    from app.modules.exports.infrastructure.export_dsn import (
+        generate_dsn_file as _generate,
+    )
 
-    Note: Format simplifié mais conforme à la structure DSN mensuelle
-    """
-    company_data = get_company_data(company_id)
-    employees_data, totals = get_dsn_employees_data(company_id, period, employee_ids)
-
-    year, month = map(int, period.split("-"))
-
-    root = ET.Element("DSN")
-    root.set("xmlns", "http://www.dsn.fr/dsn")
-    root.set("version", "01.00")
-
-    header = ET.SubElement(root, "EnTeteDSN")
-    ET.SubElement(header, "TypeDSN").text = "01"
-    ET.SubElement(header, "DateEnvoi").text = datetime.now().strftime("%Y-%m-%d")
-    ET.SubElement(header, "PeriodeDeclaree").text = period
-
-    etablissement = ET.SubElement(root, "Etablissement")
-    ET.SubElement(etablissement, "SIRET").text = company_data.get("siret", "")
-    ET.SubElement(etablissement, "CodeNAF").text = company_data.get("code_naf", "")
-
-    address = company_data.get("address", {})
-    if isinstance(address, dict):
-        adresse_etab = ET.SubElement(etablissement, "Adresse")
-        ET.SubElement(adresse_etab, "Rue").text = address.get("rue", "")
-        ET.SubElement(adresse_etab, "CodePostal").text = address.get("code_postal", "")
-        ET.SubElement(adresse_etab, "Ville").text = address.get("ville", "")
-
-    alternance_dsn_config = get_alternance_dsn_config()
-
-    salaries = ET.SubElement(root, "Salaries")
-    for emp_data in employees_data:
-        employee = emp_data["employee"]
-        emp_data["payslip"].get("payslip_data", {})
-
-        salarie = ET.SubElement(salaries, "Salarie")
-
-        identite = ET.SubElement(salarie, "Identite")
-        ET.SubElement(identite, "Nom").text = employee.get("last_name", "")
-        ET.SubElement(identite, "Prenom").text = employee.get("first_name", "")
-        ET.SubElement(identite, "NIR").text = employee.get("nir", "")
-
-        contrat = ET.SubElement(salarie, "Contrat")
-        contract_type = employee.get("contract_type", "")
-        ET.SubElement(contrat, "TypeContrat").text = contract_type
-        ET.SubElement(contrat, "DateEntree").text = employee.get("hire_date", "")
-        # Dispositif de politique publique (alternance) — code dynamique si applicable.
-        code_dispositif = code_dispositif_politique_publique(
-            alternance_dsn_config, contract_type
-        )
-        if code_dispositif:
-            ET.SubElement(contrat, "DispositifPolitiquePublique").text = code_dispositif
-
-        remuneration = ET.SubElement(salarie, "Remuneration")
-        ET.SubElement(remuneration, "Brut").text = str(emp_data.get("brut", 0))
-        ET.SubElement(remuneration, "NetImposable").text = str(
-            emp_data.get("net_imposable", 0)
-        )
-        ET.SubElement(remuneration, "PAS").text = str(emp_data.get("pas", 0))
-
-        cotisations = ET.SubElement(salarie, "Cotisations")
-        for coti in emp_data.get("cotisations_detail", []):
-            if isinstance(coti, dict):
-                cotisation = ET.SubElement(cotisations, "Cotisation")
-                ET.SubElement(cotisation, "Libelle").text = coti.get("libelle", "")
-                ET.SubElement(cotisation, "Base").text = str(coti.get("base", 0))
-                ET.SubElement(cotisation, "TauxSalarial").text = str(
-                    coti.get("taux_salarial", 0) or 0
-                )
-                ET.SubElement(cotisation, "TauxPatronal").text = str(
-                    coti.get("taux_patronal", 0) or 0
-                )
-                ET.SubElement(cotisation, "MontantSalarial").text = str(
-                    coti.get("montant_salarial", 0) or 0
-                )
-                ET.SubElement(cotisation, "MontantPatronal").text = str(
-                    coti.get("montant_patronal", 0) or 0
-                )
-
-    xml_string = ET.tostring(root, encoding="unicode")
-    dom = minidom.parseString(xml_string)
-    pretty_xml = dom.toprettyxml(indent="  ", encoding="utf-8")
-
-    return pretty_xml
+    return _generate(
+        company_id, period, dsn_type, employee_ids, establishment_id
+    )

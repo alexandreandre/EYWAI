@@ -111,6 +111,12 @@ def cap_anciennete_annees(
     return anciennete_annees
 
 
+# Codes de motif de non-éligibilité (stables, contrairement au libellé FR).
+MOTIF_ANCIENNETE_INSUFFISANTE = "anciennete_insuffisante"
+MOTIF_STATUT_EXCLU = "statut_exclu"
+MOTIF_CLASSIFICATION_MANQUANTE = "classification_manquante"
+
+
 def check_eligibilite_prime_anciennete(
     *,
     regles_prime: dict[str, Any],
@@ -118,8 +124,8 @@ def check_eligibilite_prime_anciennete(
     anciennete_annees: float,
     statut: str | None = None,
     min_annees_override: float | None = None,
-) -> tuple[bool, str | None]:
-    """Retourne (eligible, motif_refus)."""
+) -> tuple[bool, str | None, str | None]:
+    """Retourne (eligible, motif_refus, code_motif)."""
     elig = _eligibilite_config(regles_prime)
     min_annees = (
         float(min_annees_override)
@@ -127,13 +133,17 @@ def check_eligibilite_prime_anciennete(
         else elig["min_annees"]
     )
     if anciennete_annees < min_annees:
-        return False, f"Ancienneté insuffisante ({anciennete_annees:.0f} < {min_annees:.0f} ans)"
+        return (
+            False,
+            f"Ancienneté insuffisante ({anciennete_annees:.0f} < {min_annees:.0f} ans)",
+            MOTIF_ANCIENNETE_INSUFFISANTE,
+        )
 
     statut_effectif = statut
     if statut_effectif is None:
         statut_effectif = (contrat.get("contrat") or {}).get("statut")
     if _statut_exclu(statut_effectif, elig["statuts_exclus"]):
-        return False, "Statut non éligible à la prime d'ancienneté"
+        return False, "Statut non éligible à la prime d'ancienneté", MOTIF_STATUT_EXCLU
 
     methode = (regles_prime.get("base_de_calcul") or {}).get("methode")
     taux_par_classe = regles_prime.get("taux_par_classe") or {}
@@ -141,9 +151,13 @@ def check_eligibilite_prime_anciennete(
         methode == "valeur_du_point" and taux_par_classe
     ):
         if _classification_classe_emploi(contrat) is None:
-            return False, "Classification conventionnelle (classe) manquante"
+            return (
+                False,
+                "Classification conventionnelle (classe) manquante",
+                MOTIF_CLASSIFICATION_MANQUANTE,
+            )
 
-    return True, None
+    return True, None, None
 
 
 def calculer_montant_prime_anciennete(
@@ -162,7 +176,7 @@ def calculer_montant_prime_anciennete(
 
     Formule métallurgie (3248) : (valeur_point × taux_classe × 100) × années.
     """
-    eligible, _ = check_eligibilite_prime_anciennete(
+    eligible, _, _ = check_eligibilite_prime_anciennete(
         regles_prime=regles_prime,
         contrat=contrat,
         anciennete_annees=anciennete_annees,

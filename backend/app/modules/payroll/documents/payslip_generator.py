@@ -26,9 +26,18 @@ from app.modules.payroll.application.analyzer import (
     analyser_horaires_du_mois as payroll_analyzer_analyser,
 )
 from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
-from app.shared.domain.employment_rules import is_forfait_jour
+from app.shared.domain.employment_rules import (
+    is_forfait_jour,
+    payslip_employment_period_block_reason,
+)
 from app.modules.payroll.application.salary_evolution_payroll import (
     prepare_salary_evolution_for_payslip,
+)
+from app.modules.payroll.application.monthly_specificites import (
+    resolve_monthly_specificites,
+)
+from app.modules.collective_agreements.domain.classification import (
+    normalize_classification_for_payroll,
 )
 from app.modules.payroll.documents.payslip_run_common import (
     regularisation_events_from_calendar,
@@ -269,6 +278,17 @@ def _is_participation_pee_input(row: dict) -> bool:
     return is_participation and is_pee
 
 
+def _earliest_employment_end(contract_end: Any, exit_end: Any) -> Any:
+    """Retient la première borne de fin connue du contrat."""
+    values = [value for value in (contract_end, exit_end) if value]
+    if len(values) < 2:
+        return values[0] if values else None
+    try:
+        return min(values, key=lambda value: date.fromisoformat(str(value)[:10]))
+    except (TypeError, ValueError):
+        return contract_end or exit_end
+
+
 def resolve_date_sortie(employee_data: dict) -> Any:
     """Date de sortie effective d'un employé pour le bulletin.
 
@@ -295,7 +315,9 @@ def resolve_date_sortie(employee_data: dict) -> Any:
             "annule",
             "annulee",
         ):
-            return exit_row.get("last_working_day") or contract_end
+            return _earliest_employment_end(
+                contract_end, exit_row.get("last_working_day")
+            )
     except Exception as exc:  # pragma: no cover - réseau best-effort
         logger.warning(f"[Generator] Lecture employee_exits échouée: {exc}")
     return contract_end
@@ -347,6 +369,16 @@ def process_payslip_generation(
         )
         if not employee_data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")
+
+        employee_data = {
+            **employee_data,
+            "exit_last_working_day": resolve_date_sortie(employee_data),
+        }
+        period_block_reason = payslip_employment_period_block_reason(
+            employee_data, year, month
+        )
+        if period_block_reason:
+            raise HTTPException(status_code=400, detail=period_block_reason)
 
         company_id = employee_data.get("company_id")
         if not company_id:
@@ -774,6 +806,7 @@ def process_payslip_generation(
                 "seniority_reference_date": employee_data.get(
                     "seniority_reference_date"
                 ),
+                "prior_service_months": employee_data.get("prior_service_months"),
                 "type_contrat": employee_data.get("contract_type"),
                 "date_conclusion_contrat": employee_data.get(
                     "date_conclusion_contrat"
@@ -793,8 +826,10 @@ def process_payslip_generation(
                 "salaire_de_base": _parse_if_json_string(
                     employee_data.get("salaire_de_base")
                 ),
-                "classification_conventionnelle": _parse_if_json_string(
-                    employee_data.get("classification_conventionnelle")
+                "classification_conventionnelle": normalize_classification_for_payroll(
+                    _parse_if_json_string(
+                        employee_data.get("classification_conventionnelle")
+                    )
                 ),
                 "convention_collective": build_convention_collective_payload(
                     employee_data, company_data
@@ -807,10 +842,11 @@ def process_payslip_generation(
                 )
                 or {},
             },
-            "specificites_paie": _parse_if_json_string(
-                employee_data.get("specificites_paie")
-            )
-            or {},
+            "specificites_paie": resolve_monthly_specificites(
+                _parse_if_json_string(employee_data.get("specificites_paie")) or {},
+                year,
+                month,
+            ),
         }
         if not isinstance(contrat_json_content.get("contrat"), dict):
             raise HTTPException(

@@ -162,6 +162,7 @@ class Expected:
     saisie: float | None = None            # saisie sur salaire (retenue nette)
     abs_deductions: list = field(default_factory=list)  # (label, montant) absences non payées
     act_partiel_deduct: float = 0.0   # heures chômées activité partielle (déduites du brut)
+    act_partiel_hours: float = 0.0    # quantité d'heures pour proratiser le SMIC RGDU
     indemnite_activite: float = 0.0   # indemnité activité partielle (revenu de remplacement)
 
 
@@ -218,7 +219,8 @@ def parse_reference(text: str) -> Expected:
     exp.act_partiel_deduct = round(sum(float(m) for m in _ACT_PARTIEL_RE.findall(text)), 2)
     im = _INDEM_ACT_RE.search(text)
     if im:
-        exp.indemnite_activite = round(float(im.group(1)) * float(im.group(2)), 2)
+        exp.act_partiel_hours = float(im.group(1))
+        exp.indemnite_activite = round(exp.act_partiel_hours * float(im.group(2)), 2)
     return exp
 
 
@@ -334,7 +336,13 @@ def apply_expected(admin, employee_id, company_id, exp: Expected) -> list[str]:
     # Activité partielle : heures chômées déduites du brut (prime taxée négative,
     # SANS « indemn » pour ne pas être captée par le hook revenu de remplacement).
     if exp.act_partiel_deduct:
-        add("Heures chômées (act. part.)", -exp.act_partiel_deduct, taxed=True, taxable=True)
+        add(
+            "Heures chômées (act. part.)",
+            -exp.act_partiel_deduct,
+            taxed=True,
+            taxable=True,
+            qty=exp.act_partiel_hours or None,
+        )
     # Indemnité activité partielle : revenu de remplacement (hook moteur -> CSG 6,7 %).
     if exp.indemnite_activite:
         add("Indemnité activité partielle", exp.indemnite_activite, taxed=False, taxable=True)

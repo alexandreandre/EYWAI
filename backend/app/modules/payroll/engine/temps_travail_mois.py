@@ -160,7 +160,17 @@ def compute_temps_retenu_mois(
         if j.get("type") == "travail"
     )
 
-    if sans_pointage and heures_travaillees <= 0:
+    # Repli "sans pointage" : suppose une présence pleine faute de pointage saisi.
+    # NE s'applique PAS si le mois contient un arrêt (maladie/AT) : le salarié est
+    # alors absent, pas « présent supposé » — le temps retenu doit refléter l'arrêt
+    # (seuls les jours maintenus comptent), sinon la prime d'ancienneté (proratisée
+    # sur la présence) reste pleine à tort. Cf. LEWIS BASTER (arrêt plein mois,
+    # maintien épuisé → présence 0 → prime 0).
+    arret_present = any(
+        ev.get("type") in ("arret_maladie", "arret_travail")
+        for ev in calendrier_periode
+    )
+    if sans_pointage and heures_travaillees <= 0 and not arret_present:
         if sans_pointage_policy == "plein_mois":
             return TempsRetenuResult(
                 temps_retenu=reference,

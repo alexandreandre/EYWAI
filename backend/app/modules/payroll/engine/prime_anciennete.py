@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Set
 
 from app.modules.collective_agreements.rules.prime_calcul import (
+    MOTIF_ANCIENNETE_INSUFFISANTE,
     cap_anciennete_annees,
     check_eligibilite_prime_anciennete,
     compute_anciennete_annees,
@@ -125,7 +126,7 @@ def calculer_ligne_prime_anciennete(
     )
     anciennete_annees = cap_anciennete_annees(anciennete_annees, regles_prime)
 
-    eligible, motif = check_eligibilite_prime_anciennete(
+    eligible, motif, motif_code = check_eligibilite_prime_anciennete(
         regles_prime=regles_prime,
         contrat=contexte.contrat,
         anciennete_annees=anciennete_annees,
@@ -133,7 +134,14 @@ def calculer_ligne_prime_anciennete(
         min_annees_override=resolved.get("min_annees_override"),
     )
     if not eligible:
-        if motif and hasattr(contexte, "alertes_baremes"):
+        # Ancienneté insuffisante = cas normal d'un salarié récent (pas une anomalie
+        # actionnable) : on n'émet pas d'alerte. Les autres motifs (statut exclu,
+        # classification manquante) restent signalés par controle_prime_anciennete.
+        if (
+            motif
+            and motif_code != MOTIF_ANCIENNETE_INSUFFISANTE
+            and hasattr(contexte, "alertes_baremes")
+        ):
             if isinstance(contexte.alertes_baremes, list):
                 contexte.alertes_baremes.append(
                     {
@@ -143,6 +151,19 @@ def calculer_ligne_prime_anciennete(
                         "severity": "info",
                     }
                 )
+        return None
+
+    # Avant le premier palier du barème, l'absence de prime est normale :
+    # `calculer_prime_anciennete_plein_mois` retourne None car le taux vaut 0,
+    # ce qui ne doit pas être confondu avec une classification incomplète.
+    paliers = regles_prime.get("bareme") or []
+    seuils = []
+    for palier in paliers:
+        try:
+            seuils.append(float(palier.get("annees_min")))
+        except (AttributeError, TypeError, ValueError):
+            continue
+    if seuils and anciennete_annees < min(seuils):
         return None
 
     regle_base = regles_prime.get("base_de_calcul") or {}

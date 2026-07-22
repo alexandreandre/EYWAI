@@ -49,3 +49,34 @@ def compute_ijss_csg_lines(
             }
         )
     return lignes, total_csg, net_ijss
+
+
+def build_rappel_ijss_net_prime(
+    *,
+    prime_id: str,
+    libelle: str,
+    montant: float,
+    baremes_maladie: Dict[str, Any] | None,
+) -> Dict[str, Any] | None:
+    """Construit la contrepartie nette d'un rappel d'IJSS déduit du brut.
+
+    Sur un bulletin de régularisation, la rubrique négative « Rappel IJSS »
+    corrige le brut et les assiettes du mois courant. Sa contrepartie « IJSS
+    nettes » restitue au salarié le rappel brut diminué de la CSG/CRDS sur
+    revenus de remplacement, sans réintégrer ce montant au net imposable du
+    mois (il se rapporte à une période antérieure).
+    """
+    label = f"{prime_id} {libelle}".lower()
+    amount = float(montant or 0.0)
+    if amount >= 0 or "rappel" not in label or "ijss" not in label:
+        return None
+
+    _, _, net_ijss = compute_ijss_csg_lines(abs(amount), baremes_maladie)
+    if net_ijss <= 0:
+        return None
+    return {
+        "prime_id": "rappel_ijss_net",
+        "libelle": "IJSS nettes (rappel)",
+        "montant": net_ijss,
+        "is_rappel_ijss": True,
+    }

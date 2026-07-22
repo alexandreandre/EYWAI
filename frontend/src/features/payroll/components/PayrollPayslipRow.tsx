@@ -23,7 +23,7 @@ import {
 } from '@/lib/payslipNetBrutAlert';
 import { Edit, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
-export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error';
+export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
 
 export type PayslipRowState = {
   status: PayslipRowStatus;
@@ -89,6 +89,10 @@ export function PayrollPayslipRow({
       <Badge variant="outline" className="border-red-200 bg-red-50 text-red-800">
         Échec
       </Badge>
+    ) : state.status === 'unavailable' ? (
+      <Badge variant="outline" className="text-muted-foreground">
+        Hors période d&apos;emploi
+      </Badge>
     ) : (
       <Badge variant="outline" className="text-muted-foreground">
         À générer
@@ -110,6 +114,8 @@ export function PayrollPayslipRow({
   let actions: ReactNode;
   if (state.status === 'loading') {
     actions = <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+  } else if (state.status === 'unavailable') {
+    actions = null;
   } else if (state.status === 'success' && payslip) {
     actions = (
       <>
@@ -176,6 +182,8 @@ export function PayrollPayslipRow({
       subtitle={
         state.status === 'error' && state.errorMessage ? (
           <span className="text-destructive">{state.errorMessage}</span>
+        ) : state.status === 'unavailable' && state.errorMessage ? (
+          <span className="text-muted-foreground">{state.errorMessage}</span>
         ) : firstOtherWarning ? (
           <span className="text-amber-700 dark:text-amber-400">{firstOtherWarning}</span>
         ) : undefined

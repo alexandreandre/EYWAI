@@ -186,4 +186,11 @@ def code_postal_from_entreprise(entreprise: dict[str, Any]) -> Optional[str]:
         cp = adresse.get("code_postal")
         if cp:
             return str(cp).strip()
+    identification = entreprise.get("identification")
+    if isinstance(identification, dict):
+        adresse = identification.get("adresse")
+        if isinstance(adresse, dict):
+            cp = adresse.get("code_postal")
+            if cp:
+                return str(cp).strip()
     return None

@@ -13,7 +13,7 @@ Le forfait jour fonctionne différemment du mode horaire :
 """
 
 from .contexte import ContextePaie
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
@@ -195,6 +195,42 @@ def calculer_salaire_brut_forfait(
             "perte": None,
         }
     )
+
+    contrat = contexte.contrat.get("contrat", {}) or {}
+    try:
+        date_entree = date.fromisoformat(str(contrat.get("date_entree"))[:10])
+    except (TypeError, ValueError):
+        date_entree = None
+    try:
+        date_sortie = date.fromisoformat(
+            str(contrat.get("date_sortie") or contrat.get("date_fin_contrat"))[:10]
+        )
+    except (TypeError, ValueError):
+        date_sortie = None
+
+    jours_ouvres_mois = [
+        date_debut_periode + timedelta(days=offset)
+        for offset in range((date_fin_periode - date_debut_periode).days + 1)
+        if (date_debut_periode + timedelta(days=offset)).weekday() < 5
+    ]
+    jours_hors_contrat = [
+        jour
+        for jour in jours_ouvres_mois
+        if (date_entree and jour < date_entree)
+        or (date_sortie and jour > date_sortie)
+    ]
+    if jours_hors_contrat and jours_ouvres_mois:
+        taux_prorata = salaire_contractuel / len(jours_ouvres_mois)
+        lignes_composants_brut.append(
+            {
+                "libelle": "Absence pour entrée ou sortie",
+                "quantite": float(len(jours_hors_contrat)),
+                "taux": round(taux_prorata, 4),
+                "gain": None,
+                "perte": round(len(jours_hors_contrat) * taux_prorata, 2),
+                "is_entree_sortie": True,
+            }
+        )
 
     # 2. Traitement des événements de la période
     jours_dans_periode = [

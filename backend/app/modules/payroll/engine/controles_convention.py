@@ -14,6 +14,14 @@ from app.modules.collective_agreements.rules.resolver import (
 )
 
 NET_SUPERIEUR_BRUT_MESSAGE = "Net > Brut"
+_ALERT_CODES_NON_ACTIONNABLES_LISTE = {
+    "prime_anciennete_non_applicable_cadre",
+    "prime_anciennete_prorata_zero",
+}
+_MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE = {
+    "Ancienneté insuffisante pour le maintien légal",
+    "IJSS versées directement au salarié",
+}
 
 
 def _is_smh_national_idcc(idcc: str) -> bool:
@@ -53,12 +61,32 @@ def _minimum_conventionnel_ajuste(contexte, minimum: float) -> float:
     return minimum
 
 
+def _salaire_contractuel_pour_minimum(contexte, salaire_brut: float) -> float:
+    """Salaire mensuel avant absences, pertinent pour contrôler le minimum CCN."""
+    remuneration = (
+        contexte.contrat.get("remuneration", {})
+        if hasattr(contexte, "contrat")
+        else {}
+    )
+    salaire_base = remuneration.get("salaire_de_base") or {}
+    raw = salaire_base.get("valeur") if isinstance(salaire_base, dict) else salaire_base
+    try:
+        valeur = float(raw)
+    except (TypeError, ValueError):
+        valeur = 0.0
+    return valeur if valeur > 0 else float(salaire_brut)
+
+
 def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[str, Any]]:
     """
     Vérifie la cohérence salaire / convention collective (non bloquant).
     Les alertes sont stockées dans payslip_data.alertes_baremes pour la RH.
     """
-    if getattr(contexte, "is_alternant", False):
+    type_contrat = str(getattr(contexte, "type_contrat", "") or "").lower()
+    contrat_alternance = any(
+        label in type_contrat for label in ("apprentissage", "professionnalisation")
+    )
+    if getattr(contexte, "is_alternant", False) or contrat_alternance:
         return []
 
     cc = (
@@ -168,6 +196,13 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         )
         return alertes
 
+    if _is_smh_national_idcc(idcc):
+        # Le SMH métallurgie est une garantie sur l'année civile complète
+        # (articles 138 à 140 IDCC 3248). Son assiette comprend les éléments
+        # bruts éligibles versés sur l'année : comparer ici le seul salaire
+        # contractuel mensuel à SMH / 12 produit des faux positifs.
+        return alertes
+
     minimum_applicable = float(min_row.get("valeur") or 0)
     minimum_applicable = _minimum_conventionnel_ajuste(contexte, minimum_applicable)
     libelle_poste = min_row.get("libelle")
@@ -176,14 +211,15 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
     except (TypeError, ValueError):
         coeff_affiche = 0.0
 
-    if salaire_brut + 0.01 < minimum_applicable:
+    salaire_controle = _salaire_contractuel_pour_minimum(contexte, salaire_brut)
+    if salaire_controle + 0.01 < minimum_applicable:
         poste = f" ({libelle_poste})" if libelle_poste else ""
         alertes.append(
             _alert(
                 code="cc_salaire_sous_minimum",
                 critique=True,
                 message=(
-                    f"Salaire brut ({salaire_brut:.2f} €) inférieur au minimum "
+                    f"Salaire contractuel ({salaire_controle:.2f} €) inférieur au minimum "
                     f"conventionnel{poste} pour le coefficient {coeff_affiche:g} "
                     f"({minimum_applicable:.2f} € — {libelle_cc})."
                 ),
@@ -235,7 +271,7 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     from app.modules.collective_agreements.rules.prime_calcul import cap_anciennete_annees
 
     anciennete = cap_anciennete_annees(anciennete, regles_prime)
-    eligible, motif = check_eligibilite_prime_anciennete(
+    eligible, motif, _ = check_eligibilite_prime_anciennete(
         regles_prime=regles_prime,
         contrat=contexte.contrat,
         anciennete_annees=anciennete,
@@ -346,6 +382,64 @@ def _codes_alertes_baremes(payslip_data: Dict[str, Any]) -> set[str]:
     return codes
 
 
+def _brut_reference_net_depuis_bulletin(payslip_data: Dict[str, Any]) -> Optional[float]:
+    """Brut de comparaison incluant la participation numéraire hors salaire brut."""
+    brut = payslip_data.get("salaire_brut")
+    try:
+        total = float(brut) if brut is not None else None
+    except (TypeError, ValueError):
+        return None
+    if total is None:
+        return None
+
+    participation_numeraire = 0.0
+    for participation in payslip_data.get("participations") or []:
+        if not isinstance(participation, dict):
+            continue
+        try:
+            brut_participation = float(participation.get("brut") or 0)
+            part_pee = float(participation.get("part_pee") or 0)
+        except (TypeError, ValueError):
+            continue
+        participation_numeraire += max(0.0, brut_participation - part_pee)
+    if participation_numeraire:
+        total += participation_numeraire
+
+    synthese_net = payslip_data.get("synthese_net") or {}
+    try:
+        total += max(0.0, -float(synthese_net.get("acompte_verse") or 0))
+    except (AttributeError, TypeError, ValueError):
+        pass
+    for prime in payslip_data.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        try:
+            total += max(0.0, float(prime.get("montant") or 0))
+        except (TypeError, ValueError):
+            continue
+    for revenu in payslip_data.get("revenus_hors_brut_imposables") or []:
+        if not isinstance(revenu, dict):
+            continue
+        try:
+            total += max(0.0, float(revenu.get("montant") or 0))
+        except (TypeError, ValueError):
+            continue
+    if participation_numeraire or total != float(brut):
+        return round(total, 2)
+
+    for ligne in payslip_data.get("calcul_du_brut") or []:
+        if not isinstance(ligne, dict):
+            continue
+        libelle = str(ligne.get("libelle") or "").lower()
+        if "participation" not in libelle or "brut" not in libelle:
+            continue
+        try:
+            total += float(ligne.get("gain") or 0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 2)
+
+
 def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
     """Messages d'alerte RH pour listes / génération (persistés + détection legacy)."""
     messages: List[str] = []
@@ -353,27 +447,31 @@ def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
     for raw in payslip_data.get("alertes_baremes") or []:
         if not isinstance(raw, dict):
             continue
+        if str(raw.get("code") or "") in _ALERT_CODES_NON_ACTIONNABLES_LISTE:
+            continue
         msg = _rh_alert_message(raw)
         if msg and msg not in seen:
             messages.append(msg)
             seen.add(msg)
 
     for raw in extraire_alertes_rh_depuis_bulletin(payslip_data):
-        if str(raw.get("code") or "") == "net_superieur_brut":
+        code = str(raw.get("code") or "")
+        if code == "net_superieur_brut" or code in _ALERT_CODES_NON_ACTIONNABLES_LISTE:
             continue
         msg = str(raw.get("message") or "").strip()
+        if msg in _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE:
+            continue
         if msg and msg not in seen:
             messages.append(msg)
             seen.add(msg)
 
     if "net_superieur_brut" not in _codes_alertes_baremes(payslip_data):
-        brut = payslip_data.get("salaire_brut")
+        brut_f = _brut_reference_net_depuis_bulletin(payslip_data)
         net = payslip_data.get("net_a_payer")
         try:
-            brut_f = float(brut) if brut is not None else None
             net_f = float(net) if net is not None else None
         except (TypeError, ValueError):
-            brut_f = net_f = None
+            net_f = None
         if brut_f is not None and net_f is not None:
             for alerte in controle_net_superieur_brut(brut_f, net_f):
                 msg = str(alerte.get("message") or "").strip()

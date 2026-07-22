@@ -15,7 +15,10 @@ from app.modules.collective_agreements.rules.seeds.metallurgie_3248 import (
 from app.modules.collective_agreements.rules.prime_calcul import (
     cap_anciennete_annees,
     compute_anciennete_annees,
+    resolve_prime_anciennete_config,
 )
+from app.modules.payroll.engine.baremes_loader import _enrich_cc_rules_with_seed
+from app.modules.payroll.engine.calcul_brut import _prime_anciennete_deja_saisie
 from app.modules.payroll.engine.contexte import ChargerContexte
 from app.modules.payroll.engine.prime_anciennete import calculer_ligne_prime_anciennete
 from app.shared.seniority_reference import resolve_date_anciennete_prime
@@ -46,6 +49,46 @@ def _calendrier_plein_mois() -> list[dict]:
 
 
 class TestSeniorityReferencePrime:
+    def test_saisie_mensuelle_prime_anciennete_remplace_calcul_auto(self):
+        assert _prime_anciennete_deja_saisie(
+            [
+                {
+                    "prime_id": "prime_anciennete",
+                    "libelle": "Prime ancienneté",
+                    "montant": 172.92,
+                }
+            ]
+        )
+        assert not _prime_anciennete_deja_saisie(
+            [{"prime_id": "prime_presence", "libelle": "Prime de présence"}]
+        )
+
+    def test_seed_complete_une_extraction_metallurgie_partielle(self):
+        partial = {
+            "prime_anciennete": {
+                "eligibilite": {"min_annees": 3},
+                "valeurs_point": [
+                    {
+                        "valeur": 5.83,
+                        "zone_type": "national",
+                        "departements": [],
+                    }
+                ],
+                "taux_par_classe": {"5": 0.022},
+                "base_de_calcul": {"methode": "valeur_du_point"},
+            }
+        }
+
+        enriched = _enrich_cc_rules_with_seed(partial, "3248")
+        prime = enriched["prime_anciennete"]
+        resolved = resolve_prime_anciennete_config(
+            prime,
+            {"identification": {"adresse": {"code_postal": "77140"}}},
+        )
+
+        assert prime["eligibilite"]["max_annees"] == 15.0
+        assert resolved["valeur_point"] == 5.24
+
     def test_resolve_date_reprise_prioritaire(self):
         emp = {
             "hire_date": "2020-01-01",

@@ -81,7 +81,7 @@ class TestSimulationCcMetallurgie:
         payslip = result["payslip_data"]
         assert payslip.get("salaire_brut") is not None
 
-    def test_alerte_sous_minimum_conventionnel(self):
+    def test_pas_alerte_mensuelle_smh_sur_le_seul_salaire_de_base(self):
         baremes = _baremes_avec_metallurgie()
         employee_data = {
             "id": "manual",
@@ -99,7 +99,7 @@ class TestSimulationCcMetallurgie:
         ctx = ChargerContexte(employee_data, company_data, baremes)
         alertes = controle_convention_collective(ctx, 1500.0)
         codes = [a["code"] for a in alertes]
-        assert "cc_salaire_sous_minimum" in codes
+        assert "cc_salaire_sous_minimum" not in codes
 
     @patch(
         "app.modules.payroll.application.simulation_queries.resolve_minimum_salary_value",

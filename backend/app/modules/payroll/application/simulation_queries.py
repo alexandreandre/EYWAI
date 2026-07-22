@@ -14,7 +14,10 @@ from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_minimum_salary_value,
 )
 from app.modules.payroll.application import simulation_commands
-from app.modules.payroll.engine.baremes_loader import assembler_baremes, ensure_dict
+from app.modules.payroll.engine.baremes_loader import (
+    assembler_baremes,
+    ensure_config_data,
+)
 from app.modules.payroll.infrastructure import simulation_repository
 
 
@@ -35,7 +38,7 @@ def parse_json_dict(value: Any) -> Dict[str, Any]:
 def load_baremes() -> Dict[str, Any]:
     rows = simulation_repository.fetch_active_payroll_config_rows()
     db_baremes = {
-        r["config_key"]: ensure_dict(r.get("config_data")) for r in rows
+        r["config_key"]: ensure_config_data(r.get("config_data")) for r in rows
     }
     conventions = simulation_repository.fetch_convention_collective_rules()
     return assembler_baremes(db_baremes, conventions)

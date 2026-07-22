@@ -55,6 +55,21 @@ class TestControlesConvention:
     def test_salaire_conforme_pas_alerte(self):
         assert controle_convention_collective(_contexte(brut=2900.0), 2900.0) == []
 
+    def test_minimum_compare_salaire_contractuel_avant_absences(self):
+        ctx = _contexte(
+            idcc="0292",
+            libelle="IDCC 0292",
+            coeff=710,
+            regles={
+                "salaires_minima": [{"coefficient": 710, "valeur": 1741.0}]
+            },
+        )
+        ctx.contrat["remuneration"]["salaire_de_base"] = {"valeur": 1956.94}
+
+        # Le brut du mois est réduit par des absences, mais le salaire
+        # contractuel à temps plein reste supérieur au minimum conventionnel.
+        assert controle_convention_collective(ctx, 953.78) == []
+
     def test_regles_absentes(self):
         ctx = _contexte(regles={})
         ctx.baremes = {"conventions_collectives": {}}
@@ -104,6 +119,42 @@ class TestControlesConvention:
         }
         assert controle_convention_collective(ctx, 2500.0) == []
 
+    def test_metallurgie_smh_ne_se_controle_pas_sur_le_seul_salaire_mensuel(self):
+        """Le SMH est annuel et inclut les éléments bruts éligibles de l'année."""
+        ctx = _contexte(
+            idcc="3248",
+            libelle="Métallurgie",
+            coeff=3,
+            regles={
+                "grilles_salaires": [
+                    {
+                        "zone_type": "national",
+                        "minima": [
+                            {
+                                "coefficient": 3,
+                                "valeur": 1892.50,
+                                "libelle": "Groupe B — Classe 3",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+        ctx.contrat["remuneration"]["classification_conventionnelle"] = {
+            "groupe_emploi": "B",
+            "classe_emploi": 3,
+        }
+        ctx.contrat["remuneration"]["salaire_de_base"] = {"valeur": 1867.06}
+
+        assert controle_convention_collective(ctx, 1900.0) == []
+
+    def test_apprentissage_contractuel_ignore_le_controle_smh_avant_date_effet(self):
+        ctx = _contexte(idcc="3248", libelle="Métallurgie", coeff=None)
+        ctx.type_contrat = "Apprentissage"
+        ctx.is_alternant = False
+
+        assert controle_convention_collective(ctx, 1823.07) == []
+
     def test_metallurgie_position_sans_classe_alerte_explicite(self):
         ctx = _contexte(idcc="3248", libelle="Métallurgie", coeff=710, regles={})
         ctx.baremes = {
@@ -144,6 +195,39 @@ class TestControleNetSuperieurBrut:
         )
 
         assert controle_net_superieur_brut(2000.0, 1800.0) == []
+
+    def test_messages_liste_masquent_les_informations_non_actionnables(self):
+        from app.modules.payroll.engine.controles_convention import (
+            extraire_messages_alertes_rh,
+        )
+
+        messages = extraire_messages_alertes_rh(
+            {
+                "alertes_baremes": [
+                    {
+                        "code": "prime_anciennete_non_applicable_cadre",
+                        "message": "Prime non applicable aux cadres.",
+                        "critique": False,
+                    },
+                    {
+                        "code": "prime_anciennete_prorata_zero",
+                        "message": "Prime nulle sans temps retenu.",
+                        "critique": False,
+                    },
+                ],
+                "synthese_net": {
+                    "alertes_maintien": [
+                        "Ancienneté insuffisante pour le maintien légal",
+                        "IJSS versées directement au salarié",
+                        "Subrogation demandée sans maintien applicable — vérifier la cohérence",
+                    ]
+                },
+            }
+        )
+
+        assert messages == [
+            "Subrogation demandée sans maintien applicable — vérifier la cohérence"
+        ]
 
     def test_extraire_messages_legacy_sans_alertes_baremes(self):
         from app.modules.payroll.engine.controles_convention import (

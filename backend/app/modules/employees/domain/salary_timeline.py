@@ -78,6 +78,15 @@ def salaire_actif_a_date(
         if (d := _parse_date(e.get("effective_date"))) is not None and d <= as_of
     ]
     if not applicable:
+        futures = [
+            e
+            for e in _tri_timeline(timeline)
+            if (d := _parse_date(e.get("effective_date"))) is not None and d > as_of
+        ]
+        if futures:
+            ancien = _extract_valeur(futures[0].get("ancien_salaire"))
+            if ancien > 0:
+                return ancien
         return float(salaire_initial or 0.0)
     last = applicable[-1]
     return _extract_valeur(last.get("nouveau_salaire"))
@@ -146,6 +155,11 @@ def calculer_rappel_mois_anterieurs(
         e
         for e in _tri_timeline(timeline)
         if (eff := _parse_date(e.get("effective_date"))) is not None and eff < debut_bulletin
+        and not bool(
+            (e.get("nouveau_salaire") or {}).get("rappel_deja_verse")
+            if isinstance(e.get("nouveau_salaire"), dict)
+            else False
+        )
     ]
     if not entries:
         return RappelSalaire(montant=0.0, periode_debut=None, periode_fin=None)
@@ -160,6 +174,10 @@ def calculer_rappel_mois_anterieurs(
             continue
         ancien = _extract_valeur(entry.get("ancien_salaire"))
         nouveau = _extract_valeur(entry.get("nouveau_salaire"))
+        if ancien <= 0 < nouveau:
+            # Première rémunération contractuelle : ce n'est ni une hausse,
+            # ni un rappel dû avant l'embauche.
+            continue
         diff = nouveau - ancien
         if diff <= 0:
             continue
@@ -205,6 +223,13 @@ def construire_evolution_salaire_mois(
         if eff is not None:
             ancien = _extract_valeur(last_change.get("ancien_salaire"))
             nouveau = _extract_valeur(last_change.get("nouveau_salaire"))
+            if ancien <= 0 < nouveau:
+                return EvolutionSalaireMois(
+                    salaire_debut_mois=nouveau,
+                    salaire_fin_mois=nouveau,
+                    prorata=None,
+                    rappel=calculer_rappel_mois_anterieurs(timeline, year, month),
+                )
             if eff == debut_mois:
                 salaire_fin = nouveau
             else:
