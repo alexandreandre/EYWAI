@@ -294,6 +294,31 @@ class AccessProvisioner:
                 if grant_item:
                     items.append(grant_item)
 
+            if person.get("sync_accesses") and user_id:
+                wanted_company_ids = {
+                    companies[a["company"]]
+                    for a in person.get("accesses") or []
+                    if a.get("company") in companies
+                }
+                for access in accesses:
+                    if str(access.get("user_id")) != str(user_id):
+                        continue
+                    if access.get("is_active") is False:
+                        continue
+                    if str(access.get("company_id")) in wanted_company_ids:
+                        continue
+                    items.append(
+                        ProvisioningItem(
+                            f"access:{key}:revoke:{access.get('id')}",
+                            "reuse",
+                            "deactivate_stale_access",
+                            {
+                                "access_id": access["id"],
+                                "company_id": access.get("company_id"),
+                            },
+                        )
+                    )
+
             if person.get("duplicate_access", {}).get("deactivate") and profile:
                 for duplicate in self._duplicate_profiles(
                     person, profiles, profile["id"]
@@ -362,6 +387,8 @@ class AccessProvisioner:
                     item.details["access_id"], item.details["role"]
                 )
             elif item.action == "deactivate_duplicate":
+                self.gateway.deactivate_access(item.details["access_id"])
+            elif item.action == "deactivate_stale_access":
                 self.gateway.deactivate_access(item.details["access_id"])
             elif item.action == "replace_grants":
                 user_key = item.details["user_key"]
@@ -737,12 +764,93 @@ def load_manifest(path: Path) -> dict[str, Any]:
         return json.load(stream)
 
 
+def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
+    """Résumé humain des droits pour l'Excel (sans secrets)."""
+    company_labels = {
+        "mbc": "Mont Blanc Composite",
+        "cartol": "Cartol Industrie",
+        "lewis": "LEWIS",
+        "colorplast": "Colorplast",
+        "comitech": "Comitech Composite",
+        "maji": "MAJI",
+        "zone_404": "Zone 404 Mars",
+    }
+    role_labels = {
+        "admin": "Administrateur (accès complet)",
+        "rh": "RH (accès complet — paie, bulletins, NDF, planning, avances…)",
+        "custom": "Personnalisé",
+    }
+    sets = manifest.get("permission_sets") or {}
+    code_labels = {
+        "payslips.validate": "Valider bulletins",
+        "expenses.approve": "Approuver notes de frais",
+        "schedules.validate": "Valider plannings",
+        "schedules.view_all": "Voir tous les plannings",
+        "schedules.update": "Modifier plannings",
+        "advances.approve": "Approuver avances",
+        "advances.view_all": "Voir toutes les avances",
+        "advances.process": "Traiter avances",
+        "enroll_employee_training": "Inscrire formations",
+        "view_objectives_reporting": "Reporting objectifs",
+        "evaluate_objective": "Évaluer objectifs",
+        "create_individual_objective": "Créer objectifs",
+        "analytics.export": "Exporter analytics",
+        "analytics.view_all": "Voir analytics",
+        "contracts.view_all": "Contrats (lecture)",
+        "bank_dispatch.send": "Envoi dispatch bancaire",
+    }
+    out: dict[str, str] = {}
+    for person in manifest.get("people") or []:
+        if person.get("no_op"):
+            continue
+        key = person["key"]
+        lines: list[str] = []
+        for access in person.get("accesses") or []:
+            alias = access["company"]
+            label = company_labels.get(alias, alias)
+            role = access.get("role") or "custom"
+            head = f"• {label} — {role_labels.get(role, role)}"
+            extras: list[str] = []
+            scope = access.get("scope_mode") or "company"
+            if role == "custom":
+                if scope == "teams":
+                    teams = ", ".join(access.get("team_names") or [])
+                    extras.append(f"Périmètre équipes {teams}")
+                elif scope == "none":
+                    extras.append("Périmètre exceptions nominatives uniquement")
+                else:
+                    extras.append("Périmètre toute l’entreprise")
+            codes: list[str] = []
+            if access.get("permission_set"):
+                codes.extend(sets.get(access["permission_set"]) or [])
+            codes.extend(access.get("permission_codes") or [])
+            if role == "custom" and codes:
+                labels = [code_labels.get(c, c) for c in codes]
+                extras.append("Actions : " + ", ".join(labels))
+            elif codes and "bank_dispatch.send" in codes:
+                extras.append("Envoi dispatch bancaire inclus")
+            lines.append(head)
+            for extra in extras:
+                lines.append(f"  – {extra}")
+        for exc in person.get("target_exceptions") or []:
+            company = company_labels.get(exc.get("company"), exc.get("company"))
+            perm = code_labels.get(exc.get("permission"), exc.get("permission"))
+            effect = "exclu" if exc.get("effect") == "deny" else "autorisé"
+            who = "soi-même" if (exc.get("employee") or {}).get("self") else ", ".join(
+                exc.get("employees") or []
+            )
+            lines.append(f"  – Exception — {perm} ({company}): {who} ({effect})")
+        out[key] = "\n".join(lines)
+    return out
+
+
 def write_access_workbook(
     plan: ProvisioningPlan,
     output_path: Path,
     passwords: dict[str, str] | None = None,
     usernames: dict[str, str] | None = None,
     access_summaries: dict[str, str] | None = None,
+    names: dict[str, str] | None = None,
 ) -> None:
     """Écrit le relevé local (0600). Colonnes : Identifiant, Nom, Mot de passe, Droits."""
     import os
@@ -754,6 +862,7 @@ def write_access_workbook(
         raise ValueError("La génération du classeur de mots de passe exige un apply")
     usernames = usernames or {}
     access_summaries = access_summaries or {}
+    names = names or {}
     output_path.parent.mkdir(parents=True, exist_ok=True)
     workbook = Workbook()
     sheet = workbook.active
@@ -770,7 +879,11 @@ def write_access_workbook(
             continue
         key = item.subject.removeprefix("account:")
         ident = usernames.get(key) or item.details.get("username") or key
-        name = item.details.get("name") or ""
+        name = (
+            item.details.get("name")
+            or names.get(key)
+            or ""
+        )
         pwd = passwords.get(key, "")
         droits = access_summaries.get(key) or item.details.get("access_summary") or ""
         sheet.append(

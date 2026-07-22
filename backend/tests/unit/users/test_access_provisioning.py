@@ -195,6 +195,75 @@ def test_must_change_password_on_create():
     assert next(p for p in gw.profiles if p["id"] == uid)["must_change_password"] is True
 
 
+def test_sync_accesses_deactivates_stale():
+    manifest = {
+        "version": 1,
+        "companies": {"maji": ["MAJI"], "zone_404": ["Zone 404 Mars"], "mbc": ["Mont Blanc Composite"]},
+        "permission_sets": {"bank_only": ["bank_dispatch.send"]},
+        "people": [
+            {
+                "key": "gaelle",
+                "identity": {
+                    "name": "Gaëlle Bouali",
+                    "email": "gaelle.bouali@eywai.access.local",
+                    "username": "gaelle.bouali",
+                },
+                "account": "technical_login",
+                "sync_accesses": True,
+                "accesses": [
+                    {
+                        "company": "maji",
+                        "role": "rh",
+                        "scope_mode": "company",
+                        "permission_set": "bank_only",
+                    },
+                    {
+                        "company": "zone_404",
+                        "role": "rh",
+                        "scope_mode": "company",
+                        "permission_set": "bank_only",
+                    },
+                ],
+            }
+        ],
+    }
+    gw = _base_gateway(
+        profiles=[
+            {
+                "id": "u-g",
+                "first_name": "Gaëlle",
+                "last_name": "Bouali",
+                "email": "gaelle.bouali@eywai.access.local",
+                "role": "rh",
+            }
+        ],
+        accesses=[
+            {
+                "id": "a-mbc",
+                "user_id": "u-g",
+                "company_id": "c-mbc",
+                "role": "rh",
+                "is_active": True,
+            },
+            {
+                "id": "a-maji",
+                "user_id": "u-g",
+                "company_id": "c-maji",
+                "role": "rh",
+                "is_active": True,
+            },
+        ],
+    )
+    p = AccessProvisioner(manifest, gw)
+    plan = p.plan()
+    assert not plan.has_conflicts
+    assert any(i.action == "deactivate_stale_access" for i in plan.items)
+    assert any(i.action == "create_access" and i.details["company_id"] == "c-z404" for i in plan.items)
+    p.apply(plan)
+    stale = next(a for a in gw.accesses if a["id"] == "a-mbc")
+    assert stale["is_active"] is False
+
+
 def test_baptiste_mod_scope_and_self_deny():
     manifest = {
         "version": 1,

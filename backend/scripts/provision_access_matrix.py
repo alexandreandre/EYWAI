@@ -24,6 +24,7 @@ from app.modules.users.application.access_provisioning import (  # noqa: E402
     AccessProvisioner,
     PRODUCTION_CONFIRMATION,
     PROJECT_REF,
+    build_access_summaries,
     load_manifest,
     write_access_workbook,
 )
@@ -304,6 +305,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Chemin local du .xlsx (uniquement après --apply).",
     )
+    parser.add_argument(
+        "--reuse-excel-passwords",
+        type=Path,
+        default=None,
+        help="Réutilise les MDP déjà transmis (colonne Identifiant/Mot de passe).",
+    )
     return parser.parse_args()
 
 
@@ -343,8 +350,25 @@ def main() -> int:
     provisioner.apply(plan, passwords_out=passwords, granted_by=granted_by)
 
     # Réémission contrôlée : comptes techniques (must_change_password=True).
+    # Conserve les MDP déjà transmis si --reuse-excel-passwords pointe vers un fichier.
     manifest = load_manifest(args.manifest)
     usernames: dict[str, str] = {}
+    reused: dict[str, str] = {}
+    if args.reuse_excel_passwords and args.reuse_excel_passwords.exists():
+        from openpyxl import load_workbook
+
+        wb = load_workbook(args.reuse_excel_passwords)
+        ws = wb.active
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or not row[0]:
+                continue
+            ident = str(row[0]).strip()
+            pwd = str(row[2] or "").strip()
+            if pwd.startswith("'"):
+                pwd = pwd[1:]
+            if ident and pwd:
+                reused[ident] = pwd
+
     for person in manifest.get("people") or []:
         if person.get("account") != "technical_login":
             continue
@@ -378,6 +402,10 @@ def main() -> int:
         if len(matches) != 1:
             continue
         profile = matches[0]
+        # Réutiliser le MDP déjà transmis plutôt que d'en créer un nouveau
+        if username and username in reused:
+            passwords[key] = reused[username]
+            continue
         if not profile.get("must_change_password"):
             continue
         from app.modules.users.application.access_provisioning import (
@@ -390,11 +418,88 @@ def main() -> int:
         )
         gateway.set_must_change_password(str(profile["id"]), True)
         passwords[key] = new_password
+
+    # Comptes existants (Vanessa, Baptiste…) : reprendre MDP Excel si présent
+    for person in manifest.get("people") or []:
+        if person.get("no_op"):
+            continue
+        key = person["key"]
+        if key in passwords:
+            continue
+        name = (person.get("identity") or {}).get("name") or ""
+        username = (person.get("identity") or {}).get("username")
+        if not username and name:
+            from app.modules.employees.domain.rules import (
+                build_collaborator_username_base,
+            )
+
+            parts = name.split(None, 1)
+            username = build_collaborator_username_base(
+                parts[0], parts[1] if len(parts) > 1 else parts[0]
+            )
+        if username:
+            usernames.setdefault(key, username)
+            if username in reused:
+                passwords[key] = reused[username]
+
+    # Aligner profiles.company_id sur la 1re entreprise du manifeste
+    companies_map = provisioner._companies_by_alias()
+    user_ids_by_key: dict[str, str] = {}
+    for item in plan.items:
+        if item.subject.startswith("account:") and item.details.get("user_id"):
+            user_ids_by_key[item.subject.removeprefix("account:")] = str(
+                item.details["user_id"]
+            )
+    for person in manifest.get("people") or []:
+        key = person["key"]
+        accesses_req = person.get("accesses") or []
+        if not accesses_req:
+            continue
+        primary_id = companies_map.get(accesses_req[0].get("company"))
+        user_id = user_ids_by_key.get(key)
+        if not primary_id or not user_id:
+            continue
+        gateway.client.table("profiles").update({"company_id": primary_id}).eq(
+            "id", user_id
+        ).execute()
+
     excel_path = args.excel_out or (
         ROOT / "reports" / "access-provisioning-credentials.xlsx"
     )
+    summaries = build_access_summaries(manifest)
+    names = {
+        p["key"]: ((p.get("identity") or {}).get("name") or "")
+        for p in manifest.get("people") or []
+        if not p.get("no_op")
+    }
+    # Usenames for everyone in Excel
+    for person in manifest.get("people") or []:
+        if person.get("no_op"):
+            continue
+        key = person["key"]
+        if key in usernames:
+            continue
+        name = (person.get("identity") or {}).get("name") or ""
+        username = (person.get("identity") or {}).get("username")
+        if not username and name:
+            from app.modules.employees.domain.rules import (
+                build_collaborator_username_base,
+            )
+
+            parts = name.split(None, 1)
+            username = build_collaborator_username_base(
+                parts[0], parts[1] if len(parts) > 1 else parts[0]
+            )
+        if username:
+            usernames[key] = username
+
     write_access_workbook(
-        plan, excel_path, passwords=passwords, usernames=usernames
+        plan,
+        excel_path,
+        passwords=passwords,
+        usernames=usernames,
+        access_summaries=summaries,
+        names=names,
     )
     print(
         json.dumps(

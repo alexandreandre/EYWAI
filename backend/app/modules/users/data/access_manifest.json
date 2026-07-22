@@ -53,12 +53,20 @@
         "username": "gaelle.bouali"
       },
       "account": "technical_login",
+      "sync_accesses": true,
       "accesses": [
-        {"company": "mbc", "role": "rh", "scope_mode": "company"},
-        {"company": "cartol", "role": "rh", "scope_mode": "company"},
-        {"company": "lewis", "role": "rh", "scope_mode": "company"},
-        {"company": "colorplast", "role": "rh", "scope_mode": "company"},
-        {"company": "comitech", "role": "rh", "scope_mode": "company"}
+        {
+          "company": "maji",
+          "role": "rh",
+          "scope_mode": "company",
+          "permission_set": "bank_only"
+        },
+        {
+          "company": "zone_404",
+          "role": "rh",
+          "scope_mode": "company",
+          "permission_set": "bank_only"
+        }
       ]
     },
     {
@@ -233,23 +241,21 @@
     },
     {
       "key": "vanessa",
-      "identity": {"name": "Vanessa Amate"},
+      "identity": {
+        "name": "Vanessa Amate",
+        "email": "import.vanessa.amate.383122@534386495.dsn-import.local"
+      },
       "account": "existing_only",
       "canonical_employee_account": true,
-      "prefer_role": "collaborateur",
+      "sync_accesses": true,
       "accesses": [
-        {
-          "company": "maji",
-          "role": "admin",
-          "scope_mode": "company",
-          "permission_set": "bank_only"
-        },
-        {
-          "company": "zone_404",
-          "role": "admin",
-          "scope_mode": "company",
-          "permission_set": "bank_only"
-        }
+        {"company": "mbc", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "cartol", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "lewis", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "colorplast", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "comitech", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "maji", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"},
+        {"company": "zone_404", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"}
       ],
       "duplicate_access": {"deactivate": true}
     },
