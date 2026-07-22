@@ -147,8 +147,9 @@ class TestScenarioComboEntreeEtAugmentation:
     def test_entree_quinze_augmentation_vingt(self):
         timeline = [_entry("2026-06-20", 2000, 2200)]
         montant_evolution = round((2000 * 19 / 30) + (2200 * 11 / 30), 2)
-        facteur_entree = 16 / 30  # présence du 15 au 30 juin
-        attendu = round(montant_evolution * facteur_entree, 2)
+        # Du 15 au 30 juin 2026 : 12 jours ouvrés × 7 h, valorisés au taux
+        # horaire mensuel. Le prorata d'entrée n'est plus calendaire.
+        attendu = round((montant_evolution / 151.67) * 84, 2)
 
         ctx = build_test_contexte(
             salaire_base=montant_evolution,

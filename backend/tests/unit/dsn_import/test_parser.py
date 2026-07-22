@@ -21,7 +21,7 @@ def test_parse_sample_dsn_mars():
     ind = dsn.etablissement.individus[0]
     assert ind.nom == "MARTIN"
     assert ind.prenom == "Jean"
-    assert ind.nir == "180032710123448"
+    assert ind.nir == "180032710123439"
     assert len(ind.contrats) == 1
     assert ind.contrats[0].idcc == "1486"
     assert ind.contrats[0].nature == "01"

@@ -276,11 +276,15 @@ class TestEditPayslipForUser:
                 "app.modules.payslips.application.service.edit_payslip",
                 return_value=expected,
             ),
+            patch(
+                "app.modules.payslips.application.service.assert_payslip_manual_edit_allowed"
+            ) as mock_assert,
         ):
             mock_reader.get_payslip_meta.return_value = meta
             result = edit_payslip_for_user(
                 "ps-1", {"salaire_brut": 3000}, "Modif brut", ctx
             )
+        mock_assert.assert_called_once_with(meta, bypass_lock=False)
         assert result == expected
 
     def test_raises_not_found_when_meta_is_none(self):
@@ -374,9 +378,13 @@ class TestRestorePayslipForUser:
                 "app.modules.payslips.application.service.restore_payslip_version",
                 return_value=expected,
             ),
+            patch(
+                "app.modules.payslips.application.service.assert_payslip_manual_edit_allowed"
+            ) as mock_assert,
         ):
             mock_reader.get_payslip_meta.return_value = meta
             result = restore_payslip_for_user("ps-1", 2, ctx)
+        mock_assert.assert_called_once_with(meta, bypass_lock=False)
         assert result == expected
 
     def test_raises_not_found_when_meta_is_none(self):
