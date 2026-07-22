@@ -1429,7 +1429,18 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `import_campaign_from_inputs` (Task 3), base Supabase réelle (cloud).
-- Produces: 5 campagnes `closed` + ~188 bulletins `responded` + 291 saisies rattachées, en base réelle. Aucune interface consommée par du code ultérieur (opération terminale).
+- Produces: 5 campagnes `closed` + 186 bulletins `responded` + 360 saisies rattachées, en base réelle. Aucune interface consommée par du code ultérieur (opération terminale).
+
+> **Exécuté et vérifié le 2026-07-22.** Résultat réel : 186 bulletins (pas 188 —
+> écart expliqué : 2 salariés Cartol, FAUCHER et SEGUIN, ont leur ligne
+> « Participation 2025 » datée février/juin 2026, pas mai — absente des
+> bulletins de mai, donc correctement exclus par le filtre `payroll_month`. Le
+> chiffre 188 de l'estimation initiale (brainstorming) ne filtrait pas par
+> mois.) Répartition réelle par société : MBC 72, Cartol 63, LEWIS 28, Comitech
+> 18, Colorplast 5. Vérification post-import : `verify_participation_import_2025.py`
+> confirme 5 campagnes closed, 186 bulletins responded, 360 saisies rattachées,
+> montant GIRERD intact. Idempotence confirmée (dry-run ultérieur → 5×
+> `skipped=True`).
 
 - [ ] **Step 1: Créer le script d'import**
 
@@ -1527,7 +1538,7 @@ Run (depuis `backend/`) :
 ```bash
 DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/python scripts/import_participation_2025.py --dry-run
 ```
-Expected : 5 lignes, `TOTAL bulletins: 188`, réparti `Mont Blanc Composite` 72, `Cartol Industrie` 65, `LEWIS` 28, `Comitech Composite` 18, `Colorplast` 5 (chiffres établis lors du brainstorming — s'il y a un écart, **s'arrêter et investiguer avant de continuer**, ne pas lancer l'import réel sur des chiffres inattendus).
+Expected : 5 lignes, `TOTAL bulletins: 186`, réparti `Mont Blanc Composite` 72, `Cartol Industrie` 63, `LEWIS` 28, `Comitech Composite` 18, `Colorplast` 5 (chiffres vérifiés en exécution réelle le 2026-07-22 — s'il y a un écart avec un futur run, **s'arrêter et investiguer avant de continuer**, ne pas lancer l'import réel sur des chiffres inattendus).
 
 - [ ] **Step 3: Lancer l'import réel**
 
@@ -1605,7 +1616,7 @@ def main() -> None:
         non_responded = [b for b in bulletins if b["status"] != "responded"]
         if non_responded:
             print(f"  ANOMALIE {cmap.get(c['company_id'])}: {len(non_responded)} bulletin(s) non 'responded'")
-    print(f"Total bulletins : {total_bulletins} (attendu 188)")
+    print(f"Total bulletins : {total_bulletins} (attendu 186)")
 
     linked = (
         supabase.table("monthly_inputs")
@@ -1614,7 +1625,7 @@ def main() -> None:
         .not_.is_("participation_campaign_id", "null")
         .execute()
     )
-    print(f"Saisies rattachées : {linked.count} (attendu 291)")
+    print(f"Saisies rattachées : {linked.count} (attendu 360)")
 
     # Vérification ciblée : le montant GIRERD (PEE) doit être strictement
     # inchangé après l'import (aucune régénération de paie).
@@ -1641,7 +1652,7 @@ Run:
 ```bash
 DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/python scripts/verify_participation_import_2025.py
 ```
-Expected : `Campagnes 2025 : 5`, toutes `status=closed`, `Total bulletins : 188`, `Saisies rattachées : 291`, `Ligne GIRERD PEE 5331.56 toujours intacte : OUI`, aucune ligne `ANOMALIE`.
+Expected : `Campagnes 2025 : 5`, toutes `status=closed`, `Total bulletins : 186`, `Saisies rattachées : 360`, `Ligne GIRERD PEE 5331.56 toujours intacte : OUI`, aucune ligne `ANOMALIE`.
 
 - [ ] **Step 6: Relancer le dry-run pour confirmer l'idempotence**
 
