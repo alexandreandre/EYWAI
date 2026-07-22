@@ -46,10 +46,47 @@ def client_with_copilot_user(client: TestClient, fake_user):
     from app.main import app
 
     app.dependency_overrides[get_current_user] = lambda: fake_user
+    client.headers["X-Active-Company"] = fake_user.active_company_id
     try:
         yield client
     finally:
+        client.headers.pop("X-Active-Company", None)
         app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.parametrize(
+    "path,payload,command_target",
+    [
+        (
+            "/api/copilot/query",
+            {"prompt": "Combien d'employés ?"},
+            "app.modules.copilot.api.router.commands.execute_text_to_sql",
+        ),
+        (
+            "/api/copilot/query-agent",
+            {"prompt": "Combien d'employés ?", "conversation_history": []},
+            "app.modules.copilot.api.router.commands.handle_agent_query",
+        ),
+    ],
+)
+def test_rh_without_active_company_header_is_rejected(
+    client: TestClient, fake_user, path, payload, command_target
+):
+    from app.main import app
+
+    result = MagicMock(
+        answer="Réponse de test.",
+        needs_clarification=False,
+        clarification_question=None,
+    )
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+    try:
+        with patch(command_target, return_value=result):
+            response = client.post(path, json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 403
 
 
 @pytest.mark.parametrize(
@@ -79,7 +116,11 @@ def test_collaborator_cannot_call_copilot(client: TestClient, path, payload):
     )
     app.dependency_overrides[get_current_user] = lambda: collaborator
     try:
-        response = client.post(path, json=payload)
+        response = client.post(
+            path,
+            headers={"X-Active-Company": "company-mbc"},
+            json=payload,
+        )
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
@@ -101,7 +142,8 @@ def test_unknown_active_company_is_rejected(client: TestClient, path, payload):
 
     rh_with_unknown_active_company = User(
         id="rh-mbc",
-        active_company_id="company-maji",
+        # L'auth globale a ignoré le header inconnu et résolu l'entreprise primaire.
+        active_company_id="company-mbc",
         accessible_companies=[
             CompanyAccess(
                 company_id="company-mbc",
@@ -113,7 +155,11 @@ def test_unknown_active_company_is_rejected(client: TestClient, path, payload):
     )
     app.dependency_overrides[get_current_user] = lambda: rh_with_unknown_active_company
     try:
-        response = client.post(path, json=payload)
+        response = client.post(
+            path,
+            headers={"X-Active-Company": "company-maji"},
+            json=payload,
+        )
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
@@ -194,6 +240,21 @@ class TestCopilotQuery:
         )
         assert response.status_code == 403
         assert "SELECT" in response.json().get("detail", "")
+
+    @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
+    def test_query_lookup_error_returns_404(
+        self, mock_execute, client_with_copilot_user: TestClient
+    ):
+        mock_execute.side_effect = LookupError(
+            "Company ID non trouvé pour cet utilisateur"
+        )
+
+        response = client_with_copilot_user.post(
+            "/api/copilot/query",
+            json={"prompt": "Combien d'employés ?"},
+        )
+
+        assert response.status_code == 404
 
     def test_query_missing_prompt_returns_422(
         self, client_with_copilot_user: TestClient

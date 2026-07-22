@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
+from app.modules.users.schemas.responses import CompanyAccess, User
 
 
 pytestmark = pytest.mark.integration
@@ -18,9 +19,18 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def fake_user():
-    u = MagicMock()
-    u.id = "wiring-test-user-id"
-    return u
+    return User(
+        id="wiring-test-user-id",
+        active_company_id="company-wiring",
+        accessible_companies=[
+            CompanyAccess(
+                company_id="company-wiring",
+                company_name="Wiring",
+                role="rh",
+                is_primary=True,
+            )
+        ],
+    )
 
 
 @pytest.fixture
@@ -69,7 +79,10 @@ class TestCopilotDependencyInjection:
             sql_query="SELECT 1",
             data=None,
         )
-        test_client = TestClient(app_with_copilot_user)
+        test_client = TestClient(
+            app_with_copilot_user,
+            headers={"X-Active-Company": "company-wiring"},
+        )
         response = test_client.post(
             "/api/copilot/query",
             json={"prompt": "Combien d'employés ?"},
@@ -92,7 +105,10 @@ class TestCopilotDependencyInjection:
             data=None,
             thought_process="Plan...",
         )
-        test_client = TestClient(app_with_copilot_user)
+        test_client = TestClient(
+            app_with_copilot_user,
+            headers={"X-Active-Company": "company-wiring"},
+        )
         response = test_client.post(
             "/api/copilot/query-agent",
             json={
@@ -124,7 +140,10 @@ class TestCopilotEndToEndFlow:
             sql_query="SELECT COUNT(*) FROM employees",
             data=[{"count": 3}],
         )
-        test_client = TestClient(app_with_copilot_user)
+        test_client = TestClient(
+            app_with_copilot_user,
+            headers={"X-Active-Company": "company-wiring"},
+        )
         response = test_client.post(
             "/api/copilot/query",
             json={"prompt": "Combien d'employés ?"},
@@ -151,7 +170,10 @@ class TestCopilotEndToEndFlow:
             data=[[{"count": 3}]],
             thought_process="Plan: count employees",
         )
-        test_client = TestClient(app_with_copilot_user)
+        test_client = TestClient(
+            app_with_copilot_user,
+            headers={"X-Active-Company": "company-wiring"},
+        )
         response = test_client.post(
             "/api/copilot/query-agent",
             json={"prompt": "Combien d'employés ?", "conversation_history": []},

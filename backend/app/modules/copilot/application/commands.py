@@ -28,7 +28,6 @@ from app.modules.copilot.application.service import (
     fuzzy_search_employee,
     generate_sql_from_prompt,
     get_company_collective_agreements,
-    get_company_id_for_user,
     synthesize_final_answer,
 )
 from app.modules.copilot.domain.data_access import (

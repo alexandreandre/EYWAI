@@ -52,6 +52,8 @@ async def handle_query(
         )
     except DataRetrievalDisabledError as e:
         raise HTTPException(status_code=503, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except PermissionError as e:
