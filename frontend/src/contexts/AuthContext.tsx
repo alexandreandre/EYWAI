@@ -30,6 +30,7 @@ interface User {
   /** @deprecated — utiliser is_platform_admin */
   is_super_admin?: boolean;
   is_group_admin?: boolean;
+  must_change_password?: boolean;
   active_company?: CompanyAccess;
 }
 

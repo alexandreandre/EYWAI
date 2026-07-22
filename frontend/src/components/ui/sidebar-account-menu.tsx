@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyRound, LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
@@ -28,9 +28,14 @@ type SidebarAccountMenuProps = {
 };
 
 export function SidebarAccountMenu({ collapsed = false, className }: SidebarAccountMenuProps) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const passwordChangeRequired = Boolean(user?.must_change_password);
+
+  useEffect(() => {
+    if (passwordChangeRequired) setShowChangePassword(true);
+  }, [passwordChangeRequired]);
 
   return (
     <>
@@ -70,7 +75,11 @@ export function SidebarAccountMenu({ collapsed = false, className }: SidebarAcco
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ChangePasswordModal open={showChangePassword} onOpenChange={setShowChangePassword} />
+      <ChangePasswordModal
+        open={showChangePassword}
+        onOpenChange={setShowChangePassword}
+        required={passwordChangeRequired}
+      />
 
       <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
         <AlertDialogContent>

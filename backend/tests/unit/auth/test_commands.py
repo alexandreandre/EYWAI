@@ -140,7 +140,10 @@ class TestChangePassword:
 
     def test_current_password_ok_updates_and_returns_message(self):
         """Mot de passe actuel correct → update, message succès."""
-        with patch("app.modules.auth.application.commands.auth_provider") as auth:
+        with (
+            patch("app.modules.auth.application.commands.auth_provider") as auth,
+            patch("app.modules.auth.application.commands.set_must_change_password") as set_flag,
+        ):
             auth.sign_in_with_password.return_value = {}
             auth.update_user_password.return_value = None
 
@@ -156,6 +159,7 @@ class TestChangePassword:
             "user@example.com", "OldPass"
         )
         auth.update_user_password.assert_called_once_with("user-123", "NewP@ss")
+        set_flag.assert_called_once_with("user-123", False)
 
     def test_current_password_wrong_raises_400(self):
         """Mot de passe actuel incorrect → HTTP 400."""

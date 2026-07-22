@@ -21,9 +21,10 @@ import { useAuth } from '@/contexts/AuthContext';
 interface ChangePasswordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  required?: boolean;
 }
 
-export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ open, onOpenChange, required = false }: ChangePasswordModalProps) {
   const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -96,7 +97,11 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
         setNewPassword('');
         setConfirmPassword('');
         setIsSuccess(false);
-        onOpenChange(false);
+        if (required) {
+          window.location.reload();
+        } else {
+          onOpenChange(false);
+        }
       }, 2000);
     } catch (err: any) {
       log.error('❌ [CHANGE PASSWORD] Erreur:', err);
@@ -109,7 +114,7 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
   };
 
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!isSubmitting && !required) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -125,7 +130,9 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
         <DialogHeader>
           <DialogTitle>Modifier mon mot de passe</DialogTitle>
           <DialogDescription>
-            Entrez votre mot de passe actuel puis choisissez un nouveau mot de passe sécurisé.
+            {required
+              ? 'Vous devez choisir un nouveau mot de passe avant de continuer.'
+              : 'Entrez votre mot de passe actuel puis choisissez un nouveau mot de passe sécurisé.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -261,14 +268,14 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
 
             {/* Boutons */}
             <DialogFooter className="gap-2">
-              <Button
+              {!required && <Button
                 type="button"
                 variant="outline"
                 onClick={handleClose}
                 disabled={isSubmitting}
               >
                 Annuler
-              </Button>
+              </Button>}
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Modifier le mot de passe

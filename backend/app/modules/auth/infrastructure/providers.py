@@ -84,30 +84,52 @@ class UserByLoginResolver(IUserByLoginResolver):
             .execute()
         )
         rows = resp.data or []
-        if not rows:
-            return None
         if len(rows) > 1:
             # Username ambigu (doublons en base) — forcer la connexion par email
             return None
-        row = rows[0]
-        user_id = str(row.get("user_id") or "").strip() or None
-        if user_id:
-            # L'email métier (employees.email) peut diverger de l'email Auth
-            # (ex. import DSN avec email technique puis mise à jour côté RH).
-            # On interroge Supabase Auth pour récupérer l'email réellement
-            # rattaché au compte.
-            try:
-                admin_client = get_supabase_admin_client()
-                resp_user = admin_client.auth.admin.get_user_by_id(user_id)
-                auth_user = getattr(resp_user, "user", None) or resp_user
-                auth_email = getattr(auth_user, "email", None)
-                if auth_email:
-                    return auth_email
-            except Exception as exc:
-                get_logger("modules.auth.resolver").debug(
-                    "Lookup auth user %s impossible: %s", user_id, exc
-                )
-        return row.get("email")
+        if len(rows) == 1:
+            row = rows[0]
+            user_id = str(row.get("user_id") or "").strip() or None
+            if user_id:
+                try:
+                    admin_client = get_supabase_admin_client()
+                    resp_user = admin_client.auth.admin.get_user_by_id(user_id)
+                    auth_user = getattr(resp_user, "user", None) or resp_user
+                    auth_email = getattr(auth_user, "email", None)
+                    if auth_email:
+                        return auth_email
+                except Exception as exc:
+                    get_logger("modules.auth.resolver").debug(
+                        "Lookup auth user %s impossible: %s", user_id, exc
+                    )
+            return row.get("email")
+
+        # Comptes techniques RH (sans fiche salarié) : profiles.username
+        try:
+            pref = (
+                supabase.table("profiles")
+                .select("id, username")
+                .eq("username", login_input)
+                .execute()
+            )
+            profiles = pref.data or []
+        except Exception:
+            profiles = []
+        if len(profiles) != 1:
+            return None
+        user_id = str(profiles[0].get("id") or "").strip()
+        if not user_id:
+            return None
+        try:
+            admin_client = get_supabase_admin_client()
+            resp_user = admin_client.auth.admin.get_user_by_id(user_id)
+            auth_user = getattr(resp_user, "user", None) or resp_user
+            return getattr(auth_user, "email", None)
+        except Exception as exc:
+            get_logger("modules.auth.resolver").debug(
+                "Lookup auth user %s (profiles.username) impossible: %s", user_id, exc
+            )
+            return None
 
 
 class EmailSenderProvider(IEmailSender):

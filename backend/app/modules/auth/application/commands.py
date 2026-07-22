@@ -15,7 +15,10 @@ from app.modules.auth.infrastructure import (
     email_sender,
     reset_token_repository,
 )
-from app.modules.auth.infrastructure.queries import get_profile_display_name
+from app.modules.auth.infrastructure.queries import (
+    get_profile_display_name,
+    set_must_change_password,
+)
 
 logger = get_logger("modules.auth")
 
@@ -160,6 +163,7 @@ def change_password(
             )
 
         auth_provider.update_user_password(user_id, new_password)
+        set_must_change_password(user_id, False)
         if debug:
 
             logger.debug("Change password réussi pour user_id=%s", user_id)

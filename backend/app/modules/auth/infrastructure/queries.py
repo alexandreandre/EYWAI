@@ -24,6 +24,13 @@ def get_profile_display_name(user_id: str, fallback_email_local: str) -> str:
     return name if name else fallback_email_local
 
 
+def set_must_change_password(user_id: str, value: bool) -> None:
+    """Met à jour le drapeau de première connexion après changement réussi."""
+    supabase.table("profiles").update({"must_change_password": value}).eq(
+        "id", user_id
+    ).execute()
+
+
 def get_employees_debug_snapshot() -> list[dict]:
     """Snapshot de la table employees pour logs de debug (login username inconnu)."""
     resp = supabase.table("employees").select("*").execute()
