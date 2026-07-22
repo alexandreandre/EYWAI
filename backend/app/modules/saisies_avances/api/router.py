@@ -158,11 +158,7 @@ def _require_payslip_scope(
 def _require_payment_scope(
     current_user: User, company_id: str, payment_id: str, permission_code: str
 ) -> None:
-    from app.modules.saisies_avances.infrastructure.queries import (
-        get_payment_with_advance,
-    )
-
-    payment = get_payment_with_advance(payment_id)
+    payment = queries.get_payment_with_advance(payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Paiement non trouvé.")
     advance = payment.get("salary_advances") or payment.get("advance") or {}

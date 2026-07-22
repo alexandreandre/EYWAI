@@ -37,7 +37,8 @@ def test_rh_documents_access_message_for_en_sortie():
         {
             "employment_status": "en_sortie",
             "exit_last_working_day": "2026-07-08",
-        }
+        },
+        reference_date=date(2026, 7, 8),
     )
     assert message is not None
     assert "08/07/2026" in message

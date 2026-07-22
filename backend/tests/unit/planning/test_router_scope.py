@@ -32,7 +32,7 @@ def test_planning_filters_shifts_to_allowed_employees():
 def test_planning_shift_scope_hides_out_of_scope_employee():
     user = SimpleNamespace(id="user-1", is_platform_admin=False)
     with patch(
-        "app.modules.planning.api.router.planning_repository.get_shift_by_id",
+        "app.modules.planning.api.router.app_queries.get_shift_row",
         return_value={"company_id": "company-1", "employee_id": "emp-x"},
     ), patch(
         "app.modules.planning.api.router.access_control_service.require_employee_access",

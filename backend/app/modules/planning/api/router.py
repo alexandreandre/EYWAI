@@ -12,7 +12,6 @@ from fastapi.responses import Response
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.planning.application import commands, queries as app_queries
-from app.modules.planning.infrastructure.repository import planning_repository
 from app.modules.planning.schemas.requests import (
     CompanyPlanningSettingsUpdate,
     DayLockRequest,
@@ -102,7 +101,7 @@ def _filter_employee_hours_in_scope(
 def _require_shift_scope(
     current_user: User, company_id: str, shift_id: str, permission_code: str
 ) -> dict:
-    row = planning_repository.get_shift_by_id(shift_id)
+    row = app_queries.get_shift_row(shift_id)
     if not row or str(row.get("company_id") or "") != str(company_id):
         raise HTTPException(status_code=404, detail="Shift introuvable.")
     _require_planning_employee_access(

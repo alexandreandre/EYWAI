@@ -169,6 +169,11 @@ def get_shift_detail(shift_id: str, company_id: str, is_rh: bool) -> dict:
     return _shift_row_to_response_dict(row, is_rh=is_rh, strip_internal=not is_rh)
 
 
+def get_shift_row(shift_id: str) -> Optional[Dict[str, Any]]:
+    """Ligne brute d'un shift (pour contrôle de périmètre côté router)."""
+    return planning_repository.get_shift_by_id(shift_id)
+
+
 def get_lock_history(company_id: str) -> list:
     """Appelle planning_repository.get_lock_history(company_id, limit=50)."""
     return planning_repository.get_lock_history(company_id, limit=50)

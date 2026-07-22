@@ -46,6 +46,11 @@ def get_my_advance_available_for_user_account(
     return get_my_advance_available(employee_id, advance_type=advance_type)
 
 
+def get_payment_with_advance(payment_id: str) -> Optional[Any]:
+    """Paiement + avance liée (contrôle de périmètre côté router)."""
+    return service.get_payment_with_advance(payment_id)
+
+
 def get_salary_seizures(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,

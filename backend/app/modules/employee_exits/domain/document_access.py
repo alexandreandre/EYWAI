@@ -65,7 +65,11 @@ def rh_should_list_in_documents_explorer(
     return rh_can_view_employee_documents(employee, reference_date=reference_date)
 
 
-def rh_documents_access_message(employee: Dict[str, Any]) -> Optional[str]:
+def rh_documents_access_message(
+    employee: Dict[str, Any],
+    *,
+    reference_date: Optional[date] = None,
+) -> Optional[str]:
     """Message informatif pour l'interface RH, ou None si hors contexte de départ."""
     status = str(employee.get("employment_status") or "actif").lower()
     if status not in ("en_sortie", "parti"):
@@ -79,7 +83,7 @@ def rh_documents_access_message(employee: Dict[str, Any]) -> Optional[str]:
         )
 
     formatted = last_day.strftime("%d/%m/%Y")
-    if rh_can_view_employee_documents(employee):
+    if rh_can_view_employee_documents(employee, reference_date=reference_date):
         return (
             f"Ce collaborateur est en cours de départ. "
             f"Vous pouvez consulter son dossier documents jusqu'au {formatted} inclus."
