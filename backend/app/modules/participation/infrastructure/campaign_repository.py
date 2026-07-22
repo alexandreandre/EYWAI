@@ -59,6 +59,13 @@ class ParticipationCampaignRepository:
             raise LookupError("Campagne introuvable")
         return dict(result.data[0])
 
+    def delete_campaign(self, campaign_id: str, company_id: str) -> None:
+        """Supprime une campagne. Cascade en base (FK ON DELETE CASCADE) vers
+        ses bulletins et ses avances — rien d'autre à supprimer explicitement."""
+        supabase.table("participation_campaigns").delete().eq(
+            "id", campaign_id
+        ).eq("company_id", company_id).execute()
+
     def upsert_advances(
         self, campaign_id: str, advances: List[Dict[str, Any]]
     ) -> None:

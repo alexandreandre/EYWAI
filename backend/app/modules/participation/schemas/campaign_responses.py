@@ -90,3 +90,15 @@ class ParticipationCampaignActionResponse(BaseModel):
 
 class EmployeeParticipationBulletinListResponse(BaseModel):
     bulletins: List[ParticipationBulletinItem]
+
+
+class ImportResultResponse(BaseModel):
+    campaign_id: Optional[str] = None
+    bulletins: int = 0
+    full_cash: int = 0
+    partial_cash: int = 0
+    full_pee: int = 0
+    linked_inputs: int = 0
+    skipped: bool = False
+    dry_run: bool = False
+    detail: str = ""

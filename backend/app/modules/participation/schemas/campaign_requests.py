@@ -39,3 +39,11 @@ class BulletinRespondRequest(BaseModel):
 class GeneratePayrollLinesRequest(BaseModel):
     payroll_year: int = Field(..., ge=2020, le=2100)
     payroll_month: int = Field(..., ge=1, le=12)
+
+
+class ImportFromInputsRequest(BaseModel):
+    year: int = Field(..., ge=2020, le=2100)
+    payroll_year: int = Field(..., ge=2020, le=2100)
+    payroll_month: int = Field(..., ge=1, le=12)
+    dry_run: bool = False
+    force: bool = False

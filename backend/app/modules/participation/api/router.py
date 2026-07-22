@@ -9,10 +9,12 @@ Comportement HTTP identique au legacy.
 from __future__ import annotations
 
 import traceback
+from dataclasses import asdict
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.modules.access_control.application.service import access_control_service
 from app.modules.participation.api.dependencies import (
     get_current_user,
     ParticipationUserContext,
@@ -26,6 +28,7 @@ from app.modules.participation.application import (
     list_participation_simulations,
 )
 from app.modules.participation.application import campaign_service as campaign_svc
+from app.modules.participation.application import campaign_import_service
 from app.modules.participation.application.dto import (
     build_simulation_create_input,
     entity_to_simulation_list_item_dict,
@@ -41,10 +44,12 @@ from app.modules.participation.schemas import (
 from app.modules.participation.schemas.campaign_requests import (
     BulletinRespondRequest,
     GeneratePayrollLinesRequest,
+    ImportFromInputsRequest,
     ParticipationCampaignCreate,
 )
 from app.modules.participation.schemas.campaign_responses import (
     EmployeeParticipationBulletinListResponse,
+    ImportResultResponse,
     ParticipationBulletinItem,
     ParticipationBulletinListResponse,
     ParticipationCampaignActionResponse,
@@ -81,6 +86,18 @@ def _require_rh_or_admin(user: ParticipationUserContext) -> None:
         raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
 
 
+def _require_participation_permission(
+    user: ParticipationUserContext, company_id: str, permission_code: str
+) -> None:
+    """Sépare les droits financiers des opérations RH de répartition."""
+    if user.is_platform_admin:
+        return
+    if not access_control_service.check_user_has_permission(
+        str(user.id), company_id, permission_code
+    ):
+        raise HTTPException(status_code=403, detail="Permission insuffisante.")
+
+
 @router.get("/employee-data/{year}", response_model=EmployeeDataResponse)
 def get_employee_participation_data_route(
     year: int,
@@ -93,6 +110,7 @@ def get_employee_participation_data_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.financials.view")
         rows = get_employee_participation_data(company_id, year)
         items = [
             EmployeeParticipationDataItem(
@@ -127,6 +145,7 @@ def create_participation_simulation_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.financials.manage")
         created_by = str(user.id)
         input_data = build_simulation_create_input(
             year=simulation.year,
@@ -175,6 +194,7 @@ def list_participation_simulations_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.financials.view")
         entities = list_participation_simulations(company_id, year)
         return [
             ParticipationSimulationListItem(**entity_to_simulation_list_item_dict(e))
@@ -202,6 +222,7 @@ def get_participation_simulation_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.financials.view")
         entity = get_participation_simulation(simulation_id, company_id)
         if not entity:
             raise HTTPException(
@@ -230,6 +251,7 @@ def delete_participation_simulation_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.financials.manage")
         deleted = delete_participation_simulation(simulation_id, company_id)
         if not deleted:
             raise HTTPException(
@@ -265,6 +287,7 @@ def create_campaign_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         detail, count = campaign_svc.create_campaign(
             company_id, str(user.id), body
         )
@@ -282,6 +305,41 @@ def create_campaign_route(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post(
+    "/campaigns/import-from-inputs",
+    response_model=ImportResultResponse,
+)
+def import_campaign_from_inputs_route(
+    body: ImportFromInputsRequest,
+    user: ParticipationUserContext = Depends(get_current_user),
+) -> ImportResultResponse:
+    """Reconstruit une campagne clôturée à partir des saisies participation
+    déjà en paie (`monthly_inputs`), sans relancer le workflow d'envoi/réponse
+    salarié — pour les données saisies directement en paie hors du module.
+    """
+    try:
+        _require_rh_or_admin(user)
+        company_id = _require_company_id(user)
+        _require_participation_permission(
+            user, company_id, "participation.allocation.manage"
+        )
+        result = campaign_import_service.import_campaign_from_inputs(
+            company_id,
+            body.year,
+            body.payroll_year,
+            body.payroll_month,
+            created_by=str(user.id),
+            dry_run=body.dry_run,
+            force=body.force,
+        )
+        return ImportResultResponse(**asdict(result))
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/campaigns", response_model=ParticipationCampaignListResponse)
 def list_campaigns_route(
     year: Optional[int] = None,
@@ -290,6 +348,7 @@ def list_campaigns_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.view")
         items = campaign_svc.list_campaigns(company_id, year)
         return ParticipationCampaignListResponse(campaigns=items)
     except HTTPException:
@@ -307,6 +366,7 @@ def get_campaign_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.view")
         return campaign_svc.get_campaign_detail(campaign_id, company_id)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -328,6 +388,7 @@ def list_campaign_bulletins_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.view")
         items = campaign_svc.list_campaign_bulletins(campaign_id, company_id)
         return ParticipationBulletinListResponse(bulletins=items)
     except LookupError as e:
@@ -350,6 +411,7 @@ def publish_campaign_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         detail = campaign_svc.publish_campaign(
             campaign_id, company_id, str(user.id)
         )
@@ -378,6 +440,7 @@ def remind_campaign_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         rh_emp = _rh_employee_id(user, company_id)
         count = campaign_svc.remind_late(campaign_id, company_id, rh_emp)
         detail = campaign_svc.get_campaign_detail(campaign_id, company_id)
@@ -405,6 +468,7 @@ def close_defaults_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         rh_emp = _rh_employee_id(user, company_id)
         detail, count = campaign_svc.close_defaults(
             campaign_id, company_id, rh_emp
@@ -434,6 +498,7 @@ def generate_payroll_lines_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         detail, count = campaign_svc.generate_payroll_lines(
             campaign_id, company_id, body
         )
@@ -470,6 +535,7 @@ def generate_regularisation_payslip_route(
     try:
         _require_rh_or_admin(user)
         company_id = _require_company_id(user)
+        _require_participation_permission(user, company_id, "participation.allocation.manage")
         result = generate_regularisation_participation_payslip(bulletin_id, company_id)
         return {
             "detail": "Bulletin de régularisation participation généré.",

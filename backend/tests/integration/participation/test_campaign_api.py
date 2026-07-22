@@ -217,6 +217,41 @@ class TestParticipationCampaignRhRoutes:
         assert response.status_code == 200
         assert response.json()["payroll_lines_created"] == 3
 
+    @patch(
+        "app.modules.participation.api.router.campaign_import_service.import_campaign_from_inputs"
+    )
+    def test_import_from_inputs_returns_200(self, mock_import, rh_client: TestClient):
+        from app.modules.participation.application.campaign_import_service import (
+            ImportResult,
+        )
+
+        mock_import.return_value = ImportResult(
+            campaign_id=TEST_CAMPAIGN_ID,
+            bulletins=2,
+            full_cash=1,
+            partial_cash=0,
+            full_pee=1,
+            linked_inputs=3,
+            skipped=False,
+            dry_run=False,
+            detail="2 bulletin(s) importé(s), 3 saisie(s) rattachée(s).",
+        )
+
+        response = rh_client.post(
+            "/api/participation/campaigns/import-from-inputs",
+            json={"year": 2025, "payroll_year": 2026, "payroll_month": 5},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["campaign_id"] == TEST_CAMPAIGN_ID
+        assert data["bulletins"] == 2
+        assert data["full_pee"] == 1
+        mock_import.assert_called_once()
+        _, kwargs = mock_import.call_args
+        assert kwargs["dry_run"] is False
+        assert kwargs["force"] is False
+
 
 class TestParticipationCampaignEmployeeRoutes:
     @pytest.fixture
@@ -284,3 +319,10 @@ class TestParticipationCampaignEmployeeRoutes:
 
         assert response.status_code == 400
         assert "Montant" in response.json()["detail"]
+
+    def test_import_from_inputs_requires_rh(self, employee_client: TestClient):
+        response = employee_client.post(
+            "/api/participation/campaigns/import-from-inputs",
+            json={"year": 2025, "payroll_year": 2026, "payroll_month": 5},
+        )
+        assert response.status_code == 403
