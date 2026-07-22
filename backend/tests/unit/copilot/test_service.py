@@ -19,6 +19,7 @@ from app.modules.copilot.application.service import (
     get_company_collective_agreements,
     analyze_intent_and_plan,
     execute_retrieval_step,
+    execute_tool_calls,
     answer_app_usage_question,
     answer_collective_agreement_question,
     synthesize_final_answer,
@@ -185,6 +186,128 @@ class TestExecuteRetrievalStep:
 
         assert result["success"] is False
         assert "error" in result
+
+
+class TestExecuteToolCalls:
+    """Dispatch fermé au niveau service : le company_id serveur est toujours imposé."""
+
+    @patch("app.modules.copilot.application.service.execute_tool")
+    def test_parses_and_dispatches_with_server_company(self, mock_execute_tool):
+        mock_execute_tool.return_value = {"count": 5}
+
+        results = execute_tool_calls(
+            [{"tool": "employee_count", "arguments": {"employment_status": "actif"}}],
+            company_id="c1",
+        )
+
+        assert len(results) == 1
+        assert results[0]["success"] is True
+        assert results[0]["data"] == {"count": 5}
+        assert results[0]["tool"] == "employee_count"
+        # Le company_id transmis à execute_tool est celui du serveur (2e arg).
+        call_args = mock_execute_tool.call_args
+        assert call_args[0][1] == "c1"
+
+    @patch("app.modules.copilot.application.service.execute_tool")
+    def test_empty_or_none_returns_no_results(self, mock_execute_tool):
+        assert execute_tool_calls(None, company_id="c1") == []
+        assert execute_tool_calls([], company_id="c1") == []
+        mock_execute_tool.assert_not_called()
+
+    @patch("app.modules.copilot.application.service.execute_tool")
+    def test_llm_supplied_company_id_is_rejected(self, mock_execute_tool):
+        # Un company_id fourni par le LLM fait échouer le parsing : aucune requête
+        # n'est exécutée et un marqueur d'erreur est renvoyé (fail-closed).
+        results = execute_tool_calls(
+            [{"tool": "employee_count", "arguments": {"company_id": "autre"}}],
+            company_id="c1",
+        )
+        mock_execute_tool.assert_not_called()
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert "error" in results[0]
+
+    @patch("app.modules.copilot.application.service.execute_tool")
+    def test_tool_error_is_captured_per_call(self, mock_execute_tool):
+        mock_execute_tool.side_effect = RuntimeError("boom")
+        results = execute_tool_calls(
+            [{"tool": "employee_count", "arguments": {}}], company_id="c1"
+        )
+        assert results[0]["success"] is False
+        assert "boom" in results[0]["error"]
+
+
+class TestProviderPlanSchema:
+    """La planification LLM expose des appels d'outils typés, jamais de SQL brut."""
+
+    def test_failure_returns_fail_closed_marker(self):
+        from app.modules.copilot.infrastructure.providers import OpenAIProvider
+
+        with patch(
+            "app.modules.copilot.infrastructure.providers.chat_completions_create",
+            side_effect=RuntimeError("llm down"),
+        ):
+            plan = OpenAIProvider().analyze_intent_and_plan("Combien d'employés ?", [], "")
+
+        assert plan["requires_data_retrieval"] is False
+        assert plan.get("error")
+        assert plan.get("data_tool_calls") == []
+        # Aucun repli vers une requête SQL générique.
+        assert "data_retrieval_steps" not in plan
+
+    def test_valid_plan_surfaces_tool_calls(self):
+        response = MagicMock()
+        response.choices = [
+            MagicMock(
+                message=MagicMock(
+                    content=(
+                        '{"intent": "count", "needs_clarification": false, '
+                        '"requires_data_retrieval": true, '
+                        '"data_tool_calls": [{"tool": "employee_count", '
+                        '"arguments": {"employment_status": "actif"}}]}'
+                    )
+                )
+            )
+        ]
+        with patch(
+            "app.modules.copilot.infrastructure.providers.chat_completions_create",
+            return_value=response,
+        ):
+            plan = OpenAIProviderImport().analyze_intent_and_plan(
+                "Combien d'actifs ?", [], ""
+            )
+        assert plan["data_tool_calls"][0]["tool"] == "employee_count"
+
+    def test_system_prompt_lists_tools_and_forbids_sql(self):
+        captured = {}
+
+        def _capture(*args, **kwargs):
+            captured["messages"] = kwargs.get("messages")
+            raise RuntimeError("stop after capture")
+
+        with patch(
+            "app.modules.copilot.infrastructure.providers.chat_completions_create",
+            side_effect=_capture,
+        ):
+            OpenAIProviderImport().analyze_intent_and_plan("x", [], "")
+
+        system_prompt = captured["messages"][0]["content"]
+        for tool_name in (
+            "employee_count",
+            "employee_search",
+            "payroll_summary",
+            "absence_summary",
+            "planning_summary",
+            "hr_indicators",
+        ):
+            assert tool_name in system_prompt
+        assert "data_tool_calls" in system_prompt
+
+
+def OpenAIProviderImport():
+    from app.modules.copilot.infrastructure.providers import OpenAIProvider
+
+    return OpenAIProvider()
 
 
 class TestAnswerCollectiveAgreementQuestion:

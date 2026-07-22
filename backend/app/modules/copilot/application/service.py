@@ -11,7 +11,9 @@ import logging
 from typing import Any, Dict, List
 
 from app.modules.copilot.application.dto import AgentMessageDto
+from app.modules.copilot.application.tool_service import execute_tool
 from app.modules.copilot.domain.rules import only_select_allowed
+from app.modules.copilot.domain.tools import parse_tool_calls
 from app.modules.copilot.infrastructure.providers import (
     get_collective_agreement_provider,
     get_employee_search_provider,
@@ -119,6 +121,40 @@ def execute_retrieval_step(
     except Exception as e:
         logging.error("Erreur lors de l'exécution de l'étape: %s", e)
         return {"error": str(e), "success": False}
+
+
+def execute_tool_calls(
+    raw_tool_calls: Any, company_id: str
+) -> List[Dict[str, Any]]:
+    """Parse et exécute une liste d'appels d'outils avec le company_id serveur.
+
+    Chemin sécurisé (catalogue fermé) destiné à remplacer l'orchestration SQL :
+    - le parsing (domain) rejette tout outil inconnu, tout ``company_id`` ou SQL
+      fourni par le LLM, et limite le nombre d'appels ;
+    - en cas d'échec de parsing, on renvoie un marqueur d'erreur (fail-closed)
+      sans exécuter aucune requête ;
+    - chaque outil est exécuté avec le ``company_id`` serveur imposé, jamais une
+      valeur issue du LLM.
+    """
+    try:
+        calls = parse_tool_calls(raw_tool_calls)
+    except ValueError as exc:
+        logging.warning("Appels d'outils Copilot invalides: %s", exc)
+        return [{"tool": None, "success": False, "error": str(exc)}]
+
+    results: List[Dict[str, Any]] = []
+    for call in calls:
+        try:
+            data = execute_tool(call, company_id)
+            results.append(
+                {"tool": str(call.tool), "success": True, "data": data}
+            )
+        except Exception as exc:  # noqa: BLE001 - on isole chaque outil
+            logging.error("Erreur d'exécution de l'outil %s: %s", call.tool, exc)
+            results.append(
+                {"tool": str(call.tool), "success": False, "error": str(exc)}
+            )
+    return results
 
 
 def answer_collective_agreement_question(

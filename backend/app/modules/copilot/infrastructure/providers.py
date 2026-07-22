@@ -162,8 +162,25 @@ Tu dois retourner un JSON avec cette structure:
   "collective_agreement_query": "convention collective concernée ou null si ambiguë" ou null,
   "agreement_id_if_unique": "id de la convention si une seule existe" ou null,
   "requires_data_retrieval": true/false,
-  "data_retrieval_steps": ["étape 1", "étape 2", ...]
+  "data_tool_calls": [
+    {{"tool": "<nom_outil_autorisé>", "arguments": {{...}}}}
+  ]
 }}
+
+CATALOGUE FERMÉ D'OUTILS DE DONNÉES (aucun autre n'existe) :
+- "employee_count" — compte les salariés. arguments: {{"employment_status": "actif"|"inactif"}} (optionnel).
+- "employee_search" — recherche un salarié par nom. arguments: {{"name": "<nom>", "employment_status": "actif"|"inactif" (optionnel), "limit": <entier> (optionnel)}}.
+- "payroll_summary" — synthèse paie d'une période. arguments: {{"period": "AAAA-MM"}} (optionnel, défaut mois courant).
+- "absence_summary" — synthèse des absences. arguments: {{"status": "<statut>", "type": "<type>"}} (optionnels).
+- "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-JJ-MM", "date_end": "AAAA-MM-JJ"}} (optionnels).
+- "hr_indicators" — indicateurs RH (turnover, absentéisme, effectifs). arguments: {{}}.
+
+RÈGLES STRICTES POUR data_tool_calls :
+- N'utilise QUE des outils de cette liste. N'invente jamais d'outil.
+- Ne fournis JAMAIS d'identifiant d'entreprise (company_id), de groupe (group_id),
+  d'identifiants internes de salariés (employee_ids), ni de SQL / nom de table /
+  requête brute : ces valeurs sont imposées côté serveur.
+- Au plus 5 appels d'outils. Laisse "data_tool_calls" vide si aucune donnée n'est nécessaire.
 
 Règles importantes:
 1. **AIDE LOGICIEL (prioritaire)** : si l'utilisateur demande comment utiliser le logiciel,
@@ -241,13 +258,18 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
             return json.loads(plan_json)
         except Exception as e:
             logging.error("Erreur lors de l'analyse d'intention: %s", e)
+            # Fail-closed : en cas d'échec de parsing du plan, on NE tente JAMAIS
+            # une requête de données générique (aucun repli SQL). On désactive la
+            # récupération de données et on renvoie un marqueur d'erreur.
             return {
                 "intent": "Unknown",
                 "needs_clarification": False,
+                "requires_app_help": False,
                 "requires_employee_search": False,
-                "requires_data_retrieval": True,
-                "data_retrieval_steps": ["Requête SQL simple"],
-                "estimated_sql_queries": [],
+                "requires_collective_agreement": False,
+                "requires_data_retrieval": False,
+                "data_tool_calls": [],
+                "error": "plan_parse_failed",
             }
 
     def answer_app_usage_question(
