@@ -952,15 +952,36 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `import_campaign_from_inputs`, `ImportResult` (Task 3).
 - Produces: `POST /api/participation/campaigns/import-from-inputs` — body `ImportFromInputsRequest {year, payroll_year, payroll_month, dry_run?, force?}`, réponse `ImportResultResponse`. Consommé par Task 5 (frontend).
 
+> ⚠️ **Constat vérifié pendant la préparation de ce plan** (2026-07-22) : dans
+> l'état actuel de la branche (WIP non commité sur `access_control` —
+> `feat(access-control): scopes de permissions et provisioning`),
+> `_require_participation_permission` appelle
+> `access_control_service.check_user_has_permission(...)`, qui interroge la
+> DB réelle. **Les 6 tests RH préexistants de ce fichier échouent déjà tous en
+> 403** avant même cette tâche (vérifié en isolant les changements). C'est un
+> problème préexistant et hors périmètre de cette tâche — ne pas essayer de le
+> corriger ici. Pour ne pas dépendre de ce problème, le test ci-dessous mocke
+> `access_control_service.check_user_has_permission` explicitement (les 6
+> tests voisins ne le font pas et resteront rouges tant que ce problème n'est
+> pas traité séparément).
+
 - [ ] **Step 1: Écrire les tests d'intégration (échoueront : route inexistante)**
 
 Dans `backend/tests/integration/participation/test_campaign_api.py`, ajouter une méthode dans `class TestParticipationCampaignRhRoutes` (après `test_generate_payroll_lines_returns_200`, avant la fin de la classe) :
 
 ```python
+    @patch("app.modules.participation.api.router.access_control_service.check_user_has_permission")
     @patch(
         "app.modules.participation.api.router.campaign_import_service.import_campaign_from_inputs"
     )
-    def test_import_from_inputs_returns_200(self, mock_import, rh_client: TestClient):
+    def test_import_from_inputs_returns_200(
+        self, mock_import, mock_has_permission, rh_client: TestClient
+    ):
+        # `check_user_has_permission` interroge la DB réelle (non pertinent
+        # ici, cf. les 6 tests RH voisins de ce fichier, tous rouges en l'état
+        # actuel de la branche faute de ce mock — problème préexistant, hors
+        # périmètre de cette tâche).
+        mock_has_permission.return_value = True
         from app.modules.participation.application.campaign_import_service import (
             ImportResult,
         )
@@ -1094,21 +1115,32 @@ def import_campaign_from_inputs_route(
         raise HTTPException(status_code=500, detail=str(e))
 ```
 
-- [ ] **Step 5: Lancer les tests, vérifier qu'ils passent**
+- [ ] **Step 5: Lancer les 2 nouveaux tests isolément, vérifier qu'ils passent**
 
 Run:
 ```bash
-DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/pytest tests/integration/participation/test_campaign_api.py -v
+DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/pytest tests/integration/participation/test_campaign_api.py -v -k import_from_inputs
 ```
-Expected: tous les tests du fichier passent, y compris les 2 nouveaux.
+Expected: `2 passed` (les 2 nouveaux tests). Ne pas lancer le fichier entier
+sans filtre : les 6 tests RH préexistants (`test_create_campaign_returns_200`
+et voisins) sont **déjà rouges avant cette tâche** (403, cf. l'encart
+ci-dessus) — un échec sur ces 6-là n'est pas une régression introduite ici,
+mais leur voir passer serait aussi suspect (signe que quelqu'un a corrigé le
+problème preexistant entre temps, à vérifier plutôt qu'à ignorer).
 
-- [ ] **Step 6: Lancer toute la suite participation (non-régression)**
+- [ ] **Step 6: Lancer toute la suite participation, comparer au baseline**
 
 Run:
 ```bash
 DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/pytest tests/unit/participation tests/integration/participation -v
 ```
-Expected: tous passent.
+Expected (vérifié le 2026-07-22, avant même cette tâche) : **16 échecs
+préexistants**, tous dus au même problème d'accès (WIP `access_control`, hors
+périmètre — `test_api.py` et 6 tests de `test_campaign_api.py`), **0 lié à
+cette tâche**. Comparer la liste des échecs à celle-ci ; si un test qui n'y
+figure pas échoue, c'est une vraie régression à corriger avant de continuer.
+Ne pas chercher à faire passer ces 16 tests — c'est un problème d'une autre
+fonctionnalité en cours sur cette branche.
 
 - [ ] **Step 7: Commit**
 

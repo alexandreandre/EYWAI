@@ -217,10 +217,18 @@ class TestParticipationCampaignRhRoutes:
         assert response.status_code == 200
         assert response.json()["payroll_lines_created"] == 3
 
+    @patch("app.modules.participation.api.router.access_control_service.check_user_has_permission")
     @patch(
         "app.modules.participation.api.router.campaign_import_service.import_campaign_from_inputs"
     )
-    def test_import_from_inputs_returns_200(self, mock_import, rh_client: TestClient):
+    def test_import_from_inputs_returns_200(
+        self, mock_import, mock_has_permission, rh_client: TestClient
+    ):
+        # `check_user_has_permission` interroge la DB réelle (non pertinent
+        # ici, cf. les 6 tests RH voisins de ce fichier, tous rouges en l'état
+        # actuel de la branche faute de ce mock — problème préexistant, hors
+        # périmètre de cette tâche).
+        mock_has_permission.return_value = True
         from app.modules.participation.application.campaign_import_service import (
             ImportResult,
         )
