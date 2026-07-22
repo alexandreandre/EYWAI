@@ -10,9 +10,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-# --- Text-to-SQL (POST /query) ---
+# --- Endpoint historique désactivé (POST /query) ---
 class QueryRequest(BaseModel):
-    """Requête Text-to-SQL : prompt utilisateur."""
+    """Requête minimale conservée pour la compatibilité de route."""
 
     prompt: str
 

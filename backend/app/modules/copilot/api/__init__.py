@@ -1,4 +1,4 @@
-"""API du module copilot : routers Text-to-SQL et Agent."""
+"""Routes Copilot : agent sécurisé et endpoint historique désactivé."""
 
 from app.modules.copilot.api.router import router, router_agent
 

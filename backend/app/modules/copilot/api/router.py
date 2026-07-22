@@ -3,7 +3,6 @@ Router API du module copilot.
 
 Rôle strict : validation des entrées (schémas), auth (get_current_user), appel de l’application,
 construction de la réponse HTTP, mapping des exceptions. Aucune logique métier.
-Comportement HTTP identique à api/routers/copilot.py et api/routers/copilot_agent.py.
 """
 
 import logging
@@ -30,7 +29,7 @@ from app.modules.copilot.domain.data_access import (
 )
 from app.modules.users.schemas.responses import User
 
-router = APIRouter(tags=["Copilot (Text-to-SQL)"])
+router = APIRouter(tags=["Copilot (endpoint historique désactivé)"])
 router_agent = APIRouter(tags=["Copilot Agent"])
 
 
@@ -39,7 +38,7 @@ async def handle_query(
     request: QueryRequest,
     current_user: User = Depends(require_copilot_rh_user),
 ):
-    """POST /query : délègue à commands.execute_text_to_sql, retourne QueryResponse."""
+    """POST /query : endpoint historique définitivement indisponible (HTTP 503)."""
     try:
         result = commands.execute_text_to_sql(
             TextToSqlInput(

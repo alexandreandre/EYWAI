@@ -1,9 +1,6 @@
 """
-Module copilot : Text-to-SQL et Agent intelligent.
+Module Copilot RH à catalogue fermé d'outils scopés par entreprise.
 
-Structure cible préparée pour migration depuis :
-- api/routers/copilot.py (POST /query)
-- api/routers/copilot_agent.py (POST /query-agent)
-
-Montage dans app : inclure router et router_agent sous prefix="/api/copilot".
+Le endpoint agent est actif sous contrôle du feature flag. L'ancien endpoint
+``POST /query`` reste monté uniquement pour répondre explicitement HTTP 503.
 """

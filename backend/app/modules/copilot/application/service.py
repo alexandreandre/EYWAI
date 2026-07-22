@@ -40,7 +40,7 @@ def get_company_collective_agreements(company_id: str) -> List[Dict[str, Any]]:
 
 
 def _build_agreements_summary(company_agreements: List[Dict[str, Any]]) -> str:
-    """Construit le résumé des conventions pour le prompt LLM (comportement identique au legacy)."""
+    """Construit le résumé des conventions assignées pour le prompt LLM."""
     if company_agreements:
         agreements_list = [
             f"  - {a['name']} (IDCC: {a['idcc']}) - "

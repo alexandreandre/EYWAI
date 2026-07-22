@@ -2,7 +2,7 @@
 Requêtes Supabase du module copilot.
 
 Accès DB : profiles (company_id), employees (recherche floue), company_collective_agreements,
-collective_agreement_texts. Comportement strictement identique au legacy.
+collective_agreement_texts. Toutes les lectures RH exigent un périmètre explicite.
 """
 
 from __future__ import annotations

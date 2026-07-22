@@ -1,7 +1,5 @@
 """
 Schémas Pydantic sortie API pour le module copilot.
-
-Contrats alignés sur api/routers/copilot.py et api/routers/copilot_agent.py.
 """
 
 from typing import Optional
@@ -9,9 +7,9 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-# --- Text-to-SQL (POST /query) ---
+# --- Endpoint historique désactivé (POST /query) ---
 class QueryResponse(BaseModel):
-    """Réponse publique historique, sans SQL ni données brutes."""
+    """Réponse minimale conservée pour la compatibilité de route."""
 
     answer: str
 

@@ -1,7 +1,7 @@
 """
 Providers infrastructure : LLM (OpenRouter), recherche employés, conventions collectives, résolution company.
 
-Implémentent les interfaces du domain. Comportement strictement identique au legacy.
+Implémentent les interfaces du domaine pour le Copilot à outils RH fermés.
 """
 
 from __future__ import annotations
@@ -19,6 +19,23 @@ from app.modules.copilot.infrastructure.queries import (
     get_company_id_for_user as queries_get_company_id,
     get_employees_for_fuzzy_search,
 )
+
+_INTERNAL_IDENTIFIER_KEYS = frozenset(
+    {"id", "company_id", "employee_id", "group_id", "team_id"}
+)
+
+
+def _sanitize_for_llm(value: Any) -> Any:
+    """Retire récursivement les identifiants internes avant envoi au fournisseur."""
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_for_llm(item)
+            for key, item in value.items()
+            if key not in _INTERNAL_IDENTIFIER_KEYS
+        }
+    if isinstance(value, list):
+        return [_sanitize_for_llm(item) for item in value]
+    return value
 
 
 # --- OpenAI Provider (IOpenAIProvider) ---
@@ -117,23 +134,15 @@ Exemples:
 - "Où importer la fiche de poste ?" → requires_app_help: true
 - "Où configurer le modèle de fiche de poste ?" → requires_app_help: true
 - "Fiche de poste dans la bibliothèque de documents" → requires_app_help: true
-- "Combien gagne Jean" → requires_employee_search: true, requires_data_retrieval: true
-- "Prêts employeur en cours" → requires_data_retrieval: true
-- "Acomptes sur prime en attente" → requires_data_retrieval: true
-- "IJSS non rapprochées ce mois" → requires_data_retrieval: true
-- "Salariés proches du contingent HS" → requires_data_retrieval: true
-- "Mouvements CET en attente de validation" → requires_data_retrieval: true
-- "HS badgeuse en attente de validation" → requires_data_retrieval: true
-- "Bulletins participation en attente de réponse" → requires_data_retrieval: true
-- "Titres de séjour expirant ce mois" → requires_data_retrieval: true
-- "Crédits repos compensateurs du trimestre" → requires_data_retrieval: true
-- "Jours de fractionnement CP accordés" → requires_data_retrieval: true
 - "Comment déclarer la carence CSE ?" → requires_app_help: true
 - "Comment activer une dérogation au plafond 50 % pour une avance ?" → requires_app_help: true
-- "Salariés payés par chèque" → requires_data_retrieval: true
-- "Avances avec dérogation au plafond net" → requires_data_retrieval: true
-- "Jours CP ancienneté accordés cette année" → requires_data_retrieval: true
 - "Où valider les congés de mon équipe ?" → requires_app_help: true
+- "Cherche Jean Dupont" → requires_data_retrieval: true, outil employee_search
+- "Combien de salariés actifs ?" → requires_data_retrieval: true, outil employee_count
+- "Synthèse paie de 2026-07" → requires_data_retrieval: true, outil payroll_summary
+- "Absences validées" → requires_data_retrieval: true, outil absence_summary
+- "Planning du 20 juillet" → requires_data_retrieval: true, outil planning_summary
+- "Quel est le turnover ?" → requires_data_retrieval: true, outil hr_indicators
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
 - "Quelle est la durée de la période d'essai ?" → requires_collective_agreement: true
@@ -313,9 +322,10 @@ Réponds à cette question en te basant sur le texte de la convention collective
         results_summary = []
         for i, result in enumerate(retrieval_results):
             if result.get("success"):
+                sanitized_data = _sanitize_for_llm(result.get("data"))
                 results_summary.append(
                     f"Outil {result.get('tool') or i + 1} - Données: "
-                    f"{json.dumps(result.get('data'), default=str, ensure_ascii=False)}"
+                    f"{json.dumps(sanitized_data, default=str, ensure_ascii=False)}"
                 )
             else:
                 results_summary.append(
@@ -327,7 +337,7 @@ Réponds à cette question en te basant sur le texte de la convention collective
 
 Question de l'utilisateur: {prompt}
 
-Plan d'action: {json.dumps(plan, ensure_ascii=False)}
+Plan d'action: {json.dumps(_sanitize_for_llm(plan), ensure_ascii=False)}
 
 Résultats des outils autorisés:
 {results_text}
@@ -360,7 +370,7 @@ Ne mentionne JAMAIS les détails techniques internes. Réponds comme un collègu
 
 
 class EmployeeSearchProvider:
-    """Recherche floue d'employés par nom (comportement identique au legacy)."""
+    """Recherche floue d'employés par nom, scopée à l'entreprise serveur."""
 
     def fuzzy_search_by_name(
         self,

@@ -8,12 +8,12 @@ Sans dépendance FastAPI.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import List, Optional
 
 
 @dataclass
 class TextToSqlInput:
-    """Entrée du cas d'usage Text-to-SQL."""
+    """Entrée de l'ancien endpoint /query, conservé uniquement pour répondre 503."""
 
     prompt: str
     user_id: str
@@ -22,7 +22,7 @@ class TextToSqlInput:
 
 @dataclass
 class TextToSqlResult:
-    """Résultat public historique, sans SQL ni données brutes."""
+    """Réponse minimale de compatibilité de l'ancien endpoint désactivé."""
 
     answer: str
 
@@ -52,8 +52,3 @@ class AgentQueryResult:
     answer: str
     needs_clarification: bool = False
     clarification_question: Optional[str] = None
-    # Compatibilité applicative temporaire : ces champs restent toujours None
-    # et ne font plus partie du schéma HTTP.
-    sql_queries: Optional[List[str]] = None
-    data: Optional[Any] = None
-    thought_process: Optional[str] = None
