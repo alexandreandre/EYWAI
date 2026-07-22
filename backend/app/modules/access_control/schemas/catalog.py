@@ -8,7 +8,7 @@ Utilisés par api/router.py et application/queries.py. Pas d'import legacy.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional  # noqa: F401 — Optional used by grant schemas
 
 from pydantic import BaseModel, Field
 from uuid import UUID
@@ -230,8 +230,47 @@ class UserPermissionsUpdate(BaseModel):
     company_id: UUID = Field(..., description="ID de l'entreprise")
     permission_ids: List[UUID] = Field(
         default_factory=list,
-        description="IDs des permissions (PUT : liste complète ; POST : droits à ajouter)",
+        description="IDs des permissions (PUT : liste complète ; POST : droits à ajouter). "
+        "Ignoré si `grants` est fourni.",
     )
+    grants: Optional[List["PermissionGrantInput"]] = Field(
+        None,
+        description="Remplacement atomique permissions + scopes (prioritaire sur permission_ids).",
+    )
+
+
+class PermissionTargetInput(BaseModel):
+    employee_id: UUID
+    effect: str = Field(..., pattern="^(allow|deny)$")
+
+
+class PermissionGrantInput(BaseModel):
+    """Un grant avec périmètre (équipe / exceptions)."""
+
+    permission_id: UUID
+    scope_mode: str = Field(
+        "company",
+        pattern="^(company|teams|none)$",
+        description="company | teams | none (exceptions uniquement)",
+    )
+    team_ids: List[UUID] = Field(default_factory=list)
+    targets: List[PermissionTargetInput] = Field(default_factory=list)
+
+
+class PermissionGrantDetail(BaseModel):
+    """Grant persisté renvoyé à l'UI."""
+
+    user_permission_id: UUID
+    permission_id: UUID
+    permission_code: Optional[str] = None
+    permission_label: Optional[str] = None
+    scope_mode: str
+    team_ids: List[UUID] = Field(default_factory=list)
+    targets: List[PermissionTargetInput] = Field(default_factory=list)
+
+
+# Rebuild forward refs
+UserPermissionsUpdate.model_rebuild()
 
 
 class RoleTemplateQuickCreate(BaseModel):

@@ -6,13 +6,19 @@ import { Loader2, Save, User, Shield, AlertCircle, ArrowLeft } from 'lucide-reac
 import {
   getUserDetail,
   updateUserWithPermissions,
+  updateUserPermissions,
+  getUserPermissionGrants,
   getRoleTemplates,
   getAccessibleCompaniesForUserCreation,
+  buildPermissionGrantsPayload,
+  syncPermissionGrants,
   UserUpdateWithPermissions,
   RoleTemplateDetail,
   AccessibleCompany,
+  type PermissionGrantInput,
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
+import { PermissionScopeEditor } from '@/features/access-control';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { cn } from '../../lib/utils';
 import { useCompany } from '../../contexts/CompanyContext';
@@ -49,6 +55,7 @@ const UserEdit: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<'admin' | 'rh' | 'collaborateur_rh' | 'collaborateur' | 'custom'>('collaborateur');
   const [roleTemplateId, setRoleTemplateId] = useState<string | undefined>(undefined);
   const [permissionIds, setPermissionIds] = useState<string[]>([]);
+  const [permissionGrants, setPermissionGrants] = useState<PermissionGrantInput[]>([]);
   const [templates, setTemplates] = useState<RoleTemplateDetail[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
@@ -96,6 +103,25 @@ const UserEdit: React.FC = () => {
       setRoleTemplateId(data.role_template_id);
       setPermissionIds(data.permission_ids || []);
       setCanEdit(data.can_edit);
+
+      if (data.role === 'custom') {
+        try {
+          const grants = await getUserPermissionGrants(userId, companyId);
+          setPermissionGrants(
+            grants.map((grant) => ({
+              permission_id: grant.permission_id,
+              scope_mode: grant.scope_mode,
+              team_ids: grant.team_ids,
+              targets: grant.targets,
+            }))
+          );
+        } catch (grantErr) {
+          log.error('[UserEdit] Erreur chargement grants:', grantErr);
+          setPermissionGrants(syncPermissionGrants(data.permission_ids || [], []));
+        }
+      } else {
+        setPermissionGrants([]);
+      }
 
       if (!data.can_edit) {
         setError("Vous n'avez pas les droits pour modifier cet utilisateur");
@@ -153,10 +179,18 @@ const UserEdit: React.FC = () => {
         company_id: companyId,
         base_role: selectedRole !== currentRole ? selectedRole : undefined,
         role_template_id: roleTemplateId || undefined,
-        permission_ids: permissionIds,
       };
 
+      if (selectedRole !== 'custom') {
+        updateData.permission_ids = permissionIds;
+      }
+
       await updateUserWithPermissions(userId, updateData);
+
+      if (selectedRole === 'custom') {
+        const grantsPayload = buildPermissionGrantsPayload(permissionIds, permissionGrants);
+        await updateUserPermissions(userId, companyId, permissionIds, grantsPayload);
+      }
 
       // Rediriger vers la liste
       navigate('/users');
@@ -272,7 +306,15 @@ const UserEdit: React.FC = () => {
                     <button
                       key={role}
                       type="button"
-                      onClick={() => isRoleAvailable && setSelectedRole(role)}
+                      onClick={() => {
+                        if (!isRoleAvailable) return;
+                        setSelectedRole(role);
+                        if (role === 'custom') {
+                          setPermissionIds([]);
+                          setPermissionGrants([]);
+                          setRoleTemplateId(undefined);
+                        }
+                      }}
                       disabled={isDisabled}
                       className={cn(
                         'p-3 border-2 rounded-lg text-left transition-all',
@@ -320,24 +362,47 @@ const UserEdit: React.FC = () => {
               </div>
             )}
 
-            {/* Matrice de permissions */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Permissions ({permissionIds.length} sélectionnées)
-              </label>
-              <p className="text-sm text-gray-500 mb-3">
-                Les permissions grisées nécessitent un niveau d'accès supérieur au vôtre et ne peuvent pas être assignées.
-              </p>
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <PermissionsMatrix
-                  companyId={companyId}
-                  selectedPermissions={permissionIds}
-                  onPermissionsChange={setPermissionIds}
-                  disabled={!canEdit}
-                  restrictToAvailable={true}
-                />
-              </div>
-            </div>
+            {/* Matrice de permissions (rôle personnalisé uniquement) */}
+            {selectedRole === 'custom' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Permissions ({permissionIds.length} sélectionnées)
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Choisissez manuellement les droits accordés. Les permissions grisées nécessitent un
+                    niveau d&apos;accès supérieur au vôtre.
+                  </p>
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <PermissionsMatrix
+                      companyId={companyId}
+                      selectedPermissions={permissionIds}
+                      onPermissionsChange={(permissions) => {
+                        setPermissionIds(permissions);
+                        setPermissionGrants((current) =>
+                          syncPermissionGrants(permissions, current)
+                        );
+                      }}
+                      disabled={!canEdit}
+                      restrictToAvailable={true}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Périmètre par permission
+                  </label>
+                  <PermissionScopeEditor
+                    companyId={companyId}
+                    selectedPermissionIds={permissionIds}
+                    grants={permissionGrants}
+                    onGrantsChange={setPermissionGrants}
+                    disabled={!canEdit}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 

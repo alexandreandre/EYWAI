@@ -63,13 +63,13 @@ def get_my_expenses(employee_id: str) -> List[dict]:
     return expenses_data
 
 
-def get_all_expenses(status: Optional[str] = None) -> List[dict]:
+def get_all_expenses(company_id: str, status: Optional[str] = None) -> List[dict]:
     """
     Liste toutes les notes (RH) avec join employee, optionnellement filtré par status.
     Comportement identique à get_all_expenses du router legacy.
     """
     repo = ExpenseRepository()
-    return repo.list_all(status)
+    return repo.list_all(company_id, status)
 
 
 def get_signed_upload_url(employee_id: str, filename: str) -> dict:

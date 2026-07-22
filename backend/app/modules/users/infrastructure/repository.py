@@ -254,16 +254,27 @@ class SupabaseUserPermissionRepository(IUserPermissionRepository):
     def upsert(
         self, user_id: str, company_id: str, permission_id: str, granted_by: str
     ) -> None:
-        supabase.table("user_permissions").upsert(
-            {
-                "user_id": user_id,
-                "company_id": company_id,
-                "permission_id": permission_id,
-                "granted_by": granted_by,
-            },
-            on_conflict="user_id,company_id,permission_id",
-            ignore_duplicates=True,
-        ).execute()
+        payload = {
+            "user_id": user_id,
+            "company_id": company_id,
+            "permission_id": permission_id,
+            "granted_by": granted_by,
+            "scope_mode": "company",
+        }
+        try:
+            supabase.table("user_permissions").upsert(
+                payload,
+                on_conflict="user_id,company_id,permission_id",
+                ignore_duplicates=True,
+            ).execute()
+        except Exception:
+            # Pré-migration : colonne scope_mode absente
+            payload.pop("scope_mode", None)
+            supabase.table("user_permissions").upsert(
+                payload,
+                on_conflict="user_id,company_id,permission_id",
+                ignore_duplicates=True,
+            ).execute()
 
 
 # Instances partagées (pas de DI pour l'instant, comportement identique)

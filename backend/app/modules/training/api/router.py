@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 
 from app.core.platform_admin import is_platform_admin
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.training.application import commands, queries
 from app.modules.training.application import router_support as training_router
 from app.modules.training.schemas.requests import (
@@ -76,6 +77,57 @@ def _can_access_enrollment_eval_or_cert(
         return True
     my_emp = _employee_scope_id(user, company_id)
     return my_emp is not None and str(enrollment_row.get("employee_id")) == str(my_emp)
+
+
+_TRAINING_ENROLL = "enroll_employee_training"
+
+
+def _require_training_employee_access(
+    current_user: User, company_id: str, permission_code: str, employee_id: str
+) -> None:
+    access_control_service.require_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+
+
+def _filter_enrollments_in_scope(
+    current_user: User, company_id: str, enrollments: List[Any]
+) -> List[Any]:
+    if current_user.is_platform_admin:
+        return enrollments
+    employee_ids = [
+        str(getattr(item, "employee_id", None) or (item.get("employee_id") if isinstance(item, dict) else ""))
+        for item in enrollments
+    ]
+    allowed = set(
+        access_control_service.filter_allowed_employee_ids(
+            str(current_user.id), company_id, _TRAINING_ENROLL, employee_ids
+        )
+    )
+    if not allowed and current_user.has_rh_access_in_company(company_id):
+        return enrollments
+
+    def _employee_id(item: Any) -> str:
+        if isinstance(item, dict):
+            return str(item.get("employee_id") or "")
+        return str(getattr(item, "employee_id", "") or "")
+
+    return [item for item in enrollments if _employee_id(item) in allowed]
+
+
+def _require_enrollment_scope(
+    current_user: User, company_id: str, enrollment_id: str, permission_code: str
+) -> Dict[str, Any]:
+    row = training_router.get_enrollment_by_id(enrollment_id, company_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Inscription non trouvée.")
+    _require_training_employee_access(
+        current_user,
+        company_id,
+        permission_code,
+        str(row.get("employee_id") or ""),
+    )
+    return row
 
 
 @router.get("/consumed/{year}", response_model=TotalConsumedResponse)
@@ -222,12 +274,17 @@ def route_list_enrollments(
     cid = _company_id(current_user)
     try:
         if _is_rh(current_user):
-            return queries.get_enrollments(
+            rows = queries.get_enrollments(
                 cid,
                 training_id=training_id,
                 employee_id=employee_id,
                 status=status,
             )
+            if employee_id:
+                _require_training_employee_access(
+                    current_user, cid, _TRAINING_ENROLL, employee_id
+                )
+            return _filter_enrollments_in_scope(current_user, cid, rows)
         my_emp = _employee_scope_id(current_user, cid)
         if not my_emp:
             raise HTTPException(
@@ -258,7 +315,8 @@ def route_pending_rh_approval(current_user: User = Depends(get_current_user)):
     cid = _company_id(current_user)
     try:
         rows = training_router.list_pending_rh_approval(cid)
-        return [queries.training_enrollment_from_row(dict(x)) for x in rows]
+        mapped = [queries.training_enrollment_from_row(dict(x)) for x in rows]
+        return _filter_enrollments_in_scope(current_user, cid, mapped)
     except HTTPException:
         raise
     except Exception as e:
@@ -304,6 +362,10 @@ def route_get_enrollment(enrollment_id: str, current_user: User = Depends(get_cu
             my_emp = _employee_scope_id(current_user, cid)
             if not my_emp or out.employee_id != my_emp:
                 raise HTTPException(status_code=403, detail="Accès refusé.")
+        else:
+            _require_training_employee_access(
+                current_user, cid, _TRAINING_ENROLL, out.employee_id
+            )
         return out
     except HTTPException:
         raise
@@ -318,8 +380,12 @@ def route_create_enrollment(
 ):
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    cid = _company_id(current_user)
+    _require_training_employee_access(
+        current_user, cid, _TRAINING_ENROLL, data.employee_id
+    )
     try:
-        return commands.create_enrollment(_company_id(current_user), data)
+        return commands.create_enrollment(cid, data)
     except HTTPException:
         raise
     except Exception as e:
@@ -334,8 +400,10 @@ def route_update_enrollment(
 ):
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    cid = _company_id(current_user)
     try:
-        return commands.update_enrollment(enrollment_id, _company_id(current_user), data)
+        _require_enrollment_scope(current_user, cid, enrollment_id, _TRAINING_ENROLL)
+        return commands.update_enrollment(enrollment_id, cid, data)
     except HTTPException:
         raise
     except Exception as e:
@@ -348,8 +416,10 @@ def route_cancel_enrollment(
 ):
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    cid = _company_id(current_user)
     try:
-        commands.cancel_enrollment(enrollment_id, _company_id(current_user))
+        _require_enrollment_scope(current_user, cid, enrollment_id, _TRAINING_ENROLL)
+        commands.cancel_enrollment(enrollment_id, cid)
         return Response(status_code=204)
     except HTTPException:
         raise
@@ -367,9 +437,9 @@ def route_rh_approve(
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     cid = _company_id(current_user)
     try:
-        row = training_router.get_enrollment_by_id(enrollment_id, cid)
-        if not row:
-            raise HTTPException(status_code=404, detail="Inscription non trouvée.")
+        row = _require_enrollment_scope(
+            current_user, cid, enrollment_id, _TRAINING_ENROLL
+        )
         st = str(row.get("status") or "")
         if st not in ("demande_salarie", "approuve_manager"):
             raise HTTPException(
@@ -414,6 +484,13 @@ def route_submit_evaluation(
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if not _can_access_enrollment_eval_or_cert(current_user, row, cid):
             raise HTTPException(status_code=403, detail="Accès refusé.")
+        if _is_rh(current_user):
+            _require_training_employee_access(
+                current_user,
+                cid,
+                _TRAINING_ENROLL,
+                str(row.get("employee_id") or ""),
+            )
         actor: Optional[str] = None
         if not _is_rh(current_user):
             actor = _employee_scope_id(current_user, cid)
@@ -452,6 +529,13 @@ async def route_upload_enrollment_certificate(
             raise HTTPException(status_code=404, detail="Inscription non trouvée.")
         if not _can_access_enrollment_eval_or_cert(current_user, row, cid):
             raise HTTPException(status_code=403, detail="Accès refusé.")
+        if _is_rh(current_user):
+            _require_training_employee_access(
+                current_user,
+                cid,
+                _TRAINING_ENROLL,
+                str(row.get("employee_id") or ""),
+            )
         body = await file.read()
         if len(body) > _MAX_TRAINING_CERT_UPLOAD:
             raise HTTPException(

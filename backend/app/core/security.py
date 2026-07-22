@@ -110,12 +110,30 @@ def get_current_user(
         data_client = get_supabase_admin_client()
 
         # 2. Récupérer le profil de base
-        profile_response = execute_with_retry(
-            lambda: data_client.table("profiles")
-            .select("first_name, last_name")
-            .eq("id", user.id)
-            .execute()
-        )
+        # must_change_password : colonne ajoutée par
+        # supabase/migrations/20260722140000_user_permission_scopes.sql
+        # Fallback si la migration n'est pas encore appliquée (évite un 500 login).
+        try:
+            profile_response = execute_with_retry(
+                lambda: data_client.table("profiles")
+                .select("first_name, last_name, must_change_password")
+                .eq("id", user.id)
+                .execute()
+            )
+        except Exception as profile_exc:
+            missing_col = "must_change_password" in str(profile_exc)
+            if not missing_col:
+                raise
+            logger.warning(
+                "Colonne profiles.must_change_password absente — "
+                "appliquer la migration 20260722140000_user_permission_scopes"
+            )
+            profile_response = execute_with_retry(
+                lambda: data_client.table("profiles")
+                .select("first_name, last_name")
+                .eq("id", user.id)
+                .execute()
+            )
 
         if not profile_response.data or len(profile_response.data) == 0:
             raise HTTPException(status_code=404, detail="Profil utilisateur non trouvé")
@@ -223,6 +241,7 @@ def get_current_user(
             last_name=profile_data.get("last_name"),
             is_platform_admin=is_platform_admin,
             is_group_admin=is_group_admin,
+            must_change_password=bool(profile_data.get("must_change_password", False)),
             accessible_companies=accessible_companies,
             active_company_id=active_company_id,
         )

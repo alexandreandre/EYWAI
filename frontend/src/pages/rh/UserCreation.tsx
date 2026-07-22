@@ -5,15 +5,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, Save, X, User, Building, Shield, Key, AlertCircle, Check, Plus, ChevronDown, ChevronUp, Sparkles, ArrowLeft } from 'lucide-react';
 import {
   createUserWithPermissions,
+  updateUserPermissions,
   getRoleTemplates,
   getRoleTemplate,
   getAccessibleCompaniesForUserCreation,
   quickCreateRoleTemplate,
+  buildPermissionGrantsPayload,
+  syncPermissionGrants,
   RoleTemplateDetail,
   AccessibleCompany,
   UserCompanyAccessData,
+  type PermissionGrantInput,
 } from '../../api/permissions';
 import PermissionsMatrix from '../../components/PermissionsMatrix';
+import { PermissionScopeEditor } from '@/features/access-control';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { cn } from '../../lib/utils';
 import { Input } from '../../components/ui/input';
@@ -32,6 +37,7 @@ interface CompanyAccessState extends UserCompanyAccessData {
   loadingCustomRoles: boolean;
   contract_type?: string;
   statut?: string;
+  grants: PermissionGrantInput[];
   newRoleData: {
     name: string;
     job_title: string;
@@ -86,6 +92,7 @@ const UserCreation: React.FC = () => {
           is_primary: false,
           role_template_id: undefined,
           permission_ids: [],
+          grants: [],
           enabled: false,
           expanded: false,
           templates: [],
@@ -161,6 +168,7 @@ const UserCreation: React.FC = () => {
         [companyId]: {
           ...prev[companyId],
           permission_ids: permissionIds,
+          grants: syncPermissionGrants(permissionIds, prev[companyId]?.grants ?? []),
         },
       }));
     } catch (err) {
@@ -244,6 +252,7 @@ const UserCreation: React.FC = () => {
         isCreatingNewRole: true,
         role_template_id: undefined,
         permission_ids: [],
+        grants: [],
         newRoleData: {
           name: '',
           job_title: '',
@@ -265,6 +274,7 @@ const UserCreation: React.FC = () => {
         isCreatingNewRole: false,
         role_template_id: undefined,
         permission_ids: [],
+        grants: [],
       },
     }));
 
@@ -287,6 +297,7 @@ const UserCreation: React.FC = () => {
           isCreatingNewRole: false,
           role_template_id: roleTemplateId,
           permission_ids: permissionIds,
+          grants: syncPermissionGrants(permissionIds, prev[companyId]?.grants ?? []),
         },
       }));
     } catch (err) {
@@ -312,6 +323,7 @@ const UserCreation: React.FC = () => {
         [companyId]: {
           ...prev[companyId],
           permission_ids: [],
+          grants: [],
         },
       }));
     }
@@ -323,6 +335,17 @@ const UserCreation: React.FC = () => {
       [companyId]: {
         ...prev[companyId],
         permission_ids: permissions,
+        grants: syncPermissionGrants(permissions, prev[companyId]?.grants ?? []),
+      },
+    }));
+  };
+
+  const handleGrantsChange = (companyId: string, grants: PermissionGrantInput[]) => {
+    setCompanyAccesses((prev) => ({
+      ...prev,
+      [companyId]: {
+        ...prev[companyId],
+        grants,
       },
     }));
   };
@@ -340,19 +363,12 @@ const UserCreation: React.FC = () => {
       return;
     }
 
-    if (!access.newRoleData.hasRhAccess && !access.newRoleData.hasCollaboratorAccess) {
-      setError('Veuillez sélectionner au moins un type d\'accès (RH ou Collaborateur)');
-      return;
-    }
-
     try {
       setCreatingTemplate(true);
       setError(null);
 
-      // Déterminer le base_role selon les accès sélectionnés
-      let baseRole: 'rh' | 'collaborateur_rh' | 'collaborateur' | 'custom' = access.newRoleData.base_role;
-      
-      // Si les accès sont définis, utiliser ceux-ci pour déterminer le base_role
+      let baseRole: 'rh' | 'collaborateur_rh' | 'collaborateur' | 'custom' = 'custom';
+
       if (access.newRoleData.hasRhAccess && access.newRoleData.hasCollaboratorAccess) {
         baseRole = 'collaborateur_rh';
       } else if (access.newRoleData.hasRhAccess) {
@@ -360,7 +376,6 @@ const UserCreation: React.FC = () => {
       } else if (access.newRoleData.hasCollaboratorAccess) {
         baseRole = 'collaborateur';
       }
-      // Sinon utiliser le base_role sélectionné (par défaut 'custom')
 
       const result = await quickCreateRoleTemplate({
         company_id: companyId,
@@ -480,7 +495,7 @@ const UserCreation: React.FC = () => {
         return access;
       });
 
-      await createUserWithPermissions({
+      const createResult = await createUserWithPermissions({
         email: formData.email,
         password: formData.password,
         first_name: formData.first_name,
@@ -488,6 +503,24 @@ const UserCreation: React.FC = () => {
         phone: formData.phone || undefined,
         company_accesses: enabledAccesses,
       });
+
+      const createdUserId = createResult?.user_id as string | undefined;
+      if (createdUserId) {
+        for (const access of enabledList) {
+          if (access.base_role === 'custom' && access.permission_ids.length > 0) {
+            const grantsPayload = buildPermissionGrantsPayload(
+              access.permission_ids,
+              access.grants ?? []
+            );
+            await updateUserPermissions(
+              createdUserId,
+              access.company_id,
+              access.permission_ids,
+              grantsPayload
+            );
+          }
+        }
+      }
 
       setSuccess(true);
       setTimeout(() => {
@@ -955,9 +988,13 @@ const UserCreation: React.FC = () => {
                             />
                           </div>
 
-                          {/* Sélecteur de type d'accès */}
+                          {/* Type d'accès optionnel : sans case cochée, le rôle reste « custom » avec les permissions choisies */}
                           <div>
-                            <Label>Type d'accès *</Label>
+                            <Label>Type d&apos;accès (optionnel)</Label>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Laissez vide pour un profil entièrement sur mesure sans droits RH ou
+                              collaborateur par défaut.
+                            </p>
                             <div className="mt-2 space-y-2">
                               <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
@@ -1012,8 +1049,8 @@ const UserCreation: React.FC = () => {
                                 <span className="text-sm text-gray-700">Accès Collaborateur</span>
                               </label>
                               {!access.newRoleData.hasRhAccess && !access.newRoleData.hasCollaboratorAccess && (
-                                <p className="text-xs text-red-600 mt-1">
-                                  Veuillez sélectionner au moins un type d'accès
+                                <p className="text-xs text-purple-700 mt-1">
+                                  Profil sur mesure : seules les permissions cochées seront accordées.
                                 </p>
                               )}
                             </div>
@@ -1063,8 +1100,40 @@ const UserCreation: React.FC = () => {
                               restrictToAvailable={true}
                             />
                           </div>
+
+                          <div className="mt-4">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Périmètre par permission
+                            </label>
+                            <PermissionScopeEditor
+                              companyId={company.company_id}
+                              selectedPermissionIds={access.permission_ids}
+                              grants={access.grants ?? []}
+                              onGrantsChange={(grants) =>
+                                handleGrantsChange(company.company_id, grants)
+                              }
+                            />
+                          </div>
                         </div>
                       )}
+
+                      {access.base_role === 'custom' &&
+                        !access.isCreatingNewRole &&
+                        access.permission_ids.length > 0 && (
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                              Périmètre des permissions
+                            </label>
+                            <PermissionScopeEditor
+                              companyId={company.company_id}
+                              selectedPermissionIds={access.permission_ids}
+                              grants={access.grants ?? []}
+                              onGrantsChange={(grants) =>
+                                handleGrantsChange(company.company_id, grants)
+                              }
+                            />
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>

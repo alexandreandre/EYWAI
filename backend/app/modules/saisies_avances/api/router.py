@@ -35,6 +35,7 @@ from app.modules.saisies_avances.schemas import (
 )
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.users.schemas.responses import User
 
 
@@ -62,6 +63,119 @@ def _require_rh_or_admin(current_user: User) -> None:
         raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
 
 
+def _active_company_id(current_user: User) -> str:
+    cid = current_user.active_company_id
+    if not cid:
+        raise HTTPException(status_code=400, detail="Aucune entreprise active sélectionnée.")
+    return str(cid)
+
+
+_ADVANCES_VIEW = "advances.view_all"
+_ADVANCES_MUTATE = "advances.process"
+_ADVANCES_APPROVE = "advances.approve"
+_ADVANCES_REFUSE = "advances.refuse"
+
+
+def _require_advance_employee_access(
+    current_user: User, company_id: str, permission_code: str, employee_id: str
+) -> None:
+    access_control_service.require_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+
+
+def _filter_company_rows_in_scope(
+    current_user: User,
+    company_id: str,
+    permission_code: str,
+    rows: list,
+) -> list:
+    scoped = [
+        row
+        for row in rows
+        if str(row.get("company_id") or "") == str(company_id)
+    ]
+    if current_user.is_platform_admin:
+        return scoped
+    employee_ids = [str(row.get("employee_id") or "") for row in scoped]
+    allowed = set(
+        access_control_service.filter_allowed_employee_ids(
+            str(current_user.id), company_id, permission_code, employee_ids
+        )
+    )
+    if not allowed and current_user.has_rh_access_in_company(company_id):
+        return scoped
+    return [row for row in scoped if str(row.get("employee_id") or "") in allowed]
+
+
+def _require_advance_scope(
+    current_user: User, company_id: str, advance_id: str, permission_code: str
+) -> dict:
+    advance = queries.get_salary_advance(advance_id)
+    if str(advance.get("company_id") or "") != str(company_id):
+        raise HTTPException(status_code=404, detail="Avance non trouvée.")
+    _require_advance_employee_access(
+        current_user,
+        company_id,
+        permission_code,
+        str(advance.get("employee_id") or ""),
+    )
+    return advance
+
+
+def _require_seizure_scope(
+    current_user: User, company_id: str, seizure_id: str, permission_code: str
+) -> dict:
+    seizure = queries.get_salary_seizure(seizure_id)
+    if str(seizure.get("company_id") or "") != str(company_id):
+        raise HTTPException(status_code=404, detail="Saisie non trouvée.")
+    _require_advance_employee_access(
+        current_user,
+        company_id,
+        permission_code,
+        str(seizure.get("employee_id") or ""),
+    )
+    return seizure
+
+
+def _require_payslip_scope(
+    current_user: User, payslip_id: str, permission_code: str
+) -> None:
+    from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
+
+    meta = get_payslip_meta_for_access(payslip_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Bulletin introuvable")
+    company_id = str(meta.get("company_id") or "")
+    employee_id = str(meta.get("employee_id") or "")
+    if company_id != _active_company_id(current_user):
+        raise HTTPException(status_code=404, detail="Bulletin introuvable")
+    _require_advance_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+
+
+def _require_payment_scope(
+    current_user: User, company_id: str, payment_id: str, permission_code: str
+) -> None:
+    from app.modules.saisies_avances.infrastructure.queries import (
+        get_payment_with_advance,
+    )
+
+    payment = get_payment_with_advance(payment_id)
+    if not payment:
+        raise HTTPException(status_code=404, detail="Paiement non trouvé.")
+    advance = payment.get("salary_advances") or payment.get("advance") or {}
+    if str(advance.get("company_id") or "") != str(company_id):
+        raise HTTPException(status_code=404, detail="Paiement non trouvé.")
+    _require_advance_employee_access(
+        current_user,
+        company_id,
+        permission_code,
+        str(advance.get("employee_id") or ""),
+    )
+
+
 def _handle_error(e: Exception) -> None:
     if isinstance(e, HTTPException):
         raise e
@@ -82,6 +196,13 @@ async def create_salary_seizure(
     """Crée une nouvelle saisie sur salaire (RH uniquement)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_employee_access(
+            current_user,
+            company_id,
+            _ADVANCES_MUTATE,
+            seizure_data.employee_id,
+        )
         return commands.create_salary_seizure(seizure_data, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -98,7 +219,15 @@ async def get_salary_seizures(
     """Récupère la liste des saisies avec filtres (RH)."""
     try:
         _require_rh_or_admin(current_user)
-        return queries.get_salary_seizures(employee_id=employee_id, status=status)
+        company_id = _active_company_id(current_user)
+        if employee_id:
+            _require_advance_employee_access(
+                current_user, company_id, _ADVANCES_VIEW, employee_id
+            )
+        rows = queries.get_salary_seizures(employee_id=employee_id, status=status)
+        return _filter_company_rows_in_scope(
+            current_user, company_id, _ADVANCES_VIEW, rows
+        )
     except Exception as e:
         _handle_error(e)
 
@@ -111,6 +240,8 @@ async def get_salary_seizure(
     """Récupère les détails d'une saisie."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_seizure_scope(current_user, company_id, seizure_id, _ADVANCES_VIEW)
         return queries.get_salary_seizure(seizure_id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -127,6 +258,8 @@ async def update_salary_seizure(
     """Met à jour une saisie (RH uniquement)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_seizure_scope(current_user, company_id, seizure_id, _ADVANCES_MUTATE)
         return commands.update_salary_seizure(seizure_id, update_data)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -142,6 +275,8 @@ async def delete_salary_seizure(
     """Supprime une saisie (RH uniquement)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_seizure_scope(current_user, company_id, seizure_id, _ADVANCES_MUTATE)
         commands.delete_salary_seizure(seizure_id)
     except Exception as e:
         _handle_error(e)
@@ -223,6 +358,10 @@ async def get_employee_advance_available(
     """Récupère le montant disponible pour une avance ou un acompte (RH / admin)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_employee_access(
+            current_user, company_id, _ADVANCES_VIEW, employee_id
+        )
         return queries.get_employee_advance_available(
             employee_id, year, month, advance_type=advance_type or "avance_salaire"
         )
@@ -243,7 +382,14 @@ async def get_employee_salary_seizures(
     """Récupère les saisies d'un employé."""
     try:
         _require_rh_or_admin(current_user)
-        return queries.get_employee_salary_seizures(employee_id)
+        company_id = _active_company_id(current_user)
+        _require_advance_employee_access(
+            current_user, company_id, _ADVANCES_VIEW, employee_id
+        )
+        rows = queries.get_employee_salary_seizures(employee_id)
+        return _filter_company_rows_in_scope(
+            current_user, company_id, _ADVANCES_VIEW, rows
+        )
     except Exception as e:
         _handle_error(e)
 
@@ -258,6 +404,17 @@ async def create_salary_advance(
 ):
     """Crée une demande d'avance (employé ou RH)."""
     try:
+        if current_user.is_platform_admin or (
+            current_user.active_company_id
+            and current_user.has_rh_access_in_company(current_user.active_company_id)
+        ):
+            company_id = _active_company_id(current_user)
+            _require_advance_employee_access(
+                current_user,
+                company_id,
+                _ADVANCES_MUTATE,
+                advance_data.employee_id,
+            )
         ctx = _user_ctx(current_user)
         return commands.create_salary_advance(advance_data, ctx)
     except SaisiesAvancesError as e:
@@ -278,10 +435,18 @@ async def get_salary_advances(
     """Récupère la liste des avances et acomptes avec filtres."""
     try:
         _require_rh_or_admin(current_user)
-        return queries.get_salary_advances(
+        company_id = _active_company_id(current_user)
+        if employee_id:
+            _require_advance_employee_access(
+                current_user, company_id, _ADVANCES_VIEW, employee_id
+            )
+        rows = queries.get_salary_advances(
             employee_id=employee_id,
             status=status,
             advance_type=advance_type,
+        )
+        return _filter_company_rows_in_scope(
+            current_user, company_id, _ADVANCES_VIEW, rows
         )
     except Exception as e:
         _handle_error(e)
@@ -295,6 +460,8 @@ async def get_salary_advance(
     """Récupère les détails d'une avance."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(current_user, company_id, advance_id, _ADVANCES_VIEW)
         return queries.get_salary_advance(advance_id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -313,6 +480,10 @@ async def approve_salary_advance(
     """Approuve une avance (RH/Manager). Le montant approuvé = montant demandé."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(
+            current_user, company_id, advance_id, _ADVANCES_APPROVE
+        )
         return commands.approve_salary_advance(advance_id, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -332,6 +503,10 @@ async def reject_salary_advance(
     """Rejette une avance (RH/Manager)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(
+            current_user, company_id, advance_id, _ADVANCES_REFUSE
+        )
         return commands.reject_salary_advance(
             advance_id,
             rejection_data.rejection_reason,
@@ -354,6 +529,10 @@ async def reconcile_acompte_prime_endpoint(
     """Réconcilie un acompte sur prime avec le montant définitif (RH)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(
+            current_user, company_id, advance_id, _ADVANCES_MUTATE
+        )
         return commands.reconcile_acompte_prime(advance_id, reconcile_data)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -372,7 +551,14 @@ async def get_employee_salary_advances(
     """Récupère les avances d'un employé."""
     try:
         _require_rh_or_admin(current_user)
-        return queries.get_employee_salary_advances(employee_id)
+        company_id = _active_company_id(current_user)
+        _require_advance_employee_access(
+            current_user, company_id, _ADVANCES_VIEW, employee_id
+        )
+        rows = queries.get_employee_salary_advances(employee_id)
+        return _filter_company_rows_in_scope(
+            current_user, company_id, _ADVANCES_VIEW, rows
+        )
     except SaisiesAvancesError as e:
         _handle_error(e)
     except Exception as e:
@@ -393,6 +579,7 @@ async def get_payslip_deductions(
     """Récupère les prélèvements appliqués sur un bulletin."""
     try:
         _require_rh_or_admin(current_user)
+        _require_payslip_scope(current_user, payslip_id, _ADVANCES_VIEW)
         return queries.get_payslip_deductions(payslip_id)
     except Exception as e:
         _handle_error(e)
@@ -409,6 +596,7 @@ async def get_payslip_advance_repayments(
     """Récupère les remboursements d'avances appliqués sur un bulletin."""
     try:
         _require_rh_or_admin(current_user)
+        _require_payslip_scope(current_user, payslip_id, _ADVANCES_VIEW)
         return queries.get_payslip_advance_repayments(payslip_id)
     except Exception as e:
         _handle_error(e)
@@ -447,6 +635,10 @@ async def create_advance_payment(
     """Crée un paiement d'avance (versement total ou partiel)."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(
+            current_user, company_id, payment_data.advance_id, _ADVANCES_MUTATE
+        )
         return commands.create_advance_payment(payment_data, current_user.id)
     except SaisiesAvancesError as e:
         _handle_error(e)
@@ -465,6 +657,10 @@ async def get_advance_payments(
     """Récupère tous les paiements d'une avance."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_advance_scope(
+            current_user, company_id, advance_id, _ADVANCES_VIEW
+        )
         return queries.get_advance_payments(advance_id)
     except Exception as e:
         _handle_error(e)
@@ -478,6 +674,10 @@ async def get_payment_proof_url(
     """Génère une URL signée pour télécharger la preuve de paiement."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_payment_scope(
+            current_user, company_id, payment_id, _ADVANCES_VIEW
+        )
         url = queries.get_payment_proof_url(payment_id)
         return {"url": url}
     except SaisiesAvancesError as e:
@@ -494,6 +694,10 @@ async def delete_advance_payment(
     """Supprime un paiement d'avance."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = _active_company_id(current_user)
+        _require_payment_scope(
+            current_user, company_id, payment_id, _ADVANCES_MUTATE
+        )
         return commands.delete_advance_payment(payment_id)
     except SaisiesAvancesError as e:
         _handle_error(e)

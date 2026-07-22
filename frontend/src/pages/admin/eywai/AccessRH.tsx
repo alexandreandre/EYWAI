@@ -5,9 +5,13 @@ import apiClient from "@/api/apiClient";
 import {
   getRoleTemplates,
   updateUserPermissions,
+  buildPermissionGrantsPayload,
+  syncPermissionGrants,
+  type PermissionGrantInput,
   type RoleTemplateDetail,
 } from "@/api/permissions";
 import { PermissionsMatrix } from "@/components/PermissionsMatrix";
+import { PermissionScopeEditor } from "@/features/access-control";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Button } from "@/components/ui/button";
@@ -104,6 +108,7 @@ export default function AccessRH() {
     role: "rh" as (typeof RH_ROLES)[number],
   });
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
+  const [customGrants, setCustomGrants] = useState<PermissionGrantInput[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery({
@@ -149,6 +154,7 @@ export default function AccessRH() {
       role: "rh",
     });
     setCustomPermissions([]);
+    setCustomGrants([]);
   };
 
   const openWizard = () => {
@@ -183,7 +189,8 @@ export default function AccessRH() {
             variant: "destructive",
           });
         } else {
-          await updateUserPermissions(createdId, companyId, customPermissions);
+          const grantsPayload = buildPermissionGrantsPayload(customPermissions, customGrants);
+          await updateUserPermissions(createdId, companyId, customPermissions, grantsPayload);
         }
       }
       toast({ title: "Utilisateur RH créé" });
@@ -347,7 +354,7 @@ export default function AccessRH() {
       </Tabs>
 
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nouvel utilisateur RH — étape {wizardStep + 1}/3</DialogTitle>
             <DialogDescription>
@@ -432,11 +439,22 @@ export default function AccessRH() {
           )}
 
           {wizardStep === 2 && form.role === "custom" && form.company_id && (
-            <PermissionsMatrix
-              companyId={form.company_id || selectedCompanyId}
-              selectedPermissions={customPermissions}
-              onPermissionsChange={setCustomPermissions}
-            />
+            <div className="space-y-4">
+              <PermissionsMatrix
+                companyId={form.company_id || selectedCompanyId}
+                selectedPermissions={customPermissions}
+                onPermissionsChange={(permissions) => {
+                  setCustomPermissions(permissions);
+                  setCustomGrants((current) => syncPermissionGrants(permissions, current));
+                }}
+              />
+              <PermissionScopeEditor
+                companyId={form.company_id || selectedCompanyId}
+                selectedPermissionIds={customPermissions}
+                grants={customGrants}
+                onGrantsChange={setCustomGrants}
+              />
+            </div>
           )}
           {wizardStep === 2 && form.role !== "custom" && (
             <p className="text-sm text-muted-foreground">

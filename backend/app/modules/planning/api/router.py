@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.planning.application import commands, queries as app_queries
+from app.modules.planning.infrastructure.repository import planning_repository
 from app.modules.planning.schemas.requests import (
     CompanyPlanningSettingsUpdate,
     DayLockRequest,
@@ -53,6 +55,65 @@ def _require_rh(current_user: User, company_id: str) -> None:
         raise HTTPException(status_code=403, detail="Accès réservé au RH / admin.")
 
 
+_PLANNING_VIEW = "schedules.view_all"
+_PLANNING_MUTATE = "schedules.update"
+
+
+def _require_planning_employee_access(
+    current_user: User, company_id: str, permission_code: str, employee_id: str
+) -> None:
+    access_control_service.require_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+
+
+def _filter_shifts_in_scope(
+    current_user: User, company_id: str, shifts: list
+) -> list:
+    if current_user.is_platform_admin:
+        return shifts
+    employee_ids = [str(s.get("employee_id") or "") for s in shifts]
+    allowed = set(
+        access_control_service.filter_allowed_employee_ids(
+            str(current_user.id), company_id, _PLANNING_VIEW, employee_ids
+        )
+    )
+    if not allowed and current_user.has_rh_access_in_company(company_id):
+        return shifts
+    return [s for s in shifts if str(s.get("employee_id") or "") in allowed]
+
+
+def _filter_employee_hours_in_scope(
+    current_user: User, company_id: str, rows: list
+) -> list:
+    if current_user.is_platform_admin:
+        return rows
+    employee_ids = [str(r.get("employee_id") or "") for r in rows]
+    allowed = set(
+        access_control_service.filter_allowed_employee_ids(
+            str(current_user.id), company_id, _PLANNING_VIEW, employee_ids
+        )
+    )
+    if not allowed and current_user.has_rh_access_in_company(company_id):
+        return rows
+    return [r for r in rows if str(r.get("employee_id") or "") in allowed]
+
+
+def _require_shift_scope(
+    current_user: User, company_id: str, shift_id: str, permission_code: str
+) -> dict:
+    row = planning_repository.get_shift_by_id(shift_id)
+    if not row or str(row.get("company_id") or "") != str(company_id):
+        raise HTTPException(status_code=404, detail="Shift introuvable.")
+    _require_planning_employee_access(
+        current_user,
+        company_id,
+        permission_code,
+        str(row.get("employee_id") or ""),
+    )
+    return row
+
+
 @router.get("/week")
 async def get_week_planning(
     week_start: str = Query(..., description="Lundi de la semaine (YYYY-MM-DD)"),
@@ -61,7 +122,14 @@ async def get_week_planning(
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
     try:
-        return app_queries.get_week_planning(company_id, week_start, is_rh=True)
+        payload = app_queries.get_week_planning(company_id, week_start, is_rh=True)
+        payload["shifts"] = _filter_shifts_in_scope(
+            current_user, company_id, payload.get("shifts") or []
+        )
+        payload["employee_hours"] = _filter_employee_hours_in_scope(
+            current_user, company_id, payload.get("employee_hours") or []
+        )
+        return payload
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
@@ -79,7 +147,8 @@ async def get_month_planning(
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
     try:
-        return app_queries.list_company_shifts_month_rh(company_id, year, month)
+        rows = app_queries.list_company_shifts_month_rh(company_id, year, month)
+        return _filter_shifts_in_scope(current_user, company_id, rows)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
@@ -100,7 +169,8 @@ async def get_on_call_schedule(
     y = year if year is not None else today.year
     m = month if month is not None else today.month
     try:
-        return app_queries.list_company_on_call_month_rh(company_id, y, m)
+        rows = app_queries.list_company_on_call_month_rh(company_id, y, m)
+        return _filter_shifts_in_scope(current_user, company_id, rows)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
@@ -124,6 +194,9 @@ async def create_on_call_shift(
     forced = data.model_copy(
         update={"shift_type_id": None, "transverse_category": "astreinte"}
     )
+    _require_planning_employee_access(
+        current_user, company_id, _PLANNING_MUTATE, forced.employee_id
+    )
     try:
         return commands.create_shift(forced, company_id, str(current_user.id))
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
@@ -146,7 +219,8 @@ async def list_replacements(
     y = year if year is not None else today.year
     m = month if month is not None else today.month
     try:
-        return app_queries.list_company_replacements_month_rh(company_id, y, m)
+        rows = app_queries.list_company_replacements_month_rh(company_id, y, m)
+        return _filter_shifts_in_scope(current_user, company_id, rows)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
@@ -179,6 +253,16 @@ async def create_replacement_shift(
             "replacing_employee_id": data.replacing_employee_id or data.employee_id,
         }
     )
+    _require_planning_employee_access(
+        current_user, company_id, _PLANNING_MUTATE, forced.employee_id
+    )
+    if forced.original_employee_id:
+        _require_planning_employee_access(
+            current_user,
+            company_id,
+            _PLANNING_MUTATE,
+            str(forced.original_employee_id),
+        )
     try:
         return commands.create_shift(forced, company_id, str(current_user.id))
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
@@ -195,6 +279,9 @@ async def create_shift_endpoint(
 ):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
+    _require_planning_employee_access(
+        current_user, company_id, _PLANNING_MUTATE, data.employee_id
+    )
     try:
         return commands.create_shift(data, company_id, str(current_user.id))
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
@@ -212,6 +299,7 @@ async def update_shift_endpoint(
 ):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
+    _require_shift_scope(current_user, company_id, shift_id, _PLANNING_MUTATE)
     try:
         return commands.update_shift(shift_id, data, company_id)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
@@ -228,6 +316,7 @@ async def delete_shift_endpoint(
 ):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
+    _require_shift_scope(current_user, company_id, shift_id, _PLANNING_MUTATE)
     try:
         commands.delete_shift(shift_id, company_id)
         return Response(status_code=204)
@@ -364,6 +453,7 @@ async def get_shift_detail_endpoint(
 ):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
+    _require_shift_scope(current_user, company_id, shift_id, _PLANNING_VIEW)
     try:
         return app_queries.get_shift_detail(shift_id, company_id, is_rh=True)
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:

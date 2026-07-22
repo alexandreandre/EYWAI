@@ -107,12 +107,33 @@ export interface RoleTemplateOption {
   permissions_count: number;
 }
 
+export type PermissionScopeMode = 'company' | 'teams' | 'none';
+
+export interface PermissionTargetInput {
+  employee_id: string;
+  effect: 'allow' | 'deny';
+}
+
+export interface PermissionGrantInput {
+  permission_id: string;
+  scope_mode: PermissionScopeMode;
+  team_ids: string[];
+  targets: PermissionTargetInput[];
+}
+
+export interface PermissionGrantDetail extends PermissionGrantInput {
+  user_permission_id: string;
+  permission_code?: string;
+  permission_label?: string;
+}
+
 export interface UserCompanyAccessData {
   company_id: string;
   base_role: 'admin' | 'rh' | 'collaborateur_rh' | 'collaborateur' | 'custom';
   is_primary: boolean;
   role_template_id?: string;
   permission_ids: string[];
+  grants?: PermissionGrantInput[];
   contract_type?: string;
   statut?: string;
 }
@@ -136,6 +157,7 @@ export interface UserUpdateWithPermissions {
   base_role?: 'admin' | 'rh' | 'collaborateur_rh' | 'collaborateur' | 'custom';
   role_template_id?: string;
   permission_ids?: string[];
+  grants?: PermissionGrantInput[];
 }
 
 export interface RoleHierarchyCheckResponse {
@@ -210,6 +232,16 @@ export const getUserPermissions = async (
   return response.data;
 };
 
+export const getUserPermissionGrants = async (
+  userId: string,
+  companyId: string
+): Promise<PermissionGrantDetail[]> => {
+  const response = await apiClient.get(
+    `/api/access-control/users/${userId}/permission-grants?company_id=${companyId}`
+  );
+  return response.data;
+};
+
 export const grantUserPermissions = async (
   userId: string,
   companyId: string,
@@ -226,14 +258,53 @@ export const grantUserPermissions = async (
 export const updateUserPermissions = async (
   userId: string,
   companyId: string,
-  permissionIds: string[]
+  permissionIds: string[],
+  grants?: PermissionGrantInput[]
 ): Promise<{ message: string }> => {
-  const response = await apiClient.put(`/api/access-control/users/${userId}/permissions`, {
+  const body: {
+    user_id: string;
+    company_id: string;
+    permission_ids?: string[];
+    grants?: PermissionGrantInput[];
+  } = {
     user_id: userId,
     company_id: companyId,
-    permission_ids: permissionIds,
-  });
+  };
+
+  if (grants !== undefined) {
+    body.grants = grants;
+  } else {
+    body.permission_ids = permissionIds;
+  }
+
+  const response = await apiClient.put(`/api/access-control/users/${userId}/permissions`, body);
   return response.data;
+};
+
+/** Construit le payload grants à partir des permissions sélectionnées et de leur périmètre. */
+export const buildPermissionGrantsPayload = (
+  selectedPermissionIds: string[],
+  grants: PermissionGrantInput[]
+): PermissionGrantInput[] => {
+  const grantsByPermissionId = new Map(grants.map((grant) => [grant.permission_id, grant]));
+
+  return selectedPermissionIds.map((permissionId) => {
+    const existing = grantsByPermissionId.get(permissionId);
+    return {
+      permission_id: permissionId,
+      scope_mode: existing?.scope_mode ?? 'company',
+      team_ids: existing?.team_ids ?? [],
+      targets: existing?.targets ?? [],
+    };
+  });
+};
+
+/** Synchronise la liste des grants quand les permissions cochées changent. */
+export const syncPermissionGrants = (
+  selectedPermissionIds: string[],
+  currentGrants: PermissionGrantInput[]
+): PermissionGrantInput[] => {
+  return buildPermissionGrantsPayload(selectedPermissionIds, currentGrants);
 };
 
 export const revokeUserPermission = async (

@@ -17,8 +17,10 @@ import {
 import {
   getUserDetail,
   getUserPermissions,
+  getUserPermissionGrants,
   getUserCompanyAccesses,
   UserPermissionsSummary,
+  type PermissionGrantDetail,
 } from '../../api/permissions';
 import { useCompany } from '../../contexts/CompanyContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,6 +83,7 @@ const UserProfile: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [userDetail, setUserDetail] = useState<UserDetailData | null>(null);
   const [permissions, setPermissions] = useState<UserPermissionsSummary | null>(null);
+  const [permissionGrants, setPermissionGrants] = useState<PermissionGrantDetail[]>([]);
   const [companyAccesses, setCompanyAccesses] = useState<CompanyAccessItem[]>([]);
 
   useEffect(() => {
@@ -116,10 +119,17 @@ const UserProfile: React.FC = () => {
 
         if (permCompanyId && detailRes) {
           try {
-            const perms = await getUserPermissions(userId, permCompanyId);
+            const [perms, grants] = await Promise.all([
+              getUserPermissions(userId, permCompanyId),
+              detailRes.role === 'custom'
+                ? getUserPermissionGrants(userId, permCompanyId)
+                : Promise.resolve([]),
+            ]);
             setPermissions(perms);
+            setPermissionGrants(grants);
           } catch {
             setPermissions(null);
+            setPermissionGrants([]);
           }
         } else {
           setPermissions(null);
@@ -382,12 +392,36 @@ const UserProfile: React.FC = () => {
                       Voir toutes les permissions
                     </summary>
                     <ul className="mt-3 pl-6 space-y-1.5">
-                      {(permissions.all_permissions || []).map((perm) => (
-                        <li key={perm.id} className="text-sm flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-primary" />
-                          {perm.label}
-                        </li>
-                      ))}
+                      {(permissions.all_permissions || []).map((perm) => {
+                        const grant = permissionGrants.find(
+                          (item) => item.permission_id === perm.id
+                        );
+                        const scopeLabel =
+                          grant?.scope_mode === 'teams'
+                            ? `Équipes (${grant.team_ids.length})`
+                            : grant?.scope_mode === 'none'
+                              ? 'Exceptions uniquement'
+                              : grant
+                                ? "Toute l'entreprise"
+                                : null;
+
+                        return (
+                          <li key={perm.id} className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-primary" />
+                              {perm.label}
+                            </div>
+                            {scopeLabel && (
+                              <div className="ml-4 text-xs text-muted-foreground">
+                                Périmètre : {scopeLabel}
+                                {grant?.targets?.length
+                                  ? ` · ${grant.targets.length} exception(s)`
+                                  : ''}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                       {(!permissions.all_permissions || permissions.all_permissions.length === 0) && (
                         <li className="text-sm text-muted-foreground">Aucune permission.</li>
                       )}

@@ -28,6 +28,32 @@ class IPermissionRepository(Protocol):
         ...
 
 
+class IScopedPermissionResolver(Protocol):
+    """Résolution des accès salarié selon grants scopés (équipes + exceptions)."""
+
+    def user_can_access_employee(
+        self,
+        user_id: str,
+        company_id: str,
+        permission_code: str,
+        employee_id: str,
+        *,
+        team_id: str | None = None,
+    ) -> bool:
+        """True si grant présent et salarié dans le périmètre (fail-closed)."""
+        ...
+
+    def filter_allowed_employee_ids(
+        self,
+        user_id: str,
+        company_id: str,
+        permission_code: str,
+        employee_ids: list[str] | None = None,
+    ) -> list[str]:
+        """Sous-ensemble autorisé des salariés (ou toute l'entreprise si None)."""
+        ...
+
+
 class IPermissionCatalogReader(Protocol):
     """Lecture du catalogue de permissions (catégories, actions, permissions) et des permissions utilisateur."""
 

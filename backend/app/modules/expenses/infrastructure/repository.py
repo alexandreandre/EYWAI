@@ -64,10 +64,12 @@ class ExpenseRepository(IExpenseRepository):
         )
         return response.data or []
 
-    def list_all(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_all(
+        self, company_id: str, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         query = self._client.table(TABLE_EXPENSE_REPORTS).select(
             SELECT_ALL_WITH_EMPLOYEE
-        )
+        ).eq("company_id", company_id)
         if status:
             query = query.eq("status", status)
         response = query.order(ORDER_BY_CREATED_AT_DESC, desc=True).execute()

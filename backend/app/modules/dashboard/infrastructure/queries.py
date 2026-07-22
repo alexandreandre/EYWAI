@@ -62,11 +62,15 @@ def fetch_absence_requests_for_absenteeism(company_id: str) -> List[dict]:
 
 
 def fetch_payslips_by_company(company_id: str) -> List[dict]:
-    """Fiches de paie (month, payslip_data) pour agrégation coûts / nets."""
+    """Fiches de paie (month, year, payslip_data) pour agrégation coûts / nets.
+
+    `year` est indispensable : aggregate_payslips_by_period écarte toute ligne
+    sans year, ce qui ferait tomber le graphique Coûts sur la DSN uniquement.
+    """
     client = _get_client()
     resp = (
         client.table("payslips")
-        .select("month, payslip_data")
+        .select("month, year, payslip_data")
         .eq("company_id", company_id)
         .execute()
     )

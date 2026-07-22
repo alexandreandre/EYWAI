@@ -58,6 +58,7 @@ class User(BaseModel):
     last_name: Optional[str] = None
     is_platform_admin: bool = False
     is_group_admin: bool = False
+    must_change_password: bool = False
 
     # Multi-entreprises
     accessible_companies: List[CompanyAccess] = []

@@ -46,8 +46,10 @@ class ExpenseApplicationService:
     ) -> str | None:
         return query_resolve_employee_id_for_expense_account(user_id, company_id)
 
-    def get_all_expenses(self, input: ListExpensesInput) -> List[dict]:
-        return query_get_all_expenses(input.status)
+    def get_all_expenses(
+        self, company_id: str, input: ListExpensesInput
+    ) -> List[dict]:
+        return query_get_all_expenses(company_id, input.status)
 
     def get_signed_upload_url(self, employee_id: str, filename: str) -> dict:
         return query_get_signed_upload_url(employee_id, filename)

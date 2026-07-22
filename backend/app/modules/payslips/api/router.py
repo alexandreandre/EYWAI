@@ -15,6 +15,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.audit.application.commands import log_audit_event
 from app.modules.webhooks.application.service import trigger_webhook_event
 from app.modules.payslips.application.anomalies_report import (
@@ -118,6 +119,25 @@ def _require_rh_company_context(current_user: User) -> str:
     return str(company_id)
 
 
+def _require_payslip_scope(
+    current_user: User, payslip_id: str, permission_code: str
+) -> dict:
+    """Résout le bulletin puis masque un salarié hors périmètre par une 404."""
+    meta = get_payslip_meta_for_access(payslip_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Bulletin introuvable")
+    company_id = str(meta.get("company_id") or "")
+    employee_id = str(meta.get("employee_id") or "")
+    if not company_id or not employee_id:
+        raise HTTPException(status_code=404, detail="Bulletin introuvable")
+    if company_id != str(current_user.active_company_id or ""):
+        raise HTTPException(status_code=404, detail="Bulletin introuvable")
+    access_control_service.require_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+    return meta
+
+
 # --- Rapport anomalies (RH) ---
 @router.get("/api/payslips/anomalies", response_model=PayslipsAnomaliesReport)
 def get_payslips_anomalies_route(
@@ -192,7 +212,10 @@ def get_employee_payslips_route(
 ):
     """Liste des bulletins d'un salarié."""
     try:
-        _require_rh_company_context(current_user)
+        company_id = _require_rh_company_context(current_user)
+        access_control_service.require_employee_access(
+            current_user, company_id, "payslips.view_all", employee_id
+        )
         return get_employee_payslips(employee_id)
     except HTTPException:
         raise
@@ -316,8 +339,10 @@ def validate_payslip_route(
 ):
     """Valide le bulletin si aucune alerte critique active."""
     try:
+        meta = _require_payslip_scope(
+            current_user, payslip_id, "payslips.validate"
+        )
         validate_payslip_for_user(payslip_id, _to_user_context(current_user))
-        meta = get_payslip_meta_for_access(payslip_id)
         cid = str(meta.get("company_id") or "") if meta else ""
         if cid:
             log_audit_event(

@@ -1,0 +1,263 @@
+{
+  "version": 1,
+  "companies": {
+    "mbc": ["MBC", "Mont Blanc Composite"],
+    "cartol": ["Cartol", "Cartol Industrie"],
+    "lewis": ["Lewis", "LEWIS"],
+    "colorplast": ["Colorplast"],
+    "comitech": ["Comitech", "Comitech Composite"],
+    "maji": ["MAJI"],
+    "zone_404": ["Zone 404", "Zone 404 Mars"]
+  },
+  "permission_sets": {
+    "director_mod_validations": [
+      "payslips.validate",
+      "expenses.approve",
+      "schedules.validate",
+      "schedules.view_all",
+      "schedules.update",
+      "advances.approve",
+      "advances.view_all",
+      "advances.process",
+      "enroll_employee_training",
+      "view_objectives_reporting",
+      "evaluate_objective",
+      "create_individual_objective",
+      "analytics.export",
+      "analytics.view_all",
+      "contracts.view_all"
+    ],
+    "director_moi_operations": [
+      "expenses.approve",
+      "schedules.validate",
+      "schedules.view_all",
+      "schedules.update",
+      "advances.approve",
+      "advances.view_all",
+      "advances.process",
+      "enroll_employee_training",
+      "view_objectives_reporting",
+      "evaluate_objective",
+      "create_individual_objective",
+      "analytics.export",
+      "analytics.view_all",
+      "contracts.view_all"
+    ],
+    "bank_only": ["bank_dispatch.send"]
+  },
+  "people": [
+    {
+      "key": "gaelle",
+      "identity": {
+        "name": "Gaëlle Bouali",
+        "username": "gaelle.bouali"
+      },
+      "account": "technical_login",
+      "accesses": [
+        {"company": "mbc", "role": "rh", "scope_mode": "company"},
+        {"company": "cartol", "role": "rh", "scope_mode": "company"},
+        {"company": "lewis", "role": "rh", "scope_mode": "company"},
+        {"company": "colorplast", "role": "rh", "scope_mode": "company"},
+        {"company": "comitech", "role": "rh", "scope_mode": "company"}
+      ]
+    },
+    {
+      "key": "baptiste",
+      "identity": {"name": "Baptiste Droz-Vincent"},
+      "account": "existing_only",
+      "accesses": [
+        {
+          "company": "mbc",
+          "role": "custom",
+          "scope_mode": "teams",
+          "team_names": ["MOD"],
+          "permission_set": "director_mod_validations"
+        }
+      ],
+      "target_exceptions": [
+        {
+          "company": "mbc",
+          "permission": "payslips.validate",
+          "effect": "deny",
+          "employee": {"self": true}
+        }
+      ]
+    },
+    {
+      "key": "michael",
+      "identity": {
+        "name": "Michael Francony",
+        "username": "michael.francony"
+      },
+      "account": "technical_login",
+      "accesses": [
+        {
+          "company": "mbc",
+          "role": "custom",
+          "scope_mode": "teams",
+          "team_names": ["MOI"],
+          "permission_set": "director_moi_operations",
+          "permission_codes": ["payslips.validate"]
+        },
+        {
+          "company": "cartol",
+          "role": "custom",
+          "scope_mode": "none",
+          "permission_codes": ["payslips.validate"]
+        },
+        {
+          "company": "comitech",
+          "role": "custom",
+          "scope_mode": "none",
+          "permission_codes": ["payslips.validate"]
+        }
+      ],
+      "target_exceptions": [
+        {
+          "company": "mbc",
+          "permission": "payslips.validate",
+          "effect": "allow",
+          "employees": ["Baptiste Droz-Vincent"]
+        },
+        {
+          "company": "cartol",
+          "permission": "payslips.validate",
+          "effect": "allow",
+          "employees": ["Damien Faucher"]
+        },
+        {
+          "company": "comitech",
+          "permission": "payslips.validate",
+          "effect": "allow",
+          "employees": ["Lucas Chambert"]
+        }
+      ]
+    },
+    {
+      "key": "eric",
+      "identity": {"name": "Eric Noble"},
+      "account": "existing_only",
+      "accesses": [
+        {
+          "company": "lewis",
+          "role": "custom",
+          "scope_mode": "company",
+          "permission_set": "director_mod_validations"
+        }
+      ],
+      "target_exceptions": [
+        {
+          "company": "lewis",
+          "permission": "payslips.validate",
+          "effect": "deny",
+          "employee": {"self": true}
+        }
+      ]
+    },
+    {
+      "key": "damien",
+      "identity": {"name": "Damien Faucher"},
+      "account": "existing_only",
+      "accesses": [
+        {
+          "company": "cartol",
+          "role": "custom",
+          "scope_mode": "company",
+          "permission_set": "director_mod_validations"
+        }
+      ],
+      "target_exceptions": [
+        {
+          "company": "cartol",
+          "permission": "payslips.validate",
+          "effect": "deny",
+          "employee": {"self": true}
+        }
+      ]
+    },
+    {
+      "key": "lucas",
+      "identity": {
+        "email": "lucas.chambert@gmail.com",
+        "name": "Lucas Chambert"
+      },
+      "account": "existing_only",
+      "active_account_hint": "comitech",
+      "accesses": [
+        {
+          "company": "colorplast",
+          "role": "custom",
+          "scope_mode": "company",
+          "permission_set": "director_mod_validations"
+        },
+        {
+          "company": "comitech",
+          "role": "custom",
+          "scope_mode": "company",
+          "permission_set": "director_mod_validations"
+        }
+      ],
+      "target_exceptions": [
+        {
+          "company": "comitech",
+          "permission": "payslips.validate",
+          "effect": "deny",
+          "employee": {"self": true}
+        }
+      ]
+    },
+    {
+      "key": "gerault",
+      "identity": {
+        "name": "Gérault Verny",
+        "username": "gerault.verny"
+      },
+      "account": "technical_login",
+      "accesses": [
+        {"company": "mbc", "role": "admin", "scope_mode": "company"},
+        {"company": "cartol", "role": "admin", "scope_mode": "company"},
+        {"company": "lewis", "role": "admin", "scope_mode": "company"},
+        {"company": "colorplast", "role": "admin", "scope_mode": "company"},
+        {"company": "comitech", "role": "admin", "scope_mode": "company"},
+        {"company": "maji", "role": "admin", "scope_mode": "company"},
+        {"company": "zone_404", "role": "admin", "scope_mode": "company"}
+      ],
+      "target_exceptions": [
+        {
+          "company": "lewis",
+          "permission": "payslips.validate",
+          "effect": "allow",
+          "employees": ["Eric Noble"]
+        }
+      ]
+    },
+    {
+      "key": "vanessa",
+      "identity": {"name": "Vanessa Amate"},
+      "account": "existing_only",
+      "canonical_employee_account": true,
+      "prefer_role": "collaborateur",
+      "accesses": [
+        {
+          "company": "maji",
+          "role": "admin",
+          "scope_mode": "company",
+          "permission_set": "bank_only"
+        },
+        {
+          "company": "zone_404",
+          "role": "admin",
+          "scope_mode": "company",
+          "permission_set": "bank_only"
+        }
+      ],
+      "duplicate_access": {"deactivate": true}
+    },
+    {
+      "key": "dorothee",
+      "identity": {"name": "Dorothée Boulay"},
+      "account": "existing_only",
+      "no_op": true
+    }
+  ]
+}

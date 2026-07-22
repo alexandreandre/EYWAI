@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.modules.employees.application.commands import (
+    _iter_employee_deletion,
     create_employee,
     delete_employee,
     update_employee,
@@ -19,6 +20,32 @@ from app.modules.employees.application.commands import (
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.fixture(autouse=True)
+def no_payslip_by_default():
+    """Les tests historiques de suppression n'interrogent jamais Supabase."""
+    with patch(
+        "app.modules.employees.application.commands._employee_has_payslips",
+        return_value=False,
+    ):
+        yield
+
+
+@patch(
+    "app.modules.employees.application.commands._employee_has_payslips",
+    return_value=True,
+)
+@patch("app.modules.employees.application.commands._employee_repository")
+def test_employee_with_payslip_cannot_be_deleted(mock_employee_repository, _mock_payslip):
+    """Un bulletin existant bloque la suppression avant tout nettoyage destructif."""
+    mock_employee_repository.get_by_id.return_value = {"id": "employee-1"}
+
+    with pytest.raises(HTTPException) as exc:
+        list(_iter_employee_deletion("employee-1", "company-1"))
+
+    assert exc.value.status_code == 409
+    assert "bulletins de paie" in str(exc.value.detail)
+    mock_employee_repository.delete.assert_not_called()
 
 def _minimal_employee_data():
     return {

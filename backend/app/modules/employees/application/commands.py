@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterator, Optional
 
 from fastapi import HTTPException
 
+from app.core.database import supabase
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
     build_dsn_import_auth_email,
@@ -792,6 +793,19 @@ def _employee_display_name(emp: Dict[str, Any], employee_id: str) -> str:
     return f"{first} {last}".strip() or employee_id
 
 
+def _employee_has_payslips(employee_id: str, company_id: str) -> bool:
+    """True si le salarié possède au moins un bulletin dans l'entreprise active."""
+    result = (
+        supabase.table("payslips")
+        .select("id")
+        .eq("employee_id", employee_id)
+        .eq("company_id", company_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
+
+
 def _iter_employee_deletion(
     employee_id: str, company_id: str
 ) -> Iterator[Dict[str, Any]]:
@@ -813,6 +827,14 @@ def _iter_employee_deletion(
     emp = _employee_repository.get_by_id(employee_id, company_id)
     if emp is None:
         raise HTTPException(status_code=404, detail="Employé non trouvé.")
+    if _employee_has_payslips(employee_id, company_id):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Suppression impossible : ce salarié possède des bulletins de paie. "
+                "Supprimez d'abord les bulletins associés."
+            ),
+        )
 
     auth_uid = str(emp.get("user_id") or employee_id)
 

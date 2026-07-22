@@ -114,9 +114,9 @@ class TestExpenseApplicationServiceGetAllExpenses:
             return_value=expected_list,
         ) as mock_query:
             svc = ExpenseApplicationService()
-            result = svc.get_all_expenses(input_)
+            result = svc.get_all_expenses("company-1", input_)
 
-        mock_query.assert_called_once_with("validated")
+        mock_query.assert_called_once_with("company-1", "validated")
         assert result == expected_list
 
     def test_get_all_expenses_delegates_without_status(self):
@@ -126,9 +126,9 @@ class TestExpenseApplicationServiceGetAllExpenses:
             return_value=[],
         ) as mock_query:
             svc = ExpenseApplicationService()
-            svc.get_all_expenses(input_)
+            svc.get_all_expenses("company-1", input_)
 
-        mock_query.assert_called_once_with(None)
+        mock_query.assert_called_once_with("company-1", None)
 
 
 class TestExpenseApplicationServiceGetSignedUploadUrl:

@@ -131,9 +131,9 @@ class TestGetAllExpenses:
             "app.modules.expenses.application.queries.ExpenseRepository",
             return_value=mock_repo,
         ):
-            result = get_all_expenses()
+            result = get_all_expenses("company-1")
 
-        mock_repo.list_all.assert_called_once_with(None)
+        mock_repo.list_all.assert_called_once_with("company-1", None)
         assert len(result) == 1
         assert result[0]["id"] == "exp-1"
 
@@ -147,9 +147,9 @@ class TestGetAllExpenses:
             "app.modules.expenses.application.queries.ExpenseRepository",
             return_value=mock_repo,
         ):
-            result = get_all_expenses(status="validated")
+            result = get_all_expenses("company-1", status="validated")
 
-        mock_repo.list_all.assert_called_once_with("validated")
+        mock_repo.list_all.assert_called_once_with("company-1", "validated")
         assert result[0]["status"] == "validated"
 
     def test_get_all_expenses_empty(self):
@@ -160,7 +160,7 @@ class TestGetAllExpenses:
             "app.modules.expenses.application.queries.ExpenseRepository",
             return_value=mock_repo,
         ):
-            result = get_all_expenses(status="rejected")
+            result = get_all_expenses("company-1", status="rejected")
 
         assert result == []
 

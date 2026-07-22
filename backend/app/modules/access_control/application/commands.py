@@ -116,14 +116,54 @@ def replace_user_permissions(
     user_id: str,
     company_id: str,
     permission_ids: list | None,
+    grants: list | None = None,
 ) -> dict[str, str]:
-    """Remplace toutes les permissions utilisateur pour une entreprise (PUT)."""
+    """
+    Remplace toutes les permissions utilisateur pour une entreprise (PUT).
+
+    Si `grants` est fourni, remplacement atomique permissions + scopes.
+    Sinon, comportement legacy : permission_ids (scope company par défaut en DB).
+    """
     from app.modules.users.infrastructure.repository import user_permission_repository
 
     _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    grantor = str(current_user.id)
+
+    if grants is not None:
+        from app.modules.access_control.infrastructure.scoped_repository import (
+            scoped_permission_repository,
+        )
+
+        payload: list[dict[str, Any]] = []
+        for g in grants:
+            if hasattr(g, "model_dump"):
+                raw = g.model_dump()
+            else:
+                raw = dict(g)
+            payload.append(
+                {
+                    "permission_id": str(raw["permission_id"]),
+                    "scope_mode": raw.get("scope_mode") or "company",
+                    "team_ids": [str(t) for t in (raw.get("team_ids") or [])],
+                    "targets": [
+                        {
+                            "employee_id": str(t["employee_id"]),
+                            "effect": t["effect"],
+                        }
+                        for t in (raw.get("targets") or [])
+                    ],
+                }
+            )
+        scoped_permission_repository.replace_grants_atomic(
+            user_id=user_id,
+            company_id=company_id,
+            granted_by=grantor,
+            grants=payload,
+        )
+        return {"message": "Permissions et périmètres mis à jour"}
+
     ids = [str(p) for p in (permission_ids or [])]
     user_permission_repository.delete_for_user_company(user_id, company_id)
-    grantor = str(current_user.id)
     for permission_id in ids:
         user_permission_repository.upsert(
             user_id, company_id, permission_id, grantor
@@ -137,7 +177,7 @@ def grant_user_permissions(
     company_id: str,
     permission_ids: list | None,
 ) -> dict[str, str]:
-    """Ajoute des permissions sans supprimer les existantes (POST)."""
+    """Ajoute des permissions sans supprimer les existantes (POST) — scope company."""
     from app.modules.users.infrastructure.repository import user_permission_repository
 
     _assert_can_manage_user_permissions(current_user, user_id, company_id)
@@ -147,3 +187,17 @@ def grant_user_permissions(
             user_id, company_id, permission_id, grantor
         )
     return {"message": "Permissions accordées"}
+
+
+def get_user_permission_grants(
+    current_user: "User", user_id: str, company_id: str
+) -> list[dict[str, Any]]:
+    """Liste détaillée des grants + scopes pour l'éditeur UI."""
+    _assert_can_manage_user_permissions(current_user, user_id, company_id)
+    from app.modules.access_control.infrastructure.scoped_repository import (
+        scoped_permission_repository,
+    )
+
+    return scoped_permission_repository.list_grants_for_user_company(
+        user_id, company_id
+    )

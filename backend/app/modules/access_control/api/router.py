@@ -16,6 +16,7 @@ from app.modules.access_control.schemas import (
     PermissionAction,
     PermissionCategory,
     PermissionCheckResponse,
+    PermissionGrantDetail,
     PermissionMatrix,
     RoleHierarchyCheckResponse,
     RoleTemplateDetail,
@@ -94,7 +95,7 @@ async def put_user_permissions(
     data: UserPermissionsUpdate,
     current_user: User = Depends(get_current_user),
 ):
-    """Remplace la liste complète des permissions d'un utilisateur pour une entreprise."""
+    """Remplace la liste complète des permissions (et scopes si `grants`) d'un utilisateur."""
     if str(data.user_id) != user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,7 +106,22 @@ async def put_user_permissions(
         user_id,
         str(data.company_id),
         [str(p) for p in data.permission_ids],
+        grants=data.grants,
     )
+
+
+@router.get(
+    "/users/{user_id}/permission-grants",
+    response_model=List[PermissionGrantDetail],
+)
+async def get_user_permission_grants(
+    user_id: str,
+    company_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Détail des grants avec périmètres (équipes / exceptions) pour l'éditeur UI."""
+    rows = commands.get_user_permission_grants(current_user, user_id, company_id)
+    return rows
 
 
 @router.post("/users/{user_id}/permissions", status_code=status.HTTP_200_OK)

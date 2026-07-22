@@ -10,6 +10,7 @@ import json
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.schedules.application import ai_fill, commands, plan_commands, queries
 from app.modules.schedules.application.badgeuse_import import (
     import_actual_hours_from_badgeuse,
@@ -56,6 +57,17 @@ def _handle_schedule_error(e: ScheduleAppError) -> None:
     raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
+def _require_employee_schedule_access(
+    current_user: User, employee_id: str, permission_code: str
+) -> None:
+    company_id = str(current_user.active_company_id or "")
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Entreprise active requise.")
+    access_control_service.require_employee_access(
+        current_user, company_id, permission_code, employee_id
+    )
+
+
 # ----- Router 1 : /api/employees/{employee_id} -----
 
 router = APIRouter(
@@ -73,52 +85,79 @@ def get_employee_calendar(
 ):
     """Récupère les heures prévues et réelles pour le calendrier d'un salarié."""
     try:
-        _ = current_user
+        _require_employee_schedule_access(current_user, employee_id, "schedules.view_all")
         return queries.get_employee_calendar(employee_id, year, month)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
 
 @router.get("/planned-calendar", response_model=PlannedCalendarRequest)
-def get_planned_calendar(employee_id: str, year: int, month: int):
+def get_planned_calendar(
+    employee_id: str,
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+):
     """Récupère le calendrier prévu depuis la table employee_schedules."""
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.view_all")
         return queries.get_planned_calendar(employee_id, year, month)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
 
 @router.post("/planned-calendar", status_code=200)
-def update_planned_calendar(employee_id: str, payload: PlannedCalendarRequest):
+def update_planned_calendar(
+    employee_id: str,
+    payload: PlannedCalendarRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Met à jour (ou crée) le calendrier prévu dans la table employee_schedules."""
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         return commands.update_planned_calendar(employee_id, payload)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
 
 @router.get("/actual-hours", response_model=ActualHoursRequest)
-def get_actual_hours(employee_id: str, year: int, month: int):
+def get_actual_hours(
+    employee_id: str,
+    year: int,
+    month: int,
+    current_user: User = Depends(get_current_user),
+):
     """Récupère les heures réelles depuis la table employee_schedules."""
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.view_all")
         return queries.get_actual_hours(employee_id, year, month)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
 
 @router.post("/actual-hours", status_code=200)
-def update_actual_hours(employee_id: str, payload: ActualHoursRequest):
+def update_actual_hours(
+    employee_id: str,
+    payload: ActualHoursRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Met à jour (ou crée) les heures réelles dans la table employee_schedules."""
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         return commands.update_actual_hours(employee_id, payload)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
 
 @router.post("/calculate-payroll-events", status_code=200)
-def calculate_payroll_events(employee_id: str, request_body: dict):
+def calculate_payroll_events(
+    employee_id: str,
+    request_body: dict,
+    current_user: User = Depends(get_current_user),
+):
     """Déclenche le calcul des événements de paie pour un employé sur une période donnée."""
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         if not isinstance(request_body, dict):
             raise HTTPException(
                 status_code=422,
@@ -150,8 +189,8 @@ def import_actual_hours_from_badgeuse_route(
     current_user: User = Depends(get_current_user),
 ):
     """Importe les heures effectives badgeuse dans le calendrier réel du mois."""
-    _ = current_user
     try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         result = import_actual_hours_from_badgeuse(
             employee_id,
             body.year,

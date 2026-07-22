@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.employees.api.deps import (
     assert_can_read_employee_profile,
     require_rh_access,
@@ -675,6 +676,10 @@ def get_employee_contract_url(
 ):
     """(Espace RH) URL signée du contrat PDF."""
     try:
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        access_control_service.require_employee_access(
+            current_user, company_id, "contracts.view_all", employee_id
+        )
         url = queries.get_contract_url(employee_id)
         preview_url = queries.get_contract_preview_url(employee_id)
         return ContractResponse(url=url, preview_url=preview_url)
@@ -695,7 +700,9 @@ async def upload_employee_contract(
     """(Espace RH) Dépose ou remplace le contrat PDF signé."""
     try:
         company_id = require_rh_access(current_user.active_company_id, current_user)
-        assert_can_read_employee_profile(current_user, employee_id, company_id)
+        access_control_service.require_employee_access(
+            current_user, company_id, "contracts.update", employee_id
+        )
 
         filename = (file.filename or "").lower()
         if not filename.endswith(".pdf"):

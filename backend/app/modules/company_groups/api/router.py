@@ -14,6 +14,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.company_groups.api.auth import CurrentUserForCompanyGroups
 from app.modules.company_groups.application import commands, queries
 from app.modules.company_groups.application.service import (
@@ -72,6 +73,22 @@ def _handle_application_errors(e: Exception, default_message: str) -> None:
         raise HTTPException(status_code=500, detail=str(e))
     traceback.print_exc()
     raise HTTPException(status_code=500, detail=default_message)
+
+
+def _require_consolidated_view_permission(
+    current_user: CurrentUserForCompanyGroups,
+) -> None:
+    """Les données consolidées nécessitent un droit groupe explicite."""
+    if current_user.is_platform_admin:
+        return
+    company_id = current_user.active_company_id
+    if not company_id or not access_control_service.check_user_has_permission(
+        str(current_user.id), str(company_id), "group.consolidated.view"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Permission de consultation consolidée requise.",
+        )
 
 
 # ----- GET : lecture -----
@@ -141,6 +158,7 @@ def get_group_consolidated_stats(
 ):
     """Statistiques consolidées pour les entreprises du groupe."""
     try:
+        _require_consolidated_view_permission(current_user)
         return queries.get_group_consolidated_stats(
             group_id,
             current_user,

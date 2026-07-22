@@ -18,6 +18,10 @@ from app.modules.access_control.domain.interfaces import IPermissionRepository
 from app.modules.access_control.infrastructure.repository import (
     SupabasePermissionRepository,
 )
+from app.modules.access_control.infrastructure.scoped_repository import (
+    filter_allowed_employee_ids_for_user,
+    user_can_access_employee as _user_can_access_employee,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -123,6 +127,85 @@ class AccessControlService:
         if role == "custom":
             return self.has_any_rh_permission(str(current_user.id), company_id)
         return False
+
+    def user_can_access_employee(
+        self,
+        user_id: str,
+        company_id: str,
+        permission_code: str,
+        employee_id: str,
+        *,
+        team_id: str | None = None,
+    ) -> bool:
+        """True si grant présent et salarié dans le périmètre (équipes / exceptions)."""
+        return _user_can_access_employee(
+            user_id,
+            company_id,
+            permission_code,
+            employee_id,
+            team_id=team_id,
+        )
+
+    def filter_allowed_employee_ids(
+        self,
+        user_id: str,
+        company_id: str,
+        permission_code: str,
+        employee_ids: list[str] | None = None,
+    ) -> list[str]:
+        """Sous-ensemble des salariés autorisés pour une permission scopée."""
+        return filter_allowed_employee_ids_for_user(
+            user_id, company_id, permission_code, employee_ids
+        )
+
+    def require_employee_access(
+        self,
+        current_user: "User",
+        company_id: str,
+        permission_code: str,
+        employee_id: str,
+        *,
+        team_id: str | None = None,
+    ) -> None:
+        """
+        Lève 404 si le salarié est hors périmètre (pas de fuite d'existence),
+        403 si la permission est absente.
+        Platform admin : accès total.
+        Rôles admin/rh sans grant custom : accès company entier si has_permission
+        OU rôle admin/rh (compatibilité rétro).
+        """
+        if current_user.is_platform_admin:
+            return
+
+        has_perm = self.check_user_has_permission(
+            str(current_user.id), company_id, permission_code
+        )
+        role = current_user.get_role_in_company(company_id)
+        if not has_perm:
+            # Compatibilité : admin/rh/collaborateur_rh historiques sans ligne user_permissions
+            if role and rules.role_has_rh_level(role):
+                return
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission insuffisante",
+            )
+
+        # Si un grant existe, appliquer le scope ; sinon (admin/rh) company
+        allowed = self.user_can_access_employee(
+            str(current_user.id),
+            company_id,
+            permission_code,
+            employee_id,
+            team_id=team_id,
+        )
+        if not allowed:
+            # admin/rh avec grant company implicite : si grant absent du scope repo
+            # mais permission True via autre chemin — déjà couvert.
+            # Hors périmètre → 404 (pas de fuite)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ressource introuvable",
+            )
 
 
 # Singleton pour usage dans les routers après migration.

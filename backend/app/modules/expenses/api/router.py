@@ -11,6 +11,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.users.schemas.responses import User
 
 from app.modules.expenses.application.dto import (
@@ -60,6 +61,32 @@ def _require_rh_or_admin(current_user: User) -> None:
             status_code=403,
             detail="Accès réservé aux RH et administrateurs.",
         )
+
+
+def _filter_expenses_in_scope(
+    current_user: User, company_id: str, expenses: List[dict]
+) -> List[dict]:
+    """Ne conserve que les notes des salariés autorisés par le grant scoped."""
+    if current_user.is_platform_admin:
+        return expenses
+    employee_ids = [
+        str(exp.get("employee_id") or (exp.get("employees") or {}).get("id") or "")
+        for exp in expenses
+    ]
+    allowed = set(
+        access_control_service.filter_allowed_employee_ids(
+            str(current_user.id), company_id, "expenses.view_all", employee_ids
+        )
+    )
+    # Compatibilité des rôles RH historiques sans grants user_permissions.
+    if not allowed and current_user.has_rh_access_in_company(company_id):
+        return expenses
+    return [
+        exp
+        for exp in expenses
+        if str(exp.get("employee_id") or (exp.get("employees") or {}).get("id") or "")
+        in allowed
+    ]
 
 
 @router.post("/get-upload-url", response_model=SignedUploadUrlResponse)
@@ -126,7 +153,11 @@ async def get_all_expenses(
     """(Pour les RH) Récupère toutes les notes de frais, avec détails de l'employé."""
     try:
         _require_rh_or_admin(current_user)
-        return _expense_service.get_all_expenses(ListExpensesInput(status=status))
+        company_id = str(current_user.active_company_id)
+        expenses = _expense_service.get_all_expenses(
+            company_id, ListExpensesInput(status=status)
+        )
+        return _filter_expenses_in_scope(current_user, company_id, expenses)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -140,6 +171,19 @@ async def update_expense_status(
     """(Pour les RH) Valide ou rejette une note de frais."""
     try:
         _require_rh_or_admin(current_user)
+        company_id = str(current_user.active_company_id)
+        expense = _expense_service.get_all_expenses(
+            company_id, ListExpensesInput()
+        )
+        target = next((item for item in expense if str(item.get("id")) == expense_id), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
+        employee_id = str(
+            target.get("employee_id") or (target.get("employees") or {}).get("id") or ""
+        )
+        access_control_service.require_employee_access(
+            current_user, company_id, "expenses.approve", employee_id
+        )
         result = _expense_service.update_expense_status(
             UpdateExpenseStatusInput(expense_id=expense_id, status=status_update.status)
         )
