@@ -11,7 +11,6 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from openai import APIConnectionError, AuthenticationError, RateLimitError
 
-from app.core.logging import is_app_debug_enabled
 from app.core.security import get_current_user
 from app.modules.copilot.api.dependencies import AuthenticatedUser
 from app.modules.copilot.schemas import (

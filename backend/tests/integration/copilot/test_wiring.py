@@ -114,10 +114,9 @@ class TestCopilotDependencyInjection:
 class TestCopilotEndToEndFlow:
     """Flux bout en bout : HTTP -> router -> commande (mockée) -> réponse HTTP."""
 
-    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_text_to_sql_e2e_response_shape(
-        self, mock_execute, _mock_debug, client: TestClient, app_with_copilot_user
+        self, mock_execute, client: TestClient, app_with_copilot_user
     ):
         """La réponse HTTP masque SQL et données même en mode debug."""
         mock_execute.return_value = MagicMock(
@@ -139,10 +138,9 @@ class TestCopilotEndToEndFlow:
         assert body["sql_query"] == ""
         assert body["data"] is None
 
-    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
     def test_agent_e2e_response_shape(
-        self, mock_handle, _mock_debug, client: TestClient, app_with_copilot_user
+        self, mock_handle, client: TestClient, app_with_copilot_user
     ):
         """La réponse agent masque tous les détails internes même en debug."""
         mock_handle.return_value = MagicMock(

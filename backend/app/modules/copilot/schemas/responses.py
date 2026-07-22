@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 # --- Text-to-SQL (POST /query) ---
 class QueryResponse(BaseModel):
-    """Réponse Text-to-SQL : réponse formatée, SQL exécuté, données brutes."""
+    """Réponse Text-to-SQL publique ; SQL et données restent neutralisés."""
 
     answer: str
     sql_query: str
@@ -20,7 +20,7 @@ class QueryResponse(BaseModel):
 
 # --- Agent (POST /query-agent) ---
 class AgentResponse(BaseModel):
-    """Réponse agent : réponse, clarification éventuelle, SQL et données pour debug."""
+    """Réponse agent publique ; détails internes et données restent neutralisés."""
 
     answer: str
     needs_clarification: bool = False

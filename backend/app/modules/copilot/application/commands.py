@@ -47,7 +47,7 @@ def execute_text_to_sql(input_: TextToSqlInput) -> TextToSqlResult:
     Comportement identique à api/routers/copilot.py handle_query.
     """
     if not is_rh_data_enabled():
-        raise DataRetrievalDisabledError
+        raise DataRetrievalDisabledError(COPILOT_DATA_UNAVAILABLE_MESSAGE)
 
     if not is_llm_configured():
         raise ValueError(
@@ -120,6 +120,16 @@ def handle_agent_query(input_: AgentQueryInput) -> AgentQueryResult:
             answer=answer,
             needs_clarification=False,
             thought_process=thought_process + "\n\nRéponse: aide à l'utilisation du logiciel.",
+        )
+
+    if (
+        not company_id
+        and plan.get("requires_data_retrieval")
+        and not is_rh_data_enabled()
+    ):
+        return AgentQueryResult(
+            answer=COPILOT_DATA_UNAVAILABLE_MESSAGE,
+            needs_clarification=False,
         )
 
     if not company_id:

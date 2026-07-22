@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
-from app.modules.copilot.domain.data_access import DataRetrievalDisabledError
+from app.modules.copilot.domain.data_access import COPILOT_DATA_UNAVAILABLE_MESSAGE
 
 
 pytestmark = pytest.mark.integration
@@ -52,10 +52,9 @@ class TestCopilotQuery:
         )
         assert response.status_code == 401
 
-    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_with_auth_returns_200_and_response_body(
-        self, mock_execute, _mock_debug, client_with_copilot_user: TestClient
+        self, mock_execute, client_with_copilot_user: TestClient
     ):
         """Les détails SQL et données ne sortent jamais dans la réponse HTTP."""
         mock_execute.return_value = MagicMock(
@@ -77,11 +76,10 @@ class TestCopilotQuery:
         assert call_input.prompt == "Combien d'employés ?"
         assert call_input.user_id == "test-user-id-copilot"
 
-    @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_data_retrieval_disabled_returns_503(
-        self, mock_execute, client_with_copilot_user: TestClient
+        self, client_with_copilot_user: TestClient, monkeypatch
     ):
-        mock_execute.side_effect = DataRetrievalDisabledError()
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
 
         response = client_with_copilot_user.post(
             "/api/copilot/query",
@@ -89,6 +87,7 @@ class TestCopilotQuery:
         )
 
         assert response.status_code == 503
+        assert response.json()["detail"] == COPILOT_DATA_UNAVAILABLE_MESSAGE
 
     @patch("app.modules.copilot.api.router.commands.execute_text_to_sql")
     def test_query_value_error_returns_500(
@@ -137,10 +136,9 @@ class TestCopilotQueryAgent:
         )
         assert response.status_code == 401
 
-    @patch("app.modules.copilot.api.router.is_app_debug_enabled", return_value=True)
     @patch("app.modules.copilot.api.router.commands.handle_agent_query")
     def test_query_agent_with_auth_returns_200_and_response_body(
-        self, mock_handle, _mock_debug, client_with_copilot_user: TestClient
+        self, mock_handle, client_with_copilot_user: TestClient
     ):
         """Les détails internes de l'agent ne sortent jamais, même en debug."""
         mock_handle.return_value = MagicMock(

@@ -172,11 +172,10 @@ class TestHandleAgentQuery:
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
     @patch("app.modules.copilot.application.commands.get_company_id_for_user")
-    def test_raises_lookup_error_when_no_company_for_data_question(
-        self, mock_get_company, mock_get_agreements, mock_analyze
+    def test_data_question_without_company_returns_containment_message(
+        self, mock_get_company, mock_get_agreements, mock_analyze, monkeypatch
     ):
-        # Ni entreprise active, ni company_id de profil : une question de données
-        # nécessite une entreprise → LookupError.
+        monkeypatch.delenv("COPILOT_RH_DATA_ENABLED", raising=False)
         mock_get_company.return_value = None
         mock_get_agreements.return_value = []
         mock_analyze.return_value = {
@@ -188,15 +187,18 @@ class TestHandleAgentQuery:
         }
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
 
-        with pytest.raises(LookupError, match="Company ID non trouvé"):
-            handle_agent_query(
-                AgentQueryInput(
-                    prompt="Combien d'employés ?",
-                    conversation_history=[],
-                    user_id="user-1",
-                    active_company_id=None,
-                )
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Combien d'employés ?",
+                conversation_history=[],
+                user_id="user-1",
+                active_company_id=None,
             )
+        )
+
+        assert result.answer == COPILOT_DATA_UNAVAILABLE_MESSAGE
+        assert result.data is None
+        assert result.sql_queries is None
 
     @patch("app.modules.copilot.application.commands.answer_app_usage_question")
     @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
