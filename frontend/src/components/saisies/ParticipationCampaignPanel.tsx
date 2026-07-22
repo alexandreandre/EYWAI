@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Download, FileText, Megaphone, RefreshCw, Send } from 'lucide-react';
+import { Download, FileText, Megaphone, RefreshCw, Send, Upload } from 'lucide-react';
 
 import {
   bulletinStatusLabel,
@@ -9,16 +9,26 @@ import {
   createCampaign,
   generateCampaignPayrollLines,
   generateRegularisationPayslip,
+  importParticipationFromInputs,
   listCampaignBulletins,
   listCampaigns,
   publishCampaign,
   remindCampaign,
   type CampaignAdvanceInput,
+  type ImportParticipationResult,
   type ParticipationBulletin,
   type ParticipationCampaign,
 } from '@/api/participation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -103,6 +113,17 @@ export function ParticipationCampaignPanel({
       }
       return init;
     },
+  );
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPayrollYear, setImportPayrollYear] = useState(
+    defaultPayrollYear ?? year + 1,
+  );
+  const [importPayrollMonth, setImportPayrollMonth] = useState(
+    defaultPayrollMonth ?? 5,
+  );
+  const [importPreview, setImportPreview] = useState<ImportParticipationResult | null>(
+    null,
   );
 
   const { data: campaigns = [], refetch: refetchCampaigns } = useQuery({
@@ -212,6 +233,45 @@ export function ParticipationCampaignPanel({
     },
   });
 
+  const importPreviewMut = useMutation({
+    mutationFn: () =>
+      importParticipationFromInputs({
+        year,
+        payroll_year: importPayrollYear,
+        payroll_month: importPayrollMonth,
+        dry_run: true,
+      }),
+    onSuccess: (data) => setImportPreview(data),
+    onError: (e: unknown) => {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Aperçu impossible.';
+      toast({ title: 'Erreur', description: String(detail), variant: 'destructive' });
+    },
+  });
+
+  const importConfirmMut = useMutation({
+    mutationFn: () =>
+      importParticipationFromInputs({
+        year,
+        payroll_year: importPayrollYear,
+        payroll_month: importPayrollMonth,
+        dry_run: false,
+      }),
+    onSuccess: (data) => {
+      setImportOpen(false);
+      setImportPreview(null);
+      void queryClient.invalidateQueries({ queryKey: ['participation-campaigns', year] });
+      toast({ title: 'Import terminé', description: data.detail });
+    },
+    onError: (e: unknown) => {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Import impossible.';
+      toast({ title: 'Erreur', description: String(detail), variant: 'destructive' });
+    },
+  });
+
   const [regulPendingId, setRegulPendingId] = useState<string | null>(null);
   const regulMut = useMutation({
     mutationFn: (bulletinId: string) => generateRegularisationPayslip(bulletinId),
@@ -273,6 +333,94 @@ export function ParticipationCampaignPanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Importer depuis les saisies existantes
+          </Button>
+        </div>
+
+        <Dialog open={importOpen} onOpenChange={setImportOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Importer les participations {year} depuis les saisies existantes
+              </DialogTitle>
+              <DialogDescription>
+                Reconstruit une campagne clôturée à partir des saisies de paie déjà
+                enregistrées (numéraire, PEE, avances). Aucun bulletin d&apos;option
+                n&apos;est envoyé aux salariés : le choix est déduit des saisies.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Année de paie</Label>
+                <Input
+                  type="number"
+                  value={importPayrollYear}
+                  onChange={(e) => {
+                    setImportPayrollYear(parseInt(e.target.value, 10) || importPayrollYear);
+                    setImportPreview(null);
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Mois de paie</Label>
+                <Select
+                  value={String(importPayrollMonth)}
+                  onValueChange={(v) => {
+                    setImportPayrollMonth(parseInt(v, 10));
+                    setImportPreview(null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_OPTIONS.map((m) => (
+                      <SelectItem key={m.value} value={String(m.value)}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {importPreview && (
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-1">
+                <div>{importPreview.detail}</div>
+                {importPreview.bulletins > 0 && (
+                  <div>
+                    {importPreview.full_cash} numéraire · {importPreview.partial_cash} mixte
+                    · {importPreview.full_pee} PEE — {importPreview.linked_inputs} saisie(s)
+                    à rattacher
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={importPreviewMut.isPending}
+                onClick={() => importPreviewMut.mutate()}
+              >
+                Aperçu
+              </Button>
+              <Button
+                disabled={
+                  !importPreview ||
+                  importPreview.skipped ||
+                  importPreview.bulletins === 0 ||
+                  importConfirmMut.isPending
+                }
+                onClick={() => importConfirmMut.mutate()}
+              >
+                Confirmer l&apos;import
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Mois de paie (solde)</Label>

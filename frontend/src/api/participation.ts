@@ -194,6 +194,32 @@ export function choiceLabel(choice?: ParticipationChoiceType | null): string {
   }
 }
 
+export interface ImportParticipationResult {
+  campaign_id: string | null;
+  bulletins: number;
+  full_cash: number;
+  partial_cash: number;
+  full_pee: number;
+  linked_inputs: number;
+  skipped: boolean;
+  dry_run: boolean;
+  detail: string;
+}
+
+export async function importParticipationFromInputs(payload: {
+  year: number;
+  payroll_year: number;
+  payroll_month: number;
+  dry_run?: boolean;
+  force?: boolean;
+}): Promise<ImportParticipationResult> {
+  const { data } = await apiClient.post<ImportParticipationResult>(
+    '/api/participation/campaigns/import-from-inputs',
+    payload,
+  );
+  return data;
+}
+
 export function bulletinStatusLabel(status: string): string {
   switch (status) {
     case 'pending':
