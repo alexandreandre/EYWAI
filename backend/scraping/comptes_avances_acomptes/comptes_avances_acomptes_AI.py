@@ -27,6 +27,11 @@ if __name__ == "__main__":
         schema_name="comptes_avances_acomptes",
         keys=["avance", "acompte", "banque"],
         generator="comptes_avances_acomptes/comptes_avances_acomptes_AI.py",
+        include_domains=[
+            "plancomptable.com",
+            "service-public.fr",
+            "legifrance.gouv.fr",
+        ],
         task_prompt=(
             "Plan Comptable Général français : numéro de compte standard pour "
             "1) avances au personnel (avance), 2) acomptes au personnel (acompte), "

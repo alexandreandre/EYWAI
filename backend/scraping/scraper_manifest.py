@@ -326,7 +326,7 @@ SCRAPER_MANIFEST: tuple[ScraperEntry, ...] = (
         config_key="cdd",
         tier="standard",
         network_flaky=True,
-        checks=(ScraperCheck(path=["data", "precarite", "taux"], min=0.0, max=0.15),),
+        checks=(ScraperCheck(path=["data", "precarite_taux"], min=0.0, max=0.15),),
     ),
     ScraperEntry(
         name="INTERIM",
@@ -334,7 +334,7 @@ SCRAPER_MANIFEST: tuple[ScraperEntry, ...] = (
         config_key="interim",
         tier="standard",
         network_flaky=True,
-        checks=(ScraperCheck(path=["data", "ifm", "taux"], min=0.0, max=0.15),),
+        checks=(ScraperCheck(path=["data", "ifm_taux"], min=0.0, max=0.15),),
     ),
     ScraperEntry(
         name="STAGE",
@@ -353,7 +353,7 @@ SCRAPER_MANIFEST: tuple[ScraperEntry, ...] = (
         tier="standard",
         network_flaky=True,
         checks=(
-            ScraperCheck(path=["data", "csg_ijss", "taux_deductible"], min=0.0, max=0.10),
+            ScraperCheck(path=["data", "csg_ijss_taux_deductible"], min=0.0, max=0.10),
         ),
     ),
     ScraperEntry(

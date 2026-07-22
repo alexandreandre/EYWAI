@@ -24,7 +24,7 @@ def test_build_merges_preserving_existing_keys():
                 "de_20_a_199_salaries": 500,
                 "200_salaries_et_plus": 600,
             },
-            "taux_obligation": 0.06,
+            "taux_obligation": 0.05,
         }
     }
     sig = {"taux_obligation": 0.06}

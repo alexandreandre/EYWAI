@@ -1,4 +1,4 @@
--- supabase/migrations/20260722120000_scraping_sources_taux_ia.sql
+-- supabase/migrations/20260722130000_scraping_sources_taux_ia.sql
 -- Sources scraping IA mono-source pour les taux jusque-là non régénérables.
 INSERT INTO public.scraping_sources (
     source_key, source_name, source_type, description, target_table, target_field,

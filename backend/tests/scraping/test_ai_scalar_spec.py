@@ -49,6 +49,18 @@ def test_merge_preserves_existing_and_sets_nested():
     assert out["other"] == 1               # clés voisines préservées
 
 
+def test_equal_handles_non_numeric_values_without_raising():
+    spec = _spec()
+    # Valeurs non numériques (ex: listes, chaînes de codes PCG) : comparaison
+    # par égalité stricte, jamais de crash sur float(va)/float(vb).
+    assert spec.signatures_equal(
+        {"a": ["x", "y"], "b": "425"}, {"a": ["x", "y"], "b": "425"}
+    )
+    assert not spec.signatures_equal(
+        {"a": ["x", "y"], "b": "425"}, {"a": ["x", "z"], "b": "425"}
+    )
+
+
 def test_merge_requires_current_when_flagged():
     spec = _spec()
     import pytest

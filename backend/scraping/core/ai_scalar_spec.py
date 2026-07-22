@@ -34,6 +34,10 @@ def make_signatures_equal(
                 if va is not vb:
                     return False
                 continue
+            if not isinstance(va, (int, float)) or not isinstance(vb, (int, float)):
+                if va != vb:
+                    return False
+                continue
             if not math.isclose(float(va), float(vb), abs_tol=tol):
                 return False
         return True
