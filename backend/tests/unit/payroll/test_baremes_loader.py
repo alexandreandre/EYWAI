@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from app.modules.payroll.engine.baremes_loader import (
+    _libelle_commune_vmrr,
+    _normaliser_taux_vm_decimal,
     assembler_baremes,
     baremes_lookup,
     comparer_taux_vm_entreprise,
@@ -140,6 +142,59 @@ def test_resoudre_taux_vm_ne_matche_pas_sous_commune_courte():
     # Contenance ville → libellé plus long (OK) : « Aix » dans « Aix en Provence »
     rows_aix = [{"commune": "AIX EN PROVENCE", "taux": 0.0208}]
     assert resoudre_taux_vm_officiel(rows_aix, "Aix en Provence") == 0.0208
+
+
+def test_resoudre_taux_vm_officiel_schema_fichierdirect():
+    """Régression : barème scrapé fichierdirect URSSAF (schéma XLSX brut).
+
+    Colonnes réelles : « Communes concernées », « Taux\\nVMRR », « Code commune
+    INSEE ». La clé « Code commune INSEE » contient le mot « commune » : le
+    résolveur ne doit PAS la prendre pour le libellé, sinon aucune commune ne
+    matche jamais (cas CERIZAY → « Taux VM introuvable »).
+    """
+    rows = [
+        {
+            "Taux\nVMRR": 0.0015,
+            "code partenaire": 9333301,
+            "Code commune INSEE": 79062,
+            "Communes concernées": "CERIZAY",
+            "Date de fin d’effet": None,
+            "Date de début d’effet": "2026-01-01",
+        },
+        {
+            "Taux\nVMRR": "0,15%",
+            "code partenaire": 9332501,
+            "Code commune INSEE": 25001,
+            "Communes concernées": "ABBANS-DESSOUS",
+            "Date de fin d’effet": None,
+            "Date de début d’effet": "2026-01-01",
+        },
+    ]
+    alertes: list = []
+    assert resoudre_taux_vm_officiel(rows, "CERIZAY", alertes=alertes) == 0.0015
+    assert alertes == []
+    # Taux en chaîne « 0,15% » → 0.0015 (et non 0.15).
+    assert resoudre_taux_vm_officiel(rows, "ABBANS-DESSOUS") == 0.0015
+
+
+def test_libelle_commune_vmrr_ne_renvoie_pas_le_code_insee():
+    """« Code commune INSEE » ne doit jamais être pris pour le nom de commune."""
+    row = {"Code commune INSEE": 79062, "Communes concernées": "CERIZAY"}
+    assert _libelle_commune_vmrr(row) == "CERIZAY"
+
+
+def test_normaliser_taux_vm_decimal_pourcentage_chaine():
+    """« 0,15% » = 0,15 % = 0.0015 (le signe % pilote la division par 100)."""
+    assert _normaliser_taux_vm_decimal("0,15%") == 0.0015
+    assert _normaliser_taux_vm_decimal("1,5%") == 0.015
+    assert _normaliser_taux_vm_decimal(0.0015) == 0.0015
+    assert _normaliser_taux_vm_decimal(1.5) == 0.015  # pourcentage numérique
+
+
+def test_resoudre_taux_vm_officiel_insensible_aux_accents():
+    """Ville « Cérizay » (accentuée) matche le barème « CERIZAY »."""
+    rows = [{"commune": "CERIZAY", "taux": 0.0015}]
+    assert resoudre_taux_vm_officiel(rows, "Cérizay") == 0.0015
 
 
 def test_resoudre_taux_vm_absent_sans_defaut():
