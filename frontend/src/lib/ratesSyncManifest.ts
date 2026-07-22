@@ -22,6 +22,7 @@ const BAREMES_EXCLUDED_KEYS = new Set([
   'pss',
   'ij_plafonds',
   'cotisations',
+  'payslip_edit_lock',
 ]);
 
 const BAREMES_ORDERED_KEYS = [

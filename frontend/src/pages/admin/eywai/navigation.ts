@@ -64,6 +64,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         icon: Percent,
       },
       {
+        name: "Paramètres paie",
+        href: "/super-admin/payroll-settings",
+        icon: Percent,
+      },
+      {
         name: "Conventions collectives",
         href: "/super-admin/collective-agreements",
         icon: FileText,
