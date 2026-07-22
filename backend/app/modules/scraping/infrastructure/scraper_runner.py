@@ -90,6 +90,16 @@ SOURCE_KEY_TO_FOLDER_MAPPING = {
     "PREVOYANCE_NON_CADRE": "prevoyance",
     "VM": "versement_mobilite",
     "ALTERNANCE": "alternance",
+    "TAUX_INTERET_LEGAL": "taux_interet_legal",
+    "CDD": "cdd",
+    "INTERIM": "interim",
+    "STAGE": "stage",
+    "MALADIE": "maladie",
+    "JEI": "jei",
+    "OETH": "oeth",
+    "REDUCTION_GENERALE": "reduction_generale",
+    "MANDATAIRE": "mandataire",
+    "COMPTES_AVANCES_ACOMPTES": "comptes_avances_acomptes",
 }
 
 
