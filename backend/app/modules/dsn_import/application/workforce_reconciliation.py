@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import calendar
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.dsn_import.domain.employee_dsn_situation import (
+    DsnSituation,
+    DsnSituationSignals,
+    classify_dsn_situation,
+)
+from app.modules.dsn_import.domain.normalize import nir_match_key
 from app.modules.dsn_import.domain.user_messages import (
     _mask_nir,
+    employee_dsn_situation_advisory,
     employee_workforce_gap_anomaly,
     workforce_reconciliation_summary_anomaly,
 )
@@ -53,9 +60,8 @@ def _employee_display_name(row: Dict[str, Any]) -> str:
 
 
 def _normalize_nir(nir: Optional[str]) -> str:
-    if not nir:
-        return ""
-    return str(nir).replace(" ", "").strip()
+    """Clé de rapprochement NIR : réduit la base (15) et la DSN (13) au même repère."""
+    return nir_match_key(nir)
 
 
 def _parse_iso_date(value: Any) -> Optional[date]:
@@ -82,6 +88,139 @@ def _employee_in_payroll_scope(
     if period_start and end and end < period_start:
         return False
     return True
+
+
+def _business_days_in_period(start: date, end: date) -> int:
+    if end < start:
+        return 0
+    count = 0
+    current = start
+    while current <= end:
+        if current.weekday() < 5:
+            count += 1
+        current += timedelta(days=1)
+    return count
+
+
+def _absence_business_days_in_period(
+    nir_items: List[Dict[str, Any]],
+    period_start: date,
+    period_end: date,
+) -> int:
+    """Jours ouvrés de la période couverts par un arrêt/suspension (items 'absence')."""
+    covered: set[date] = set()
+    for it in nir_items:
+        if it.get("item_type") != "absence":
+            continue
+        payload = it.get("mapped_payload") or {}
+        for raw in payload.get("selected_days") or []:
+            d = _parse_iso_date(raw)
+            if d and period_start <= d <= period_end and d.weekday() < 5:
+                covered.add(d)
+    return len(covered)
+
+
+def _period_totals_for_nir(
+    nir_items: List[Dict[str, Any]],
+) -> Tuple[Optional[float], Optional[float]]:
+    """(brut, net_imposable) du mois depuis l'item 'cumul', s'il existe."""
+    for it in nir_items:
+        if it.get("item_type") != "cumul":
+            continue
+        totals = (it.get("mapped_payload") or {}).get("month_totals") or {}
+        brut = totals.get("brut")
+        net = totals.get("net_imposable")
+        return (
+            float(brut) if brut is not None else None,
+            float(net) if net is not None else None,
+        )
+    return None, None
+
+
+def _fin_contrat_signal(
+    nir_items: List[Dict[str, Any]],
+) -> Tuple[bool, Optional[date]]:
+    """(has_fin_contrat, dernier jour ouvré) depuis l'item 'exit' (bloc DSN G62)."""
+    for it in nir_items:
+        if it.get("item_type") != "exit":
+            continue
+        payload = it.get("mapped_payload") or {}
+        return True, _parse_iso_date(payload.get("last_working_day"))
+    return False, None
+
+
+def _build_situation_signals(
+    nir_items: List[Dict[str, Any]],
+    period_start: date,
+    period_end: date,
+) -> DsnSituationSignals:
+    has_fin, fin_lwd = _fin_contrat_signal(nir_items)
+    brut, net = _period_totals_for_nir(nir_items)
+    return DsnSituationSignals(
+        period_start=period_start,
+        period_end=period_end,
+        working_days_in_period=_business_days_in_period(period_start, period_end),
+        present_in_dsn=True,
+        has_fin_contrat=has_fin,
+        fin_contrat_last_working_day=fin_lwd,
+        exit_last_working_day=None,
+        absence_days_in_period=_absence_business_days_in_period(
+            nir_items, period_start, period_end
+        ),
+        period_brut=brut,
+        period_net=net,
+    )
+
+
+def _build_advisories(
+    *,
+    active_by_nir: Dict[str, Dict[str, Any]],
+    dsn_nirs: set,
+    items_by_nir: Dict[str, List[Dict[str, Any]]],
+    seen_employee_ids: set,
+    period: Optional[str],
+    period_start: Optional[date],
+    period_end: Optional[date],
+) -> List[Dict[str, Any]]:
+    """Recommandations non bloquantes pour les salariés présents à la situation atypique.
+
+    Couvre les catégories que les écarts effectifs ne traitent pas : absence prolongée
+    et versement postérieur au départ. Les départs (absent de la DSN, fin de contrat)
+    restent gérés par les écarts bloquants.
+    """
+    advisories: List[Dict[str, Any]] = []
+    if not (period_start and period_end):
+        return advisories
+    for nir, employee in active_by_nir.items():
+        if nir not in dsn_nirs:
+            continue  # absent de la DSN -> déjà traité comme écart 'missing_from_dsn'
+        employee_id = str(employee["id"])
+        if employee_id in seen_employee_ids:
+            continue  # déjà un écart bloquant (ex. fin de contrat)
+        if not _employee_in_payroll_scope(employee, period_start, period_end):
+            continue
+        signals = _build_situation_signals(
+            items_by_nir.get(nir, []), period_start, period_end
+        )
+        result = classify_dsn_situation(signals)
+        if result.situation not in (
+            DsnSituation.PROLONGED_ABSENCE,
+            DsnSituation.POST_EXIT_PAYMENT,
+        ):
+            continue
+        advisories.append(
+            {
+                "advisory_id": f"situation:{employee_id}",
+                "employee_id": employee_id,
+                "employee_name": _employee_display_name(employee),
+                "nir_masked": _mask_nir((employee.get("nir") or "").strip()),
+                "situation": result.situation.value,
+                "recommendation": result.recommendation,
+                "evidence": result.evidence,
+                "period": period,
+            }
+        )
+    return advisories
 
 
 def _classify_missing_from_dsn_gap(
@@ -176,6 +315,7 @@ def compute_workforce_gaps(
             "missing_from_dsn": 0,
             "contract_end_in_dsn": 0,
         },
+        "advisories": [],
     }
     if (import_mode or "").strip().lower() != "monthly" or not target_company_id:
         return disabled, []
@@ -187,12 +327,14 @@ def compute_workforce_gaps(
 
     dsn_nirs: set[str] = set()
     dsn_nir_to_item: Dict[str, Dict[str, Any]] = {}
+    items_by_nir: Dict[str, List[Dict[str, Any]]] = {}
     for it in items:
-        if it.get("item_type") != "employee":
-            continue
         payload = it.get("mapped_payload") or {}
         nir = _normalize_nir(payload.get("nir"))
-        if nir:
+        if not nir:
+            continue
+        items_by_nir.setdefault(nir, []).append(it)
+        if it.get("item_type") == "employee":
             dsn_nirs.add(nir)
             dsn_nir_to_item[nir] = it
 
@@ -267,6 +409,16 @@ def compute_workforce_gaps(
                 )
             )
 
+    advisories = _build_advisories(
+        active_by_nir=active_by_nir,
+        dsn_nirs=dsn_nirs,
+        items_by_nir=items_by_nir,
+        seen_employee_ids=seen_employee_ids,
+        period=period,
+        period_start=period_start,
+        period_end=period_end,
+    )
+
     resolved_count = sum(1 for g in gaps if g.get("resolution"))
     unresolved_count = len(gaps) - resolved_count
     gap_counts_by_type = _count_gaps_by_type(gaps)
@@ -283,6 +435,7 @@ def compute_workforce_gaps(
         "active_db_count": len(active_employees),
         "excluded_out_of_scope_count": excluded_out_of_scope_count,
         "gap_counts_by_type": gap_counts_by_type,
+        "advisories": advisories,
     }
 
     anomalies: List[Dict[str, Any]] = []
@@ -301,6 +454,9 @@ def compute_workforce_gaps(
         )
         for gap in gaps:
             anomalies.append(employee_workforce_gap_anomaly(gap=gap))
+
+    for advisory in advisories:
+        anomalies.append(employee_dsn_situation_advisory(advisory=advisory))
 
     if active_without_nir:
         anomalies.append(

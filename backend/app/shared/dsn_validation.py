@@ -12,7 +12,10 @@ def _clean_digits(value: Optional[str]) -> str:
 
 
 def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
-    """Valide un NIR complet (15 chiffres avec clé)."""
+    """Valide un NIR complet (15 chiffres avec clé).
+
+    Clé officielle : ``97 - (int(NIR_13) % 97)``.
+    """
     if not nir:
         return False, "NIR manquant"
     nir_clean = _clean_digits(nir)
@@ -24,10 +27,9 @@ def validate_nir(nir: Optional[str]) -> Tuple[bool, Optional[str]]:
     if not nir_clean.isdigit():
         return False, "NIR invalide : doit contenir uniquement des chiffres"
     try:
-        nir_digits = [int(d) for d in nir_clean[:13]]
+        body = nir_clean[:13]
         key = int(nir_clean[13:15])
-        total = sum(nir_digits[i] * (2 if i % 2 == 0 else 1) for i in range(13))
-        calculated_key = 97 - (total % 97)
+        calculated_key = 97 - (int(body) % 97)
         if calculated_key != key:
             return False, "NIR invalide : clé de contrôle incorrecte"
         return True, None

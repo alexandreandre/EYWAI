@@ -58,11 +58,22 @@ def _collect_versement_dates(etab: EtablissementBlock) -> List[str]:
     return dates
 
 
+# Convention produit : valeur hors weekday 0-6 = période mois calendaire plein
+# (voir period_forfait.est_mode_mois_calendaire). 31 = sentinelle stable
+# « fin de mois calendaire », indépendante de 28/29/30 selon le mois DSN.
+_CALENDAR_MONTH_JOUR_FIN_SENTINEL = 31
+
+
 def infer_payroll_calendar(
     etab: EtablissementBlock,
     parsed: Optional[ParsedDsnSet] = None,
 ) -> Dict[str, Any]:
-    """Infère paie_jour_de_fin et paie_occurrence depuis les dates G00.50."""
+    """Infère paie_jour_de_fin et paie_occurrence depuis les dates G00.50.
+
+    Si les versements tombent le dernier jour du mois DSN, on pose le mode
+    mois calendaire (occurrence=-1, jour_de_fin=31 sentinelle) — pas le jour
+    civil brut (28/30/31), qui serait mal interprété comme weekday 0-6.
+    """
     dates = _collect_versement_dates(etab)
     days: List[int] = []
     for d in dates:
@@ -79,7 +90,6 @@ def infer_payroll_calendar(
         return result
 
     max_day = max(days)
-    result["paie_jour_de_fin"] = max_day
 
     year: Optional[int] = None
     month: Optional[int] = None
@@ -92,9 +102,12 @@ def infer_payroll_calendar(
 
     if year and month and max_day >= calendar.monthrange(year, month)[1]:
         result["paie_occurrence"] = -1
+        result["paie_jour_de_fin"] = _CALENDAR_MONTH_JOUR_FIN_SENTINEL
     elif len(set(days)) == 1:
+        result["paie_jour_de_fin"] = max_day
         result["paie_occurrence"] = 1
     else:
+        result["paie_jour_de_fin"] = max_day
         result["paie_occurrence"] = len(set(days))
 
     return result

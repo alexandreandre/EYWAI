@@ -418,6 +418,26 @@ def map_employee_payload(
 
     statut_categoriel = map_statut_cadre(contrat.statut)
 
+    from app.modules.collective_agreements.domain.classification import (
+        normalize_classification_for_payroll,
+    )
+
+    classification = normalize_classification_for_payroll(
+        {
+            "idcc": contrat.idcc,
+            "pcs": contrat.pcs,
+            "libelle_emploi": contrat.libelle_emploi or None,
+            "statut_categoriel": statut_categoriel,
+            "code_statut_dsn": contrat.statut or None,
+            "position": contrat.position_conv or None,
+            "dispositif_politique_publique": contrat.dispositif or None,
+            "numero_contrat_dsn": contrat.numero_contrat or None,
+            "classification_dsn": contrat.rubriques.get("S21.G00.40.040"),
+            "niveau_dsn": contrat.rubriques.get("S21.G00.40.041"),
+            "taux_at_individuel_dsn": contrat.rubriques.get("S21.G00.40.043"),
+        }
+    )
+
     payload: Dict[str, Any] = {
         "first_name": ind.prenom,
         "last_name": ind.nom,
@@ -443,19 +463,7 @@ def map_employee_payload(
             "type": "mensuel",
             "a_verifier": brut <= 0,
         },
-        "classification_conventionnelle": {
-            "idcc": contrat.idcc,
-            "pcs": contrat.pcs,
-            "libelle_emploi": contrat.libelle_emploi or None,
-            "statut_categoriel": statut_categoriel,
-            "code_statut_dsn": contrat.statut or None,
-            "position": contrat.position_conv or None,
-            "dispositif_politique_publique": contrat.dispositif or None,
-            "numero_contrat_dsn": contrat.numero_contrat or None,
-            "classification_dsn": contrat.rubriques.get("S21.G00.40.040"),
-            "niveau_dsn": contrat.rubriques.get("S21.G00.40.041"),
-            "taux_at_individuel_dsn": contrat.rubriques.get("S21.G00.40.043"),
-        },
+        "classification_conventionnelle": classification,
         "elements_variables": {"primes_dsn": primes_dsn} if primes_dsn else {},
         "specificites_paie": {
             **psc_block,

@@ -1,0 +1,1 @@
+"""Application comparaison DSN."""

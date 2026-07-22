@@ -989,10 +989,10 @@ def _generate_dsn(
         dsn_xml_content = dsn_xml_content.encode("utf-8")
 
     period_formatted = request.period.replace("-", "_")
-    filename = f"dsn_mensuelle_{period_formatted}.xml"
+    filename = f"dsn_mensuelle_{period_formatted}.dsn"
     storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
     final_storage_path = upload_export_file(
-        BUCKET, storage_path, dsn_xml_content, "application/xml"
+        BUCKET, storage_path, dsn_xml_content, "text/plain; charset=iso-8859-15"
     )
     signed_url = create_signed_url(final_storage_path, 3600)
 
@@ -1023,7 +1023,7 @@ def _generate_dsn(
         else [],
         utilisateur_generateur=user_name,
         date_generation=datetime.now(),
-        version_norme_dsn="P24V01",
+        version_norme_dsn="P26V01",
     )
     export_record: ExportRecordForInsert = {
         "company_id": company_id,
@@ -1062,7 +1062,7 @@ def _generate_dsn(
                 filename=filename,
                 path=final_storage_path,
                 size=len(dsn_xml_content),
-                format="xml",
+                format="dsn",
             )
         ],
         report=dsn_report,

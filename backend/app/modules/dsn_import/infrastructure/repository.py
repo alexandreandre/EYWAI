@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
+from app.modules.dsn_import.domain.normalize import nir_match_key
 
 logger = get_logger("modules.dsn_import.repository")
 
@@ -321,6 +322,28 @@ def list_companies_for_attribution() -> List[Dict[str, Any]]:
         return []
 
 
+def _find_employee_by_nir_key(
+    client: Any, nir: str, *, company_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Repli tolérant à la clé NIR : la DSN émet souvent 13 chiffres, la base 15.
+
+    On rapproche sur les 13 premiers caractères (clé de contrôle mise à part) via un
+    préfixe SQL, puis on vérifie chaque candidat avec ``nir_match_key`` (les 13 premiers
+    caractères identifient de façon unique une personne).
+    """
+    key = nir_match_key(nir)
+    if not key:
+        return None
+    query = client.table("employees").select("*").ilike("nir", f"{key}%")
+    if company_id:
+        query = query.eq("company_id", company_id)
+    resp = query.limit(5).execute()
+    for row in resp.data or []:
+        if nir_match_key(row.get("nir")) == key:
+            return row
+    return None
+
+
 def find_employee_by_nir(company_id: str, nir: str) -> Optional[Dict[str, Any]]:
     if not company_id or not nir:
         return None
@@ -334,7 +357,9 @@ def find_employee_by_nir(company_id: str, nir: str) -> Optional[Dict[str, Any]]:
             .limit(1)
             .execute()
         )
-        return resp.data[0] if resp.data else None
+        if resp.data:
+            return resp.data[0]
+        return _find_employee_by_nir_key(client, nir, company_id=company_id)
     except Exception:
         logger.exception("Recherche salarié NIR échouée")
         return None
@@ -353,7 +378,9 @@ def find_employee_by_nir_global(nir: str) -> Optional[Dict[str, Any]]:
             .limit(1)
             .execute()
         )
-        return resp.data[0] if resp.data else None
+        if resp.data:
+            return resp.data[0]
+        return _find_employee_by_nir_key(client, nir)
     except Exception:
         logger.exception("Recherche salarié NIR (global) échouée")
         return None

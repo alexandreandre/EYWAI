@@ -76,7 +76,13 @@ def test_run_heures_has_run_function():
         "month",
         "engine_root",
         "company_id",
+        "employee_id",
+        "baremes_override",
     ]
+    assert all(
+        sig.parameters[name].default is None
+        for name in ("company_id", "employee_id", "baremes_override")
+    )
 
 
 def test_run_heures_uses_common_definir_periode_and_calendrier():
@@ -107,7 +113,19 @@ def test_run_forfait_has_run_function():
 
     sig = inspect.signature(run_payslip_generation_forfait)
     params = list(sig.parameters)
-    assert params == ["employee_path", "year", "month", "engine_root"]
+    assert params == [
+        "employee_path",
+        "year",
+        "month",
+        "engine_root",
+        "baremes_override",
+        "company_id",
+        "employee_id",
+    ]
+    assert all(
+        sig.parameters[name].default is None
+        for name in ("baremes_override", "company_id", "employee_id")
+    )
 
 
 def test_run_forfait_uses_common():

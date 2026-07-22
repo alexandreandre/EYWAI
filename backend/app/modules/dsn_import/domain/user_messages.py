@@ -200,6 +200,31 @@ def employee_workforce_gap_anomaly(*, gap: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
+_SITUATION_LABELS = {
+    "prolonged_absence": "absence prolongée",
+    "post_exit_payment": "versement postérieur au départ",
+    "likely_departure": "sortie probable",
+}
+
+
+def employee_dsn_situation_advisory(*, advisory: Dict[str, Any]) -> Dict[str, Any]:
+    """Anomalie informative (non bloquante) : situation salarié détectée avant paie."""
+    name = advisory.get("employee_name") or "Salarié"
+    situation = str(advisory.get("situation") or "")
+    label = _SITUATION_LABELS.get(situation, situation or "situation à vérifier")
+    reco = advisory.get("recommendation") or ""
+    employee_id = advisory.get("employee_id")
+    message = f"{name} : {label} détectée avant paie. {reco}".strip()
+    return build_anomaly(
+        "employee_dsn_situation_advisory",
+        message,
+        hint="Recommandation informative — vérifiez la situation avant de générer la paie.",
+        severity="warning",
+        source_ref=f"situation:{employee_id}" if employee_id else None,
+        meta={"advisory": advisory},
+    )
+
+
 def parse_warning_anomaly(message: str) -> Dict[str, Any]:
     return build_anomaly("parse_warning", message, severity="warning")
 

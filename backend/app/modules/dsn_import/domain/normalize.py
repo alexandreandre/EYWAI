@@ -26,6 +26,26 @@ def normalize_date_dsn(value: str) -> Optional[str]:
         return None
 
 
+def nir_match_key(nir: Optional[str]) -> str:
+    """Clé de rapprochement d'un NIR entre la base (15 caractères) et la DSN (13).
+
+    Un NIR complet fait 15 caractères = NIR (13) + clé de contrôle (2). La DSN
+    émet fréquemment le NIR à 13 caractères (sans la clé). Pour rapprocher les
+    deux, on réduit tout NIR de 15 caractères à ses 13 premiers.
+
+    On tronque par nombre de caractères (et non en filtrant les chiffres) afin de
+    préserver les NIR corses, dont le département 2A/2B introduit une lettre.
+    Un identifiant non standard (NTT, longueur ≠ 13/15) est renvoyé nettoyé, sans
+    troncature.
+    """
+    if not nir:
+        return ""
+    clean = "".join(str(nir).split()).replace("-", "").replace(".", "").replace("/", "").upper()
+    if len(clean) == 15:
+        return clean[:13]
+    return clean
+
+
 def map_contract_type(nature_code: str) -> str:
     code = (nature_code or "").strip().zfill(2)
     return CONTRACT_NATURE_MAP.get(code, "CDI")

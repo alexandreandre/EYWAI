@@ -135,3 +135,26 @@ def test_payload_sans_pas_reste_vide():
     payload = map_employee_payload(ind, etab, "95147478200020")
     assert payload["sexe"] == "M"
     assert payload["specificites_paie"]["prelevement_a_la_source"] == {}
+
+
+def test_payload_plasturgie_mappe_niveau_dsn_en_coefficient():
+    lines = (
+        "S21.G00.30.001,'180032710123448'\n"
+        "S21.G00.30.002,'ARAB'\n"
+        "S21.G00.30.004,'Sadiqullah'\n"
+        "S21.G00.40.001,'20012025'\n"
+        "S21.G00.40.002,'01'\n"
+        "S21.G00.40.017,'0292'\n"
+        "S21.G00.40.041,'700'\n"
+        "S21.G00.40.013,'162.50'\n"
+        "S21.G00.40.014,'162.50'\n"
+        "S21.G00.51.001,'01012026'\n"
+        "S21.G00.51.002,'31012026'\n"
+        "S21.G00.51.011,'001'\n"
+        "S21.G00.51.013,'1868.57'\n"
+    )
+    ind, etab = _individu_from(lines)
+
+    payload = map_employee_payload(ind, etab, "95147478200020")
+
+    assert payload["classification_conventionnelle"]["coefficient"] == 700

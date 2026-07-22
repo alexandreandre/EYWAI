@@ -1,19 +1,44 @@
-# Implémentation locale du générateur DSN (ex-services.exports.dsn).
-import xml.etree.ElementTree as ET
+# Générateur DSN mensuelle NEODeS P26V01 (fichier plat).
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-from xml.dom import minidom
 
 from app.core.database import supabase
+from app.modules.dsn_export.application.builder import (
+    DsnBuildError,
+    build_parsed_dsn_from_payroll,
+)
+from app.modules.dsn_export.domain.writer import encode_dsn_bytes
+from app.modules.dsn_import.domain.parser import parse_dsn_content
+from app.modules.dsn_import.domain.validation import validate_parsed_dsn
+from app.modules.exports.infrastructure.payslip_accounting_extract import (
+    extract_cotisations_from_payslip,
+    extract_pas_amount,
+)
 from app.modules.oeth_settings.application import queries as oeth_queries
-from app.shared.dsn_validation import validate_nir, validate_siret
+from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
+
+DSN_NORME = "P26V01"
 
 
 def get_company_data(company_id: str) -> Dict[str, Any]:
     response = (
         supabase.table("companies").select("*").eq("id", company_id).single().execute()
     )
-    return response.data if response.data else {}
+    data = response.data if response.data else {}
+    if not data:
+        return {}
+    # Normalise les alias attendus par le builder P26
+    if not data.get("name"):
+        data["name"] = data.get("company_name") or data.get("raison_sociale") or ""
+    if not data.get("address") or not isinstance(data.get("address"), dict):
+        data["address"] = {
+            "rue": data.get("adresse_rue") or "",
+            "code_postal": data.get("adresse_code_postal") or "",
+            "ville": data.get("adresse_ville") or "",
+        }
+    if not data.get("code_naf"):
+        data["code_naf"] = data.get("naf_ape") or ""
+    return data
 
 
 def get_dsn_employees_data(
@@ -31,12 +56,22 @@ def get_dsn_employees_data(
         first_name,
         last_name,
         nir,
+        sexe,
         date_naissance,
+        lieu_naissance,
         adresse,
         contract_type,
         hire_date,
         statut,
-        company_id
+        company_id,
+        specificites_paie,
+        matricule,
+        job_title,
+        is_temps_partiel,
+        duree_hebdomadaire,
+        classification_conventionnelle,
+        nom_usage,
+        nationalite
         """
         )
         .eq("company_id", company_id)
@@ -86,51 +121,52 @@ def get_dsn_employees_data(
         payslip_data = payslip.get("payslip_data", {})
         if not isinstance(payslip_data, dict):
             continue
+        # Enrichissements DSN absents en colonnes natives
+        if not employee.get("idcc"):
+            employee["idcc"] = ""
+        classif = employee.get("classification_conventionnelle")
+        if isinstance(classif, dict):
+            employee.setdefault("pcs", classif.get("pcs") or classif.get("code_pcs") or "")
+            employee.setdefault(
+                "idcc", classif.get("idcc") or employee.get("idcc") or ""
+            )
         brut = float(payslip_data.get("salaire_brut", 0) or 0)
+        synthese = payslip_data.get("synthese_net")
         net_imposable = float(
-            payslip_data.get("synthese_net", {}).get("net_imposable", 0)
-            if isinstance(payslip_data.get("synthese_net"), dict)
-            else 0
+            synthese.get("net_imposable", 0) if isinstance(synthese, dict) else 0
         )
-        pas = float(
-            payslip_data.get("synthese_net", {}).get("impot_preleve_a_la_source", 0)
-            if isinstance(payslip_data.get("synthese_net"), dict)
-            else 0
+        pas = extract_pas_amount(synthese) if isinstance(synthese, dict) else 0.0
+        cot_sal, cot_pat, cotisations_list, _meta = extract_cotisations_from_payslip(
+            payslip_data
         )
-        cotisations = payslip_data.get("structure_cotisations", {})
-        cotisations_list = (
-            cotisations.get("cotisations", []) if isinstance(cotisations, dict) else []
-        )
-        cotisations_salariales = sum(
-            float(c.get("montant_salarial", 0) or 0)
-            for c in cotisations_list
-            if isinstance(c, dict)
-        )
-        cotisations_patronales = sum(
-            float(c.get("montant_patronal", 0) or 0)
-            for c in cotisations_list
-            if isinstance(c, dict)
-        )
+        # Enrichissement BOETH pour le builder
+        try:
+            boeth = oeth_queries.get_boeth_code_for_employee(employee.get("id", ""), period)
+            if boeth:
+                employee = {**employee, "boeth_code": boeth}
+        except Exception:
+            pass
         employees_data.append(
             {
                 "employee": employee,
                 "payslip": payslip,
+                "payslip_data": payslip_data,
                 "brut": brut,
                 "net_imposable": net_imposable,
                 "pas": pas,
-                "cotisations_salariales": cotisations_salariales,
-                "cotisations_patronales": cotisations_patronales,
+                "cotisations_salariales": cot_sal,
+                "cotisations_patronales": cot_pat,
                 "cotisations_detail": cotisations_list,
             }
         )
         totals["nombre_salaries"] += 1
         totals["nombre_contrats"] += 1
         totals["masse_salariale_brute"] += brut
-        totals["total_charges"] += cotisations_salariales + cotisations_patronales
+        totals["total_charges"] += cot_sal + cot_pat
         totals["total_net_imposable"] += net_imposable
         totals["total_pas"] += pas
-        totals["total_cotisations_salariales"] += cotisations_salariales
-        totals["total_cotisations_patronales"] += cotisations_patronales
+        totals["total_cotisations_salariales"] += cot_sal
+        totals["total_cotisations_patronales"] += cot_pat
 
     return employees_data, totals
 
@@ -187,7 +223,7 @@ def check_dsn_data(
             f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
         )
         nir = employee.get("nir")
-        nir_valid, nir_error = validate_nir(nir)
+        nir_valid, nir_error = validate_nir_dsn(nir)
         if not nir_valid:
             anomalies.append(
                 {
@@ -390,11 +426,74 @@ def preview_dsn(
 
 
 def _neodes_norme_version() -> str:
-    return "P24V01"
+    return DSN_NORME
 
 
-def _neodes_mode(dsn_type: str) -> str:
-    return "reel" if "reel" in dsn_type.lower() else "test"
+def generate_dsn_file(
+    company_id: str,
+    period: str,
+    dsn_type: str,
+    employee_ids: Optional[List[str]] = None,
+    establishment_id: Optional[str] = None,
+) -> bytes:
+    """Génère un fichier DSN plat P26V01, relu et validé avant retour."""
+    company_data = get_company_data(company_id)
+    if establishment_id:
+        # Filtre multi-établissement : si la fiche société expose des établissements
+        establishments = company_data.get("establishments") or []
+        if isinstance(establishments, list):
+            for etab in establishments:
+                if isinstance(etab, dict) and str(etab.get("id")) == str(establishment_id):
+                    company_data = {
+                        **company_data,
+                        "siret": etab.get("siret") or company_data.get("siret"),
+                        "code_naf": etab.get("code_naf") or company_data.get("code_naf"),
+                        "address": etab.get("address") or company_data.get("address"),
+                        "name": etab.get("name") or company_data.get("name"),
+                    }
+                    break
+
+    employees_data, _totals = get_dsn_employees_data(company_id, period, employee_ids)
+    period_formatted = period.replace("-", "_")
+    file_name = f"dsn_mensuelle_{period_formatted}.dsn"
+    try:
+        dsn_file, build_warnings = build_parsed_dsn_from_payroll(
+            company_data,
+            employees_data,
+            period,
+            dsn_type=dsn_type,
+            file_name=file_name,
+            require_cotisation_codes=False,
+        )
+    except DsnBuildError as exc:
+        raise ValueError(str(exc)) from exc
+
+    # OETH annuelle (avril) : codes BOETH déjà injectés via get_dsn_employees_data ;
+    # les totaux établissement OETH restent en avertissement si absents du modèle plat.
+    year, month = map(int, period.split("-"))
+    if month == 4:
+        try:
+            dsn_oeth = oeth_queries.build_dsn_payload(company_id, year - 1)
+            if dsn_oeth.complement_oeth or dsn_oeth.cotisations_etablissement:
+                build_warnings.append(
+                    "Compléments OETH disponibles : vérifier le dépôt annuel complémentaire."
+                )
+        except Exception:
+            pass
+
+    content = encode_dsn_bytes(dsn_file)
+    # Relecture + validation structurelle
+    parsed = parse_dsn_content(content, file_name=file_name)
+    if parsed.envoi.norme != DSN_NORME:
+        raise ValueError(f"Norme DSN inattendue après génération : {parsed.envoi.norme}")
+    from app.modules.dsn_import.domain.model import ParsedDsnSet
+
+    anomalies = validate_parsed_dsn(ParsedDsnSet(files=[parsed], warnings=list(build_warnings)))
+    blocking = [a for a in anomalies if a.get("severity") == "blocking"]
+    if blocking:
+        messages = "; ".join(a.get("message", "") for a in blocking[:5])
+        raise ValueError(f"DSN générée invalide : {messages}")
+    return content
 
 
 def generate_dsn_xml(
@@ -404,113 +503,7 @@ def generate_dsn_xml(
     employee_ids: Optional[List[str]] = None,
     establishment_id: Optional[str] = None,
 ) -> bytes:
-    company_data = get_company_data(company_id)
-    employees_data, totals = get_dsn_employees_data(company_id, period, employee_ids)
-    year, month = map(int, period.split("-"))
-    norme = _neodes_norme_version()
-    mode = _neodes_mode(dsn_type)
-
-    root = ET.Element("DSN")
-    root.set("xmlns", "http://www.neodes.fr/dsn")
-    root.set("norme", norme)
-    root.set("mode", mode)
-
-    # Bloc S10 — Envoi
-    s10 = ET.SubElement(root, "S10")
-    ET.SubElement(s10, "S10.G00.00.001").text = "01"
-    ET.SubElement(s10, "S10.G00.00.002").text = datetime.now().strftime("%d%m%Y")
-    ET.SubElement(s10, "S10.G00.00.005").text = period.replace("-", "")
-    ET.SubElement(s10, "S10.G00.00.006").text = norme
-    ET.SubElement(s10, "S10.G00.00.007").text = "01" if mode == "reel" else "02"
-
-    # Bloc S20 — Établissement
-    s20 = ET.SubElement(root, "S20")
-    ET.SubElement(s20, "S20.G00.05.001").text = company_data.get("siret", "")[:14]
-    ET.SubElement(s20, "S20.G00.05.002").text = company_data.get("name", "")[:100]
-    ET.SubElement(s20, "S20.G00.05.003").text = company_data.get("code_naf", "")[:5]
-    address = company_data.get("address", {})
-    if isinstance(address, dict):
-        ET.SubElement(s20, "S20.G00.05.004").text = address.get("rue", "")[:50]
-        ET.SubElement(s20, "S20.G00.05.005").text = address.get("code_postal", "")[:5]
-        ET.SubElement(s20, "S20.G00.05.006").text = address.get("ville", "")[:50]
-
-    # Bloc S21 — Salariés (Neodes G00.xx)
-    s21 = ET.SubElement(root, "S21")
-    for emp_data in employees_data:
-        employee = emp_data["employee"]
-        individu = ET.SubElement(s21, "Individu")
-        identite = ET.SubElement(individu, "Identite")
-        ET.SubElement(identite, "S21.G00.30.001").text = employee.get("last_name", "")[:80]
-        ET.SubElement(identite, "S21.G00.30.002").text = employee.get("first_name", "")[:80]
-        ET.SubElement(identite, "S21.G00.30.003").text = (employee.get("nir") or "")[:15]
-        contrat = ET.SubElement(individu, "Contrat")
-        ET.SubElement(contrat, "S21.G00.40.001").text = employee.get("contract_type", "")[:10]
-        ET.SubElement(contrat, "S21.G00.40.002").text = str(employee.get("hire_date", ""))[:10]
-        boeth_code = oeth_queries.get_boeth_code_for_employee(
-            employee.get("id", ""), period
-        )
-        if boeth_code:
-            ET.SubElement(contrat, "S21.G00.40.072").text = boeth_code
-            previous = oeth_queries.get_previous_boeth_for_period(
-                employee.get("id", ""), period
-            )
-            if previous:
-                changement = ET.SubElement(individu, "ChangementContrat")
-                ET.SubElement(changement, "S21.G00.41.048").text = previous
-        remuneration = ET.SubElement(individu, "Remuneration")
-        ET.SubElement(remuneration, "S21.G00.51.001").text = str(emp_data.get("brut", 0))
-        ET.SubElement(remuneration, "S21.G00.51.011").text = str(
-            emp_data.get("net_imposable", 0)
-        )
-        ET.SubElement(remuneration, "S21.G00.51.013").text = str(emp_data.get("pas", 0))
-        cotisations = ET.SubElement(individu, "Cotisations")
-        for coti in emp_data.get("cotisations_detail", []):
-            if isinstance(coti, dict):
-                cotisation = ET.SubElement(cotisations, "Cotisation")
-                ET.SubElement(cotisation, "S21.G00.78.001").text = coti.get("libelle", "")[:100]
-                ET.SubElement(cotisation, "S21.G00.78.002").text = str(coti.get("base", 0))
-                ET.SubElement(cotisation, "S21.G00.78.003").text = str(
-                    coti.get("taux_salarial", 0) or 0
-                )
-                ET.SubElement(cotisation, "S21.G00.78.004").text = str(
-                    coti.get("taux_patronal", 0) or 0
-                )
-                ET.SubElement(cotisation, "S21.G00.78.005").text = str(
-                    coti.get("montant_salarial", 0) or 0
-                )
-                ET.SubElement(cotisation, "S21.G00.78.006").text = str(
-                    coti.get("montant_patronal", 0) or 0
-                )
-
-    # Totaux établissement (S21.G00.86)
-    totaux = ET.SubElement(s21, "TotauxEtablissement")
-    ET.SubElement(totaux, "S21.G00.86.001").text = str(totals.get("masse_salariale_brute", 0))
-    ET.SubElement(totaux, "S21.G00.86.002").text = str(totals.get("total_charges", 0))
-    ET.SubElement(totaux, "S21.G00.86.003").text = str(totals.get("total_pas", 0))
-
-    if month == 4:
-        employment_year = year - 1
-        try:
-            dsn_oeth = oeth_queries.build_dsn_payload(company_id, employment_year)
-            if dsn_oeth.complement_oeth or dsn_oeth.cotisations_etablissement:
-                oeth_bloc = ET.SubElement(root, "OETH")
-                ET.SubElement(oeth_bloc, "EmploymentYear").text = str(employment_year)
-                for item in dsn_oeth.complement_oeth:
-                    complement = ET.SubElement(oeth_bloc, "ComplementOETH")
-                    for key, val in item.items():
-                        ET.SubElement(complement, key.replace(".", "_")).text = str(val)
-                for item in dsn_oeth.cotisations_etablissement:
-                    cot_etab = ET.SubElement(oeth_bloc, "CotisationEtablissement")
-                    for key, val in item.items():
-                        ET.SubElement(cot_etab, key.replace(".", "_")).text = str(val)
-                if dsn_oeth.cotisation_agregee:
-                    cot_agg = ET.SubElement(oeth_bloc, "CotisationAgregee")
-                    for key, val in dsn_oeth.cotisation_agregee.items():
-                        ET.SubElement(cot_agg, key.replace(".", "_")).text = str(val)
-        except Exception:
-            pass
-
-    xml_string = ET.tostring(root, encoding="unicode")
-    dom = minidom.parseString(xml_string)
-    pretty_xml = dom.toprettyxml(indent="  ", encoding="utf-8")
-    return pretty_xml
+    """Alias historique : produit désormais un fichier plat P26V01 (.dsn)."""
+    return generate_dsn_file(
+        company_id, period, dsn_type, employee_ids, establishment_id
+    )

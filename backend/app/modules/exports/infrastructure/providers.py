@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from .export_dsn import (
+    generate_dsn_file as _generate_dsn_file,
     generate_dsn_xml as _generate_dsn_xml,
     get_company_data as _get_company_data,
     get_dsn_employees_data as _get_dsn_employees_data,
@@ -408,6 +409,18 @@ def generate_dsn_xml(
     establishment_id: Optional[str],
 ) -> bytes:
     return _generate_dsn_xml(
+        company_id, period, dsn_type, employee_ids, establishment_id
+    )
+
+
+def generate_dsn_file(
+    company_id: str,
+    period: str,
+    dsn_type: str,
+    employee_ids: Optional[List[str]],
+    establishment_id: Optional[str],
+) -> bytes:
+    return _generate_dsn_file(
         company_id, period, dsn_type, employee_ids, establishment_id
     )
 
