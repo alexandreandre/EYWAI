@@ -69,29 +69,50 @@ Classification de chaque ligne par `name` (insensible à la casse) :
 | Type | Détection | Rôle |
 |---|---|---|
 | numéraire | contient `participation`/`intéressement`, montant **> 0**, hors `pee`/`épargne`/`avance`/`acompte`/`frais`/`remboursement` | brut versé `N` |
-| PEE | contient `pee`/`épargne`, montant > 0 | net placé `P` |
+| PEE | contient `pee`/`épargne`, montant > 0 | brut placé `P` (cf. correction ci-dessous — pas un net) |
 | avance | contient `avance`/`acompte`, montant **< 0** | acompte versé `A = |montant|` |
 | exclu | `note de frais`/`remboursement` | ignoré |
 
-Agrégation par salarié puis (CSG 9,7 % = 6,8 % déd. + 2,9 % non déd.) :
+**Correction post-brainstorming (vérifiée sur le moteur réel) :** contrairement à
+l'hypothèse initiale, le montant d'une ligne PEE (`Participation … — PEE`) est déjà
+un **brut**, pas un net à regonfler. Preuve structurelle : `payslip_generator.py`
+construit chaque ligne PEE comme `{"brut": amount, "part_pee": amount}` — le
+moteur traite donc le montant saisi comme le brut d'une participation 100 % PEE.
+Vérifié sur le cas réel `Participation 2025 — PEE 5331,56` (salarié **Fabrice
+GIRERD**, MBC, mai 2026 — le même que cite le commentaire de
+`calcul_net.py::_participation_aggregats`) : `compute_participation_csg(5331.56)`
+(la fonction réellement appelée par le moteur) donne CSG non déductible 154,62 +
+déductible 362,55 = **517,17 €**. La DSN réelle de ce cas déclare 517,16 € — écart
+d'1 centime **préexistant** dans le moteur (arrondi de deux taux séparés puis
+somme, vs un calcul 9,7 % en une fois), sans lien avec cet import et hors
+périmètre de cette spec. Formule corrigée, par salarié (CSG 9,7 % = 6,8 % déd. +
+2,9 % non déd., facteur net = 0,903, `compute_participation_csg` réutilisée
+telle quelle) :
 
 ```
-pee_gross   = round(P / 0,903, 2)          # regonfle le net PEE en brut
-gross       = N + pee_gross
-csg_nd      = round(gross × 0,029, 2)
+gross       = N + P                        # les deux sont déjà des bruts
+cash_amount = round(N × 0,903, 2) − A      # 0 si full_pee ; A vérifié toujours
+                                            # apparié à une ligne numéraire (0 avance orpheline)
+pee_amount  = round(P × 0,903, 2)          # net réellement placé sur le PEE
+net_final   = cash_amount + pee_amount     # défini à partir des deux (garantit
+                                            # l'invariant exactement, sans dérive
+                                            # d'arrondi entre un calcul combiné et
+                                            # la somme des deux parts)
+csg_nd      = round(gross × 0,029, 2)      # informationnel (affichage bulletin)
 csg_d       = round(gross × 0,068, 2)
-net_final   = round(gross − csg_nd − csg_d − A, 2)
 choice      = full_cash (P == 0) | full_pee (N == 0) | partial_cash (sinon)
-cash_amount = round(N × 0,903 − A, 2)      # 0 si full_pee
-pee_amount  = P
 advance_amount = A
 advance_label  = libellé de la ligne d'avance (ou "")
 ```
 
-Invariant vérifié : `cash_amount + pee_amount == net_final` (aux arrondis cents près).
-Se réconcilie ligne à ligne avec le bulletin de mai (numéraire brut → net ×0,903 ;
-PEE ; avance). L'arrondi sur `pee_gross` est cosmétique : le bulletin importé est un
-enregistrement d'affichage/traçabilité et **ne régénère aucune paie**.
+Invariant garanti par construction : `cash_amount + pee_amount == net_final`.
+Se réconcilie ligne à ligne avec le bulletin de mai : la ligne numéraire (flags
+`is_socially_taxed=False, is_taxable=True`) est déjà traitée par le moteur comme
+un brut soumis à CSG seule ; la ligne d'avance (flags constatés en base :
+`is_socially_taxed=False, is_taxable=False`, 89 lignes) est une pure réduction du
+net à payer, sans impact sur l'imposable — cohérent avec `A` soustrait seulement
+de `cash_amount`. Le bulletin importé est un enregistrement d'affichage/traçabilité
+et **ne régénère aucune paie** (aucun montant de `monthly_inputs` n'est modifié).
 
 Un salarié sans aucune ligne numéraire/PEE positive n'est **pas** un bénéficiaire
 (ignoré). `dispositif_type = "participation"` (pas d'intéressement dans ces données).
