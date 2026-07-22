@@ -28,7 +28,54 @@ env:
 
 jobs:
   # ----------------------------------------------------------------------------
-  # 1) Build + push images Docker → GCR
+  # 1) Gate sécurité Copilot — bloquant pour workflow_run et workflow_dispatch
+  # ----------------------------------------------------------------------------
+  copilot-security-gate:
+    name: Copilot security gate
+    runs-on: ubuntu-latest
+    env:
+      # Valeurs factices hermétiques : les suites utilisent mocks/clients mémoire.
+      SUPABASE_URL: https://ci-fake.supabase.co
+      SUPABASE_KEY: ci-fake-anon-key
+      OPENROUTER_API_KEY: sk-or-ci-fake
+      COPILOT_RH_DATA_ENABLED: "true"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Paquets système (cairo / pango pour weasyprint à l'import)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Pytest sécurité Copilot (bloquant)
+        run: >-
+          python -m pytest
+          tests/unit/copilot
+          tests/integration/copilot
+          tests/unit/access_control
+          -v --tb=short -p no:cacheprovider
+
+  # ----------------------------------------------------------------------------
+  # 2) Build + push images Docker → GCR
   # ----------------------------------------------------------------------------
   build:
     name: Build & push images
@@ -111,7 +158,7 @@ jobs:
           tags: ${{ steps.images.outputs.frontend }}
 
   # ----------------------------------------------------------------------------
-  # 1bis) Migrations Supabase — appliquées avant tout déploiement backend
+  # 2bis) Migrations Supabase — appliquées avant tout déploiement backend
   # Idempotentes (ADD COLUMN IF NOT EXISTS / INSERT ... WHERE NOT EXISTS).
   # Bloquant : si la migration échoue, on ne déploie pas de code qui en dépend.
   # Secret requis : SUPABASE_DB_URL (connexion Postgres du projet, ex. pooler).
@@ -150,11 +197,11 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL"
 
   # ----------------------------------------------------------------------------
-  # 2) Staging — déploiement automatique (après migrations)
+  # 3) Staging — déploiement automatique (après migrations et gate Copilot)
   # ----------------------------------------------------------------------------
   staging:
     name: Deploy staging
-    needs: [build, migrate]
+    needs: [copilot-security-gate, build, migrate]
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/auth@v2
@@ -200,11 +247,11 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${FRONT}/"
 
   # ----------------------------------------------------------------------------
-  # 3) Production — gate via environnement GitHub `production`
+  # 4) Production — gate via environnement GitHub `production`
   # ----------------------------------------------------------------------------
   production:
     name: Deploy production
-    needs: [build, staging]
+    needs: [copilot-security-gate, build, staging]
     runs-on: ubuntu-latest
     environment: production
     env:
