@@ -31,6 +31,8 @@ export function SidebarAccountMenu({ collapsed = false, className }: SidebarAcco
   const { logout, user } = useAuth();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // Tant que le MDP n'a pas été changé côté serveur, on propose le modal
+  // à chaque montage (nouvelle session / rechargement). Fermable via croix.
   const passwordChangeRequired = Boolean(user?.must_change_password);
 
   useEffect(() => {

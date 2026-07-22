@@ -16,16 +16,18 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import apiClient from '@/api/apiClient';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface ChangePasswordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Prompt « premier login » (must_change_password) : message renforcé,
+   * mais fermeture autorisée (croix / Annuler). Réaffiché à la prochaine session.
+   */
   required?: boolean;
 }
 
 export function ChangePasswordModal({ open, onOpenChange, required = false }: ChangePasswordModalProps) {
-  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,6 +37,14 @@ export function ChangePasswordModal({ open, onOpenChange, required = false }: Ch
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const resetForm = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
+    setIsSuccess(false);
+  };
 
   const validatePassword = (password: string): string | null => {
     if (password.length < 8) {
@@ -93,11 +103,9 @@ export function ChangePasswordModal({ open, onOpenChange, required = false }: Ch
 
       // Réinitialiser le formulaire après 2 secondes et fermer
       setTimeout(() => {
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setIsSuccess(false);
+        resetForm();
         if (required) {
+          // Rafraîchir le profil (must_change_password → false)
           window.location.reload();
         } else {
           onOpenChange(false);
@@ -113,25 +121,24 @@ export function ChangePasswordModal({ open, onOpenChange, required = false }: Ch
     }
   };
 
-  const handleClose = () => {
-    if (!isSubmitting && !required) {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setError('');
-      setIsSuccess(false);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isSubmitting) return;
+    if (!nextOpen) {
+      resetForm();
       onOpenChange(false);
+      return;
     }
+    onOpenChange(true);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Modifier mon mot de passe</DialogTitle>
           <DialogDescription>
             {required
-              ? 'Vous devez choisir un nouveau mot de passe avant de continuer.'
+              ? 'Pour sécuriser votre compte, choisissez un nouveau mot de passe. Vous pourrez le faire plus tard via le menu compte ; ce rappel réapparaîtra à votre prochaine connexion.'
               : 'Entrez votre mot de passe actuel puis choisissez un nouveau mot de passe sécurisé.'}
           </DialogDescription>
         </DialogHeader>
@@ -268,14 +275,14 @@ export function ChangePasswordModal({ open, onOpenChange, required = false }: Ch
 
             {/* Boutons */}
             <DialogFooter className="gap-2">
-              {!required && <Button
+              <Button
                 type="button"
                 variant="outline"
-                onClick={handleClose}
+                onClick={() => handleOpenChange(false)}
                 disabled={isSubmitting}
               >
-                Annuler
-              </Button>}
+                {required ? 'Plus tard' : 'Annuler'}
+              </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Modifier le mot de passe
