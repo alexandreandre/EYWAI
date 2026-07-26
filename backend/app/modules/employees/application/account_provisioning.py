@@ -19,6 +19,7 @@ from app.modules.employees.application.credentials_pdf import (
 from app.modules.employees.domain.rules import (
     build_dsn_import_auth_email,
     default_company_data_fallback,
+    is_dsn_import_placeholder_email,
 )
 from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.infrastructure.providers import (
@@ -150,14 +151,17 @@ def provision_collaborator_account(
             }
         )
 
-        _employee_repository.update(
-            employee_id,
-            {
-                "email": email,
-                "user_id": str(user_id),
-                "username": username,
-            },
-        )
+        employee_patch: Dict[str, Any] = {
+            "user_id": str(user_id),
+            "username": username,
+        }
+        # L'adresse ayant servi à créer le compte Auth n'est recopiée sur la fiche que
+        # si c'est celle de la personne. Une adresse technique reste un identifiant
+        # interne : la promouvoir en adresse de contact ferait partir les notifications
+        # dans le vide, sans trace d'échec.
+        if email and not is_dsn_import_placeholder_email(email):
+            employee_patch["email"] = email
+        _employee_repository.update(employee_id, employee_patch)
 
         try:
             _grant_collaborator_company_access(

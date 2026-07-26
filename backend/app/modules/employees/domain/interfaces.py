@@ -61,6 +61,16 @@ class IAuthProvider(ABC):
         pass
 
     @abstractmethod
+    def get_user_email(self, user_id: str) -> Optional[str]:
+        """Adresse actuelle du compte Auth (identifiant technique, pas contact)."""
+        pass
+
+    @abstractmethod
+    def update_user_email(self, user_id: str, new_email: str) -> None:
+        """Aligne l'adresse du compte Auth sur l'adresse réelle du salarié."""
+        pass
+
+    @abstractmethod
     def delete_user(self, user_id: str) -> None:
         pass
 

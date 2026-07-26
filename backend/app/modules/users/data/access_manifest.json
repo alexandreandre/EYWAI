@@ -242,8 +242,7 @@
     {
       "key": "vanessa",
       "identity": {
-        "name": "Vanessa Amate",
-        "email": "import.vanessa.amate.383122@534386495.dsn-import.local"
+        "name": "Vanessa Amate"
       },
       "account": "existing_only",
       "canonical_employee_account": true,

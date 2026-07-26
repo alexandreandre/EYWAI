@@ -12,6 +12,14 @@ DEFAULT_EMPLOYMENT_STATUS = "actif"
 DEFAULT_RESIDENCE_PERMIT_SUBJECT = False
 DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX = ".dsn-import.local"
 DSN_IMPORT_AUTH_EMAIL_DOMAIN = "dsn-import.eywai.fr"
+# Domaines non routables ayant servi d'adresse de repli avant l'interdiction des
+# adresses fabriquées. Aucun n'est produit par le code aujourd'hui côté fiche salarié,
+# mais 183 fiches en portent encore une : la détection doit leur survivre.
+PLACEHOLDER_EMAIL_DOMAINS = (
+    DSN_IMPORT_AUTH_EMAIL_DOMAIN,
+    "eywai.access.local",
+    "users.eywai",
+)
 DUREE_LEGALE_HEBDO = 35.0
 
 
@@ -50,13 +58,17 @@ def is_temps_travail_incoherent(
 
 
 def is_dsn_import_placeholder_email(email: str | None) -> bool:
-    """True si l'email est le placeholder technique généré à l'import DSN."""
+    """True si l'adresse est fabriquée par la plateforme et non celle de la personne.
+
+    Une adresse fabriquée n'est jamais routable : elle ne doit servir qu'à identifier un
+    compte Auth, jamais à contacter quelqu'un.
+    """
     if not email:
         return False
     value = str(email).strip().lower()
-    return value.endswith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX) or value.endswith(
-        f"@{DSN_IMPORT_AUTH_EMAIL_DOMAIN}"
-    )
+    if value.endswith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX):
+        return True
+    return any(value.endswith(f"@{domain}") for domain in PLACEHOLDER_EMAIL_DOMAINS)
 
 
 def build_dsn_import_auth_email(seed: str) -> str:

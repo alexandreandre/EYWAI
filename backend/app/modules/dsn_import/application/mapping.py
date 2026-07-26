@@ -390,7 +390,6 @@ def map_employee_payload(
     hire = normalize_date_dsn(contrat.date_debut) or normalize_date_dsn(contrat.rubriques.get("S21.G00.40.001", ""))
     end = normalize_date_dsn(contrat.date_fin)
 
-    email_placeholder = _placeholder_email(ind, siret)
     contract_type = map_contract_type(contrat.nature)
     pas = _extract_pas(contrat)
     sexe = map_sexe(ind.sexe)
@@ -441,7 +440,10 @@ def map_employee_payload(
     payload: Dict[str, Any] = {
         "first_name": ind.prenom,
         "last_name": ind.nom,
-        "email": email_placeholder,
+        # Pas de clé `email` : la DSN n'en transporte aucune et une adresse fabriquée
+        # passerait pour une adresse de contact valide (notifications envoyées dans le
+        # vide, sans trace d'échec). Le champ est renseigné plus tard, par saisie ou par
+        # l'import d'enrichissement.
         "nir": ind.nir or None,
         "ntt": ind.ntt or None,
         "matricule": ind.matricule or None,
@@ -501,14 +503,6 @@ def map_employee_payload(
         payload["_boeth"] = boeth
 
     return payload
-
-
-def _placeholder_email(ind: IndividuBlock, siret: str) -> str:
-    """Email technique pour salarié importé (compte Auth différé)."""
-    id_tail = (ind.identifiant or "000")[-6:]
-    slug = f"{ind.prenom}.{ind.nom}".lower().replace(" ", "-")
-    slug = "".join(c for c in slug if c.isalnum() or c in ".-_") or "salarie"
-    return f"import.{slug}.{id_tail}@{siret[:9]}.dsn-import.local"
 
 
 def collect_idcc_by_establishment(parsed: ParsedDsnSet) -> Dict[str, List[str]]:

@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 
 from app.core.database import supabase
 from app.core.settings import PAYSLIP_EMAIL_REDIRECT
+from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
 from app.modules.platform_settings.application.email_config import get_resolved_email_config
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 
@@ -195,7 +196,26 @@ def notify_employee_new_document(
             intended,
         )
 
-    if email:
+    if not email:
+        logger.warning(
+            "[doc_notif] Salarié %s (société %s) sans adresse e-mail : « %s » notifié "
+            "en in-app uniquement",
+            employee_id,
+            company_id,
+            label,
+        )
+    elif is_dsn_import_placeholder_email(email):
+        # Adresse fabriquée par la plateforme : le domaine n'est pas routable. Envoyer
+        # produirait un échec SMTP silencieux et laisserait croire le salarié notifié.
+        logger.warning(
+            "[doc_notif] Salarié %s (société %s) : adresse fabriquée %s, aucun envoi "
+            "pour « %s ». Adresse réelle à collecter.",
+            employee_id,
+            company_id,
+            email,
+            label,
+        )
+    else:
         _send_email(
             email,
             first_name,

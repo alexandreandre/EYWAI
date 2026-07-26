@@ -129,7 +129,9 @@ class AccessProvisioner:
                 items.append(ProvisioningItem(f"person:{key}", "no-op", "none"))
                 continue
 
-            profile, conflict = self._resolve_person(person, profiles, companies)
+            profile, conflict = self._resolve_person(
+                person, profiles, companies, employees
+            )
             if conflict:
                 items.append(
                     ProvisioningItem(
@@ -658,6 +660,7 @@ class AccessProvisioner:
         person: dict[str, Any],
         profiles: list[dict[str, Any]],
         companies: dict[str, str],
+        employees: list[dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         identity = person["identity"]
         email = identity.get("email")
@@ -680,6 +683,18 @@ class AccessProvisioner:
 
         name = normalize_identity(identity.get("name"))
         matches = [row for row in profiles if normalized_full_name(row) == name]
+        # Lien stable : le compte canonique est celui que désigne la fiche salarié. Il
+        # départage les homonymes sans dépendre d'une adresse — laquelle change dès qu'on
+        # réaligne un compte sur l'adresse réelle de la personne.
+        if person.get("canonical_employee_account") and len(matches) > 1:
+            fiche_user_ids = {
+                str(emp.get("user_id"))
+                for emp in (employees or [])
+                if emp.get("user_id") and normalized_full_name(emp) == name
+            }
+            lies = [row for row in matches if str(row["id"]) in fiche_user_ids]
+            if len(lies) == 1:
+                return lies[0], None
         if person.get("canonical_employee_account") and person.get("prefer_role"):
             preferred = [
                 m for m in matches if (m.get("role") or "") == person["prefer_role"]
