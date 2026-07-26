@@ -49,6 +49,7 @@ import {
   type WorkforceResolution,
 } from '@/api/dsnImport';
 import { formatEuroAmount } from '@/lib/careerFormat';
+import { isDsnImportPlaceholderEmail } from '@/lib/employeeProfileUtils';
 import { applyDsnImportCommitted } from '@/lib/dsnCoverageCache';
 import { DsnImportAttributionCard } from './DsnImportAttributionCard';
 import {
@@ -180,8 +181,10 @@ function anomalyAsIssue(anomaly: DsnImportAnomaly): DsnImportIssue {
 function activationEmailsFromReport(report: DsnImportCommitResponse): Record<string, string> {
   const emails: Record<string, string> = {};
   (report.imported_employees ?? []).forEach((emp) => {
-    const placeholder = emp.placeholder_email ?? '';
-    emails[emp.employee_id] = placeholder.includes('@dsn-import.local') ? '' : placeholder;
+    // L'import ne fabrique plus d'adresse : le champ arrive vide et reste à saisir. Les
+    // adresses fabriquées d'avant sont neutralisées ici pour ne pas être proposées.
+    const existant = emp.placeholder_email ?? '';
+    emails[emp.employee_id] = isDsnImportPlaceholderEmail(existant) ? '' : existant;
   });
   return emails;
 }
