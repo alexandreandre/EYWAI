@@ -793,6 +793,8 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
     role_labels = {
         "admin": "Administrateur (accès complet)",
         "rh": "RH (accès complet — paie, bulletins, NDF, planning, avances…)",
+        "collaborateur_rh": "Collaborateur RH (espace salarié + vue RH)",
+        "collaborateur": "Collaborateur (espace salarié)",
         "custom": "Personnalisé",
     }
     sets = manifest.get("permission_sets") or {}
@@ -826,8 +828,16 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
             role = access.get("role") or "custom"
             head = f"• {label} — {role_labels.get(role, role)}"
             extras: list[str] = []
+            codes: list[str] = []
+            if access.get("permission_set"):
+                codes.extend(sets.get(access["permission_set"]) or [])
+            codes.extend(access.get("permission_codes") or [])
+            # Un rôle plein (admin/rh) porte déjà ses droits ; pour les autres, ce sont
+            # les permissions accordées qui définissent le périmètre réel — le classeur
+            # doit donc les détailler, pas seulement pour `custom`.
+            detaille = role == "custom" or (bool(codes) and role not in ("admin", "rh"))
             scope = access.get("scope_mode") or "company"
-            if role == "custom":
+            if detaille:
                 if scope == "teams":
                     teams = ", ".join(access.get("team_names") or [])
                     extras.append(f"Périmètre équipes {teams}")
@@ -835,11 +845,7 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
                     extras.append("Périmètre exceptions nominatives uniquement")
                 else:
                     extras.append("Périmètre toute l’entreprise")
-            codes: list[str] = []
-            if access.get("permission_set"):
-                codes.extend(sets.get(access["permission_set"]) or [])
-            codes.extend(access.get("permission_codes") or [])
-            if role == "custom" and codes:
+            if detaille and codes:
                 labels = [code_labels.get(c, c) for c in codes]
                 extras.append("Actions : " + ", ".join(labels))
             elif codes and "bank_dispatch.send" in codes:

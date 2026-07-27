@@ -55,18 +55,11 @@
       "account": "technical_login",
       "sync_accesses": true,
       "accesses": [
-        {
-          "company": "maji",
-          "role": "rh",
-          "scope_mode": "company",
-          "permission_set": "bank_only"
-        },
-        {
-          "company": "zone_404",
-          "role": "rh",
-          "scope_mode": "company",
-          "permission_set": "bank_only"
-        }
+        {"company": "mbc", "role": "rh", "scope_mode": "company"},
+        {"company": "cartol", "role": "rh", "scope_mode": "company"},
+        {"company": "lewis", "role": "rh", "scope_mode": "company"},
+        {"company": "colorplast", "role": "rh", "scope_mode": "company"},
+        {"company": "comitech", "role": "rh", "scope_mode": "company"}
       ]
     },
     {
@@ -257,6 +250,22 @@
         {"company": "zone_404", "role": "admin", "scope_mode": "company", "permission_set": "bank_only"}
       ],
       "duplicate_access": {"deactivate": true}
+    },
+    {
+      "key": "robin",
+      "identity": {
+        "name": "Robin Baran",
+        "username": "robin.baran"
+      },
+      "account": "existing_only",
+      "accesses": [
+        {
+          "company": "zone_404",
+          "role": "collaborateur_rh",
+          "scope_mode": "company",
+          "permission_set": "director_mod_validations"
+        }
+      ]
     },
     {
       "key": "dorothee",
