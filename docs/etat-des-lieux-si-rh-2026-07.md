@@ -283,7 +283,7 @@ censés l'être. **Suite complète : 4250 passés, 0 échec.**
 **Mitigation immédiate appliquée en production** (avant déploiement du correctif) : suppression
 des 5 lignes révoquées de Gaëlle après sauvegarde. Table passée de 319 à 314 lignes ; il ne
 reste qu'un accès révoqué, celui du doublon inutilisé de Vanessa. Gaëlle a désormais exactement
-MAJI + Zone 404.
+MAJI + Zone 404 en production — périmètre depuis révisé dans le manifeste, voir plus bas.
 
 **Détail structurant à connaître :** les permissions sont **strictement par entreprise**. Il
 n'existe aucun périmètre « toutes sociétés » : l'évaluation refuse l'accès dès que
@@ -292,8 +292,19 @@ logique *fail-closed*. Un administrateur multi-filiales est donc N accès distin
 re-provisionner à chaque nouvelle société. C'est sain pour la sécurité, mais cela signifie que
 toute nouvelle filiale demandera un passage par le manifeste.
 
-**Gaëlle** est déclarée sur MAJI et Zone 404 uniquement — conforme à ce qui a été dit en
-réunion, et désormais conforme **en pratique** (cf. correctif ci-dessus).
+**Gaëlle — le périmètre cible a changé, et la production ne le reflète pas encore.** Le
+manifeste la déclare désormais **`rh` sur MBC, Cartol, LEWIS, Colorplast et Comitech**, et non
+plus sur MAJI et Zone 404. C'est un choix assumé, postérieur à la réunion.
+
+En production elle a aujourd'hui l'inverse : MAJI + Zone 404, après la suppression des 5 lignes
+révoquées. Son entrée portant `sync_accesses: true`, le prochain `--apply` du provisioning
+**créera les 5 accès opérationnels et désactivera MAJI et Zone 404**. C'est le comportement
+attendu — mais il faut le savoir avant de lancer la commande, car le préflight affichera 5
+créations et 2 désactivations là où les sections précédentes de ce document annonçaient
+« 50 no-op, 0 create ».
+
+Distinguer les deux sujets : la découverte 🔴 ci-dessus portait sur des accès **révoqués et
+pourtant effectifs** (bug de filtrage) ; ici il s'agit d'accès **volontairement accordés**.
 
 **Robin** n'est **pas** dans le manifeste. À ajouter avec la même mécanique (une entrée
 `people`, société `zone_404`). Informations manquantes : nom complet, rôle voulu
