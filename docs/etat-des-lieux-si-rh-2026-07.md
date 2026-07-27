@@ -233,7 +233,7 @@ que le développement lui-même. C'est à corriger **avant** d'ouvrir les accès
 |---|---|---|---|
 | 1 | Accès de Vanessa sur toutes les filiales | ✅ **Déjà corrigé le 22/07** — reconnexion suffit | — |
 | 2 | Identifiants à Gaëlle et Vanessa via WhatsApp | ✅ **Débloqué** — identifiants prêts | — |
-| 5 | Ajouter Robin sur Zone 404 | ⏸️ En attente d'infos | 15 min |
+| 5 | Ajouter Robin sur Zone 404 | ✅ **Tranchée le 27/07** — collaborateur RH + droits directeur | reste à appliquer |
 | — | 🔴 **Accès révoqués toujours effectifs** (découvert) | ✅ Corrigé + 5 tests + prod nettoyée | fait |
 
 **Vanessa — le problème s'était résolu tout seul, quinze minutes trop tard.** Le préflight du
@@ -282,8 +282,8 @@ censés l'être. **Suite complète : 4250 passés, 0 échec.**
 
 **Mitigation immédiate appliquée en production** (avant déploiement du correctif) : suppression
 des 5 lignes révoquées de Gaëlle après sauvegarde. Table passée de 319 à 314 lignes ; il ne
-reste qu'un accès révoqué, celui du doublon inutilisé de Vanessa. Gaëlle a désormais exactement
-MAJI + Zone 404 en production — périmètre depuis révisé dans le manifeste, voir plus bas.
+reste qu'un accès révoqué, celui du doublon inutilisé de Vanessa. Gaëlle avait alors exactement
+MAJI + Zone 404 — périmètre depuis remplacé, voir plus bas.
 
 **Détail structurant à connaître :** les permissions sont **strictement par entreprise**. Il
 n'existe aucun périmètre « toutes sociétés » : l'évaluation refuse l'accès dès que
@@ -292,23 +292,40 @@ logique *fail-closed*. Un administrateur multi-filiales est donc N accès distin
 re-provisionner à chaque nouvelle société. C'est sain pour la sécurité, mais cela signifie que
 toute nouvelle filiale demandera un passage par le manifeste.
 
-**Gaëlle — le périmètre cible a changé, et la production ne le reflète pas encore.** Le
-manifeste la déclare désormais **`rh` sur MBC, Cartol, LEWIS, Colorplast et Comitech**, et non
-plus sur MAJI et Zone 404. C'est un choix assumé, postérieur à la réunion.
-
-En production elle a aujourd'hui l'inverse : MAJI + Zone 404, après la suppression des 5 lignes
-révoquées. Son entrée portant `sync_accesses: true`, le prochain `--apply` du provisioning
-**créera les 5 accès opérationnels et désactivera MAJI et Zone 404**. C'est le comportement
-attendu — mais il faut le savoir avant de lancer la commande, car le préflight affichera 5
-créations et 2 désactivations là où les sections précédentes de ce document annonçaient
-« 50 no-op, 0 create ».
+**Gaëlle — périmètre remplacé depuis la réunion, manifeste et production alignés.** Elle est
+désormais **`rh` sur MBC, Cartol, LEWIS, Colorplast et Comitech**, et non plus sur MAJI et
+Zone 404. C'est un choix assumé, postérieur à la réunion, déjà appliqué en base : le préflight
+du 27/07 sort ses 5 accès en **no-op**, aucune création ni désactivation à prévoir.
 
 Distinguer les deux sujets : la découverte 🔴 ci-dessus portait sur des accès **révoqués et
 pourtant effectifs** (bug de filtrage) ; ici il s'agit d'accès **volontairement accordés**.
 
-**Robin** n'est **pas** dans le manifeste. À ajouter avec la même mécanique (une entrée
-`people`, société `zone_404`). Informations manquantes : nom complet, rôle voulu
-(`admin` / `rh` / `custom` avec permissions précises), et existence éventuelle d'un compte.
+### Action 5 — Robin sur Zone 404, tranchée le 27/07
+
+L'ambiguïté du compte rendu est levée : Robin BARAN doit avoir un **accès collaborateur RH avec
+les droits d'un directeur**. Traduction dans la mécanique existante — « directeur » n'est pas un
+rôle mais un jeu de permissions :
+
+| | |
+|---|---|
+| Rôle | `collaborateur_rh` sur Zone 404 |
+| Permissions | `director_mod_validations` — le jeu d'Eric Noble, Damien Faucher et Lucas Chambert |
+| Périmètre | toute l'entreprise |
+
+Le rôle lui ouvre la **vue RH** tout en lui conservant son espace salarié — le front gère ce
+double affichage nativement (`ViewContext`, bascule RH / collaborateur). Le jeu de permissions
+lui donne les validations, qui ne sont **jamais implicites** : les rôles de niveau RH passent
+les contrôles par salarié, mais les permissions nominatives (valider un bulletin, approuver une
+note de frais ou une avance, exporter les analytics) exigent un grant explicite.
+
+À savoir : `collaborateur_rh` est **le premier de la plateforme** — 0 accès sur 317 l'utilisaient.
+Le rôle est pourtant supporté de bout en bout (enum `user_role` en base, contrôles backend, vue
+dédiée au front).
+
+Préflight du 27/07 : **54 items, 52 no-op, 2 reuse, 0 conflit** — la montée de rôle
+`collaborateur → collaborateur_rh` et ses 15 permissions. **Non appliqué.**
+
+**Robin** est désormais dans le manifeste avec son périmètre cible — voir « Action 5 » ci-dessus.
 
 ### Identifiants de connexion (action 2) — débloqué
 
