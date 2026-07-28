@@ -431,11 +431,15 @@ class TestUpdateUserWithPermissions:
             "target-1", company_id, {"role": "admin", "role_template_id": None}
         )
 
+    # copy_template_permissions_to_user passe par le singleton de module de
+    # service.py, hors des fabriques patchées ci-dessous : sans ce patch, le
+    # test atteint le vrai client Supabase.
+    @patch("app.modules.users.application.commands.copy_template_permissions_to_user")
     @patch("app.modules.users.application.commands.get_user_permission_repository")
     @patch("app.modules.users.application.commands.get_user_company_access_repository")
     @patch("app.modules.users.application.commands.get_user_repository")
     def test_template_change_without_role_change_persists_template_id(
-        self, get_user_repo, get_access_repo, get_perm_repo
+        self, get_user_repo, get_access_repo, get_perm_repo, copy_template
     ):
         """Changer de template sans changer de rôle doit persister role_template_id sur l'accès."""
         company_id = "660e8400-e29b-41d4-a716-446655440001"
