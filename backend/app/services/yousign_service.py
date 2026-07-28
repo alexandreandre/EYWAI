@@ -17,6 +17,8 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from app.core import settings
+
 
 class YousignService:
     """Appels API Yousign v3 (demande de signature AES, statut, téléchargement, webhook)."""
@@ -72,6 +74,12 @@ class YousignService:
         Crée une demande de signature (niveau AES), téléverse le PDF, ajoute le(s) signataire(s), active.
         Retourne { "procedure_id": str, "status": "pending" }.
         """
+        if settings.is_test_environment():
+            raise RuntimeError(
+                "Signature électronique désactivée en environnement de test : "
+                "aucune demande n'est envoyée à un signataire réel."
+            )
+
         exp_days = max(1, min(int(expiration_days), 365))
         expiration_date = (date.today() + timedelta(days=exp_days)).isoformat()
 
