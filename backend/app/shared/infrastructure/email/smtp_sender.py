@@ -13,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional, Sequence, Tuple
 
+from app.core import settings
 from app.core.logging import get_logger, is_app_debug_enabled
 from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
@@ -55,6 +56,25 @@ class SmtpMailSender:
         logger.warning("%s (%s)", msg, context)
         return False, msg
 
+    def _apply_forced_redirect(
+        self,
+        recipients: Sequence[str],
+        subject: str,
+    ) -> Tuple[list[str], str]:
+        """
+        En environnement de test, force tous les destinataires vers l'adresse
+        de redirection et reporte les destinataires prévus dans le sujet.
+
+        Lecture dynamique de settings.EMAIL_FORCE_REDIRECT_TO : la valeur est
+        résolue à chaque envoi, jamais capturée à l'import.
+        """
+        forced = settings.EMAIL_FORCE_REDIRECT_TO
+        if not forced:
+            return list(recipients), subject
+        intended = ", ".join(recipients) or "?"
+        logger.info("Email redirigé vers %s (dest. prévus %s)", forced, intended)
+        return [forced], f"[dest. {intended}] {subject}"
+
     def send_email_with_attachments(
         self,
         to_emails: Sequence[str],
@@ -72,6 +92,7 @@ class SmtpMailSender:
         recipients = [e.strip() for e in to_emails if e and e.strip()]
         if not recipients:
             return True, None
+        recipients, subject = self._apply_forced_redirect(recipients, subject)
 
         config = self._load_config()
         if not config.is_configured:
@@ -130,6 +151,9 @@ class SmtpMailSender:
         Envoie un e-mail texte + HTML.
         Retourne (succès, message_erreur).
         """
+        recipients, subject = self._apply_forced_redirect([to_email], subject)
+        to_email = recipients[0]
+
         config = self._load_config()
         try:
             msg = MIMEMultipart("alternative")
