@@ -356,7 +356,13 @@ le bandeau, afin qu'un état partiel soit visible plutôt que silencieux.
 
 ### 12.6 Suivi côté interface
 
-La copie dure plusieurs minutes. Le bouton ne se contente pas de déclencher : il
-suit l'exécution du workflow et affiche son avancement, puis son issue. Un
-déclenchement pendant qu'une resynchro tourne est refusé par le verrou de
-concurrence, avec un message explicite.
+La copie dure plusieurs minutes. Le bandeau affiche la date de la dernière
+resynchro réussie, lue dans un journal en base : c'est ce qui permet de savoir
+si la copie est terminée, en rechargeant la page. Un déclenchement pendant
+qu'une resynchro tourne est refusé par le verrou de concurrence GitHub.
+
+Le suivi d'avancement en direct est délibérément écarté : il supposerait
+d'exposer l'état des exécutions GitHub à l'interface, pour un gain faible sur
+une action déclenchée quelques fois par mois. La date de dernière resynchro
+suffit à répondre à la seule question qui compte — « est-ce reparti de la
+prod ? ».
