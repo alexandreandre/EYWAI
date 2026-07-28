@@ -333,6 +333,8 @@ $RECYCLE.BIN/
 # Migrations Supabase versionnées (CI / tests : test_planning.py)
 !supabase/migrations/*.sql
 !supabase/seed.sql
+# Scripts de l'environnement de test, exécutés par le workflow de resynchro
+!scripts/test_env/*.sql
 
 # ===================================
 # Logs and temporary files

@@ -1039,23 +1039,19 @@ CREATE TABLE IF NOT EXISTS public.test_env_refresh_log (
 );
 
 -- Configuration SMTP : sans cela, le test hérite des identifiants d'envoi de
--- la production.
-UPDATE public.platform_settings
-   SET value = NULL
- WHERE key LIKE 'smtp_%' OR key LIKE 'email_%';
+-- la production. La table est platform_email_settings (singleton id = 1), et
+-- le résolveur ne la lit que si is_active est vrai — supprimer la ligne fait
+-- donc retomber proprement sur les variables d'environnement du service.
+DELETE FROM public.platform_email_settings;
 
--- Files d'envoi et notifications en attente.
+-- Notifications en attente.
 TRUNCATE TABLE public.notifications;
 ```
 
-Avant de figer ce fichier, vérifier les noms réels des tables et colonnes :
-
-```bash
-psql "<SUPABASE_TEST_DB_URL>" -c "\d public.platform_settings"
-psql "<SUPABASE_TEST_DB_URL>" -c "\dt public.*notification*"
-```
-
-Ajuster les `UPDATE` / `TRUNCATE` aux colonnes réellement présentes.
+Noms vérifiés dans le code : `platform_email_settings` (et non
+`platform_settings`) dans
+`app/modules/platform_settings/infrastructure/repository.py`, `notifications`
+dans `app/modules/notifications/application/employee_document_alerts.py`.
 
 - [ ] **Étape 5 : écrire la copie Storage**
 
