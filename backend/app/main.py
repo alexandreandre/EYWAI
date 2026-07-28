@@ -15,7 +15,7 @@ from app.api.router import router as api_router
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
-from app.core.settings import check_environment_consistency
+from app.core.settings import ALLOWED_ORIGINS_EXTRA, check_environment_consistency
 from app.modules.planning.api.router import router as planning_router
 from app.modules.signatures.api.router import router as signatures_router
 from app.modules.teams.api.router import router as teams_router
@@ -75,6 +75,8 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "https://sirh-frontend-app-505040845625.europe-west1.run.app",
     "https://sirh-frontend-505040845625.europe-west1.run.app",
+    # Origines supplémentaires (frontend de test) — vide en production.
+    *ALLOWED_ORIGINS_EXTRA,
 ]
 
 # localhost / 127.0.0.1 avec n’importe quel port (Vite, preview, etc.) — ne matche pas les domaines de prod.
