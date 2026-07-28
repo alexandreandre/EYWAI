@@ -69,6 +69,48 @@ SUPPORT_RECIPIENTS = tuple(
 # Redirection temporaire des e-mails « nouveau bulletin » (vide = envoi au salarié).
 PAYSLIP_EMAIL_REDIRECT = os.getenv("PAYSLIP_EMAIL_REDIRECT", "").strip() or None
 
+# --- Environnement d'exécution -------------------------------------------------
+# "prod" (défaut) ou "test". Pilote les garde-fous de l'environnement de test :
+# redirection e-mail, blocage signature électronique et dépôt DSN.
+APP_ENV = os.getenv("APP_ENV", "prod").strip().lower() or "prod"
+
+# Redirection forcée de TOUS les e-mails sortants, quel que soit leur type.
+# Distincte de PAYSLIP_EMAIL_REDIRECT, qui ne couvre que les bulletins et reste
+# un filet de production pendant la collecte des adresses manquantes.
+EMAIL_FORCE_REDIRECT_TO = os.getenv("EMAIL_FORCE_REDIRECT_TO", "").strip() or None
+
+
+def is_test_environment() -> bool:
+    """True si le service tourne dans l'environnement de test."""
+    return APP_ENV == "test"
+
+
+def check_environment_consistency() -> None:
+    """
+    Refuse de démarrer un environnement de test sans redirection e-mail.
+
+    Sans cette garde, une variable oubliée suffirait à faire partir de vrais
+    e-mails vers de vrais salariés depuis un environnement contenant les
+    données réelles. Ici, soit la redirection est active, soit le service ne
+    démarre pas.
+    """
+    if is_test_environment() and not EMAIL_FORCE_REDIRECT_TO:
+        raise RuntimeError(
+            "APP_ENV=test sans EMAIL_FORCE_REDIRECT_TO : refus de démarrer. "
+            "Configurez l'adresse de redirection des e-mails de test."
+        )
+
+
+def parse_extra_origins(raw: str | None) -> list[str]:
+    """Découpe une liste d'origines CORS séparées par des virgules."""
+    if not raw:
+        return []
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+# Origines CORS supplémentaires (frontend de test, etc.). Vide en production.
+ALLOWED_ORIGINS_EXTRA = parse_extra_origins(os.getenv("ALLOWED_ORIGINS_EXTRA"))
+
 
 def require_supabase_env() -> tuple[str, str]:
     """Retourne (SUPABASE_URL, SUPABASE_KEY) ou lève RuntimeError si manquants."""
