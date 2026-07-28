@@ -16,8 +16,12 @@ second projet Supabase. Un workflow GitHub Actions copie prod → test
 électronique, dépôt DSN — sont neutralisées par des garde-fous applicatifs
 pilotés par `APP_ENV` et `EMAIL_FORCE_REDIRECT_TO`.
 
-**Stack :** FastAPI / Python 3.12, React + Vite, Supabase (PostgreSQL 15),
-Google Cloud Run, GitHub Actions, `pg_dump` 15.15.
+**Stack :** FastAPI / Python 3.12, React + Vite, Supabase (**PostgreSQL 17.6**
+en production), Google Cloud Run, GitHub Actions, `pg_dump` **17+** (un client
+plus ancien refuse de dumper un serveur plus récent).
+
+**Coordonnées de production :** projet Supabase `slleauhyjnmiawosvlcg`,
+organisation `vvxnsapnmdkpxyxxyvro`, région `eu-west-3`.
 
 **Spec :** `docs/superpowers/specs/2026-07-28-environnement-test-donnees-reelles-design.md`
 
@@ -1241,10 +1245,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Client PostgreSQL 15
+      # La prod tourne sous PostgreSQL 17 : un client plus ancien refuse de la
+      # dumper. Le dépôt officiel PGDG est nécessaire, les images GitHub
+      # n'embarquant pas toujours le client 17.
+      - name: Client PostgreSQL 17
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-15 || sudo apt-get install -y postgresql-client
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
 
       - name: Vérifier les secrets requis
         run: |

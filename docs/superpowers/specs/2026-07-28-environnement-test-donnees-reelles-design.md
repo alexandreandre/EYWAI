@@ -339,6 +339,13 @@ des clés étrangères et sur les déclencheurs. Traitement :
   Supabase propres au projet source, qui provoqueraient sinon des erreurs de
   rôle inexistant.
 
+**Version de l'outillage.** La production tourne sous **PostgreSQL 17.6**
+(projet `slleauhyjnmiawosvlcg`, région `eu-west-3`). `pg_dump` refuse de dumper
+un serveur plus récent que lui : le client doit donc être en **17 ou plus**, en
+local comme dans le workflow. À ne pas confondre avec le `major_version = 15` de
+`supabase/config.toml`, qui décrit le Supabase local de développement et non la
+production.
+
 ### 12.4 Storage : fichiers et métadonnées doivent rester cohérents
 
 Les objets ont deux faces : les fichiers stockés et les lignes `storage.objects`
