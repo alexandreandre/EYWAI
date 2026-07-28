@@ -15,12 +15,19 @@ from app.api.router import router as api_router
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
+from app.core.settings import check_environment_consistency
 from app.modules.planning.api.router import router as planning_router
 from app.modules.signatures.api.router import router as signatures_router
 from app.modules.teams.api.router import router as teams_router
 
 configure_logging()
 logger = get_logger(__name__)
+
+# Refuse de démarrer un environnement de test sans redirection e-mail : sans
+# elle, de vrais salariés recevraient les envois d'un environnement contenant
+# les données réelles.
+# Cf. docs/superpowers/specs/2026-07-28-environnement-test-donnees-reelles-design.md §7.3
+check_environment_consistency()
 
 app = FastAPI(
     lifespan=lifespan,
