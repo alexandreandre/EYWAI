@@ -231,7 +231,9 @@ Tests automatisés (suite backend) :
 - sous `APP_ENV=prod`, aucun de ces blocages ne s'active (non-régression) ;
 - le backend refuse de démarrer sous `APP_ENV=test` sans
   `EMAIL_FORCE_REDIRECT_TO` (§7.3) ;
-- le garde de destination du script de resynchro refuse une cible de production.
+- le garde de destination du script de resynchro refuse une cible de production ;
+- `ALLOWED_ORIGINS_EXTRA` étend bien les origines CORS sans altérer celles de
+  production ni la regex de développement local (§12.1).
 
 Contrôles exécutés à la fin de chaque resynchro :
 
@@ -277,6 +279,84 @@ tableau de bord.
 | Risque | Traitement |
 |---|---|
 | Une resynchro efface un test en cours | Déclenchement manuel uniquement, confirmation explicite, date de dernière resynchro affichée |
-| Dérive de schéma entre test et prod | Les migrations s'appliquent aux deux environnements dans le même workflow |
+| Dérive de schéma entre test et prod | Résolue par construction : la resynchro restaure le schéma **et** les données (§12.3) |
 | Croissance du coût Storage | Mesure de la volumétrie au premier lot 2 ; copie sélective des buckets si nécessaire |
 | Données réelles dupliquées dans un second système | Accès restreint aux mêmes personnes qu'en production ; neutralisation systématique des sorties |
+
+## 12. Robustesse — pièges identifiés et traitement
+
+Les défauts de ce type de montage sont dans la plomberie. Les points suivants
+ont été vérifiés dans le code et doivent être traités explicitement, faute de
+quoi l'environnement ne fonctionnera pas.
+
+### 12.1 Les origines CORS sont écrites en dur — bloquant
+
+`app/main.py` définit `ALLOWED_ORIGINS` comme une liste littérale contenant les
+deux URL Cloud Run de production. Le frontend de test aurait une URL nouvelle,
+absente de cette liste : **tous les appels API seraient rejetés par le
+navigateur** et l'environnement serait inutilisable.
+
+`CORS_ALLOW_ORIGIN_REGEX` existe déjà mais le surcharger écraserait la regex de
+développement local, cassant le travail quotidien.
+
+Traitement : ajouter une variable `ALLOWED_ORIGINS_EXTRA` (liste séparée par des
+virgules) concaténée à `ALLOWED_ORIGINS`, vide par défaut. Le service de test y
+déclare l'origine de son frontend. Aucun comportement de production ni de
+développement local n'est modifié. Couvert par un test.
+
+### 12.2 `VITE_API_URL` est figé au build — ordre de création imposé
+
+`frontend/Dockerfile` reçoit `VITE_API_URL` en `ARG` : l'URL du backend est
+compilée dans le bundle. Il faut donc connaître l'URL du backend de test avant
+de construire son frontend, alors que cette URL n'existe qu'après création du
+service Cloud Run.
+
+Traitement, en deux temps :
+
+1. **Amorçage, une seule fois** : créer le service backend de test, lire son URL
+   via `gcloud run services describe`, l'enregistrer comme variable de dépôt
+   `VITE_API_URL_TEST`, puis créer le frontend de test.
+2. **Ensuite** : `deploy.yml` construit **deux** images frontend, l'une avec
+   `vars.VITE_API_URL`, l'autre avec `vars.VITE_API_URL_TEST`. Les images
+   backend sont identiques pour les deux environnements — seules les variables
+   d'environnement diffèrent.
+
+### 12.3 Restauration : dump complet pour `public`, données seules pour `auth`
+
+Une restauration en données seules sur une base préexistante achoppe sur l'ordre
+des clés étrangères et sur les déclencheurs. Traitement :
+
+- **`public`** : dump **schéma et données** de la production, restauré dans une
+  base de test vidée au préalable. L'ordre des dépendances est alors géré par
+  `pg_dump` lui-même, et la dérive de schéma entre test et production disparaît
+  par construction — le test reçoit à chaque fois le schéma exact de la prod.
+- **`auth`** : **données seules**. Le schéma `auth` est géré par Supabase et
+  existe déjà dans un projet neuf ; le recréer casserait le service
+  d'authentification. Les sessions et jetons de rafraîchissement sont **exclus**
+  de la copie : ils sont propres au projet d'origine et invalides ailleurs. Les
+  mots de passe, eux, sont des empreintes portables et se copient.
+- Restauration avec `--no-owner --no-privileges` : le dump référence des rôles
+  Supabase propres au projet source, qui provoqueraient sinon des erreurs de
+  rôle inexistant.
+
+### 12.4 Storage : fichiers et métadonnées doivent rester cohérents
+
+Les objets ont deux faces : les fichiers stockés et les lignes `storage.objects`
+en base. Copier l'une sans l'autre produit soit des liens morts, soit des
+fichiers orphelins. Les deux sont copiés dans la même resynchro, et le contrôle
+final compare les décomptes de part et d'autre.
+
+### 12.5 Reprise après échec
+
+Une resynchro interrompue en cours laisse le test dans un état partiel. Le
+traitement retenu est la **rejouabilité** plutôt que la transaction géante :
+relancer le workflow repart d'une base vidée et refait la copie complète. Le
+backend expose l'état et la date de la dernière resynchro réussie, affichés dans
+le bandeau, afin qu'un état partiel soit visible plutôt que silencieux.
+
+### 12.6 Suivi côté interface
+
+La copie dure plusieurs minutes. Le bouton ne se contente pas de déclencher : il
+suit l'exécution du workflow et affiche son avancement, puis son issue. Un
+déclenchement pendant qu'une resynchro tourne est refusé par le verrou de
+concurrence, avec un message explicite.
