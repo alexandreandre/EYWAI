@@ -77,7 +77,12 @@ jobs:
           SUPABASE_PROD_REF: ${{ vars.SUPABASE_PROD_REF }}
           SUPABASE_TEST_REF: ${{ vars.SUPABASE_TEST_REF }}
           SUPABASE_PROD_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PROD_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # ATTENTION : c'est bien SUPABASE_KEY qui porte la clé service_role.
+          # Le nommage est trompeur (dans backend/.env, SUPABASE_SERVICE_KEY
+          # contient la clé anon), et aucun secret SUPABASE_SERVICE_KEY n'existe
+          # sur le dépôt. copy_storage.py vérifie le rôle réel de la clé et
+          # échoue si ce n'est pas service_role, plutôt que de copier zéro objet.
+          SUPABASE_PROD_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
           SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
           SUPABASE_TEST_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
         run: ./scripts/test_env/refresh_from_prod.sh

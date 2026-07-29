@@ -69,17 +69,22 @@ pg_dump "$SUPABASE_PROD_READ_URL" \
   --schema=public --no-owner --no-privileges \
   --file "$WORKDIR/public.sql"
 
-# auth : données seules. Le schéma auth est géré par Supabase et existe déjà
-# dans un projet neuf ; le recréer casserait l'authentification. Les sessions et
-# jetons de rafraîchissement sont exclus : propres au projet source, invalides
-# ailleurs.
+# auth : données seules, et uniquement les deux tables qui portent l'identité.
+# Le schéma auth est géré par Supabase et existe déjà dans un projet neuf ; le
+# recréer casserait l'authentification.
+#
+# Liste blanche plutôt que liste d'exclusions :
+#   - les tables internes (schema_migrations…) appartiennent à
+#     supabase_auth_admin et refusent l'écriture à postgres ;
+#   - les sessions et jetons de rafraîchissement sont propres au projet source
+#     et invalides ailleurs.
+# users + identities suffisent à ce que chacun se connecte avec ses
+# identifiants habituels (les mots de passe sont des empreintes portables).
 echo "Dump des comptes de connexion..."
 pg_dump "$SUPABASE_PROD_READ_URL" \
-  --schema=auth --data-only --no-owner --no-privileges \
-  --exclude-table=auth.sessions \
-  --exclude-table=auth.refresh_tokens \
-  --exclude-table=auth.mfa_amr_claims \
-  --exclude-table=auth.flow_state \
+  --data-only --no-owner --no-privileges \
+  --table=auth.users \
+  --table=auth.identities \
   --file "$WORKDIR/auth.sql"
 
 # --- 2. Décomptes de référence (contrôle anti-copie partielle) ----------------
@@ -94,25 +99,32 @@ if [ "$PROD_COUNT" -eq 0 ]; then
 fi
 
 # --- 3. Restauration dans le test --------------------------------------------
+# Le dump contient lui-même « CREATE SCHEMA public » : le recréer ici
+# provoquerait « schema public already exists » à la restauration.
 echo "Purge de la base de test..."
 psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 \
-  -c "drop schema if exists public cascade; create schema public;"
+  -c "drop schema if exists public cascade;"
 
-echo "Restauration du schéma public..."
-psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 -f "$WORKDIR/public.sql"
-
+# Les comptes AVANT les données métier : plusieurs tables de public portent des
+# clés étrangères vers auth.users (colonnes assigned_by, granted_by, created_by…).
+# L'ordre inverse échoue sur « violates foreign key constraint ».
 echo "Restauration des comptes de connexion..."
 psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 \
   -c "truncate auth.identities, auth.users cascade;"
 psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 -f "$WORKDIR/auth.sql"
+
+echo "Restauration du schéma public..."
+psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 -f "$WORKDIR/public.sql"
 
 # --- 4. Neutralisation --------------------------------------------------------
 echo "Neutralisation de la base de test..."
 psql "$SUPABASE_TEST_DB_URL" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/neutralize_test_db.sql"
 
 # --- 5. Storage ---------------------------------------------------------------
+# PYTHON_BIN permet de viser un interpréteur disposant de `requests` (venv en
+# local). Dans le workflow, `pip install requests` rend python3 suffisant.
 echo "Copie des fichiers Storage..."
-python3 "$SCRIPT_DIR/copy_storage.py"
+"${PYTHON_BIN:-python3}" "$SCRIPT_DIR/copy_storage.py"
 
 # --- 6. Contrôle de cohérence -------------------------------------------------
 TEST_COUNT="$(psql "$SUPABASE_TEST_DB_URL" -tAc "select count(*) from public.employees;")"
