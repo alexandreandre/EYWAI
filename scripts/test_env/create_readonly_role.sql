@@ -1,15 +1,22 @@
 -- Rôle de lecture dédié à la copie prod -> test.
 --
--- Ne peut jamais écrire : privilèges SELECT uniquement, et sessions forcées en
--- lecture seule au niveau du serveur. C'est la garantie structurelle que la
--- production ne peut pas être modifiée par le pipeline de resynchro, même en
--- cas de bug du script.
+-- Ne peut jamais écrire : lecture seule au niveau du serveur (aucun privilège
+-- d'écriture accordé, et default_transaction_read_only forcé). C'est la
+-- garantie structurelle que la production ne peut pas être modifiée par le
+-- pipeline de resynchro, même en cas de bug du script.
 --
--- ATTENTION — piège RLS : PostgreSQL applique la RLS aux rôles non
--- privilégiés. Un pg_dump exécuté par un rôle disposant seulement de SELECT
--- sur des tables protégées ne renvoie PAS d'erreur, il renvoie zéro ligne.
--- L'attribut BYPASSRLS est donc indispensable, et sa présence doit être
--- vérifiée après création (voir la vérification en fin de fichier).
+-- POURQUOI pg_read_all_data ET NON DES GRANT PAR SCHÉMA :
+--   1. Le schéma auth appartient à supabase_admin, pas à postgres : un
+--      GRANT USAGE ON SCHEMA auth échoue et le rôle reçoit
+--      « permission denied for schema auth » au moment du dump.
+--   2. pg_read_all_data est un rôle intégré PostgreSQL qui donne le SELECT sur
+--      tous les schémas, y compris auth, et couvre automatiquement les tables
+--      créées après coup.
+--   3. Il implique la lecture des tables protégées par RLS. Sans cela,
+--      PostgreSQL applique la RLS au rôle : pg_dump ne renvoie PAS d'erreur,
+--      il renvoie zéro ligne — un environnement de test silencieusement vide.
+--      BYPASSRLS reste posé en complément, et sa présence est vérifiée en fin
+--      de fichier.
 --
 -- Usage en ligne de commande :
 --   psql "<URL_PROD>" -v ON_ERROR_STOP=1 -v reader_password="'<MOT_DE_PASSE>'" \
@@ -28,26 +35,15 @@ ALTER ROLE eywai_replica_reader SET default_transaction_read_only = on;
 
 GRANT CONNECT ON DATABASE postgres TO eywai_replica_reader;
 
-GRANT USAGE ON SCHEMA public  TO eywai_replica_reader;
-GRANT USAGE ON SCHEMA auth    TO eywai_replica_reader;
-GRANT USAGE ON SCHEMA storage TO eywai_replica_reader;
+-- Lecture sur tous les schémas, auth compris (cf. explication en tête).
+GRANT pg_read_all_data TO eywai_replica_reader;
 
-GRANT SELECT ON ALL TABLES IN SCHEMA public  TO eywai_replica_reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA auth    TO eywai_replica_reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA storage TO eywai_replica_reader;
-
-GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO eywai_replica_reader;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT ON TABLES TO eywai_replica_reader;
-
--- Sans BYPASSRLS, le dump serait silencieusement vide sur les tables à RLS.
--- Peut échouer si Supabase réserve cet attribut au superutilisateur : dans ce
--- cas, la vérification ci-dessous le signalera et il faudra replier sur la
--- connexion postgres pour le seul pg_dump (voir la spec, §12.3).
+-- Complément explicite : BYPASSRLS reste utile si pg_read_all_data venait à
+-- être révoqué, et rend l'intention lisible.
 ALTER ROLE eywai_replica_reader BYPASSRLS;
 
--- Vérification : doit afficher rolbypassrls = true.
+-- Vérification : rolbypassrls doit valoir true, et la lecture de auth.users
+-- doit renvoyer un nombre, pas une erreur de permission.
 SELECT rolname, rolcanlogin, rolbypassrls
   FROM pg_roles
  WHERE rolname = 'eywai_replica_reader';
