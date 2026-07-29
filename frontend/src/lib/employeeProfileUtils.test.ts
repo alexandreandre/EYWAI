@@ -39,6 +39,15 @@ describe('employeeProfileUtils', () => {
     expect(isDsnImportPlaceholderEmail('samir@cartol.fr')).toBe(false);
   });
 
+  it('isDsnImportPlaceholderEmail detects every fabricated domain', () => {
+    expect(isDsnImportPlaceholderEmail('import.abc123@dsn-import.eywai.fr')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('gaelle.bouali@eywai.access.local')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('vanessa.amate@users.eywai')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('amatevanessa@yahoo.fr')).toBe(false);
+    expect(isDsnImportPlaceholderEmail('')).toBe(false);
+    expect(isDsnImportPlaceholderEmail(null)).toBe(false);
+  });
+
   it('getDisplayEmployeeEmail hides placeholder', () => {
     expect(getDisplayEmployeeEmail('import.x@498610351.dsn-import.local')).toBeNull();
     expect(getDisplayEmployeeEmail('samir@cartol.fr')).toBe('samir@cartol.fr');

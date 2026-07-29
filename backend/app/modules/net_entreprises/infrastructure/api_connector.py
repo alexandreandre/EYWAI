@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from app.core import settings
 from app.core.logging import get_logger
 from app.modules.net_entreprises.domain.interfaces import NetEntreprisesNotConfigured
 from app.modules.net_entreprises.domain.value_objects import (
@@ -53,6 +54,12 @@ class NetEntreprisesApiConnector:
         xml_content: bytes,
         metadata: Dict[str, Any],
     ) -> TransmissionResult:
+        if settings.is_test_environment():
+            raise NetEntreprisesNotConfigured(
+                "Dépôt DSN désactivé en environnement de test : "
+                "aucune déclaration n'est transmise."
+            )
+
         # Tant que l'API n'est pas implémentée, on signale clairement l'indisponibilité.
         # Le service applicatif intercepte cette exception et retombe en mode manuel.
         raise NetEntreprisesNotConfigured(_NOT_READY_MSG)

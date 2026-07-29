@@ -129,7 +129,9 @@ class AccessProvisioner:
                 items.append(ProvisioningItem(f"person:{key}", "no-op", "none"))
                 continue
 
-            profile, conflict = self._resolve_person(person, profiles, companies)
+            profile, conflict = self._resolve_person(
+                person, profiles, companies, employees
+            )
             if conflict:
                 items.append(
                     ProvisioningItem(
@@ -658,6 +660,7 @@ class AccessProvisioner:
         person: dict[str, Any],
         profiles: list[dict[str, Any]],
         companies: dict[str, str],
+        employees: list[dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         identity = person["identity"]
         email = identity.get("email")
@@ -680,6 +683,18 @@ class AccessProvisioner:
 
         name = normalize_identity(identity.get("name"))
         matches = [row for row in profiles if normalized_full_name(row) == name]
+        # Lien stable : le compte canonique est celui que désigne la fiche salarié. Il
+        # départage les homonymes sans dépendre d'une adresse — laquelle change dès qu'on
+        # réaligne un compte sur l'adresse réelle de la personne.
+        if person.get("canonical_employee_account") and len(matches) > 1:
+            fiche_user_ids = {
+                str(emp.get("user_id"))
+                for emp in (employees or [])
+                if emp.get("user_id") and normalized_full_name(emp) == name
+            }
+            lies = [row for row in matches if str(row["id"]) in fiche_user_ids]
+            if len(lies) == 1:
+                return lies[0], None
         if person.get("canonical_employee_account") and person.get("prefer_role"):
             preferred = [
                 m for m in matches if (m.get("role") or "") == person["prefer_role"]
@@ -778,6 +793,8 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
     role_labels = {
         "admin": "Administrateur (accès complet)",
         "rh": "RH (accès complet — paie, bulletins, NDF, planning, avances…)",
+        "collaborateur_rh": "Collaborateur RH (espace salarié + vue RH)",
+        "collaborateur": "Collaborateur (espace salarié)",
         "custom": "Personnalisé",
     }
     sets = manifest.get("permission_sets") or {}
@@ -811,8 +828,16 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
             role = access.get("role") or "custom"
             head = f"• {label} — {role_labels.get(role, role)}"
             extras: list[str] = []
+            codes: list[str] = []
+            if access.get("permission_set"):
+                codes.extend(sets.get(access["permission_set"]) or [])
+            codes.extend(access.get("permission_codes") or [])
+            # Un rôle plein (admin/rh) porte déjà ses droits ; pour les autres, ce sont
+            # les permissions accordées qui définissent le périmètre réel — le classeur
+            # doit donc les détailler, pas seulement pour `custom`.
+            detaille = role == "custom" or (bool(codes) and role not in ("admin", "rh"))
             scope = access.get("scope_mode") or "company"
-            if role == "custom":
+            if detaille:
                 if scope == "teams":
                     teams = ", ".join(access.get("team_names") or [])
                     extras.append(f"Périmètre équipes {teams}")
@@ -820,11 +845,7 @@ def build_access_summaries(manifest: dict[str, Any]) -> dict[str, str]:
                     extras.append("Périmètre exceptions nominatives uniquement")
                 else:
                     extras.append("Périmètre toute l’entreprise")
-            codes: list[str] = []
-            if access.get("permission_set"):
-                codes.extend(sets.get(access["permission_set"]) or [])
-            codes.extend(access.get("permission_codes") or [])
-            if role == "custom" and codes:
+            if detaille and codes:
                 labels = [code_labels.get(c, c) for c in codes]
                 extras.append("Actions : " + ", ".join(labels))
             elif codes and "bank_dispatch.send" in codes:

@@ -45,12 +45,16 @@ jobs:
     name: Backend (lint + unit + OpenAPI)
     runs-on: ubuntu-latest
     env:
-      # Fakes acceptés : `supabase.create_client` n'appelle pas le réseau à l'init.
-      # Si des secrets réels sont fournis (utile pour debug), ils sont utilisés.
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://ci-fake.supabase.co' }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'ci-fake-anon-key' }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || '' }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENAI_API_KEY || 'sk-or-ci-fake' }}
+      # Valeurs factices hermétiques, jamais les secrets réels : les tests
+      # unitaires ne doivent atteindre ni la base de production ni aucun service
+      # externe. Un repli `secrets.X || fake` faisait gagner les secrets réels
+      # dès qu'ils existaient, et des tests aux chemins non mockés écrivaient
+      # alors dans la base de production (upsert user_permissions).
+      # Même parti pris que le gate Copilot de deploy.yml.
+      SUPABASE_URL: https://ci-fake.supabase.co
+      SUPABASE_KEY: ci-fake-anon-key
+      SUPABASE_SERVICE_KEY: ""
+      OPENROUTER_API_KEY: sk-or-ci-fake
     defaults:
       run:
         working-directory: backend

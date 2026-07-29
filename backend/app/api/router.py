@@ -102,6 +102,7 @@ from app.modules.schedules.api.router import (
 )
 from app.modules.super_admin.api.router import router as super_admin_router
 from app.modules.support.api.router import router as support_router
+from app.modules.test_env.api.router import router as test_env_router
 from app.modules.uploads.api.router import router as uploads_router
 from app.modules.users.api.router import router as users_router
 from app.modules.webhooks.api.router import router as webhooks_router
@@ -179,6 +180,7 @@ router.include_router(schedules_router_me)
 router.include_router(schedules_router_rh)
 router.include_router(super_admin_router)
 router.include_router(support_router)
+router.include_router(test_env_router)
 router.include_router(users_router)
 router.include_router(uploads_router)
 router.include_router(badgeuse_router_me)

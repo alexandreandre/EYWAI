@@ -27,6 +27,7 @@ import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
+import { TestEnvBanner } from '@/components/TestEnvBanner';
 
 const BadgeuseTerminalGate = lazy(
   () => import('@/components/badgeuse/rh/BadgeuseTerminalGate').then((m) => ({
@@ -277,6 +278,7 @@ function PlatformAdminRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <TooltipProvider>
+      <TestEnvBanner />
       <SignedPdfPreviewProvider>
         <Toaster />
         <BootProvider>

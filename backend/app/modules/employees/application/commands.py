@@ -20,11 +20,13 @@ from typing import Any, Dict, Iterator, Optional
 from fastapi import HTTPException
 
 from app.core.database import supabase
+from app.modules.employees.application.auth_email_sync import sync_auth_email_for_employee
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.domain.rules import (
     build_dsn_import_auth_email,
     build_employee_folder_name,
     default_company_data_fallback,
+    is_dsn_import_placeholder_email,
     normalize_temps_travail_fields,
 )
 from app.modules.employees.infrastructure.queries import allocate_collaborator_username
@@ -452,7 +454,12 @@ def create_employee_imported(
         folder_name=folder_name,
     )
     db_insert_data["employment_status"] = employee_data.get("employment_status") or "actif"
-    db_insert_data["email"] = email
+    # Même règle qu'au provisionnement : seule une adresse réelle devient l'adresse de
+    # contact. L'adresse technique reste cantonnée au compte Auth.
+    if email and not is_dsn_import_placeholder_email(email):
+        db_insert_data["email"] = email
+    else:
+        db_insert_data.pop("email", None)
 
     try:
         new_employee_db = _employee_repository.create(db_insert_data)
@@ -692,6 +699,10 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
     _maybe_activate_after_onboarding(employee_id)
     refreshed = _employee_repository.get_by_id_only(employee_id)
     result = refreshed if refreshed is not None else updated
+    if "email" in update_data:
+        # Point de passage unique des mises à jour : import d'enrichissement, saisie RH
+        # ou script de reprise passent tous par ici.
+        sync_auth_email_for_employee(result)
     return enrich_employee_profile_completeness(result)
 
 

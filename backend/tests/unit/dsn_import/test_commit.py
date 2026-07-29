@@ -213,6 +213,11 @@ def test_commit_batch_skips_absence_when_employee_in_exit():
         "app.modules.dsn_import.application.commit._resolve_employee_for_dsn_item",
         return_value=("emp-1", "co-1"),
     ), patch(
+        # Appelé juste avant create_reconciliation_absence : sans ce patch,
+        # l'appel réseau échoue et l'item part en erreur avant d'atteindre le mock.
+        "app.modules.dsn_import.application.commit.resolve_dsn_workflow_user_id",
+        return_value="user-sys",
+    ), patch(
         "app.modules.absences.application.commands.create_reconciliation_absence",
         return_value={"skipped": True, "reason": "exit_in_progress", "employee_id": "emp-1"},
     ) as mock_absence:

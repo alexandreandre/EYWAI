@@ -97,6 +97,18 @@ class SupabaseAuthProvider(IAuthProvider):
     def update_user_password(self, user_id: str, new_password: str) -> None:
         supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
 
+    def get_user_email(self, user_id: str) -> Optional[str]:
+        response = supabase.auth.admin.get_user_by_id(user_id)
+        user = getattr(response, "user", None) or response
+        return getattr(user, "email", None)
+
+    def update_user_email(self, user_id: str, new_email: str) -> None:
+        # `email_confirm` évite d'envoyer un e-mail de confirmation à une personne qui
+        # n'a rien demandé : le changement est décidé par l'employeur, pas par le salarié.
+        supabase.auth.admin.update_user_by_id(
+            user_id, {"email": new_email, "email_confirm": True}
+        )
+
     def delete_user(self, user_id: str) -> None:
         supabase.auth.admin.delete_user(user_id)
 

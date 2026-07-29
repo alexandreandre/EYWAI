@@ -1,0 +1,96 @@
+# Resynchronise l'environnement de test depuis la production.
+#
+# Sens unique : lit la prod, écrit le test. Jamais l'inverse.
+# Déclenchement manuel, ou par le bouton de l'interface de test
+# (repository_dispatch, type refresh-test-env).
+#
+# Toute resynchro écrase le bac à sable : les manipulations en cours côté test
+# sont perdues et remplacées par l'état de la production.
+name: Refresh test from prod
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [refresh-test-env]
+
+# Une seule resynchro à la fois : deux copies concurrentes se marcheraient
+# dessus sur la même base cible.
+concurrency:
+  group: refresh-test-env
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Copie prod -> test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # La prod tourne sous PostgreSQL 17 : un client plus ancien refuse de la
+      # dumper. Les images GitHub n'embarquent pas toujours le client 17, d'où
+      # le dépôt officiel PGDG.
+      - name: Client PostgreSQL 17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+
+      - name: Vérifier les secrets et variables requis
+        env:
+          PROD_READ_URL: ${{ secrets.SUPABASE_PROD_READ_URL }}
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          TEST_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+          TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          PROD_REF: ${{ vars.SUPABASE_PROD_REF }}
+          TEST_REF: ${{ vars.SUPABASE_TEST_REF }}
+        run: |
+          missing=""
+          [ -z "$PROD_READ_URL" ]    && missing="$missing SUPABASE_PROD_READ_URL(secret)"
+          [ -z "$TEST_DB_URL" ]      && missing="$missing SUPABASE_TEST_DB_URL(secret)"
+          [ -z "$TEST_SERVICE_KEY" ] && missing="$missing SUPABASE_TEST_SERVICE_KEY(secret)"
+          [ -z "$TEST_URL" ]         && missing="$missing SUPABASE_TEST_URL(secret)"
+          [ -z "$PROD_REF" ]         && missing="$missing SUPABASE_PROD_REF(var)"
+          [ -z "$TEST_REF" ]         && missing="$missing SUPABASE_TEST_REF(var)"
+          if [ -n "$missing" ]; then
+            echo "::error::Manquant dans Settings → Secrets and variables → Actions :$missing"
+            exit 1
+          fi
+
+      - name: Installer les dépendances Python de la copie Storage
+        run: pip install requests
+
+      - name: Resynchro
+        env:
+          SUPABASE_PROD_READ_URL: ${{ secrets.SUPABASE_PROD_READ_URL }}
+          SUPABASE_TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          SUPABASE_PROD_REF: ${{ vars.SUPABASE_PROD_REF }}
+          SUPABASE_TEST_REF: ${{ vars.SUPABASE_TEST_REF }}
+          SUPABASE_PROD_URL: ${{ secrets.SUPABASE_URL }}
+          # ATTENTION : c'est bien SUPABASE_KEY qui porte la clé service_role.
+          # Le nommage est trompeur (dans backend/.env, SUPABASE_SERVICE_KEY
+          # contient la clé anon), et aucun secret SUPABASE_SERVICE_KEY n'existe
+          # sur le dépôt. copy_storage.py vérifie le rôle réel de la clé et
+          # échoue si ce n'est pas service_role, plutôt que de copier zéro objet.
+          SUPABASE_PROD_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          SUPABASE_TEST_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+        run: ./scripts/test_env/refresh_from_prod.sh
+
+      - name: Résumé
+        if: always()
+        run: |
+          echo "### Resynchro de l'environnement de test" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Statut : ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Déclenchée par : ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"

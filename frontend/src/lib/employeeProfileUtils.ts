@@ -133,11 +133,18 @@ export function isProfileNotFoundError(error: unknown): boolean {
 }
 
 const DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX = '.dsn-import.local';
+/**
+ * Domaines non routables ayant servi d'adresse de repli. L'import DSN n'en produit plus,
+ * mais des fiches en portent encore : miroir de `PLACEHOLDER_EMAIL_DOMAINS` côté backend.
+ */
+const PLACEHOLDER_EMAIL_DOMAINS = ['dsn-import.eywai.fr', 'eywai.access.local', 'users.eywai'];
 
-/** Email technique généré à l'import DSN — pas une adresse réelle. */
+/** Adresse fabriquée par la plateforme — jamais celle de la personne. */
 export function isDsnImportPlaceholderEmail(email: string | null | undefined): boolean {
   if (!email?.trim()) return false;
-  return email.trim().toLowerCase().endsWith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX);
+  const value = email.trim().toLowerCase();
+  if (value.endsWith(DSN_IMPORT_PLACEHOLDER_EMAIL_SUFFIX)) return true;
+  return PLACEHOLDER_EMAIL_DOMAINS.some((domain) => value.endsWith(`@${domain}`));
 }
 
 /** Email affichable sur la fiche (masque le placeholder DSN). */
