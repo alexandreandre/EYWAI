@@ -10,8 +10,12 @@ COPY . .
 # URL HTTPS du backend (Cloud Run, etc.) — obligatoire au build : --build-arg ou deploy.yml (vars.VITE_API_URL)
 ARG VITE_API_URL
 ARG VITE_APP_BUILD_ID
+# "prod" (défaut) ou "test". Figé au build : le bandeau et le bouton de
+# resynchro sont éliminés du bundle de production, pas masqués à l'exécution.
+ARG VITE_APP_ENV=prod
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_APP_BUILD_ID=${VITE_APP_BUILD_ID}
+ENV VITE_APP_ENV=${VITE_APP_ENV}
 RUN npm run build
 
 # --- ÉTAPE 2 : PRODUCTION ---
