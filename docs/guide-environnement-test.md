@@ -105,10 +105,15 @@ serveur lui-même — pas par une consigne.
 
 ## Points ouverts
 
-- La redirection des e-mails pointe provisoirement sur une adresse personnelle.
-  À basculer vers une boîte dédiée dès qu'elle existe.
+- Les e-mails du test partent tous vers `eywaitest@gmail.com`.
 - Le bouton de resynchro nécessite un jeton GitHub à portée restreinte
   (`GITHUB_DISPATCH_TOKEN`) sur le service de test. Sans lui, la resynchro
   reste lançable depuis GitHub.
-- Le secret `SUPABASE_DB_URL` est absent : le job de migrations de `deploy.yml`
-  est sauté silencieusement à chaque déploiement. Sujet distinct, mais à traiter.
+- **Ne pas créer le secret `SUPABASE_DB_URL`** en l'état. Le job de migrations
+  de `deploy.yml` est sauté faute de ce secret, mais le créer ferait échouer
+  tout déploiement : les 159 migrations ne sont pas idempotentes
+  (`CREATE POLICY` n'accepte pas `IF NOT EXISTS`), et la production n'a aucune
+  table de suivi `supabase_migrations.schema_migrations` — la CLI les
+  considère donc toutes comme à appliquer. Vérifié sur la base de test le
+  2026-07-29. À traiter par un rattrapage d'historique
+  (`supabase migration repair`), testé sur le test au préalable.
