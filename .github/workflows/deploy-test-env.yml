@@ -135,11 +135,15 @@ jobs:
           # Les deux sont valides et la console affiche la seconde. N'autoriser
           # que celle de describe suffit à faire rejeter tous les appels API
           # quand quelqu'un ouvre l'autre. On déclare donc les deux.
-          num=$(gcloud projects describe "${{ vars.GCP_PROJECT_ID }}" \
-            --format 'value(projectNumber)' 2>/dev/null || true)
+          # Le numéro de projet vient d'une variable de dépôt : l'API
+          # cloudresourcemanager est désactivée pour le compte de service de
+          # déploiement, donc `gcloud projects describe` échoue ici.
+          num="${{ vars.GCP_PROJECT_NUMBER }}"
           origines="$url"
           if [ -n "$num" ]; then
             origines="$origines,https://${FRONTEND_SERVICE}-${num}.${GCP_REGION}.run.app"
+          else
+            echo "::warning::GCP_PROJECT_NUMBER absent — une seule forme d'URL autorisée en CORS."
           fi
 
           # ^##^ : délimiteur explicite, sans quoi gcloud prendrait la virgule
