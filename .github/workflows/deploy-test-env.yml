@@ -1,0 +1,154 @@
+# Déploie l'environnement de test (Cloud Run) depuis la branche choisie.
+#
+# Ne touche JAMAIS la production : services, base et variables sont ceux du
+# test. C'est ce qui permet de faire valider une nouveauté avant de la livrer.
+#
+# L'ordre des étapes est imposé : VITE_API_URL est figé au build du frontend,
+# il faut donc connaître l'URL du backend de test avant de construire l'image
+# frontend — d'où le déploiement backend en premier.
+name: Deploy test env
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-test-env
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GCP_REGION: ${{ vars.GCP_REGION || 'europe-west1' }}
+  BACKEND_SERVICE: sirh-backend-test
+  FRONTEND_SERVICE: sirh-frontend-test
+
+jobs:
+  deploy:
+    name: Build & deploy test env
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier les secrets requis
+        env:
+          SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          TEST_KEY: ${{ secrets.SUPABASE_TEST_KEY }}
+          REDIRECT: ${{ secrets.EMAIL_FORCE_REDIRECT_TO }}
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          missing=""
+          [ -z "$SA_KEY" ]   && missing="$missing GCP_SA_KEY(secret)"
+          [ -z "$TEST_URL" ] && missing="$missing SUPABASE_TEST_URL(secret)"
+          [ -z "$TEST_KEY" ] && missing="$missing SUPABASE_TEST_KEY(secret)"
+          [ -z "$REDIRECT" ] && missing="$missing EMAIL_FORCE_REDIRECT_TO(secret)"
+          [ -z "$PROJECT" ]  && missing="$missing GCP_PROJECT_ID(var)"
+          if [ -n "$missing" ]; then
+            echo "::error::Manquant dans Settings → Secrets and variables → Actions :$missing"
+            exit 1
+          fi
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+      - run: gcloud auth configure-docker --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Pre-pull images de base (mirror GCR, retry)
+        run: |
+          for img in \
+            "mirror.gcr.io/library/python:3.11-slim" \
+            "mirror.gcr.io/library/node:22-alpine" \
+            "mirror.gcr.io/library/nginx:alpine"; do
+            for attempt in 1 2 3; do
+              docker pull "$img" && break
+              [ "$attempt" -eq 3 ] && { echo "::error::Échec pull $img"; exit 1; }
+              sleep 20
+            done
+          done
+
+      # ---------------------------------------------------------------------
+      # 1) Backend — l'image porte les garde-fous ; les variables les activent.
+      # ---------------------------------------------------------------------
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}
+
+      - name: Deploy backend test
+        run: |
+          gcloud run deploy "$BACKEND_SERVICE" \
+            --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
+            --region "$GCP_REGION" \
+            --memory 2Gi --timeout 900 --allow-unauthenticated \
+            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.EMAIL_FORCE_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+
+      - name: Relever l'URL du backend de test
+        id: back
+        run: |
+          url=$(gcloud run services describe "$BACKEND_SERVICE" \
+            --region "$GCP_REGION" --format 'value(status.url)')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Backend de test : $url"
+
+      # ---------------------------------------------------------------------
+      # 2) Frontend — VITE_API_URL et VITE_APP_ENV sont figés au build.
+      # ---------------------------------------------------------------------
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ steps.back.outputs.url }}
+            VITE_APP_ENV=test
+            VITE_APP_BUILD_ID=${{ github.sha }}
+          tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-frontend:test-${{ github.sha }}
+
+      - name: Deploy frontend test
+        run: |
+          gcloud run deploy "$FRONTEND_SERVICE" \
+            --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-frontend:test-${{ github.sha }}" \
+            --region "$GCP_REGION" --allow-unauthenticated
+
+      # ---------------------------------------------------------------------
+      # 3) CORS — sans cette étape, le navigateur rejette tous les appels API.
+      # ---------------------------------------------------------------------
+      - name: Autoriser l'origine du frontend de test
+        id: front
+        run: |
+          url=$(gcloud run services describe "$FRONTEND_SERVICE" \
+            --region "$GCP_REGION" --format 'value(status.url)')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          gcloud run services update "$BACKEND_SERVICE" --region "$GCP_REGION" \
+            --update-env-vars "ALLOWED_ORIGINS_EXTRA=$url"
+          echo "Frontend de test : $url"
+
+      - name: Smoke tests
+        run: |
+          BACK="${{ steps.back.outputs.url }}"
+          FRONT="${{ steps.front.outputs.url }}"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "$BACK/health"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "$BACK/openapi.json"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "$FRONT/"
+          # L'appel avec l'en-tête Origin du frontend de test doit être accepté.
+          curl -fsS -o /dev/null -H "Origin: $FRONT" "$BACK/health"
+
+      - name: Résumé
+        if: always()
+        run: |
+          {
+            echo "### Environnement de test"
+            echo ""
+            echo "- Backend : ${{ steps.back.outputs.url }}"
+            echo "- Frontend : ${{ steps.front.outputs.url }}"
+            echo "- Branche déployée : ${{ github.ref_name }}"
+          } >> "$GITHUB_STEP_SUMMARY"
