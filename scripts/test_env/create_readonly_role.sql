@@ -11,11 +11,13 @@
 -- L'attribut BYPASSRLS est donc indispensable, et sa présence doit être
 -- vérifiée après création (voir la vérification en fin de fichier).
 --
--- Usage :
---   psql "<URL_PROD>" -v reader_password="'<MOT_DE_PASSE>'" \
+-- Usage en ligne de commande :
+--   psql "<URL_PROD>" -v ON_ERROR_STOP=1 -v reader_password="'<MOT_DE_PASSE>'" \
 --        -f scripts/test_env/create_readonly_role.sql
-
-\set ON_ERROR_STOP on
+--
+-- Usage dans l'éditeur SQL du tableau de bord Supabase : remplacer
+-- :reader_password par le mot de passe entre apostrophes. Ce fichier ne
+-- contient aucune méta-commande psql (\set, \i…), que l'éditeur web rejette.
 
 DROP ROLE IF EXISTS eywai_replica_reader;
 
