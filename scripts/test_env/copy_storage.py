@@ -15,7 +15,9 @@ Variables requises :
 import base64
 import json
 import os
+import random
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -28,10 +30,35 @@ TEST_KEY = os.environ["SUPABASE_TEST_SERVICE_KEY"]
 TIMEOUT = 120
 PAGE = 1000
 PARALLELISME = int(os.getenv("STORAGE_COPY_WORKERS", "12"))
+TENTATIVES = 5
 
 
 def _headers(key: str) -> dict:
     return {"Authorization": f"Bearer {key}", "apikey": key}
+
+
+def _requete(methode: str, url: str, **kwargs) -> requests.Response:
+    """
+    Requête HTTP avec reprises sur erreur transitoire.
+
+    Sur près de 2000 fichiers, l'API Supabase renvoie ponctuellement des 5xx
+    (504 en particulier) et des coupures réseau. Sans reprise, une seule de ces
+    erreurs fait échouer toute la copie après plusieurs minutes de travail.
+    """
+    derniere: Exception | None = None
+    for tentative in range(TENTATIVES):
+        try:
+            r = requests.request(methode, url, timeout=TIMEOUT, **kwargs)
+            if r.status_code < 500 or r.status_code == 501:
+                return r
+            derniere = requests.HTTPError(f"{r.status_code} sur {url}", response=r)
+        except (requests.Timeout, requests.ConnectionError) as e:
+            derniere = e
+        if tentative < TENTATIVES - 1:
+            # Attente progressive avec part d'aléatoire, pour ne pas relancer
+            # les 12 fils exactement au même instant.
+            time.sleep((2**tentative) + random.random())
+    raise derniere if derniere else RuntimeError(f"échec sur {url}")
 
 
 def _role_de_cle(key: str) -> str:
@@ -67,7 +94,7 @@ def verifier_cles() -> None:
 
 
 def lister_buckets(base: str, key: str) -> list[dict]:
-    r = requests.get(f"{base}/storage/v1/bucket", headers=_headers(key), timeout=TIMEOUT)
+    r = _requete("GET", f"{base}/storage/v1/bucket", headers=_headers(key))
     r.raise_for_status()
     return r.json()
 
@@ -78,8 +105,8 @@ def creer_bucket(base: str, key: str, bucket: dict) -> None:
         "name": bucket["name"],
         "public": bucket.get("public", False),
     }
-    r = requests.post(
-        f"{base}/storage/v1/bucket", headers=_headers(key), json=payload, timeout=TIMEOUT
+    r = _requete(
+        "POST", f"{base}/storage/v1/bucket", headers=_headers(key), json=payload
     )
     if r.status_code in (200, 201):
         return
@@ -100,11 +127,11 @@ def lister_objets(base: str, key: str, bucket_id: str, prefix: str = "") -> list
     chemins: list[str] = []
     offset = 0
     while True:
-        r = requests.post(
+        r = _requete(
+            "POST",
             f"{base}/storage/v1/object/list/{bucket_id}",
             headers=_headers(key),
             json={"prefix": prefix, "limit": PAGE, "offset": offset},
-            timeout=TIMEOUT,
         )
         r.raise_for_status()
         lot = r.json()
@@ -127,13 +154,14 @@ def lister_objets(base: str, key: str, bucket_id: str, prefix: str = "") -> list
 
 
 def copier_objet(bucket_id: str, chemin: str) -> None:
-    src = requests.get(
+    src = _requete(
+        "GET",
         f"{PROD_URL}/storage/v1/object/{bucket_id}/{chemin}",
         headers=_headers(PROD_KEY),
-        timeout=TIMEOUT,
     )
     src.raise_for_status()
-    dst = requests.post(
+    dst = _requete(
+        "POST",
         f"{TEST_URL}/storage/v1/object/{bucket_id}/{chemin}",
         headers={
             **_headers(TEST_KEY),
@@ -141,7 +169,6 @@ def copier_objet(bucket_id: str, chemin: str) -> None:
             "x-upsert": "true",
         },
         data=src.content,
-        timeout=TIMEOUT,
     )
     dst.raise_for_status()
 
@@ -150,11 +177,11 @@ def supprimer_objets(bucket_id: str, chemins: list[str]) -> None:
     """Supprime côté test des objets absents de la production."""
     if not chemins:
         return
-    r = requests.delete(
+    r = _requete(
+        "DELETE",
         f"{TEST_URL}/storage/v1/object/{bucket_id}",
         headers={**_headers(TEST_KEY), "Content-Type": "application/json"},
         json={"prefixes": chemins},
-        timeout=TIMEOUT,
     )
     r.raise_for_status()
 
