@@ -26,9 +26,13 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { ResidencePermitBadge } from "@/components/ResidencePermitBadge";
-import { getResidencePermits } from "@/api/residencePermits";
+import {
+  exportResidencePermits,
+  getResidencePermits,
+  residencePermitsExportErrorMessage,
+} from "@/api/residencePermits";
 import type { ResidencePermitListItem, ResidencePermitStatus } from "@/api/residencePermits";
-import { Search, FileCheck, ChevronRight, RefreshCw } from "lucide-react";
+import { Search, FileCheck, ChevronRight, RefreshCw, Download, Loader2 } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 function loadErrorMessage(error: unknown): string {
@@ -93,6 +97,7 @@ export default function ResidencePermits() {
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     data: list = [],
@@ -138,6 +143,23 @@ export default function ResidencePermits() {
     return [...items].sort(sortByUrgency);
   }, [list, filterStatus, searchTerm]);
 
+  // On envoie les identifiants des lignes affichées, dans l'ordre d'affichage :
+  // le fichier reflète l'écran sans que le serveur ait à refaire le filtrage.
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportResidencePermits(filteredAndSorted.map((item) => item.employee_id));
+    } catch (exportError) {
+      toast({
+        title: "Export impossible",
+        description: await residencePermitsExportErrorMessage(exportError),
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const isEmpty = list.length === 0;
   const noResults = !isEmpty && filteredAndSorted.length === 0;
 
@@ -160,21 +182,37 @@ export default function ResidencePermits() {
                 className="pl-10"
               />
             </div>
-            <Select
-              value={filterStatus}
-              onValueChange={(v) => setFilterStatus(v as FilterStatus)}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Filtrer par statut" />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-3">
+              <Select
+                value={filterStatus}
+                onValueChange={(v) => setFilterStatus(v as FilterStatus)}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filtrer par statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILTER_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={() => void handleExport()}
+                disabled={isExporting || isLoading || filteredAndSorted.length === 0}
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Exporter en Excel
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
