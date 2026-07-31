@@ -125,7 +125,7 @@ jobs:
 
   # ----------------------------------------------------------------------------
   # 3) Backend integration — best-effort (info, jamais bloquant)
-  # Skippe si les secrets Supabase ne sont pas fournis ; sinon lance pytest
+  # Tourne sur la base de TEST. Skippe si ses secrets sont absents ; sinon lance pytest
   # tests/integration. Le résultat reste visible dans les logs.
   # ----------------------------------------------------------------------------
   backend-integration:
@@ -134,10 +134,14 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENAI_API_KEY || 'sk-or-ci-fake' }}
+      # Base de TEST, jamais la production. Ces tests écrivent : les faire
+      # tourner sur la prod, comme c'était le cas, revenait à laisser la CI
+      # modifier les données réelles à chaque exécution.
+      # Le bac à sable est une copie fidèle, la couverture est donc identique.
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_TEST_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+      OPENROUTER_API_KEY: sk-or-ci-fake
     defaults:
       run:
         working-directory: backend
