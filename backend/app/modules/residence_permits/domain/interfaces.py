@@ -39,3 +39,19 @@ class IResidencePermitListReader(ABC):
         self, company_id: str
     ) -> List[Dict[str, Any]]:
         pass
+
+
+class IResidencePermitExportReader(ABC):
+    """
+    Lit les employés désignés pour l'export, bornés à une entreprise.
+
+    Port distinct de IResidencePermitListReader : la liste et l'export ne prennent
+    pas les mêmes paramètres, et ajouter une méthode abstraite à un port existant
+    casserait ses implémenteurs.
+    """
+
+    @abstractmethod
+    def get_employees_for_export(
+        self, company_id: str, employee_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        pass
