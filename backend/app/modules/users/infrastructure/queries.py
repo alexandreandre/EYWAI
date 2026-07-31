@@ -52,7 +52,7 @@ def fetch_company_users_rows(company_id: str, role: Optional[str] = None) -> Lis
     query = (
         supabase.table("user_company_accesses")
         .select(
-            "user_id, role, role_template_id, role_templates(id, name, job_title), profiles!inner(id, first_name, last_name, job_title, created_at)"
+            "user_id, role, is_active, role_template_id, role_templates(id, name, job_title), profiles!inner(id, first_name, last_name, job_title, created_at)"
         )
         .eq("company_id", company_id)
     )
