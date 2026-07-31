@@ -119,10 +119,20 @@ Au 2026-07-31, sept salariés de Mont Blanc Composite ont un titre **expiré** :
 Ces situations exposent l'employeur pénalement. Elles relèvent d'une remontée à
 Elsa, indépendante de ce chantier — l'export en est le support naturel.
 
-Deux titres chez Cartol Industrie expirent dans les trois mois. Le seuil
-d'anticipation de l'application étant de 30 jours
-(`ANTICIPATION_THRESHOLD_DAYS`, `domain/rules.py:18`), ils ne sont pas
-nécessairement signalés « à renouveler » à l'écran aujourd'hui.
+La répartition réelle des statuts, calculée avec la règle de l'application, est
+la suivante : **7 expirés, 34 valides, 2 à compléter — et aucun « à
+renouveler »**.
+
+Ce zéro mérite attention. Le seuil d'anticipation vaut 30 jours
+(`ANTICIPATION_THRESHOLD_DAYS`, `domain/rules.py:18`). Deux titres de Cartol
+Industrie expirent dans les trois mois et sont pourtant affichés « Valide » :
+ils ne basculeront « à renouveler » qu'un mois avant l'échéance. Un
+renouvellement en préfecture demandant couramment plusieurs mois, l'alerte
+arrive après le moment où elle serait utile.
+
+Constat de suivi métier, hors périmètre de `#7` : l'export ne le corrige pas,
+mais la colonne « Jours restants » le rend lisible, ce que le badge de statut
+seul masque aujourd'hui.
 
 ### 3.6 Le statut n'est pas une colonne
 
@@ -368,3 +378,5 @@ Sur la route, via le client de test FastAPI :
   demanderait un chemin de lecture multi-entreprises qui n'existe pas
   aujourd'hui sur cette page.
 - Le détournement du champ type par l'import d'export paie (§ 3.4) subsiste.
+- Le seuil d'anticipation de 30 jours (§ 3.5) reste inchangé. L'export le rend
+  visible via la colonne « Jours restants » sans le remettre en cause.
