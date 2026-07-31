@@ -1,6 +1,6 @@
 # Déploiement Cloud Run après une CI verte sur main, ou via Run workflow.
 #
-# Enchaînement : push main → CI verte → Deploy → staging → (gate) → production.
+# Enchaînement : push main → CI verte → Deploy → environnement de test → (gate) → production.
 # Le checkout et les tags d'image utilisent le SHA du run CI qui vient de réussir.
 #
 # Variables / secrets requis : voir .github/workflows/GUIDE_SIMPLE.md
@@ -87,6 +87,7 @@ jobs:
     outputs:
       backend_image: ${{ steps.images.outputs.backend }}
       frontend_image: ${{ steps.images.outputs.frontend }}
+      frontend_test_image: ${{ steps.images.outputs.frontend_test }}
     env:
       DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     steps:
@@ -141,6 +142,7 @@ jobs:
           P="${{ vars.GCP_PROJECT_ID }}"
           echo "backend=gcr.io/${P}/sirh-backend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
           echo "frontend=gcr.io/${P}/sirh-frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend_test=gcr.io/${P}/sirh-frontend:test-${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
@@ -156,6 +158,18 @@ jobs:
             VITE_API_URL=${{ vars.VITE_API_URL }}
             VITE_APP_BUILD_ID=${{ env.DEPLOY_SHA }}
           tags: ${{ steps.images.outputs.frontend }}
+
+      # Seconde image frontend, pour l'environnement de test : VITE_API_URL et
+      # VITE_APP_ENV sont figés au build, il faut donc un bundle distinct.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL_TEST }}
+            VITE_APP_ENV=test
+            VITE_APP_BUILD_ID=${{ env.DEPLOY_SHA }}
+          tags: ${{ steps.images.outputs.frontend_test }}
 
   # ----------------------------------------------------------------------------
   # 2bis) Migrations Supabase — appliquées avant tout déploiement backend
@@ -197,12 +211,24 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL"
 
   # ----------------------------------------------------------------------------
-  # 3) Staging — déploiement automatique (après migrations et gate Copilot)
+  # 3) Environnement de test — déploiement automatique, marche avant la prod.
+  #
+  # Remplace l'ancien job « staging », qui déployait en réalité sur LES MÊMES
+  # services Cloud Run et LA MÊME base que la production : aucune variable
+  # BACKEND_SERVICE_NAME_PROD n'étant définie, staging et production visaient
+  # tous deux sirh-backend / sirh-frontend. La production était donc mise à jour
+  # AVANT le gate d'approbation, qui ne protégeait rien.
+  #
+  # Ici, services et base sont ceux du test : la production ne peut plus être
+  # touchée avant l'approbation.
   # ----------------------------------------------------------------------------
-  staging:
-    name: Deploy staging
+  test-env:
+    name: Deploy test env
     needs: [copilot-security-gate, build, migrate]
     runs-on: ubuntu-latest
+    env:
+      BACKEND_SERVICE_NAME: sirh-backend-test
+      FRONTEND_SERVICE_NAME: sirh-frontend-test
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -217,15 +243,16 @@ jobs:
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build.outputs.backend_image }}
-          # Génération bulletins (WeasyPrint) : 512Mi provoque des OOM → coupure sans CORS côté navigateur
           flags: '--memory=2Gi --timeout=900'
           env_vars: |-
-            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-            SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+            APP_ENV=test
+            EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}
+            ALLOWED_ORIGINS_EXTRA=${{ vars.FRONTEND_URL_TEST }}
+            SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}
+            SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             COPILOT_RH_DATA_ENABLED=true
-            PISTE_CLIENT_ID=${{ secrets.PISTE_CLIENT_ID }}
-            PISTE_CLIENT_SECRET=${{ secrets.PISTE_CLIENT_SECRET }}
+            GITHUB_REPO=${{ github.repository }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
@@ -233,25 +260,27 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           service: ${{ env.FRONTEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
-          image: ${{ needs.build.outputs.frontend_image }}
+          image: ${{ needs.build.outputs.frontend_test_image }}
 
-      - name: Smoke tests staging
+      - name: Smoke tests environnement de test
         run: |
           BACK=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
             --region "${GCP_REGION}" --format 'value(status.url)')
           FRONT=$(gcloud run services describe "${FRONTEND_SERVICE_NAME}" \
             --region "${GCP_REGION}" --format 'value(status.url)')
-          echo "Backend : $BACK ; Frontend : $FRONT"
+          echo "Backend test : $BACK ; Frontend test : $FRONT"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${BACK}/health"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${BACK}/openapi.json"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${FRONT}/"
+          # L'environnement doit bien se déclarer « test ».
+          curl -fsS "${BACK}/api/test-env/status" | grep -q '"is_test":true'
 
   # ----------------------------------------------------------------------------
   # 4) Production — gate via environnement GitHub `production`
   # ----------------------------------------------------------------------------
   production:
     name: Deploy production
-    needs: [copilot-security-gate, build, staging]
+    needs: [copilot-security-gate, build, test-env]
     runs-on: ubuntu-latest
     environment: production
     env:
