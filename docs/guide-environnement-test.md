@@ -72,6 +72,10 @@ la dernière resynchro est affichée en permanence dans le bandeau.
 - Faire valider une nouveauté dans le test avant de la livrer en production.
 - La production ne se déploie plus sans approbation explicite (règle de
   révision obligatoire sur l'environnement GitHub `production`).
+- **Ne pas laisser un déploiement en attente d'approbation** : le verrou de
+  concurrence de `deploy.yml` met tous les suivants en file, sans message
+  d'erreur. Un déploiement qui ne démarre jamais est presque toujours une
+  approbation oubliée.
 
 ## Côté technique
 
@@ -100,6 +104,22 @@ PostgreSQL dédié, `eywai_replica_reader`, dont toutes les sessions sont forcé
 en lecture seule. Un `UPDATE`, un `INSERT` ou un `DELETE` y est refusé par le
 serveur lui-même — pas par une consigne.
 
+**Migrations** : elles s'appliquent automatiquement à chaque déploiement, via
+le job `migrate` de `deploy.yml` (secret `SUPABASE_DB_URL`). Trois obstacles ont
+dû être levés pour y arriver, à connaître si le sujet ressurgit :
+
+1. L'historique n'existait pas — le schéma `supabase_migrations` était absent en
+   production alors que les 159 migrations étaient bel et bien appliquées. Il a
+   été rattrapé par inscription, **sans exécuter leur contenu**.
+2. Neuf horodatages étaient partagés par vingt fichiers. La CLI utilise
+   l'horodatage comme clé primaire : onze migrations restaient invisibles et
+   `supabase db push` sortait en code 1. Les fichiers ont été décalés d'une à
+   deux secondes. **Toute nouvelle migration doit avoir un horodatage unique.**
+3. La connexion passe par le *pooler* (`aws-1-eu-west-3.pooler.supabase.com`,
+   port 5432, mode session). L'adresse directe n'est joignable qu'en IPv6, dont
+   les exécutants GitHub ne disposent pas toujours ; et le port 6543 (mode
+   transaction) ne supporte pas certaines instructions de migration.
+
 **Conception détaillée** :
 `docs/superpowers/specs/2026-07-28-environnement-test-donnees-reelles-design.md`
 
@@ -109,11 +129,4 @@ serveur lui-même — pas par une consigne.
 - Le bouton de resynchro nécessite un jeton GitHub à portée restreinte
   (`GITHUB_DISPATCH_TOKEN`) sur le service de test. Sans lui, la resynchro
   reste lançable depuis GitHub.
-- **Ne pas créer le secret `SUPABASE_DB_URL`** en l'état. Le job de migrations
-  de `deploy.yml` est sauté faute de ce secret, mais le créer ferait échouer
-  tout déploiement : les 159 migrations ne sont pas idempotentes
-  (`CREATE POLICY` n'accepte pas `IF NOT EXISTS`), et la production n'a aucune
-  table de suivi `supabase_migrations.schema_migrations` — la CLI les
-  considère donc toutes comme à appliquer. Vérifié sur la base de test le
-  2026-07-29. À traiter par un rattrapage d'historique
-  (`supabase migration repair`), testé sur le test au préalable.
+- ~~Migrations non automatisées~~ — **résolu le 2026-07-31.**
