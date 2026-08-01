@@ -106,6 +106,9 @@ from app.modules.test_env.api.router import router as test_env_router
 from app.modules.uploads.api.router import router as uploads_router
 from app.modules.users.api.router import router as users_router
 from app.modules.webhooks.api.router import router as webhooks_router
+from app.modules.planning.api.router import router as planning_router
+from app.modules.signatures.api.router import router as signatures_router
+from app.modules.teams.api.router import router as teams_router
 
 router = APIRouter()
 
@@ -186,6 +189,9 @@ router.include_router(uploads_router)
 router.include_router(badgeuse_router_me)
 router.include_router(badgeuse_router_rh)
 router.include_router(badgeuse_router_terminal)
+router.include_router(planning_router)
+router.include_router(signatures_router)
+router.include_router(teams_router)
 
 
 @router.post("/webhooks/yousign")
