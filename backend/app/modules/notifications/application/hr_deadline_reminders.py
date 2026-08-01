@@ -12,6 +12,7 @@ from app.modules.employees.domain.deadline_reminders import (
     DeadlineCandidate,
     list_hr_deadline_candidates,
 )
+from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
 from app.modules.platform_settings.application.email_config import get_resolved_email_config
 from app.modules.super_admin.infrastructure.providers import get_user_email
 from app.modules.users.infrastructure.queries import (
@@ -42,16 +43,39 @@ def fetch_employees_for_hr_deadline_reminders(company_id: str) -> List[Dict[str,
 def fetch_rh_recipient_emails(company_id: str) -> List[str]:
     rows = fetch_company_users_rows(company_id)
     emails: Set[str] = set()
+    unreachable: Set[str] = set()
     for row in rows:
         role = str(row.get("role") or "").strip().lower()
         if role not in _RH_ROLES:
+            continue
+        # Un accès révoqué ne doit plus être relancé. Le filtre est ici et non dans
+        # fetch_company_users_rows, qui sert aussi l'écran d'administration : celui-ci
+        # doit continuer à montrer les accès révoqués pour pouvoir les rétablir.
+        if row.get("is_active") is False:
             continue
         user_id = str(row.get("user_id") or "").strip()
         if not user_id:
             continue
         email = get_user_email(user_id)
-        if email and "@" in email:
-            emails.add(email.strip().lower())
+        if not email or "@" not in email:
+            continue
+        email = email.strip().lower()
+        # Une adresse fabriquée identifie un compte, elle ne joint personne. L'envoi
+        # échouerait sans conséquence visible (require_delivery=False) et l'on croirait
+        # avoir prévenu un RH qui n'a jamais rien reçu.
+        if is_dsn_import_placeholder_email(email):
+            unreachable.add(email)
+            continue
+        emails.add(email)
+
+    if unreachable:
+        logger.warning(
+            "[hr_deadline_reminder] company=%s : %d destinataire(s) RH sans adresse "
+            "réelle, aucune relance ne leur parviendra (%s)",
+            company_id,
+            len(unreachable),
+            ", ".join(sorted(unreachable)),
+        )
     return sorted(emails)
 
 

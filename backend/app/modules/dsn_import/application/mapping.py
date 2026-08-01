@@ -349,7 +349,11 @@ def _extract_pas(contrat: ContratBlock) -> Dict[str, Any]:
     On retient le versement le plus récent porteur d'un taux PAS afin d'initialiser
     `specificites_paie.prelevement_a_la_source.taux` (consommé par le moteur de paie).
     """
-    candidates = [v for v in contrat.versements if v.pas_taux or v.pas or v.montant_soumis_pas]
+    candidates = [
+        v
+        for v in contrat.versements
+        if v.pas_type or v.pas_taux or v.pas or v.montant_soumis_pas
+    ]
     if not candidates:
         return {}
 
@@ -360,9 +364,11 @@ def _extract_pas(contrat: ContratBlock) -> Dict[str, Any]:
         return d
 
     ver = max(candidates, key=_sort_key)
-    pas: Dict[str, Any] = {}
-    if ver.pas_taux:
-        pas["taux"] = round(ver.pas_taux, 4)
+    # `ver` porte un prélèvement à la source (type, taux, assiette ou montant) : on
+    # enregistre le taux même s'il vaut 0,00 % — un taux personnalisé nul n'est pas
+    # une absence de taux. Sans cela, un import mensuel ne pourrait pas rafraîchir un
+    # taux redevenu nul (le merge conserverait l'ancien taux non nul).
+    pas: Dict[str, Any] = {"taux": round(ver.pas_taux, 4)}
     if ver.pas_type:
         pas["type_taux"] = ver.pas_type
     if ver.pas_identifiant:

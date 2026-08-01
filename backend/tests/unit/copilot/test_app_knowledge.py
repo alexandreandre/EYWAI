@@ -114,3 +114,48 @@ def test_guide_covers_dsn_import_payroll_context():
 def test_guide_covers_leave_notification_settings():
     """Le guide documente les rappels/notifications congés côté entreprise."""
     assert "rappels de congés" in APP_FEATURE_GUIDE.lower() or "rappels congés" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_permission_scopes():
+    """Le guide documente les périmètres de permission (équipes / exceptions)."""
+    assert "Périmètre par permission" in APP_FEATURE_GUIDE
+    assert "Toute l'entreprise" in APP_FEATURE_GUIDE
+    assert "Équipes" in APP_FEATURE_GUIDE
+    assert "Exceptions uniquement" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_forfait_jours_field():
+    """Le guide distingue la case Forfait jours du statut Cadre/Non-Cadre."""
+    assert "Forfait jours" in APP_FEATURE_GUIDE
+    assert "indépendante" in APP_FEATURE_GUIDE.lower() or "indépendant" in APP_FEATURE_GUIDE.lower()
+
+
+def test_guide_covers_calendar_plans_and_pauses():
+    """Le guide documente les plans de calendriers et les pauses planning."""
+    assert "Calendriers horaires 2026" in APP_FEATURE_GUIDE
+    assert "Planning & primes équipe" in APP_FEATURE_GUIDE
+    assert "Pauses payées" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_accounting_integration():
+    """Le guide documente l'intégration comptable Cegid Loop dans Exports."""
+    assert "Paie & Comptabilité" in APP_FEATURE_GUIDE
+    assert "Intégration comptable" in APP_FEATURE_GUIDE
+    assert "Cegid Loop" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_word_contract_export():
+    """Le guide documente le téléchargement Word des contrats/avenants."""
+    assert "Word (.docx) — à retravailler" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_rh_collaborator_view_switch():
+    """Le guide documente la bascule Vue RH / Vue Collaborateur."""
+    assert "Vue RH" in APP_FEATURE_GUIDE
+    assert "Vue Collaborateur" in APP_FEATURE_GUIDE
+
+
+def test_guide_covers_forced_password_change():
+    """Le guide documente le changement de MDP obligatoire au premier login."""
+    assert "premier login" in APP_FEATURE_GUIDE.lower() or "première connexion" in APP_FEATURE_GUIDE.lower()
+    assert "mot de passe" in APP_FEATURE_GUIDE.lower()

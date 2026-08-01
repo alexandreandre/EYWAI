@@ -2,11 +2,11 @@
 name: update-copilot-rh
 description: >-
   Actualise exhaustivement l'assistant « Demander à l'IA » du tableau de bord RH
-  EYWAI : guide produit (navigation, parcours, actions), schéma Supabase
-  (tables/colonnes/valeurs JSONB), exemples few-shot et règles de promptage.
-  À utiliser lorsque l'utilisateur tape /update-copilot-rh, demande de mettre à
-  jour l'agent IA du dashboard, enrichir le copilot RH, ou synchroniser les
-  connaissances après une nouvelle feature ou migration Supabase.
+  EYWAI : guide produit (navigation, parcours, actions), catalogue d'outils RH
+  fermés (domain/tools + secure_queries), exemples few-shot et règles de
+  promptage. À utiliser lorsque l'utilisateur tape /update-copilot-rh, demande
+  de mettre à jour l'agent IA du dashboard, enrichir le copilot RH, ou
+  synchroniser les connaissances après une nouvelle feature.
 ---
 
 # Actualiser l'assistant RH IA (`/update-copilot-rh`)
@@ -17,7 +17,7 @@ Maintenir l'agent **« Demander à l'IA »** (`CopilotModalAgent` → `POST /que
 
 | Famille | Mécanisme | Fichier source |
 |---------|-----------|----------------|
-| Données entreprise (effectifs, paie, absences…) | Text-to-SQL + synthèse | `schema_context.py` |
+| Données entreprise (effectifs, paie, absences…) | Catalogue fermé d'outils scopés + synthèse | `domain/tools.py`, `secure_queries.py` |
 | Conventions collectives | Texte PDF en cache | tables CC (déjà branchées) |
 | Aide à l'utilisation du logiciel | Guide navigation | `app_knowledge.py` |
 
@@ -33,11 +33,12 @@ frontend/src/components/CopilotModalAgent.tsx
     → application/commands.py (handle_agent_query)
       → providers.py (prompts LLM)
       → app_knowledge.py (APP_FEATURE_GUIDE)
-      → schema_context.py (DATABASE_SCHEMA_*)
+      → domain/tools.py + application/tool_service.py + secure_queries.py
 ```
 
 **Ne jamais** mettre de routes, chemins `/url` ou noms de tables dans `APP_FEATURE_GUIDE` (règle produit).
-**Toujours** documenter tables/colonnes/valeurs enum dans `schema_context.py`.
+
+**Ne jamais** réintroduire `schema_context.py` ni le text-to-SQL libre (supprimés volontairement, commit `8596ee7a`) : toute donnée RH passe par le catalogue fermé d'outils, avec `company_id` imposé serveur.
 
 ---
 
@@ -49,7 +50,7 @@ Copier cette checklist et cocher au fur et à mesure :
 Progression :
 - [ ] Phase 0 — État des lieux (git diff migrations + sidebar)
 - [ ] Phase 1 — Guide produit (app_knowledge.py)
-- [ ] Phase 2 — Schéma BDD (schema_context.py)
+- [ ] Phase 2 — Catalogue d'outils (tools.py + secure_queries.py)
 - [ ] Phase 3 — Prompts & few-shots (providers.py si nécessaire)
 - [ ] Phase 4 — Tests unitaires copilot
 - [ ] Phase 5 — Matrice RH (20+ questions)
@@ -65,7 +66,8 @@ git diff origin/main -- supabase/migrations/ 2>/dev/null | head -200
 
 Lire les fichiers actuels :
 - `backend/app/modules/copilot/infrastructure/app_knowledge.py`
-- `backend/app/modules/copilot/infrastructure/schema_context.py`
+- `backend/app/modules/copilot/domain/tools.py`
+- `backend/app/modules/copilot/infrastructure/secure_queries.py`
 - `backend/app/modules/copilot/infrastructure/providers.py` (bloc `analyze_intent_and_plan`)
 
 Sources de vérité : voir [sources-of-truth.md](sources-of-truth.md).
@@ -95,39 +97,20 @@ Sources de vérité : voir [sources-of-truth.md](sources-of-truth.md).
 
 **Interdits dans le guide** : routes React, noms de tables, détails API, fonctionnalités absentes du code.
 
-### Phase 2 — Schéma BDD (`schema_context.py`)
+### Phase 2 — Catalogue d'outils fermés
 
-Deux constantes, rôles distincts :
+Fichiers :
+- `domain/tools.py` — `ToolName`, schémas d'arguments, `parse_tool_calls` (fail-closed)
+- `infrastructure/secure_queries.py` — requêtes scopées `company_id` serveur
+- `application/tool_service.py` — mapping outil → handler
 
-| Constante | Audience LLM | Niveau de détail |
-|-----------|--------------|------------------|
-| `DATABASE_SCHEMA_TEXT_TO_SQL` | Génération SQL directe | **Maximal** : colonnes, types, JSONB, exemples SQL, valeurs enum |
-| `DATABASE_SCHEMA_AGENT` | Planification agent + SQL par étapes | **Condensé** : colonnes clés + jointures + enums |
+Pour chaque outil :
+1. Documenter les arguments dans le prompt `analyze_intent_and_plan` (valeurs enum exactes).
+2. Si un filtre métier manque (ex. `contract_type`, borne de dates absences) : l'ajouter au schéma + à `secure_queries` + tests.
+3. Si une famille de questions data revient souvent et n'est pas couverte : **ajouter un outil typé** (jamais de SQL libre).
+4. Interdits LLM : `company_id`, `group_id`, `sql`, `query`, `table`, `employee_ids`.
 
-**Checklist tables RH** : [schema-tables-rh.md](schema-tables-rh.md) — couvrir **toutes** les tables marquées « obligatoire ».
-
-Pour chaque table documentée :
-```markdown
-Table 'nom_table': [Rôle métier en une phrase].
-  - col (type): description. Valeurs: 'a', 'b', 'c' si enum.
-  - champ_jsonb (jsonb): structure {"cle": type}. Usage SQL: (champ->>'cle')::type
-  - Jointures: employee_id → employees.id, company_id → companies.id
-```
-
-**Règles SQL critiques à inclure dans le schéma** :
-- Filtrer par entreprise : `employees.company_id = '<company_id>'` (ou jointure via employees)
-- JSONB : toujours montrer la syntaxe `->>` et le cast `::numeric` / `::boolean` / `::date`
-- Dates : `hire_date`, `selected_days` (array), `month`/`year` sur payslips
-- Statuts employé : inclure `parti`, `en_onboarding` si présents en migration
-- Ne pas documenter les tables scraping / super_admin / audit (hors périmètre RH)
-
-**Extraction depuis migrations** :
-```bash
-rg "CREATE TABLE" supabase/migrations/ --no-heading
-rg "ALTER TABLE.*ADD COLUMN" supabase/migrations/ --no-heading | tail -40
-```
-
-Croiser avec les `.table("...")` du backend pour les colonnes réellement lues.
+Inventaire tables utiles pour de futurs outils : [schema-tables-rh.md](schema-tables-rh.md) (référence, pas de doc SQL dans le prompt).
 
 ### Phase 3 — Prompts (`providers.py`)
 
@@ -135,11 +118,11 @@ Modifier **uniquement si** un gap persiste après Phase 1–2.
 
 Techniques à appliquer (détails : [prompt-patterns.md](prompt-patterns.md)) :
 
-1. **Intent JSON** (`analyze_intent_and_plan`) : enrichir les exemples few-shot quand une nouvelle famille de questions apparaît (ex. prêts employeur, évolution salaire).
-2. **Priorité aide logiciel** : conserver `requires_app_help` prioritaire sur SQL/CC.
-3. **Températures** : SQL = 0 ; intent = 0.3 ; aide app = 0.3 ; CC = 0.2 ; synthèse = 0.7.
-4. **Clarification** : demander précision si question data vague (« combien d'employés ? » → CDI ? cadres ?).
-5. **Synthèse** : jamais mentionner SQL/tables ; ton collègue RH expert.
+1. **Intent JSON** (`analyze_intent_and_plan`) : enrichir les few-shots quand une nouvelle famille apparaît.
+2. **Priorité aide logiciel** : conserver `requires_app_help` prioritaire sur data/CC.
+3. **Températures** : intent = 0.3 ; aide app = 0.3 ; CC = 0.2 ; synthèse = 0.7.
+4. **Clarification** : question data vague → préciser ; hors catalogue → clarification honnête (pas d'outil inventé).
+5. **Synthèse** : jamais mentionner outils/SQL/tables ; ton collègue RH expert ; avouer les trous.
 
 ### Phase 4 — Tests
 
@@ -147,13 +130,9 @@ Techniques à appliquer (détails : [prompt-patterns.md](prompt-patterns.md)) :
 cd backend && pytest tests/unit/copilot/ -q
 ```
 
-Mettre à jour `tests/unit/copilot/test_app_knowledge.py` si de nouvelles sections obligatoires (ex. prêts employeur, avances & acomptes).
+Mettre à jour `tests/unit/copilot/test_app_knowledge.py` si de nouvelles sections obligatoires.
 
-Ajouter un test si une feature critique manquait :
-```python
-def test_guide_covers_employee_loans():
-    assert "Prêts employeur" in APP_FEATURE_GUIDE
-```
+Mettre à jour `test_tools.py` / `test_secure_queries.py` si le catalogue ou les filtres évoluent.
 
 ### Phase 5 — Matrice de validation RH
 
@@ -165,8 +144,8 @@ Minimum **20 questions** couvrant les 3 familles. Pour chaque question noter :
 
 **Verdict matrice** :
 - ≥ 90 % oui → OK
-- 70–89 % → compléter guide ou schéma, relancer Phase 1–2
-- < 70 % → revue architecture intent + schéma incomplet
+- 70–89 % → compléter guide ou outils, relancer Phase 1–2
+- < 70 % → revue architecture intent + catalogue incomplet
 
 ### Phase 6 — Rapport
 
@@ -174,8 +153,8 @@ Minimum **20 questions** couvrant les 3 familles. Pour chaque question noter :
 ## Actualisation copilot RH — [date]
 
 ### Fichiers modifiés
-- app_knowledge.py : [+N lignes, sections ajoutées]
-- schema_context.py : [+N tables/colonnes]
+- app_knowledge.py : [sections ajoutées]
+- tools.py / secure_queries.py : [filtres / outils]
 - providers.py : [oui/non, quoi]
 
 ### Écarts corrigés
@@ -184,7 +163,7 @@ Minimum **20 questions** couvrant les 3 familles. Pour chaque question noter :
 ### Matrice RH : X/20 OK
 
 ### Limites connues
-- [ce que l'agent ne peut pas faire — ex. données temps réel badgeuse sans table X]
+- [ce que l'agent ne peut pas faire — ex. salaire individuel hors catalogue]
 ```
 
 ---
@@ -193,18 +172,17 @@ Minimum **20 questions** couvrant les 3 familles. Pour chaque question noter :
 
 Le contexte LLM est partagé — chaque token compte.
 
-1. **Guide produit** : phrases courtes, pas de doublons entre sections ; FAQ pour les questions récurrentes plutôt que répéter dans chaque module.
-2. **Schéma agent** : 1 ligne par colonne secondaire, détail JSONB seulement sur les champs requêtés souvent (salaire, payslip_data, cumuls).
-3. **Schéma text-to-sql** : exemples SQL inline uniquement sur JSONB et arrays.
-4. **Few-shots** : 1 exemple par intent nouveau, pas de liste exhaustive dans le prompt (liste dans taxonomy, pas dans le prompt).
+1. **Guide produit** : phrases courtes, pas de doublons entre sections ; FAQ pour les questions récurrentes.
+2. **Catalogue outils** : documenter enums et filtres dans le prompt intent, pas le schéma SQL complet.
+3. **Few-shots** : 1 exemple par intent nouveau, pas de liste exhaustive dans le prompt.
 
 ---
 
 ## Quand relancer ce skill
 
 - Nouvelle entrée sidebar RH ou collaborateur
-- Migration Supabase ajoutant une table/colonne métier RH
 - Nouveau parcours paie ou module (CSE, formation, badgeuse…)
+- Nouveau besoin data non couvert par un outil existant
 - Retours utilisateurs : « l'IA ne sait pas répondre à… »
 - Avant merge d'une grosse feature RH sur `main`
 
@@ -213,6 +191,6 @@ Le contexte LLM est partagé — chaque token compte.
 ## Ressources
 
 - [sources-of-truth.md](sources-of-truth.md) — fichiers à lire dans le dépôt
-- [schema-tables-rh.md](schema-tables-rh.md) — inventaire tables Supabase RH
+- [schema-tables-rh.md](schema-tables-rh.md) — inventaire tables Supabase RH (référence outils futurs)
 - [rh-question-taxonomy.md](rh-question-taxonomy.md) — questions que l'agent doit couvrir
 - [prompt-patterns.md](prompt-patterns.md) — techniques de promptage copilot

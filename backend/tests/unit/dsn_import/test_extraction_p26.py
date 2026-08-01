@@ -137,6 +137,37 @@ def test_payload_sans_pas_reste_vide():
     assert payload["specificites_paie"]["prelevement_a_la_source"] == {}
 
 
+def test_pas_taux_zero_personnalise_est_enregistre():
+    """Un taux personnalisé de 0,00 % (type 01) doit être enregistré explicitement.
+
+    0,00 % (taux personnalisé nul) n'est pas l'absence de taux : sans cet
+    enregistrement, un import mensuel ne peut pas ramener à 0 un taux devenu nul
+    (le merge conserverait l'ancien taux). Régression corrigée sur le PAS.
+    """
+    lines = (
+        "S21.G00.30.001,'180032710123448'\n"
+        "S21.G00.30.002,'MARTIN'\n"
+        "S21.G00.30.004,'Jean'\n"
+        "S21.G00.30.005,'01'\n"
+        "S21.G00.40.001,'01012020'\n"
+        "S21.G00.40.007,'01'\n"
+        "S21.G00.50.001,'31052026'\n"
+        "S21.G00.50.002,'2000.00'\n"
+        "S21.G00.50.004,'1950.00'\n"
+        "S21.G00.50.006,'0.00'\n"
+        "S21.G00.50.007,'01'\n"
+        "S21.G00.50.008,'ZERO01'\n"
+        "S21.G00.50.009,'0.00'\n"
+        "S21.G00.50.013,'2000.00'\n"
+    )
+    ind, etab = _individu_from(lines)
+    payload = map_employee_payload(ind, etab, "95147478200020")
+    pas = payload["specificites_paie"]["prelevement_a_la_source"]
+    assert pas["taux"] == 0.0
+    assert pas["type_taux"] == "01"
+    assert pas["identifiant_taux"] == "ZERO01"
+
+
 def test_payload_plasturgie_mappe_niveau_dsn_en_coefficient():
     lines = (
         "S21.G00.30.001,'180032710123448'\n"

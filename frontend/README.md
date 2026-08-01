@@ -129,7 +129,6 @@ Le frontend du SIRH est une **application web moderne** construite avec **React 
 
 ### Outils de développement
 
-- **lovable-tagger** (plugin Vite, mode `development` uniquement) : taggage de composants en dev
 - **ESLint 9** + **typescript-eslint** : lint (`npm run lint`)
 
 ---
@@ -467,11 +466,22 @@ frontend/
 **Pages :**
 - `/super-admin` — Tableau de bord
 - `/super-admin/companies` — Entreprises
-- `/super-admin/users` — Utilisateurs
-- `/super-admin/scraping` — Scraping
-- `/super-admin/monitoring` — Monitoring
 - `/super-admin/groups` — Groupes d’entreprises
-- `/super-admin/tests` — Page outils / tests (Super Admin)
+- `/super-admin/users` — Utilisateurs
+- `/super-admin/dsn-import` — Import & configuration (DSN)
+- `/super-admin/activity` — Journal d’activité
+- `/super-admin/access` — Profils & droits RH
+- `/super-admin/admins` — Accès plateforme
+- `/super-admin/rates` — Suivi des taux
+- `/super-admin/collective-agreements` — Conventions collectives
+- `/super-admin/scraping` — Veille réglementaire
+- `/super-admin/dsn-transmissions` — Télétransmissions DSN
+- `/super-admin/accounting-integrations` — Intégrations comptables
+- `/super-admin/reduction-fillon` — Réduction Fillon
+- `/super-admin/email-settings` — Mails automatiques
+- `/super-admin/monitoring` — Monitoring
+- `/super-admin/tests` — Page outils / tests
+- `/super-admin/support` — Centre support
 
 ### 15. Gestion des utilisateurs
 
@@ -530,7 +540,18 @@ frontend/
 - **Suivi médical** : Visites et suivi (RH + espace collaborateur `/medical-follow-up`)
 - **CSE** : `/cse` (RH) ; `employee/CSE.tsx` pour les élus en vue collaborateur / `collaborateur_rh`
 - **Recrutement** : `/recruitment`
-- **Promotions** : `/promotions`, `/promotions/:promotionId`
+- **Promotions** : `/augmentations-et-promotions`, `/promotions/:promotionId`
+
+### 21. Onboarding, formation, CET & paie RH
+
+- **Onboarding** : `/onboarding`, `/onboarding/:employeeId`
+- **Formation & talents** : `/formation` (RH), `/employee/formation` (collaborateur)
+- **CET** : `/suivi-cet`, `/cet-requests` (RH/manager) ; `/mon-cet` (collaborateur)
+- **Suivi IJSS** : `/suivi-ijss`
+- **Temps de travail / modulation** : `/suivi-temps-travail`, `/suivi-contingent-hs`, `/suivi-modulation`
+- **Prêts employeur** : `/employee-loans`
+- **Badgeuse RH** : `/badgeuse-rh`
+- **Documents** : `/documents` (RH), `/employee/documents` (collaborateur)
 
 ---
 
@@ -613,7 +634,7 @@ Le fichier `vite.config.ts` configure :
 - Port : **8080**
 - Host : `::` (toutes les interfaces)
 - Alias `@` : `./src`
-- Plugins : `@vitejs/plugin-react-swc` ; en `development`, **lovable-tagger** peut être activé
+- Plugins : `@vitejs/plugin-react`
 
 ### Configuration TypeScript
 
@@ -730,7 +751,7 @@ const mutation = useMutation({
 
 Pour la **liste exhaustive des chemins** (collaborateur, RH, `collaborateur_rh`, super-admin, support lazy), se référer à **`src/App.tsx`** : chaque `<Route>` y est défini avec son composant page.
 
-Chemins notables côté RH : `/employees`, `/payroll`, `/leaves`, `/schedules`, `/badgeuse-rh`, `/medical-follow-up`, `/annual-reviews`, `/promotions`, `/cse`, `/recruitment`, `/support`, `/super-admin/...`. Côté collaborateur : `/`, `/payslips`, `/badgeuse`, `/annual-reviews`, `/absences`, `/calendar`, `/medical-follow-up`, `/cse` (si élu), `/support`, etc.
+Chemins notables côté RH : `/employees`, `/payroll`, `/leaves`, `/schedules`, `/badgeuse-rh`, `/medical-follow-up`, `/formation`, `/onboarding`, `/augmentations-et-promotions`, `/cse`, `/recruitment`, `/suivi-ijss`, `/suivi-cet`, `/support`, `/super-admin/...`. Côté collaborateur : `/`, `/payslips`, `/badgeuse`, `/absences`, `/mon-cet`, `/calendar`, `/employee/formation`, `/employee/documents`, `/medical-follow-up`, `/cse` (si élu), `/support`, etc.
 
 ### Structure des routes
 
@@ -1011,4 +1032,4 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : avril 2026
+**Dernière mise à jour** : juillet 2026

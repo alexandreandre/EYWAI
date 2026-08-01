@@ -16,9 +16,6 @@ from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
 from app.core.settings import ALLOWED_ORIGINS_EXTRA, check_environment_consistency
-from app.modules.planning.api.router import router as planning_router
-from app.modules.signatures.api.router import router as signatures_router
-from app.modules.teams.api.router import router as teams_router
 
 configure_logging()
 logger = get_logger(__name__)
@@ -224,9 +221,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Routes
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
-app.include_router(planning_router)
-app.include_router(signatures_router)
-app.include_router(teams_router)
 
 
 @app.get("/health")

@@ -1,6 +1,6 @@
 # Guide du dossier `.claude/`
 
-Ce dossier contient la **configuration Claude Code** du dépôt : **commandes** (fichiers décrivant des workflows slash) et **règles** (conventions `.mdc` alignées sur celles de Cursor pour le même code).
+Ce dossier contient la **configuration Claude Code** du dépôt : **commandes** (fichiers décrivant des workflows slash), **règles** (conventions `.mdc` alignées sur celles de Cursor pour le même code) et **skills** Claude spécifiques.
 
 Il complète [`AGENTS.md`](../AGENTS.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`GUIDE-DEV.md`](../GUIDE-DEV.md) et les README `backend/` / `frontend/`.
 
@@ -16,13 +16,16 @@ Pour l’équipe qui utilise **Cursor** en parallèle : règles équivalentes so
 ├── rules/
 │   ├── backend.mdc        ← conventions Python / FastAPI (`backend/`)
 │   └── frontend.mdc       ← conventions React / Vite (`frontend/`)
-└── commands/
-    ├── commit.md
-    ├── debug-local.md
-    ├── debug-prod.md
-    ├── merge-dev-to-main.md
-    ├── security-check.md
-    └── update.md
+├── commands/
+│   ├── commit.md
+│   ├── debug-local.md
+│   ├── debug-prod.md
+│   ├── merge-dev-to-main.md
+│   ├── security-check.md
+│   └── update.md
+└── skills/
+    ├── backtest-paie-auto/
+    └── elsa/
 ```
 
 ---
@@ -35,6 +38,8 @@ Même contenu que **`.cursor/rules/`** pour `backend.mdc` et `frontend.mdc` : à
 |---------|------|
 | `backend.mdc` | Point d’entrée `app.main:app`, couches d’import, logging, portée des diffs, français côté utilisateur, politique DB / tests CI. |
 | `frontend.mdc` | Stack React / Vite / TS, UI Radix/shadcn, imports, lint, textes UI en français. |
+
+Les règles Cursor additionnelles `database.mdc` et `product-context.mdc` (alwaysApply) n’ont pas de doublon sous `.claude/rules/` : elles restent côté Cursor.
 
 ---
 
@@ -52,4 +57,15 @@ Procédures détaillées pour Claude Code (debug, merge, sécurité, synchronisa
 
 ---
 
-**Maintenance** : après ajout ou suppression d’un fichier sous `.claude/commands/` ou `.claude/rules/`, mettre à jour la section **Structure** de ce README.
+## Dossier `skills/`
+
+Skills Claude Code spécifiques au dépôt (en complément des skills Cursor).
+
+| Skill | Usage |
+|-------|--------|
+| `backtest-paie-auto/` | Backtest paie autonome de bout en bout pour une entreprise. |
+| `elsa/` | Retours paie terrain (Elsa). |
+
+---
+
+**Maintenance** : après ajout ou suppression d’un fichier sous `.claude/commands/`, `.claude/rules/` ou `.claude/skills/`, mettre à jour la section **Structure** de ce README.

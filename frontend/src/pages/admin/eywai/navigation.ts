@@ -14,6 +14,9 @@ import {
   Mail,
   Plug,
   FileUp,
+  Activity,
+  FlaskConical,
+  Calculator,
 } from "lucide-react";
 
 export type AdminNavItem = {
@@ -83,6 +86,11 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: "/super-admin/accounting-integrations",
         icon: Plug,
       },
+      {
+        name: "Réduction Fillon",
+        href: "/super-admin/reduction-fillon",
+        icon: Calculator,
+      },
     ],
   },
   {
@@ -90,6 +98,8 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     items: [
       { name: "Accès plateforme", href: "/super-admin/admins", icon: Shield },
       { name: "Mails automatiques", href: "/super-admin/email-settings", icon: Mail },
+      { name: "Monitoring", href: "/super-admin/monitoring", icon: Activity },
+      { name: "Tests", href: "/super-admin/tests", icon: FlaskConical },
     ],
   },
 ];

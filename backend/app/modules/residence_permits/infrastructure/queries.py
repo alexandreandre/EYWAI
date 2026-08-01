@@ -36,3 +36,35 @@ def fetch_employees_for_residence_permits_list(company_id: str) -> List[dict]:
         .execute()
     )
     return list(response.data or [])
+
+
+EXPORT_COLUMNS = (
+    "id, first_name, last_name, matricule, job_title, hire_date, nationalite, "
+    "is_subject_to_residence_permit, residence_permit_expiry_date, "
+    "residence_permit_type, residence_permit_number, employment_status"
+)
+
+
+def fetch_employees_for_residence_permits_export(
+    company_id: str, employee_ids: List[str]
+) -> List[dict]:
+    """
+    Employés désignés par le navigateur, bornés à l'entreprise active.
+
+    Les identifiants viennent du client : ils désignent, ils n'autorisent pas. Les
+    trois filtres de la route liste sont donc réappliqués ici, `company_id` en tête.
+    Un identifiant hors périmètre disparaît simplement du résultat.
+    """
+    if not employee_ids:
+        return []
+    client = _get_client()
+    response = (
+        client.table("employees")
+        .select(EXPORT_COLUMNS)
+        .eq("company_id", company_id)
+        .eq("is_subject_to_residence_permit", True)
+        .in_("employment_status", ["actif", "en_sortie"])
+        .in_("id", list(employee_ids))
+        .execute()
+    )
+    return list(response.data or [])

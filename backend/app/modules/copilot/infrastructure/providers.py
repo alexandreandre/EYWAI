@@ -85,10 +85,15 @@ Tu dois retourner un JSON avec cette structure:
 }}
 
 CATALOGUE FERMÉ D'OUTILS DE DONNÉES (aucun autre n'existe) :
-- "employee_count" — compte les salariés. arguments: {{"employment_status": "actif"|"inactif"}} (optionnel).
-- "employee_search" — recherche un salarié par nom. arguments: {{"name": "<nom>", "employment_status": "actif"|"inactif" (optionnel), "limit": <entier> (optionnel)}}.
+- "employee_count" — compte les salariés.
+  arguments optionnels: {{"employment_status": "actif"|"active"|"en_sortie"|"en_onboarding"|"parti"|"inactif",
+  "contract_type": "CDI"|"CDD"|…}}.
+- "employee_search" — recherche un salarié par nom.
+  arguments: {{"name": "<nom>"}} + employment_status, contract_type, limit (optionnels).
 - "payroll_summary" — synthèse paie d'une période. arguments: {{"period": "AAAA-MM"}} (optionnel, défaut mois courant).
-- "absence_summary" — synthèse des absences. arguments: {{"status": "<statut>", "type": "<type>"}} (optionnels).
+- "absence_summary" — synthèse des absences.
+  arguments optionnels: {{"status": "<statut>", "type": "<type>",
+  "date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (borne sur selected_days).
 - "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (optionnels).
 - "hr_indicators" — indicateurs RH (turnover, absentéisme, effectifs). arguments: {{}}.
 
@@ -98,6 +103,10 @@ RÈGLES STRICTES POUR data_tool_calls :
   d'identifiants internes de salariés (employee_ids), ni de SQL / nom de table /
   requête brute : ces valeurs sont imposées côté serveur.
 - Au plus 5 appels d'outils. Laisse "data_tool_calls" vide si aucune donnée n'est nécessaire.
+- Si la question exige des données hors catalogue (salaire individuel, titre de séjour,
+  avance/prêt, note de frais détaillée…), NE PAS inventer d'outil : mets
+  requires_data_retrieval: false et needs_clarification: true avec une question
+  qui propose ce que tu PEUX faire (effectifs, synthèse paie, absences, indicateurs).
 
 Règles importantes:
 1. **AIDE LOGICIEL (prioritaire)** : si l'utilisateur demande comment utiliser le logiciel,
@@ -137,13 +146,24 @@ Exemples:
 - "Comment déclarer la carence CSE ?" → requires_app_help: true
 - "Comment activer une dérogation au plafond 50 % pour une avance ?" → requires_app_help: true
 - "Où valider les congés de mon équipe ?" → requires_app_help: true
+- "Comment restreindre les droits d'un RH à une équipe ?" → requires_app_help: true
+- "Où activer le forfait jours d'un salarié ?" → requires_app_help: true
+- "Où créer / générer les plans de calendriers 2026 ?" → requires_app_help: true
+- "Où paramétrer les pauses payées / non payées ?" → requires_app_help: true
+- "Comment connecter Cegid Loop / l'intégration comptable ?" → requires_app_help: true
+- "Comment télécharger le contrat en Word ?" → requires_app_help: true
+- "Comment basculer Vue RH / Vue Collaborateur ?" → requires_app_help: true
+- "On me force à changer mon mot de passe à la connexion" → requires_app_help: true
 - "Cherche Jean Dupont" → requires_data_retrieval: true, outil employee_search
-- "Combien de salariés actifs ?" → requires_data_retrieval: true, outil employee_count
+- "Combien de salariés actifs ?" → requires_data_retrieval: true, outil employee_count (employment_status: actif)
+- "Combien de CDI ?" → requires_data_retrieval: true, outil employee_count (contract_type: CDI)
+- "Combien de salariés en onboarding ?" → requires_data_retrieval: true, outil employee_count (employment_status: en_onboarding)
 - "Synthèse paie de 2026-07" → requires_data_retrieval: true, outil payroll_summary
-- "Absences validées" → requires_data_retrieval: true, outil absence_summary
+- "Absences validées ce mois" → requires_data_retrieval: true, outil absence_summary (+ date_start/date_end)
 - "Planning du 20 juillet" → requires_data_retrieval: true, outil planning_summary
 - "Quel est le turnover ?" → requires_data_retrieval: true, outil hr_indicators
-- "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? cadres?)
+- "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? actifs? onboarding?)
+- "Quel est le salaire de Martin ?" → needs_clarification: true (hors catalogue : propose recherche du salarié ou synthèse paie)
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
 - "Quelle est la durée de la période d'essai ?" → requires_collective_agreement: true
 - "Congés payés selon la convention" → requires_collective_agreement: true (si plusieurs conventions, demande laquelle)
@@ -352,7 +372,10 @@ Génère une réponse claire, professionnelle et concise en français.
 - Ajoute du contexte si utile (ex: "Ce qui représente X% du salaire total")
 - Si la question concerne des éléments qui pourraient être régis par une convention collective (congés, RTT, période d'essai, etc.), mentionne-le et suggère de consulter la convention collective de l'entreprise pour plus de détails
 
-Ne mentionne JAMAIS les détails techniques internes. Réponds comme un collègue RH serviable et expert."""
+Ne mentionne JAMAIS les détails techniques internes (outils, SQL, tables).
+Si les résultats ne couvrent pas la question (données absentes ou hors périmètre
+des outils), dis-le clairement et propose ce que tu peux fournir à la place.
+Réponds comme un collègue RH serviable et expert."""
 
         try:
             response = chat_completions_create(

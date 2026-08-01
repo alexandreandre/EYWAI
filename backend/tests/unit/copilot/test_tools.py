@@ -79,7 +79,7 @@ class TestParseToolCalls:
             ("employee_count", {"unexpected": "x"}),
             ("employee_search", {"employee_id": "internal-id"}),
             ("payroll_summary", {"year": 2026}),
-            ("absence_summary", {"date_start": "2026-01-01"}),
+            ("absence_summary", {"period": "2026-01"}),
             ("planning_summary", {"status": "locked"}),
             ("hr_indicators", {"detail": True}),
         ],
@@ -87,6 +87,36 @@ class TestParseToolCalls:
     def test_unknown_argument_for_each_tool_is_rejected(self, tool, arguments):
         with pytest.raises(ValueError, match="non autorisé"):
             parse_tool_calls([{"tool": tool, "arguments": arguments}])
+
+    def test_employee_count_accepts_contract_type(self):
+        calls = parse_tool_calls(
+            [
+                {
+                    "tool": "employee_count",
+                    "arguments": {
+                        "employment_status": "actif",
+                        "contract_type": "CDI",
+                    },
+                }
+            ]
+        )
+        assert calls[0].arguments["contract_type"] == "CDI"
+
+    def test_absence_summary_accepts_date_bounds(self):
+        calls = parse_tool_calls(
+            [
+                {
+                    "tool": "absence_summary",
+                    "arguments": {
+                        "status": "validated",
+                        "date_start": "2026-07-01",
+                        "date_end": "2026-07-31",
+                    },
+                }
+            ]
+        )
+        assert calls[0].arguments["date_start"] == "2026-07-01"
+        assert calls[0].arguments["date_end"] == "2026-07-31"
 
     @pytest.mark.parametrize(
         ("tool", "arguments"),

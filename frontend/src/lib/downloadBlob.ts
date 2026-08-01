@@ -26,3 +26,21 @@ export function openBlobInNewTab(blob: Blob, revokeAfterMs = 100): void {
 export function createBlobPreviewUrl(blob: Blob): string {
   return URL.createObjectURL(blob);
 }
+
+/**
+ * Nom de fichier proposé par le serveur, ou repli.
+ *
+ * Gère `filename="..."` et la forme encodée `filename*=UTF-8''...`, que produisent
+ * les serveurs dès que le nom porte un accent.
+ */
+export function parseContentDispositionFilename(header: unknown, fallback: string): string {
+  if (typeof header !== 'string') return fallback;
+  const match = header.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const value = match?.[1]?.trim();
+  if (!value) return fallback;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}

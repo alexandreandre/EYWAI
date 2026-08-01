@@ -48,6 +48,9 @@
 - ✅ **Recrutement & promotions** : Modules associés côté API et interface RH
 - ✅ **Badgeuse** : Pointage côté collaborateur et pilotage RH
 - ✅ **Support** : Création et suivi de tickets depuis l’application
+- ✅ **Onboarding & formation** : Parcours d’intégration, catalogue formations, talents
+- ✅ **CET, prêts, IJSS** : Compte épargne-temps, prêts employeur, suivi IJSS/CPAM
+- ✅ **Documents & DSN** : Bibliothèque documentaire, import DSN, télétransmissions
 
 ### Technologies utilisées
 
@@ -154,7 +157,7 @@ EYWAI/   (racine du dépôt)
 
 - **`backend/app/`** : API REST FastAPI organisée par **modules métier** (`app/modules/<domaine>/` avec couches api → application → domain → infrastructure).
 - **`frontend/`** : Interface React (Vite), consommation de l’API via `VITE_API_URL`.
-- **Schéma SQL / RLS** : géré côté projet Supabase (pas de dossier `migrations/` versionné à la racine de ce dépôt).
+- **Schéma SQL / RLS** : migrations versionnées sous `supabase/migrations/` (projet Supabase partagé).
 
 ---
 
@@ -272,6 +275,16 @@ EYWAI/   (racine du dépôt)
 ### Support & tickets
 - Assistant de création de demande (module, urgence, description)
 - Historique et filtrage des tickets pour les profils autorisés
+
+### Onboarding, formation & documents
+- Parcours d’onboarding collaborateur
+- Formation & talents (catalogue, budget, certifications, objectifs)
+- Génération et bibliothèque de documents RH
+
+### CET, prêts employeur & suivi IJSS
+- Compte épargne-temps (collaborateur et validations RH/manager)
+- Prêts employeur et échéanciers
+- Suivi des indemnités journalières (IJSS / CPAM)
 
 ---
 
@@ -620,7 +633,7 @@ Aucun script `npm run test` n’est défini dans `frontend/package.json` pour l�
 
 ---
 
-**Dernière mise à jour** : avril 2026
+**Dernière mise à jour** : juillet 2026
 
 **Version** : suivre les tags Git / releases du dépôt (le frontend `package.json` reste en `0.0.0` pour l’outil de build).
 

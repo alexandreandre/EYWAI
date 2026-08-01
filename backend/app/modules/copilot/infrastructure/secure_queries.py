@@ -92,7 +92,7 @@ def _coerce_limit(raw: Any, *, default: int, maximum: int) -> int:
 
 
 def count_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
-    """Compte les salariés de l'entreprise, filtre optionnel sur le statut."""
+    """Compte les salariés de l'entreprise ; filtres optionnels statut / contrat."""
     company_id = _require_company_id(company_id)
     filters = filters or {}
     query = (
@@ -104,6 +104,9 @@ def count_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
     status = filters.get("employment_status")
     if status:
         query = query.eq("employment_status", str(status))
+    contract_type = filters.get("contract_type")
+    if contract_type:
+        query = query.eq("contract_type", str(contract_type))
     response = query.execute()
     return {"count": int(response.count or 0)}
 
@@ -118,12 +121,17 @@ def search_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]
     query = (
         get_supabase_client()
         .table("employees")
-        .select("id, first_name, last_name, job_title, employment_status")
+        .select(
+            "id, first_name, last_name, job_title, employment_status, contract_type"
+        )
         .eq("company_id", company_id)
     )
     status = filters.get("employment_status")
     if status:
         query = query.eq("employment_status", str(status))
+    contract_type = filters.get("contract_type")
+    if contract_type:
+        query = query.eq("contract_type", str(contract_type))
     rows = query.execute().data or []
 
     if name:
@@ -156,7 +164,11 @@ def _rank_by_name(rows: list[dict[str, Any]], name: str) -> list[dict[str, Any]]
 
 
 def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
-    """Synthèse des demandes d'absence de l'entreprise (comptes par statut / type)."""
+    """Synthèse des demandes d'absence de l'entreprise (comptes par statut / type).
+
+    Si ``date_start`` et ``date_end`` sont fournis (ISO), ne compte que les
+    demandes dont au moins un jour de ``selected_days`` croise la plage.
+    """
     company_id = _require_company_id(company_id)
     filters = filters or {}
     query = (
@@ -173,6 +185,23 @@ def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
         query = query.eq("type", str(atype))
     rows = query.execute().data or []
 
+    date_start = filters.get("date_start")
+    date_end = filters.get("date_end")
+    range_applied = False
+    if _is_iso_date(date_start) and _is_iso_date(date_end) and str(date_start) <= str(date_end):
+        start_s, end_s = str(date_start)[:10], str(date_end)[:10]
+        filtered: list[dict[str, Any]] = []
+        for row in rows:
+            selected = row.get("selected_days") or []
+            if not isinstance(selected, list):
+                continue
+            if any(
+                isinstance(d, str) and start_s <= d[:10] <= end_s for d in selected
+            ):
+                filtered.append(row)
+        rows = filtered
+        range_applied = True
+
     by_status: dict[str, int] = {}
     by_type: dict[str, int] = {}
     total_selected_days = 0
@@ -183,14 +212,26 @@ def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
         by_type[ty] = by_type.get(ty, 0) + 1
         selected = row.get("selected_days") or []
         if isinstance(selected, list):
-            total_selected_days += len(selected)
+            if range_applied:
+                start_s, end_s = str(date_start)[:10], str(date_end)[:10]
+                total_selected_days += sum(
+                    1
+                    for d in selected
+                    if isinstance(d, str) and start_s <= d[:10] <= end_s
+                )
+            else:
+                total_selected_days += len(selected)
 
-    return {
+    result: dict[str, Any] = {
         "total_requests": len(rows),
         "by_status": by_status,
         "by_type": by_type,
         "total_selected_days": total_selected_days,
     }
+    if range_applied:
+        result["date_start"] = str(date_start)[:10]
+        result["date_end"] = str(date_end)[:10]
+    return result
 
 
 # --- shifts (company_id présent) ---

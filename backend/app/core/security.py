@@ -152,15 +152,36 @@ def get_current_user(
             super_admin_response.data and len(super_admin_response.data) > 0
         )
 
-        # 4. Charger les accès multi-entreprises
-        accesses_response = execute_with_retry(
-            lambda: data_client.table("user_company_accesses")
-            .select(
-                "company_id, role, is_primary, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
-            )
-            .eq("user_id", user.id)
-            .execute()
+        # 4. Charger les accès multi-entreprises (accès révoqués exclus)
+        # is_active : colonne ajoutée par
+        # supabase/migrations/20260722140000_user_permission_scopes.sql (NOT NULL
+        # DEFAULT true, index idx_uca_user_active). Sans ce filtre, un accès révoqué
+        # par le provisioning resterait effectif.
+        # Fallback si la migration n'est pas encore appliquée (évite un 500 login).
+        _accesses_select = (
+            "company_id, role, is_primary, companies(id, company_name, siret, logo_url, logo_scale, group_id, company_groups(group_name, logo_url, logo_scale))"
         )
+        try:
+            accesses_response = execute_with_retry(
+                lambda: data_client.table("user_company_accesses")
+                .select(_accesses_select)
+                .eq("user_id", user.id)
+                .eq("is_active", True)
+                .execute()
+            )
+        except Exception as accesses_exc:
+            if "is_active" not in str(accesses_exc):
+                raise
+            logger.warning(
+                "Colonne user_company_accesses.is_active absente — "
+                "appliquer la migration 20260722140000_user_permission_scopes"
+            )
+            accesses_response = execute_with_retry(
+                lambda: data_client.table("user_company_accesses")
+                .select(_accesses_select)
+                .eq("user_id", user.id)
+                .execute()
+            )
 
         accessible_companies = []
         for acc in accesses_response.data:
