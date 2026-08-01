@@ -129,7 +129,6 @@ Le frontend du SIRH est une **application web moderne** construite avec **React 
 
 ### Outils de développement
 
-- **lovable-tagger** (plugin Vite, mode `development` uniquement) : taggage de composants en dev
 - **ESLint 9** + **typescript-eslint** : lint (`npm run lint`)
 
 ---
@@ -635,7 +634,7 @@ Le fichier `vite.config.ts` configure :
 - Port : **8080**
 - Host : `::` (toutes les interfaces)
 - Alias `@` : `./src`
-- Plugins : `@vitejs/plugin-react-swc` ; en `development`, **lovable-tagger** peut être activé
+- Plugins : `@vitejs/plugin-react`
 
 ### Configuration TypeScript
 
