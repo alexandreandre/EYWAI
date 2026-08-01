@@ -55,6 +55,7 @@ function EmployeeLayout() {
       <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
         <EmployeeSidebar />
         <div className="flex min-w-0 flex-col flex-1">
+          <TestEnvBanner />
           <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
             <SidebarTrigger>
               <Button variant="ghost" size="icon" className="md:hidden">
@@ -129,6 +130,7 @@ function ProtectedRoutes() {
       <div className="min-h-screen flex w-full bg-muted/40">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
+          <TestEnvBanner />
           {showCompanySwitcher && (
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
               <SidebarTrigger>
@@ -278,7 +280,6 @@ function PlatformAdminRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <TooltipProvider>
-      <TestEnvBanner />
       <SignedPdfPreviewProvider>
         <Toaster />
         <BootProvider>

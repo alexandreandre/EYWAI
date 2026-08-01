@@ -36,14 +36,14 @@ jobs:
           SA_KEY: ${{ secrets.GCP_SA_KEY }}
           TEST_URL: ${{ secrets.SUPABASE_TEST_URL }}
           TEST_KEY: ${{ secrets.SUPABASE_TEST_KEY }}
-          REDIRECT: ${{ secrets.EMAIL_FORCE_REDIRECT_TO }}
+          REDIRECT: ${{ secrets.TEST_EMAIL_REDIRECT_TO }}
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
         run: |
           missing=""
           [ -z "$SA_KEY" ]   && missing="$missing GCP_SA_KEY(secret)"
           [ -z "$TEST_URL" ] && missing="$missing SUPABASE_TEST_URL(secret)"
           [ -z "$TEST_KEY" ] && missing="$missing SUPABASE_TEST_KEY(secret)"
-          [ -z "$REDIRECT" ] && missing="$missing EMAIL_FORCE_REDIRECT_TO(secret)"
+          [ -z "$REDIRECT" ] && missing="$missing TEST_EMAIL_REDIRECT_TO(secret)"
           [ -z "$PROJECT" ]  && missing="$missing GCP_PROJECT_ID(var)"
           if [ -n "$missing" ]; then
             echo "::error::Manquant dans Settings → Secrets and variables → Actions :$missing"
@@ -89,7 +89,7 @@ jobs:
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
             --memory 2Gi --timeout 900 --allow-unauthenticated \
-            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.EMAIL_FORCE_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
 
       - name: Relever l'URL du backend de test
         id: back
@@ -128,9 +128,29 @@ jobs:
           url=$(gcloud run services describe "$FRONTEND_SERVICE" \
             --region "$GCP_REGION" --format 'value(status.url)')
           echo "url=$url" >> "$GITHUB_OUTPUT"
+
+          # Cloud Run expose DEUX URL pour le même service :
+          #   https://<service>-<hash>-<region>.a.run.app  (renvoyée par describe)
+          #   https://<service>-<numéro de projet>.<région>.run.app
+          # Les deux sont valides et la console affiche la seconde. N'autoriser
+          # que celle de describe suffit à faire rejeter tous les appels API
+          # quand quelqu'un ouvre l'autre. On déclare donc les deux.
+          # Le numéro de projet vient d'une variable de dépôt : l'API
+          # cloudresourcemanager est désactivée pour le compte de service de
+          # déploiement, donc `gcloud projects describe` échoue ici.
+          num="${{ vars.GCP_PROJECT_NUMBER }}"
+          origines="$url"
+          if [ -n "$num" ]; then
+            origines="$origines,https://${FRONTEND_SERVICE}-${num}.${GCP_REGION}.run.app"
+          else
+            echo "::warning::GCP_PROJECT_NUMBER absent — une seule forme d'URL autorisée en CORS."
+          fi
+
+          # ^##^ : délimiteur explicite, sans quoi gcloud prendrait la virgule
+          # de la liste d'origines pour un séparateur de variables.
           gcloud run services update "$BACKEND_SERVICE" --region "$GCP_REGION" \
-            --update-env-vars "ALLOWED_ORIGINS_EXTRA=$url"
-          echo "Frontend de test : $url"
+            --update-env-vars "^##^ALLOWED_ORIGINS_EXTRA=$origines"
+          echo "Origines autorisées : $origines"
 
       - name: Smoke tests
         run: |
