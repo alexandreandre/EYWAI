@@ -1,40 +1,35 @@
 ---
 name: push
 description: >-
-  Clôture une session Git sur une branche personnelle dev-* : vérifie la
-  branche courante, regroupe ou découpe les commits selon les changements,
+  Clôture une session Git sur la branche courante : vérifie qu’on n’est pas
+  sur main/master, regroupe ou découpe les commits selon les changements,
   rédige des messages détaillés et propres, pousse vers origin sur la même
   branche (jamais main). À utiliser en fin de journée ou de session, lorsque
-  l’utilisateur demande /push, de sauvegarder ou pousser son travail sur
-  sa branche dev, ou attache explicitement ce skill.
+  l’utilisateur demande /push, de sauvegarder ou pousser son travail, ou
+  attache explicitement ce skill.
 ---
 
-# Push — clôture de session sur branche dev-*
+# Push — clôture de session Git
 
 ## Objectif
 
-En fin de session, **sécuriser le travail** : confirmer que l’on est sur **une branche `dev-*` personnelle**, **stager**, **committer** avec des messages **lisibles et détaillés**, puis **`push` uniquement vers cette branche** sur `origin` — **sans jamais pousser sur `main`**.
+En fin de session, **sécuriser le travail** : **stager**, **committer** avec des messages **lisibles et détaillés**, puis **`push` uniquement la branche courante** vers `origin` — **sans jamais pousser sur `main` / `master`**.
 
 ## Quand utiliser ce skill
 
-- L’utilisateur demande **`/push`**, une **fin de session**, de **tout committer et pousser** sur sa branche perso, ou attache ce fichier.
+- L’utilisateur demande **`/push`**, une **fin de session**, de **tout committer et pousser**, ou attache ce fichier.
 
-## Branches autorisées pour commit + push
+## Branches
 
-Même convention que le skill **begin** (noms exacts par défaut) :
-
-- `dev-mathieu`
-- `dev-jose`
-- `dev-alex`
-
-Si le dépôt documente d’autres branches `dev-*` (ex. `guidebranche.md`), les traiter de la **même manière** : uniquement une branche **`dev-*`**, **pas** `main` ni `master`.
+- **Autorisées** : toute branche courante **autre que** `main` et `master` (`dev-*`, `feat/*`, `fix/*`, etc.).
+- **Interdites** : `main` et `master` — la prod a son propre circuit (ex. skill **merge-dev-to-main**).
 
 ---
 
 ## Garde-fous (obligatoires)
 
 1. **Branche courante** : `git branch --show-current`
-   - Si la branche est **`main`**, **`master`**, ou **ne correspond pas** à une branche `dev-*` autorisée / documentée → **arrêter**. Ne pas `add` / `commit` / `push`. Indiquer la branche actuelle et la commande attendue, ex. `git checkout dev-alex`.
+   - Si la branche est **`main`** ou **`master`** → **arrêter**. Ne pas `add` / `commit` / `push`. Indiquer la branche actuelle et proposer de basculer sur une branche de travail (ex. `git checkout -b feat/…` ou `git checkout dev-alex`).
 2. **Ne jamais** exécuter un push qui cible explicitement `main` ou `master` (ex. `git push origin main`).
 3. **Pousser** uniquement la branche courante vers le **même nom** sur `origin`, par ex. :  
    `git push -u origin "$(git branch --show-current)"`  
@@ -102,13 +97,13 @@ Le corps du message doit refléter **le diff réel** (comportement ajouté, bug 
 
 ### 7. Push
 
-Après au moins un commit réussi sur la branche `dev-*` vérifiée :
+Après au moins un commit réussi sur la branche courante (non `main` / `master`) :
 
 ```bash
 git push -u origin "$(git branch --show-current)"
 ```
 
-- Si le push est refusé (non fast-forward, etc.) : **ne pas** `force push` sans demande explicite ; expliquer l’erreur et les options sûres (`git pull --rebase` sur la branche dev après accord, etc.).
+- Si le push est refusé (non fast-forward, etc.) : **ne pas** `force push` sans demande explicite ; expliquer l’erreur et les options sûres (`git pull --rebase` sur la branche après accord, etc.).
 
 ### 8. Synthèse pour l’utilisateur (en français)
 
@@ -121,7 +116,7 @@ git push -u origin "$(git branch --show-current)"
 
 ## Anti-patterns à éviter
 
-- Pousser depuis ou vers **`main`** dans ce workflow.
+- Pousser depuis ou vers **`main`** / **`master`** dans ce workflow.
 - Message du type « update » / « fix » sans détail quand le diff est large.
 - Un seul commit « fourre-tout » quand deux intentions distinctes ressortent clairement du diff.
 - `git push --force` sur une branche partagée sans instruction explicite.
@@ -132,4 +127,4 @@ git push -u origin "$(git branch --show-current)"
 
 > `/push` — je ferme la session, tout est prêt à être sauvegardé sur ma branche.
 
-L’agent vérifie la branche, qualité des messages, pousse sur la branche `dev-*` courante uniquement, et renvoie une synthèse courte.
+L’agent vérifie que la branche n’est pas `main`/`master`, qualité des messages, pousse la branche courante vers `origin`, et renvoie une synthèse courte.

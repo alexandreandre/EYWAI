@@ -23,18 +23,32 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 ```
 .cursor/
 ├── README.md              ← ce guide (documentation humaine)
+├── mcp.json               ← config MCP (ex. Supabase database)
 ├── rules/
 │   ├── backend.mdc        ← règle IA : backend/
-│   └── frontend.mdc       ← règle IA : frontend/
+│   ├── frontend.mdc       ← règle IA : frontend/
+│   ├── database.mdc       ← MCP Supabase / migrations (alwaysApply)
+│   └── product-context.mdc ← contexte produit SIRH (alwaysApply)
 └── skills/                 ← skills Agent (fichiers SKILL.md par dossier)
+    ├── backtest-paie/
     ├── begin/
     ├── check-feature/
+    ├── code-reviewer/
     ├── debug/
+    ├── elsa/
     ├── etat/
     ├── frontend-design/
+    ├── is-fonctionnel/
     ├── merge-dev-to-main/
+    ├── plan-page/
     ├── push/
-    └── test/
+    ├── recap-depuis-push/
+    ├── recap-event/
+    ├── refonte-da/
+    ├── resume/
+    ├── test/
+    ├── test-complet/
+    └── update-copilot-rh/
 ```
 
 ---
@@ -80,6 +94,7 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 
 - Changement de conventions backend (imports, logging, langue des messages, politique DB) qui doit être rappelé à chaque session sur `backend/`.
 - Lors de l’édition : vérifier que le frontmatter reste valide (`description`, `globs`, `alwaysApply`).
+- Garder **identique** à [`.claude/rules/backend.mdc`](../.claude/rules/backend.mdc).
 
 ---
 
@@ -107,10 +122,30 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 **Quand modifier ce fichier**
 
 - Nouvelles conventions UI, stack front, ou règles de copie / lint spécifiques au dossier `frontend/`.
+- Garder **identique** à [`.claude/rules/frontend.mdc`](../.claude/rules/frontend.mdc).
 
 ---
 
-### 4. Dossier `skills/` (Agent Skills)
+### 4. `rules/database.mdc`
+
+| | |
+|--|--|
+| **Nature** | Règle **alwaysApply** pour l’accès Supabase via MCP (`supabase-eywai`). |
+| **Contenu** | Projet partagé dev/prod, workflow migrations (`supabase/migrations/` puis MCP `apply_migration`), interdits destructifs sans confirmation. |
+| **Frontmatter** | `globs: supabase/**,.cursor/mcp.json`, `alwaysApply: true`. |
+
+---
+
+### 5. `rules/product-context.mdc`
+
+| | |
+|--|--|
+| **Nature** | Règle **alwaysApply** : EYWAI = SIRH généraliste ; client de référence = le groupe déployé. |
+| **Contenu** | Éviter le hardcode filiale ; préférer paramètres entreprise / CCN / groupe. |
+
+---
+
+### 6. Dossier `skills/` (Agent Skills)
 
 | | |
 |--|--|
@@ -128,7 +163,7 @@ Chaque fichier dans `rules/` commence par un **frontmatter YAML**, puis du Markd
 |-------|------|
 | `description` | Court résumé (souvent affiché dans l’UI des règles). |
 | `globs` | Motif de chemins, ex. `backend/**` — limite la règle à cette zone si `alwaysApply` est `false`. |
-| `alwaysApply` | `true` = chargé pour toutes les conversations ; `false` = dépend du contexte / des `globs`. Dans ce dépôt, les deux règles sont en `false`. |
+| `alwaysApply` | `true` = chargé pour toutes les conversations ; `false` = dépend du contexte / des `globs`. |
 
 Exemple minimal pour une **nouvelle** règle par zone :
 
@@ -153,6 +188,7 @@ Corps en Markdown.
 3. Rédiger le corps : rappels actionnables + liens vers la doc du dépôt.
 4. **Mettre à jour ce `README.md`** : ajouter une sous-section « Fichier par fichier » pour le nouveau fichier.
 5. Vérifier la cohérence avec [`AGENTS.md`](../AGENTS.md).
+6. Si c’est une convention backend/frontend, **dupliquer** aussi sous `.claude/rules/`.
 
 ---
 
@@ -181,8 +217,10 @@ Corps en Markdown.
 | Fichier | Utilisation |
 |---------|-------------|
 | **`README.md`** | Lire pour comprendre et maintenir `.cursor/` ; mettre à jour quand la structure ou les fichiers changent. |
-| **`rules/backend.mdc`** | S’applique au contexte `backend/**` ; rien d’obligatoire côté dev au quotidien ; modifier si les conventions backend évoluent. |
-| **`rules/frontend.mdc`** | S’applique au contexte `frontend/**` ; idem pour le front. |
+| **`rules/backend.mdc`** | S’applique au contexte `backend/**` ; identique à `.claude/rules/backend.mdc`. |
+| **`rules/frontend.mdc`** | S’applique au contexte `frontend/**` ; identique à `.claude/rules/frontend.mdc`. |
+| **`rules/database.mdc`** | AlwaysApply — migrations Supabase / MCP. |
+| **`rules/product-context.mdc`** | AlwaysApply — positionnement produit. |
 | **`skills/*/`** | Workflows Agent (Git, tests, debug, design…) : consulter ou attacher le `SKILL.md` du dossier concerné. |
 
 Pour toute évolution majeure des conventions : mettre à jour **`AGENTS.md` / README des apps** et les **`.mdc`** correspondants.
