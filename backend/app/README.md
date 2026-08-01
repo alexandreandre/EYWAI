@@ -103,9 +103,11 @@ Les modules ne s'importent pas entre eux pour des détails d'implémentation ; l
 
 ### `modules/`
 
-Un répertoire par domaine. Noms en snake_case (ex. `annual_reviews`, `company_groups`, `repos_compensateur`). Liste des modules avec router API :
+Un répertoire par domaine. Noms en snake_case (ex. `annual_reviews`, `company_groups`, `repos_compensateur`). Liste des modules avec router API (agrégés dans `app/api/router.py`) :
 
-- access_control, absences, annual_reviews, auth, badgeuse, bonus_types, companies, contract_parser, copilot, collective_agreements, company_groups, cse, dashboard, employees, employee_exits, exports, expenses, maintenance_settings, medical_follow_up, monthly_inputs, mutuelle_types, participation, payslips, payroll (sous-jacent à payslips), promotions, rates, recruitment, repos_compensateur, residence_permits, rib_alerts, saisies_avances, schedules, scraping, super_admin, support, uploads, users.
+- access_control, accounting_integration, admin_import, absences, annual_reviews, audit, auth, badgeuse, bonus_types, certifications, cet, companies, contract_parser, copilot, collective_agreements, company_groups, competencies, cse, dashboard, document_library, documents, dsn_import, employees, employee_exits, employee_loans, exports, expenses, ijss_tracking, interview_templates, jei_settings, legal_obligations, maintenance_settings, medical_follow_up, modulation, monthly_inputs, mutuelle_types, net_entreprises, notifications, objectives, oeth_settings, onboarding, participation, payslips, payroll, payroll_variables, planning, platform_settings, prime_anciennete_settings, promotions, rates, recruitment, repos_compensateur, residence_permits, rib_alerts, saisies_avances, schedules, scraping, signatures, super_admin, support, teams, test_env, training, training_budget, uploads, users, webhooks, work_medals.
+
+Modules sans router HTTP exposé (moteur / helpers) : `_template`, `dsn_compare`, `dsn_export`.
 
 Structure type d'un module :
 

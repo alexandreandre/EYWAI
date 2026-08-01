@@ -177,11 +177,20 @@ backend/
 │       ├── recruitment/
 │       ├── promotions/
 │       ├── badgeuse/
+│       ├── onboarding/
+│       ├── training/
+│       ├── cet/
+│       ├── employee_loans/
+│       ├── planning/
+│       ├── teams/
+│       ├── documents/
+│       ├── dsn_import/
+│       ├── test_env/
 │       ├── maintenance_settings/
 │       ├── support/
-│       └── uploads/
+│       └── uploads/          # (+ autres domaines : voir app/modules/)
 │
-└── tests/                    # Pytest : unit/, integration/, e2e/, migration/
+└── tests/                    # Pytest : unit/, integration/, e2e/, migration/, scraping/
     └── README.md
 ```
 
@@ -522,6 +531,19 @@ Les **préfixes de route** exacts et les schémas de requête/réponse sont la *
 - `POST /api/support/tickets` - Créer un ticket
 - `GET /api/support/tickets` - Liste filtrée
 
+### 28bis. Onboarding, formation, CET, prêts & paie avancée
+
+- **Onboarding** : `GET /api/onboarding/me`, parcours par employé
+- **Formation & talents** : `/api/training`, `/api/training-budget`, `/api/certifications`, `/api/competencies`, `/api/objectives`
+- **CET** : `/api/cet/settings`, demandes et validations
+- **Prêts employeur** : `/api/employee-loans/`
+- **Suivi IJSS** : `/api/ijss-tracking/periods`
+- **Modulation / variables de paie** : `/api/modulation`, `/api/payroll-variables`
+- **Équipes & planning** : `/api/teams`, `/api/planning`
+- **Documents** : `/api/documents`, `/api/document-library`
+- **DSN / Net-Entreprises / compta** : `/api/dsn-import`, `/api/net-entreprises`, `/api/accounting-integration`
+- **Environnement de test** : `/api/test-env/status`
+
 ### 29. Paramètres de maintien de salaire
 
 - **Lecture / mise à jour** : Paramètres entreprise pour le maintien de salaire (profils autorisés)
@@ -841,5 +863,5 @@ Pour contribuer au projet :
 
 ---
 
-**Dernière mise à jour** : avril 2026
+**Dernière mise à jour** : juillet 2026
 

@@ -12,7 +12,11 @@ Les tests sont organisés en **quatre niveaux** et suivent la structure des modu
 tests/
 ├── conftest.py              # Fixtures et configuration pytest partagés
 ├── fixtures/                # Données et helpers partagés (fixtures réutilisables)
+│   ├── scraping/            # HTML de référence pour parsers de barèmes
+│   └── timesheets/          # Échantillons OCR / CSV planning
 ├── migration/               # Fixtures pour comparaison payroll / migrations
+├── scraping/                # Tests des parsers de veille réglementaire
+├── modules/                 # Helpers / tests transverses modules (si présents)
 ├── unit/                     # Tests unitaires (logique isolée, mocks)
 │   ├── core/                 # Ex. chemins runtime (`app.core.paths`, paie)
 │   └── <module>/             # Un dossier par module (employees, auth, payroll, …)
@@ -21,6 +25,7 @@ tests/
 │       ├── test_commands.py  # Commandes (écritures)
 │       └── test_queries.py   # Queries (lectures)
 ├── integration/              # Tests d’intégration (API, repository, wiring)
+│   ├── legacy/               # Anciens tests — ne pas y ajouter de nouveaux
 │   └── <module>/
 │       ├── test_api.py       # Routes HTTP (TestClient, auth, status codes)
 │       ├── test_repository.py # Repository + Supabase (mock ou DB de test)
