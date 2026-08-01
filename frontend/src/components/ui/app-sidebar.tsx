@@ -145,6 +145,7 @@ const RH_TEAM_GROUPS_BASE: SidebarLinkGroup[] = [
 const RH_GESTION_SUIVI_RH_ITEMS: SidebarLinkItem[] = [
   { title: "Badgeuse", url: "/badgeuse-rh", icon: ScanLine },
   { title: "Calendriers", url: "/schedules", icon: Calendar },
+  { title: "Planning", url: "/planning", icon: ClipboardList },
   { title: "Entretiens", url: "/formation#entretiens", icon: MessageSquare },
   { title: "Formation & talents", url: "/formation", icon: GraduationCap },
   { title: "Augmentations & Promotions", url: "/augmentations-et-promotions", icon: TrendingUp },
@@ -206,6 +207,8 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
       { title: "Congés & Absences", url: "/leaves", icon: Plane },
       { title: "Suivi IJSS / CPAM", url: "/suivi-ijss", icon: FileCheck },
       { title: "Temps de travail & HS", url: "/suivi-temps-travail", icon: Clock },
+      { title: "Contingent HS", url: "/suivi-contingent-hs", icon: Clock },
+      { title: "Modulation", url: "/suivi-modulation", icon: Clock },
       { title: "Suivi CET", url: "/suivi-cet", icon: PiggyBank },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
@@ -331,15 +334,16 @@ const menuItems = {
   ],
   employee: [
     { title: "Tableau de Bord", url: "/", icon: Home },
-    { title: "Mes Entretiens", url: "/annual-reviews", icon: MessageSquare },
-    { title: "Ma formation", url: "/employee/formation", icon: GraduationCap },
     { title: "Calendrier et planning", url: "/calendar", icon: Calendar },
+    { title: "Ma badgeuse", url: "/badgeuse", icon: ScanLine },
     { title: "Congés & Absences", url: "/absences", icon: Plane },
     { title: "Mon CET", url: "/mon-cet", icon: PiggyBank },
     { title: "Notes de Frais", url: "/expenses", icon: Notebook },
     { title: "Avances & acomptes", url: "/salary-advances", icon: Wallet },
     { title: "Prêts employeur", url: "/employee-loans", icon: Landmark },
-    { title: "Mes Documents", url: "/documents", icon: FolderKanban },
+    { title: "Mes Documents", url: "/employee/documents", icon: FolderKanban },
+    { title: "Participation", url: "/employee/participation", icon: Handshake },
+    { title: "Ma formation", url: "/employee/formation", icon: GraduationCap },
     { title: "Profil", url: "/profile", icon: User },
   ]
 };

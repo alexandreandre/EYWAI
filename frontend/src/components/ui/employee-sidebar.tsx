@@ -17,6 +17,7 @@ import {
   FileText,
   Megaphone,
   ScanLine,
+  PiggyBank,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,7 @@ const coreNavItems: NavItem[] = [
   { to: "/calendar", label: "Calendrier et planning", icon: CalendarDays },
   { to: "/badgeuse", label: "Ma badgeuse", icon: ScanLine },
   { to: "/absences", label: "Congés & absences", icon: Plane },
+  { to: "/mon-cet", label: "Mon CET", icon: PiggyBank },
   { to: "/expenses", label: "Notes de frais", icon: Notebook },
   { to: "/salary-advances", label: "Avances & acomptes", icon: Wallet },
   { to: "/employee-loans", label: "Prêts employeur", icon: Landmark },
