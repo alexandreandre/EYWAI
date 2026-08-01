@@ -40,12 +40,17 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   taux de PAS), Entretiens, Suivi médical, Calendrier, Badgeuse. C'est aussi là
   qu'on affecte la convention collective d'un salarié et qu'on renseigne le profil
   administratif (mode de paiement du salaire : virement, chèque ou espèces ;
-  coordonnées bancaires). L'onglet Badgeuse permet de saisir le matricule GTA
-  (identifiant pointage / import planning). Les identifiants de connexion d'un
-  salarié (nom d'utilisateur + mot de passe temporaire) se trouvent dans
-  l'onglet Documents → dossier « Autres » → fichier « Identifiants de connexion »
-  (PDF téléchargeable). Si le PDF n'existe pas encore, il est généré automatiquement
-  à l'ouverture (le salarié doit avoir une adresse e-mail renseignée).
+  coordonnées bancaires). À la création / édition, la case « Forfait jours » est
+  indépendante du statut Cadre / Non-Cadre : elle pilote le calendrier (filtre
+  « Forfait jour ») et exclut le salarié de la badgeuse. L'onglet Badgeuse permet
+  de saisir le matricule GTA (identifiant pointage / import planning). Les
+  identifiants de connexion d'un salarié (nom d'utilisateur + mot de passe
+  temporaire) se trouvent dans l'onglet Documents → dossier « Autres » → fichier
+  « Identifiants de connexion » (PDF téléchargeable). Si le PDF n'existe pas
+  encore, il est généré automatiquement à l'ouverture (le salarié doit avoir une
+  adresse e-mail renseignée). Après génération d'un contrat ou avenant, on peut
+  télécharger « Word (.docx) — à retravailler » depuis Documents (fiche) ou
+  depuis les avenants carrière.
 
 — Recrutement (« Recrutement ») : pipeline de candidatures en Kanban + vue liste,
   fiches candidats, création d'offres de poste, scoring IA des candidats,
@@ -90,7 +95,10 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 
 — Calendriers (« Calendriers ») : saisie et validation des heures travaillées,
   modèles d'horaires, remplissage assisté par IA, import de pointages, vue par
-  équipe. (Même page que l'étape ① du parcours paie.)
+  équipe, filtre « Forfait jour ». (Même page que l'étape ① du parcours paie.)
+  Les plans de calendriers se créent dans Mon Entreprise → onglet Paie
+  (« Calendriers horaires 2026 » / presets) ou à l'étape Onboarding dédiée,
+  puis génèrent les calendriers salariés.
 
 — Entretiens (« Entretiens ») : campagnes et comptes rendus d'entretiens annuels
   / professionnels (onglet Entretiens de Formation & talents).
@@ -112,9 +120,12 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 
 — Gestion des Utilisateurs (« Gestion des Utilisateurs ») : comptes applicatifs
   des gestionnaires RH et administrateurs (pas les comptes collaborateurs/salariés).
-  Permet de créer des comptes RH, attribuer des rôles et gérer les accès aux
-  entreprises. Les identifiants des salariés se gèrent via la fiche Collaborateur
-  (onglet Documents) ou lors de la création / embauche, pas via ce module.
+  Permet de créer des comptes RH, attribuer des rôles, gérer les accès aux
+  entreprises et, à la création/édition, régler « Rôle et permissions » puis
+  « Périmètre par permission » : « Toute l'entreprise », « Équipes » (limité aux
+  équipes choisies) ou « Exceptions uniquement ». Les identifiants des salariés
+  se gèrent via la fiche Collaborateur (onglet Documents) ou lors de la création /
+  embauche, pas via ce module.
 
 — Mon Entreprise (« Mon Entreprise ») : paramétrage de l'entreprise (onglets
   Pilotage, Identité, Paie, Mutuelle, Bibliothèque de documents). L'onglet
@@ -125,11 +136,14 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   valider les dossiers en attente RH, paramétrer les rappels de congés annuels,
   paramétrer le temps de travail (jours fériés, congés/RTT, CP ancienneté,
   fractionnement CP, périodes de référence horaire, modulation 32h/37h,
-  contingent HS, politique de routage HS, comptabilisation badgeuse, CET) et les
-  variables de paie récurrentes (astreinte, équipes/postes, présence sans absence,
-  modulation, km week-end astreinte, majorations week-end). L'onglet Mutuelle
-  permet de gérer les formules de mutuelle/prévoyance, l'organisme, les notes
-  d'aide et l'ouverture du choix de formule aux salariés.
+  contingent HS, politique de routage HS, comptabilisation badgeuse, CET),
+  les plans « Calendriers horaires 2026 », la section « Planning & primes équipe »
+  (pauses payées / non payées en minutes, option « Pauses payées incluses dans
+  le salaire de base », modèles de semaine) et les variables de paie récurrentes
+  (astreinte, équipes/postes, présence sans absence, modulation, km week-end
+  astreinte, majorations week-end). L'onglet Mutuelle permet de gérer les
+  formules de mutuelle/prévoyance, l'organisme, les notes d'aide et l'ouverture
+  du choix de formule aux salariés.
 
 — Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
   documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
@@ -188,8 +202,10 @@ Autres outils de la section paie :
   arrêt maladie.
 — Suivi des taux (« Suivi des taux ») : cotisations, barèmes, synchronisation
   réglementaire.
-— Exports (« Exports ») : exports paie & comptabilité, déclarations, paiements,
-  exports RH, exports planifiés, historique.
+— Exports (« Exports ») : onglets « Paie & Comptabilité », « Déclarations »,
+  « Paiements », « Exports RH », exports planifiés et historique. Dans
+  « Paie & Comptabilité », le panneau « Intégration comptable » permet de
+  « Connecter Cegid Loop » pour transmettre les écritures FEC.
 — Paie (« Paie ») : consultation des bulletins (par collaborateur ou par mois) ;
   l'édition d'un bulletin donne accès aux onglets Édition, Aperçu, Historique,
   Comparaison N-1, Tendance. Les régularisations participation/intéressement
@@ -200,6 +216,10 @@ Autres outils de la section paie :
 — Support (« Support ») : assistant de création de ticket en plusieurs étapes et
   historique des tickets.
 — Compte : modification du mot de passe, déconnexion.
+— Pour les profils « collaborateur RH » : bascule « Vue actuelle » entre
+  « Vue RH » et « Vue Collaborateur » (même compte, deux espaces).
+— Groupes multi-entreprises : section « Vues Consolidées » (si le groupe est
+  configuré) ; le libellé « Mon Entreprise » affiche le nom de la société active.
 — (Pour les admins plateforme EYWAI uniquement) « Plateforme Admin » : back-office
   EYWAI — catalogue des conventions collectives (KALI), veille réglementaire,
   télétransmissions DSN, import DSN par entreprise (onboarding, réconciliation
@@ -227,7 +247,8 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
   de frais en cours, badgeuse, signatures en attente, accès rapide aux modules.
 — Calendrier et planning (« Calendrier et planning ») : vue mensuelle de son
   planning, semaine détaillée, export PDF.
-— Ma badgeuse (« Ma badgeuse ») : pointage des entrées / sorties.
+— Ma badgeuse (« Ma badgeuse ») : pointage des entrées / sorties (non applicable
+  aux salariés en forfait jours).
 — Congés & absences (« Congés & absences ») : consulter ses soldes, faire une
   nouvelle demande, voir le calendrier du mois. Si le CET est activé : déposer
   ou retirer des jours/heures depuis le panneau CET intégré à cette page
@@ -237,12 +258,12 @@ ESPACE COLLABORATEUR (barre latérale du salarié)
   sur salaire, un acompte sur salaire (droit du salarié) ou un acompte sur prime.
 — Prêts employeur (« Prêts employeur ») : consulter les prêts accordés par
   l'entreprise et leur échéancier de remboursement.
-— Participation (« Participation ») : consulter et répondre aux bulletins
-  d'option participation / intéressement (choix versement, PEE, mixte) lorsque
-  l'entreprise a lancé une campagne.
 — Mes documents (« Mes documents ») : consulter ses documents RH. Le PDF
   « Identifiants de connexion » (nom d'utilisateur et mot de passe temporaire)
   est dans le dossier « Autres ».
+— Participation (« Participation ») : consulter et répondre aux bulletins
+  d'option participation / intéressement (choix versement, PEE, mixte) lorsque
+  l'entreprise a lancé une campagne.
 — Mutuelle / prévoyance : lorsque l'entreprise ouvre le choix salarié, le
   collaborateur peut choisir sa formule depuis son espace salarié ou son profil ;
   sinon la gestion reste côté RH dans Mon Entreprise → Mutuelle et la fiche
@@ -279,7 +300,9 @@ Où retrouver les identifiants (côté RH) :
     le collaborateur → « Identifiants de connexion ».
 
 Contenu du PDF : nom d'utilisateur (identifiant de connexion), mot de passe
-temporaire. Le salarié doit modifier ce mot de passe dès sa première connexion.
+temporaire. Au premier login (et tant que le changement n'est pas fait), EYWAI
+impose de modifier ce mot de passe : l'écran peut être fermé mais revient à la
+connexion suivante. Ensuite, changement via le menu Compte.
 Connexion : page de connexion EYWAI avec le nom d'utilisateur ou l'e-mail +
 mot de passe. En cas d'oubli : « Mot de passe oublié » sur la page de connexion.
 
@@ -295,6 +318,26 @@ FAQ RH TRANSVERSES
 
 — Lancer la paie : suivre le parcours numéroté ① à ⑩ dans EYWAI Paie, puis
   cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
+— Limiter un RH à une équipe : Gestion des Utilisateurs → créer/éditer le compte
+  → « Rôle et permissions » → « Périmètre par permission » → mode « Équipes »
+  (ou « Exceptions uniquement » pour un accès cas par cas).
+— Forfait jours : case « Forfait jours » sur la fiche Collaborateur (indépendante
+  du statut Cadre/Non-Cadre) ; calendrier filtrable « Forfait jour » ; badgeuse
+  non applicable. Les RTT forfait-jours se paramètrent aussi dans Mon Entreprise
+  → Paie → congés/RTT.
+— Plans de calendriers 2026 : Mon Entreprise → Paie (« Calendriers horaires 2026 »)
+  ou Onboarding → créer un plan / presets → générer les calendriers ; saisie
+  quotidienne dans EYWAI Paie → Calendrier (ou EYWAI Gestion → Calendriers).
+— Pauses payées / non payées : Mon Entreprise → Paie → « Planning & primes équipe »
+  (minutes, option « Pauses payées incluses dans le salaire de base »).
+— Intégration comptable / Cegid Loop : EYWAI Paie → Exports → « Paie & Comptabilité »
+  → « Intégration comptable » → « Connecter Cegid Loop ».
+— Contrat en Word : après génération, fiche Collaborateur → Documents (ou avenant
+  carrière) → « Word (.docx) — à retravailler ».
+— Vue RH / Vue Collaborateur : bascule « Vue actuelle » en bas de barre latérale
+  pour les comptes collaborateur RH.
+— Connexion & mot de passe : e-mail ou nom d'utilisateur ; changement obligatoire
+  au premier login (reviens tant qu'il n'est pas fait) ; ensuite menu Compte.
 — Avance vs acompte : une avance sur salaire est versée avant le travail ;
   un acompte sur salaire concerne le salaire déjà gagné ; un acompte sur prime
   anticipe une prime. Tout se gère dans « Avances & acomptes » (RH et collaborateur).
@@ -333,8 +376,9 @@ FAQ RH TRANSVERSES
 — Import DSN et reprise paie : les imports DSN servent à initialiser les salariés,
   RIB, soldes et agrégats de paie d'onboarding ; côté RH, les résultats utiles
   remontent dans les tableaux de bord, la paie et les fiches salariés.
-— Multi-entreprises : un gestionnaire RH peut basculer d'entreprise via le
-  sélecteur en haut de l'écran ; les données affichées concernent l'entreprise active.
+— Multi-entreprises : bascule via le sélecteur en haut de l'écran ; données =
+  entreprise active. Les vues de groupe (si configurées) sont dans
+  « Vues Consolidées ». Le libellé Mon Entreprise reprend le nom de la société.
 — Identifiants collaborateur : voir section dédiée ci-dessus (Documents → Autres).
 
 ================================================================================

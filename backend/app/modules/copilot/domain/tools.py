@@ -64,14 +64,23 @@ MAX_TOOL_CALLS = 5
 
 
 _ARGUMENT_TYPES: dict[ToolName, dict[str, type]] = {
-    ToolName.EMPLOYEE_COUNT: {"employment_status": str},
+    ToolName.EMPLOYEE_COUNT: {
+        "employment_status": str,
+        "contract_type": str,
+    },
     ToolName.EMPLOYEE_SEARCH: {
         "name": str,
         "employment_status": str,
+        "contract_type": str,
         "limit": int,
     },
     ToolName.PAYROLL_SUMMARY: {"period": str},
-    ToolName.ABSENCE_SUMMARY: {"status": str, "type": str},
+    ToolName.ABSENCE_SUMMARY: {
+        "status": str,
+        "type": str,
+        "date_start": str,
+        "date_end": str,
+    },
     ToolName.PLANNING_SUMMARY: {"date_start": str, "date_end": str},
     ToolName.HR_INDICATORS: {},
 }

@@ -125,6 +125,13 @@ class TestCountEmployees:
         assert ("company_id", "c1") in client.query.eq_calls
         assert ("employment_status", "actif") in client.query.eq_calls
 
+    def test_applies_contract_type_filter(self):
+        patcher, client = _patch_client(FakeResponse(count=2))
+        with patcher:
+            secure_queries.count_employees("c1", {"contract_type": "CDI"})
+        assert ("company_id", "c1") in client.query.eq_calls
+        assert ("contract_type", "CDI") in client.query.eq_calls
+
     def test_null_count_becomes_zero(self):
         patcher, _ = _patch_client(FakeResponse(count=None))
         with patcher:
@@ -180,6 +187,32 @@ class TestAbsenceSummary:
         assert ("company_id", "c1") in client.query.eq_calls
         assert ("status", "validated") in client.query.eq_calls
         assert ("type", "maladie") in client.query.eq_calls
+
+    def test_filters_by_selected_days_date_range(self):
+        rows = [
+            {
+                "id": "1",
+                "type": "conges_payes",
+                "status": "validated",
+                "selected_days": ["2026-06-30", "2026-07-01"],
+            },
+            {
+                "id": "2",
+                "type": "maladie",
+                "status": "validated",
+                "selected_days": ["2026-08-01"],
+            },
+        ]
+        patcher, _ = _patch_client(FakeResponse(data=rows))
+        with patcher:
+            result = secure_queries.absence_summary(
+                "c1",
+                {"date_start": "2026-07-01", "date_end": "2026-07-31"},
+            )
+        assert result["total_requests"] == 1
+        assert result["total_selected_days"] == 1
+        assert result["date_start"] == "2026-07-01"
+        assert result["date_end"] == "2026-07-31"
 
 
 class TestPlanningSummary:
