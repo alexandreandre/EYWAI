@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +42,7 @@ import {
   formatMedicalDate,
   getDueDateRelativeLabel,
   getNextObligation,
+  hasCurrentWorkplaceAccommodation,
   isObligationOverdue,
   obligationMessage,
   sortObligationsForDisplay,
@@ -96,6 +98,10 @@ export function EmployeeDetailMedicalTab({
   const sorted = useMemo(() => sortObligationsForDisplay(obligations), [obligations]);
   const counts = useMemo(() => countMedicalObligations(obligations), [obligations]);
   const nextObligation = useMemo(() => getNextObligation(obligations), [obligations]);
+  const hasAccommodation = useMemo(
+    () => hasCurrentWorkplaceAccommodation(obligations),
+    [obligations]
+  );
 
   const [planifiedModal, setPlanifiedModal] = useState<ObligationListItem | null>(null);
   const [planifiedDate, setPlanifiedDate] = useState("");
@@ -103,6 +109,7 @@ export function EmployeeDetailMedicalTab({
   const [completedModal, setCompletedModal] = useState<ObligationListItem | null>(null);
   const [completedDate, setCompletedDate] = useState("");
   const [completedComment, setCompletedComment] = useState("");
+  const [completedAmenagement, setCompletedAmenagement] = useState(false);
   const [onDemandOpen, setOnDemandOpen] = useState(false);
   const [onDemandMotif, setOnDemandMotif] = useState("");
   const [onDemandDate, setOnDemandDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -148,6 +155,7 @@ export function EmployeeDetailMedicalTab({
       await markCompleted(completedModal.id, {
         completed_date: completedDate,
         justification: completedComment || undefined,
+        amenagement_poste: completedAmenagement,
       });
     },
     onSuccess: () => {
@@ -209,6 +217,7 @@ export function EmployeeDetailMedicalTab({
     setCompletedModal(o);
     setCompletedDate(o.completed_date || new Date().toISOString().slice(0, 10));
     setCompletedComment(o.justification || "");
+    setCompletedAmenagement(o.amenagement_poste === true);
   };
 
   const pilotageHref = `/medical-follow-up?employee=${encodeURIComponent(employeeId)}`;
@@ -303,6 +312,9 @@ export function EmployeeDetailMedicalTab({
                 )}
                 {counts.completed > 0 && (
                   <Badge variant="secondary">{counts.completed} réalisée{counts.completed > 1 ? "s" : ""}</Badge>
+                )}
+                {hasAccommodation && (
+                  <Badge variant="outline">Aménagement de poste</Badge>
                 )}
               </div>
 
@@ -444,6 +456,18 @@ export function EmployeeDetailMedicalTab({
                                   </Button>
                                 </div>
                               )}
+                              {o.status === "realisee" && (
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openCompleted(o)}
+                                  >
+                                    Modifier
+                                  </Button>
+                                </div>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -563,6 +587,19 @@ export function EmployeeDetailMedicalTab({
                 onChange={(e) => setCompletedComment(e.target.value)}
                 placeholder="Commentaire"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="employee-completed-amenagement"
+                checked={completedAmenagement}
+                onCheckedChange={(checked) => setCompletedAmenagement(checked === true)}
+              />
+              <Label
+                htmlFor="employee-completed-amenagement"
+                className="cursor-pointer font-normal"
+              >
+                Aménagement de poste
+              </Label>
             </div>
           </div>
           <DialogFooter>

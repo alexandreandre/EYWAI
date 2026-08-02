@@ -64,9 +64,14 @@ class MedicalObligationRepository(IObligationRepository):
         company_id: str,
         completed_date: str,
         justification: Optional[str],
+        amenagement_poste: bool,
     ) -> None:
         infra_queries.update_obligation_completed(
-            self._supabase, obligation_id, completed_date, justification
+            self._supabase,
+            obligation_id,
+            completed_date,
+            justification,
+            amenagement_poste,
         )
 
     def obligation_exists(self, obligation_id: str, company_id: str) -> bool:

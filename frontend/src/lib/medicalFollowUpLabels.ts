@@ -171,3 +171,26 @@ export function obligationMessage(o: ObligationListItem): string {
 export function hasMedicalOverdue(obligations: ObligationListItem[]): boolean {
   return obligations.some(isObligationOverdue);
 }
+
+/**
+ * True si le salarié a un aménagement de poste en cours.
+ *
+ * Seule la visite réalisée la plus récente fait foi : un aménagement se lève,
+ * et cumuler l'historique afficherait à vie un aménagement terminé.
+ * En cas d'ex aequo de dates, l'aménagement l'emporte — mieux vaut signaler
+ * un aménagement levé que d'en masquer un actif.
+ */
+export function hasCurrentWorkplaceAccommodation(obligations: ObligationListItem[]): boolean {
+  let latest = "";
+  let accommodation = false;
+  for (const o of obligations) {
+    if (o.status !== "realisee" || !o.completed_date) continue;
+    if (o.completed_date > latest) {
+      latest = o.completed_date;
+      accommodation = o.amenagement_poste === true;
+    } else if (o.completed_date === latest && o.amenagement_poste === true) {
+      accommodation = true;
+    }
+  }
+  return accommodation;
+}

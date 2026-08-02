@@ -26,6 +26,7 @@ class ObligationListDTO:
     request_date: Optional[str] = None
     employee_first_name: Optional[str] = None
     employee_last_name: Optional[str] = None
+    amenagement_poste: bool = False
 
     @classmethod
     def from_row(cls, r: Dict[str, Any]) -> "ObligationListDTO":
@@ -49,6 +50,7 @@ class ObligationListDTO:
             request_date=r.get("request_date"),
             employee_first_name=emp.get("first_name"),
             employee_last_name=emp.get("last_name"),
+            amenagement_poste=bool(r.get("amenagement_poste") or False),
         )
 
 

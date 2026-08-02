@@ -136,12 +136,21 @@ class TestMedicalObligationRepositoryMarkCompleted:
         with patch(
             "app.modules.medical_follow_up.infrastructure.repository.infra_queries.update_obligation_completed",
         ) as mock_update:
-            repo.mark_completed("obl-1", "co-1", "2025-04-20", "Visite effectuée")
+            repo.mark_completed("obl-1", "co-1", "2025-04-20", "Visite effectuée", False)
             mock_update.assert_called_once()
             call_args = mock_update.call_args
             assert call_args[0][1] == "obl-1"
             assert call_args[0][2] == "2025-04-20"
             assert call_args[0][3] == "Visite effectuée"
+            assert call_args[0][4] is False
+
+    def test_transmits_amenagement_poste(self, repo: MedicalObligationRepository):
+        """La case aménagement est transmise à la requête d'écriture."""
+        with patch(
+            "app.modules.medical_follow_up.infrastructure.repository.infra_queries.update_obligation_completed",
+        ) as mock_update:
+            repo.mark_completed("obl-1", "co-1", "2025-04-20", None, True)
+            assert mock_update.call_args[0][4] is True
 
 
 class TestMedicalObligationRepositoryObligationExists:

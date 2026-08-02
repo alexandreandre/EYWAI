@@ -24,4 +24,5 @@ def row_to_obligation_entity(row: Dict[str, Any]) -> MedicalObligation:
         collective_agreement_idcc=row.get("collective_agreement_idcc"),
         request_motif=row.get("request_motif"),
         request_date=row.get("request_date"),
+        amenagement_poste=bool(row.get("amenagement_poste") or False),
     )

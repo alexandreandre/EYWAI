@@ -10,6 +10,11 @@ name: Deploy test env
 
 on:
   workflow_dispatch:
+    inputs:
+      migration:
+        description: "Migration à appliquer d'abord (nom du fichier dans supabase/migrations, vide = aucune)"
+        required: false
+        type: string
 
 concurrency:
   group: deploy-test-env
@@ -24,10 +29,69 @@ env:
   FRONTEND_SERVICE: sirh-frontend-test
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 0) Migration — optionnelle, nommée par l'opérateur.
+  #
+  # Ce déploiement ne joue aucune migration automatiquement, et c'est
+  # volontaire : la resynchro depuis la production ne copie que le schéma
+  # `public`, donc l'historique `supabase_migrations` du test n'est pas fiable
+  # et un `supabase db push` y rejouerait potentiellement tout l'historique.
+  # On applique donc un fichier à la fois, choisi explicitement.
+  #
+  # Les migrations du dépôt sont idempotentes (ADD COLUMN IF NOT EXISTS,
+  # INSERT ... WHERE NOT EXISTS) : relancer le même fichier est sans effet.
+  #
+  # Bloquant : si la migration échoue, on ne déploie pas de code qui en dépend.
+  # ---------------------------------------------------------------------------
+  migrate:
+    name: Migration base de test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: inputs.migration != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier le secret et le fichier
+        env:
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          if [ -z "$TEST_DB_URL" ]; then
+            echo "::error::SUPABASE_TEST_DB_URL absent dans Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # Nom de fichier seul : interdit de sortir du dossier des migrations.
+          case "$MIGRATION" in
+            */*) echo "::error::Donner le nom du fichier seul, sans chemin."; exit 1 ;;
+          esac
+          if [ ! -f "supabase/migrations/$MIGRATION" ]; then
+            echo "::error::supabase/migrations/$MIGRATION introuvable sur cette branche."
+            exit 1
+          fi
+          echo "Migration à appliquer : $MIGRATION"
+          cat "supabase/migrations/$MIGRATION"
+
+      - name: Appliquer
+        env:
+          # ON_ERROR_STOP : sans lui, psql passerait au vert sur une migration
+          # dont une instruction a échoué.
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          psql "$TEST_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            -f "supabase/migrations/$MIGRATION"
+          echo "Migration appliquée."
+
   deploy:
     name: Build & deploy test env
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: [migrate]
+    # `always()` : le job migrate est sauté quand aucune migration n'est
+    # demandée, et un `needs` sauté ferait sauter le déploiement avec lui.
+    if: always() && needs.migrate.result != 'failure'
     steps:
       - uses: actions/checkout@v4
 
@@ -171,4 +235,5 @@ jobs:
             echo "- Backend : ${{ steps.back.outputs.url }}"
             echo "- Frontend : ${{ steps.front.outputs.url }}"
             echo "- Branche déployée : ${{ github.ref_name }}"
+            echo "- Migration appliquée : ${{ inputs.migration || 'aucune' }}"
           } >> "$GITHUB_STEP_SUMMARY"

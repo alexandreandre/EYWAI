@@ -27,3 +27,4 @@ class MedicalObligation:
     collective_agreement_idcc: Optional[str] = None
     request_motif: Optional[str] = None
     request_date: Optional[str] = None
+    amenagement_poste: bool = False

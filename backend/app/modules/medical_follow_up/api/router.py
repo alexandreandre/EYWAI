@@ -265,6 +265,7 @@ def _to_list_item(d: ObligationListDTO) -> ObligationListItem:
         request_date=d.request_date,
         employee_first_name=d.employee_first_name,
         employee_last_name=d.employee_last_name,
+        amenagement_poste=d.amenagement_poste,
     )
 
 

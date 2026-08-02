@@ -45,8 +45,9 @@ class IObligationRepository(ABC):
         company_id: str,
         completed_date: str,
         justification: Optional[str],
+        amenagement_poste: bool,
     ) -> None:
-        """Marque une obligation comme réalisée."""
+        """Marque une obligation comme réalisée, avec ou sans aménagement de poste."""
         ...
 
     @abstractmethod
