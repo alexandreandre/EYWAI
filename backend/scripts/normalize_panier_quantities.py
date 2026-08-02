@@ -99,17 +99,24 @@ def lire_tout(colonnes: str) -> list[dict]:
 
 
 def annoter(apply: bool) -> int:
-    rows = lire_tout("id, name, payroll_quantity, amount, quantity_kind")
+    rows = lire_tout("id, company_id, name, payroll_quantity, amount, quantity_kind")
 
-    par_libelle: dict[str, list[dict]] = {}
+    # Groupé par (entreprise, libellé) et non par libellé seul : le renommage
+    # fusionne « Paniers Jours non soumis » (Mont Blanc, valeur unitaire 7,50)
+    # avec « Paniers jours non soumis » (Lewis, nombre de jours). Sur le libellé
+    # seul, le groupe fusionné paraît « à quantité variable » et bascule à tort
+    # en count, ce qui reperdrait la valeur unitaire des 206 lignes Mont Blanc.
+    # L'entreprise reste discriminante après renommage : le script redevient
+    # rejouable sans rien casser.
+    par_libelle: dict[tuple[str, str], list[dict]] = {}
     for row in rows:
         nom = row.get("name") or ""
         if est_concerne(nom):
-            par_libelle.setdefault(nom, []).append(row)
+            par_libelle.setdefault((row.get("company_id") or "", nom), []).append(row)
 
-    print(f"{len(rows)} saisies lues, {len(par_libelle)} libellé(s) panier/repas.\n")
+    print(f"{len(rows)} saisies lues, {len(par_libelle)} groupe(s) panier/repas.\n")
     a_traiter: list[tuple[dict, str]] = []
-    for nom, lignes in sorted(par_libelle.items()):
+    for (_, nom), lignes in sorted(par_libelle.items(), key=lambda kv: kv[0][::-1]):
         kind, pourquoi = deduire_semantique(lignes)
         manquantes = [l for l in lignes if l.get("quantity_kind") != kind]
         print(f"  {len(lignes):4} | {nom:30} -> {kind:10} ({pourquoi})")
