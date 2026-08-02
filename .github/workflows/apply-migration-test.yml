@@ -1,0 +1,84 @@
+# Applique UNE migration, choisie explicitement, sur la base de l'environnement
+# de test.
+#
+# Pourquoi ce workflow existe : `deploy-test-env.yml` ne joue aucune migration,
+# et la resynchro depuis la production ne copie que le schéma `public` — donc
+# l'historique `supabase_migrations` du test n'est pas fiable. Un
+# `supabase db push` y rejouerait potentiellement tout l'historique. On applique
+# donc un fichier à la fois, nommé par l'opérateur.
+#
+# Les migrations du dépôt sont idempotentes (ADD COLUMN IF NOT EXISTS,
+# INSERT ... WHERE NOT EXISTS) : relancer le même fichier est sans effet.
+#
+# Secret requis : SUPABASE_TEST_DB_URL (déjà utilisé par refresh-test-from-prod).
+name: Apply migration (test env)
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration:
+        description: "Nom du fichier dans supabase/migrations (ex. 20260802120000_medical_amenagement_poste.sql)"
+        required: true
+        type: string
+
+concurrency:
+  group: apply-migration-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Appliquer la migration sur le test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier le secret et le fichier
+        env:
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          if [ -z "$TEST_DB_URL" ]; then
+            echo "::error::SUPABASE_TEST_DB_URL absent dans Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # Nom de fichier seul : interdit de sortir du dossier des migrations.
+          case "$MIGRATION" in
+            */*|"") echo "::error::Donner le nom du fichier seul, sans chemin."; exit 1 ;;
+          esac
+          if [ ! -f "supabase/migrations/$MIGRATION" ]; then
+            echo "::error::supabase/migrations/$MIGRATION introuvable sur cette branche."
+            exit 1
+          fi
+          echo "Migration à appliquer : $MIGRATION"
+          cat "supabase/migrations/$MIGRATION"
+
+      - name: Appliquer
+        env:
+          # ON_ERROR_STOP : psql sort en échec dès la première instruction en
+          # erreur, sinon le job passerait au vert sur une migration cassée.
+          PGOPTIONS: "-c client_min_messages=warning"
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          psql "$TEST_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            -f "supabase/migrations/$MIGRATION"
+          echo "Migration appliquée."
+
+      - name: Résumé
+        if: always()
+        env:
+          MIGRATION: ${{ inputs.migration }}
+        run: |
+          {
+            echo "### Migration sur l'environnement de test"
+            echo ""
+            echo "- Fichier : \`$MIGRATION\`"
+            echo "- Branche : \`${{ github.ref_name }}\`"
+            echo "- Résultat : ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
