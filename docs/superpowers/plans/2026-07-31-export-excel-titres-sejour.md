@@ -1477,6 +1477,13 @@ git commit -m "feat(titres-sejour): bouton d'export Excel sur la page RH"
 
 **Files:** aucun (vérification)
 
+> **Fait le 2026-08-01.** Backend : 5784 passés, 51 échecs — tous antérieurs et
+> inventoriés dans `docs/tests-integration-etat.md`, aucun dans
+> `residence_permits` (17/17). Frontend : 362 tests + `tsc --noEmit` verts.
+> Données réelles Mont Blanc Composite : 34 lignes, ordre alphabétique conservé,
+> 7 titres « Expiré » à jours négatifs, « Type de titre » vide partout, ASKARI
+> « À compléter » sans date ni jours. Aucun correctif nécessaire (step 4 sans objet).
+
 - [ ] **Step 1: Suite backend complète**
 
 Run: `cd backend && .venv/bin/python -m pytest -q`

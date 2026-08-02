@@ -1,15 +1,33 @@
 PRIORITE  : 
 #17. Créer un environnement de test avec les données réelles (il suit l'environnement de prod, avec les memes données, mais on peut faire des tests de demissions des gens etc... donc test suit prod mais prod suit pas test) MOI
 
+On a mis en place un second EYWAI complet (sirh-frontend-test…, base Supabase dédiée), qui reçoit une copie des données réelles de la production via une resynchro déclenchée à la main depuis le bandeau orange — jamais l'inverse : tout ce qu'on fait dans le test (démission, suppression, bulletin) reste dans le test et disparaît à la prochaine resynchro. Comme les données sont réelles, trois sorties sont verrouillées techniquement : les e-mails sont tous redirigés vers une boîte unique (le service refuse même de démarrer sans cette redirection), la signature électronique et le dépôt de DSN sont refusés
+
 #1. Accès Vanessa MOI
+Vanessa voit bien ses 7 sociétés, elle n'a qu'à se reconnecter. Le jour de la réunion, elle s'était connectée pile entre deux mises à jour des droits, du coup elle n'en voyait que 2 sur 7 — ses accès étaient déjà corrects un quart d'heure plus tard. En vérifiant, on a trouvé un problème plus sérieux : quand on retirait un accès à quelqu'un, ça ne marchait pas vraiment — la personne continuait à voir les sociétés qu'on lui avait enlevées. On l'a corrigé et nettoyé en production.
+
 #2. Envoyer identifiants de connexion à Gaëlle et Vanessa via Whatsapp MOI
 #3. Fichier BIC attendre fichier ELSA
 #4. Adresses e-mail tous employés attendre fichier ELSA
+
+
 #5. Robin Collaborateur/RH - Directeur MOI
+
+On a levé l'ambiguïté du compte rendu : Robin doit être collaborateur RH sur Zone 404, avec les droits d'un directeur. Chez nous, « directeur » n'est pas un rôle mais un paquet de droits — celui d'Eric Noble, Damien Faucher et Lucas Chambert. Concrètement Robin garde son espace salarié tout en ayant en plus la vue RH, et il obtient les validations (valider un bulletin, approuver une note de frais ou une avance). C'est écrit dans le fichier qui pilote les accès, la simulation est propre (2 changements, aucun conflit).
+
 #6. Dates titres de séjour (Elsa m'a envoyé whatsapp) MOI
+
+Les dates d'expiration des titres de séjour ont été saisies. Sur les 43 salariés en poste concernés, 41 ont maintenant leur date (33 chez Mont Blanc Composite, 3 chez Cartol, 2 chez LEWIS, 2 chez Zone 404, 1 chez Comitech). Avant, il en manquait 34. Les alertes du système fonctionnent donc enfin pour de vrai.
+
 #7. Bouton d'export Excel titres de séjour MOI
+
+Il y a maintenant un bouton « Exporter en Excel » sur la page RH des titres de séjour. Il génère un fichier avec, pour chaque salarié concerné : nom, prénom, matricule, société, poste, date d'entrée, nationalité, type et numéro de titre, date d'expiration, et surtout le statut du titre avec le nombre de jours restants — donc on voit tout de suite qui est expiré ou sur le point de l'être. L'export reprend exactement ce qui est affiché à l'écran et reste limité à la société sur laquelle on travaille.
+
 #8. Compteur JTC attendre récap ELSA 
-#9. Salarié colorplast en RTT alors que non. A checker MOI
+#9. Salarié colorplast en RTT (ou on des jours au compteur, je ne sais pas) alors que non. A checker MOI
+
+
+
 #10. Case aménagement sur suivi médical MOI
 #11. Elus CSE attendre fichier ELSA
 #12. Exports CSE et BDES attendre récap ELSA 
