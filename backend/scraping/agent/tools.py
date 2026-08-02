@@ -19,7 +19,7 @@ from agent.safety import (
     validate_patch_paths,
 )
 from core.env import BACKEND_ROOT
-from core.http import fetch_html
+from core.http import DEFAULT_HEADERS, fetch_html
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +89,16 @@ def fetch_page(url: str, *, timeout: int = 25) -> tuple[int, str]:
 
 
 def check_url_alive(url: str, *, timeout: int = 20) -> tuple[bool, int, str]:
-    """HEAD puis GET si nécessaire. Retourne (alive, status_code, final_url)."""
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; EYWAI-SourceValidator/1.0)"}
+    """GET (puis HEAD en secours). Retourne (alive, status_code, final_url).
+
+    Preferer GET : beaucoup de sites officiels (Urssaf, BOSS) bloquent HEAD ou
+    les UA bots, ce qui renvoie status 0 et fausse la validation mensuelle.
+    """
+    headers = {**DEFAULT_HEADERS}
     try:
-        r = requests.head(url, timeout=timeout, headers=headers, allow_redirects=True)
+        r = requests.get(url, timeout=timeout, headers=headers, allow_redirects=True)
         if r.status_code >= 400:
-            r = requests.get(url, timeout=timeout, headers=headers, allow_redirects=True)
+            r = requests.head(url, timeout=timeout, headers=headers, allow_redirects=True)
         ok = 200 <= r.status_code < 400
         return ok, r.status_code, r.url
     except requests.RequestException as e:

@@ -69,8 +69,16 @@ def get_client() -> OpenAI:
     )
 
 
+# Sonar réserve souvent 65k tokens de sortie par défaut côté OpenRouter ; si le
+# solde ne couvre pas ce plafond, l'API répond 402 même avec un prompt court.
+_DEFAULT_SONAR_MAX_TOKENS = 4096
+
+
 def chat_completions_create(
     *, model: str = MODEL_SCRAPING_EXTRACTION, **kwargs: Any
 ) -> Any:
     client = get_client()
-    return client.chat.completions.create(model=resolve_model(model), **kwargs)
+    resolved = resolve_model(model)
+    if "max_tokens" not in kwargs and resolved.startswith("perplexity/sonar"):
+        kwargs["max_tokens"] = _DEFAULT_SONAR_MAX_TOKENS
+    return client.chat.completions.create(model=resolved, **kwargs)

@@ -132,6 +132,7 @@ Ne cite pas d'exemples chiffrés fictifs. Extrais les valeurs applicables en {ye
         resp = chat_completions_create(
             model=model,
             temperature=0,
+            max_tokens=4096,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -229,6 +230,7 @@ def extract_structured_json(
     request_kwargs: dict[str, Any] = {
         "model": model,
         "temperature": 0,
+        "max_tokens": 4096,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

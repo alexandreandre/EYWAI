@@ -202,6 +202,103 @@ def test_validate_failed_triggers_discovery_and_updates_display_only(
     assert detail.get("discovery_fallback") is True
 
 
+@patch("agent.source_validator.refresh_all_payroll_source_links")
+@patch("agent.source_validator._discover_display_url_with_sonar")
+@patch("agent.source_validator._verify_official_url_with_sonar")
+@patch("agent.source_validator.check_url_alive")
+@patch("agent.source_validator.fetch_all_official_sources")
+def test_validate_skips_when_sonar_down_and_http_inconclusive(
+    mock_fetch,
+    mock_alive,
+    mock_verify,
+    mock_discover,
+    mock_refresh,
+):
+    src = OfficialSource(
+        source_id="id-fnal",
+        source_key="FNAL",
+        source_name="FNAL",
+        primary_url="https://www.urssaf.fr/accueil/employeur/cotisations/liste-cotisations/fonds-national-aide-logement.html",
+        alternative_urls=[],
+        target_field="cotisations",
+        scraper_name="FNAL",
+    )
+    mock_fetch.return_value = [src]
+    mock_alive.return_value = (False, 0, "Connection reset")
+    mock_verify.return_value = {
+        "official_url": None,
+        "action": "failed",
+        "rationale": "Sonar indisponible — repli HTTP uniquement",
+        "sonar_used": False,
+    }
+    mock_discover.return_value = {
+        "official_url": None,
+        "action": "failed",
+        "rationale": "Sonar indisponible pour la découverte d'URL d'affichage",
+        "sonar_used": False,
+    }
+    mock_refresh.return_value = {"rate_keys_updated": [], "cotisations_updated": False}
+
+    supabase = MagicMock()
+    table = MagicMock()
+    supabase.table.return_value = table
+    update_chain = MagicMock()
+    table.update.return_value = update_chain
+    update_chain.eq.return_value = update_chain
+    update_chain.execute.return_value = MagicMock(data=[])
+
+    summary = validate_all_official_sources(supabase=supabase)
+
+    assert summary["failed"] == 0
+    assert summary["skipped"] == 1
+    assert summary["details"][0]["action"] == "skipped"
+    payload = table.update.call_args[0][0]
+    assert payload["url_validation_status"] == "inconclusive"
+
+
+@patch("openrouter_client.chat_completions_create")
+@patch("openrouter_client.require_api_key")
+def test_call_sonar_json_caps_max_tokens(mock_require, mock_chat):
+    """Évite le 402 OpenRouter quand le solde ne couvre pas 65536 tokens."""
+    from agent.source_validator import _call_sonar_json
+
+    mock_require.return_value = "key"
+    mock_chat.return_value = MagicMock(
+        choices=[
+            MagicMock(
+                message=MagicMock(
+                    content=json.dumps(
+                        {
+                            "is_valid": True,
+                            "official_url": "https://www.urssaf.fr/x",
+                            "rationale": "ok",
+                        }
+                    )
+                )
+            )
+        ]
+    )
+
+    data = _call_sonar_json(
+        system="sys",
+        user="user",
+        schema={
+            "type": "object",
+            "properties": {
+                "is_valid": {"type": "boolean"},
+                "official_url": {"type": ["string", "null"]},
+                "rationale": {"type": "string"},
+            },
+            "required": ["is_valid", "official_url", "rationale"],
+            "additionalProperties": False,
+        },
+        schema_name="url_validation",
+    )
+
+    assert data is not None
+    assert mock_chat.call_args.kwargs["max_tokens"] == 2048
+
+
 @patch("openrouter_client.chat_completions_create")
 @patch("openrouter_client.require_api_key")
 def test_discover_display_url_finds_replacement(mock_require, mock_chat):

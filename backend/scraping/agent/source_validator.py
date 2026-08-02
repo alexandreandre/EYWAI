@@ -83,6 +83,7 @@ def _call_sonar_json(
         resp = chat_completions_create(
             model=MODEL_URL_SEARCH,
             temperature=0,
+            max_tokens=2048,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -285,6 +286,7 @@ def validate_all_official_sources(
         "confirmed": 0,
         "updated": 0,
         "failed": 0,
+        "skipped": 0,
         "sonar_used": 0,
         "details": [],
     }
@@ -364,6 +366,33 @@ def validate_all_official_sources(
             summary["details"].append(detail)
             continue
 
+        # Sonar KO + HTTP indécis (timeout / blocage bot / 403) : ne pas invalider
+        # une URL probablement encore bonne — sinon le workflow CI échoue à tort.
+        sonar_unavailable = not sonar.get("sonar_used") and not discovery.get(
+            "sonar_used"
+        )
+        http_inconclusive = status in (0, 401, 403, 429)
+        if sonar_unavailable and http_inconclusive:
+            supabase.table("scraping_sources").update(
+                {
+                    "url_validation_status": "inconclusive",
+                    "url_validated_at": _iso_now(),
+                }
+            ).eq("id", src.source_id).execute()
+            summary["skipped"] += 1
+            detail["action"] = "skipped"
+            detail["rationale"] = (
+                detail.get("rationale")
+                or "Validation reportée (Sonar indisponible + HTTP indécis)"
+            )
+            summary["details"].append(detail)
+            logger.warning(
+                "Validation reportée pour %s (HTTP %s, Sonar indisponible)",
+                src.source_key,
+                status,
+            )
+            continue
+
         supabase.table("scraping_sources").update(
             {
                 "url_validation_status": "invalid",
@@ -385,12 +414,13 @@ def validate_all_official_sources(
     summary["valid"] = summary["confirmed"]
 
     logger.info(
-        "Validation URLs affichage : %s vérifiées, %s confirmées, %s mises à jour, %s échecs "
-        "(%s appels Sonar)",
+        "Validation URLs affichage : %s vérifiées, %s confirmées, %s mises à jour, "
+        "%s échecs, %s reportées (%s appels Sonar)",
         summary["checked"],
         summary["confirmed"],
         summary["updated"],
         summary["failed"],
+        summary["skipped"],
         summary["sonar_used"],
     )
     return summary
