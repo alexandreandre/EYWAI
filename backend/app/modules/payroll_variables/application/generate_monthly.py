@@ -25,6 +25,10 @@ from app.modules.payroll_variables.domain.rules import (
     employee_matches_conditions,
 )
 from app.modules.payroll_variables.domain.presence_week import evaluate_presence_weeks
+from app.modules.payroll_variables.domain.transport_allowance import (
+    est_absent_tout_le_mois,
+    montant_transport_mensuel,
+)
 from app.modules.payroll_variables.infrastructure.absence_queries import (
     list_locked_shift_dates_for_employee,
     list_validated_absences_for_employees_in_range,
@@ -68,6 +72,33 @@ def _astreinte_shift_dates(employee_id: str, start: date, end: date) -> list[dat
             continue
         dates.append(date.fromisoformat(str(d_raw)[:10]))
     return dates
+
+
+def _parse_date_iso(valeur: Any) -> date | None:
+    """Parse une date ISO issue de la base ; None si absente ou invalide."""
+    if not valeur:
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except ValueError:
+        return None
+
+
+def _jours_absence(rows: list[dict[str, Any]], start: date, end: date) -> set[date]:
+    """Jours couverts par les absences validées, bornés au mois.
+
+    Les absences sont stockées comme une liste de jours explicites
+    (`absence_requests.selected_days`), pas comme un intervalle début/fin.
+    """
+    jours: set[date] = set()
+    for row in rows:
+        for raw in row.get("selected_days") or []:
+            jour = _parse_date_iso(raw)
+            if jour and start <= jour <= end:
+                jours.add(jour)
+    return jours
 
 
 def _load_calendrier_reel(employee_id: str, year: int, month: int) -> list[dict[str, Any]]:
@@ -361,7 +392,7 @@ def generate_monthly_variables(
         supabase.table("employees")
         .select(
             "id, first_name, last_name, statut, specificites_paie, "
-            "salaire_de_base, duree_hebdomadaire"
+            "salaire_de_base, duree_hebdomadaire, hire_date, contract_end_date"
         )
         .eq("company_id", company_id)
         .in_("employment_status", ["actif", "active"])
@@ -393,6 +424,48 @@ def generate_monthly_variables(
             if not employee_matches_conditions(emp, conditions):
                 continue
             eid = str(emp["id"])
+
+            if rule_type == "transport_domicile_travail":
+                # Le montant vient de la fiche salarié (avenant signé), pas de la
+                # règle : une seule règle par entreprise sert tous les
+                # bénéficiaires, chacun avec le sien.
+                spec = emp.get("specificites_paie") or {}
+                transport = (
+                    (spec.get("transport") or {}) if isinstance(spec, dict) else {}
+                )
+                try:
+                    contractuel = float(transport.get("indemnite_mensuelle_nette") or 0)
+                except (TypeError, ValueError):
+                    contractuel = 0.0
+                if contractuel <= 0:
+                    continue
+                amount = montant_transport_mensuel(
+                    contractuel,
+                    debut_mois=start,
+                    fin_mois=end,
+                    date_entree=_parse_date_iso(emp.get("hire_date")),
+                    date_sortie=_parse_date_iso(emp.get("contract_end_date")),
+                    date_effet=_parse_date_iso(transport.get("indemnite_date_effet")),
+                    absent_tout_le_mois=est_absent_tout_le_mois(
+                        _jours_absence(absences_by_employee.get(eid, []), start, end),
+                        start,
+                        end,
+                    ),
+                )
+                written = _append_generated_input(
+                    preview=preview,
+                    written=written,
+                    dry_run=dry_run,
+                    rule=rule,
+                    emp=emp,
+                    eid=eid,
+                    year=year,
+                    month=month,
+                    amount=amount,
+                    quantity=1.0,
+                    name_suffix="",
+                )
+                continue
 
             if rule_type == "per_astreinte_weekend_km":
                 manual_name = conditions.get("manual_trips_input_name")
