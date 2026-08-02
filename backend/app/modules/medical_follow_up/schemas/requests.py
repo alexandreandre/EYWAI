@@ -18,6 +18,7 @@ class MarkCompletedBody(BaseModel):
 
     completed_date: str
     justification: Optional[str] = None
+    amenagement_poste: bool = False
 
 
 class CreateOnDemandBody(BaseModel):

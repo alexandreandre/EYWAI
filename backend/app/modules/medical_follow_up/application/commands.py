@@ -44,7 +44,11 @@ def mark_completed(
     if not repo.obligation_exists(obligation_id, company_id):
         raise HTTPException(status_code=404, detail="Obligation non trouvée")
     repo.mark_completed(
-        obligation_id, company_id, body.completed_date, body.justification
+        obligation_id,
+        company_id,
+        body.completed_date,
+        body.justification,
+        body.amenagement_poste,
     )
     return {"ok": True}
 

@@ -88,7 +88,32 @@ class TestMarkCompleted:
         assert result == {"ok": True}
         repo.obligation_exists.assert_called_once_with("obl-1", "co-1")
         repo.mark_completed.assert_called_once_with(
-            "obl-1", "co-1", "2025-04-20", "Visite effectuée"
+            "obl-1", "co-1", "2025-04-20", "Visite effectuée", False
+        )
+
+    def test_transmits_amenagement_poste(self, mock_get_repo):
+        """Case cochée → transmise telle quelle au repository."""
+        repo = _mock_repo()
+        mock_get_repo.return_value = repo
+        body = MarkCompletedBody(
+            completed_date="2025-04-20",
+            justification="Visite effectuée",
+            amenagement_poste=True,
+        )
+        commands.mark_completed("obl-1", body, "co-1", current_user=MagicMock())
+        repo.mark_completed.assert_called_once_with(
+            "obl-1", "co-1", "2025-04-20", "Visite effectuée", True
+        )
+
+    def test_amenagement_poste_defaults_to_false(self, mock_get_repo):
+        """Champ absent du corps → False. Garantit la compatibilité des appels existants."""
+        repo = _mock_repo()
+        mock_get_repo.return_value = repo
+        body = MarkCompletedBody(completed_date="2025-04-20")
+        assert body.amenagement_poste is False
+        commands.mark_completed("obl-1", body, "co-1", current_user=MagicMock())
+        repo.mark_completed.assert_called_once_with(
+            "obl-1", "co-1", "2025-04-20", None, False
         )
 
     def test_raises_404_when_obligation_not_found(self, mock_get_repo):
