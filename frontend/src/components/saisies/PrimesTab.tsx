@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, PlusCircle, Sparkles, Trash2 } from "lucide-react";
 import {
@@ -101,6 +102,33 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
       fetchData();
     } catch (error) {
       toast({ title: "Erreur", description: "Impossible de supprimer la saisie.", variant: "destructive" });
+    }
+  };
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAmount, setEditingAmount] = useState<string>("");
+
+  const handleSaveAmount = async (id: string) => {
+    const parsed = Number(editingAmount.replace(",", "."));
+    if (Number.isNaN(parsed)) {
+      toast({ title: "Montant invalide", variant: "destructive" });
+      return;
+    }
+    try {
+      await saisiesApi.updateMonthlyInput(id, { amount: parsed });
+      toast({
+        title: "Saisie corrigée",
+        description: "Elle ne sera plus écrasée par la préparation du mois.",
+      });
+      setEditingId(null);
+      fetchData();
+    } catch (error) {
+      log.error(error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de corriger la saisie.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -216,7 +244,37 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
                       <TableRow key={input.id}>
                         <TableCell>{emp ? `${emp.first_name} ${emp.last_name}` : "Inconnu"}</TableCell>
                         <TableCell className="font-medium">{input.name}</TableCell>
-                        <TableCell>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(input.amount)}</TableCell>
+                        <TableCell>
+                          {editingId === input.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                className="h-8 w-28"
+                                value={editingAmount}
+                                autoFocus
+                                onChange={(e) => setEditingAmount(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSaveAmount(input.id);
+                                  if (e.key === "Escape") setEditingId(null);
+                                }}
+                              />
+                              <Button size="sm" onClick={() => handleSaveAmount(input.id)}>
+                                OK
+                              </Button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="underline decoration-dotted underline-offset-4"
+                              title="Cliquer pour corriger le montant"
+                              onClick={() => {
+                                setEditingId(input.id);
+                                setEditingAmount(String(input.amount));
+                              }}
+                            >
+                              {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(input.amount)}
+                            </button>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={input.is_socially_taxed ? "default" : "secondary"}>
                             {input.is_socially_taxed ? 'Oui' : 'Non'}

@@ -51,6 +51,19 @@ export const deleteMonthlyInput = (id: string) => {
   return apiClient.delete(`/api/monthly-inputs/${id}`);
 };
 
+/**
+ * Corrige une saisie. La ligne devient prioritaire sur la génération mensuelle :
+ * « Préparer variables du mois » ne l'écrasera plus.
+ */
+export const updateMonthlyInput = (
+  id: string,
+  data: Partial<
+    Pick<MonthlyInput, 'amount' | 'name' | 'description' | 'is_socially_taxed' | 'is_taxable'>
+  >,
+) => {
+  return apiClient.patch<MonthlyInput>(`/api/monthly-inputs/${id}`, data);
+};
+
 export const getEmployeeMonthlyInputs = (employeeId: string, year: number, month: number) => {
   return apiClient.get(`/api/employees/${employeeId}/monthly-inputs`, {
     params: { year, month },
