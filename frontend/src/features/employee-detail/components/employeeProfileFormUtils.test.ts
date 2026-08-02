@@ -82,9 +82,12 @@ describe('employeeProfileFormUtils transport', () => {
     expect(values.specificites_paie.transport.indemnite_mensuelle_nette).toBe(120);
 
     const payload = buildUpdatePayload(values, employee);
+    // Sans date d'effet saisie, le round-trip la déclare explicitement à null :
+    // c'est l'absence de date qui est persistée, pas un champ omis.
     expect(payload.specificites_paie?.transport).toEqual({
       abonnement_mensuel_total: 80,
       indemnite_mensuelle_nette: 120,
+      indemnite_date_effet: null,
     });
   });
 });
