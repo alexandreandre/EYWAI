@@ -406,3 +406,15 @@ static/uploads/
 
 __pycache__/
 *.pyc
+
+# ===================================
+# Données de paie locales — racine unique, JAMAIS versionnée
+# ===================================
+# Bulletins, DSN, calendriers, pointages, compteurs : données personnelles de
+# salariés réels. Voir docs/donnees-locales.md pour la convention de rangement.
+/data/
+
+# Exports WhatsApp (échanges privés) — JAMAIS versionnés
+WhatsApp Chat*/
+WhatsApp Chat*.zip
+_chat.txt
