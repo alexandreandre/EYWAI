@@ -15,6 +15,15 @@ L'écart de vingt tests est le point important : **ils ne passaient en CI que
 parce qu'ils atteignaient la vraie base de production**. Le job y est désormais
 débranché — il tourne sur la base de test.
 
+Au 2026-08-02, le nombre de réussites a suivi les tests ajoutés depuis
+(**51 échecs / 1316 réussis** en CI). C'est le **nombre d'échecs** qui sert de
+référence : il n'a pas bougé, et tout écart signale une régression du jour.
+C'est ainsi qu'un passage à 52 a révélé une signature de repository non
+répercutée dans `tests/integration/medical_follow_up/`, que `tests/unit` seul
+ne voyait pas. Ne pas lire la consigne « 51 échecs pré-existants » comme une
+autorisation d'ignorer cette suite : elle dit de ne pas *juger* un changement
+dessus, pas de s'en passer.
+
 ## Trois familles de causes
 
 Aucune n'est un défaut de l'application : ce sont des tests devenus faux à
