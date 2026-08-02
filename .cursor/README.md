@@ -28,6 +28,7 @@ Il complète (sans les remplacer) les fichiers à la racine comme [`AGENTS.md`](
 │   ├── backend.mdc        ← règle IA : backend/
 │   ├── frontend.mdc       ← règle IA : frontend/
 │   ├── database.mdc       ← MCP Supabase / migrations (alwaysApply)
+│   ├── donnees-locales.mdc ← où sont les données de paie, data/ (alwaysApply)
 │   └── product-context.mdc ← contexte produit SIRH (alwaysApply)
 └── skills/                 ← skills Agent (fichiers SKILL.md par dossier)
     ├── backtest-paie/

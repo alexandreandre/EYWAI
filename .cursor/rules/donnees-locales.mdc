@@ -1,0 +1,81 @@
+---
+description: Données de paie locales — racine unique data/, chemin déductible, jamais versionnées
+alwaysApply: true
+---
+
+# Données de paie locales
+
+Les données de paie réelles (bulletins, DSN, calendriers, pointages, compteurs)
+vivent sous **`data/`**, à la racine du dépôt. Ce dossier est **gitignoré**.
+
+Documentation complète : [`docs/donnees-locales.md`](../../docs/donnees-locales.md).
+
+## Chercher avant de demander
+
+Avant de dire qu'un document manque ou de demander à l'utilisateur de le
+fournir : **chercher dans `data/`**. Toutes les données du client y sont déjà.
+
+## Chemin déductible
+
+```
+data/<societe>/<rubrique>/[<AAAA-MM>/]<nom>
+```
+
+- **sociétés** : `cartol` `colorplast` `comitech` `lewis` `maji` `mbc` `zone`
+  — toujours en minuscules, jamais `CARTOL` ni `Comitech Composite`
+- **rubriques** : `calendriers` `dsn` `bulletins` `pointages` `variables`
+  `compteurs` `referentiel`
+- **rubriques mensuelles** (sous-dossier `AAAA-MM`) : `bulletins`, `pointages`,
+  `variables`
+
+| Document | Chemin |
+| --- | --- |
+| Calendrier 2026 de Cartol | `data/cartol/calendriers/calendrier-2026.xlsx` |
+| DSN de mai 2026 de MBC | `data/mbc/dsn/2026-05.dsn` |
+| Bulletins de juin 2026 de Comitech | `data/comitech/bulletins/2026-06/` |
+| Bulletin Cegid d'un salarié | `data/<societe>/bulletins/<AAAA-MM>/md/<MATRICULE>.md` |
+| Pointages de mai 2026 de MBC | `data/mbc/pointages/2026-05/` |
+| Enrichissement salarié de Lewis | `data/lewis/referentiel/` |
+
+Transverses : `data/_inbox/` (exports WhatsApp à traiter), `data/_archive/`
+(doublons et versions écartées — **rien n'est jamais supprimé**),
+`data/_manifeste.json` (journal réversible de la migration).
+
+## Interdits
+
+- **Ne jamais versionner** de donnée personnelle. `data/`, `Config/`,
+  `Bulletins/`, `CARTOL/` et `*.dsn` sont gitignorés : ne pas contourner.
+- **Ne jamais placer de fichier de données réelles dans le code** (`backend/`,
+  `frontend/`, `tests/fixtures/`). C'est par là que deux fuites sont arrivées
+  sur `origin/main`. Une fixture de test doit être anonymisée.
+- **Ne jamais versionner un export WhatsApp** ni recopier le contenu d'une
+  conversation dans un fichier du dépôt.
+- **Ne rien supprimer** : en cas de doublon, signaler à l'utilisateur.
+
+## Compatibilité
+
+`Config/`, `Bulletins/` et `CARTOL/` existent encore sous forme de **liens
+symboliques** vers `data/`, pour les 17 fichiers de code à chemins en dur (dont
+`mbc_mod_moi_teams.py` et les outils de backtest). **Pour du code neuf, viser
+`data/` directement.**
+
+## Outils — `backend/scripts/data_organize/` (lancer depuis `backend/`)
+
+| Commande | Rôle |
+| --- | --- |
+| `python -m scripts.data_organize.inventaire` | inventorie et classe, sans rien déplacer |
+| `python -m scripts.data_organize.migrer [--appliquer]` | migration |
+| `python -m scripts.data_organize.rollback --appliquer` | annule la migration |
+| `python -m scripts.data_organize.ingerer [--appliquer]` | ingère un export WhatsApp |
+
+`convention.py` est la **seule source de vérité** sur « quel document va où ».
+Pour faire évoluer le rangement : modifier ce fichier, puis rejouer
+`rollback --appliquer` suivi de `migrer --appliquer`.
+
+## Flux WhatsApp
+
+Elsa (référente paie côté client) envoie les documents par WhatsApp. Exporter la
+conversation → déposer le dossier dans `data/_inbox/` → lancer `ingerer`. Le
+script déduit société / rubrique / période depuis le nom du fichier, puis depuis
+le fil de la conversation quand le nom est muet. Les pièces `divergent` et
+`inclassable` sont signalées pour arbitrage manuel, jamais rangées d'office.
