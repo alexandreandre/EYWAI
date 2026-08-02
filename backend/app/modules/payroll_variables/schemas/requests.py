@@ -22,6 +22,7 @@ class PayrollVariableRuleSchema(BaseModel):
         "per_astreinte_week_tiered",
         "per_astreinte_weekend_majoration",
         "per_week_without_absence",
+        "transport_domicile_travail",
     ]
     bonus_type_id: Optional[str] = None
     amount: Optional[float] = None

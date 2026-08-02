@@ -14,6 +14,7 @@ RuleType = Literal[
     "per_astreinte_week_tiered",
     "per_astreinte_weekend_majoration",
     "per_week_without_absence",
+    "transport_domicile_travail",
 ]
 
 
@@ -52,6 +53,12 @@ def employee_matches_conditions(
 ) -> bool:
     if not conditions:
         return True
+    employee_ids = conditions.get("employee_ids")
+    if isinstance(employee_ids, list):
+        # Liste vide = règle ciblée mais sans destinataire : ne cible personne.
+        cibles = {str(x) for x in employee_ids}
+        if str(employee.get("id") or "") not in cibles:
+            return False
     statuts = conditions.get("statuts")
     if statuts and isinstance(statuts, list):
         emp_statut = (employee.get("statut") or "").lower()

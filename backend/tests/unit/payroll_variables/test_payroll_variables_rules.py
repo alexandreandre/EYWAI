@@ -42,3 +42,31 @@ def test_employee_statut_filter():
     emp = {"statut": "Cadre"}
     assert employee_matches_conditions(emp, {"statuts": ["Cadre"]})
     assert not employee_matches_conditions(emp, {"statuts": ["Non-Cadre"]})
+
+
+def test_employee_ids_filter_matches():
+    emp = {"id": "abc-123", "statut": "Non-Cadre"}
+    assert employee_matches_conditions(emp, {"employee_ids": ["abc-123"]})
+
+
+def test_employee_ids_filter_excludes():
+    emp = {"id": "abc-123", "statut": "Non-Cadre"}
+    assert not employee_matches_conditions(emp, {"employee_ids": ["zzz-999"]})
+
+
+def test_employee_ids_empty_list_does_not_filter():
+    """Une liste vide ne doit cibler personne plutôt que tout le monde."""
+    emp = {"id": "abc-123"}
+    assert not employee_matches_conditions(emp, {"employee_ids": []})
+
+
+def test_employee_ids_combines_with_statut():
+    emp = {"id": "abc-123", "statut": "Cadre"}
+    conditions = {"employee_ids": ["abc-123"], "exclude_statuts": ["Cadre"]}
+    assert not employee_matches_conditions(emp, conditions)
+
+
+def test_transport_rule_type_ignore_le_montant_de_la_regle():
+    """Le montant vient de la fiche salarié, pas de la règle : compute_rule_amount
+    ne doit pas inventer de valeur pour ce type."""
+    assert compute_rule_amount("transport_domicile_travail", 250.0, None, 1.0) == 0.0
