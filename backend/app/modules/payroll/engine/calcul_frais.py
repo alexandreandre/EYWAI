@@ -7,20 +7,80 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 
+def sections_frais_pro(frais_pro: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Sections du barème frais pro, quelle que soit la forme stockée.
+
+    Trois formes ont coexisté dans payroll_config.config_data :
+      - v1 (2025-10-31) : sections à la racine -> {"repas": {...}, ...}
+      - v2 à v4 (active) : {"FRAIS_PRO": [{"id", "libelle", "sections"}]}
+      - historique      : {"sections": {...}}
+
+    Seule la troisième était lue par le code d'origine, et elle n'a jamais
+    existé en base : aucun plafond de frais professionnels n'a donc jamais été
+    appliqué, et la branche de réintégration était du code mort.
+    """
+    if not isinstance(frais_pro, dict):
+        return {}
+    sections = frais_pro.get("sections")
+    if isinstance(sections, dict):
+        return sections
+    bloc = frais_pro.get("FRAIS_PRO")
+    if isinstance(bloc, list) and bloc and isinstance(bloc[0], dict):
+        imbriquees = bloc[0].get("sections")
+        if isinstance(imbriquees, dict):
+            return imbriquees
+    if isinstance(bloc, dict) and isinstance(bloc.get("sections"), dict):
+        return bloc["sections"]
+    if isinstance(frais_pro.get("repas"), dict):
+        return frais_pro
+    return {}
+
+
+def valeur_unitaire(
+    montant: float,
+    quantity: Optional[float],
+    quantity_kind: Optional[str],
+) -> float:
+    """Valeur unitaire d'une saisie, quelle que soit la sémantique de sa quantité.
+
+    `payroll_quantity` porte deux conventions inverses selon le libellé :
+      - 'count'      : nombre d'unités  -> valeur unitaire = montant / quantité
+      - 'unit_value' : valeur unitaire  -> la quantité EST la valeur unitaire
+      - None         : indéterminé      -> division, comportement historique
+    """
+    try:
+        qte = float(quantity) if quantity is not None else 0.0
+    except (TypeError, ValueError):
+        qte = 0.0
+    if qte <= 0:
+        return float(montant)
+    if quantity_kind == "unit_value":
+        return round(qte, 2)
+    return round(float(montant) / qte, 2)
+
+
 def exoneration_repas(
     frais_pro: Optional[Dict[str, Any]],
     type_repas: str = "repas",
+    *,
+    situation: Optional[str] = None,
 ) -> Optional[float]:
+    """Plafond d'exonération repas (€), None si le barème est absent.
+
+    `situation` sélectionne le plafond applicable : sur_lieu_travail,
+    hors_locaux_sans_restaurant, hors_locaux_avec_restaurant. Tant qu'elle
+    n'est pas déclarée, on retient le plafond le plus élevé : durcir sans
+    l'information réintégrerait à tort des repas hors locaux légitimes
+    (paniers chauffeur à 15 €).
     """
-    Retourne le plafond d'exonération repas (€) depuis frais_pro.sections.repas.
-    None si barème absent.
-    """
-    if not frais_pro or not isinstance(frais_pro, dict):
-        return None
-    sections = frais_pro.get("sections") or {}
+    sections = sections_frais_pro(frais_pro)
     repas = sections.get(type_repas) or sections.get("repas") or {}
     if not isinstance(repas, dict):
         return None
+    if situation:
+        val = repas.get(situation)
+        if isinstance(val, (int, float)) and val > 0:
+            return float(val)
     for key in (
         "repas",
         "montant",
@@ -224,7 +284,9 @@ def appliquer_exoneration_note_frais(
         or "repas"
     ).lower()
     if "repas" in type_ndf or "panier" in type_ndf:
-        plafond = exoneration_repas(frais_pro, "repas")
+        plafond = exoneration_repas(
+            frais_pro, "repas", situation=saisie.get("situation_repas")
+        )
     else:
         plafond = None
     if plafond is None:

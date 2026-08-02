@@ -271,6 +271,10 @@ def process_payslip_generation_forfait(
             }
             if row.get("payroll_quantity") is not None:
                 prime_entry["quantity"] = float(row["payroll_quantity"])
+            if row.get("quantity_kind"):
+                prime_entry["quantity_kind"] = row["quantity_kind"]
+            if row.get("situation_repas"):
+                prime_entry["situation_repas"] = row["situation_repas"]
             saisies_data["primes"].append(prime_entry)
 
         hs_conj_25, hs_conj_50 = _heures_sup_conjoncturelles_from_monthly_inputs(

@@ -30,7 +30,10 @@ from app.modules.payroll.engine.baremes_loader import (
     commune_entreprise_depuis_donnees,
     comparer_taux_vm_entreprise,
 )
-from app.modules.payroll.engine.calcul_frais import appliquer_exoneration_note_frais
+from app.modules.payroll.engine.calcul_frais import (
+    appliquer_exoneration_note_frais,
+    valeur_unitaire,
+)
 from app.modules.payroll.engine.contexte import ContextePaie
 from app.modules.payroll.engine.ijss_bulletin import (
     build_rappel_ijss_net_prime,
@@ -405,8 +408,13 @@ def run_payslip_generation_heures(
             if is_panier and montant > 0 and not saisie.get(
                 "soumise_a_cotisations", saisie.get("soumise_a_csg", True)
             ):
-                qty = max(1.0, float(saisie.get("quantity") or 1))
-                unit = montant / qty if qty else montant
+                # `quantity` porte selon le libellé un nombre d'unités ou une
+                # valeur unitaire : diviser sans distinction donnait 22 € le
+                # panier au lieu de 7,50 € sur les 62 lignes Mont Blanc Composite.
+                unit = valeur_unitaire(
+                    montant, saisie.get("quantity"), saisie.get("quantity_kind")
+                )
+                qty = max(1.0, round(montant / unit)) if unit > 0 else 1.0
                 exo_total = 0.0
                 reint_total = 0.0
                 for _ in range(int(qty)):
@@ -415,6 +423,7 @@ def run_payslip_generation_heures(
                             "montant": unit,
                             "prime_id": prime_id,
                             "type": "panier",
+                            "situation_repas": saisie.get("situation_repas"),
                         },
                         contexte.baremes.get("frais_pro"),
                     )

@@ -286,8 +286,11 @@ def _resolve_quantity(
     return 1.0
 
 
-def _bonus_type_meta(rule: dict[str, Any]) -> tuple[str, bool, bool, str | None, str | None]:
-    """Retourne label, is_socially_taxed, is_taxable, catalog_prime_id, export_code."""
+def _bonus_type_meta(
+    rule: dict[str, Any],
+) -> tuple[str, bool, bool, str | None, str | None, str | None]:
+    """Retourne label, is_socially_taxed, is_taxable, catalog_prime_id,
+    export_code, situation_repas."""
     conditions = rule.get("conditions") or {}
     catalog_from_rule = conditions.get("catalog_prime_id")
     catalog_id = str(catalog_from_rule) if catalog_from_rule else None
@@ -295,11 +298,15 @@ def _bonus_type_meta(rule: dict[str, Any]) -> tuple[str, bool, bool, str | None,
     cond_export = conditions.get("export_code")
     if cond_export:
         export_code = str(cond_export)
+    situation_repas: str | None = None
 
     if rule.get("bonus_type_id"):
         resp = (
             supabase.table("company_bonus_types")
-            .select("libelle, soumise_a_cotisations, soumise_a_impot, export_code")
+            .select(
+                "libelle, soumise_a_cotisations, soumise_a_impot, export_code, "
+                "situation_repas"
+            )
             .eq("id", rule["bonus_type_id"])
             .limit(1)
             .execute()
@@ -312,18 +319,20 @@ def _bonus_type_meta(rule: dict[str, Any]) -> tuple[str, bool, bool, str | None,
             taxable = bool(row.get("soumise_a_impot", True))
             raw_export = row.get("export_code")
             export_code = str(raw_export) if raw_export else None
+            raw_situation = row.get("situation_repas")
+            situation_repas = str(raw_situation) if raw_situation else None
             if not catalog_id:
                 low = libelle.lower()
                 if "panier" in low or "repas" in low:
                     catalog_id = "indemnite_panier_repas"
-            return libelle, social, taxable, catalog_id, export_code
+            return libelle, social, taxable, catalog_id, export_code, situation_repas
 
     label = str(rule.get("label") or rule.get("code") or "Variable paie")
     if not catalog_id:
         low = label.lower()
         if "panier" in low or "repas" in low:
             catalog_id = "indemnite_panier_repas"
-    return label, True, True, catalog_id, export_code
+    return label, True, True, catalog_id, export_code, situation_repas
 
 
 def _append_generated_input(
@@ -343,7 +352,7 @@ def _append_generated_input(
 ) -> int:
     if amount <= 0:
         return written
-    label, social, taxable, catalog_id, export_code = _bonus_type_meta(rule)
+    label, social, taxable, catalog_id, export_code, situation_repas = _bonus_type_meta(rule)
     input_name = f"{label} — {name_suffix}" if name_suffix else label
     entry: dict[str, Any] = {
         "employee_id": eid,
@@ -375,6 +384,8 @@ def _append_generated_input(
             payload["catalog_prime_id"] = catalog_id
         if export_code:
             payload["export_code"] = export_code
+        if situation_repas:
+            payload["situation_repas"] = situation_repas
         repo.upsert_monthly_input(payload)
         return written + 1
     return written
@@ -488,7 +499,7 @@ def generate_monthly_variables(
                 show_skipped = dry_run and read_deplacement_astreinte(emp) is not None
                 if amount <= 0 and not show_skipped:
                     continue
-                label, social, taxable, catalog_id, export_code = _bonus_type_meta(rule)
+                label, social, taxable, catalog_id, export_code, situation_repas = _bonus_type_meta(rule)
                 entry: dict[str, Any] = {
                     "employee_id": eid,
                     "first_name": emp.get("first_name"),
@@ -518,6 +529,8 @@ def generate_monthly_variables(
                         payload["catalog_prime_id"] = catalog_id
                     if export_code:
                         payload["export_code"] = export_code
+                    if situation_repas:
+                        payload["situation_repas"] = situation_repas
                     repo.upsert_monthly_input(payload)
                     written += 1
                 continue

@@ -28,6 +28,9 @@ class BonusType:
     soumise_a_impot: bool
     prompt_ia: Optional[str]
     export_code: Optional[str] = None
+    # Détermine le plafond d'exonération repas. None = non déclaré : le moteur
+    # retient le plafond le plus élevé plutôt que de réintégrer à tort.
+    situation_repas: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by: Optional[UUID] = None

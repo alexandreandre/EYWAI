@@ -655,6 +655,12 @@ def process_payslip_generation(
                 prime_entry["libelle"] = f"{row['name']} ({ex})"
             if row.get("payroll_quantity") is not None:
                 prime_entry["quantity"] = float(row["payroll_quantity"])
+            # Sans ces deux clés, valeur_unitaire et le plafond situationnel
+            # seraient du code mort côté moteur.
+            if row.get("quantity_kind"):
+                prime_entry["quantity_kind"] = row["quantity_kind"]
+            if row.get("situation_repas"):
+                prime_entry["situation_repas"] = row["situation_repas"]
             if catalog_id and ("panier" in str(catalog_id).lower() or "repas" in str(catalog_id).lower()):
                 prime_entry["type"] = "panier"
             saisies_data["primes"].append(prime_entry)
