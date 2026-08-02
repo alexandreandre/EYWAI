@@ -56,7 +56,9 @@ def find_existing_monthly_input(
 ) -> dict[str, Any] | None:
     resp = (
         supabase.table("monthly_inputs")
-        .select("id")
+        # manual_override est indispensable : sans lui, la protection contre
+        # l'écrasement d'une correction manuelle serait un no-op silencieux.
+        .select("id, manual_override")
         .eq("employee_id", employee_id)
         .eq("year", year)
         .eq("month", month)
@@ -76,6 +78,10 @@ def upsert_monthly_input(row: dict[str, Any]) -> None:
         str(row["name"]),
     )
     if existing:
+        # Une ligne corrigée à la main fait autorité sur la génération : la RH a
+        # tranché pour ce mois, on ne repasse pas derrière elle.
+        if existing.get("manual_override"):
+            return
         supabase.table("monthly_inputs").update(row).eq(
             "id", existing["id"]
         ).execute()

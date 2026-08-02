@@ -16,7 +16,11 @@ from app.core.logging import get_logger
 from app.modules.monthly_inputs.application import commands, queries
 
 logger = get_logger("modules.monthly_inputs")
-from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate
+from app.modules.monthly_inputs.schemas.requests import (
+    MonthlyInput,
+    MonthlyInputCreate,
+    MonthlyInputUpdate,
+)
 from app.modules.monthly_inputs.schemas.responses import (
     create_batch_response,
     create_single_response,
@@ -41,6 +45,18 @@ def create_monthly_inputs(payload: List[MonthlyInput]):
         return create_batch_response(result.inserted_count)
     except Exception as e:
         logger.exception("create_monthly_inputs")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/api/monthly-inputs/{input_id}")
+def update_monthly_input(input_id: str, payload: MonthlyInputUpdate):
+    """Corrige une saisie mensuelle. La ligne devient prioritaire sur la génération."""
+    try:
+        return commands.update_monthly_input(input_id, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.exception("update_monthly_input")
         raise HTTPException(status_code=500, detail=str(e))
 
 

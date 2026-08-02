@@ -36,6 +36,13 @@ class IMonthlyInputsRepository(ABC):
         ...
 
     @abstractmethod
+    def update_by_id(
+        self, input_id: str, changes: Dict[str, Any]
+    ) -> Dict[str, Any] | None:
+        """Met à jour une saisie. Retourne la ligne mise à jour, None si absente."""
+        ...
+
+    @abstractmethod
     def delete_by_id(self, input_id: str) -> None:
         """Supprime une saisie par id."""
         ...

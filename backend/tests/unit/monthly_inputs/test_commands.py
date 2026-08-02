@@ -185,3 +185,57 @@ class TestDeleteEmployeeMonthlyInput:
         repo.delete_by_id_and_employee.assert_called_once_with(
             "input-id-789", "emp-456"
         )
+
+
+class TestUpdateMonthlyInput:
+    """Commande update_monthly_input (correction manuelle d'une saisie)."""
+
+    def test_marks_the_row_as_manually_overridden(self):
+        """La correction doit poser manual_override, sinon la génération
+        mensuelle suivante écraserait le choix de la RH."""
+        from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
+
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.update_by_id.return_value = {"id": "abc", "amount": 200.0}
+            result = commands.update_monthly_input("abc", MonthlyInputUpdate(amount=200.0))
+
+        repo.update_by_id.assert_called_once()
+        input_id, changes = repo.update_by_id.call_args[0]
+        assert input_id == "abc"
+        assert changes["amount"] == 200.0
+        assert changes["manual_override"] is True
+        assert result == {"id": "abc", "amount": 200.0}
+
+    def test_omitted_fields_are_not_sent(self):
+        """Champs omis = inchangés : ils ne doivent pas partir en base à None."""
+        from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
+
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.update_by_id.return_value = {"id": "abc"}
+            commands.update_monthly_input("abc", MonthlyInputUpdate(amount=50.0))
+
+        _, changes = repo.update_by_id.call_args[0]
+        assert set(changes) == {"amount", "manual_override"}
+
+    def test_empty_payload_is_rejected(self):
+        from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
+
+        with patch.object(commands, "monthly_inputs_repository"):
+            try:
+                commands.update_monthly_input("abc", MonthlyInputUpdate())
+            except ValueError as e:
+                assert "Aucun champ" in str(e)
+            else:
+                raise AssertionError("un payload vide doit lever ValueError")
+
+    def test_missing_row_raises(self):
+        from app.modules.monthly_inputs.schemas.requests import MonthlyInputUpdate
+
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.update_by_id.return_value = None
+            try:
+                commands.update_monthly_input("zzz", MonthlyInputUpdate(amount=1.0))
+            except ValueError as e:
+                assert "introuvable" in str(e)
+            else:
+                raise AssertionError("une saisie absente doit lever ValueError")

@@ -47,6 +47,19 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
             return {}
         return response.data[0]
 
+    def update_by_id(
+        self, input_id: str, changes: Dict[str, Any]
+    ) -> Dict[str, Any] | None:
+        """Applique une correction et renvoie la ligne mise à jour, None si absente."""
+        resp = (
+            supabase.table("monthly_inputs")
+            .update(changes)
+            .eq("id", input_id)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0] if rows else None
+
     def delete_by_id(self, input_id: str) -> None:
         supabase.table("monthly_inputs").delete().eq("id", input_id).execute()
 

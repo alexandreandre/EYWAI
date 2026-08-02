@@ -18,7 +18,27 @@ from app.modules.monthly_inputs.application.dto import (
 from app.modules.monthly_inputs.infrastructure.repository import (
     monthly_inputs_repository,
 )
-from app.modules.monthly_inputs.schemas.requests import MonthlyInput, MonthlyInputCreate
+from app.modules.monthly_inputs.schemas.requests import (
+    MonthlyInput,
+    MonthlyInputCreate,
+    MonthlyInputUpdate,
+)
+
+
+def update_monthly_input(input_id: str, payload: MonthlyInputUpdate) -> dict:
+    """Applique une correction manuelle et marque la ligne comme telle.
+
+    `manual_override` protège la ligne de la génération mensuelle suivante :
+    la RH a tranché pour ce mois, le générateur ne repasse pas derrière elle.
+    """
+    changes = payload.model_dump(exclude_none=True)
+    if not changes:
+        raise ValueError("Aucun champ à mettre à jour.")
+    changes["manual_override"] = True
+    row = monthly_inputs_repository.update_by_id(input_id, changes)
+    if row is None:
+        raise ValueError(f"Saisie {input_id} introuvable.")
+    return row
 
 
 def create_monthly_inputs_batch(

@@ -44,6 +44,17 @@ class MonthlyInputCreate(BaseModel):
     is_taxable: bool = True
 
 
+class MonthlyInputUpdate(BaseModel):
+    """Correction manuelle d'une saisie (PATCH). Champs omis = inchangés."""
+
+    amount: Optional[float] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_socially_taxed: Optional[bool] = None
+    is_taxable: Optional[bool] = None
+    payroll_quantity: Optional[float] = None
+
+
 class MonthlyInputsRequest(BaseModel):
     """Structure agrégée moteur de paie (primes, notes de frais, acompte). Réservé usage futur."""
 
