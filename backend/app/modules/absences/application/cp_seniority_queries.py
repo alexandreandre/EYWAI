@@ -27,7 +27,7 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 
 _EMPLOYEE_CP_CONTEXT_SELECT_BASE = (
     "hire_date, date_naissance, statut, prior_service_months, "
-    "specificites_paie, seniority_reference_date"
+    "specificites_paie, seniority_reference_date, is_forfait_jour"
 )
 _EMPLOYEE_CP_CONTEXT_SELECT = f"{_EMPLOYEE_CP_CONTEXT_SELECT_BASE}, is_cadre_dirigeant"
 
@@ -168,6 +168,7 @@ def build_employee_cp_seniority_context(
         prior_service_months=int(employee_row.get("prior_service_months") or 0),
         is_cadre_dirigeant=bool(employee_row.get("is_cadre_dirigeant")),
         forfait_annual_days_override=forfait_override,
+        is_forfait_jour=bool(employee_row.get("is_forfait_jour")),
     )
 
 

@@ -144,7 +144,8 @@ def apply_rtt_solde_manual(
         supabase.table("employees")
         .select(
             "id, first_name, last_name, email, hire_date, employment_status, "
-            "statut, prior_service_months, specificites_paie, date_naissance"
+            "statut, prior_service_months, specificites_paie, date_naissance, "
+            "is_forfait_jour"
         )
         .eq("id", employee_id)
         .eq("company_id", company_id)

@@ -90,9 +90,19 @@ class EmployeeCpSeniorityContext:
     prior_service_months: int = 0
     is_cadre_dirigeant: bool = False
     forfait_annual_days_override: float | None = None
+    is_forfait_jour: bool = False
 
     @property
     def is_forfait(self) -> bool:
+        """Salarié en forfait-jours.
+
+        La source est le drapeau `employees.is_forfait_jour`. Le repli sur le
+        libellé du statut ne sert que pour les contextes construits à la main :
+        en base, `statut` ne vaut que « Cadre » ou « Non-Cadre », si bien que
+        chercher « forfait » dedans ne reconnaissait jamais personne.
+        """
+        if self.is_forfait_jour:
+            return True
         if not self.statut:
             return False
         return "forfait" in self.statut.lower()

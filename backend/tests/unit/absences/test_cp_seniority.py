@@ -231,3 +231,32 @@ class TestCpSeniorityBalanceIntegration:
         )
         assert soldes["cp_seniority_days"] == 3
         assert soldes["conges_payes"]["acquis"] >= 3
+
+
+class TestForfaitJoursRecognition:
+    """Le forfait-jours se lit dans `is_forfait_jour`, pas dans le libellé du statut.
+
+    En base, `statut` ne vaut que « Cadre » ou « Non-Cadre » : chercher le mot
+    « forfait » dedans ne reconnaissait jamais personne, et privait de RTT les
+    salariés au forfait alors qu'eux seuls y ont droit.
+    """
+
+    def test_forfait_jour_reconnu_depuis_le_drapeau(self):
+        ctx = EmployeeCpSeniorityContext(
+            hire_date=date(2020, 1, 1), statut="Cadre", is_forfait_jour=True
+        )
+        assert ctx.is_forfait is True
+
+    def test_cadre_sans_forfait_jour_nest_pas_au_forfait(self):
+        ctx = EmployeeCpSeniorityContext(hire_date=date(2020, 1, 1), statut="Cadre")
+        assert ctx.is_forfait is False
+
+    def test_contexte_construit_depuis_la_fiche_salarie(self):
+        from app.modules.absences.application.cp_seniority_queries import (
+            build_employee_cp_seniority_context,
+        )
+
+        ctx = build_employee_cp_seniority_context(
+            {"hire_date": "2020-01-01", "statut": "Cadre", "is_forfait_jour": True}
+        )
+        assert ctx.is_forfait is True

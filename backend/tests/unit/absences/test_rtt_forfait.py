@@ -16,9 +16,10 @@ def test_rtt_forfait_2026_cartol_defaults():
     assert result == 13.0
 
 
-def test_resolve_rtt_default_unchanged():
+def test_resolve_rtt_sans_configuration_est_nul():
+    """Sans accord paramétré, aucun RTT : ni forfait fixe, ni formule activée."""
     policy = LeavePolicySettings()
-    assert resolve_rtt_annual_base(2025, policy) == 10.0
+    assert resolve_rtt_annual_base(2025, policy) == 0.0
 
 
 def test_resolve_rtt_fixed_priority():

@@ -9,7 +9,11 @@ CpCountingUnit = Literal["ouvrable", "ouvre"]
 
 CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT = 2.5
 CP_REFERENCE_PERIOD_START_MONTH_DEFAULT = 6
-RTT_ANNUAL_DAYS_DEFAULT = 10.0
+# Aucun texte ne fixe un nombre de RTT : ils n'existent qu'en vertu d'un accord
+# qui compense en repos les heures au-delà de 35 h, ou du forfait-jours. Une
+# entreprise qui n'a rien paramétré n'en accorde donc aucun — un repli non nul
+# en distribuerait à des salariés à 35 h, qui ne peuvent pas y avoir droit.
+RTT_ANNUAL_DAYS_DEFAULT = 0.0
 RTT_PERIOD_START_MONTH_DEFAULT = 1
 RTT_PERIOD_END_MONTH_DEFAULT = 12
 RTT_YEAR_END_REMINDER_DAYS_DEFAULT = 15

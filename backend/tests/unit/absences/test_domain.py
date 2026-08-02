@@ -29,6 +29,7 @@ from app.modules.absences.domain.rules import (
     compute_absence_balances,
     compute_cp_balances_for_bulletin,
     compute_cp_period_balances,
+    compute_rtt_balance,
     count_absence_days_taken,
     get_available_conge_paye_days,
     get_cp_previous_reference_period,
@@ -185,18 +186,18 @@ class TestCalculateAcquiredRtt:
     def test_hire_previous_year_full_quota(self):
         today = date(2025, 6, 1)
         hire_date = date(2024, 1, 15)
-        assert calculate_acquired_rtt(hire_date, today) == 10.0
+        assert calculate_acquired_rtt(hire_date, today, 10.0) == 10.0
 
     def test_hire_same_year_prorata(self):
         today = date(2025, 6, 1)
         hire_date = date(2025, 4, 1)
-        acquired = calculate_acquired_rtt(hire_date, today)
+        acquired = calculate_acquired_rtt(hire_date, today, 10.0)
         assert acquired == 2.5
 
     def test_hire_july_same_year(self):
         today = date(2025, 12, 15)
         hire_date = date(2025, 7, 1)
-        acquired = calculate_acquired_rtt(hire_date, today)
+        acquired = calculate_acquired_rtt(hire_date, today, 10.0)
         assert acquired == 5.0
 
     def test_custom_rtt_annual_base(self):
@@ -437,6 +438,23 @@ class TestRttPolicy:
     def test_resolve_custom_annual_days(self):
         policy = LeavePolicySettings(rtt_annual_days=12.0)
         assert resolve_rtt_annual_base(2025, policy) == 12.0
+
+    def test_resolve_sans_configuration_ne_donne_aucun_rtt(self):
+        """Le RTT n'existe qu'en vertu d'un accord : sans paramétrage, il n'y en a pas.
+
+        Une entreprise qui n'a jamais configuré ses RTT distribuait auparavant
+        10 jours par an à tout le monde, y compris aux salariés à 35 h qui ne
+        peuvent juridiquement pas en avoir.
+        """
+        assert resolve_rtt_annual_base(2025, LeavePolicySettings()) == 0.0
+
+    def test_solde_rtt_vide_sans_configuration(self):
+        """Aucun jour acquis pour un salarié d'une entreprise non configurée."""
+        solde = compute_rtt_balance(
+            date(2020, 1, 1), [], date(2026, 8, 1), policy=LeavePolicySettings()
+        )
+        assert solde["acquis"] == 0.0
+        assert solde["solde"] == 0.0
 
     def test_rtt_forfeiture_zeros_remaining(self):
         hire_date = date(2020, 1, 1)
