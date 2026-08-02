@@ -1,6 +1,9 @@
 """Tests parse ligne export paie."""
 
+from datetime import date
+
 from app.modules.admin_import.application.payroll_export_parser import (
+    resolve_prior_service_months,
     map_service_to_team_name,
     map_statut_cadre,
     parse_french_date,
@@ -79,3 +82,38 @@ def test_phone_in_email_column_moved_to_phone():
     assert parsed["preview"]["phone"] == "0782385396"
     assert "email" not in parsed["employee_patch"]
     assert parsed["employee_patch"].get("phone_number") == "0782385396"
+
+
+def test_prior_service_months_retranche_anciennete_deja_acquise():
+    """La colonne « Nb jour anc. » porte l'ancienneté totale, pas la reprise."""
+    # 14 ans de maison, aucune reprise : la colonne vaut l'ancienneté acquise.
+    assert (
+        resolve_prior_service_months(5236, "2012-04-01", date(2026, 8, 1)) == 0
+    )
+    # Embauché il y a 2 mois avec 39 mois d'ancienneté reprise d'un précédent contrat.
+    assert (
+        resolve_prior_service_months(1230, "2026-06-01", date(2026, 8, 1)) == 38
+    )
+    # Sans date d'embauche connue, on garde la valeur brute plutôt que de la perdre.
+    assert resolve_prior_service_months(600, None, date(2026, 8, 1)) == 19
+    # Colonne absente ou vide : on ne touche pas au champ.
+    assert resolve_prior_service_months(None, "2012-04-01", date(2026, 8, 1)) is None
+    assert resolve_prior_service_months(0, "2012-04-01", date(2026, 8, 1)) is None
+
+
+def test_parse_row_prior_service_months():
+    mapping = {
+        "first_name": "Prénom",
+        "last_name": "Nom",
+        "hire_date": "Date entrée",
+        "prior_service_days": "Nb jour anc.",
+    }
+    row = {
+        "Prénom": "Michel",
+        "Nom": "BOUVEYRON",
+        "Date entrée": "01/10/1996",
+        "Nb jour anc.": "10860",
+    }
+    out = parse_payroll_export_row(row, mapping)
+    # 10860 j ≈ 362 mois = son ancienneté chez Comitech : aucune reprise à ajouter.
+    assert out["employee_patch"]["prior_service_months"] == 0

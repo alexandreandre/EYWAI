@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.modules.admin_import.application.payroll_export_mapping import (
@@ -128,6 +128,43 @@ def _parse_int(raw: str) -> Optional[int]:
     if val is None:
         return None
     return int(round(val))
+
+
+def resolve_prior_service_months(
+    prior_days: Optional[int],
+    hire_date_iso: Optional[str],
+    reference_date: Optional[date] = None,
+) -> Optional[int]:
+    """Convertit la colonne « Nb jour anc. » en reprise d'ancienneté (mois).
+
+    La colonne de l'export porte l'ancienneté **totale** à la date d'extraction du
+    fichier, alors qu'EYWAI stocke dans `prior_service_months` les seuls mois de
+    carrière **antérieurs à l'embauche** (le moteur les retranche de `hire_date`).
+    Reprendre la colonne telle quelle comptait donc deux fois l'ancienneté acquise
+    dans l'entreprise. On retranche ce qui s'est écoulé depuis l'embauche ; la date
+    d'extraction n'étant pas dans le fichier, on prend le jour de l'import.
+    """
+    if prior_days is None or prior_days <= 0:
+        return None
+    ref = reference_date or date.today()
+    seniority_start = ref - timedelta(days=prior_days)
+    if not hire_date_iso:
+        return _months_between(seniority_start, ref)
+    try:
+        hire = date.fromisoformat(str(hire_date_iso)[:10])
+    except (TypeError, ValueError):
+        return _months_between(seniority_start, ref)
+    # Ancienneté qui remonte avant l'embauche = vraie reprise ; sinon rien à reprendre.
+    return _months_between(seniority_start, hire)
+
+
+def _months_between(start: date, end: date) -> int:
+    if start >= end:
+        return 0
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        months -= 1
+    return max(0, months)
 
 
 def is_dsn_placeholder_email(email: str) -> bool:
@@ -315,8 +352,9 @@ def parse_payroll_export_row(
             out["preview"]["team_name"] = team_name
 
     prior_days = _parse_int(row_value(row, mapping.get("prior_service_days")))
-    if prior_days is not None and prior_days > 0:
-        patch["prior_service_months"] = max(0, int(round(prior_days / 30)))
+    prior_months = resolve_prior_service_months(prior_days, patch.get("hire_date"))
+    if prior_months is not None:
+        patch["prior_service_months"] = prior_months
 
     rp_num = row_value(row, mapping.get("residence_permit_number"))
     rp_from = parse_french_date(row_value(row, mapping.get("residence_permit_from")))
