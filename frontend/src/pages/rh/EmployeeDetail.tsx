@@ -32,7 +32,7 @@ import {
   EmployeeDetailMedicalTab,
   medicalEmployeeQueryKey,
 } from "@/components/employee-detail/EmployeeDetailMedicalTab";
-import { hasMedicalOverdue } from "@/lib/medicalFollowUpLabels";
+import { hasCurrentWorkplaceAccommodation, hasMedicalOverdue } from "@/lib/medicalFollowUpLabels";
 import { getMedicalSettings, getObligationsForEmployee } from "@/api/medicalFollowUp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assignEmployeeTeam, getTeams } from "@/api/teams";
@@ -253,6 +253,9 @@ export default function EmployeeDetail() {
     staleTime: 60_000,
   });
   const medicalTabHasOverdue = hasMedicalOverdue(medicalTabBadgeQuery.data ?? []);
+  const medicalHasAccommodation = hasCurrentWorkplaceAccommodation(
+    medicalTabBadgeQuery.data ?? [],
+  );
 
   const annualReviewsTabBadgeQuery = useQuery({
     queryKey: employeeId ? annualReviewsEmployeeQueryKey(employeeId) : ["annual-reviews", "employee", "none"],
@@ -508,6 +511,7 @@ export default function EmployeeDetail() {
 
       <EmployeeDetailHeaderCard
         employee={employee}
+        hasWorkplaceAccommodation={medicalHasAccommodation}
         credentialsPdfUrl={credentialsPdfUrl}
         credentialsPdfPreviewUrl={credentialsPdfPreviewUrl}
         onDelete={handleDeleteEmployee}

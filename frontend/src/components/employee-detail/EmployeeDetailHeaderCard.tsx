@@ -102,6 +102,8 @@ interface EmployeeDetailHeaderCardProps {
   boethProfile?: EmployeeBoethProfile | null;
   canEditBoeth?: boolean;
   onOpenBoethSheet?: () => void;
+  /** Aménagement de poste en cours, issu de la dernière visite médicale réalisée. */
+  hasWorkplaceAccommodation?: boolean;
 }
 
 function MetadataField({
@@ -156,6 +158,7 @@ export function EmployeeDetailHeaderCard({
   boethProfile,
   canEditBoeth = false,
   onOpenBoethSheet,
+  hasWorkplaceAccommodation = false,
 }: EmployeeDetailHeaderCardProps) {
   const fullName = `${employee.first_name} ${employee.last_name}`.trim();
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
@@ -248,6 +251,11 @@ export function EmployeeDetailHeaderCard({
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="line-clamp-2 text-2xl">{fullName}</CardTitle>
                 {employmentBadge}
+                {hasWorkplaceAccommodation ? (
+                  <Badge variant="outline" className="shrink-0">
+                    Aménagement de poste
+                  </Badge>
+                ) : null}
               </div>
               {employee.job_title ? (
                 <CardDescription className="text-base">
