@@ -457,16 +457,13 @@ def _calculer_net_a_payer(
         log_payroll_debug(logger, f'\t+ Remboursement Transport          : {remboursement_transport:10.2f} €')
         net_a_payer += remboursement_transport
 
-    indemnite_transport_fixe = _get_safe_float(
-        transport_spec.get("indemnite_mensuelle_nette", 0.0)
-    )
-    if indemnite_transport_fixe > 0:
-        indemnite_transport_fixe = round(indemnite_transport_fixe, 2)
-        log_payroll_debug(
-            logger,
-            f'\t+ Indemnité transport contractuelle : {indemnite_transport_fixe:10.2f} €',
-        )
-        net_a_payer += indemnite_transport_fixe
+    # L'indemnité trajet domicile-travail est désormais produite comme saisie
+    # mensuelle par payroll_variables (règle transport_domicile_travail), afin
+    # d'être visible et corrigeable dans Saisies > Primes, proratisée à
+    # l'entrée/sortie et retirée en cas d'absence sur tout le mois.
+    # La conserver ici la compterait deux fois. La variable reste renvoyée à 0
+    # pour ne pas modifier le contrat de retour ni le gabarit du bulletin.
+    indemnite_transport_fixe = 0.0
 
     # Ajout des primes non soumises aux cotisations ni à l'impôt
     montant_primes_non_soumises = 0.0

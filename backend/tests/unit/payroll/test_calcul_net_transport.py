@@ -31,13 +31,21 @@ class TestCalculNetTransport:
         assert result["indemnite_transport_fixe"] == pytest.approx(0.0)
         assert result["net_a_payer"] == pytest.approx(2000.0 + 60.0)
 
-    def test_indemnite_contractuelle_seule(self):
+    def test_indemnite_contractuelle_nest_plus_ajoutee_par_le_moteur(self):
+        """L'indemnité trajet domicile-travail passe désormais par une saisie
+        mensuelle générée (règle transport_domicile_travail de payroll_variables),
+        pour être visible et corrigeable dans Saisies > Primes, proratisée à
+        l'entrée/sortie et retirée en cas d'absence sur tout le mois.
+
+        La conserver ici la compterait deux fois."""
         result = _run_net({"indemnite_mensuelle_nette": 75.0})
         assert result["remboursement_transport"] == pytest.approx(0.0)
-        assert result["indemnite_transport_fixe"] == pytest.approx(75.0)
-        assert result["net_a_payer"] == pytest.approx(2000.0 + 75.0)
+        assert result["indemnite_transport_fixe"] == pytest.approx(0.0)
+        assert result["net_a_payer"] == pytest.approx(2000.0)
 
-    def test_abonnement_et_indemnite_cumules(self):
+    def test_abonnement_reste_intact_quand_une_indemnite_coexiste(self):
+        """Le remboursement 50 % de l'abonnement est une obligation légale
+        distincte : il reste porté par le moteur."""
         result = _run_net(
             {
                 "abonnement_mensuel_total": 120.0,
@@ -45,8 +53,8 @@ class TestCalculNetTransport:
             }
         )
         assert result["remboursement_transport"] == pytest.approx(60.0)
-        assert result["indemnite_transport_fixe"] == pytest.approx(75.0)
-        assert result["net_a_payer"] == pytest.approx(2000.0 + 60.0 + 75.0)
+        assert result["indemnite_transport_fixe"] == pytest.approx(0.0)
+        assert result["net_a_payer"] == pytest.approx(2000.0 + 60.0)
 
     def test_sans_transport_inchange(self):
         result = _run_net({})
