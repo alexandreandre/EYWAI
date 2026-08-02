@@ -42,6 +42,7 @@ import {
   formatMedicalDate,
   getDueDateRelativeLabel,
   getNextObligation,
+  hasCurrentWorkplaceAccommodation,
   isObligationOverdue,
   obligationMessage,
   sortObligationsForDisplay,
@@ -97,6 +98,10 @@ export function EmployeeDetailMedicalTab({
   const sorted = useMemo(() => sortObligationsForDisplay(obligations), [obligations]);
   const counts = useMemo(() => countMedicalObligations(obligations), [obligations]);
   const nextObligation = useMemo(() => getNextObligation(obligations), [obligations]);
+  const hasAccommodation = useMemo(
+    () => hasCurrentWorkplaceAccommodation(obligations),
+    [obligations]
+  );
 
   const [planifiedModal, setPlanifiedModal] = useState<ObligationListItem | null>(null);
   const [planifiedDate, setPlanifiedDate] = useState("");
@@ -307,6 +312,9 @@ export function EmployeeDetailMedicalTab({
                 )}
                 {counts.completed > 0 && (
                   <Badge variant="secondary">{counts.completed} réalisée{counts.completed > 1 ? "s" : ""}</Badge>
+                )}
+                {hasAccommodation && (
+                  <Badge variant="outline">Aménagement de poste</Badge>
                 )}
               </div>
 
