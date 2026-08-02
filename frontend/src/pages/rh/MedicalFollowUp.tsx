@@ -1353,7 +1353,7 @@ export default function MedicalFollowUp() {
                                     {formatLastAction(o)}
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    {o.status !== "realisee" && o.status !== "annulee" ? (
+                                    {o.status !== "annulee" ? (
                                       <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                           <Button
@@ -1367,30 +1367,54 @@ export default function MedicalFollowUp() {
                                           </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                          <DropdownMenuItem
-                                            onClick={() => {
-                                              setPlanifiedModal(o);
-                                              setPlanifiedDate(
-                                                o.planned_date || new Date().toISOString().slice(0, 10)
-                                              );
-                                              setPlanifiedComment(o.justification || "");
-                                            }}
-                                          >
-                                            Marquer planifiée
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                            onClick={() => {
-                                              setCompletedModal(o);
-                                              setCompletedDate(
-                                                o.completed_date ||
-                                                  new Date().toISOString().slice(0, 10)
-                                              );
-                                              setCompletedComment(o.justification || "");
-                                              setCompletedAmenagement(o.amenagement_poste === true);
-                                            }}
-                                          >
-                                            Marquer réalisée
-                                          </DropdownMenuItem>
+                                          {o.status !== "realisee" && (
+                                            <>
+                                              <DropdownMenuItem
+                                                onClick={() => {
+                                                  setPlanifiedModal(o);
+                                                  setPlanifiedDate(
+                                                    o.planned_date ||
+                                                      new Date().toISOString().slice(0, 10)
+                                                  );
+                                                  setPlanifiedComment(o.justification || "");
+                                                }}
+                                              >
+                                                Marquer planifiée
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() => {
+                                                  setCompletedModal(o);
+                                                  setCompletedDate(
+                                                    o.completed_date ||
+                                                      new Date().toISOString().slice(0, 10)
+                                                  );
+                                                  setCompletedComment(o.justification || "");
+                                                  setCompletedAmenagement(
+                                                    o.amenagement_poste === true
+                                                  );
+                                                }}
+                                              >
+                                                Marquer réalisée
+                                              </DropdownMenuItem>
+                                            </>
+                                          )}
+                                          {o.status === "realisee" && (
+                                            <DropdownMenuItem
+                                              onClick={() => {
+                                                setCompletedModal(o);
+                                                setCompletedDate(
+                                                  o.completed_date ||
+                                                    new Date().toISOString().slice(0, 10)
+                                                );
+                                                setCompletedComment(o.justification || "");
+                                                setCompletedAmenagement(
+                                                  o.amenagement_poste === true
+                                                );
+                                              }}
+                                            >
+                                              Modifier la visite
+                                            </DropdownMenuItem>
+                                          )}
                                         </DropdownMenuContent>
                                       </DropdownMenu>
                                     ) : (

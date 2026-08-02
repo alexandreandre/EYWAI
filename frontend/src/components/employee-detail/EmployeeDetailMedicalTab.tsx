@@ -448,6 +448,18 @@ export function EmployeeDetailMedicalTab({
                                   </Button>
                                 </div>
                               )}
+                              {o.status === "realisee" && (
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openCompleted(o)}
+                                  >
+                                    Modifier
+                                  </Button>
+                                </div>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
