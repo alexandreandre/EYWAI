@@ -21,9 +21,6 @@ import sys
 
 from app.core.database import supabase
 
-# Libellés dont payroll_quantity porte la valeur unitaire et non un nombre.
-LIBELLES_VALEUR_UNITAIRE = {"Paniers Jours non soumis"}
-
 # Libellés divergents constatés en base, fusionnés vers une forme unique.
 RENOMMAGES = {
     "Indemnite de transport": "Indemnité de transport",
@@ -31,41 +28,95 @@ RENOMMAGES = {
 }
 
 
-def classer(name: str) -> str | None:
-    """Renvoie 'unit_value', 'count', ou None si la ligne n'est pas concernée."""
-    if name in LIBELLES_VALEUR_UNITAIRE:
-        return "unit_value"
+# En deçà, une quantité « constante » relève du hasard, pas d'une convention.
+MIN_LIGNES_POUR_CONCLURE = 5
+
+
+def est_concerne(name: str) -> bool:
     low = (name or "").lower()
-    if "panier" in low or "repas" in low:
-        return "count"
-    return None
+    return "panier" in low or "repas" in low
+
+
+def deduire_semantique(lignes: list[dict]) -> tuple[str, str]:
+    """Déduit la sémantique de payroll_quantity depuis les données.
+
+    Renvoie (kind, justification).
+
+    Une liste en dur de libellés serait fragile : « Prime panier soumises »
+    stocke 2,50 € en quantité, comme « Paniers Jours non soumis » stocke 7,50 €,
+    et rien dans le libellé ne le dit. Deux signaux concordants font foi :
+      - la quantité est CONSTANTE sur toutes les lignes du libellé ;
+      - montant / quantité donne des entiers (c'est le nombre d'unités).
+    """
+    qtes = {float(l["payroll_quantity"]) for l in lignes if l.get("payroll_quantity")}
+    if not qtes:
+        return "count", "aucune quantité renseignée"
+    if len(qtes) > 1:
+        return "count", f"quantité variable ({len(qtes)} valeurs distinctes)"
+
+    unique = next(iter(qtes))
+    ratios = [
+        float(l["amount"]) / unique
+        for l in lignes
+        if l.get("payroll_quantity") and l.get("amount")
+    ]
+    if not ratios:
+        return "count", "aucun montant exploitable"
+    if len(ratios) < MIN_LIGNES_POUR_CONCLURE:
+        # Sur deux ou trois lignes, une quantité « constante » ne prouve rien.
+        # On garde le comportement historique plutôt que de deviner.
+        return "count", f"seulement {len(ratios)} ligne(s), trop peu pour conclure"
+    entiers = sum(1 for r in ratios if abs(r - round(r)) < 0.01)
+    if entiers == len(ratios):
+        return (
+            "unit_value",
+            f"quantité constante à {unique} et montant/quantité toujours entier",
+        )
+    return "count", f"quantité constante à {unique} mais montants non multiples"
+
+
+def lire_tout(colonnes: str) -> list[dict]:
+    """Lit monthly_inputs en entier.
+
+    PostgREST plafonne une requête à 1000 lignes sans le dire ; la table en
+    compte près de 2900. Sans pagination, deux tiers des saisies passeraient
+    silencieusement à travers la reprise.
+    """
+    taille, debut, tout = 1000, 0, []
+    while True:
+        lot = (
+            supabase.table("monthly_inputs")
+            .select(colonnes)
+            .range(debut, debut + taille - 1)
+            .execute()
+            .data
+            or []
+        )
+        tout.extend(lot)
+        if len(lot) < taille:
+            return tout
+        debut += taille
 
 
 def annoter(apply: bool) -> int:
-    rows = (
-        supabase.table("monthly_inputs")
-        .select("id, name, payroll_quantity, amount, quantity_kind")
-        .execute()
-        .data
-        or []
-    )
-    a_traiter = []
+    rows = lire_tout("id, name, payroll_quantity, amount, quantity_kind")
+
+    par_libelle: dict[str, list[dict]] = {}
     for row in rows:
-        attendu = classer(row.get("name") or "")
-        if attendu is None or row.get("quantity_kind") == attendu:
-            continue
-        a_traiter.append((row, attendu))
+        nom = row.get("name") or ""
+        if est_concerne(nom):
+            par_libelle.setdefault(nom, []).append(row)
 
-    par_kind: dict[str, int] = {}
-    for _, attendu in a_traiter:
-        par_kind[attendu] = par_kind.get(attendu, 0) + 1
-    print(f"{len(rows)} saisies lues, {len(a_traiter)} à annoter.")
-    for kind, n in sorted(par_kind.items()):
-        print(f"  {kind}: {n}")
+    print(f"{len(rows)} saisies lues, {len(par_libelle)} libellé(s) panier/repas.\n")
+    a_traiter: list[tuple[dict, str]] = []
+    for nom, lignes in sorted(par_libelle.items()):
+        kind, pourquoi = deduire_semantique(lignes)
+        manquantes = [l for l in lignes if l.get("quantity_kind") != kind]
+        print(f"  {len(lignes):4} | {nom:30} -> {kind:10} ({pourquoi})")
+        a_traiter.extend((l, kind) for l in manquantes)
 
+    print(f"\n{len(a_traiter)} ligne(s) à annoter.")
     if not apply:
-        for row, attendu in a_traiter[:10]:
-            print(f'  "{row["name"]}" qty={row.get("payroll_quantity")} -> {attendu}')
         return len(a_traiter)
 
     for row, attendu in a_traiter:
@@ -78,30 +129,32 @@ def annoter(apply: bool) -> int:
 
 def normaliser_libelles(apply: bool) -> int:
     """Renomme les libellés divergents. Refuse tant que l'annotation manque."""
-    rows = (
-        supabase.table("monthly_inputs")
-        .select("id, name, quantity_kind")
-        .execute()
-        .data
-        or []
-    )
+    rows = lire_tout("id, name, quantity_kind")
     cibles = [r for r in rows if r.get("name") in RENOMMAGES]
     non_annotees = [
         r
         for r in cibles
         if not r.get("quantity_kind") and "panier" in (r.get("name") or "").lower()
     ]
+
+    print(f"\n{len(cibles)} libellé(s) à normaliser.")
+    if not apply:
+        # En simulation, l'annotation n'a rien écrit : il est normal que les
+        # lignes ne soient pas encore annotées. On l'annonce sans abandonner.
+        if non_annotees:
+            print(
+                f"  ({len(non_annotees)} attendent leur quantity_kind — "
+                "l'exécution réelle les annotera d'abord)"
+            )
+        return len(cibles)
+
     if non_annotees:
         print(
             f"ABANDON : {len(non_annotees)} ligne(s) panier à renommer n'ont pas "
-            "encore de quantity_kind. Annoter d'abord — le libellé est le seul "
-            "discriminant de la sémantique."
+            "encore de quantity_kind. Annoter d'abord — après renommage, la "
+            "sémantique ne serait plus déductible."
         )
         return -1
-
-    print(f"{len(cibles)} libellé(s) à normaliser.")
-    if not apply:
-        return len(cibles)
 
     for row in cibles:
         supabase.table("monthly_inputs").update({"name": RENOMMAGES[row["name"]]}).eq(
