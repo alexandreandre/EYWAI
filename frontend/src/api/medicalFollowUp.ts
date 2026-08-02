@@ -22,6 +22,7 @@ export interface ObligationListItem {
   request_date?: string | null;
   employee_first_name?: string | null;
   employee_last_name?: string | null;
+  amenagement_poste?: boolean;
 }
 
 export interface KPIs {
@@ -85,7 +86,7 @@ export async function markPlanified(
 
 export async function markCompleted(
   obligationId: string,
-  body: { completed_date: string; justification?: string }
+  body: { completed_date: string; justification?: string; amenagement_poste?: boolean }
 ): Promise<void> {
   await apiClient.patch(`/api/medical-follow-up/obligations/${obligationId}/completed`, body);
 }
