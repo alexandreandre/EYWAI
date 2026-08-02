@@ -346,6 +346,50 @@ def controle_prime_anciennete(contexte) -> List[Dict[str, Any]]:
     return alertes
 
 
+def controle_plafond_transport(
+    cumul_annuel: float,
+    frais_pro: Dict[str, Any] | None,
+    *,
+    avec_abonnement_public: bool = False,
+    annee: int,
+) -> List[Dict[str, Any]]:
+    """Signale un dépassement du plafond annuel d'exonération des trajets.
+
+    Contrôle non bloquant : le bulletin n'est PAS modifié. Une réintégration
+    automatique changerait des bulletins qui convergent aujourd'hui avec ceux
+    du cabinet, sans que la RH l'ait décidé. Le rôle du logiciel est de rendre
+    l'écart visible ; la décision de régulariser appartient à la RH.
+    """
+    from app.modules.payroll.engine.plafond_transport import (
+        depassement_annuel,
+        plafond_annuel_transport,
+    )
+
+    plafond = plafond_annuel_transport(
+        frais_pro, avec_abonnement_public=avec_abonnement_public
+    )
+    exces = depassement_annuel(cumul_annuel, plafond)
+    if exces <= 0:
+        return []
+
+    def _eur(v: float) -> str:
+        return f"{v:,.2f}".replace(",", " ").replace(".", ",")
+
+    return [
+        _alert(
+            code="transport_plafond_annuel_depasse",
+            critique=True,
+            message=(
+                f"Indemnité trajet domicile-travail : {_eur(cumul_annuel)} € versés "
+                f"en {annee} pour un plafond d'exonération de {_eur(plafond)} € — "
+                f"dépassement de {_eur(exces)} €. La part excédentaire est "
+                "normalement soumise à cotisations et imposable. Le bulletin n'a "
+                "pas été modifié : à arbitrer avec le cabinet."
+            ),
+        )
+    ]
+
+
 def controle_net_superieur_brut(
     salaire_brut: float,
     net_a_payer: float,

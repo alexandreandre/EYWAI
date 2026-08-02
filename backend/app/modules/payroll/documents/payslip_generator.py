@@ -1105,6 +1105,53 @@ def process_payslip_generation(
         except Exception as cor_err:
             logger.warning(f'[WARNING] COR recalc après génération bulletin: {cor_err}')
 
+        # Plafond annuel d'exonération des trajets domicile-travail : cumul sur
+        # l'année civile, contrôle non bloquant qui n'altère jamais le bulletin.
+        try:
+            from app.modules.payroll.engine.baremes_loader import (
+                assembler_baremes,
+                charger_db_baremes,
+            )
+            from app.modules.payroll.engine.controles_convention import (
+                controle_plafond_transport,
+            )
+
+            saisies_annee = (
+                supabase.table("monthly_inputs")
+                .select("amount, name")
+                .eq("employee_id", employee_id)
+                .eq("year", year)
+                .execute()
+                .data
+                or []
+            )
+            cumul_transport = sum(
+                float(s.get("amount") or 0)
+                for s in saisies_annee
+                if "transport" in (s.get("name") or "").lower()
+            )
+            if cumul_transport > 0:
+                spec_transport = (
+                    (employee_data.get("specificites_paie") or {}).get("transport") or {}
+                )
+                abonnement = float(
+                    spec_transport.get("abonnement_mensuel_total") or 0
+                )
+                frais_pro = assembler_baremes(charger_db_baremes(supabase)).get(
+                    "frais_pro"
+                )
+                for alerte in controle_plafond_transport(
+                    cumul_transport,
+                    frais_pro,
+                    avec_abonnement_public=abonnement > 0,
+                    annee=year,
+                ):
+                    final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
+        except Exception as transport_err:
+            logger.warning(
+                f"[WARNING] contrôle plafond transport: {transport_err}"
+            )
+
         from app.modules.payroll.engine.controles_convention import (
             extraire_messages_alertes_rh,
         )
