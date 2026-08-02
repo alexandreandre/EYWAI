@@ -301,3 +301,44 @@ class TestGetMyObligationsWithGuards:
         mock_my_obligations.assert_called_once_with("co-1", user)
         assert len(result) == 1
         assert result[0].id == "obl-1"
+
+
+class TestObligationDtoAmenagementPoste:
+    """Propagation de la case aménagement depuis la ligne DB."""
+
+    def test_from_row_reads_amenagement_poste(self):
+        """La colonne est reprise telle quelle dans le DTO."""
+        from app.modules.medical_follow_up.application.dto import ObligationListDTO
+
+        dto = ObligationListDTO.from_row(
+            {
+                "id": "obl-1",
+                "company_id": "co-1",
+                "employee_id": "emp-1",
+                "visit_type": "vip",
+                "trigger_type": "embauche",
+                "due_date": "2026-09-01",
+                "priority": 2,
+                "status": "realisee",
+                "amenagement_poste": True,
+            }
+        )
+        assert dto.amenagement_poste is True
+
+    def test_from_row_defaults_to_false_when_column_absent(self):
+        """Ligne sans la colonne (sélection partielle) → False, jamais None."""
+        from app.modules.medical_follow_up.application.dto import ObligationListDTO
+
+        dto = ObligationListDTO.from_row(
+            {
+                "id": "obl-1",
+                "company_id": "co-1",
+                "employee_id": "emp-1",
+                "visit_type": "vip",
+                "trigger_type": "embauche",
+                "due_date": "2026-09-01",
+                "priority": 2,
+                "status": "a_faire",
+            }
+        )
+        assert dto.amenagement_poste is False

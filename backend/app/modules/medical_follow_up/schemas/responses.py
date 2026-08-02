@@ -26,6 +26,7 @@ class ObligationListItem(BaseModel):
     request_date: Optional[str] = None
     employee_first_name: Optional[str] = None
     employee_last_name: Optional[str] = None
+    amenagement_poste: bool = False
 
 
 class KPIsResponse(BaseModel):
