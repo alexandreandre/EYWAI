@@ -105,8 +105,8 @@ class TestStructuredParser:
         csv = (
             "Matricule;Jour;Nom;Cod Sectio;Entrée 1.;Sortie 1.;Entrée 2.;Sortie 2.;"
             "Entrée 3.;Sortie 3.;Tot H Poin;Hr Théoriq;Code Horai\n"
-            "000005;08/06/2026;Francine BOURMAULT;MONT;800;1000;1015;1230;1300;1548;7,05;7,75;A\n"
-            "000151;09/06/2026;Bruno FEDRIGONI;POIN;740;1000;1015;1230;1300;1630;8,08;7,75;A\n"
+            "000005;08/06/2026;Camille DELAUNAY;MONT;800;1000;1015;1230;1300;1548;7,05;7,75;A\n"
+            "000151;09/06/2026;Olivier MARCHESI;POIN;740;1000;1015;1230;1300;1630;8,08;7,75;A\n"
         )
         result = parse_tabular_file(
             csv.encode("utf-8"),
@@ -124,8 +124,8 @@ class TestStructuredParser:
         csv = (
             "Matricule;Jour;Nom;Cod Sectio;Entrée 1.;Sortie 1.;Entrée 2.;Sortie 2.;"
             "Entrée 3.;Sortie 3.;Tot H Poin;Hr Théoriq;Code Horai\n"
-            "000005;08/06/2026;Francine BOURMAULT;MONT;800;1000;1015;1230;1300;1548;7,05;7,75;A\n"
-            "000151;09/06/2026;Bruno FEDRIGONI;POIN;740;1000;1015;1230;1300;1630;8,08;7,75;A\n"
+            "000005;08/06/2026;Camille DELAUNAY;MONT;800;1000;1015;1230;1300;1548;7,05;7,75;A\n"
+            "000151;09/06/2026;Olivier MARCHESI;POIN;740;1000;1015;1230;1300;1630;8,08;7,75;A\n"
         )
         parsed = parse_tabular_file(
             csv.encode("utf-8"),
@@ -163,6 +163,6 @@ class TestStructuredParser:
         assert len(result.rows) >= 5
         assert result.column_mapping.get("entry_1")
         assert result.column_mapping.get("exit_last")
-        francine = next(r for r in result.rows if r.jour == 8 and r.matricule == "000005")
-        assert francine.entry_raw == 800 or str(francine.entry_raw) == "800"
-        assert francine.shift_code == "A"
+        premier = next(r for r in result.rows if r.jour == 8 and r.matricule == "000005")
+        assert premier.entry_raw == 800 or str(premier.entry_raw) == "800"
+        assert premier.shift_code == "A"
