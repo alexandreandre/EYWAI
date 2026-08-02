@@ -590,7 +590,7 @@ export function EmployeeProfileEditForm({
               name="specificites_paie.transport.indemnite_mensuelle_nette"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Indemnité transport contractuelle (€ net/mois)</FormLabel>
+                  <FormLabel>Indemnité trajet domicile-travail (€ net/mois)</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -601,7 +601,29 @@ export function EmployeeProfileEditForm({
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    Montant fixe prévu au contrat, versé en net (hors cotisations).
+                    Montant prévu à l'avenant. Proposé chaque mois dans Saisies &gt; Primes,
+                    proratisé à l'entrée et à la sortie, retiré en cas d'absence sur tout le mois.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name="specificites_paie.transport.indemnite_date_effet"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date d'effet de l'avenant</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value || null)}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    L'indemnité n'est générée qu'à partir de ce mois. Laisser vide pour
+                    l'appliquer sans limite de date.
                   </p>
                   <FormMessage />
                 </FormItem>

@@ -70,6 +70,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   const transport = spec.transport as {
     abonnement_mensuel_total?: number;
     indemnite_mensuelle_nette?: number;
+    indemnite_date_effet?: string | null;
   } | undefined;
   const deplacementAstreinte = spec.deplacement_astreinte as {
     enabled?: boolean;
@@ -129,6 +130,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       transport: {
         abonnement_mensuel_total: transport?.abonnement_mensuel_total ?? 0,
         indemnite_mensuelle_nette: transport?.indemnite_mensuelle_nette ?? 0,
+        indemnite_date_effet: transport?.indemnite_date_effet?.slice(0, 10) ?? null,
       },
       titres_restaurant: {
         beneficie: tr?.beneficie ?? true,

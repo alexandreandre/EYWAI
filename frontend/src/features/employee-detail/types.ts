@@ -86,7 +86,11 @@ export interface Employee {
       is_personnalise?: boolean;
       taux?: number | null;
     };
-    transport?: { abonnement_mensuel_total?: number };
+    transport?: {
+      abonnement_mensuel_total?: number;
+      indemnite_mensuelle_nette?: number;
+      indemnite_date_effet?: string | null;
+    };
     titres_restaurant?: { beneficie?: boolean; nombre_par_mois?: number };
     personnel_rd_eligible_jei?: boolean;
     mandataire_rd?: boolean;

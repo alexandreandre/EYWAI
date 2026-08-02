@@ -55,6 +55,7 @@ export const employeeProfileEditSchema = z
       transport: z.object({
         abonnement_mensuel_total: z.coerce.number().min(0),
         indemnite_mensuelle_nette: z.coerce.number().min(0).optional().default(0),
+        indemnite_date_effet: z.string().nullable().optional(),
       }),
       titres_restaurant: z.object({
         beneficie: z.boolean(),
