@@ -5,6 +5,7 @@ Laisse la DB au backup a la fin."""
 from __future__ import annotations
 
 import json
+import os
 from app.core.database import get_supabase_admin_client, supabase
 from scripts.backtest.employee_matching import resolve_company_id, match_employees
 from scripts.backtest.pdf_loader import load_reference_bulletins
@@ -14,10 +15,39 @@ from app.modules.payroll.backtest.thresholds import default_thresholds
 from app.modules.payroll.documents.payslip_generator import process_payslip_generation
 from scripts.backtest import colorplast_setup as CS
 
-BACKUP = "/private/tmp/claude-501/-Users-alex-Desktop-EYWAI-EYWAI/cfdb3f75-b90e-430f-922f-effaf4ea2dbd/scratchpad/full_backup.json"
+# Le backup vivait dans le scratchpad d'une session (chemin en dur, effacé
+# depuis). Le 02/08/2026, restore() a levé FileNotFoundError APRÈS avoir
+# appliqué janvier→avril : cinq salariés Colorplast sont restés avec leur
+# salaire de base d'avant l'augmentation de mai. Le backup est désormais
+# versionné et créé automatiquement avant toute écriture.
+BACKUP = os.path.join(os.path.dirname(__file__), "_colorplast_backup", "employees.json")
+
+
+def dump_backup(admin) -> None:
+    """Photographie l'état production. Ne réécrit jamais un backup existant."""
+    if os.path.exists(BACKUP):
+        return
+    os.makedirs(os.path.dirname(BACKUP), exist_ok=True)
+    company_id = resolve_company_id("Colorplast")
+    rows = (
+        supabase.table("employees")
+        .select("id, last_name, salaire_de_base, specificites_paie")
+        .eq("company_id", company_id)
+        .execute()
+        .data
+        or []
+    )
+    with open(BACKUP, "w", encoding="utf-8") as fh:
+        json.dump({r["last_name"]: r for r in rows}, fh, ensure_ascii=False, indent=2)
+    print(f"[backup créé] {BACKUP} ({len(rows)} salariés)")
 
 
 def restore(admin):
+    if not os.path.exists(BACKUP):
+        raise SystemExit(
+            f"ABANDON : backup introuvable ({BACKUP}). Restaurer sans référence "
+            "laisserait la production avec les valeurs de backtest."
+        )
     b = json.load(open(BACKUP))
     for m, v in b.items():
         admin.table("employees").update(
@@ -53,6 +83,8 @@ def compare_month(company, year, month):
 def main():
     admin = get_supabase_admin_client()
     company, year = "Colorplast", 2026
+    # Avant toute écriture : la photo de l'état production doit exister.
+    dump_backup(admin)
     summary = {}
     for month in (1, 2, 3, 4):
         CS.apply_month(company, year, month)
