@@ -199,11 +199,13 @@ Run: `cd backend && DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib .venv-ci/bin/py
 
 Expected: PASS — `2 passed`
 
-- [ ] **Step 9: Vérifier ce que la signature vient de casser**
+- [ ] **Step 9: Vérifier la suite du module**
 
-Run: `cd backend && DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib .venv-ci/bin/python -m pytest tests/unit/medical_follow_up -q 2>&1 | tail -20`
+Run: `cd backend && DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib .venv-ci/bin/python -m pytest tests/unit/medical_follow_up -q 2>&1 | tail -3`
 
-Expected: FAIL — `test_commands.py::TestMarkCompleted::test_returns_ok_when_obligation_exists` échoue, car `commands.mark_completed` appelle encore le repository avec 4 arguments. C'est attendu : la tâche 2 le corrige. Ne pas commiter ici.
+Expected: PASS — `70 passed` (68 de baseline + 2 nouveaux).
+
+Le changement de signature ne casse rien ici : `test_commands.py` mocke le repository avec `MagicMock`, qui accepte n'importe quelle signature, et `commands.mark_completed` appelle encore avec 4 arguments. C'est la tâche 2 qui alignera l'appel et ses assertions, dans le même commit.
 
 - [ ] **Step 10: Commit**
 

@@ -97,13 +97,15 @@ def update_obligation_completed(
     obligation_id: str,
     completed_date: str,
     justification: Optional[str],
+    amenagement_poste: bool,
 ) -> None:
-    """Met à jour une obligation : status réalisée, completed_date, justification."""
+    """Met à jour une obligation : status réalisée, completed_date, justification, aménagement de poste."""
     supabase.table("medical_follow_up_obligations").update(
         {
             "status": "realisee",
             "completed_date": completed_date,
             "justification": justification,
+            "amenagement_poste": amenagement_poste,
         }
     ).eq("id", obligation_id).execute()
 
