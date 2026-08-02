@@ -1,7 +1,10 @@
 import apiClient from '@/api/apiClient';
 
 export type MedalLevel = 'argent' | 'vermeil' | 'or' | 'grand_or';
-export type SeniorityBasis = 'total_career' | 'company_only';
+export type SeniorityBasis =
+  | 'seniority_reference_date'
+  | 'total_career'
+  | 'company_only';
 export type AmountMode = 'fixed' | 'salary_months';
 export type WorkMedalCaseStatus =
   | 'upcoming'

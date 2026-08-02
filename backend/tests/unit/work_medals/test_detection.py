@@ -59,6 +59,52 @@ def test_detection_creates_case_once():
                     assert payload["status"] == "awaiting_rh"
 
 
+def test_detection_dry_run_compte_sans_ecrire():
+    settings = WorkMedalSettings(
+        company_id="company-1",
+        enabled=True,
+        reminder_months_before=6,
+        tiers=[
+            MedalTier(
+                level="argent",
+                years=20,
+                label="Argent",
+                amount_mode="fixed",
+                amount_value=400,
+            )
+        ],
+    )
+    employees = [
+        {
+            "id": "emp-1",
+            "hire_date": "2000-01-01",
+            "prior_service_months": 0,
+            "employment_status": "actif",
+            "first_name": "Marie",
+            "last_name": "Dupont",
+        }
+    ]
+
+    with patch(
+        "app.modules.work_medals.application.detection.queries.get_work_medal_settings_raw",
+        return_value=settings,
+    ):
+        with patch(
+            "app.modules.work_medals.application.detection._list_active_employees",
+            return_value=employees,
+        ):
+            with patch(
+                "app.modules.work_medals.application.detection.work_medal_cases_repository.get_by_employee_level",
+                return_value=None,
+            ):
+                with patch(
+                    "app.modules.work_medals.application.detection.work_medal_cases_repository.insert"
+                ) as insert:
+                    result = scan_company_work_medals("company-1", dry_run=True)
+                    assert result.created == 1
+                    insert.assert_not_called()
+
+
 def test_detection_skips_when_disabled():
     settings = WorkMedalSettings(company_id="company-1", enabled=False)
     with patch(

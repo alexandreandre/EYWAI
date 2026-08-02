@@ -81,3 +81,35 @@ def test_can_transition_workflow():
     assert can_transition("awaiting_rh", "approved", "rh")
     assert can_transition("awaiting_employee", "approved", "rh")
     assert not can_transition("upcoming", "approved", "rh")
+
+
+def test_career_reference_date_utilise_la_date_d_anciennete_reprise():
+    """Base « date d'ancienneté » : c'est la reprise saisie par la paie qui prime."""
+    from datetime import date
+
+    from app.modules.work_medals.domain.rules import career_reference_date
+
+    hire = date(2012, 4, 1)
+    reprise = date(1998, 6, 15)
+
+    assert (
+        career_reference_date(
+            hire, 0, "seniority_reference_date", seniority_reference_date=reprise
+        )
+        == reprise
+    )
+    # Sans date d'ancienneté renseignée, on retombe sur la date d'embauche.
+    assert (
+        career_reference_date(hire, 0, "seniority_reference_date") == hire
+    )
+    # Une date d'ancienneté postérieure à l'embauche ne raccourcit jamais l'ancienneté.
+    assert (
+        career_reference_date(
+            hire, 0, "seniority_reference_date",
+            seniority_reference_date=date(2015, 1, 1),
+        )
+        == hire
+    )
+    # Les deux bases historiques ne bougent pas.
+    assert career_reference_date(hire, 24, "company_only") == hire
+    assert career_reference_date(hire, 24, "total_career") == date(2010, 4, 1)

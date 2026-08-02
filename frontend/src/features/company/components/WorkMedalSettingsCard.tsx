@@ -7,6 +7,7 @@ import {
   scanWorkMedals,
   type MedalTier,
   type WorkMedalSettings,
+  type SeniorityBasis,
   type WorkMedalSettingsUpdate,
 } from '@/api/workMedals';
 import { useAuth } from '@/contexts/AuthContext';
@@ -180,7 +181,7 @@ export default function WorkMedalSettingsCard() {
             <Select
               value={form.seniority_basis}
               disabled={readOnly}
-              onValueChange={(v: 'total_career' | 'company_only') =>
+              onValueChange={(v: SeniorityBasis) =>
                 setForm({ ...form, seniority_basis: v })
               }
             >
@@ -188,10 +189,19 @@ export default function WorkMedalSettingsCard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="total_career">Carrière totale (défaut légal)</SelectItem>
-                <SelectItem value="company_only">Entreprise uniquement</SelectItem>
+                <SelectItem value="seniority_reference_date">
+                  Date d&apos;ancienneté, reprise incluse
+                </SelectItem>
+                <SelectItem value="company_only">Depuis la date d&apos;embauche</SelectItem>
+                <SelectItem value="total_career">
+                  Embauche + reprise saisie en mois
+                </SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              La date d&apos;ancienneté de la fiche salarié tient compte des reprises
+              d&apos;ancienneté ; à défaut, la date d&apos;embauche est utilisée.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="reminder-months">Rappel avant palier (mois)</Label>

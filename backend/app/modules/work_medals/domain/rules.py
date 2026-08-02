@@ -77,7 +77,20 @@ def career_reference_date(
     hire_date: date,
     prior_service_months: int,
     seniority_basis: SeniorityBasis,
+    seniority_reference_date: date | None = None,
 ) -> date:
+    """Point de départ de l'ancienneté selon la base retenue par l'entreprise.
+
+    - `seniority_reference_date` : la date d'ancienneté saisie par la paie (reprise
+      d'ancienneté d'un contrat ou d'un employeur précédent) ; repli sur l'embauche
+      si elle n'est pas renseignée, et jamais de date postérieure à l'embauche.
+    - `total_career` : embauche moins les mois de reprise saisis.
+    - `company_only` : la date d'embauche.
+    """
+    if seniority_basis == "seniority_reference_date":
+        if seniority_reference_date and seniority_reference_date < hire_date:
+            return seniority_reference_date
+        return hire_date
     if seniority_basis == "company_only" or prior_service_months <= 0:
         return hire_date
     return hire_date - relativedelta(months=prior_service_months)
@@ -88,11 +101,14 @@ def compute_employee_seniority_months(
     prior_service_months: int,
     seniority_basis: SeniorityBasis,
     reference_date: date | None = None,
+    seniority_reference_date: date | None = None,
 ) -> int:
     if not hire_date:
         return 0
     ref = reference_date or date.today()
-    start = career_reference_date(hire_date, prior_service_months, seniority_basis)
+    start = career_reference_date(
+        hire_date, prior_service_months, seniority_basis, seniority_reference_date
+    )
     return compute_seniority_months(start, ref)
 
 
@@ -101,9 +117,12 @@ def milestone_reached_date(
     prior_service_months: int,
     seniority_basis: SeniorityBasis,
     milestone_years: int,
+    seniority_reference_date: date | None = None,
 ) -> date:
     """Date à laquelle le palier est atteint (approximation mois)."""
-    start = career_reference_date(hire_date, prior_service_months, seniority_basis)
+    start = career_reference_date(
+        hire_date, prior_service_months, seniority_basis, seniority_reference_date
+    )
     return start + relativedelta(years=milestone_years)
 
 

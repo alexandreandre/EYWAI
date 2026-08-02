@@ -38,7 +38,10 @@ def _parse_hire_date(raw: Any) -> date | None:
 def _list_active_employees(company_id: str) -> List[Dict[str, Any]]:
     res = (
         supabase.table("employees")
-        .select("id, hire_date, prior_service_months, employment_status, first_name, last_name")
+        .select(
+            "id, hire_date, seniority_reference_date, prior_service_months, "
+            "employment_status, first_name, last_name"
+        )
         .eq("company_id", company_id)
         .execute()
     )
@@ -50,8 +53,13 @@ def _list_active_employees(company_id: str) -> List[Dict[str, Any]]:
     ]
 
 
-def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
-    """Scanne les employés actifs et crée/met à jour les dossiers médaille."""
+def scan_company_work_medals(
+    company_id: str, *, dry_run: bool = False
+) -> WorkMedalScanResult:
+    """Scanne les employés actifs et crée/met à jour les dossiers médaille.
+
+    `dry_run=True` compte ce qui serait créé/mis à jour sans rien écrire.
+    """
     settings = queries.get_work_medal_settings_raw(company_id)
     if not settings.enabled:
         return WorkMedalScanResult()
@@ -67,11 +75,13 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
         if not hire_date:
             continue
         prior = int(emp.get("prior_service_months") or 0)
+        seniority_ref = _parse_hire_date(emp.get("seniority_reference_date"))
         seniority_months = compute_employee_seniority_months(
             hire_date,
             prior,
             settings.seniority_basis,
             today,
+            seniority_ref,
         )
 
         for tier in tiers:
@@ -88,6 +98,7 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
                 prior,
                 settings.seniority_basis,
                 tier.years,
+                seniority_ref,
             )
             existing = work_medal_cases_repository.get_by_employee_level(
                 employee_id, tier.level
@@ -102,26 +113,29 @@ def scan_company_work_medals(company_id: str) -> WorkMedalScanResult:
                     patch["status"] = "awaiting_rh"
                 elif current_status == "upcoming" and new_status == "awaiting_rh":
                     patch["status"] = "awaiting_rh"
-                work_medal_cases_repository.update(str(existing["id"]), patch)
+                if not dry_run:
+                    work_medal_cases_repository.update(str(existing["id"]), patch)
                 updated += 1
                 continue
 
-            row = work_medal_cases_repository.insert(
-                {
-                    "company_id": company_id,
-                    "employee_id": employee_id,
-                    "medal_level": tier.level,
-                    "milestone_years": tier.years,
-                    "eligible_date": eligible.isoformat(),
-                    "status": new_status,
-                }
-            )
+            if not dry_run:
+                work_medal_cases_repository.insert(
+                    {
+                        "company_id": company_id,
+                        "employee_id": employee_id,
+                        "medal_level": tier.level,
+                        "milestone_years": tier.years,
+                        "eligible_date": eligible.isoformat(),
+                        "status": new_status,
+                    }
+                )
             created += 1
             logger.debug(
-                "[work_medals] dossier créé %s %s statut=%s",
+                "[work_medals] dossier %s %s %s statut=%s",
+                "à créer (dry-run)" if dry_run else "créé",
                 employee_id,
                 tier.level,
-                row.get("status"),
+                new_status,
             )
 
     return WorkMedalScanResult(
