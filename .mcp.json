@@ -1,8 +1,28 @@
 {
   "mcpServers": {
-    "supabase-eywai": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=slleauhyjnmiawosvlcg&features=database"
+    "supabase-eywai-prod": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=slleauhyjnmiawosvlcg",
+        "--features=database,docs,development,functions,branching,storage,debugging"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
+    },
+    "supabase-eywai-test": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=tlvkjwleahkmuzcegrde",
+        "--features=database,docs,development,functions,branching,storage,debugging"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
     }
   }
 }
