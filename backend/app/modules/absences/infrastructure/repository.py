@@ -4,12 +4,56 @@ Repository absences — implémentation IAbsenceRepository.
 Accès table absence_requests via Supabase. Comportement identique à l'ancien routeur.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
 from app.modules.absences.domain.interfaces import IAbsenceRepository
+from app.modules.absences.infrastructure.short_cache import ShortLivedCache
+
+logger = logging.getLogger(__name__)
+
+# Le calcul des soldes est appelé plusieurs fois par salarié sur les écrans de
+# campagne : sans mutualisation, le planning est relu à chaque fois.
+_planning_cache = ShortLivedCache()
+_cutoff_cache = ShortLivedCache()
+
+
+def _with_planning_conges_payes(
+    validated: List[Dict[str, Any]], employee_ids: List[str]
+) -> List[Dict[str, Any]]:
+    """
+    Complète les demandes validées par les congés payés saisis au planning.
+
+    Les congés payés ne sont pas posés en demande d'absence : sans cette
+    lecture, les compteurs ne se décrémenteraient jamais. Un échec ici ne doit
+    pas empêcher l'affichage d'un solde — on retombe sur les seules demandes.
+    """
+    from app.modules.absences.domain.planning_cp import merge_planning_cp_days
+    from app.modules.absences.infrastructure import planning_cp_repository
+
+    try:
+        cle = tuple(sorted(employee_ids))
+        planning = _planning_cache.get_or_load(
+            cle, lambda ids: planning_cp_repository.list_planning_cp_days(list(ids))
+        )
+        if not planning:
+            return validated
+        cutoffs = _cutoff_cache.get_or_load(
+            cle,
+            lambda ids: planning_cp_repository.get_cp_opening_reference_dates(
+                list(ids)
+            ),
+        )
+        return merge_planning_cp_days(validated, planning, cutoffs)
+    except Exception:
+        logger.warning(
+            "Congés payés du planning ignorés pour le calcul des soldes",
+            exc_info=True,
+        )
+        return validated
 
 
 class SupabaseAbsenceRepository(IAbsenceRepository):
@@ -172,7 +216,10 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
             .eq("status", "validated")
             .execute()
         )
-        return result.data or []
+        validated = result.data or []
+        for row in validated:
+            row.setdefault("status", "validated")
+        return _with_planning_conges_payes(validated, employee_ids)
 
     def list_by_employee_id(self, employee_id: str) -> List[Dict[str, Any]]:
         result = (

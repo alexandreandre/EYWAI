@@ -236,6 +236,9 @@ def apply_cp_solde_import(
         "cp_n1_opening_balance": round(cp_n1_opening, 2),
         "cp_n_opening_balance": round(cp_n_opening, 2),
         "rtt_opening_balance": round(rtt_opening, 2),
+        # Les congés pris jusqu'à cette date sont déjà dans le solde repris :
+        # le moteur s'en sert pour ne pas les redéduire depuis le planning.
+        "cp_opening_reference_date": ref.isoformat(),
     }
     if note:
         payload["note"] = note
