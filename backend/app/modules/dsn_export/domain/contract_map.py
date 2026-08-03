@@ -11,15 +11,19 @@ from app.modules.dsn_import.domain.rubriques import CONTRACT_NATURE_MAP, STATUT_
 _NATURE_FROM_EYWAI: Dict[str, str] = {}
 for code, label in CONTRACT_NATURE_MAP.items():
     _NATURE_FROM_EYWAI.setdefault(label.lower(), code)
+# L'apprentissage et la professionnalisation restent des CDD (nature 02) : ce
+# qui les distingue est porté par le dispositif de politique publique
+# (S21.G00.40.008 = 65), pas par la nature du contrat. C'est ainsi que les
+# déclare le cabinet dans les fichiers acceptés.
 _NATURE_FROM_EYWAI.update(
     {
         "cdi": "01",
         "cdd": "02",
-        "apprentissage": "29",
-        "professionnalisation": "32",
-        "contrat de professionnalisation": "32",
+        "apprentissage": "02",
+        "professionnalisation": "02",
+        "contrat de professionnalisation": "02",
         "stage": "50",
-        "alternance": "29",
+        "alternance": "02",
     }
 )
 
@@ -102,15 +106,34 @@ def map_sexe_to_dsn(sexe: Optional[str]) -> str:
     return "01"
 
 
+# Forfait annuel en jours : le cabinet déclare 21,27 jours par mois, soit
+# 218 jours ramenés au mois (218 / 10,25 mois travaillés).
+QUOTITE_MENSUELLE_FORFAIT_JOURS = "21.27"
+
+
 def map_modalite_temps(
     *,
     is_temps_partiel: bool = False,
     duree_hebdo: Optional[float] = None,
+    is_forfait_jour: bool = False,
+    quotite_forfait_jours: str = "",
 ) -> tuple[str, str, str, str]:
-    """Retourne (unité, quotité_ref, quotité, modalité)."""
-    # Unité 10 = heures ; quotité mensuelle 151.67 ≈ 35h
+    """Retourne (unité, quotité_ref, quotité, modalité).
+
+    La quotité de référence de l'établissement reste la durée légale ; la
+    quotité du contrat suit la durée réellement contractée. Une société à 39 h
+    déclare 169,00 et non 151,67 — l'écart se voyait sur tous les bulletins
+    Colorplast.
+
+    Un salarié au forfait annuel en jours se compte en jours (unité 20), pas en
+    heures : le déclarer à 151,67 heures le ferait passer pour un horaire.
+    """
+    if is_forfait_jour:
+        quotite = quotite_forfait_jours or QUOTITE_MENSUELLE_FORFAIT_JOURS
+        return "20", quotite, quotite, "10"
+    # Unité 10 = heures ; quotité mensuelle 151.67 ≈ 35 h
     ref = "151.67"
-    if is_temps_partiel and duree_hebdo and duree_hebdo > 0:
-        q = round(duree_hebdo * 52 / 12, 2)
-        return "10", ref, f"{q:.2f}", "20"
-    return "10", ref, ref, "10"
+    if not duree_hebdo or duree_hebdo <= 0:
+        return "10", ref, ref, "20" if is_temps_partiel else "10"
+    quotite = f"{round(duree_hebdo * 52 / 12, 2):.2f}"
+    return "10", ref, quotite, "20" if is_temps_partiel else "10"

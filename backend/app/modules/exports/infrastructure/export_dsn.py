@@ -71,7 +71,10 @@ def get_dsn_employees_data(
         duree_hebdomadaire,
         classification_conventionnelle,
         nom_usage,
-        nationalite
+        nationalite,
+        is_forfait_jour,
+        contract_end_date,
+        employment_status
         """
         )
         .eq("company_id", company_id)

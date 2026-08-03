@@ -35,7 +35,22 @@ BLOCS_LIVRES: List[str] = [
     "S20.G00.07",
     "S21.G00.06",
     "S21.G00.11",
+    "S21.G00.30",
+    "S21.G00.40",
     "S90.G00.90",
+]
+
+# Rubriques vues dans les fichiers du cabinet dont la sémantique n'est pas
+# établie de notre côté : on préfère ne pas les émettre plutôt que leur inventer
+# une valeur. À trancher avec le cahier technique P26V01.
+RUBRIQUES_A_DOCUMENTER: List[str] = [
+    "S21.G00.30.013",
+    "S21.G00.30.017",
+    "S21.G00.30.025",
+    "S21.G00.30.029",
+    "S21.G00.40.003",
+    "S21.G00.40.010",
+    "S21.G00.40.021",
 ]
 
 # Tout ce qui n'est pas encore livré, neutralisé pour ne pas masquer les
@@ -46,9 +61,7 @@ BLOCS_A_VENIR: List[str] = [
     "S21.G00.20",
     "S21.G00.22",
     "S21.G00.23",
-    "S21.G00.30",
     "S21.G00.31",
-    "S21.G00.40",
     "S21.G00.41",
     "S21.G00.44",
     "S21.G00.50",
@@ -105,6 +118,53 @@ ECARTS_ATTENDUS: List[EcartAttendu] = [
         motif="libellé d'adresse issu de notre fiche société, forme libre",
         depuis="2026-08-03",
     ),
+    EcartAttendu(
+        rubrique="S21.G00.30.002",
+        motif="nom de famille en majuscules ; le cabinet écrit « De CARVALHO »",
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.30.010",
+        motif="typographie de la commune du salarié, issue de notre fiche",
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.40.019",
+        motif=(
+            "rattachement multi-établissement non modélisé : 19 contrats Cartol "
+            "dépendent du SIRET 798 171 096 00034 et non de celui de la société"
+        ),
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.40.011",
+        motif=(
+            "forfait annuel en jours absent de 12 fiches (5 Cartol, 7 LEWIS) : "
+            "donnée à corriger, pas un défaut du générateur"
+        ),
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.40.012",
+        motif="même cause que S21.G00.40.011 : forfait-jours absent de 12 fiches",
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.40.013",
+        motif=(
+            "forfait-jours absent de 12 fiches, et quotité arrondie au centième "
+            "d'heure près sur quelques contrats"
+        ),
+        depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.30.005",
+        motif=(
+            "sexe déduit du NIR : le cabinet déclare 8 salariés avec un sexe "
+            "que leur propre NIR contredit"
+        ),
+        depuis="2026-08-03",
+    ),
 ]
 
 
@@ -150,7 +210,7 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
         generer(donnees),
         (repertoire / "reference.dsn").read_bytes(),
         ecarts_attendus=ECARTS_ATTENDUS,
-        rubriques_hors_perimetre=BLOCS_A_VENIR,
+        rubriques_hors_perimetre=BLOCS_A_VENIR + RUBRIQUES_A_DOCUMENTER,
     )
     assert rapport.conforme, f"{societe} {periode} :\n{rapport.texte()}"
 

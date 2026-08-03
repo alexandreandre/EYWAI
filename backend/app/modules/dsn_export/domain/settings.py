@@ -66,6 +66,10 @@ class DsnSettings:
     idcc: str = ""
     complement_adresse: str = ""
     commune_implantation: str = ""
+    # Quotité mensuelle déclarée pour les forfaits annuels en jours : 21,67
+    # chez certaines sociétés, 21,27 chez d'autres selon le nombre de jours du
+    # forfait. Reprise du cabinet faute de la porter nous-mêmes.
+    quotite_forfait_jours: str = ""
 
     # Rubriques du bloc établissement que le builder ne dérive pas et qu'on
     # reprend telles quelles du cabinet plutôt que de leur inventer un sens.
@@ -149,6 +153,8 @@ def extraire_depuis_dsn(contenu: bytes, *, fichier: str = "") -> DsnSettings:
         if code.startswith("S21.G00.11.") and code not in construites and valeurs
     }
 
+    quotite_forfait_jours = _quotite_forfait_jours(contenu)
+
     return DsnSettings(
         emetteur_siren=_premiere(rubriques, "S10.G00.01.001"),
         emetteur_nic=_premiere(rubriques, "S10.G00.01.002"),
@@ -169,9 +175,26 @@ def extraire_depuis_dsn(contenu: bytes, *, fichier: str = "") -> DsnSettings:
         commune_implantation=_premiere(rubriques, "S21.G00.06.008")
         or _premiere(rubriques, "S21.G00.11.007"),
         rubriques_etablissement=complementaires,
+        quotite_forfait_jours=quotite_forfait_jours,
         source=SOURCE_REPRISE,
         source_fichier=fichier,
     )
+
+
+def _quotite_forfait_jours(contenu: bytes) -> str:
+    """Quotité que le cabinet déclare pour les contrats comptés en jours."""
+    from app.modules.dsn_export.domain.conformance import lire_rubriques
+
+    unite_courante = ""
+    quotites: Dict[str, int] = {}
+    for code, valeur in lire_rubriques(contenu):
+        if code == "S21.G00.40.011":
+            unite_courante = valeur
+        elif code == "S21.G00.40.012" and unite_courante == "20":
+            quotites[valeur] = quotites.get(valeur, 0) + 1
+    if not quotites:
+        return ""
+    return max(quotites.items(), key=lambda paire: paire[1])[0]
 
 
 def depuis_dict(donnees: Optional[Dict[str, Any]]) -> DsnSettings:
@@ -207,6 +230,7 @@ def depuis_dict(donnees: Optional[Dict[str, Any]]) -> DsnSettings:
         idcc=normaliser_idcc(donnees.get("idcc")),
         complement_adresse=donnees.get("complement_adresse") or "",
         commune_implantation=donnees.get("commune_implantation") or "",
+        quotite_forfait_jours=donnees.get("quotite_forfait_jours") or "",
         rubriques_etablissement=dict(donnees.get("rubriques_etablissement") or {}),
         source=donnees.get("source") or SOURCE_SAISIE,
         source_fichier=donnees.get("source_fichier") or "",
@@ -240,6 +264,7 @@ def vers_dict(settings: DsnSettings) -> Dict[str, Any]:
         "idcc": settings.idcc,
         "complement_adresse": settings.complement_adresse,
         "commune_implantation": settings.commune_implantation,
+        "quotite_forfait_jours": settings.quotite_forfait_jours,
         "rubriques_etablissement": settings.rubriques_etablissement,
         "source": settings.source,
         "source_fichier": settings.source_fichier,

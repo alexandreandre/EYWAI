@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.modules.dsn_export.domain.settings import DsnSettings, normaliser_naf
+from app.modules.dsn_export.domain.settings import (
+    DsnSettings,
+    normaliser_idcc,
+    normaliser_naf,
+)
 from app.modules.dsn_export.domain.contract_map import (
     iso_to_dsn_date,
     map_contract_nature_to_dsn,
@@ -29,16 +34,37 @@ from app.modules.dsn_import.domain.model import (
     OrganismePscBlock,
     VersementBlock,
 )
-from app.modules.exports.infrastructure.payslip_accounting_extract import (
-    extract_cotisations_from_payslip,
-    extract_pas_amount,
-)
 from app.shared.dsn_validation import build_siret_from_siren_nic
+
+
+def _extracteurs_bulletin():
+    """Import différé : ``exports.infrastructure`` importe ce module en retour."""
+    from app.modules.exports.infrastructure.payslip_accounting_extract import (
+        extract_cotisations_from_payslip,
+        extract_pas_amount,
+    )
+
+    return extract_cotisations_from_payslip, extract_pas_amount
 
 
 # Version déclarée dans S10.G00.00.003 : celle de notre générateur DSN, à
 # incrémenter quand la sortie change de forme.
 VERSION_LOGICIEL = "1.0"
+
+# Rubriques que le cabinet déclare à valeur fixe sur la totalité de nos
+# fichiers : 1654 contrats, 43 DSN, 7 sociétés, aucune variation. Ce sont les
+# valeurs « non concerné » de la norme. Elles restent regroupées ici pour être
+# revues d'un coup le jour où le cahier technique les contredit.
+CONSTANTES_INDIVIDU = {
+    "S21.G00.30.023": "01",
+}
+CONSTANTES_CONTRAT = {
+    "S21.G00.40.016": "99",
+    "S21.G00.40.024": "99",
+    "S21.G00.40.026": "99",
+    "S21.G00.40.036": "01",
+    "S21.G00.40.037": "01",
+}
 
 
 class DsnBuildError(ValueError):
@@ -131,6 +157,7 @@ def _pas_details(payslip_data: Dict[str, Any]) -> Tuple[float, float, float]:
             float(pas_obj.get("taux") or 0),
             float(pas_obj.get("base") or pas_obj.get("assiette") or 0),
         )
+    _, extract_pas_amount = _extracteurs_bulletin()
     montant = extract_pas_amount(synthese)
     return montant, 0.0, _net_imposable(payslip_data)
 
@@ -151,6 +178,72 @@ def _heures_remunerees(payslip_data: Dict[str, Any]) -> float:
                 except (TypeError, ValueError):
                     pass
     return 151.67
+
+
+def _classification(employee: Dict[str, Any]) -> Dict[str, Any]:
+    """Classification conventionnelle de la fiche, déjà codée pour la DSN."""
+    valeur = employee.get("classification_conventionnelle")
+    return valeur if isinstance(valeur, dict) else {}
+
+
+DEPARTEMENT_DANS_LIBELLE = re.compile(r"\s*\((\d{2}[AB]?|\d{3})\)\s*$")
+DEPARTEMENTS_METROPOLE_ET_DOM = set(f"{n:02d}" for n in range(1, 96)) | {
+    "2A",
+    "2B",
+    "971",
+    "972",
+    "973",
+    "974",
+    "976",
+}
+
+
+def _naissance(employee: Dict[str, Any], nir: str) -> Tuple[str, str, str, List[str]]:
+    """Retourne (lieu, département, pays, avertissements).
+
+    Le cabinet déclare le libellé de commune seul, le département dans sa propre
+    rubrique et le pays en code ISO. Notre fiche stocke ``BOURG SAINT MAURICE
+    (73)`` : on sépare les deux, et on retombe sur le NIR si le libellé ne porte
+    pas le département.
+    """
+    avertissements: List[str] = []
+    libelle = str(employee.get("lieu_naissance") or "").strip()
+    departement = ""
+    trouve = DEPARTEMENT_DANS_LIBELLE.search(libelle)
+    if trouve:
+        departement = trouve.group(1)
+        libelle = DEPARTEMENT_DANS_LIBELLE.sub("", libelle).strip()
+    if not departement and len(nir) >= 7:
+        departement = nir[5:7]
+    pays = ""
+    if departement in DEPARTEMENTS_METROPOLE_ET_DOM:
+        pays = "FR"
+    elif departement:
+        # 99 = né à l'étranger : le code pays ISO n'est pas dans la fiche.
+        avertissements.append(
+            f"Code pays de naissance inconnu pour le NIR {nir[:13]} "
+            f"(né hors de France, département {departement})"
+        )
+        departement = ""
+    return libelle, departement, pays, avertissements
+
+
+def _sexe_declare(employee: Dict[str, Any], nir: str) -> Tuple[str, List[str]]:
+    """Sexe déclaré : le NIR fait foi quand la fiche le contredit.
+
+    Le premier chiffre du NIR porte le sexe et il est contrôlé par la clé ; une
+    fiche qui le contredit est une erreur de saisie, pas une source.
+    """
+    depuis_fiche = map_sexe_to_dsn(employee.get("sexe") or employee.get("gender"))
+    if not nir or nir[0] not in ("1", "2"):
+        return depuis_fiche, []
+    depuis_nir = "01" if nir[0] == "1" else "02"
+    if depuis_nir != depuis_fiche:
+        return depuis_nir, [
+            f"Sexe de la fiche contredit par le NIR {nir[:13]} : "
+            f"c'est le NIR qui est déclaré"
+        ]
+    return depuis_fiche, []
 
 
 def _is_cadre(employee: Dict[str, Any]) -> bool:
@@ -374,6 +467,7 @@ def build_individu_from_payroll(
     company_siret: str,
     require_cotisation_codes: bool = False,
     default_ops: str = "",
+    settings: Optional[DsnSettings] = None,
 ) -> Tuple[IndividuBlock, List[str]]:
     warnings: List[str] = []
     nir = str(employee.get("nir") or "").replace(" ", "")
@@ -392,6 +486,8 @@ def build_individu_from_payroll(
             if employee.get("duree_hebdomadaire") is not None
             else None
         ),
+        is_forfait_jour=bool(employee.get("is_forfait_jour")),
+        quotite_forfait_jours=(settings or DsnSettings()).quotite_forfait_jours,
     )
     nature = map_contract_nature_to_dsn(employee.get("contract_type"))
     statut = map_statut_to_dsn(employee.get("statut"), is_cadre=_is_cadre(employee))
@@ -407,6 +503,7 @@ def build_individu_from_payroll(
     net_verse = _net_a_payer(payslip_data)
     pas_montant, pas_taux, pas_assiette = _pas_details(payslip_data)
 
+    extract_cotisations_from_payslip, _ = _extracteurs_bulletin()
     cot_sal, cot_pat, cot_lines, meta = extract_cotisations_from_payslip(payslip_data)
     warnings.extend(meta.get("warnings") or [])
     bases, cotisations, map_warnings = build_bases_and_cotisations(
@@ -419,11 +516,12 @@ def build_individu_from_payroll(
     )
     warnings.extend(map_warnings)
 
+    classification = _classification(employee)
     numero = str(
-        employee.get("numero_contrat")
+        classification.get("numero_contrat_dsn")
+        or employee.get("numero_contrat")
         or employee.get("contract_number")
-        or employee.get("matricule")
-        or "00001"
+        or "00000"
     )
     rem_build = build_remunerations_from_payslip(
         payslip_data,
@@ -482,71 +580,129 @@ def build_individu_from_payroll(
                 )
             )
 
+    pcs = str(classification.get("pcs") or employee.get("pcs") or employee.get("code_pcs") or "")
+    idcc = normaliser_idcc(classification.get("idcc") or employee.get("idcc") or "")
+    if not idcc:
+        warnings.append(
+            f"Code convention collective (IDCC) manquant pour le NIR {nir_dsn}"
+        )
+    dispositif = str(
+        classification.get("dispositif_politique_publique")
+        or employee.get("dispositif_politique")
+        or "99"
+    )
+    libelle_emploi = str(
+        classification.get("libelle_emploi")
+        or employee.get("job_title")
+        or employee.get("poste")
+        or ""
+    )
+    statut_dsn = str(classification.get("code_statut_dsn") or statut)
+    position = str(classification.get("position") or "")
+
+    rubriques_contrat = {
+        "S21.G00.40.001": date_debut,
+        "S21.G00.40.002": statut_dsn,
+        "S21.G00.40.004": pcs,
+        "S21.G00.40.006": libelle_emploi,
+        "S21.G00.40.007": nature,
+        "S21.G00.40.008": dispositif,
+        "S21.G00.40.009": numero,
+        "S21.G00.40.011": unite,
+        "S21.G00.40.012": q_ref,
+        "S21.G00.40.013": quotite,
+        "S21.G00.40.014": modalite,
+        "S21.G00.40.019": company_siret.replace(" ", "")[:14],
+    }
+    if idcc:
+        rubriques_contrat["S21.G00.40.017"] = idcc
+    # Position, niveau et classification conventionnelle du salarié.
+    for rubrique in ("S21.G00.40.018", "S21.G00.40.020", "S21.G00.40.039"):
+        if position:
+            rubriques_contrat[rubrique] = position
+    if classification.get("classification_dsn"):
+        rubriques_contrat["S21.G00.40.040"] = str(classification["classification_dsn"])
+    if classification.get("niveau_dsn"):
+        rubriques_contrat["S21.G00.40.041"] = str(classification["niveau_dsn"])
+    if classification.get("taux_at_individuel_dsn"):
+        rubriques_contrat["S21.G00.40.043"] = str(
+            classification["taux_at_individuel_dsn"]
+        )
+    rubriques_contrat.update(CONSTANTES_CONTRAT)
+
     ctr = ContratBlock(
         nature=nature,
         statut=statut,
-        pcs=str(employee.get("pcs") or employee.get("code_pcs") or ""),
+        pcs=pcs,
         date_debut=date_debut,
-        idcc=str(employee.get("idcc") or ""),
+        idcc=idcc,
         modalite_temps=modalite,
         quotite=quotite,
         quotite_reference=q_ref,
         unite_quotite=unite,
-        dispositif=str(employee.get("dispositif_politique") or "99"),
+        dispositif=dispositif,
         numero_contrat=numero,
-        libelle_emploi=str(employee.get("job_title") or employee.get("poste") or ""),
+        libelle_emploi=libelle_emploi,
         affiliations=affiliations,
         versements=[versement],
-        rubriques={
-            "S21.G00.40.001": date_debut,
-            "S21.G00.40.002": statut,
-            "S21.G00.40.004": str(employee.get("pcs") or ""),
-            "S21.G00.40.006": str(employee.get("job_title") or employee.get("poste") or ""),
-            "S21.G00.40.007": nature,
-            "S21.G00.40.008": str(employee.get("dispositif_politique") or "99"),
-            "S21.G00.40.009": numero,
-            "S21.G00.40.011": unite,
-            "S21.G00.40.012": q_ref,
-            "S21.G00.40.013": quotite,
-            "S21.G00.40.014": modalite,
-            "S21.G00.40.017": str(employee.get("idcc") or ""),
-            "S21.G00.40.019": company_siret.replace(" ", "")[:14],
-        },
+        rubriques=rubriques_contrat,
     )
     # BOETH éventuel
     boeth = employee.get("boeth_code") or employee.get("statut_boeth")
     if boeth:
         ctr.rubriques["S21.G00.40.072"] = str(boeth)
 
+    lieu_naissance, departement_naissance, pays_naissance, avertissements = _naissance(
+        employee, nir
+    )
+    warnings.extend(avertissements)
+    sexe, avertissements = _sexe_declare(employee, nir)
+    warnings.extend(avertissements)
+    nom = str(employee.get("last_name") or "").upper()
+    prenom = str(employee.get("first_name") or "").strip()
+    matricule = str(
+        employee.get("matricule") or employee.get("time_tracking_id") or ""
+    )
+
+    rubriques_individu = {
+        "S21.G00.30.001": nir_dsn,
+        "S21.G00.30.002": nom,
+        "S21.G00.30.004": prenom,
+        "S21.G00.30.005": sexe,
+        "S21.G00.30.006": iso_to_dsn_date(
+            employee.get("date_naissance") or employee.get("birth_date")
+        ),
+        "S21.G00.30.007": lieu_naissance,
+        "S21.G00.30.008": addr["rue"],
+        "S21.G00.30.009": addr["code_postal"],
+        "S21.G00.30.010": addr["ville"],
+        "S21.G00.30.019": matricule,
+    }
+    if employee.get("nom_usage"):
+        rubriques_individu["S21.G00.30.003"] = str(employee["nom_usage"]).upper()
+    if departement_naissance:
+        rubriques_individu["S21.G00.30.014"] = departement_naissance
+    if pays_naissance:
+        rubriques_individu["S21.G00.30.015"] = pays_naissance
+    complement = (employee.get("adresse") or employee.get("address") or {})
+    if isinstance(complement, dict) and complement.get("complement"):
+        rubriques_individu["S21.G00.30.016"] = str(complement["complement"])
+    rubriques_individu.update(CONSTANTES_INDIVIDU)
+
     ind = IndividuBlock(
-        nom=str(employee.get("last_name") or "").upper(),
-        prenom=str(employee.get("first_name") or "").upper(),
-        sexe=map_sexe_to_dsn(employee.get("sexe") or employee.get("gender")),
+        nom=nom,
+        prenom=prenom,
+        sexe=sexe,
         nir=nir_dsn,
-        matricule=str(employee.get("matricule") or employee.get("time_tracking_id") or ""),
+        matricule=matricule,
         ntt=str(employee.get("ntt") or ""),
         date_naissance=iso_to_dsn_date(employee.get("date_naissance") or employee.get("birth_date")),
-        lieu_naissance=str(employee.get("lieu_naissance") or ""),
+        lieu_naissance=lieu_naissance,
         adresse_rue=addr["rue"],
         adresse_cp=addr["code_postal"],
         adresse_ville=addr["ville"],
         contrats=[ctr],
-        rubriques={
-            "S21.G00.30.001": nir_dsn,
-            "S21.G00.30.002": str(employee.get("last_name") or "").upper(),
-            "S21.G00.30.004": str(employee.get("first_name") or "").upper(),
-            "S21.G00.30.005": map_sexe_to_dsn(employee.get("sexe") or employee.get("gender")),
-            "S21.G00.30.006": iso_to_dsn_date(
-                employee.get("date_naissance") or employee.get("birth_date")
-            ),
-            "S21.G00.30.007": str(employee.get("lieu_naissance") or ""),
-            "S21.G00.30.008": addr["rue"],
-            "S21.G00.30.009": addr["code_postal"],
-            "S21.G00.30.010": addr["ville"],
-            "S21.G00.30.019": str(
-                employee.get("matricule") or employee.get("time_tracking_id") or ""
-            ),
-        },
+        rubriques=rubriques_individu,
     )
     # Totaux cotisations stockés pour contrôles
     ind.rubriques["_cot_sal"] = f"{cot_sal:.2f}"
@@ -643,6 +799,7 @@ def build_parsed_dsn_from_payroll(
                 company_siret=etab.siret,
                 require_cotisation_codes=require_cotisation_codes,
                 default_ops=default_ops,
+                settings=parametres,
             )
             warnings.extend(w)
             etab.individus.append(ind)

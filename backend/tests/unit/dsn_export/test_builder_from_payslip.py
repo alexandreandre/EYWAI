@@ -111,7 +111,8 @@ def test_builder_produces_p26_parsable_file():
     ind = dsn_file.etablissement.individus[0]
     assert ind.nir == "1850175123456"
     assert ind.nom == "DUPONT"
-    assert ind.prenom == "JEAN"
+    # Le prénom garde la casse de la fiche : le cabinet déclare « Jean ».
+    assert ind.prenom == "Jean"
     assert ind.contrats[0].nature == "01"
     totals = extract_monthly_totals(ind)
     assert abs(totals["brut"] - 2500.0) < 0.01
