@@ -50,7 +50,11 @@ def compute_fractionnement_days_mbc(inp: FractionnementMbcInput) -> Fractionneme
     ratio = float(inp.ouvres_to_ouvrables_ratio) or OUVRES_TO_OUVRABLES_DEFAULT
     solde_ouvrables = round(max(0.0, solde_ouvres) * ratio, 2)
 
-    one_day = 1 if 3.0 <= solde_ouvrables <= 5.0 else 0
+    # Le barème légal raisonne en jours entiers (3, 4 ou 5 → 1 j ; 6 et plus →
+    # 2 j). La conversion ouvrés → ouvrables produit des décimales : borner la
+    # première tranche à 5,0 laisserait ]5 ; 6[ sans droit, et un reliquat plus
+    # élevé ouvrirait alors moins de droits qu'un reliquat plus faible.
+    one_day = 1 if 3.0 <= solde_ouvrables < 6.0 else 0
     two_days = 2 if solde_ouvrables >= 6.0 else 0
     days_granted = min(2, max(one_day, two_days))
 

@@ -36,7 +36,9 @@ def _settings_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "fifth_week_deduction_ouvres": float(
             row.get("fifth_week_deduction_ouvres") or 5
         ),
-        "calculation_method": row.get("calculation_method") or "mbc",
+        "calculation_method": row.get("calculation_method")
+        or frac_repo.DEFAULT_CALCULATION_METHOD,
+        "exclude_forfait_jours": bool(row.get("exclude_forfait_jours", True)),
     }
 
 
@@ -49,20 +51,6 @@ def update_fractionnement_settings(
 ) -> dict[str, Any]:
     row = frac_repo.upsert_fractionnement_settings(company_id, payload)
     return _settings_to_api(row)
-
-
-def _is_november_payslip_validated(employee_id: str, year: int) -> bool:
-    resp = (
-        supabase.table("payslips")
-        .select("id, status")
-        .eq("employee_id", employee_id)
-        .eq("year", year)
-        .eq("month", 11)
-        .limit(1)
-        .execute()
-    )
-    rows = resp.data or []
-    return bool(rows and rows[0].get("status") == "valide")
 
 
 def _solde_cp_n1_ouvres_at_date(
@@ -121,12 +109,14 @@ def compute_fractionnement_for_employee(
     if not rows:
         return None
     emp = rows[0]
-    if is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")):
+    if settings.get("exclude_forfait_jours", True) and is_forfait_jour(
+        emp.get("statut"), emp.get("is_forfait_jour")
+    ):
         return None
 
     ratio = settings["ouvres_to_ouvrables_ratio"]
     cp_unit = settings["cp_unit"]
-    method = settings.get("calculation_method") or "mbc"
+    method = settings.get("calculation_method") or frac_repo.DEFAULT_CALCULATION_METHOD
 
     solde_n1 = _solde_cp_n1_ouvres_at_date(
         employee_id,
@@ -145,6 +135,8 @@ def compute_fractionnement_for_employee(
     )
     reported = inputs["cp_reported_june_ouvres"]
     seniority = inputs["cp_seniority_deduction_ouvres"]
+    inp_row = frac_repo.get_fractionnement_input(company_id, employee_id, grant_year)
+    manual_solde = float((inp_row or {}).get("manual_solde_ouvrables") or 0)
 
     if method == "legal":
         validated = absence_repository.list_validated_for_employees([employee_id])
@@ -152,13 +144,12 @@ def compute_fractionnement_for_employee(
             FractionnementLegalInput(
                 validated_requests=validated,
                 grant_year=grant_year,
+                cp_unit=cp_unit,
                 fifth_week_deduction_ouvres=settings["fifth_week_deduction_ouvres"],
                 ouvres_to_ouvrables_ratio=ratio,
             )
         )
     elif method == "manual":
-        inp_row = frac_repo.get_fractionnement_input(company_id, employee_id, grant_year)
-        manual_solde = float((inp_row or {}).get("manual_solde_ouvrables") or 0)
         result = compute_fractionnement_days_mbc(
             FractionnementMbcInput(
                 solde_cp_n1_ouvres=manual_solde / ratio if ratio else manual_solde,
@@ -207,6 +198,7 @@ def compute_fractionnement_for_employee(
         "report_june_manual_override": inputs.get("report_june_manual_override"),
         "seniority_manual_override": inputs.get("seniority_manual_override"),
         "prefill_source": inputs.get("prefill_source"),
+        "manual_solde_ouvrables": manual_solde,
         "solde_cp_n1_ouvres": solde_n1,
         "solde_ouvres": result.solde_ouvres,
         "solde_ouvrables": result.solde_ouvrables,
@@ -223,7 +215,13 @@ def apply_fractionnement_to_payslip_balances(
     month: int,
     balances: dict[str, Any],
 ) -> dict[str, Any]:
-    """Crédite les jours de fractionnement sur le bulletin de novembre."""
+    """
+    Reporte sur le bulletin de novembre les jours de fractionnement validés.
+
+    Lecture seule : construire un bulletin ne crée aucun droit. Un droit naît
+    de la validation RH (« Valider tout » sur la campagne congés), jamais d'un
+    affichage — sinon un calcul faux se figerait en base sans décision.
+    """
     if month != 11:
         return balances
     settings = get_fractionnement_settings(company_id)
@@ -232,32 +230,11 @@ def apply_fractionnement_to_payslip_balances(
 
     grant_year = year
     existing = frac_repo.get_fractionnement_grant(employee_id, grant_year)
-    locked = _is_november_payslip_validated(employee_id, year)
+    if not existing or existing.get("status") != "validated":
+        return balances
 
-    if existing and locked:
-        days = int(existing.get("days_granted") or 0)
-        snapshot = existing.get("calculation_snapshot") or {}
-    else:
-        computed = compute_fractionnement_for_employee(
-            employee_id, company_id, grant_year
-        )
-        if not computed:
-            return balances
-        days = int(computed["days_granted"])
-        snapshot = computed["calculation_snapshot"]
-        status = (existing or {}).get("status") or "computed"
-        if status == "validated":
-            status = "validated"
-        frac_repo.upsert_fractionnement_grant(
-            company_id,
-            employee_id,
-            grant_year,
-            year,
-            month,
-            days,
-            snapshot,
-            status=status,
-        )
+    days = int(existing.get("days_granted") or 0)
+    snapshot = existing.get("calculation_snapshot") or {}
 
     if days > 0:
         cp = dict(balances.get("conges_payes") or {})

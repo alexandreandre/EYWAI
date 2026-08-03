@@ -36,8 +36,11 @@ def test_fractionnement_legal_no_consecutive_block():
     assert result.days_granted >= 0
 
 
-def test_fractionnement_legal_twelve_consecutive_zero():
-    """12 jours consécutifs pris → pas de fractionnement."""
+def test_fractionnement_legal_twelve_consecutive_keeps_right():
+    """
+    12 jours consécutifs pris en période : le droit reste ouvert sur le
+    reliquat (L3141-23 en fait la condition, pas une cause d'extinction).
+    """
     days = [f"2026-07-{d:02d}" for d in range(1, 13)]
     validated = [
         {
@@ -49,11 +52,16 @@ def test_fractionnement_legal_twelve_consecutive_zero():
     result = compute_fractionnement_legal(
         FractionnementLegalInput(validated_requests=validated, grant_year=2026)
     )
-    assert result.days_granted == 0
+    assert result.days_granted == 2
 
 
 def test_apply_fractionnement_november_wiring():
-    """Bulletin novembre : crédit fractionnement sur soldes CP."""
+    """Bulletin novembre : crédit des jours validés sur les soldes CP.
+
+    Le crédit vient d'un droit validé par les RH. Le cas d'un droit absent ou
+    seulement calculé, et l'absence d'écriture en base, sont couverts par
+    `test_fractionnement_reglages.py`.
+    """
     from unittest.mock import patch
 
     from app.modules.absences.application.fractionnement_queries import (
@@ -61,9 +69,10 @@ def test_apply_fractionnement_november_wiring():
     )
 
     balances = {"conges_payes": {"acquis": 25.0, "solde": 10.0}}
-    computed = {
+    grant = {
         "days_granted": 2,
-        "calculation_snapshot": {"source": "mbc_auto"},
+        "status": "validated",
+        "calculation_snapshot": {"source": "fractionnement_legal"},
     }
 
     with patch(
@@ -71,16 +80,8 @@ def test_apply_fractionnement_november_wiring():
         return_value={"fractionnement_enabled": True},
     ), patch(
         "app.modules.absences.application.fractionnement_queries.frac_repo.get_fractionnement_grant",
-        return_value=None,
-    ), patch(
-        "app.modules.absences.application.fractionnement_queries._is_november_payslip_validated",
-        return_value=False,
-    ), patch(
-        "app.modules.absences.application.fractionnement_queries.compute_fractionnement_for_employee",
-        return_value=computed,
-    ), patch(
-        "app.modules.absences.application.fractionnement_queries.frac_repo.upsert_fractionnement_grant",
-    ) as upsert:
+        return_value=grant,
+    ):
         result = apply_fractionnement_to_payslip_balances(
             "emp-1", "comp-1", 2026, 11, balances
         )
@@ -88,7 +89,6 @@ def test_apply_fractionnement_november_wiring():
     assert result["conges_payes"]["acquis"] == 27.0
     assert result["conges_payes"]["solde"] == 12.0
     assert result["fractionnement"]["jours_acquis"] == 2
-    upsert.assert_called_once()
 
 
 def test_apply_fractionnement_skipped_outside_november():

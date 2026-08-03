@@ -13,7 +13,8 @@ class FractionnementSettingsResponse(BaseModel):
     cp_unit: Literal["ouvres", "ouvrables"] = "ouvres"
     ouvres_to_ouvrables_ratio: float = 1.2
     fifth_week_deduction_ouvres: float = 5.0
-    calculation_method: Literal["mbc", "manual", "legal"] = "mbc"
+    calculation_method: Literal["mbc", "manual", "legal"] = "legal"
+    exclude_forfait_jours: bool = True
 
 
 class FractionnementSettingsUpdate(BaseModel):
@@ -22,6 +23,7 @@ class FractionnementSettingsUpdate(BaseModel):
     ouvres_to_ouvrables_ratio: Optional[float] = Field(None, gt=0)
     fifth_week_deduction_ouvres: Optional[float] = Field(None, ge=0)
     calculation_method: Optional[Literal["mbc", "manual", "legal"]] = None
+    exclude_forfait_jours: Optional[bool] = None
 
 
 class FractionnementInputUpdate(BaseModel):
@@ -46,10 +48,11 @@ class FractionnementPreviewRow(BaseModel):
     report_june_manual_override: bool = False
     seniority_manual_override: bool = False
     prefill_source: Optional[dict[str, str]] = None
+    manual_solde_ouvrables: float = 0.0
     solde_ouvres: float
     solde_ouvrables: float
     days_granted: int
-    calculation_method: str = "mbc"
+    calculation_method: str = "legal"
     status: str = "computed"
 
 

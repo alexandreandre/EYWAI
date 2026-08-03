@@ -11,6 +11,10 @@ from app.modules.absences.domain.fractionnement import (
     OUVRES_TO_OUVRABLES_DEFAULT,
 )
 
+# La méthode légale se calcule depuis les congés réellement posés ; la formule
+# « MBC » reproduit le tableur d'une seule société et réclame une saisie RH.
+DEFAULT_CALCULATION_METHOD = "legal"
+
 
 def get_fractionnement_settings_row(company_id: str) -> dict[str, Any]:
     resp = (
@@ -28,7 +32,8 @@ def get_fractionnement_settings_row(company_id: str) -> dict[str, Any]:
             "cp_unit": "ouvres",
             "ouvres_to_ouvrables_ratio": OUVRES_TO_OUVRABLES_DEFAULT,
             "fifth_week_deduction_ouvres": FIFTH_WEEK_DEDUCTION_OUVRES_DEFAULT,
-            "calculation_method": "mbc",
+            "calculation_method": DEFAULT_CALCULATION_METHOD,
+            "exclude_forfait_jours": True,
         }
     return rows[0]
 
@@ -48,6 +53,7 @@ def upsert_fractionnement_settings(
         "ouvres_to_ouvrables_ratio",
         "fifth_week_deduction_ouvres",
         "calculation_method",
+        "exclude_forfait_jours",
     )
     for key in allowed:
         if key in payload:
