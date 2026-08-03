@@ -5,7 +5,7 @@ traite que la liste HEURES). Rend reproductible la config cadre sur tous les moi
 PERMANENT (specificites_paie) — posé une fois, vaut pour tous les mois :
   - prévoyance cadre TA (brut_plafonne 0.365%/1.825%) + TB (tranche_2 1.14%/1.709%)
   - retraite supplémentaire "Supplémentaire" (brut_plafonne 2.5%/2.5%) = la ligne qui
-    débloque les cadres (cf. mémoire backtest-comitech-2026 : décodage BOUVEYRON au centime)
+    débloque les cadres (cf. mémoire backtest-comitech-2026 : décodage des cadres au centime)
   - mutuelle isolée GAN (EMU3), part patronale non réintégrée impôt
 
 MENSUEL (monthly_inputs, marqués CADRE_MARKER -> idempotents) — auto-dérivés du bulletin :
@@ -13,9 +13,9 @@ MENSUEL (monthly_inputs, marqués CADRE_MARKER -> idempotents) — auto-dérivé
   - "Indemnité de transport" +X (net-only) si ligne STRA présente
   - "Maintien de salaire" +X (taxable) si ligne présente [arrêt : approx, cf. KNOWN_GAP]
 
-NE gère PAS : paternité forfait (CHAMBERT jan, réduction base cotis -> chantier moteur).
+NE gère PAS : paternité forfait (réduction base cotis -> chantier moteur).
 
-Usage: .venv/bin/python -m scripts.backtest.comitech_cadres --month 2 [--emp SARDA]
+Usage: .venv/bin/python -m scripts.backtest.comitech_cadres --month 2 [--emp NOM]
 """
 from __future__ import annotations
 
@@ -28,20 +28,20 @@ from typing import Dict, List, Optional, Tuple
 from app.core.database import get_supabase_admin_client
 from scripts.backtest.employee_matching import resolve_company_id
 from scripts.backtest.bulletins_source import resolve_bulletin_pdf
+from scripts.donnees_nominatives import charger_ou_vide
 
 COMPANY = "Comitech Composite"
 MUT_ISOLE_ID = "d7131a63-7fef-417b-bb5d-f0e6081e457d"
 CADRE_MARKER = "BACKTEST_CADRE_COMITECH"
 
-# Cadres avec prévoyance CADRE + retraite supplémentaire (EPR1/EPR2 + Supplémentaire).
-CADRE_PREV = ["BOUVEYRON", "SARDA", "CHAMBERT", "GARCIA"]
+_CFG_CADRES = charger_ou_vide("comitech", "backtest-cadres") or {}
 
-# SALAIRE DE BASE réel (jan-mars / avr-juin) — augmentation d'avril (comme les HEURES).
-# Seule SARDA change ; les autres constants sur l'année. Valeurs lues au bulletin.
-CADRE_BASE = {
-    "BOUVEYRON": (3378.63, 3378.63), "SARDA": (3285.79, 3368.59),
-    "CHAMBERT": (3750.0, 3750.0), "GARCIA": (3235.0, 3235.0),
-}
+# Cadres avec prévoyance CADRE + retraite supplémentaire (EPR1/EPR2).
+# Listes et salaires nominatifs lus hors dépôt Git
+# (data/comitech/referentiel/backtest-cadres.json).
+CADRE_PREV = list(_CFG_CADRES.get("cadres", []))
+CADRE_BASE = {k: tuple(v) for k, v in _CFG_CADRES.get("base_par_periode", {}).items()}
+
 
 PREV_LIGNES = [
     {"id": "prev_ta", "base": "brut_plafonne", "libelle": "Prévoyance cadre TA (import DSN)",
@@ -115,7 +115,7 @@ def _montant_zone(seg: List[str], label: str) -> Optional[float]:
 
 def _salaire_de_base(seg: List[str]) -> Optional[float]:
     """Montant 'SALAIRE DE BASE' via la colonne Montant salarial (robuste sidebar +
-    heures-cadre taux×151.67h vs forfait/GARCIA valeur directe)."""
+    heures-cadre taux×151.67h vs forfait valeur directe)."""
     return _montant_zone(seg, "SALAIRE DE BASE")
 
 
@@ -149,7 +149,7 @@ def _ensure_permanent(admin, cid, mat, month, base_val=None) -> str:
     have = {l.get("id") for l in lignes}
     changed = False
     for pl in PREV_LIGNES:
-        # GARCIA : brut < plafond -> pas de TB (mais inoffensif : tranche_2=0 -> montant 0).
+        # Brut < plafond -> pas de TB (mais inoffensif : tranche_2=0 -> montant 0).
         if pl["id"] not in have:
             lignes.append(copy.deepcopy(pl)); changed = True
     if changed:
@@ -157,7 +157,7 @@ def _ensure_permanent(admin, cid, mat, month, base_val=None) -> str:
         prev["lignes_specifiques"] = lignes
         sp["prevoyance"] = prev
     # Mutuelle : tous les cadres ont la GAN ISOLÉ (EMU3 29.24) au bulletin, PAS la
-    # mutuelle "Cadre" (170.46). CHAMBERT était mal câblé sur ebdb6e04 -> -139.23 fixe.
+    # mutuelle "Cadre" (170.46). un cadre était mal câblé sur ebdb6e04 -> -139.23 fixe.
     # Réintégration part patronale à l'impôt : démarre AVRIL (cf. HEURES) -> month-aware.
     reintegree = month >= 4
     mut = sp.get("mutuelle") or {}

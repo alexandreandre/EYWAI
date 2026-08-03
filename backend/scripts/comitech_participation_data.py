@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from scripts.donnees_nominatives import charger_ou_vide
+
 PARTICIPATION_EXERCISE_YEAR = 2025
 PARTICIPATION_SIMULATION_NAME = (
     "Participation 2025 — Quadra (exercice clos 31/12/2025)"
@@ -39,64 +41,28 @@ class ParticipationEmployeeSeed:
     last_name_aliases: tuple[str, ...] = ()
 
 
-# Salariés éligibles (≥ 3 mois d'ancienneté au 31/12/2025).
-# Exclus : LACAQUE Virginie, MALACARNE Laura.
+def _charger_participation() -> tuple[ParticipationEmployeeSeed, ...]:
+    """Salariés éligibles (≥ 3 mois d'ancienneté au 31/12/2025) et leurs montants.
+
+    Nom, prénom et montant de participation sont des données personnelles : la
+    table vit dans `data/comitech/referentiel/participation-2025.json`, hors
+    dépôt Git.
+    """
+    return tuple(
+        ParticipationEmployeeSeed(
+            last_name=ligne["last_name"],
+            first_hint=ligne.get("first_hint"),
+            gross_amount=ligne["gross_amount"],
+            advance_amount=ligne.get("advance_amount", 0.0),
+            advance_label=ligne.get("advance_label", "décembre 2025"),
+            last_name_aliases=tuple(ligne.get("last_name_aliases") or ()),
+        )
+        for ligne in charger_ou_vide("comitech", "participation-2025")
+    )
+
+
 COMITECH_PARTICIPATION_2025: tuple[ParticipationEmployeeSeed, ...] = (
-    ParticipationEmployeeSeed("BOUDJEMAA", "Lahouari", 2.51),
-    ParticipationEmployeeSeed("BOUFRIDA", "Samir", 1_752.57, 500.0),
-    ParticipationEmployeeSeed(
-        "BOUVEYRON",
-        "Michel",
-        3_503.94,
-        1_000.0,
-        last_name_aliases=("BOUVERYON",),
-    ),
-    ParticipationEmployeeSeed(
-        "CASANOVA",
-        "Vitor",
-        1_935.47,
-        500.0,
-        last_name_aliases=("CASANOVA DA SILVA",),
-    ),
-    ParticipationEmployeeSeed("CHAMBERT", "Lucas", 876.94, 500.0),
-    ParticipationEmployeeSeed("CORDEAU", "Olivier", 768.74),
-    ParticipationEmployeeSeed(
-        "DA SILVA CARDOSO",
-        "Vitor",
-        24.80,
-        last_name_aliases=("DA SILVA", "CASANOVA DA SILVA"),
-    ),
-    ParticipationEmployeeSeed(
-        "MARCHICH",
-        "Hafida",
-        841.68,
-        250.0,
-        last_name_aliases=("EL IDRISSI",),
-    ),
-    ParticipationEmployeeSeed("GARCIA", "Mickael", 2_752.11, 1_000.0),
-    ParticipationEmployeeSeed("GENAND", "Catherine", 2_360.25, 500.0),
-    ParticipationEmployeeSeed("GOYAT", "Stephane", 1_615.65, 500.0),
-    ParticipationEmployeeSeed(
-        "PRONIER",
-        "Nadine",
-        2_120.19,
-        500.0,
-        last_name_aliases=("GROS",),
-    ),
-    ParticipationEmployeeSeed("JEAN", "David", 587.71, 250.0),
-    ParticipationEmployeeSeed("MARTINEZ", "Veronique", 472.22),
-    ParticipationEmployeeSeed(
-        "MARCHICH",
-        "Yamena",
-        1_616.20,
-        500.0,
-        last_name_aliases=("OUASSIF",),
-    ),
-    ParticipationEmployeeSeed("POINSIGNON", "Thibault", 2_364.32, 500.0),
-    ParticipationEmployeeSeed("SARDA", "Dominique", 3_502.71, 1_000.0),
-    ParticipationEmployeeSeed("SOW", "Mamadou", 763.60, 250.0),
-    ParticipationEmployeeSeed("TROUILLOUD", "Florian", 2_269.02, 500.0),
-    ParticipationEmployeeSeed("VALLAT", "Romain", 1_709.43, 500.0),
+    _charger_participation()
 )
 
 

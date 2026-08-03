@@ -13,7 +13,7 @@ Variables MENSUELLES : auto-derivees des bulletins reels (scratchpad extract JSO
 pour famille (-98.12), transport, prime poste difficile (60), HS conjoncturelles,
 conges payes. Cas complexes (absences non payees, paternite, maintien) : OVERRIDE.
 
-Usage: .venv/bin/python -m scripts.backtest.comitech_setup --month 2 [--emp JEAN]
+Usage: .venv/bin/python -m scripts.backtest.comitech_setup --month 2 [--emp NOM]
 """
 from __future__ import annotations
 
@@ -27,48 +27,31 @@ from typing import Any, Dict, List
 from app.core.database import get_supabase_admin_client, supabase
 from scripts.backtest.employee_matching import resolve_company_id
 
+from scripts.donnees_nominatives import charger_ou_vide
+
 MARKER = "BACKTEST_AUTO_COMITECH"
 MUT_ISOLE_ID = "d7131a63-7fef-417b-bb5d-f0e6081e457d"  # GAN Isolé 2026 (EMU3)
 EXTRACT = Path("/private/tmp/claude-501/-Users-alex-Desktop-EYWAI-EYWAI/"
                "cfdb3f75-b90e-430f-922f-effaf4ea2dbd/scratchpad/comitech_extract.json")
 
-HEURES = [
-    "BOUFRIDA", "CASANOVA", "ELIDRISSI", "GENAND", "GOYAT", "GROS", "JEAN",
-    "LACAQUE", "OUASSIF", "POINSIGNON", "SOW", "TROUILLOUD", "VALLAT",
-    "LEBRUN", "MARTINEZ", "BOUDJEMAA",
-]
-FAMILLE = {"BOUFRIDA", "ELIDRISSI", "GROS", "OUASSIF", "TROUILLOUD"}  # -98.12/mois
-NO_MUTUELLE = {"VALLAT", "LACAQUE", "POINSIGNON", "LEBRUN", "MARTINEZ", "BOUDJEMAA"}
-NO_PREVOYANCE = {"MARTINEZ", "BOUDJEMAA"}  # embauches mai, a confirmer
+_CFG = charger_ou_vide("comitech", "backtest-heures") or {}
 
-# Date "Ancienneté" reelle du bulletin (YYYY-MM-DD). Corrige la resolution de la
-# date d'anciennete pour la prime (reprise CASANOVA 2006, boundary VALLAT 3 ans).
-SENIORITY: Dict[str, str] = {
-    "BOUFRIDA": "2019-10-01", "CASANOVA": "2006-11-02", "ELIDRISSI": "2004-05-03",
-    "GENAND": "2000-01-03", "GOYAT": "2003-07-15", "GROS": "1996-06-04",
-    "JEAN": "2025-05-28", "LACAQUE": "2026-01-19", "OUASSIF": "2018-02-01",
-    "POINSIGNON": "2010-07-07", "SOW": "2025-04-22", "TROUILLOUD": "2014-05-05",
-    "VALLAT": "2022-11-21",
-}
-
+# Listes et bareme nominatifs : donnees personnelles, lues hors depot Git
+# (data/comitech/referentiel/backtest-heures.json).
+HEURES = list(_CFG.get("heures", []))
+FAMILLE = set(_CFG.get("famille", []))
+NO_MUTUELLE = set(_CFG.get("sans_mutuelle", []))
+NO_PREVOYANCE = set(_CFG.get("sans_prevoyance", []))
+SENIORITY: Dict[str, str] = dict(_CFG.get("anciennete", {}))
 PERIOD_BASE: Dict[str, tuple] = {
-    "BOUFRIDA": (1887.69, 1924.54), "CASANOVA": (1933.22, 1971.86),
-    "ELIDRISSI": (1933.22, 1981.57), "GENAND": (2063.66, 2123.53),
-    "GOYAT": (1933.22, 1952.60), "GROS": (2062.71, 2114.28),
-    "JEAN": (1880.70, 1918.32), "LACAQUE": (1926.21, 1964.73),
-    "OUASSIF": (1933.79, 1972.47), "POINSIGNON": (2221.38, 2265.80),
-    "SOW": (1850.37, 1887.38), "TROUILLOUD": (2002.05, 2052.09),
-    "VALLAT": (1899.85, 1943.50), "LEBRUN": (1964.73, 1964.73),
-    "MARTINEZ": (1820.04, 1820.04), "BOUDJEMAA": (2093.05, 2093.05),
+    k: tuple(v) for k, v in _CFG.get("base_par_periode", {}).items()
 }
+
 
 # Overrides cas complexes : {(mois,mat): {"abs":{jour:heures}, "skip_auto_cp":bool,
 # "extra_inputs":[(name,amt,taxed,taxable)], "maintien": ...}}. Best effort.
 OVERRIDE: Dict[tuple, Dict[str, Any]] = {
-    # ELIDRISSI : prime exceptionnelle 60 (parse fev = artefact Plafond Secu).
-    (2, "ELIDRISSI"): {"extra_inputs": [("Prime exceptionnelle", 60.0, True, True)]},
-    # SOW : absences non payees en heures PARTIELLES (1.7h/jour) non modelisables
-    # via calendrier jour-plein -> KNOWN_GAP. Pas d'override (evite sur-deduction).
+    # Cas complexes : voir data/comitech/referentiel/.
 }
 
 

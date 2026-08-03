@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+
+from scripts.donnees_nominatives import charger_ou_vide
 from typing import Any
 
 CONTINGENT_SETTINGS: dict[str, Any] = {
@@ -44,14 +46,23 @@ def _weekdays_end_2025(count: int) -> tuple[date, ...]:
     return tuple(reversed(days))
 
 
-# GENAND : 56,75 h → 8 j × 7 h = 56 h (écart 0,75 h vs Excel)
-COMITECH_RCR_ABSENCES_2025: tuple[RcrAbsenceSeed2025, ...] = (
-    RcrAbsenceSeed2025(
-        "GENAND",
-        "Catherine",
-        _weekdays_end_2025(8),
-    ),
-)
+def _charger_rcr() -> tuple[RcrAbsenceSeed2025, ...]:
+    """RCR consommés en 2025, par salarié — table hors dépôt Git."""
+    return tuple(
+        RcrAbsenceSeed2025(
+            last_name=ligne["last_name"],
+            first_hint=ligne.get("first_hint"),
+            selected_days=tuple(
+                date.fromisoformat(j) for j in ligne.get("selected_days") or ()
+            ),
+            last_name_aliases=tuple(ligne.get("last_name_aliases") or ()),
+        )
+        for ligne in charger_ou_vide("comitech", "rcr-absences-2025")
+    )
+
+
+COMITECH_RCR_ABSENCES_2025: tuple[RcrAbsenceSeed2025, ...] = _charger_rcr()
+
 
 CONTINGENT_HS_SOURCE = "Registre contingent HS Comitech Composite — Excel 2025"
 CONTINGENT_HS_PAYROLL_MONTH = 12
@@ -67,19 +78,18 @@ class PaidHsSeed2025:
     last_name_aliases: tuple[str, ...] = ()
 
 
-# Heures payées au 31/12/2025 — reprise Excel Quadra (mois unique : décembre).
-COMITECH_PAID_HS_2025: tuple[PaidHsSeed2025, ...] = (
-    PaidHsSeed2025("GENAND", "Catherine", 62.50),
-    PaidHsSeed2025("GOYAT", "Stephane", 45.20),
-    PaidHsSeed2025("GROS", "Nadine", 113.25, last_name_aliases=("PRONIER",)),
-    PaidHsSeed2025("JEAN", "David", 6.50),
-    PaidHsSeed2025(
-        "MARCHICH",
-        "Yamena",
-        144.00,
-        last_name_aliases=("OUASSIF",),
-    ),
-    PaidHsSeed2025("POINSIGNON", "Thibault", 0.25),
-    PaidHsSeed2025("TROUILLOUD", "Florian", 179.00),
-    PaidHsSeed2025("VALLAT", "Romain", 52.00),
-)
+def _charger_hs_payees() -> tuple[PaidHsSeed2025, ...]:
+    """HS conjoncturelles payées au 31/12/2025, par salarié — hors dépôt Git."""
+    return tuple(
+        PaidHsSeed2025(
+            last_name=ligne["last_name"],
+            first_hint=ligne.get("first_hint"),
+            hours=ligne["hours"],
+            last_name_aliases=tuple(ligne.get("last_name_aliases") or ()),
+        )
+        for ligne in charger_ou_vide("comitech", "hs-payees-2025")
+    )
+
+
+COMITECH_PAID_HS_2025: tuple[PaidHsSeed2025, ...] = _charger_hs_payees()
+

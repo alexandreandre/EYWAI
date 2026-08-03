@@ -29,6 +29,18 @@ from app.modules.repos_compensateur.application.contingent_queries import (
 )
 from comitech_participation_data import COMITECH_PARTICIPATION_2025
 from setup_comitech_composite import COMITECH_MEDICAL_REGISTRY, resolve_employee
+from scripts.donnees_nominatives import charger_ou_vide
+
+
+def _noms_audites() -> list[str]:
+    """Echantillon de salaries a auditer — noms lus hors depot Git."""
+    return list((charger_ou_vide("comitech", "backtest-heures") or {}).get("heures", []))[:4]
+
+
+def _nom_temoin() -> str:
+    noms = _noms_audites()
+    return noms[0] if noms else "\x00"
+
 
 CID = "12cd8c71-da13-43f9-9151-475c4d5e8812"
 
@@ -255,7 +267,7 @@ def main() -> int:
         if r.get("status") in ("management_exceeded", "cor_exceeded")
     ]
 
-    for name in ("TROUILLOUD", "GENAND", "JEAN", "GOYAT"):
+    for name in _noms_audites():
         row = next(
             (
                 r
@@ -279,7 +291,7 @@ def main() -> int:
             }
 
     report["goyat_in_db"] = [
-        e for e in emps if "GOYAT" in (e.get("last_name") or "").upper()
+        e for e in emps if _nom_temoin() in (e.get("last_name") or "").upper()
     ]
 
     print(json.dumps(report, indent=2, ensure_ascii=False, default=str))

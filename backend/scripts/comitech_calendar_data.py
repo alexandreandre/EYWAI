@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.donnees_nominatives import charger_ou_vide
+
 CALENDAR_YEAR = 2026
 CALENDAR_SOURCE = "Calendrier Excel Comitech Composite 2026"
 CALENDAR_DAILY_HOURS = 7.8  # 39 h / 5 j
@@ -24,50 +26,22 @@ class CalendarSheetMapping:
     last_name_aliases: tuple[str, ...] = ()
 
 
-# Clés normalisées (upper, strip) — une feuille par salarié planifié individuellement.
-COMITECH_CALENDAR_SHEETS: tuple[CalendarSheetMapping, ...] = (
-    CalendarSheetMapping("BOUFRIDA", "BOUFRIDA", "Samir"),
-    CalendarSheetMapping("BOUVEYRON", "BOUVEYRON", "Michel", ("BOUVERYON",)),
-    CalendarSheetMapping(
-        "CASANOVA",
-        "CASANOVA",
-        "Vitor",
-        ("CASANOVA DA SILVA",),
-    ),
-    CalendarSheetMapping("CHAMBERT", "CHAMBERT", "Lucas"),
-    CalendarSheetMapping(
-        "DA SILVA CARDOSO",
-        "DA SILVA CARDOSO",
-        "Vitor",
-        ("DA SILVA", "CASANOVA DA SILVA"),
-    ),
-    CalendarSheetMapping(
-        "EL IDRISSI",
-        "MARCHICH",
-        "Hafida",
-        ("EL IDRISSI",),
-    ),
-    CalendarSheetMapping("GARCIA", "GARCIA", "Mickael"),
-    CalendarSheetMapping("GENAND", "GENAND", "Catherine"),
-    CalendarSheetMapping("GOYAT", "GOYAT", "Stephane"),
-    CalendarSheetMapping(
-        "GROS",
-        "PRONIER",
-        "Nadine",
-        ("GROS",),
-    ),
-    CalendarSheetMapping("JEAN", "JEAN", "David"),
-    CalendarSheetMapping("LACAQUE", "LACAQUE", "Virginie"),
-    CalendarSheetMapping("LEBRUN", "LEBRUN", "Theo"),
-    CalendarSheetMapping(
-        "OUASSIF",
-        "MARCHICH",
-        "Yamena",
-        ("OUASSIF",),
-    ),
-    CalendarSheetMapping("POINSIGNON", "POINSIGNON", "Thibault"),
-    CalendarSheetMapping("SARDA", "SARDA", "Dominique"),
-    CalendarSheetMapping("SOW", "SOW", "Mamadou"),
-    CalendarSheetMapping("TROUILLOUD", "TROUILLOUD", "Florian"),
-    CalendarSheetMapping("VALLAT", "VALLAT", "Romain"),
-)
+def _charger_onglets() -> tuple[CalendarSheetMapping, ...]:
+    """Une feuille Excel par salarié planifié individuellement.
+
+    Le mapping onglet -> identité est une donnée personnelle : il vit dans
+    `data/comitech/referentiel/calendrier-onglets.json`, hors dépôt Git.
+    """
+    return tuple(
+        CalendarSheetMapping(
+            sheet_key=ligne["sheet_key"],
+            last_name=ligne["last_name"],
+            first_hint=ligne.get("first_hint"),
+            last_name_aliases=tuple(ligne.get("last_name_aliases") or ()),
+        )
+        for ligne in charger_ou_vide("comitech", "calendrier-onglets")
+    )
+
+
+COMITECH_CALENDAR_SHEETS: tuple[CalendarSheetMapping, ...] = _charger_onglets()
+

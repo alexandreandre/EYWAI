@@ -29,7 +29,7 @@ Options :
   4. CSE carence + cycle électoral 2019
   5. Médailles du travail (barème 150/300/450/600 €) + scan effectif
   6. Catalogue primes (prime annuelle médaille 30 €)
-  7. Stubs salariés absents du DSN (BOUALI, GENAND)
+  7. Stubs salariés absents du DSN (voir data/comitech/referentiel/)
   8. Formations / habilitations / budget 2026 (registre Excel RH Comitech Composite)
   9. Suivi médical : activation module + registre SPST du 24/06/2026
  10. Protection sociale : catalogue mutuelle Quadra + réconciliation DSN + prévoyance / retraite sup
@@ -50,6 +50,30 @@ from datetime import date
 from pathlib import Path
 import calendar as cal_mod
 from typing import Any
+
+from scripts.donnees_nominatives import charger_ou_vide
+
+
+def _reglage(cle: str, defaut: str) -> str:
+    """Réglage nominatif ponctuel, lu hors dépôt Git."""
+    for ligne in charger_ou_vide("comitech", "reglages"):
+        if ligne.get("cle") == cle:
+            return ligne.get("valeur", defaut)
+    return defaut
+
+
+def _formation_champ(cle: str, champ: str, defaut: str) -> str:
+    for ligne in charger_ou_vide("comitech", "formations"):
+        if ligne.get("cle") == cle:
+            return ligne.get(champ, defaut)
+    return defaut
+
+
+def _inscription_acc_rh() -> tuple[str, str]:
+    for ligne in charger_ou_vide("comitech", "reglages"):
+        if ligne.get("cle") == "inscription_acc_rh":
+            return ligne["last_name"], ligne["first_name"]
+    return ("", "")
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -172,81 +196,28 @@ class MedicalRegistryRow:
     last_name_aliases: tuple[str, ...] = ()
 
 
-COMITECH_MEDICAL_REGISTRY: tuple[MedicalRegistryRow, ...] = (
-    MedicalRegistryRow("BOUFRIDA", "SAMIR", "sir", date(2023, 2, 3), date(2028, 3, 7)),
-    MedicalRegistryRow("BOUVEYRON", "MICHEL", "sir", date(2025, 6, 10), date(2027, 6, 10)),
-    MedicalRegistryRow("CORDEAU", "Olivier", "vip", date(2023, 8, 24), date(2028, 8, 24)),
-    MedicalRegistryRow(
-        "DA SILVA",
-        "VITOR",
-        "sir",
-        date(2025, 4, 9),
-        date(2027, 2, 9),
-        last_name_aliases=("DA SILVA CARDOSO", "CASANOVA DA SILVA"),
-    ),
-    MedicalRegistryRow(
-        "EL IDRISSI",
-        "HAFIDA",
-        "sir",
-        date(2026, 1, 21),
-        date(2028, 1, 21),
-        "Eviter les manutentions manuelles seules de charges lourdes.",
-        ("MARCHICH",),
-    ),
-    MedicalRegistryRow("GARCIA", "MICKAEL", "sir", date(2023, 5, 11), date(2028, 5, 11)),
-    MedicalRegistryRow(
-        "GOYAT",
-        "Stephane",
-        "sir",
-        date(2025, 4, 11),
-        date(2027, 4, 11),
-        "PAS DE CONDUITE DE CHARIOT",
-    ),
-    MedicalRegistryRow(
-        "GROS",
-        "NADINE",
-        "sir",
-        date(2025, 4, 11),
-        date(2027, 2, 11),
-        last_name_aliases=("PRONIER",),
-    ),
-    MedicalRegistryRow("GENAND", "CATHERINE", "sir", date(2025, 4, 23), date(2027, 4, 23)),
-    MedicalRegistryRow("JEAN", "DAVID", "sir", date(2025, 9, 25), date(2027, 9, 25)),
-    MedicalRegistryRow(
-        "OUASSIF",
-        "Yamena",
-        "sir",
-        date(2025, 11, 6),
-        date(2027, 4, 6),
-        last_name_aliases=("MARCHICH",),
-    ),
-    MedicalRegistryRow(
-        "POINSIGNON",
-        "Thibault",
-        "sir",
-        date(2026, 4, 28),
-        date(2028, 3, 28),
-    ),
-    MedicalRegistryRow("SARDA", "DOMINIQUE", "sir", date(2025, 6, 24), date(2027, 6, 24)),
-    MedicalRegistryRow("SOW", "MAMADOU", "sir", date(2025, 10, 2), date(2027, 10, 2)),
-    MedicalRegistryRow("TROUILLOUD", "FLORIAN", "sir", date(2025, 2, 15), date(2027, 2, 15)),
-    MedicalRegistryRow(
-        "VALLAT",
-        "ROMAIN",
-        "sir",
-        date(2023, 1, 9),
-        date(2025, 1, 9),
-        "rdv demandé le 17/03",
-    ),
-    MedicalRegistryRow(
-        "VADOT",
-        "Virginie",
-        "sir",
-        date(2026, 2, 12),
-        date(2028, 2, 12),
-        last_name_aliases=("LACAQUE",),
-    ),
-)
+def _charger_registre_medical() -> tuple[MedicalRegistryRow, ...]:
+    """Registre de suivi médical par salarié — donnée de santé, hors dépôt Git.
+
+    Table dans `data/comitech/referentiel/registre-medical.json`.
+    """
+    return tuple(
+        MedicalRegistryRow(
+            **{
+                **ligne,
+                "visit_date": date.fromisoformat(ligne["visit_date"]),
+                "renew_before": date.fromisoformat(ligne["renew_before"])
+                if ligne.get("renew_before")
+                else None,
+                "last_name_aliases": tuple(ligne.get("last_name_aliases") or ()),
+            }
+        )
+        for ligne in charger_ou_vide("comitech", "registre-medical")
+    )
+
+
+COMITECH_MEDICAL_REGISTRY: tuple[MedicalRegistryRow, ...] = _charger_registre_medical()
+
 
 # ---------------------------------------------------------------------------
 # Comitech Composite — formations / habilitations (registre Excel RH)
@@ -288,37 +259,27 @@ class EmployeeCertSeed:
     last_name_aliases: tuple[str, ...] = ()
 
 
-COMITECH_EMPLOYEE_CERTS: tuple[EmployeeCertSeed, ...] = (
-    EmployeeCertSeed(
-        "BOUVEYRON", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-    ),
-    EmployeeCertSeed(
-        "VALLAT", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-    ),
-    EmployeeCertSeed(
-        "DA SILVA CARDOSO", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-        last_name_aliases=("DA SILVA", "CASANOVA DA SILVA"),
-    ),
-    EmployeeCertSeed(
-        "POINSIGNON", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-    ),
-    EmployeeCertSeed(
-        "SARDA", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-    ),
-    EmployeeCertSeed(
-        "TROUILLOUD", None, date(2024, 2, 21), date(2027, 2, 1),
-        "Autorisation de conduite", "formation AFTRAL",
-    ),
-    EmployeeCertSeed("SARDA", None, date(2024, 4, 9), date(2026, 4, 9), "SST"),
-    EmployeeCertSeed("GENAND", "Catherine", date(2024, 4, 9), date(2026, 4, 9), "SST"),
-    EmployeeCertSeed("BOUVEYRON", None, date(2024, 11, 6), date(2026, 11, 6), "SST"),
-    EmployeeCertSeed("POINSIGNON", None, date(2024, 11, 6), date(2026, 11, 6), "SST"),
-)
+def _charger_certifications() -> tuple[EmployeeCertSeed, ...]:
+    """Habilitations et certifications par salarié — hors dépôt Git."""
+    return tuple(
+        EmployeeCertSeed(
+            **{
+                **ligne,
+                "obtained": date.fromisoformat(ligne["obtained"])
+                if ligne.get("obtained")
+                else None,
+                "expiry": date.fromisoformat(ligne["expiry"])
+                if ligne.get("expiry")
+                else None,
+                "last_name_aliases": tuple(ligne.get("last_name_aliases") or ()),
+            }
+        )
+        for ligne in charger_ou_vide("comitech", "certifications")
+    )
+
+
+COMITECH_EMPLOYEE_CERTS: tuple[EmployeeCertSeed, ...] = _charger_certifications()
+
 
 COMITECH_INCENDIE_SESSION = {
     "obtained": date(2023, 11, 17),
@@ -330,12 +291,19 @@ COMITECH_SOLIDWORKS_NOTES = (
     "Dossier OPCO 26FOR07761,01 — Financement ENTREPRISE — Coût interne 275,26 € — "
     "Impact plan OPCO OUI — Remboursement OPCO OUI — Facture payée OUI — Lieu Belley — Certif OUI"
 )
-COMITECH_ACC_RH_NOTES = (
-    "Dossier OPCO 24DIA04176.01 — Financement OPCO — Coût total 10 000 € HT — "
-    "Formateur HESNAUX Fabienne — STADRH 06.29.57.73.08 — Lieu Belley — Certif NON"
+# Les coordonnées du formateur sont des données personnelles : hors dépôt Git.
+COMITECH_ACC_RH_NOTES = next(
+    (
+        ligne["notes"]
+        for ligne in charger_ou_vide("comitech", "formations")
+        if ligne.get("cle") == "acc_rh"
+    ),
+    "Dossier OPCO — Financement OPCO — Coût total 10 000 € HT",
 )
 
-COMITECH_SOLIDWORKS_EMPLOYEES: tuple[str, ...] = ("SARDA", "BOUVEYRON", "GARCIA", "CHAMBERT")
+COMITECH_SOLIDWORKS_EMPLOYEES: tuple[str, ...] = tuple(
+    ligne["last_name"] for ligne in charger_ou_vide("comitech", "solidworks")
+)
 
 COMITECH_TRAINING_BUDGET: dict[str, Any] = {
     "global_envelope": 12880.0,
@@ -351,9 +319,9 @@ COMITECH_TRAINING_BUDGET: dict[str, Any] = {
 }
 
 # Salariés absents de l'import DSN mais présents dans les registres RH Comitech Composite
-COMITECH_STUB_EMPLOYEES: tuple[tuple[str, str, str, int], ...] = (
-    ("Gaëlle", "BOUALI", "RH", 901),
-    ("Catherine", "GENAND", "Mouleuse formatrice", 902),
+COMITECH_STUB_EMPLOYEES: tuple[tuple[str, str, str, int], ...] = tuple(
+    (ligne["first_name"], ligne["last_name"], ligne["job"], ligne["matricule"])
+    for ligne in charger_ou_vide("comitech", "stubs-salaries")
 )
 
 
@@ -666,12 +634,12 @@ def resolve_employee(
 def ensure_stub_employees(
     supabase, company_id: str, employees: list[dict], *, dry_run: bool
 ) -> list[dict]:
-    """Crée les fiches BOUALI / GENAND si absentes (registres RH Comitech Composite)."""
+    """Crée les fiches des salariés absents du DSN (registres RH Comitech Composite)."""
     template = (
         supabase.table("employees")
         .select("*")
         .eq("company_id", company_id)
-        .eq("last_name", "SARDA")
+        .eq("last_name", _reglage("salarie_modele", ""))
         .limit(1)
         .execute()
     )
@@ -924,12 +892,15 @@ def seed_formation_registry(
         {
             "title": "ACC RH",
             "training_type": "blended",
-            "provider": "STADRH — 06.29.57.73.08 — contactstadrh@gmail.com",
+            "provider": _formation_champ("acc_rh", "provider", "STADRH"),
             "duration_hours": 35.0,
             "unit_cost_ht": 10000.0,
             "pedagogical_objective": (
-                "GRH : fiche de poste, EAE, EP, grille de compétences — "
-                "Formateur HESNAUX Fabienne"
+                _formation_champ(
+                    "acc_rh",
+                    "pedagogical_objective",
+                    "GRH : fiche de poste, EAE, EP, grille de compétences",
+                )
             ),
             "categories": ["rh", "management"],
         },
@@ -966,12 +937,13 @@ def seed_formation_registry(
             enrollments_created += 1
 
     if acc_rh_id:
-        emp = resolve_employee(employees, "BOUALI", "Gaëlle")
+        nom_acc, prenom_acc = _inscription_acc_rh()
+        emp = resolve_employee(employees, nom_acc, prenom_acc)
         if not emp:
-            enrollments_missing.append("BOUALI Gaëlle (ACC RH)")
+            enrollments_missing.append(f"{nom_acc} {prenom_acc} (ACC RH)")
         elif not _enrollment_exists(supabase, company_id, acc_rh_id, str(emp["id"])):
             if dry_run:
-                print("[dry-run] inscription ACC RH Comitech Composite -> BOUALI Gaëlle")
+                print(f"[dry-run] inscription ACC RH Comitech Composite -> {nom_acc} {prenom_acc}")
                 enrollments_created += 1
             else:
                 from app.modules.training.application.commands import create_enrollment
@@ -2206,7 +2178,7 @@ def seed_contingent_rcr_absences(
     *,
     dry_run: bool,
 ) -> dict[str, Any]:
-    """Reprise des RCR 2025 depuis le registre Excel (GENAND)."""
+    """Reprise des RCR 2025 depuis le registre Excel."""
     rows, source = _import_contingent_data()[0], _import_contingent_data()[2]
     created = 0
     skipped = 0
