@@ -1,4 +1,4 @@
-# Export SEPA pain.001.001.03 — virements salaires.
+# Export SEPA pain.001.001.03 — virements salaires et acomptes.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
@@ -22,35 +22,40 @@ def _sub(parent: ET.Element, tag: str, text: str = "") -> ET.Element:
     return el
 
 
-def generate_sepa_pain001(
-    company_id: str,
-    period: str,
-    employee_ids: Optional[List[str]] = None,
-    excluded_employee_ids: Optional[List[str]] = None,
-    execution_date: Optional[str] = None,
-    payment_label: Optional[str] = None,
-    debtor_name: str = "Entreprise",
-    debtor_iban: str = "",
-    debtor_bic: str = "",
-) -> bytes:
-    data, _, _, _ = get_paiement_salaires_data(
-        company_id,
-        period,
-        employee_ids,
-        excluded_employee_ids,
-        execution_date,
-        payment_label,
-    )
-    valid_rows = [
-        r for r in data
+def filter_payable_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Ne garde que les lignes virables : non bloquantes, IBAN valide, montant > 0."""
+    return [
+        r for r in rows
         if r.get("Statut_controle") != "Bloquant"
         and validate_iban(str(r.get("IBAN", "")))
         and float(r.get("Montant", 0) or 0) > 0
     ]
 
+
+def build_pain001(
+    rows: List[Dict[str, Any]],
+    period: str,
+    label: str,
+    execution_date: Optional[str] = None,
+    msg_prefix: str = "EYWAI",
+    payment_info_id: Optional[str] = None,
+    end_to_end_prefix: str = "SAL",
+    debtor_name: str = "Entreprise",
+    debtor_iban: str = "",
+    debtor_bic: str = "",
+) -> bytes:
+    """
+    Construit un pain.001.001.03 à partir de lignes déjà filtrées.
+
+    Les préfixes d'identifiants distinguent les campagnes de paiement : deux
+    remises générées le même mois (salaires et acomptes) ne doivent jamais
+    porter les mêmes MsgId / PmtInfId / EndToEndId côté banque.
+    """
+    valid_rows = filter_payable_rows(rows)
+
     exec_date = execution_date or date.today().isoformat()
-    msg_id = f"EYWAI-{period}-{uuid4().hex[:8]}"
-    label = payment_label or f"Salaires {format_period(period)}"
+    msg_id = f"{msg_prefix}-{period}-{uuid4().hex[:8]}"
+    pmt_inf_id = payment_info_id or f"PMT-{period}"
     total = sum(float(r.get("Montant", 0) or 0) for r in valid_rows)
     nb_tx = len(valid_rows)
 
@@ -66,7 +71,7 @@ def generate_sepa_pain001(
     _sub(initg, "Nm", debtor_name[:70])
 
     pmt_inf = ET.SubElement(cstmr, f"{{{NS}}}PmtInf")
-    _sub(pmt_inf, "PmtInfId", f"PMT-{period}")
+    _sub(pmt_inf, "PmtInfId", pmt_inf_id)
     _sub(pmt_inf, "PmtMtd", "TRF")
     _sub(pmt_inf, "NbOfTxs", str(nb_tx))
     _sub(pmt_inf, "CtrlSum", f"{total:.2f}")
@@ -88,7 +93,7 @@ def generate_sepa_pain001(
     for idx, row in enumerate(valid_rows, start=1):
         tx = ET.SubElement(pmt_inf, f"{{{NS}}}CdtTrfTxInf")
         pmt_id = ET.SubElement(tx, f"{{{NS}}}PmtId")
-        _sub(pmt_id, "EndToEndId", f"SAL-{period}-{idx:04d}")
+        _sub(pmt_id, "EndToEndId", f"{end_to_end_prefix}-{period}-{idx:04d}")
         amt_el = ET.SubElement(tx, f"{{{NS}}}Amt")
         inst = ET.SubElement(amt_el, f"{{{NS}}}InstdAmt", Ccy="EUR")
         inst.text = f"{float(row.get('Montant', 0)):.2f}"
@@ -103,10 +108,44 @@ def generate_sepa_pain001(
         acct_id = ET.SubElement(cdtr_acct, f"{{{NS}}}Id")
         _sub(acct_id, "IBAN", str(row.get("IBAN", "")).replace(" ", ""))
         rmt = ET.SubElement(tx, f"{{{NS}}}RmtInf")
-        _sub(rmt, "Ustrd", label[:140])
+        _sub(rmt, "Ustrd", str(row.get("Libelle") or label)[:140])
 
     ET.register_namespace("", NS)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def generate_sepa_pain001(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    debtor_name: str = "Entreprise",
+    debtor_iban: str = "",
+    debtor_bic: str = "",
+) -> bytes:
+    """Remise SEPA des virements de salaires."""
+    data, _, _, _ = get_paiement_salaires_data(
+        company_id,
+        period,
+        employee_ids,
+        excluded_employee_ids,
+        execution_date,
+        payment_label,
+    )
+    return build_pain001(
+        data,
+        period=period,
+        label=payment_label or f"Salaires {format_period(period)}",
+        execution_date=execution_date,
+        msg_prefix="EYWAI",
+        payment_info_id=f"PMT-{period}",
+        end_to_end_prefix="SAL",
+        debtor_name=debtor_name,
+        debtor_iban=debtor_iban,
+        debtor_bic=debtor_bic,
+    )
 
 
 def preview_sepa(
