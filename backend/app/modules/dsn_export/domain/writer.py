@@ -145,6 +145,11 @@ from app.modules.dsn_import.domain.rubriques import (
 
 DSN_ENCODING = "iso-8859-15"
 FORBIDDEN_CHARS = ("<", ">", "&")
+# NEODeS sépare les lignes en CRLF ; c'est ce que contiennent les fichiers
+# déposés et acceptés.
+FIN_DE_LIGNE = "\r\n"
+RUB_TOTAL_LIGNES = "S90.G00.90.001"
+RUB_TOTAL_DECLARATIONS = "S90.G00.90.002"
 
 
 class DsnWriterError(ValueError):
@@ -152,13 +157,24 @@ class DsnWriterError(ValueError):
 
 
 def quote_value(value: str) -> str:
+    """Encadre la valeur d'apostrophes, sans échapper celles qu'elle contient.
+
+    NEODeS ne prévoit pas d'échappement : une adresse comme
+    ``ZA L'OUSSON NORD`` s'écrit telle quelle entre apostrophes, et c'est ainsi
+    que la déclarent les fichiers acceptés par net-entreprises. Doubler
+    l'apostrophe fabriquerait une valeur fausse.
+    """
     text = "" if value is None else str(value)
     for ch in FORBIDDEN_CHARS:
         if ch in text:
             raise DsnWriterError(
                 f"Caractère interdit '{ch}' dans une rubrique DSN : {text[:80]}"
             )
-    return "'" + text.replace("'", "''") + "'"
+    if "\n" in text or "\r" in text:
+        raise DsnWriterError(
+            f"Retour à la ligne interdit dans une rubrique DSN : {text[:80]}"
+        )
+    return "'" + text + "'"
 
 
 def format_rubrique_line(rubrique: str, valeur: str) -> str:
@@ -210,14 +226,16 @@ def write_envoi(envoi: EnvoiBlock, out: List[str]) -> None:
 def write_declaration(declaration: DeclarationBlock, out: List[str]) -> None:
     if declaration.rubriques:
         _emit_rubriques_dict(declaration.rubriques, out)
-        return
-    _emit(R_S20_DECL_NATURE, declaration.nature or "01", out)
-    _emit(R_S20_DECL_TYPE, declaration.type_declaration or "01", out)
-    _emit("S20.G00.05.003", "11", out)
-    _emit("S20.G00.05.004", "1", out)
-    _emit(R_S20_DECL_MOIS, declaration.mois_principal, out)
-    _emit("S20.G00.05.008", "01", out)
-    _emit("S20.G00.05.010", "01", out)
+    else:
+        _emit(R_S20_DECL_NATURE, declaration.nature or "01", out)
+        _emit(R_S20_DECL_TYPE, declaration.type_declaration or "01", out)
+        _emit("S20.G00.05.003", "11", out)
+        _emit("S20.G00.05.004", "1", out)
+        _emit(R_S20_DECL_MOIS, declaration.mois_principal, out)
+        _emit("S20.G00.05.008", "01", out)
+        _emit("S20.G00.05.010", "01", out)
+    for contact in declaration.contacts or []:
+        _emit_rubriques_dict(contact, out)
 
 
 def write_entreprise(entreprise: EntrepriseBlock, out: List[str]) -> None:
@@ -574,7 +592,7 @@ def serialize_dsn_file(dsn_file: DsnFile) -> str:
             format_rubrique_line(line.rubrique, line.valeur)
             for line in dsn_file.raw_rubriques
         ]
-        return "\n".join(lines) + "\n"
+        return FIN_DE_LIGNE.join(lines) + FIN_DE_LIGNE
 
     out: List[str] = []
     write_envoi(dsn_file.envoi, out)
@@ -583,7 +601,19 @@ def serialize_dsn_file(dsn_file: DsnFile) -> str:
     write_etablissement_header(dsn_file.etablissement, out)
     for ind in dsn_file.etablissement.individus:
         write_individu(ind, out)
-    return "\n".join(out) + ("\n" if out else "")
+    write_total_fichier(out)
+    return FIN_DE_LIGNE.join(out) + (FIN_DE_LIGNE if out else "")
+
+
+def write_total_fichier(out: List[str], *, nb_declarations: int = 1) -> None:
+    """Clôt l'envoi par le bloc total, sans lequel le dépôt est rejeté.
+
+    ``S90.G00.90.001`` compte toutes les lignes du fichier, les deux lignes du
+    bloc total comprises — c'est ainsi que le comptent les fichiers déposés.
+    """
+    total = len(out) + 2
+    out.append(format_rubrique_line(RUB_TOTAL_LIGNES, str(total)))
+    out.append(format_rubrique_line(RUB_TOTAL_DECLARATIONS, str(nb_declarations)))
 
 
 def encode_dsn_bytes(dsn_file: DsnFile, *, encoding: str = DSN_ENCODING) -> bytes:

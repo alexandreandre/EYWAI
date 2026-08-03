@@ -19,8 +19,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
 MINIMAL = FIXTURES / "sample_p26_minimal.txt"
 
 
-def test_quote_value_escapes_apostrophe():
-    assert quote_value("L'ACME") == "'L''ACME'"
+def test_quote_value_garde_l_apostrophe_telle_quelle():
+    """NEODeS n'échappe pas : les DSN acceptées écrivent ``'ZA L'OUSSON NORD'``.
+
+    Voir tests/unit/dsn_export/test_writer_structure.py pour le détail.
+    """
+    assert quote_value("L'ACME") == "'L'ACME'"
 
 
 def test_quote_value_rejects_forbidden_chars():

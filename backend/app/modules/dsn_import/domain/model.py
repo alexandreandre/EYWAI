@@ -302,6 +302,8 @@ class DeclarationBlock:
     type_declaration: str = ""
     mois_principal: str = ""
     rubriques: Dict[str, str] = field(default_factory=dict)
+    # Bloc S20.G00.07, répété par organisme destinataire.
+    contacts: List[Dict[str, str]] = field(default_factory=list)
 
 
 @dataclass

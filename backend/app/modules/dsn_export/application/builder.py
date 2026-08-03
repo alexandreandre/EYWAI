@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.dsn_export.domain.settings import DsnSettings, normaliser_naf
 from app.modules.dsn_export.domain.contract_map import (
     iso_to_dsn_date,
     map_contract_nature_to_dsn,
@@ -32,6 +34,11 @@ from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_pas_amount,
 )
 from app.shared.dsn_validation import build_siret_from_siren_nic
+
+
+# Version déclarée dans S10.G00.00.003 : celle de notre générateur DSN, à
+# incrémenter quand la sortie change de forme.
+VERSION_LOGICIEL = "1.0"
 
 
 class DsnBuildError(ValueError):
@@ -154,54 +161,125 @@ def _is_cadre(employee: Dict[str, Any]) -> bool:
     return "cadre" in cat and "non" not in cat
 
 
-def build_envoi(*, dsn_type: str = "dsn_mensuelle_normale") -> EnvoiBlock:
+def build_envoi(
+    *,
+    dsn_type: str = "dsn_mensuelle_normale",
+    settings: Optional[DsnSettings] = None,
+) -> EnvoiBlock:
     mode = "01"  # réel
     if "test" in (dsn_type or "").lower():
         mode = "02"
+    parametres = settings or DsnSettings()
+    rubriques = {
+        "S10.G00.00.001": "EYWAI Paie",
+        "S10.G00.00.002": "EYWAI",
+        "S10.G00.00.003": VERSION_LOGICIEL,
+        "S10.G00.00.004": "0",
+        # Aligné sur les fichiers acceptés par net-entreprises.
+        "S10.G00.00.005": "02",
+        "S10.G00.00.006": "P26V01",
+        "S10.G00.00.007": mode,
+        "S10.G00.00.008": "01",
+    }
+    # Émetteur du fichier (S10.G00.01) : peut différer de la société déclarée
+    # quand une entité du groupe télétransmet pour les autres.
+    if parametres.emetteur_siren:
+        rubriques.update(
+            {
+                "S10.G00.01.001": parametres.emetteur_siren,
+                "S10.G00.01.002": parametres.emetteur_nic,
+                "S10.G00.01.003": parametres.emetteur_raison_sociale,
+                "S10.G00.01.004": parametres.emetteur_rue,
+                "S10.G00.01.005": parametres.emetteur_code_postal,
+                "S10.G00.01.006": parametres.emetteur_ville,
+            }
+        )
+    if parametres.contact_emetteur_nom:
+        rubriques.update(
+            {
+                "S10.G00.02.001": parametres.contact_emetteur_type or "02",
+                "S10.G00.02.002": parametres.contact_emetteur_nom,
+                "S10.G00.02.004": parametres.contact_emetteur_email,
+                "S10.G00.02.005": parametres.contact_emetteur_telephone,
+            }
+        )
     return EnvoiBlock(
         periode="01",
         norme="P26V01",
         type_envoi=mode,
-        rubriques={
-            "S10.G00.00.001": "EYWAI Paie",
-            "S10.G00.00.002": "EYWAI",
-            "S10.G00.00.003": "1.0",
-            "S10.G00.00.004": "0",
-            "S10.G00.00.005": "01",
-            "S10.G00.00.006": "P26V01",
-            "S10.G00.00.007": mode,
-            "S10.G00.00.008": "01",
-        },
+        rubriques=rubriques,
     )
 
 
-def build_declaration(period: str) -> DeclarationBlock:
+def build_declaration(
+    period: str,
+    *,
+    settings: Optional[DsnSettings] = None,
+    date_constitution: Optional[str] = None,
+) -> DeclarationBlock:
     mois = period_to_mois_principal(period)
+    parametres = settings or DsnSettings()
+    rubriques = {
+        "S20.G00.05.001": "01",
+        "S20.G00.05.002": "01",
+        "S20.G00.05.003": "11",
+        "S20.G00.05.004": "1",
+        "S20.G00.05.005": mois,
+        "S20.G00.05.007": date_constitution or date.today().strftime("%d%m%Y"),
+        "S20.G00.05.008": "01",
+        "S20.G00.05.010": "01",
+    }
+    # Le bloc contact déclaration se répète par organisme destinataire ; les
+    # rubriques répétées sont portées à part, un dict ne les tiendrait pas.
+    contacts: List[Dict[str, str]] = []
+    for contact in parametres.contacts_declaration:
+        contacts.append(
+            {
+                "S20.G00.07.001": contact.nom,
+                "S20.G00.07.002": contact.telephone,
+                "S20.G00.07.003": contact.email,
+                "S20.G00.07.004": contact.code_destinataire,
+            }
+        )
     return DeclarationBlock(
         nature="01",
         type_declaration="01",
         mois_principal=mois,
-        rubriques={
-            "S20.G00.05.001": "01",
-            "S20.G00.05.002": "01",
-            "S20.G00.05.003": "11",
-            "S20.G00.05.004": "1",
-            "S20.G00.05.005": mois,
-            "S20.G00.05.008": "01",
-            "S20.G00.05.010": "01",
-        },
+        rubriques=rubriques,
+        contacts=contacts,
     )
 
 
-def build_entreprise(company: Dict[str, Any]) -> EntrepriseBlock:
+def build_entreprise(
+    company: Dict[str, Any], *, settings: Optional[DsnSettings] = None
+) -> EntrepriseBlock:
     siret = str(company.get("siret") or "")
     siren, nic = _siren_nic(siret)
     if not siren or len(siren) != 9:
         raise DsnBuildError("SIREN/SIRET société manquant ou invalide")
+    parametres = settings or DsnSettings()
     addr = _addr(company.get("address") or company.get("adresse"))
-    naf = str(company.get("code_naf") or company.get("naf") or "")
+    # Le NAF déclaré prime sur celui de la fiche société : c'est celui que
+    # connaît l'URSSAF, et il s'écrit sans séparateur.
+    naf = parametres.naf or normaliser_naf(
+        str(company.get("code_naf") or company.get("naf") or "")
+    )
     if not naf:
         raise DsnBuildError("Code NAF manquant pour l'établissement")
+    rubriques = {
+        "S21.G00.06.001": siren,
+        "S21.G00.06.002": nic,
+        "S21.G00.06.003": naf,
+        "S21.G00.06.004": addr["rue"],
+        "S21.G00.06.005": addr["code_postal"],
+        "S21.G00.06.006": addr["ville"],
+    }
+    if parametres.complement_adresse:
+        rubriques["S21.G00.06.007"] = parametres.complement_adresse
+    if parametres.commune_implantation:
+        rubriques["S21.G00.06.008"] = parametres.commune_implantation
+    if parametres.idcc:
+        rubriques["S21.G00.06.015"] = parametres.idcc
     return EntrepriseBlock(
         siren=siren,
         nic_siege=nic,
@@ -210,18 +288,42 @@ def build_entreprise(company: Dict[str, Any]) -> EntrepriseBlock:
         adresse_rue=addr["rue"],
         adresse_cp=addr["code_postal"],
         adresse_ville=addr["ville"],
-        rubriques={
-            "S21.G00.06.001": siren,
-            "S21.G00.06.002": nic,
-            "S21.G00.06.003": naf,
-            "S21.G00.06.004": addr["rue"],
-            "S21.G00.06.005": addr["code_postal"],
-            "S21.G00.06.006": addr["ville"],
-        },
+        rubriques=rubriques,
     )
 
 
-def build_etablissement(company: Dict[str, Any], entreprise: EntrepriseBlock) -> EtablissementBlock:
+def _rubriques_etablissement(
+    nic: str,
+    entreprise: EntrepriseBlock,
+    addr: Dict[str, str],
+    settings: Optional[DsnSettings],
+) -> Dict[str, str]:
+    parametres = settings or DsnSettings()
+    rubriques = {
+        "S21.G00.11.001": nic,
+        "S21.G00.11.002": entreprise.code_naf,
+        "S21.G00.11.003": addr["rue"],
+        "S21.G00.11.004": addr["code_postal"],
+        "S21.G00.11.005": addr["ville"],
+    }
+    if parametres.complement_adresse:
+        rubriques["S21.G00.11.006"] = parametres.complement_adresse
+    if parametres.commune_implantation:
+        rubriques["S21.G00.11.007"] = parametres.commune_implantation
+    if parametres.idcc:
+        rubriques["S21.G00.11.022"] = parametres.idcc
+    for code, valeur in sorted((parametres.rubriques_etablissement or {}).items()):
+        if valeur:
+            rubriques.setdefault(code, valeur)
+    return rubriques
+
+
+def build_etablissement(
+    company: Dict[str, Any],
+    entreprise: EntrepriseBlock,
+    *,
+    settings: Optional[DsnSettings] = None,
+) -> EtablissementBlock:
     siret = str(company.get("siret") or "")
     siren, nic = _siren_nic(siret)
     if len(siret.replace(" ", "")) != 14:
@@ -235,13 +337,7 @@ def build_etablissement(company: Dict[str, Any], entreprise: EntrepriseBlock) ->
         adresse_rue=addr["rue"],
         adresse_cp=addr["code_postal"],
         adresse_ville=addr["ville"],
-        rubriques={
-            "S21.G00.11.001": nic,
-            "S21.G00.11.002": entreprise.code_naf,
-            "S21.G00.11.003": addr["rue"],
-            "S21.G00.11.004": addr["code_postal"],
-            "S21.G00.11.005": addr["ville"],
-        },
+        rubriques=_rubriques_etablissement(nic, entreprise, addr, settings),
     )
     # Organismes PSC éventuels depuis company settings
     mutuelle_types = company.get("mutuelle_types") or company.get("psc_contracts") or []
@@ -466,6 +562,7 @@ def build_parsed_dsn_from_payroll(
     dsn_type: str = "dsn_mensuelle_normale",
     file_name: str = "dsn_mensuelle.dsn",
     require_cotisation_codes: bool = False,
+    settings: Optional[DsnSettings] = None,
 ) -> Tuple[DsnFile, List[str]]:
     """Construit un DsnFile P26 à partir de données déjà chargées (sans DB).
 
@@ -473,10 +570,14 @@ def build_parsed_dsn_from_payroll(
     ``{employee: {...}, payslip_data: {...}}`` ou format ``get_dsn_employees_data``.
     """
     warnings: List[str] = []
-    envoi = build_envoi(dsn_type=dsn_type)
-    declaration = build_declaration(period)
-    entreprise = build_entreprise(company)
-    etab = build_etablissement(company, entreprise)
+    parametres = settings or DsnSettings()
+    envoi = build_envoi(dsn_type=dsn_type, settings=parametres)
+    declaration = build_declaration(period, settings=parametres)
+    entreprise = build_entreprise(company, settings=parametres)
+    etab = build_etablissement(company, entreprise, settings=parametres)
+    warnings.extend(
+        f"Paramétrage DSN incomplet : {manque}" for manque in parametres.manques()
+    )
     default_ops = str(
         company.get("urssaf_number")
         or company.get("urssaf_siret")
