@@ -216,11 +216,36 @@ def main() -> int:
         action="store_true",
         help="applique les corrections automatiques (sexe, forfait-jours)",
     )
+    parser.add_argument(
+        "--aligner-classification",
+        action="store_true",
+        help=(
+            "aligne aussi l'emploi et le coefficient sur le bulletin ; le "
+            "coefficient commande le minimum conventionnel, à ne faire "
+            "qu'après arbitrage"
+        ),
+    )
     args = parser.parse_args()
 
     releves = lire_bulletins(args.societe, args.mois)
     salaries = charger_salaries(SOCIETES[args.societe])
     corrections = comparer(releves, salaries)
+
+    if args.aligner_classification:
+        # Reconstruit le patch de classification à partir de la fiche courante :
+        # c'est un champ JSON, on ne remplace que la clé visée.
+        for c in corrections:
+            if c.patch or not c.champ.startswith("classification."):
+                continue
+            cle = c.champ.split(".", 1)[1]
+            fiche = next(
+                (e for e in salaries.values() if e["id"] == c.employee_id), None
+            )
+            if fiche is None:
+                continue
+            classification = dict(fiche.get("classification_conventionnelle") or {})
+            classification[cle] = c.apres
+            c.patch = {"classification_conventionnelle": classification}
 
     automatiques = [c for c in corrections if c.patch]
     a_arbitrer = [c for c in corrections if not c.patch]
