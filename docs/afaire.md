@@ -59,7 +59,6 @@ Les NIR sont bons : 240 actifs, aucun vide, clé de contrôle correcte partout, 
 
 Notre sortie DSN, elle, n'était pas déposable : 100 à 120 rubriques manquantes selon la société, dont le bloc total sans lequel net-entreprises rejette le fichier. L'en-tête, l'identité et les contrats sont maintenant conformes au fichier du cabinet, vérifié automatiquement sur cinq sociétés. Restent les cotisations, les agrégés URSSAF et la prévoyance : ça demande la nomenclature officielle des codes de cotisation, sans quoi on déclarerait des montants faux. En attendant, l'export est marqué non déposable et le dit à l'écran.
 
-En comparant les fiches aux bulletins de paie réels, 30 corrections prouvées ont été appliquées : 23 salariés avaient un forfait annuel en jours imprimé sur leur bulletin sans être marqués comme tels dans EYWAI (Cartol, LEWIS, MAJI, MBC, Zone 404), et 7 salariées étaient enregistrées en homme alors que leur NIR et la civilité de leur bulletin disent le contraire. L'outil qui a servi (`backend/scripts/corriger_fiches_depuis_bulletins.py`) est relançable chaque mois.
 #21. Badgeuse chez Colorplast. Stratégie d'intégration intelligente à gamberge MOI
 #22. Arrondi des congés au 31 mai. Vérifier l'arrondi au supérieur comment c'est fait (mathématiquement)Normalement bon. Attendre compte rendu ELSA
 
