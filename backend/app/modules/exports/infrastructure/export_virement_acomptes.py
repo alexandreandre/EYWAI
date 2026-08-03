@@ -515,6 +515,12 @@ def preview_virement_acomptes(
             "enregistrez les versements depuis la fiche de l'acompte."
         )
 
+    from app.modules.exports.infrastructure.export_sepa import missing_bic_warning
+
+    bic_warning = missing_bic_warning(rows)
+    if bic_warning:
+        warnings.append(bic_warning)
+
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
     return {
         "employees_count": totals["employees_count"],
