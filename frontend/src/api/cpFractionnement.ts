@@ -11,6 +11,7 @@ export interface FractionnementSettings {
   ouvres_to_ouvrables_ratio: number;
   fifth_week_deduction_ouvres: number;
   calculation_method: 'mbc' | 'manual' | 'legal';
+  exclude_forfait_jours: boolean;
 }
 
 export type FractionnementSettingsUpdate = Partial<
@@ -30,6 +31,7 @@ export interface FractionnementPreviewRow {
   report_june_manual_override?: boolean;
   seniority_manual_override?: boolean;
   prefill_source?: Record<string, string>;
+  manual_solde_ouvrables?: number;
   solde_ouvres: number;
   solde_ouvrables: number;
   days_granted: number;

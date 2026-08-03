@@ -39,7 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type RowDrafts = Record<
   string,
-  { reportJune: string; seniority: string }
+  { reportJune: string; seniority: string; manualSolde: string }
 >;
 
 export default function CpFractionnementSettingsCard() {
@@ -83,6 +83,7 @@ export default function CpFractionnementSettingsCard() {
       drafts[row.employee_id] = {
         reportJune: String(row.cp_reported_june_ouvres ?? 0),
         seniority: String(row.cp_seniority_deduction_ouvres ?? 0),
+        manualSolde: String(row.manual_solde_ouvrables ?? 0),
       };
     }
     setRowDrafts(drafts);
@@ -106,10 +107,12 @@ export default function CpFractionnementSettingsCard() {
       employeeId,
       reportJune,
       seniority,
+      manualSolde,
     }: {
       employeeId: string;
       reportJune: number;
       seniority: number;
+      manualSolde: number;
     }) =>
       updateFractionnementInput(employeeId, {
         grant_year: grantYear,
@@ -117,6 +120,7 @@ export default function CpFractionnementSettingsCard() {
         cp_seniority_deduction_ouvres: seniority,
         report_june_manual_override: true,
         seniority_manual_override: true,
+        manual_solde_ouvrables: manualSolde,
       }),
     onSuccess: () => {
       void previewQuery.refetch();
@@ -157,6 +161,14 @@ export default function CpFractionnementSettingsCard() {
     );
   }
 
+  const isManual = form?.calculation_method === 'manual';
+  const methodHint =
+    form?.calculation_method === 'legal'
+      ? 'Reliquat du congé principal au 31/10, calculé depuis les congés posés.'
+      : form?.calculation_method === 'manual'
+        ? 'Solde en jours ouvrables saisi à la main pour chaque salarié.'
+        : 'Formule Mont Blanc Composite : solde CP N-1 au 31/10, moins le report du 1/06 et les CP ancienneté. Le report du 1/06 ne se déduit pas des compteurs : il se saisit ci-dessous.';
+
   if (isError || !form) {
     return (
       <Card>
@@ -175,8 +187,7 @@ export default function CpFractionnementSettingsCard() {
           Fractionnement des congés payés
         </CardTitle>
         <CardDescription>
-          Calcul MBC au 31/10 — crédit sur la paie de novembre (1 ou 2 jours).
-          Cadres forfait exclus automatiquement.
+          {methodHint} Crédit sur la paie de novembre (1 ou 2 jours). 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -197,7 +208,7 @@ export default function CpFractionnementSettingsCard() {
             <div className="space-y-2">
               <Label>Méthode de calcul</Label>
               <Select
-                value={form.calculation_method ?? 'mbc'}
+                value={form.calculation_method ?? 'legal'}
                 disabled={!canEdit}
                 onValueChange={(v) =>
                   setForm({
@@ -208,8 +219,8 @@ export default function CpFractionnementSettingsCard() {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="legal">Légale (congés posés)</SelectItem>
                   <SelectItem value="mbc">MBC (solde 31/10)</SelectItem>
-                  <SelectItem value="legal">Légale (absences)</SelectItem>
                   <SelectItem value="manual">Manuelle</SelectItem>
                 </SelectContent>
               </Select>
@@ -227,6 +238,19 @@ export default function CpFractionnementSettingsCard() {
                     ...form,
                     fifth_week_deduction_ouvres: Number(e.target.value),
                   })
+                }
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-3 flex items-center justify-between gap-4">
+              <Label htmlFor="frac-forfait" className="font-normal">
+                Exclure les cadres au forfait-jours
+              </Label>
+              <Switch
+                id="frac-forfait"
+                disabled={!canEdit}
+                checked={form.exclude_forfait_jours ?? true}
+                onCheckedChange={(checked) =>
+                  setForm({ ...form, exclude_forfait_jours: checked })
                 }
               />
             </div>
@@ -301,8 +325,14 @@ export default function CpFractionnementSettingsCard() {
                 <TableRow>
                   <TableHead>Salarié</TableHead>
                   <TableHead className="text-right">CP N-1</TableHead>
-                  <TableHead className="text-right">Report 1/06</TableHead>
-                  <TableHead className="text-right">CP anc.</TableHead>
+                  {isManual ? (
+                    <TableHead className="text-right">Solde ouvrables</TableHead>
+                  ) : (
+                    <>
+                      <TableHead className="text-right">Report 1/06</TableHead>
+                      <TableHead className="text-right">CP anc.</TableHead>
+                    </>
+                  )}
                   {showCalcDetail ? (
                     <>
                       <TableHead className="text-right">Solde ouvrés</TableHead>
@@ -318,6 +348,7 @@ export default function CpFractionnementSettingsCard() {
                   const draft = rowDrafts[row.employee_id] ?? {
                     reportJune: '0',
                     seniority: '0',
+                    manualSolde: '0',
                   };
                   return (
                     <TableRow key={row.employee_id}>
@@ -327,44 +358,68 @@ export default function CpFractionnementSettingsCard() {
                       <TableCell className="text-right tabular-nums">
                         {row.solde_cp_n1_ouvres.toFixed(1)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          className="h-8 w-20 ml-auto text-right"
-                          type="number"
-                          min={0}
-                          step="0.5"
-                          disabled={!canEdit}
-                          value={draft.reportJune}
-                          onChange={(e) =>
-                            setRowDrafts({
-                              ...rowDrafts,
-                              [row.employee_id]: {
-                                ...draft,
-                                reportJune: e.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          className="h-8 w-20 ml-auto text-right"
-                          type="number"
-                          min={0}
-                          step="0.5"
-                          disabled={!canEdit}
-                          value={draft.seniority}
-                          onChange={(e) =>
-                            setRowDrafts({
-                              ...rowDrafts,
-                              [row.employee_id]: {
-                                ...draft,
-                                seniority: e.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </TableCell>
+                      {isManual ? (
+                        <TableCell className="text-right">
+                          <Input
+                            className="h-8 w-20 ml-auto text-right"
+                            type="number"
+                            min={0}
+                            step="0.5"
+                            disabled={!canEdit}
+                            value={draft.manualSolde}
+                            onChange={(e) =>
+                              setRowDrafts({
+                                ...rowDrafts,
+                                [row.employee_id]: {
+                                  ...draft,
+                                  manualSolde: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </TableCell>
+                      ) : (
+                        <>
+                          <TableCell className="text-right">
+                            <Input
+                              className="h-8 w-20 ml-auto text-right"
+                              type="number"
+                              min={0}
+                              step="0.5"
+                              disabled={!canEdit}
+                              value={draft.reportJune}
+                              onChange={(e) =>
+                                setRowDrafts({
+                                  ...rowDrafts,
+                                  [row.employee_id]: {
+                                    ...draft,
+                                    reportJune: e.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              className="h-8 w-20 ml-auto text-right"
+                              type="number"
+                              min={0}
+                              step="0.5"
+                              disabled={!canEdit}
+                              value={draft.seniority}
+                              onChange={(e) =>
+                                setRowDrafts({
+                                  ...rowDrafts,
+                                  [row.employee_id]: {
+                                    ...draft,
+                                    seniority: e.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </TableCell>
+                        </>
+                      )}
                       {showCalcDetail ? (
                         <>
                           <TableCell className="text-right tabular-nums text-muted-foreground">
@@ -390,6 +445,7 @@ export default function CpFractionnementSettingsCard() {
                                   employeeId: row.employee_id,
                                   reportJune: Number(draft.reportJune || 0),
                                   seniority: Number(draft.seniority || 0),
+                                  manualSolde: Number(draft.manualSolde || 0),
                                 })
                               }
                             >
