@@ -198,6 +198,7 @@ def comparer(
     ecarts_attendus: Sequence[EcartAttendu] = (),
     rubriques_hors_perimetre: Sequence[str] = (),
     comparer_les_valeurs: bool = True,
+    comparer_les_individus: bool = True,
 ) -> RapportConformite:
     """Compare notre fichier à une référence acceptée par net-entreprises.
 
@@ -227,8 +228,10 @@ def comparer(
             continue
         rapport.en_trop.append(rubrique)
 
-    # Le périmètre des individus ne se juge que si leur bloc est livré.
-    if not _hors_perimetre(RUB_NIR, hors):
+    # Le périmètre des individus ne se juge que si leur bloc est livré et que
+    # les sortants sont traités : le cabinet déclare encore, le mois de leur
+    # solde, des salariés que nous ne produisons pas.
+    if comparer_les_individus and not _hors_perimetre(RUB_NIR, hors):
         for cle in sorted(set(reference.individus) - set(notre.individus)):
             rapport.individus_manquants.append(cle)
         for cle in sorted(set(notre.individus) - set(reference.individus)):

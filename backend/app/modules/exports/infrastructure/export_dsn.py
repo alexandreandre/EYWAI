@@ -7,7 +7,13 @@ from app.modules.dsn_export.application.builder import (
     DsnBuildError,
     build_parsed_dsn_from_payroll,
 )
+from app.modules.dsn_export.domain.etat_conformite import (
+    DEPOSABLE,
+    SUFFIXE_NON_DEPOSABLE,
+    anomalie_non_deposable,
+)
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
+from app.modules.dsn_export.infrastructure import settings_repository
 from app.modules.dsn_import.domain.parser import parse_dsn_content
 from app.modules.dsn_import.domain.validation import validate_parsed_dsn
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
@@ -218,6 +224,9 @@ def check_dsn_data(
             warnings.append(
                 "Adresse établissement incomplète (rue, ville ou code postal manquant)"
             )
+
+    if not DEPOSABLE:
+        anomalies.append(anomalie_non_deposable())
 
     for emp_data in employees_data:
         employee = emp_data["employee"]
@@ -458,7 +467,8 @@ def generate_dsn_file(
 
     employees_data, _totals = get_dsn_employees_data(company_id, period, employee_ids)
     period_formatted = period.replace("-", "_")
-    file_name = f"dsn_mensuelle_{period_formatted}.dsn"
+    suffixe = "" if DEPOSABLE else SUFFIXE_NON_DEPOSABLE
+    file_name = f"dsn_mensuelle_{period_formatted}{suffixe}.dsn"
     try:
         dsn_file, build_warnings = build_parsed_dsn_from_payroll(
             company_data,
@@ -467,6 +477,7 @@ def generate_dsn_file(
             dsn_type=dsn_type,
             file_name=file_name,
             require_cotisation_codes=False,
+            settings=settings_repository.charger(company_id),
         )
     except DsnBuildError as exc:
         raise ValueError(str(exc)) from exc

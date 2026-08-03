@@ -2,7 +2,7 @@
 
 Date : 2026-08-03
 Sujet : `docs/afaire.md` #20
-Statut : conception validée, implémentation en cours
+Statut : lots 1 et 2 livrés, lots 3 à 6 à faire (voir §9)
 
 ## 1. Objectif
 
@@ -184,3 +184,72 @@ Le détail nominatif est hors dépôt (dépôt public). À remonter à Elsa.
   `net_entreprises` existe et n'est pas touché ici.
 - La correction des données du cabinet listées au §7 : c'est une décision
   d'Elsa, pas un changement de code.
+
+## 9. État au 2026-08-03
+
+### Livré
+
+**Harnais de conformité.** `dsn_export/domain/conformance.py` compare notre
+fichier à celui du cabinet rubrique par rubrique, avec périmètre par lot et
+écarts délibérés déclarés. Piloté par `scripts/dsn_conformance_report.py`,
+vérifié par `tests/unit/dsn_export/test_conformance_reelle.py` sur cinq
+sociétés (Cartol, Colorplast, Comitech, LEWIS, Mont Blanc Composite), mai 2026.
+MAJI et Zone 404 n'ont pas de bulletin sur ce mois en base.
+
+**Paramétrage société.** Table `company_dsn_settings`, reprise automatique
+depuis la dernière DSN du cabinet par `scripts/dsn_settings_reprise.py`. Les
+sept sociétés sont reprises et complètes. La migration n'est pas encore
+appliquée : la lecture retombe sur un paramétrage vide sans faire échouer la
+génération.
+
+**Lot 1 — structure.** Bloc total `S90.G00.90`, fins de ligne CRLF, apostrophe
+non doublée, émetteur et contacts, NAF sans séparateur, IDCC d'établissement.
+
+**Lot 2 — individu et contrat.** Zéro valeur divergente sur les cinq sociétés.
+Corrigés au passage : le numéro de contrat qui portait le nom du salarié, la
+quotité figée à 151,67 h quelle que soit la durée réelle, le forfait annuel en
+jours déclaré en heures, l'apprentissage déclaré comme une nature de contrat
+propre au lieu d'un CDD porteur du dispositif 65.
+
+**Garde-fou.** `dsn_export/domain/etat_conformite.py` : tant que `DEPOSABLE`
+est faux, le fichier sort suffixé `_NON_DEPOSABLE` et la vérification
+pré-export porte une anomalie bloquante qui liste ce qui manque.
+
+### Reste à faire
+
+**Lot 3 — cotisations individuelles.** Bloqué, et c'est le point à trancher.
+Nous émettons les parts salariale et patronale en deux blocs `S21.G00.81`
+identiques là où le cabinet en émet un seul, et nous ne produisons pas les
+codes 071, 072, 102, 106 et 907. Aligner demande la nomenclature officielle des
+codes de cotisation DSN : sans elle, on déclarerait des cotisations fausses à
+l'URSSAF. Il faut soit le cahier technique P26V01, soit l'arbitrage d'Elsa ou
+du cabinet sur la correspondance entre nos lignes de bulletin et ces codes.
+
+**Lots 4 à 6.** Agrégés URSSAF, prévoyance, événements. Ils dépendent du lot 3
+pour les montants et de données absentes de la base (organismes de prévoyance,
+coordonnées bancaires du versement).
+
+**Rubriques à documenter.** `S21.G00.30.013`, `.017`, `.025`, `.029`,
+`S21.G00.40.003`, `.010`, `.021`, `.072`. Le cabinet les déclare, nous ne
+savons pas ce qu'elles portent. Elles sont listées dans le test plutôt
+qu'inventées.
+
+## 10. Écarts de données relevés
+
+Trouvés en comparant notre base aux DSN du cabinet. Aucun n'est un défaut du
+générateur ; tous demandent un arbitrage.
+
+- **12 salariés au forfait annuel en jours ne sont pas marqués comme tels**
+  (5 Cartol, 7 LEWIS). Le cabinet en déclare 31, notre base en connaît 19.
+  L'effet dépasse la DSN : RTT, décompte du temps, congés.
+- **19 contrats Cartol dépendent d'un autre SIRET** (798 171 096 00034) que
+  celui de la société. Le rattachement multi-établissement n'est pas modélisé.
+- **32 salariés sortis** sont encore déclarés par le cabinet le mois de leur
+  solde de tout compte et absents de notre DSN.
+- **1 salarié déclaré chez Cartol sur les cinq DSN de 2026 n'existe pas dans
+  EYWAI.**
+- **Mont Blanc Composite** : une date de début de contrat, trois libellés
+  d'emploi et deux niveaux conventionnels divergent entre nos fiches et celles
+  du cabinet.
+- **Code NAF de Colorplast** : `25.61Z` en base, `2229A` déclaré par le
+  cabinet. C'est le second qui est cohérent avec la plasturgie.

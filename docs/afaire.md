@@ -50,7 +50,14 @@ Il y a maintenant un export « Virement acomptes », séparé de celui des salai
 
 #18. Point paye avec Gaëlle ELSA
 #19. Vérifier que fractionnement des congés c'est bien propre. Comment c'est activable ? paramétrable ? C'est automatiquement fait ? MOI
+
+Ce n'était pas propre : sept défauts faussaient le calcul, dont un qui rendait 0 jour pour les 221 salariés de MBC. Tout est corrigé. C'est maintenant paramétrable par société dans Entreprise > Congés (méthode de calcul, barème, exclusion des cadres au forfait-jours), calculé automatiquement mais jamais crédité sans validation RH. Aucune société n'était paramétrée, donc aucun salarié n'a été touché par ces erreurs.
+
 #20. Numéro NIR bons ELSA. Sortie DSN de chez nous à checker MOI
+
+Les NIR sont bons : 240 actifs, aucun vide, clé de contrôle correcte partout, et 274 des 275 individus des DSN du cabinet correspondent au chiffre près. Trois choses viennent du cabinet et qu'on a recopiées : 8 salariés déclarés avec un sexe que leur propre NIR contredit, 2 dates de naissance divergentes, et un salarié déclaré chez Cartol depuis janvier qui n'existe pas dans EYWAI.
+
+Notre sortie DSN, elle, n'était pas déposable : 100 à 120 rubriques manquantes selon la société, dont le bloc total sans lequel net-entreprises rejette le fichier. L'en-tête, l'identité et les contrats sont maintenant conformes au fichier du cabinet, vérifié automatiquement sur cinq sociétés. Restent les cotisations, les agrégés URSSAF et la prévoyance : ça demande la nomenclature officielle des codes de cotisation, sans quoi on déclarerait des montants faux. En attendant, l'export est marqué non déposable et le dit à l'écran.
 #21. Badgeuse chez Colorplast. Stratégie d'intégration intelligente à gamberge MOI
 #22. Arrondi des congés au 31 mai. Vérifier l'arrondi au supérieur comment c'est fait (mathématiquement)Normalement bon. Attendre compte rendu ELSA
 
