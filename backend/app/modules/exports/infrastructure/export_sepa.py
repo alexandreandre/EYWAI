@@ -32,6 +32,54 @@ def filter_payable_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
+def normalize_bic(raw: Any) -> str:
+    """BIC prêt pour le XML, chaîne vide s'il n'y en a pas."""
+    return str(raw or "").replace(" ", "").replace("-", "").upper().strip()
+
+
+def _set_financial_institution(parent: ET.Element, bic: str) -> None:
+    """
+    Renseigne un agent bancaire, avec ou sans BIC.
+
+    La balise BIC n'accepte qu'un BIC : y écrire « NOTPROVIDED » produit un
+    fichier que la banque peut rejeter en le confrontant à l'annuaire. Les
+    règles SEPA prévoient pour ce cas `Othr/Id` valant « NOTPROVIDED », et cette
+    valeur-là uniquement. Le BIC est facultatif depuis le règlement (UE)
+    260/2012 : la banque le retrouve à partir de l'IBAN.
+    """
+    fin = ET.SubElement(parent, f"{{{NS}}}FinInstnId")
+    if bic:
+        _sub(fin, "BIC", bic)
+        return
+    othr = ET.SubElement(fin, f"{{{NS}}}Othr")
+    _sub(othr, "Id", "NOTPROVIDED")
+
+
+def count_employees_without_bic(rows: List[Dict[str, Any]]) -> int:
+    """Salariés sans BIC parmi les seules lignes qui partiront à la banque."""
+    identites = set()
+    for row in filter_payable_rows(rows):
+        if normalize_bic(row.get("BIC")):
+            continue
+        identites.add(
+            row.get("employee_id")
+            or (row.get("Nom", ""), row.get("Prénom", ""), row.get("IBAN", ""))
+        )
+    return len(identites)
+
+
+def missing_bic_warning(rows: List[Dict[str, Any]]) -> Optional[str]:
+    """Avertissement non bloquant, ou None si tous les BIC sont présents."""
+    nb = count_employees_without_bic(rows)
+    if nb == 0:
+        return None
+    pluriel = "s" if nb > 1 else ""
+    return (
+        f"{nb} salarié{pluriel} sans BIC — le virement reste valide : l'IBAN "
+        "suffit depuis 2016 et la banque retrouve le BIC elle-même."
+    )
+
+
 def build_pain001(
     rows: List[Dict[str, Any]],
     period: str,
@@ -85,10 +133,10 @@ def build_pain001(
         dbtr_acct = ET.SubElement(pmt_inf, f"{{{NS}}}DbtrAcct")
         acct_id = ET.SubElement(dbtr_acct, f"{{{NS}}}Id")
         _sub(acct_id, "IBAN", debtor_iban.replace(" ", ""))
-    if debtor_bic:
-        dbtr_agt = ET.SubElement(pmt_inf, f"{{{NS}}}DbtrAgt")
-        fin = ET.SubElement(dbtr_agt, f"{{{NS}}}FinInstnId")
-        _sub(fin, "BIC", debtor_bic)
+    # DbtrAgt est exigé par le schéma SEPA, BIC connu ou non : l'omettre rendait
+    # la remise invalide dès que l'entreprise n'avait pas renseigné son BIC.
+    dbtr_agt = ET.SubElement(pmt_inf, f"{{{NS}}}DbtrAgt")
+    _set_financial_institution(dbtr_agt, normalize_bic(debtor_bic))
 
     for idx, row in enumerate(valid_rows, start=1):
         tx = ET.SubElement(pmt_inf, f"{{{NS}}}CdtTrfTxInf")
@@ -98,9 +146,7 @@ def build_pain001(
         inst = ET.SubElement(amt_el, f"{{{NS}}}InstdAmt", Ccy="EUR")
         inst.text = f"{float(row.get('Montant', 0)):.2f}"
         cdtr_agt = ET.SubElement(tx, f"{{{NS}}}CdtrAgt")
-        fin = ET.SubElement(cdtr_agt, f"{{{NS}}}FinInstnId")
-        bic = str(row.get("BIC", "") or "NOTPROVIDED")
-        _sub(fin, "BIC", bic)
+        _set_financial_institution(cdtr_agt, normalize_bic(row.get("BIC")))
         cdtr = ET.SubElement(tx, f"{{{NS}}}Cdtr")
         name = f"{row.get('Prénom', '')} {row.get('Nom', '')}".strip()
         _sub(cdtr, "Nm", name[:70])
@@ -159,6 +205,7 @@ def preview_sepa(
     )
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
     employees_count = totals.get("employees_count", totals.get("virements_count", 0))
+    bic_warning = missing_bic_warning(data)
     return {
         "employees_count": employees_count,
         "totals": {
@@ -166,7 +213,9 @@ def preview_sepa(
             "total_amount": totals.get("total_amount"),
         },
         "anomalies": anomalies,
-        "warnings": warnings + ["Format SEPA pain.001.001.03 — transmission manuelle à la banque."],
+        "warnings": warnings
+        + ([bic_warning] if bic_warning else [])
+        + ["Format SEPA pain.001.001.03 — transmission manuelle à la banque."],
         "can_generate": len(blocking) == 0,
     }
 
