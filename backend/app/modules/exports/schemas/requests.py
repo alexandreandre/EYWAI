@@ -24,6 +24,7 @@ ExportType = Literal[
     "export_cabinet_sage",
     "dsn_mensuelle",
     "virement_salaires",
+    "virement_acomptes",
     "recapitulatif_montants",
 ]
 

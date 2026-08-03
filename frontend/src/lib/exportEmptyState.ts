@@ -9,6 +9,7 @@ const EMPTY_EXPORT_LABELS: Partial<Record<ExportType, string>> = {
   charges_sociales: "charge sociale",
   acomptes: "acompte ni avance",
   virement_salaires: "virement à générer",
+  virement_acomptes: "acompte à virer",
   recapitulatif_montants: "montant à récapituler",
   od_salaires: "écriture salaire",
   od_charges_sociales: "écriture de charges sociales",

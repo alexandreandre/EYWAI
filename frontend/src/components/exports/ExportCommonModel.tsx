@@ -51,6 +51,7 @@ export type ExportFileFormat = "csv" | "xlsx";
 export type NotesFraisCabinetFormat = "generique" | "quadra" | "sage";
 export type OdRegroupement = "global" | "par_etablissement" | "par_analytique";
 export type BankFileFormat = "sepa" | "csv";
+export type AcompteMode = "a_verser" | "verses";
 
 const OD_EXPORT_TYPES = new Set<ExportType>([
   "od_salaires",
@@ -71,6 +72,8 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   dsn_mensuelle: "dsn_mensuelle",
   virement_salaires: "virement_salaires",
   "virement-salaires": "virement_salaires",
+  virement_acomptes: "virement_acomptes",
+  "virement-acomptes": "virement_acomptes",
   charges_sociales: "charges_sociales",
   "charges-sociales": "charges_sociales",
   conges_absences: "conges_absences",
@@ -93,6 +96,7 @@ const EXPORT_TYPE_MAP: Record<string, ExportType> = {
   "Notes de frais": "notes_frais",
   "DSN mensuelle": "dsn_mensuelle",
   "Virement salaires": "virement_salaires",
+  "Virement acomptes": "virement_acomptes",
   "Récapitulatif des montants": "recapitulatif_montants",
   "recapitulatif-montants": "recapitulatif_montants",
 };
@@ -166,8 +170,10 @@ const exportTypeLabels: Record<string, string> = {
   dsn_mensuelle: "DSN mensuelle",
   // Paiements
   "virement-salaires": "Virement salaires",
+  "virement-acomptes": "Virement acomptes",
   "recapitulatif-montants": "Récapitulatif des montants",
   virement_salaires: "Virement salaires",
+  virement_acomptes: "Virement acomptes",
   recapitulatif_montants: "Récapitulatif des montants",
   // Exports RH
   "charges-sociales": "Charges sociales par caisse",
@@ -224,6 +230,12 @@ export function ExportCommonModel({
   const [establishmentId, setEstablishmentId] = useState("");
   const [acceptWarnings, setAcceptWarnings] = useState(false);
 
+  // Paramètres spécifiques au virement des acomptes
+  const [acompteMode, setAcompteMode] = useState<AcompteMode>("a_verser");
+  const [acompteLimiterAuMois, setAcompteLimiterAuMois] = useState(false);
+  const [acompteDateDebut, setAcompteDateDebut] = useState("");
+  const [acompteDateFin, setAcompteDateFin] = useState("");
+
   const { data: employeesSummary = [] } = useQuery({
     queryKey: ["employees-summary-payroll", activeCompany?.company_id],
     queryFn: () => fetchEmployeesSummary("payroll"),
@@ -245,6 +257,16 @@ export function ExportCommonModel({
     }
     if (apiExportType === "virement_salaires") {
       filters.bank_format = bankFileFormat;
+    }
+    if (apiExportType === "virement_acomptes") {
+      filters.bank_format = bankFileFormat;
+      filters.mode = acompteMode;
+      if (acompteMode === "a_verser") {
+        filters.limiter_au_mois = acompteLimiterAuMois;
+      } else {
+        if (acompteDateDebut) filters.date_debut = acompteDateDebut;
+        if (acompteDateFin) filters.date_fin = acompteDateFin;
+      }
     }
     if (apiExportType === "dsn_mensuelle") {
       filters.dsn_type = dsnType;
@@ -302,6 +324,10 @@ export function ExportCommonModel({
     setBankFileFormat("sepa");
     setSelectedScope("all");
     setSelectedEmployeeIds([]);
+    setAcompteMode("a_verser");
+    setAcompteLimiterAuMois(false);
+    setAcompteDateDebut("");
+    setAcompteDateFin("");
   }, [exportType]);
 
   // Initialiser avec le mois actuel
@@ -372,6 +398,10 @@ export function ExportCommonModel({
       dsnType,
       establishmentId,
       acceptWarnings,
+      acompteMode,
+      acompteLimiterAuMois,
+      acompteDateDebut,
+      acompteDateFin,
     ],
   );
 
@@ -711,8 +741,77 @@ export function ExportCommonModel({
               </div>
             ) : null}
 
+            {/* Sélection des acomptes — mode et fenêtre */}
+            {apiExportType === "virement_acomptes" && (
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <div className="space-y-2 max-w-sm">
+                    <Label htmlFor="acompte-mode">Acomptes à inclure</Label>
+                    <Select
+                      value={acompteMode}
+                      onValueChange={(v) => setAcompteMode(v as AcompteMode)}
+                    >
+                      <SelectTrigger id="acompte-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a_verser">À verser</SelectItem>
+                        <SelectItem value="verses">Déjà versés</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {acompteMode === "a_verser"
+                        ? "Les acomptes approuvés dont il reste un montant à verser, quelle que soit leur date de demande. C'est l'ordre à transmettre à la banque."
+                        : "Les versements déjà enregistrés sur la fenêtre choisie. C'est un relevé, la banque a déjà payé."}
+                    </p>
+                  </div>
+
+                  {acompteMode === "a_verser" ? (
+                    <label className="flex items-start gap-2 text-sm">
+                      <Checkbox
+                        checked={acompteLimiterAuMois}
+                        onCheckedChange={(c) => setAcompteLimiterAuMois(c === true)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Limiter aux demandes du mois sélectionné
+                        <span className="block text-xs text-muted-foreground">
+                          Décoché, un acompte approuvé fin du mois précédent reste inclus — c'est le comportement attendu dans la plupart des cas.
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                      <div className="space-y-2">
+                        <Label htmlFor="acompte-date-debut">Versements du</Label>
+                        <Input
+                          id="acompte-date-debut"
+                          type="date"
+                          value={acompteDateDebut}
+                          onChange={(e) => setAcompteDateDebut(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="acompte-date-fin">au</Label>
+                        <Input
+                          id="acompte-date-fin"
+                          type="date"
+                          value={acompteDateFin}
+                          onChange={(e) => setAcompteDateFin(e.target.value)}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground sm:col-span-2">
+                        Laissées vides, ces dates couvrent le mois sélectionné.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* Paramètres spécifiques aux paiements */}
-            {(exportType === "virement-salaires" || exportType === "virement_salaires" || exportType === "recapitulatif-montants" || exportType === "recapitulatif_montants") && (
+            {(exportType === "virement-salaires" || exportType === "virement_salaires" || apiExportType === "virement_acomptes" || exportType === "recapitulatif-montants" || exportType === "recapitulatif_montants") && (
               <>
                 <Separator />
                 <div className="space-y-4">
@@ -738,7 +837,11 @@ export function ExportCommonModel({
                       id="payment-label"
                       value={paymentLabel}
                       onChange={(e) => setPaymentLabel(e.target.value)}
-                      placeholder={`Salaire ${selectedPeriod || "mois"}`}
+                      placeholder={
+                        apiExportType === "virement_acomptes"
+                          ? "Nature de l'acompte + mois"
+                          : `Salaire ${selectedPeriod || "mois"}`
+                      }
                     />
                     <p className="text-xs text-muted-foreground">
                       Libellé qui apparaîtra sur les relevés bancaires des collaborateurs
@@ -805,7 +908,7 @@ export function ExportCommonModel({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      {(exportType === "virement-salaires" || exportType === "virement_salaires") ? "Virements à générer" : "Collaborateurs concernés"}
+                      {(exportType === "virement-salaires" || exportType === "virement_salaires" || apiExportType === "virement_acomptes") ? "Virements à générer" : "Collaborateurs concernés"}
                     </p>
                     <p className="text-2xl font-bold">{previewData.employees_count}</p>
                   </div>
@@ -1029,6 +1132,13 @@ export function ExportCommonModel({
                   <p className="mt-2 font-semibold text-orange-700 dark:text-orange-300">
                     Rappel : ces fichiers ne déclenchent aucun paiement automatiquement.
                     Transmettez-les manuellement à votre banque après validation.
+                  </p>
+                ) : null}
+                {apiExportType === "virement_acomptes" ? (
+                  <p className="mt-2 font-semibold text-orange-700 dark:text-orange-300">
+                    Rappel : ces fichiers ne déclenchent aucun paiement et n'enregistrent
+                    aucun versement. Transmettez-les à votre banque, puis enregistrez les
+                    versements depuis la fiche de chaque acompte.
                   </p>
                 ) : null}
               </AlertDescription>

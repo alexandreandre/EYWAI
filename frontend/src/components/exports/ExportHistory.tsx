@@ -35,6 +35,7 @@ const exportTypeLabels: Record<string, string> = {
   dsn_mensuelle: "DSN mensuelle",
   // Paiements
   virement_salaires: "Virement salaires",
+  virement_acomptes: "Virement acomptes",
   recapitulatif_montants: "Récapitulatif des montants",
   // Exports RH
   charges_sociales: "Charges sociales par caisse",

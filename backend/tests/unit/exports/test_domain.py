@@ -36,6 +36,7 @@ class TestExportValueObjects:
             "attestations_annexes",
             "fec",
             "virement_salaires",
+            "virement_acomptes",
             "recapitulatif_montants",
             "od_salaires",
             "od_charges_sociales",

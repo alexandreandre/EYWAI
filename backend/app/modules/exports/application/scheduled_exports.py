@@ -39,6 +39,7 @@ from app.modules.exports.schemas.dispatch import (
 EXPORT_TYPE_LABELS: Dict[str, str] = {
     "journal_paie": "Journal de paie",
     "virement_salaires": "Paiement des salaires (virement)",
+    "virement_acomptes": "Paiement des acomptes (virement)",
     "od_salaires": "Écritures OD — Salaires",
     "od_charges_sociales": "Écritures OD — Charges sociales",
     "od_pas": "Écritures OD — PAS",
@@ -335,6 +336,7 @@ def _default_format_for_type(export_type: str) -> str:
     if export_type in (
         "fec",
         "virement_salaires",
+        "virement_acomptes",
         "od_salaires",
         "od_charges_sociales",
         "od_pas",

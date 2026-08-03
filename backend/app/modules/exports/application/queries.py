@@ -58,6 +58,26 @@ def preview_export(
             warnings=preview["warnings"],
             can_generate=preview["can_generate"],
         )
+    elif request.export_type == "virement_acomptes":
+        preview = providers.preview_virement_acomptes(
+            company_id,
+            request.period,
+            request.employee_ids,
+            request.excluded_employee_ids,
+            request.execution_date,
+            request.payment_label,
+            request.filters,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
     elif request.export_type in [
         "od_salaires",
         "od_charges_sociales",

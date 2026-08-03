@@ -23,6 +23,7 @@ export type ExportType =
   | "export_cabinet_sage"
   | "dsn_mensuelle"
   | "virement_salaires"
+  | "virement_acomptes"
   | "recapitulatif_montants";
 
 export type ExportStatus = "previewed" | "generated" | "cancelled" | "replaced";
@@ -202,6 +203,7 @@ export async function listExportDownloadFiles(
 export const SCHEDULABLE_EXPORT_TYPES: ExportType[] = [
   "journal_paie",
   "virement_salaires",
+  "virement_acomptes",
   "od_globale",
   "fec",
   "export_cabinet_generique",
@@ -217,6 +219,7 @@ export const SCHEDULABLE_EXPORT_TYPES: ExportType[] = [
 export const SCHEDULED_EXPORT_TYPE_LABELS: Partial<Record<ExportType, string>> = {
   journal_paie: "Journal de paie",
   virement_salaires: "Paiement des salaires (virement)",
+  virement_acomptes: "Paiement des acomptes (virement)",
   od_globale: "OD globale de paie",
   fec: "FEC (fichier des écritures comptables)",
   export_cabinet_generique: "Export cabinet (générique)",

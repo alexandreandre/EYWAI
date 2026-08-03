@@ -49,6 +49,13 @@ from .export_saisies import (
 )
 from .export_fec import generate_fec_export as _generate_fec_export, preview_fec as _preview_fec
 from .export_sepa import generate_sepa_pain001 as _generate_sepa_pain001
+from .export_virement_acomptes import (
+    generate_virement_acomptes_bank_file as _generate_virement_acomptes_bank_file,
+    generate_virement_acomptes_export as _generate_virement_acomptes_export,
+    generate_virement_acomptes_sepa as _generate_virement_acomptes_sepa,
+    get_virement_acomptes_data as _get_virement_acomptes_data,
+    preview_virement_acomptes as _preview_virement_acomptes,
+)
 from .export_paiement_organismes import (
     generate_paiement_organismes_export as _generate_paiement_organismes_export,
     preview_paiement_organismes as _preview_paiement_organismes,
@@ -488,6 +495,82 @@ def generate_sepa_bank_file(
     return _generate_sepa_pain001(
         company_id, period, employee_ids, excluded_employee_ids,
         execution_date, payment_label,
+    )
+
+
+def preview_virement_acomptes(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    filters: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    return _preview_virement_acomptes(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label, filters,
+    )
+
+
+def get_virement_acomptes_data(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    filters: Optional[Dict[str, Any]] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]], List[str]]:
+    return _get_virement_acomptes_data(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label, filters,
+    )
+
+
+def generate_virement_acomptes_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    filters: Optional[Dict[str, Any]] = None,
+    file_format: str = "csv",
+) -> bytes:
+    return _generate_virement_acomptes_export(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label, filters, file_format,
+    )
+
+
+def generate_virement_acomptes_bank_file(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    filters: Optional[Dict[str, Any]] = None,
+) -> bytes:
+    return _generate_virement_acomptes_bank_file(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label, filters,
+    )
+
+
+def generate_virement_acomptes_sepa(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    excluded_employee_ids: Optional[List[str]] = None,
+    execution_date: Optional[str] = None,
+    payment_label: Optional[str] = None,
+    filters: Optional[Dict[str, Any]] = None,
+) -> bytes:
+    return _generate_virement_acomptes_sepa(
+        company_id, period, employee_ids, excluded_employee_ids,
+        execution_date, payment_label, filters,
     )
 
 

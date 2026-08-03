@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Receipt, Building2, History } from "lucide-react";
+import { CreditCard, Receipt, Building2, HandCoins, History } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
@@ -20,6 +20,7 @@ export function PaiementsTab({ initialExportId }: PaiementsTabProps) {
   // Mapping entre les IDs des cartes et les types d'export de l'API
   const exportTypeMapping: Record<string, string> = {
     "virement-salaires": "virement_salaires",
+    "virement-acomptes": "virement_acomptes",
     "recapitulatif-montants": "recapitulatif_montants",
     "paiement-organismes": "paiement_organismes",
   };
@@ -36,6 +37,12 @@ export function PaiementsTab({ initialExportId }: PaiementsTabProps) {
       name: "Virement salaires",
       description: "Fichier de virement bancaire des salaires au format SEPA",
       icon: CreditCard,
+    },
+    {
+      id: "virement-acomptes",
+      name: "Virement acomptes",
+      description: "Fichier de virement bancaire des acomptes et avances — campagne de paiement distincte de celle des salaires",
+      icon: HandCoins,
     },
     {
       id: "recapitulatif-montants",

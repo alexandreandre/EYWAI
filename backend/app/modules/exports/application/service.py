@@ -126,6 +126,8 @@ def generate_export(
         return _generate_dsn(company_id, user_id, user_name, request)
     elif request.export_type == "virement_salaires":
         return _generate_virement_salaires(company_id, user_id, user_name, request)
+    elif request.export_type == "virement_acomptes":
+        return _generate_virement_acomptes(company_id, user_id, user_name, request)
     elif request.export_type == "charges_sociales":
         return _generate_charges_sociales(company_id, user_id, user_name, request)
     elif request.export_type == "notes_frais":
@@ -1492,4 +1494,140 @@ def _generate_virement_salaires(
             parameters=parameters,
         ),
         download_urls=download_urls,
+    )
+
+
+def _generate_virement_acomptes(
+    company_id: str,
+    user_id: str,
+    user_name: str,
+    request: ExportGenerateRequest,
+) -> ExportGenerateResponse:
+    """
+    Remise bancaire des acomptes — campagne distincte de celle des salaires.
+
+    Ne modifie aucun statut d'acompte et ne crée aucun versement : c'est un
+    document à transmettre à la banque, pas une confirmation de paiement.
+    """
+    filters = request.filters or {}
+    bank_format = filters.get("bank_format", "sepa")
+
+    file_content = providers.generate_virement_acomptes_export(
+        company_id,
+        request.period,
+        request.employee_ids,
+        request.excluded_employee_ids,
+        request.execution_date,
+        request.payment_label,
+        filters,
+        request.format,
+    )
+    period_formatted = request.period.replace("-", "_")
+
+    if bank_format == "csv":
+        bank_file_content = providers.generate_virement_acomptes_bank_file(
+            company_id,
+            request.period,
+            request.employee_ids,
+            request.excluded_employee_ids,
+            request.execution_date,
+            request.payment_label,
+            filters,
+        )
+        bank_filename = f"virement_acomptes_bancaire_{period_formatted}.csv"
+        bank_content_type = "text/csv"
+        bank_extension = "csv"
+    else:
+        bank_file_content = providers.generate_virement_acomptes_sepa(
+            company_id,
+            request.period,
+            request.employee_ids,
+            request.excluded_employee_ids,
+            request.execution_date,
+            request.payment_label,
+            filters,
+        )
+        bank_filename = f"virement_acomptes_sepa_{period_formatted}.xml"
+        bank_content_type = "application/xml"
+        bank_extension = "xml"
+
+    filename = f"virement_acomptes_{period_formatted}.{request.format}"
+    storage_path = f"exports/{company_id}/{request.export_type}/{filename}"
+    bank_storage_path = f"exports/{company_id}/{request.export_type}/{bank_filename}"
+    final_storage_path = upload_export_file(
+        BUCKET, storage_path, file_content, _content_type(request.format)
+    )
+    final_bank_storage_path = upload_export_file(
+        BUCKET, bank_storage_path, bank_file_content, bank_content_type
+    )
+    signed_url = create_signed_url(final_storage_path, 3600)
+    bank_signed_url = create_signed_url(final_bank_storage_path, 3600)
+
+    _, totals, anomalies, warnings = providers.get_virement_acomptes_data(
+        company_id,
+        request.period,
+        request.employee_ids,
+        request.excluded_employee_ids,
+        request.execution_date,
+        request.payment_label,
+        filters,
+    )
+    parameters = {
+        "employee_ids": request.employee_ids,
+        "excluded_employee_ids": request.excluded_employee_ids,
+        "execution_date": request.execution_date,
+        "payment_label": request.payment_label,
+        "filters": filters,
+    }
+    export_record: ExportRecordForInsert = {
+        "company_id": company_id,
+        "export_type": request.export_type,
+        "period": request.period,
+        "parameters": parameters,
+        "file_paths": [final_storage_path, final_bank_storage_path],
+        "report": {
+            "employees_count": totals.get("employees_count", 0),
+            "totals": totals,
+            "anomalies": anomalies,
+            "warnings": warnings,
+        },
+        "status": "generated",
+        "generated_by": user_id,
+    }
+    export_id = commands.record_export_history(export_record)
+    files_list = [
+        ExportFileInfo(
+            filename=filename,
+            path=final_storage_path,
+            size=len(file_content),
+            format=request.format,
+        ),
+        ExportFileInfo(
+            filename=bank_filename,
+            path=final_bank_storage_path,
+            size=len(bank_file_content),
+            format=bank_extension,
+        ),
+    ]
+    return ExportGenerateResponse(
+        export_id=export_id,
+        export_type=request.export_type,
+        period=request.period,
+        status="generated",
+        files=files_list,
+        report=ExportReport(
+            export_type=request.export_type,
+            period=request.period,
+            generated_at=datetime.now(),
+            generated_by=user_name,
+            employees_count=totals.get("employees_count", 0),
+            totals=ExportTotals(
+                employees_count=totals.get("employees_count", 0),
+                total_amount=totals.get("total_amount"),
+            ),
+            anomalies=[ExportAnomaly(**a) for a in anomalies],
+            warnings=warnings,
+            parameters=parameters,
+        ),
+        download_urls={filename: signed_url, bank_filename: bank_signed_url},
     )
