@@ -26,22 +26,27 @@ Il y a maintenant un bouton « Exporter en Excel » sur la page RH des titres de
 #8. Compteur JTC attendre récap ELSA 
 #9. Salarié colorplast en RTT (ou on des jours au compteur, je ne sais pas) alors que non. A checker MOI
 
-
+Ce n'étaient pas des RTT posés mais un solde affiché à tort : sans paramétrage de congés, le système donnait 10 RTT/an à tout le monde — ça touchait 4 sociétés sur 7. Maintenant, sans paramétrage c'est 0, et les RTT sont calculés depuis le forfait annuel de chaque société (Cartol 214 j, les autres 216 j), réservés aux 19 cadres au forfait-jours. Vérifié : Colorplast est bien à 0.
 
 #10. Case aménagement sur suivi médical MOI
+
+Quand on enregistre une visite médicale comme réalisée, on peut cocher « aménagement de poste ». La case remonte ensuite en tête de la fiche du salarié, en lecture seule — la visite reste le seul endroit de saisie, et une correction de visite écrase bien l'ancienne valeur. C'est volontairement une simple case, sans motif ni date de fin.
+
 #11. Elus CSE attendre fichier ELSA
 #12. Exports CSE et BDES attendre récap ELSA 
 #13. idem
 #14. Vérifier si on peut bien paramétrer montant des primes médaille du travail depuis l'interface MOI
+
+Le barème (paliers 20/30/35/40 ans et leurs montants) s'édite bien depuis Entreprise > Paie, et le montant peut aussi être ajusté au moment de valider une médaille. On a ajouté un réglage base d'ancienneté par société, pour les cas de reprise d'ancienneté où la date d'entrée ne reflète pas les droits réels. Et surtout, la détection ne tournait qu'à l'ouverture d'une fiche salarié : elle passe maintenant en scan automatique quotidien.
+
 #15. Prime transport réglable dans les primes via l'interface (pas forcément tous les mois donc pouvoir paramétrer manuellement) MOI
+
+Le montant se règle sur la fiche du salarié, avec une date d'effet, et génère chaque mois une ligne d'indemnité trajet dans les saisies mensuelles — modifiable ou supprimable mois par mois, la correction manuelle n'est jamais réécrasée. Proratisée à l'entrée/sortie, retirée si absence tout le mois, avec alerte au dépassement du plafond exonéré.
+
+
 #16. Fichier de virement pour les acomptes aussi (idem pour salaire mais pas la meme campagne de paiement) MOI
 
-Il y a maintenant une carte « Virement acomptes » à côté de « Virement salaires », qui sort les deux mêmes fichiers : un récapitulatif lisible et la remise bancaire SEPA (ou un CSV bancaire). C'est bien une campagne séparée — historique, date d'exécution et libellé propres, et des identifiants bancaires distincts pour que la banque ne puisse pas confondre les deux remises d'un même mois. Deux modes : « à verser », les acomptes approuvés dont il reste quelque chose à payer, c'est l'ordre à donner à la banque ; et « déjà versés », un simple relevé, assorti d'un avertissement de ne pas le transmettre sous peine de payer une seconde fois. Le mode « à verser » ne filtre pas sur le mois par défaut : un acompte approuvé le 28 juin doit partir dans la remise de juillet. Le fichier ne change aucun statut — après passage de la banque, le versement reste à enregistrer sur la fiche de l'acompte.
-
-Les contrôles reprennent ceux des salaires (IBAN manquant, montant nul, salarié sorti, règlement en chèque ou espèces écarté) et en ajoutent un propre aux acomptes : un acompte approuvé sans montant accordé est bloqué au lieu de partir à 0 €.
-
-À signaler à Elsa : le seul acompte existant en base, chez LEWIS (90,90 €), est incohérent — marqué « versé » alors qu'aucun versement n'est enregistré, et sans montant accordé. C'est exactement le cas que le nouveau contrôle refuse.
-
+Il y a maintenant un export « Virement acomptes », séparé de celui des salaires : sa propre date d'exécution, ses propres références bancaires, son propre historique. On peut soit sortir l'ordre de virement à envoyer à la banque (les acomptes approuvés pas encore payés), soit la liste des acomptes déjà versés sur une période.  Il ne sera pas utilisable tant que les BIC manquent : 238 salariés sur 240 n'en ont pas (c'est le point #3, en attente du fichier d'Elsa).
 
 #18. Point paye avec Gaëlle ELSA
 #19. Vérifier que fractionnement des congés c'est bien propre. Comment c'est activable ? paramétrable ? C'est automatiquement fait ? MOI
