@@ -182,24 +182,8 @@ ECARTS_ATTENDUS: List[EcartAttendu] = [
         depuis="2026-08-03",
     ),
     EcartAttendu(
-        rubrique="S21.G00.40.011",
-        motif=(
-            "forfait annuel en jours absent de 12 fiches (5 Cartol, 7 LEWIS) : "
-            "donnée à corriger, pas un défaut du générateur"
-        ),
-        depuis="2026-08-03",
-    ),
-    EcartAttendu(
-        rubrique="S21.G00.40.012",
-        motif="même cause que S21.G00.40.011 : forfait-jours absent de 12 fiches",
-        depuis="2026-08-03",
-    ),
-    EcartAttendu(
         rubrique="S21.G00.40.013",
-        motif=(
-            "forfait-jours absent de 12 fiches, et quotité arrondie au centième "
-            "d'heure près sur quelques contrats"
-        ),
+        motif="quotité arrondie au centième d'heure près sur quelques contrats",
         depuis="2026-08-03",
     ),
     EcartAttendu(
