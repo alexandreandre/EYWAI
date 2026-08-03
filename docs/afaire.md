@@ -36,6 +36,13 @@ Il y a maintenant un bouton « Exporter en Excel » sur la page RH des titres de
 #15. Prime transport réglable dans les primes via l'interface (pas forcément tous les mois donc pouvoir paramétrer manuellement) MOI
 #16. Fichier de virement pour les acomptes aussi (idem pour salaire mais pas la meme campagne de paiement) MOI
 
+Il y a maintenant une carte « Virement acomptes » à côté de « Virement salaires », qui sort les deux mêmes fichiers : un récapitulatif lisible et la remise bancaire SEPA (ou un CSV bancaire). C'est bien une campagne séparée — historique, date d'exécution et libellé propres, et des identifiants bancaires distincts pour que la banque ne puisse pas confondre les deux remises d'un même mois. Deux modes : « à verser », les acomptes approuvés dont il reste quelque chose à payer, c'est l'ordre à donner à la banque ; et « déjà versés », un simple relevé, assorti d'un avertissement de ne pas le transmettre sous peine de payer une seconde fois. Le mode « à verser » ne filtre pas sur le mois par défaut : un acompte approuvé le 28 juin doit partir dans la remise de juillet. Le fichier ne change aucun statut — après passage de la banque, le versement reste à enregistrer sur la fiche de l'acompte.
+
+Les contrôles reprennent ceux des salaires (IBAN manquant, montant nul, salarié sorti, règlement en chèque ou espèces écarté) et en ajoutent un propre aux acomptes : un acompte approuvé sans montant accordé est bloqué au lieu de partir à 0 €.
+
+À signaler à Elsa : le seul acompte existant en base, chez LEWIS (90,90 €), est incohérent — marqué « versé » alors qu'aucun versement n'est enregistré, et sans montant accordé. C'est exactement le cas que le nouveau contrôle refuse.
+
+
 #18. Point paye avec Gaëlle ELSA
 #19. Vérifier que fractionnement des congés c'est bien propre. Comment c'est activable ? paramétrable ? C'est automatiquement fait ? MOI
 #20. Numéro NIR bons ELSA. Sortie DSN de chez nous à checker MOI
