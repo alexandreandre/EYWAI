@@ -802,6 +802,9 @@ def process_payslip_generation(
                 "date_naissance": employee_data.get("date_naissance"),
                 "lieu_naissance": employee_data.get("lieu_naissance"),
                 "nationalite": employee_data.get("nationalite"),
+                "sexe": employee_data.get("sexe"),
+                "matricule": employee_data.get("matricule"),
+                "mode_paiement": employee_data.get("salary_payment_method"),
                 "adresse": _parse_if_json_string(employee_data.get("adresse")),
                 "coordonnees_bancaires": _parse_if_json_string(
                     employee_data.get("coordonnees_bancaires")
