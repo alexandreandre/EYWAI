@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.modules.payroll.documents.bulletin_view import (
+    calculer_evolution_remuneration,
     _civilite,
     _date_fr,
     _formater_nir,
@@ -420,3 +421,77 @@ class TestColonneLaterale:
         ]
         assert "HEURES" not in titres
         assert "CUMULS" not in titres
+
+
+class TestEvolutionRemuneration:
+    """Mention obligatoire art. R3243-1, absente de notre bulletin jusqu'ici."""
+
+    def test_valeur_du_bulletin_cartol_alves_juin_2026(self):
+        # 1436,21 x 3,15 % - 1457,66 x 1,7 % = 45,24 - 24,78 = 20,46
+        assert calculer_evolution_remuneration(1436.21, 1457.66) == pytest.approx(20.46)
+
+    def test_jamais_negative(self):
+        assert calculer_evolution_remuneration(100.0, 10000.0) == 0.0
+
+    def test_sans_base_csg_repli_sur_le_brut(self):
+        assert calculer_evolution_remuneration(1000.0, 0.0) == pytest.approx(14.5)
+
+
+class TestPied:
+    def _bulletin(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["synthese_net"] = {
+            "net_imposable": 1128.07,
+            "montant_net_social": 1105.80,
+            "net_social_avant_impot": 1105.80,
+            "impot_prelevement_a_la_source": {
+                "base": 1128.07,
+                "taux": 17.30,
+                "montant": 195.16,
+            },
+        }
+        bulletin["cumuls"] = {
+            "periode": {"annee_en_cours": 2026},
+            "cumuls": {
+                "net_imposable": 3621.64,
+                "impot_preleve_a_la_source": 420.57,
+            },
+        }
+        bulletin["net_a_payer"] = 910.64
+        bulletin["pied_de_page"]["mentions_legales"] = {
+            "conservation": "Conservez ce bulletin sans limitation de durée.",
+            "information": "Pour en savoir plus : www.service-public.fr",
+        }
+        return bulletin
+
+    def test_nets_et_net_a_payer(self):
+        pied = construire_vue_bulletin(self._bulletin())["pied"]
+        assert pied["montant_net_social"] == pytest.approx(1105.80)
+        assert pied["net_avant_impot"] == pytest.approx(1105.80)
+        assert pied["net_a_payer"] == pytest.approx(910.64)
+
+    def test_mention_evolution_remuneration_presente(self):
+        pied = construire_vue_bulletin(self._bulletin())["pied"]
+        assert pied["evolution_remuneration"] == pytest.approx(20.46)
+
+    def test_tableau_impot_avec_cumuls(self):
+        impot = construire_vue_bulletin(self._bulletin())["pied"]["impot"]
+        assert impot["taux"] == pytest.approx(17.30)
+        assert impot["montant"] == pytest.approx(195.16)
+        assert impot["cumul_net_imposable"] == pytest.approx(3621.64)
+        assert impot["cumul_impot"] == pytest.approx(420.57)
+
+    def test_mentions_legales_et_convention(self):
+        pied = construire_vue_bulletin(self._bulletin())["pied"]
+        assert any("service-public.fr" in m for m in pied["mentions_legales"])
+        assert "métallurgie" in pied["convention_collective"]
+
+    def test_rectification_signalee_discretement(self):
+        bulletin = self._bulletin()
+        bulletin["manually_edited"] = True
+        bulletin["edited_at"] = "02/08/2026 à 14:30"
+        pied = construire_vue_bulletin(bulletin)["pied"]
+        assert pied["rectification"] == "Bulletin rectifié le 02/08/2026 à 14:30"
+
+    def test_sans_rectification_pas_de_mention(self):
+        assert construire_vue_bulletin(self._bulletin())["pied"]["rectification"] == ""
