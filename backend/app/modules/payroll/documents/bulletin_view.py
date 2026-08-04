@@ -166,9 +166,11 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         # Repli documenté : 81 actifs sur 241 n'ont pas de date de reprise
         # d'ancienneté, leur ancienneté part de la date d'entrée.
         "anciennete": _date_fr(salarie.get("date_anciennete")) or date_entree,
-        "qualification": classification.get("qualification")
-        or classification.get("statut_categoriel")
-        or "",
+        # Volontairement pas de repli sur `statut_categoriel` : il contredit
+        # `employees.statut` sur une partie des fiches (ALVES, opérateur
+        # polyvalent, y est « Cadre » alors que la paie le traite en non-cadre).
+        # Cegid laisse d'ailleurs la case vide. Mieux vaut rien qu'un faux.
+        "qualification": classification.get("qualification") or "",
         # Repli sur la chaîne déjà formatée par le moteur : les vraies fiches
         # ne portent ni « niveau » ni « coefficient » mais des clés DSN
         # (position, niveau_dsn). Ne jamais afficher moins que l'ancien bulletin.

@@ -624,7 +624,9 @@ class TestClassificationReelle:
         salarie["classification"] = "200"
         identite = construire_vue_bulletin(bulletin)["identite"]
         assert identite["classification"] == "2 A"
-        assert identite["qualification"] == "Cadre"
+        # `statut_categoriel` contredit `employees.statut` sur 212 fiches :
+        # ne rien afficher plutôt qu'un statut faux (Cegid laisse vide aussi).
+        assert identite["qualification"] == ""
 
     def test_sans_niveau_dsn_on_reprend_la_chaine_du_moteur(self):
         bulletin = bulletin_minimal()
