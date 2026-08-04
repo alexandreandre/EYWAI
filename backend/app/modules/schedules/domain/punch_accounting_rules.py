@@ -118,6 +118,29 @@ def resolve_break_minutes(
     return base
 
 
+def apply_break_threshold(
+    break_minutes: int,
+    entry_minutes: int,
+    exit_minutes: int,
+    settings: PunchAccountingSettings,
+) -> int:
+    """Annule la pause sur les journées trop courtes pour la justifier.
+
+    Certaines organisations ne décomptent la pause déjeuner qu'au-delà d'une
+    durée de présence : une demi-journée n'en subit aucune. Le seuil est
+    comparé au brut pointé, pauses comprises.
+
+    Seuil à 0 : aucune journée n'est exemptée.
+    """
+    threshold = settings.break_threshold_minutes
+    if threshold <= 0 or break_minutes <= 0:
+        return break_minutes
+    if exit_minutes <= entry_minutes:
+        exit_minutes += 24 * 60
+    gross = exit_minutes - entry_minutes
+    return 0 if gross <= threshold else break_minutes
+
+
 def _gross_minutes_from_slot(slot: PunchShiftSlot) -> int:
     if slot.theoretical_gross_minutes > 0:
         return slot.theoretical_gross_minutes
@@ -208,6 +231,7 @@ def compute_punch_day(
         planned=day_input.planned_shift,
     )
     break_min = resolve_break_minutes(slot, settings, day_input.planned_shift)
+    break_min = apply_break_threshold(break_min, entry, exit_m, settings)
     pointed = _pointed_net_hours(entry, exit_m, break_min)
     theoretical = _theoretical_net_hours(slot, break_min) if slot else pointed
 

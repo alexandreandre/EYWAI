@@ -30,6 +30,7 @@ def _row_to_settings(row: dict[str, Any] | None) -> PunchAccountingSettings:
         enabled=bool(row.get("enabled")),
         tolerance_minutes=int(row.get("tolerance_minutes") or 30),
         default_break_deduct_minutes=int(row.get("default_break_deduct_minutes") or 45),
+        break_threshold_minutes=int(row.get("break_threshold_minutes") or 0),
         use_last_nonzero_exit=bool(row.get("use_last_nonzero_exit", True)),
         slot_detection=detection,
         within_tolerance_pay_theoretical=bool(
@@ -62,6 +63,7 @@ def upsert_settings(company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "enabled",
         "tolerance_minutes",
         "default_break_deduct_minutes",
+        "break_threshold_minutes",
         "use_last_nonzero_exit",
         "slot_detection",
         "within_tolerance_pay_theoretical",

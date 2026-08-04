@@ -183,3 +183,51 @@ class TestBadgeuseMinutesSinceMidnight:
         assert heures == 7.5
         assert not needs_review
         assert overtime == 0.0
+
+
+class TestBreakThreshold:
+    """Seuil de présence en deçà duquel aucune pause n'est déduite.
+
+    Cas Colorplast : 30 min de pause déjeuner, mais rien sur une demi-journée.
+    Journées relevées sur leurs feuilles de pointage papier.
+    """
+
+    def _settings(self, threshold: int) -> PunchAccountingSettings:
+        return PunchAccountingSettings(
+            enabled=True,
+            tolerance_minutes=30,
+            default_break_deduct_minutes=30,
+            break_threshold_minutes=threshold,
+            slot_detection="shift_code",
+        )
+
+    def _hours(self, entry_raw: int, exit_raw: int, threshold: int) -> float:
+        result = compute_from_raw_times(
+            entry_raw=entry_raw,
+            exit_raw=exit_raw,
+            shift_code=None,
+            settings=self._settings(threshold),
+            slots=[],
+        )
+        return result.accounted_hours
+
+    def test_journee_longue_subit_la_pause(self):
+        # 6h00 → 15h00 = 9 h brutes, 8,5 h retenues sur la feuille
+        assert self._hours(600, 1500, 360) == 8.5
+
+    def test_demi_journee_sous_le_seuil_ne_subit_rien(self):
+        # 6h00 → 12h00 = 6 h pile, comptées 6 h sur la feuille
+        assert self._hours(600, 1200, 360) == 6.0
+
+    def test_vendredi_court_ne_subit_rien(self):
+        # 7h00 → 12h00 = 5 h, comptées 5 h sur la feuille
+        assert self._hours(700, 1200, 360) == 5.0
+
+    def test_juste_au_dessus_du_seuil_subit_la_pause(self):
+        # 6h00 → 12h01 : une minute de plus, la pause s'applique
+        assert self._hours(600, 1201, 360) == 5.52
+
+    def test_seuil_a_zero_ne_change_rien(self):
+        # Non-régression : sans seuil, la pause s'applique à toute journée
+        assert self._hours(600, 1200, 0) == 5.5
+        assert self._hours(600, 1500, 0) == 8.5

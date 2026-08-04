@@ -15,6 +15,9 @@ class PunchAccountingSettings:
     enabled: bool = False
     tolerance_minutes: int = 30
     default_break_deduct_minutes: int = 45
+    # Présence brute en deçà ou égale à laquelle aucune pause n'est déduite.
+    # 0 : jamais d'exemption, comportement historique.
+    break_threshold_minutes: int = 0
     use_last_nonzero_exit: bool = True
     slot_detection: SlotDetection = "shift_code"
     within_tolerance_pay_theoretical: bool = True

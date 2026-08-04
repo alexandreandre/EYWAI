@@ -8,6 +8,8 @@ export interface PunchAccountingSettings {
   enabled: boolean;
   tolerance_minutes: number;
   default_break_deduct_minutes: number;
+  /** Présence en deçà de laquelle aucune pause n'est déduite. 0 = toujours déduite. */
+  break_threshold_minutes: number;
   use_last_nonzero_exit: boolean;
   slot_detection: SlotDetection;
   within_tolerance_pay_theoretical: boolean;

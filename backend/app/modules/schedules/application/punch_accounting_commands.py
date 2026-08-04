@@ -26,6 +26,7 @@ def _settings_response(company_id: str) -> PunchAccountingSettingsResponse:
         enabled=bool(row.get("enabled")),
         tolerance_minutes=int(row.get("tolerance_minutes") or 30),
         default_break_deduct_minutes=int(row.get("default_break_deduct_minutes") or 45),
+        break_threshold_minutes=int(row.get("break_threshold_minutes") or 0),
         use_last_nonzero_exit=bool(row.get("use_last_nonzero_exit", True)),
         slot_detection=row.get("slot_detection") or "shift_code",
         within_tolerance_pay_theoretical=bool(

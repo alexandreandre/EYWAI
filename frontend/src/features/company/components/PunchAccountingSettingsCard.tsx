@@ -285,6 +285,34 @@ export default function PunchAccountingSettingsCard() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="break-threshold">
+              Pause ignorée en deçà de (min de présence)
+            </Label>
+            <Input
+              id="break-threshold"
+              type="number"
+              min={0}
+              max={960}
+              value={form.break_threshold_minutes}
+              disabled={!canEdit}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  break_threshold_minutes: Number(e.target.value) || 0,
+                })
+              }
+              onBlur={() =>
+                saveMut.mutate({
+                  break_threshold_minutes: form.break_threshold_minutes,
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Une demi-journée plus courte que ce seuil ne subit aucune pause.
+              0 : la pause s&apos;applique à toutes les journées.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>Détection du créneau</Label>
             <Select
               value={form.slot_detection}

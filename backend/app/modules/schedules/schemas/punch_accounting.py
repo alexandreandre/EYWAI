@@ -16,6 +16,7 @@ class PunchAccountingSettingsResponse(BaseModel):
     enabled: bool = False
     tolerance_minutes: int = 30
     default_break_deduct_minutes: int = 45
+    break_threshold_minutes: int = 0
     use_last_nonzero_exit: bool = True
     slot_detection: SlotDetection = "shift_code"
     within_tolerance_pay_theoretical: bool = True
@@ -26,6 +27,7 @@ class PunchAccountingSettingsUpdate(BaseModel):
     enabled: Optional[bool] = None
     tolerance_minutes: Optional[int] = Field(None, ge=0, le=120)
     default_break_deduct_minutes: Optional[int] = Field(None, ge=0, le=180)
+    break_threshold_minutes: Optional[int] = Field(None, ge=0, le=960)
     use_last_nonzero_exit: Optional[bool] = None
     slot_detection: Optional[SlotDetection] = None
     within_tolerance_pay_theoretical: Optional[bool] = None
