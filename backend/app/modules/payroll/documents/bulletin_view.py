@@ -122,10 +122,62 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _colonne_compteur(titre: str, compteur: Any) -> Dict[str, Any]:
+    donnees = compteur if isinstance(compteur, dict) else {}
+    return {
+        "titre": titre,
+        "acquis": float(donnees.get("acquis") or 0.0),
+        "pris": float(donnees.get("pris") or 0.0),
+        "solde": float(donnees.get("solde") or 0.0),
+    }
+
+
+def _compteur_alimente(compteur: Any) -> bool:
+    donnees = compteur if isinstance(compteur, dict) else {}
+    return any(float(donnees.get(cle) or 0.0) for cle in ("acquis", "pris", "solde"))
+
+
+def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    solde = ((bulletin.get("pied_de_page") or {}).get("solde_conges")) or {}
+    if not solde:
+        return None
+
+    colonnes: List[Dict[str, Any]] = []
+    precedente = solde.get("conges_payes_periode_precedente")
+    if _compteur_alimente(precedente):
+        colonnes.append(_colonne_compteur("CP N-1", precedente))
+    colonnes.append(_colonne_compteur("CP N", solde.get("conges_payes")))
+    if _compteur_alimente(solde.get("rtt")):
+        colonnes.append(_colonne_compteur("RTT", solde.get("rtt")))
+    if _compteur_alimente(solde.get("repos_compensateur")):
+        colonnes.append(
+            _colonne_compteur("Repos comp.", solde.get("repos_compensateur"))
+        )
+
+    notes: List[str] = []
+    fractionnement = solde.get("fractionnement") or {}
+    if float(fractionnement.get("jours_acquis") or 0) > 0:
+        libelle = fractionnement.get("libelle") or "Jours de fractionnement"
+        reference = fractionnement.get("reference_date")
+        notes.append(f"{libelle} (réf. {reference})" if reference else str(libelle))
+    jours_anciennete = float(solde.get("cp_seniority_days") or 0)
+    if jours_anciennete > 0:
+        notes.append(f"Dont {jours_anciennete:.0f} j CP ancienneté conventionnels")
+    if solde.get("cp_seniority_forfait_note"):
+        notes.append(str(solde["cp_seniority_forfait_note"]))
+
+    return {
+        "date_reference": solde.get("date_reference") or "",
+        "colonnes": colonnes,
+        "notes": notes,
+    }
+
+
 def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     """Point d'entrée unique : le bulletin du moteur, vu par le gabarit."""
     return {
         "bandeau": construire_bandeau(bulletin),
+        "compteurs": construire_compteurs(bulletin),
         "salarie": construire_salarie(bulletin),
         "identite": construire_identite(bulletin),
     }
