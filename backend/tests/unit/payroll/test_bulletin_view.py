@@ -495,3 +495,66 @@ class TestPied:
 
     def test_sans_rectification_pas_de_mention(self):
         assert construire_vue_bulletin(self._bulletin())["pied"]["rectification"] == ""
+
+
+def _rendre(bulletin: dict) -> str:
+    from pathlib import Path
+
+    from jinja2 import Environment, FileSystemLoader
+
+    template_dir = (
+        Path(__file__).resolve().parents[3]
+        / "app"
+        / "runtime"
+        / "payroll"
+        / "templates"
+    )
+    env = Environment(loader=FileSystemLoader(str(template_dir)))
+    return env.get_template("template_bulletin.html").render(
+        vue=construire_vue_bulletin(bulletin)
+    )
+
+
+class TestRendu:
+    def test_le_gabarit_affiche_les_zones_attendues(self):
+        html = _rendre(bulletin_avec_cotisations())
+        for attendu in (
+            "BULLETIN DE SALAIRE",
+            "Société CARTOL",
+            "ALVES Lucas",
+            "Matricule",
+            "1 02 09 85 191 239 74",
+            "Q100",
+            "SANTÉ",
+            "TOTAL DES RETENUES",
+            "NET IMPOSABLE",
+            "Net à payer au salarié",
+        ):
+            assert attendu in html, f"{attendu} absent du rendu"
+
+    def test_ordre_des_zones(self):
+        html = _rendre(bulletin_avec_cotisations())
+        assert html.index("BULLETIN DE SALAIRE") < html.index("Matricule")
+        assert html.index("Matricule") < html.index("TOTAL DES RETENUES")
+        assert html.index("TOTAL DES RETENUES") < html.index("Net à payer au salarié")
+
+    def test_aucune_section_vide_sans_donnees(self):
+        html = _rendre(bulletin_minimal())
+        assert "CUMULS" not in html
+        assert "Solde de congés" not in html
+
+
+class TestFideliteColonnes:
+    """Le gabarit Cegid laisse vide ce qui ne concerne pas la colonne."""
+
+    def test_cotisation_purement_patronale_sans_taux_salarial(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        ligne = next(l for l in lignes if l["libelle"].startswith("Sécu.Soc-Mal"))
+        assert ligne["taux"] is None
+        assert ligne["montant_salarial"] is None
+        assert ligne["montant_patronal"] == pytest.approx(100.53)
+
+    def test_montant_patronal_nul_laisse_vide(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        ligne = next(l for l in lignes if l["libelle"].startswith("CSG/CRDS"))
+        assert ligne["montant_patronal"] is None

@@ -264,17 +264,23 @@ def _ligne_brut(source: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
+def _montant_ou_vide(valeur: Any) -> Optional[float]:
+    """Cegid laisse la case vide plutôt que d'imprimer un zéro."""
+    montant = float(valeur or 0.0)
+    return montant if montant else None
+
+
 def _ligne_cotisation(source: Dict[str, Any]) -> Dict[str, Any]:
+    # La colonne est celle du taux salarial : une cotisation purement patronale
+    # n'y met rien, comme sur le bulletin du cabinet.
     taux = source.get("taux_salarial")
-    if taux is None:
-        taux = source.get("taux_patronal")
     return _ligne(
         "detail",
         source.get("libelle") or "",
         base=source.get("base"),
         taux=float(taux) * 100 if taux is not None else None,
-        montant_salarial=source.get("montant_salarial"),
-        montant_patronal=source.get("montant_patronal"),
+        montant_salarial=_montant_ou_vide(source.get("montant_salarial")),
+        montant_patronal=_montant_ou_vide(source.get("montant_patronal")),
     )
 
 

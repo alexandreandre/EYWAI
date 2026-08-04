@@ -412,7 +412,7 @@ class TestTemplateBulletinOfficiel:
 
         assert bulletin["pied_de_page"]["solde_conges"]["conges_payes"]["solde"] == 11.0
 
-    def test_rendu_template_contient_solde_conges_en_bas(self):
+    def test_rendu_template_contient_les_compteurs_de_conges(self):
         ctx = build_test_contexte(salaire_base=2000.0)
         ctx.year = 2026
         lignes, total_sal = calculer_cotisations(ctx, 2000.0)
@@ -443,15 +443,18 @@ class TestTemplateBulletinOfficiel:
             / "payroll"
             / "templates"
         )
-        env = Environment(loader=FileSystemLoader(str(template_dir)))
-        html = env.get_template("template_bulletin.html").render(bulletin)
+        from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
 
-        assert "Solde de congés au 30/04/2026" in html
-        assert "11.00 j" in html
-        assert "CP période en cours" in html
-        idx_solde = html.index("Solde de congés")
-        idx_mentions = html.index("service-public.fr")
-        assert idx_solde < idx_mentions
+        env = Environment(loader=FileSystemLoader(str(template_dir)))
+        html = env.get_template("template_bulletin.html").render(
+            vue=construire_vue_bulletin(bulletin)
+        )
+
+        # Les compteurs sont désormais en haut du bulletin, avant les mentions.
+        assert "Acquis" in html
+        assert "CP N" in html
+        assert "11.00" in html
+        assert html.index("Acquis") < html.index("service-public.fr")
 
     def test_rendu_template_contient_montant_net_social(self):
         ctx = build_test_contexte(salaire_base=2000.0)
@@ -487,12 +490,17 @@ class TestTemplateBulletinOfficiel:
             / "payroll"
             / "templates"
         )
+        from app.modules.payroll.documents.bulletin_view import (
+            CODES_CEGID,
+            construire_vue_bulletin,
+        )
+
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         template = env.get_template("template_bulletin.html")
-        html = template.render(bulletin)
+        html = template.render(vue=construire_vue_bulletin(bulletin))
 
         assert html.strip()
-        assert "Montant net social" in html or "MONTANT NET SOCIAL" in html
+        assert "MONTANT NET SOCIAL" in html
         assert "service-public.fr" in html
         assert bulletin["en_tete"]["entreprise"]["raison_sociale"] in html
         for code, _ in RUBRIQUES_ORDRE[:3]:
@@ -501,7 +509,7 @@ class TestTemplateBulletinOfficiel:
                 None,
             )
             if rub:
-                assert rub["libelle"] in html
+                assert CODES_CEGID[code] in html
 
 
 class TestDonneesEnTeteGabarit:

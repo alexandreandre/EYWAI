@@ -570,10 +570,12 @@ def run_payslip_generation_forfait(
             chemin_cumuls_mis_a_jour.read_text(encoding="utf-8")
         )
 
+    from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
+
     templates_dir = engine_root / "templates"
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
     template = env.get_template("template_bulletin.html")
-    html_genere = template.render(bulletin_final)
+    html_genere = template.render(vue=construire_vue_bulletin(bulletin_final))
 
     pdf_filename = (
         employee_path
