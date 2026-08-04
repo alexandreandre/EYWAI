@@ -3,7 +3,8 @@
 Date : 2026-08-04
 Sujet : `docs/afaire.md` #21 — « Badgeuse chez Colorplast. Stratégie d'intégration
 intelligente à gamberge »
-Statut : conception validée, implémentation à planifier
+Statut : conception validée ; bouton livré, paramétrage vérifié sur
+l'environnement de test et en attente d'application en production
 
 ## 1. Objectif
 
@@ -24,8 +25,9 @@ parallèle, réconciliés chaque semaine, le papier arbitre.
   physique. Décision assumée (§ 4.5).
 - Déploiement chez les six autres sociétés. Colorplast d'abord, seul.
 - Reprise de l'historique des pointages papier des mois passés.
-- Le bug `companies.name` du kiosque (§ 3.5) : réel, mais sans effet ici
-  puisque la borne n'est pas utilisée. À porter ailleurs.
+- Le bug `companies.name` du kiosque (§ 3.5) est sans effet ici puisque la
+  borne n'est pas utilisée. Corrigé au passage, une ligne, plutôt que laissé
+  derrière nous.
 - Les badgeuses tierces déjà en place chez deux autres sociétés (§ 3.2).
 
 ## 3. État des lieux
@@ -107,6 +109,17 @@ seulement au-delà de 6 h de présence**. Une journée de 6 h pile ne subit aucu
 déduction, un vendredi de 5 h non plus. Les totaux hebdomadaires entourés en
 rouge (28, 43, 44, 39) retombent au quart d'heure près avec cette règle.
 
+Une correction ponctuelle écrite lors d'une session précédente
+(`backend/scripts/colorplast_unpaid_break_one_shot.py`) applique la même
+déduction, formulée autrement : 30 minutes du lundi au jeudi, en excluant deux
+salariés. Cette exclusion tenait à l'état des données de l'époque, pas à une
+règle différente — les neuf salariés suivent aujourd'hui le même rythme de
+8,5 h du lundi au jeudi et 5 h le vendredi.
+
+⚠ Ce script retranche 30 minutes des heures **déjà enregistrées**. Une fois la
+badgeuse en place, la déduction se fait en amont : le rejouer déduirait la
+pause une seconde fois.
+
 Déduite, pas confirmée. À faire valider par Elsa (§ 7).
 
 ### 3.7 Le système de créneaux ne leur convient pas
@@ -116,10 +129,31 @@ Colorplast les horaires varient chaque jour : embauche à 6 h ou 7 h, sortie à
 15 h, 16 h, 16 h 30 ou 17 h 30.
 
 Sans créneau, `compute_punch_day` retient `théorique = pointé` et applique la
-pause par défaut de la société. C'est exactement ce qu'il faut ici — à condition
-que le seuil du § 3.6 existe.
+pause résolue pour la journée. C'est exactement ce qu'il faut ici.
 
-### 3.8 Aucun des neuf salariés ne s'est jamais connecté
+### 3.8 La pause planifiée prime sur la pause par défaut
+
+Piste explorée puis écartée au § 4.2, mais le mécanisme reste vrai et il faut
+le connaître pour comprendre l'ordre de priorité des pauses.
+
+`resolve_break_minutes` regarde d'abord la pause non payée **planifiée** : si
+la journée du calendrier en porte une, elle l'emporte sur la pause par défaut
+de la société. Cette pause remonte de bout en bout —
+`calendar_generation_rules` la pose sur chaque jour généré,
+`_unpaid_break_from_planned` la relit, `compute_accounted_hours_for_badgeuse_day`
+la transmet.
+
+Colorplast a déjà un gabarit de semaine « Colorplast — Standard (39 h) » qui
+porte une pause par jour, aujourd'hui à zéro partout, et dont les heures
+correspondent exactement aux feuilles papier : 8,5 h du lundi au jeudi, 5 h le
+vendredi.
+
+Quand la pause planifiée vaut zéro, aucune clé n'est écrite sur la journée et
+le moteur retombe sur la pause par défaut de la société. Il suffit donc de
+laisser cette valeur par défaut à zéro pour que le vendredi ne subisse aucune
+déduction.
+
+### 3.9 Aucun des neuf salariés ne s'est jamais connecté
 
 Comptes créés fin juin 2026, tous confirmés, tous avec un e-mail réel,
 `last_sign_in_at` vide pour les neuf.
@@ -145,44 +179,54 @@ présence déjà affiché.
 
 Aucun changement back n'est nécessaire.
 
-### 4.2 Chantier 2 — le seuil de pause
+### 4.2 Le seuil de pause
 
-Nouveau réglage société dans `company_punch_accounting_settings` :
-`break_threshold_minutes`, la présence brute en deçà de laquelle aucune pause
-n'est déduite.
+Le chemin a hésité, et le détour vaut d'être écrit.
 
-- Valeur par défaut **0** : aucune déduction supprimée, comportement identique
-  à aujourd'hui. Aucune régression possible pour les sociétés déjà
-  paramétrées.
-- Règle : si `sortie − entrée` ≤ seuil, pause déduite = 0 ; sinon, la pause
-  résolue par les règles existantes s'applique inchangée.
-- Le seuil s'applique après la résolution de pause actuelle, pas à sa place :
-  créneaux, pause planifiée et pause payée gardent leur priorité.
-- Éditable depuis Entreprise > Paie, à côté des réglages de comptabilisation
-  existants.
+Le mécanisme de pause planifiée du § 3.8 permet de poser 30 minutes du lundi au
+jeudi et rien le vendredi, sans une ligne de code. Vérification faite sur leurs
+feuilles, il se trompe : une demi-journée du lundi au jeudi subirait la pause
+alors qu'elle n'en subit aucune en réalité. Sur la seule semaine 03, le cas se
+produit une fois — un mardi de 6 h compté 6 h.
 
-Paramétrage Colorplast : comptabilisation activée, seuil 360 minutes, pause par
-défaut 30 minutes, aucun créneau.
+La règle n'est donc pas « pause du lundi au jeudi » mais bien « pause au-delà
+d'une certaine présence », telle que décodée au § 3.6. Elle demande un réglage
+qui n'existait pas :
 
-C'est un réglage de société, pas une règle codée pour Colorplast : le moteur
-reste généraliste.
+**`break_threshold_minutes`** — présence brute en deçà ou égale à laquelle
+aucune pause n'est déduite.
 
-### 4.3 Chantier 3 — la réconciliation hebdomadaire
+- Valeur par défaut **0** : aucune journée exemptée, comportement identique à
+  aujourd'hui pour toutes les sociétés déjà paramétrées.
+- Le seuil s'applique **après** la résolution de pause existante, jamais à sa
+  place : créneaux, pause planifiée et pause payée gardent leur priorité. Il ne
+  fait qu'annuler le résultat sur une journée trop courte.
+- Comparé au brut pointé, pauses comprises.
+- Éditable depuis Entreprise > Paie, à côté des réglages de comptabilisation.
 
-Un script, pas un écran : neuf salariés sur quatre semaines, c'est un outil
-jetable, et un écran coûterait plus cher que le service rendu.
+Paramétrage Colorplast : comptabilisation activée, pause par défaut 30 minutes,
+seuil 360 minutes, aucun créneau.
 
-Entrée : une semaine, la société. Sortie : un tableau par salarié et par jour —
-heures comptabilisées depuis la badgeuse, heures lues sur la feuille papier,
-écart — plus un total hebdomadaire par salarié.
+Le seuil rend inutile toute autre manipulation : ni gabarit de semaine à
+modifier, ni calendrier à régénérer, ni heure réelle à retoucher. C'est ce qui
+l'a emporté sur la piste précédente, autant que sa justesse.
 
-Les heures papier sont saisies à la main dans un fichier de la semaine : les
-feuilles sont des images sans couche texte, et neuf lignes par semaine se
-recopient plus vite qu'on ne fiabilise une lecture automatique. Le fichier vit
-sous `data/colorplast/pointages/`, jamais dans le dépôt.
+Vérification : les trois semaines complètes relevées sur la feuille papier de la
+semaine 03 (28 h, 43 h, 39 h) sont reproduites au centième par le moteur, jour
+par jour, demi-journée comprise.
 
-Le script est en lecture seule. Il ne corrige rien, il ne touche à aucun
-calendrier, à aucune paie.
+### 4.3 La réconciliation hebdomadaire — à la main
+
+Première version de cette spec : un script de comparaison. Disproportionné.
+
+Neuf salariés sur cinq jours, c'est quarante-cinq cellules par semaine. La
+comparaison se fait dans un tableur, à partir de l'export badgeuse existant
+d'un côté et de la feuille papier de l'autre. Un script apporterait du confort,
+pas de la fiabilité — et il faudrait de toute façon saisir les heures papier à
+la main, les feuilles étant des images sans couche texte.
+
+Ce qui compte n'est pas l'outil mais la discipline : chaque écart est expliqué
+avant de passer à la semaine suivante.
 
 ### 4.4 Ce qui alimente la paie, et quand
 
@@ -208,9 +252,10 @@ la moins intrusive. Pas maintenant.
 ## 5. Déroulé
 
 **Semaine 0 — préparation.**
-Paramétrage rejoué d'abord sur l'environnement de test, puis appliqué en
-production. Le seuil de pause est livré avant, sans quoi le paramétrage n'a pas
-de sens.
+Le bouton et le seuil sont livrés. Le paramétrage est rejoué d'abord sur
+l'environnement de test — fait le 2026-08-04, migration comprise, sans effet sur
+les autres sociétés — puis appliqué en production par
+`backend/scripts/setup_badgeuse_colorplast.py --apply`.
 
 **Semaine 0 — les comptes.**
 Les neuf salariés se connectent une première fois. C'est le point qui décide du
@@ -231,8 +276,8 @@ Bilan des écarts avec Elsa, et décision de basculer ou de prolonger.
 - Les neuf salariés se sont connectés au moins une fois.
 - Sur la dernière semaine du double run, l'écart badgeuse/papier est nul ou
   expliqué pour chaque salarié.
-- Aucun changement de comportement pour les six autres sociétés : le seuil de
-  pause à 0 par défaut le garantit, et un test doit le démontrer.
+- Aucun changement de comportement pour les six autres sociétés : le
+  paramétrage du § 4.2 ne touche que le gabarit et les réglages de Colorplast.
 - Le taux de pointages oubliés est connu et jugé acceptable par Elsa.
 
 ## 7. Questions ouvertes
