@@ -52,3 +52,12 @@ class AcquitAlertRequest(BaseModel):
     """Acquittement ou commentaire sur une alerte."""
 
     comment: str | None = None
+
+
+class PayslipPreviewRequest(BaseModel):
+    """Rendu d'aperçu d'un bulletin à partir de données éditées, sans persistance."""
+
+    payslip_data: dict[str, Any]
+    pdf_notes: str | None = Field(
+        None, max_length=2000, description="Notes visibles sur le bulletin"
+    )

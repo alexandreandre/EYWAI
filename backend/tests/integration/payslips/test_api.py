@@ -602,3 +602,66 @@ class TestPayslipsDebugStorageRoute:
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 404
+
+
+class TestPayslipPreview:
+    """POST /api/payslips/{payslip_id}/preview — rendu serveur de l'aperçu."""
+
+    def test_apercu_rend_le_gabarit(self, client):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.payslips.api.router.get_payslip_meta_for_access",
+                return_value={
+                    "company_id": TEST_COMPANY_ID,
+                    "employee_id": TEST_EMPLOYEE_ID,
+                },
+            ), patch(
+                "app.modules.payslips.api.router.access_control_service.require_employee_access",
+                return_value=None,
+            ):
+                response = client.post(
+                    "/api/payslips/ps-1/preview",
+                    json={
+                        "payslip_data": {
+                            "en_tete": {
+                                "periode": "Juin 2026",
+                                "annee": 2026,
+                                "mois": 6,
+                                "entreprise": {"raison_sociale": "Société CARTOL"},
+                                "salarie": {"nom": "ALVES", "prenom": "Lucas"},
+                            },
+                            "salaire_brut": 1436.21,
+                            "net_a_payer": 910.64,
+                        },
+                        "pdf_notes": None,
+                    },
+                )
+            assert response.status_code == 200
+            html = response.json()["html"]
+            assert "BULLETIN DE SALAIRE" in html
+            assert "ALVES Lucas" in html
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_apercu_refuse_un_bulletin_hors_perimetre(self, client):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+        try:
+            with patch(
+                "app.modules.payslips.api.router.get_payslip_meta_for_access",
+                return_value={
+                    "company_id": "autre-societe",
+                    "employee_id": TEST_EMPLOYEE_ID,
+                },
+            ):
+                response = client.post(
+                    "/api/payslips/ps-1/preview",
+                    json={"payslip_data": {}, "pdf_notes": None},
+                )
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.clear()

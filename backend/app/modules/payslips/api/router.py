@@ -54,6 +54,8 @@ from app.modules.payslips.schemas import (
     PayslipEditRequest,
     PayslipEditResponse,
     PayslipInfo,
+    PayslipPreviewRequest,
+    PayslipPreviewResponse,
     PayslipRequest,
     PayslipRestoreRequest,
     PayslipRestoreResponse,
@@ -415,6 +417,41 @@ def edit_payslip_route(
             message="Bulletin modifié avec succès",
             payslip=result["payslip"],
             new_pdf_url=result["new_pdf_url"],
+        )
+    except _PAYSLIP_APP_ERRORS as e:
+        _map_app_errors(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Aperçu ---
+@router.post(
+    "/api/payslips/{payslip_id}/preview", response_model=PayslipPreviewResponse
+)
+def preview_payslip_route(
+    payslip_id: str,
+    preview_request: PayslipPreviewRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Rend le bulletin tel qu'il sortira, sans rien enregistrer."""
+    try:
+        _require_payslip_scope(current_user, payslip_id, "payslips.edit")
+
+        from jinja2 import Environment, FileSystemLoader
+
+        from app.core.paths import payroll_engine_templates
+        from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
+
+        donnees = dict(preview_request.payslip_data or {})
+        donnees["pdf_notes"] = preview_request.pdf_notes
+
+        env = Environment(loader=FileSystemLoader(str(payroll_engine_templates())))
+        template = env.get_template("template_bulletin.html")
+        return PayslipPreviewResponse(
+            html=template.render(vue=construire_vue_bulletin(donnees))
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)
