@@ -108,9 +108,39 @@ def build_convention_collective_payload(
         company_row.get("collective_agreement")
         or company_row.get("collective_agreement_name")
         or company_row.get("ccn_name")
+        or get_agreement_name_for_idcc(idcc, supabase_client=supabase_client)
         or ""
     )
     return {"idcc": idcc, "libelle": str(libelle).strip()}
+
+
+def get_agreement_name_for_idcc(
+    idcc: str, *, supabase_client: Any = None
+) -> Optional[str]:
+    """Intitulé de la convention depuis le catalogue.
+
+    Les sociétés ne renseignent pas la colonne `collective_agreement` : sans ce
+    repli, le bulletin n'affiche que « IDCC 3248 » alors que l'intitulé est une
+    mention obligatoire (art. R3243-1).
+    """
+    if not idcc:
+        return None
+    client = supabase_client or get_supabase_client()
+    for variant in idcc_variants(idcc):
+        try:
+            response = (
+                client.table("collective_agreements_catalog")
+                .select("name")
+                .eq("idcc", variant)
+                .limit(1)
+                .execute()
+            )
+        except Exception:
+            return None
+        rows = getattr(response, "data", None) or []
+        if rows and rows[0].get("name"):
+            return str(rows[0]["name"]).strip()
+    return None
 
 
 def _fetch_rules_for_idcc(idcc: str, supabase_client: Any = None) -> Dict[str, Any]:
