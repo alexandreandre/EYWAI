@@ -130,7 +130,8 @@ def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "siret": entreprise.get("siret") or "",
         "naf_ape": entreprise.get("naf_ape") or "",
         "periode": en_tete.get("periode") or "",
-        "date_paiement": en_tete.get("date_paiement") or "",
+        # Le moteur produit une date ISO ; le bulletin s'imprime en français.
+        "date_paiement": _date_fr(en_tete.get("date_paiement")),
         "du": du,
         "au": au,
     }
@@ -170,7 +171,6 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         or classification.get("classification")
         or "",
         "coefficient": classification.get("coefficient") or "",
-        "convention_collective": salarie.get("convention_collective") or "",
     }
 
 
@@ -339,11 +339,14 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         if montant > 0:
             lignes.append(_ligne("hors_brut", libelle, montant_salarial=montant))
 
+    # L'enrichissement « saisies et avances » n'a pas toujours tourné : dans ce
+    # cas l'acompte ne subsiste que dans la synthèse des nets.
+    acomptes = float(
+        (bulletin.get("remboursements_avances") or {}).get("total_rembourse") or 0.0
+    ) or float(synthese.get("acompte_verse") or 0.0)
+
     retenues = (
-        (
-            (bulletin.get("remboursements_avances") or {}).get("total_rembourse"),
-            "Acomptes et avances",
-        ),
+        (acomptes, "Acomptes et avances"),
         (
             (bulletin.get("retenues_saisies") or {}).get("total_preleve"),
             "Retenues sur salaire",
@@ -353,10 +356,12 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             "Remboursement prêt employeur",
         ),
     )
+    # Retenues sur le net : négatives, comme les absences dans le brut, pour
+    # qu'on ne confonde pas ce qui s'ajoute et ce qui se retire.
     for montant, libelle in retenues:
         valeur = float(montant or 0.0)
         if valeur > 0:
-            lignes.append(_ligne("hors_brut", libelle, montant_salarial=valeur))
+            lignes.append(_ligne("hors_brut", libelle, montant_salarial=-valeur))
 
     return lignes
 
@@ -373,6 +378,12 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         for detail in bulletin.get(source) or []:
             if isinstance(detail, dict):
                 lignes.append(_ligne_brut(detail))
+
+    # Ligne de note libre, comme Cegid en pose dans le corps du bulletin
+    # (« SOLDE MODUL.au 21/06=8.25h ») : ici, la règle retenue pour l'indemnité
+    # de congés payés.
+    if bulletin.get("arbitrage_conges"):
+        lignes.append(_ligne("note", str(bulletin["arbitrage_conges"])))
 
     lignes.append(
         _ligne("total", "SALAIRE BRUT", montant_salarial=bulletin.get("salaire_brut"))
