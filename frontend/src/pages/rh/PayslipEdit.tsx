@@ -34,7 +34,7 @@ import PrimesNonSoumisesSection from '@/components/payslip-edit/PrimesNonSoumise
 import NotesDeFraisSection from '@/components/payslip-edit/NotesDeFraisSection';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
-import PreviewPanel from '@/components/payslip-edit/PreviewPanel';
+import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
@@ -429,7 +429,11 @@ export default function PayslipEdit() {
 
         {/* Onglet Aperçu */}
         <TabsContent value="preview" className="mt-6">
-          <PreviewPanel data={editedData} pdfNotes={pdfNotes} cumuls={cumuls} />
+          <PayslipPreviewFrame
+            payslipId={payslipId!}
+            data={{ ...editedData, cumuls }}
+            pdfNotes={pdfNotes}
+          />
         </TabsContent>
 
         {/* Onglet Historique */}

@@ -255,6 +255,22 @@ export const editPayslip = async (
 };
 
 /**
+ * Rend un bulletin à partir des données éditées, sans rien enregistrer.
+ * Le HTML retourné est exactement celui du PDF qui sera généré.
+ */
+export const previewPayslip = async (
+  payslipId: string,
+  payslipData: unknown,
+  pdfNotes?: string
+): Promise<string> => {
+  const response = await apiClient.post<{ html: string }>(
+    `/api/payslips/${payslipId}/preview`,
+    { payslip_data: payslipData, pdf_notes: pdfNotes ?? null }
+  );
+  return response.data.html;
+};
+
+/**
  * Récupère l'historique des modifications d'un bulletin
  */
 export const getPayslipHistory = async (payslipId: string): Promise<HistoryEntry[]> => {
