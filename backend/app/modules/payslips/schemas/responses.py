@@ -159,3 +159,9 @@ class PayslipRestoreResponse(BaseModel):
     message: str
     payslip: PayslipDetail
     restored_version: int
+
+
+class PayslipPreviewResponse(BaseModel):
+    """Bulletin rendu, prêt à être affiché tel quel."""
+
+    html: str
