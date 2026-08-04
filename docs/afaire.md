@@ -53,21 +53,26 @@ Il y a maintenant un export « Virement acomptes », séparé de celui des salai
 
 Ce n'était pas propre : sept défauts faussaient le calcul, dont un qui rendait 0 jour pour les 221 salariés de MBC. Tout est corrigé. C'est maintenant paramétrable par société dans Entreprise > Congés (méthode de calcul, barème, exclusion des cadres au forfait-jours), calculé automatiquement mais jamais crédité sans validation RH. Aucune société n'était paramétrée, donc aucun salarié n'a été touché par ces erreurs.
 
-#20. Numéro NIR bons ELSA. Sortie DSN de chez nous à checker MOI
+#20. Numéro NIR bons. Sortie DSN de chez nous à checker MOI
 
 Les NIR sont bons : 240 actifs, aucun vide, clé de contrôle correcte partout, et 274 des 275 individus des DSN du cabinet correspondent au chiffre près. Trois choses viennent du cabinet et qu'on a recopiées : 8 salariés déclarés avec un sexe que leur propre NIR contredit, 2 dates de naissance divergentes, et un salarié déclaré chez Cartol depuis janvier qui n'existe pas dans EYWAI.
 
 Notre sortie DSN, elle, n'était pas déposable : 100 à 120 rubriques manquantes selon la société, dont le bloc total sans lequel net-entreprises rejette le fichier. L'en-tête, l'identité et les contrats sont maintenant conformes au fichier du cabinet, vérifié automatiquement sur cinq sociétés. Restent les cotisations, les agrégés URSSAF et la prévoyance : ça demande la nomenclature officielle des codes de cotisation, sans quoi on déclarerait des montants faux. En attendant, l'export est marqué non déposable et le dit à l'écran.
 
 #21. Badgeuse chez Colorplast. Stratégie d'intégration intelligente à gamberge MOI
+
+D'abord une surprise : Colorplast n'a pas de badgeuse du tout. Ce qu'on recevait, ce sont des feuilles papier remplies au stylo, puis scannées ou photographiées — et la qualité se dégradait, les totaux ayant disparu depuis le printemps. Les salariés vont donc badger depuis leur téléphone : le bouton n'existait pas, il est maintenant en ligne. Le système sait aussi déduire la pause déjeuner comme eux le font vraiment, 30 minutes seulement quand la journée dépasse 6 heures — une demi-journée n'en subit aucune. Vérifié sur leurs propres feuilles : les trois semaines complètes retombent au centième. Rien ne part en paie tout de suite : pendant un mois, la badgeuse et le papier tournent en parallèle et on compare chaque semaine, le papier ayant le dernier mot. Le vrai point d'attention n'est pas technique : aucun des 9 salariés ne s'est jamais connecté à EYWAI.
 #22. Arrondi des congés au 31 mai. Vérifier l'arrondi au supérieur comment c'est fait (mathématiquement)Normalement bon. Attendre compte rendu ELSA
 
 BONUS:
 #23. Pouvoir faire un export de calcul de provision des congés payés. (En gros, c'est un fichier où on calcule ce qu'on devrait aux salariés de l'entreprise s'ils partaient tous en congés payés, et c'est converti en euros.) demander fichier exemple à ELSA 
 #24. Format bulletin de paie MOI
+
+Le bulletin sort maintenant au format du cabinet : une page, sobre, avec le bloc des compteurs de congés en haut à gauche, l'adresse du salarié à droite, la colonne des cumuls sur le côté et le net à payer en bas. Les rubriques portent les mêmes codes que chez Cegid (Q100 Santé, Q300 Retraite…). Ce qu'on affichait en plus (primes, notes de frais, cumuls annuels, soldes RTT) se fond dans le gabarit au lieu d'occuper ses propres sections. À l'écran, l'aperçu d'un bulletin en cours de modification montre désormais exactement le document qui sortira. Aucun montant ne change, et les bulletins déjà émis restent tels quels. Au passage, on a ajouté une mention obligatoire qui manquait depuis le début : l'évolution de la rémunération liée à la suppression des cotisations chômage et maladie.
+
 #25. Pouvoir importer dates des entretiens annuels attendre récap et fichier ELSA
 #26. Interfaçage compta MOI
-#27. Vérifier si retraitemment pointages paramétrables (exemple, heures de pauses etc...) MOI
+#27. Vérifier si le post traitemment automatique des pointages paramétrables (exemple, heures de pauses etc...) MOI
 #28. Suivi des périodes d'essais, pouvoir le cocher, quelque part, meme après la création. Bien paramétrable Pour l'instant, elsa ne l'a pas trouvé. MOI
 #29. Alertes sur la paye moins énervé (normalement déjà fait mais à vérifier) MOI
 #30. Changer le modèle d'assistant RH Car nul pour l'instant
