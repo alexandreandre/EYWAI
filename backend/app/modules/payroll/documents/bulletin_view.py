@@ -50,6 +50,17 @@ LIBELLES_CEGID: Dict[str, str] = {
 # dans le total des retenues (vérifié sur CARTOL juin 2026 : 308,14 sans elle).
 RUBRIQUE_APRES_NET_IMPOSABLE = "csg_non_deductible"
 
+# Cotisations salariales supprimées en 2018 (maladie 0,75 % + chômage 2,40 %)
+# et hausse de CSG qui les a compensées (1,7 %). Formule retrouvée sur le
+# bulletin CARTOL de juin 2026, exacte au centime.
+TAUX_COTISATIONS_SUPPRIMEES = 0.0315
+TAUX_HAUSSE_CSG = 0.017
+
+MENTION_EVOLUTION_REMUNERATION = (
+    "dont évolution de la rémunération liée à la suppression des cotisations "
+    "salariales chômage et maladie"
+)
+
 MODES_PAIEMENT = {
     "virement": "par Virement",
     "cheque": "par Chèque",
@@ -469,6 +480,69 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [bloc for bloc in blocs if bloc]
 
 
+def calculer_evolution_remuneration(salaire_brut: float, base_csg: float) -> float:
+    """Mention obligatoire de l'article R3243-1 du Code du travail."""
+    brut = float(salaire_brut or 0.0)
+    base = float(base_csg or 0.0) or brut
+    montant = brut * TAUX_COTISATIONS_SUPPRIMEES - base * TAUX_HAUSSE_CSG
+    return round(max(0.0, montant), 2)
+
+
+def _base_csg(bulletin: Dict[str, Any]) -> float:
+    """Base de la CSG, prise sur la première ligne de la rubrique dédiée."""
+    for rubrique in bulletin.get("cotisations_officielles") or []:
+        if not isinstance(rubrique, dict):
+            continue
+        if rubrique.get("code") not in {"csg_deductible", "csg_non_deductible"}:
+            continue
+        for ligne in rubrique.get("lignes") or []:
+            if isinstance(ligne, dict) and ligne.get("base"):
+                return float(ligne["base"])
+    return 0.0
+
+
+def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    synthese = bulletin.get("synthese_net") or {}
+    pas = synthese.get("impot_prelevement_a_la_source") or {}
+    cumuls = ((bulletin.get("cumuls") or {}).get("cumuls")) or {}
+    salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+    mentions = ((bulletin.get("pied_de_page") or {}).get("mentions_legales")) or {}
+
+    rectification = ""
+    if bulletin.get("manually_edited"):
+        edite_le = bulletin.get("edited_at")
+        rectification = (
+            f"Bulletin rectifié le {edite_le}" if edite_le else "Bulletin rectifié"
+        )
+
+    return {
+        "montant_net_social": synthese.get("montant_net_social"),
+        "net_avant_impot": synthese.get("net_social_avant_impot"),
+        "evolution_remuneration": calculer_evolution_remuneration(
+            float(bulletin.get("salaire_brut") or 0.0), _base_csg(bulletin)
+        ),
+        "mention_evolution": MENTION_EVOLUTION_REMUNERATION,
+        "impot": {
+            "net_imposable": synthese.get("net_imposable"),
+            "base": pas.get("base"),
+            "taux": pas.get("taux"),
+            "montant": pas.get("montant"),
+            "cumul_net_imposable": cumuls.get("net_imposable"),
+            "cumul_impot": cumuls.get("impot_preleve_a_la_source"),
+            "exoneration_apprenti": bool(synthese.get("exoneration_ir_apprenti")),
+        },
+        "net_a_payer": bulletin.get("net_a_payer"),
+        "convention_collective": salarie.get("convention_collective") or "",
+        "mentions_legales": [
+            texte
+            for texte in (mentions.get("conservation"), mentions.get("information"))
+            if texte
+        ],
+        "note": bulletin.get("pdf_notes") or "",
+        "rectification": rectification,
+    }
+
+
 def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     """Point d'entrée unique : le bulletin du moteur, vu par le gabarit."""
     return {
@@ -478,4 +552,5 @@ def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "identite": construire_identite(bulletin),
         "lignes": construire_lignes(bulletin),
         "lateral": construire_lateral(bulletin),
+        "pied": construire_pied(bulletin),
     }
