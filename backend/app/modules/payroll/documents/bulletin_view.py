@@ -1,0 +1,131 @@
+"""Vue de présentation du bulletin de paie — gabarit Cegid.
+
+Transforme le `bulletin_final` produit par le moteur en boîtes prêtes à
+afficher. Fonction pure : aucun accès base, fichier ou horloge, tout vient du
+dictionnaire reçu. C'est le seul endroit où vivent les replis, les agrégations
+et le formatage — le template ne fait que parcourir le résultat.
+"""
+
+from __future__ import annotations
+
+import calendar
+from typing import Any, Dict, List, Optional
+
+CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
+CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
+
+# Découpage du NIR tel que Cegid l'imprime : 1 02 09 85 191 239 74
+GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
+
+
+def _civilite(sexe: Any) -> Optional[str]:
+    valeur = str(sexe or "").strip().upper()
+    if valeur in CIVILITES_MASCULINES:
+        return "MR"
+    if valeur in CIVILITES_FEMININES:
+        return "MME"
+    return None
+
+
+def _formater_nir(valeur: Any) -> str:
+    brut = "".join(c for c in str(valeur or "") if c.isalnum()).upper()
+    if len(brut) != 15:
+        return brut
+    morceaux: List[str] = []
+    position = 0
+    for taille in GROUPES_NIR:
+        morceaux.append(brut[position : position + taille])
+        position += taille
+    return " ".join(morceaux)
+
+
+def _date_fr(valeur: Any) -> str:
+    if not valeur:
+        return ""
+    texte = str(valeur)[:10]
+    if len(texte) == 10 and texte[4] == "-" and texte[7] == "-":
+        return f"{texte[8:10]}/{texte[5:7]}/{texte[0:4]}"
+    return texte
+
+
+def _lignes_adresse(adresse: Any) -> List[str]:
+    """Adresse postale sur deux lignes : rue, puis code postal + ville."""
+    if not isinstance(adresse, dict):
+        return []
+    lignes: List[str] = []
+    rue = str(adresse.get("rue") or "").strip()
+    if rue:
+        lignes.append(rue)
+    localite = f"{adresse.get('code_postal') or ''} {adresse.get('ville') or ''}".strip()
+    if localite:
+        lignes.append(localite)
+    return lignes
+
+
+def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    en_tete = bulletin.get("en_tete") or {}
+    entreprise = en_tete.get("entreprise") or {}
+    annee = en_tete.get("annee")
+    mois = en_tete.get("mois")
+    du = au = ""
+    if annee and mois:
+        dernier_jour = calendar.monthrange(int(annee), int(mois))[1]
+        du = f"01/{int(mois):02d}/{int(annee)}"
+        au = f"{dernier_jour:02d}/{int(mois):02d}/{int(annee)}"
+    return {
+        "raison_sociale": entreprise.get("raison_sociale") or "",
+        "adresse": _lignes_adresse(entreprise.get("adresse")),
+        "siret": entreprise.get("siret") or "",
+        "naf_ape": entreprise.get("naf_ape") or "",
+        "periode": en_tete.get("periode") or "",
+        "date_paiement": en_tete.get("date_paiement") or "",
+        "du": du,
+        "au": au,
+    }
+
+
+def construire_salarie(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+    nom = str(salarie.get("nom") or "").strip()
+    prenom = str(salarie.get("prenom") or "").strip()
+    if nom:
+        nom_ligne = f"{nom.upper()} {prenom}".strip()
+    else:
+        nom_ligne = str(salarie.get("nom_complet") or "").strip()
+    return {
+        "civilite": _civilite(salarie.get("sexe")),
+        "nom_ligne": nom_ligne,
+        "adresse": _lignes_adresse(salarie.get("adresse")),
+    }
+
+
+def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+    classification = salarie.get("classification_brute")
+    if not isinstance(classification, dict):
+        classification = {}
+    date_entree = _date_fr(salarie.get("date_entree"))
+    return {
+        "matricule": salarie.get("matricule") or "",
+        "nir": _formater_nir(salarie.get("nir")),
+        "date_entree": date_entree,
+        "emploi": salarie.get("emploi") or "",
+        # Repli documenté : 81 actifs sur 241 n'ont pas de date de reprise
+        # d'ancienneté, leur ancienneté part de la date d'entrée.
+        "anciennete": _date_fr(salarie.get("date_anciennete")) or date_entree,
+        "qualification": classification.get("qualification") or "",
+        "classification": classification.get("niveau")
+        or classification.get("classification")
+        or "",
+        "coefficient": classification.get("coefficient") or "",
+        "convention_collective": salarie.get("convention_collective") or "",
+    }
+
+
+def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
+    """Point d'entrée unique : le bulletin du moteur, vu par le gabarit."""
+    return {
+        "bandeau": construire_bandeau(bulletin),
+        "salarie": construire_salarie(bulletin),
+        "identite": construire_identite(bulletin),
+    }
