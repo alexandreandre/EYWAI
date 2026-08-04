@@ -47,9 +47,8 @@ def apply_punch_accounting_to_proposal(
 
     slots = repo.list_slots(company_id)
     if not slots:
-        proposal.warnings.append(
-            "Comptabilisation pointages activée mais aucun créneau horaire configuré."
-        )
+        # Absence de créneau volontaire chez les sociétés à horaires variables :
+        # la pause s'y résout par le seuil de présence, pas par une grille.
         return proposal
 
     quality_checks: List[TimesheetQualityCheck] = list(proposal.quality_checks)
