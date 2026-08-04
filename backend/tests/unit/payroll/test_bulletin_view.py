@@ -105,6 +105,13 @@ class TestBandeau:
             "79140 CERIZAY",
         ]
 
+    def test_date_de_paiement_en_francais(self):
+        bulletin = bulletin_minimal()
+        # Le moteur renvoie une date ISO (_calculer_date_paiement).
+        bulletin["en_tete"]["date_paiement"] = "2026-06-30"
+        bandeau = construire_vue_bulletin(bulletin)["bandeau"]
+        assert bandeau["date_paiement"] == "30/06/2026"
+
     def test_bandeau_calcule_les_bornes_de_periode(self):
         bandeau = construire_vue_bulletin(bulletin_minimal())["bandeau"]
         assert bandeau["periode"] == "Juin 2026"
@@ -368,9 +375,10 @@ class TestCorps:
         bulletin["remboursements_prets"] = {"total_rembourse": 60.0}
         lignes = construire_vue_bulletin(bulletin)["lignes"]
         montants = {l["libelle"]: l["montant_salarial"] for l in lignes}
-        assert montants["Acomptes et avances"] == pytest.approx(150.0)
-        assert montants["Retenues sur salaire"] == pytest.approx(40.0)
-        assert montants["Remboursement prêt employeur"] == pytest.approx(60.0)
+        # Négatives : ce sont des retenues sur le net.
+        assert montants["Acomptes et avances"] == pytest.approx(-150.0)
+        assert montants["Retenues sur salaire"] == pytest.approx(-40.0)
+        assert montants["Remboursement prêt employeur"] == pytest.approx(-60.0)
 
 
 class TestColonneLaterale:
@@ -558,3 +566,41 @@ class TestFideliteColonnes:
         lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
         ligne = next(l for l in lignes if l["libelle"].startswith("CSG/CRDS"))
         assert ligne["montant_patronal"] is None
+
+
+class TestNoteArbitrageConges:
+    """La règle retenue pour l'indemnité de CP reste affichée (elle l'était avant)."""
+
+    def test_arbitrage_affiche_en_ligne_de_note(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["arbitrage_conges"] = (
+            "L'indemnité de congés payés a été calculée selon la règle du 1/10ème."
+        )
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        note = next(l for l in lignes if l["type"] == "note")
+        assert "1/10ème" in note["libelle"]
+        libelles = [l["libelle"] for l in lignes]
+        assert libelles.index(note["libelle"]) < libelles.index("SALAIRE BRUT")
+
+    def test_sans_arbitrage_aucune_ligne_de_note(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        assert not [l for l in lignes if l["type"] == "note"]
+
+
+class TestRepliAcompte:
+    """Sans enrichissement saisies/avances, l'acompte ne subsiste que dans la synthèse."""
+
+    def test_acompte_repris_depuis_la_synthese_des_nets(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["synthese_net"]["acompte_verse"] = 300.0
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        acompte = next(l for l in lignes if l["libelle"] == "Acomptes et avances")
+        assert acompte["montant_salarial"] == pytest.approx(-300.0)
+
+    def test_enrichissement_prioritaire_sur_la_synthese(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["synthese_net"]["acompte_verse"] = 300.0
+        bulletin["remboursements_avances"] = {"total_rembourse": 150.0}
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        acompte = next(l for l in lignes if l["libelle"] == "Acomptes et avances")
+        assert acompte["montant_salarial"] == pytest.approx(-150.0)
