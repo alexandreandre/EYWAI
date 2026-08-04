@@ -455,6 +455,8 @@ def creer_bulletin_final(
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
+            "annee": annee,
+            "mois": mois,
             "date_paiement": _calculer_date_paiement(contexte, annee, mois),
             "entreprise": {
                 "raison_sociale": contexte.entreprise.get("identification", {}).get(
@@ -466,13 +468,28 @@ def creer_bulletin_final(
             },
             "salarie": {
                 "nom_complet": f"{contexte.contrat.get('salarie', {}).get('prenom')} {contexte.contrat.get('salarie', {}).get('nom')}",
+                "nom": contexte.contrat.get("salarie", {}).get("nom"),
+                "prenom": contexte.contrat.get("salarie", {}).get("prenom"),
+                "sexe": contexte.contrat.get("salarie", {}).get("sexe"),
+                "matricule": contexte.contrat.get("salarie", {}).get("matricule"),
+                "adresse": contexte.contrat.get("salarie", {}).get("adresse"),
+                "mode_paiement": contexte.contrat.get("salarie", {}).get(
+                    "mode_paiement"
+                ),
                 "nir": contexte.contrat.get("salarie", {}).get("nir"),
                 "emploi": contexte.contrat.get("contrat", {}).get("emploi"),
                 "statut": contexte.statut_salarie,
                 "type_contrat": contexte.type_contrat,
                 "is_alternant": contexte.is_alternant,
                 "date_entree": contexte.contrat.get("contrat", {}).get("date_entree"),
+                "date_anciennete": contexte.contrat.get("contrat", {}).get(
+                    "seniority_reference_date"
+                )
+                or contexte.contrat.get("contrat", {}).get("date_entree"),
                 "classification": _formater_classification(contexte.contrat),
+                "classification_brute": contexte.contrat.get("remuneration", {}).get(
+                    "classification_conventionnelle"
+                ),
                 "convention_collective": _formater_convention_collective(
                     contexte.contrat
                 ),
@@ -485,6 +502,11 @@ def creer_bulletin_final(
         "calcul_du_brut": autres_lignes_brut,
         "arbitrage_conges": texte_arbitrage,
         "salaire_brut": salaire_brut,
+        "parametres": {
+            "smic_horaire": contexte.smic_horaire,
+            "pss_mensuel": (contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0)
+            or 0.0,
+        },
         "structure_cotisations": {
             "bloc_principales": bloc_principales,
             "bloc_allegements": bloc_allegements,

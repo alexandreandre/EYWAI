@@ -502,3 +502,39 @@ class TestTemplateBulletinOfficiel:
             )
             if rub:
                 assert rub["libelle"] in html
+
+
+class TestDonneesEnTeteGabarit:
+    """Données que le gabarit Cegid imprime et que le bulletin doit porter."""
+
+    def _bulletin(self):
+        ctx = build_test_contexte(salaire_base=2000.0)
+        ctx.year = 2026
+        ctx.contrat["salarie"]["matricule"] = "ALVES"
+        ctx.contrat["salarie"]["sexe"] = "M"
+        ctx.contrat["salarie"]["mode_paiement"] = "virement"
+        ctx.contrat["salarie"]["adresse"] = {
+            "rue": "32 rue de la Fabrique",
+            "code_postal": "79250",
+            "ville": "NUEIL LES AUBIERS",
+        }
+        lignes, total_sal = calculer_cotisations(ctx, 2000.0)
+        nets = calculer_net_et_impot(ctx, 2000.0, lignes, total_sal, [], 0.0)
+        return creer_bulletin_final(ctx, 2000.0, [], lignes, nets, [], 2026, 6)
+
+    def test_en_tete_porte_annee_et_mois(self):
+        en_tete = self._bulletin()["en_tete"]
+        assert en_tete["annee"] == 2026
+        assert en_tete["mois"] == 6
+
+    def test_en_tete_porte_les_donnees_salarie_du_gabarit(self):
+        salarie = self._bulletin()["en_tete"]["salarie"]
+        assert salarie["matricule"] == "ALVES"
+        assert salarie["sexe"] == "M"
+        assert salarie["mode_paiement"] == "virement"
+        assert salarie["adresse"]["ville"] == "NUEIL LES AUBIERS"
+
+    def test_bulletin_porte_smic_et_plafond(self):
+        parametres = self._bulletin()["parametres"]
+        assert parametres["smic_horaire"] > 0
+        assert parametres["pss_mensuel"] > 0

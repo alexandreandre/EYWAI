@@ -47,6 +47,7 @@ from app.shared.domain.employment_rules import (
 )
 from app.modules.payroll.documents.payslip_generator import (
     resolve_date_sortie,
+    _parse_if_json_string,
     _is_heures_sup_conjoncturelle_input,
     _heures_sup_conjoncturelles_from_monthly_inputs,
     _is_net_a_payer_only_correction_input,
@@ -374,9 +375,14 @@ def process_payslip_generation_forfait(
                 "prenom": employee_data.get("first_name"),
                 "nir": employee_data.get("nir"),
                 "date_naissance": employee_data.get("date_naissance"),
+                "sexe": employee_data.get("sexe"),
+                "matricule": employee_data.get("matricule"),
+                "mode_paiement": employee_data.get("salary_payment_method"),
+                "adresse": _parse_if_json_string(employee_data.get("adresse")),
             },
             "contrat": {
                 "date_entree": employee_data.get("hire_date"),
+                "emploi": employee_data.get("job_title"),
                 "seniority_reference_date": employee_data.get(
                     "seniority_reference_date"
                 ),
