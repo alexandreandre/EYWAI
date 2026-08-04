@@ -147,13 +147,17 @@ jobs:
           push: true
           tags: gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}
 
+      # SUPABASE_SERVICE_KEY manquait : le moteur de paie l'exige (ContextePaie)
+      # et sortait « Variables d'environnement Supabase non configurées » — aucun
+      # bulletin n'a jamais pu être généré sur le test. La production la définit
+      # déjà. Même valeur que SUPABASE_KEY côté test, comme en production.
       - name: Deploy backend test
         run: |
           gcloud run deploy "$BACKEND_SERVICE" \
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
             --memory 2Gi --timeout 900 --allow-unauthenticated \
-            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
 
       - name: Relever l'URL du backend de test
         id: back
