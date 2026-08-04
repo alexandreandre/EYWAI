@@ -50,6 +50,14 @@ LIBELLES_CEGID: Dict[str, str] = {
 # dans le total des retenues (vérifié sur CARTOL juin 2026 : 308,14 sans elle).
 RUBRIQUE_APRES_NET_IMPOSABLE = "csg_non_deductible"
 
+MODES_PAIEMENT = {
+    "virement": "par Virement",
+    "cheque": "par Chèque",
+    "chèque": "par Chèque",
+    "especes": "en Espèces",
+    "espèces": "en Espèces",
+}
+
 
 def _civilite(sexe: Any) -> Optional[str]:
     valeur = str(sexe or "").strip().upper()
@@ -397,6 +405,70 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     return lignes
 
 
+def _montant_fr(valeur: Any) -> str:
+    """Format français : espace pour les milliers, virgule décimale."""
+    nombre = float(valeur or 0.0)
+    return f"{nombre:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _bloc_lateral(titre: str, valeurs: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+    valeurs_utiles = [valeur for valeur in valeurs if valeur["valeur"]]
+    if not valeurs_utiles:
+        return None
+    return {"titre": titre, "valeurs": valeurs_utiles}
+
+
+def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
+    parametres = bulletin.get("parametres") or {}
+    cumuls = ((bulletin.get("cumuls") or {}).get("cumuls")) or {}
+    pied = bulletin.get("pied_de_page") or {}
+    salarie = ((bulletin.get("en_tete") or {}).get("salarie")) or {}
+
+    def valeur(libelle: str, montant: Any) -> Dict[str, str]:
+        return {
+            "libelle": libelle,
+            "valeur": _montant_fr(montant) if montant else "",
+        }
+
+    blocs = [
+        _bloc_lateral(
+            "BARÈMES",
+            [
+                valeur("SMIC horaire", parametres.get("smic_horaire")),
+                valeur("Plafond Sécu", parametres.get("pss_mensuel")),
+            ],
+        ),
+        _bloc_lateral(
+            "HEURES",
+            [
+                valeur("Cumul heures", cumuls.get("heures_remunerees")),
+                valeur("Cumul h. sup", cumuls.get("heures_supplementaires_remunerees")),
+            ],
+        ),
+        _bloc_lateral(
+            "CUMULS",
+            [
+                valeur("Bruts", cumuls.get("brut_total")),
+                valeur("Net imposable", cumuls.get("net_imposable")),
+                valeur("Allègement cotis. employeur", pied.get("total_exonerations")),
+                valeur("Total versé employeur", pied.get("cout_total_employeur")),
+            ],
+        ),
+        _bloc_lateral(
+            "PAIEMENT",
+            [
+                {
+                    "libelle": "Mode",
+                    "valeur": MODES_PAIEMENT.get(
+                        str(salarie.get("mode_paiement") or "").strip().lower(), ""
+                    ),
+                }
+            ],
+        ),
+    ]
+    return [bloc for bloc in blocs if bloc]
+
+
 def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     """Point d'entrée unique : le bulletin du moteur, vu par le gabarit."""
     return {
@@ -405,4 +477,5 @@ def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "salarie": construire_salarie(bulletin),
         "identite": construire_identite(bulletin),
         "lignes": construire_lignes(bulletin),
+        "lateral": construire_lateral(bulletin),
     }
