@@ -370,3 +370,53 @@ class TestCorps:
         assert montants["Acomptes et avances"] == pytest.approx(150.0)
         assert montants["Retenues sur salaire"] == pytest.approx(40.0)
         assert montants["Remboursement prêt employeur"] == pytest.approx(60.0)
+
+
+class TestColonneLaterale:
+    def _vue(self):
+        bulletin = bulletin_minimal()
+        bulletin["cumuls"] = {
+            "periode": {"annee_en_cours": 2026},
+            "cumuls": {
+                "brut_total": 4788.07,
+                "net_imposable": 3621.64,
+                "impot_preleve_a_la_source": 420.57,
+                "heures_remunerees": 392.49,
+                "heures_supplementaires_remunerees": 12.15,
+            },
+        }
+        bulletin["pied_de_page"] = {
+            "cout_total_employeur": 1649.98,
+            "total_exonerations": 544.13,
+        }
+        return construire_vue_bulletin(bulletin)["lateral"]
+
+    def _bloc(self, titre):
+        return next(bloc for bloc in self._vue() if bloc["titre"] == titre)
+
+    def test_smic_et_plafond_affiches(self):
+        valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("BARÈMES")["valeurs"]}
+        assert valeurs["SMIC horaire"] == "12,31"
+        assert valeurs["Plafond Sécu"] == "3 337,50"
+
+    def test_bloc_heures(self):
+        valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("HEURES")["valeurs"]}
+        assert valeurs["Cumul heures"] == "392,49"
+        assert valeurs["Cumul h. sup"] == "12,15"
+
+    def test_bloc_cumuls_et_cout_employeur(self):
+        valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("CUMULS")["valeurs"]}
+        assert valeurs["Bruts"] == "4 788,07"
+        assert valeurs["Allègement cotis. employeur"] == "544,13"
+        assert valeurs["Total versé employeur"] == "1 649,98"
+
+    def test_mode_de_paiement(self):
+        valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("PAIEMENT")["valeurs"]}
+        assert valeurs["Mode"] == "par Virement"
+
+    def test_blocs_vides_absents(self):
+        titres = [
+            bloc["titre"] for bloc in construire_vue_bulletin(bulletin_minimal())["lateral"]
+        ]
+        assert "HEURES" not in titres
+        assert "CUMULS" not in titres
