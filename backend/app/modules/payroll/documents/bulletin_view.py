@@ -17,6 +17,39 @@ CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
 # Découpage du NIR tel que Cegid l'imprime : 1 02 09 85 191 239 74
 GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
 
+# Codes de rubriques du bulletin Cegid. Vérifiés sur les bulletins de juin 2026
+# des sept sociétés : ce sont les seuls utilisés, il n'existe pas de Q700.
+# La prévoyance et la mutuelle n'ont pas de code chez Cegid (références de
+# contrat internes à son paramétrage) : elles restent sans code chez nous.
+CODES_CEGID: Dict[str, str] = {
+    "sante": "Q100",
+    "at_mp": "Q200",
+    "retraite": "Q300",
+    "famille": "Q400",
+    "chomage": "Q500",
+    "autres_contributions_employeur": "Q600",
+    "csg_deductible": "Q800",
+    "csg_non_deductible": "Q801",
+    "exonerations": "Q802",
+}
+
+LIBELLES_CEGID: Dict[str, str] = {
+    "sante": "SANTÉ",
+    "at_mp": "AT-MP",
+    "retraite": "RETRAITE",
+    "famille": "FAMILLE",
+    "chomage": "ASSURANCE CHÔMAGE",
+    "autres_contributions_employeur": "AUTRES CONTRIB. DUES PAR EMPL.",
+    "cotisations_statutaires": "COTISATIONS STATUTAIRES ET CONVENTIONNELLES",
+    "csg_deductible": "CSG DÉDUCTIBLE À L'IR",
+    "csg_non_deductible": "CSG/CRDS NON DÉDUCTIBLE À L'IR",
+    "exonerations": "EXO., ÉCRÊT. ET ALLÈG. COTIS",
+}
+
+# La CSG/CRDS non déductible est imprimée après le net imposable et n'entre pas
+# dans le total des retenues (vérifié sur CARTOL juin 2026 : 308,14 sans elle).
+RUBRIQUE_APRES_NET_IMPOSABLE = "csg_non_deductible"
+
 
 def _civilite(sexe: Any) -> Optional[str]:
     valeur = str(sexe or "").strip().upper()
@@ -173,6 +206,197 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _ligne(
+    type_ligne: str,
+    libelle: str,
+    *,
+    code: Optional[str] = None,
+    base: Optional[float] = None,
+    taux: Optional[float] = None,
+    montant_salarial: Optional[float] = None,
+    montant_patronal: Optional[float] = None,
+) -> Dict[str, Any]:
+    return {
+        "type": type_ligne,
+        "code": code,
+        "libelle": libelle,
+        "base": base,
+        "taux": taux,
+        "montant_salarial": montant_salarial,
+        "montant_patronal": montant_patronal,
+    }
+
+
+def _ligne_brut(source: Dict[str, Any]) -> Dict[str, Any]:
+    """Une ligne de rémunération : le gain va au salarial, la perte le diminue."""
+    gain = source.get("gain")
+    perte = source.get("perte")
+    montant = None
+    if gain is not None:
+        montant = float(gain)
+    elif perte is not None:
+        montant = -float(perte)
+    return _ligne(
+        "detail",
+        source.get("libelle") or "",
+        base=source.get("quantite"),
+        taux=source.get("taux"),
+        montant_salarial=montant,
+    )
+
+
+def _ligne_cotisation(source: Dict[str, Any]) -> Dict[str, Any]:
+    taux = source.get("taux_salarial")
+    if taux is None:
+        taux = source.get("taux_patronal")
+    return _ligne(
+        "detail",
+        source.get("libelle") or "",
+        base=source.get("base"),
+        taux=float(taux) * 100 if taux is not None else None,
+        montant_salarial=source.get("montant_salarial"),
+        montant_patronal=source.get("montant_patronal"),
+    )
+
+
+def _lignes_rubrique(rubrique: Dict[str, Any]) -> List[Dict[str, Any]]:
+    code = rubrique.get("code") or ""
+    entete = _ligne(
+        "rubrique",
+        LIBELLES_CEGID.get(code, str(rubrique.get("libelle") or "").upper()),
+        code=CODES_CEGID.get(code),
+    )
+    details = [
+        _ligne_cotisation(ligne)
+        for ligne in rubrique.get("lignes") or []
+        if isinstance(ligne, dict)
+    ]
+    return [entete, *details]
+
+
+def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Ce qui s'ajoute ou se retient après le net imposable."""
+    lignes: List[Dict[str, Any]] = []
+
+    for prime in bulletin.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                prime.get("libelle") or "Prime non soumise",
+                montant_salarial=prime.get("montant"),
+            )
+        )
+
+    # Volontairement agrégé : le détail des notes de frais reste dans l'appli.
+    notes_de_frais = [
+        note for note in bulletin.get("notes_de_frais") or [] if isinstance(note, dict)
+    ]
+    if notes_de_frais:
+        total = round(
+            sum(float(note.get("montant") or 0.0) for note in notes_de_frais), 2
+        )
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                "Remboursement de frais professionnels",
+                montant_salarial=total,
+            )
+        )
+
+    synthese = bulletin.get("synthese_net") or {}
+    for cle, libelle in (
+        ("remboursement_transport", "Indemnité de transport"),
+        ("indemnite_transport_fixe", "Indemnité transport contractuelle"),
+    ):
+        montant = float(synthese.get(cle) or 0.0)
+        if montant > 0:
+            lignes.append(_ligne("hors_brut", libelle, montant_salarial=montant))
+
+    retenues = (
+        (
+            (bulletin.get("remboursements_avances") or {}).get("total_rembourse"),
+            "Acomptes et avances",
+        ),
+        (
+            (bulletin.get("retenues_saisies") or {}).get("total_preleve"),
+            "Retenues sur salaire",
+        ),
+        (
+            (bulletin.get("remboursements_prets") or {}).get("total_rembourse"),
+            "Remboursement prêt employeur",
+        ),
+    )
+    for montant, libelle in retenues:
+        valeur = float(montant or 0.0)
+        if valeur > 0:
+            lignes.append(_ligne("hors_brut", libelle, montant_salarial=valeur))
+
+    return lignes
+
+
+def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
+    lignes: List[Dict[str, Any]] = []
+
+    for source in (
+        "calcul_du_brut",
+        "details_conges",
+        "details_absences",
+        "details_maintien",
+    ):
+        for detail in bulletin.get(source) or []:
+            if isinstance(detail, dict):
+                lignes.append(_ligne_brut(detail))
+
+    lignes.append(
+        _ligne("total", "SALAIRE BRUT", montant_salarial=bulletin.get("salaire_brut"))
+    )
+
+    rubriques = [
+        rubrique
+        for rubrique in bulletin.get("cotisations_officielles") or []
+        if isinstance(rubrique, dict)
+    ]
+    rubriques_principales = [
+        r for r in rubriques if r.get("code") != RUBRIQUE_APRES_NET_IMPOSABLE
+    ]
+    rubriques_apres = [
+        r for r in rubriques if r.get("code") == RUBRIQUE_APRES_NET_IMPOSABLE
+    ]
+
+    for rubrique in rubriques_principales:
+        lignes.extend(_lignes_rubrique(rubrique))
+
+    total_salarial = round(
+        sum(float(r.get("total_salarial") or 0.0) for r in rubriques_principales), 2
+    )
+    total_patronal = round(
+        sum(float(r.get("total_patronal") or 0.0) for r in rubriques_principales), 2
+    )
+    lignes.append(
+        _ligne(
+            "total",
+            "TOTAL DES RETENUES",
+            montant_salarial=total_salarial,
+            montant_patronal=total_patronal,
+        )
+    )
+    lignes.append(
+        _ligne(
+            "total",
+            "NET IMPOSABLE",
+            montant_salarial=(bulletin.get("synthese_net") or {}).get("net_imposable"),
+        )
+    )
+
+    lignes.extend(_lignes_hors_brut(bulletin))
+    for rubrique in rubriques_apres:
+        lignes.extend(_lignes_rubrique(rubrique))
+
+    return lignes
+
+
 def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     """Point d'entrée unique : le bulletin du moteur, vu par le gabarit."""
     return {
@@ -180,4 +404,5 @@ def construire_vue_bulletin(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "compteurs": construire_compteurs(bulletin),
         "salarie": construire_salarie(bulletin),
         "identite": construire_identite(bulletin),
+        "lignes": construire_lignes(bulletin),
     }

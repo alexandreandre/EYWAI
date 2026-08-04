@@ -206,3 +206,167 @@ class TestCompteurs:
 
     def test_sans_solde_de_conges_pas_de_bloc(self):
         assert construire_vue_bulletin(bulletin_minimal())["compteurs"] is None
+
+
+def bulletin_avec_cotisations() -> dict:
+    bulletin = bulletin_minimal()
+    bulletin["calcul_du_brut"] = [
+        {
+            "libelle": "SALAIRE DE BASE",
+            "quantite": 151.67,
+            "taux": 12.31,
+            "gain": 1867.06,
+            "perte": None,
+        }
+    ]
+    bulletin["cotisations_officielles"] = [
+        {
+            "code": "sante",
+            "libelle": "Santé",
+            "lignes": [
+                {
+                    "libelle": "Sécu.Soc-Mal.Mater.Inval.Déc.",
+                    "base": 1436.21,
+                    "taux_salarial": None,
+                    "montant_salarial": 0.0,
+                    "taux_patronal": 0.07,
+                    "montant_patronal": 100.53,
+                }
+            ],
+            "total_salarial": 0.0,
+            "total_patronal": 100.53,
+        },
+        {
+            "code": "retraite",
+            "libelle": "Retraite",
+            "lignes": [
+                {
+                    "libelle": "Sécu.Soc Plafonnée",
+                    "base": 1436.21,
+                    "taux_salarial": 0.069,
+                    "montant_salarial": 99.10,
+                    "taux_patronal": 0.0855,
+                    "montant_patronal": 122.80,
+                }
+            ],
+            "total_salarial": 99.10,
+            "total_patronal": 122.80,
+        },
+        {
+            "code": "csg_non_deductible",
+            "libelle": "CSG/CRDS non déductible",
+            "lignes": [
+                {
+                    "libelle": "CSG/CRDS non déductible à l'IR",
+                    "base": 1457.66,
+                    "taux_salarial": 0.029,
+                    "montant_salarial": 42.27,
+                    "taux_patronal": None,
+                    "montant_patronal": 0.0,
+                }
+            ],
+            "total_salarial": 42.27,
+            "total_patronal": 0.0,
+        },
+    ]
+    bulletin["synthese_net"] = {"net_imposable": 1128.07}
+    return bulletin
+
+
+def _libelles(lignes, type_ligne=None):
+    return [
+        ligne["libelle"]
+        for ligne in lignes
+        if type_ligne is None or ligne["type"] == type_ligne
+    ]
+
+
+class TestCorps:
+    def test_ordre_general_du_corps(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        libelles = _libelles(lignes)
+        assert libelles.index("SALAIRE DE BASE") < libelles.index("SALAIRE BRUT")
+        assert libelles.index("SALAIRE BRUT") < libelles.index("SANTÉ")
+        assert libelles.index("SANTÉ") < libelles.index("TOTAL DES RETENUES")
+        assert libelles.index("TOTAL DES RETENUES") < libelles.index("NET IMPOSABLE")
+
+    def test_codes_cegid_sur_les_rubriques(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        rubriques = {
+            ligne["libelle"]: ligne["code"]
+            for ligne in lignes
+            if ligne["type"] == "rubrique"
+        }
+        assert rubriques["SANTÉ"] == "Q100"
+        assert rubriques["RETRAITE"] == "Q300"
+        assert rubriques["CSG/CRDS NON DÉDUCTIBLE À L'IR"] == "Q801"
+
+    def test_csg_non_deductible_apres_le_net_imposable(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        libelles = _libelles(lignes)
+        assert libelles.index("NET IMPOSABLE") < libelles.index(
+            "CSG/CRDS NON DÉDUCTIBLE À L'IR"
+        )
+
+    def test_total_des_retenues_exclut_la_csg_non_deductible(self):
+        lignes = construire_vue_bulletin(bulletin_avec_cotisations())["lignes"]
+        total = next(l for l in lignes if l["libelle"] == "TOTAL DES RETENUES")
+        assert total["montant_salarial"] == pytest.approx(99.10)
+        assert total["montant_patronal"] == pytest.approx(223.33)
+
+    def test_prevoyance_sans_code_cegid(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["cotisations_officielles"].append(
+            {
+                "code": "cotisations_statutaires",
+                "libelle": "Cotisations statutaires et conventionnelles",
+                "lignes": [
+                    {
+                        "libelle": "PRÉVOYANCE",
+                        "base": 1436.21,
+                        "taux_salarial": 0.0118,
+                        "montant_salarial": 16.95,
+                        "taux_patronal": 0.0118,
+                        "montant_patronal": 16.95,
+                    }
+                ],
+                "total_salarial": 16.95,
+                "total_patronal": 16.95,
+            }
+        )
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        rubrique = next(
+            l for l in lignes if l["libelle"].startswith("COTISATIONS STATUTAIRES")
+        )
+        assert rubrique["code"] is None
+
+    def test_notes_de_frais_agregees_en_une_ligne(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["notes_de_frais"] = [
+            {"libelle": "Péage", "montant": 12.40},
+            {"libelle": "Repas", "montant": 18.00},
+        ]
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        frais = [l for l in lignes if "frais professionnels" in l["libelle"].lower()]
+        assert len(frais) == 1
+        assert frais[0]["montant_salarial"] == pytest.approx(30.40)
+        assert "Péage" not in _libelles(lignes)
+
+    def test_primes_non_soumises_apres_le_net_imposable(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["primes_non_soumises"] = [
+            {"libelle": "INDEMNITÉ DE PANIER", "montant": 20.0}
+        ]
+        libelles = _libelles(construire_vue_bulletin(bulletin)["lignes"])
+        assert libelles.index("NET IMPOSABLE") < libelles.index("INDEMNITÉ DE PANIER")
+
+    def test_retenues_sur_le_net_reprises_en_lignes(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["remboursements_avances"] = {"total_rembourse": 150.0}
+        bulletin["retenues_saisies"] = {"total_preleve": 40.0}
+        bulletin["remboursements_prets"] = {"total_rembourse": 60.0}
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        montants = {l["libelle"]: l["montant_salarial"] for l in lignes}
+        assert montants["Acomptes et avances"] == pytest.approx(150.0)
+        assert montants["Retenues sur salaire"] == pytest.approx(40.0)
+        assert montants["Remboursement prêt employeur"] == pytest.approx(60.0)
