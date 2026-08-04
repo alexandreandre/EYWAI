@@ -31,13 +31,13 @@ def get_terminal_status(
     try:
         row = (
             supabase.table("companies")
-            .select("name, logo_url")
+            .select("company_name, logo_url")
             .eq("id", ctx.company_id)
             .maybe_single()
             .execute()
         )
         if row.data:
-            company_name = row.data.get("name")
+            company_name = row.data.get("company_name")
             logo_url = row.data.get("logo_url")
     except Exception:
         pass
