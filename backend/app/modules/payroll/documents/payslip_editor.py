@@ -83,7 +83,11 @@ def regenerate_pdf_from_data(
             "cumuls": cumuls_data,
         }
 
-        html_content = template.render(**template_data)
+        from app.modules.payroll.documents.bulletin_view import (
+            construire_vue_bulletin,
+        )
+
+        html_content = template.render(vue=construire_vue_bulletin(template_data))
 
         employee_path = payroll_engine_employee_bulletins(employee_folder_name)
         employee_path.mkdir(parents=True, exist_ok=True)

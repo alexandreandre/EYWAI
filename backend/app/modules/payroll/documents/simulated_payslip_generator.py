@@ -17,38 +17,6 @@ from weasyprint import HTML
 from app.core.paths import payroll_engine_templates
 
 
-class DictToObject:
-    """Convertit récursivement un dictionnaire en objet avec accès par attribut"""
-
-    def __init__(self, data):
-        if isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, dict):
-                    setattr(self, key, DictToObject(value))
-                elif isinstance(value, list):
-                    setattr(
-                        self,
-                        key,
-                        [
-                            DictToObject(item) if isinstance(item, dict) else item
-                            for item in value
-                        ],
-                    )
-                else:
-                    setattr(self, key, value)
-        else:
-            self._value = data
-
-    def __getitem__(self, key):
-        return getattr(self, key, None)
-
-    def __iter__(self):
-        return iter(self.__dict__.items())
-
-    def get(self, key, default=None):
-        return getattr(self, key, default)
-
-
 class SimulatedPayslipGenerator:
     """Générateur de bulletins de paie simulés au format HTML/PDF"""
 
@@ -112,10 +80,13 @@ class SimulatedPayslipGenerator:
 
     def generate_html(self, simulation_data: Dict[str, Any]) -> str:
         """Génère le HTML du bulletin simulé."""
+        from app.modules.payroll.documents.bulletin_view import (
+            construire_vue_bulletin,
+        )
+
         template_data = self.prepare_simulation_data_for_template(simulation_data)
-        template_data_objects = DictToObject(template_data)
         template = self.env.get_template("template_bulletin.html")
-        html_content = template.render(template_data_objects.__dict__)
+        html_content = template.render(vue=construire_vue_bulletin(template_data))
         return html_content
 
     def generate_pdf(self, simulation_data: Dict[str, Any]) -> bytes:
