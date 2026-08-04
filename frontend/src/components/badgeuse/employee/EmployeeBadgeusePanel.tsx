@@ -8,9 +8,11 @@ import {
 } from "@/components/employee/EmployeePageHeader";
 import { BadgeQrDisplay } from "@/components/badgeuse/BadgeQrDisplay";
 import { BadgeuseDayTimeline } from "@/components/badgeuse/employee/BadgeuseDayTimeline";
+import { BadgeuseSelfPunchButton } from "@/components/badgeuse/employee/BadgeuseSelfPunchButton";
 import { EmployeeCetPanel } from "@/components/cet/EmployeeCetPanel";
 import { formatSecondsToHoursMinutes } from "@/lib/badgeuseFormat";
 import { todayIso } from "@/lib/badgeuseApiUtils";
+import { shouldShowSelfPunchButton } from "@/lib/badgeuseSelfPunch";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +131,16 @@ export function EmployeeBadgeusePanel() {
             ))}
           </ul>
         </div>
+      )}
+
+      {shouldShowSelfPunchButton({
+        isToday,
+        allowSelfToggle: data.allow_self_toggle,
+        isEligible: data.is_eligible_for_badgeuse,
+      }) && (
+        <Card className="p-4">
+          <BadgeuseSelfPunchButton data={data} />
+        </Card>
       )}
 
       <Card className="p-6">
