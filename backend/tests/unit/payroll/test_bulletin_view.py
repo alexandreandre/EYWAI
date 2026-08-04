@@ -604,3 +604,35 @@ class TestRepliAcompte:
         lignes = construire_vue_bulletin(bulletin)["lignes"]
         acompte = next(l for l in lignes if l["libelle"] == "Acomptes et avances")
         assert acompte["montant_salarial"] == pytest.approx(-150.0)
+
+
+class TestClassificationReelle:
+    """Les vraies fiches portent des clés DSN, pas « niveau » ni « coefficient »."""
+
+    def test_repli_sur_la_classification_formatee_par_le_moteur(self):
+        bulletin = bulletin_minimal()
+        salarie = bulletin["en_tete"]["salarie"]
+        # Cas réel ALVES (Cartol) : aucune des clés attendues par le gabarit.
+        salarie["classification_brute"] = {
+            "pcs": "9999",
+            "idcc": "3248",
+            "position": "200",
+            "niveau_dsn": "2 A",
+            "statut_categoriel": "Cadre",
+            "libelle_emploi": "Opérateur polyvalent",
+        }
+        salarie["classification"] = "200"
+        identite = construire_vue_bulletin(bulletin)["identite"]
+        assert identite["classification"] == "2 A"
+        assert identite["qualification"] == "Cadre"
+
+    def test_sans_niveau_dsn_on_reprend_la_chaine_du_moteur(self):
+        bulletin = bulletin_minimal()
+        bulletin["en_tete"]["salarie"]["classification_brute"] = {"position": "200"}
+        bulletin["en_tete"]["salarie"]["classification"] = "200"
+        identite = construire_vue_bulletin(bulletin)["identite"]
+        assert identite["classification"] == "200"
+
+    def test_coefficient_explicite_prioritaire(self):
+        identite = construire_vue_bulletin(bulletin_minimal())["identite"]
+        assert identite["coefficient"] == "A"

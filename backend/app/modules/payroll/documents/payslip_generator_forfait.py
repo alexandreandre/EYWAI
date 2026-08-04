@@ -474,7 +474,8 @@ def process_payslip_generation_forfait(
                     "siren": company_data.get("siren"),
                     "nic": company_data.get("nic"),
                     "siret": company_data.get("siret"),
-                    "naf_ape": company_data.get("naf_ape"),
+                    "naf_ape": company_data.get("naf_ape")
+                    or company_data.get("code_naf"),
                     "forme_juridique": company_data.get("legal_form"),
                     "adresse": {
                         "rue": company_data.get("adresse_rue"),
