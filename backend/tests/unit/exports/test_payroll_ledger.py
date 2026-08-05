@@ -147,3 +147,57 @@ class TestPayrollLedgerPatronalBalance:
         assert allegements_645 == pytest.approx(100.0)
         assert dettes_431 == pytest.approx(500.0)
         assert od_totals["balance_debug"]["reconciliation"]["ecart_645_net_vs_431"] == 0.0
+
+
+class TestVentilationParOrganisme:
+    """Le rattachement se fait sur coti_id : les libellés varient par société."""
+
+    def test_cotisation_urssaf_rattachee_meme_sans_le_mot_dans_le_libelle(self):
+        coti = {
+            "coti_id": "securite_sociale_maladie",
+            "libelle": "Sécurité sociale - Maladie, Maternité, Invalidité, Décès",
+            "montant_patronal": 501.28,
+        }
+        organisme, charge, tiers = ledger_module._accounts_for_cotisation(coti, {})
+        assert organisme == "URSSAF"
+        assert charge == "645100"
+        assert tiers == "431000"
+
+    def test_mutuelle_rattachee_quel_que_soit_le_libelle_societe(self):
+        coti = {
+            "coti_id": "mutuelle",
+            "libelle": "GAN Isolé 2026 (EMU3)",
+            "montant_patronal": 29.23,
+        }
+        organisme, charge, tiers = ledger_module._accounts_for_cotisation(coti, {})
+        assert organisme == "MUTUELLE"
+        assert tiers == "437020"
+
+    def test_mapping_societe_surcharge_le_defaut(self):
+        mappings = {
+            "organisme_mutuelle": {
+                "compte_charge": "64524200",
+                "compte_tiers": "43702000",
+                "organisme": "MUTUELLE",
+            }
+        }
+        coti = {
+            "coti_id": "mutuelle",
+            "libelle": "AG2R MUTUELLE",
+            "montant_patronal": 126.28,
+        }
+        organisme, charge, tiers = ledger_module._accounts_for_cotisation(coti, mappings)
+        assert organisme == "MUTUELLE"
+        assert charge == "64524200"
+        assert tiers == "43702000"
+
+    def test_cotisation_inconnue_retourne_des_comptes_vides(self):
+        coti = {
+            "coti_id": "cotisation_martienne",
+            "libelle": "Inconnue",
+            "montant_patronal": 10.0,
+        }
+        organisme, charge, tiers = ledger_module._accounts_for_cotisation(coti, {})
+        assert organisme == "INCONNU"
+        assert charge == ""
+        assert tiers == ""

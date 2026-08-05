@@ -5,6 +5,16 @@ from calendar import monthrange
 from collections import defaultdict
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
+from app.modules.exports.domain.accounting_plan import (
+    ORGANISME_INCONNU,
+    ORGANISME_MUTUELLE,
+    ORGANISME_PREVOYANCE,
+    ORGANISME_RETRAITE,
+    ORGANISME_RETRAITE_SUP,
+    ORGANISME_URSSAF,
+    default_accounts_for,
+    resolve_organisme_from_coti_id,
+)
 from app.modules.exports.domain.charges_organisme import resolve_organisme
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     DEFAULT_MAPPINGS,
@@ -270,6 +280,41 @@ def _resolve_mapping(
     mappings: Dict[str, Dict[str, Any]], rubrique_code: str
 ) -> Dict[str, Any]:
     return mappings.get(rubrique_code) or get_default_mapping(rubrique_code) or DEFAULT_MAPPINGS.get(rubrique_code, {})  # type: ignore[return-value]
+
+
+_ORGANISME_TO_RUBRIQUE = {
+    ORGANISME_URSSAF: "organisme_urssaf",
+    ORGANISME_RETRAITE: "organisme_retraite",
+    ORGANISME_RETRAITE_SUP: "organisme_retraite_sup",
+    ORGANISME_MUTUELLE: "organisme_mutuelle",
+    ORGANISME_PREVOYANCE: "organisme_prevoyance",
+}
+
+
+def _accounts_for_cotisation(
+    coti: Dict[str, Any], mappings: Dict[str, Dict[str, Any]]
+) -> Tuple[str, str, str]:
+    """Retourne (organisme, compte de charge, compte de tiers) d'une cotisation.
+
+    Cascade : mapping société → défaut plateforme. Un organisme non rattaché
+    retourne des comptes vides ; l'appelant doit le signaler, pas l'absorber.
+    """
+    organisme = resolve_organisme_from_coti_id(
+        coti.get("coti_id"), str(coti.get("libelle") or "")
+    )
+    if organisme == ORGANISME_INCONNU:
+        return organisme, "", ""
+
+    mapping = mappings.get(_ORGANISME_TO_RUBRIQUE.get(organisme, "")) or {}
+    pair = default_accounts_for(organisme)
+
+    compte_charge = str(
+        mapping.get("compte_charge") or (pair.compte_charge if pair else "")
+    )
+    compte_tiers = str(
+        mapping.get("compte_tiers") or (pair.compte_tiers if pair else "")
+    )
+    return organisme, compte_charge, compte_tiers
 
 
 def _period_end_date(period: str) -> str:
