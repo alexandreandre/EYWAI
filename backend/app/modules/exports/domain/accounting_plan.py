@@ -105,6 +105,98 @@ ELEMENT_ACCOUNTS: Dict[str, AccountPair] = {
     "indemnite_de_transport": AccountPair(compte_charge="648000", compte_tiers=""),
 }
 
+# --- Familles d'éléments hors cotisations -----------------------------------
+#
+# Les éléments hors brut (primes non soumises, retenues) n'ont pas d'identifiant
+# stable : `prime_id` est fabriqué depuis le libellé libre saisi par la RH, si
+# bien qu'on trouve en base « indemnité_de_transport » et « indemnite_de_transport »
+# pour la même chose, et un identifiant par salarié pour les prêts
+# (« contrat_de_pret_<nom> »).
+#
+# Le rattachement passe donc par une famille : une clé stable, sans nom propre,
+# vers laquelle on normalise le libellé. C'est cette famille qui porte les
+# comptes, jamais le libellé.
+#
+# Une famille sans compte par défaut est volontaire : le compte dépend du plan
+# du cabinet et sera paramétré par société. L'export refusera de sortir tant
+# qu'il manque, plutôt que d'inventer une imputation.
+
+FAMILLE_TRANSPORT = "indemnite_transport"
+FAMILLE_PANIER = "panier"
+FAMILLE_CANTINE = "cantine"
+FAMILLE_PRET = "pret_employeur"
+FAMILLE_AVANCE_PARTICIPATION = "avance_participation"
+FAMILLE_NOTE_DE_FRAIS = "note_de_frais"
+FAMILLE_IJSS = "ijss"
+FAMILLE_PARTICIPATION = "participation"
+FAMILLE_PARTICIPATION_PEE = "participation_pee"
+FAMILLE_INCONNUE = "INCONNUE"
+
+# Préfixes normalisés (minuscules, sans accents) → famille.
+# L'ordre compte : le premier préfixe qui correspond gagne.
+_FAMILLE_PREFIXES = (
+    ("avance participation", FAMILLE_AVANCE_PARTICIPATION),
+    ("acompte sur participation", FAMILLE_AVANCE_PARTICIPATION),
+    ("acompte participation", FAMILLE_AVANCE_PARTICIPATION),
+    ("contrat de pret", FAMILLE_PRET),
+    ("remboursement pret", FAMILLE_PRET),
+    ("indemnite de transport", FAMILLE_TRANSPORT),
+    ("remboursement transport", FAMILLE_TRANSPORT),
+    ("indemnite de panier", FAMILLE_PANIER),
+    ("paniers jours", FAMILLE_PANIER),
+    ("paniers repas", FAMILLE_PANIER),
+    ("panier", FAMILLE_PANIER),
+    ("remise cantine", FAMILLE_CANTINE),
+    ("cantine", FAMILLE_CANTINE),
+    ("remboursement de notes de frais", FAMILLE_NOTE_DE_FRAIS),
+    ("remboursement note de frais", FAMILLE_NOTE_DE_FRAIS),
+    ("ijss", FAMILLE_IJSS),
+)
+
+# Comptes par défaut des familles. Une famille absente doit être paramétrée par
+# société avant que l'OD puisse sortir — on ne devine pas une imputation.
+FAMILY_ACCOUNTS: Dict[str, AccountPair] = {
+    FAMILLE_TRANSPORT: AccountPair(compte_charge="648000", compte_tiers=""),
+    FAMILLE_PRET: AccountPair(compte_charge="", compte_tiers="274000"),
+    FAMILLE_NOTE_DE_FRAIS: AccountPair(compte_charge="", compte_tiers="428625"),
+}
+
+
+def _normalize_libelle(libelle: str) -> str:
+    """Minuscules, sans accents, espaces réduits — pour comparer des libellés
+    saisis à la main, qui varient en casse et en accentuation."""
+    import unicodedata
+
+    sans_accents = "".join(
+        c
+        for c in unicodedata.normalize("NFD", libelle or "")
+        if unicodedata.category(c) != "Mn"
+    )
+    return " ".join(sans_accents.lower().replace("_", " ").split())
+
+
+def resolve_element_family(libelle: str, prime_id: Optional[str] = None) -> str:
+    """Rattache un élément hors brut à sa famille comptable.
+
+    Le libellé et l'identifiant sont tous deux du texte libre : on les normalise
+    et on cherche un préfixe connu. Retourne `INCONNUE` si rien ne correspond —
+    l'appelant doit le signaler, pas choisir un compte au hasard.
+    """
+    for candidat in (libelle, prime_id or ""):
+        normalise = _normalize_libelle(candidat)
+        if not normalise:
+            continue
+        for prefixe, famille in _FAMILLE_PREFIXES:
+            if normalise.startswith(prefixe):
+                return famille
+    return FAMILLE_INCONNUE
+
+
+def default_accounts_for_family(famille: str) -> Optional[AccountPair]:
+    """Comptes par défaut d'une famille, ou None si elle doit être paramétrée."""
+    return FAMILY_ACCOUNTS.get(famille)
+
+
 # Repli par libellé, pour les lignes sans coti_id.
 _LIBELLE_FALLBACK = (
     ("CSG", ORGANISME_URSSAF),

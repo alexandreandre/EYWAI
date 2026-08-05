@@ -149,3 +149,91 @@ class TestComptesParDefaut:
 
     def test_organisme_inconnu_sans_comptes(self):
         assert default_accounts_for("INCONNU") is None
+
+
+class TestFamillesElementsHorsBrut:
+    """Les éléments hors brut n'ont pas d'identifiant stable : prime_id est
+    fabriqué depuis le libellé libre saisi par la RH. Le rattachement passe donc
+    par une famille."""
+
+    def test_variantes_daccent_et_de_casse_donnent_la_meme_famille(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_TRANSPORT,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Indemnité de transport") == FAMILLE_TRANSPORT
+        assert resolve_element_family("Indemnite de transport") == FAMILLE_TRANSPORT
+        assert (
+            resolve_element_family("", "indemnité_de_transport") == FAMILLE_TRANSPORT
+        )
+        assert (
+            resolve_element_family("", "indemnite_de_transport") == FAMILLE_TRANSPORT
+        )
+
+    def test_prets_rattaches_quel_que_soit_le_nom_du_salarie(self):
+        """Un identifiant par salarié ne doit jamais devenir une ligne de
+        paramétrage — et surtout pas y faire entrer des noms de personnes."""
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_PRET,
+            resolve_element_family,
+        )
+
+        for libelle in (
+            "Contrat de pret DUPONT Jean",
+            "Contrat de prêt MARTIN Claude",
+            "Contrat de pret DURAND",
+            "Remboursement prêt salarié",
+        ):
+            assert resolve_element_family(libelle) == FAMILLE_PRET, libelle
+
+    def test_variantes_davance_de_participation(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_AVANCE_PARTICIPATION,
+            resolve_element_family,
+        )
+
+        for libelle in (
+            "Avance participation 2025 (déjà versée)",
+            "Acompte sur participation 2025 (déjà versé)",
+            "Acompte participation 2025 (déjà versé)",
+        ):
+            assert (
+                resolve_element_family(libelle) == FAMILLE_AVANCE_PARTICIPATION
+            ), libelle
+
+    def test_paniers_et_cantine(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_CANTINE,
+            FAMILLE_PANIER,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Paniers jours non soumis") == FAMILLE_PANIER
+        assert resolve_element_family("Indemnité de panier") == FAMILLE_PANIER
+        assert resolve_element_family("Paniers repas chauffeur") == FAMILLE_PANIER
+        assert resolve_element_family("Cantine") == FAMILLE_CANTINE
+        assert resolve_element_family("Remise Cantine (avantage)") == FAMILLE_CANTINE
+
+    def test_libelle_inconnu_signale_et_non_devine(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_INCONNUE,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Prime exceptionnelle de mars") == FAMILLE_INCONNUE
+        assert resolve_element_family("") == FAMILLE_INCONNUE
+
+    def test_famille_sans_compte_par_defaut_doit_etre_parametree(self):
+        """Panier et cantine n'apparaissent pas sur l'OD de référence : leur
+        compte dépend du plan du cabinet, on ne l'invente pas."""
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_CANTINE,
+            FAMILLE_PANIER,
+            FAMILLE_TRANSPORT,
+            default_accounts_for_family,
+        )
+
+        assert default_accounts_for_family(FAMILLE_TRANSPORT) is not None
+        assert default_accounts_for_family(FAMILLE_PANIER) is None
+        assert default_accounts_for_family(FAMILLE_CANTINE) is None

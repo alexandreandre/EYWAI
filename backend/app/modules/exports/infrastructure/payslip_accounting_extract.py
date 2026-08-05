@@ -37,6 +37,69 @@ def _flatten_cotisation_lines(structure_cotisations: Dict[str, Any]) -> List[Dic
     return lines
 
 
+def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Éléments qui s'ajoutent au net à payer sans transiter par le brut.
+
+    Primes non soumises, retenues, et participation. Sans contrepartie au débit,
+    l'OD est déséquilibrée d'exactement leur total — c'est la cause de l'écart
+    constaté sur les OD générées jusqu'ici.
+
+    Chaque élément porte sa `famille`, clé stable de rattachement comptable :
+    `prime_id` et le libellé sont du texte libre saisi par la RH et ne peuvent
+    pas servir de clé.
+    """
+    from app.modules.exports.domain.accounting_plan import (
+        FAMILLE_PARTICIPATION,
+        FAMILLE_PARTICIPATION_PEE,
+        resolve_element_family,
+    )
+
+    elements: List[Dict[str, Any]] = []
+
+    for prime in payslip_data.get("primes_non_soumises") or []:
+        if not isinstance(prime, dict):
+            continue
+        montant = float(prime.get("montant", 0) or 0)
+        if montant == 0:
+            continue
+        libelle = str(prime.get("libelle") or "")
+        prime_id = prime.get("prime_id")
+        elements.append(
+            {
+                "famille": resolve_element_family(libelle, prime_id),
+                "libelle": libelle or "Élément hors brut",
+                "montant": montant,
+            }
+        )
+
+    for part in payslip_data.get("participations") or []:
+        if not isinstance(part, dict):
+            continue
+        brut = float(part.get("brut", 0) or 0)
+        part_pee = float(part.get("part_pee", 0) or 0)
+        libelle = str(part.get("libelle") or "Participation")
+        # Le brut de participation est la charge ; la CSG figure déjà parmi les
+        # cotisations, et la part placée sur un PEE ne va pas au net à payer.
+        if brut != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_PARTICIPATION,
+                    "libelle": libelle,
+                    "montant": brut,
+                }
+            )
+        if part_pee != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_PARTICIPATION_PEE,
+                    "libelle": f"{libelle} — part placée sur un plan d'épargne",
+                    "montant": -part_pee,
+                }
+            )
+
+    return elements
+
+
 def extract_cotisations_from_payslip(
     payslip_data: Dict[str, Any],
 ) -> Tuple[float, float, List[Dict[str, Any]], Dict[str, Any]]:

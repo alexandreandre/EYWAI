@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.core.database import supabase
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
+    extract_elements_hors_brut,
     extract_pas_amount,
 )
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
@@ -169,6 +170,7 @@ def get_payslip_data_for_od(
                 "cotisations_patronales": cotisations_patronales,
                 "pas": pas,
                 "cotisations_detail": cotisations_list,
+                "elements_hors_brut": extract_elements_hors_brut(payslip_data),
             }
         )
         totals["total_brut"] += brut
