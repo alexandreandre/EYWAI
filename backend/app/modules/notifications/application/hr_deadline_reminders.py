@@ -19,6 +19,10 @@ from app.modules.users.infrastructure.queries import (
     fetch_company_name,
     fetch_company_users_rows,
 )
+from app.modules.trial_periods.infrastructure.joins import (
+    TRIAL_PERIOD_JOIN_LIGHT,
+    normalize_trial_periods,
+)
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 
 logger = logging.getLogger(__name__)
@@ -33,20 +37,12 @@ def fetch_employees_for_hr_deadline_reminders(company_id: str) -> List[Dict[str,
             "id, first_name, last_name, employment_status, contract_type, "
             "contract_end_date, hire_date, "
             "is_subject_to_residence_permit, residence_permit_expiry_date, "
-            "trial_period:trial_periods(end_date, status)"
+            + TRIAL_PERIOD_JOIN_LIGHT
         )
         .eq("company_id", company_id)
         .execute()
     )
-    rows = list(resp.data or [])
-    # Une relation inverse remonte une liste : on ne garde que la période
-    # active, celle sur laquelle porte la relance.
-    for row in rows:
-        trials = row.get("trial_period")
-        if isinstance(trials, list):
-            active = [t for t in trials if t.get("status") == "en_cours"]
-            row["trial_period"] = active[0] if active else None
-    return rows
+    return normalize_trial_periods(resp.data or [])
 
 
 def fetch_rh_recipient_emails(company_id: str) -> List[str]:

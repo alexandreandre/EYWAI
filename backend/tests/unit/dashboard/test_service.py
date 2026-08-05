@@ -223,7 +223,7 @@ class TestBuildFullDashboard:
                 "contract_type": "CDD",
                 "contract_end_date": "2099-06-01",
                 "hire_date": "2099-04-01",
-                "periode_essai": {"duree_initiale": 2, "unite": "mois"},
+                "trial_period": {"end_date": "2099-05-31", "status": "en_cours"},
             },
         ]
         mock_repo.get_pending_absence_requests_count.return_value = 0

@@ -10,6 +10,11 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 from app.modules.employees.domain.salary_timeline import salaire_actif_a_date
+from app.modules.trial_periods.infrastructure.joins import (
+    TRIAL_PERIOD_JOIN,
+    normalize_trial_period,
+    normalize_trial_periods,
+)
 
 
 def _subtract_months(today: date, months: int) -> date:
@@ -147,12 +152,12 @@ class EmployeeRepository(IEmployeeRepository):
     def get_by_company(self, company_id: str) -> List[Dict[str, Any]]:
         response = (
             supabase.table("employees")
-            .select("*")
+            .select("*, " + TRIAL_PERIOD_JOIN)
             .eq("company_id", company_id)
             .order("last_name")
             .execute()
         )
-        return [dict(row) for row in (response.data or [])]
+        return normalize_trial_periods(dict(row) for row in (response.data or []))
 
     def get_summary_by_company(
         self,
@@ -210,7 +215,7 @@ class EmployeeRepository(IEmployeeRepository):
     def get_by_id(self, employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:
         response = (
             supabase.table("employees")
-            .select("*")
+            .select("*, " + TRIAL_PERIOD_JOIN)
             .eq("id", employee_id)
             .eq("company_id", company_id)
             .single()
@@ -218,7 +223,8 @@ class EmployeeRepository(IEmployeeRepository):
         )
         if not response.data:
             return None
-        return _enrich_employee_row_with_cse(dict(response.data), company_id)
+        row = normalize_trial_period(dict(response.data))
+        return _enrich_employee_row_with_cse(row, company_id)
 
     def get_by_id_only(self, employee_id: str) -> Optional[Dict[str, Any]]:
         response = (

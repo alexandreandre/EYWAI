@@ -1,15 +1,12 @@
-"""Règles pures : statut calculé de la période d'essai."""
+"""Règles pures : statut calculé de la période d'essai, pour affichage RH."""
 
 from __future__ import annotations
 
 from datetime import date
 from typing import Any, Dict, Optional
 
-from app.modules.employees.domain.trial_period_shared import (
-    TRIAL_REMINDER_DAYS,
-    compute_trial_period_end,
-    parse_date,
-)
+from app.modules.employees.domain.trial_period_bareme import DEFAULT_ALERT_DAYS
+from app.modules.employees.domain.trial_period_shared import parse_date
 
 TRIAL_STATUS_IN_PROGRESS = "in_progress"
 TRIAL_STATUS_ENDING_SOON = "ending_soon"
@@ -17,27 +14,9 @@ TRIAL_STATUS_ENDED = "ended"
 TRIAL_STATUS_CONFIRMED = "confirmed"
 TRIAL_STATUS_TO_COMPLETE = "to_complete"
 
-TRIAL_JSON_STATUT_CONFIRMED = "confirmee"
-TRIAL_JSON_STATUT_EN_COURS = "en_cours"
-
 RECENT_HIRE_DAYS_FOR_TO_COMPLETE = 90
 
 _TRACKED_EMPLOYMENT_STATUSES = frozenset({"actif", "en_onboarding"})
-
-
-def _is_trial_confirmed(periode_essai: Any) -> bool:
-    if not isinstance(periode_essai, dict):
-        return False
-    statut = str(periode_essai.get("statut") or "").strip().lower()
-    return statut == TRIAL_JSON_STATUT_CONFIRMED
-
-
-def _renewal_possible(periode_essai: Any) -> Optional[bool]:
-    if not isinstance(periode_essai, dict):
-        return None
-    if "renouvellement_possible" not in periode_essai:
-        return None
-    return bool(periode_essai.get("renouvellement_possible"))
 
 
 def _empty_enrichment() -> Dict[str, Any]:
@@ -52,17 +31,17 @@ def _empty_enrichment() -> Dict[str, Any]:
 
 def calculate_trial_period_status(
     hire_date_raw: Any,
-    periode_essai: Any,
+    trial_period: Any,
     employment_status: Any,
-    contract_type: Any = None,
     reference_date: Optional[date] = None,
+    alert_days: int = DEFAULT_ALERT_DAYS,
 ) -> Dict[str, Any]:
-    """
-    Calcule le statut enrichi de la période d'essai pour affichage RH / alertes.
+    """Statut enrichi de la période d'essai, à partir de la ligne trial_periods.
 
     Returns:
-        dict avec trial_period_applicable, trial_period_status, trial_period_end_date,
-        trial_period_days_remaining, trial_period_renewal_possible.
+        dict avec trial_period_applicable, trial_period_status,
+        trial_period_end_date, trial_period_days_remaining,
+        trial_period_renewal_possible.
     """
     ref = reference_date or date.today()
     status_norm = str(employment_status or "actif").strip().lower()
@@ -70,18 +49,9 @@ def calculate_trial_period_status(
     if status_norm not in _TRACKED_EMPLOYMENT_STATUSES:
         return _empty_enrichment()
 
-    if _is_trial_confirmed(periode_essai):
-        end = compute_trial_period_end(hire_date_raw, periode_essai)
-        return {
-            "trial_period_applicable": True,
-            "trial_period_status": TRIAL_STATUS_CONFIRMED,
-            "trial_period_end_date": end.isoformat() if end else None,
-            "trial_period_days_remaining": None,
-            "trial_period_renewal_possible": _renewal_possible(periode_essai),
-        }
-
-    end = compute_trial_period_end(hire_date_raw, periode_essai)
-    if end is None:
+    if not isinstance(trial_period, dict):
+        # Sans période enregistrée, seule une embauche récente mérite d'être
+        # signalée : au-delà, il n'y a plus rien à compléter.
         hire = parse_date(hire_date_raw)
         if hire is not None and (ref - hire).days <= RECENT_HIRE_DAYS_FOR_TO_COMPLETE:
             return {
@@ -93,12 +63,29 @@ def calculate_trial_period_status(
             }
         return _empty_enrichment()
 
-    days_remaining = (end - ref).days
-    renewal = _renewal_possible(periode_essai)
+    db_status = str(trial_period.get("status") or "")
+    end = parse_date(trial_period.get("end_date"))
+    renewal = trial_period.get("renewal_allowed")
+    if renewal is not None:
+        renewal = bool(renewal)
 
+    if db_status == "confirmee":
+        return {
+            "trial_period_applicable": True,
+            "trial_period_status": TRIAL_STATUS_CONFIRMED,
+            "trial_period_end_date": end.isoformat() if end else None,
+            "trial_period_days_remaining": None,
+            "trial_period_renewal_possible": renewal,
+        }
+
+    # Une période rompue a produit une sortie : elle ne se suit plus ici.
+    if db_status != "en_cours" or end is None:
+        return _empty_enrichment()
+
+    days_remaining = (end - ref).days
     if days_remaining < 0:
         status = TRIAL_STATUS_ENDED
-    elif days_remaining <= TRIAL_REMINDER_DAYS:
+    elif days_remaining <= alert_days:
         status = TRIAL_STATUS_ENDING_SOON
     else:
         status = TRIAL_STATUS_IN_PROGRESS
@@ -112,21 +99,11 @@ def calculate_trial_period_status(
     }
 
 
-def is_trial_eligible_for_reminder(periode_essai: Any) -> bool:
-    """True si la période d'essai doit déclencher une relance (non confirmée)."""
-    if not isinstance(periode_essai, dict):
-        return False
-    return not _is_trial_confirmed(periode_essai)
-
-
 __all__ = [
     "TRIAL_STATUS_CONFIRMED",
     "TRIAL_STATUS_ENDED",
     "TRIAL_STATUS_ENDING_SOON",
     "TRIAL_STATUS_IN_PROGRESS",
     "TRIAL_STATUS_TO_COMPLETE",
-    "TRIAL_JSON_STATUT_CONFIRMED",
-    "TRIAL_JSON_STATUT_EN_COURS",
     "calculate_trial_period_status",
-    "is_trial_eligible_for_reminder",
 ]

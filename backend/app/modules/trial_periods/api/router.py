@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
-from app.modules.employees.domain.trial_period_bareme import resolve_trial_proposal
 from app.modules.trial_periods.api import access
 from app.modules.trial_periods.application import commands, queries
-from app.modules.trial_periods.infrastructure.repository import repository
 from app.modules.trial_periods.schemas.requests import (
     TrialPeriodApplyBareme,
     TrialPeriodCreate,
@@ -22,20 +19,6 @@ from app.modules.trial_periods.schemas.responses import TrialPeriodTracking
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(prefix="/api/trial-periods", tags=["TrialPeriods"])
-
-
-def _contract_duration_months(employee: Dict[str, Any]) -> Optional[float]:
-    """Durée du contrat en mois, pour la règle légale des CDD courts."""
-    hire = employee.get("hire_date")
-    end = employee.get("contract_end_date")
-    if not hire or not end:
-        return None
-    try:
-        d1 = date.fromisoformat(str(hire)[:10])
-        d2 = date.fromisoformat(str(end)[:10])
-    except ValueError:
-        return None
-    return max(0.0, (d2 - d1).days / 30.44)
 
 
 @router.get("/tracking", response_model=TrialPeriodTracking)
@@ -118,47 +101,8 @@ def apply_bareme(
 ) -> Dict[str, Any]:
     """Crée les périodes d'essai proposées par le barème, sans écraser l'existant."""
     company_id = access.require_rh_or_admin(current_user)
-    user_id = str(current_user.id) or None
-
-    settings = queries.fetch_company_settings(company_id)
-    employees = {str(e["id"]): e for e in queries.fetch_employees(company_id)}
-
-    created: List[str] = []
-    skipped: List[Dict[str, str]] = []
-    for employee_id in body.employee_ids:
-        emp = employees.get(employee_id)
-        if emp is None:
-            skipped.append({"employee_id": employee_id, "raison": "salarié introuvable"})
-            continue
-        if repository.get_active_for_employee(employee_id):
-            skipped.append({"employee_id": employee_id, "raison": "période déjà active"})
-            continue
-        hire = emp.get("hire_date")
-        if not hire:
-            skipped.append(
-                {"employee_id": employee_id, "raison": "date d'entrée manquante"}
-            )
-            continue
-        proposal = resolve_trial_proposal(
-            settings,
-            str(emp.get("contract_type") or ""),
-            str(emp.get("statut") or ""),
-            _contract_duration_months(emp),
-        )
-        if proposal is None:
-            skipped.append(
-                {"employee_id": employee_id, "raison": "contrat sans période d'essai"}
-            )
-            continue
-        commands.create_trial_period(
-            company_id=company_id,
-            employee_id=employee_id,
-            start_date=date.fromisoformat(str(hire)[:10]),
-            duration_value=proposal.duration_value,
-            duration_unit=proposal.duration_unit,
-            renewal_allowed=proposal.renewal_allowed,
-            created_by=user_id,
-        )
-        created.append(employee_id)
-
-    return {"created": created, "skipped": skipped}
+    return commands.apply_bareme_to_employees(
+        company_id,
+        body.employee_ids,
+        str(current_user.id) or None,
+    )

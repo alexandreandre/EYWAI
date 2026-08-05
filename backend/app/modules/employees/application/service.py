@@ -74,9 +74,8 @@ def enrich_employee_with_trial_period_status(
 
         status_data = calculate_trial_period_status(
             hire_date,
-            employee_data.get("periode_essai"),
+            employee_data.get("trial_period"),
             employee_data.get("employment_status", DEFAULT_EMPLOYMENT_STATUS),
-            employee_data.get("contract_type"),
         )
         result = dict(employee_data)
         result.update(status_data)

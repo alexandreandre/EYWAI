@@ -31,7 +31,6 @@ from app.modules.employees.domain.rules import (
 )
 from app.modules.employees.infrastructure.queries import allocate_collaborator_username
 from app.modules.employees.domain.salary_timeline import est_augmentation_planifiee
-from app.modules.employees.domain.trial_period import TRIAL_JSON_STATUT_CONFIRMED
 from app.modules.onboarding.domain.profile import (
     enrich_employee_profile_completeness,
     is_profile_complete,
@@ -1020,25 +1019,35 @@ def delete_employee(employee_id: str, company_id: str) -> None:
         pass
 
 
-def confirm_trial_period(employee_id: str, company_id: str) -> Dict[str, Any]:
-    """Confirme l'embauche en clôturant le suivi de période d'essai."""
+def confirm_trial_period(
+    employee_id: str,
+    company_id: str,
+    confirmed_by: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Confirme l'embauche en clôturant le suivi de période d'essai.
+
+    Conservée pour la route historique de la fiche salarié ; l'écriture porte
+    désormais sur la table trial_periods.
+    """
+    from app.modules.trial_periods.application import commands as trial_commands
+    from app.modules.trial_periods.infrastructure.repository import (
+        repository as trial_repository,
+    )
+
     emp = _employee_repository.get_by_id(employee_id, company_id)
     if emp is None:
         raise HTTPException(status_code=404, detail="Employé non trouvé.")
 
-    current_pe = emp.get("periode_essai")
-    if not isinstance(current_pe, dict) or not current_pe:
+    active = trial_repository.get_active_for_employee(employee_id)
+    if active is None:
         raise HTTPException(
             status_code=400,
-            detail="Aucune période d'essai renseignée pour ce collaborateur.",
+            detail="Aucune période d'essai en cours pour ce collaborateur.",
         )
 
-    merged_pe = dict(current_pe)
-    merged_pe["statut"] = TRIAL_JSON_STATUT_CONFIRMED
+    trial_commands.confirm_trial_period(str(active["id"]), confirmed_by)
 
-    updated = _employee_repository.update(employee_id, {"periode_essai": merged_pe})
+    updated = _employee_repository.get_by_id(employee_id, company_id)
     if updated is None:
-        raise HTTPException(
-            status_code=404, detail="Employé non trouvé ou aucune donnée modifiée."
-        )
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
     return updated

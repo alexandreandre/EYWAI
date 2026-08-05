@@ -10,6 +10,10 @@ from __future__ import annotations
 from typing import List
 
 from app.core.database import get_supabase_client
+from app.modules.trial_periods.infrastructure.joins import (
+    TRIAL_PERIOD_JOIN_LIGHT,
+    normalize_trial_periods,
+)
 
 
 def _get_client():
@@ -25,13 +29,13 @@ def fetch_employees_for_dashboard(company_id: str) -> List[dict]:
         .select(
             "id, first_name, last_name, hire_date, date_naissance, "
             "salaire_de_base, contract_type, employment_status, "
-            "contract_end_date, periode_essai, is_subject_to_residence_permit, "
-            "residence_permit_expiry_date"
+            "contract_end_date, is_subject_to_residence_permit, "
+            "residence_permit_expiry_date, " + TRIAL_PERIOD_JOIN_LIGHT
         )
         .eq("company_id", company_id)
         .execute()
     )
-    return list(resp.data or [])
+    return normalize_trial_periods(resp.data or [])
 
 
 def fetch_absences_validated_today(company_id: str, today_iso: str) -> List[dict]:

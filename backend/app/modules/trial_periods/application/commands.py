@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from app.modules.employees.domain.trial_period_dates import compute_trial_end
 from app.modules.employees.domain.trial_period_shared import parse_date
@@ -136,6 +136,73 @@ def create_trial_period(**kwargs: Any) -> Dict[str, Any]:
     return repository.create(build_create_payload(**kwargs))
 
 
+def contract_duration_months(employee: Dict[str, Any]) -> Optional[float]:
+    """Durée du contrat en mois, pour la règle légale des CDD courts."""
+    hire = parse_date(employee.get("hire_date"))
+    end = parse_date(employee.get("contract_end_date"))
+    if hire is None or end is None:
+        return None
+    return max(0.0, (end - hire).days / 30.44)
+
+
+def apply_bareme_to_employees(
+    company_id: str,
+    employee_ids: Sequence[str],
+    created_by: Optional[str],
+) -> Dict[str, Any]:
+    """Crée les périodes proposées par le barème, sans écraser l'existant.
+
+    Retourne les salariés traités et ceux écartés avec leur raison : une
+    sélection partiellement traitée ne doit pas passer pour un succès complet.
+    """
+    from app.modules.employees.domain.trial_period_bareme import resolve_trial_proposal
+    from app.modules.trial_periods.application import queries
+
+    settings = queries.fetch_company_settings(company_id)
+    employees = {str(e["id"]): e for e in queries.fetch_employees(company_id)}
+
+    created: List[str] = []
+    skipped: List[Dict[str, str]] = []
+
+    for employee_id in employee_ids:
+        emp = employees.get(employee_id)
+        if emp is None:
+            skipped.append({"employee_id": employee_id, "raison": "salarié introuvable"})
+            continue
+        if repository.get_active_for_employee(employee_id):
+            skipped.append({"employee_id": employee_id, "raison": "période déjà active"})
+            continue
+        hire = parse_date(emp.get("hire_date"))
+        if hire is None:
+            skipped.append(
+                {"employee_id": employee_id, "raison": "date d'entrée manquante"}
+            )
+            continue
+        proposal = resolve_trial_proposal(
+            settings,
+            str(emp.get("contract_type") or ""),
+            str(emp.get("statut") or ""),
+            contract_duration_months(emp),
+        )
+        if proposal is None:
+            skipped.append(
+                {"employee_id": employee_id, "raison": "contrat sans période d'essai"}
+            )
+            continue
+        create_trial_period(
+            company_id=company_id,
+            employee_id=employee_id,
+            start_date=hire,
+            duration_value=proposal.duration_value,
+            duration_unit=proposal.duration_unit,
+            renewal_allowed=proposal.renewal_allowed,
+            created_by=created_by,
+        )
+        created.append(employee_id)
+
+    return {"created": created, "skipped": skipped}
+
+
 def update_trial_period(
     trial_period_id: str,
     start_date: Optional[date] = None,
@@ -175,11 +242,13 @@ def renew_trial_period(
 
 
 __all__ = [
+    "apply_bareme_to_employees",
     "build_confirm_payload",
     "build_create_payload",
     "build_renewal_payload",
     "build_update_payload",
     "confirm_trial_period",
+    "contract_duration_months",
     "create_trial_period",
     "renew_trial_period",
     "update_trial_period",

@@ -536,7 +536,7 @@ async def confirm_trial_period(
     try:
         company_id = require_rh_access(current_user.active_company_id, current_user)
         assert_can_read_employee_profile(current_user, employee_id, company_id)
-        commands.confirm_trial_period(employee_id, company_id)
+        commands.confirm_trial_period(employee_id, company_id, str(current_user.id))
         data = queries.get_employee_by_id(employee_id, company_id)
         if not data:
             raise HTTPException(status_code=404, detail="Employé non trouvé.")

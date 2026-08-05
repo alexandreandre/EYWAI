@@ -1,4 +1,8 @@
-"""Tests unitaires du statut calculé période d'essai."""
+"""Tests unitaires du statut calculé période d'essai.
+
+La source est la table trial_periods : le statut reçoit la ligne active
+(end_date, status, renewal_allowed), plus le jsonb historique.
+"""
 
 from __future__ import annotations
 
@@ -6,26 +10,22 @@ from datetime import date
 
 from app.modules.employees.domain.deadline_reminders import count_ending_trial_periods
 from app.modules.employees.domain.trial_period import (
-    TRIAL_JSON_STATUT_CONFIRMED,
     TRIAL_STATUS_CONFIRMED,
     TRIAL_STATUS_ENDED,
     TRIAL_STATUS_ENDING_SOON,
     TRIAL_STATUS_IN_PROGRESS,
     TRIAL_STATUS_TO_COMPLETE,
     calculate_trial_period_status,
-    is_trial_eligible_for_reminder,
 )
 
 
 class TestCalculateTrialPeriodStatus:
     def test_in_progress(self):
-        ref = date(2025, 2, 1)
         result = calculate_trial_period_status(
             "2025-01-15",
-            {"duree_initiale": 2, "unite": "mois", "renouvellement_possible": True},
+            {"end_date": "2025-03-14", "status": "en_cours", "renewal_allowed": True},
             "actif",
-            "CDI",
-            reference_date=ref,
+            reference_date=date(2025, 2, 1),
         )
         assert result["trial_period_applicable"] is True
         assert result["trial_period_status"] == TRIAL_STATUS_IN_PROGRESS
@@ -34,73 +34,81 @@ class TestCalculateTrialPeriodStatus:
         assert result["trial_period_renewal_possible"] is True
 
     def test_ending_soon(self):
-        ref = date(2025, 3, 10)
         result = calculate_trial_period_status(
             "2025-01-15",
-            {"duree_initiale": 2, "unite": "mois"},
+            {"end_date": "2025-03-14", "status": "en_cours"},
             "actif",
-            reference_date=ref,
+            reference_date=date(2025, 3, 10),
         )
         assert result["trial_period_status"] == TRIAL_STATUS_ENDING_SOON
         assert result["trial_period_days_remaining"] == 4
 
     def test_ended(self):
-        ref = date(2025, 4, 1)
         result = calculate_trial_period_status(
             "2025-01-15",
-            {"duree_initiale": 2, "unite": "mois"},
+            {"end_date": "2025-03-14", "status": "en_cours"},
             "actif",
-            reference_date=ref,
+            reference_date=date(2025, 4, 1),
         )
         assert result["trial_period_status"] == TRIAL_STATUS_ENDED
         assert result["trial_period_days_remaining"] == -18
 
     def test_confirmed(self):
-        ref = date(2025, 3, 10)
         result = calculate_trial_period_status(
             "2025-01-15",
-            {
-                "duree_initiale": 2,
-                "unite": "mois",
-                "statut": TRIAL_JSON_STATUT_CONFIRMED,
-            },
+            {"end_date": "2025-03-14", "status": "confirmee"},
             "actif",
-            reference_date=ref,
+            reference_date=date(2025, 3, 10),
         )
         assert result["trial_period_status"] == TRIAL_STATUS_CONFIRMED
         assert result["trial_period_days_remaining"] is None
 
     def test_to_complete_recent_hire(self):
-        ref = date(2025, 1, 20)
         result = calculate_trial_period_status(
             "2025-01-15",
             None,
             "actif",
-            reference_date=ref,
+            reference_date=date(2025, 1, 20),
         )
         assert result["trial_period_status"] == TRIAL_STATUS_TO_COMPLETE
+
+    def test_ancien_salarie_sans_periode_reste_muet(self):
+        result = calculate_trial_period_status(
+            "2020-01-01", None, "actif", reference_date=date(2026, 8, 5)
+        )
+        assert result["trial_period_applicable"] is False
 
     def test_not_applicable_when_parti(self):
         result = calculate_trial_period_status(
             "2025-01-15",
-            {"duree_initiale": 2, "unite": "mois"},
+            {"end_date": "2025-03-14", "status": "en_cours"},
             "parti",
         )
         assert result["trial_period_applicable"] is False
         assert result["trial_period_status"] is None
 
+    def test_delai_d_alerte_parametrable(self):
+        result = calculate_trial_period_status(
+            "2026-06-01",
+            {"end_date": "2026-08-25", "status": "en_cours"},
+            "actif",
+            reference_date=date(2026, 8, 5),
+            alert_days=30,
+        )
+        assert result["trial_period_status"] == TRIAL_STATUS_ENDING_SOON
 
-class TestTrialReminderEligibility:
-    def test_confirmed_excluded_from_reminders(self):
-        pe = {"duree_initiale": 2, "unite": "mois", "statut": TRIAL_JSON_STATUT_CONFIRMED}
-        assert is_trial_eligible_for_reminder(pe) is False
+    def test_periode_rompue_n_est_plus_suivie(self):
+        result = calculate_trial_period_status(
+            "2026-06-01",
+            {"end_date": "2026-08-25", "status": "rompue"},
+            "actif",
+            reference_date=date(2026, 8, 5),
+        )
+        assert result["trial_period_applicable"] is False
 
-    def test_in_progress_eligible(self):
-        pe = {"duree_initiale": 2, "unite": "mois", "statut": "en_cours"}
-        assert is_trial_eligible_for_reminder(pe) is True
 
+class TestTrialCountsInAlerts:
     def test_confirmed_not_counted_in_alerts(self):
-        ref = date(2025, 6, 1)
         employees = [
             {
                 "id": "e1",
@@ -109,10 +117,9 @@ class TestTrialReminderEligibility:
                 "trial_period": {"end_date": "2025-06-01", "status": "confirmee"},
             }
         ]
-        assert count_ending_trial_periods(employees, ref) == 0
+        assert count_ending_trial_periods(employees, date(2025, 6, 1)) == 0
 
     def test_unconfirmed_still_counted(self):
-        ref = date(2025, 6, 1)
         employees = [
             {
                 "id": "e1",
@@ -121,19 +128,4 @@ class TestTrialReminderEligibility:
                 "trial_period": {"end_date": "2025-06-01", "status": "en_cours"},
             }
         ]
-        assert count_ending_trial_periods(employees, ref) == 1
-
-
-class TestUpdateEmployeeSchema:
-    def test_update_employee_schema_accepts_periode_essai(self):
-        from app.modules.employees.schemas.requests import UpdateEmployee
-
-        periode_essai = {
-            "duree_initiale": 2,
-            "unite": "mois",
-            "renouvellement_possible": True,
-            "statut": "en_cours",
-        }
-        payload = UpdateEmployee(periode_essai=periode_essai)
-        dumped = payload.model_dump(exclude_unset=True)
-        assert dumped["periode_essai"] == periode_essai
+        assert count_ending_trial_periods(employees, date(2025, 6, 1)) == 1
