@@ -27,6 +27,7 @@ from app.modules.exports.schemas.scheduled_exports import (
     ScheduledExportUpdate,
 )
 from app.modules.exports.application import accounting_mappings as accounting_mappings_service
+from app.modules.exports.infrastructure.payroll_ledger import LedgerImbalanceError
 from app.modules.exports.schemas.accounting_mappings import (
     AccountingMappingOut,
     AccountingMappingUpsert,
@@ -80,8 +81,13 @@ def _require_bank_dispatch_permission(current_user: User, company_id: str) -> No
 
 
 def _value_error_to_http(e: ValueError) -> HTTPException:
-    """Traduit les ValueError du service en HTTPException (400 ou 404)."""
+    """Traduit les ValueError du service en HTTPException (400, 404 ou 422)."""
     msg = str(e)
+    # Une OD déséquilibrée n'est pas une requête invalide : les données sont
+    # correctes, il manque un paramétrage comptable. 422 permet à l'écran de
+    # présenter la liste des comptes à renseigner plutôt qu'une erreur générique.
+    if isinstance(e, LedgerImbalanceError):
+        return HTTPException(status_code=422, detail=msg)
     if "non trouvé" in msg.lower() or "aucun fichier" in msg.lower():
         return HTTPException(status_code=404, detail=msg)
     return HTTPException(status_code=400, detail=msg)

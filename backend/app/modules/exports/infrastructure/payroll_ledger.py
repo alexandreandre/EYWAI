@@ -962,3 +962,38 @@ def ledger_to_od_export_rows(ecritures: List[Dict[str, Any]]) -> List[Dict[str, 
         }
         for e in ecritures
     ]
+
+
+class LedgerImbalanceError(ValueError):
+    """L'OD ne s'équilibre pas — le fichier n'est pas produit."""
+
+
+def assert_ledger_balanced(od_totals: Dict[str, Any]) -> None:
+    """Refuse un registre déséquilibré, avec le détail de ce qui manque.
+
+    Un fichier d'écritures déséquilibré est rejeté par tout logiciel comptable.
+    Sortir un fichier faux coûte plus cher qu'un export refusé, à condition que
+    le message dise quoi corriger.
+    """
+    if od_totals.get("equilibre"):
+        return
+
+    ecart = od_totals.get("ecart", 0)
+    lignes = [f"L'écriture ne s'équilibre pas : écart de {ecart} €."]
+
+    anomalies = od_totals.get("anomalies") or []
+    if anomalies:
+        lignes.append("Éléments sans compte comptable :")
+        for anomalie in anomalies:
+            lignes.append(
+                f"  — {anomalie.get('detail', '')} ({anomalie.get('montant', 0)} €)"
+            )
+        lignes.append(
+            "Renseignez les comptes manquants dans Exports > Comptes comptables."
+        )
+    else:
+        lignes.append(
+            "Aucun élément non rattaché n'a été détecté : vérifiez le détail de "
+            "l'équilibre dans le panneau de diagnostic de l'OD."
+        )
+    raise LedgerImbalanceError("\n".join(lignes))

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.exports.infrastructure.payroll_ledger import (
+    assert_ledger_balanced,
     build_payroll_ledger,
     ledger_to_od_export_rows,
 )
@@ -51,6 +52,8 @@ def build_fec_rows(
     ecritures_raw, od_totals, _ = build_payroll_ledger(
         company_id, period, employee_ids, date_ecriture, scope="full"
     )
+    # Un FEC déséquilibré est rejeté à l'import : autant refuser de le produire.
+    assert_ledger_balanced(od_totals)
     ecritures = ledger_to_od_export_rows(ecritures_raw)
     fec_date = _fec_date(period, date_ecriture)
     valid_date = datetime.now().strftime("%Y%m%d")

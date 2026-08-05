@@ -261,6 +261,7 @@ def generate_od_globale(
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
     """OD complète unifiée via le registre paie (sans double comptabilisation)."""
     from app.modules.exports.infrastructure.payroll_ledger import (
+        assert_ledger_balanced,
         build_payroll_ledger,
         ledger_to_od_export_rows,
     )
@@ -273,6 +274,9 @@ def generate_od_globale(
         regroupement=regroupement,  # type: ignore[arg-type]
         scope="full",
     )
+    # Les scopes partiels (salaires, charges, PAS) ne s'équilibrent pas seuls :
+    # seule l'OD complète doit l'être.
+    assert_ledger_balanced(od_totals)
     return ledger_to_od_export_rows(ecritures), od_totals, mappings
 
 
