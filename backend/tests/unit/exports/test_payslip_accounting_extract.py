@@ -190,3 +190,71 @@ class TestElementsHorsBrut:
 
         assert extract_elements_hors_brut({"salaire_brut": 3000.0}) == []
         assert extract_elements_hors_brut({"participations": []}) == []
+
+
+class TestParticipationEnLigneInformative:
+    """Certains bulletins ne portent la participation que dans calcul_du_brut,
+    en ligne informative (44 bulletins de Mont Blanc en mai 2026)."""
+
+    def test_ligne_informative_reprise_quand_participations_est_vide(self):
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        payslip = {
+            "participations": [],
+            "calcul_du_brut": [
+                {"libelle": "Salaire de base", "gain": 0.0, "quantite": 151.67},
+                {"libelle": "Prime d'ancienneté", "gain": 139.65},
+                {
+                    "libelle": "Participation 2025 (brut, exonéré de cotisations)",
+                    "gain": 1500.75,
+                    "is_informative": True,
+                },
+            ],
+        }
+        elements = extract_elements_hors_brut(payslip)
+        assert len(elements) == 1
+        assert elements[0]["famille"] == "participation"
+        assert elements[0]["montant"] == 1500.75
+
+    def test_pas_de_double_comptage_quand_les_deux_sources_existent(self):
+        """`participations` fait foi : elle porte la part PEE et la CSG."""
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        payslip = {
+            "participations": [
+                {
+                    "brut": 1500.75,
+                    "part_pee": 0.0,
+                    "csg_total": 145.57,
+                    "libelle": "Participation 2025",
+                }
+            ],
+            "calcul_du_brut": [
+                {
+                    "libelle": "Participation 2025 (brut, exonéré de cotisations)",
+                    "gain": 1500.75,
+                    "is_informative": True,
+                },
+            ],
+        }
+        elements = extract_elements_hors_brut(payslip)
+        assert len(elements) == 1
+        assert elements[0]["montant"] == 1500.75
+
+    def test_lignes_non_informatives_ignorees(self):
+        """Le salaire de base et les primes soumises sont déjà dans le brut."""
+        from app.modules.exports.infrastructure.payslip_accounting_extract import (
+            extract_elements_hors_brut,
+        )
+
+        payslip = {
+            "calcul_du_brut": [
+                {"libelle": "Salaire de base", "gain": 2000.0},
+                {"libelle": "Prime d'ancienneté", "gain": 139.65},
+            ]
+        }
+        assert extract_elements_hors_brut(payslip) == []

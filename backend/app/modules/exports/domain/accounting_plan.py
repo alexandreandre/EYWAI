@@ -152,6 +152,8 @@ _FAMILLE_PREFIXES = (
     ("remboursement de notes de frais", FAMILLE_NOTE_DE_FRAIS),
     ("remboursement note de frais", FAMILLE_NOTE_DE_FRAIS),
     ("ijss", FAMILLE_IJSS),
+    # Après les avances et acomptes de participation, qui sont autre chose.
+    ("participation", FAMILLE_PARTICIPATION),
 )
 
 # Comptes par défaut des familles. Une famille absente doit être paramétrée par

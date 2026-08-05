@@ -87,7 +87,28 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
             }
         )
 
-    for part in payslip_data.get("participations") or []:
+    participations = payslip_data.get("participations") or []
+    if not participations:
+        # Certains bulletins ne portent la participation que dans `calcul_du_brut`,
+        # en ligne informative — elle est exonérée, donc hors du brut soumis.
+        # Observé sur 44 bulletins de Mont Blanc et 3 de Cartol en mai 2026 ; sans
+        # cette reprise, l'OD est déséquilibrée de leur montant.
+        for ligne in payslip_data.get("calcul_du_brut") or []:
+            if not isinstance(ligne, dict) or not ligne.get("is_informative"):
+                continue
+            gain = float(ligne.get("gain", 0) or 0)
+            if gain == 0:
+                continue
+            libelle = str(ligne.get("libelle") or "Élément informatif")
+            elements.append(
+                {
+                    "famille": resolve_element_family(libelle),
+                    "libelle": libelle,
+                    "montant": gain,
+                }
+            )
+
+    for part in participations:
         if not isinstance(part, dict):
             continue
         brut = float(part.get("brut", 0) or 0)
