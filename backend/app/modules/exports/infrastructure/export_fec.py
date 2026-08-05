@@ -6,6 +6,9 @@ from calendar import monthrange
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.exports.infrastructure.export_formats_cabinet import (
+    format_piece_reference,
+)
 from app.modules.exports.infrastructure.payroll_ledger import (
     assert_ledger_balanced,
     build_payroll_ledger,
@@ -58,6 +61,8 @@ def build_fec_rows(
     fec_date = _fec_date(period, date_ecriture)
     valid_date = datetime.now().strftime("%Y%m%d")
     ecriture_num = f"PAIE{period.replace('-', '')}"
+    # Référence de pièce au format du cabinet (PAIE + MMAA), relevée sur son OD.
+    piece_ref = format_piece_reference(period)
     rows: List[Dict[str, str]] = []
 
     for idx, e in enumerate(ecritures, start=1):
@@ -73,7 +78,7 @@ def build_fec_rows(
                 "CompteLib": str(e.get("libelle", ""))[:50],
                 "CompAuxNum": "",
                 "CompAuxLib": "",
-                "PieceRef": str(e.get("reference_export", "")),
+                "PieceRef": piece_ref,
                 "PieceDate": fec_date,
                 "EcritureLib": str(e.get("libelle", ""))[:200],
                 "Debit": f"{float(e.get('debit', 0) or 0):.2f}",
