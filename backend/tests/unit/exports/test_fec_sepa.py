@@ -67,3 +67,23 @@ class TestSepaExport:
         assert root.tag == f"{{{NS}}}Document"
         assert root.find(f".//{{{NS}}}ReqdExctnDt") is not None
         assert root.find(f".//{{{NS}}}CtrlSum") is not None
+
+
+class TestFormatCabinet:
+    """Éléments relevés sur l'OD de paie du cabinet (période 10/2025)."""
+
+    def test_reference_de_piece_au_format_du_cabinet(self):
+        from app.modules.exports.infrastructure.export_formats_cabinet import (
+            format_piece_reference,
+        )
+
+        assert format_piece_reference("2025-10") == "PAIE1025"
+        assert format_piece_reference("2026-06") == "PAIE0626"
+
+    def test_libelle_ecriture(self):
+        from app.modules.exports.infrastructure.export_formats_cabinet import (
+            format_libelle_ecriture,
+        )
+
+        assert format_libelle_ecriture("2025-10") == "Salaire de 10/2025"
+        assert format_libelle_ecriture("2026-06") == "Salaire de 06/2026"

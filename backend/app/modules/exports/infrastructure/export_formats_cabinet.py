@@ -136,3 +136,18 @@ def preview_cabinet_export(
         "warnings": [],
         "can_generate": equilibre and len(ecritures) > 0,
     }
+
+
+def format_piece_reference(period: str) -> str:
+    """Référence de pièce au format du cabinet : PAIE + MMAA.
+
+    Relevé sur l'OD de paie de référence : période 10/2025 → PAIE1025.
+    """
+    year, month = period.split("-")
+    return f"PAIE{month}{year[2:]}"
+
+
+def format_libelle_ecriture(period: str) -> str:
+    """Libellé d'écriture au format du cabinet : « Salaire de MM/AAAA »."""
+    year, month = period.split("-")
+    return f"Salaire de {month}/{year}"
