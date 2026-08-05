@@ -75,9 +75,9 @@ Le bulletin sort maintenant au format du cabinet : une page, sobre, avec le bloc
 
 L'écriture comptable de paie est maintenant juste et équilibrée : elle sort aux comptes du cabinet, ventilée par organisme (URSSAF, retraite, mutuelle, prévoyance) au lieu d'un compte fourre-tout, et agrégée par compte comme le fait le cabinet — une vingtaine de lignes au lieu de 137. Colorplast, Comitech et Cartol tombent au centime. Avant, aucune société ne tombait juste : il manquait jusqu'à 114 000 € d'un côté de la balance. Un fichier qui ne s'équilibre pas n'est plus produit du tout : l'écran dit quel compte manque. Il reste trois comptes à récupérer chez le cabinet — paniers, cantine, IJSS — et les identifiants Cegid pour envoyer les écritures automatiquement au lieu de déposer un fichier.
 
-#32. Vérifier que l'indemnité d'activité partielle s'affiche bien sur le bulletin MOI
+#32. Indemnité d'activité partielle absente du bulletin MOI
 
-Chez LEWIS, 33 salariés étaient en activité partielle en juin — 17 510 € d'indemnité. Le calcul est bon et le montant est bien enregistré. Reste à vérifier une seule chose : qu'il apparaît en clair sur le bulletin remis au salarié, avec son libellé et son montant, et pas seulement fondu dans le net à payer. Ça se vérifie sur un PDF réel de juin.
+Chez LEWIS, 33 salariés étaient en activité partielle en juin — 17 510 € d'indemnité. Le calcul était bon et le montant bien enregistré, mais le bulletin ne l'affichait nulle part : le salarié voyait ses heures chômées retirées de son salaire, sans voir ce qu'il touchait en compensation. C'est corrigé : la ligne « Indemnité activité partielle » apparaît maintenant avec son montant, à côté des paniers. Seuls les bulletins de LEWIS sont concernés, 35 sur les deux derniers mois ; aucune autre société n'avait ce cas.
 #27. Vérifier si le post traitemment automatique des pointages est paramétrable facilement (exemple, heures de pauses etc...) MOI
 #28. Suivi des périodes d'essais, pouvoir le cocher, quelque part, meme après la création. Bien paramétrable Pour l'instant, elsa ne l'a pas trouvé. MOI
 #29. Alertes sur la paye moins énervé (normalement déjà fait mais à vérifier) MOI

@@ -638,3 +638,66 @@ class TestClassificationReelle:
     def test_coefficient_explicite_prioritaire(self):
         identite = construire_vue_bulletin(bulletin_minimal())["identite"]
         assert identite["coefficient"] == "A"
+
+
+class TestRevenusHorsBrutImposables:
+    """Revenus non soumis à cotisations mais imposables : indemnité d'activité
+    partielle, IJSS imposables. Le moteur les calcule et les inclut dans le net,
+    mais le gabarit ne les affichait pas — le salarié ne voyait donc pas ce
+    qu'il percevait à ce titre (33 salariés de LEWIS en juin 2026)."""
+
+    def test_indemnite_activite_partielle_affichee(self):
+        from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+        bulletin = {
+            "revenus_hors_brut_imposables": [
+                {"libelle": "Indemnité activité partielle", "montant": 992.21}
+            ]
+        }
+        lignes = _lignes_hors_brut(bulletin)
+        libelles = [ligne.get("libelle") for ligne in lignes]
+        assert "Indemnité activité partielle" in libelles
+        ligne = next(l for l in lignes if l.get("libelle") == "Indemnité activité partielle")
+        assert ligne.get("montant_salarial") == 992.21
+
+    def test_plusieurs_revenus_tous_affiches(self):
+        from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+        bulletin = {
+            "revenus_hors_brut_imposables": [
+                {"libelle": "Indemnité activité partielle", "montant": 500.0},
+                {"libelle": "IJSS imposables", "montant": 120.5},
+            ]
+        }
+        libelles = [ligne.get("libelle") for ligne in _lignes_hors_brut(bulletin)]
+        assert "Indemnité activité partielle" in libelles
+        assert "IJSS imposables" in libelles
+
+    def test_montant_nul_non_affiche(self):
+        from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+        bulletin = {
+            "revenus_hors_brut_imposables": [{"libelle": "Vide", "montant": 0.0}]
+        }
+        assert [l for l in _lignes_hors_brut(bulletin) if l.get("libelle") == "Vide"] == []
+
+    def test_pas_de_doublon_avec_les_primes_non_soumises(self):
+        """Les deux buckets sont distincts dans le moteur : une prime ne peut pas
+        être dans les deux."""
+        from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+        bulletin = {
+            "primes_non_soumises": [{"libelle": "Paniers", "montant": 63.0}],
+            "revenus_hors_brut_imposables": [
+                {"libelle": "Indemnité activité partielle", "montant": 500.0}
+            ],
+        }
+        libelles = [ligne.get("libelle") for ligne in _lignes_hors_brut(bulletin)]
+        assert libelles.count("Paniers") == 1
+        assert libelles.count("Indemnité activité partielle") == 1
+
+    def test_bulletin_sans_la_cle_inchange(self):
+        """Les bulletins anciens ne portent pas cette clé."""
+        from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
+
+        assert _lignes_hors_brut({"primes_non_soumises": []}) == []

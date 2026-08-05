@@ -323,6 +323,23 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
         )
 
+    # Revenus non soumis à cotisations mais imposables : indemnité d'activité
+    # partielle, IJSS imposables. Bucket distinct des primes non soumises côté
+    # moteur, donc sans risque de doublon ici.
+    for revenu in bulletin.get("revenus_hors_brut_imposables") or []:
+        if not isinstance(revenu, dict):
+            continue
+        montant = float(revenu.get("montant") or 0.0)
+        if montant == 0:
+            continue
+        lignes.append(
+            _ligne(
+                "hors_brut",
+                revenu.get("libelle") or "Revenu imposable non soumis",
+                montant_salarial=montant,
+            )
+        )
+
     # Volontairement agrégé : le détail des notes de frais reste dans l'appli.
     notes_de_frais = [
         note for note in bulletin.get("notes_de_frais") or [] if isinstance(note, dict)
