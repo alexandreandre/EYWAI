@@ -72,6 +72,12 @@ Le bulletin sort maintenant au format du cabinet : une page, sobre, avec le bloc
 
 #25. Pouvoir importer dates des entretiens annuels attendre récap et fichier ELSA
 #26. Interfaçage compta MOI
+
+L'écriture comptable de paie est maintenant juste et équilibrée : elle sort aux comptes du cabinet, ventilée par organisme (URSSAF, retraite, mutuelle, prévoyance) au lieu d'un compte fourre-tout, et agrégée par compte comme le fait le cabinet — une vingtaine de lignes au lieu de 137. Colorplast, Comitech et Cartol tombent au centime. Avant, aucune société ne tombait juste : il manquait jusqu'à 114 000 € d'un côté de la balance. Un fichier qui ne s'équilibre pas n'est plus produit du tout : l'écran dit quel compte manque. Il reste trois comptes à récupérer chez le cabinet — paniers, cantine, IJSS — et les identifiants Cegid pour envoyer les écritures automatiquement au lieu de déposer un fichier.
+
+#32. Activité partielle : l'indemnité n'apparaît pas sur le bulletin MOI
+
+Chez LEWIS, les salariés en activité partielle ont bien leurs heures chômées retirées du salaire, et l'indemnité correspondante est bien saisie et bien versée — 17 510 € en juin, 33 salariés. Mais elle n'est écrite nulle part dans le bulletin : ni ligne, ni montant, seulement noyée dans le net à payer. Le salarié ne voit donc pas ce qu'il touche à ce titre, alors que c'est une mention obligatoire. À vérifier d'abord sur un PDF réel, puis à corriger dans le calcul de paie.
 #27. Vérifier si le post traitemment automatique des pointages paramétrables (exemple, heures de pauses etc...) MOI
 #28. Suivi des périodes d'essais, pouvoir le cocher, quelque part, meme après la création. Bien paramétrable Pour l'instant, elsa ne l'a pas trouvé. MOI
 #29. Alertes sur la paye moins énervé (normalement déjà fait mais à vérifier) MOI
