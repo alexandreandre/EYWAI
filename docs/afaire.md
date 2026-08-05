@@ -75,11 +75,57 @@ Le bulletin sort maintenant au format du cabinet : une page, sobre, avec le bloc
 
 L'écriture comptable de paie est maintenant juste et équilibrée : elle sort aux comptes du cabinet, ventilée par organisme (URSSAF, retraite, mutuelle, prévoyance) au lieu d'un compte fourre-tout, et agrégée par compte comme le fait le cabinet — une vingtaine de lignes au lieu de 137. Colorplast, Comitech et Cartol tombent au centime. Avant, aucune société ne tombait juste : il manquait jusqu'à 114 000 € d'un côté de la balance. Un fichier qui ne s'équilibre pas n'est plus produit du tout : l'écran dit quel compte manque. Il reste trois comptes à récupérer chez le cabinet — paniers, cantine, IJSS — et les identifiants Cegid pour envoyer les écritures automatiquement au lieu de déposer un fichier.
 
+#27. Vérifier si le post traitemment automatique des pointages est paramétrable facilement (exemple, heures de pauses etc...)
+
+Tout se règle par société dans Entreprise > Paie > « Pointages & imports » : pause repas déduite, durée de présence en dessous de laquelle on ne déduit rien, tolérance d'entrée et de sortie, grilles horaires par équipe, validation des heures supplémentaires détectées. Mais ce réglage n'était lu que pour les journées badgées : les heures venant d'une feuille papier importée se voyaient appliquer une heure de pause écrite en dur dans le programme. Chez Colorplast, dont la règle est de 30 minutes au-delà de 6 heures, la même journée valait 8 h par le papier et 8 h 30 par le badgeage — une demi-heure d'écart par jour et par personne, en plein mois de comparaison entre les deux. Les deux chemins suivent maintenant le même réglage, et changer un paramètre recalcule aussitôt les imports au lieu d'attendre le lendemain. Reste à savoir que seules Colorplast et Mont Blanc Composite sont paramétrées : ailleurs, une journée badgée serait comptée sans aucune pause.
+
 #32. Indemnité d'activité partielle absente du bulletin MOI
 
 Chez LEWIS, 33 salariés étaient en activité partielle en juin — 17 510 € d'indemnité. Le calcul était bon et le montant bien enregistré, mais le bulletin ne l'affichait nulle part : le salarié voyait ses heures chômées retirées de son salaire, sans voir ce qu'il touchait en compensation. C'est corrigé : la ligne « Indemnité activité partielle » apparaît maintenant avec son montant, à côté des paniers. Seuls les bulletins de LEWIS sont concernés, 35 sur les deux derniers mois ; aucune autre société n'avait ce cas.
 #27. Vérifier si le post traitemment automatique des pointages est paramétrable facilement (exemple, heures de pauses etc...) MOI
+
+Tout se règle par société dans Entreprise > Paie > « Pointages & imports » : pause repas déduite, durée de présence en dessous de laquelle on ne déduit rien, tolérance d'entrée et de sortie, grilles horaires par équipe, validation des heures supplémentaires détectées. Mais ce réglage n'était lu que pour les journées badgées : les heures venant d'une feuille papier importée se voyaient appliquer une heure de pause écrite en dur dans le programme. Chez Colorplast, dont la règle est de 30 minutes au-delà de 6 heures, la même journée valait 8 h par le papier et 8 h 30 par le badgeage — une demi-heure d'écart par jour et par personne, en plein mois de comparaison entre les deux. Les deux chemins suivent maintenant le même réglage, et changer un paramètre recalcule aussitôt les imports au lieu d'attendre le lendemain. Reste à savoir que seules Colorplast et Mont Blanc Composite sont paramétrées : ailleurs, une journée badgée serait comptée sans aucune pause.
+
 #28. Suivi des périodes d'essais, pouvoir le cocher, quelque part, meme après la création. Bien paramétrable Pour l'instant, elsa ne l'a pas trouvé. MOI
+
+Développé le 5 août 2026, pas encore déployé. Pourquoi Elsa ne trouvait pas :
+aucun des 241 salariés actifs n'avait de période d'essai renseignée, et la carte
+de la fiche était masquée passé 90 jours d'ancienneté — soit invisible pour 239
+salariés sur 241, sans aucun moyen d'activer le suivi après la création.
+
+Ce qui a été fait : une table `trial_periods` remplace le champ jsonb (vide) ; la
+carte de la fiche est visible sur tout salarié actif ; une page « Périodes
+d'essai » apparaît dans le menu Effectifs, en trois sections — à confirmer, en
+cours, à qualifier avec application du barème en un clic ; le barème (durées par
+type de contrat et statut, délai d'alerte, règle CDD) devient éditable dans les
+réglages société ; le renouvellement effectif est enregistrable et repousse
+l'alerte.
+
+Découverte au passage : le calcul de la date de fin était faux d'un jour, back et
+front. Une période de deux mois ouverte le 1er mars finissait le 1er mai au lieu
+du 30 avril. Sans données en base le bug n'a jamais produit d'effet, mais une
+rupture notifiée le dernier jour affiché aurait été prononcée hors période
+d'essai, donc requalifiée. Corrigé et couvert par des tests, y compris les
+embauches de fin de mois (31 janvier + 1 mois = 28 février, pas le 27).
+
+Aucun backfill : les 33 embauches LEWIS du même mois sont une reprise de données,
+pas 33 recrutements. Le rattrapage passe par la section « à qualifier », bornée
+aux embauches de moins de huit mois — la durée maximale légale.
+
+Recette passée sur l'environnement de test : barème cadre 4 mois / non-cadre
+2 mois, activation sur un salarié ancien, renouvellement avant terme accepté et
+après terme refusé, confirmation, réembauche possible une fois la période close,
+apprenti sans période. Les quatre contraintes de la table mordent, RLS active,
+aucune alerte de l'advisor de sécurité.
+
+Reste à faire : déploiement en production (les deux migrations `20260806090000`
+et `20260806100000` s'appliquent automatiquement au déploiement), puis montrer la
+page à Elsa.
+
+À noter : la carte étant désormais visible partout, activer le suivi sur un
+salarié entré il y a des années crée une période déjà terminée à sa date d'entrée.
+C'est juste en droit mais peu utile ; la date de début reste modifiable sur la
+fiche.
 #29. Alertes sur la paye moins énervé (normalement déjà fait mais à vérifier) MOI
-#30. Changer le modèle d'assistant RH Car nul pour l'instant
+#30. Changer le modèle d' IA d'assistant RH Car nul pour l'instant
 #31. Taux PAS. Pouvoir voir facilement son taux. Est ce que il est bien récupéré ? Si on recrute un employé, comment récupérer son taux ? C'est pas l'interfaçage net-entreprise justement ???
