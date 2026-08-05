@@ -9,6 +9,10 @@ class AccountingMappingOut(BaseModel):
     rubrique_code: str
     rubrique_libelle: str
     compte_comptable: str
+    coti_id: Optional[str] = None
+    compte_charge: Optional[str] = None
+    compte_tiers: Optional[str] = None
+    organisme: Optional[str] = None
     journal: str = "OD"
     sens: Literal["debit", "credit"] = "debit"
     type_rubrique: str = "salaire"
@@ -21,6 +25,10 @@ class AccountingMappingUpsert(BaseModel):
     rubrique_code: str = Field(..., min_length=1)
     rubrique_libelle: str = Field(..., min_length=1)
     compte_comptable: str = Field(..., min_length=3)
+    coti_id: Optional[str] = None
+    compte_charge: Optional[str] = None
+    compte_tiers: Optional[str] = None
+    organisme: Optional[str] = None
     journal: str = "OD"
     sens: Literal["debit", "credit"] = "debit"
     type_rubrique: str = "salaire"

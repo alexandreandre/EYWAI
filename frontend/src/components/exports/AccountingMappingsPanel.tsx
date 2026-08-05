@@ -86,9 +86,10 @@ export function AccountingMappingsPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Rubrique</TableHead>
-                  <TableHead>Compte</TableHead>
+                  <TableHead>Organisme</TableHead>
+                  <TableHead>Compte de charge</TableHead>
+                  <TableHead>Compte de tiers</TableHead>
                   <TableHead>Journal</TableHead>
-                  <TableHead>Sens</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -98,11 +99,22 @@ export function AccountingMappingsPanel() {
                   <TableRow key={m.rubrique_code}>
                     <TableCell>
                       <div className="font-medium">{m.rubrique_libelle}</div>
-                      <div className="text-muted-foreground text-xs">{m.rubrique_code}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {m.coti_id ?? m.rubrique_code}
+                      </div>
                     </TableCell>
-                    <TableCell>{m.compte_comptable}</TableCell>
+                    <TableCell>{m.organisme ?? "—"}</TableCell>
+                    <TableCell>
+                      {m.compte_charge ?? (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {m.compte_tiers ?? (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>{m.journal}</TableCell>
-                    <TableCell>{m.sens}</TableCell>
                     <TableCell>
                       {m.is_global_default && !m.company_id ? "Défaut global" : "Société"}
                     </TableCell>
@@ -128,11 +140,22 @@ export function AccountingMappingsPanel() {
             <p className="font-medium">Override — {editing.rubrique_libelle}</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>Compte comptable</Label>
+                <Label>Compte de charge (classe 6)</Label>
                 <Input
-                  value={editing.compte_comptable}
+                  value={editing.compte_charge ?? ""}
+                  placeholder="ex. 64524200"
                   onChange={(e) =>
-                    setEditing({ ...editing, compte_comptable: e.target.value })
+                    setEditing({ ...editing, compte_charge: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Compte de tiers (classe 4)</Label>
+                <Input
+                  value={editing.compte_tiers ?? ""}
+                  placeholder="ex. 43702000"
+                  onChange={(e) =>
+                    setEditing({ ...editing, compte_tiers: e.target.value })
                   }
                 />
               </div>
@@ -170,7 +193,14 @@ export function AccountingMappingsPanel() {
                   saveMutation.mutate({
                     rubrique_code: editing.rubrique_code,
                     rubrique_libelle: editing.rubrique_libelle,
-                    compte_comptable: editing.compte_comptable,
+                    compte_comptable:
+                      editing.compte_charge ||
+                      editing.compte_tiers ||
+                      editing.compte_comptable,
+                    coti_id: editing.coti_id ?? undefined,
+                    compte_charge: editing.compte_charge ?? undefined,
+                    compte_tiers: editing.compte_tiers ?? undefined,
+                    organisme: editing.organisme ?? undefined,
                     journal: editing.journal,
                     sens: editing.sens,
                     type_rubrique: editing.type_rubrique,

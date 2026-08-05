@@ -356,6 +356,12 @@ export interface AccountingMapping {
   rubrique_code: string;
   rubrique_libelle: string;
   compte_comptable: string;
+  coti_id?: string | null;
+  /** Compte de classe 6 débité pour la part patronale. */
+  compte_charge?: string | null;
+  /** Compte de classe 4 crédité (dette organisme ou salarié). */
+  compte_tiers?: string | null;
+  organisme?: string | null;
   journal: string;
   sens: "debit" | "credit";
   type_rubrique: string;

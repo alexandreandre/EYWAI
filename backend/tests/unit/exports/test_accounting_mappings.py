@@ -246,3 +246,51 @@ class TestDeleteCompanyMapping:
             svc.delete_company_mapping(COMPANY_ID, "salaire_brut")
 
         # Pas d'exception = succès avec le mock actuel
+
+
+class TestChampsOrganisme:
+    def test_row_to_out_expose_les_deux_comptes(self):
+        from app.modules.exports.application.accounting_mappings import _row_to_out
+
+        row = {
+            "id": "map-1",
+            "company_id": "co-1",
+            "rubrique_code": "organisme_mutuelle",
+            "rubrique_libelle": "Mutuelle",
+            "compte_comptable": "64524200",
+            "compte_charge": "64524200",
+            "compte_tiers": "43702000",
+            "organisme": "MUTUELLE",
+            "coti_id": None,
+            "journal": "PAI",
+            "sens": "debit",
+            "type_rubrique": "charge_patronale",
+            "analytique": None,
+            "is_active": True,
+        }
+        out = _row_to_out(row)
+        assert out.compte_charge == "64524200"
+        assert out.compte_tiers == "43702000"
+        assert out.organisme == "MUTUELLE"
+        assert out.is_global_default is False
+
+    def test_champs_absents_toleres(self):
+        """Les lignes créées avant la migration n'ont pas les nouvelles colonnes."""
+        from app.modules.exports.application.accounting_mappings import _row_to_out
+
+        row = {
+            "id": "map-2",
+            "company_id": None,
+            "rubrique_code": "salaire_brut",
+            "rubrique_libelle": "Salaire brut",
+            "compte_comptable": "641000",
+            "journal": "OD",
+            "sens": "debit",
+            "type_rubrique": "salaire",
+            "is_active": True,
+        }
+        out = _row_to_out(row)
+        assert out.compte_charge is None
+        assert out.compte_tiers is None
+        assert out.organisme is None
+        assert out.is_global_default is True
