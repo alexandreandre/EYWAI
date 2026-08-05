@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 
@@ -488,7 +489,55 @@ def _libelle_commune_vmrr(row: Dict[str, Any]) -> str:
     return ""
 
 
+def _somme_taux_officiels(row: Dict[str, Any]) -> Optional[float]:
+    """Somme VM + VMA + VMRR d'une ligne Open Data URSSAF brute (taux en %).
+
+    Les trois prélèvements se cumulent : le versement mobilité de l'autorité
+    organisatrice, son additionnel et le versement régional et rural. Ne retenir
+    que l'un d'eux sous-évalue la cotisation patronale.
+    """
+    if "taux_vmr" not in row and "taux_vma" not in row:
+        return None
+    total = 0.0
+    trouve = False
+    for key in ("taux_vm", "taux_vma", "taux_vmr"):
+        val = row.get(key)
+        if val is None or str(val).strip() == "":
+            continue
+        try:
+            total += float(str(val).replace(",", ".").replace("%", "").strip())
+        except ValueError:
+            continue
+        trouve = True
+    return total / 100.0 if trouve else None
+
+
+def _lignes_en_vigueur(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Écarte les lignes dont la période d'effet est close, la plus récente d'abord.
+
+    Le barème URSSAF historise les taux (Cerizay : 0,10 % jusqu'au 31/12/2025 puis
+    0,25 %). Sans ce tri, la première ligne rencontrée pouvait être périmée.
+    """
+    if not rows:
+        return []
+    aujourdhui = date.today().strftime("%Y%m%d")
+
+    def _jour(value: Any) -> str:
+        return str(value or "").strip().replace("-", "")[:8]
+
+    ouvertes = [
+        row
+        for row in rows
+        if not _jour(row.get("date_fin")) or _jour(row.get("date_fin")) >= aujourdhui
+    ]
+    retenues = ouvertes or rows
+    return sorted(retenues, key=lambda row: _jour(row.get("date_debut")), reverse=True)
+
+
 def _taux_ligne_vmrr(row: Dict[str, Any]) -> Optional[float]:
+    somme = _somme_taux_officiels(row)
+    if somme is not None:
+        return somme
     for key in ("taux", "Taux", "taux_vm", "TAUX", "Taux VM", "TauxVM", "Taux\nVMRR"):
         if key in row:
             taux = _normaliser_taux_vm_decimal(row[key])
@@ -561,23 +610,53 @@ def resoudre_taux_vm_officiel(
 
     commune_norm = _normaliser_libelle_commune(commune_clean)
 
-    # 1) Égalité exacte (prioritaire) — évite EU⊂MAGNIEU, RI⊂CERIZAY
-    for row in rows:
-        lib = _normaliser_libelle_commune(_libelle_commune_vmrr(row))
-        if lib and lib == commune_norm:
-            taux = _taux_ligne_vmrr(row)
-            if taux is not None:
-                return taux
-
-    # 2) Contenance ville → libellé plus long uniquement (ex. « Aix » ⊂ « Aix en Provence »)
-    #    Jamais l'inverse (libellé court ⊂ ville).
+    # 1) Villes à arrondissements : « Paris » → « PARIS 01 »…, « Marseille » →
+    #    « MARSEILLE 01 »… Elles priment sur la ligne de la commune entière, qui
+    #    ne porte que le versement régional (Marseille 13055 : 0,08 % seulement,
+    #    contre 2,08 % sur chaque arrondissement). Suffixe strictement numérique :
+    #    « PARISOT » et « MARSEILLE EN BEAUVAISIS » sont d'autres communes.
+    taux_arrondissements: set[float] = set()
     if len(commune_norm) >= 4:
-        for row in rows:
-            lib = _normaliser_libelle_commune(_libelle_commune_vmrr(row))
-            if lib and commune_norm in lib and lib != commune_norm:
-                taux = _taux_ligne_vmrr(row)
-                if taux is not None:
-                    return taux
+        arrondissements = [
+            row
+            for row in rows
+            if (lib := _normaliser_libelle_commune(_libelle_commune_vmrr(row)))
+            and lib.startswith(f"{commune_norm} ")
+            and lib[len(commune_norm) + 1 :].strip().isdigit()
+        ]
+        taux_arrondissements = {
+            taux
+            for row in _lignes_en_vigueur(arrondissements)
+            if (taux := _taux_ligne_vmrr(row)) is not None
+        }
+        if len(taux_arrondissements) == 1:
+            return taux_arrondissements.pop()
+
+    # 2) Égalité exacte du libellé — évite EU⊂MAGNIEU, RI⊂CERIZAY
+    exacts = [
+        row
+        for row in rows
+        if _libelle_commune_vmrr(row)
+        and _normaliser_libelle_commune(_libelle_commune_vmrr(row)) == commune_norm
+    ]
+    for row in _lignes_en_vigueur(exacts):
+        taux = _taux_ligne_vmrr(row)
+        if taux is not None:
+            return taux
+
+    if taux_arrondissements:
+        _ajouter_alerte(
+            alertes,
+            code="vm_taux_ambigu",
+            cle="taux_vmrr",
+            chemin=[commune_clean],
+            critique=False,
+            message=(
+                f"Plusieurs taux VM pour « {commune_clean} » "
+                f"({sorted(taux_arrondissements)}) — précisez la commune exacte"
+            ),
+        )
+        return None
 
     _ajouter_alerte(
         alertes,

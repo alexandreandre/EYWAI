@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.modules.payroll.engine.baremes_loader import (
     _libelle_commune_vmrr,
     _normaliser_taux_vm_decimal,
@@ -265,3 +267,91 @@ def test_load_baremes_utilise_assembler(monkeypatch):
     loaded = load_baremes()
     assert loaded["ij_plafonds"]["maladie"] == 51.0
     assert "idcc_1486" in loaded["conventions_collectives"]
+
+
+# --- Cumul VM + VMA + VMRR (schéma Open Data URSSAF) -----------------------
+
+
+def _ligne_open_data(**kwargs):
+    """Ligne brute du dataset URSSAF Table_Taux_VM_VMA_VMRR (taux en %)."""
+    base = {
+        "code_commune": "79062",
+        "nom_commune": "CERIZAY",
+        "date_debut": "20260101",
+        "date_fin": None,
+        "taux_vm": 0.1,
+        "taux_vma": None,
+        "taux_vmr": 0.15,
+    }
+    base.update(kwargs)
+    return base
+
+
+def test_taux_vm_cumule_aom_additionnel_et_regional():
+    """Cerizay : 0,10 % (agglomération) + 0,15 % (région) = 0,25 %."""
+    taux = resoudre_taux_vm_officiel([_ligne_open_data()], "CERIZAY")
+    assert taux == pytest.approx(0.0025)
+
+
+def test_taux_vm_regional_seul_ne_masque_pas_le_taux_agglomeration():
+    """Le fichier VMRR seul donnait 0,15 % là où 0,25 % est dû."""
+    lignes = [_ligne_open_data(taux_vm=2.0, taux_vmr=0.08, nom_commune="AIX EN PROVENCE")]
+    assert resoudre_taux_vm_officiel(lignes, "Aix en Provence") == pytest.approx(0.0208)
+
+
+def test_ligne_periodee_close_est_ignoree():
+    """La ligne close au 31/12/2025 ne doit pas primer sur celle en vigueur."""
+    lignes = [
+        _ligne_open_data(date_debut="20240701", date_fin="20251231", taux_vmr=None),
+        _ligne_open_data(),
+    ]
+    assert resoudre_taux_vm_officiel(lignes, "CERIZAY") == pytest.approx(0.0025)
+
+
+def test_schema_normalise_par_le_scraper_reste_lu_tel_quel():
+    """Le scraper pousse un total déjà en décimal : ne pas le rediviser par 100."""
+    lignes = [
+        {
+            "code_commune": "79062",
+            "nom_commune": "CERIZAY",
+            "commune": "CERIZAY",
+            "taux_vm": 0.0025,
+            "taux": 0.0025,
+        }
+    ]
+    assert resoudre_taux_vm_officiel(lignes, "CERIZAY") == pytest.approx(0.0025)
+
+
+def test_ville_ne_matche_pas_une_commune_qui_la_prefixe():
+    """« Paris » ne doit pas prendre le taux de « PARISOT » (Tarn)."""
+    rows = [
+        {"commune": "PARISOT", "taux": 0.0075},
+        {"commune": "PARIS 03", "taux": 0.032, "date_debut": "20240201", "date_fin": None},
+    ]
+    assert resoudre_taux_vm_officiel(rows, "Paris") == pytest.approx(0.032)
+
+
+def test_ville_sans_correspondance_reste_none():
+    rows = [{"commune": "PARISOT", "taux": 0.0075}]
+    assert resoudre_taux_vm_officiel(rows, "Paris") is None
+
+
+def test_arrondissements_priment_sur_la_ligne_de_commune_entiere():
+    """Marseille 13055 ne porte que le VMR (0,08 %) ; les arrondissements le VM complet."""
+    rows = [
+        {"commune": "MARSEILLE", "taux": 0.0008, "date_debut": "20260101"},
+        {"commune": "MARSEILLE 01", "taux": 0.0208, "date_debut": "20260101"},
+        {"commune": "MARSEILLE 02", "taux": 0.0208, "date_debut": "20260101"},
+        {"commune": "MARSEILLE EN BEAUVAISIS", "taux": 0.0015},
+    ]
+    assert resoudre_taux_vm_officiel(rows, "Marseille") == pytest.approx(0.0208)
+
+
+def test_arrondissements_de_taux_divergents_ne_sont_pas_devines():
+    rows = [
+        {"commune": "VILLETEST 01", "taux": 0.01},
+        {"commune": "VILLETEST 02", "taux": 0.02},
+    ]
+    alertes: list = []
+    assert resoudre_taux_vm_officiel(rows, "VILLETEST", alertes=alertes) is None
+    assert alertes[0]["code"] == "vm_taux_ambigu"

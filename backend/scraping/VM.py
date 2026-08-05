@@ -364,12 +364,22 @@ def scrape_vmrr_from_urssaf(
     download_folder: str = DOWNLOAD_FOLDER,
 ) -> tuple[list[dict] | None, list[str]]:
     """
-    Télécharge et convertit la table nationale VMRR (Versement mobilité).
-    Retourne (données, source_links) ou (None, []) en cas d'échec.
+    Télécharge et convertit la table nationale du versement mobilité.
+
+    L'Open Data URSSAF (« Table_Taux_VM_VMA_VMRR ») est prioritaire : il porte les
+    trois taux cumulables — VM de l'autorité organisatrice, VM additionnel et VM
+    régional et rural — avec leurs dates d'effet. Le fichier `tauxVMRR-*.xlsx` de
+    fichierdirect ne contient que le VMRR (0,15 % au plus) : s'en servir seul
+    revient à ignorer le taux de l'agglomération, d'où un repli seulement.
     """
     if not os.path.exists(download_folder):
         os.makedirs(download_folder)
 
+    data = fetch_vmrr_from_open_data()
+    if data:
+        return data, [OPEN_DATA_PAGE_URL, OPEN_DATA_CSV_URL]
+
+    print("Open Data URSSAF indisponible — repli sur le fichier VMRR seul.")
     if _fichierdirect_reachable():
         for direct_url in _direct_vmrr_urls():
             print(f"Tentative XLSX direct : {direct_url}")
@@ -385,14 +395,8 @@ def scrape_vmrr_from_urssaf(
         if data:
             return data, links
     else:
-        print(
-            "fichierdirect.declaration.urssaf.fr inaccessible — "
-            "repli Open Data URSSAF."
-        )
+        print("fichierdirect.declaration.urssaf.fr inaccessible.")
 
-    data = fetch_vmrr_from_open_data()
-    if data:
-        return data, [OPEN_DATA_PAGE_URL, OPEN_DATA_CSV_URL]
     return None, []
 
 
