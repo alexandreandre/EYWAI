@@ -131,7 +131,17 @@ FAMILLE_IJSS = "ijss"
 FAMILLE_PARTICIPATION = "participation"
 FAMILLE_PARTICIPATION_PEE = "participation_pee"
 FAMILLE_ACOMPTE_VERSE = "acompte_verse"
+FAMILLE_SAISIE = "saisie_opposition"
+FAMILLE_ACTIVITE_PARTIELLE = "activite_partielle"
 FAMILLE_INCONNUE = "INCONNUE"
+
+# Familles déjà portées par un autre champ du bulletin : ne pas les reprendre
+# depuis les saisies mensuelles, sous peine de double comptage.
+# `synthese_net.acompte_verse` agrège les acomptes ET les saisies sur salaire.
+# Les notes de frais ont leur propre extraction dans le moteur (get_notes_frais_ecritures).
+FAMILLES_DEJA_COUVERTES = frozenset(
+    {FAMILLE_ACOMPTE_VERSE, FAMILLE_SAISIE, FAMILLE_PRET, FAMILLE_NOTE_DE_FRAIS}
+)
 
 # Préfixes normalisés (minuscules, sans accents) → famille.
 # L'ordre compte : le premier préfixe qui correspond gagne.
@@ -152,8 +162,11 @@ _FAMILLE_PREFIXES = (
     ("remboursement de notes de frais", FAMILLE_NOTE_DE_FRAIS),
     ("remboursement note de frais", FAMILLE_NOTE_DE_FRAIS),
     ("ijss", FAMILLE_IJSS),
+    ("indemnite activite partielle", FAMILLE_ACTIVITE_PARTIELLE),
+    ("saisie sur salaire", FAMILLE_SAISIE),
     # Après les avances et acomptes de participation, qui sont autre chose.
     ("participation", FAMILLE_PARTICIPATION),
+    ("acompte", FAMILLE_ACOMPTE_VERSE),
 )
 
 # Comptes par défaut des familles. Une famille absente doit être paramétrée par
@@ -170,6 +183,11 @@ FAMILY_ACCOUNTS: Dict[str, AccountPair] = {
     FAMILLE_PARTICIPATION_PEE: AccountPair(compte_charge="", compte_tiers="424600"),
     FAMILLE_AVANCE_PARTICIPATION: AccountPair(compte_charge="", compte_tiers="425300"),
     FAMILLE_ACOMPTE_VERSE: AccountPair(compte_charge="", compte_tiers="425100"),
+    FAMILLE_SAISIE: AccountPair(compte_charge="", compte_tiers="427000"),
+    # L'indemnité d'activité partielle est un complément de rémunération : 6414
+    # « Indemnités et avantages divers ». À confirmer avec le cabinet, aucune OD
+    # de référence n'en comporte.
+    FAMILLE_ACTIVITE_PARTIELLE: AccountPair(compte_charge="641400", compte_tiers=""),
 }
 
 

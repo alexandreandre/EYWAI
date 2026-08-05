@@ -172,3 +172,58 @@ def extract_cotisations_from_payslip(
         )
 
     return cot_sal, cot_pat, detail, meta
+
+
+def merge_monthly_inputs_hors_brut(
+    elements: List[Dict[str, Any]],
+    saisies: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Complète les éléments du bulletin par les saisies mensuelles absentes.
+
+    Certaines saisies non soumises à cotisations sont incluses dans le net à
+    payer sans être recopiées dans `payslip_data` — l'indemnité d'activité
+    partielle notamment, 17 510,65 € sur LEWIS en juin 2026. Sans elles, l'OD
+    est déséquilibrée de leur montant.
+
+    Deux sources de double comptage sont écartées : les saisies déjà présentes
+    dans le bulletin (même famille et même montant), et celles dont la famille
+    est portée par un autre champ — `synthese_net.acompte_verse` agrège les
+    acomptes et les saisies sur salaire.
+    """
+    from app.modules.exports.domain.accounting_plan import (
+        FAMILLE_INCONNUE,
+        FAMILLES_DEJA_COUVERTES,
+        resolve_element_family,
+    )
+
+    # Comparaison sur le montant seul : les libellés du bulletin et de la saisie
+    # ne coïncident pas toujours, alors que le montant, lui, est le même.
+    montants_presents = {
+        round(float(e.get("montant", 0) or 0), 2) for e in elements
+    }
+    complement: List[Dict[str, Any]] = []
+
+    for saisie in saisies:
+        montant = float(saisie.get("amount", 0) or 0)
+        if montant == 0:
+            continue
+        libelle = str(saisie.get("name") or "")
+        famille = resolve_element_family(libelle)
+        if famille in FAMILLES_DEJA_COUVERTES:
+            continue
+        # Une saisie non rattachée est le plus souvent déjà reflétée dans le
+        # bulletin sous un autre libellé : la reprendre créerait un doublon.
+        # On ne complète que ce qu'on sait identifier.
+        if famille == FAMILLE_INCONNUE:
+            continue
+        if round(montant, 2) in montants_presents:
+            continue
+        complement.append(
+            {
+                "famille": famille,
+                "libelle": libelle or "Saisie mensuelle",
+                "montant": montant,
+            }
+        )
+
+    return elements + complement

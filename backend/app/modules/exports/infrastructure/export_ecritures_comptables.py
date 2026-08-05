@@ -9,6 +9,7 @@ from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
     extract_elements_hors_brut,
     extract_pas_amount,
+    merge_monthly_inputs_hors_brut,
 )
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
@@ -124,6 +125,26 @@ def get_payslip_data_for_od(
     response = query.execute()
     payslips = response.data or []
 
+    # Certaines saisies non soumises entrent dans le net à payer sans être
+    # recopiées dans payslip_data (indemnité d'activité partielle).
+    saisies_par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    try:
+        saisies_r = (
+            supabase.table("monthly_inputs")
+            .select("employee_id, name, amount, is_socially_taxed")
+            .eq("company_id", company_id)
+            .eq("year", year)
+            .eq("month", month)
+            .eq("is_socially_taxed", False)
+            .execute()
+        )
+        for saisie in saisies_r.data or []:
+            saisies_par_salarie.setdefault(
+                str(saisie.get("employee_id") or ""), []
+            ).append(saisie)
+    except Exception as e:
+        logger.warning(f"Saisies mensuelles non lues pour l'OD : {e}")
+
     totals = {
         "total_brut": 0.0,
         "total_net_a_payer": 0.0,
@@ -170,7 +191,10 @@ def get_payslip_data_for_od(
                 "cotisations_patronales": cotisations_patronales,
                 "pas": pas,
                 "cotisations_detail": cotisations_list,
-                "elements_hors_brut": extract_elements_hors_brut(payslip_data),
+                "elements_hors_brut": merge_monthly_inputs_hors_brut(
+                    extract_elements_hors_brut(payslip_data),
+                    saisies_par_salarie.get(str(employee.get("id") or ""), []),
+                ),
             }
         )
         totals["total_brut"] += brut
