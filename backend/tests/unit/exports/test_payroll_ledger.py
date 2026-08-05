@@ -88,12 +88,14 @@ class TestPayrollLedgerPatronalBalance:
                 "pas": 0.0,
                 "cotisations_detail": [
                     {
-                        "libelle": "URSSAF",
+                        "coti_id": "securite_sociale_maladie",
+                        "libelle": "Sécurité sociale - Maladie",
                         "montant_salarial": 600.0,
                         "montant_patronal": 600.0,
                     },
                     {
-                        "libelle": "Réduction générale",
+                        "coti_id": "reduction_generale",
+                        "libelle": "Réduction générale de cotisations patronales",
                         "montant_salarial": 0.0,
                         "montant_patronal": -100.0,
                     },
@@ -140,13 +142,15 @@ class TestPayrollLedgerPatronalBalance:
 
         assert od_totals["equilibre"] is True
         assert od_totals["ecart"] == 0.0
-        charges_645 = sum(e["debit"] for e in ecritures if e["compte_comptable"] == "645000")
-        allegements_645 = sum(e["credit"] for e in ecritures if e["compte_comptable"] == "645000")
-        dettes_431 = sum(e["credit"] for e in ecritures if e["compte_comptable"] == "431000")
-        assert charges_645 == pytest.approx(600.0)
-        assert allegements_645 == pytest.approx(100.0)
-        assert dettes_431 == pytest.approx(500.0)
-        assert od_totals["balance_debug"]["reconciliation"]["ecart_645_net_vs_431"] == 0.0
+        # Les charges vont sur le compte de l'organisme (645100 URSSAF), plus sur
+        # un 645000 indifférencié comme auparavant. Charge et allègement d'un même
+        # organisme se nettent sur le compte, comme sur l'OD du cabinet où la
+        # réduction générale n'apparaît pas séparément.
+        charges = sum(e["debit"] for e in ecritures if e["compte_comptable"] == "645100")
+        dettes = sum(e["credit"] for e in ecritures if e["compte_comptable"] == "431000")
+        assert charges == pytest.approx(500.0)
+        # Dette URSSAF = part patronale nette 500 + part salariale 600.
+        assert dettes == pytest.approx(1100.0)
 
 
 class TestVentilationParOrganisme:

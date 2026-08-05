@@ -49,12 +49,27 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     pas servir de clé.
     """
     from app.modules.exports.domain.accounting_plan import (
+        FAMILLE_ACOMPTE_VERSE,
         FAMILLE_PARTICIPATION,
         FAMILLE_PARTICIPATION_PEE,
         resolve_element_family,
     )
 
     elements: List[Dict[str, Any]] = []
+
+    # Acompte déjà versé : le net à payer en est net, la dette reste due au
+    # compte d'acomptes.
+    synthese = payslip_data.get("synthese_net")
+    if isinstance(synthese, dict):
+        acompte = float(synthese.get("acompte_verse", 0) or 0)
+        if acompte != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_ACOMPTE_VERSE,
+                    "libelle": "Acompte déjà versé",
+                    "montant": -acompte,
+                }
+            )
 
     for prime in payslip_data.get("primes_non_soumises") or []:
         if not isinstance(prime, dict):
@@ -77,9 +92,10 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
             continue
         brut = float(part.get("brut", 0) or 0)
         part_pee = float(part.get("part_pee", 0) or 0)
+        csg_total = float(part.get("csg_total", 0) or 0)
         libelle = str(part.get("libelle") or "Participation")
-        # Le brut de participation est la charge ; la CSG figure déjà parmi les
-        # cotisations, et la part placée sur un PEE ne va pas au net à payer.
+        # Le versement éteint la dette de participation provisionnée à la clôture
+        # précédente ; la CSG figure déjà parmi les cotisations.
         if brut != 0:
             elements.append(
                 {
@@ -89,11 +105,16 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                 }
             )
         if part_pee != 0:
+            # `part_pee` est brut de CSG : la contribution est prélevée avant le
+            # placement. Sans cette déduction, l'OD est déséquilibrée du montant
+            # de la CSG portant sur la part placée.
+            csg_sur_part_pee = csg_total * (part_pee / brut) if brut else 0.0
+            montant_place = part_pee - csg_sur_part_pee
             elements.append(
                 {
                     "famille": FAMILLE_PARTICIPATION_PEE,
                     "libelle": f"{libelle} — part placée sur un plan d'épargne",
-                    "montant": -part_pee,
+                    "montant": -round(montant_place, 2),
                 }
             )
 

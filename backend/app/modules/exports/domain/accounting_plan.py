@@ -130,6 +130,7 @@ FAMILLE_NOTE_DE_FRAIS = "note_de_frais"
 FAMILLE_IJSS = "ijss"
 FAMILLE_PARTICIPATION = "participation"
 FAMILLE_PARTICIPATION_PEE = "participation_pee"
+FAMILLE_ACOMPTE_VERSE = "acompte_verse"
 FAMILLE_INCONNUE = "INCONNUE"
 
 # Préfixes normalisés (minuscules, sans accents) → famille.
@@ -159,6 +160,14 @@ FAMILY_ACCOUNTS: Dict[str, AccountPair] = {
     FAMILLE_TRANSPORT: AccountPair(compte_charge="648000", compte_tiers=""),
     FAMILLE_PRET: AccountPair(compte_charge="", compte_tiers="274000"),
     FAMILLE_NOTE_DE_FRAIS: AccountPair(compte_charge="", compte_tiers="428625"),
+    # La participation de l'exercice précédent a été provisionnée à sa clôture :
+    # son versement éteint la dette 424, il ne crée pas de charge.
+    FAMILLE_PARTICIPATION: AccountPair(compte_charge="", compte_tiers="424000"),
+    # Compte provisoire pour la part placée sur un plan d'épargne : à confirmer
+    # avec le cabinet, l'OD de référence n'en comporte aucune.
+    FAMILLE_PARTICIPATION_PEE: AccountPair(compte_charge="", compte_tiers="424600"),
+    FAMILLE_AVANCE_PARTICIPATION: AccountPair(compte_charge="", compte_tiers="425300"),
+    FAMILLE_ACOMPTE_VERSE: AccountPair(compte_charge="", compte_tiers="425100"),
 }
 
 

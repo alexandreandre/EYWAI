@@ -154,8 +154,10 @@ class TestElementsHorsBrut:
         assert len(elements) == 2
         assert elements[0]["famille"] == "participation"
         assert elements[0]["montant"] == 5331.56
+        # La part placée est brute de CSG : la contribution est prélevée avant le
+        # placement, sinon l'OD est déséquilibrée du montant de cette CSG.
         assert elements[1]["famille"] == "participation_pee"
-        assert elements[1]["montant"] == -5331.56
+        assert elements[1]["montant"] == pytest.approx(-4814.40)
 
     def test_montant_zero_ignore(self):
         from app.modules.exports.infrastructure.payslip_accounting_extract import (

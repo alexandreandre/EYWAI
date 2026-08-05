@@ -6,6 +6,8 @@ from collections import defaultdict
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from app.modules.exports.domain.accounting_plan import (
+    FAMILLE_INCONNUE,
+    ORGANISMES,
     ORGANISME_INCONNU,
     ORGANISME_MUTUELLE,
     ORGANISME_PREVOYANCE,
@@ -13,9 +15,9 @@ from app.modules.exports.domain.accounting_plan import (
     ORGANISME_RETRAITE_SUP,
     ORGANISME_URSSAF,
     default_accounts_for,
+    default_accounts_for_family,
     resolve_organisme_from_coti_id,
 )
-from app.modules.exports.domain.charges_organisme import resolve_organisme
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     DEFAULT_MAPPINGS,
     get_accounting_mappings,
@@ -432,7 +434,6 @@ def _append_core_salary_entries(
     suffix = f" — {label_suffix}" if label_suffix and label_suffix != "global" else ""
     m_brut = _resolve_mapping(mappings, "salaire_brut")
     m_net = _resolve_mapping(mappings, "net_a_payer")
-    m_cot_sal = _resolve_mapping(mappings, "cotisation_salariale")
     m_pas = _resolve_mapping(mappings, "pas")
 
     brut = float(sub_totals.get("total_brut", 0) or 0)
@@ -477,28 +478,9 @@ def _append_core_salary_entries(
     elif net > 0 and tracker:
         tracker.skip(f"net_a_payer non posté ({_round2(net)}€) : mapping manquant")
 
-    cot_sal = float(sub_totals.get("total_cotisations_salariales", 0) or 0)
-    if cot_sal > 0 and m_cot_sal:
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_cot_sal.get("journal", "OD"),
-                compte=m_cot_sal["compte_comptable"],
-                libelle=f"Cotisations salariales {period_label}{suffix}",
-                debit=0.0,
-                credit=cot_sal,
-                reference=reference,
-                period=period,
-                analytique=m_cot_sal.get("analytique"),
-                group_key=group_key,
-            )
-        )
-        if tracker:
-            tracker.add_credit("cotisations_salariales", cot_sal)
-    elif cot_sal > 0 and tracker:
-        tracker.skip(
-            f"cotisations_salariales non postées ({_round2(cot_sal)}€) : mapping manquant"
-        )
+    # Les cotisations salariales ne sont plus créditées globalement : chaque part
+    # salariale est portée par le compte de tiers de son organisme, en même temps
+    # que la part patronale. Un crédit global ici les compterait deux fois.
 
     pas = float(sub_totals.get("total_pas", 0) or 0)
     if pas > 0 and m_pas:
@@ -564,8 +546,6 @@ def build_payroll_ledger(
     m_brut = _resolve_mapping(mappings, "salaire_brut")
     _resolve_mapping(mappings, "net_a_payer")
     _resolve_mapping(mappings, "cotisation_salariale")
-    m_cot_pat = _resolve_mapping(mappings, "cotisation_patronale")
-    m_dette = _resolve_mapping(mappings, "dette_organisme")
 
     group_key = "global"
     if regroupement == "par_analytique" and m_brut.get("analytique"):
@@ -614,8 +594,10 @@ def build_payroll_ledger(
             tracker=tracker,
         )
 
-    charges_par_caisse: Dict[str, float] = defaultdict(float)
-    dettes_par_groupe: Dict[str, float] = defaultdict(float)
+    charges_par_compte: Dict[Tuple[str, str, str], float] = defaultdict(float)
+    dettes_par_compte: Dict[Tuple[str, str, str], float] = defaultdict(float)
+    anomalies: List[Dict[str, Any]] = []
+
     for payslip in payslip_list:
         entry_group = (
             payslip.get("establishment_label") or "Principal"
@@ -625,102 +607,107 @@ def build_payroll_ledger(
         for coti in payslip.get("cotisations_detail", []):
             if not isinstance(coti, dict):
                 continue
-            libelle_cot = coti.get("libelle", "Cotisation")
-            organisme = resolve_organisme(libelle_cot)
             montant_pat = float(coti.get("montant_patronal", 0) or 0)
-            if montant_pat == 0:
+            montant_sal = float(coti.get("montant_salarial", 0) or 0)
+            if montant_pat == 0 and montant_sal == 0:
                 continue
-            if not m_cot_pat:
-                tracker.skip(
-                    f"charge patronale non postée ({_round2(abs(montant_pat))}€, {libelle_cot}) : mapping manquant"
-                )
-                continue
-            dettes_par_groupe[entry_group] += montant_pat
-            if montant_pat > 0:
-                key = f"{entry_group}::{organisme}::{libelle_cot}"
-                charges_par_caisse[key] += montant_pat
-                ecritures.append(
-                    _make_entry(
-                        date_ecriture=date_ecriture,
-                        journal=m_cot_pat.get("journal", "OD"),
-                        compte=m_cot_pat["compte_comptable"],
-                        libelle=f"Charges {libelle_cot} — {organisme} {period_label}",
-                        debit=montant_pat,
-                        credit=0.0,
-                        reference=reference,
-                        period=period,
-                        analytique=m_cot_pat.get("analytique"),
-                        group_key=entry_group,
-                    )
-                )
-                tracker.add_debit("charges_patronales", montant_pat)
-            else:
-                allegement = abs(montant_pat)
-                ecritures.append(
-                    _make_entry(
-                        date_ecriture=date_ecriture,
-                        journal=m_cot_pat.get("journal", "OD"),
-                        compte=m_cot_pat["compte_comptable"],
-                        libelle=f"Allègement {libelle_cot} — {organisme} {period_label}",
-                        debit=0.0,
-                        credit=allegement,
-                        reference=reference,
-                        period=period,
-                        analytique=m_cot_pat.get("analytique"),
-                        group_key=entry_group,
-                    )
-                )
-                tracker.add_credit("charges_patronales_allegements", allegement)
 
-    if regroupement == "par_etablissement":
-        for est, total_charges in dettes_par_groupe.items():
-            if abs(total_charges) > 0.005 and m_dette:
-                ecritures.append(
-                    _make_entry(
-                        date_ecriture=date_ecriture,
-                        journal=m_dette.get("journal", "OD"),
-                        compte=m_dette["compte_comptable"],
-                        libelle=f"Dettes organismes sociaux {period_label} — {est}",
-                        debit=0.0,
-                        credit=total_charges,
-                        reference=reference,
-                        period=period,
-                        analytique=m_dette.get("analytique"),
-                        group_key=est,
-                    )
-                )
-                tracker.add_credit("dettes_organismes", total_charges)
-            elif abs(total_charges) > 0.005:
-                tracker.skip(
-                    f"dettes organismes non créditées ({_round2(total_charges)}€, {est}) : mapping manquant"
-                )
-    else:
-        total_charges = _round2(
-            sum(
-                float(payslip.get("cotisations_patronales", 0) or 0)
-                for payslip in payslip_list
+            organisme, compte_charge, compte_tiers = _accounts_for_cotisation(
+                coti, mappings
             )
-        )
-        if abs(total_charges) > 0.005 and m_dette:
+            if not compte_charge or not compte_tiers:
+                anomalies.append(
+                    {
+                        "code": "organisme_non_rattache",
+                        "label": "Cotisation sans compte comptable",
+                        "detail": f"{coti.get('coti_id') or '?'} — {coti.get('libelle') or ''}",
+                        "montant": _round2(abs(montant_pat) + abs(montant_sal)),
+                    }
+                )
+                tracker.skip(
+                    f"cotisation non postée ({_round2(abs(montant_pat))}€) : organisme "
+                    f"non rattaché pour {coti.get('coti_id') or coti.get('libelle')}"
+                )
+                continue
+
+            # Part patronale : charge au débit, dette au crédit.
+            if montant_pat != 0:
+                charges_par_compte[(entry_group, organisme, compte_charge)] += montant_pat
+                dettes_par_compte[(entry_group, organisme, compte_tiers)] += montant_pat
+            # Part salariale : dette au crédit ; sa contrepartie est le brut,
+            # déjà débité.
+            if montant_sal != 0:
+                dettes_par_compte[(entry_group, organisme, compte_tiers)] += montant_sal
+
+    for (grp, organisme, compte), montant in sorted(charges_par_compte.items()):
+        if abs(montant) < 0.005:
+            continue
+        nom = ORGANISMES.get(organisme, organisme)
+        if montant > 0:
             ecritures.append(
                 _make_entry(
                     date_ecriture=date_ecriture,
-                    journal=m_dette.get("journal", "OD"),
-                    compte=m_dette["compte_comptable"],
-                    libelle=f"Dettes organismes sociaux {period_label}",
-                    debit=0.0,
-                    credit=total_charges,
+                    journal="OD",
+                    compte=compte,
+                    libelle=f"Charges sociales {nom} {period_label}",
+                    debit=montant,
+                    credit=0.0,
                     reference=reference,
                     period=period,
-                    analytique=m_dette.get("analytique"),
-                    group_key=group_key,
+                    group_key=grp,
                 )
             )
-            tracker.add_credit("dettes_organismes", total_charges)
-        elif abs(total_charges) > 0.005:
-            tracker.skip(
-                f"dettes organismes non créditées ({_round2(total_charges)}€) : mapping manquant"
+            tracker.add_debit("charges_patronales", montant)
+        else:
+            ecritures.append(
+                _make_entry(
+                    date_ecriture=date_ecriture,
+                    journal="OD",
+                    compte=compte,
+                    libelle=f"Allègements {nom} {period_label}",
+                    debit=0.0,
+                    credit=abs(montant),
+                    reference=reference,
+                    period=period,
+                    group_key=grp,
+                )
             )
+            tracker.add_credit("charges_patronales_allegements", abs(montant))
+
+    for (grp, organisme, compte), montant in sorted(dettes_par_compte.items()):
+        if abs(montant) < 0.005:
+            continue
+        nom = ORGANISMES.get(organisme, organisme)
+        if montant > 0:
+            ecritures.append(
+                _make_entry(
+                    date_ecriture=date_ecriture,
+                    journal="OD",
+                    compte=compte,
+                    libelle=f"Dette {nom} {period_label}",
+                    debit=0.0,
+                    credit=montant,
+                    reference=reference,
+                    period=period,
+                    group_key=grp,
+                )
+            )
+            tracker.add_credit("dettes_organismes", montant)
+        else:
+            ecritures.append(
+                _make_entry(
+                    date_ecriture=date_ecriture,
+                    journal="OD",
+                    compte=compte,
+                    libelle=f"Dette {nom} (allègements) {period_label}",
+                    debit=abs(montant),
+                    credit=0.0,
+                    reference=reference,
+                    period=period,
+                    group_key=grp,
+                )
+            )
+            tracker.add_debit("dettes_organismes_allegements", abs(montant))
 
     m_net_acompte = _resolve_mapping(mappings, "net_a_payer")
     net_account = str(m_net_acompte.get("compte_comptable") or "425000")
@@ -813,6 +800,64 @@ def build_payroll_ledger(
         )
         tracker.add_credit("prets_employeur", montant)
 
+    elements_par_famille: Dict[Tuple[str, str], float] = defaultdict(float)
+    for payslip in payslip_list:
+        for element in payslip.get("elements_hors_brut", []) or []:
+            if not isinstance(element, dict):
+                continue
+            montant = float(element.get("montant", 0) or 0)
+            if montant == 0:
+                continue
+            famille = str(element.get("famille") or FAMILLE_INCONNUE)
+            elements_par_famille[(famille, str(element.get("libelle") or famille))] += (
+                montant
+            )
+
+    for (famille, libelle), montant in sorted(elements_par_famille.items()):
+        if abs(montant) < 0.005:
+            continue
+        mapping_element = mappings.get(famille) or {}
+        compte = str(
+            mapping_element.get("compte_charge")
+            or mapping_element.get("compte_tiers")
+            or mapping_element.get("compte_comptable")
+            or ""
+        )
+        if not compte:
+            pair = default_accounts_for_family(famille)
+            compte = (pair.compte_charge or pair.compte_tiers) if pair else ""
+        if not compte:
+            anomalies.append(
+                {
+                    "code": "element_hors_brut_non_mappe",
+                    "label": "Élément hors brut sans compte comptable",
+                    "detail": f"{famille} — {libelle}",
+                    "montant": _round2(abs(montant)),
+                }
+            )
+            tracker.skip(
+                f"élément hors brut non posté ({_round2(montant)}€) : aucun compte "
+                f"pour la famille {famille} ({libelle})"
+            )
+            continue
+        ecritures.append(
+            _make_entry(
+                date_ecriture=date_ecriture,
+                journal="OD",
+                compte=compte,
+                libelle=f"{libelle} {period_label}",
+                debit=montant if montant > 0 else 0.0,
+                credit=abs(montant) if montant < 0 else 0.0,
+                reference=reference,
+                period=period,
+                group_key=group_key,
+            )
+        )
+        if montant > 0:
+            tracker.add_debit("elements_hors_brut", montant)
+        else:
+            tracker.add_credit("elements_hors_brut", abs(montant))
+
     if include_notes_frais:
         from app.modules.exports.infrastructure.export_notes_frais import (
             get_notes_frais_ecritures,
@@ -853,6 +898,7 @@ def build_payroll_ledger(
         "total_credit": _round2(total_credit),
         "equilibre": abs(total_debit - total_credit) < 0.01,
         "ecart": _round2(abs(total_debit - total_credit)),
+        "anomalies": anomalies,
         "balance_debug": balance_debug,
     }
     return final_ecritures, od_totals, mappings
