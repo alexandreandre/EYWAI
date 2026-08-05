@@ -154,3 +154,35 @@ class TestBuildReportIntegration:
         report = build_payslips_anomalies_report("co-1", 2026, 7)
         assert report.total_bulletins == 0
         assert report.anomalies == []
+
+
+class TestDelaiValidation:
+    """« Non validé » n'est signalé que si la société valide réellement ses bulletins."""
+
+    def _old_row(self):
+        row = _row(status="brouillon")
+        row["created_at"] = "2026-01-01T10:00:00+00:00"
+        row["updated_at"] = "2026-01-01T10:00:00+00:00"
+        return row
+
+    def test_silent_when_no_payslip_is_ever_validated(self):
+        out = _collect_anomalies_for_row(
+            self._old_row(),
+            year=2026,
+            month=6,
+            period_closed=False,
+            employee_ctx=EmployeeAnomalyContext(employment_status="actif"),
+            validation_workflow_active=False,
+        )
+        assert "DELAI_VALIDATION" not in {item.type for item in out}
+
+    def test_reported_when_workflow_is_used(self):
+        out = _collect_anomalies_for_row(
+            self._old_row(),
+            year=2026,
+            month=6,
+            period_closed=False,
+            employee_ctx=EmployeeAnomalyContext(employment_status="actif"),
+            validation_workflow_active=True,
+        )
+        assert "DELAI_VALIDATION" in {item.type for item in out}

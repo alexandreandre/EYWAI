@@ -28,6 +28,33 @@ export type PayrollAnomaliesPanelProps = {
   sectionId?: string;
 };
 
+const ANOMALY_TYPE_LABELS: Record<string, string> = {
+  DONNEES_BULLETIN_INVALIDES: "Bulletin illisible",
+  BRUT_NEGATIF: "Brut négatif",
+  BRUT_NUL: "Brut nul",
+  NET_SUPERIEUR_BRUT: "Net supérieur au brut",
+  TAUX_HORAIRE_INCOHERENT: "Taux horaire inhabituel",
+  PRIMES_EXCESSIVES: "Primes élevées",
+  COTISATIONS_PAT_NEGATIVES: "Cotisations patronales négatives",
+  DELAI_VALIDATION: "Bulletin non validé",
+  ALERTE_CC_SALAIRE_SOUS_MINIMUM: "Salaire sous le minimum conventionnel",
+  ALERTE_CC_CLASSIFICATION_MANQUANTE: "Classification à renseigner",
+  ALERTE_CC_REGLES_ABSENTES: "Convention à mettre à jour",
+  ALERTE_CC_GRILLE_VIDE: "Grille conventionnelle à mettre à jour",
+  ALERTE_CC_COEFFICIENT_HORS_GRILLE: "Classification hors grille",
+  ALERTE_VM_BAREME_ABSENT: "Taux de versement mobilité à renseigner",
+  ALERTE_MAINTIEN_SALAIRE: "Maintien de salaire",
+  ALERTE_TRANSPORT_PLAFOND_ANNUEL_DEPASSE: "Plafond transport dépassé",
+};
+
+/** Libellé RH : jamais le code technique brut dans le tableau. */
+function anomalyTypeLabel(type: string): string {
+  const known = ANOMALY_TYPE_LABELS[type];
+  if (known) return known;
+  const words = type.replace(/^ALERTE_/, "").toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function summarize(anomalies: AnomaliesReport["anomalies"]) {
   let bloquants = 0;
   let avertissements = 0;
@@ -123,18 +150,16 @@ export function PayrollAnomaliesPanel({
                 </Card>
                 <Card>
                   <CardContent className="p-3">
-                    <p className="text-2xl font-bold tabular-nums text-red-600">
-                      {summary.bloquants}
-                    </p>
-                    <p className="text-muted-foreground text-xs">Bloquants</p>
+                    <p className="text-2xl font-bold tabular-nums">{summary.bloquants}</p>
+                    <p className="text-muted-foreground text-xs">À corriger</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-3">
-                    <p className="text-2xl font-bold tabular-nums text-amber-600">
+                    <p className="text-2xl font-bold tabular-nums">
                       {summary.avertissements}
                     </p>
-                    <p className="text-muted-foreground text-xs">Avertissements</p>
+                    <p className="text-muted-foreground text-xs">À vérifier</p>
                   </CardContent>
                 </Card>
               </div>
@@ -160,19 +185,19 @@ export function PayrollAnomaliesPanel({
                           <TableCell className="max-w-[10rem] truncate font-medium">
                             {row.employee_name}
                           </TableCell>
-                          <TableCell className="max-w-[6rem] truncate text-muted-foreground text-xs">
-                            {row.type}
+                          <TableCell className="max-w-[10rem] truncate text-muted-foreground text-xs">
+                            <span title={row.type}>{anomalyTypeLabel(row.type)}</span>
                           </TableCell>
                           <TableCell>
                             <Badge
-                              variant="secondary"
+                              variant="outline"
                               className={
                                 row.severite === "bloquant"
-                                  ? "bg-red-600 text-white hover:bg-red-600"
-                                  : "bg-amber-600 text-white hover:bg-amber-600"
+                                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+                                  : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
                               }
                             >
-                              {row.severite === "bloquant" ? "Bloquant" : "Avertissement"}
+                              {row.severite === "bloquant" ? "À corriger" : "À vérifier"}
                             </Badge>
                           </TableCell>
                           <TableCell className="max-w-[220px] text-xs">

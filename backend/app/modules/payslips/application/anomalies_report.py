@@ -161,6 +161,7 @@ def _collect_anomalies_for_row(
     month: int,
     period_closed: bool,
     employee_ctx: EmployeeAnomalyContext,
+    validation_workflow_active: bool = True,
 ) -> List[AnomaliePayslipItem]:
     payslip_id = str(row.get("id") or "")
     employee_id = str(row.get("employee_id") or "")
@@ -293,7 +294,9 @@ def _collect_anomalies_for_row(
             )
         )
 
-    if status != "valide":
+    # Sans circuit de validation utilisé sur le mois, « non validé » n'est pas une
+    # anomalie : ce serait 100 % des bulletins signalés dès le 31ᵉ jour.
+    if status != "valide" and validation_workflow_active:
         ref = created_at or updated_at
         now = datetime.now(timezone.utc)
         if ref and (now - ref) > timedelta(days=30):
@@ -350,6 +353,10 @@ def build_payslips_anomalies_report(
         .execute()
     )
     rows: List[Dict[str, Any]] = list(r.data or [])
+    validation_workflow_active = any(
+        isinstance(row, dict) and str(row.get("status") or "") == "valide"
+        for row in rows
+    )
     anomalies: List[AnomaliePayslipItem] = []
     payslips_touchés: Set[str] = set()
     included_payslip_count = 0
@@ -369,6 +376,7 @@ def build_payslips_anomalies_report(
             month=month,
             period_closed=period_closed,
             employee_ctx=employee_ctx,
+            validation_workflow_active=validation_workflow_active,
         )
         if row_an:
             payslips_touchés.add(str(row.get("id") or ""))
