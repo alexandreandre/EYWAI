@@ -29,8 +29,8 @@ class TestCalculateTrialPeriodStatus:
         )
         assert result["trial_period_applicable"] is True
         assert result["trial_period_status"] == TRIAL_STATUS_IN_PROGRESS
-        assert result["trial_period_end_date"] == "2025-03-15"
-        assert result["trial_period_days_remaining"] == 42
+        assert result["trial_period_end_date"] == "2025-03-14"
+        assert result["trial_period_days_remaining"] == 41
         assert result["trial_period_renewal_possible"] is True
 
     def test_ending_soon(self):
@@ -42,7 +42,7 @@ class TestCalculateTrialPeriodStatus:
             reference_date=ref,
         )
         assert result["trial_period_status"] == TRIAL_STATUS_ENDING_SOON
-        assert result["trial_period_days_remaining"] == 5
+        assert result["trial_period_days_remaining"] == 4
 
     def test_ended(self):
         ref = date(2025, 4, 1)
@@ -53,7 +53,7 @@ class TestCalculateTrialPeriodStatus:
             reference_date=ref,
         )
         assert result["trial_period_status"] == TRIAL_STATUS_ENDED
-        assert result["trial_period_days_remaining"] == -17
+        assert result["trial_period_days_remaining"] == -18
 
     def test_confirmed(self):
         ref = date(2025, 3, 10)
@@ -121,7 +121,9 @@ class TestTrialReminderEligibility:
             {
                 "id": "e1",
                 "employment_status": "actif",
-                "hire_date": "2025-04-01",
+                # Deux mois à compter du 2 avril s'achèvent le 1er juin, soit
+                # la date de référence : la période est encore dans la fenêtre.
+                "hire_date": "2025-04-02",
                 "periode_essai": {"duree_initiale": 2, "unite": "mois"},
             }
         ]

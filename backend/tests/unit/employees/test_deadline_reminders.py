@@ -20,17 +20,19 @@ from app.modules.employees.domain.deadline_reminders import (
 
 
 class TestComputeTrialPeriodEnd:
+    # La période expire la veille du quantième, et le jour d'embauche compte
+    # comme premier jour : ces dates étaient toutes décalées d'un jour.
     def test_mois(self):
         end = compute_trial_period_end("2025-01-15", {"duree_initiale": 2, "unite": "mois"})
-        assert end == date(2025, 3, 15)
+        assert end == date(2025, 3, 14)
 
     def test_jours(self):
         end = compute_trial_period_end("2025-01-15", {"duree": 10, "unite": "jours"})
-        assert end == date(2025, 1, 25)
+        assert end == date(2025, 1, 24)
 
     def test_semaines(self):
         end = compute_trial_period_end("2025-01-15", {"duree": 2, "unite": "semaines"})
-        assert end == date(2025, 1, 29)
+        assert end == date(2025, 1, 28)
 
     def test_missing_data(self):
         assert compute_trial_period_end(None, {"duree_initiale": 2}) is None
@@ -95,7 +97,10 @@ class TestCountEndingTrialPeriods:
             {
                 "id": "e1",
                 "employment_status": "actif",
-                "hire_date": "2025-04-01",
+                # Embauche au 2 avril : deux mois s'achèvent le 1er juin, soit
+                # la date de référence. Au 1er avril la période finirait la
+                # veille et sortirait de la fenêtre, qui exclut le passé.
+                "hire_date": "2025-04-02",
                 "periode_essai": {"duree_initiale": 2, "unite": "mois"},
             }
         ]
@@ -113,7 +118,10 @@ class TestListHrDeadlineCandidates:
                 "employment_status": "actif",
                 "contract_type": "CDD",
                 "contract_end_date": (ref + timedelta(days=CDD_REMINDER_DAYS)).isoformat(),
-                "hire_date": "2025-04-01",
+                # Embauche au 2 avril : deux mois s'achèvent le 1er juin, soit
+                # la date de référence. Au 1er avril la période finirait la
+                # veille et sortirait de la fenêtre, qui exclut le passé.
+                "hire_date": "2025-04-02",
                 "periode_essai": {"duree_initiale": 2, "unite": "mois"},
                 "is_subject_to_residence_permit": True,
                 "residence_permit_expiry_date": (

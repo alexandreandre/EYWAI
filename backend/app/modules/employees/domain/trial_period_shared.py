@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any, Optional
 
-from dateutil.relativedelta import relativedelta
+from app.modules.employees.domain.trial_period_dates import compute_trial_end
 
 TRIAL_REMINDER_DAYS = 15
 
@@ -30,6 +30,11 @@ def compute_trial_period_end(
     hire_date_raw: Any,
     periode_essai: Any,
 ) -> Optional[date]:
+    """Fin de période d'essai à partir du jsonb historique.
+
+    Conservée pour les lectures existantes ; le calcul lui-même vit dans
+    trial_period_dates, partagé avec la table trial_periods.
+    """
     hire = parse_date(hire_date_raw)
     if hire is None or not isinstance(periode_essai, dict):
         return None
@@ -39,12 +44,5 @@ def compute_trial_period_end(
         duree = int(duree_raw)
     except (TypeError, ValueError):
         return None
-    if duree <= 0:
-        return None
 
-    unite = str(periode_essai.get("unite") or "mois").lower()
-    if unite.startswith("jour"):
-        return hire + timedelta(days=duree)
-    if unite.startswith("sem"):
-        return hire + timedelta(days=duree * 7)
-    return hire + relativedelta(months=duree)
+    return compute_trial_end(hire, duree, str(periode_essai.get("unite") or "mois"))
