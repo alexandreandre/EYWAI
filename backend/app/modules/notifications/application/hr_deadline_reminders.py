@@ -31,13 +31,22 @@ def fetch_employees_for_hr_deadline_reminders(company_id: str) -> List[Dict[str,
         supabase.table("employees")
         .select(
             "id, first_name, last_name, employment_status, contract_type, "
-            "contract_end_date, periode_essai, hire_date, "
-            "is_subject_to_residence_permit, residence_permit_expiry_date"
+            "contract_end_date, hire_date, "
+            "is_subject_to_residence_permit, residence_permit_expiry_date, "
+            "trial_period:trial_periods(end_date, status)"
         )
         .eq("company_id", company_id)
         .execute()
     )
-    return list(resp.data or [])
+    rows = list(resp.data or [])
+    # Une relation inverse remonte une liste : on ne garde que la période
+    # active, celle sur laquelle porte la relance.
+    for row in rows:
+        trials = row.get("trial_period")
+        if isinstance(trials, list):
+            active = [t for t in trials if t.get("status") == "en_cours"]
+            row["trial_period"] = active[0] if active else None
+    return rows
 
 
 def fetch_rh_recipient_emails(company_id: str) -> List[str]:

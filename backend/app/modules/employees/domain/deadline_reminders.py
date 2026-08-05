@@ -74,11 +74,13 @@ def _cdd_deadline(emp: Dict[str, Any]) -> Optional[date]:
 
 
 def _trial_deadline(emp: Dict[str, Any]) -> Optional[date]:
-    from app.modules.employees.domain.trial_period import is_trial_eligible_for_reminder
-
-    if not is_trial_eligible_for_reminder(emp.get("periode_essai")):
+    """Fin de la période d'essai active, jointe depuis la table trial_periods."""
+    trial = emp.get("trial_period")
+    if not isinstance(trial, dict):
         return None
-    return compute_trial_period_end(emp.get("hire_date"), emp.get("periode_essai"))
+    if str(trial.get("status") or "") != "en_cours":
+        return None
+    return parse_date(trial.get("end_date"))
 
 
 def _residence_deadline(emp: Dict[str, Any]) -> Optional[date]:

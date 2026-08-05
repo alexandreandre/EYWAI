@@ -97,11 +97,8 @@ class TestCountEndingTrialPeriods:
             {
                 "id": "e1",
                 "employment_status": "actif",
-                # Embauche au 2 avril : deux mois s'achèvent le 1er juin, soit
-                # la date de référence. Au 1er avril la période finirait la
-                # veille et sortirait de la fenêtre, qui exclut le passé.
                 "hire_date": "2025-04-02",
-                "periode_essai": {"duree_initiale": 2, "unite": "mois"},
+                "trial_period": {"end_date": "2025-06-01", "status": "en_cours"},
             }
         ]
         assert count_ending_trial_periods(employees, ref) == 1
@@ -118,11 +115,8 @@ class TestListHrDeadlineCandidates:
                 "employment_status": "actif",
                 "contract_type": "CDD",
                 "contract_end_date": (ref + timedelta(days=CDD_REMINDER_DAYS)).isoformat(),
-                # Embauche au 2 avril : deux mois s'achèvent le 1er juin, soit
-                # la date de référence. Au 1er avril la période finirait la
-                # veille et sortirait de la fenêtre, qui exclut le passé.
                 "hire_date": "2025-04-02",
-                "periode_essai": {"duree_initiale": 2, "unite": "mois"},
+                "trial_period": {"end_date": "2025-06-01", "status": "en_cours"},
                 "is_subject_to_residence_permit": True,
                 "residence_permit_expiry_date": (
                     ref + timedelta(days=RESIDENCE_REMINDER_DAYS)

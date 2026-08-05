@@ -106,11 +106,7 @@ class TestTrialReminderEligibility:
                 "id": "e1",
                 "employment_status": "actif",
                 "hire_date": "2025-04-01",
-                "periode_essai": {
-                    "duree_initiale": 2,
-                    "unite": "mois",
-                    "statut": TRIAL_JSON_STATUT_CONFIRMED,
-                },
+                "trial_period": {"end_date": "2025-06-01", "status": "confirmee"},
             }
         ]
         assert count_ending_trial_periods(employees, ref) == 0
@@ -121,10 +117,8 @@ class TestTrialReminderEligibility:
             {
                 "id": "e1",
                 "employment_status": "actif",
-                # Deux mois à compter du 2 avril s'achèvent le 1er juin, soit
-                # la date de référence : la période est encore dans la fenêtre.
                 "hire_date": "2025-04-02",
-                "periode_essai": {"duree_initiale": 2, "unite": "mois"},
+                "trial_period": {"end_date": "2025-06-01", "status": "en_cours"},
             }
         ]
         assert count_ending_trial_periods(employees, ref) == 1
