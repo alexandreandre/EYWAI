@@ -71,6 +71,25 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                 }
             )
 
+    # Revenus non soumis à cotisations mais imposables : indemnité d'activité
+    # partielle, IJSS imposables… Le bulletin les expose ici depuis l'ajout de la
+    # clé ; les bulletins plus anciens ne la portent pas, d'où le repli sur les
+    # saisies mensuelles (voir merge_monthly_inputs_hors_brut).
+    for revenu in payslip_data.get("revenus_hors_brut_imposables") or []:
+        if not isinstance(revenu, dict):
+            continue
+        montant = float(revenu.get("montant", 0) or 0)
+        if montant == 0:
+            continue
+        libelle = str(revenu.get("libelle") or "")
+        elements.append(
+            {
+                "famille": resolve_element_family(libelle, revenu.get("prime_id")),
+                "libelle": libelle or "Revenu hors brut imposable",
+                "montant": montant,
+            }
+        )
+
     for prime in payslip_data.get("primes_non_soumises") or []:
         if not isinstance(prime, dict):
             continue
