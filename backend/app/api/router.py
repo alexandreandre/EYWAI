@@ -103,6 +103,7 @@ from app.modules.schedules.api.router import (
 from app.modules.super_admin.api.router import router as super_admin_router
 from app.modules.support.api.router import router as support_router
 from app.modules.test_env.api.router import router as test_env_router
+from app.modules.trial_periods.api.router import router as trial_periods_router
 from app.modules.uploads.api.router import router as uploads_router
 from app.modules.users.api.router import router as users_router
 from app.modules.webhooks.api.router import router as webhooks_router
@@ -138,6 +139,7 @@ router.include_router(ijss_tracking_router)
 router.include_router(employees_router)
 router.include_router(employee_exits_router)
 router.include_router(employee_loans_router)
+router.include_router(trial_periods_router)
 router.include_router(exports_router)
 router.include_router(net_entreprises_router)
 router.include_router(net_entreprises_admin_router)
