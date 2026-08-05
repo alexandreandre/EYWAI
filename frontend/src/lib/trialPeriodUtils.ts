@@ -12,9 +12,17 @@ export function computeTrialPeriodEndDate(
   const hire = parseISO(hireDateIso.slice(0, 10));
   if (Number.isNaN(hire.getTime())) return null;
 
-  if (unite === "jours") return addDays(hire, duree);
-  if (unite === "semaines") return addDays(hire, duree * 7);
-  return addMonths(hire, duree);
+  // La période expire la veille du quantième correspondant : deux mois à
+  // compter du 1er mars s'achèvent le 30 avril, pas le 1er mai. Et le jour
+  // d'embauche compte comme premier jour.
+  if (unite === "jours") return addDays(hire, duree - 1);
+  if (unite === "semaines") return addDays(hire, duree * 7 - 1);
+
+  const target = addMonths(hire, duree);
+  // addMonths a tronqué au dernier jour du mois (31 janvier + 1 mois donne le
+  // 28 février) : c'est déjà le dernier jour de la période.
+  if (target.getDate() !== hire.getDate()) return target;
+  return addDays(target, -1);
 }
 
 export function formatTrialPeriodEndPreview(
