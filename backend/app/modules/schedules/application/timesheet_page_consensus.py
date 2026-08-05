@@ -14,6 +14,9 @@ from app.modules.schedules.application.handwritten_weekly import (
     detect_handwritten_weekly_payload,
     normalize_handwritten_weekly_payload,
 )
+from app.modules.schedules.domain.punch_accounting_entities import (
+    PunchAccountingSettings,
+)
 
 HOURS_MATCH_OK = 0.25
 HOURS_MISMATCH_WARN = 0.5
@@ -143,6 +146,7 @@ def build_page_consensus(
     year: int | None = None,
     month: int | None = None,
     format_hint: str | None = None,
+    punch_settings: PunchAccountingSettings | None = None,
 ) -> PageExtractionResult:
     """Fusionne les extractions vision et texte d'une même page."""
     detected_hint = format_hint
@@ -153,10 +157,10 @@ def build_page_consensus(
         detected_hint = FORMAT_HINT
     if detected_hint == FORMAT_HINT and year is not None and month is not None:
         vision_data = normalize_handwritten_weekly_payload(
-            vision_data, year=year, month=month
+            vision_data, year=year, month=month, settings=punch_settings
         )
         text_data = normalize_handwritten_weekly_payload(
-            text_data, year=year, month=month
+            text_data, year=year, month=month, settings=punch_settings
         )
 
     vision_emps = _parse_channel_data(vision_data, format_hint=detected_hint)

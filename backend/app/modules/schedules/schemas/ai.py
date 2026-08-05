@@ -137,6 +137,9 @@ class AiCalendarProposalResponse(BaseModel):
     extraction_truncated: bool = False
     extraction_mode: Optional[str] = None
     consensus_conflicts: Optional[int] = None
+    # Règles de comptabilisation ayant produit ces heures. Un aperçu mis en
+    # cache sous d'autres règles ne doit jamais être resservi.
+    calc_fingerprint: Optional[str] = None
 
 
 class TimesheetExtractStartResponse(BaseModel):

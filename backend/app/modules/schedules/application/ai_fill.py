@@ -405,11 +405,13 @@ def _finalize_timesheet_proposal(
     if company_id:
         from app.modules.schedules.application.punch_accounting_service import (
             apply_punch_accounting_to_proposal,
+            punch_calc_fingerprint,
         )
         from app.modules.schedules.infrastructure import punch_accounting_repository
 
         if punch_accounting_repository.get_settings(company_id).enabled:
             response = apply_punch_accounting_to_proposal(response, company_id)
+        response.calc_fingerprint = punch_calc_fingerprint(company_id)
 
     enriched = enrich_proposal_employees(
         response.employees,
@@ -984,6 +986,14 @@ def _extract_timesheet_hybrid_path(
         week_anchor_context = format_week_anchor_context(
             week_anchor_date, year, month
         )
+    # Feuilles manuscrites : la pause déduite suit le paramétrage de la société,
+    # comme sur une journée badgée, plutôt qu'un forfait figé dans le code.
+    punch_settings = None
+    if company_id:
+        from app.modules.schedules.infrastructure import punch_accounting_repository
+
+        punch_settings = punch_accounting_repository.get_settings(company_id)
+
     try:
         hybrid = extract_timesheet_hybrid(
             file_content=file_content,
@@ -994,6 +1004,7 @@ def _extract_timesheet_hybrid_path(
             on_progress=on_progress,
             week_anchor_context=week_anchor_context,
             week_anchor_date=week_anchor_date,
+            punch_settings=punch_settings,
         )
     except DocumentExtractionError as e:
         raise ScheduleAppError("validation", str(e), status_code=400) from e

@@ -6,6 +6,9 @@ from typing import Optional
 
 from app.core.database import get_supabase_admin_client
 from app.modules.schedules.application.exceptions import ScheduleAppError
+from app.modules.schedules.application.punch_accounting_service import (
+    punch_calc_fingerprint,
+)
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
 )
@@ -56,7 +59,13 @@ def find_cached_preview(
     )
     if not row or not row.get("preview_json"):
         return None
-    return AiCalendarProposalResponse.model_validate(row["preview_json"])
+    preview = AiCalendarProposalResponse.model_validate(row["preview_json"])
+    # Les heures dépendent des règles de comptabilisation : un aperçu produit
+    # sous d'autres règles — paramétrage modifié, moteur corrigé — est réextrait
+    # plutôt que resservi tel quel.
+    if preview.calc_fingerprint != punch_calc_fingerprint(company_id):
+        return None
+    return preview
 
 
 __all__ = [

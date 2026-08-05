@@ -9,6 +9,11 @@ from datetime import date
 from datetime import timedelta
 from typing import Any
 
+from app.modules.schedules.domain.punch_accounting_entities import (
+    PunchAccountingSettings,
+)
+from app.modules.schedules.domain.punch_accounting_rules import apply_break_threshold
+
 FORMAT_HINT = "handwritten_weekly"
 
 _WEEK_RE = re.compile(r"\bS\s*(\d{1,2})\b", re.IGNORECASE)
@@ -130,17 +135,34 @@ def _parse_time(value: Any) -> int | None:
     return hour * 60 + minute
 
 
-def calculate_hours_from_range(debut: Any, fin: Any) -> float | None:
-    """Calcule FIN-DEBUT avec pause repas forfaitaire d'1 h sur journée complète."""
+def calculate_hours_from_range(
+    debut: Any,
+    fin: Any,
+    *,
+    settings: PunchAccountingSettings | None = None,
+) -> float | None:
+    """Calcule FIN-DEBUT, pause déduite selon le paramétrage de la société.
+
+    Quand la comptabilisation des pointages est activée, la pause vient des
+    réglages société (pause par défaut et seuil de présence), comme sur les
+    journées badgées : une feuille papier et un badgeage donnent alors le même
+    résultat pour la même journée.
+
+    Sans paramétrage, on retombe sur l'heure forfaitaire des feuilles
+    manuscrites, où un créneau unique matin+après-midi inclut souvent la pause.
+    """
     start = _parse_time(debut)
     end = _parse_time(fin)
     if start is None or end is None or end <= start:
         return None
     duration = end - start
-    # Feuille manuscrite : un créneau unique matin+après-midi inclut souvent la pause.
-    if start < 12 * 60 and end >= 15 * 60 and duration >= 8 * 60 + 30:
+    if settings is not None and settings.enabled:
+        duration -= apply_break_threshold(
+            settings.default_break_deduct_minutes, start, end, settings
+        )
+    elif start < 12 * 60 and end >= 15 * 60 and duration >= 8 * 60 + 30:
         duration -= 60
-    return round(duration / 60.0, 2)
+    return round(max(0, duration) / 60.0, 2)
 
 
 def normalize_handwritten_weekly_payload(
@@ -148,6 +170,7 @@ def normalize_handwritten_weekly_payload(
     *,
     year: int,
     month: int,
+    settings: PunchAccountingSettings | None = None,
 ) -> dict[str, Any] | None:
     if not data:
         return data
@@ -169,11 +192,19 @@ def normalize_handwritten_weekly_payload(
                     week_number=week_number,
                     weekday=item.get("weekday"),
                 )
-            if item.get("heures") is None:
-                item["heures"] = calculate_hours_from_range(
+            # Avec un paramétrage société, le calcul serveur prime sur les heures
+            # rendues par l'IA : elle applique sa propre pause forfaitaire.
+            recompute = item.get("heures") is None or (
+                settings is not None and settings.enabled
+            )
+            if recompute:
+                heures = calculate_hours_from_range(
                     item.get("debut"),
                     item.get("fin"),
+                    settings=settings,
                 )
+                if heures is not None or item.get("heures") is None:
+                    item["heures"] = heures
             item["type"] = item.get("type") or "travail"
             if item.get("jour") is not None:
                 kept_days.append(item)

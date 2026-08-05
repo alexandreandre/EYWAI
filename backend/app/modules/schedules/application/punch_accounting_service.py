@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 from typing import Any, List
 
@@ -22,6 +23,44 @@ from app.modules.schedules.schemas.ai import (
     AiEmployeeProposal,
     TimesheetQualityCheck,
 )
+
+
+# Version des règles de calcul des heures pointées. À incrémenter dès qu'un
+# même relevé peut donner des heures différentes — les aperçus mis en cache
+# sous une version antérieure sont alors ignorés.
+#   2 : pause des feuilles importées alignée sur le paramétrage société.
+PUNCH_CALC_RULES_VERSION = 2
+
+
+def punch_calc_fingerprint(company_id: str | None) -> str:
+    """Empreinte des règles qui ont produit des heures, cache d'aperçu compris."""
+    parts: List[str] = [f"v{PUNCH_CALC_RULES_VERSION}"]
+    if not company_id:
+        return ":".join(parts + ["no-company"])
+
+    settings = repo.get_settings(company_id)
+    parts.append(
+        "|".join(
+            str(v)
+            for v in (
+                settings.enabled,
+                settings.tolerance_minutes,
+                settings.default_break_deduct_minutes,
+                settings.break_threshold_minutes,
+                settings.slot_detection,
+                settings.within_tolerance_pay_theoretical,
+                settings.require_manager_validation_for_overtime,
+            )
+        )
+    )
+    if settings.enabled:
+        slots = "|".join(
+            f"{s.code}-{s.entry_minutes}-{s.exit_minutes}-{s.break_deduct_minutes}"
+            f"-{s.paid_break_minutes}-{s.paid_lunch_break}"
+            for s in sorted(repo.list_slots(company_id), key=lambda s: s.sort_order)
+        )
+        parts.append(hashlib.sha1(slots.encode()).hexdigest()[:12])
+    return ":".join(parts)
 
 
 def _resolve_exit_raw(row: dict[str, Any], use_last: bool) -> object:
@@ -45,11 +84,10 @@ def apply_punch_accounting_to_proposal(
     if not settings.enabled:
         return proposal
 
+    # Absence de créneau volontaire chez les sociétés à horaires variables :
+    # la pause s'y résout par le seuil de présence, pas par une grille, et le
+    # théorique de la journée vaut le pointé.
     slots = repo.list_slots(company_id)
-    if not slots:
-        # Absence de créneau volontaire chez les sociétés à horaires variables :
-        # la pause s'y résout par le seuil de présence, pas par une grille.
-        return proposal
 
     quality_checks: List[TimesheetQualityCheck] = list(proposal.quality_checks)
     employees_out: List[AiEmployeeProposal] = []
@@ -62,7 +100,12 @@ def apply_punch_accounting_to_proposal(
             exit_raw = day.punch_exit_raw
             shift_code = day.shift_code
 
-            if entry_raw is None and exit_raw is None and day.heures is not None:
+            if entry_raw is None and exit_raw is None and (
+                day.heures is not None or not slots
+            ):
+                # Rien à recomptabiliser : soit les heures sont déjà là, soit,
+                # sans grille horaire, la journée ne porte aucun élément à
+                # confronter — l'inventer en absence effacerait une saisie.
                 new_days.append(day)
                 continue
 

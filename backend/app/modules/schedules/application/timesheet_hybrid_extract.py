@@ -33,6 +33,9 @@ from app.modules.schedules.application.timesheet_page_merge import (
     MergedExtractionResult,
     merge_page_results,
 )
+from app.modules.schedules.domain.punch_accounting_entities import (
+    PunchAccountingSettings,
+)
 from app.modules.schedules.application.timesheet_page_schema import (
     PAGE_EXTRACTION_JSON_SCHEMA,
     build_page_system_prompt,
@@ -90,6 +93,7 @@ def _extract_single_page_hybrid(
     matricule_hint: str,
     format_hint: str | None = None,
     week_anchor_context: str = "",
+    punch_settings: PunchAccountingSettings | None = None,
 ) -> PageExtractionResult:
     tokens = 0
     vision_data: dict[str, Any] | None = None
@@ -160,6 +164,7 @@ def _extract_single_page_hybrid(
         year=year,
         month=month,
         format_hint=FORMAT_HINT if handwritten_weekly else format_hint,
+        punch_settings=punch_settings,
     )
 
 
@@ -243,6 +248,7 @@ def extract_timesheet_hybrid(
     on_progress: ProgressCallback | None = None,
     week_anchor_context: str = "",
     week_anchor_date: date | None = None,
+    punch_settings: PunchAccountingSettings | None = None,
 ) -> HybridExtractResult:
     """
     Extraction hybride page par page avec consensus vision/OCR.
@@ -284,6 +290,7 @@ def extract_timesheet_hybrid(
                 matricule_hint=mat_hint,
                 format_hint=format_hint,
                 week_anchor_context=week_anchor_context,
+                punch_settings=punch_settings,
             ): page.page_index
             for page in rendered.pages
         }
