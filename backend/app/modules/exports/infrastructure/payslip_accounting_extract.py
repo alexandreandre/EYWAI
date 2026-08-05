@@ -126,6 +126,17 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                     "montant": gain,
                 }
             )
+            # Participation placée sur un plan d'épargne : elle ne va pas au net
+            # à payer. Seule la CSG/CRDS (9,7 %) est prélevée sur le salaire, et
+            # figure déjà parmi les cotisations.
+            if "PEE" in libelle.upper():
+                elements.append(
+                    {
+                        "famille": FAMILLE_PARTICIPATION_PEE,
+                        "libelle": f"{libelle} — part placée sur un plan d'épargne",
+                        "montant": -round(gain * (1 - 0.097), 2),
+                    }
+                )
 
     for part in participations:
         if not isinstance(part, dict):
@@ -134,6 +145,11 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
         part_pee = float(part.get("part_pee", 0) or 0)
         csg_total = float(part.get("csg_total", 0) or 0)
         libelle = str(part.get("libelle") or "Participation")
+        # Certaines lignes de participation placée sur un plan d'épargne portent
+        # l'information dans leur seul libellé, `part_pee` restant à zéro. Sans
+        # cette reprise, le montant est traité comme versé au salarié.
+        if part_pee == 0 and "PEE" in libelle.upper():
+            part_pee = brut
         # Le versement éteint la dette de participation provisionnée à la clôture
         # précédente ; la CSG figure déjà parmi les cotisations.
         if brut != 0:
