@@ -23,6 +23,44 @@
 
 ---
 
+## État d'avancement au 5 août 2026
+
+Tâches 1 à 12 faites, sauf le paramétrage effectif d'une société (tâche 12,
+étape 4) qui attend d'appliquer la migration. Tâche 13 : le garde-fou
+d'environnement est posé, la configuration Cegid attend les identifiants du
+cabinet.
+
+**Écarts d'équilibre mesurés sur la production :**
+
+| Société | Mai 2026 | Juin 2026 | Reste à paramétrer |
+|---|---|---|---|
+| Colorplast | 0,00 | 0,00 | — |
+| Comitech | 0,00 | 0,00 | — |
+| Cartol | 0,00 | 20,00 | panier |
+| LEWIS | 1 734,86 | 1 073,00 | panier, IJSS |
+| Mont Blanc | 2 563,58 | 616,50 | cantine, panier, IJSS |
+
+Plus aucune cause inconnue : tous les écarts restants portent sur des familles
+sans compte comptable, remontées en anomalie nommée.
+
+**Trois pièges de données découverts en cours de route**, absents du plan initial :
+1. La participation a deux représentations — tableau `participations`, ou ligne
+   `is_informative` dans `calcul_du_brut`.
+2. `part_pee` est brut de CSG.
+3. Les revenus non soumis mais imposables sont dans
+   `revenus_hors_brut_imposables`, clé absente des bulletins anciens — d'où un
+   repli sur `monthly_inputs`.
+
+**La tâche 6 n'a pas eu besoin d'être écrite** : l'agrégation par compte est
+acquise par construction dans la tâche 5 (16 lignes, 16 comptes distincts,
+aucun doublon).
+
+**Sources de double comptage à connaître :** `synthese_net.acompte_verse`
+agrège acomptes et saisies sur salaire ; les notes de frais ont leur propre
+extraction. D'où `FAMILLES_DEJA_COUVERTES` dans `accounting_plan.py`.
+
+---
+
 ## Structure des fichiers
 
 **Créés :**
