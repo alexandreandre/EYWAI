@@ -233,14 +233,13 @@ def _duree_hebdomadaire(employee: Dict[str, Any]) -> str:
 
 
 def _periode_essai(employee: Dict[str, Any]) -> str:
-    for key in (
-        "periode_essai_duree",
-        "periode_essai",
-        "trial_period_duration",
-        "duree_periode_essai",
-    ):
+    for key in ("periode_essai_duree", "trial_period_duration", "duree_periode_essai"):
         if employee.get(key) is not None:
             return _s(employee.get(key))
+    # Sinon, la période d'essai active jointe depuis trial_periods.
+    trial = employee.get("trial_period")
+    if isinstance(trial, dict) and trial.get("duration_value"):
+        return f"{trial['duration_value']} {trial.get('duration_unit') or 'mois'}"
     return ""
 
 

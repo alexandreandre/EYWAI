@@ -119,7 +119,8 @@ class FullEmployee(BaseModel):
     statut: str | None = None
     is_forfait_jour: bool | None = None
     job_title: str | None = None
-    periode_essai: Dict[str, Any] | None = None
+    # Période d'essai active, jointe depuis trial_periods (lecture seule).
+    trial_period: Dict[str, Any] | None = None
     is_temps_partiel: bool | None = None
     duree_hebdomadaire: float | None = None
     # Section Rémunération

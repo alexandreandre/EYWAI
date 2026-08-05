@@ -14,7 +14,6 @@ export type OnboardingEmployeeHeader = {
   hire_date?: string | null;
   contract_type?: string | null;
   statut?: string | null;
-  periode_essai?: Record<string, unknown> | null;
   trial_period_end_date?: string | null;
 };
 
@@ -165,26 +164,18 @@ export function isWithinLookback(hireDate: string | null | undefined, days = ONB
   return hire >= startOfDay(cutoff);
 }
 
+/**
+ * Fin de période d'essai telle que calculée par le backend. Le recalcul local
+ * a été retiré : il reproduisait le décompte à un jour près et pouvait
+ * contredire la fiche.
+ */
 export function formatPeriodeEssaiEnd(
-  hireDate: string | null | undefined,
-  periodeEssai: Record<string, unknown> | null | undefined,
   trialPeriodEndDate?: string | null,
 ): string | null {
-  if (trialPeriodEndDate) {
-    return new Date(trialPeriodEndDate.slice(0, 10)).toLocaleDateString("fr-FR", {
-      dateStyle: "long",
-    });
-  }
-  const hire = parseDateOnly(hireDate);
-  if (!hire || !periodeEssai) return null;
-  const duree = Number(periodeEssai.duree_initiale ?? periodeEssai.duree);
-  const unite = String(periodeEssai.unite ?? "mois").toLowerCase();
-  if (!duree || Number.isNaN(duree)) return null;
-  const end = new Date(hire);
-  if (unite.startsWith("jour")) end.setDate(end.getDate() + duree);
-  else if (unite.startsWith("sem")) end.setDate(end.getDate() + duree * 7);
-  else end.setMonth(end.getMonth() + duree);
-  return end.toLocaleDateString("fr-FR", { dateStyle: "long" });
+  if (!trialPeriodEndDate) return null;
+  return new Date(trialPeriodEndDate.slice(0, 10)).toLocaleDateString("fr-FR", {
+    dateStyle: "long",
+  });
 }
 
 export function formatEmployeeMetaLine(employee: OnboardingEmployeeHeader): string {
@@ -195,11 +186,7 @@ export function formatEmployeeMetaLine(employee: OnboardingEmployeeHeader): stri
   if (hireLabel) parts.push(`Embauché le ${hireLabel}`);
   const j = daysSinceHire(employee.hire_date);
   if (j != null) parts.push(`J+${j}`);
-  const peEnd = formatPeriodeEssaiEnd(
-    employee.hire_date,
-    employee.periode_essai,
-    employee.trial_period_end_date,
-  );
+  const peEnd = formatPeriodeEssaiEnd(employee.trial_period_end_date);
   if (peEnd) parts.push(`Fin période d'essai ${peEnd}`);
   return parts.join(" · ");
 }

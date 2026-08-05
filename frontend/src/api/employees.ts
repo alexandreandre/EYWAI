@@ -40,7 +40,6 @@ export type UpdateEmployeePayload = {
   date_conclusion_contrat?: string | null;
   prior_service_months?: number | null;
   seniority_reference_date?: string | null;
-  periode_essai?: Record<string, unknown> | null;
   hire_date?: string;
   job_title?: string;
   contract_type?: string;

@@ -826,9 +826,8 @@ def process_payslip_generation(
                 "statut": employee_data.get("statut"),
                 "is_forfait_jour": bool(employee_data.get("is_forfait_jour")),
                 "emploi": employee_data.get("job_title"),
-                "periode_essai": _parse_if_json_string(
-                    employee_data.get("periode_essai")
-                ),
+                # Période d'essai active, jointe depuis trial_periods.
+                "periode_essai": employee_data.get("trial_period"),
                 "temps_travail": _build_temps_travail_payload(employee_data),
             },
             "remuneration": {

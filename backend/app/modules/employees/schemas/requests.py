@@ -86,7 +86,6 @@ class UpdateEmployee(BaseModel):
     prior_service_months: int | None = None
     seniority_reference_date: date | None = None
     specificites_paie: Dict[str, Any] | None = None
-    periode_essai: Dict[str, Any] | None = None
     hire_date: date | None = None
     job_title: str | None = None
     contract_type: str | None = None
