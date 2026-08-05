@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { confirmTrialPeriod, updateEmployee } from "@/api/employees";
+import { getEmployee } from "@/api/employees";
+import {
+  confirmTrialPeriod,
+  createTrialPeriod,
+  renewTrialPeriod,
+  updateTrialPeriod,
+  type TrialPeriodUnit,
+} from "@/api/trialPeriods";
 import { TrialPeriodBadge, type TrialPeriodData } from "@/components/TrialPeriodBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,16 +30,16 @@ import {
   formatTrialPeriodEndPreview,
 } from "@/lib/trialPeriodUtils";
 
-type PeriodeEssaiForm = {
+type TrialForm = {
   enabled: boolean;
   duree_initiale: number;
-  unite: "jours" | "semaines" | "mois";
+  unite: TrialPeriodUnit;
   renouvellement_possible: boolean;
 };
 
-function readPeriodeEssai(employee: Employee): PeriodeEssaiForm {
-  const pe = employee.periode_essai;
-  if (!pe || typeof pe !== "object") {
+function readTrialForm(employee: Employee): TrialForm {
+  const tp = employee.trial_period;
+  if (!tp) {
     return {
       enabled: false,
       duree_initiale: 2,
@@ -40,22 +47,23 @@ function readPeriodeEssai(employee: Employee): PeriodeEssaiForm {
       renouvellement_possible: true,
     };
   }
-  const raw = pe as Record<string, unknown>;
   return {
-    enabled: true,
-    duree_initiale: Number(raw.duree_initiale ?? raw.duree ?? 2),
-    unite: (String(raw.unite ?? "mois").startsWith("jour")
-      ? "jours"
-      : String(raw.unite ?? "mois").startsWith("sem")
-        ? "semaines"
-        : "mois") as PeriodeEssaiForm["unite"],
-    renouvellement_possible: Boolean(raw.renouvellement_possible ?? true),
+    enabled: tp.status !== "rompue",
+    duree_initiale: tp.duration_value,
+    unite: tp.duration_unit,
+    renouvellement_possible: tp.renewal_allowed,
   };
 }
 
-function formatEndDate(iso: string | null | undefined): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso.slice(0, 10)).toLocaleDateString("fr-FR", { dateStyle: "long" });
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return (
+    (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || fallback
+  );
 }
 
 interface EmployeeDetailTrialPeriodCardProps {
@@ -68,14 +76,22 @@ export function EmployeeDetailTrialPeriodCard({
   onEmployeeUpdated,
 }: EmployeeDetailTrialPeriodCardProps) {
   const navigate = useNavigate();
-  const initial = useMemo(() => readPeriodeEssai(employee), [employee]);
-  const [form, setForm] = useState<PeriodeEssaiForm>(initial);
+  const initial = useMemo(() => readTrialForm(employee), [employee]);
+  const [form, setForm] = useState<TrialForm>(initial);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const [renewalDate, setRenewalDate] = useState<string>("");
+  const [renewalValue, setRenewalValue] = useState<number>(2);
+  const [renewalUnit, setRenewalUnit] = useState<TrialPeriodUnit>("mois");
 
+  // `initial` est mémoïsé sur `employee` : le formulaire se recale dès que la
+  // fiche est rechargée après une écriture.
   useEffect(() => {
-    setForm(readPeriodeEssai(employee));
-  }, [employee.id, employee.periode_essai, employee.trial_period_status]);
+    setForm(initial);
+  }, [initial]);
+
+  const trial = employee.trial_period ?? null;
 
   const trialData: TrialPeriodData = {
     trial_period_applicable: employee.trial_period_applicable,
@@ -85,12 +101,14 @@ export function EmployeeDetailTrialPeriodCard({
     trial_period_renewal_possible: employee.trial_period_renewal_possible,
   };
 
-  const showCard =
-    employee.trial_period_applicable ||
-    employee.trial_period_status === "to_complete" ||
-    form.enabled;
+  // La carte reste visible pour tout salarié suivi : c'est le point d'entrée
+  // permettant d'activer le suivi après la création, quelle que soit son
+  // ancienneté. La condition précédente la masquait passé 90 jours, soit pour
+  // 239 salariés sur 241.
+  const trackable =
+    employee.employment_status === "actif" || employee.employment_status === "en_onboarding";
 
-  if (!showCard) return null;
+  if (!trackable) return null;
 
   const dirty =
     form.enabled !== initial.enabled ||
@@ -98,20 +116,19 @@ export function EmployeeDetailTrialPeriodCard({
     form.unite !== initial.unite ||
     form.renouvellement_possible !== initial.renouvellement_possible;
 
-  const canConfirm =
-    employee.trial_period_status !== "confirmed" &&
-    (employee.trial_period_status === "ending_soon" ||
-      employee.trial_period_status === "ended" ||
-      employee.trial_period_status === "in_progress");
+  const canConfirm = trial != null && trial.status === "en_cours";
+  const canRenew =
+    trial != null && trial.status === "en_cours" && trial.renewal_allowed && !trial.renewed_at;
 
   const endPreview =
     form.enabled && employee.hire_date
-      ? formatTrialPeriodEndPreview(
-          employee.hire_date,
-          form.duree_initiale,
-          form.unite,
-        )
+      ? formatTrialPeriodEndPreview(employee.hire_date, form.duree_initiale, form.unite)
       : null;
+
+  const reloadEmployee = async () => {
+    const fresh = await getEmployee(employee.id);
+    onEmployeeUpdated(fresh);
+  };
 
   const handleSave = async () => {
     if (form.enabled && !employee.hire_date) {
@@ -126,28 +143,36 @@ export function EmployeeDetailTrialPeriodCard({
 
     setSaving(true);
     try {
-      const payload = form.enabled
-        ? {
-            periode_essai: {
-              duree_initiale: form.duree_initiale,
-              unite: form.unite,
-              renouvellement_possible: form.renouvellement_possible,
-              statut:
-                employee.trial_period_status === "confirmed"
-                  ? "confirmee"
-                  : "en_cours",
-            },
-          }
-        : { periode_essai: null };
-      const updated = await updateEmployee(employee.id, payload);
-      onEmployeeUpdated(updated);
+      if (!form.enabled) {
+        toast({
+          title: "Suivi non désactivable",
+          description:
+            "Une période d'essai enregistrée se clôt en confirmant l'embauche ou en enregistrant une rupture, jamais en l'effaçant.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (trial) {
+        await updateTrialPeriod(trial.id, {
+          duration_value: form.duree_initiale,
+          duration_unit: form.unite,
+          renewal_allowed: form.renouvellement_possible,
+        });
+      } else {
+        await createTrialPeriod({
+          employee_id: employee.id,
+          start_date: employee.hire_date!.slice(0, 10),
+          duration_value: form.duree_initiale,
+          duration_unit: form.unite,
+          renewal_allowed: form.renouvellement_possible,
+        });
+      }
+      await reloadEmployee();
       toast({ title: "Période d'essai enregistrée" });
     } catch (error: unknown) {
       toast({
         title: "Erreur",
-        description:
-          (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-          "Impossible d'enregistrer la période d'essai.",
+        description: errorMessage(error, "Impossible d'enregistrer la période d'essai."),
         variant: "destructive",
       });
     } finally {
@@ -156,21 +181,44 @@ export function EmployeeDetailTrialPeriodCard({
   };
 
   const handleConfirm = async () => {
+    if (!trial) return;
     setConfirming(true);
     try {
-      const updated = await confirmTrialPeriod(employee.id);
-      onEmployeeUpdated(updated);
+      await confirmTrialPeriod(trial.id);
+      await reloadEmployee();
       toast({ title: "Embauche confirmée", description: "Le suivi de période d'essai est clos." });
     } catch (error: unknown) {
       toast({
         title: "Erreur",
-        description:
-          (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-          "Impossible de confirmer l'embauche.",
+        description: errorMessage(error, "Impossible de confirmer l'embauche."),
         variant: "destructive",
       });
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleRenew = async () => {
+    if (!trial || !renewalDate) return;
+    setRenewing(true);
+    try {
+      await renewTrialPeriod(trial.id, {
+        renewed_at: renewalDate,
+        duration_value: renewalValue,
+        duration_unit: renewalUnit,
+      });
+      await reloadEmployee();
+      toast({ title: "Renouvellement enregistré" });
+    } catch (error: unknown) {
+      // Le backend refuse un renouvellement notifié après le terme : son
+      // message explique le refus, on le montre tel quel.
+      toast({
+        title: "Renouvellement refusé",
+        description: errorMessage(error, "Impossible d'enregistrer le renouvellement."),
+        variant: "destructive",
+      });
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -196,18 +244,30 @@ export function EmployeeDetailTrialPeriodCard({
           </p>
         ) : (
           <p className="text-sm text-amber-700">
-            Renseignez d&apos;abord la date d&apos;entrée sur la fiche contrat pour calculer la
-            fin de période d&apos;essai.
+            Renseignez d&apos;abord la date d&apos;entrée sur la fiche contrat pour calculer la fin
+            de période d&apos;essai.
           </p>
         )}
 
-        {employee.trial_period_end_date && employee.trial_period_status !== "to_complete" ? (
+        {trial ? (
           <p className="text-sm text-muted-foreground">
-            Fin prévue le {formatEndDate(employee.trial_period_end_date)}
-            {employee.trial_period_days_remaining != null &&
-            employee.trial_period_status !== "confirmed"
+            Fin prévue le {formatDate(trial.end_date)}
+            {employee.trial_period_days_remaining != null && trial.status === "en_cours"
               ? ` · J-${Math.max(0, employee.trial_period_days_remaining)}`
               : null}
+          </p>
+        ) : null}
+
+        {trial?.renewed_at ? (
+          <p className="text-sm text-muted-foreground">
+            Renouvelée le {formatDate(trial.renewed_at)} pour {trial.renewal_duration_value}{" "}
+            {trial.renewal_duration_unit} — fin repoussée au {formatDate(trial.end_date)}
+          </p>
+        ) : null}
+
+        {trial?.confirmed_at ? (
+          <p className="text-sm text-muted-foreground">
+            Embauche confirmée le {formatDate(trial.confirmed_at)}
           </p>
         ) : null}
 
@@ -217,6 +277,7 @@ export function EmployeeDetailTrialPeriodCard({
             <Switch
               id="trial-enabled"
               checked={form.enabled}
+              disabled={trial != null}
               onCheckedChange={(checked) => setForm((prev) => ({ ...prev, enabled: checked }))}
             />
           </div>
@@ -242,10 +303,7 @@ export function EmployeeDetailTrialPeriodCard({
                 <Select
                   value={form.unite}
                   onValueChange={(value) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      unite: value as PeriodeEssaiForm["unite"],
-                    }))
+                    setForm((prev) => ({ ...prev, unite: value as TrialPeriodUnit }))
                   }
                 >
                   <SelectTrigger>
@@ -275,13 +333,74 @@ export function EmployeeDetailTrialPeriodCard({
               </div>
             </div>
           )}
-          {endPreview ? (
-            <p className="text-sm text-muted-foreground">{endPreview}</p>
-          ) : null}
+          {endPreview ? <p className="text-sm text-muted-foreground">{endPreview}</p> : null}
         </div>
 
+        {canRenew && (
+          <div className="space-y-4 rounded-md border p-4">
+            <div>
+              <Label className="text-sm font-medium">Enregistrer un renouvellement</Label>
+              <p className="text-xs text-muted-foreground">
+                Il doit être notifié au salarié avant le terme, soit au plus tard le{" "}
+                {formatDate(trial.end_date)}.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="renewal-date">Date de décision</Label>
+                <Input
+                  id="renewal-date"
+                  type="date"
+                  value={renewalDate}
+                  onChange={(e) => setRenewalDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="renewal-duration">Durée</Label>
+                <Input
+                  id="renewal-duration"
+                  type="number"
+                  min={1}
+                  value={renewalValue}
+                  onChange={(e) => setRenewalValue(Number(e.target.value) || 1)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unité</Label>
+                <Select
+                  value={renewalUnit}
+                  onValueChange={(value) => setRenewalUnit(value as TrialPeriodUnit)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="jours">Jours</SelectItem>
+                    <SelectItem value="semaines">Semaines</SelectItem>
+                    <SelectItem value="mois">Mois</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!renewalDate || renewing}
+              onClick={() => void handleRenew()}
+            >
+              {renewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Enregistrer le renouvellement
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" disabled={!dirty || saving} onClick={() => void handleSave()}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!dirty || saving}
+            onClick={() => void handleSave()}
+          >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Enregistrer
           </Button>
@@ -291,7 +410,7 @@ export function EmployeeDetailTrialPeriodCard({
               Confirmer l&apos;embauche
             </Button>
           )}
-          {employee.trial_period_status !== "confirmed" && form.enabled && (
+          {trial?.status === "en_cours" && (
             <Button type="button" variant="outline" onClick={handleBreak}>
               Rompre la période d&apos;essai
             </Button>

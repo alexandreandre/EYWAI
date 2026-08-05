@@ -69,7 +69,20 @@ export interface Employee {
   poste?: string | null;
   weekly_hours?: unknown;
   team_id?: string | null;
-  periode_essai?: Record<string, unknown> | null;
+  /** Période d'essai active, jointe depuis la table trial_periods. */
+  trial_period?: {
+    id: string;
+    start_date: string;
+    end_date: string;
+    status: "en_cours" | "confirmee" | "rompue";
+    duration_value: number;
+    duration_unit: "jours" | "semaines" | "mois";
+    renewal_allowed: boolean;
+    renewed_at: string | null;
+    renewal_duration_value: number | null;
+    renewal_duration_unit: "jours" | "semaines" | "mois" | null;
+    confirmed_at: string | null;
+  } | null;
   trial_period_applicable?: boolean | null;
   trial_period_status?:
     | "in_progress"
