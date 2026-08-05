@@ -102,6 +102,35 @@ def _grant_collaborator_company_access(
         )
 
 
+def _create_trial_period_for_new_employee(
+    employee_row: Dict[str, Any],
+    company_id: str,
+    requested: Optional[Dict[str, Any]],
+    wanted: bool,
+    created_by: Optional[str],
+) -> None:
+    """Pose la période d'essai du nouveau salarié, si son contrat en ouvre une."""
+    from app.modules.trial_periods.application import commands as trial_commands
+    from app.modules.trial_periods.application.creation import plan_trial_period
+    from app.modules.trial_periods.application.queries import fetch_company_settings
+
+    plan = plan_trial_period(
+        employee_row,
+        fetch_company_settings(company_id),
+        requested,
+        wanted=wanted,
+    )
+    if plan is None:
+        return
+
+    trial_commands.create_trial_period(
+        company_id=company_id,
+        employee_id=str(employee_row["id"]),
+        created_by=created_by,
+        **plan,
+    )
+
+
 def _create_user_with_technical_fallback(
     auth: Any,
     *,
@@ -144,6 +173,12 @@ async def create_employee(
         last_name = employee_data["last_name"]
         email = employee_data["email"]
         job_title = employee_data.get("job_title") or ""
+
+        # La période d'essai vit dans sa propre table : on la sort du dict
+        # d'insertion avant qu'il ne parte vers employees.
+        employee_data = dict(employee_data)
+        requested_trial = employee_data.pop("periode_essai", None)
+        wanted_trial = bool(employee_data.pop("has_periode_essai", True))
 
         simple_punctuation = "!@#$%*?"
         alphabet = string.ascii_letters + string.digits + simple_punctuation
@@ -226,6 +261,21 @@ async def create_employee(
             ) from grant_err
 
         employee_id = str(new_employee_db["id"])
+
+        # Période d'essai : le barème société propose, la saisie du formulaire
+        # prime. Un échec ici ne doit pas annuler l'embauche — la période se
+        # rattrape depuis la fiche ou la page de suivi.
+        try:
+            _create_trial_period_for_new_employee(
+                new_employee_db,
+                company_id,
+                requested_trial,
+                wanted_trial,
+                granted_by_user_id,
+            )
+        except Exception:
+            logger.exception("Création de la période d'essai impossible")
+
         storage_prefix = f"{company_id}/{employee_id}"
         company_data = company_reader.get_company_data(company_id)
         if not company_data:

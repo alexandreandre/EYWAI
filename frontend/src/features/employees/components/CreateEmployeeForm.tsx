@@ -35,6 +35,11 @@ import {
   sortAffiliatedCompanyAgreements,
 } from "@/lib/companyCollectiveAgreementUtils";
 
+/**
+ * Valeurs d'amorçage du formulaire. Le barème qui fait foi vit côté serveur,
+ * dans les réglages société : ces valeurs ne sont qu'un point de départ
+ * modifiable, et le serveur applique son barème si l'utilisateur n'y touche pas.
+ */
 function defaultTrialSettings(contractType: string) {
   const ct = (contractType || "").toLowerCase();
   const excluded =
@@ -663,12 +668,10 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const payload = {
     ...values,
     team_id: values.team_id?.trim() ? values.team_id.trim() : null,
-    periode_essai: values.has_periode_essai
-      ? {
-          ...values.periode_essai!,
-          statut: "en_cours",
-        }
-      : null,
+    // La période d'essai est créée côté serveur, à partir du barème société
+    // que cette saisie surcharge éventuellement.
+    has_periode_essai: values.has_periode_essai,
+    periode_essai: values.has_periode_essai ? values.periode_essai : null,
     specificites_paie: {
       ...values.specificites_paie,
       // On met à jour la section mutuelle pour inclure "adhesion"
@@ -686,7 +689,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       },
     }
   };
-  delete (payload as { has_periode_essai?: boolean }).has_periode_essai;
 
   try {
     // 1. Créer un objet FormData

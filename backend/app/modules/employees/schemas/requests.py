@@ -42,6 +42,10 @@ class NewFullEmployee(BaseModel):
     statut: str
     is_forfait_jour: bool = False
     job_title: str
+    # Période d'essai souhaitée à l'embauche : elle n'est pas stockée sur la
+    # fiche mais sert à créer la ligne trial_periods. Sans saisie, le barème
+    # société s'applique ; has_periode_essai à False n'en crée aucune.
+    has_periode_essai: bool = True
     periode_essai: Dict[str, Any] | None = None
     is_temps_partiel: bool
     duree_hebdomadaire: float
