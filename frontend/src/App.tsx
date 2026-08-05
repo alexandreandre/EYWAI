@@ -216,6 +216,7 @@ function ProtectedRoutes() {
                   <Route path="/employee-exits" element={<Pages.EmployeeExits />} />
                   <Route path="/employee-exits/:exitId/documents/:documentId/edit" element={<Pages.ExitDocumentEdit />} />
                   <Route path="/residence-permits" element={<Pages.ResidencePermits />} />
+                  <Route path="/trial-periods" element={<Pages.TrialPeriods />} />
                   <Route
                     path="/medical-follow-up"
                     element={
