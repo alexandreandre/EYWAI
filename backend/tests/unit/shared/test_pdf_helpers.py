@@ -24,7 +24,7 @@ def test_get_company_address_from_structured_fields() -> None:
 
 
 def test_format_periode_essai_from_object() -> None:
-    employee = {"periode_essai": {"duree_initiale": 3, "unite": "mois"}}
+    employee = {"trial_period": {"duration_value": 3, "duration_unit": "mois"}}
     text = format_periode_essai(employee)
     assert "3 mois" in text
 

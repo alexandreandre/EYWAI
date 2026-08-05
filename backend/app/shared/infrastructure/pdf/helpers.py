@@ -223,20 +223,24 @@ def format_periode_essai(employee: Dict[str, Any]) -> str:
         if val is not None and str(val).strip():
             return str(val).strip()
 
-    pe = employee.get("periode_essai")
-    if isinstance(pe, dict):
-        duree = pe.get("duree_initiale") or pe.get("duree")
-        if duree is not None:
-            unite = str(pe.get("unite") or "mois").lower()
+    # La génération du contrat peut précéder la création de la période : le
+    # repli légal reste alors la sortie.
+    trial = employee.get("trial_period")
+    if isinstance(trial, dict):
+        try:
+            duree = int(trial.get("duration_value"))
+        except (TypeError, ValueError):
+            duree = 0
+        if duree > 0:
+            unite = str(trial.get("duration_unit") or "mois").lower()
             if unite.startswith("jour"):
-                label = "jour" if int(duree) == 1 else "jours"
+                label = "jour" if duree == 1 else "jours"
             elif unite.startswith("sem"):
-                label = "semaine" if int(duree) == 1 else "semaines"
+                label = "semaine" if duree == 1 else "semaines"
             else:
                 label = "mois"
-            renouv = pe.get("renouvellement_possible")
             base = f"{duree} {label}"
-            if renouv:
+            if trial.get("renewal_allowed"):
                 return f"{base}, renouvelable une fois conformément aux dispositions légales et conventionnelles"
             return f"{base}, conformément aux dispositions légales et conventionnelles applicables"
 
