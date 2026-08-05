@@ -17,6 +17,9 @@ NET_SUPERIEUR_BRUT_MESSAGE = "Net > Brut"
 _ALERT_CODES_NON_ACTIONNABLES_LISTE = {
     "prime_anciennete_non_applicable_cadre",
     "prime_anciennete_prorata_zero",
+    # Ancienneté insuffisante pour la prime : cas normal d'un salarié récent.
+    # Le moteur ne l'émet plus, mais les bulletins générés avant le fix la portent.
+    "prime_anciennete_non_eligible",
 }
 _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE = {
     "Ancienneté insuffisante pour le maintien légal",
@@ -114,7 +117,9 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         alertes.append(
             _alert(
                 code="cc_regles_absentes",
-                critique=True,
+                # Paramétrage manquant côté outil : le bulletin reste juste,
+                # seul le contrôle des minima ne peut pas être joué.
+                critique=False,
                 message=(
                     f"Aucune règle paie extraite pour {libelle_cc} (IDCC {idcc}). "
                     "Le moteur ne peut pas vérifier les minima conventionnels."
@@ -135,7 +140,7 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         alertes.append(
             _alert(
                 code="cc_classification_manquante",
-                critique=True,
+                critique=False,
                 message=(
                     f"Classification conventionnelle absente sur la fiche salarié "
                     f"({libelle_cc}). Impossible de contrôler le minimum conventionnel."
@@ -152,7 +157,7 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         alertes.append(
             _alert(
                 code="cc_grille_vide",
-                critique=True,
+                critique=False,
                 message=(
                     f"Aucune grille salariale disponible pour {libelle_cc} "
                     f"(IDCC {idcc}). Mettez à jour la convention depuis Légifrance."
@@ -190,7 +195,7 @@ def controle_convention_collective(contexte, salaire_brut: float) -> List[Dict[s
         alertes.append(
             _alert(
                 code="cc_coefficient_hors_grille",
-                critique=True,
+                critique=False,
                 message=message,
             )
         )
@@ -534,6 +539,8 @@ def extraire_alertes_rh_depuis_bulletin(
     for raw in payslip_data.get("alertes_baremes") or []:
         if not isinstance(raw, dict):
             continue
+        if str(raw.get("code") or "") in _ALERT_CODES_NON_ACTIONNABLES_LISTE:
+            continue
         msg = _rh_alert_message(raw)
         if not msg:
             continue
@@ -550,7 +557,7 @@ def extraire_alertes_rh_depuis_bulletin(
     if isinstance(synthese, dict):
         for msg in synthese.get("alertes_maintien") or []:
             text = str(msg).strip()
-            if text:
+            if text and text not in _MAINTIEN_MESSAGES_NON_ACTIONNABLES_LISTE:
                 out.append(
                     {
                         "source": "maintien_salaire",

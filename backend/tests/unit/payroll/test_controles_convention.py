@@ -276,3 +276,35 @@ class TestControleNetSuperieurBrut:
         )
         # 912 € > 1808.33 * 15/35 ≈ 775 €
         assert controle_convention_collective(ctx, 912.0) == []
+
+
+class TestAlertesNonAnxiogenes:
+    """#29 — les alertes de paramétrage ne doivent pas s'afficher en « bloquant »."""
+
+    def test_classification_manquante_est_un_avertissement(self):
+        ctx = _contexte()
+        ctx.contrat["remuneration"]["classification_conventionnelle"] = {}
+        alertes = controle_convention_collective(ctx, 3000.0)
+        assert alertes[0]["code"] == "cc_classification_manquante"
+        assert alertes[0]["critique"] is False
+
+    def test_regles_absentes_est_un_avertissement(self):
+        ctx = _contexte(regles={})
+        ctx.baremes = {"conventions_collectives": {}}
+        alertes = controle_convention_collective(ctx, 3000.0)
+        assert alertes[0]["critique"] is False
+
+    def test_anciennete_insuffisante_masquee_dans_le_rapport(self):
+        data = {
+            "alertes_baremes": [
+                {
+                    "code": "prime_anciennete_non_eligible",
+                    "critique": False,
+                    "message": "Ancienneté insuffisante (0 < 3 ans)",
+                }
+            ],
+            "synthese_net": {
+                "alertes_maintien": ["Ancienneté insuffisante pour le maintien légal"]
+            },
+        }
+        assert extraire_alertes_rh_depuis_bulletin(data) == []

@@ -2,14 +2,13 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.contexte")
 import json
-import os
 import tempfile
 import shutil
 import calendar
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from supabase import create_client, Client
+from supabase import Client
 
 from .baremes_loader import (
     assembler_baremes,
@@ -192,13 +191,13 @@ class ContextePaie:
             if supabase_client is not None:
                 supabase = supabase_client
             else:
-                supabase_url = os.environ["SUPABASE_URL"]
-                supabase_key = os.environ[
-                    "SUPABASE_SERVICE_KEY"
-                ]  # Doit être la clé de service
-                if not supabase_url or not supabase_key:
-                    raise KeyError
-                supabase = create_client(supabase_url, supabase_key)
+                # Client admin (service_role) : `payroll_config` est sous RLS,
+                # une clé anon ne verrait que les barèmes globaux — silencieusement.
+                # get_supabase_admin_client() choisit la clé dont le rôle JWT est
+                # bien service_role, quel que soit le nom de la variable.
+                from app.core.database import get_supabase_admin_client
+
+                supabase = get_supabase_admin_client()
         except KeyError:
             logger.warning('ERREUR: Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes.')
             raise RuntimeError("Variables d'environnement Supabase non configurées.")
