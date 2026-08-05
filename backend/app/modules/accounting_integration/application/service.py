@@ -280,8 +280,14 @@ def transmit_compta_files(
     mode = str(row.get("mode") or "manual")
     platform_row = repository.get_platform_provider(provider_key)
 
+    # L'environnement de test tourne sur une copie des données réelles : une
+    # transmission partirait vers la comptabilité réelle du client. Même verrou
+    # que pour le dépôt de DSN et la signature électronique.
+    bloque_par_environnement_test = settings.is_test_environment()
+
     use_manual = (
         force_manual
+        or bloque_par_environnement_test
         or bool(row.get("force_manual"))
         or mode == TransmissionMode.MANUAL.value
         or provider_key == "manual"
@@ -315,12 +321,19 @@ def transmit_compta_files(
     )
 
     if use_manual:
+        message = "Mode manuel — fichiers disponibles au téléchargement."
+        if bloque_par_environnement_test:
+            message = (
+                "Transmission comptable désactivée en environnement de test : "
+                "aucune écriture n'est envoyée. Fichiers disponibles au "
+                "téléchargement."
+            )
         return TransmitComptaResult(
             success=True,
             status=TransmissionStatus.MANUAL.value,
-            message="Mode manuel — fichiers disponibles au téléchargement.",
+            message=message,
             transmission_id=transmission_id,
-            manual_fallback=False,
+            manual_fallback=bloque_par_environnement_test,
         )
 
     connector = resolve_connector(row, platform_row, force_manual=False)
