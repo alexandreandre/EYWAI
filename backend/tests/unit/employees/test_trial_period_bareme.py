@@ -1,5 +1,7 @@
 """Barème de période d'essai par société, avec repli légal."""
 
+import pytest
+
 from app.modules.employees.domain.trial_period_bareme import (
     DEFAULT_ALERT_DAYS,
     resolve_alert_days,
@@ -108,3 +110,97 @@ def test_delai_d_alerte_par_defaut_et_surcharge():
 def test_casse_et_espaces_ignores():
     p = resolve_trial_proposal({}, "  cdi ", "cadre")
     assert p.duration_value == 4
+
+
+class TestValidateTrialPeriodSettings:
+    """Le barème saisi par un RH doit être nettoyé avant d'entrer en base."""
+
+    def test_bareme_valide_conserve(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        out = validate_trial_period_settings(
+            {
+                "alerte_jours": 30,
+                "regle_legale_cdd": False,
+                "exclusions": ["Stage"],
+                "bareme": [
+                    {
+                        "contract_type": "CDI",
+                        "statut": "Cadre",
+                        "duree": 3,
+                        "unite": "mois",
+                        "renouvellement": True,
+                    }
+                ],
+            }
+        )
+        assert out["alerte_jours"] == 30
+        assert out["regle_legale_cdd"] is False
+        assert out["exclusions"] == ["Stage"]
+        assert out["bareme"][0]["duree"] == 3
+
+    def test_ligne_incomplete_rejetee(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        with pytest.raises(ValueError, match="type de contrat"):
+            validate_trial_period_settings(
+                {"bareme": [{"statut": "Cadre", "duree": 3, "unite": "mois"}]}
+            )
+
+    def test_duree_non_positive_rejetee(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        with pytest.raises(ValueError, match="durée"):
+            validate_trial_period_settings(
+                {
+                    "bareme": [
+                        {
+                            "contract_type": "CDI",
+                            "statut": "Cadre",
+                            "duree": 0,
+                            "unite": "mois",
+                        }
+                    ]
+                }
+            )
+
+    def test_unite_inconnue_rejetee(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        with pytest.raises(ValueError, match="unité"):
+            validate_trial_period_settings(
+                {
+                    "bareme": [
+                        {
+                            "contract_type": "CDI",
+                            "statut": "Cadre",
+                            "duree": 3,
+                            "unite": "trimestres",
+                        }
+                    ]
+                }
+            )
+
+    def test_alerte_absurde_rejetee(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        with pytest.raises(ValueError, match="alerte"):
+            validate_trial_period_settings({"alerte_jours": 0})
+
+    def test_section_vide_acceptee(self):
+        from app.modules.employees.domain.trial_period_bareme import (
+            validate_trial_period_settings,
+        )
+
+        assert validate_trial_period_settings(None) == {}
+        assert validate_trial_period_settings({}) == {}

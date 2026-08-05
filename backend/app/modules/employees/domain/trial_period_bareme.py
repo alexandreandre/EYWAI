@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 from app.modules.employees.domain.trial_period_dates import (
     UNIT_DAYS,
     UNIT_MONTHS,
+    VALID_UNITS,
 )
 
 DEFAULT_ALERT_DAYS = 15
@@ -161,6 +162,75 @@ def resolve_trial_proposal(
     )
 
 
+def validate_trial_period_settings(section: Any) -> Dict[str, Any]:
+    """Nettoie le barème saisi par un RH avant de l'enregistrer.
+
+    Une durée nulle ou une unité inconnue rendrait le calcul de fin muet et la
+    période invisible : mieux vaut refuser la saisie que produire un suivi qui
+    ne se déclenche jamais.
+    """
+    if not isinstance(section, dict):
+        return {}
+
+    out: Dict[str, Any] = {}
+
+    if "alerte_jours" in section:
+        try:
+            days = int(section["alerte_jours"])
+        except (TypeError, ValueError):
+            raise ValueError("délai d'alerte invalide") from None
+        if days <= 0:
+            raise ValueError("délai d'alerte invalide : il doit être positif")
+        out["alerte_jours"] = days
+
+    if "regle_legale_cdd" in section:
+        out["regle_legale_cdd"] = bool(section["regle_legale_cdd"])
+
+    if "exclusions" in section:
+        raw = section["exclusions"]
+        if not isinstance(raw, (list, tuple)):
+            raise ValueError("exclusions invalides : une liste est attendue")
+        out["exclusions"] = [str(x).strip() for x in raw if str(x).strip()]
+
+    if "bareme" in section:
+        raw = section["bareme"]
+        if not isinstance(raw, (list, tuple)):
+            raise ValueError("barème invalide : une liste est attendue")
+        lines = []
+        for line in raw:
+            if not isinstance(line, dict):
+                raise ValueError("barème invalide : chaque ligne est un objet")
+            contract_type = str(line.get("contract_type") or "").strip()
+            if not contract_type:
+                raise ValueError("ligne de barème sans type de contrat")
+            statut = str(line.get("statut") or "").strip()
+            if not statut:
+                raise ValueError("ligne de barème sans statut")
+            try:
+                duree = int(line.get("duree"))
+            except (TypeError, ValueError):
+                raise ValueError("durée de barème invalide") from None
+            if duree <= 0:
+                raise ValueError("durée de barème invalide : elle doit être positive")
+            unite = str(line.get("unite") or "").strip().lower()
+            if unite not in VALID_UNITS:
+                raise ValueError(
+                    "unité de barème invalide : jours, semaines ou mois attendus"
+                )
+            lines.append(
+                {
+                    "contract_type": contract_type,
+                    "statut": statut,
+                    "duree": duree,
+                    "unite": unite,
+                    "renouvellement": bool(line.get("renouvellement", False)),
+                }
+            )
+        out["bareme"] = lines
+
+    return out
+
+
 __all__ = [
     "DEFAULT_ALERT_DAYS",
     "DEFAULT_BAREME",
@@ -168,4 +238,5 @@ __all__ = [
     "TrialProposal",
     "resolve_alert_days",
     "resolve_trial_proposal",
+    "validate_trial_period_settings",
 ]

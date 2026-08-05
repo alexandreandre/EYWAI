@@ -11,6 +11,9 @@ from typing import Any, Dict
 
 from app.modules.companies.application.dto import CompanySettingsResultDto
 from app.modules.companies.domain.public_holidays import merge_public_holidays_settings
+from app.modules.employees.domain.trial_period_bareme import (
+    validate_trial_period_settings,
+)
 from app.modules.companies.infrastructure.repository import company_repository
 
 
@@ -41,6 +44,11 @@ def update_company_settings(
             )
         except ValueError as exc:
             raise ValueError(str(exc)) from exc
+
+    if "periode_essai" in settings_delta:
+        current_settings["periode_essai"] = validate_trial_period_settings(
+            settings_delta.get("periode_essai")
+        )
 
     company_repository.update_settings(company_id, current_settings)
     return CompanySettingsResultDto(

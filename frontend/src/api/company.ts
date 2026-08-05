@@ -216,9 +216,25 @@ export interface PublicHolidaysSettingsUpdate {
   observed_holiday_ids: FrenchPublicHolidayId[];
 }
 
+export interface TrialPeriodBaremeLine {
+  contract_type: string;
+  statut: string;
+  duree: number;
+  unite: 'jours' | 'semaines' | 'mois';
+  renouvellement: boolean;
+}
+
+export interface TrialPeriodSettingsUpdate {
+  alerte_jours?: number;
+  regle_legale_cdd?: boolean;
+  exclusions?: string[];
+  bareme?: TrialPeriodBaremeLine[];
+}
+
 export interface CompanySettingsUpdate {
   medical_follow_up_enabled?: boolean;
   public_holidays?: PublicHolidaysSettingsUpdate;
+  periode_essai?: TrialPeriodSettingsUpdate;
 }
 
 export async function getCompanySettings(): Promise<CompanySettingsResponse> {

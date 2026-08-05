@@ -30,6 +30,7 @@ import PayrollVariableRulesCard from "@/features/company/components/PayrollVaria
 import PayrollSpecialDaysCard from "@/features/company/components/PayrollSpecialDaysCard";
 import PlanningSettingsCard from "@/features/company/components/PlanningSettingsCard";
 import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
+import TrialPeriodSettingsCard from "@/features/company/components/TrialPeriodSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
 import type { ComplianceAnchor } from "@/features/company/components/CompanyComplianceBand";
 import { WorkTimeHubIntro } from "@/features/work-time-tracking/components/WorkTimeHubIntro";
@@ -337,6 +338,7 @@ export function CompanyPayrollTab({
             defaultOpen
           >
             <PublicHolidaysSettingsCard />
+            <TrialPeriodSettingsCard />
             <LeaveSettingsCard />
             <CpSenioritySettingsCard />
             <CpFractionnementSettingsCard />
