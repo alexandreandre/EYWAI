@@ -672,6 +672,31 @@ def _merge_json_dicts(
     return merged
 
 
+def _demarquer_pas_saisi_a_la_main(
+    merged: Dict[str, Any], incoming: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Un taux PAS saisi à la main n'hérite pas de la date du fichier précédent.
+
+    La période dit de quel mois vient le taux, et le suivi des taux s'en sert
+    pour juger sa fraîcheur. Sans cette remise à zéro, un taux corrigé au
+    clavier garderait la date du dernier dépôt et passerait pour à jour.
+    """
+    pas_entrant = incoming.get("prelevement_a_la_source")
+    if not isinstance(pas_entrant, dict) or "taux" not in pas_entrant:
+        return merged
+    if pas_entrant.get("periode"):
+        return merged
+
+    pas_fusionne = merged.get("prelevement_a_la_source")
+    if not isinstance(pas_fusionne, dict) or "periode" not in pas_fusionne:
+        return merged
+
+    pas_fusionne = {k: v for k, v in pas_fusionne.items() if k != "periode"}
+    merged = dict(merged)
+    merged["prelevement_a_la_source"] = pas_fusionne
+    return merged
+
+
 def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Met à jour un employé (dont alertes RIB si coordonnées bancaires modifiées).
@@ -698,8 +723,8 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
         incoming_spec = update_data.get("specificites_paie") or {}
         if not isinstance(incoming_spec, dict):
             incoming_spec = {}
-        update_data["specificites_paie"] = _merge_json_dicts(
-            current_spec, incoming_spec
+        update_data["specificites_paie"] = _demarquer_pas_saisi_a_la_main(
+            _merge_json_dicts(current_spec, incoming_spec), incoming_spec
         )
 
     if "coordonnees_bancaires" in update_data:
