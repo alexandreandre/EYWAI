@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.modules.copilot.domain.filter_values import ValeurDeFiltreInconnue
 from app.modules.copilot.infrastructure import secure_queries
 
 
@@ -174,11 +175,16 @@ class TestAbsenceSummary:
             result = secure_queries.absence_summary("c1", {})
         assert client.tables == ["absence_requests"]
         assert ("company_id", "c1") in client.query.eq_calls
-        assert result["total_requests"] == 3
+        assert result["total_demandes"] == 3
         assert result["by_status"]["validated"] == 2
         assert result["by_type"]["conges_payes"] == 2
 
     def test_applies_status_and_type_filters(self):
+        """« maladie » est rapproché de la valeur d'énumération réelle.
+
+        Sans ce rapprochement, Postgres rejette la valeur et l'outil entier
+        échoue (``invalid input value for enum absence_type``).
+        """
         patcher, client = _patch_client(FakeResponse(data=[]))
         with patcher:
             secure_queries.absence_summary(
@@ -186,7 +192,12 @@ class TestAbsenceSummary:
             )
         assert ("company_id", "c1") in client.query.eq_calls
         assert ("status", "validated") in client.query.eq_calls
-        assert ("type", "maladie") in client.query.eq_calls
+        assert ("type", "arret_maladie") in client.query.eq_calls
+
+    def test_type_inconnu_echoue_explicitement(self):
+        patcher, _ = _patch_client(FakeResponse(data=[]))
+        with patcher, pytest.raises(ValeurDeFiltreInconnue):
+            secure_queries.absence_summary("c1", {"type": "vacances d'été"})
 
     def test_filters_by_selected_days_date_range(self):
         rows = [
@@ -209,7 +220,7 @@ class TestAbsenceSummary:
                 "c1",
                 {"date_start": "2026-07-01", "date_end": "2026-07-31"},
             )
-        assert result["total_requests"] == 1
+        assert result["total_demandes"] == 1
         assert result["total_selected_days"] == 1
         assert result["date_start"] == "2026-07-01"
         assert result["date_end"] == "2026-07-31"

@@ -21,6 +21,11 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from app.core.database import get_supabase_client
+from app.modules.copilot.domain.filter_values import (
+    ABSENCE_STATUTS,
+    ABSENCE_TYPES,
+    exiger,
+)
 from app.modules.payroll.application.analytics_queries import (
     get_payroll_analytics_summary,
 )
@@ -78,6 +83,45 @@ def _is_iso_date(value: Any) -> bool:
         return False
 
 
+def _valeurs_employees(company_id: str, colonne: str) -> list[str]:
+    """Valeurs réellement présentes dans l'entreprise pour une colonne libre.
+
+    ``contract_type`` et ``employment_status`` sont du texte libre : leurs
+    valeurs (« Apprentissage », « actif »…) ne sont pas devinables. On rapproche
+    donc la valeur proposée de ce qui existe vraiment, plutôt que de filtrer sur
+    une chaîne qui ne correspond à rien et de répondre « aucun ».
+    """
+    lignes = (
+        get_supabase_client()
+        .table("employees")
+        .select(colonne)
+        .eq("company_id", company_id)
+        .execute()
+        .data
+        or []
+    )
+    return sorted({str(l[colonne]) for l in lignes if l.get(colonne)})
+
+
+def _filtre_employees(query: Any, company_id: str, filters: dict[str, Any]) -> Any:
+    """Applique les filtres statut / contrat après rapprochement des valeurs."""
+    for argument, colonne in (
+        ("employment_status", "employment_status"),
+        ("contract_type", "contract_type"),
+    ):
+        demande = filters.get(argument)
+        if not demande:
+            continue
+        valeurs = _valeurs_employees(company_id, colonne)
+        if not valeurs:
+            # Entreprise sans salarié : le filtre ne peut se rapprocher de rien,
+            # mais la bonne réponse est « zéro », pas « valeur inconnue ».
+            query = query.eq(colonne, str(demande))
+            continue
+        query = query.eq(colonne, exiger(str(demande), valeurs, champ=argument))
+    return query
+
+
 def _coerce_limit(raw: Any, *, default: int, maximum: int) -> int:
     try:
         value = int(raw)
@@ -101,12 +145,7 @@ def count_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
         .select("id", count="exact")
         .eq("company_id", company_id)
     )
-    status = filters.get("employment_status")
-    if status:
-        query = query.eq("employment_status", str(status))
-    contract_type = filters.get("contract_type")
-    if contract_type:
-        query = query.eq("contract_type", str(contract_type))
+    query = _filtre_employees(query, company_id, filters)
     response = query.execute()
     return {"count": int(response.count or 0)}
 
@@ -126,12 +165,7 @@ def search_employees(company_id: str, filters: dict[str, Any]) -> dict[str, Any]
         )
         .eq("company_id", company_id)
     )
-    status = filters.get("employment_status")
-    if status:
-        query = query.eq("employment_status", str(status))
-    contract_type = filters.get("contract_type")
-    if contract_type:
-        query = query.eq("contract_type", str(contract_type))
+    query = _filtre_employees(query, company_id, filters)
     rows = query.execute().data or []
 
     if name:
@@ -174,15 +208,18 @@ def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
     query = (
         get_supabase_client()
         .table("absence_requests")
-        .select("id, type, status, selected_days")
+        .select("id, employee_id, type, status, selected_days")
         .eq("company_id", company_id)
     )
+    # ``type`` et ``status`` sont des énumérations Postgres : une valeur hors
+    # énumération fait échouer la requête entière. On rapproche donc « maladie »
+    # de « arret_maladie » et « validé » de « validated ».
     status = filters.get("status")
     if status:
-        query = query.eq("status", str(status))
+        query = query.eq("status", exiger(str(status), ABSENCE_STATUTS, champ="status"))
     atype = filters.get("type")
     if atype:
-        query = query.eq("type", str(atype))
+        query = query.eq("type", exiger(str(atype), ABSENCE_TYPES, champ="type"))
     rows = query.execute().data or []
 
     date_start = filters.get("date_start")
@@ -205,13 +242,21 @@ def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
     by_status: dict[str, int] = {}
     by_type: dict[str, int] = {}
     total_selected_days = 0
+    salaries: set[str] = set()
+    aujourdhui = date.today().isoformat()
+    en_cours_aujourdhui: set[str] = set()
     for row in rows:
         st = str(row.get("status") or "inconnu")
         ty = str(row.get("type") or "inconnu")
         by_status[st] = by_status.get(st, 0) + 1
         by_type[ty] = by_type.get(ty, 0) + 1
+        if row.get("employee_id"):
+            salaries.add(str(row["employee_id"]))
         selected = row.get("selected_days") or []
         if isinstance(selected, list):
+            if any(isinstance(d, str) and d[:10] == aujourdhui for d in selected):
+                if row.get("employee_id"):
+                    en_cours_aujourdhui.add(str(row["employee_id"]))
             if range_applied:
                 start_s, end_s = str(date_start)[:10], str(date_end)[:10]
                 total_selected_days += sum(
@@ -222,8 +267,18 @@ def absence_summary(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
             else:
                 total_selected_days += len(selected)
 
+    # La période est explicitée dans la réponse : sans elle, un décompte
+    # historique se lit comme une situation du jour (« 4 salariés en arrêt
+    # actuellement » alors qu'il s'agissait de 4 demandes depuis toujours).
     result: dict[str, Any] = {
-        "total_requests": len(rows),
+        "periode": (
+            f"du {str(date_start)[:10]} au {str(date_end)[:10]}"
+            if range_applied
+            else "tout l'historique (aucune période demandée)"
+        ),
+        "total_demandes": len(rows),
+        "salaries_concernes": len(salaries),
+        "salaries_absents_aujourdhui": len(en_cours_aujourdhui),
         "by_status": by_status,
         "by_type": by_type,
         "total_selected_days": total_selected_days,

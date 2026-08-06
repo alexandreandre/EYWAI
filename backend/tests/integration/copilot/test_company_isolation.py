@@ -171,7 +171,10 @@ def test_homonymous_maji_employee_never_appears_for_mbc(isolated_tools):
             ToolName.ABSENCE_SUMMARY,
             {},
             {
-                "total_requests": 1,
+                "periode": "tout l'historique (aucune période demandée)",
+                "total_demandes": 1,
+                "salaries_concernes": 0,
+                "salaries_absents_aujourdhui": 0,
                 "by_status": {"validated": 1},
                 "by_type": {"conges_payes": 1},
                 "total_selected_days": 1,
