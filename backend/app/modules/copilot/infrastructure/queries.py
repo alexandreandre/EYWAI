@@ -46,6 +46,35 @@ def get_employees_for_fuzzy_search(company_id: str) -> list[dict[str, Any]]:
     return response.data or []
 
 
+def _get_agreement_text(supabase: Any, agreement_id: str) -> str | None:
+    """Texte de la convention : ``base_text`` si disponible, sinon ``full_text``.
+
+    La colonne ``base_text`` peut ne pas encore exister (code déployé avant sa
+    migration) : dans ce cas on retombe sur ``full_text`` plutôt que de faire
+    tomber toute la branche convention.
+    """
+    for colonnes in ("full_text, base_text", "full_text"):
+        try:
+            reponse = (
+                supabase.table("collective_agreement_texts")
+                .select(colonnes)
+                .eq("agreement_id", agreement_id)
+                .maybe_single()
+                .execute()
+            )
+        except Exception as exc:  # noqa: BLE001 - on retente sans base_text
+            logging.warning(
+                "Lecture du texte de convention (%s) impossible: %s", colonnes, exc
+            )
+            continue
+        if not reponse.data:
+            return None
+        return (
+            reponse.data.get("base_text") or reponse.data.get("full_text") or None
+        )
+    return None
+
+
 def get_company_collective_agreements(company_id: str) -> list[dict[str, Any]]:
     """
     Récupère les conventions collectives assignées à l'entreprise avec texte en cache.
@@ -68,16 +97,12 @@ def get_company_collective_agreements(company_id: str) -> list[dict[str, Any]]:
             if not catalog_data:
                 continue
             agreement_id = catalog_data["id"]
-            text_response = (
-                supabase.table("collective_agreement_texts")
-                .select("full_text")
-                .eq("agreement_id", agreement_id)
-                .maybe_single()
-                .execute()
-            )
-            full_text = None
-            if text_response.data and text_response.data.get("full_text"):
-                full_text = text_response.data["full_text"]
+            # ``base_text`` est le texte de base intégral de la convention ;
+            # ``full_text`` est le corpus paie (avenants salaires, annexes), qui
+            # ne contient ni période d'essai, ni préavis, ni congés. On préfère
+            # donc le premier, avec repli sur le second tant qu'une convention
+            # n'a pas encore été rapatriée.
+            full_text = _get_agreement_text(supabase, agreement_id)
             agreements.append(
                 {
                     "id": agreement_id,

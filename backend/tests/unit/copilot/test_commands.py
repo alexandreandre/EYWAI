@@ -452,3 +452,98 @@ class TestHandleAgentQuery:
         )
 
         assert "sensible" not in result.answer
+
+
+class TestQuestionMixte:
+    """Une question qui relève de deux familles doit recevoir deux réponses.
+
+    Régression mesurée : « Combien j'ai de CDI, et que dit la convention sur leur
+    période d'essai ? » planifiait correctement l'outil `employee_count` ET la
+    convention, mais la branche convention sortait avant l'exécution des outils.
+    L'assistant répondait « aucune information ne permet de déterminer le nombre
+    de CDI » alors que la réponse tenait dans un appel d'outil.
+    """
+
+    @patch("app.modules.copilot.application.commands.synthesize_final_answer")
+    @patch("app.modules.copilot.application.commands.execute_tool_calls")
+    @patch(
+        "app.modules.copilot.application.commands.answer_collective_agreement_question"
+    )
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    def test_convention_et_donnees_sont_toutes_deux_traitees(
+        self,
+        mock_analyze,
+        mock_get_agreements,
+        mock_answer_cc,
+        mock_tools,
+        mock_synthese,
+    ):
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        mock_get_agreements.return_value = [
+            {"id": "cc-1", "name": "Plasturgie", "idcc": "0292", "full_text": "..."}
+        ]
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_app_help": False,
+            "requires_collective_agreement": True,
+            "requires_data_retrieval": True,
+            "data_tool_calls": [
+                {"tool": "employee_count", "arguments": {"contract_type": "CDI"}}
+            ],
+        }
+        mock_answer_cc.return_value = "La période d'essai est de deux mois."
+        mock_tools.return_value = [
+            {"tool": "employee_count", "success": True, "data": {"count": 5}}
+        ]
+        mock_synthese.return_value = "5 CDI, et la période d'essai est de deux mois."
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Combien j'ai de CDI, et que dit la convention sur la période d'essai ?",
+                conversation_history=[],
+                user_id="rh-1",
+                active_company_id="company-123",
+            )
+        )
+
+        # Les outils sont exécutés malgré la branche convention...
+        mock_tools.assert_called_once()
+        mock_answer_cc.assert_called_once()
+        # ... et la réponse convention est transmise à la synthèse, pas perdue.
+        sources = mock_synthese.call_args.kwargs["sources"]
+        assert any("deux mois" in contenu for _, contenu in sources)
+        assert result.answer == "5 CDI, et la période d'essai est de deux mois."
+
+    @patch("app.modules.copilot.application.commands.synthesize_final_answer")
+    @patch(
+        "app.modules.copilot.application.commands.answer_collective_agreement_question"
+    )
+    @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
+    @patch("app.modules.copilot.application.commands.analyze_intent_and_plan")
+    def test_convention_seule_repond_sans_synthese(
+        self, mock_analyze, mock_get_agreements, mock_answer_cc, mock_synthese
+    ):
+        """Une seule source : sa réponse est rendue telle quelle."""
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        mock_get_agreements.return_value = [
+            {"id": "cc-1", "name": "Plasturgie", "idcc": "0292", "full_text": "..."}
+        ]
+        mock_analyze.return_value = {
+            "needs_clarification": False,
+            "requires_collective_agreement": True,
+            "requires_data_retrieval": False,
+        }
+        mock_answer_cc.return_value = "La période d'essai est de deux mois."
+
+        result = handle_agent_query(
+            AgentQueryInput(
+                prompt="Quelle période d'essai ?",
+                conversation_history=[],
+                user_id="rh-1",
+                active_company_id="company-123",
+            )
+        )
+
+        assert result.answer == "La période d'essai est de deux mois."
+        mock_synthese.assert_not_called()

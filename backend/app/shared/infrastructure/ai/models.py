@@ -10,7 +10,23 @@ GPT_4O_MINI = "openai/gpt-4o-mini"
 
 # --- Application (modules métier) ---
 
-MODEL_COPILOT = GPT_4O_MINI
+# Assistant RH (copilot) : un modèle par rôle plutôt qu'un modèle unique.
+# Mesures du banc d'essai (backend/scripts/eval_assistant_rh.py, 05/08/2026) :
+# le routage est équivalent d'un modèle à l'autre, mais la vitesse et la qualité
+# de rédaction ne le sont pas, et la branche convention a besoin d'un grand
+# contexte depuis que le texte de base intégral est envoyé.
+#
+# - planification : sur le chemin critique de CHAQUE question -> le plus rapide ;
+# - convention : contexte 1 M requis (le texte de base va jusqu'à 400 000 car.) ;
+# - aide logiciel / synthèse : qualité de rédaction, coût négligeable ici
+#   (de l'ordre du demi-centime par question).
+MODEL_COPILOT_PLANNING = "google/gemini-3.1-flash-lite"
+MODEL_COPILOT_AGREEMENT = "google/gemini-3-flash-preview"
+MODEL_COPILOT_APP_HELP = "google/gemini-3-flash-preview"
+MODEL_COPILOT_SYNTHESIS = "google/gemini-3-flash-preview"
+
+# Conservé pour les appels hors copilot qui s'y réfèrent encore.
+MODEL_COPILOT = MODEL_COPILOT_SYNTHESIS
 MODEL_COLLECTIVE_AGREEMENT_CHAT = GPT_4O_MINI
 MODEL_CONTRACT_EXTRACTION = GPT_4O_MINI
 MODEL_RECRUITMENT_SCORING = GPT_4O_MINI

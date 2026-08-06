@@ -12,7 +12,14 @@ from datetime import date
 from difflib import SequenceMatcher
 from typing import Any, Dict, List
 
-from app.shared.infrastructure.ai import MODEL_COPILOT, chat_completions_create
+from app.shared.infrastructure.ai import (
+    MODEL_COPILOT_AGREEMENT,
+    MODEL_COPILOT_APP_HELP,
+    MODEL_COPILOT_PLANNING,
+    MODEL_COPILOT_SYNTHESIS,
+    chat_completions_create,
+)
+from app.modules.copilot.domain.agreement_context import construire_contexte
 from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
 from app.modules.copilot.infrastructure.queries import (
     get_company_collective_agreements as queries_get_company_agreements,
@@ -94,6 +101,10 @@ CATALOGUE FERMÉ D'OUTILS DE DONNÉES (aucun autre n'existe) :
 - "absence_summary" — synthèse des absences.
   arguments optionnels: {{"status": "<statut>", "type": "<type>",
   "date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (borne sur selected_days).
+  status ∈ {{"pending", "validated", "rejected", "cancelled"}}.
+  type ∈ {{"conge_paye", "rtt", "sans_solde", "repos_compensateur",
+  "evenement_familial", "arret_maladie", "arret_at", "arret_paternite",
+  "arret_maternite", "arret_maladie_pro"}}. N'invente aucune autre valeur.
 - "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (optionnels).
 - "hr_indicators" — indicateurs RH (turnover, absentéisme, effectifs). arguments: {{}}.
 
@@ -117,10 +128,17 @@ Règles importantes:
 2. Si le nom d'un employé est mentionné mais semble incomplet ou ambigu, demande une clarification.
    Sinon utilise l'outil employee_search avec le nom dans son argument "name".
 3. Si la question nécessite plusieurs données, prévois plusieurs appels d'outils autorisés
-4. Si la question (de données) est vague (ex: "combien d'employés"), demande de préciser (type de contrat? statut?)
+4. Ne demande une précision QUE si la réponse serait trompeuse sans elle. Une question
+   d'effectif sans précision ("combien de salariés ?", "combien de personnes travaillent
+   ici ?") se répond sur l'effectif ACTIF (employee_count avec employment_status: "actif") :
+   la réponse proposera d'affiner. Ne renvoie pas une question quand une réponse utile existe.
 5. Si la question concerne une convention collective, active requires_collective_agreement: true
 6. Si plusieurs conventions existent et que la question ne précise pas laquelle, demande une clarification
 7. Si une seule convention existe, utilise-la automatiquement (agreement_id_if_unique)
+9. Si le résumé ci-dessus indique qu'AUCUNE convention n'est assignée à l'entreprise et que
+   la question porte sur la convention, active quand même requires_collective_agreement: true :
+   l'utilisateur recevra une réponse claire sur l'absence de convention. Ne demande pas de
+   clarification dans ce cas — il n'y a rien à clarifier.
 8. Détecte les questions sur conventions: congés, RTT, temps de travail, période d'essai, préavis, jours fériés, classifications, etc.
 
 Exemples:
@@ -173,7 +191,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire."""
 
         try:
             response = chat_completions_create(
-                model=MODEL_COPILOT,
+                model=MODEL_COPILOT_PLANNING,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Question: {prompt}"},
@@ -239,7 +257,7 @@ Règles de réponse:
 
         try:
             response = chat_completions_create(
-                model=MODEL_COPILOT,
+                model=MODEL_COPILOT_APP_HELP,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
@@ -255,6 +273,54 @@ Règles de réponse:
                 "l'utilisation du logiciel. Pouvez-vous reformuler ?"
             )
 
+    def _choisir_sections(self, question: str, sommaire: str) -> set[int]:
+        """Demande au modèle quelles sections du sommaire lire pour la question.
+
+        Franchit la barrière de vocabulaire entre la question d'une gestionnaire
+        RH et les intitulés d'une convention collective : « combien de jours pour
+        un mariage » ne partage aucun mot avec « Congés payés. Congés
+        exceptionnels ». Appel court et bon marché (le sommaire seul).
+
+        En cas d'échec, on renvoie un ensemble vide : la sélection lexicale
+        reprend la main, on ne bloque jamais la réponse.
+        """
+        if not sommaire:
+            return set()
+        system_prompt = (
+            "Tu reçois le sommaire numéroté d'une convention collective et une "
+            "question RH. Indique les numéros des sections à lire pour y "
+            "répondre.\n"
+            "- Sois large plutôt qu'étroit : une section de trop ne coûte rien, "
+            "une section manquante empêche la réponse.\n"
+            "- Retiens entre 1 et 12 numéros, du plus pertinent au moins "
+            "pertinent.\n"
+            "- Réponds UNIQUEMENT par un JSON de la forme "
+            '{"sections": [12, 34]}, sans texte autour.'
+        )
+        try:
+            response = chat_completions_create(
+                model=MODEL_COPILOT_PLANNING,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": f"Question : {question}\n\nSommaire :\n{sommaire}",
+                    },
+                ],
+                temperature=0,
+                max_tokens=200,
+            )
+            brut = (response.choices[0].message.content or "").strip()
+            if brut.startswith("```"):
+                brut = brut.split("\n", 1)[1].rsplit("\n", 1)[0]
+                if brut.startswith("json"):
+                    brut = brut[4:].strip()
+            rangs = json.loads(brut).get("sections") or []
+            return {int(r) for r in rangs if isinstance(r, (int, float, str)) and str(r).lstrip("-").isdigit()}
+        except Exception as e:  # noqa: BLE001 - repli sur la sélection lexicale
+            logging.warning("Choix des sections de convention indisponible: %s", e)
+            return set()
+
     def answer_collective_agreement_question(
         self, prompt: str, agreement: Dict[str, Any], plan: Dict[str, Any]
     ) -> str:
@@ -267,9 +333,19 @@ Règles de réponse:
         agreement_name = agreement["name"]
         agreement_idcc = agreement["idcc"]
         agreement_description = agreement.get("description", "")
-        full_text = agreement["full_text"]
-        if len(full_text) > 150000:
-            full_text = full_text[:150000] + "\n\n[...Document tronqué...]"
+        # Le texte de base d'une convention dépasse 800 000 caractères : on ne
+        # tronque plus aveuglément à 150 000 (ce qui coupait la fin du document),
+        # on sélectionne les sections utiles à la question — désignées à la
+        # lecture du sommaire, complétées par un classement lexical — et on joint
+        # toujours le sommaire complet.
+        texte_convention = agreement["full_text"]
+        contexte = construire_contexte(texte_convention, prompt)
+        if not contexte.integral:
+            rangs = self._choisir_sections(prompt, contexte.sommaire)
+            if rangs:
+                contexte = construire_contexte(
+                    texte_convention, prompt, rangs_prioritaires=rangs
+                )
 
         system_prompt = f"""Tu es un assistant expert spécialisé dans la convention collective suivante :
 
@@ -301,21 +377,47 @@ Tu as une connaissance complète et détaillée de cette convention collective. 
 
 Contexte de la demande: {json.dumps(plan, ensure_ascii=False)}"""
 
-        user_prompt = f"""Voici le texte complet de la convention collective {agreement_name} (IDCC {agreement_idcc}) :
+        if contexte.integral:
+            preambule = (
+                f"Voici le texte intégral de la convention collective "
+                f"{agreement_name} (IDCC {agreement_idcc}) :"
+            )
+            rappel_extrait = ""
+        else:
+            preambule = (
+                f"Voici les sections de la convention collective {agreement_name} "
+                f"(IDCC {agreement_idcc}) les plus proches de la question "
+                f"({contexte.caracteres_retenus} caractères retenus sur "
+                f"{contexte.caracteres_source}) :"
+            )
+            rappel_extrait = (
+                "\n- Le texte ci-dessus est un EXTRAIT sélectionné. Si la réponse "
+                "devrait se trouver dans une section listée au sommaire mais non "
+                "reproduite ici, dis-le explicitement au lieu de conclure que la "
+                "convention est muette."
+            )
+
+        sommaire_bloc = (
+            f"\n**Sommaire complet de la convention :**\n{contexte.sommaire}\n"
+            if contexte.sommaire
+            else ""
+        )
+
+        user_prompt = f"""{preambule}
 
 ---
-{full_text}
+{contexte.texte}
 ---
-
+{sommaire_bloc}
 **Question de l'utilisateur :**
 {prompt}
 
 **Instructions :**
-Réponds à cette question en te basant sur le texte de la convention collective ci-dessus. Cite les articles ou sections pertinents et structure ta réponse de manière claire et professionnelle."""
+Réponds à cette question en te basant sur le texte de la convention collective ci-dessus. Cite les articles ou sections pertinents et structure ta réponse de manière claire et professionnelle.{rappel_extrait}"""
 
         try:
             response = chat_completions_create(
-                model=MODEL_COPILOT,
+                model=MODEL_COPILOT_AGREEMENT,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -338,6 +440,7 @@ Réponds à cette question en te basant sur le texte de la convention collective
         prompt: str,
         plan: Dict[str, Any],
         retrieval_results: List[Dict[str, Any]],
+        sources: List[tuple[str, str]] | None = None,
     ) -> str:
         results_summary = []
         for i, result in enumerate(retrieval_results):
@@ -348,10 +451,25 @@ Réponds à cette question en te basant sur le texte de la convention collective
                     f"{json.dumps(sanitized_data, default=str, ensure_ascii=False)}"
                 )
             else:
+                # Le motif (filtre inconnu, outil indisponible) est utile à la
+                # réponse : il évite de faire passer une absence de données pour
+                # une absence de faits.
                 results_summary.append(
-                    f"Outil {result.get('tool') or i + 1} indisponible."
+                    f"Outil {result.get('tool') or i + 1} sans résultat : "
+                    f"{result.get('error') or 'indisponible'}"
                 )
         results_text = "\n\n".join(results_summary)
+
+        sources_text = "\n\n".join(
+            f"### {titre}\n{contenu}" for titre, contenu in (sources or []) if contenu
+        )
+        bloc_sources = (
+            "\n\nRéponses déjà rédigées sur les autres volets de la question "
+            "(à intégrer, sans les réécrire ni les contredire) :\n"
+            f"{sources_text}\n"
+            if sources_text
+            else ""
+        )
 
         system_prompt = f"""Tu es un assistant RH professionnel et convivial, expert en données RH et en conventions collectives.
 
@@ -360,7 +478,7 @@ Question de l'utilisateur: {prompt}
 Plan d'action: {json.dumps(_sanitize_for_llm(plan), ensure_ascii=False)}
 
 Résultats des outils autorisés:
-{results_text}
+{results_text}{bloc_sources}
 
 Date actuelle: {date.today().isoformat()}
 
@@ -370,16 +488,32 @@ Génère une réponse claire, professionnelle et concise en français.
 - Si plusieurs employés sont mentionnés, structure ta réponse clairement
 - Si des données manquent, explique-le poliment
 - Ajoute du contexte si utile (ex: "Ce qui représente X% du salaire total")
+- Si la question comporte plusieurs volets (chiffres de l'entreprise ET règle
+  conventionnelle, par exemple), traite-les TOUS, chacun sous son propre
+  intertitre. Ne laisse jamais un volet sans réponse au motif que l'autre source
+  ne le couvrait pas : les chiffres viennent des outils, la règle vient de la
+  convention.
+- Les volets déjà rédigés ci-dessous s'appuient sur des textes officiels :
+  reprends-les SANS AJOUTER une règle, une durée ou un chiffre qui n'y figure
+  pas, et conserve leurs réserves (« non précisé dans le texte », « à vérifier
+  dans l'avenant »). Tu peux les raccourcir, jamais les compléter de mémoire.
+- Respecte scrupuleusement la période des chiffres d'absence : « total_demandes »
+  compte des DEMANDES, pas des personnes, et « periode » dit sur quoi elles
+  portent. N'écris « actuellement » ou « en ce moment » que pour
+  « salaries_absents_aujourdhui ». Un décompte sur tout l'historique ne décrit
+  jamais la situation du jour.
 - Si la question concerne des éléments qui pourraient être régis par une convention collective (congés, RTT, période d'essai, etc.), mentionne-le et suggère de consulter la convention collective de l'entreprise pour plus de détails
 
 Ne mentionne JAMAIS les détails techniques internes (outils, SQL, tables).
+Ne signe pas la réponse et n'ajoute aucune formule de politesse finale du type
+« Cordialement » ou « [Votre Nom] » : tu es un assistant intégré, pas un courrier.
 Si les résultats ne couvrent pas la question (données absentes ou hors périmètre
 des outils), dis-le clairement et propose ce que tu peux fournir à la place.
 Réponds comme un collègue RH serviable et expert."""
 
         try:
             response = chat_completions_create(
-                model=MODEL_COPILOT,
+                model=MODEL_COPILOT_SYNTHESIS,
                 messages=[{"role": "system", "content": system_prompt}],
                 temperature=0.7,
             )

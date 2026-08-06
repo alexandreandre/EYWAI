@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 from app.modules.copilot.application.dto import AgentMessageDto
 from app.modules.copilot.application.tool_service import execute_tool
+from app.modules.copilot.domain.filter_values import ValeurDeFiltreInconnue
 from app.modules.copilot.domain.tools import parse_tool_calls
 from app.modules.copilot.infrastructure.providers import (
     get_collective_agreement_provider,
@@ -101,6 +102,13 @@ def execute_tool_calls(
             results.append(
                 {"tool": str(call.tool), "success": True, "data": data}
             )
+        except ValeurDeFiltreInconnue as exc:
+            # Le filtre demandé n'existe pas : on le dit, plutôt que de laisser
+            # croire à une panne — ou pire, de répondre « aucun » à tort.
+            logging.info("Filtre inconnu pour %s: %s", call.tool, exc)
+            results.append(
+                {"tool": str(call.tool), "success": False, "error": str(exc)}
+            )
         except Exception as exc:  # noqa: BLE001 - on isole chaque outil
             logging.error(
                 "Erreur d'exécution de l'outil %s: %s",
@@ -143,8 +151,13 @@ def synthesize_final_answer(
     prompt: str,
     plan: Dict[str, Any],
     retrieval_results: List[Dict[str, Any]],
+    sources: List[tuple[str, str]] | None = None,
 ) -> str:
-    """Synthétise les résultats en réponse finale. Délègue à OpenAIProvider."""
+    """Synthétise les résultats en réponse finale. Délègue à OpenAIProvider.
+
+    ``sources`` porte les réponses déjà rédigées par les autres branches
+    (convention collective, aide logiciel) quand la question en relève aussi.
+    """
     return get_openai_provider().synthesize_final_answer(
-        prompt, plan, retrieval_results
+        prompt, plan, retrieval_results, sources=sources
     )

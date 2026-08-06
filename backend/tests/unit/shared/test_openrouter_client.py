@@ -5,7 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.shared.infrastructure.ai import (
-    MODEL_COPILOT,
+    MODEL_COPILOT_AGREEMENT,
+    MODEL_COPILOT_APP_HELP,
+    MODEL_COPILOT_PLANNING,
+    MODEL_COPILOT_SYNTHESIS,
     chat_completions_create,
     is_llm_configured,
     resolve_model,
@@ -22,8 +25,22 @@ class TestResolveModel:
     def test_passthrough_openrouter_id(self):
         assert resolve_model("anthropic/claude-3.5-sonnet") == "anthropic/claude-3.5-sonnet"
 
-    def test_models_per_use_case_all_gpt4o_mini_for_now(self):
-        assert MODEL_COPILOT == GPT_4O_MINI
+    def test_copilot_a_un_modele_par_role(self):
+        """Chaque étape de l'assistant RH choisit son modèle (cf. banc d'essai)."""
+        roles = {
+            MODEL_COPILOT_PLANNING,
+            MODEL_COPILOT_APP_HELP,
+            MODEL_COPILOT_AGREEMENT,
+            MODEL_COPILOT_SYNTHESIS,
+        }
+        assert all("/" in modele for modele in roles)
+        # La planification est sur le chemin critique de chaque question : elle
+        # ne doit pas partager le modèle de la branche convention, plus lourd.
+        assert MODEL_COPILOT_PLANNING != MODEL_COPILOT_AGREEMENT
+
+    def test_branche_convention_hors_contexte_128k(self):
+        """Le texte de base intégral dépasse le contexte de gpt-4o-mini."""
+        assert MODEL_COPILOT_AGREEMENT != GPT_4O_MINI
 
 
 class TestIsLlmConfigured:
@@ -45,7 +62,7 @@ class TestChatCompletionsCreate:
         mock_client.chat.completions.create.return_value = "ok"
 
         chat_completions_create(
-            model=MODEL_COPILOT,
+            model=GPT_4O_MINI,
             messages=[{"role": "user", "content": "test"}],
             temperature=0,
         )
