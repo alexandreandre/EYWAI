@@ -98,6 +98,11 @@ export interface Employee {
     prelevement_a_la_source?: {
       is_personnalise?: boolean;
       taux?: number | null;
+      /** Nomenclature DSN : 01 taux DGFiP, 13 taux barème. */
+      type_taux?: string | null;
+      identifiant_taux?: string | null;
+      /** Période (AAAA-MM) du fichier dont vient le taux. */
+      periode?: string | null;
     };
     transport?: {
       abonnement_mensuel_total?: number;

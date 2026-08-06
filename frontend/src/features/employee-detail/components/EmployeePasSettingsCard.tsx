@@ -22,7 +22,38 @@ function readPasSettings(employee: Employee) {
   const pas = employee.specificites_paie?.prelevement_a_la_source;
   const taux = typeof pas?.taux === 'number' ? pas.taux : 0;
   const isPersonnalise = pas?.is_personnalise ?? taux > 0;
-  return { isPersonnalise, taux };
+  return {
+    isPersonnalise,
+    taux,
+    typeTaux: pas?.type_taux ?? null,
+    periode: pas?.periode ?? null,
+  };
+}
+
+/**
+ * D'où vient le taux appliqué.
+ *
+ * La nomenclature DSN distingue le taux personnalisé que la DGFiP transmet
+ * (01) du barème appliqué en attendant sa réponse (13). La distinction compte :
+ * un salarié au barème n'est pas mal paramétré, il attend son premier compte
+ * rendu métier.
+ */
+function origineLibelle(typeTaux: string | null): string | null {
+  if (!typeTaux) return null;
+  if (typeTaux === '01') return 'Taux transmis par la DGFiP';
+  if (typeTaux === '13') return 'Taux barème, en attente du taux DGFiP';
+  return `Type de taux ${typeTaux}`;
+}
+
+function periodeLibelle(periode: string | null): string | null {
+  if (!periode) return null;
+  const [annee, mois] = periode.split('-');
+  const libelles = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+  ];
+  const index = Number(mois) - 1;
+  return libelles[index] ? `Reçu sur la période de ${libelles[index]} ${annee}` : periode;
 }
 
 export function EmployeePasSettingsCard({
@@ -83,15 +114,27 @@ export function EmployeePasSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!canEdit ? (
-          <div className="space-y-1 text-sm">
-            <p className="font-medium tabular-nums">
-              {current.isPersonnalise && current.taux > 0
-                ? `${current.taux} %`
-                : 'Taux neutre (0 %)'}
+        <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
+          <p className="font-medium tabular-nums">
+            {current.isPersonnalise || current.taux > 0
+              ? `${current.taux} %`
+              : 'Aucun taux connu — 0 % appliqué'}
+          </p>
+          {origineLibelle(current.typeTaux) ? (
+            <p className="text-muted-foreground">{origineLibelle(current.typeTaux)}</p>
+          ) : null}
+          {periodeLibelle(current.periode) ? (
+            <p className="text-xs text-muted-foreground">
+              {periodeLibelle(current.periode)}
             </p>
-          </div>
-        ) : (
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Période d&apos;origine inconnue : déposez la dernière déclaration depuis
+              l&apos;écran Prélèvement à la source pour la dater.
+            </p>
+          )}
+        </div>
+        {canEdit ? (
           <>
             <div className="flex items-center space-x-3">
               <Checkbox
@@ -108,12 +151,12 @@ export function EmployeePasSettingsCard({
                 }}
               />
               <Label htmlFor="pas-personnalise" className="cursor-pointer">
-                Appliquer un taux personnalisé
+                Saisir le taux à la main
               </Label>
             </div>
             {isPersonnalise ? (
               <div className="space-y-2 pl-7">
-                <Label htmlFor="pas-taux">Taux personnalisé (%)</Label>
+                <Label htmlFor="pas-taux">Taux (%)</Label>
                 <Input
                   id="pas-taux"
                   type="number"
@@ -128,7 +171,9 @@ export function EmployeePasSettingsCard({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Sans taux personnalisé, le prélèvement à la source est calculé à 0 % sur le bulletin.
+                Sans taux connu, le prélèvement à la source est calculé à 0 % sur le
+                bulletin. La saisie manuelle sera écrasée au prochain dépôt de
+                déclaration : elle sert à dépanner, pas à décider du taux.
               </p>
             )}
             <Button
@@ -138,7 +183,7 @@ export function EmployeePasSettingsCard({
               Enregistrer le taux PAS
             </Button>
           </>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

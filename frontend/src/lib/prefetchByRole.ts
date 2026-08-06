@@ -331,6 +331,7 @@ export function prefetchRoute(queryClient: QueryClient, path: string, companyId?
     '/employee-exits': () => import('@/pages/rh/EmployeeExits'),
     '/teams': () => import('@/pages/rh/Teams'),
     '/residence-permits': () => import('@/pages/rh/ResidencePermits'),
+    '/taux-pas': () => import('@/pages/rh/TauxPas'),
     '/badgeuse-rh': () => import('@/pages/rh/BadgeuseRh'),
     '/augmentations-et-promotions': () => import('@/pages/rh/AugmentationsEtPromotions'),
     '/cse': () => import('@/pages/rh/CSE'),

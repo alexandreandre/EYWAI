@@ -27,6 +27,7 @@ const PAGE_MODULE_PATHS = [
   '@/pages/rh/ExitDocumentEdit',
   '@/pages/rh/Exports',
   '@/pages/rh/ResidencePermits',
+  '@/pages/rh/TauxPas',
   '@/pages/rh/TrialPeriods',
   '@/pages/rh/MedicalFollowUp',
   '@/pages/rh/AnnualReviews',
