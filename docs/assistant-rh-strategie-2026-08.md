@@ -66,6 +66,14 @@ qui le porte n'est pas dans le cache.
 **Aucun changement de modèle ne corrige cela.** Un modèle plus fort répondra
 simplement « je ne trouve pas » avec plus d'élégance.
 
+Un second plafond, découvert en corrigeant le premier : le parcours des sections
+KALI s'arrête à `MAX_TEXT_CHARS = 400 000` caractères. Sur la métallurgie 3248,
+il tombait **au milieu de la convention** et perdait les titres IV à X — contrat
+de travail, durée du travail, congés, rupture. Avec un plafond propre au texte de
+base, la convention passe de 406 000 à **838 990 caractères**, et les repères
+suivent : « essai » 28 → 96, « préavis » 4 → 43, « congé » 22 → 161,
+« licenciement » 4 → 54.
+
 À noter au passage : MAJI n'a **aucune** convention assignée en production ; toute
 question conventionnelle y est refusée par construction.
 
@@ -84,16 +92,21 @@ CDI dans votre entreprise » — alors que la réponse était à un appel d'outi
 
 ### C. Les valeurs de filtres sont inventées par le modèle, et ne correspondent pas à la base
 
-Le prompt décrit les arguments d'`absence_summary` comme
-`{"status": "<statut>", "type": "<type>"}` sans énumérer les valeurs valides. En
-base, les valeurs réelles sont `type = arret_maladie | arret_at | sans_solde` et
-`status = validated`.
+Le prompt décrit les arguments comme `{"status": "<statut>", "type": "<type>"}`
+sans énumérer les valeurs valides. Le typage strict de `domain/tools.py` valide la
+*forme* des arguments, jamais leur *domaine de valeurs*. Deux conséquences
+différentes selon la colonne :
 
-Les modèles proposent donc `type: "maladie"`, `status: "validé"` — la requête
-part, ne remonte rien, et la synthèse construit une réponse sur un ensemble vide.
-C'est le pire des cas : pas une erreur, une **réponse fausse silencieuse**.
-Le typage strict de `domain/tools.py` valide la *forme* des arguments, jamais leur
-*domaine de valeurs*.
+- **`absence_requests.type` et `.status` sont des énumérations Postgres.** Le
+  modèle propose `type: "maladie"` ; la base attend `arret_maladie`. Postgres
+  rejette la valeur (`invalid input value for enum absence_type`), l'outil entier
+  échoue et l'assistant répond qu'il n'a pas accès aux données. Panne visible,
+  mais systématique.
+- **`employees.contract_type` est du texte libre** (`CDI`, `CDD`,
+  `Apprentissage`). Le modèle propose `Apprenti` : la requête part, ne remonte
+  rien, et l'assistant répond **« aucun apprenti »**. Vérifié en production sur
+  Mont Blanc Composite, qui en a deux. Pas une erreur, une **réponse fausse
+  silencieuse** — le pire des cas.
 
 ### D. Le catalogue d'outils ne recouvre pas les questions du quotidien
 
@@ -176,32 +189,90 @@ ne rendra pas juste une seule réponse aujourd'hui fausse.** D'où les lots qui 
 
 ---
 
-## 5. Plan proposé
+## 5. Ce qui a été fait (6 août 2026)
 
-### Lot 1 — Donner à l'assistant le texte des conventions *(impact maximal)*
+Le lot 1 est écrit et validé, ainsi que les deux correctifs du lot 2 dont
+l'absence produisait des réponses fausses. **Rien n'est encore en production :
+deux étapes attendent un feu vert, au § 7.**
 
-Le texte de base complet est déjà rapatrié depuis KALI puis jeté. Le conserver
-dans une colonne dédiée (`collective_agreement_texts.base_text`), sans toucher à
-`full_text` dont le moteur de paie dépend, puis faire lire cette colonne au
-copilot en repli sur `full_text`.
+| Changement | Fichier |
+|---|---|
+| Colonne `base_text` (+ compteur, date) | `supabase/migrations/20260806160000_cc_base_text.sql` |
+| Texte de base rapatrié une fois, conservé au lieu d'être jeté ; plafond propre (1,2 M car.) | `collective_agreements/infrastructure/kali_client.py` |
+| Persistance du texte de base | `collective_agreements/{domain/interfaces,infrastructure/providers,application/kali_import}.py` |
+| Rattrapage sans re-synchro complète | `backend/scripts/backfill_cc_base_text.py` |
+| Lecture de `base_text`, repli sur `full_text` si la colonne n'existe pas encore | `copilot/infrastructure/queries.py` |
+| Sélection des sections utiles + sommaire complet joint | `copilot/domain/agreement_context.py` |
+| Choix des sections par le modèle à la lecture du sommaire | `copilot/infrastructure/providers.py` |
+| Un modèle par rôle | `shared/infrastructure/ai/models.py` |
+| Rapprochement des valeurs de filtre | `copilot/domain/filter_values.py`, `infrastructure/secure_queries.py` |
+| Deux règles de clarification inutiles supprimées | `copilot/infrastructure/providers.py` |
 
-Zéro appel KALI supplémentaire, zéro régression paie possible puisque la colonne
-existante n'est pas modifiée. Une resynchronisation des trois conventions
-assignées suffit à couvrir les sept sociétés.
+Résultats mesurés :
 
-À prévoir dans la foulée : au-delà de ~200 k caractères, découper le texte et ne
-retenir que les sections pertinentes à la question plutôt que tout envoyer — sinon
-la précision se dégrade et la latence grimpe.
+- **Routage : 15/19 → 17/19**, latence moyenne 4,9 s → 4,6 s. Les deux échecs
+  restants (`hors3`, `mix1`) sont les points B et D, non traités.
+- **Convention** (validé hors base, sur le texte réel) : « combien de jours pour
+  un mariage ou un décès ? » passait de « l'information ne figure pas dans le
+  texte » à la table complète de l'**article 90**, vérifiée ligne à ligne contre
+  la source. Idem pour la période d'essai, le préavis et la prime d'ancienneté en
+  plasturgie, qui citent maintenant les articles 8, 9, 11, 21 et 28.
+- **Apprentis** : « aucun apprenti » → « 2 apprentis », vérifié en base.
+- **Absences** : le filtre `type: "maladie"` ne fait plus échouer l'outil ;
+  « 3 absences maladie validées, 3 jours » correspond exactement à la base.
 
-### Lot 2 — Réparer les deux défauts d'architecture
+Réserve honnête : sur la métallurgie, la sélection retient 120 000 caractères sur
+839 000. Le modèle cite désormais les bons articles, mais sur une question très
+transverse il peut encore signaler qu'une section n'a pas été reproduite — il le
+dit explicitement plutôt que de conclure à tort, ce qui était l'objectif.
 
-- Exécuter les outils **avant** de retourner la réponse convention, et permettre à
-  une réponse de combiner données et convention (supprimer les `return`
-  prématurés de `handle_agent_query`).
-- Contraindre le domaine des valeurs de filtres dans `domain/tools.py` :
-  énumérations validées côté serveur pour `type`, `status`, `employment_status`,
-  `contract_type`, et rejet explicite d'une valeur inconnue — plutôt qu'une
-  requête qui ne remonte rien. Les énumérer aussi dans le prompt.
+Un point à surveiller : le texte KALI contient des articles en double
+(`Article 91.1.1` apparaît deux fois dans la métallurgie, en deux versions). Sans
+incidence constatée, mais à garder en tête sur les questions de maintien de salaire.
+
+## 6. Plan proposé
+
+### Lot 1 — Donner à l'assistant le texte des conventions *(fait)*
+
+Le texte de base est conservé dans `collective_agreement_texts.base_text`, sans
+toucher à `full_text` dont le moteur de paie dépend. Zéro appel KALI
+supplémentaire — le texte était déjà rapatrié, puis jeté. Le copilot lit
+`base_text` et retombe sur `full_text` tant qu'une convention n'a pas été
+rattrapée.
+
+La sélection de sections (`copilot/domain/agreement_context.py`) évite d'envoyer
+800 000 caractères à chaque question. Deux garde-fous : sous 60 000 caractères le
+texte part **intégralement**, et le **sommaire complet** est toujours joint, pour
+que le modèle puisse dire qu'une section existe mais n'a pas été reproduite —
+plutôt que de conclure que la convention est muette.
+
+Deux pièges rencontrés, tous deux corrigés et couverts par des tests :
+
+- un classement lexical par *présence* de mots favorise les sections géantes
+  (une section de 56 000 caractères contient tous les mots) : c'est la densité
+  qui compte ;
+- la barrière de vocabulaire — « combien de jours pour un mariage » ne partage
+  aucun mot avec « Congés payés. Congés exceptionnels ». Le modèle désigne donc
+  lui-même les sections à lire à partir du sommaire, en un appel court ; en cas
+  d'échec, le classement lexical reprend la main.
+
+### Lot 2 — Réparer les défauts d'architecture *(partiellement fait)*
+
+**Fait** — le domaine des valeurs de filtres est contraint côté serveur
+(`copilot/domain/filter_values.py`) : rapprochement insensible à la casse et aux
+accents, synonymes courants, correspondance par préfixe (`Apprenti` →
+`Apprentissage`), et échec **explicite** listant les valeurs acceptées plutôt
+qu'un résultat vide. Les valeurs d'énumération sont aussi listées dans le prompt.
+Cas limite couvert : une entreprise sans salarié répond « zéro », pas « valeur
+inconnue ».
+
+**Fait** — les deux règles de clarification qui renvoyaient une question là où une
+réponse existait (`data5`, `cc5`).
+
+**Reste à faire** — exécuter les outils **avant** de retourner la réponse
+convention, et permettre à une réponse de combiner données et convention
+(supprimer les `return` prématurés de `handle_agent_query`). C'est l'échec `mix1`,
+toujours présent.
 
 ### Lot 3 — Élargir le catalogue aux vraies questions
 
@@ -228,13 +299,41 @@ faire (retirer « notes de frais » tant qu'aucun outil ne les couvre).
 
 ---
 
-## 6. Ordre suggéré
+## 7. Les deux étapes de production, à valider
 
-1. **Lot 1**, seul, avec vérification sur le banc d'essai : c'est lui qui décide
-   si l'assistant sait répondre à une question de convention.
-2. **Changement de modèle** — dépend du lot 1 pour la taille de contexte.
-3. **Lot 2**, qui supprime deux catégories de réponses fausses.
-4. **Lot 4** avant le **lot 3**, pour élargir le catalogue d'après l'usage réel
+Rien de ce qui précède n'est actif en production : la colonne `base_text` n'y
+existe pas encore, et l'assistant continue donc de lire le corpus paie (le repli
+est prévu, il fonctionne, il émet un avertissement dans les logs).
+
+L'ordre compte :
+
+1. **Fusionner vers `main`** — la migration `20260806160000_cc_base_text.sql`
+   s'applique alors automatiquement, et le backend se déploie. La colonne doit
+   exister avant que le code ne la lise ; le repli couvre l'intervalle.
+2. **Rattraper les trois conventions** — depuis le backend, une fois la migration
+   passée :
+
+   ```
+   venv/bin/python scripts/backfill_cc_base_text.py            # simulation
+   venv/bin/python scripts/backfill_cc_base_text.py --apply
+   ```
+
+   Le script n'écrit que `base_text`, jamais `full_text` : la paie ne peut pas
+   être affectée. Il refuse d'écrire un texte où aucun repère RH n'apparaît, et
+   compte ~1 minute par convention (rapatriement KALI).
+
+Puis rejouer le banc d'essai (`scripts/eval_assistant_rh.py`) pour mesurer la
+branche convention sur le vrai corpus, cette fois de bout en bout.
+
+Le test unitaire `tests/unit/payroll/test_golden_bulletins.py::test_contexte_injecte_sans_supabase`
+échoue, mais indépendamment de ces changements : le commit `16386f6b` d'hier a
+retiré `create_client` de `payroll/engine/contexte.py` sans mettre le test à jour.
+
+## 8. Suite
+
+3. **Lot 2, ce qui reste** : les `return` prématurés, qui coûtent la moitié de
+   toute question mixte.
+4. **Lot 4 avant le lot 3**, pour élargir le catalogue d'après l'usage réel
    plutôt que d'après nos suppositions.
 
 Le banc d'essai se rejoue après chaque lot ; c'est la mesure, pas l'impression,

@@ -120,9 +120,10 @@ export function CopilotModalAgent({ isOpen, onClose }: CopilotModalProps) {
           </DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
             Posez n&apos;importe quelle question, en langage naturel. L&apos;assistant
-            interroge vos données RH (effectifs, paie, absences, notes de frais),
-            répond sur vos conventions collectives et vous guide dans l&apos;utilisation
-            du logiciel — comment faire une action ou où trouver une fonctionnalité.
+            interroge vos données RH (effectifs, synthèse de paie, absences,
+            planning, indicateurs), répond sur vos conventions collectives et vous
+            guide dans l&apos;utilisation du logiciel — comment faire une action ou
+            où trouver une fonctionnalité.
           </DialogDescription>
         </DialogHeader>
 
