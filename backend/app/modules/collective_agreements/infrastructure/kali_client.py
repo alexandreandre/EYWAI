@@ -235,25 +235,41 @@ class KaliClient:
         # Plafond propre au texte de base : à 400 000 caractères, le parcours
         # s'arrêtait au milieu de la métallurgie 3248 et perdait les titres IV
         # à X — contrat de travail, durée du travail, congés, rupture.
+        # KALI renvoie plusieurs versions d'un même article : la version en
+        # vigueur et celles qu'elle remplace (`etat: REMPLACE`). Pour l'assistant
+        # RH, on ne garde que ce qui s'applique aujourd'hui — sans quoi il peut
+        # citer un article périmé comme s'il était en vigueur.
+        # Le corpus paie (`full_text`) n'est volontairement pas filtré ici : ce
+        # serait un changement de son contenu, à valider séparément.
         text, articles = self._fetch_subsection_text(
-            base, limite=MAX_BASE_TEXT_CHARS
+            base,
+            limite=MAX_BASE_TEXT_CHARS,
+            versions_en_vigueur_seulement=True,
         )
         if not text:
             return "", articles, 0
         return text, articles, 1
 
     def _fetch_subsection_text(
-        self, sub: dict[str, Any], *, limite: int = MAX_TEXT_CHARS
+        self,
+        sub: dict[str, Any],
+        *,
+        limite: int = MAX_TEXT_CHARS,
+        versions_en_vigueur_seulement: bool = False,
     ) -> tuple[str, int]:
         text_id = str(sub.get("id") or "")
         lines: list[str] = []
+        options = {
+            "limite": limite,
+            "versions_en_vigueur_seulement": versions_en_vigueur_seulement,
+        }
         if text_id.startswith("KALITEXT"):
             kali_text = self._post("consult/kaliText", {"id": text_id})
             if not kali_text:
                 return "", 0
-            articles = self._append_section_content(kali_text, lines, limite=limite)
+            articles = self._append_section_content(kali_text, lines, **options)
         else:
-            articles = self._append_section_content(sub, lines, limite=limite)
+            articles = self._append_section_content(sub, lines, **options)
         return "\n".join(lines).strip(), articles
 
     def _append_section_content(
@@ -263,8 +279,15 @@ class KaliClient:
         *,
         depth: int = 0,
         limite: int = MAX_TEXT_CHARS,
+        versions_en_vigueur_seulement: bool = False,
     ) -> int:
-        return self._append_section_text(section, lines, depth=depth, limite=limite)
+        return self._append_section_text(
+            section,
+            lines,
+            depth=depth,
+            limite=limite,
+            versions_en_vigueur_seulement=versions_en_vigueur_seulement,
+        )
 
     def resolve_convention(self, idcc: str) -> KaliConventionMeta:
         """Trouve le KALICONT et le titre pour un IDCC."""
@@ -445,6 +468,7 @@ class KaliClient:
         *,
         depth: int,
         limite: int = MAX_TEXT_CHARS,
+        versions_en_vigueur_seulement: bool = False,
     ) -> int:
         articles_fetched = 0
         prefix = "#" * min(2 + depth, 4)
@@ -455,6 +479,8 @@ class KaliClient:
         for article in section.get("articles") or []:
             if articles_fetched >= MAX_ARTICLE_FETCHES:
                 break
+            if versions_en_vigueur_seulement and not _article_en_vigueur(article):
+                continue
             text = article.get("texte") or article.get("content")
             art_id = article.get("id") or ""
             if not text and art_id:
@@ -471,7 +497,11 @@ class KaliClient:
             if _text_len(lines) >= limite:
                 break
             articles_fetched += self._append_section_text(
-                sub, lines, depth=depth + 1, limite=limite
+                sub,
+                lines,
+                depth=depth + 1,
+                limite=limite,
+                versions_en_vigueur_seulement=versions_en_vigueur_seulement,
             )
         return articles_fetched
 
@@ -879,6 +909,30 @@ def _pick_latest_salary_texts_by_zone(
         reverse=True,
     )
     return ordered[:max_zones]
+
+
+def _article_en_vigueur(article: dict[str, Any], maintenant_ms: int | None = None) -> bool:
+    """Vrai si cette version d'article s'applique aujourd'hui.
+
+    KALI expose chaque version avec son ``etat`` (``VIGUEUR``, ``VIGUEUR_ETEN``,
+    ``REMPLACE``, ``ABROGE``…) et ses bornes ``dateDebut`` / ``dateFin`` en
+    millisecondes. Une version remplacée reste présente dans la réponse : sans
+    filtre, elle se retrouve dans le texte au même titre que la version
+    applicable. Un ``etat`` absent est considéré en vigueur (on ne retire pas un
+    article faute de métadonnée).
+    """
+    etat = str(article.get("etat") or "").upper()
+    if etat and not etat.startswith("VIGUEUR"):
+        return False
+    if maintenant_ms is None:
+        maintenant_ms = int(time.time() * 1000)
+    fin = article.get("dateFin")
+    try:
+        if fin is not None and int(fin) < maintenant_ms:
+            return False
+    except (TypeError, ValueError):
+        pass
+    return True
 
 
 def _truncate(text: str, limit: int = MAX_TEXT_CHARS) -> str:
