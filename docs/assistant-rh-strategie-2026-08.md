@@ -210,6 +210,8 @@ deux étapes attendent un feu vert, au § 7.**
 | Questions mixtes : sources collectées puis synthétisées | `copilot/application/commands.py`, `application/service.py` |
 | Période et salariés concernés dans la synthèse d'absences | `copilot/infrastructure/secure_queries.py` |
 | Journal des échanges (question, routage, outils, latence) | `copilot/infrastructure/journal.py`, `supabase/migrations/20260806170000_copilot_interactions.sql` |
+| Versions d'article remplacées écartées du texte de l'assistant | `collective_agreements/infrastructure/kali_client.py` |
+| Garde-fou Supabase du contexte paie recalé (bloquait la CI) | `tests/unit/payroll/test_golden_bulletins.py` |
 | Description de l'interface alignée sur le catalogue réel | `frontend/src/components/CopilotModalAgent.tsx` |
 
 Résultats mesurés :
@@ -240,9 +242,25 @@ Réserve honnête : sur la métallurgie, la sélection retient 120 000 caractèr
 transverse il peut encore signaler qu'une section n'a pas été reproduite — il le
 dit explicitement plutôt que de conclure à tort, ce qui était l'objectif.
 
-Un point à surveiller : le texte KALI contient des articles en double
-(`Article 91.1.1` apparaît deux fois dans la métallurgie, en deux versions). Sans
-incidence constatée, mais à garder en tête sur les questions de maintien de salaire.
+Les articles en double repérés dans le texte KALI n'étaient pas un artefact
+bénin. KALI renvoie **plusieurs versions du même article** — celle qui s'applique
+et celles qu'elle remplace — distinguées par `etat` (`VIGUEUR`, `VIGUEUR_ETEN`,
+`REMPLACE`, `ABROGE`) et par `dateDebut` / `dateFin`. Les *sections* étaient
+filtrées sur cet état, les *articles* jamais : l'assistant pouvait donc citer un
+article périmé comme s'il était en vigueur. Sur la métallurgie, 67 numéros
+apparaissaient plusieurs fois avec des contenus différents — trois « Article 19 »
+sous le même chapitre « garanties conventionnelles », deux « Article 166 » sur la
+cotisation garantie de branche dont un remplacé depuis janvier 2023.
+
+Après filtrage : 839 000 → 688 000 caractères, 570 → 498 articles, 67 → 20
+doublons, tous légitimes (mêmes numéros dans des chapitres différents). Les
+repères RH sont intacts (« préavis » 43, « congé » 156) : c'est du bruit qui
+part, pas du signal.
+
+**Le corpus paie n'est volontairement pas filtré.** Le même défaut l'affecte
+probablement — des grilles salariales remplacées y côtoient les actuelles — mais
+le corriger changerait le contenu de `full_text`, donc les barèmes extraits. À
+traiter séparément, avec un backtest paie.
 
 ## 6. Plan proposé
 
@@ -327,8 +345,19 @@ constaté le 6 août au soir). Aucune CI ne démarre, donc aucun déploiement, d
 aucune migration appliquée.
 
 Ce n'est pas un problème de configuration — les workflows sont actifs et les
-tâches planifiées de la journée ont tourné normalement jusqu'à 18 h 26. Deux
-poussées vers `main` (21 h 13 et 22 h 12) n'ont produit aucun run.
+tâches planifiées de la journée ont tourné normalement jusqu'à 18 h 26. Les
+poussées vers `main` n'ont produit aucun run.
+
+Un second obstacle, celui-là de notre côté, a été levé au passage : le test
+`test_golden_bulletins.py::test_contexte_injecte_sans_supabase` échouait sur
+`main` et **aurait fait échouer la CI dès sa reprise** (`tests/unit` est
+bloquant), donc empêché tout déploiement. Il piégeait `contexte.create_client`,
+que le module n'importe plus depuis `16386f6b`. Le piège porte désormais sur
+`get_supabase_admin_client`, le point d'entrée réellement utilisé.
+
+Toutes les étapes bloquantes de la CI ont été rejouées en local : ruff, smoke
+import (744 routes), `tests/unit` (4851 passent, 0 échec), lint et build du
+front.
 
 Conséquence pratique : le code déployé en production reste celui du 4 août. Les
 correctifs paie poussés hier soir (barèmes, alertes CC, taux VM, pause des
