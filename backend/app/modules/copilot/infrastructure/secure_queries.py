@@ -100,7 +100,7 @@ def _valeurs_employees(company_id: str, colonne: str) -> list[str]:
         .data
         or []
     )
-    return sorted({str(l[colonne]) for l in lignes if l.get(colonne)})
+    return sorted({str(ligne[colonne]) for ligne in lignes if ligne.get(colonne)})
 
 
 def _filtre_employees(query: Any, company_id: str, filters: dict[str, Any]) -> Any:

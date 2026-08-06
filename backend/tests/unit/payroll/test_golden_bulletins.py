@@ -127,8 +127,12 @@ class TestGoldenBulletins:
         def _fail(*_a, **_k):
             raise AssertionError("Supabase ne doit pas être appelé en mode test")
 
+        # Le contexte ne construit plus son client avec `create_client` : depuis
+        # 16386f6b il passe par `get_supabase_admin_client`, importé à l'appel.
+        # C'est donc la fonction d'origine qu'il faut piéger, sinon le test
+        # échoue au patch sans rien vérifier.
         monkeypatch.setattr(
-            "app.modules.payroll.engine.contexte.create_client", _fail
+            "app.core.database.get_supabase_admin_client", _fail
         )
         ctx = build_test_contexte()
         assert ctx.baremes.get("smic", {}).get("cas_general") == 12.31

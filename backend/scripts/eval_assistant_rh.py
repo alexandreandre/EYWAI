@@ -136,7 +136,7 @@ def _resoudre_societes(noms: set[str]) -> dict[str, str]:
         .data
         or []
     )
-    par_nom = {str(l["company_name"]): str(l["id"]) for l in lignes}
+    par_nom = {str(ligne["company_name"]): str(ligne["id"]) for ligne in lignes}
     manquants = noms - set(par_nom)
     if manquants:
         raise SystemExit(f"Entreprises introuvables : {', '.join(sorted(manquants))}")
