@@ -88,6 +88,7 @@ from app.modules.payroll_variables.api.router import router as payroll_variables
 from app.modules.cet.api.router import router as cet_router
 from app.modules.saisies_avances.api.router import router as saisies_avances_router
 from app.modules.scraping.api.router import router as scraping_router
+from app.modules.pas_rates.api.router import router as pas_rates_router
 from app.modules.residence_permits.api.router import router as residence_permits_router
 from app.modules.rib_alerts.api.router import router as rib_alerts_router
 from app.modules.badgeuse.api.router import (
@@ -177,6 +178,7 @@ router.include_router(payroll_variables_router)
 router.include_router(cet_router)
 router.include_router(saisies_avances_router)
 router.include_router(scraping_router)
+router.include_router(pas_rates_router)
 router.include_router(residence_permits_router)
 router.include_router(rib_alerts_router)
 router.include_router(rates_router, prefix="/api/rates", tags=["Rates"])

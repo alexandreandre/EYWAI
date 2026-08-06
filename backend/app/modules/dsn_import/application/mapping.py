@@ -343,7 +343,7 @@ def _estimate_brut_from_contrat(contrat: ContratBlock) -> float:
     return extract_monthly_totals(stub).get("brut", 0.0)
 
 
-def _extract_pas(contrat: ContratBlock) -> Dict[str, Any]:
+def extract_pas(contrat: ContratBlock) -> Dict[str, Any]:
     """Reconstitue le prélèvement à la source depuis le dernier versement DSN.
 
     On retient le versement le plus récent porteur d'un taux PAS afin d'initialiser
@@ -397,7 +397,7 @@ def map_employee_payload(
     end = normalize_date_dsn(contrat.date_fin)
 
     contract_type = map_contract_type(contrat.nature)
-    pas = _extract_pas(contrat)
+    pas = extract_pas(contrat)
     sexe = map_sexe(ind.sexe)
     psc_block = build_specificites_paie_psc(contrat, organismes_psc=etab.organismes_psc)
     psc_meta = psc_block.pop("_psc_meta", {})
