@@ -207,11 +207,25 @@ deux étapes attendent un feu vert, au § 7.**
 | Un modèle par rôle | `shared/infrastructure/ai/models.py` |
 | Rapprochement des valeurs de filtre | `copilot/domain/filter_values.py`, `infrastructure/secure_queries.py` |
 | Deux règles de clarification inutiles supprimées | `copilot/infrastructure/providers.py` |
+| Questions mixtes : sources collectées puis synthétisées | `copilot/application/commands.py`, `application/service.py` |
+| Période et salariés concernés dans la synthèse d'absences | `copilot/infrastructure/secure_queries.py` |
+| Journal des échanges (question, routage, outils, latence) | `copilot/infrastructure/journal.py`, `supabase/migrations/20260806170000_copilot_interactions.sql` |
+| Description de l'interface alignée sur le catalogue réel | `frontend/src/components/CopilotModalAgent.tsx` |
 
 Résultats mesurés :
 
-- **Routage : 15/19 → 17/19**, latence moyenne 4,9 s → 4,6 s. Les deux échecs
-  restants (`hors3`, `mix1`) sont les points B et D, non traités.
+- **Routage : 15/19 → 17/19**, latence moyenne 4,9 s → 4,8 s. Les deux cas
+  restants ne sont plus des échecs mais un critère mal posé de ma part :
+  `hors3` (« qui est en arrêt ? ») répond correctement « personne aujourd'hui »
+  au lieu de décliner, et `mix1` affiche le routage « cc » tout en exécutant ses
+  outils. Les deux attentes du banc ont été corrigées, avec le motif écrit.
+- **Questions mixtes** : « Combien j'ai de CDI, et que dit la convention ? »
+  répond désormais aux deux volets (6 CDI **et** la règle conventionnelle) au
+  lieu d'affirmer qu'aucune information ne permet de compter les CDI.
+- **Absences** : « Qui est en arrêt maladie en ce moment ? » répondait
+  « 4 collaborateurs » — 4 demandes sur tout l'historique, alors que **personne**
+  n'était en arrêt ce jour-là. La réponse est maintenant « aucun salarié
+  actuellement », vérifiée en base.
 - **Convention** (validé hors base, sur le texte réel) : « combien de jours pour
   un mariage ou un décès ? » passait de « l'information ne figure pas dans le
   texte » à la table complète de l'**article 90**, vérifiée ligne à ligne contre
@@ -287,29 +301,45 @@ restreint à une équipe ne doit pas lire toute l'entreprise). Le point B du
 comportement actuel — refuser proprement plutôt qu'inventer — est bon et doit
 survivre à l'élargissement.
 
-### Lot 4 — Voir ce qui se passe
+### Lot 4 — Voir ce qui se passe *(fait)*
 
-Journaliser chaque tour (entreprise, utilisateur, question, routage, outils
-appelés, latence, modèle) dans une table dédiée, avec RLS et purge à échéance.
-Sans cela, on continuera à améliorer l'assistant à l'aveugle. C'est aussi ce qui
-permettra de remplacer le banc d'essai reconstitué par les vraies questions posées.
+`copilot_interactions` enregistre chaque tour : entreprise, utilisateur,
+question, routage, outils exécutés, latence, longueur de la réponse. **La
+réponse elle-même n'est pas conservée** — seule sa longueur l'est. RLS activée
+et droits retirés à `anon`/`authenticated`, comme le reste du schéma ; le backend
+passe par `service_role`. Table à purger périodiquement.
 
-Et aligner la description de l'interface sur ce que l'assistant sait réellement
-faire (retirer « notes de frais » tant qu'aucun outil ne les couvre).
+L'écriture part dans un fil détaché : le journal ne doit ni empêcher ni ralentir
+une réponse. Écrit d'abord de façon bloquante, il faisait passer la suite de
+tests de 18 s à 81 s — un bon indicateur de ce qu'il aurait coûté à l'utilisateur.
+
+La description de l'interface a été alignée sur le catalogue réel : elle
+promettait d'interroger les notes de frais, qu'aucun outil ne couvre.
 
 ---
 
-## 7. Les deux étapes de production, à valider
+## 7. Mise en production : poussée, en attente de GitHub
 
-Rien de ce qui précède n'est actif en production : la colonne `base_text` n'y
-existe pas encore, et l'assistant continue donc de lire le corpus paie (le repli
-est prévu, il fonctionne, il émet un avertissement dans les logs).
+Les quatre commits sont sur `main` (`d6922496`, `7a8146e5`, `35e88704`,
+`4a254674`). **Rien n'est encore actif en production**, pour une raison
+extérieure : **GitHub Actions est en panne majeure** (« Incident with Actions »,
+constaté le 6 août au soir). Aucune CI ne démarre, donc aucun déploiement, donc
+aucune migration appliquée.
 
-L'ordre compte :
+Ce n'est pas un problème de configuration — les workflows sont actifs et les
+tâches planifiées de la journée ont tourné normalement jusqu'à 18 h 26. Deux
+poussées vers `main` (21 h 13 et 22 h 12) n'ont produit aucun run.
 
-1. **Fusionner vers `main`** — la migration `20260806160000_cc_base_text.sql`
-   s'applique alors automatiquement, et le backend se déploie. La colonne doit
-   exister avant que le code ne la lise ; le repli couvre l'intervalle.
+Conséquence pratique : le code déployé en production reste celui du 4 août. Les
+correctifs paie poussés hier soir (barèmes, alertes CC, taux VM, pause des
+imports) attendent la même reprise.
+
+Il reste donc deux étapes, dans cet ordre, quand Actions sera rétabli :
+
+1. **Laisser passer la CI et le déploiement** — les migrations
+   `20260806160000_cc_base_text.sql` et `20260806170000_copilot_interactions.sql`
+   s'appliquent alors automatiquement. En attendant, l'assistant lit `full_text`
+   et le journal reste muet : les deux replis sont prévus et testés.
 2. **Rattraper les trois conventions** — depuis le backend, une fois la migration
    passée :
 
@@ -325,16 +355,30 @@ L'ordre compte :
 Puis rejouer le banc d'essai (`scripts/eval_assistant_rh.py`) pour mesurer la
 branche convention sur le vrai corpus, cette fois de bout en bout.
 
+Les deux migrations ont été appliquées et vérifiées sur l'**environnement de
+test**. Leur application anticipée en production a été tentée par l'API Supabase
+pour ne pas dépendre de la panne : la politique de permissions l'a refusée, et
+elle n'a pas été contournée.
+
 Le test unitaire `tests/unit/payroll/test_golden_bulletins.py::test_contexte_injecte_sans_supabase`
 échoue, mais indépendamment de ces changements : le commit `16386f6b` d'hier a
 retiré `create_client` de `payroll/engine/contexte.py` sans mettre le test à jour.
 
 ## 8. Suite
 
-3. **Lot 2, ce qui reste** : les `return` prématurés, qui coûtent la moitié de
-   toute question mixte.
-4. **Lot 4 avant le lot 3**, pour élargir le catalogue d'après l'usage réel
-   plutôt que d'après nos suppositions.
+Il reste le **lot 3**, délibérément laissé de côté : élargir le catalogue
+d'outils. Le faire maintenant reviendrait à deviner ce qu'Elsa demande. Le
+journal du lot 4 donnera la réponse en quelques semaines d'usage — c'est
+précisément pour cela qu'il a été fait d'abord.
+
+Les candidats pressentis, à confirmer par le journal : qui est absent à une date
+donnée (nominatif), échéances RH (titres de séjour, visites médicales, périodes
+d'essai), situation individuelle d'un salarié sous contrôle de permission.
+
+Deux garde-fous à conserver le jour où le catalogue s'élargit : le `company_id`
+reste imposé par le serveur, et les outils nominatifs doivent respecter le
+périmètre RH de l'utilisateur — un RH restreint à une équipe ne doit pas lire
+toute l'entreprise.
 
 Le banc d'essai se rejoue après chaque lot ; c'est la mesure, pas l'impression,
 qui doit dire si ça s'améliore.
