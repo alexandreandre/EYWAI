@@ -24,6 +24,10 @@ from app.modules.collective_agreements.rules.constants import (
 logger = logging.getLogger(__name__)
 
 MAX_TEXT_CHARS = 400_000
+# Le texte de base d'une grande convention dépasse le plafond du corpus paie
+# (la métallurgie 3248 fait ~406 000 caractères) : on lui donne le sien, sinon
+# la fin de la convention serait coupée.
+MAX_BASE_TEXT_CHARS = 1_200_000
 MAX_ARTICLE_FETCHES = 250
 MIN_FETCHED_TEXT_CHARS = 200
 
@@ -44,6 +48,10 @@ class KaliFetchResult:
     character_count: int
     sections_fetched: int
     articles_fetched: int
+    # Texte de base intégral de la convention. ``full_text`` n'en garde qu'un
+    # extrait rémunération (corpus paie) ; l'assistant RH a besoin du texte
+    # entier — période d'essai, préavis, congés, classifications.
+    base_text: str = ""
 
 
 class PisteNotConfiguredError(Exception):
@@ -124,20 +132,19 @@ class KaliClient:
         articles_fetched += af
         sections_fetched += sf
 
-        # 3. Extraits rémunération / prime depuis le texte de base
-        rem_blocks, af, sf = self._collect_remuneration_excerpts(top_sections)
-        parts.extend(rem_blocks)
+        # 3. Texte de base intégral, récupéré une seule fois : il alimente à la
+        #    fois l'extrait rémunération (paie) et ``base_text`` (assistant RH).
+        base_text, af, sf = self._collect_base_text(top_sections)
         articles_fetched += af
         sections_fetched += sf
 
-        if len(parts) <= 4:
+        rem_excerpt = _extract_remuneration_excerpt(base_text) if base_text else ""
+        if rem_excerpt:
+            parts.append(f"## Rémunération (texte de base)\n\n{rem_excerpt}")
+
+        if len(parts) <= 4 and base_text:
             # Fallback : texte de base en vigueur (comportement legacy)
-            base = _pick_base_section(top_sections)
-            if base:
-                sections_fetched += 1
-                lines: list[str] = []
-                articles_fetched += self._append_section_content(base, lines)
-                parts.extend(lines)
+            parts.append(base_text)
 
         full_text = _truncate("\n\n".join(p for p in parts if p))
         if len(full_text.strip()) < MIN_FETCHED_TEXT_CHARS:
@@ -151,6 +158,9 @@ class KaliClient:
             character_count=len(full_text),
             sections_fetched=sections_fetched,
             articles_fetched=articles_fetched,
+            base_text=(
+                _truncate(base_text, MAX_BASE_TEXT_CHARS) if base_text else ""
+            ),
         )
 
     def _collect_salary_texts(
@@ -213,36 +223,48 @@ class KaliClient:
                     break
         return blocks, articles, sections
 
-    def _collect_remuneration_excerpts(
-        self, top_sections: list[Any]
-    ) -> tuple[list[str], int, int]:
+    def _collect_base_text(self, top_sections: list[Any]) -> tuple[str, int, int]:
+        """Récupère le texte de base en vigueur : ``(texte, articles, sections)``.
+
+        Un seul rapatriement sert les deux usages — l'extrait rémunération du
+        corpus paie et le texte intégral destiné à l'assistant RH.
+        """
         base = _pick_base_section(top_sections)
         if not base:
-            return [], 0, 0
-        text, articles = self._fetch_subsection_text(base)
+            return "", 0, 0
+        # Plafond propre au texte de base : à 400 000 caractères, le parcours
+        # s'arrêtait au milieu de la métallurgie 3248 et perdait les titres IV
+        # à X — contrat de travail, durée du travail, congés, rupture.
+        text, articles = self._fetch_subsection_text(
+            base, limite=MAX_BASE_TEXT_CHARS
+        )
         if not text:
-            return [], 0, 0
-        excerpt = _extract_remuneration_excerpt(text)
-        if not excerpt:
-            return [], articles, 1
-        return [f"## Rémunération (texte de base)\n\n{excerpt}"], articles, 1
+            return "", articles, 0
+        return text, articles, 1
 
-    def _fetch_subsection_text(self, sub: dict[str, Any]) -> tuple[str, int]:
+    def _fetch_subsection_text(
+        self, sub: dict[str, Any], *, limite: int = MAX_TEXT_CHARS
+    ) -> tuple[str, int]:
         text_id = str(sub.get("id") or "")
         lines: list[str] = []
         if text_id.startswith("KALITEXT"):
             kali_text = self._post("consult/kaliText", {"id": text_id})
             if not kali_text:
                 return "", 0
-            articles = self._append_section_content(kali_text, lines)
+            articles = self._append_section_content(kali_text, lines, limite=limite)
         else:
-            articles = self._append_section_content(sub, lines)
+            articles = self._append_section_content(sub, lines, limite=limite)
         return "\n".join(lines).strip(), articles
 
     def _append_section_content(
-        self, section: dict[str, Any], lines: list[str], *, depth: int = 0
+        self,
+        section: dict[str, Any],
+        lines: list[str],
+        *,
+        depth: int = 0,
+        limite: int = MAX_TEXT_CHARS,
     ) -> int:
-        return self._append_section_text(section, lines, depth=depth)
+        return self._append_section_text(section, lines, depth=depth, limite=limite)
 
     def resolve_convention(self, idcc: str) -> KaliConventionMeta:
         """Trouve le KALICONT et le titre pour un IDCC."""
@@ -417,7 +439,12 @@ class KaliClient:
         return str(title).strip()
 
     def _append_section_text(
-        self, section: dict[str, Any], lines: list[str], *, depth: int
+        self,
+        section: dict[str, Any],
+        lines: list[str],
+        *,
+        depth: int,
+        limite: int = MAX_TEXT_CHARS,
     ) -> int:
         articles_fetched = 0
         prefix = "#" * min(2 + depth, 4)
@@ -441,9 +468,11 @@ class KaliClient:
                 lines.append(f"\nArticle {label}\n{text}\n")
 
         for sub in _filter_vigueur_sections(section.get("sections") or []):
-            if _text_len(lines) >= MAX_TEXT_CHARS:
+            if _text_len(lines) >= limite:
                 break
-            articles_fetched += self._append_section_text(sub, lines, depth=depth + 1)
+            articles_fetched += self._append_section_text(
+                sub, lines, depth=depth + 1, limite=limite
+            )
         return articles_fetched
 
     def _get_token(self) -> str:
@@ -852,10 +881,10 @@ def _pick_latest_salary_texts_by_zone(
     return ordered[:max_zones]
 
 
-def _truncate(text: str) -> str:
-    if len(text) <= MAX_TEXT_CHARS:
+def _truncate(text: str, limit: int = MAX_TEXT_CHARS) -> str:
+    if len(text) <= limit:
         return text
-    return text[:MAX_TEXT_CHARS] + "\n\n[...Document tronqué...]"
+    return text[:limit] + "\n\n[...Document tronqué...]"
 
 
 def get_kali_client() -> KaliClient:

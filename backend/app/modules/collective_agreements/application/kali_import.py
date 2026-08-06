@@ -152,6 +152,9 @@ class KaliImportService:
             fetched.character_count,
             source_hash=f"kali:{meta.kalicont_id}",
         )
+        # Le texte de base intégral alimente l'assistant RH ; il est écrit après
+        # ``set_full_text``, qui crée la ligne de cache si elle n'existe pas.
+        self._text_cache.set_base_text(agreement_id, fetched.base_text)
 
         rules_outcome: Optional[ExtractionOutcome] = None
         rules_skipped = False

@@ -107,6 +107,13 @@ class IAgreementTextCache(Protocol):
         """Enregistre ou met à jour le cache."""
         ...
 
+    def set_base_text(self, agreement_id: str, base_text: str) -> None:
+        """Enregistre le texte de base intégral (assistant RH), s'il existe.
+
+        Distinct de ``full_text``, qui reste le corpus paie.
+        """
+        ...
+
     def delete(self, agreement_id: str) -> None:
         """Supprime l'entrée de cache."""
         ...

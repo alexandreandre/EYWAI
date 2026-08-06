@@ -160,6 +160,29 @@ class AgreementTextCacheProvider:
         except Exception as e:
             logger.warning(f'[WARNING] Impossible de sauvegarder le cache: {e}')
 
+    def set_base_text(self, agreement_id: str, base_text: str) -> None:
+        """Met en cache le texte de base intégral (lu par l'assistant RH).
+
+        Ne fait rien si le texte est vide : mieux vaut conserver le précédent
+        rapatriement qu'écraser la convention par du vide en cas de sortie
+        inattendue de KALI.
+        """
+        from datetime import datetime, timezone
+
+        if not (base_text or "").strip():
+            return
+        payload = {
+            "base_text": base_text,
+            "base_text_char_count": len(base_text),
+            "base_text_updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            self._supabase.table("collective_agreement_texts").update(payload).eq(
+                "agreement_id", agreement_id
+            ).execute()
+        except Exception as e:
+            logger.warning(f"[WARNING] Impossible de sauvegarder le texte de base: {e}")
+
     def delete(self, agreement_id: str) -> None:
         self._supabase.table("collective_agreement_texts").delete().eq(
             "agreement_id", agreement_id
