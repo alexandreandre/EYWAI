@@ -31,6 +31,19 @@ puis 5,70/01. Le **type 13 est le taux barème** appliqué faute de mieux, le **
 le taux personnalisé** que la DGFiP renvoie dans le compte rendu métier après dépôt
 de la DSN.
 
+> **Confirmé le 7 août 2026.** La note DGFiP « application des taux non
+> personnalisés » publiée par net-entreprises donne la nomenclature : 13 barème
+> mensuel métropole, 23 Guadeloupe/Réunion/Martinique, 33 Guyane/Mayotte, et
+> 17/27/37 pour les mêmes barèmes proratisés. Vérifié sur les cinquante DSN
+> locales : 233 des 236 lignes de type 13 tombent au centième sur la grille
+> appliquée à l'assiette du versement. Le contre-exemple cité plus bas dans ce
+> document (13,80 % sur 1 601 €) comparait le taux à un net imposable de bulletin,
+> pas à l'assiette du versement qui porte le taux.
+>
+> Conséquence, traitée dans `app/shared/pas_taux.py` et dans le moteur : un taux
+> de barème est **recalculé à chaque paie** et n'est jamais rejoué d'un mois sur
+> l'autre. Seul le type 01 est une propriété du salarié.
+
 ## Objet
 
 Faire du taux PAS une donnée datée et traçable, alimentée par un fichier, et donner
@@ -85,7 +98,7 @@ Calculés dans le domaine, testés unitairement :
 | Statut | Règle |
 | --- | --- |
 | `a_jour` | type 01 et période du taux dans les deux derniers mois |
-| `bareme` | type 13 : la DGFiP n'a pas encore renvoyé de taux personnalisé |
+| `bareme` | type barème (13, 23, 33, 17, 27, 37) : la DGFiP n'a pas encore renvoyé de taux personnalisé, le moteur recalcule la grille chaque mois |
 | `a_rafraichir` | période du taux antérieure de plus de deux mois |
 | `manquant` | aucun taux connu, donc 0 % appliqué sur le bulletin |
 | `ecart` | le fichier déposé donne un taux différent de celui en base |
