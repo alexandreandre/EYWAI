@@ -196,7 +196,7 @@ class TestExecuteToolDispatch:
             handler = MagicMock(return_value={"ok": True})
             setattr(mock_queries, handler_name, handler)
             execute_tool(ToolCall(tool=tool, arguments={}), company_id="c1")
-            handler.assert_called_once_with("c1", {})
+            handler.assert_called_once_with("c1", {})  # user_id/role ignorés
 
         # Les outils nominatifs reçoivent en plus le user_id serveur, qui porte
         # leur périmètre d'accès.
@@ -208,8 +208,13 @@ class TestExecuteToolDispatch:
         for tool, handler_name in nominatifs.items():
             handler = MagicMock(return_value={"ok": True})
             setattr(mock_queries, handler_name, handler)
-            execute_tool(ToolCall(tool=tool, arguments={}), company_id="c1", user_id="u1")
-            handler.assert_called_once_with("c1", {}, "u1")
+            execute_tool(
+                ToolCall(tool=tool, arguments={}),
+                company_id="c1",
+                user_id="u1",
+                user_role="admin",
+            )
+            handler.assert_called_once_with("c1", {}, "u1", "admin")
 
     def test_le_catalogue_ne_laisse_aucun_outil_sans_handler(self):
         """Un outil déclaré sans câblage lèverait un KeyError en production."""

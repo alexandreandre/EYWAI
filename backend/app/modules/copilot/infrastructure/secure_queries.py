@@ -378,6 +378,13 @@ def hr_indicators(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
 # ----------------------------------------------------------------------------
 
 
+# Rôles dont les droits viennent du nom, et non de grants : eux seuls peuvent
+# se voir attribuer le périmètre entreprise en l'absence de grant explicite.
+ROLES_PERIMETRE_ENTREPRISE: frozenset[str] = frozenset(
+    {"admin", "rh", "collaborateur_rh"}
+)
+
+
 def _tous_les_salaries(company_id: str) -> list[str]:
     lignes = (
         get_supabase_client()
@@ -392,7 +399,7 @@ def _tous_les_salaries(company_id: str) -> list[str]:
 
 
 def _employes_autorises(
-    company_id: str, user_id: str, permission: str
+    company_id: str, user_id: str, permission: str, role: str = ""
 ) -> list[str] | None:
     """Identifiants des salariés visibles par l'utilisateur pour une permission.
 
@@ -401,25 +408,40 @@ def _employes_autorises(
 
     1. un grant scopé existe -> on applique son périmètre, équipes et exceptions
        comprises. C'est le cas d'un RH restreint à une équipe ;
-    2. aucun grant -> périmètre entreprise. Les rôles admin / rh /
-       collaborateur_rh n'ont pas de ligne ``user_permissions`` : leurs droits
-       viennent du rôle. Vérifié en production : aucun utilisateur n'a de grant
-       explicite aujourd'hui. Sans cette branche, l'assistant ne renverrait
-       jamais rien à personne.
+    2. aucun grant, rôle **nommé** (admin / rh / collaborateur_rh) -> périmètre
+       entreprise. Ces rôles n'ont pas de ligne ``user_permissions`` : leurs
+       droits viennent du rôle. Vérifié en production : aucun d'eux n'a de grant
+       explicite. Sans cette branche, l'assistant ne renverrait rien à personne ;
+    3. aucun grant, rôle **custom** -> AUCUN salarié. Un rôle custom ne tient
+       ses droits que de ses grants : l'absence de grant pour cette permission
+       est un refus, pas un silence à combler.
 
-    L'accès RH à l'entreprise active est déjà exigé en amont par
-    ``require_copilot_rh_user`` : quiconque atteint ces outils est au minimum
-    RH sur cette entreprise. La branche 2 n'élargit donc rien.
+    La distinction entre 2 et 3 n'est pas théorique. DROZ-VINCENT (Mont Blanc
+    Composite) a quinze permissions en périmètre « équipes », mais pas
+    ``employees.view_all`` : le repli de la branche 2 lui ouvrait les 89
+    salariés de l'entreprise, soit exactement l'inverse de son paramétrage.
 
-    ``None`` signale l'absence d'utilisateur exploitable : l'appelant ne doit
-    alors rien renvoyer, jamais retomber sur l'entreprise entière.
+    Deux retours à ne pas confondre, car ils donnent des réponses opposées :
+
+    - ``None`` : l'utilisateur n'a AUCUN droit sur cette donnée. L'appelant doit
+      dire « hors de votre périmètre », jamais « il n'y en a pas » ;
+    - liste vide : l'utilisateur a le droit, mais la population est réellement
+      vide (entreprise sans salarié). Là, « aucun » est la bonne réponse.
     """
     if not isinstance(user_id, str) or not user_id.strip():
         return None
     grant = scoped_permission_repository.get_grant(user_id, company_id, permission)
-    if grant is None:
+    if grant is not None:
+        autorises = filter_allowed_employee_ids_for_user(
+            user_id, company_id, permission
+        )
+        # Le périmètre du grant est renvoyé tel quel : s'il ne couvre personne,
+        # c'est bien « aucun salarié », pas « accès refusé ». L'utilisateur a le
+        # droit ; c'est la population qui est vide.
+        return autorises
+    if role in ROLES_PERIMETRE_ENTREPRISE:
         return _tous_les_salaries(company_id)
-    return filter_allowed_employee_ids_for_user(user_id, company_id, permission)
+    return None
 
 
 def _index_salaries(company_id: str, ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -444,7 +466,7 @@ def _nom(ligne: dict[str, Any]) -> str:
 
 
 def absences_en_cours(
-    company_id: str, filters: dict[str, Any], user_id: str = ""
+    company_id: str, filters: dict[str, Any], user_id: str = "", role: str = ""
 ) -> dict[str, Any]:
     """Qui est absent sur une période, nommément.
 
@@ -454,9 +476,11 @@ def absences_en_cours(
     """
     company_id = _require_company_id(company_id)
     filters = filters or {}
-    autorises = _employes_autorises(company_id, user_id, "absences.view_all")
-    if not autorises:
+    autorises = _employes_autorises(company_id, user_id, "absences.view_all", role)
+    if autorises is None:
         return {"absences": [], "count": 0, "hors_perimetre": True}
+    if not autorises:
+        return {"absences": [], "count": 0}
 
     date_start, date_end = _resolve_date_range(filters)
     query = (
@@ -509,7 +533,7 @@ def absences_en_cours(
 
 
 def echeances_rh(
-    company_id: str, filters: dict[str, Any], user_id: str = ""
+    company_id: str, filters: dict[str, Any], user_id: str = "", role: str = ""
 ) -> dict[str, Any]:
     """Échéances RH à venir ou dépassées, nommément.
 
@@ -529,8 +553,17 @@ def echeances_rh(
     echeances: list[dict[str, Any]] = []
     client = get_supabase_client()
 
+    hors_perimetre: list[str] = []
     if voulus & {"titre_sejour", "periode_essai", "fin_contrat"}:
-        autorises = _employes_autorises(company_id, user_id, "employees.view_all") or []
+        autorises = _employes_autorises(company_id, user_id, "employees.view_all", role)
+        if autorises is None:
+            # Aucun salarié visible : « aucune échéance » serait un mensonge.
+            # L'utilisateur doit savoir qu'il regarde à travers une fenêtre
+            # fermée, pas une pièce vide.
+            hors_perimetre.extend(
+                sorted(voulus & {"titre_sejour", "periode_essai", "fin_contrat"})
+            )
+            autorises = []
         salaries = _index_salaries(company_id, autorises)
 
         if "titre_sejour" in voulus and autorises:
@@ -612,9 +645,12 @@ def echeances_rh(
     if "visite_medicale" in voulus:
         # Le suivi médical a sa propre permission : un RH peut gérer les
         # contrats sans avoir à connaître les visites de santé.
-        autorises_med = (
-            _employes_autorises(company_id, user_id, "medical_follow_up.view_all") or []
+        autorises_med = _employes_autorises(
+            company_id, user_id, "medical_follow_up.view_all", role
         )
+        if autorises_med is None:
+            hors_perimetre.append("visite_medicale")
+            autorises_med = []
         if autorises_med:
             salaries_med = _index_salaries(company_id, autorises_med)
             lignes = (
@@ -649,6 +685,11 @@ def echeances_rh(
         "count": len(echeances),
         "depassees": sum(1 for e in echeances if e["jours_restants"] is not None
                          and e["jours_restants"] < 0),
+        # Types que l'utilisateur n'a pas le droit de consulter. Distinguer
+        # « rien à signaler » de « pas visible pour vous » évite de faire dire à
+        # l'assistant qu'une échéance n'existe pas alors qu'elle est seulement
+        # hors de son périmètre.
+        "types_hors_perimetre": sorted(set(hors_perimetre)),
     }
 
 
@@ -675,7 +716,7 @@ def _echeance(
 
 
 def employee_detail(
-    company_id: str, filters: dict[str, Any], user_id: str = ""
+    company_id: str, filters: dict[str, Any], user_id: str = "", role: str = ""
 ) -> dict[str, Any]:
     """Fiche d'un salarié : contrat, ancienneté, et rémunération si autorisée.
 
@@ -690,9 +731,11 @@ def employee_detail(
     if not nom_cherche:
         return {"employees": [], "count": 0}
 
-    autorises = _employes_autorises(company_id, user_id, "employees.view_all")
-    if not autorises:
+    autorises = _employes_autorises(company_id, user_id, "employees.view_all", role)
+    if autorises is None:
         return {"employees": [], "count": 0, "hors_perimetre": True}
+    if not autorises:
+        return {"employees": [], "count": 0}
 
     lignes = (
         get_supabase_client()
@@ -712,8 +755,12 @@ def employee_detail(
     if not correspondances:
         return {"employees": [], "count": 0}
 
-    salaire_visible = bool(
-        _employes_autorises(company_id, user_id, "payroll.view_all")
+    # Le droit de voir un salaire s'évalue SALARIÉ PAR SALARIÉ, pas globalement.
+    # Un utilisateur peut consulter les dossiers des équipes A et B et n'avoir
+    # accès à la paie que de l'équipe A : un booléen unique lui montrerait le
+    # salaire d'un salarié de l'équipe B.
+    salaires_autorises = set(
+        _employes_autorises(company_id, user_id, "payroll.view_all", role) or []
     )
     aujourdhui = date.today()
     fiches = []
@@ -733,7 +780,7 @@ def employee_detail(
             "anciennete_annees": anciennete,
             "fin_contrat": ligne.get("contract_end_date"),
         }
-        if salaire_visible:
+        if str(ligne.get("id")) in salaires_autorises:
             fiche["salaire_de_base"] = ligne.get("salaire_de_base")
         else:
             fiche["salaire_de_base"] = None

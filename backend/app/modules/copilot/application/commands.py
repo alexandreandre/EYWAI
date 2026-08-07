@@ -182,6 +182,7 @@ def _traiter_agent_query(
                 plan.get("data_tool_calls") or [],
                 company_id=company_id,
                 user_id=input_.user_id,
+                user_role=input_.user_role,
             )
             trace["outils"] = [
                 str(r.get("tool")) for r in retrieval_results if r.get("tool")

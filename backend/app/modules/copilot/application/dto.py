@@ -43,6 +43,10 @@ class AgentQueryInput:
     conversation_history: List[AgentMessageDto]
     user_id: str
     active_company_id: Optional[str] = None
+    # Rôle de l'utilisateur DANS l'entreprise active. Il décide du périmètre des
+    # outils nominatifs : un rôle nommé (admin/rh) couvre l'entreprise, un rôle
+    # `custom` ne voit que ce que ses grants autorisent.
+    user_role: str = ""
 
 
 @dataclass

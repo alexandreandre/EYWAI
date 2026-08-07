@@ -32,6 +32,35 @@ _INTERNAL_IDENTIFIER_KEYS = frozenset(
 )
 
 
+def _avertissement_perimetre(data: Any) -> str:
+    """Phrase explicite quand un résultat vide traduit un défaut de droits.
+
+    Un tableau vide se lit « il n'y en a pas ». Quand le vide vient du périmètre
+    de l'utilisateur, la vérité est « il peut y en avoir, vous ne les voyez
+    pas » — l'inverse. La distinction est trop importante pour reposer sur la
+    lecture d'une clé JSON par le modèle.
+    """
+    if not isinstance(data, dict):
+        return ""
+    types = data.get("types_hors_perimetre") or []
+    if data.get("hors_perimetre") is True:
+        return (
+            "ATTENTION : ce résultat est VIDE PARCE QUE L'UTILISATEUR N'A PAS "
+            "LES DROITS, pas parce qu'il n'y a rien. Il peut parfaitement "
+            "exister des données. Dis-lui que cela dépasse son périmètre "
+            "d'accès et qu'il doit voir avec un administrateur. N'écris "
+            "surtout pas « aucun » ni « il n'y en a pas »."
+        )
+    if types:
+        return (
+            "ATTENTION : l'utilisateur n'a pas les droits sur "
+            f"{', '.join(types)}. L'absence de résultat sur ces points ne "
+            "signifie PAS qu'il n'y a rien — dis qu'ils sont hors de son "
+            "périmètre d'accès."
+        )
+    return ""
+
+
 def _sanitize_for_llm(value: Any) -> Any:
     """Retire récursivement les identifiants internes avant envoi au fournisseur."""
     if isinstance(value, dict):
@@ -471,10 +500,18 @@ Réponds à cette question en te basant sur le texte de la convention collective
         for i, result in enumerate(retrieval_results):
             if result.get("success"):
                 sanitized_data = _sanitize_for_llm(result.get("data"))
-                results_summary.append(
+                bloc = (
                     f"Outil {result.get('tool') or i + 1} - Données: "
                     f"{json.dumps(sanitized_data, default=str, ensure_ascii=False)}"
                 )
+                # L'avertissement de périmètre est écrit en clair, et non laissé
+                # à la lecture d'une clé JSON : « aucun résultat » et « vous n'y
+                # avez pas accès » sont deux réponses opposées, et le modèle
+                # choisissait la première en survolant le champ.
+                avertissement = _avertissement_perimetre(sanitized_data)
+                if avertissement:
+                    bloc = f"{avertissement}\n{bloc}"
+                results_summary.append(bloc)
             else:
                 # Le motif (filtre inconnu, outil indisponible) est utile à la
                 # réponse : il évite de faire passer une absence de données pour
@@ -547,6 +584,17 @@ Ne signe pas la réponse et n'ajoute aucune formule de politesse finale du type
 « Cordialement » ou « [Votre Nom] » : tu es un assistant intégré, pas un courrier.
 Si les résultats ne couvrent pas la question (données absentes ou hors périmètre
 des outils), dis-le clairement et propose ce que tu peux fournir à la place.
+
+DISTINGUE DEUX SITUATIONS OPPOSÉES, ne les confonds jamais :
+- un résultat VIDE (count: 0) signifie qu'il n'y a effectivement rien à signaler ;
+- "hors_perimetre": true, ou "types_hors_perimetre" contenant AU MOINS UN
+  élément, signifie que l'utilisateur n'a PAS LE DROIT de voir ces données. Il
+  peut parfaitement en exister. Dis alors que ces informations ne relèvent pas
+  de son périmètre d'accès et qu'il doit se rapprocher d'un administrateur —
+  n'écris jamais « aucun » ni « il n'y en a pas », ce serait faux.
+  Une liste "types_hors_perimetre" VIDE ne signale aucune restriction : ne la
+  mentionne pas.
+
 Réponds comme un collègue RH serviable et expert."""
 
         try:

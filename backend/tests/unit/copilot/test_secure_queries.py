@@ -340,8 +340,13 @@ class TestPerimetreOutilsNominatifs:
             )
         assert autorises == ["e1"]
 
-    def test_grant_vide_ne_donne_acces_a_personne(self):
-        """Grant présent mais périmètre vide : fail-closed, pas de repli."""
+    def test_grant_au_perimetre_vide_repond_aucun_pas_interdit(self):
+        """Grant présent dont le périmètre ne couvre personne.
+
+        L'utilisateur A le droit ; c'est la population qui est vide. La réponse
+        juste est « aucun », pas « hors de votre périmètre » — et surtout aucun
+        repli sur l'entreprise entière.
+        """
         grant = SimpleNamespace(scope_mode="teams")
         with patch.object(
             secure_queries.scoped_permission_repository,
@@ -352,9 +357,10 @@ class TestPerimetreOutilsNominatifs:
         ):
             resultat = secure_queries.absences_en_cours("mbc", {}, "rh-restreint")
         assert resultat["absences"] == []
-        assert resultat["hors_perimetre"] is True
+        assert resultat.get("hors_perimetre") is None
 
-    def test_sans_grant_le_perimetre_est_l_entreprise(self):
+    @pytest.mark.parametrize("role", ["admin", "rh", "collaborateur_rh"])
+    def test_sans_grant_un_role_nomme_couvre_l_entreprise(self, role):
         """Admin / RH n'ont pas de ligne user_permissions : leurs droits
         viennent du rôle, et l'endpoint a déjà exigé un accès RH. Vérifié en
         production : sans cette branche, plus personne ne verrait rien."""
@@ -365,9 +371,43 @@ class TestPerimetreOutilsNominatifs:
             return_value=None,
         ):
             autorises = secure_queries._employes_autorises(
-                "mbc", "rh-admin", "employees.view_all"
+                "mbc", "rh-admin", "employees.view_all", role
             )
         assert autorises == ["e1", "e2"]
+
+    def test_sans_grant_un_role_custom_ne_voit_personne(self):
+        """Un rôle custom ne tient ses droits QUE de ses grants.
+
+        Cas réel : DROZ-VINCENT (Mont Blanc Composite) a quinze permissions en
+        périmètre « équipes », mais pas `employees.view_all`. Le repli des rôles
+        nommés lui ouvrait les 89 salariés de l'entreprise — l'inverse exact de
+        son paramétrage.
+        """
+        patcher, _ = _patch_client(FakeResponse(data=[{"id": "e1"}, {"id": "e2"}]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=None,
+        ):
+            autorises = secure_queries._employes_autorises(
+                "mbc", "custom-user", "employees.view_all", "custom"
+            )
+        # `None` et non `[]` : l'assistant doit dire « hors de votre périmètre »
+        # et non « aucun salarié », qui serait faux.
+        assert autorises is None
+
+    def test_role_inconnu_ne_voit_personne(self):
+        """Fail-closed : un rôle non reconnu n'obtient pas le périmètre entreprise."""
+        patcher, _ = _patch_client(FakeResponse(data=[{"id": "e1"}]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=None,
+        ):
+            autorises = secure_queries._employes_autorises(
+                "mbc", "u", "employees.view_all", "collaborateur"
+            )
+        assert autorises is None
 
     def test_absences_en_cours_sans_user_id_ne_renvoie_rien(self):
         # Fail-closed : pas d'utilisateur, pas de périmètre, pas de données.
@@ -454,15 +494,16 @@ class TestPerimetreOutilsNominatifs:
             resultat = secure_queries.employee_detail("mbc", {"name": "Martin"}, "rh")
         assert resultat["employees"][0]["salaire_de_base"] == 2500.0
 
-    def test_employee_detail_grant_vide_ne_renvoie_rien(self):
+    def test_employee_detail_sans_aucun_droit_est_hors_perimetre(self):
+        """Aucun grant et rôle non nommé : c'est un refus, pas une absence."""
         with patch.object(
             secure_queries.scoped_permission_repository,
             "get_grant",
-            return_value=SimpleNamespace(scope_mode="teams"),
-        ), patch.object(
-            secure_queries, "filter_allowed_employee_ids_for_user", return_value=[]
+            return_value=None,
         ):
-            resultat = secure_queries.employee_detail("mbc", {"name": "Martin"}, "rh")
+            resultat = secure_queries.employee_detail(
+                "mbc", {"name": "Martin"}, "custom-user", "custom"
+            )
         assert resultat["employees"] == []
         assert resultat["hors_perimetre"] is True
 
@@ -543,3 +584,34 @@ class TestPerimetreOutilsNominatifs:
         assert echeance["depassee"] is True
         assert echeance["jours_restants"] < 0
         assert echeance["salarie"] == "Alex Martin"
+
+
+class TestDistinctionVideEtInterdit:
+    """« Il n'y en a pas » et « vous n'y avez pas accès » sont deux réponses
+    opposées. Les confondre fait dire une fausseté à l'assistant."""
+
+    def test_echeances_signale_les_types_hors_perimetre(self):
+        patcher, _ = _patch_client(FakeResponse(data=[]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=None,
+        ):
+            resultat = secure_queries.echeances_rh(
+                "mbc", {"type": "titre_sejour"}, "custom-user", "custom"
+            )
+        assert resultat["count"] == 0
+        assert resultat["types_hors_perimetre"] == ["titre_sejour"]
+
+    def test_echeances_ne_signale_rien_quand_le_droit_existe(self):
+        """Un vrai zéro ne doit pas être présenté comme un refus d'accès."""
+        patcher, _ = _patch_client(FakeResponse(data=[]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=None,
+        ):
+            resultat = secure_queries.echeances_rh(
+                "mbc", {"type": "titre_sejour"}, "admin-user", "admin"
+            )
+        assert resultat["types_hors_perimetre"] == []

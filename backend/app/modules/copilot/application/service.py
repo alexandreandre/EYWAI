@@ -74,7 +74,10 @@ def analyze_intent_and_plan(
 
 
 def execute_tool_calls(
-    raw_tool_calls: Any, company_id: str, user_id: str = ""
+    raw_tool_calls: Any,
+    company_id: str,
+    user_id: str = "",
+    user_role: str = "",
 ) -> List[Dict[str, Any]]:
     """Parse et exécute une liste d'appels d'outils avec le company_id serveur.
 
@@ -101,7 +104,7 @@ def execute_tool_calls(
     results: List[Dict[str, Any]] = []
     for call in calls:
         try:
-            data = execute_tool(call, company_id, user_id)
+            data = execute_tool(call, company_id, user_id, user_role)
             results.append(
                 {"tool": str(call.tool), "success": True, "data": data}
             )

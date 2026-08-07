@@ -111,3 +111,39 @@ def test_synthesis_sanitizes_internal_identifiers_before_provider_call():
     assert "Jean" in captured["prompt"]
     assert "employee-secret-id" not in captured["prompt"]
     assert "company-secret-id" not in captured["prompt"]
+
+
+class TestAvertissementPerimetre:
+    """L'avertissement de droits est écrit en clair pour la synthèse.
+
+    Laissé sous forme de clé JSON, il était survolé par le modèle, qui
+    répondait « aucun salarié » là où la vérité était « vous ne les voyez pas ».
+    """
+
+    def test_hors_perimetre_produit_un_avertissement(self):
+        from app.modules.copilot.infrastructure.providers import (
+            _avertissement_perimetre,
+        )
+
+        message = _avertissement_perimetre({"absences": [], "hors_perimetre": True})
+        assert "N'A PAS LES DROITS" in message
+        assert "aucun" in message
+
+    def test_types_hors_perimetre_produit_un_avertissement(self):
+        from app.modules.copilot.infrastructure.providers import (
+            _avertissement_perimetre,
+        )
+
+        message = _avertissement_perimetre(
+            {"count": 0, "types_hors_perimetre": ["titre_sejour"]}
+        )
+        assert "titre_sejour" in message
+
+    def test_resultat_normal_sans_avertissement(self):
+        from app.modules.copilot.infrastructure.providers import (
+            _avertissement_perimetre,
+        )
+
+        assert _avertissement_perimetre({"count": 0, "types_hors_perimetre": []}) == ""
+        assert _avertissement_perimetre({"count": 3}) == ""
+        assert _avertissement_perimetre(None) == ""

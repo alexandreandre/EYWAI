@@ -93,6 +93,12 @@ async def handle_agent_query(
                 conversation_history=history,
                 user_id=current_user.id,
                 active_company_id=current_user.active_company_id,
+                # Le rôle vient du serveur, jamais du corps de la requête : il
+                # décide du périmètre des outils nominatifs.
+                user_role=current_user.get_role_in_company(
+                    current_user.active_company_id or ""
+                )
+                or "",
             )
         )
         return AgentResponse(

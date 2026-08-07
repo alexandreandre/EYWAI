@@ -403,6 +403,7 @@ class TestHandleAgentQuery:
             [{"tool": "employee_count", "arguments": {}}],
             company_id="mbc",
             user_id="rh-mbc",
+            user_role="",
         )
         assert result.answer == "MBC compte 2 salariés."
 
