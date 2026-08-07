@@ -48,12 +48,18 @@ def test_planning_suggestions_rh_returns_list(rh_client: TestClient):
             "employment_status": "actif",
         }
     ]
+    # Société non réglée : la campagne reste inerte et seuls les cadres / forfaits
+    # jour ressortent. Sans ce patch, la requête taperait la vraie base avec un
+    # company_id factice, que Postgres refuse comme uuid.
     with patch(
         "app.modules.annual_reviews.infrastructure.queries.query_list_active_employees",
         return_value=employees,
     ), patch(
         "app.modules.annual_reviews.infrastructure.queries.query_reviews_for_company_year",
         return_value=[],
+    ), patch(
+        "app.modules.annual_reviews.infrastructure.queries.query_interview_settings",
+        return_value=None,
     ):
         r = rh_client.get("/api/annual-reviews/planning-suggestions?year=2026")
     assert r.status_code == 200
