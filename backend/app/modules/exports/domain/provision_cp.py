@@ -88,3 +88,68 @@ def calculer_totaux(lignes: list[LigneProvision]) -> dict[str, float]:
         "provision": provision,
         "total": round(provision + montant_charges, 2),
     }
+
+
+def mois_de_reference(
+    annee: int, mois: int, fenetre: int = FENETRE_REFERENCE_MOIS
+) -> list[tuple[int, int]]:
+    """Les `fenetre` couples (année, mois) qui se terminent au mois donné, inclus."""
+    couples: list[tuple[int, int]] = []
+    a, m = annee, mois
+    for _ in range(fenetre):
+        couples.append((a, m))
+        m -= 1
+        if m == 0:
+            a, m = a - 1, 12
+    return list(reversed(couples))
+
+
+@dataclass(frozen=True)
+class Reference:
+    salaire_reference: float
+    taux_charges: float
+    mois_retenus: str
+    anomalie: str
+
+
+def resoudre_reference(
+    bulletins: dict[tuple[int, int], tuple[float, float]],
+    mois_cibles: list[tuple[int, int]],
+    salaire_contractuel: float | None,
+    taux_societe: float | None,
+) -> Reference:
+    """Salaire moyen et taux de charges sur la fenêtre de référence.
+
+    `bulletins` associe (année, mois) à (brut, cotisations patronales). Un mois sans
+    bulletin ou à brut nul n'est pas retenu : il ne doit pas tirer la moyenne vers le bas.
+    """
+    retenus = [
+        bulletins[cle]
+        for cle in mois_cibles
+        if cle in bulletins and bulletins[cle][0] > 0
+    ]
+    total_mois = len(mois_cibles)
+
+    if not retenus:
+        if salaire_contractuel:
+            return Reference(
+                salaire_reference=round(float(salaire_contractuel), 2),
+                taux_charges=round(float(taux_societe or 0.0), 2),
+                mois_retenus=f"0/{total_mois}",
+                anomalie="aucun bulletin : salaire contractuel et taux société utilisés",
+            )
+        return Reference(
+            salaire_reference=0.0,
+            taux_charges=0.0,
+            mois_retenus=f"0/{total_mois}",
+            anomalie="aucun bulletin et aucun salaire contractuel",
+        )
+
+    somme_brut = sum(b for b, _ in retenus)
+    somme_patronal = sum(p for _, p in retenus)
+    return Reference(
+        salaire_reference=round(somme_brut / len(retenus), 2),
+        taux_charges=round(somme_patronal / somme_brut * 100, 2),
+        mois_retenus=f"{len(retenus)}/{total_mois}",
+        anomalie="",
+    )

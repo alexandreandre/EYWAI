@@ -123,3 +123,80 @@ class TestCalculerTotaux:
         totaux = module.calculer_totaux([])
         assert totaux["provision"] == 0.0
         assert totaux["taux_charges"] == 0.0
+
+
+class TestMoisDeReference:
+    def test_douze_mois_a_cheval_sur_deux_annees(self):
+        mois = module.mois_de_reference(2026, 7)
+        assert len(mois) == 12
+        assert mois[0] == (2025, 8)
+        assert mois[-1] == (2026, 7)
+
+    def test_fenetre_reduite(self):
+        assert module.mois_de_reference(2026, 3, fenetre=4) == [
+            (2025, 12),
+            (2026, 1),
+            (2026, 2),
+            (2026, 3),
+        ]
+
+
+class TestResoudreReference:
+    def test_moyenne_sur_les_mois_presents(self):
+        bulletins = {(2026, m): (2000.0 + m, 600.0) for m in range(1, 7)}
+        ref = module.resoudre_reference(
+            bulletins=bulletins,
+            mois_cibles=module.mois_de_reference(2026, 6),
+            salaire_contractuel=1900.0,
+            taux_societe=35.0,
+        )
+        attendu = sum(2000.0 + m for m in range(1, 7)) / 6
+        assert ref.salaire_reference == round(attendu, 2)
+        assert ref.taux_charges == round(600.0 * 6 / (attendu * 6) * 100, 2)
+        assert ref.mois_retenus == "6/12"
+        assert ref.anomalie == ""
+
+    def test_mois_a_brut_nul_ignore(self):
+        bulletins = {(2026, 1): (2000.0, 600.0), (2026, 2): (0.0, 0.0)}
+        ref = module.resoudre_reference(
+            bulletins=bulletins,
+            mois_cibles=module.mois_de_reference(2026, 2),
+            salaire_contractuel=1900.0,
+            taux_societe=35.0,
+        )
+        assert ref.salaire_reference == 2000.0
+        assert ref.mois_retenus == "1/12"
+
+    def test_aucun_bulletin_repli_sur_le_contractuel(self):
+        ref = module.resoudre_reference(
+            bulletins={},
+            mois_cibles=module.mois_de_reference(2026, 6),
+            salaire_contractuel=1900.0,
+            taux_societe=35.0,
+        )
+        assert ref.salaire_reference == 1900.0
+        assert ref.taux_charges == 35.0
+        assert ref.mois_retenus == "0/12"
+        assert ref.anomalie == "aucun bulletin : salaire contractuel et taux société utilisés"
+
+    def test_aucun_bulletin_et_aucun_contractuel(self):
+        ref = module.resoudre_reference(
+            bulletins={},
+            mois_cibles=module.mois_de_reference(2026, 6),
+            salaire_contractuel=None,
+            taux_societe=None,
+        )
+        assert ref.salaire_reference == 0.0
+        assert ref.taux_charges == 0.0
+        assert ref.anomalie == "aucun bulletin et aucun salaire contractuel"
+
+    def test_bulletin_hors_fenetre_ignore(self):
+        bulletins = {(2024, 3): (9999.0, 9999.0), (2026, 6): (2000.0, 600.0)}
+        ref = module.resoudre_reference(
+            bulletins=bulletins,
+            mois_cibles=module.mois_de_reference(2026, 6),
+            salaire_contractuel=None,
+            taux_societe=None,
+        )
+        assert ref.salaire_reference == 2000.0
+        assert ref.mois_retenus == "1/12"
