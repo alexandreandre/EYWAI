@@ -54,6 +54,34 @@ def _patch_contract_end_date_on_skip(
     update_employee(employee_id, {"contract_end_date": end_date})
 
 
+def _patch_pas_on_skip(
+    company_id: Optional[str],
+    payload: Dict[str, Any],
+    emp_row: Dict[str, Any],
+    batch: Dict[str, Any],
+    current_user_id: Optional[str] = None,
+) -> None:
+    """Rafraîchit le seul taux PAS d'une fiche que l'import ne réécrit pas.
+
+    Ignorer la fiche protège les corrections RH ; ça ne doit pas geler un taux
+    d'imposition que seule la DGFiP décide et qui change tous les mois.
+    """
+    if not company_id:
+        return
+    from app.modules.pas_rates.application import rafraichissement
+
+    periode = batch.get("period_max") or batch.get("period_min")
+    fichiers = batch.get("file_names") or []
+    fichier = fichiers[0] if isinstance(fichiers, list) and fichiers else ""
+    try:
+        rafraichissement.rafraichir_depuis_import(
+            str(company_id), emp_row, payload, periode, fichier, current_user_id
+        )
+    except Exception:
+        # Un taux non rafraîchi ne doit pas faire échouer l'import du mois.
+        logger.exception("Rafraîchissement du taux PAS échoué pour %s", emp_row.get("id"))
+
+
 def _apply_workforce_resolutions(
     resolutions: List[Dict[str, Any]],
     company_id: str,
@@ -381,6 +409,9 @@ def commit_batch(
                 if emp_row:
                     employee_by_ref[source_ref] = emp_row
                     _patch_contract_end_date_on_skip(payload, emp_row)
+                    _patch_pas_on_skip(
+                        cid, payload, emp_row, batch, current_user_id
+                    )
             repo.update_item(item_id, {"status": "skipped", "action": "skip"})
             stats["skipped"] += 1
             continue
