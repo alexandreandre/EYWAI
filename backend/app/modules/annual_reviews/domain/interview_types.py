@@ -62,6 +62,11 @@ ACTIVE_OR_COMPLETED_REVIEW_STATUSES = frozenset(
 )
 
 
+# Statuts d'un entretien réellement tenu : seuls ceux-ci font repartir le cycle
+# (un entretien planifié puis jamais tenu ne doit pas repousser l'échéance suivante).
+COMPLETED_REVIEW_STATUSES = frozenset({"realise", "cloture"})
+
+
 def interview_type_label(interview_type: str | None) -> str:
     """Libellé affichable pour un code type d'entretien."""
     if not interview_type:
@@ -75,5 +80,6 @@ __all__ = [
     "L6315_INTERVIEW_TYPES",
     "CONVOCATION_ALLOWED_STATUSES",
     "ACTIVE_OR_COMPLETED_REVIEW_STATUSES",
+    "COMPLETED_REVIEW_STATUSES",
     "interview_type_label",
 ]

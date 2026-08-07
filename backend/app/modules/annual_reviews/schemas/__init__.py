@@ -5,10 +5,16 @@ from .requests import (
     AnnualReviewCreate,
     AnnualReviewStatus,
     AnnualReviewUpdate,
+    InterviewCampaignSettingsUpdate,
     InterviewType,
     SendForSignatureBody,
 )
-from .responses import AnnualReviewListItem, AnnualReviewRead, PlanningSuggestionRead
+from .responses import (
+    AnnualReviewListItem,
+    AnnualReviewRead,
+    InterviewCampaignSettingsRead,
+    PlanningSuggestionRead,
+)
 
 __all__ = [
     "AnnualReviewBase",
@@ -17,6 +23,8 @@ __all__ = [
     "AnnualReviewRead",
     "AnnualReviewStatus",
     "AnnualReviewUpdate",
+    "InterviewCampaignSettingsRead",
+    "InterviewCampaignSettingsUpdate",
     "InterviewType",
     "PlanningSuggestionRead",
     "SendForSignatureBody",

@@ -162,15 +162,64 @@ def query_company_by_id(company_id: str) -> Optional[Dict[str, Any]]:
 
 
 def query_list_active_employees(company_id: str) -> List[Dict[str, Any]]:
-    """Salariés actifs avec statut (pour suggestions de planification)."""
+    """Salariés actifs avec statut (pour suggestions de planification).
+
+    hire_date et is_forfait_jour servent à la campagne réglée par la société : le mode
+    « anniversaire d'embauche » n'a pas d'autre source pour sa date.
+    """
     resp = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, employment_status")
+        .select(
+            "id, first_name, last_name, statut, employment_status, "
+            "hire_date, is_forfait_jour"
+        )
         .eq("company_id", company_id)
         .order("last_name")
         .execute()
     )
     return [dict(x) for x in list(resp.data or [])]
+
+
+def query_reviews_for_company(company_id: str) -> List[Dict[str, Any]]:
+    """Tous les entretiens d'une société, toutes années.
+
+    La campagne raisonne sur le dernier entretien tenu, qui peut dater de plusieurs
+    années : se limiter à l'année demandée rendrait un cycle bisannuel incalculable.
+    """
+    resp = (
+        supabase.table("annual_reviews")
+        .select("id, employee_id, interview_type, status, year")
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return [dict(x) for x in list(resp.data or [])]
+
+
+def query_interview_settings(company_id: str) -> Optional[Dict[str, Any]]:
+    """Réglage de campagne d'une société. None si elle n'a jamais été paramétrée."""
+    resp = (
+        supabase.table("company_interview_settings")
+        .select("company_id, enabled, campaign_mode, campaign_month, periodicity_years")
+        .eq("company_id", company_id)
+        .limit(1)
+        .execute()
+    )
+    rows = list(resp.data or [])
+    return dict(rows[0]) if rows else None
+
+
+def upsert_interview_settings(
+    company_id: str, values: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Crée ou met à jour le réglage de campagne d'une société."""
+    payload = {**values, "company_id": company_id}
+    resp = (
+        supabase.table("company_interview_settings")
+        .upsert(payload, on_conflict="company_id")
+        .execute()
+    )
+    rows = list(resp.data or [])
+    return dict(rows[0]) if rows else payload
 
 
 def query_reviews_for_company_year(

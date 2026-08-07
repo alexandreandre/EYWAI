@@ -84,3 +84,14 @@ class PlanningSuggestionRead(BaseModel):
     reason: str
     urgency: Literal["due", "overdue"]
     year: int
+    # Date proposée par la campagne de la société. Nulle hors campagne réglée.
+    planned_date: Optional[date] = None
+
+
+class InterviewCampaignSettingsRead(BaseModel):
+    """Politique d'entretien lue pour une société."""
+
+    enabled: bool
+    campaign_mode: Literal["mois_fixe", "anniversaire_embauche"]
+    campaign_month: Optional[int] = None
+    periodicity_years: int

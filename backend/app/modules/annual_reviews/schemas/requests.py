@@ -8,7 +8,7 @@ schemas/annual_review.py réexporte depuis ici pour compatibilité.
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.modules.annual_reviews.domain.interview_types import InterviewType
 
@@ -79,3 +79,24 @@ class SendForSignatureBody(BaseModel):
 
     second_signer_email: Optional[str] = None
     expiration_days: int = Field(default=15, ge=1, le=365)
+
+
+class InterviewCampaignSettingsUpdate(BaseModel):
+    """Politique d'entretien d'une société (company_interview_settings).
+
+    Les contraintes reprennent celles de la base : un mois est obligatoire en mois
+    fixe, interdit sur l'anniversaire d'embauche.
+    """
+
+    enabled: bool = False
+    campaign_mode: Literal["mois_fixe", "anniversaire_embauche"] = "mois_fixe"
+    campaign_month: Optional[int] = Field(default=None, ge=1, le=12)
+    periodicity_years: int = Field(default=1, ge=1, le=6)
+
+    @model_validator(mode="after")
+    def _mois_coherent(self) -> "InterviewCampaignSettingsUpdate":
+        if self.campaign_mode == "mois_fixe" and self.campaign_month is None:
+            raise ValueError("Un mois de campagne est obligatoire en mode mois fixe.")
+        if self.campaign_mode == "anniversaire_embauche":
+            self.campaign_month = None
+        return self

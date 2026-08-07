@@ -25,6 +25,8 @@ from app.modules.annual_reviews.schemas import (
     AnnualReviewListItem,
     AnnualReviewRead,
     AnnualReviewUpdate,
+    InterviewCampaignSettingsRead,
+    InterviewCampaignSettingsUpdate,
     PlanningSuggestionRead,
     SendForSignatureBody,
 )
@@ -127,6 +129,39 @@ def get_planning_suggestions(
     if not _is_rh(current_user):
         raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
     return planning_queries.list_planning_suggestions(_company_id(current_user), year=year)
+
+
+# --- Politique de campagne de la société (RH)
+# Déclarée avant /{review_id} : sinon « campaign-settings » serait pris pour un id.
+@router.get("/campaign-settings", response_model=InterviewCampaignSettingsRead)
+def get_campaign_settings(current_user: User = Depends(get_current_user)):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    settings = planning_queries.get_campaign_settings(_company_id(current_user))
+    return InterviewCampaignSettingsRead(
+        enabled=settings.enabled,
+        campaign_mode=settings.campaign_mode,
+        campaign_month=settings.campaign_month,
+        periodicity_years=settings.periodicity_years,
+    )
+
+
+@router.put("/campaign-settings", response_model=InterviewCampaignSettingsRead)
+def update_campaign_settings(
+    body: InterviewCampaignSettingsUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    if not _is_rh(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux RH.")
+    settings = planning_queries.save_campaign_settings(
+        _company_id(current_user), body.model_dump()
+    )
+    return InterviewCampaignSettingsRead(
+        enabled=settings.enabled,
+        campaign_mode=settings.campaign_mode,
+        campaign_month=settings.campaign_month,
+        periodicity_years=settings.periodicity_years,
+    )
 
 
 # --- GET by id
