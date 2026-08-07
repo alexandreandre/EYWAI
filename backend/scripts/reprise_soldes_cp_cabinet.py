@@ -102,6 +102,34 @@ def parser_reports(texte: str) -> list[dict]:
     return reports
 
 
+def payload_reprise(
+    ecart_ouvrables: float,
+    cible_ouvres: float,
+    ref_date: date,
+    note_precedente: str | None = None,
+) -> dict:
+    """Ce qu'on écrit dans `employee_leave_adjustments` pour une ligne de l'état.
+
+    `cp_n_opening_balance` doit repartir à zéro. Tant qu'il est non nul,
+    `_resolve_cp_adjustment_for_ref_date` considère qu'il s'agit d'une reprise bulletin
+    calibrée sur la période en cours, jette le `cp_n1` qu'on écrit et le recalcule à
+    partir de l'ancien — la reprise du cabinet est alors purement et simplement ignorée.
+    L'état du cabinet remplace la reprise bulletin, il ne s'y ajoute pas : on donne N-1
+    directement, et la période en cours n'a besoin d'aucune reprise puisque le moteur la
+    calcule juste (4,17 j contre 4,16 au cabinet, simple arrondi de conversion).
+    """
+    note = (
+        f"Reprise du report cabinet au {ref_date:%d/%m/%Y} : {cible_ouvres:.2f} j ouvrés"
+    )
+    if note_precedente:
+        note = f"{note} — remplace : {note_precedente}"
+    return {
+        "cp_n1_opening_balance": ecart_ouvrables,
+        "cp_n_opening_balance": 0.0,
+        "note": note,
+    }
+
+
 def solde_n1_theorique_ouvrables(
     employee_id: str, company_id: str, ref_date: date
 ) -> float | None:
@@ -229,17 +257,16 @@ def main() -> int:
         # la valeur — l'état du cabinet fait foi et il est plus récent — mais on garde
         # la trace de ce qui était là, sinon on perd l'historique de la reprise.
         precedent = leave_repo.get_employee_adjustment(l["employee_id"], args.annee)
-        note = (
-            f"Reprise du report cabinet au {ref_date:%d/%m/%Y} : "
-            f"{l['cible_ouvres']:.2f} j ouvrés"
-        )
-        if precedent and precedent.note:
-            note = f"{note} — remplace : {precedent.note}"
         leave_repo.upsert_employee_adjustment(
             company_id,
             l["employee_id"],
             args.annee,
-            {"cp_n1_opening_balance": l["ecart_ouvrables"], "note": note},
+            payload_reprise(
+                l["ecart_ouvrables"],
+                l["cible_ouvres"],
+                ref_date,
+                precedent.note if precedent else None,
+            ),
         )
     print(f"\n{len(lignes)} ajustement(s) écrit(s) pour {societe}, année {args.annee}.")
     return 0

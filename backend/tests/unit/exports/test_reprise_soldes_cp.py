@@ -49,3 +49,42 @@ class TestParserReports:
 
     def test_texte_vide(self):
         assert parser_reports("") == []
+
+
+class TestPayloadReprise:
+    """Garde-fou : la reprise du cabinet doit neutraliser la reprise bulletin.
+
+    Constaté en production le 07/08/2026 : 70 des 71 salariés de Cartol portaient
+    encore un `cp_n_opening_balance` d'un import de bulletins de mai. Le moteur, quand
+    ce champ est non nul, jette le `cp_n1_opening_balance` écrit et le recalcule à
+    partir de l'ancien — la reprise du cabinet était intégralement ignorée, sans la
+    moindre erreur visible.
+    """
+
+    def test_cp_n_opening_balance_remis_a_zero(self):
+        from datetime import date
+
+        from scripts.reprise_soldes_cp_cabinet import payload_reprise
+
+        payload = payload_reprise(75.6, 88.0, date(2026, 7, 31))
+        assert payload["cp_n_opening_balance"] == 0.0
+        assert payload["cp_n1_opening_balance"] == 75.6
+
+    def test_note_porte_la_valeur_du_cabinet(self):
+        from datetime import date
+
+        from scripts.reprise_soldes_cp_cabinet import payload_reprise
+
+        payload = payload_reprise(75.6, 88.0, date(2026, 7, 31))
+        assert "31/07/2026" in payload["note"]
+        assert "88.00 j ouvrés" in payload["note"]
+
+    def test_note_precedente_conservee(self):
+        from datetime import date
+
+        from scripts.reprise_soldes_cp_cabinet import payload_reprise
+
+        payload = payload_reprise(
+            3.6, 28.0, date(2026, 7, 31), "Import CP bulletin Mai 2026 (05-26 CARTOL.pdf)"
+        )
+        assert "remplace : Import CP bulletin Mai 2026" in payload["note"]
