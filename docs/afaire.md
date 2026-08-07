@@ -85,8 +85,16 @@ valides.
 **Le BIC n'est plus obligatoire.** Depuis 2016, l'IBAN suffit. Nos exports
 partent sans, avec un simple message.
 
-**Reste :** le blocage est chez nous. Notre import lit une seule colonne et
-ignore celle d'à côté, où est le BIC. À corriger avant de charger.
+**Le blocage était chez nous, il est levé.** Quadratus coupe l'IBAN en deux
+colonnes : « Bq iban » ne contient que le pays et la clé (FR76), « Bq rib » les
+23 chiffres qui suivent. Notre import ne lisait que la première et jetait la
+seconde. Il tombait donc en erreur sur toutes les lignes, alors que vos
+fichiers étaient bons.
+
+Les deux colonnes sont maintenant recollées. Rejoué sur vos sept fichiers :
+**245 IBAN valides sur 245**, contre 39 avant. Les 206 BIC sont repris.
+
+**Reste :** charger les fichiers en production.
 
 ---
 
@@ -862,21 +870,3 @@ lieu de déposer un fichier.
 
 **21.** Quand cale-t-on le point paye avec Gaëlle ? *(point #18)*
 
----
-
-## Note de suivi
-
-Le point **#13** était vide (« idem ») et le **#27** figurait deux fois. Les
-deux ont été nettoyés.
-
-Les statuts ont été vérifiés le 7 août 2026 dans la base de production et dans
-le code déployé, pas déduits du texte précédent. Deux écarts corrigés :
-
-- **#28** était donné comme non déployé, alors qu'il l'est.
-- **#4** n'avait aucun chiffre, alors que 148 adresses sont fabriquées.
-
-Les points **#11**, **#12** et **#24** ont été confirmés en production. Une
-première lecture les avait crus en attente, à cause d'anciennes branches de
-travail restées ouvertes : leur contenu était déjà intégré.
-
-Aucun chantier n'est « prêt mais pas en ligne ».
