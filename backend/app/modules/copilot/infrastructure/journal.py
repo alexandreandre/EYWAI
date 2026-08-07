@@ -57,4 +57,10 @@ def _ecrire(ligne: dict[str, Any]) -> None:
     try:
         get_supabase_client().table(TABLE).insert(ligne).execute()
     except Exception as exc:  # noqa: BLE001 - le journal ne bloque jamais
-        logger.warning("Journal de l'assistant RH indisponible: %s", exc)
+        try:
+            logger.warning("Journal de l'assistant RH indisponible: %s", exc)
+        except Exception:  # noqa: BLE001
+            # Le fil est un démon : si les handlers de log sont déjà fermés
+            # (arrêt du processus, fin d'une session de tests), journaliser
+            # l'échec lèverait à son tour et afficherait une trace trompeuse.
+            pass

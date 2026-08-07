@@ -160,17 +160,44 @@ class AgreementTextCacheProvider:
         except Exception as e:
             logger.warning(f'[WARNING] Impossible de sauvegarder le cache: {e}')
 
-    def set_base_text(self, agreement_id: str, base_text: str) -> None:
+    def get_base_text_char_count(self, agreement_id: str) -> int:
+        """Taille du texte de base réellement stocké (0 si absent).
+
+        Sert à relire après écriture : c'est la seule preuve qu'un backfill a
+        abouti, l'API pouvant échouer en cours d'envoi.
+        """
+        try:
+            reponse = (
+                self._supabase.table("collective_agreement_texts")
+                .select("base_text_char_count")
+                .eq("agreement_id", agreement_id)
+                .maybe_single()
+                .execute()
+            )
+            if reponse and reponse.data:
+                return int(reponse.data.get("base_text_char_count") or 0)
+        except Exception as e:
+            logger.warning(f"[WARNING] Relecture de base_text impossible: {e}")
+        return 0
+
+    def set_base_text(self, agreement_id: str, base_text: str) -> bool:
         """Met en cache le texte de base intégral (lu par l'assistant RH).
 
         Ne fait rien si le texte est vide : mieux vaut conserver le précédent
         rapatriement qu'écraser la convention par du vide en cas de sortie
         inattendue de KALI.
+
+        Renvoie vrai si l'écriture a bien eu lieu. L'échec reste non bloquant
+        pour la synchro mensuelle — un cache manquant ne doit pas la faire
+        tomber — mais l'appelant DOIT pouvoir le savoir : un backfill qui
+        annonce « écrit » sur une écriture perdue laisse une convention vide
+        sans que personne ne s'en aperçoive (arrivé le 07/08 sur l'IDCC 0292,
+        coupure SSL en cours d'envoi).
         """
         from datetime import datetime, timezone
 
         if not (base_text or "").strip():
-            return
+            return False
         payload = {
             "base_text": base_text,
             "base_text_char_count": len(base_text),
@@ -180,8 +207,10 @@ class AgreementTextCacheProvider:
             self._supabase.table("collective_agreement_texts").update(payload).eq(
                 "agreement_id", agreement_id
             ).execute()
+            return True
         except Exception as e:
             logger.warning(f"[WARNING] Impossible de sauvegarder le texte de base: {e}")
+            return False
 
     def delete(self, agreement_id: str) -> None:
         self._supabase.table("collective_agreement_texts").delete().eq(

@@ -201,7 +201,9 @@ def jouer(modele: str, scenario: dict, company_id: str) -> dict:
         resultat = commands.handle_agent_query(AgentQueryInput(
             prompt=scenario["q"],
             conversation_history=[],
-            user_id="banc-essai",
+            # UUID nul : le journal attend un uuid, et une valeur dédiée évite
+            # de mélanger les tours du banc d'essai aux questions réelles.
+            user_id="00000000-0000-0000-0000-000000000000",
             active_company_id=company_id,
         ))
         reponse = resultat.answer

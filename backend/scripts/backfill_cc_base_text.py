@@ -98,8 +98,21 @@ def main() -> int:
             continue
 
         if args.apply:
-            cache.set_base_text(convention["id"], base_text)
-            print("  écrit dans base_text\n")
+            if not cache.set_base_text(convention["id"], base_text):
+                print("  ÉCHEC D'ÉCRITURE — base_text laissé en l'état\n")
+                echecs += 1
+                continue
+            # Relecture : la coupure réseau du 07/08 s'était produite pendant
+            # l'envoi, l'écriture était perdue sans que rien ne le signale.
+            relu = cache.get_base_text_char_count(convention["id"])
+            if relu != len(base_text):
+                print(
+                    f"  ÉCHEC : relu {relu} caractères au lieu de "
+                    f"{len(base_text)}\n"
+                )
+                echecs += 1
+                continue
+            print(f"  écrit et relu : {relu} caractères\n")
         else:
             print("  (simulation, rien écrit)\n")
 

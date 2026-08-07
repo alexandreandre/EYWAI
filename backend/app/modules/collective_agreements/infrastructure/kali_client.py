@@ -29,6 +29,10 @@ MAX_TEXT_CHARS = 400_000
 # la fin de la convention serait coupée.
 MAX_BASE_TEXT_CHARS = 1_200_000
 MAX_ARTICLE_FETCHES = 250
+# Avenants de catégorie joints au corpus RH. La plasturgie 0292 compte 69 textes
+# attachés en vigueur ; une douzaine suffit à couvrir les catégories de
+# personnel et les thèmes du contrat de travail.
+MAX_HR_ANNEXES = 12
 MIN_FETCHED_TEXT_CHARS = 200
 
 
@@ -248,7 +252,54 @@ class KaliClient:
         )
         if not text:
             return "", articles, 0
-        return text, articles, 1
+
+        # Certaines conventions ne mettent PAS les règles RH dans le texte de
+        # base : la plasturgie 0292 y écrit « la période d'essai est fixée dans
+        # les avenants particuliers » (art. 8) et renvoie de même pour le
+        # préavis (art. 28). Sans ces avenants, l'assistant cite le bon article
+        # et reste incapable de donner la durée. On les ajoute au corpus RH.
+        annexes, af, sf = self._collect_hr_annexes(top_sections)
+        if annexes:
+            text = text + "\n\n" + "\n\n".join(annexes)
+            articles += af
+        return text, articles, 1 + sf
+
+    def _collect_hr_annexes(
+        self, top_sections: list[Any]
+    ) -> tuple[list[str], int, int]:
+        """Avenants de catégorie et textes attachés portant des règles RH.
+
+        Pendant RH de ``_collect_payroll_annexes``. La sélection est volontairement
+        étroite : les « Textes Attachés » comptent des dizaines d'accords de
+        formation, d'OPCA et de financement paritaire qui n'apprennent rien sur
+        le contrat de travail et noieraient le corpus.
+        """
+        blocks: list[str] = []
+        articles = 0
+        sections = 0
+        vus: set[str] = set()
+        for top in top_sections:
+            if not _section_title_matches(top, "textes attach"):
+                continue
+            for sub in _filter_vigueur_sections(top.get("sections") or []):
+                titre = str(sub.get("title") or "")
+                if not _is_hr_annex(titre):
+                    continue
+                cle = _annex_dedupe_key(titre)
+                if cle in vus:
+                    continue
+                vus.add(cle)
+                sections += 1
+                texte, af = self._fetch_subsection_text(
+                    sub, versions_en_vigueur_seulement=True
+                )
+                if texte:
+                    blocks.append(f"## {titre.strip()}\n\n{texte}")
+                    articles += af
+                time.sleep(0.12)
+                if len(vus) >= MAX_HR_ANNEXES:
+                    break
+        return blocks, articles, sections
 
     def _fetch_subsection_text(
         self,
@@ -764,6 +815,64 @@ def _is_salary_kalitext(sub: dict[str, Any]) -> bool:
             "bareme",
         )
     )
+
+
+def _is_hr_annex(title: str) -> bool:
+    """Vrai pour un texte attaché portant des règles du contrat de travail.
+
+    Deux filtres successifs : on écarte d'abord les thèmes qui encombrent sans
+    rien apporter (formation, OPCA, financement paritaire, adhésions,
+    dénonciations), puis on ne retient que les avenants de catégorie et les
+    textes traitant explicitement d'un sujet RH.
+    """
+    t = title.lower()
+    exclus = (
+        "formation professionnelle",
+        "opca",
+        "opco",
+        "cqp",
+        "observatoire",
+        "financement",
+        "fonctionnement",
+        "apprentis",
+        "lettre d'adhésion",
+        "adhésion",
+        "dénonciation",
+        "création d'un",
+        "activité réduite",
+        "prévoyance",
+        "retraite complémentaire",
+    )
+    if any(k in t for k in exclus):
+        return False
+    categories = (
+        "ouvriers",
+        "collaborateurs",
+        "employés",
+        "techniciens",
+        "agents de maîtrise",
+        "encadrement",
+        "cadres",
+        "mensuel",
+    )
+    themes = (
+        "période d'essai",
+        "periode d'essai",
+        "préavis",
+        "preavis",
+        "licenciement",
+        "rupture",
+        "congés",
+        "conges",
+        "durée du travail",
+        "duree du travail",
+        "temps de travail",
+        "ancienneté",
+        "anciennete",
+        "maladie",
+        "maternité",
+    )
+    return any(k in t for k in categories) or any(k in t for k in themes)
 
 
 def _is_payroll_annex(title: str) -> bool:
