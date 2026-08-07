@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict
 
 from app.modules.cse.infrastructure.cse_settings_repository import cse_settings_repository
@@ -56,6 +57,13 @@ def save_company_cse_settings(
 
 
 def count_active_elected_members(company_id: str) -> int:
+    """Compte les mandats élus actifs et non expirés.
+
+    `is_active` seul ne suffit pas : un mandat historique importé avec `is_active=True`
+    et une `end_date` passée basculerait à tort la société en « élu / conforme » (voir
+    `compute_cse_compliance`). On applique le même filtre que
+    `cse_service_impl.get_elected_members(active_only=True)`.
+    """
     from app.core.database import supabase
 
     r = (
@@ -63,6 +71,7 @@ def count_active_elected_members(company_id: str) -> int:
         .select("id", count="exact")
         .eq("company_id", company_id)
         .eq("is_active", True)
+        .gte("end_date", date.today())
         .execute()
     )
     return int(r.count or 0)

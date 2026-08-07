@@ -125,9 +125,9 @@ def get_elected_members(
             if isinstance(member["end_date"], str)
             else member["end_date"]
         )
-        days_remaining = (
-            (end_date - date.today()).days if end_date >= date.today() else None
-        )
+        # Négatif si le mandat est expiré : l'export et le badge frontend s'en servent
+        # pour distinguer « Actif » d'« Expiré ». Renvoyer None les rendait indistinguables.
+        days_remaining = (end_date - date.today()).days
 
         result.append(
             ElectedMemberListItem(
