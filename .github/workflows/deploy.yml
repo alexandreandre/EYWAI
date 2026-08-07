@@ -189,18 +189,18 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
+      # Un déploiement qui saute silencieusement ses migrations est un
+      # déploiement à moitié fait : le code part, le schéma non. C'était un
+      # simple avertissement, invisible dans un run vert ; c'est désormais un
+      # échec franc.
       - name: Vérifier secret SUPABASE_DB_URL
-        id: db_url
         run: |
           if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::SUPABASE_DB_URL absent — supabase db push ignoré (migrations à appliquer manuellement si besoin). Voir GUIDE_SIMPLE.md."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::error::SUPABASE_DB_URL absent : les migrations ne peuvent pas être appliquées. Le déploiement est interrompu plutôt que de publier du code sur un schéma non migré. Voir GUIDE_SIMPLE.md."
+            exit 1
           fi
 
       - uses: supabase/setup-cli@v1
-        if: steps.db_url.outputs.skip != 'true'
         with:
           version: latest
 
@@ -213,7 +213,6 @@ jobs:
       # 04/08 au 07/08. Le drapeau applique les migrations en attente dans
       # l'ordre de leur numéro, sans exiger qu'elles soient les plus récentes.
       - name: supabase db push
-        if: steps.db_url.outputs.skip != 'true'
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --include-all --db-url "$SUPABASE_DB_URL"
@@ -337,3 +336,57 @@ jobs:
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${BACK}/health"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${BACK}/openapi.json"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors -o /dev/null "${FRONT}/"
+
+  # ----------------------------------------------------------------------------
+  # 5) Verdict — le run doit dire la vérité sur ce qui a été déployé.
+  #
+  # Quand la CI déclenchante échoue, ou quand un job amont tombe, tous les jobs
+  # de déploiement passent en `skipped` et GitHub affiche le run en **success**.
+  # C'est ainsi que l'arrêt du 04/08 au 07/08 est passé inaperçu : des runs verts
+  # qui ne déployaient rien, pendant que la production restait figée trois jours.
+  #
+  # Ce job échoue dès que la production n'a pas réellement reçu le code. Un run
+  # vert signifie désormais « déployé », et rien d'autre.
+  # ----------------------------------------------------------------------------
+  verdict:
+    name: Verdict du déploiement
+    needs: [copilot-security-gate, build, migrate, test-env, production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: La production a-t-elle été déployée ?
+        env:
+          GATE: ${{ needs.copilot-security-gate.result }}
+          BUILD: ${{ needs.build.result }}
+          MIGRATE: ${{ needs.migrate.result }}
+          TEST_ENV: ${{ needs.test-env.result }}
+          PROD: ${{ needs.production.result }}
+        run: |
+          {
+            echo "| Étape | Résultat |"
+            echo "|---|---|"
+            echo "| Gate sécurité Copilot | $GATE |"
+            echo "| Build images | $BUILD |"
+            echo "| Migrations | $MIGRATE |"
+            echo "| Environnement de test | $TEST_ENV |"
+            echo "| **Production** | **$PROD** |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$PROD" = "success" ]; then
+            echo "Production déployée."
+            exit 0
+          fi
+
+          echo "::error::La production N'A PAS été déployée (job production : $PROD)."
+          case "$PROD" in
+            skipped)
+              echo "::error::Un job amont a échoué ou été sauté — souvent une CI déclenchante en échec, ou les migrations. Ne pas se fier au statut global du run."
+              ;;
+            failure)
+              echo "::error::Le déploiement production a échoué : consulter ses logs."
+              ;;
+            cancelled)
+              echo "::error::Déploiement production annulé (approbation refusée ou expirée)."
+              ;;
+          esac
+          exit 1
