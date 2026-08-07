@@ -7,7 +7,40 @@ On a mis en place un second EYWAI complet (sirh-frontend-test…, base Supabase 
 Vanessa voit bien ses 7 sociétés, elle n'a qu'à se reconnecter. Le jour de la réunion, elle s'était connectée pile entre deux mises à jour des droits, du coup elle n'en voyait que 2 sur 7 — ses accès étaient déjà corrects un quart d'heure plus tard. En vérifiant, on a trouvé un problème plus sérieux : quand on retirait un accès à quelqu'un, ça ne marchait pas vraiment — la personne continuait à voir les sociétés qu'on lui avait enlevées. On l'a corrigé et nettoyé en production.
 
 #2. Envoyer identifiants de connexion à Gaëlle et Vanessa via Whatsapp MOI
-#3. Fichier BIC attendre fichier ELSA
+#3. Fichier BIC — plus d'attente Elsa MOI
+
+Le fichier n'était pas à attendre : Elsa l'a déjà envoyé le 27 juillet, sept
+Excel Quadratus (une société chacun), toujours dans le fil WhatsApp et sous
+`data/_inbox/whatsapp-elsa/` :
+
+| Fichier | Lignes | BIC présents |
+| --- | --- | --- |
+| Zone 404 | 5 | 5 |
+| Cartol | 91 | 91 |
+| Colorplast | 7 | 7 |
+| Comitech | 17 | 17 |
+| MBC | 76 | 76 |
+| MAJI | 10 | 10 |
+| LEWIS | 39 | 0 (RIB français seul, 39/39 convertibles en IBAN) |
+
+Total : **206 BIC explicites** sur six sociétés, plus 39 RIB LEWIS sans
+colonne BIC. Rien de cassé dans les données source : en concaténant
+`Bq iban` + `Bq rib` (ou le RIB seul), 100 % des IBAN passent la validation.
+
+Ce qui bloquait côté nous, c'est le mapping d'import qui lit seulement
+`Bq iban` (= le tronçon `FR76` / `FR88`) et ignore `Bq rib` : l'aperçu d'import
+tombe en erreur alors que le BIC est bien dans la colonne à côté. À corriger
+au moment de charger (joindre les deux colonnes, ou mapper le RIB sur
+`Bq rib` + BIC sur `Bq bic`). LEWIS s'importe déjà tel quel pour l'IBAN ; le
+BIC manquera tant qu'on ne le déduit pas (code banque) ou qu'Elsa ne renvoie
+pas le format court des six autres.
+
+Côté virement, le BIC n'est plus un bloqueur SEPA : depuis le règlement UE
+2016 il est facultatif, l'export écrit sans BIC si besoin et affiche un simple
+avertissement — l'IBAN suffit. Donc le point #3 « récupérer le fichier »
+est clos : on l'a, il est complet pour six sociétés, importable après le
+petit rattrapage de colonnes, et les virements ne sont plus pendants à ça.
+
 #4. Adresses e-mail tous les employés attendre fichier ELSA
 
 
@@ -68,7 +101,56 @@ Ce n'étaient pas des RTT posés mais un solde affiché à tort : sans paramétr
 Quand on enregistre une visite médicale comme réalisée, on peut cocher « aménagement de poste ». La case remonte ensuite en tête de la fiche du salarié, en lecture seule — la visite reste le seul endroit de saisie, et une correction de visite écrase bien l'ancienne valeur. C'est volontairement une simple case, sans motif ni date de fin.
 
 #11. Elus CSE attendre fichier ELSA
+
+Elsa avait bien envoyé sa liste par WhatsApp le 2 août : 8 élus titulaires, 2 chez
+Cartol, 2 chez LEWIS, 4 chez Mont Blanc Composite. Les 8 ont été retrouvés parmi nos
+salariés, y compris celle qui figure sur la liste sous son nom d'usage alors que nous
+la connaissons sous son nom de naissance.
+
+Ce qui manque, c'est le mandat lui-même. La colonne « date d'entrée » de son fichier
+est la date d'embauche du salarié, pas la date d'élection — les huit dates
+correspondent au jour près à ce que nous avons déjà en base. Or sans date de début et
+de fin de mandat, on ne peut rien enregistrer : c'est ce qui déclenche les alertes de
+fin de mandat et le calcul des heures de délégation.
+
+L'outil de reprise est prêt et testé : il relit son fichier, retrouve les salariés,
+refuse d'écrire tant qu'une seule ligne est douteuse, et ne crée jamais deux fois le
+même mandat si on le relance. Il refuse aussi de créer un mandat pour quelqu'un qui a
+quitté l'entreprise. Répétition faite sur l'environnement de test avec des dates
+provisoires : les 8 mandats se créent, la relance n'en crée aucun.
+
+Reste à obtenir d'Elsa : les dates d'élection et de fin de mandat par société, les
+suppléants (elle n'a listé que des titulaires), le collège pour Cartol et LEWIS, le nom
+du secrétaire de chaque CSE, et le cas de Colorplast, MAJI et Zone 404 qui n'ont ni élu
+ni procès-verbal de carence — celui de Comitech est périmé depuis septembre 2023.
+
 #12. Exports CSE et BDES attendre récap ELSA 
+
+Les erreurs qu'Elsa constatait sur les exports CSE sont trouvées et corrigées, sans
+avoir eu besoin de son fichier : le défaut se reproduisait sans aucune donnée.
+
+L'export de la base des élus affichait « Actif » pour tout le monde, y compris les
+mandats terminés depuis des années, avec la colonne « jours restants » vide. Le
+programme n'arrivait pas à lire les dates qu'il recevait lui-même, l'erreur était
+étouffée en silence, et il retombait sur la valeur par défaut — « Actif ». Vérifié sur
+l'environnement de test avec de vrais mandats : des mandats clos en janvier 2023
+sortaient « Actif » avant, ils sortent maintenant « Expiré » avec le nombre de jours de
+dépassement. Un mandat qui approche de son terme est signalé trois mois à l'avance.
+
+Deux autres choses corrigées au passage. Les dates s'affichaient en écriture machine
+au lieu du format habituel dans les trois exports. Surtout, l'export des heures de
+délégation ne fonctionnait pas du tout : il s'interrompait sur une erreur à chaque
+tentative, depuis toujours. Personne ne l'avait signalé, ce qui laisse penser qu'il
+n'avait jamais servi.
+
+Un dernier point, plus sérieux, découvert en relisant l'ensemble : si on avait chargé
+les élus tels quels, une société dont tous les mandats sont expirés serait apparue
+« CSE en place, conforme » sur son tableau de bord. Un faux feu vert sur une obligation
+légale. Corrigé des deux côtés — à l'enregistrement et au calcul de conformité.
+
+Rien n'est encore en production : le travail attend d'être intégré, et les élus
+attendent les dates d'Elsa.
+
 #13. idem
 #14. Vérifier si on peut bien paramétrer montant des primes médaille du travail depuis l'interface MOI
 
@@ -81,7 +163,7 @@ Le montant se règle sur la fiche du salarié, avec une date d'effet, et génèr
 
 #16. Fichier de virement pour les acomptes aussi (idem pour salaire mais pas la meme campagne de paiement) MOI
 
-Il y a maintenant un export « Virement acomptes », séparé de celui des salaires : sa propre date d'exécution, ses propres références bancaires, son propre historique. On peut soit sortir l'ordre de virement à envoyer à la banque (les acomptes approuvés pas encore payés), soit la liste des acomptes déjà versés sur une période.  Il ne sera pas utilisable tant que les BIC manquent : 238 salariés sur 240 n'en ont pas (c'est le point #3, en attente du fichier d'Elsa).
+Il y a maintenant un export « Virement acomptes », séparé de celui des salaires : sa propre date d'exécution, ses propres références bancaires, son propre historique. On peut soit sortir l'ordre de virement à envoyer à la banque (les acomptes approuvés pas encore payés), soit la liste des acomptes déjà versés sur une période. Les BIC manquants ne bloquent plus la remise SEPA (IBAN suffisant, avertissement non bloquant) ; les 7 fichiers d'Elsa du 27/07 sont disponibles pour compléter la base (point #3).
 
 #18. Point paye avec Gaëlle ELSA
 #19. Vérifier que fractionnement des congés c'est bien propre. Comment c'est activable ? paramétrable ? C'est automatiquement fait ? MOI
@@ -97,7 +179,32 @@ Notre sortie DSN, elle, n'était pas déposable : 100 à 120 rubriques manquante
 #21. Badgeuse chez Colorplast. Stratégie d'intégration intelligente à gamberge MOI
 
 D'abord une surprise : Colorplast n'a pas de badgeuse du tout. Ce qu'on recevait, ce sont des feuilles papier remplies au stylo, puis scannées ou photographiées — et la qualité se dégradait, les totaux ayant disparu depuis le printemps. Les salariés vont donc badger depuis leur téléphone : le bouton n'existait pas, il est maintenant en ligne. Le système sait aussi déduire la pause déjeuner comme eux le font vraiment, 30 minutes seulement quand la journée dépasse 6 heures — une demi-journée n'en subit aucune. Vérifié sur leurs propres feuilles : les trois semaines complètes retombent au centième. Rien ne part en paie tout de suite : pendant un mois, la badgeuse et le papier tournent en parallèle et on compare chaque semaine, le papier ayant le dernier mot. Le vrai point d'attention n'est pas technique : aucun des 9 salariés ne s'est jamais connecté à EYWAI.
-#22. Arrondi des congés au 31 mai. Vérifier l'arrondi au supérieur comment c'est fait (mathématiquement)Normalement bon. Attendre compte rendu ELSA
+#22. Arrondi des congés au 31 mai. Vérifier l'arrondi au supérieur comment c'est fait (mathématiquement) MOI
+
+C'est bon, pas besoin d'attendre Elsa. Le calcul est dans
+`_acquired_cp_from_months` (`absences/domain/rules.py`) :
+
+```
+acquis = ceil(nombre_de_mois × 2,5)
+```
+
+Donc `math.ceil` Python : on monte toujours à l'entier supérieur dès qu'il y a
+une fraction (avantage salarié, conforme à l'usage paie L3141). Exemples couverts
+par les tests unitaires :
+
+| Mois sur la période (1er juin → 31 mai) | Produit | Après arrondi |
+| --- | --- | --- |
+| 1 (ex. bulletin de juin) | 2,5 | **3** |
+| 7 (ex. au 31/12) | 17,5 | **18** |
+| 8 (ex. au 31/01) | 20,0 | **20** (déjà entier) |
+| 12 (période clôturée au 31 mai) | 30,0 | **30** |
+
+Le « mois » n'est pas fractionné en jours : tout mois civil touché dans la
+période de référence compte pour 1 (embauche le 15 juin → le mois de juin
+entre déjà). Taux paramétrable par société (`cp_acquisition_days_per_month`, défaut
+2,5 ouvrables) ; en affichage « ouvrés » le moteur garde 2,5 en interne et
+affiche 25 j/an. Même `ceil` sur le prorata d'un crédit d'ancienneté CP. Rien à
+corriger.
 
 BONUS:
 #23. Pouvoir faire un export de calcul de provision des congés payés. (En gros, c'est un fichier où on calcule ce qu'on devrait aux salariés de l'entreprise s'ils partaient tous en congés payés, et c'est converti en euros.) demander fichier exemple à ELSA 
