@@ -21,8 +21,10 @@ from app.modules.absences.domain.rules import (
     compute_rtt_balance,
     get_rtt_year_end_status,
 )
+from app.modules.absences.domain.jtc import calculate_acquired_jtc
 from app.modules.absences.domain.leave_policy import (
     EmployeeLeaveAdjustment,
+    LeavePolicySettings,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_employee_adjustment,
@@ -40,6 +42,7 @@ from app.modules.absences.schemas.leave_settings import (
 )
 from app.modules.absences.schemas.leave_settings_responses import (
     EmployeeLeaveAdjustmentResponse,
+    JtcAnnualRunRow,
     LeaveAdjustmentImportResult,
     LeaveSettingsResponse,
     RttYearEndCloseResult,
@@ -389,3 +392,88 @@ def _match_employee(employees: list[dict], row) -> dict | None:
             ).lower() == ln:
                 return e
     return None
+
+
+def _parse_jtc_date(value: object) -> date | None:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def build_jtc_annual_run(
+    company_id: str,
+    target_year: int,
+    employees: list[dict],
+    absence_days_by_employee: dict[str, float],
+    policy: LeavePolicySettings,
+) -> list[JtcAnnualRunRow]:
+    """
+    Droits JTC de `target_year`, calculés sur l'année civile précédente.
+
+    Renvoie un aperçu : rien n'est écrit tant que la RH n'a pas appliqué.
+    """
+    if not policy.jtc_enabled:
+        return []
+
+    reference_year = target_year - 1
+    settings = policy.jtc_settings
+    year_start = date(reference_year, 1, 1)
+    year_end = date(reference_year, 12, 31)
+    rows: list[JtcAnnualRunRow] = []
+
+    for employee in employees:
+        hire_date = _parse_jtc_date(employee.get("hire_date"))
+        if hire_date is None:
+            continue
+        employee_id = str(employee.get("id"))
+        absence_days = float(absence_days_by_employee.get(employee_id) or 0)
+        exit_date = _parse_jtc_date(employee.get("exit_date"))
+        acquired = calculate_acquired_jtc(
+            settings=settings,
+            reference_year=reference_year,
+            hire_date=hire_date,
+            exit_date=exit_date,
+            absence_days=absence_days,
+        )
+        start = max(hire_date, year_start)
+        end = min(exit_date, year_end) if exit_date else year_end
+        presence_days = (end - start).days + 1 if end >= start else 0
+        rows.append(
+            JtcAnnualRunRow(
+                employee_id=employee_id,
+                first_name=str(employee.get("first_name") or ""),
+                last_name=str(employee.get("last_name") or ""),
+                presence_days=presence_days,
+                absence_days=absence_days,
+                acquired_days=acquired,
+            )
+        )
+    return rows
+
+
+def apply_jtc_annual_run(company_id: str, target_year: int) -> int:
+    """
+    Écrit les droits JTC de `target_year` sur les salariés de la société.
+
+    Recalcule l'aperçu au moment de l'application plutôt que de faire confiance
+    à ce que le navigateur renvoie : les droits écrits sont donc toujours ceux
+    des données du moment. Renvoie le nombre de salariés mis à jour.
+    """
+    from app.modules.absences.application.leave_settings_queries import (
+        get_jtc_annual_run,
+    )
+
+    run = get_jtc_annual_run(company_id, target_year)
+    for row in run.rows:
+        upsert_employee_adjustment(
+            company_id,
+            row.employee_id,
+            target_year,
+            {"jtc_opening_balance": row.acquired_days},
+        )
+    return len(run.rows)

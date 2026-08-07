@@ -44,6 +44,21 @@ class EmployeeLeaveAdjustmentResponse(BaseModel):
     note: Optional[str] = None
 
 
+class JtcAnnualRunRow(BaseModel):
+    employee_id: str
+    first_name: str
+    last_name: str
+    presence_days: int
+    absence_days: float
+    acquired_days: int
+
+
+class JtcAnnualRunResponse(BaseModel):
+    target_year: int
+    reference_year: int
+    rows: List[JtcAnnualRunRow]
+
+
 class EmployeeLeaveBalanceOverviewItem(BaseModel):
     employee_id: str
     first_name: str

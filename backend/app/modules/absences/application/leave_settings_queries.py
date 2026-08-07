@@ -10,6 +10,7 @@ from app.modules.absences.application.balance_display import balances_to_api_lis
 from app.modules.absences.domain.leave_policy import LeavePolicySettings
 from app.modules.absences.domain.rules import (
     compute_absence_balances,
+    count_absence_days_taken,
     get_rtt_year_end_status,
     resolve_rtt_annual_base,
     should_show_rtt_year_end_reminder,
@@ -44,6 +45,7 @@ from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.absences.schemas.leave_settings_responses import (
     EmployeeLeaveAdjustmentResponse,
     EmployeeLeaveBalanceOverviewItem,
+    JtcAnnualRunResponse,
     LeaveBalancesOverviewResponse,
     LeaveSettingsResponse,
     RttYearEndOverviewItem,
@@ -126,6 +128,7 @@ def get_employee_leave_adjustment(
         rtt_opening_balance=adj.rtt_opening_balance,
         rtt_forfeited_at=adj.rtt_forfeited_at,
         rtt_forfeited_days=adj.rtt_forfeited_days,
+        jtc_opening_balance=adj.jtc_opening_balance,
         note=adj.note,
     )
 
@@ -317,3 +320,55 @@ def _ensure_employee_in_company(employee_id: str, company_id: str) -> None:
     )
     if not resp.data:
         raise LookupError("Employé introuvable dans cette entreprise.")
+
+
+def get_jtc_annual_run(company_id: str, target_year: int) -> JtcAnnualRunResponse:
+    """
+    Aperçu des droits JTC de `target_year`, calculés sur l'année civile N-1.
+
+    Purement consultatif : c'est `apply_jtc_annual_run` qui écrit, et seulement
+    sur demande explicite de la RH.
+    """
+    from app.modules.absences.application.leave_settings_commands import (
+        build_jtc_annual_run,
+    )
+
+    reference_year = target_year - 1
+    policy = get_leave_policy(company_id)
+    if not policy.jtc_enabled:
+        return JtcAnnualRunResponse(
+            target_year=target_year, reference_year=reference_year, rows=[]
+        )
+
+    employees = _list_active_employees(company_id)
+    employee_ids = [str(emp["id"]) for emp in employees if emp.get("id")]
+    validated = absence_repository.list_validated_for_employees(employee_ids)
+
+    period_start = date(reference_year, 1, 1)
+    period_end = date(reference_year, 12, 31)
+    absence_days: dict[str, float] = {}
+    by_employee: dict[str, list[dict[str, Any]]] = {}
+    for row in validated:
+        by_employee.setdefault(str(row.get("employee_id")), []).append(row)
+    for employee_id, requests in by_employee.items():
+        absence_days[employee_id] = sum(
+            count_absence_days_taken(
+                requests,
+                absence_type,
+                period_end,
+                period_start=period_start,
+                period_end=period_end,
+            )
+            for absence_type in policy.jtc_absence_types
+        )
+
+    rows = build_jtc_annual_run(
+        company_id=company_id,
+        target_year=target_year,
+        employees=employees,
+        absence_days_by_employee=absence_days,
+        policy=policy,
+    )
+    return JtcAnnualRunResponse(
+        target_year=target_year, reference_year=reference_year, rows=rows
+    )

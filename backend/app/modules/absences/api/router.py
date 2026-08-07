@@ -58,6 +58,7 @@ from app.modules.absences.schemas.leave_settings import (
 )
 from app.modules.absences.schemas.leave_settings_responses import (
     EmployeeLeaveAdjustmentResponse,
+    JtcAnnualRunResponse,
     LeaveAdjustmentImportResult,
     LeaveBalancesOverviewResponse,
     LeaveNotificationSettingsResponse,
@@ -894,6 +895,36 @@ async def update_leave_settings_route(
         return leave_settings_commands.update_leave_settings(str(cid), body)
     except (ValueError, LookupError) as e:
         _handle_application_errors(e)
+
+
+@router.get("/leave-settings/jtc/annual-run", response_model=JtcAnnualRunResponse)
+async def get_jtc_annual_run_route(
+    year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Aperçu des droits JTC de l'année, calculés sur l'année précédente."""
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return leave_settings_queries.get_jtc_annual_run(str(cid), year)
+
+
+@router.post("/leave-settings/jtc/annual-run", response_model=JtcAnnualRunResponse)
+async def apply_jtc_annual_run_route(
+    year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Écrit les droits JTC de l'année. Renvoie ce qui a été appliqué."""
+    cid = _require_rh_company_context(current_user)
+    if company_id and str(company_id) != str(cid):
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    try:
+        leave_settings_commands.apply_jtc_annual_run(str(cid), year)
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+    return leave_settings_queries.get_jtc_annual_run(str(cid), year)
 
 
 @router.get(
