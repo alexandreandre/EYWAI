@@ -47,7 +47,9 @@ def _fin_de_mois(period: str) -> date:
 def _montant_contractuel(salarie: Dict[str, Any]) -> Optional[float]:
     brut = salarie.get("salaire_de_base")
     if isinstance(brut, dict):
-        for cle in ("montant", "value", "brut_mensuel", "amount"):
+        # La base stocke {"type": "mensuel", "valeur": 2049.76} : c'est « valeur » qui
+        # porte le montant. Les autres clés sont des variantes rencontrées à l'import.
+        for cle in ("valeur", "montant", "value", "brut_mensuel", "amount"):
             valeur = brut.get(cle)
             if isinstance(valeur, (int, float)):
                 return float(valeur)
@@ -215,6 +217,20 @@ def preview_provision_cp(
             {
                 "type": "error",
                 "message": "Aucun salarié avec un solde de congés à cette date",
+                "severity": "blocking",
+            }
+        )
+    elif totaux["provision"] == 0:
+        # Des soldes existent (une ligne à solde nul est hors périmètre) mais rien n'a pu
+        # être valorisé : ni bulletin, ni salaire contractuel. Un fichier entièrement à
+        # zéro se lirait comme « aucune dette », ce qui est faux.
+        anomalies.append(
+            {
+                "type": "error",
+                "message": (
+                    "Aucun salaire de référence disponible : ni bulletin ni salaire "
+                    "contractuel pour les salariés concernés"
+                ),
                 "severity": "blocking",
             }
         )

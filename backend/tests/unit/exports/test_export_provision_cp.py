@@ -16,7 +16,7 @@ SALARIES = [
         "last_name": "BERTAUD",
         "hire_date": "2010-03-01",
         "employment_status": "actif",
-        "salaire_de_base": {"montant": 2600.0},
+        "salaire_de_base": {"type": "mensuel", "valeur": 2600.0},
     },
     {
         "id": "emp-2",
@@ -25,7 +25,7 @@ SALARIES = [
         "last_name": "SEGUIN",
         "hire_date": "2026-05-01",
         "employment_status": "actif",
-        "salaire_de_base": {"montant": 1900.0},
+        "salaire_de_base": {"type": "mensuel", "valeur": 1900.0},
     },
 ]
 
@@ -120,6 +120,20 @@ class TestCollecterLignes:
         assert any("date d'entrée" in a for a in avertissements)
 
 
+class TestMontantContractuel:
+    def test_forme_reelle_de_la_base(self):
+        # En production le champ vaut {"type": "mensuel", "valeur": 2049.76}
+        assert module._montant_contractuel(
+            {"salaire_de_base": {"type": "mensuel", "valeur": 2049.76}}
+        ) == 2049.76
+
+    def test_nombre_nu(self):
+        assert module._montant_contractuel({"salaire_de_base": 1800.0}) == 1800.0
+
+    def test_absent(self):
+        assert module._montant_contractuel({"salaire_de_base": None}) is None
+
+
 class TestPreview:
     def test_preview_expose_le_contrat_commun(self):
         p1, p2, p3 = _patch_all()
@@ -132,6 +146,18 @@ class TestPreview:
         assert preview["anomalies"] == [] or all(
             a["severity"] != "blocking" for a in preview["anomalies"]
         )
+
+    def test_preview_bloquant_quand_rien_ne_peut_etre_valorise(self):
+        # Aucun bulletin et aucun salaire contractuel : des soldes, mais 0 EUR.
+        muets = [{**s, "salaire_de_base": None} for s in SALARIES]
+        with patch.object(module, "_lire_salaries", return_value=muets), \
+             patch.object(module, "_lire_bulletins", return_value={"emp-1": {}, "emp-2": {}}), \
+             patch.object(module, "_lire_soldes_ouvres", side_effect=lambda eid, *a, **k: SOLDES[eid]):
+            preview = module.preview_provision_cp("company-1", "2026-07")
+
+        assert preview["details"]["total"] == 0.0
+        assert preview["can_generate"] is False
+        assert any(a["severity"] == "blocking" for a in preview["anomalies"])
 
     def test_preview_bloquant_quand_aucune_ligne(self):
         with patch.object(module, "_lire_salaries", return_value=[]), \
