@@ -154,7 +154,26 @@ class KaliImportService:
         )
         # Le texte de base intégral alimente l'assistant RH ; il est écrit après
         # ``set_full_text``, qui crée la ligne de cache si elle n'existe pas.
-        self._text_cache.set_base_text(agreement_id, fetched.base_text)
+        # L'échec n'interrompt pas la synchro — le corpus paie, lui, est déjà
+        # écrit — mais il DOIT se voir : une écriture perdue laisse l'assistant
+        # sur une convention périmée, et cela ne se remarquerait qu'au moment où
+        # il répond à côté. Deux coupures réseau en un seul backfill le 07/08.
+        if fetched.base_text and not self._text_cache.set_base_text(
+            agreement_id, fetched.base_text
+        ):
+            logger.error(
+                "IDCC %s : texte de base NON enregistré, l'assistant RH garde "
+                "la version précédente. Relancer "
+                "scripts/backfill_cc_base_text.py --idcc %s --apply",
+                meta.idcc,
+                meta.idcc,
+            )
+            log_cc_stage(
+                meta.idcc,
+                "kali_import_base_text_echec",
+                agreement_id=agreement_id,
+                caracteres=len(fetched.base_text),
+            )
 
         rules_outcome: Optional[ExtractionOutcome] = None
         rules_skipped = False
