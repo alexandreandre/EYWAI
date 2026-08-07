@@ -48,6 +48,12 @@ RUBRIQUES_A_DOCUMENTER: List[str] = [
     "S21.G00.30.017",
     "S21.G00.30.025",
     "S21.G00.30.029",
+    # .003 « Code statut catégoriel Retraite Complémentaire obligatoire » et .010
+    # « Date de fin prévisionnelle du contrat » : leur sens est désormais établi
+    # (note DGFiP, 07/08/2026), mais nous ne les produisons toujours pas. Ce ne
+    # sont donc plus des rubriques à documenter — ce sont deux lacunes connues de
+    # notre export. Le terme du CDD est en base depuis la correction de la
+    # rubrique à l'import : il reste à le porter jusqu'au fichier produit.
     "S21.G00.40.003",
     "S21.G00.40.010",
     "S21.G00.40.021",
