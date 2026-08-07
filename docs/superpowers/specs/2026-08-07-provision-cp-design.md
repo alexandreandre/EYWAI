@@ -277,3 +277,36 @@ c'est la part qui ne se réglera qu'en juin 2027.
 
 **Rien n'a été écrit en production.** Les six autres sociétés n'ont pas d'état de
 provision : leurs reports restent à demander à Elsa.
+
+## Application en production, 07/08/2026
+
+Les 71 reports de Cartol sont chargés. Un piège en chemin, qui vaut d'être noté :
+
+**La première écriture n'a rien changé.** Les 71 ajustements étaient bien en base, et
+l'écart au cabinet restait à −31,5 %. Cause :
+[`_resolve_cp_adjustment_for_ref_date`](backend/app/modules/absences/domain/rules.py#L433)
+— quand `cp_n_opening_balance` est non nul, le moteur y voit une reprise bulletin
+calibrée sur la période en cours, **jette** le `cp_n1_opening_balance` qu'on vient
+d'écrire et le recalcule à partir de l'ancien. Or 70 des 71 salariés portaient encore un
+`cp_n_opening_balance` d'un « Import CP bulletin Mai 2026 ». La reprise du cabinet était
+donc intégralement ignorée, sans la moindre erreur visible — seule la mesure contre le
+modèle l'a révélé.
+
+Le script remet désormais `cp_n_opening_balance` à zéro : l'état du cabinet remplace la
+reprise bulletin, il ne s'y ajoute pas. `payload_reprise()` est couvert par trois tests.
+
+### Résultat mesuré en production
+
+| | Solde jours, écart médian | Total EYWAI (64 comparables) | Écart au cabinet |
+|---|---|---|---|
+| Avant | 6,19 j | 247 908,33 € | −114 172,56 € (−31,5 %) |
+| Après | **0,01 j** | **318 099,26 €** | −43 981,63 € (−12,1 %) |
+
+Le 0,01 j résiduel est l'arrondi de conversion ouvrables → ouvrés. Contrôle nominatif :
+BOISSINOT 88,00, QUERAT 81,00, BERTAUD 28,00, PENAUD 15,00 — identiques au cabinet.
+
+L'export Cartol sort désormais 90 lignes pour 371 831,94 €, contre 87 avant : trois
+salariés avaient un solde nul faute de report et entrent maintenant dans le périmètre.
+
+Les −12,1 % qui restent sont le salaire de référence sur 6 mois au lieu de 12. Rien à
+faire avant juin 2027.

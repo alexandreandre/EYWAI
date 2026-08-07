@@ -233,12 +233,16 @@ EYWAI ne contient rien avant janvier 2026.
 
 Sauf qu'on n'a pas eu à redemander ces soldes : ils sont **dans le fichier d'Elsa**, une
 colonne du même document. On a donc écrit un outil qui les relit et les remet dans
-EYWAI. Répétition faite à blanc : les 71 salariés du fichier sont retrouvés, y compris
-celle qui y figure sous son nom d'usage, et l'outil refuse d'écrire tant qu'une seule
-ligne résiste. Effet mesuré : l'écart sur les soldes passe de 6,2 jours à 0,01 jour (51
-salariés sur 64 tombent exactement juste), et le total remonte à 12 % du cabinet au lieu
-de 31 %. Rien n'a été écrit pour l'instant : ça touche les compteurs de congés de 71
-personnes en production, donc j'attends ton feu vert.
+EYWAI, et c'est fait : les 71 salariés de Cartol ont maintenant leur vrai report. On
+vérifie nom par nom — BOISSINOT 88 jours, QUERAT 81, BERTAUD 28 — c'est exactement ce
+qu'affiche le cabinet. L'écart sur les soldes est passé de 6,2 jours à un centième de
+jour, et l'écart en euros de 31 % à 12 %.
+
+Un piège au passage, qui aurait pu passer inaperçu : la première écriture n'a servi à
+rien. Les valeurs étaient bien en base mais le calcul les ignorait, parce qu'une reprise
+plus ancienne, faite à partir des bulletins de mai, prenait le dessus sans rien
+signaler. On ne l'a vu qu'en remesurant l'écart au cabinet après coup. C'est corrigé, et
+un test bloque le retour du problème.
 
 Les 12 % restants viennent de la deuxième cause, qu'on ne peut pas régler : le salaire
 de référence se calcule sur douze mois de paie et on n'en a que six. Ça se réglera tout
@@ -257,9 +261,7 @@ fichier entièrement à zéro n'est plus produit du tout — l'écran dit ce qui
 C'est en production depuis le 7 août : l'export répond bien sur le serveur de prod,
 vérifié après le déploiement et pas seulement sur la foi d'un voyant vert.
 
-Reste deux choses. D'abord charger les reports de Cartol — l'outil est prêt et la
-répétition à blanc est bonne, il faut juste lancer la commande, ça touche les compteurs
-de 71 personnes. Ensuite, deux questions à Elsa : le même état de provision pour les six
+Reste deux questions à Elsa : le même état de provision pour les six
 autres sociétés (c'est ce qui corrigera leurs compteurs de congés, pas seulement la
 provision), et pourquoi son fichier ne contient que 71 salariés alors que 86 ont été
 payés en juin. Les absents sont tous des embauches récentes ; nous on les garde,
