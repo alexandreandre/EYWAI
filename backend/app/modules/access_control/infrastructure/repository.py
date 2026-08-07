@@ -8,7 +8,11 @@ role_templates, etc. peut transiter par ce repository ou des queries dédiées.
 
 from __future__ import annotations
 
+import logging
+
 from app.core.database import supabase
+
+logger = logging.getLogger(__name__)
 
 
 class SupabasePermissionRepository:
@@ -55,5 +59,16 @@ class SupabasePermissionRepository:
                     if perm.get("required_role") in ("rh", "admin"):
                         return True
             return False
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - fail-closed volontaire
+            # L'échec vaut refus, mais il doit se voir : sans cette trace, une
+            # panne de lecture est indistinguable d'un utilisateur réellement
+            # sans droits, et l'utilisateur se retrouve bloqué sans que personne
+            # ne sache pourquoi.
+            logger.warning(
+                "Lecture des permissions RH impossible (user=%s, entreprise=%s) : "
+                "accès refusé par défaut. %s",
+                user_id,
+                company_id,
+                exc,
+            )
             return False

@@ -5,6 +5,7 @@ Migrés depuis schemas/user.py — comportement identique.
 Compatibilité : schemas.user réexporte depuis ce module.
 """
 
+import logging
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -16,8 +17,14 @@ class CompanyAccess(BaseModel):
 
     company_id: str
     company_name: str
-    role: str  # admin, rh, collaborateur, collaborateur_rh
+    role: str  # admin, rh, collaborateur, collaborateur_rh, custom
     is_primary: bool
+    # Rôle `custom` uniquement : ses droits ne viennent pas de son nom mais de
+    # ses permissions, qui se lisent en base. L'information est résolue une fois,
+    # à la construction de l'utilisateur (app/core/security.py), pour que
+    # `has_rh_access_in_company` puisse répondre juste sans accès base.
+    # `None` = non résolu ; l'accès est alors refusé (fail-closed).
+    has_rh_permissions: Optional[bool] = None
     siret: Optional[str] = None
     logo_url: Optional[str] = None
     logo_scale: Optional[float] = 1.0
@@ -153,19 +160,49 @@ class User(BaseModel):
         """
         Vérifie si l'utilisateur a accès RH dans une entreprise.
         Inclut: admin, rh, collaborateur_rh, et custom avec permissions RH.
+
+        Le cas `custom` renvoyait autrefois `False` en toutes circonstances, à
+        charge pour l'appelant de compléter le contrôle avec
+        `has_any_rh_permission()`. Ce contrat tacite était oublié par 123 appels
+        sur 127 — y compris par le service d'access control lui-même. Résultat :
+        cinq directeurs et responsables de sites, dont 100 % des permissions
+        sont de niveau RH, auraient été refusés sur presque toute l'application.
+
+        L'accès RH d'un rôle `custom` est désormais résolu une seule fois, à la
+        construction de l'utilisateur, et porté par `CompanyAccess`. La méthode
+        redevient donc exacte pour tous ses appelants, sans qu'aucun n'ait à
+        savoir que le cas existe.
         """
         if self.is_platform_admin:
             return True
-        role = self.get_role_in_company(company_id)
-        if role in ("admin", "rh", "collaborateur_rh"):
-            return True
-        # Pour les rôles custom, vérifier s'ils ont au moins une permission RH
-        if role == "custom":
-            # Note: Cette vérification nécessite une requête à la base de données
-            # Elle sera implémentée dans user_management.py avec has_any_rh_permission()
-            # Pour l'instant, on retourne False et la vérification sera faite côté router
+        acces = self._get_access(company_id)
+        if acces is None:
             return False
+        if acces.role in ("admin", "rh", "collaborateur_rh"):
+            return True
+        if acces.role == "custom":
+            if acces.has_rh_permissions is None:
+                # Non résolu : on refuse, mais on le DIT. C'est le silence qui a
+                # rendu le défaut d'origine indétectable pendant si longtemps.
+                # Un utilisateur construit hors de `get_current_user` tomberait
+                # ici — le message donne alors directement la piste.
+                logging.getLogger(__name__).warning(
+                    "Accès RH refusé pour un rôle custom non résolu "
+                    "(utilisateur=%s, entreprise=%s). L'utilisateur a-t-il été "
+                    "construit hors de get_current_user ?",
+                    self.id,
+                    company_id,
+                )
+                return False
+            return acces.has_rh_permissions
         return False
+
+    def _get_access(self, company_id: str) -> Optional[CompanyAccess]:
+        """Accès de l'utilisateur à une entreprise, ou None."""
+        for access in self.accessible_companies:
+            if access.company_id == company_id:
+                return access
+        return None
 
     class Config:
         json_schema_extra = {

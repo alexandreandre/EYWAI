@@ -77,6 +77,54 @@ def _set_session_company(company_id: str) -> bool:
     return False
 
 
+def _resoudre_acces_rh_custom(
+    user_id: str, accesses: list[CompanyAccess]
+) -> None:
+    """Renseigne ``has_rh_permissions`` sur les accès de rôle ``custom``.
+
+    Un échec de lecture laisse le drapeau à ``None``, donc l'accès refusé : sur
+    un contrôle de droits, l'indisponibilité doit fermer, jamais ouvrir.
+    """
+    custom = [acces for acces in accesses if acces.role == "custom"]
+    if not custom:
+        return
+
+    # Une seule lecture pour toutes les entreprises concernées : cette fonction
+    # tourne à CHAQUE requête authentifiée, une requête par entreprise y serait
+    # payée en permanence.
+    try:
+        lignes = (
+            supabase.table("user_permissions")
+            .select("company_id, permissions(required_role, is_active)")
+            .eq("user_id", user_id)
+            .in_("company_id", [acces.company_id for acces in custom])
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001 - fail-closed, jamais bloquant
+        # Les drapeaux restent à None, donc l'accès refusé : sur un contrôle de
+        # droits, l'indisponibilité doit fermer, jamais ouvrir. Le refus est
+        # tracé pour ne pas ressembler à une absence de droits.
+        logger.warning(
+            "Accès RH des rôles custom non résolu (user=%s) : accès refusé par "
+            "défaut. %s",
+            user_id,
+            exc,
+        )
+        return
+
+    avec_droits_rh = {
+        str(ligne.get("company_id"))
+        for ligne in lignes
+        if (perm := ligne.get("permissions"))
+        and perm.get("is_active", False)
+        and perm.get("required_role") in ("rh", "admin")
+    }
+    for acces in custom:
+        acces.has_rh_permissions = acces.company_id in avec_droits_rh
+
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     x_active_company: Annotated[Optional[str], Header(alias="X-Active-Company")] = None,
@@ -212,6 +260,18 @@ def get_current_user(
                         group_logo_scale=group_logo_scale,
                     )
                 )
+
+        # 4bis. Résoudre l'accès RH des rôles `custom`.
+        #
+        # Un rôle `custom` ne tient pas ses droits de son nom : ils viennent de
+        # ses permissions, qui se lisent en base. `has_rh_access_in_company` ne
+        # peut donc pas trancher seule — elle renvoyait `False` en attendant que
+        # l'appelant complète, ce que presque personne ne faisait. On résout ici,
+        # une fois, pour que la méthode soit exacte partout ensuite.
+        #
+        # Coût : une requête par accès `custom`, et zéro pour tous les autres
+        # utilisateurs. En production, 8 accès sur 323 sont concernés.
+        _resoudre_acces_rh_custom(str(user.id), accessible_companies)
 
         # 5. Déterminer l'entreprise active
         active_company_id = None
