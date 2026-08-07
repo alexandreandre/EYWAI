@@ -5,6 +5,7 @@ const EMPTY_DATA_PATTERN = /aucun(e)?\s|aucune\s|pas de\s|pas d'/i;
 const EMPTY_EXPORT_LABELS: Partial<Record<ExportType, string>> = {
   notes_frais: "note de frais",
   conges_absences: "absence validée",
+  provision_cp: "solde de congés à provisionner",
   journal_paie: "bulletin de paie",
   charges_sociales: "charge sociale",
   acomptes: "acompte ni avance",

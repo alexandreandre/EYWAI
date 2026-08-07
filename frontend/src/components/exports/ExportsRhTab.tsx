@@ -17,6 +17,7 @@ export function ExportsRhTab() {
   const exportTypeMapping: Record<string, string> = {
     "charges-sociales": "charges_sociales",
     "conges-absences": "conges_absences",
+    "provision-cp": "provision_cp",
     "notes-frais": "notes_frais",
   };
 
@@ -31,6 +32,13 @@ export function ExportsRhTab() {
       id: "conges-absences",
       name: "Congés payés / Absences",
       description: "Export des congés payés et absences pour analyse RH",
+      icon: Calendar,
+    },
+    {
+      id: "provision-cp",
+      name: "Provision congés payés",
+      description:
+        "Valorisation en euros de la dette de congés payés à la fin du mois choisi, salarié par salarié",
       icon: Calendar,
     },
     {

@@ -40,6 +40,7 @@ const exportTypeLabels: Record<string, string> = {
   // Exports RH
   charges_sociales: "Charges sociales par caisse",
   conges_absences: "Congés payés / Absences",
+  provision_cp: "Provision congés payés",
   notes_frais: "Notes de frais",
   acomptes: "Acomptes & avances",
   saisies: "Saisies sur salaire",
