@@ -87,6 +87,15 @@ def balances_to_api_list(
         }
     )
 
+    if policy.jtc_enabled:
+        jtc = _official_balance_row(soldes.get("jtc") or {})
+        result.append(
+            {
+                "type": "JTC",
+                **jtc,
+            }
+        )
+
     repos = _official_balance_row(soldes["repos_compensateur"])
     result.append(
         {

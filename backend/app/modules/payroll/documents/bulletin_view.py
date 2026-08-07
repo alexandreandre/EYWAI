@@ -210,6 +210,9 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     colonnes.append(_colonne_compteur("CP N", solde.get("conges_payes")))
     if _compteur_alimente(solde.get("rtt")):
         colonnes.append(_colonne_compteur("RTT", solde.get("rtt")))
+    # Compteur distinct, jamais fondu dans le total CP (note JTC, § 7).
+    if _compteur_alimente(solde.get("jtc")):
+        colonnes.append(_colonne_compteur("JTC", solde.get("jtc")))
     if _compteur_alimente(solde.get("repos_compensateur")):
         colonnes.append(
             _colonne_compteur("Repos comp.", solde.get("repos_compensateur"))

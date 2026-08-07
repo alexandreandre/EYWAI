@@ -698,6 +698,37 @@ def compute_rtt_balance(
     return _balance(rtt_acquis, effective_pris, solde=max(0.0, rtt_solde))
 
 
+def compute_jtc_balance(
+    validated_requests: list[dict],
+    ref_date: date,
+    *,
+    policy: LeavePolicySettings | None = None,
+    adjustment: EmployeeLeaveAdjustment | None = None,
+) -> dict[str, float]:
+    """
+    Solde JTC de l'année civile en cours.
+
+    Le droit n'est pas recalculé ici : il a été figé en janvier sur les données
+    de l'année précédente et vit dans `jtc_opening_balance`. Le solde n'est
+    donc que ce droit diminué des jours effectivement posés sur l'année.
+    """
+    policy = policy or DEFAULT_LEAVE_POLICY
+    adjustment = adjustment or EmployeeLeaveAdjustment.empty()
+
+    if not policy.jtc_enabled:
+        return _balance(0.0, 0.0)
+
+    acquis = float(adjustment.jtc_opening_balance or 0)
+    pris = count_absence_days_taken(
+        validated_requests,
+        "jtc",
+        ref_date,
+        period_start=date(ref_date.year, 1, 1),
+        period_end=date(ref_date.year, 12, 31),
+    )
+    return _balance(acquis, pris, solde=max(0.0, round(acquis - pris, 2)))
+
+
 def compute_absence_balances(
     hire_date: date,
     validated_requests: list[dict],
@@ -786,6 +817,10 @@ def compute_absence_balances(
         if faithful_rtt:
             rtt = faithful_rtt
 
+    jtc = compute_jtc_balance(
+        validated_requests, ref_date, policy=policy, adjustment=adjustment
+    )
+
     repos_pris = count_absence_days_taken(
         validated_requests,
         "repos_compensateur",
@@ -804,6 +839,7 @@ def compute_absence_balances(
         "cp_seniority_days": seniority_n,
         "cp_legal_days": round(max(0.0, cp.get("acquis", 0) - seniority_n), 2),
         "rtt": rtt,
+        "jtc": jtc,
         "repos_compensateur": _balance(repos_acquis, repos_pris),
     }
 

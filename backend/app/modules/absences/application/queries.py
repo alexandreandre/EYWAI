@@ -481,6 +481,7 @@ def get_absence_balances_for_payslip(
         "conges_payes": cp_lines["periode_courante"],
         "conges_payes_periode_precedente": cp_lines["periode_precedente"],
         "rtt": autres["rtt"],
+        "jtc": autres["jtc"],
         "repos_compensateur": autres["repos_compensateur"],
         "cp_seniority_days": autres.get("cp_seniority_days", 0),
     }
