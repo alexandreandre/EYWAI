@@ -123,3 +123,23 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
 -- ----------------------------------------------------------------------------
 REVOKE ALL ON public.user_permissions_view FROM anon, authenticated;
 REVOKE ALL ON public.role_templates_view   FROM anon, authenticated;
+
+-- ----------------------------------------------------------------------------
+-- NOTE D'HISTORIQUE (07/08/2026)
+-- Ce fichier portait le numéro 20260804160000. La production enregistre la même
+-- migration sous 20260804202547 : elle y a été appliquée directement par l'API
+-- Supabase, qui génère son propre horodatage, avant d'être versionnée ici avec
+-- un numéro choisi à la main.
+--
+-- Conséquence : `supabase db push` refusait de tourner depuis le 04/08
+-- (« Remote migration versions not found in local migrations directory »), ce
+-- qui a bloqué TOUS les déploiements — donc aussi les correctifs paie du 05/08,
+-- l'interfaçage compta, les périodes d'essai, le suivi PAS et l'assistant RH.
+--
+-- Le fichier est renommé sur le numéro réellement enregistré en production. Le
+-- SQL exécutable est identique au distant (comparé hors commentaires), la
+-- migration ne sera donc pas rejouée.
+--
+-- À retenir : une migration appliquée via l'API Supabase doit être versionnée
+-- ICI SOUS SON HORODATAGE D'ORIGINE, jamais sous un numéro reconstitué.
+-- ----------------------------------------------------------------------------
