@@ -23,6 +23,9 @@ export interface LeaveSettings {
   rtt_carryover_enabled: boolean;
   rtt_year_end_reminder_enabled: boolean;
   rtt_year_end_reminder_days_before: number;
+  jtc_enabled: boolean;
+  jtc_annual_days: number;
+  jtc_absence_threshold_days: number;
   configured: boolean;
 }
 
@@ -45,6 +48,9 @@ export type LeaveSettingsUpdate = Partial<
     | 'rtt_carryover_enabled'
     | 'rtt_year_end_reminder_enabled'
     | 'rtt_year_end_reminder_days_before'
+    | 'jtc_enabled'
+    | 'jtc_annual_days'
+    | 'jtc_absence_threshold_days'
   >
 >;
 
@@ -56,13 +62,18 @@ export interface EmployeeLeaveAdjustment {
   rtt_opening_balance: number;
   rtt_forfeited_at: string | null;
   rtt_forfeited_days: number;
+  jtc_opening_balance: number;
   note: string | null;
 }
 
 export type EmployeeLeaveAdjustmentUpdate = Partial<
   Pick<
     EmployeeLeaveAdjustment,
-    'cp_n1_opening_balance' | 'cp_n_opening_balance' | 'rtt_opening_balance' | 'note'
+    | 'cp_n1_opening_balance'
+    | 'cp_n_opening_balance'
+    | 'rtt_opening_balance'
+    | 'jtc_opening_balance'
+    | 'note'
   >
 >;
 

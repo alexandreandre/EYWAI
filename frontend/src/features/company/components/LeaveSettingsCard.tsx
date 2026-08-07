@@ -146,6 +146,9 @@ export default function LeaveSettingsCard() {
       ...buildRttPayload(form),
       rtt_year_end_reminder_enabled: form.rtt_year_end_reminder_enabled,
       rtt_year_end_reminder_days_before: form.rtt_year_end_reminder_days_before,
+      jtc_enabled: form.jtc_enabled ?? false,
+      jtc_annual_days: form.jtc_annual_days ?? 3,
+      jtc_absence_threshold_days: form.jtc_absence_threshold_days ?? 30,
     });
   };
 
@@ -375,6 +378,71 @@ export default function LeaveSettingsCard() {
               </div>
             </div>
           ) : null}
+
+          <div className="space-y-4 border-t pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label>Compteur JTC</Label>
+                <p className="text-xs text-muted-foreground">
+                  Jours de temps de change : accord d&apos;entreprise, acquis sur
+                  l&apos;année précédente. À n&apos;activer que si la société en a un.
+                </p>
+              </div>
+              <Switch
+                checked={form.jtc_enabled ?? false}
+                disabled={!canEdit}
+                onCheckedChange={(v) =>
+                  setForm((f) => (f ? { ...f, jtc_enabled: v } : f))
+                }
+              />
+            </div>
+            {form.jtc_enabled ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="jtc-annual-days">JTC par an (année complète)</Label>
+                  <Input
+                    id="jtc-annual-days"
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={form.jtc_annual_days ?? 3}
+                    disabled={!canEdit}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f ? { ...f, jtc_annual_days: Number(e.target.value) } : f,
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="jtc-absence-threshold">
+                    Seuil d&apos;absences (jours)
+                  </Label>
+                  <Input
+                    id="jtc-absence-threshold"
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={form.jtc_absence_threshold_days ?? 30}
+                    disabled={!canEdit}
+                    onChange={(e) =>
+                      setForm((f) =>
+                        f
+                          ? {
+                              ...f,
+                              jtc_absence_threshold_days: Number(e.target.value),
+                            }
+                          : f,
+                      )
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    En dessous, les absences ne réduisent pas le droit.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <div className="flex items-center justify-between gap-4 border-t pt-4">
             <div>
