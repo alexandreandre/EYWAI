@@ -204,11 +204,19 @@ jobs:
         with:
           version: latest
 
+      # `--include-all` : une migration appliquée via l'API Supabase reçoit
+      # l'horodatage du moment, alors que les fichiers du dépôt sont numérotés à
+      # la main. Une migration écrite ici peut donc porter un numéro antérieur à
+      # la dernière enregistrée en base, et la CLI refuse alors de l'appliquer
+      # (« Found local migration files to be inserted before the last migration
+      # on remote database »). C'est ce qui a bloqué tous les déploiements du
+      # 04/08 au 07/08. Le drapeau applique les migrations en attente dans
+      # l'ordre de leur numéro, sans exiger qu'elles soient les plus récentes.
       - name: supabase db push
         if: steps.db_url.outputs.skip != 'true'
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push --include-all --db-url "$SUPABASE_DB_URL"
 
   # ----------------------------------------------------------------------------
   # 3) Environnement de test — déploiement automatique, marche avant la prod.
