@@ -344,22 +344,46 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
 def _calculer_prelevement_a_la_source(
     contexte: ContextePaie, net_imposable: float
 ) -> float:
-    taux_pas = _get_safe_float(
-        contexte.contrat.get("specificites_paie", {})
-        .get("prelevement_a_la_source", {})
-        .get("taux")
+    bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
+        "prelevement_a_la_source", {}
     )
+    base_pas = _base_pas_du_mois(contexte, net_imposable)
+
+    if bloc_pas.get("taux") is None:
+        # Aucun taux reçu de la DGFiP — un nouvel embauché avant le premier compte
+        # rendu métier, typiquement. La loi impose alors la grille par défaut, pas
+        # l'absence de prélèvement : un taux inconnu n'est pas un taux nul.
+        taux_pas = taux_pas_neutre(
+            contexte.baremes.get("pas") or [], base_pas, _zone_pas(contexte)
+        )
+        montant_pas = base_pas * (taux_pas / 100.0)
+        return round(montant_pas, 2)
+
     # Base PAS éventuellement réduite (exonération IR apprenti). Pour un taux
     # personnalisé DGFiP comme pour un taux neutre/0, on applique le taux sur
-    # la base réduite ; un taux 0 donne donc 0 (cohérent).
-    base_pas = _base_pas_du_mois(contexte, net_imposable)
+    # la base réduite ; un taux 0 transmis par la DGFiP donne donc 0 — c'est un
+    # taux, pas une absence de taux, et il ne déclenche pas la grille.
+    taux_pas = _get_safe_float(bloc_pas.get("taux"))
     montant_pas = base_pas * (taux_pas / 100.0)
     return round(montant_pas, 2)
 
 
 def _zone_pas(contexte: ContextePaie) -> str:
-    if contexte.is_alsace_moselle:
-        return "alsace_moselle"
+    """Zone du barème PAS, déterminée par le département d'établissement.
+
+    Le barème n'a que trois zones : métropole, Antilles-Réunion, Guyane-Mayotte.
+    L'Alsace-Moselle n'en est pas une — c'est une particularité d'assurance
+    maladie, sans effet sur l'impôt. La rattacher ici renvoyait une zone absente
+    du barème, et le repli tombait alors sur la première de la liste, celle des
+    Antilles.
+    """
+    identification = contexte.entreprise.get("identification") or {}
+    adresse = identification.get("adresse") or {}
+    departement = str(adresse.get("code_postal") or "").strip()[:3]
+    if departement in ("971", "972", "974"):
+        return "guadeloupe_reunion_martinique"
+    if departement in ("973", "976"):
+        return "guyane_mayotte"
     return "metropole"
 
 
@@ -368,8 +392,11 @@ def taux_pas_neutre(
     net_imposable: float,
     zone: str = "metropole",
 ) -> float:
-    """
-    Taux neutre PAS depuis le barème scrapé (simulation / contrôle / sans taux individuel).
+    """Taux de la grille par défaut, en pourcentage.
+
+    Le barème scrapé stocke ses taux en fraction (0,075 pour 7,5 %) ; on rend un
+    pourcentage, unité commune au taux individuel de la fiche salarié et au reste
+    du moteur. Sans cette conversion, le prélèvement sortait cent fois trop faible.
     """
     if not baremes_pas or net_imposable <= 0:
         return 0.0
@@ -399,12 +426,12 @@ def taux_pas_neutre(
         plafond = tr.get("plafond")
         if plafond is None or net_imposable <= float(plafond):
             try:
-                return float(tr.get("taux") or 0.0)
+                return round(float(tr.get("taux") or 0.0) * 100.0, 2)
             except (TypeError, ValueError):
                 return 0.0
     if tranches_sorted:
         try:
-            return float(tranches_sorted[-1].get("taux") or 0.0)
+            return round(float(tranches_sorted[-1].get("taux") or 0.0) * 100.0, 2)
         except (TypeError, ValueError):
             return 0.0
     return 0.0

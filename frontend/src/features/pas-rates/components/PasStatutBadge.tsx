@@ -21,7 +21,7 @@ const PRESENTATION: Record<PasStatut, { variant: Variant; aide: string }> = {
   bareme: {
     variant: "secondary",
     aide:
-      "La DGFiP n'a pas encore transmis de taux personnalisé — c'est le cas d'un nouvel embauché. Le barème s'applique en attendant, et le taux personnalisé arrivera avec la prochaine déclaration.",
+      "Taux déclaré sous le type 13 en DSN, dont la signification exacte reste à confirmer auprès du cabinet. Le taux affiché est bien celui appliqué sur le bulletin.",
   },
   a_rafraichir: {
     variant: "warning",

@@ -2,8 +2,16 @@
 
 Le taux appliqué sur un bulletin n'est pas une décision de l'employeur : la DGFiP
 le renvoie dans le compte rendu métier qui suit le dépôt d'une DSN. Tant qu'elle
-n'a rien renvoyé — un nouvel embauché, typiquement — le déclarant applique le
-barème. La nomenclature DSN S21.G00.50.007 distingue les deux cas.
+n'a rien renvoyé — un nouvel embauché, typiquement — le déclarant applique la
+grille par défaut.
+
+La rubrique DSN S21.G00.50.007 porte un type de taux. Le 01 est le taux
+personnalisé transmis par la DGFiP. Le 13 reste à élucider : il précède le 01
+dans le temps chez plusieurs salariés, ce qui suggérait la grille par défaut,
+mais les valeurs le démentent — 13,80 % sur 1 601 € de net imposable quand la
+grille métropole donne 0 % en dessous de 1 635 €. On l'affiche donc sans lui
+prêter de sens, en attendant confirmation par le cahier technique DSN ou par le
+cabinet.
 """
 
 from __future__ import annotations
@@ -19,7 +27,7 @@ TYPE_BAREME = "13"
 
 TYPE_LABELS: Dict[str, str] = {
     TYPE_PERSONNALISE: "Taux personnalisé DGFiP",
-    TYPE_BAREME: "Taux barème",
+    TYPE_BAREME: "Taux de type 13",
 }
 
 # Statuts affichés aux RH.
@@ -30,7 +38,7 @@ STATUT_MANQUANT = "manquant"
 
 STATUT_LABELS: Dict[str, str] = {
     STATUT_A_JOUR: "À jour",
-    STATUT_BAREME: "Au barème",
+    STATUT_BAREME: "Type 13",
     STATUT_A_RAFRAICHIR: "À rafraîchir",
     STATUT_MANQUANT: "Manquant",
 }

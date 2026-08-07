@@ -80,12 +80,13 @@ def baremes_snapshot() -> Dict[str, Any]:
             {
                 "zone": "metropole",
                 "periode": "mensuel_2026",
+                # Taux en fraction, comme le barème scrapé en base (0,005 = 0,5 %).
                 "tranches": [
                     {"plafond": 1591.0, "taux": 0.0},
-                    {"plafond": 1658.0, "taux": 0.5},
-                    {"plafond": 1760.0, "taux": 1.3},
-                    {"plafond": 1871.0, "taux": 2.1},
-                    {"plafond": None, "taux": 11.0},
+                    {"plafond": 1658.0, "taux": 0.005},
+                    {"plafond": 1760.0, "taux": 0.013},
+                    {"plafond": 1871.0, "taux": 0.021},
+                    {"plafond": None, "taux": 0.11},
                 ],
             }
         ],

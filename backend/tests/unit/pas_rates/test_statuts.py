@@ -69,6 +69,7 @@ def test_periode_valide_refuse_les_mois_impossibles():
 
 def test_libelle_de_type_reste_lisible_pour_un_code_inconnu():
     assert type_label(TYPE_PERSONNALISE) == "Taux personnalisé DGFiP"
-    assert type_label(TYPE_BAREME) == "Taux barème"
+    # Le sens du type 13 n'est pas établi : le libellé ne doit rien lui prêter.
+    assert type_label(TYPE_BAREME) == "Taux de type 13"
     assert type_label("07") == "Type 07"
     assert type_label(None) == "Origine inconnue"
