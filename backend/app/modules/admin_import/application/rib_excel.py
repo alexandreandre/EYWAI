@@ -24,6 +24,10 @@ RIB_COLUMN_ALIASES = (
 
 BIC_COLUMN_ALIASES = ("bic", "swift", "code bic")
 
+# Pays + clé de contrôle, seuls dans leur cellule (ex. « FR76 »). Quadratus éclate
+# l'IBAN sur deux colonnes : ce préfixe d'un côté, le BBAN de l'autre.
+_IBAN_PREFIX_RE = re.compile(r"^[A-Z]{2}[0-9]{2}$", re.IGNORECASE)
+
 MATRICULE_ALIASES = (
     "matricule",
     "mat",
@@ -96,6 +100,11 @@ def detect_rib_column_mapping(headers: List[str]) -> Dict[str, str]:
             continue
         if "rib" not in mapping and _match_alias(header, RIB_COLUMN_ALIASES):
             mapping["rib"] = header
+        # Une seconde colonne RIB n'est pas un doublon à ignorer : l'export Quadratus
+        # sépare le préfixe IBAN (« Bq iban ») du BBAN (« Bq rib »). Sans elle, la
+        # première ne vaut que quatre caractères et aucune ligne ne s'importe.
+        elif "rib_complement" not in mapping and _match_alias(header, RIB_COLUMN_ALIASES):
+            mapping["rib_complement"] = header
         elif "bic" not in mapping and _match_alias(header, BIC_COLUMN_ALIASES):
             mapping["bic"] = header
         elif "matricule" not in mapping and _match_alias(header, MATRICULE_ALIASES):
@@ -222,3 +231,21 @@ def row_value(row: Dict[str, str], column: Optional[str]) -> str:
     if not column:
         return ""
     return (row.get(column) or "").strip()
+
+
+def rib_cell_value(row: Dict[str, str], mapping: Dict[str, str]) -> str:
+    """Valeur RIB d'une ligne, en recollant un IBAN éclaté sur deux colonnes.
+
+    Le recollage n'a lieu que si la première colonne ne contient qu'un préfixe
+    pays + clé. Deux colonnes portant chacune des coordonnées complètes restent
+    distinctes : les coller bout à bout fabriquerait un IBAN inexistant.
+    """
+    primary = row_value(row, mapping.get("rib"))
+    complement = row_value(row, mapping.get("rib_complement"))
+    if not complement:
+        return primary
+    if not primary:
+        return complement
+    if _IBAN_PREFIX_RE.match(primary.replace(" ", "")):
+        return primary + complement
+    return primary

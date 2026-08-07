@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from app.modules.admin_import.application.rib_excel import (
     detect_rib_column_mapping,
     read_tabular_file,
+    rib_cell_value,
     row_value,
 )
 from app.modules.admin_import.application.rib_matching import (
@@ -77,7 +78,7 @@ def parse_rib_import_file(
     data_start_line = sheet.header_row_index + 1
 
     for offset, row in enumerate(sheet.rows):
-        rib_raw = row_value(row, mapping.get("rib"))
+        rib_raw = rib_cell_value(row, mapping)
         if not rib_raw:
             continue
 
