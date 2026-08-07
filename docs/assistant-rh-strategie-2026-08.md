@@ -1,7 +1,15 @@
 # Assistant RH — diagnostic mesuré et stratégie (#30)
 
-État au 5 août 2026. Ce document répond au point #30 d'`afaire.md`
+État au 7 août 2026. Ce document répond au point #30 d'`afaire.md`
 (« Changer le modèle d'IA d'assistant RH, car nul pour l'instant »).
+
+> **Où on en est (07/08).** Les lots 1, 2 et 4 sont en production, le corpus des
+> conventions est rempli. Résultat mesurable : à « quelle est la durée de la
+> période d'essai d'un ouvrier ? », l'assistant répondait « la convention n'en
+> parle pas » ; il répond aujourd'hui « 1 mois pour les coefficients 700-710,
+> 2 mois pour 720-750, 3 mois pour 800-830 », en citant l'article 3.2 de
+> l'avenant — vérifié mot pour mot contre le texte stocké. Routage 15/19 → 17/19.
+> Détail des lots livrés au § 5, mise en production au § 7.
 
 Conclusion en une phrase : **le modèle n'est pas la première cause.** Cinq modèles
 différents produisent le même routage à un scénario près ; ce qui rend l'assistant
@@ -336,62 +344,75 @@ promettait d'interroger les notes de frais, qu'aucun outil ne couvre.
 
 ---
 
-## 7. Mise en production : poussée, en attente de GitHub
+## 7. Mise en production — et la panne qu'elle a révélée
 
-Les quatre commits sont sur `main` (`d6922496`, `7a8146e5`, `35e88704`,
-`4a254674`). **Rien n'est encore actif en production**, pour une raison
-extérieure : **GitHub Actions est en panne majeure** (« Incident with Actions »,
-constaté le 6 août au soir). Aucune CI ne démarre, donc aucun déploiement, donc
-aucune migration appliquée.
+La panne GitHub Actions du 6 août avait masqué un blocage bien plus ancien :
+**aucun déploiement ne passait depuis le 4 août 16 h 52**, et personne ne le
+voyait.
 
-Ce n'est pas un problème de configuration — les workflows sont actifs et les
-tâches planifiées de la journée ont tourné normalement jusqu'à 18 h 26. Les
-poussées vers `main` n'ont produit aucun run.
+`supabase db push` échouait sur :
 
-Un second obstacle, celui-là de notre côté, a été levé au passage : le test
+```
+Remote migration versions not found in local migrations directory.
+supabase migration repair --status reverted 20260804202547
+```
+
+La migration RLS avait été appliquée en production **via l'API Supabase**, qui
+génère son propre horodatage (`20260804202547`), puis versionnée dans le dépôt
+sous un numéro choisi à la main (`20260804160000`). Deux numéros pour la même
+migration : la CLI refusait de continuer. Comme les jobs `test-env` et
+`production` dépendent du job migrations, ils étaient *skipped* — et un run
+affichait même « success » avec tous les vrais jobs sautés.
+
+Étaient donc coincés : les correctifs paie du 5 août, l'interfaçage compta, les
+périodes d'essai, le suivi PAS, et l'assistant RH.
+
+Deux correctifs, poussés le 7 août :
+
+- **`013b14b9`** — le fichier RLS est renommé sur l'horodatage réellement
+  enregistré en base, après vérification que le SQL exécutable est identique au
+  distant (comparé hors commentaires) ; la migration n'est donc pas rejouée.
+- **`7c7724b5`** — `supabase db push --include-all` dans le workflow. Une
+  migration écrite ici peut porter un numéro antérieur à la dernière appliquée
+  par l'API ; sans ce drapeau, la CLI refuse de l'appliquer. Le cas se
+  reproduira tant que des migrations passeront par l'API.
+
+**Règle à retenir : une migration appliquée via l'API Supabase doit être
+versionnée dans le dépôt sous son horodatage d'origine, jamais sous un numéro
+reconstitué.**
+
+Un troisième obstacle a été levé au passage : le test
 `test_golden_bulletins.py::test_contexte_injecte_sans_supabase` échouait sur
 `main` et **aurait fait échouer la CI dès sa reprise** (`tests/unit` est
-bloquant), donc empêché tout déploiement. Il piégeait `contexte.create_client`,
-que le module n'importe plus depuis `16386f6b`. Le piège porte désormais sur
-`get_supabase_admin_client`, le point d'entrée réellement utilisé.
+bloquant). Il piégeait `contexte.create_client`, que le module n'importe plus
+depuis `16386f6b` ; le piège porte désormais sur `get_supabase_admin_client`,
+le point d'entrée réellement utilisé.
 
-Toutes les étapes bloquantes de la CI ont été rejouées en local : ruff, smoke
-import (744 routes), `tests/unit` (4851 passent, 0 échec), lint et build du
-front.
+**Résultat** : les 7 migrations en attente sont appliquées en production
+(vérifié en base), dont `cc_base_text` et `copilot_interactions`. Aucune n'était
+destructive — vérifié avant application.
 
-Conséquence pratique : le code déployé en production reste celui du 4 août. Les
-correctifs paie poussés hier soir (barèmes, alertes CC, taux VM, pause des
-imports) attendent la même reprise.
+Le corpus des trois conventions est rempli :
 
-Il reste donc deux étapes, dans cet ordre, quand Actions sera rétabli :
+| IDCC | Sociétés | `base_text` | « essai » | « préavis » | « congé » |
+|---|---|---|---|---|---|
+| 3248 métallurgie | Cartol, LEWIS | 707 349 car. | 95 | 43 | 177 |
+| 0292 plasturgie | Colorplast, Comitech, MBC | 338 148 car. | 87 | 49 | 151 |
+| 1597 bâtiment | *(non assignée)* | 166 846 car. | 16 | 16 | 74 |
 
-1. **Laisser passer la CI et le déploiement** — les migrations
-   `20260806160000_cc_base_text.sql` et `20260806170000_copilot_interactions.sql`
-   s'appliquent alors automatiquement. En attendant, l'assistant lit `full_text`
-   et le journal reste muet : les deux replis sont prévus et testés.
-2. **Rattraper les trois conventions** — depuis le backend, une fois la migration
-   passée :
+Avant : 0, 0 et 0 pour la métallurgie.
 
-   ```
-   venv/bin/python scripts/backfill_cc_base_text.py            # simulation
-   venv/bin/python scripts/backfill_cc_base_text.py --apply
-   ```
+Deux pièges rencontrés en appliquant le backfill, tous deux corrigés :
 
-   Le script n'écrit que `base_text`, jamais `full_text` : la paie ne peut pas
-   être affectée. Il refuse d'écrire un texte où aucun repère RH n'apparaît, et
-   compte ~1 minute par convention (rapatriement KALI).
-
-Puis rejouer le banc d'essai (`scripts/eval_assistant_rh.py`) pour mesurer la
-branche convention sur le vrai corpus, cette fois de bout en bout.
-
-Les deux migrations ont été appliquées et vérifiées sur l'**environnement de
-test**. Leur application anticipée en production a été tentée par l'API Supabase
-pour ne pas dépendre de la panne : la politique de permissions l'a refusée, et
-elle n'a pas été contournée.
-
-Le test unitaire `tests/unit/payroll/test_golden_bulletins.py::test_contexte_injecte_sans_supabase`
-échoue, mais indépendamment de ces changements : le commit `16386f6b` d'hier a
-retiré `create_client` de `payroll/engine/contexte.py` sans mettre le test à jour.
+- `set_base_text` avalait l'échec d'écriture et le script annonçait « écrit » :
+  une coupure SSL a laissé l'IDCC 0292 **vide** sans que rien ne le signale. La
+  méthode renvoie maintenant un booléen, et le script **relit ce qu'il a écrit**
+  avant d'annoncer un succès. Le second incident (IDCC 1597) a été détecté
+  immédiatement par ce garde-fou.
+- le texte de base ne suffisait pas pour la plasturgie : son article 8 renvoie
+  aux « avenants particuliers » pour la période d'essai. Ces avenants vivent
+  dans les « Textes Attachés » et sont désormais joints au corpus RH
+  (`_is_hr_annex`, `198020ce`).
 
 ## 8. Suite
 
