@@ -225,16 +225,21 @@ def main() -> int:
         return 1
 
     for l in lignes:
+        # Cartol porte déjà des ajustements issus d'un import de bulletins. On remplace
+        # la valeur — l'état du cabinet fait foi et il est plus récent — mais on garde
+        # la trace de ce qui était là, sinon on perd l'historique de la reprise.
+        precedent = leave_repo.get_employee_adjustment(l["employee_id"], args.annee)
+        note = (
+            f"Reprise du report cabinet au {ref_date:%d/%m/%Y} : "
+            f"{l['cible_ouvres']:.2f} j ouvrés"
+        )
+        if precedent and precedent.note:
+            note = f"{note} — remplace : {precedent.note}"
         leave_repo.upsert_employee_adjustment(
+            company_id,
             l["employee_id"],
             args.annee,
-            {
-                "cp_n1_opening_balance": l["ecart_ouvrables"],
-                "note": (
-                    f"Reprise du report cabinet au {ref_date:%d/%m/%Y} : "
-                    f"{l['cible_ouvres']:.2f} j ouvrés"
-                ),
-            },
+            {"cp_n1_opening_balance": l["ecart_ouvrables"], "note": note},
         )
     print(f"\n{len(lignes)} ajustement(s) écrit(s) pour {societe}, année {args.annee}.")
     return 0
