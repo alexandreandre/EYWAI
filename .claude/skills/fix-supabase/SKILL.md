@@ -38,13 +38,17 @@ bash .claude/skills/fix-supabase/fix-supabase.sh
 Le script :
 - réécrit `.mcp.json` canonique (prod + test, features complètes) ;
 - vérifie le token (sans l’imprimer) via l’API Management ;
-- persiste token + `enabledMcpjsonServers` dans `.claude/settings.local.json` ;
-- active les approvals dans `~/.claude.json` (évite `Pending approval`) ;
-- health-check `claude mcp list` ;
-- si prod n’est pas `✔ Connected` → réenregistre en **scope local** (bypass).
+- persiste le token dans `.claude/settings.local.json` **et** `~/.claude/settings.json`
+  (sinon VS Code / Claude lancés depuis le Dock → `Unauthorized`) ;
+- enregistre prod + test en **scope local** (`claude mcp add -s local`) — bypass
+  du gate `Pending approval` sur `.mcp.json` ;
+- réécrit `enabledMcpjsonServers` dans `~/.claude.json` **après** chaque appel
+  `claude` (sinon `claude mcp list` les efface et le prochain boot revient en Pending) ;
+- health-check `claude mcp list`.
 
 Si exit ≠ 0 : lire le message, corriger (token manquant / invalide), relancer
-**une fois**. Ne pas inventer un autre setup HTTP/OAuth.
+**une fois**. Ne pas inventer un autre setup HTTP/OAuth. Ne jamais coller
+`claude mcp get` (affiche le PAT).
 
 ## Étape 2 — Recharger les outils dans *cette* session
 

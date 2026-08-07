@@ -100,7 +100,7 @@ else
   ok "API Management OK pour test ($TEST_REF)"
 fi
 
-step "3. Persister le token + approvals dans settings.local.json"
+step "3. Persister le token (projet + global Claude)"
 python3 - "$SETTINGS_LOCAL" "$TOKEN" "$PROD_NAME" "$TEST_NAME" <<'PY'
 import json, sys
 from pathlib import Path
@@ -118,8 +118,27 @@ print(f"écrit {path} (enabledMcpjsonServers={names})")
 PY
 ok "settings.local.json à jour"
 
-step "4. Approuver les serveurs projet dans ~/.claude.json"
-python3 - "$CLAUDE_JSON" "$ROOT" "$PROD_NAME" "$TEST_NAME" <<'PY'
+# Correctif durable : VS Code / Claude lancés depuis le Dock n'héritent pas de ~/.zshrc.
+# settings.local.json ne couvre que les sessions ouvertes DANS ce repo.
+GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+python3 - "$GLOBAL_SETTINGS" "$TOKEN" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+token = sys.argv[2]
+d = json.loads(path.read_text()) if path.exists() else {}
+env = d.setdefault("env", {})
+env["SUPABASE_ACCESS_TOKEN"] = token
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(d, indent=2) + "\n")
+print(f"écrit {path} env.SUPABASE_ACCESS_TOKEN (len={len(token)})")
+PY
+ok "token aussi dans ~/.claude/settings.json (global)"
+
+# Approvals .mcp.json : écrites ICI puis RE-écrites APRÈS tout appel `claude`
+# (claude mcp list / add réécrit ~/.claude.json et EFFAÇAIT enabledMcpjsonServers).
+write_approvals() {
+  python3 - "$CLAUDE_JSON" "$ROOT" "$PROD_NAME" "$TEST_NAME" <<'PY'
 import json, sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -129,59 +148,55 @@ if not path.exists():
     print(f"ABSENT: {path}", file=sys.stderr)
     sys.exit(4)
 d = json.loads(path.read_text())
-projects = d.setdefault("projects", {})
-proj = projects.setdefault(root, {})
+proj = d.setdefault("projects", {}).setdefault(root, {})
 proj["enabledMcpjsonServers"] = names
 proj["disabledMcpjsonServers"] = []
-# Évite un rejet fantôme
-disabled = proj.get("disabledMcpjsonServers")
-if isinstance(disabled, list):
-    proj["disabledMcpjsonServers"] = [x for x in disabled if x not in names]
 path.write_text(json.dumps(d, indent=2) + "\n")
 print(f"écrit {path} projects[{root}].enabledMcpjsonServers={names}")
 PY
+}
+
+step "4. Approuver les serveurs projet dans ~/.claude.json"
+write_approvals
 ok "approvals projet activées"
 
-step "5. Health-check Claude MCP"
+step "5. Enregistrement scope local (bypass Pending approval)"
+# Scope local = prioritaire sur .mcp.json, pas de gate « Use this MCP server? »,
+# token injecté dans la config locale (hors git). C'est le mode durable.
 if ! command -v claude >/dev/null 2>&1; then
   fail "binaire `claude` introuvable dans le PATH"
   exit 5
 fi
 
+claude mcp remove "$PROD_NAME" -s local >/dev/null 2>&1 || true
+claude mcp add -s local \
+  -e "SUPABASE_ACCESS_TOKEN=${TOKEN}" \
+  -- "$PROD_NAME" npx -y @supabase/mcp-server-supabase@latest \
+  "--project-ref=${PROD_REF}" \
+  "--features=${FEATURES}" >/dev/null
+ok "ajouté $PROD_NAME en scope local"
+
+claude mcp remove "$TEST_NAME" -s local >/dev/null 2>&1 || true
+claude mcp add -s local \
+  -e "SUPABASE_ACCESS_TOKEN=${TOKEN}" \
+  -- "$TEST_NAME" npx -y @supabase/mcp-server-supabase@latest \
+  "--project-ref=${TEST_REF}" \
+  "--features=${FEATURES}" >/dev/null
+ok "ajouté $TEST_NAME en scope local"
+
+# `claude mcp add` réécrit ~/.claude.json → restaurer les approvals tout de suite
+write_approvals
+
+step "6. Health-check Claude MCP"
 LIST_OUT="$(claude mcp list 2>&1 || true)"
 printf '%s\n' "$LIST_OUT"
+# list réécrit encore ~/.claude.json
+write_approvals
 
 prod_ok=0
 test_ok=0
 echo "$LIST_OUT" | grep -q "$PROD_NAME:.*✔ Connected" && prod_ok=1 || true
 echo "$LIST_OUT" | grep -q "$TEST_NAME:.*✔ Connected" && test_ok=1 || true
-
-if [[ "$prod_ok" -eq 0 ]]; then
-  step "6. Escalade — réenregistrement local (bypass approval .mcp.json)"
-  # Scope local : pas de gate Pending approval ; prioritaire sur project.
-  claude mcp remove "$PROD_NAME" -s local >/dev/null 2>&1 || true
-  claude mcp add -s local \
-    -e "SUPABASE_ACCESS_TOKEN=${TOKEN}" \
-    -- "$PROD_NAME" npx -y @supabase/mcp-server-supabase@latest \
-    "--project-ref=${PROD_REF}" \
-    "--features=${FEATURES}" >/dev/null
-  ok "ajouté $PROD_NAME en scope local"
-
-  if [[ "$test_ok" -eq 0 ]]; then
-    claude mcp remove "$TEST_NAME" -s local >/dev/null 2>&1 || true
-    claude mcp add -s local \
-      -e "SUPABASE_ACCESS_TOKEN=${TOKEN}" \
-      -- "$TEST_NAME" npx -y @supabase/mcp-server-supabase@latest \
-      "--project-ref=${TEST_REF}" \
-      "--features=${FEATURES}" >/dev/null
-    ok "ajouté $TEST_NAME en scope local"
-  fi
-
-  LIST_OUT="$(claude mcp list 2>&1 || true)"
-  printf '%s\n' "$LIST_OUT"
-  echo "$LIST_OUT" | grep -q "$PROD_NAME:.*✔ Connected" && prod_ok=1 || true
-  echo "$LIST_OUT" | grep -q "$TEST_NAME:.*✔ Connected" && test_ok=1 || true
-fi
 
 step "Résultat"
 if [[ "$prod_ok" -eq 1 ]]; then
@@ -198,9 +213,11 @@ fi
 cat <<'EOF'
 
 Prochaine étape DANS LA SESSION Claude Code :
-  1. Si les outils MCP ne sont pas encore visibles → tape /mcp puis rafraîchis / réactive supabase-eywai-prod (et test).
-  2. Ne redémarre la session QUE si /mcp ne suffit pas — l'état disque est déjà réparé.
-  3. Smoke-test : list_tables ou execute_sql SELECT 1 sur supabase-eywai-prod.
+  1. Tape /mcp → vérifie supabase-eywai-prod et supabase-eywai-test = Connected.
+  2. Si tools absents dans le chat déjà ouvert → /mcp rafraîchir, sinon nouvelle session
+     dans /Users/alex/Desktop/EYWAI/EYWAI (le scope local est lié à ce chemin).
+  3. Smoke-test : execute_sql  select 1 as ok;  sur supabase-eywai-prod.
+  Ne pas coller la sortie de `claude mcp get` (elle affiche le token).
 EOF
 
 if [[ "$prod_ok" -ne 1 ]]; then
