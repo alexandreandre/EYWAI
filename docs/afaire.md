@@ -225,13 +225,23 @@ d'entrée, le nombre de mois de paie qui ont servi au calcul, et une colonne « 
 — pour qu'on voie tout de suite d'où sort chaque chiffre au lieu de devoir croire le
 fichier sur parole.
 
-Là où ça coince, et ce n'est pas le calcul : nos chiffres sortent 31 % en dessous de
-ceux du cabinet. La raison principale est que le solde de l'année précédente n'a jamais
-été repris. Chez nous il vaut 21 ou 22 jours pour à peu près tout le monde — un droit
-théorique recalculé — alors que dans la réalité il va de 3 à 88 jours selon les
-personnes. C'est exactement le même trou que pour le JTC : EYWAI ne contient rien avant
-janvier 2026. La deuxième raison, plus petite, est que le salaire de référence se
-calcule normalement sur douze mois de paie et qu'on n'en a que six ; ça se réglera tout
+Au premier essai, nos chiffres sortaient 31 % en dessous de ceux du cabinet, et ce
+n'était pas le calcul : le solde de l'année précédente n'avait jamais été repris. Chez
+nous il valait 25 jours pour tout le monde — un droit théorique recalculé — alors que
+dans la réalité il va de 3 à 88 jours selon les personnes. Même trou que pour le JTC :
+EYWAI ne contient rien avant janvier 2026.
+
+Sauf qu'on n'a pas eu à redemander ces soldes : ils sont **dans le fichier d'Elsa**, une
+colonne du même document. On a donc écrit un outil qui les relit et les remet dans
+EYWAI. Répétition faite à blanc : les 71 salariés du fichier sont retrouvés, y compris
+celle qui y figure sous son nom d'usage, et l'outil refuse d'écrire tant qu'une seule
+ligne résiste. Effet mesuré : l'écart sur les soldes passe de 6,2 jours à 0,01 jour (51
+salariés sur 64 tombent exactement juste), et le total remonte à 12 % du cabinet au lieu
+de 31 %. Rien n'a été écrit pour l'instant : ça touche les compteurs de congés de 71
+personnes en production, donc j'attends ton feu vert.
+
+Les 12 % restants viennent de la deuxième cause, qu'on ne peut pas régler : le salaire
+de référence se calcule sur douze mois de paie et on n'en a que six. Ça se réglera tout
 seul en juin 2027. En attendant, l'export affiche en permanence un avertissement qui dit
 que le chiffre est indicatif — on préfère ça à un montant faux présenté comme sûr.
 
@@ -244,11 +254,12 @@ bulletin dans EYWAI ; leur provision sortait à zéro euro sans que rien ne l'an
 C'est corrigé : on retombe sur le salaire du contrat (9 860 € et 22 602 €), et un
 fichier entièrement à zéro n'est plus produit du tout — l'écran dit ce qui manque.
 
-Reste à faire : le déploiement, obtenir d'Elsa les soldes de congés reportés au
-31 mai — c'est ça qui rendra le chiffre exact —, et lui poser une question sur son
-fichier : il ne contient que 71 salariés alors que 86 ont été payés en juin, et les
-absents sont tous des embauches récentes. On veut savoir si le cabinet les exclut
-volontairement ; nous, on les garde, puisqu'ils ont des congés acquis donc une dette.
+Reste à faire : le déploiement, ton accord pour charger les reports de Cartol, et deux
+choses à demander à Elsa — le même état de provision pour les six autres sociétés (c'est
+ce qui corrigera leurs compteurs de congés, pas seulement la provision), et pourquoi son
+fichier ne contient que 71 salariés alors que 86 ont été payés en juin. Les absents sont
+tous des embauches récentes ; nous on les garde, puisqu'ils ont des congés acquis donc
+une dette.
 
 #24. Format bulletin de paie MOI
 
