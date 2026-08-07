@@ -8,6 +8,7 @@ ExportType = Literal[
     "journal_paie",
     "charges_sociales",
     "conges_absences",
+    "provision_cp",
     "notes_frais",
     "acomptes",
     "saisies",

@@ -314,6 +314,22 @@ def preview_export(
             can_generate=preview["can_generate"],
             details=preview.get("details"),
         )
+    elif request.export_type == "provision_cp":
+        preview = providers.preview_provision_cp(
+            company_id,
+            request.period,
+            request.employee_ids,
+        )
+        return ExportPreviewResponse(
+            export_type=request.export_type,
+            period=request.period,
+            employees_count=preview["employees_count"],
+            totals=ExportTotals(**preview["totals"]),
+            anomalies=[ExportAnomaly(**a) for a in preview["anomalies"]],
+            warnings=preview["warnings"],
+            can_generate=preview["can_generate"],
+            details=preview.get("details"),
+        )
     elif request.export_type == "recapitulatif_montants":
         preview = providers.preview_recapitulatif_montants(
             company_id,

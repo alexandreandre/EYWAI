@@ -146,3 +146,26 @@ class TestGenerate:
         texte = contenu.decode("utf-8-sig")
         assert "Total" in texte
         assert "BERTAUD" in texte
+
+
+class TestCablage:
+    def test_type_declare_en_preview_et_en_generation(self):
+        from app.modules.exports.domain.value_objects import (
+            EXPORT_TYPES_GENERATE,
+            EXPORT_TYPES_PREVIEW,
+        )
+
+        assert "provision_cp" in EXPORT_TYPES_PREVIEW
+        assert "provision_cp" in EXPORT_TYPES_GENERATE
+
+    def test_type_accepte_par_le_schema_de_requete(self):
+        from app.modules.exports.schemas.requests import ExportPreviewRequest
+
+        requete = ExportPreviewRequest(export_type="provision_cp", period="2026-07")
+        assert requete.export_type == "provision_cp"
+
+    def test_providers_expose_les_deux_fonctions(self):
+        from app.modules.exports.infrastructure import providers
+
+        assert callable(providers.preview_provision_cp)
+        assert callable(providers.generate_provision_cp_export)
