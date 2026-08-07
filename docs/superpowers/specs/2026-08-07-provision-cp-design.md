@@ -198,3 +198,82 @@ depuis janvier 2026. »
    nous les incluons. L'écart sur Cartol serait d'une quinzaine de lignes.
 4. Un seul modèle, une seule société, une seule date : rien ne garantit que le cabinet
    édite le même état pour les six autres sociétés.
+
+## Mesure du 07/08/2026 contre le modèle Cegid
+
+Script : `backend/scripts/provision_cp_comparer_modele.py`, société Cartol, période
+2026-07, modèle `00000595-PROVISION CP.pdf`.
+
+| | Modèle Cegid | EYWAI |
+|---|---|---|
+| Lignes | 71 | 87 |
+| Rapprochées | — | 64 |
+| Total valorisé (lignes rapprochées) | 362 080,89 € | 247 827,98 € |
+
+Écart : **−114 252,91 €, soit −31,6 %**.
+
+| Champ | Écart médian | Écart max |
+|---|---|---|
+| Solde jours | 6,19 j | 66,36 j |
+| Salaire de référence | 268,12 € | 6 100,48 € |
+| Taux de charges | 1,13 pt | 25,12 pt |
+| Provision | 1 038,69 € | 10 524,70 € |
+
+**Deux causes, toutes deux des trous de données, aucune un défaut du calcul.**
+
+1. **Le solde de la période précédente n'est pas repris.** C'est la cause principale.
+   Notre N-1 vaut 20,8 à 22,5 jours pour tout le monde — un droit théorique d'année
+   pleine recalculé — quand le modèle va de 3 à 88 jours. EYWAI ne contient aucun congé
+   antérieur à janvier 2026, donc aucun report réel. Même trou que les soldes de départ
+   du JTC (point #8).
+2. **Le salaire de référence est calculé sur 6 mois au lieu de 12** (constat 4 de la
+   spec), ce qui décale surtout les salariés qui ont eu une absence longue en 2025.
+
+Le solde de la période **en cours** est juste : 4,17 j chez nous contre 4,16 j au modèle,
+soit un pur arrondi de la conversion ouvrables → ouvrés. Le taux de charges est juste
+lui aussi à 1,13 point près, écart imputable à la même fenêtre tronquée.
+
+Conséquence : l'export porte un avertissement permanent sur les reports non repris. Il
+sera exact quand les soldes de report auront été chargés une fois, et le salaire de
+référence le sera à partir de juin 2027.
+
+## Reprise des reports depuis l'état du cabinet
+
+L'état de provision porte lui-même le solde de report, salarié par salarié, en jours
+ouvrés. Il n'y a donc rien à demander à Elsa pour Cartol : la donnée manquante est dans
+le fichier qu'elle a déjà envoyé.
+
+`backend/scripts/reprise_soldes_cp_cabinet.py` la charge dans
+`employee_leave_adjustments`. Trois points de conception :
+
+1. **On enregistre un écart, pas un report brut.** Le moteur fait
+   `n1 = acquis − pris + cp_n1_opening_balance` ([rules.py:555](backend/app/modules/absences/domain/rules.py#L555)) :
+   l'ajustement s'ajoute au solde théorique. Écrire le report brut le compterait deux
+   fois. Le script écrit `report réel − théorique`, le théorique étant recalculé
+   ajustement neutralisé — donc **relancer le script ne cumule rien**.
+2. **Lecture en colonnes fixes.** Le numéro de collaborateur occupe les 18 premières
+   colonnes et porte parfois une lettre de désambiguïsation (« COUTANT D »,
+   « LEMAIRE JN », « LEMAIRE L »). Un découpage par espaces la prend pour un prénom et
+   casse le rapprochement : c'est ce qui laissait 7 lignes sur 71 non rapprochées.
+   Couvert par `backend/tests/unit/exports/test_reprise_soldes_cp.py`.
+3. **Tout ou rien.** Le script refuse d'écrire si une seule ligne n'est pas rapprochée.
+   Simulation par défaut, `--apply` pour écrire.
+
+Simulation du 07/08/2026 sur Cartol : **71 lignes sur 71 rapprochées, aucun refus**, y
+compris Marie-Noëlle ENOND retrouvée par son nom d'usage DEPLANNE. Le théorique vaut
+25,00 j ouvrables pour les 71, ce qui confirme le diagnostic. Écarts extrêmes :
+BOISSINOT +75,60 j, QUERAT +67,20 j, PENAUD −12,00 j.
+
+### Effet mesuré, à vide
+
+| | Solde jours, écart médian | Exacts | Total EYWAI | Écart au cabinet |
+|---|---|---|---|---|
+| Avant reprise | 6,19 j | 0/64 | 247 827,98 € | −114 252,91 € (−31,6 %) |
+| Après reprise | **0,01 j** | **51/64** | 318 099,26 € | −43 981,63 € (−12,1 %) |
+
+Le résidu de 0,01 j est l'arrondi de conversion ouvrables → ouvrés (4,17 contre 4,16).
+Les −12,1 % restants sont le salaire de référence calculé sur 6 mois au lieu de 12 :
+c'est la part qui ne se réglera qu'en juin 2027.
+
+**Rien n'a été écrit en production.** Les six autres sociétés n'ont pas d'état de
+provision : leurs reports restent à demander à Elsa.

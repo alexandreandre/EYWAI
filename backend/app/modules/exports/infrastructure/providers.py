@@ -72,6 +72,10 @@ from .export_conges_absences import (
     generate_conges_absences_export as _generate_conges_absences_export,
     preview_conges_absences as _preview_conges_absences,
 )
+from .export_provision_cp import (
+    generate_provision_cp_export as _generate_provision_cp_export,
+    preview_provision_cp as _preview_provision_cp,
+)
 from .export_recapitulatif_montants import (
     generate_recapitulatif_montants_export as _generate_recapitulatif_montants_export,
     preview_recapitulatif_montants as _preview_recapitulatif_montants,
@@ -358,6 +362,23 @@ def generate_conges_absences_export(
     return _generate_conges_absences_export(
         company_id, period, employee_ids, file_format, absence_types
     )
+
+
+def preview_provision_cp(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return _preview_provision_cp(company_id, period, employee_ids)
+
+
+def generate_provision_cp_export(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]],
+    file_format: str,
+) -> bytes:
+    return _generate_provision_cp_export(company_id, period, employee_ids, file_format)
 
 
 def preview_recapitulatif_montants(

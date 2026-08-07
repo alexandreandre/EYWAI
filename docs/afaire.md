@@ -208,11 +208,112 @@ corriger.
 
 BONUS:
 #23. Pouvoir faire un export de calcul de provision des congés payés. (En gros, c'est un fichier où on calcule ce qu'on devrait aux salariés de l'entreprise s'ils partaient tous en congés payés, et c'est converti en euros.) demander fichier exemple à ELSA 
+
+Il n'y avait rien à demander : Elsa avait envoyé le fichier exemple le 21 juillet,
+puis une deuxième fois le 27 avec la phrase « doc provision CP à mettre en export ».
+C'est un état du cabinet pour Cartol, 71 salariés, 394 121 € au total. On l'a décortiqué
+plutôt que de la relancer : la façon dont le cabinet calcule est entièrement retrouvée,
+et elle tombe juste au centime sur les 71 lignes. Pour chaque salarié, on prend son
+solde de congés, on le multiplie par sa journée de salaire, on ajoute ses charges
+patronales.
+
+L'export existe maintenant dans Exports > Exports RH, sous « Provision congés payés ».
+On choisit un mois, on obtient un fichier Excel avec une ligne par salarié et un total
+en bas : solde de l'année précédente, solde en cours, salaire de référence, taux de
+charges, provision, total. On a ajouté trois colonnes que le cabinet n'a pas — la date
+d'entrée, le nombre de mois de paie qui ont servi au calcul, et une colonne « anomalie »
+— pour qu'on voie tout de suite d'où sort chaque chiffre au lieu de devoir croire le
+fichier sur parole.
+
+Au premier essai, nos chiffres sortaient 31 % en dessous de ceux du cabinet, et ce
+n'était pas le calcul : le solde de l'année précédente n'avait jamais été repris. Chez
+nous il valait 25 jours pour tout le monde — un droit théorique recalculé — alors que
+dans la réalité il va de 3 à 88 jours selon les personnes. Même trou que pour le JTC :
+EYWAI ne contient rien avant janvier 2026.
+
+Sauf qu'on n'a pas eu à redemander ces soldes : ils sont **dans le fichier d'Elsa**, une
+colonne du même document. On a donc écrit un outil qui les relit et les remet dans
+EYWAI. Répétition faite à blanc : les 71 salariés du fichier sont retrouvés, y compris
+celle qui y figure sous son nom d'usage, et l'outil refuse d'écrire tant qu'une seule
+ligne résiste. Effet mesuré : l'écart sur les soldes passe de 6,2 jours à 0,01 jour (51
+salariés sur 64 tombent exactement juste), et le total remonte à 12 % du cabinet au lieu
+de 31 %. Rien n'a été écrit pour l'instant : ça touche les compteurs de congés de 71
+personnes en production, donc j'attends ton feu vert.
+
+Les 12 % restants viennent de la deuxième cause, qu'on ne peut pas régler : le salaire
+de référence se calcule sur douze mois de paie et on n'en a que six. Ça se réglera tout
+seul en juin 2027. En attendant, l'export affiche en permanence un avertissement qui dit
+que le chiffre est indicatif — on préfère ça à un montant faux présenté comme sûr.
+
+Ce qui est juste, en revanche : le solde de l'année en cours (4,17 jours contre 4,16
+chez le cabinet, un simple arrondi) et le taux de charges de chaque salarié, à un
+dixième de point près.
+
+Deux choses trouvées en testant sur les vraies données. Zone 404 et MAJI n'ont aucun
+bulletin dans EYWAI ; leur provision sortait à zéro euro sans que rien ne l'annonce.
+C'est corrigé : on retombe sur le salaire du contrat (9 860 € et 22 602 €), et un
+fichier entièrement à zéro n'est plus produit du tout — l'écran dit ce qui manque.
+
+Reste à faire : le déploiement, ton accord pour charger les reports de Cartol, et deux
+choses à demander à Elsa — le même état de provision pour les six autres sociétés (c'est
+ce qui corrigera leurs compteurs de congés, pas seulement la provision), et pourquoi son
+fichier ne contient que 71 salariés alors que 86 ont été payés en juin. Les absents sont
+tous des embauches récentes ; nous on les garde, puisqu'ils ont des congés acquis donc
+une dette.
+
 #24. Format bulletin de paie MOI
 
 Le bulletin sort maintenant au format du cabinet : une page, sobre, avec le bloc des compteurs de congés en haut à gauche, l'adresse du salarié à droite, la colonne des cumuls sur le côté et le net à payer en bas. Les rubriques portent les mêmes codes que chez Cegid (Q100 Santé, Q300 Retraite…). Ce qu'on affichait en plus (primes, notes de frais, cumuls annuels, soldes RTT) se fond dans le gabarit au lieu d'occuper ses propres sections. À l'écran, l'aperçu d'un bulletin en cours de modification montre désormais exactement le document qui sortira. Aucun montant ne change, et les bulletins déjà émis restent tels quels. Au passage, on a ajouté une mention obligatoire qui manquait depuis le début : l'évolution de la rémunération liée à la suppression des cotisations chômage et maladie.
 
 #25. Pouvoir importer dates des entretiens annuels attendre récap et fichier ELSA
+
+Le fichier n'était pas à attendre : Elsa l'a envoyé le 27 juillet à 18 h 05 sur WhatsApp,
+« Planif_entretiens.xlsx », qu'on n'avait jamais ouvert. 256 lignes, les sept sociétés, et
+surtout la règle d'entretien de chacune : Cartol refait tout en novembre, Comitech,
+Colorplast et LEWIS en octobre, MAJI en décembre, Zone 404 à la date d'ancienneté de
+chaque salarié, et Mont Blanc Composite tous les deux ans en octobre.
+
+Il fallait bien commencer par là, parce que la page des entretiens existait depuis
+longtemps — avec la convocation en PDF, la signature électronique, les types
+d'entretien légaux — mais qu'elle n'a jamais servi : il n'y avait pas un seul entretien
+enregistré en production. Aucun compteur légal ne courait.
+
+Ce qui a été fait. Chaque société a maintenant sa campagne d'entretiens réglable dans
+Entreprise > Paie : le mois où l'on convoque tout le monde (ou bien « à la date
+d'ancienneté »), et tous les combien. C'est le point important pour la suite : l'an
+prochain, EYWAI proposera seul la campagne suivante, et Elsa pourra changer le mois
+sans nous. Tant qu'une société n'est pas réglée, rien ne bouge chez elle — comme pour
+le JTC.
+
+Jusqu'ici, la liste des entretiens à planifier ne regardait que les cadres et les
+salariés au forfait jour, soit une poignée de personnes. Une fois la campagne réglée,
+elle couvre tout l'effectif de la société, avec la date attendue pour chacun et les
+retards en tête de liste.
+
+La reprise elle-même est prête et vérifiée à blanc sur les vraies données : 211
+entretiens à planifier et 43 entretiens passés à reprendre. Le programme ne recopie pas
+la colonne « à planifier » du fichier d'Elsa : il recalcule chaque échéance avec la
+règle de la société, puis compare. Sur les 211 lignes, **aucun écart** — notre calcul
+et son fichier tombent exactement pareil. Il refuse d'écrire au moindre désaccord, ne
+crée jamais deux fois le même entretien si on le relance, et ignore les salariés partis.
+
+Deux choses volontairement laissées de côté. Les 32 lignes du fichier qui correspondent
+à des gens déjà sortis (21 chez Cartol, 5 Comitech, 4 LEWIS, 2 Colorplast) sont
+ignorées. Et pour les entretiens passés, le fichier ne donne qu'une **année**, jamais
+une date : on enregistre l'année, sans inventer un jour. C'est suffisant pour faire
+courir le délai de deux ans.
+
+Rien n'est encore écrit en base, et trois questions restent pour Elsa :
+
+1. Mont Blanc Composite ne colle pas : son onglet compte 58 personnes alors qu'on en a
+   75 en poste. 13 noms de sa liste nous sont inconnus, et 30 des nôtres n'y figurent
+   pas. Il faut savoir lesquels sont concernés avant de charger cette société.
+2. Le fichier ne porte aucune date d'entretien professionnel ni de bilan à six ans —
+   ce sont pourtant les deux seuls entretiens obligatoires. Si ces dates existent
+   quelque part, il les faut ; sinon, tout le monde repart de zéro.
+3. Confirmer que Mont Blanc Composite est bien sur un cycle de deux ans alors que les
+   six autres sociétés sont annuelles.
+
 #26. Interfaçage compta MOI
 
 L'écriture comptable de paie est maintenant juste et équilibrée : elle sort aux comptes du cabinet, ventilée par organisme (URSSAF, retraite, mutuelle, prévoyance) au lieu d'un compte fourre-tout, et agrégée par compte comme le fait le cabinet — une vingtaine de lignes au lieu de 137. Colorplast, Comitech et Cartol tombent au centime. Avant, aucune société ne tombait juste : il manquait jusqu'à 114 000 € d'un côté de la balance. Un fichier qui ne s'équilibre pas n'est plus produit du tout : l'écran dit quel compte manque. Il reste trois comptes à récupérer chez le cabinet — paniers, cantine, IJSS — et les identifiants Cegid pour envoyer les écritures automatiquement au lieu de déposer un fichier.
