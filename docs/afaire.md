@@ -254,12 +254,16 @@ bulletin dans EYWAI ; leur provision sortait à zéro euro sans que rien ne l'an
 C'est corrigé : on retombe sur le salaire du contrat (9 860 € et 22 602 €), et un
 fichier entièrement à zéro n'est plus produit du tout — l'écran dit ce qui manque.
 
-Reste à faire : le déploiement, ton accord pour charger les reports de Cartol, et deux
-choses à demander à Elsa — le même état de provision pour les six autres sociétés (c'est
-ce qui corrigera leurs compteurs de congés, pas seulement la provision), et pourquoi son
-fichier ne contient que 71 salariés alors que 86 ont été payés en juin. Les absents sont
-tous des embauches récentes ; nous on les garde, puisqu'ils ont des congés acquis donc
-une dette.
+C'est en production depuis le 7 août : l'export répond bien sur le serveur de prod,
+vérifié après le déploiement et pas seulement sur la foi d'un voyant vert.
+
+Reste deux choses. D'abord charger les reports de Cartol — l'outil est prêt et la
+répétition à blanc est bonne, il faut juste lancer la commande, ça touche les compteurs
+de 71 personnes. Ensuite, deux questions à Elsa : le même état de provision pour les six
+autres sociétés (c'est ce qui corrigera leurs compteurs de congés, pas seulement la
+provision), et pourquoi son fichier ne contient que 71 salariés alors que 86 ont été
+payés en juin. Les absents sont tous des embauches récentes ; nous on les garde,
+puisqu'ils ont des congés acquis donc une dette.
 
 #24. Format bulletin de paie MOI
 
