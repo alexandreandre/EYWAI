@@ -48,6 +48,34 @@ def test_taux_personnalise_ignore_la_grille():
     assert _pas({"taux": 5.0, "type_taux": "01"}) == 100.0
 
 
+class TestTauxBareme:
+    """Un taux de type barème est recalculé, jamais rejoué d'un mois sur l'autre.
+
+    Le 13 n'est pas un taux du salarié : c'est le résultat de la grille appliquée
+    à la paie d'un mois donné. Une DSN nous transmet celui de son mois ; le
+    reprendre tel quel le mois suivant figerait un barème qui doit suivre la paie.
+    """
+
+    def test_le_taux_recu_en_dsn_ne_gele_pas_la_grille(self):
+        """5,3 % venus d'un mois plus faible : 2 000 € doivent donner 11 %."""
+        assert _pas({"taux": 5.3, "type_taux": "13"}) == 220.0
+
+    def test_un_bareme_a_zero_ne_gele_pas_non_plus(self):
+        """Le cas de juin 2026 : 0 % déclaré sous le seuil, la paie remonte ensuite."""
+        assert _pas({"taux": 0.0, "type_taux": "13"}) == 220.0
+
+    def test_sous_le_premier_seuil_le_bareme_ne_preleve_rien(self):
+        assert _pas({"taux": 5.3, "type_taux": "13"}, net_imposable=1500.0) == 0.0
+
+    def test_les_baremes_territoriaux_suivent_la_meme_regle(self):
+        for code in ("23", "33", "17", "27", "37"):
+            assert _pas({"taux": 5.3, "type_taux": code}) == 220.0
+
+    def test_un_type_inconnu_reste_applique_tel_quel(self):
+        """Prudence : un code hors nomenclature n'est pas présumé être un barème."""
+        assert _pas({"taux": 5.0, "type_taux": "99"}) == 100.0
+
+
 def test_grille_sous_le_premier_seuil_ne_preleve_rien():
     assert _pas({}, net_imposable=1500.0) == 0.0
 

@@ -348,9 +348,10 @@ def creer_bulletin_final(
         "exoneration_ir_apprenti": exoneration_ir_apprenti,
         "impot_prelevement_a_la_source": {
             "base": base_pas,
-            "taux": contexte.contrat.get("specificites_paie", {})
-            .get("prelevement_a_la_source", {})
-            .get("taux", 0.0),
+            # Le taux appliqué par le moteur, pas celui de la fiche : quand aucun
+            # taux personnalisé n'est connu, c'est la grille du mois qui a servi,
+            # et le bulletin doit afficher le taux dont vient le montant.
+            "taux": resultats_nets.get("taux_pas_applique", 0.0),
             "montant": resultats_nets.get("montant_impot_pas"),
         },
         "remboursement_transport": resultats_nets.get("remboursement_transport"),

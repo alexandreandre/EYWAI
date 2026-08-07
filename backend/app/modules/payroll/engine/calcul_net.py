@@ -1,4 +1,5 @@
 from app.core.logging import get_logger, log_payroll_debug
+from app.shared.pas_taux import est_taux_bareme
 
 from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
@@ -341,30 +342,42 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
     return round(max(0.0, base_pas_mois), 2)
 
 
-def _calculer_prelevement_a_la_source(
-    contexte: ContextePaie, net_imposable: float
-) -> float:
+def taux_pas_du_mois(contexte: ContextePaie, base_pas: float) -> float:
+    """Taux de prélèvement à la source réellement applicable ce mois-ci, en %.
+
+    Deux cas relèvent de la grille par défaut, et pour la même raison : on ne
+    détient pas de taux personnalisé.
+
+    - aucun taux connu — un nouvel embauché avant le premier compte rendu métier.
+      La loi impose alors la grille, pas l'absence de prélèvement : un taux
+      inconnu n'est pas un taux nul ;
+    - un taux de type barème (13 métropole, 23 et 33 outre-mer, et leurs
+      variantes proratisées 17/27/37). Ce taux-là n'appartient pas au salarié :
+      il se déduit de la rémunération du mois. Celui qu'une DSN nous transmet
+      vaut pour le mois de cette DSN et pour lui seul ; le réappliquer tel quel
+      le mois suivant figerait un barème qui doit suivre la paie.
+
+    Un taux personnalisé transmis par la DGFiP est en revanche appliqué tel quel,
+    y compris s'il vaut 0 % : c'est un taux, pas une absence de taux.
+    """
     bloc_pas = contexte.contrat.get("specificites_paie", {}).get(
         "prelevement_a_la_source", {}
     )
-    base_pas = _base_pas_du_mois(contexte, net_imposable)
-
-    if bloc_pas.get("taux") is None:
-        # Aucun taux reçu de la DGFiP — un nouvel embauché avant le premier compte
-        # rendu métier, typiquement. La loi impose alors la grille par défaut, pas
-        # l'absence de prélèvement : un taux inconnu n'est pas un taux nul.
-        taux_pas = taux_pas_neutre(
+    taux_connu = bloc_pas.get("taux")
+    if taux_connu is None or est_taux_bareme(bloc_pas.get("type_taux")):
+        return taux_pas_neutre(
             contexte.baremes.get("pas") or [], base_pas, _zone_pas(contexte)
         )
-        montant_pas = base_pas * (taux_pas / 100.0)
-        return round(montant_pas, 2)
+    return _get_safe_float(taux_connu)
 
-    # Base PAS éventuellement réduite (exonération IR apprenti). Pour un taux
-    # personnalisé DGFiP comme pour un taux neutre/0, on applique le taux sur
-    # la base réduite ; un taux 0 transmis par la DGFiP donne donc 0 — c'est un
-    # taux, pas une absence de taux, et il ne déclenche pas la grille.
-    taux_pas = _get_safe_float(bloc_pas.get("taux"))
-    montant_pas = base_pas * (taux_pas / 100.0)
+
+def _calculer_prelevement_a_la_source(
+    contexte: ContextePaie, net_imposable: float
+) -> float:
+    # Base PAS éventuellement réduite (exonération IR apprenti) : le taux, quelle
+    # que soit son origine, s'applique sur cette base-là.
+    base_pas = _base_pas_du_mois(contexte, net_imposable)
+    montant_pas = base_pas * (taux_pas_du_mois(contexte, base_pas) / 100.0)
     return round(montant_pas, 2)
 
 
@@ -571,6 +584,7 @@ def calculer_net_et_impot(
 
     montant_impot = _calculer_prelevement_a_la_source(contexte, net_imposable)
     base_pas = _base_pas_du_mois(contexte, net_imposable)
+    taux_pas_applique = taux_pas_du_mois(contexte, base_pas)
     montant_net_social = calculer_montant_net_social(
         contexte,
         salaire_brut,
@@ -595,6 +609,9 @@ def calculer_net_et_impot(
         "net_imposable": net_imposable,
         "base_pas": base_pas,
         "montant_impot_pas": montant_impot,
+        # Le taux effectivement retenu, qui n'est pas toujours celui de la fiche :
+        # sans taux personnalisé, c'est la grille du mois qui s'applique.
+        "taux_pas_applique": taux_pas_applique,
         "net_a_payer": net_a_payer,
         "remboursement_transport": remboursement_transport,
         "indemnite_transport_fixe": indemnite_transport_fixe,

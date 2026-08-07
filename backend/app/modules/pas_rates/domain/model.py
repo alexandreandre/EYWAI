@@ -6,12 +6,12 @@ n'a rien renvoyé — un nouvel embauché, typiquement — le déclarant appliqu
 grille par défaut.
 
 La rubrique DSN S21.G00.50.007 porte un type de taux. Le 01 est le taux
-personnalisé transmis par la DGFiP. Le 13 reste à élucider : il précède le 01
-dans le temps chez plusieurs salariés, ce qui suggérait la grille par défaut,
-mais les valeurs le démentent — 13,80 % sur 1 601 € de net imposable quand la
-grille métropole donne 0 % en dessous de 1 635 €. On l'affiche donc sans lui
-prêter de sens, en attendant confirmation par le cahier technique DSN ou par le
-cabinet.
+personnalisé transmis par la DGFiP ; le 13 et ses variantes territoriales sont
+le barème par défaut, recalculé chaque mois sur la rémunération du mois. La
+nomenclature et la conséquence sur le calcul sont dans `app.shared.pas_taux`.
+
+Un salarié au barème n'est donc pas « en attente d'un taux périmé » : son taux
+est juste le résultat d'une grille, que le moteur recalcule à chaque paie.
 """
 
 from __future__ import annotations
@@ -21,14 +21,15 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Dict, List, Optional
 
-# S21.G00.50.007 — type du taux de prélèvement à la source.
-TYPE_PERSONNALISE = "01"
-TYPE_BAREME = "13"
+from app.shared import pas_taux
 
-TYPE_LABELS: Dict[str, str] = {
-    TYPE_PERSONNALISE: "Taux personnalisé DGFiP",
-    TYPE_BAREME: "Taux de type 13",
-}
+# S21.G00.50.007 — type du taux de prélèvement à la source. La nomenclature
+# complète et la règle de calcul vivent dans `app.shared.pas_taux`, partagées
+# avec le moteur de paie ; on n'en réexporte ici que ce que l'écran manipule.
+TYPE_PERSONNALISE = pas_taux.TYPE_PERSONNALISE
+TYPE_BAREME = pas_taux.TYPE_BAREME_METROPOLE
+
+TYPE_LABELS: Dict[str, str] = dict(pas_taux.LIBELLES)
 
 # Statuts affichés aux RH.
 STATUT_A_JOUR = "a_jour"
@@ -38,7 +39,7 @@ STATUT_MANQUANT = "manquant"
 
 STATUT_LABELS: Dict[str, str] = {
     STATUT_A_JOUR: "À jour",
-    STATUT_BAREME: "Type 13",
+    STATUT_BAREME: "Barème par défaut",
     STATUT_A_RAFRAICHIR: "À rafraîchir",
     STATUT_MANQUANT: "Manquant",
 }
@@ -53,9 +54,7 @@ _PERIODE_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
 
 def type_label(type_taux: Optional[str]) -> str:
     """Libellé lisible d'un type de taux, y compris pour un code inattendu."""
-    if not type_taux:
-        return "Origine inconnue"
-    return TYPE_LABELS.get(type_taux, f"Type {type_taux}")
+    return pas_taux.libelle_type(type_taux)
 
 
 def periode_valide(periode: Optional[str]) -> bool:
@@ -85,13 +84,14 @@ def calculer_statut(
     """Statut d'un taux, du plus alarmant au plus rassurant.
 
     L'absence de taux passe avant tout le reste : c'est le seul cas où le bulletin
-    prélève 0 % sans que personne l'ait décidé. Le barème vient ensuite, parce
-    qu'il signale une situation qui doit se résoudre d'elle-même au prochain
-    compte rendu métier.
+    prélève 0 % sans que personne l'ait décidé. Le barème vient ensuite : la paie
+    est juste — le moteur recalcule la grille chaque mois — mais la DGFiP n'a pas
+    encore renvoyé de taux personnalisé, et l'ancienneté du taux stocké n'a alors
+    aucun sens à être reprochée aux RH.
     """
     if taux is None:
         return STATUT_MANQUANT
-    if type_taux == TYPE_BAREME:
+    if pas_taux.est_taux_bareme(type_taux):
         return STATUT_BAREME
     ecart = ecart_mois(periode or "", reference)
     if ecart is None or ecart > ANCIENNETE_TOLEREE_MOIS:

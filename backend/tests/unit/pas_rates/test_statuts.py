@@ -69,7 +69,12 @@ def test_periode_valide_refuse_les_mois_impossibles():
 
 def test_libelle_de_type_reste_lisible_pour_un_code_inconnu():
     assert type_label(TYPE_PERSONNALISE) == "Taux personnalisé DGFiP"
-    # Le sens du type 13 n'est pas établi : le libellé ne doit rien lui prêter.
-    assert type_label(TYPE_BAREME) == "Taux de type 13"
+    assert type_label(TYPE_BAREME) == "Barème par défaut (métropole)"
     assert type_label("07") == "Type 07"
     assert type_label(None) == "Origine inconnue"
+
+
+def test_les_baremes_territoriaux_ont_le_meme_statut_que_la_metropole():
+    """23, 33 et les variantes proratisées sont des barèmes comme le 13."""
+    for code in ("13", "23", "33", "17", "27", "37"):
+        assert calculer_statut(5.3, code, "2026-08", "2026-08") == STATUT_BAREME
