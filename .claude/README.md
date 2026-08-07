@@ -25,7 +25,9 @@ Pour l’équipe qui utilise **Cursor** en parallèle : règles équivalentes so
 │   └── update.md
 └── skills/
     ├── backtest-paie-auto/
-    └── elsa/
+    ├── elsa/
+    ├── fix-supabase/
+    └── questions-elsa/
 ```
 
 ---
@@ -65,6 +67,8 @@ Skills Claude Code spécifiques au dépôt (en complément des skills Cursor).
 |-------|--------|
 | `backtest-paie-auto/` | Backtest paie autonome de bout en bout pour une entreprise. |
 | `elsa/` | Retours paie terrain (Elsa). |
+| `fix-supabase/` | Répare le MCP Supabase Claude Code (`/fix-supabase` + script `.sh`). |
+| `questions-elsa/` | Cherche les réponses déjà présentes aux questions en suspens Elsa. |
 
 ---
 
