@@ -35,6 +35,24 @@ class ToolName(StrEnum):
     ABSENCE_SUMMARY = "absence_summary"
     PLANNING_SUMMARY = "planning_summary"
     HR_INDICATORS = "hr_indicators"
+    # Outils nominatifs : ils désignent des personnes. Chacun est borné par la
+    # permission scopée correspondante (cf. OUTILS_NOMINATIFS), en plus du
+    # company_id serveur — un RH restreint à une équipe ne voit que la sienne.
+    ABSENCES_EN_COURS = "absences_en_cours"
+    ECHEANCES_RH = "echeances_rh"
+    EMPLOYEE_DETAIL = "employee_detail"
+
+
+# Outils qui renvoient des personnes identifiables. Le périmètre n'est jamais
+# déduit du rôle seul : il passe par les grants scopés de `access_control`, qui
+# sont fail-closed (aucun grant → aucune donnée).
+OUTILS_NOMINATIFS: frozenset[ToolName] = frozenset(
+    {
+        ToolName.ABSENCES_EN_COURS,
+        ToolName.ECHEANCES_RH,
+        ToolName.EMPLOYEE_DETAIL,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -83,7 +101,21 @@ _ARGUMENT_TYPES: dict[ToolName, dict[str, type]] = {
     },
     ToolName.PLANNING_SUMMARY: {"date_start": str, "date_end": str},
     ToolName.HR_INDICATORS: {},
+    ToolName.ABSENCES_EN_COURS: {
+        "date_start": str,
+        "date_end": str,
+        "type": str,
+    },
+    ToolName.ECHEANCES_RH: {"type": str, "jours": int},
+    ToolName.EMPLOYEE_DETAIL: {"name": str},
 }
+
+# Types d'échéance connus. Le LLM ne peut pas en inventer un : une valeur hors
+# liste est refusée au parsing plutôt que de produire un résultat vide qui
+# passerait pour « aucune échéance ».
+TYPES_ECHEANCE: frozenset[str] = frozenset(
+    {"titre_sejour", "visite_medicale", "periode_essai", "fin_contrat"}
+)
 
 
 def _validate_arguments(tool: ToolName, arguments: dict[str, Any]) -> None:
@@ -110,6 +142,14 @@ def _validate_arguments(tool: ToolName, arguments: dict[str, Any]) -> None:
         if type(value) is not expected:
             raise ValueError(
                 f"Type invalide pour l'argument {key} de {tool.value}."
+            )
+
+    if tool is ToolName.ECHEANCES_RH:
+        demande = arguments.get("type")
+        if demande is not None and demande not in TYPES_ECHEANCE:
+            raise ValueError(
+                f"Type d'échéance inconnu : {demande!r}. "
+                f"Attendu : {', '.join(sorted(TYPES_ECHEANCE))}."
             )
 
 

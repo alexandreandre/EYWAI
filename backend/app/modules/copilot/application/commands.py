@@ -25,6 +25,7 @@ from app.modules.copilot.application.service import (
     answer_collective_agreement_question,
     execute_tool_calls,
     get_company_collective_agreements,
+    get_company_name,
     synthesize_final_answer,
 )
 from app.modules.copilot.domain.data_access import (
@@ -180,6 +181,7 @@ def _traiter_agent_query(
             retrieval_results = execute_tool_calls(
                 plan.get("data_tool_calls") or [],
                 company_id=company_id,
+                user_id=input_.user_id,
             )
             trace["outils"] = [
                 str(r.get("tool")) for r in retrieval_results if r.get("tool")
@@ -195,8 +197,16 @@ def _traiter_agent_query(
     if len(sources) == 1 and not retrieval_results:
         return AgentQueryResult(answer=sources[0][1], needs_clarification=False)
 
+    # Le nom de l'entreprise active ancre la réponse. Sans lui, l'assistant
+    # reprend celui énoncé dans la question : interrogé depuis MAJI sur « les
+    # salariés de Colorplast », il renvoyait bien ceux de MAJI — le serveur
+    # impose le périmètre — mais les présentait comme ceux de Colorplast.
     final_answer = synthesize_final_answer(
-        prompt, plan, retrieval_results, sources=sources
+        prompt,
+        plan,
+        retrieval_results,
+        sources=sources,
+        company_name=get_company_name(company_id),
     )
 
     return AgentQueryResult(

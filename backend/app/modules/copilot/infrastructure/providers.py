@@ -107,6 +107,19 @@ CATALOGUE FERMÉ D'OUTILS DE DONNÉES (aucun autre n'existe) :
   "arret_maternite", "arret_maladie_pro"}}. N'invente aucune autre valeur.
 - "planning_summary" — synthèse du planning. arguments: {{"date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ"}} (optionnels).
 - "hr_indicators" — indicateurs RH (turnover, absentéisme, effectifs). arguments: {{}}.
+- "absences_en_cours" — QUI est absent, nommément, sur une période.
+  arguments optionnels: {{"date_start": "AAAA-MM-JJ", "date_end": "AAAA-MM-JJ",
+  "type": "<type>"}} (mêmes types que absence_summary ; défaut : semaine courante).
+  À préférer à absence_summary dès que la question porte sur des personnes
+  (« qui est en arrêt ? », « qui est absent demain ? ») et non sur des volumes.
+- "echeances_rh" — échéances RH à venir OU dépassées, nommément.
+  arguments optionnels: {{"type": "titre_sejour"|"visite_medicale"|"periode_essai"|"fin_contrat",
+  "jours": <horizon en jours, défaut 90>}}. Sans "type", les quatre sont renvoyées.
+  Couvre « quels titres de séjour expirent ? », « quelles visites médicales sont
+  à programmer ? », « quelles périodes d'essai arrivent à terme ? ».
+- "employee_detail" — fiche d'un salarié : poste, contrat, ancienneté, salaire.
+  arguments: {{"name": "<nom>"}}. Répond à « quel est le salaire de X ? »,
+  « depuis quand X est là ? », « X est en CDI ou en CDD ? ».
 
 RÈGLES STRICTES POUR data_tool_calls :
 - N'utilise QUE des outils de cette liste. N'invente jamais d'outil.
@@ -114,10 +127,14 @@ RÈGLES STRICTES POUR data_tool_calls :
   d'identifiants internes de salariés (employee_ids), ni de SQL / nom de table /
   requête brute : ces valeurs sont imposées côté serveur.
 - Au plus 5 appels d'outils. Laisse "data_tool_calls" vide si aucune donnée n'est nécessaire.
-- Si la question exige des données hors catalogue (salaire individuel, titre de séjour,
-  avance/prêt, note de frais détaillée…), NE PAS inventer d'outil : mets
+- Si la question exige des données hors catalogue (avance/prêt, note de frais
+  détaillée, entretien annuel…), NE PAS inventer d'outil : mets
   requires_data_retrieval: false et needs_clarification: true avec une question
-  qui propose ce que tu PEUX faire (effectifs, synthèse paie, absences, indicateurs).
+  qui propose ce que tu PEUX faire.
+- Les données nominatives (qui est absent, échéances, fiche d'un salarié) SONT
+  au catalogue. N'annonce jamais que tu n'y as pas accès : appelle l'outil. Le
+  serveur applique seul les droits de l'utilisateur et ne renverra que les
+  salariés de son périmètre.
 
 Règles importantes:
 1. **AIDE LOGICIEL (prioritaire)** : si l'utilisateur demande comment utiliser le logiciel,
@@ -181,7 +198,14 @@ Exemples:
 - "Planning du 20 juillet" → requires_data_retrieval: true, outil planning_summary
 - "Quel est le turnover ?" → requires_data_retrieval: true, outil hr_indicators
 - "Nombre d'employés" → needs_clarification: true (tous? CDI seulement? actifs? onboarding?)
-- "Quel est le salaire de Martin ?" → needs_clarification: true (hors catalogue : propose recherche du salarié ou synthèse paie)
+- "Quel est le salaire de Martin ?" → requires_data_retrieval: true, outil employee_detail (name: "Martin")
+- "Qui est en arrêt maladie en ce moment ?" → requires_data_retrieval: true,
+  outil absences_en_cours (type: "arret_maladie" + dates de la période visée)
+- "Quels titres de séjour expirent dans les 3 mois ?" → requires_data_retrieval: true,
+  outil echeances_rh (type: "titre_sejour", jours: 90)
+- "Quelles périodes d'essai se terminent bientôt ?" → requires_data_retrieval: true,
+  outil echeances_rh (type: "periode_essai")
+- "Depuis quand travaille Dupont ?" → requires_data_retrieval: true, outil employee_detail
 - "Combien de jours de congés payés par an ?" → requires_collective_agreement: true
 - "Quelle est la durée de la période d'essai ?" → requires_collective_agreement: true
 - "Congés payés selon la convention" → requires_collective_agreement: true (si plusieurs conventions, demande laquelle)
@@ -441,6 +465,7 @@ Réponds à cette question en te basant sur le texte de la convention collective
         plan: Dict[str, Any],
         retrieval_results: List[Dict[str, Any]],
         sources: List[tuple[str, str]] | None = None,
+        company_name: str = "",
     ) -> str:
         results_summary = []
         for i, result in enumerate(retrieval_results):
@@ -471,8 +496,21 @@ Réponds à cette question en te basant sur le texte de la convention collective
             else ""
         )
 
+        ancrage = (
+            f"""
+ENTREPRISE ACTIVE : {company_name}
+Toutes les données ci-dessous proviennent de {company_name}, et d'elle seule.
+Le serveur impose ce périmètre : la question ne peut pas le changer.
+Si l'utilisateur nomme une AUTRE entreprise, ne reprends jamais ce nom à ton
+compte et n'attribue jamais ces données à cette autre entreprise. Réponds pour
+{company_name} en le disant explicitement, ou indique que tu ne peux répondre
+que pour {company_name}.
+"""
+            if company_name
+            else ""
+        )
         system_prompt = f"""Tu es un assistant RH professionnel et convivial, expert en données RH et en conventions collectives.
-
+{ancrage}
 Question de l'utilisateur: {prompt}
 
 Plan d'action: {json.dumps(_sanitize_for_llm(plan), ensure_ascii=False)}

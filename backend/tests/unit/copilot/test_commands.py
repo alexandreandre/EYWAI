@@ -396,9 +396,13 @@ class TestHandleAgentQuery:
             )
         )
 
+        # Entreprise ET utilisateur viennent du serveur : le premier borne les
+        # données, le second le périmètre des outils nominatifs. Aucun des deux
+        # ne peut être dicté par le prompt.
         execute_tools.assert_called_once_with(
             [{"tool": "employee_count", "arguments": {}}],
             company_id="mbc",
+            user_id="rh-mbc",
         )
         assert result.answer == "MBC compte 2 salariés."
 

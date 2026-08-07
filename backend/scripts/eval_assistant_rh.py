@@ -88,16 +88,22 @@ SCENARIOS: list[dict[str, str]] = [
     dict(id="data5", societe="Colorplast", attendu="data",
          q="Combien de personnes travaillent chez nous ?"),
 
-    dict(id="hors1", societe="Colorplast", attendu="decline",
+    # Ces trois questions étaient hors catalogue : l'assistant déclinait alors
+    # qu'elles sont le quotidien d'Elsa. Elles sont désormais couvertes par les
+    # outils nominatifs, bornés par le périmètre RH de l'utilisateur.
+    dict(id="nom1", societe="Mont Blanc Composite", attendu="data",
          q="Quel est le salaire brut de notre responsable qualité ?"),
-    dict(id="hors2", societe="Colorplast", attendu="decline",
+    dict(id="nom2", societe="Mont Blanc Composite", attendu="data",
          q="Combien de salariés ont un titre de séjour qui expire dans les 3 mois ?"),
-    # Le catalogue ne donne pas de noms, mais il sait dire combien de salariés
-    # sont absents aujourd'hui : répondre est meilleur que décliner. Ce qui
-    # compte ici est que le chiffre porte bien sur le jour, et non sur tout
-    # l'historique.
-    dict(id="hors3", societe="LEWIS", attendu="data",
+    dict(id="nom3", societe="Mont Blanc Composite", attendu="data",
          q="Qui est en arrêt maladie en ce moment ?"),
+    dict(id="nom4", societe="Mont Blanc Composite", attendu="data",
+         q="Quelles périodes d'essai se terminent dans le mois qui vient ?"),
+
+    # Vrai hors catalogue : aucun outil ne couvre les notes de frais.
+    # L'assistant doit le dire, pas inventer.
+    dict(id="hors1", societe="Colorplast", attendu="decline",
+         q="Quel est le montant des notes de frais de mars ?"),
 
     # Deux volets : la réponse doit contenir les deux. Le routage affiché est
     # « cc », mais les outils sont exécutés dans le même tour.
@@ -141,6 +147,32 @@ def _resoudre_societes(noms: set[str]) -> dict[str, str]:
     if manquants:
         raise SystemExit(f"Entreprises introuvables : {', '.join(sorted(manquants))}")
     return {nom: par_nom[nom] for nom in noms}
+
+
+def _resoudre_utilisateurs_rh(societes: dict[str, str]) -> dict[str, str]:
+    """Un utilisateur RH réel par entreprise, pour éprouver le périmètre.
+
+    Les outils nominatifs bornent leurs résultats aux salariés visibles par
+    l'utilisateur. Rejouer le banc sous un identifiant fictif mesurerait donc
+    autre chose que ce que voit une gestionnaire RH.
+    """
+    lignes = (
+        get_supabase_client()
+        .table("user_company_accesses")
+        .select("user_id, company_id, role")
+        .in_("company_id", list(societes.values()))
+        .execute()
+        .data
+        or []
+    )
+    par_entreprise: dict[str, str] = {}
+    for ligne in lignes:
+        if str(ligne.get("role")) in ("admin", "rh"):
+            par_entreprise.setdefault(str(ligne["company_id"]), str(ligne["user_id"]))
+    return {
+        nom: par_entreprise.get(company_id, "")
+        for nom, company_id in societes.items()
+    }
 
 
 def _instrumenter() -> None:
@@ -192,7 +224,7 @@ def routage_obtenu(resultat: dict) -> str:
     return "aucune"
 
 
-def jouer(modele: str, scenario: dict, company_id: str) -> dict:
+def jouer(modele: str, scenario: dict, company_id: str, user_id: str) -> dict:
     _local.modele = modele
     _local.plan = None
     _local.appels = []
@@ -201,9 +233,9 @@ def jouer(modele: str, scenario: dict, company_id: str) -> dict:
         resultat = commands.handle_agent_query(AgentQueryInput(
             prompt=scenario["q"],
             conversation_history=[],
-            # UUID nul : le journal attend un uuid, et une valeur dédiée évite
-            # de mélanger les tours du banc d'essai aux questions réelles.
-            user_id="00000000-0000-0000-0000-000000000000",
+            # Utilisateur RH réel de l'entreprise : c'est lui qui porte le
+            # périmètre des outils nominatifs. À défaut, UUID nul.
+            user_id=user_id or "00000000-0000-0000-0000-000000000000",
             active_company_id=company_id,
         ))
         reponse = resultat.answer
@@ -249,6 +281,7 @@ def main() -> None:
         raise SystemExit("Aucun scénario sélectionné.")
 
     societes = _resoudre_societes({s["societe"] for s in scenarios})
+    utilisateurs = _resoudre_utilisateurs_rh(societes)
     _instrumenter()
 
     sortie = Path(args.sortie)
@@ -259,7 +292,10 @@ def main() -> None:
 
     with sortie.open("w") as fichier, ThreadPoolExecutor(max_workers=args.parallele) as pool:
         for ligne in pool.map(
-            lambda t: jouer(t[0], t[1], societes[t[1]["societe"]]), travaux
+            lambda t: jouer(
+                t[0], t[1], societes[t[1]["societe"]], utilisateurs[t[1]["societe"]]
+            ),
+            travaux,
         ):
             with verrou:
                 fichier.write(json.dumps(ligne, ensure_ascii=False) + "\n")

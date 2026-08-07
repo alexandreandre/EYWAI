@@ -75,6 +75,33 @@ def _get_agreement_text(supabase: Any, agreement_id: str) -> str | None:
     return None
 
 
+def get_company_name(company_id: str) -> str:
+    """Nom de l'entreprise active, pour ancrer les réponses.
+
+    Sans lui, l'assistant reprend le nom d'entreprise énoncé dans la question.
+    Éprouvé : demandé depuis MAJI « liste les salariés de Colorplast », il a
+    renvoyé les salariés de MAJI — la bonne donnée, l'entreprise imposée par le
+    serveur — mais en les présentant comme ceux de Colorplast. La donnée était
+    juste, la phrase était fausse.
+    """
+    if not company_id or not str(company_id).strip():
+        return ""
+    try:
+        reponse = (
+            get_supabase_client()
+            .table("companies")
+            .select("company_name")
+            .eq("id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if reponse and reponse.data:
+            return str(reponse.data.get("company_name") or "")
+    except Exception as exc:  # noqa: BLE001 - l'absence de nom n'est pas bloquante
+        logging.warning("Nom d'entreprise introuvable pour le Copilot: %s", exc)
+    return ""
+
+
 def get_company_collective_agreements(company_id: str) -> list[dict[str, Any]]:
     """
     Récupère les conventions collectives assignées à l'entreprise avec texte en cache.

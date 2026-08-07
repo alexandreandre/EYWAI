@@ -8,6 +8,7 @@ Garanties vérifiées :
 - aucun appel réel à la base : le client Supabase et les services sont mockés.
 """
 
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -312,3 +313,233 @@ class TestHrIndicators:
         assert result["absenteisme"]["taux_global"] == 4.1
         # Aucune fuite de champs bruts non prévus (ex. pyramide complète).
         assert "pyramide_ages" not in result
+
+
+class TestPerimetreOutilsNominatifs:
+    """Le périmètre scopé borne les outils qui désignent des personnes.
+
+    Ces tests portent sur la garantie la plus sensible du module : un RH
+    restreint à une équipe ne doit voir que la sienne, et l'absence de droit
+    doit produire « aucune donnée », jamais « toute l'entreprise ».
+    """
+
+    def test_grant_restreint_ne_voit_que_son_equipe(self):
+        """Un RH restreint à une équipe : le grant existe, son périmètre prime."""
+        grant = SimpleNamespace(scope_mode="teams")
+        with patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=grant,
+        ), patch.object(
+            secure_queries,
+            "filter_allowed_employee_ids_for_user",
+            return_value=["e1"],
+        ):
+            autorises = secure_queries._employes_autorises(
+                "mbc", "rh-restreint", "employees.view_all"
+            )
+        assert autorises == ["e1"]
+
+    def test_grant_vide_ne_donne_acces_a_personne(self):
+        """Grant présent mais périmètre vide : fail-closed, pas de repli."""
+        grant = SimpleNamespace(scope_mode="teams")
+        with patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=grant,
+        ), patch.object(
+            secure_queries, "filter_allowed_employee_ids_for_user", return_value=[]
+        ):
+            resultat = secure_queries.absences_en_cours("mbc", {}, "rh-restreint")
+        assert resultat["absences"] == []
+        assert resultat["hors_perimetre"] is True
+
+    def test_sans_grant_le_perimetre_est_l_entreprise(self):
+        """Admin / RH n'ont pas de ligne user_permissions : leurs droits
+        viennent du rôle, et l'endpoint a déjà exigé un accès RH. Vérifié en
+        production : sans cette branche, plus personne ne verrait rien."""
+        patcher, _ = _patch_client(FakeResponse(data=[{"id": "e1"}, {"id": "e2"}]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=None,
+        ):
+            autorises = secure_queries._employes_autorises(
+                "mbc", "rh-admin", "employees.view_all"
+            )
+        assert autorises == ["e1", "e2"]
+
+    def test_absences_en_cours_sans_user_id_ne_renvoie_rien(self):
+        # Fail-closed : pas d'utilisateur, pas de périmètre, pas de données.
+        resultat = secure_queries.absences_en_cours("mbc", {}, "")
+        assert resultat["absences"] == []
+        assert resultat["hors_perimetre"] is True
+
+    def test_absences_en_cours_borne_la_requete_aux_salaries_autorises(self):
+        patcher, client = _patch_client(FakeResponse(data=[]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries,
+            "filter_allowed_employee_ids_for_user",
+            return_value=["e1", "e2"],
+        ):
+            secure_queries.absences_en_cours(
+                "mbc", {"date_start": "2026-08-01", "date_end": "2026-08-31"}, "rh"
+            )
+        # La requête est filtrée sur l'entreprise ET sur la liste autorisée.
+        assert ("company_id", "mbc") in client.query.eq_calls
+        assert ("employee_id", ["e1", "e2"]) in client.query.in_calls
+
+    def test_employee_detail_masque_le_salaire_sans_permission_paie(self):
+        salarie = {
+            "id": "e1",
+            "first_name": "Alex",
+            "last_name": "Martin",
+            "job_title": "Technicien",
+            "contract_type": "CDI",
+            "employment_status": "actif",
+            "hire_date": "2020-01-01",
+            "date_debut_execution": "2020-01-01",
+            "contract_end_date": None,
+            "salaire_de_base": 2500.0,
+            "team_id": None,
+        }
+        patcher, _ = _patch_client(FakeResponse(data=[salarie]))
+
+        # Autorisé sur les salariés, mais pas sur la paie.
+        def grants(user_id, company_id, permission):
+            return ["e1"] if permission == "employees.view_all" else []
+
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries, "filter_allowed_employee_ids_for_user", side_effect=grants
+        ):
+            resultat = secure_queries.employee_detail("mbc", {"name": "Martin"}, "rh")
+
+        fiche = resultat["employees"][0]
+        assert fiche["salarie"] == "Alex Martin"
+        assert fiche["salaire_de_base"] is None
+        assert fiche["salaire_non_autorise"] is True
+
+    def test_employee_detail_expose_le_salaire_avec_permission_paie(self):
+        salarie = {
+            "id": "e1",
+            "first_name": "Alex",
+            "last_name": "Martin",
+            "job_title": "Technicien",
+            "contract_type": "CDI",
+            "employment_status": "actif",
+            "hire_date": "2020-01-01",
+            "date_debut_execution": "2020-01-01",
+            "contract_end_date": None,
+            "salaire_de_base": 2500.0,
+            "team_id": None,
+        }
+        patcher, _ = _patch_client(FakeResponse(data=[salarie]))
+        with patcher, patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries,
+            "filter_allowed_employee_ids_for_user",
+            return_value=["e1"],
+        ):
+            resultat = secure_queries.employee_detail("mbc", {"name": "Martin"}, "rh")
+        assert resultat["employees"][0]["salaire_de_base"] == 2500.0
+
+    def test_employee_detail_grant_vide_ne_renvoie_rien(self):
+        with patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries, "filter_allowed_employee_ids_for_user", return_value=[]
+        ):
+            resultat = secure_queries.employee_detail("mbc", {"name": "Martin"}, "rh")
+        assert resultat["employees"] == []
+        assert resultat["hors_perimetre"] is True
+
+    def test_echeances_rh_grant_vide_ne_renvoie_rien(self):
+        with patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries, "filter_allowed_employee_ids_for_user", return_value=[]
+        ):
+            resultat = secure_queries.echeances_rh("mbc", {}, "rh")
+        assert resultat["echeances"] == []
+        assert resultat["count"] == 0
+
+    def test_echeances_rh_inclut_les_depassees(self):
+        """Les échéances dépassées sont les plus urgentes : les exclure est
+        exactement ce qui rendait les relances RH muettes."""
+        hier = (date.today() - timedelta(days=10)).isoformat()
+        salarie = {
+            "id": "e1",
+            "first_name": "Alex",
+            "last_name": "Martin",
+            "job_title": "Technicien",
+            "team_id": None,
+        }
+
+        class QueryAvecNot(FakeQuery):
+            """`FakeQuery` + `.not_.is_(col, "null")`, utilisé pour ne garder
+            que les salariés dont la date d'échéance est renseignée."""
+
+            @property
+            def not_(self):
+                parent = self
+
+                class _Not:
+                    def is_(self, column, value):
+                        parent.eq_calls.append((f"not.{column}", value))
+                        return parent
+
+                return _Not()
+
+        class ClientEcheances:
+            def table(self, name):
+                if name == "employees":
+                    # `_index_salaries` et la requête titre de séjour tapent la
+                    # même table : la doublure renvoie les deux formes réunies.
+                    return QueryAvecNot(
+                        FakeResponse(
+                            data=[
+                                {
+                                    **salarie,
+                                    "residence_permit_expiry_date": hier,
+                                    "residence_permit_type": "Salarié",
+                                }
+                            ]
+                        )
+                    )
+                return QueryAvecNot(FakeResponse(data=[]))
+
+        with patch.object(
+            secure_queries, "get_supabase_client", return_value=ClientEcheances()
+        ), patch.object(
+            secure_queries.scoped_permission_repository,
+            "get_grant",
+            return_value=SimpleNamespace(scope_mode="teams"),
+        ), patch.object(
+            secure_queries,
+            "filter_allowed_employee_ids_for_user",
+            return_value=["e1"],
+        ):
+            resultat = secure_queries.echeances_rh(
+                "mbc", {"type": "titre_sejour"}, "rh"
+            )
+
+        assert resultat["count"] == 1
+        echeance = resultat["echeances"][0]
+        assert echeance["depassee"] is True
+        assert echeance["jours_restants"] < 0
+        assert echeance["salarie"] == "Alex Martin"

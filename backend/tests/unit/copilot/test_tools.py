@@ -184,7 +184,7 @@ class TestExecuteToolDispatch:
 
     @patch("app.modules.copilot.application.tool_service.secure_queries")
     def test_every_tool_is_wired(self, mock_queries):
-        expected = {
+        agreges = {
             ToolName.EMPLOYEE_COUNT: "count_employees",
             ToolName.EMPLOYEE_SEARCH: "search_employees",
             ToolName.PAYROLL_SUMMARY: "payroll_summary",
@@ -192,8 +192,68 @@ class TestExecuteToolDispatch:
             ToolName.PLANNING_SUMMARY: "planning_summary",
             ToolName.HR_INDICATORS: "hr_indicators",
         }
-        for tool, handler_name in expected.items():
+        for tool, handler_name in agreges.items():
             handler = MagicMock(return_value={"ok": True})
             setattr(mock_queries, handler_name, handler)
             execute_tool(ToolCall(tool=tool, arguments={}), company_id="c1")
             handler.assert_called_once_with("c1", {})
+
+        # Les outils nominatifs reçoivent en plus le user_id serveur, qui porte
+        # leur périmètre d'accès.
+        nominatifs = {
+            ToolName.ABSENCES_EN_COURS: "absences_en_cours",
+            ToolName.ECHEANCES_RH: "echeances_rh",
+            ToolName.EMPLOYEE_DETAIL: "employee_detail",
+        }
+        for tool, handler_name in nominatifs.items():
+            handler = MagicMock(return_value={"ok": True})
+            setattr(mock_queries, handler_name, handler)
+            execute_tool(ToolCall(tool=tool, arguments={}), company_id="c1", user_id="u1")
+            handler.assert_called_once_with("c1", {}, "u1")
+
+    def test_le_catalogue_ne_laisse_aucun_outil_sans_handler(self):
+        """Un outil déclaré sans câblage lèverait un KeyError en production."""
+        from app.modules.copilot.application.tool_service import _TOOL_HANDLERS
+
+        assert set(_TOOL_HANDLERS) == set(ToolName)
+
+
+class TestOutilsNominatifsPerimetre:
+    """Les outils qui désignent des personnes exigent un périmètre utilisateur."""
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            ToolName.ABSENCES_EN_COURS,
+            ToolName.ECHEANCES_RH,
+            ToolName.EMPLOYEE_DETAIL,
+        ],
+    )
+    def test_refuse_sans_user_id(self, tool):
+        # Sans utilisateur il n'y a pas de périmètre : retomber sur l'entreprise
+        # entière publierait des données personnelles à qui n'y a pas droit.
+        with pytest.raises(ValueError, match="périmètre"):
+            execute_tool(ToolCall(tool=tool, arguments={}), company_id="c1")
+
+    @patch("app.modules.copilot.application.tool_service.secure_queries")
+    def test_les_outils_agreges_restent_accessibles_sans_user_id(self, mock_queries):
+        mock_queries.employee_count = MagicMock(return_value={"count": 3})
+        mock_queries.count_employees = MagicMock(return_value={"count": 3})
+        resultat = execute_tool(
+            ToolCall(tool=ToolName.EMPLOYEE_COUNT, arguments={}), company_id="c1"
+        )
+        assert resultat == {"count": 3}
+
+    def test_type_echeance_inconnu_refuse_au_parsing(self):
+        # Une valeur hors énumération produirait un résultat vide, que
+        # l'assistant présenterait comme « aucune échéance ».
+        with pytest.raises(ValueError, match="Type d'échéance inconnu"):
+            parse_tool_calls(
+                [{"tool": "echeances_rh", "arguments": {"type": "visite_annuelle"}}]
+            )
+
+    def test_type_echeance_connu_accepte(self):
+        calls = parse_tool_calls(
+            [{"tool": "echeances_rh", "arguments": {"type": "titre_sejour"}}]
+        )
+        assert calls[0].arguments == {"type": "titre_sejour"}

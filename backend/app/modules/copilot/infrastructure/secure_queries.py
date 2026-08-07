@@ -21,11 +21,16 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from app.core.database import get_supabase_client
+from app.modules.access_control.infrastructure.scoped_repository import (
+    filter_allowed_employee_ids_for_user,
+    scoped_permission_repository,
+)
 from app.modules.copilot.domain.filter_values import (
     ABSENCE_STATUTS,
     ABSENCE_TYPES,
     exiger,
 )
+from app.modules.copilot.domain.tools import TYPES_ECHEANCE
 from app.modules.payroll.application.analytics_queries import (
     get_payroll_analytics_summary,
 )
@@ -356,3 +361,382 @@ def hr_indicators(company_id: str, filters: dict[str, Any]) -> dict[str, Any]:
             "taux_at": analytics.absenteisme.taux_at,
         },
     }
+
+
+# ----------------------------------------------------------------------------
+# Outils nominatifs — ils désignent des personnes.
+#
+# Deux bornes cumulées, dans cet ordre :
+#   1. le ``company_id`` serveur, comme partout ailleurs ;
+#   2. le périmètre scopé de l'utilisateur (``access_control``), qui est
+#      fail-closed : sans grant, la liste des salariés autorisés est vide et la
+#      requête ne renvoie rien.
+#
+# Un RH restreint à une équipe ne voit donc que la sienne, dans l'assistant
+# comme dans le reste de l'application. Le ``user_id`` vient du serveur, jamais
+# du LLM.
+# ----------------------------------------------------------------------------
+
+
+def _tous_les_salaries(company_id: str) -> list[str]:
+    lignes = (
+        get_supabase_client()
+        .table("employees")
+        .select("id")
+        .eq("company_id", company_id)
+        .execute()
+        .data
+        or []
+    )
+    return [str(ligne["id"]) for ligne in lignes]
+
+
+def _employes_autorises(
+    company_id: str, user_id: str, permission: str
+) -> list[str] | None:
+    """Identifiants des salariés visibles par l'utilisateur pour une permission.
+
+    Reprend la règle déjà appliquée par ``access_control`` dans le reste de
+    l'application (``require_employee_access``) :
+
+    1. un grant scopé existe -> on applique son périmètre, équipes et exceptions
+       comprises. C'est le cas d'un RH restreint à une équipe ;
+    2. aucun grant -> périmètre entreprise. Les rôles admin / rh /
+       collaborateur_rh n'ont pas de ligne ``user_permissions`` : leurs droits
+       viennent du rôle. Vérifié en production : aucun utilisateur n'a de grant
+       explicite aujourd'hui. Sans cette branche, l'assistant ne renverrait
+       jamais rien à personne.
+
+    L'accès RH à l'entreprise active est déjà exigé en amont par
+    ``require_copilot_rh_user`` : quiconque atteint ces outils est au minimum
+    RH sur cette entreprise. La branche 2 n'élargit donc rien.
+
+    ``None`` signale l'absence d'utilisateur exploitable : l'appelant ne doit
+    alors rien renvoyer, jamais retomber sur l'entreprise entière.
+    """
+    if not isinstance(user_id, str) or not user_id.strip():
+        return None
+    grant = scoped_permission_repository.get_grant(user_id, company_id, permission)
+    if grant is None:
+        return _tous_les_salaries(company_id)
+    return filter_allowed_employee_ids_for_user(user_id, company_id, permission)
+
+
+def _index_salaries(company_id: str, ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Nom et équipe des salariés autorisés, en une requête."""
+    if not ids:
+        return {}
+    lignes = (
+        get_supabase_client()
+        .table("employees")
+        .select("id, first_name, last_name, job_title, team_id")
+        .eq("company_id", company_id)
+        .in_("id", ids)
+        .execute()
+        .data
+        or []
+    )
+    return {str(ligne["id"]): ligne for ligne in lignes}
+
+
+def _nom(ligne: dict[str, Any]) -> str:
+    return f"{ligne.get('first_name') or ''} {ligne.get('last_name') or ''}".strip()
+
+
+def absences_en_cours(
+    company_id: str, filters: dict[str, Any], user_id: str = ""
+) -> dict[str, Any]:
+    """Qui est absent sur une période, nommément.
+
+    Répond à « qui est en arrêt maladie en ce moment ? », que la synthèse
+    agrégée ne pouvait pas traiter : elle ne renvoyait que des comptes, et
+    l'assistant finissait par dire qu'il n'avait pas accès à l'information.
+    """
+    company_id = _require_company_id(company_id)
+    filters = filters or {}
+    autorises = _employes_autorises(company_id, user_id, "absences.view_all")
+    if not autorises:
+        return {"absences": [], "count": 0, "hors_perimetre": True}
+
+    date_start, date_end = _resolve_date_range(filters)
+    query = (
+        get_supabase_client()
+        .table("absence_requests")
+        .select("employee_id, type, status, selected_days")
+        .eq("company_id", company_id)
+        .in_("employee_id", autorises)
+    )
+    demande_type = filters.get("type")
+    if demande_type:
+        query = query.eq(
+            "type", exiger(str(demande_type), ABSENCE_TYPES, champ="type")
+        )
+    lignes = query.execute().data or []
+
+    salaries = _index_salaries(company_id, autorises)
+    absences: list[dict[str, Any]] = []
+    for ligne in lignes:
+        jours = ligne.get("selected_days") or []
+        if not isinstance(jours, list):
+            continue
+        concernes = [
+            j for j in jours
+            if isinstance(j, str) and date_start <= j[:10] <= date_end
+        ]
+        if not concernes:
+            continue
+        salarie = salaries.get(str(ligne.get("employee_id")))
+        if not salarie:
+            continue
+        absences.append(
+            {
+                "salarie": _nom(salarie),
+                "poste": salarie.get("job_title"),
+                "type": ligne.get("type"),
+                "statut": ligne.get("status"),
+                "premier_jour": min(concernes)[:10],
+                "dernier_jour": max(concernes)[:10],
+                "jours_sur_la_periode": len(concernes),
+            }
+        )
+    absences.sort(key=lambda a: a["premier_jour"])
+    return {
+        "date_start": date_start,
+        "date_end": date_end,
+        "absences": absences,
+        "count": len(absences),
+    }
+
+
+def echeances_rh(
+    company_id: str, filters: dict[str, Any], user_id: str = ""
+) -> dict[str, Any]:
+    """Échéances RH à venir ou dépassées, nommément.
+
+    Couvre les quatre suivis à date : titre de séjour, visite médicale,
+    période d'essai et fin de contrat. Les échéances **dépassées** sont
+    incluses volontairement — ce sont les plus urgentes, et les exclure est
+    exactement ce qui rendait les relances d'échéances muettes.
+    """
+    company_id = _require_company_id(company_id)
+    filters = filters or {}
+    horizon = _coerce_limit(filters.get("jours"), default=90, maximum=365)
+    aujourdhui = date.today()
+    limite = (aujourdhui + timedelta(days=horizon)).isoformat()
+    demande = filters.get("type")
+    voulus = {str(demande)} if demande else set(TYPES_ECHEANCE)
+
+    echeances: list[dict[str, Any]] = []
+    client = get_supabase_client()
+
+    if voulus & {"titre_sejour", "periode_essai", "fin_contrat"}:
+        autorises = _employes_autorises(company_id, user_id, "employees.view_all") or []
+        salaries = _index_salaries(company_id, autorises)
+
+        if "titre_sejour" in voulus and autorises:
+            lignes = (
+                client.table("employees")
+                .select("id, residence_permit_expiry_date, residence_permit_type")
+                .eq("company_id", company_id)
+                .in_("id", autorises)
+                .not_.is_("residence_permit_expiry_date", "null")
+                .lte("residence_permit_expiry_date", limite)
+                .execute()
+                .data
+                or []
+            )
+            for ligne in lignes:
+                salarie = salaries.get(str(ligne["id"]))
+                if salarie:
+                    echeances.append(
+                        _echeance(
+                            "titre_sejour",
+                            salarie,
+                            ligne.get("residence_permit_expiry_date"),
+                            aujourdhui,
+                            detail=ligne.get("residence_permit_type"),
+                        )
+                    )
+
+        if "fin_contrat" in voulus and autorises:
+            lignes = (
+                client.table("employees")
+                .select("id, contract_end_date, contract_type")
+                .eq("company_id", company_id)
+                .in_("id", autorises)
+                .not_.is_("contract_end_date", "null")
+                .lte("contract_end_date", limite)
+                .execute()
+                .data
+                or []
+            )
+            for ligne in lignes:
+                salarie = salaries.get(str(ligne["id"]))
+                if salarie:
+                    echeances.append(
+                        _echeance(
+                            "fin_contrat",
+                            salarie,
+                            ligne.get("contract_end_date"),
+                            aujourdhui,
+                            detail=ligne.get("contract_type"),
+                        )
+                    )
+
+        if "periode_essai" in voulus and autorises:
+            lignes = (
+                client.table("trial_periods")
+                .select("employee_id, end_date, status")
+                .eq("company_id", company_id)
+                .in_("employee_id", autorises)
+                .lte("end_date", limite)
+                .execute()
+                .data
+                or []
+            )
+            for ligne in lignes:
+                if str(ligne.get("status") or "").lower() in ("confirmed", "confirmee"):
+                    continue
+                salarie = salaries.get(str(ligne.get("employee_id")))
+                if salarie:
+                    echeances.append(
+                        _echeance(
+                            "periode_essai",
+                            salarie,
+                            ligne.get("end_date"),
+                            aujourdhui,
+                            detail=ligne.get("status"),
+                        )
+                    )
+
+    if "visite_medicale" in voulus:
+        # Le suivi médical a sa propre permission : un RH peut gérer les
+        # contrats sans avoir à connaître les visites de santé.
+        autorises_med = (
+            _employes_autorises(company_id, user_id, "medical_follow_up.view_all") or []
+        )
+        if autorises_med:
+            salaries_med = _index_salaries(company_id, autorises_med)
+            lignes = (
+                client.table("medical_follow_up_obligations")
+                .select("employee_id, due_date, visit_type, status")
+                .eq("company_id", company_id)
+                .in_("employee_id", autorises_med)
+                .lte("due_date", limite)
+                .execute()
+                .data
+                or []
+            )
+            for ligne in lignes:
+                if str(ligne.get("status") or "").lower() in ("completed", "done"):
+                    continue
+                salarie = salaries_med.get(str(ligne.get("employee_id")))
+                if salarie:
+                    echeances.append(
+                        _echeance(
+                            "visite_medicale",
+                            salarie,
+                            ligne.get("due_date"),
+                            aujourdhui,
+                            detail=ligne.get("visit_type"),
+                        )
+                    )
+
+    echeances.sort(key=lambda e: e["date"] or "9999")
+    return {
+        "horizon_jours": horizon,
+        "echeances": echeances,
+        "count": len(echeances),
+        "depassees": sum(1 for e in echeances if e["jours_restants"] is not None
+                         and e["jours_restants"] < 0),
+    }
+
+
+def _echeance(
+    type_echeance: str,
+    salarie: dict[str, Any],
+    echeance: Any,
+    aujourdhui: date,
+    *,
+    detail: Any = None,
+) -> dict[str, Any]:
+    jours = None
+    if _is_iso_date(echeance):
+        jours = (date.fromisoformat(str(echeance)[:10]) - aujourdhui).days
+    return {
+        "type": type_echeance,
+        "salarie": _nom(salarie),
+        "poste": salarie.get("job_title"),
+        "date": str(echeance)[:10] if echeance else None,
+        "jours_restants": jours,
+        "depassee": jours is not None and jours < 0,
+        "detail": detail,
+    }
+
+
+def employee_detail(
+    company_id: str, filters: dict[str, Any], user_id: str = ""
+) -> dict[str, Any]:
+    """Fiche d'un salarié : contrat, ancienneté, et rémunération si autorisée.
+
+    La rémunération a sa propre permission (``payroll.view_all``) : un RH peut
+    consulter un dossier sans voir le salaire. Le champ est alors simplement
+    absent, et la réponse le dit — plutôt que de laisser croire à une donnée
+    manquante.
+    """
+    company_id = _require_company_id(company_id)
+    filters = filters or {}
+    nom_cherche = str(filters.get("name") or "").strip().lower()
+    if not nom_cherche:
+        return {"employees": [], "count": 0}
+
+    autorises = _employes_autorises(company_id, user_id, "employees.view_all")
+    if not autorises:
+        return {"employees": [], "count": 0, "hors_perimetre": True}
+
+    lignes = (
+        get_supabase_client()
+        .table("employees")
+        .select(
+            "id, first_name, last_name, job_title, contract_type, "
+            "employment_status, hire_date, date_debut_execution, "
+            "contract_end_date, salaire_de_base, team_id"
+        )
+        .eq("company_id", company_id)
+        .in_("id", autorises)
+        .execute()
+        .data
+        or []
+    )
+    correspondances = _rank_by_name(lignes, nom_cherche)[:3]
+    if not correspondances:
+        return {"employees": [], "count": 0}
+
+    salaire_visible = bool(
+        _employes_autorises(company_id, user_id, "payroll.view_all")
+    )
+    aujourdhui = date.today()
+    fiches = []
+    for ligne in correspondances:
+        entree = ligne.get("date_debut_execution") or ligne.get("hire_date")
+        anciennete = None
+        if _is_iso_date(entree):
+            anciennete = round(
+                (aujourdhui - date.fromisoformat(str(entree)[:10])).days / 365.25, 1
+            )
+        fiche = {
+            "salarie": _nom(ligne),
+            "poste": ligne.get("job_title"),
+            "type_contrat": ligne.get("contract_type"),
+            "statut": ligne.get("employment_status"),
+            "date_entree": str(entree)[:10] if entree else None,
+            "anciennete_annees": anciennete,
+            "fin_contrat": ligne.get("contract_end_date"),
+        }
+        if salaire_visible:
+            fiche["salaire_de_base"] = ligne.get("salaire_de_base")
+        else:
+            fiche["salaire_de_base"] = None
+            fiche["salaire_non_autorise"] = True
+        fiches.append(fiche)
+    return {"employees": fiches, "count": len(fiches)}

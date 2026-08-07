@@ -16,6 +16,9 @@ from app.modules.copilot.infrastructure.providers import (
     get_user_company_resolver,
 )
 from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
+from app.modules.copilot.infrastructure.queries import (
+    get_company_name as queries_get_company_name,
+)
 
 
 # --- Agent : résolution contexte et données ---
@@ -71,7 +74,7 @@ def analyze_intent_and_plan(
 
 
 def execute_tool_calls(
-    raw_tool_calls: Any, company_id: str
+    raw_tool_calls: Any, company_id: str, user_id: str = ""
 ) -> List[Dict[str, Any]]:
     """Parse et exécute une liste d'appels d'outils avec le company_id serveur.
 
@@ -98,7 +101,7 @@ def execute_tool_calls(
     results: List[Dict[str, Any]] = []
     for call in calls:
         try:
-            data = execute_tool(call, company_id)
+            data = execute_tool(call, company_id, user_id)
             results.append(
                 {"tool": str(call.tool), "success": True, "data": data}
             )
@@ -152,6 +155,7 @@ def synthesize_final_answer(
     plan: Dict[str, Any],
     retrieval_results: List[Dict[str, Any]],
     sources: List[tuple[str, str]] | None = None,
+    company_name: str = "",
 ) -> str:
     """Synthétise les résultats en réponse finale. Délègue à OpenAIProvider.
 
@@ -159,5 +163,10 @@ def synthesize_final_answer(
     (convention collective, aide logiciel) quand la question en relève aussi.
     """
     return get_openai_provider().synthesize_final_answer(
-        prompt, plan, retrieval_results, sources=sources
+        prompt, plan, retrieval_results, sources=sources, company_name=company_name
     )
+
+
+def get_company_name(company_id: str) -> str:
+    """Nom de l'entreprise active. Délègue aux requêtes du module."""
+    return queries_get_company_name(company_id)
