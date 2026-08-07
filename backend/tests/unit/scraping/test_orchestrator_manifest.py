@@ -3,8 +3,8 @@
 from scraper_manifest import SCRAPER_MANIFEST, get_manifest
 
 
-def test_manifest_has_27_entries():
-    assert len(SCRAPER_MANIFEST) == 27
+def test_manifest_has_37_entries():
+    assert len(SCRAPER_MANIFEST) == 37
 
 
 def test_manifest_unique_names():

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T14:38:22.985Z",
+  "generatedAt": "2026-08-07T18:15:15.499Z",
   "routePaths": [
     "*",
     "*",
@@ -87,6 +87,7 @@
     "groups",
     "groups/:groupId",
     "monitoring",
+    "payroll-settings",
     "rates",
     "reduction-fillon",
     "scraping",
@@ -154,6 +155,7 @@
     "Payroll",
     "PayrollDetail",
     "PayrollGenerate",
+    "PayrollSettings",
     "PayslipEdit",
     "PayslipsPage",
     "Planning",
