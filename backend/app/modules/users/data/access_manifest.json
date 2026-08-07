@@ -235,7 +235,8 @@
     {
       "key": "vanessa",
       "identity": {
-        "name": "Vanessa Amate"
+        "name": "Vanessa Amate",
+        "email": "vamate@maji-invest.fr"
       },
       "account": "existing_only",
       "canonical_employee_account": true,
