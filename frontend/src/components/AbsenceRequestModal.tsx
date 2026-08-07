@@ -61,6 +61,7 @@ function BalanceHint({
   const labelByType: Record<string, string> = {
     conge_paye: 'Congés Payés',
     rtt: 'RTT',
+    jtc: 'JTC',
     repos_compensateur: 'Repos compensateur',
   };
   const label = labelByType[absenceType];
@@ -73,7 +74,9 @@ function BalanceHint({
       ? 'congés payés'
       : absenceType === 'rtt'
         ? 'RTT'
-        : 'repos compensateur';
+        : absenceType === 'jtc'
+          ? 'JTC'
+          : 'repos compensateur';
 
   if (absenceType === 'conge_paye') {
     const available = getAvailableCongePayeDays(balances, pendingAbsences);
@@ -263,7 +266,7 @@ export function AbsenceRequestModal({
       // Créer la demande d'absence avec ou sans justificatif
       const payload: absencesApi.AbsenceCreationPayload = {
         employee_id: employeeId,
-        type: absenceType as 'conge_paye' | 'rtt' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro',
+        type: absenceType as 'conge_paye' | 'rtt' | 'jtc' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro',
         selected_days: formattedDays,
         comment: comment || null,
         attachment_url: attachmentUrl,
@@ -358,6 +361,7 @@ export function AbsenceRequestModal({
   const employeeAbsenceTypeLabels: Record<EmployeeRequestableAbsenceType, string> = {
     conge_paye: 'Congé Payé',
     rtt: 'RTT',
+    jtc: 'JTC',
     repos_compensateur: 'Repos Compensateur',
     recuperation_modulation: 'Récupération modulation',
     evenement_familial: 'Événement Familial',
@@ -366,6 +370,9 @@ export function AbsenceRequestModal({
   const modBalance = balances.find((b) => b.type === 'Compte modulation');
   const modRestant =
     typeof modBalance?.remaining === 'number' ? modBalance.remaining : 0;
+  // Le JTC n'existe que chez les sociétés qui l'ont activé : sans compteur
+  // remonté par l'API, on ne propose pas le type.
+  const hasJtc = balances.some((b) => b.type === 'JTC');
 
   const absenceTypeOptions: { value: AbsenceTypeValue; label: string }[] = isRhArret
     ? RH_ONLY_ABSENCE_TYPES.map((value) => ({
@@ -374,14 +381,16 @@ export function AbsenceRequestModal({
       }))
     : isRhLeave
       ? [
-          { value: "conge_paye", label: "Congé Payé" },
-          { value: "rtt", label: "RTT" },
-          { value: "repos_compensateur", label: "Repos Compensateur" },
-          { value: "evenement_familial", label: "Événement Familial" },
+          { value: "conge_paye" as const, label: "Congé Payé" },
+          { value: "rtt" as const, label: "RTT" },
+          ...(hasJtc ? [{ value: "jtc" as const, label: "JTC" }] : []),
+          { value: "repos_compensateur" as const, label: "Repos Compensateur" },
+          { value: "evenement_familial" as const, label: "Événement Familial" },
         ]
       : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
           (value) =>
-            value !== "recuperation_modulation" || modRestant > 0,
+            (value !== "recuperation_modulation" || modRestant > 0) &&
+            (value !== "jtc" || hasJtc),
         ).map((value) => ({
           value,
           label: employeeAbsenceTypeLabels[value],

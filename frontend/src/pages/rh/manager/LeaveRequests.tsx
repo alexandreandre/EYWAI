@@ -31,6 +31,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 const TYPE_LABELS: Record<AbsencePendingManagerItem['type'], string> = {
   conge_paye: 'Congé payé',
   rtt: 'RTT',
+  jtc: 'JTC',
   sans_solde: 'Sans solde',
   repos_compensateur: 'Repos compensateur',
   evenement_familial: 'Événement familial',

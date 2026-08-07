@@ -9,6 +9,7 @@ from typing import Literal
 AbsenceType = Literal[
     "conge_paye",
     "rtt",
+    "jtc",
     "sans_solde",
     "repos_compensateur",
     "recuperation_modulation",

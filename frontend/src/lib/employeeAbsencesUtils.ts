@@ -3,6 +3,7 @@ import type { AbsenceBalance, AbsenceRequest } from '@/api/absences';
 export const ABSENCE_TYPE_LABELS: Record<AbsenceRequest['type'], string> = {
   conge_paye: 'Congé payé',
   rtt: 'RTT',
+  jtc: 'JTC',
   sans_solde: 'Congé sans solde',
   repos_compensateur: 'Repos compensateur',
   recuperation_modulation: 'Récupération modulation',
@@ -123,6 +124,7 @@ export const RH_ONLY_ABSENCE_TYPES = [
 export const EMPLOYEE_REQUESTABLE_ABSENCE_TYPES = [
   'conge_paye',
   'rtt',
+  'jtc',
   'repos_compensateur',
   'recuperation_modulation',
   'evenement_familial',

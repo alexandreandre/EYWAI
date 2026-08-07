@@ -31,3 +31,12 @@ def test_jtc_settings_reprend_les_valeurs_de_la_politique():
 
 def test_solde_douverture_jtc_par_defaut_nul():
     assert EmployeeLeaveAdjustment.empty().jtc_opening_balance == 0.0
+
+
+def test_jtc_est_un_type_dabsence_connu():
+    """Le JTC se pose comme une absence : il doit être un type accepté."""
+    from typing import get_args
+
+    from app.modules.absences.domain.enums import AbsenceType
+
+    assert "jtc" in get_args(AbsenceType)

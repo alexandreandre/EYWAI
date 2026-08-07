@@ -12,6 +12,7 @@ from pydantic import BaseModel, model_validator
 AbsenceType = Literal[
     "conge_paye",
     "rtt",
+    "jtc",
     "sans_solde",
     "repos_compensateur",
     "recuperation_modulation",

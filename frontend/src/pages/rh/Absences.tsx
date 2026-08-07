@@ -163,6 +163,7 @@ export default function AbsencesPage() {
   const typeLabels: Record<AbsenceType, string> = { 
     'conge_paye': 'Congé Payé', 
     'rtt': 'RTT', 
+    'jtc': 'JTC',
     'sans_solde': 'Congé sans solde', 
     'repos_compensateur': 'Repos compensateur',
     'recuperation_modulation': 'Récupération modulation',

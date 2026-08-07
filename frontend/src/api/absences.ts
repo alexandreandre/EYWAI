@@ -27,7 +27,7 @@ export interface AbsenceRequest {
   id: string;
   created_at: string;
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'jtc' | 'sans_solde' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   selected_days: string[]; // Tableau de dates au format 'YYYY-MM-DD'
   comment: string | null;
   status: 'pending' | 'validated' | 'rejected' | 'cancelled';
@@ -168,7 +168,7 @@ export const getAbsencePageData = (year: number, month: number) => {
 // Interface pour la création d'une demande
 export interface AbsenceCreationPayload {
   employee_id: string;
-  type: 'conge_paye' | 'rtt' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
+  type: 'conge_paye' | 'rtt' | 'jtc' | 'repos_compensateur' | 'recuperation_modulation' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro';
   selected_days: string[]; // Les dates seront formatées en 'YYYY-MM-DD'
   comment?: string | null;
   attachment_url?: string | null;
