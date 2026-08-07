@@ -8,7 +8,7 @@ Vanessa voit bien ses 7 sociétés, elle n'a qu'à se reconnecter. Le jour de la
 
 #2. Envoyer identifiants de connexion à Gaëlle et Vanessa via Whatsapp MOI
 #3. Fichier BIC attendre fichier ELSA
-#4. Adresses e-mail tous employés attendre fichier ELSA
+#4. Adresses e-mail tous les employés attendre fichier ELSA
 
 
 #5. Robin Collaborateur/RH - Directeur MOI
@@ -24,6 +24,41 @@ Les dates d'expiration des titres de séjour ont été saisies. Sur les 43 salar
 Il y a maintenant un bouton « Exporter en Excel » sur la page RH des titres de séjour. Il génère un fichier avec, pour chaque salarié concerné : nom, prénom, matricule, société, poste, date d'entrée, nationalité, type et numéro de titre, date d'expiration, et surtout le statut du titre avec le nombre de jours restants — donc on voit tout de suite qui est expiré ou sur le point de l'être. L'export reprend exactement ce qui est affiché à l'écran et reste limité à la société sur laquelle on travaille.
 
 #8. Compteur JTC attendre récap ELSA 
+
+Le récap n'était pas à attendre : Elsa l'a envoyé le 28 juillet sur WhatsApp, une
+note de deux pages qu'on n'avait pas ouverte. Elle fixe tout : le JTC est un accord
+propre à Mont Blanc Composite, personne d'autre n'y a droit ; trois jours par an
+au maximum, gagnés sur l'année précédente et à poser sur l'année en cours ; réduits
+si le salarié est entré en cours d'année ou s'il a été absent plus de trente jours ;
+toujours arrondis vers le bas, donc le solde est forcément 0, 1, 2 ou 3. Un nouvel
+embauché n'a rien sa première année. La journée de solidarité se prend sur un JTC,
+et sur un congé payé s'il n'en reste plus. Ce qui n'a pas été posé est payé au départ.
+Et surtout, elle insiste : le JTC s'affiche à côté des congés payés, jamais dedans.
+
+Le compteur est en ligne depuis aujourd'hui, en production comme sur le test. Il est
+éteint partout : tant qu'on ne l'allume pas sur Mont Blanc Composite, aucune des sept
+sociétés ne voit quoi que ce soit changer — ni sur les écrans, ni sur les bulletins.
+Une fois allumé, le JTC devient un motif d'absence comme les congés payés, avec son
+solde propre à l'écran et sa colonne à part sur le bulletin. Le barème (trois jours,
+seuil de trente jours d'absence) se règle depuis Entreprise > Congés, sans passer par
+nous.
+
+Il manque encore trois choses avant de le montrer à Elsa. D'abord les soldes de
+départ : le JTC de 2026 se gagne sur l'activité de 2025, or EYWAI ne contient rien
+d'avant janvier 2026 — aucun pointage, aucun bulletin, quasiment aucune absence. On ne
+peut donc pas recalculer ce que les 75 salariés de Mont Blanc Composite ont acquis :
+il faut qu'elle nous donne leurs soldes une fois. À partir de janvier 2027, EYWAI
+calculera seul, et un écran montrera le détail salarié par salarié avant que la RH ne
+valide. Ensuite, un point de la note reste ambigu : quelqu'un absent trente et un jours
+perd-il un JTC ou pas ? On a retenu la lecture stricte — il tombe à 2 — mais ça mérite
+sa confirmation, car ça change le compte de tous ceux qui ont eu un arrêt d'un mois.
+Enfin, la note renvoie à un onglet « détail absences » d'un fichier Excel qu'on n'a
+jamais reçu : c'est lui qui dit exactement quelles absences comptent.
+
+Deux morceaux ne sont pas encore faits, volontairement, parce qu'ils touchent au calcul
+de la paie : l'imputation automatique de la journée de solidarité, et le paiement du
+solde restant quand un salarié s'en va.
+
 #9. Salarié colorplast en RTT (ou on des jours au compteur, je ne sais pas) alors que non. A checker MOI
 
 Ce n'étaient pas des RTT posés mais un solde affiché à tort : sans paramétrage de congés, le système donnait 10 RTT/an à tout le monde — ça touchait 4 sociétés sur 7. Maintenant, sans paramétrage c'est 0, et les RTT sont calculés depuis le forfait annuel de chaque société (Cartol 214 j, les autres 216 j), réservés aux 19 cadres au forfait-jours. Vérifié : Colorplast est bien à 0.
@@ -127,5 +162,11 @@ salarié entré il y a des années crée une période déjà terminée à sa dat
 C'est juste en droit mais peu utile ; la date de début reste modifiable sur la
 fiche.
 #29. Alertes sur la paye moins énervé (normalement déjà fait mais à vérifier) MOI
+
+Vérifié : il restait du bruit, c'est corrigé. Trois sources traitées : « 100 % de bulletins non validés » s'affichait chez les sociétés qui n'utilisent tout simplement pas le circuit de validation ; l'alerte « taux de versement mobilité introuvable » venait d'un vrai bug de calcul du taux, maintenant réglé ; et les alertes de convention collective non actionnables (règles absentes, prime d'ancienneté non éligible) ne remontent plus en critique. Les vraies anomalies, elles, sont toujours signalées.
 #30. Changer le modèle d' IA d'assistant RH Car nul pour l'instant
 #31. Taux PAS. Pouvoir voir facilement son taux. Est ce que il est bien récupéré ? Si on recrute un employé, comment récupérer son taux ? C'est pas l'interfaçage net-entreprise justement ???
+
+Oui, c'est bien l'interfaçage : la DGFiP renvoie le taux dans le compte rendu métier qui suit chaque dépôt de DSN. EYWAI n'en récupérait aucun — le taux ne venait que de l'import des DSN Cegid, sans date, et 6 taux étaient faux, dont celui d'Elsa figé depuis janvier. Écran RH « Prélèvement à la source » livré (liste, fraîcheur, origine, dépôt de fichier avec aperçu, export), 238 taux repris sur la DSN de mai, et l'import DSN rafraîchit désormais le taux même quand il ignore la fiche. Un salarié sans taux connu se voit appliquer la grille par défaut au lieu de 0 % — ça ne concerne aucun actif aujourd'hui, ça protège les futurs embauchés. Reste à obtenir l'accès net-entreprises : sans lui les taux dépendent encore de fichiers réclamés à Elsa, et un embauché reste au taux par défaut au lieu de basculer sur le sien.
+
+Le type de taux 13 est élucidé, et il cachait une erreur de calcul. C'est le barème mensuel métropole — la grille par défaut (23 et 33 outre-mer, 17/27/37 pour les variantes proratisées), d'après la note DGFiP publiée par net-entreprises et vérifié sur nos données : 233 des 236 lignes de type 13 des cinquante DSN tombent au centième sur la grille appliquée à l'assiette du versement. Un taux de barème n'appartient donc pas au salarié : il se déduit de sa paie du mois. Le moteur le figeait d'un mois sur l'autre — un salarié à 0 % en juin parce qu'il était sous le seuil restait à 0 % en juillet même si sa paie remontait. Il recalcule désormais la grille à chaque bulletin, et le bulletin affiche le taux réellement appliqué au lieu de celui de la fiche (il montrait 0 % quand la grille avait servi). Les DSN de juin des sept sociétés sont récupérées ; leur application attend le déploiement du correctif moteur.
