@@ -89,6 +89,8 @@ export const queryKeys = {
     companyQueryKey(companyId, 'fractionnement', 'preview', grantYear),
   cpSenioritySettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'cpSeniority', 'settings'),
+  interviewCampaignSettings: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'interviewCampaign', 'settings'),
   cpSeniorityPreview: (companyId: string | undefined, grantYear: number) =>
     companyQueryKey(companyId, 'cpSeniority', 'preview', grantYear),
   leaveCampaignDashboard: (companyId: string | undefined, grantYear: number) =>

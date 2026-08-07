@@ -279,6 +279,8 @@ export interface PlanningSuggestion {
   reason: string;
   urgency: PlanningSuggestionUrgency;
   year: number;
+  /** Date proposée par la campagne de la société. Nulle hors campagne réglée. */
+  planned_date: string | null;
 }
 
 export const getPlanningSuggestions = (year?: number) => {
@@ -287,6 +289,29 @@ export const getPlanningSuggestions = (year?: number) => {
     `/api/annual-reviews/planning-suggestions${qs}`
   );
 };
+
+export type InterviewCampaignMode = "mois_fixe" | "anniversaire_embauche";
+
+export interface InterviewCampaignSettings {
+  enabled: boolean;
+  campaign_mode: InterviewCampaignMode;
+  /** 1 à 12 en mois fixe, null sur l'anniversaire d'embauche. */
+  campaign_month: number | null;
+  periodicity_years: number;
+}
+
+export const getInterviewCampaignSettings = () =>
+  apiClient.get<InterviewCampaignSettings>(
+    "/api/annual-reviews/campaign-settings"
+  );
+
+export const updateInterviewCampaignSettings = (
+  payload: InterviewCampaignSettings
+) =>
+  apiClient.put<InterviewCampaignSettings>(
+    "/api/annual-reviews/campaign-settings",
+    payload
+  );
 
 export const downloadConvocationPdf = async (reviewId: string) => {
   const response = await apiClient.get(
