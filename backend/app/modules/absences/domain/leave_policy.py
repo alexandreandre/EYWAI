@@ -5,6 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from app.modules.absences.domain.jtc import (
+    JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT,
+    JTC_ABSENCE_TYPES_DEFAULT,
+    JTC_ANNUAL_DAYS_DEFAULT,
+    JtcSettings,
+)
+
 CpCountingUnit = Literal["ouvrable", "ouvre"]
 
 CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT = 2.5
@@ -44,6 +51,10 @@ class LeavePolicySettings:
     rtt_carryover_enabled: bool = False
     rtt_year_end_reminder_enabled: bool = False
     rtt_year_end_reminder_days_before: int = RTT_YEAR_END_REMINDER_DAYS_DEFAULT
+    jtc_enabled: bool = False
+    jtc_annual_days: int = JTC_ANNUAL_DAYS_DEFAULT
+    jtc_absence_threshold_days: int = JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT
+    jtc_absence_types: tuple[str, ...] = JTC_ABSENCE_TYPES_DEFAULT
 
     @property
     def cp_acquisition_rate_internal(self) -> float:
@@ -66,6 +77,16 @@ class LeavePolicySettings:
             return 25.0
         return round(self.cp_acquisition_days_per_month * 12, 2)
 
+    @property
+    def jtc_settings(self) -> JtcSettings:
+        """Vue domaine du paramétrage JTC, pour le calcul du droit annuel."""
+        return JtcSettings(
+            enabled=self.jtc_enabled,
+            annual_days=self.jtc_annual_days,
+            absence_threshold_days=self.jtc_absence_threshold_days,
+            absence_types=self.jtc_absence_types,
+        )
+
 
 @dataclass(frozen=True)
 class EmployeeLeaveAdjustment:
@@ -76,6 +97,7 @@ class EmployeeLeaveAdjustment:
     rtt_opening_balance: float = 0.0
     rtt_forfeited_at: str | None = None
     rtt_forfeited_days: float = 0.0
+    jtc_opening_balance: float = 0.0
     note: str | None = None
 
     @staticmethod

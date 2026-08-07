@@ -6,6 +6,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.absences.domain.jtc import (
+    JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT,
+    JTC_ABSENCE_TYPES_DEFAULT,
+    JTC_ANNUAL_DAYS_DEFAULT,
+)
 from app.modules.absences.domain.leave_policy import (
     DEFAULT_LEAVE_POLICY,
     EmployeeLeaveAdjustment,
@@ -52,6 +57,15 @@ def _row_to_policy(row: dict[str, Any] | None) -> LeavePolicySettings:
         rtt_year_end_reminder_days_before=int(
             row.get("rtt_year_end_reminder_days_before") or 15
         ),
+        jtc_enabled=bool(row.get("jtc_enabled", False)),
+        jtc_annual_days=int(row.get("jtc_annual_days") or JTC_ANNUAL_DAYS_DEFAULT),
+        jtc_absence_threshold_days=int(
+            row.get("jtc_absence_threshold_days")
+            or JTC_ABSENCE_THRESHOLD_DAYS_DEFAULT
+        ),
+        jtc_absence_types=tuple(
+            row.get("jtc_absence_types") or JTC_ABSENCE_TYPES_DEFAULT
+        ),
     )
 
 
@@ -65,6 +79,7 @@ def _row_to_adjustment(row: dict[str, Any] | None) -> EmployeeLeaveAdjustment:
         rtt_opening_balance=float(row.get("rtt_opening_balance") or 0),
         rtt_forfeited_at=str(forfeited_at) if forfeited_at else None,
         rtt_forfeited_days=float(row.get("rtt_forfeited_days") or 0),
+        jtc_opening_balance=float(row.get("jtc_opening_balance") or 0),
         note=row.get("note"),
     )
 

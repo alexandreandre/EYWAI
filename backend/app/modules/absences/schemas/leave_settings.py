@@ -26,12 +26,16 @@ class LeaveSettingsUpdate(BaseModel):
     rtt_carryover_enabled: Optional[bool] = None
     rtt_year_end_reminder_enabled: Optional[bool] = None
     rtt_year_end_reminder_days_before: Optional[int] = Field(None, ge=1, le=60)
+    jtc_enabled: Optional[bool] = None
+    jtc_annual_days: Optional[int] = Field(None, ge=0, le=30)
+    jtc_absence_threshold_days: Optional[int] = Field(None, ge=0, le=365)
 
 
 class EmployeeLeaveAdjustmentUpdate(BaseModel):
     cp_n1_opening_balance: Optional[float] = Field(None, ge=-100, le=100)
     cp_n_opening_balance: Optional[float] = Field(None, ge=-100, le=100)
     rtt_opening_balance: Optional[float] = Field(None, ge=-100, le=100)
+    jtc_opening_balance: Optional[float] = Field(None, ge=0, le=30)
     note: Optional[str] = Field(None, max_length=2000)
 
 
@@ -48,6 +52,7 @@ class LeaveAdjustmentImportRow(BaseModel):
     cp_n1_solde: float = 0.0
     cp_n_solde: float = 0.0
     rtt_solde: float = 0.0
+    jtc_solde: float = 0.0
     year: int
 
 

@@ -26,6 +26,9 @@ class LeaveSettingsResponse(BaseModel):
     rtt_carryover_enabled: bool
     rtt_year_end_reminder_enabled: bool
     rtt_year_end_reminder_days_before: int
+    jtc_enabled: bool = False
+    jtc_annual_days: int = 3
+    jtc_absence_threshold_days: int = 30
     configured: bool = False
 
 
@@ -37,6 +40,7 @@ class EmployeeLeaveAdjustmentResponse(BaseModel):
     rtt_opening_balance: float
     rtt_forfeited_at: Optional[str] = None
     rtt_forfeited_days: float = 0.0
+    jtc_opening_balance: float = 0.0
     note: Optional[str] = None
 
 

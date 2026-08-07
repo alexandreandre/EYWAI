@@ -101,6 +101,9 @@ def _policy_to_response(
         rtt_carryover_enabled=policy.rtt_carryover_enabled,
         rtt_year_end_reminder_enabled=policy.rtt_year_end_reminder_enabled,
         rtt_year_end_reminder_days_before=policy.rtt_year_end_reminder_days_before,
+        jtc_enabled=policy.jtc_enabled,
+        jtc_annual_days=policy.jtc_annual_days,
+        jtc_absence_threshold_days=policy.jtc_absence_threshold_days,
         configured=get_leave_policy_row(company_id) is not None,
     )
 
