@@ -85,6 +85,21 @@ class TestCollecterLignes:
 
         assert any("sur 12" in a for a in avertissements)
 
+    def test_avertissement_sur_les_reports_non_repris(self):
+        p1, p2, p3 = _patch_all()
+        with p1, p2, p3:
+            _, avertissements = module.collecter_lignes("company-1", "2026-07")
+
+        assert any("période précédente recalculé" in a for a in avertissements)
+
+    def test_aucun_avertissement_sans_ligne(self):
+        with patch.object(module, "_lire_salaries", return_value=[]), \
+             patch.object(module, "_lire_bulletins", return_value={}), \
+             patch.object(module, "_lire_soldes_ouvres", return_value=(0.0, 0.0)):
+            _, avertissements = module.collecter_lignes("company-1", "2026-07")
+
+        assert avertissements == []
+
     def test_solde_nul_hors_perimetre(self):
         with patch.object(module, "_lire_salaries", return_value=SALARIES), \
              patch.object(module, "_lire_bulletins", return_value=BULLETINS), \

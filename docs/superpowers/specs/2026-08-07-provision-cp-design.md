@@ -198,3 +198,41 @@ depuis janvier 2026. »
    nous les incluons. L'écart sur Cartol serait d'une quinzaine de lignes.
 4. Un seul modèle, une seule société, une seule date : rien ne garantit que le cabinet
    édite le même état pour les six autres sociétés.
+
+## Mesure du 07/08/2026 contre le modèle Cegid
+
+Script : `backend/scripts/provision_cp_comparer_modele.py`, société Cartol, période
+2026-07, modèle `00000595-PROVISION CP.pdf`.
+
+| | Modèle Cegid | EYWAI |
+|---|---|---|
+| Lignes | 71 | 87 |
+| Rapprochées | — | 64 |
+| Total valorisé (lignes rapprochées) | 362 080,89 € | 247 827,98 € |
+
+Écart : **−114 252,91 €, soit −31,6 %**.
+
+| Champ | Écart médian | Écart max |
+|---|---|---|
+| Solde jours | 6,19 j | 66,36 j |
+| Salaire de référence | 268,12 € | 6 100,48 € |
+| Taux de charges | 1,13 pt | 25,12 pt |
+| Provision | 1 038,69 € | 10 524,70 € |
+
+**Deux causes, toutes deux des trous de données, aucune un défaut du calcul.**
+
+1. **Le solde de la période précédente n'est pas repris.** C'est la cause principale.
+   Notre N-1 vaut 20,8 à 22,5 jours pour tout le monde — un droit théorique d'année
+   pleine recalculé — quand le modèle va de 3 à 88 jours. EYWAI ne contient aucun congé
+   antérieur à janvier 2026, donc aucun report réel. Même trou que les soldes de départ
+   du JTC (point #8).
+2. **Le salaire de référence est calculé sur 6 mois au lieu de 12** (constat 4 de la
+   spec), ce qui décale surtout les salariés qui ont eu une absence longue en 2025.
+
+Le solde de la période **en cours** est juste : 4,17 j chez nous contre 4,16 j au modèle,
+soit un pur arrondi de la conversion ouvrables → ouvrés. Le taux de charges est juste
+lui aussi à 1,13 point près, écart imputable à la même fenêtre tronquée.
+
+Conséquence : l'export porte un avertissement permanent sur les reports non repris. Il
+sera exact quand les soldes de report auront été chargés une fois, et le salaire de
+référence le sera à partir de juin 2027.
