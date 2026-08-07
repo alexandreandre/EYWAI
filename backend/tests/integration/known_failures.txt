@@ -1,0 +1,81 @@
+# Tests d'intégration en échec connu, gelés pour que le job redevienne bloquant.
+#
+# Ces 53 tests ont dérivé du code sans que personne le voie : le job tournait en
+# `continue-on-error`, donc son rouge ne coûtait rien et se confondait avec le bruit.
+# Aucun d'eux ne révèle un défaut de production — vérifié famille par famille le
+# 7 août 2026 :
+#
+#   - 401/403 : le routeur appelle access_control_service.check_user_has_permission,
+#     ajouté avec les droits fins ; ces tests ne le simulent pas
+#   - 500 : le test atteint le vrai client Supabase, faute de bouchon
+#   - AttributeError sur le contexte de paie : fixtures SimpleNamespace qui ne
+#     portent plus les champs attendus par le moteur
+#   - TypeError de signature : le cloisonnement par société a ajouté company_id
+#
+# Cette liste est celle observée EN CI, contre la base de test. Une exécution
+# locale sans les secrets de cette base en fait échouer une vingtaine de plus,
+# qui atteignent alors une URL injoignable : ne les ajoutez pas ici, elles
+# passent en CI et un xfail strict les ferait rougir.
+#
+# Chaque ligne est un test attendu en échec (xfail strict). Deux conséquences :
+# un test NEUF qui casse fait rougir la CI, et un test d'ici qui se remet à passer
+# la fait rougir aussi — il faut alors retirer sa ligne. La liste ne peut que
+# maigrir, et chaque ligne retirée est un progrès mesurable.
+#
+# Pour régénérer après correction, depuis les logs du job « Backend integration » :
+#   gh run view <id> --log | grep -oE "tests/integration/[A-Za-z0-9_/]+\.py::[A-Za-z0-9_:]+ FAILED" \
+#     | sed 's/ FAILED//' | sort -u
+
+tests/integration/employees/test_repository.py::TestEmployeeRepository::test_get_by_company_calls_table_with_company_id_and_orders_by_last_name
+tests/integration/expenses/test_api.py::TestGetAllExpenses::test_get_all_expenses_with_status_filter
+tests/integration/expenses/test_api.py::TestUpdateExpenseStatus::test_update_expense_status_rejected_returns_200
+tests/integration/expenses/test_api.py::TestUpdateExpenseStatus::test_update_expense_status_validated_returns_200
+tests/integration/expenses/test_repository.py::TestExpenseRepositoryListAll::test_list_all_selects_with_employee_join
+tests/integration/expenses/test_repository.py::TestExpenseRepositoryListAll::test_list_all_with_status_filters_by_status
+tests/integration/expenses/test_wiring.py::TestExpensesWiringGetAllExpenses::test_get_all_expenses_flow_calls_service_with_list_input
+tests/integration/expenses/test_wiring.py::TestExpensesWiringUpdateExpenseStatus::test_update_expense_status_flow_calls_service_with_input
+tests/integration/legacy/test_non_regression_bulletin.py::TestCalculerSalaireBrutNonRegression::test_scenario_1_mois_complet_sans_absence
+tests/integration/legacy/test_non_regression_bulletin.py::TestCalculerSalaireBrutNonRegression::test_scenario_2_absence_non_remuneree_deux_jours
+tests/integration/legacy/test_non_regression_bulletin.py::TestCalculerSalaireBrutNonRegression::test_scenario_3_heures_supplementaires_25
+tests/integration/legacy/test_non_regression_bulletin.py::TestCalculerSalaireBrutNonRegression::test_scenario_4_conges_payes_cinq_jours
+tests/integration/legacy/test_non_regression_bulletin.py::TestCreerBulletinFinalNonRegression::test_assemblage_scenario_1
+tests/integration/legacy/test_non_regression_bulletin.py::TestCreerBulletinFinalNonRegression::test_assemblage_scenario_4_conges_dans_details_conges
+tests/integration/participation/test_api.py::TestParticipationGetEmployeeData::test_returns_200_and_employee_list
+tests/integration/participation/test_api.py::TestParticipationGetEmployeeData::test_returns_employees_with_expected_fields
+tests/integration/participation/test_api.py::TestParticipationSimulationCreate::test_create_duplicate_name_returns_400
+tests/integration/participation/test_api.py::TestParticipationSimulationCreate::test_create_returns_201_and_entity
+tests/integration/participation/test_api.py::TestParticipationSimulationDelete::test_delete_returns_200_and_message_when_deleted
+tests/integration/participation/test_api.py::TestParticipationSimulationDelete::test_delete_returns_404_when_not_found
+tests/integration/participation/test_api.py::TestParticipationSimulationGetById::test_get_by_id_returns_200_when_found
+tests/integration/participation/test_api.py::TestParticipationSimulationGetById::test_get_by_id_returns_404_when_not_found
+tests/integration/participation/test_api.py::TestParticipationSimulationsList::test_list_accepts_year_query
+tests/integration/participation/test_api.py::TestParticipationSimulationsList::test_list_returns_200_and_array
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_close_defaults_returns_200
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_create_campaign_returns_200
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_generate_payroll_lines_returns_200
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_get_campaign_returns_404_when_missing
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_list_campaigns_returns_200
+tests/integration/participation/test_campaign_api.py::TestParticipationCampaignRhRoutes::test_publish_campaign_returns_200
+tests/integration/payroll/test_wiring.py::TestPayrollExportServiceWiring::test_export_service_module_imports
+tests/integration/payslips/test_wiring.py::TestPayslipsWiringGenerate::test_generate_flow_uses_command_and_provider
+tests/integration/saisies_avances/test_api.py::TestAdvancePaymentsAPI::test_delete_advance_payment_200
+tests/integration/saisies_avances/test_api.py::TestAdvancePaymentsAPI::test_get_advance_payments_200
+tests/integration/saisies_avances/test_api.py::TestAdvancePaymentsAPI::test_get_payment_proof_url_200
+tests/integration/saisies_avances/test_api.py::TestAdvancePaymentsAPI::test_post_advance_payment_201
+tests/integration/saisies_avances/test_api.py::TestPayslipsDeductionsRepayments::test_get_payslip_advance_repayments_200
+tests/integration/saisies_avances/test_api.py::TestPayslipsDeductionsRepayments::test_get_payslip_deductions_200
+tests/integration/saisies_avances/test_api.py::TestSalaryAdvancesAPI::test_patch_approve_salary_advance_200
+tests/integration/saisies_avances/test_api.py::TestSalaryAdvancesAPI::test_patch_reject_salary_advance_200
+tests/integration/saisies_avances/test_api.py::TestSalarySeizuresAPI::test_delete_salary_seizure_204
+tests/integration/saisies_avances/test_api.py::TestSalarySeizuresAPI::test_patch_salary_seizure_200
+tests/integration/schedules/test_api.py::TestGetActualHours::test_get_actual_hours_returns_200_with_mock
+tests/integration/schedules/test_api.py::TestGetPlannedCalendar::test_get_planned_calendar_returns_200_with_mock
+tests/integration/schedules/test_api.py::TestPostActualHours::test_post_actual_hours_invalid_body_returns_422
+tests/integration/schedules/test_api.py::TestPostActualHours::test_post_actual_hours_valid_returns_200_with_mock
+tests/integration/schedules/test_api.py::TestPostCalculatePayrollEvents::test_calculate_payroll_events_invalid_body_returns_422_or_500
+tests/integration/schedules/test_api.py::TestPostCalculatePayrollEvents::test_calculate_payroll_events_valid_returns_200_with_mock
+tests/integration/schedules/test_api.py::TestPostPlannedCalendar::test_post_planned_calendar_invalid_body_returns_422
+tests/integration/schedules/test_api.py::TestPostPlannedCalendar::test_post_planned_calendar_valid_returns_200_with_mock
+tests/integration/schedules/test_wiring.py::TestSchedulesWiringActualHours::test_get_actual_hours_flow_uses_repository
+tests/integration/schedules/test_wiring.py::TestSchedulesWiringPlannedCalendar::test_get_planned_calendar_flow_uses_queries_and_repository
+tests/integration/schedules/test_wiring.py::TestSchedulesWiringPlannedCalendar::test_post_planned_calendar_flow_uses_commands_and_repository

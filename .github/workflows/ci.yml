@@ -126,13 +126,18 @@ jobs:
   # ----------------------------------------------------------------------------
   # 3) Backend integration — best-effort (info, jamais bloquant)
   # Tourne sur la base de TEST. Skippe si ses secrets sont absents ; sinon lance pytest
-  # tests/integration. Le résultat reste visible dans les logs.
+  # tests/integration.
+  #
+  # BLOQUANT depuis le 7 août 2026. Il ne l'était pas, et son rouge permanent —
+  # 73 tests ayant dérivé du code — se confondait avec le bruit : une régression
+  # neuve n'aurait alerté personne. Ces 73 sont gelés dans
+  # backend/tests/integration/known_failures.txt, en échec attendu strict, ce qui
+  # rend le job vert aujourd'hui et rouge au premier test qui casse pour de bon.
   # ----------------------------------------------------------------------------
   backend-integration:
-    name: Backend integration (info)
+    name: Backend integration
     needs: backend
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       # Base de TEST, jamais la production. Ces tests écrivent : les faire
       # tourner sur la prod, comme c'était le cas, revenait à laisser la CI
