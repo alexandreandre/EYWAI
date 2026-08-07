@@ -309,6 +309,7 @@ jobs:
             COPILOT_RH_DATA_ENABLED=true
             PISTE_CLIENT_ID=${{ secrets.PISTE_CLIENT_ID }}
             PISTE_CLIENT_SECRET=${{ secrets.PISTE_CLIENT_SECRET }}
+            EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
