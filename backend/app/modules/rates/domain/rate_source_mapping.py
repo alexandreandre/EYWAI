@@ -37,6 +37,16 @@ RATE_KEY_TO_SOURCE_KEYS: dict[str, list[str]] = {
         "PREVOYANCE_CADRE",
         "PREVOYANCE_NON_CADRE",
     ],
+    "taux_interet_legal": ["TAUX_INTERET_LEGAL"],
+    "cdd": ["CDD"],
+    "interim": ["INTERIM"],
+    "stage": ["STAGE"],
+    "maladie": ["MALADIE"],
+    "jei": ["JEI"],
+    "oeth": ["OETH"],
+    "reduction_generale": ["REDUCTION_GENERALE"],
+    "mandataire": ["MANDATAIRE"],
+    "comptes_avances_acomptes": ["COMPTES_AVANCES_ACOMPTES"],
 }
 
 # cotisation.id dans config_data.cotisations -> source(s) scraping

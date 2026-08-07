@@ -330,6 +330,7 @@ export default function App() {
                       <Route path="admins" element={<Pages.AdminSuperAdminsPage />} />
                       <Route path="collective-agreements" element={<Pages.CollectiveAgreementsCatalog />} />
                       <Route path="rates" element={<Pages.AdminRates />} />
+                      <Route path="payroll-settings" element={<Pages.PayrollSettings />} />
                       <Route path="reduction-fillon" element={<Pages.SuperAdminReductionFillon />} />
                       <Route path="scraping" element={<Pages.SuperAdminScraping />} />
                       <Route path="dsn-transmissions" element={<Pages.SuperAdminDsnTransmissions />} />

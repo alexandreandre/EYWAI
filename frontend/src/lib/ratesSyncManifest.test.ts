@@ -46,6 +46,16 @@ describe('ratesSyncManifest', () => {
     });
   });
 
+  it('payslip_edit_lock never appears in barèmes section', () => {
+    const data = {
+      payslip_edit_lock: { config_data: { cutoff_day_of_next_month: 5 } },
+      frais_pro: { config_data: { repas: 1 } },
+    };
+    const keys = listBaremesSectionKeys(data as any);
+    expect(keys).not.toContain('payslip_edit_lock');
+    expect(keys).toContain('frais_pro');
+  });
+
   it('affiche toujours taux_vmrr même sans manifeste ni données', () => {
     expect(listBaremesSectionKeys({ pas: { config_data: { x: 1 } } })).toContain('taux_vmrr');
   });

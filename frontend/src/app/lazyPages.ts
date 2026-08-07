@@ -90,6 +90,7 @@ export const SuperAdminMonitoring = lazy(() => import('@/pages/admin/super/Monit
 export const SuperAdminTests = lazy(() => import('@/pages/admin/super/Tests'));
 export const SuperAdminReductionFillon = lazy(() => import('@/pages/admin/super/ReductionFillon'));
 export const AdminRates = lazy(() => import('@/pages/admin/eywai/RatesAdmin'));
+export const PayrollSettings = lazy(() => import('@/pages/admin/eywai/PayrollSettings'));
 export const SuperAdminScraping = lazy(() => import('@/pages/admin/super/Scraping'));
 export const SuperAdminDsnTransmissions = lazy(() => import('@/pages/admin/eywai/DsnTransmissions'));
 export const SuperAdminDsnImport = lazy(() => import('@/pages/admin/eywai/DsnImport'));
