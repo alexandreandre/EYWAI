@@ -251,6 +251,68 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
     assert rapport.conforme, f"{societe} {periode} :\n{rapport.texte()}"
 
 
+# Écart résiduel des blocs cotisation, mesuré le 09/08/2026 sur les cinq
+# instantanés de mai (157 salariés dont le brut est identique à celui du
+# cabinet ; 68 autres écartés parce que leur brut diverge, ce qui relève du
+# moteur de paie et non de la traduction DSN).
+#
+# Ces plafonds ne valident rien : ils empêchent que la situation empire pendant
+# que les causes résiduelles se traitent une à une. Chaque baisse obtenue doit
+# être répercutée ici, sinon le garde-fou se relâche.
+#
+# Ce qui reste, par cause :
+#   - 100 lignes absentes : forfait social jamais calculé par le moteur (67),
+#     CPF-CDD (13), CSG d'épargne salariale déclarée à part par le cabinet pour
+#     10 salariés, exonérations d'apprentis (8).
+#   - 616 montants divergents : dominés par la réduction générale, dont le
+#     total lui-même diffère du cabinet pour 150 salariés sur 156. La
+#     ventilation 018/106 est juste, c'est le montant calculé qui ne l'est pas.
+PLAFOND_LIGNES_MANQUANTES = 100
+PLAFOND_LIGNES_EN_TROP = 7
+PLAFOND_MONTANTS_DIVERGENTS = 616
+PLAFOND_TAUX_DIVERGENTS = 18
+
+
+@besoin_de_fixtures
+def test_les_blocs_cotisation_ne_regressent_pas():
+    """Garde-fou chiffré sur les blocs 78 et 81, encore hors périmètre livré.
+
+    Le comparateur général perd l'appariement code/montant : il voit deux
+    listes séparées. Ici chaque ligne est recomposée en `(base, code)` avant
+    d'être confrontée, seule façon de voir qu'un montant a changé de code.
+    """
+    from scripts.dsn_cotisations_ecart import (  # import tardif : dépend de data/
+        Compte,
+        bruts,
+        comparer_individu,
+        lignes_cotisation,
+        traiter,
+    )
+
+    compte = Compte()
+    for _societe, _periode, repertoire in INSTANTANES:
+        notre, reference, _ = traiter(repertoire)
+        nos_lignes, leurs_lignes = lignes_cotisation(notre), lignes_cotisation(reference)
+        nos_bruts, leurs_bruts = bruts(notre), bruts(reference)
+        for nir in set(nos_lignes) & set(leurs_lignes):
+            if abs(nos_bruts.get(nir, 0) - leurs_bruts.get(nir, 0)) > 0.01:
+                continue  # écart de paie, pas de traduction
+            compte.individus_compares += 1
+            comparer_individu(nos_lignes[nir], leurs_lignes[nir], compte)
+
+    assert compte.individus_compares > 0, "aucun salarié comparable"
+    mesures = (
+        ("lignes absentes", sum(compte.codes_manquants.values()), PLAFOND_LIGNES_MANQUANTES),
+        ("lignes en trop", sum(compte.codes_en_trop.values()), PLAFOND_LIGNES_EN_TROP),
+        ("montants divergents", sum(compte.montants.values()), PLAFOND_MONTANTS_DIVERGENTS),
+        ("taux divergents", sum(compte.taux.values()), PLAFOND_TAUX_DIVERGENTS),
+    )
+    regressions = [f"{nom} : {mesure} > {plafond}" for nom, mesure, plafond in mesures if mesure > plafond]
+    assert not regressions, (
+        "la conformité des cotisations a reculé :\n  " + "\n  ".join(regressions)
+    )
+
+
 @besoin_de_fixtures
 def test_aucun_bloc_oublie_entre_livres_et_a_venir():
     """Tout bloc vu dans une référence est soit livré, soit explicitement à venir."""

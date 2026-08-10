@@ -23,11 +23,21 @@ def test_resolve_known_coti_ids():
     assert resolve_dsn_cotisation_code("reduction_hs_salariale") == "114"
     assert resolve_dsn_cotisation_code("deduction_hs_patronale") == "021"
     assert resolve_dsn_cotisation_code("retraite_comp_t1") == "131"
-    assert resolve_dsn_cotisation_code("csg_deductible") == "142"
+    # La CSG se déclare en 072. Ce test affirmait 142 jusqu'au 09/08/2026 : or
+    # 142 est la part patronale Agirc-Arrco de tranche 1 (cahier technique
+    # NEODeS CT2026.1.2). Toute la CSG salariale partait donc gonfler la ligne
+    # de retraite complémentaire.
+    assert resolve_dsn_cotisation_code("csg_deductible") == "072"
+    assert resolve_dsn_cotisation_code("csg_non_deductible") == "072"
+    assert resolve_dsn_cotisation_code("crds") == "079"
+    # Même erreur sur ces deux-là : 093 est la contribution sur indemnités de
+    # rupture, et l'Apec a son propre code.
+    assert resolve_dsn_cotisation_code("forfait_social") == "071"
+    assert resolve_dsn_cotisation_code("apec") == "132"
 
 
 def test_resolve_from_libelle():
-    assert resolve_dsn_cotisation_code(None, "CSG déductible") == "142"
+    assert resolve_dsn_cotisation_code(None, "CSG déductible") == "072"
     assert resolve_dsn_cotisation_code(None, "Assurance chômage") == "040"
 
 

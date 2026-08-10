@@ -138,6 +138,16 @@ def test_builder_maps_modern_cotisation_blocs():
     assert "075" in codes
     assert "040" in codes
     assert "045" in codes
-    assert "142" in codes
+    # La CSG de ce bulletin donne 072 et 079, pas 142 : ce dernier est réservé
+    # à la part patronale Agirc-Arrco de tranche 1, absente du jeu d'essai.
+    assert "072" in codes
+    assert "079" in codes
+    assert "142" not in codes
     assert ver.bases_assujetties
-    assert any(b.code == "02" for b in ver.bases_assujetties)
+    # Une base n'est émise que si une cotisation s'y rattache. Ce jeu d'essai
+    # n'a pas de cotisation plafonnée, donc pas de base 02.
+    assert any(b.code == "03" for b in ver.bases_assujetties)
+    # Chaque cotisation est rattachée à une base réellement émise.
+    bases_emises = {b.code for b in ver.bases_assujetties}
+    for cotisation in ver.cotisations_individuelles:
+        assert cotisation.rubriques["_base"] in bases_emises
