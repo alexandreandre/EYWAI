@@ -434,30 +434,43 @@ def build_etablissement(
         adresse_ville=addr["ville"],
         rubriques=_rubriques_etablissement(nic, entreprise, addr, settings),
     )
-    # Organismes PSC éventuels depuis company settings
-    mutuelle_types = company.get("mutuelle_types") or company.get("psc_contracts") or []
-    if isinstance(mutuelle_types, list):
-        for idx, mt in enumerate(mutuelle_types, start=1):
-            if not isinstance(mt, dict):
-                continue
-            ref = str(mt.get("reference_contrat") or mt.get("code") or "")
-            org = str(mt.get("code_organisme") or mt.get("organisme") or "")
-            if not ref and not org:
-                continue
-            etab.organismes_psc.append(
-                OrganismePscBlock(
-                    reference_contrat=ref,
-                    code_organisme=org,
-                    code_nature=str(mt.get("nature") or "01"),
-                    rang=str(idx),
-                    rubriques={
-                        "S21.G00.15.001": ref,
-                        "S21.G00.15.002": org,
-                        "S21.G00.15.004": str(mt.get("nature") or "01"),
-                        "S21.G00.15.005": str(idx),
-                    },
-                )
+    # Contrats collectifs (bloc S21.G00.15). Priorité au paramétrage DSN de la
+    # société, repris des fiches de paramétrage OC ; l'ancien chemin
+    # company.mutuelle_types reste en repli.
+    contrats_psc = (settings.organismes_complementaires if settings else None) or [
+        mt
+        for mt in (company.get("mutuelle_types") or company.get("psc_contracts") or [])
+        if isinstance(mt, dict)
+    ]
+    for idx, mt in enumerate(contrats_psc, start=1):
+        if not isinstance(mt, dict):
+            continue
+        ref = str(mt.get("reference") or mt.get("reference_contrat") or mt.get("code") or "")
+        org = str(mt.get("organisme") or mt.get("code_organisme") or "")
+        if not ref and not org:
+            continue
+        deleg = str(mt.get("delegataire") or mt.get("code_delegataire") or "")
+        nature = str(mt.get("nature") or "01")
+        # L'ordre déclaré dans le paramétrage prime : c'est lui que les blocs 70
+        # des salariés référencent, il survit aux réordonnancements de la liste.
+        ordre = str(mt.get("ordre") or idx)
+        rubriques = {
+            "S21.G00.15.001": ref,
+            "S21.G00.15.002": org,
+            "S21.G00.15.004": nature,
+            "S21.G00.15.005": ordre,
+        }
+        if deleg:
+            rubriques["S21.G00.15.003"] = deleg
+        etab.organismes_psc.append(
+            OrganismePscBlock(
+                reference_contrat=ref,
+                code_organisme=org,
+                code_nature=nature,
+                rang=ordre,
+                rubriques=rubriques,
             )
+        )
     return etab
 
 

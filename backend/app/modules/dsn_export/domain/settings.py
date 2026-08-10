@@ -75,6 +75,14 @@ class DsnSettings:
     # reprend telles quelles du cabinet plutôt que de leur inventer un sens.
     rubriques_etablissement: Dict[str, str] = field(default_factory=dict)
 
+    # Contrats collectifs prévoyance / santé / retraite supplémentaire de
+    # l'établissement (bloc S21.G00.15), repris des fiches de paramétrage OC
+    # (data/<societe>/referentiel/fpoc/) et des DSN du cabinet. Chaque entrée :
+    # reference, organisme, delegataire (optionnel), nature, ordre. L'ordre est
+    # l'identifiant technique que les blocs 70 des salariés référencent — il ne
+    # doit plus bouger une fois émis.
+    organismes_complementaires: List[Dict[str, str]] = field(default_factory=list)
+
     source: str = SOURCE_SAISIE
     source_fichier: str = ""
     source_date: str = ""
@@ -232,6 +240,11 @@ def depuis_dict(donnees: Optional[Dict[str, Any]]) -> DsnSettings:
         commune_implantation=donnees.get("commune_implantation") or "",
         quotite_forfait_jours=donnees.get("quotite_forfait_jours") or "",
         rubriques_etablissement=dict(donnees.get("rubriques_etablissement") or {}),
+        organismes_complementaires=[
+            dict(entree)
+            for entree in donnees.get("organismes_complementaires") or []
+            if isinstance(entree, dict) and entree.get("reference")
+        ],
         source=donnees.get("source") or SOURCE_SAISIE,
         source_fichier=donnees.get("source_fichier") or "",
         source_date=str(donnees.get("source_date") or ""),
@@ -266,6 +279,7 @@ def vers_dict(settings: DsnSettings) -> Dict[str, Any]:
         "commune_implantation": settings.commune_implantation,
         "quotite_forfait_jours": settings.quotite_forfait_jours,
         "rubriques_etablissement": settings.rubriques_etablissement,
+        "organismes_complementaires": settings.organismes_complementaires,
         "source": settings.source,
         "source_fichier": settings.source_fichier,
     }

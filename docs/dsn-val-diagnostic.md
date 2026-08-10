@@ -93,17 +93,33 @@ contient des NIR). Presque toutes tombent à **une par salarié** — 225 salari
 sur les cinq sociétés — c'est-à-dire un élément systématiquement absent, jamais
 un cas particulier.
 
-### En attente de la mission B — la prévoyance, ~1 050 anomalies
+### La prévoyance, ~1 050 anomalies — le bloc 15 est posé, reste le 70
 
-Quatre règles liées, une seule cause : **le bloc S21.G00.70 / 71** (affiliation
-prévoyance et sa période) n'est pas émis. Le code existe pourtant
-(`builder.py:561`) ; il ne produit rien parce que les affiliations ne sont pas
-reliées — la même cause racine que le backtest Comitech.
+**Fait le 10/08 au soir** : le bloc `S21.G00.15` (contrats collectifs de
+l'établissement) est émis, depuis `organismes_complementaires` du paramétrage
+DSN. La config des cinq sociétés a été **dérivée des DSN du cabinet** par
+`scripts/dsn_deriver_psc.py --ecrire` — l'ordre (`15.005`) y est figé, c'est lui
+que les blocs 70 référencent.
 
-Ce qu'il faudra : identifiant technique d'affiliation sur les bases de type 31,
-cohérence entre l'affiliation et le contrat, un composant par base de type 31,
-et une cotisation « 059 » et une seule. Les **fiches de paramétrage OC**
-apportent ces références.
+**Verdict du même script, important** : la règle « le statut cadre / non-cadre
+détermine l'affiliation » est **réfutée**. Chez Colorplast, trois profils
+cadres différents (retraite supplémentaire en plus, option ISO en plus, ou
+OPTION1 seule). L'affiliation est une **donnée par salarié** — options
+souscrites individuellement — à **reprendre des DSN du cabinet** comme on a
+repris les taux PAS et les soldes CP, pas à déduire.
+
+Ce qui reste pour éteindre la cascade (78.005, 70.012, 79, 81.002, et une
+cotisation « 059 » par base 31) :
+
+1. reprise des affiliations par salarié depuis `reference.dsn` vers
+   `specificites_paie` (loader idempotent, comme le loader d'heures DSN) ;
+2. émission des blocs 70 depuis ces données (`AffiliationBlock` existe,
+   `write_affiliation` est à corriger : il mappe aujourd'hui `nb_enfants` sur
+   `70.012`, qui est en réalité l'identifiant technique d'affiliation) ;
+3. câblage de `78.005` sur cet identifiant dans `cotisation_mapping`.
+
+Compter +16 anomalies temporaires tant que le 15 est déclaré sans les 70 en
+face — l'échafaudage se voit.
 
 ### Corrigeable sans rien attendre — ~2 550 anomalies
 
