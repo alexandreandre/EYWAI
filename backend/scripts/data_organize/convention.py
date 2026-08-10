@@ -11,7 +11,8 @@ Arborescence cible, sous la racine `data/` (gitignorée) :
     data/<societe>/bulletins/<AAAA-MM>/    bulletins Cegid + md/<MATRICULE>.md
     data/<societe>/pointages/<AAAA-MM>/    relevés hebdomadaires
     data/<societe>/variables/<AAAA-MM>/    prépa paie, heures sup, primes
-    data/<societe>/compteurs/              CP, ancienneté, IJSS, RTT, CET
+    data/<societe>/compteurs/              CP, ancienneté, IJSS, RTT, CET, JTC
+    data/<societe>/comptabilite/           charges, journal de paie, mutuelle
     data/<societe>/referentiel/            enrichissement salarié, accords, modèles
 """
 
@@ -69,6 +70,7 @@ BULLETINS = "bulletins"
 POINTAGES = "pointages"
 VARIABLES = "variables"
 COMPTEURS = "compteurs"
+COMPTABILITE = "comptabilite"
 REFERENTIEL = "referentiel"
 
 RUBRIQUES = (
@@ -78,6 +80,7 @@ RUBRIQUES = (
     POINTAGES,
     VARIABLES,
     COMPTEURS,
+    COMPTABILITE,
     REFERENTIEL,
 )
 
@@ -224,9 +227,31 @@ def est_periode_mensuelle(periode: str | None) -> bool:
 # Classification
 # --------------------------------------------------------------------------
 
+#: Dossiers dont le nom décide seul de la rubrique, avant même le nom du
+#: fichier. Sans eux, `CSE/feuille de présence.xlsx` partirait en pointages sur
+#: le mot « présence », et `Charges/Doc de quatra/Journal de paie.pdf` en
+#: référentiel sur le mot « paie ». Quand un dossier porte un intitulé aussi net,
+#: il en sait plus que le fichier qu'il contient.
+_DOSSIERS_DECISIFS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("cse", "election", "nao"), REFERENTIEL),
+    (("charge", "mutuelle", "compta"), COMPTABILITE),
+    (
+        (
+            "solde de tout compte",
+            "saisie sur salaire",
+            "pret au salarie",
+            "tableau de suivi",
+        ),
+        REFERENTIEL,
+    ),
+)
+
 #: Mots-clés du nom de fichier ou du dossier parent -> rubrique.
 #: L'ordre compte : la première correspondance gagne.
 _INDICES_RUBRIQUE: tuple[tuple[tuple[str, ...], str], ...] = (
+    # Un suivi d'acquisition est un compteur, pas le calendrier de l'année : à
+    # placer avant la ligne « jtc » ci-dessous, qui vise les notes de règles.
+    (("suivi jtc", "acquisition jtc"), COMPTEURS),
     (("calendrier", "jour repos", "jours repos", "jour de repos", "jtc"), CALENDRIERS),
     ((".dsn",), DSN),
     (("bulletin", "compteur cp"), BULLETINS),
@@ -248,11 +273,37 @@ _INDICES_RUBRIQUE: tuple[tuple[tuple[str, ...], str], ...] = (
             "solidarite",
             "contingent",
             "conges",
+            "heures par j",
+            "heure par j",
         ),
         COMPTEURS,
     ),
     (
-        ("enrichissement", "paie ", "accord", "contrat", "avenant", "modele"),
+        (
+            "journal de paie",
+            "tableau des charges",
+            "paiement",
+            "mutuelle",
+            "historique",
+        ),
+        COMPTABILITE,
+    ),
+    (
+        (
+            "enrichissement",
+            "paie ",
+            "accord",
+            "contrat",
+            "avenant",
+            "modele",
+            "solde de tout compte",
+            "certificat de travail",
+            "france travail",
+            "saisie-arret",
+            "convocation",
+            "election",
+            "carence",
+        ),
         REFERENTIEL,
     ),
 )
@@ -271,6 +322,11 @@ def detecter_rubrique(nom: str, dossier_parent: str = "") -> str | None:
     # toujours un pointage, aucun autre document n'est nommé ainsi.
     if _RE_NOM_SEMAINES.match(_sans_accent(Path(nom).stem)):
         return POINTAGES
+
+    # Un dossier à l'intitulé sans ambiguïté l'emporte sur le nom du fichier.
+    for mots, rubrique in _DOSSIERS_DECISIFS:
+        if any(mot in parent_plat for mot in mots):
+            return rubrique
 
     # Le nom du fichier prime sur celui du dossier : un calendrier rangé dans un
     # dossier « Bulletins » reste un calendrier.
