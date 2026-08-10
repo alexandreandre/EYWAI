@@ -72,6 +72,54 @@ def test_le_fichier_encode_reste_relisible():
     assert relu.entreprise.siren == "802485169"
 
 
+def test_les_rubriques_d_un_bloc_sortent_par_numero_croissant():
+    """La norme impose un ordre croissant à l'intérieur d'un bloc.
+
+    Un lecteur qui rencontre un numéro inférieur au précédent tient le bloc pour
+    terminé et déclare absentes les rubriques suivantes. Émettre dans l'ordre du
+    dictionnaire suffisait à rendre nos DSN non déposables : DSN-VAL comptait
+    18 762 anomalies sur cinq sociétés, dont 10 575 « absences » de rubriques
+    pourtant présentes. Le tri seul en a supprimé 15 156.
+    """
+    from app.modules.dsn_export.domain.writer import _emit_rubriques_dict
+
+    desordre = {
+        "S21.G00.40.019": "80248516900022",
+        "S21.G00.40.002": "06",
+        "S21.G00.40.043": "3.15",
+        "S21.G00.40.016": "99",
+        "_interne": "ignoré",
+        "S21.G00.40.001": "01122022",
+    }
+    sortie: list[str] = []
+    _emit_rubriques_dict(desordre, sortie)
+
+    numeros = [ligne.split(",")[0] for ligne in sortie]
+    assert numeros == sorted(numeros)
+    assert numeros == [
+        "S21.G00.40.001",
+        "S21.G00.40.002",
+        "S21.G00.40.016",
+        "S21.G00.40.019",
+        "S21.G00.40.043",
+    ]
+
+
+def test_l_ordre_croissant_tient_dans_un_fichier_complet():
+    texte = serialize_dsn_file(fichier_minimal())
+    precedent: dict[str, str] = {}
+    for ligne in texte.split("\r\n"):
+        if not ligne or "," not in ligne:
+            continue
+        rubrique = ligne.split(",")[0]
+        bloc, numero = rubrique.rsplit(".", 1)
+        if bloc in precedent:
+            assert numero > precedent[bloc], (
+                f"{rubrique} sort après {bloc}.{precedent[bloc]} : ordre décroissant"
+            )
+        precedent[bloc] = numero
+
+
 def test_l_adresse_avec_apostrophe_se_relit_a_l_identique():
     from app.modules.dsn_import.domain.parser import parse_dsn_content
 

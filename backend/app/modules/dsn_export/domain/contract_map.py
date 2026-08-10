@@ -97,6 +97,74 @@ def map_statut_to_dsn(statut: Optional[str], *, is_cadre: Optional[bool] = None)
     return "06"
 
 
+def map_statut_categoriel_rc(statut_conventionnel: str) -> str:
+    """Code statut catégoriel Retraite Complémentaire (S21.G00.40.003).
+
+    Rubrique obligatoire, que nous n'émettions pas : 225 anomalies bloquantes
+    relevées par DSN-VAL. La correspondance est lue dans les DSN acceptées du
+    cabinet, où elle ne souffre aucune exception sur les statuts que nous
+    produisons : statut conventionnel « 04 - cadre » → « 01 », « 06 - non
+    cadre » → « 04 » (219 contrats sur 219).
+    """
+    return "01" if statut_conventionnel == "04" else "04"
+
+
+#: Nationalités de l'Union européenne, hors France. Formes masculine et
+#: féminine confondues, sans accent ni casse (voir `map_codification_ue`).
+_NATIONALITES_UE = {
+    "allemand", "allemande", "autrichien", "autrichienne", "belge",
+    "bulgare", "chypriote", "croate", "danois", "danoise", "espagnol",
+    "espagnole", "estonien", "estonienne", "finlandais", "finlandaise",
+    "grec", "grecque", "hongrois", "hongroise", "irlandais", "irlandaise",
+    "italien", "italienne", "letton", "lettonne", "lituanien", "lituanienne",
+    "luxembourgeois", "luxembourgeoise", "maltais", "maltaise",
+    "neerlandais", "neerlandaise", "hollandais", "hollandaise",
+    "polonais", "polonaise", "portugais", "portugaise", "roumain",
+    "roumaine", "slovaque", "slovene", "suedois", "suedoise", "tcheque",
+}
+
+#: Espace économique européen hors UE, plus la Suisse.
+_NATIONALITES_EEE_SUISSE = {
+    "islandais", "islandaise", "liechtensteinois", "liechtensteinoise",
+    "norvegien", "norvegienne", "suisse", "suissesse",
+}
+
+_NATIONALITES_FRANCE = {"francais", "francaise", "france"}
+
+
+def map_codification_ue(nationalite: Optional[str]) -> str:
+    """Codification UE de l'individu (S21.G00.30.013).
+
+    Rubrique obligatoire, absente de nos fichiers : 349 anomalies bloquantes.
+    Quatre valeurs, vérifiées sur les DSN du cabinet : « 01 » France, « 02 »
+    Union européenne hors France, « 03 » Espace économique européen et Suisse,
+    « 04 » tout le reste.
+
+    Le champ `nationality` est saisi en clair et sans discipline
+    (`Française`, `FRANCE`, `Francaise`) : on compare sans accent ni casse. Une
+    nationalité inconnue ou vide tombe en « 04 », qui n'ouvre aucun droit
+    particulier — l'inverse serait de déclarer à tort un ressortissant
+    européen.
+    """
+    texte = _sans_accent(str(nationalite or "")).strip().lower()
+    if not texte:
+        return "04"
+    if texte in _NATIONALITES_FRANCE:
+        return "01"
+    if texte in _NATIONALITES_UE:
+        return "02"
+    if texte in _NATIONALITES_EEE_SUISSE:
+        return "03"
+    return "04"
+
+
+def _sans_accent(texte: str) -> str:
+    import unicodedata
+
+    decompose = unicodedata.normalize("NFD", texte)
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+
+
 def map_sexe_to_dsn(sexe: Optional[str]) -> str:
     text = (sexe or "").strip().lower()
     if text in {"1", "01", "m", "h", "homme", "masculin"}:

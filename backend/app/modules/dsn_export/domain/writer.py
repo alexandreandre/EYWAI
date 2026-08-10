@@ -42,6 +42,10 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_ACT_MESURE,
     R_S21_ACT_TYPE,
     R_S21_ACT_UNITE,
+    R_S21_ANC86_CONTRAT,
+    R_S21_ANC86_TYPE,
+    R_S21_ANC86_UNITE,
+    R_S21_ANC86_VALEUR,
     R_S21_ANC_DEB,
     R_S21_ANC_FIN,
     R_S21_ANC_TYPE,
@@ -78,6 +82,7 @@ from app.modules.dsn_import.domain.rubriques import (
     R_S21_CTR_NATURE,
     R_S21_CTR_NUMERO,
     R_S21_CTR_PCS,
+    R_S21_CTR_REGIME_RC,
     R_S21_CTR_POSITION,
     R_S21_CTR_QUOTITE,
     R_S21_CTR_QUOTITE_REF,
@@ -191,14 +196,30 @@ def _emit(rubrique: str, valeur: Optional[str], out: List[str]) -> None:
 
 
 def _emit_rubriques_dict(rubriques: dict, out: List[str], skip: Optional[set] = None) -> None:
-    """Émet les rubriques brutes conservées (ordre d'insertion)."""
+    """Émet les rubriques brutes conservées, **par numéro croissant**.
+
+    L'ordre n'est pas cosmétique : la norme NEODeS impose des rubriques
+    croissantes à l'intérieur d'un bloc. Un lecteur qui rencontre un numéro
+    inférieur au précédent considère le bloc terminé, et tient pour absentes
+    toutes les rubriques qui suivent — même écrites juste en dessous. Émettre
+    dans l'ordre d'insertion du dictionnaire suffisait à rendre nos DSN
+    non déposables : DSN-VAL relevait 10 575 « absences » de rubriques du bloc
+    contrat qui étaient toutes présentes, mais mal placées.
+
+    Les codes sont de longueur fixe et à chiffres cadrés (`S21.G00.40.003`),
+    l'ordre lexicographique est donc l'ordre numérique.
+    """
     ignored = skip or set()
-    for key, val in (rubriques or {}).items():
-        if not key or key in ignored or not str(key).startswith("S"):
-            continue
-        if isinstance(val, (list, dict)):
-            continue
-        _emit(str(key), str(val), out)
+    retenues = [
+        (str(key), val)
+        for key, val in (rubriques or {}).items()
+        if key
+        and key not in ignored
+        and str(key).startswith("S")
+        and not isinstance(val, (list, dict))
+    ]
+    for key, val in sorted(retenues, key=lambda paire: paire[0]):
+        _emit(key, str(val), out)
 
 
 def _fmt_amount(value: float) -> str:
@@ -552,6 +573,14 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
 def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
     if ctr.rubriques:
         _emit_rubriques_dict(ctr.rubriques, out)
+        # Bloc « Retraite complémentaire - S21.G00.71 », juste après le contrat
+        # et avant le versement, comme dans les DSN acceptées du cabinet. Sans
+        # lui, le statut catégoriel S21.G00.40.003 est refusé quelle que soit sa
+        # valeur. La clé ne commence pas par « S » : `_emit_rubriques_dict`
+        # l'ignore, elle ne fuit donc pas dans le bloc 40.
+        regime = str(ctr.rubriques.get("_regime_retraite_complementaire") or "")
+        if regime:
+            _emit(R_S21_CTR_REGIME_RC, regime, out)
     else:
         _emit(R_S21_CTR_DATE_DEBUT, ctr.date_debut, out)
         _emit(R_S21_CTR_STATUT, ctr.statut, out)
@@ -575,10 +604,18 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         write_suspension(susp, out)
     if ctr.fin_contrat:
         write_fin_contrat(ctr.fin_contrat, out)
-    for anc in ctr.anciennetes:
-        write_anciennete(anc, out)
     for ver in ctr.versements:
         write_versement(ver, out)
+    # L'ancienneté ferme le contrat, après le versement : c'est la place que lui
+    # donne le cabinet, et le validateur la réclame à ce niveau.
+    for anc in ctr.anciennetes:
+        write_anciennete(anc, out)
+    anciennete_86 = ctr.rubriques.get("_anciennete_entreprise") if ctr.rubriques else None
+    if isinstance(anciennete_86, dict) and anciennete_86.get("valeur"):
+        _emit(R_S21_ANC86_TYPE, "07", out)
+        _emit(R_S21_ANC86_UNITE, str(anciennete_86.get("unite") or "02"), out)
+        _emit(R_S21_ANC86_VALEUR, str(anciennete_86["valeur"]), out)
+        _emit(R_S21_ANC86_CONTRAT, str(anciennete_86.get("contrat") or ""), out)
 
 
 def serialize_dsn_file(dsn_file: DsnFile) -> str:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_export.domain.settings import (
@@ -13,9 +13,11 @@ from app.modules.dsn_export.domain.settings import (
 )
 from app.modules.dsn_export.domain.contract_map import (
     iso_to_dsn_date,
+    map_codification_ue,
     map_contract_nature_to_dsn,
     map_modalite_temps,
     map_sexe_to_dsn,
+    map_statut_categoriel_rc,
     map_statut_to_dsn,
     period_bounds,
     period_to_mois_principal,
@@ -603,6 +605,7 @@ def build_individu_from_payroll(
     rubriques_contrat = {
         "S21.G00.40.001": date_debut,
         "S21.G00.40.002": statut_dsn,
+        "S21.G00.40.003": map_statut_categoriel_rc(statut_dsn),
         "S21.G00.40.004": pcs,
         "S21.G00.40.006": libelle_emploi,
         "S21.G00.40.007": nature,
@@ -647,6 +650,20 @@ def build_individu_from_payroll(
         versements=[versement],
         rubriques=rubriques_contrat,
     )
+    # Régime de retraite complémentaire : RUAA, le régime unifié AGIRC-ARRCO,
+    # celui de tout le secteur privé. Le cabinet ne déclare rien d'autre sur les
+    # sept sociétés, cadres compris.
+    ctr.rubriques["_regime_retraite_complementaire"] = "RUAA"
+
+    # Ancienneté dans l'entreprise, en mois révolus depuis la date d'entrée.
+    mois_anciennete = _anciennete_en_mois(date_debut, period_end)
+    if mois_anciennete is not None:
+        ctr.rubriques["_anciennete_entreprise"] = {
+            "unite": "02",  # mois
+            "valeur": str(mois_anciennete),
+            "contrat": numero,
+        }
+
     # BOETH éventuel
     boeth = employee.get("boeth_code") or employee.get("statut_boeth")
     if boeth:
@@ -676,6 +693,9 @@ def build_individu_from_payroll(
         "S21.G00.30.008": addr["rue"],
         "S21.G00.30.009": addr["code_postal"],
         "S21.G00.30.010": addr["ville"],
+        "S21.G00.30.013": map_codification_ue(
+            employee.get("nationality") or employee.get("nationalite")
+        ),
         "S21.G00.30.019": matricule,
     }
     if employee.get("nom_usage"):
@@ -708,6 +728,23 @@ def build_individu_from_payroll(
     ind.rubriques["_cot_sal"] = f"{cot_sal:.2f}"
     ind.rubriques["_cot_pat"] = f"{cot_pat:.2f}"
     return ind, warnings
+
+
+def _anciennete_en_mois(date_debut_dsn: str, fin_periode: str) -> Optional[int]:
+    """Mois révolus entre l'entrée et la fin du mois déclaré (S21.G00.86.003).
+
+    Les deux dates arrivent au format DSN `JJMMAAAA`. Contrôlé sur les DSN du
+    cabinet : une entrée au 01/12/2022 déclarée sur mai 2026 donne 41 mois.
+    """
+    try:
+        debut = datetime.strptime(date_debut_dsn, "%d%m%Y")
+        fin = datetime.strptime(fin_periode, "%d%m%Y")
+    except (TypeError, ValueError):
+        return None
+    mois = (fin.year - debut.year) * 12 + (fin.month - debut.month)
+    if fin.day < debut.day:
+        mois -= 1
+    return mois if mois >= 0 else None
 
 
 def build_parsed_dsn_from_payroll(

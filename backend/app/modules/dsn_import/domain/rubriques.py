@@ -198,6 +198,19 @@ R_S21_ANC_TYPE = "S21.G00.65.001"
 R_S21_ANC_DEB = "S21.G00.65.002"
 R_S21_ANC_FIN = "S21.G00.65.003"
 
+# --- Retraite complémentaire S21.G00.71 ---
+#: Code régime : « RUAA » pour le régime unifié AGIRC-ARRCO, celui de tout le
+#: privé. Obligatoire dès qu'un statut catégoriel S21.G00.40.003 est déclaré.
+R_S21_CTR_REGIME_RC = "S21.G00.71.002"
+
+# --- Ancienneté cumulée S21.G00.86 ---
+#: À ne pas confondre avec le bloc 65, qui porte des périodes datées. Le 86
+#: porte une durée : type, unité, valeur, et le contrat concerné.
+R_S21_ANC86_TYPE = "S21.G00.86.001"
+R_S21_ANC86_UNITE = "S21.G00.86.002"
+R_S21_ANC86_VALEUR = "S21.G00.86.003"
+R_S21_ANC86_CONTRAT = "S21.G00.86.005"
+
 # --- Prime S21.G00.52 / avantage S21.G00.54 ---
 R_S21_PRIME_CODE = "S21.G00.52.001"
 R_S21_PRIME_MONTANT = "S21.G00.52.002"
