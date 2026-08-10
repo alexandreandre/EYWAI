@@ -73,11 +73,22 @@ class DsnBuildError(ValueError):
     """Donnée obligatoire manquante pour générer la DSN."""
 
 
+def _voie_dsn(valeur: str) -> str:
+    """Nettoie un libellé de voie pour la DSN.
+
+    La norme refuse la virgule dans les adresses (CSL-11) — l'apostrophe, elle,
+    est admise : le cabinet déclare « ZA L'OUSSON NORD » sans encombre. On ne
+    corrige que ce qui est interdit, on ne réécrit pas l'adresse.
+    """
+    texte = str(valeur or "").replace(",", " ")
+    return " ".join(texte.split())
+
+
 def _addr(obj: Any) -> Dict[str, str]:
     if not isinstance(obj, dict):
         return {"rue": "", "code_postal": "", "ville": ""}
     return {
-        "rue": str(obj.get("rue") or obj.get("street") or ""),
+        "rue": _voie_dsn(obj.get("rue") or obj.get("street") or ""),
         "code_postal": str(obj.get("code_postal") or obj.get("postal_code") or ""),
         "ville": str(obj.get("ville") or obj.get("city") or ""),
     }
@@ -518,6 +529,19 @@ def build_individu_from_payroll(
     net_verse = _net_a_payer(payslip_data)
     pas_montant, pas_taux, pas_assiette = _pas_details(payslip_data)
 
+    # Données de reprise DSN posées sur la fiche par les scripts de reprise :
+    # affiliations prévoyance/santé du salarié, type et identifiant du taux
+    # PAS, SMIC retenu — tout ce qui ne se déduit ni du bulletin ni du contrat.
+    reprise = employee.get("dsn_reprise") or {}
+    affiliations_psc = [
+        a for a in (employee.get("affiliations_psc") or []) if isinstance(a, dict)
+    ]
+
+    synthese_net = payslip_data.get("synthese_net") or {}
+    smic_retenu = synthese_net.get("montant_smic_reduction_generale") or reprise.get(
+        "smic_retenu"
+    )
+
     extract_cotisations_from_payslip, _ = _extracteurs_bulletin()
     cot_sal, cot_pat, cot_lines, meta = extract_cotisations_from_payslip(payslip_data)
     warnings.extend(meta.get("warnings") or [])
@@ -528,6 +552,11 @@ def build_individu_from_payroll(
         period_end=period_end,
         require_codes=require_cotisation_codes,
         default_ops=default_ops,
+        smic_retenu=smic_retenu,
+        affiliation_ids=[
+            str(a.get("id_affiliation") or "") for a in affiliations_psc
+        ]
+        or None,
     )
     warnings.extend(map_warnings)
 
@@ -547,35 +576,82 @@ def build_individu_from_payroll(
         contrat_ref="00000",
     )
 
+    # Type et identifiant du taux PAS : « 01 - taux transmis par la DGFiP »
+    # exige l'identifiant du compte rendu (50.008) ; sans lui, le type honnête
+    # est « 13 - barème ». L'identifiant vient de la reprise des DSN du cabinet
+    # aujourd'hui, du CRM via Cegid demain.
+    pas_type = str(employee.get("pas_type_taux") or reprise.get("pas_type") or "")
+    pas_identifiant = str(
+        employee.get("pas_identifiant_taux") or reprise.get("pas_identifiant") or ""
+    )
+    if not pas_type:
+        pas_type = "01" if pas_identifiant else "13"
+
+    rubriques_versement = {
+        "S21.G00.50.001": period_end,
+        "S21.G00.50.002": f"{net_fiscal:.2f}",
+        "S21.G00.50.003": "01",
+        "S21.G00.50.004": f"{net_verse:.2f}",
+        "S21.G00.50.006": f"{pas_taux:.2f}",
+        "S21.G00.50.007": pas_type,
+        "S21.G00.50.009": f"{pas_montant:.2f}",
+        "S21.G00.50.013": f"{(pas_assiette or net_fiscal):.2f}",
+        "activites": rem_build.activites,
+    }
+    if pas_type == "01" and pas_identifiant:
+        rubriques_versement["S21.G00.50.008"] = pas_identifiant
+
+    # Montant net social (bloc 58 type 03), obligatoire depuis 2023. La paie le
+    # calcule déjà : seul manquait le bloc.
+    montant_net_social = synthese_net.get("montant_net_social")
+    if montant_net_social is not None:
+        rubriques_versement["_blocs_58"] = [
+            {
+                "debut": period_start,
+                "fin": period_end,
+                "type": "03",
+                "montant": f"{float(montant_net_social):.2f}",
+            }
+        ]
+
     versement = VersementBlock(
         date_versement=period_end,
         net_fiscal=round(net_fiscal, 2),
         net_verse=round(net_verse, 2),
         pas=round(pas_montant, 2),
         pas_taux=round(pas_taux, 2),
-        pas_type="01",
-        pas_identifiant="",
+        pas_type=pas_type,
+        pas_identifiant=pas_identifiant,
         montant_soumis_pas=round(pas_assiette or net_fiscal, 2),
         remunerations=rem_build.remunerations,
         bases_assujetties=bases,
         cotisations_individuelles=cotisations,
-        rubriques={
-            "S21.G00.50.001": period_end,
-            "S21.G00.50.002": f"{net_fiscal:.2f}",
-            "S21.G00.50.003": "01",
-            "S21.G00.50.004": f"{net_verse:.2f}",
-            "S21.G00.50.006": f"{pas_taux:.2f}",
-            "S21.G00.50.007": "01",
-            "S21.G00.50.009": f"{pas_montant:.2f}",
-            "S21.G00.50.013": f"{(pas_assiette or net_fiscal):.2f}",
-            "activites": rem_build.activites,
-        },
+        rubriques=rubriques_versement,
     )
 
-    # Affiliation PSC si présente sur la fiche
+    # Affiliations prévoyance / santé (bloc S21.G00.70). Source première : la
+    # reprise des DSN du cabinet (`affiliations_psc`), qui référence les
+    # contrats du bloc 15 par leur ordre (70.013) et porte l'identifiant
+    # technique (70.012) que les bases 31 citent en 78.005. À défaut, l'ancien
+    # chemin `specificites_paie.mutuelle` reste lu.
     affiliations: List[AffiliationBlock] = []
+    for entree in affiliations_psc:
+        rubriques_aff = {
+            "S21.G00.70.004": str(entree.get("option") or ""),
+            "S21.G00.70.005": str(entree.get("population") or ""),
+            "S21.G00.70.012": str(entree.get("id_affiliation") or ""),
+            "S21.G00.70.013": str(entree.get("id_contrat") or ""),
+        }
+        affiliations.append(
+            AffiliationBlock(
+                code_option=rubriques_aff["S21.G00.70.004"],
+                code_population=rubriques_aff["S21.G00.70.005"],
+                identifiant_affiliation=rubriques_aff["S21.G00.70.012"],
+                rubriques={k: v for k, v in rubriques_aff.items() if v},
+            )
+        )
     specs = employee.get("specificites_paie") or {}
-    if isinstance(specs, dict):
+    if not affiliations and isinstance(specs, dict):
         mutuelle = specs.get("mutuelle") or {}
         if isinstance(mutuelle, dict) and mutuelle.get("adhesion"):
             ref = str(mutuelle.get("reference_contrat") or mutuelle.get("contrat") or "")
@@ -630,6 +706,22 @@ def build_individu_from_payroll(
         "S21.G00.40.014": modalite,
         "S21.G00.40.019": company_siret.replace(" ", "")[:14],
     }
+    # CDD et contrats à terme : la date de fin prévisionnelle est obligatoire
+    # (CCH-12), le motif de recours attendu (SIG-11). La date vit déjà sur la
+    # fiche ; le motif vient du contrat quand il y est, sinon de la reprise.
+    date_fin_prev = iso_to_dsn_date(
+        employee.get("contract_end_date") or employee.get("date_fin_contrat")
+    )
+    if date_fin_prev:
+        rubriques_contrat["S21.G00.40.010"] = date_fin_prev
+    motif_recours = str(
+        classification.get("motif_recours")
+        or employee.get("motif_recours_cdd")
+        or (employee.get("dsn_reprise") or {}).get("motif_recours")
+        or ""
+    )
+    if motif_recours:
+        rubriques_contrat["S21.G00.40.021"] = motif_recours
     if idcc:
         rubriques_contrat["S21.G00.40.017"] = idcc
     # Position, niveau et classification conventionnelle du salarié.

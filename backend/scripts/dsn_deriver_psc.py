@@ -39,6 +39,8 @@ def analyser(societe: str):
     individus: list[dict] = []
     courant: dict | None = None
     affiliation: dict | None = None
+    base_courante: str = ""
+    composant_type: str = ""
 
     for rubrique, valeur in lire_lignes(dossier / "reference.dsn"):
         if rubrique == "S21.G00.15.001":
@@ -51,6 +53,7 @@ def analyser(societe: str):
         elif rubrique == "S21.G00.30.001":
             courant = {"nir": valeur, "statut": "", "affiliations": []}
             individus.append(courant)
+            base_courante = ""
         elif rubrique == "S21.G00.40.002" and courant is not None:
             courant["statut"] = courant["statut"] or valeur
         elif rubrique == "S21.G00.70.004" and courant is not None:
@@ -59,6 +62,21 @@ def analyser(societe: str):
         elif rubrique in ("S21.G00.70.005", "S21.G00.70.012", "S21.G00.70.013") and affiliation is not None:
             cle = {"005": "population", "012": "id_affiliation", "013": "id_contrat"}
             affiliation[cle[rubrique.rsplit(".", 1)[-1]]] = valeur
+        elif rubrique == "S21.G00.40.021" and courant is not None:
+            courant.setdefault("motif_recours", valeur)
+        elif rubrique == "S21.G00.50.007" and courant is not None:
+            courant.setdefault("pas_type", valeur)
+        elif rubrique == "S21.G00.50.008" and courant is not None:
+            courant.setdefault("pas_identifiant", valeur)
+        elif rubrique == "S21.G00.78.001":
+            base_courante = valeur
+        elif rubrique == "S21.G00.79.001":
+            composant_type = valeur
+        elif rubrique == "S21.G00.79.004" and courant is not None:
+            # Composant « 01 » sous la base 03 : le SMIC retenu pour la
+            # réduction générale de ce salarié.
+            if base_courante == "03" and composant_type == "01":
+                courant.setdefault("smic_retenu", valeur)
 
     # Statut réel depuis input.json (le 40.002 du cabinet est le conventionnel).
     entree = json.loads((dossier / "input.json").read_text())
@@ -82,7 +100,52 @@ def analyser(societe: str):
         libelle = {True: "cadre", False: "non-cadre", None: "inconnu"}[cadre]
         par_profil[(libelle, signature)].append(individu["nir"])
 
-    return {"societe": societe, "contrats": contrats, "profils": par_profil, "nb": len(individus)}
+    return {
+        "societe": societe,
+        "dossier": dossier,
+        "contrats": contrats,
+        "profils": par_profil,
+        "individus": individus,
+        "nb": len(individus),
+    }
+
+
+def ecrire_salaries(resultat: dict) -> int:
+    """Reprise par salarié dans input.json : affiliations, PAS, SMIC retenu.
+
+    Ces trois données ne se déduisent d'aucun bulletin : les affiliations sont
+    les contrats souscrits par chacun, l'identifiant PAS vient du compte rendu
+    DGFiP, le SMIC retenu du calcul de réduction générale du cabinet — repris
+    tel quel tant que le moteur ne range pas le sien dans `synthese_net`
+    (`montant_smic_reduction_generale`, prioritaire quand il existera).
+    """
+    chemin = resultat["dossier"] / "input.json"
+    donnees = json.loads(chemin.read_text())
+    par_nir = {i["nir"]: i for i in resultat["individus"]}
+
+    enrichis = 0
+    for ligne in donnees["employees_data"]:
+        employe = ligne.get("employee") or ligne
+        nir = str(employe.get("nir") or employe.get("social_security_number") or "")
+        repris = par_nir.get(nir.replace(" ", "")[:13])
+        if not repris:
+            continue
+        if repris["affiliations"]:
+            employe["affiliations_psc"] = repris["affiliations"]
+        reprise = {}
+        if repris.get("motif_recours"):
+            reprise["motif_recours"] = repris["motif_recours"]
+        if repris.get("pas_type"):
+            reprise["pas_type"] = repris["pas_type"]
+        if repris.get("pas_identifiant"):
+            reprise["pas_identifiant"] = repris["pas_identifiant"]
+        if repris.get("smic_retenu"):
+            reprise["smic_retenu"] = repris["smic_retenu"]
+        if reprise:
+            employe["dsn_reprise"] = reprise
+        enrichis += 1
+    chemin.write_text(json.dumps(donnees, ensure_ascii=False) + "\n", encoding="utf-8")
+    return enrichis
 
 
 def main() -> int:
@@ -93,6 +156,11 @@ def main() -> int:
         "--ecrire",
         action="store_true",
         help="écrit organismes_complementaires dans le settings.json de chaque société",
+    )
+    parser.add_argument(
+        "--ecrire-salaries",
+        action="store_true",
+        help="reprise par salarié dans input.json : affiliations, PAS, SMIC retenu",
     )
     args = parser.parse_args()
 
@@ -123,6 +191,10 @@ def main() -> int:
                 encoding="utf-8",
             )
             print(f"  -> {len(resultat['contrats'])} contrats écrits dans {chemin.name}")
+
+        if args.ecrire_salaries:
+            enrichis = ecrire_salaries(resultat)
+            print(f"  -> {enrichis} salariés enrichis dans input.json")
     return 0
 
 

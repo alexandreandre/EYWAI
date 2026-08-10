@@ -264,12 +264,17 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
 #   - 100 lignes absentes : forfait social jamais calculé par le moteur (67),
 #     CPF-CDD (13), CSG d'épargne salariale déclarée à part par le cabinet pour
 #     10 salariés, exonérations d'apprentis (8).
-#   - 616 montants divergents : dominés par la réduction générale, dont le
+#   - 617 montants divergents : dominés par la réduction générale, dont le
 #     total lui-même diffère du cabinet pour 150 salariés sur 156. La
 #     ventilation 018/106 est juste, c'est le montant calculé qui ne l'est pas.
-PLAFOND_LIGNES_MANQUANTES = 100
+#     Le +1 du 10/08 est un transfert, pas un recul : une cotisation 059 que le
+#     moteur ne calcule pas encore (retraite supplémentaire) était une ligne
+#     absente ; elle est désormais déclarée à 0,00 pour porter l'identifiant
+#     d'affiliation qu'exige le validateur (CCH-13), et compte donc comme
+#     montant divergent (99 absentes + 617 = l'ancien 100 + 616).
+PLAFOND_LIGNES_MANQUANTES = 99
 PLAFOND_LIGNES_EN_TROP = 7
-PLAFOND_MONTANTS_DIVERGENTS = 616
+PLAFOND_MONTANTS_DIVERGENTS = 617
 PLAFOND_TAUX_DIVERGENTS = 18
 
 

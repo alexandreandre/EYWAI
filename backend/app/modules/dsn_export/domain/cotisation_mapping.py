@@ -620,6 +620,12 @@ def _cumuler(lignes: List[LigneDsn]) -> List[LigneDsn]:
     return ordre
 
 
+#: Codes que le cabinet déclare sans identifiant OPS (S21.G00.81.002) : la
+#: cotisation individuelle Prévoyance (059) le refuse même — CCH-11 — et les
+#: réductions 106 / 131 sortent nues dans toutes les DSN acceptées.
+CODES_SANS_OPS = {"059", "106", "131"}
+
+
 def build_bases_and_cotisations(
     cotisation_lines: List[Dict[str, Any]],
     *,
@@ -628,8 +634,17 @@ def build_bases_and_cotisations(
     period_end: str,
     require_codes: bool = False,
     default_ops: str = "",
+    smic_retenu: Optional[float] = None,
+    affiliation_ids: Optional[List[str]] = None,
 ) -> Tuple[List[BaseAssujettieBlock], List[CotisationIndividuelleBlock], List[str]]:
-    """Bases assujetties et cotisations individuelles d'un bulletin."""
+    """Bases assujetties et cotisations individuelles d'un bulletin.
+
+    ``smic_retenu`` alimente le composant S21.G00.79 type 01 sous la base 03 —
+    le montant du SMIC pris pour la réduction générale, sans lequel déclarer le
+    code 018 est refusé (CCH-17). ``affiliation_ids`` sont les identifiants
+    techniques d'affiliation (S21.G00.70.012) du salarié, dans l'ordre : chaque
+    cotisation 059 obtient sa propre base 31 qui référence le sien.
+    """
     avertissements: List[str] = []
     lignes_valides = [l for l in cotisation_lines if isinstance(l, dict)]
     tmax = _tmax_applicable(lignes_valides)
@@ -659,14 +674,16 @@ def build_bases_and_cotisations(
     produites.extend(_csg_et_crds(lignes_valides))
     produites = _cumuler(produites)
 
-    # Montant de chaque base assujettie.
+    # Montant de chaque base assujettie. La prévoyance (base 31) est traitée à
+    # part : une base par cotisation 059, pas une base fourre-tout.
+    lignes_prevoyance = [l for l in produites if l.base == BASE_PREVOYANCE]
     montants_base: Dict[str, float] = {}
     if brut > 0:
         montants_base[BASE_BRUT_DEPLAFONNE] = round(brut, 2)
     for ligne in produites:
         if ligne.base == BASE_PREVOYANCE:
-            montants_base.setdefault(BASE_PREVOYANCE, 0.0)
-        elif ligne.assiette:
+            continue
+        if ligne.assiette:
             montants_base[ligne.base] = max(
                 montants_base.get(ligne.base, 0.0), round(ligne.assiette, 2)
             )
@@ -678,14 +695,18 @@ def build_bases_and_cotisations(
         if code not in montants_base:
             continue
         montant = montants_base[code]
-        rubriques = {
+        rubriques: Dict[str, Any] = {
             "S21.G00.78.001": code,
             "S21.G00.78.002": period_start,
             "S21.G00.78.003": period_end,
             "S21.G00.78.004": f"{montant:.2f}",
         }
-        if code == BASE_PREVOYANCE:
-            rubriques["S21.G00.78.005"] = "1"
+        if code == BASE_BRUT_DEPLAFONNE and smic_retenu:
+            # Composant « 01 - montant du SMIC retenu pour la réduction
+            # générale » : sa présence conditionne le droit de déclarer 018/106.
+            rubriques["_composants_79"] = [
+                {"type": "01", "montant": f"{float(smic_retenu):.2f}"}
+            ]
         bases.append(
             BaseAssujettieBlock(
                 code=code,
@@ -703,7 +724,7 @@ def build_bases_and_cotisations(
                 continue
             rubriques = {"S21.G00.81.001": ligne.code}
             identifiant = ligne.ops_identifiant or default_ops
-            if identifiant:
+            if identifiant and ligne.code not in CODES_SANS_OPS:
                 rubriques["S21.G00.81.002"] = identifiant
             if ligne.assiette:
                 rubriques["S21.G00.81.003"] = f"{ligne.assiette:.2f}"
@@ -721,6 +742,69 @@ def build_bases_and_cotisations(
                     rubriques={**rubriques, "_base": base.code},
                 )
             )
+
+    # Une base 31 par cotisation 059, comme le cabinet : montant 0.00,
+    # identifiant d'affiliation en 78.005, l'assiette réelle portée par un
+    # composant 79 type 18, et la cotisation seule, sans identifiant OPS.
+    #
+    # Chaque identifiant d'affiliation déclaré au bloc 70 exige sa base 31
+    # (CCH-13) : si le salarié a plus d'affiliations que le bulletin ne porte
+    # de cotisations — typiquement une retraite supplémentaire que le moteur ne
+    # calcule pas encore — les affiliations restantes reçoivent une base et une
+    # cotisation 059 à zéro. C'est le manque du moteur rendu visible, pas
+    # masqué : le montant juste remplacera le zéro, la structure ne bougera pas.
+    lignes_31: List[Optional[LigneDsn]] = list(lignes_prevoyance)
+    while affiliation_ids and len(lignes_31) < len(affiliation_ids):
+        lignes_31.append(None)
+    for index, ligne_ou_vide in enumerate(lignes_31):
+        ligne = ligne_ou_vide or LigneDsn(
+            code="059",
+            base=BASE_PREVOYANCE,
+            montant=0.0,
+            assiette=0.0,
+            taux=0.0,
+        )
+        if affiliation_ids and index < len(affiliation_ids):
+            identifiant_affiliation = str(affiliation_ids[index])
+        else:
+            identifiant_affiliation = str(index + 1)
+        code_interne = f"{BASE_PREVOYANCE}#{index}"
+        bases.append(
+            BaseAssujettieBlock(
+                code=code_interne,
+                date_debut=period_start,
+                date_fin=period_end,
+                montant=0.0,
+                rubriques={
+                    "S21.G00.78.001": BASE_PREVOYANCE,
+                    "S21.G00.78.002": period_start,
+                    "S21.G00.78.003": period_end,
+                    "S21.G00.78.004": "0.00",
+                    "S21.G00.78.005": identifiant_affiliation,
+                    "_composants_79": [
+                        {
+                            "type": "18",
+                            "montant": f"{(ligne.assiette or brut):.2f}",
+                        }
+                    ],
+                },
+            )
+        )
+        cotisations.append(
+            CotisationIndividuelleBlock(
+                code=ligne.code,
+                montant_assiette=ligne.assiette,
+                montant_salarial=0.0,
+                montant_patronal=ligne.montant,
+                identifiant_affiliation=identifiant_affiliation,
+                rubriques={
+                    "S21.G00.81.001": ligne.code,
+                    "S21.G00.81.004": f"{ligne.montant:.2f}",
+                    "S21.G00.81.007": _taux_dsn(ligne.taux),
+                    "_base": code_interne,
+                },
+            )
+        )
 
     return bases, cotisations, avertissements
 

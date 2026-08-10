@@ -452,6 +452,11 @@ def write_prime(prime: PrimeBlock, out: List[str]) -> None:
 def write_base(base: BaseAssujettieBlock, out: List[str]) -> None:
     if base.rubriques:
         _emit_rubriques_dict(base.rubriques, out)
+        # Composants de base assujettie (S21.G00.79) portés par la base :
+        # le SMIC retenu sous la base 03, l'assiette réelle sous une base 31.
+        for composant in base.rubriques.get("_composants_79") or []:
+            _emit(R_S21_CB_CODE, str(composant.get("type") or ""), out)
+            _emit(R_S21_CB_MONTANT, str(composant.get("montant") or ""), out)
         return
     _emit(R_S21_BA_CODE, base.code, out)
     _emit("S21.G00.78.002", base.date_debut, out)
@@ -496,8 +501,11 @@ def write_cotisation_agregee(ca: CotisationAgregeeBlock, out: List[str]) -> None
 
 def write_versement(ver: VersementBlock, out: List[str]) -> None:
     if ver.rubriques and any(k.startswith("S21.G00.50.") for k in ver.rubriques):
-        # Émettre d'abord le bloc 50 depuis rubriques, puis enfants structurés
-        for key, val in ver.rubriques.items():
+        # Émettre d'abord le bloc 50 depuis rubriques, puis enfants structurés.
+        # Trié : même exigence d'ordre croissant que partout ailleurs — un
+        # 50.008 inséré après le 50.013 ouvrait un bloc 50 fantôme.
+        for key in sorted(ver.rubriques):
+            val = ver.rubriques[key]
             if str(key).startswith("S21.G00.50.") and not isinstance(val, (list, dict)):
                 _emit(str(key), str(val), out)
     else:
@@ -516,30 +524,37 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
         if ver.montant_soumis_pas:
             _emit(R_S21_VER_PAS_ASSIETTE, _fmt_amount(ver.montant_soumis_pas), out)
 
-    # Activités éventuelles stockées dans rubriques
+    # Le bloc activité (S21.G00.53) en unité « 40 - jours calendaires du
+    # plafond » n'est admis que sous la rémunération brute non plafonnée
+    # (type 001) : émis juste après elle, pas en fin de liste (CCH-12).
     activites = ver.rubriques.get("activites") if ver.rubriques else None
     for rem in ver.remunerations:
-        # Dates période sur rémunération si présentes dans rubriques
-        if rem.rubriques:
-            write_remuneration(rem, out)
-        else:
-            # Dates issues du versement (période mensuelle) — laissées au builder
-            write_remuneration(rem, out)
-        if isinstance(activites, list):
-            pass
-    if isinstance(activites, list):
-        for act in activites:
-            if not isinstance(act, dict):
-                continue
-            _emit(R_S21_ACT_TYPE, str(act.get("type") or ""), out)
-            if act.get("mesure") is not None:
-                _emit(R_S21_ACT_MESURE, _fmt_amount(float(act["mesure"])), out)
-            unite = str(act.get("unite") or "").strip()
-            if unite:
-                _emit(R_S21_ACT_UNITE, unite, out)
+        write_remuneration(rem, out)
+        type_rem = str(
+            (rem.rubriques or {}).get("S21.G00.51.011") or rem.type_code or ""
+        )
+        if type_rem == "001" and isinstance(activites, list):
+            for act in activites:
+                if not isinstance(act, dict):
+                    continue
+                _emit(R_S21_ACT_TYPE, str(act.get("type") or ""), out)
+                if act.get("mesure") is not None:
+                    _emit(R_S21_ACT_MESURE, _fmt_amount(float(act["mesure"])), out)
+                unite = str(act.get("unite") or "").strip()
+                if unite:
+                    _emit(R_S21_ACT_UNITE, unite, out)
+            activites = None  # émises une seule fois
 
     for prime in ver.primes:
         write_prime(prime, out)
+
+    # Éléments de revenu calculés en net (S21.G00.58) — le type 03, montant net
+    # social, est obligatoire sur tout versement du mois principal (CCH-14).
+    for bloc in (ver.rubriques.get("_blocs_58") if ver.rubriques else None) or []:
+        _emit("S21.G00.58.001", str(bloc.get("debut") or ""), out)
+        _emit("S21.G00.58.002", str(bloc.get("fin") or ""), out)
+        _emit("S21.G00.58.003", str(bloc.get("type") or ""), out)
+        _emit("S21.G00.58.004", str(bloc.get("montant") or ""), out)
 
     # Bases + cotisations imbriquées (comme Cegid : 81 sous le 78 courant)
     cots_by_base: Dict[str, List] = {}
@@ -573,11 +588,13 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
 def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
     if ctr.rubriques:
         _emit_rubriques_dict(ctr.rubriques, out)
-        # Bloc « Retraite complémentaire - S21.G00.71 », juste après le contrat
-        # et avant le versement, comme dans les DSN acceptées du cabinet. Sans
-        # lui, le statut catégoriel S21.G00.40.003 est refusé quelle que soit sa
-        # valeur. La clé ne commence pas par « S » : `_emit_rubriques_dict`
-        # l'ignore, elle ne fuit donc pas dans le bloc 40.
+        # Ordre du cabinet, que le validateur exige : contrat (40), puis les
+        # affiliations (70), puis la retraite complémentaire (71), puis le
+        # versement (50). Sans bloc 71, le statut catégoriel S21.G00.40.003 est
+        # refusé quelle que soit sa valeur. Les clés « _* » ne commencent pas
+        # par « S » : `_emit_rubriques_dict` les ignore, rien ne fuit.
+        for aff in ctr.affiliations:
+            write_affiliation(aff, out)
         regime = str(ctr.rubriques.get("_regime_retraite_complementaire") or "")
         if regime:
             _emit(R_S21_CTR_REGIME_RC, regime, out)
@@ -598,8 +615,9 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         _emit(R_S21_CTR_POSITION, ctr.position_conv, out)
     for arret in ctr.arrets:
         write_arret(arret, out)
-    for aff in ctr.affiliations:
-        write_affiliation(aff, out)
+    if not ctr.rubriques:
+        for aff in ctr.affiliations:
+            write_affiliation(aff, out)
     for susp in ctr.suspensions:
         write_suspension(susp, out)
     if ctr.fin_contrat:

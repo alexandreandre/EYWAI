@@ -11,16 +11,17 @@ Ce n'est pas la même chose : sur Colorplast, l'écart au cabinet tenait en
 
 ## Le résultat
 
-| Société | Première passe | Tri des rubriques | + 4 blocs et rubriques | Cabinet |
-|---|---|---|---|---|
-| Cartol | 7 250 | 1 378 | **1 035** | 0 |
-| Mont Blanc Composite | 6 027 | 1 196 | **904** | 0 |
-| LEWIS | 3 355 | 632 | **469** | 0 |
-| Comitech | 1 502 | 294 | **227** | 0 |
-| Colorplast | 628 | 106 | **78** | 0 |
-| **Total** | **18 762** | **3 606** | **2 713** | **0** |
+| Société | Première passe | Tri des rubriques | + 4 blocs | + prévoyance, net social, PAS | Cabinet |
+|---|---|---|---|---|---|
+| Cartol | 7 250 | 1 378 | 1 035 | **286** | 0 |
+| Mont Blanc Composite | 6 027 | 1 196 | 904 | **114** | 0 |
+| LEWIS | 3 355 | 632 | 469 | **105** | 0 |
+| Comitech | 1 502 | 294 | 227 | **82** | 0 |
+| Colorplast | 628 | 106 | 78 | **0** ✅ | 0 |
+| **Total** | **18 762** | **3 606** | **2 713** | **587** | **0** |
 
-Soit **86 % des anomalies levées**, et 34 règles ramenées à 23.
+**Colorplast passe le validateur officiel à zéro anomalie**, même verdict que le
+fichier du cabinet. 97 % du chemin fait sur l'ensemble, 34 règles ramenées à 14.
 
 ## La cause racine : un ordre, pas un contenu
 
@@ -86,63 +87,66 @@ C'est le même schéma que le fichier BIC et la provision CP : la réponse étai
 notre côté. La question peut être retirée, ou réduite à ce qui restera après
 correction.
 
-## Ce qui reste : 2 713 anomalies, 23 règles
+## La passe du 10/08 au soir — Colorplast à zéro
+
+Tout ce qui suit est codé et vérifié (5 151 tests) :
+
+- **Blocs 70 par salarié** : repris des DSN du cabinet
+  (`dsn_deriver_psc.py --ecrire-salaries`), émis entre le contrat et la
+  retraite complémentaire, dans l'ordre du cabinet.
+- **Bases 31 refondues** : une par cotisation 059, montant 0,00, identifiant
+  d'affiliation en `78.005`, assiette dans un composant `79` type 18, sans
+  identifiant OPS. Chaque affiliation déclarée reçoit sa base (CCH-13) — au
+  besoin à 0,00 quand le moteur ne calcule pas encore la cotisation (retraite
+  supplémentaire) : le manque reste visible, pas masqué.
+- **SMIC de la réduction générale** : composant `79` type 01 sous la base 03.
+  La clé pérenne est `synthese_net.montant_smic_reduction_generale`, **que le
+  moteur ne renseigne pas encore** (`smic_calcule_mois` existe dans les runs,
+  il n'est juste pas rangé) ; d'ici là, valeur reprise du cabinet.
+- **Montant net social** : bloc `58` type 03 — la paie le calculait déjà.
+- **PAS** : `50.007` honnête (01 si identifiant DGFiP connu, 13 sinon),
+  `50.008` repris du cabinet en attendant les CRM via Cegid.
+- **Bloc 53** rattaché à la rémunération 001, **virgules** proscrites des
+  adresses, **CDD** avec date de fin (40.010, la donnée existait) et motif de
+  recours (40.021, repris).
+- Deux bugs d'ordre en plus du premier : l'ancienneté avant le versement, et le
+  bloc 50 émis dans l'ordre d'insertion (un `50.008` après `50.013` ouvrait un
+  versement fantôme).
+
+Le cliquet de conformité cotisations passe de 616 à 617 montants divergents :
+**un transfert, pas un recul** — la 059 retraite sup était une ligne absente,
+elle est devenue une ligne à 0,00 (99 + 617 = 100 + 616).
+
+## Ce qui reste : 587 anomalies, 14 règles
 
 Le détail vit dans `data/_dsn_conformance/_rapports_dsnval/` (gitignoré, il
-contient des NIR). Presque toutes tombent à **une par salarié** — 225 salariés
-sur les cinq sociétés — c'est-à-dire un élément systématiquement absent, jamais
-un cas particulier.
+contient des NIR). Colorplast est à zéro ; le reste se concentre sur quatre
+sujets :
 
-### La prévoyance, ~1 050 anomalies — le bloc 15 est posé, reste le 70
-
-**Fait le 10/08 au soir** : le bloc `S21.G00.15` (contrats collectifs de
-l'établissement) est émis, depuis `organismes_complementaires` du paramétrage
-DSN. La config des cinq sociétés a été **dérivée des DSN du cabinet** par
-`scripts/dsn_deriver_psc.py --ecrire` — l'ordre (`15.005`) y est figé, c'est lui
-que les blocs 70 référencent.
-
-**Verdict du même script, important** : la règle « le statut cadre / non-cadre
-détermine l'affiliation » est **réfutée**. Chez Colorplast, trois profils
-cadres différents (retraite supplémentaire en plus, option ISO en plus, ou
-OPTION1 seule). L'affiliation est une **donnée par salarié** — options
-souscrites individuellement — à **reprendre des DSN du cabinet** comme on a
-repris les taux PAS et les soldes CP, pas à déduire.
-
-Ce qui reste pour éteindre la cascade (78.005, 70.012, 79, 81.002, et une
-cotisation « 059 » par base 31) :
-
-1. reprise des affiliations par salarié depuis `reference.dsn` vers
-   `specificites_paie` (loader idempotent, comme le loader d'heures DSN) ;
-2. émission des blocs 70 depuis ces données (`AffiliationBlock` existe,
-   `write_affiliation` est à corriger : il mappe aujourd'hui `nb_enfants` sur
-   `70.012`, qui est en réalité l'identifiant technique d'affiliation) ;
-3. câblage de `78.005` sur cet identifiant dans `cotisation_mapping`.
-
-Compter +16 anomalies temporaires tant que le 15 est déclaré sans les 70 en
-face — l'échafaudage se voit.
-
-### Corrigeable sans rien attendre — ~2 550 anomalies
-
-| Règle | Occ. | Ce qu'il manque |
+| Sujet | Occ. | Cause |
 |---|---|---|
-| `S21.G00.81.001/CCH-17` | 450 | Le **montant du SMIC retenu** pour la réduction générale, sous la base de type 03 |
-| `S21.G00.81.002/CCH-11` | 411 | Identifiant OPS renseigné à tort quand une cotisation « 059 » est déclarée |
-| `CST-03 S21.G00.30.013` | 349 | Rubrique jamais émise du bloc individu |
-| `S21.G00.53.001/CCH-12` | 225 | Le bloc activité « 40 - jours calendaires » est rattaché à une rémunération qui n'est pas la brute non plafonnée |
-| `S21.G00.50.008/CCH-11` | 225 | Le taux PAS n'est admis que si le type vaut « 01 — transmis par la DGFiP » |
-| `S21.G00.50.001/CCH-14` | 225 | **Bloc S21.G00.58 type 03, le montant net social** — obligatoire depuis 2023 |
-| `S21.G00.86.001/CCH-14` | 225 | **Bloc ancienneté**, type 07 « dans l'entreprise » |
-| `CST-03 S21.G00.40.003` | 225 | Rubrique jamais émise du bloc contrat |
+| `78.005` CCH-11/12 | 281 | **salariés multi-contrats** : l'affiliation est rattachée au mauvais contrat quand un salarié en a plusieurs (intérim Cartol surtout) |
+| `51.010` / `40.009` CCH | 144 | même racine : rémunérations pointant un numéro de contrat qui n'existe pas chez nous |
+| `30.014` absent | 124 | salariés **nés hors de France** : on n'émet ni département 99 ni code pays — les 51 avertissements « code pays inconnu » du générateur |
+| Divers (86.003 à zéro, 30.016, 40.010, regex 30.010…) | ~38 | petits cas de données |
 
-Le montant net social est déjà calculé par la paie (`builder.py:136`) : c'est
-la sérialisation qui manque, pas la donnée. L'ancienneté se déduit des dates
-d'entrée.
+Le gros morceau suivant est donc le **multi-contrats**, concentré sur Cartol.
 
-### Avertissements, non bloquants
+### Notes de chantier (résolu le 10/08 au soir)
 
-Taux AT/MP à renseigner dès que le code risque ≠ 999ZZ, nombre d'heures absent
-sur les rémunérations de type heures supplémentaires, motif de recours absent
-sur un CDD.
+Conservé pour l'historique : le bloc 15 vient du paramétrage
+(`organismes_complementaires`, dérivé des DSN du cabinet par
+`dsn_deriver_psc.py --ecrire`, ordre `15.005` figé). La règle « le statut
+détermine l'affiliation » a été **réfutée** en route — trois profils cadres
+distincts chez Colorplast — d'où la reprise par salarié. La liste « corrigeable
+sans rien attendre » de la passe précédente (SMIC, OPS, 30.013, bloc 53, PAS,
+net social, ancienneté, 40.003) est **intégralement traitée**.
+
+Reste transverse, hors validateur : le loader qui portera la reprise
+(affiliations, identifiants PAS) vers `specificites_paie` en base — aujourd'hui
+elle vit dans les jeux de conformité. Et `write_affiliation` garde un mapping
+hérité trompeur (`nb_enfants` → `70.012`) sur son chemin sans `rubriques`,
+inutilisé par le builder actuel.
 
 ## Rejouer le diagnostic
 
