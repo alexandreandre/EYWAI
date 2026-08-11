@@ -59,10 +59,19 @@ def charger_settings(company_id: str, dossier: str) -> Optional[Dict]:
     from app.modules.dsn_export.infrastructure import settings_repository
 
     settings = settings_repository.charger(company_id)
-    if settings.est_complet():
-        return vers_dict(settings)
-
     hors_ligne = SORTIE / dossier / "settings.json"
+    if settings.est_complet():
+        donnees = vers_dict(settings)
+        # Le bloc 15 (organismes complémentaires) ne vit pas encore en base :
+        # dérivé des DSN du cabinet par dsn_deriver_psc.py --ecrire, il se
+        # complète depuis le fichier local tant que le loader n'a pas tourné.
+        if not donnees.get("organismes_complementaires") and hors_ligne.exists():
+            local = json.loads(hors_ligne.read_text())
+            donnees["organismes_complementaires"] = local.get(
+                "organismes_complementaires"
+            ) or []
+        return donnees
+
     if hors_ligne.exists():
         return json.loads(hors_ligne.read_text())
     return None

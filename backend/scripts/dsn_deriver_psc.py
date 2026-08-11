@@ -30,8 +30,12 @@ def lire_lignes(chemin: Path):
         yield rubrique, valeur.strip().strip("'")
 
 
-def analyser(societe: str):
-    dossier = next(iter(sorted((FIXTURES / societe).glob("2026-*"))), None)
+def analyser(societe: str, mois: str | None = None):
+    """Analyse la DSN cabinet d'un mois (le premier disponible par défaut)."""
+    if mois:
+        dossier = FIXTURES / societe / mois
+    else:
+        dossier = next(iter(sorted((FIXTURES / societe).glob("20*-*"))), None)
     if not dossier or not (dossier / "reference.dsn").exists():
         return None
 
@@ -178,6 +182,14 @@ def ecrire_salaries(resultat: dict) -> int:
         if reprise:
             employe["dsn_reprise"] = reprise
         enrichis += 1
+    # L'ordre du bloc 15 peut changer d'un mois à l'autre chez le cabinet
+    # (vu chez Comitech entre mai et juin) : les 70.013 repris ci-dessus
+    # référencent l'ordre du mois, le jeu doit donc porter le bloc 15 du
+    # même mois — pas celui, figé, du settings de la société.
+    if resultat["contrats"]:
+        parametrage = donnees.get("dsn_settings")
+        if isinstance(parametrage, dict):
+            parametrage["organismes_complementaires"] = resultat["contrats"]
     chemin.write_text(json.dumps(donnees, ensure_ascii=False) + "\n", encoding="utf-8")
     return enrichis
 
@@ -185,6 +197,7 @@ def ecrire_salaries(resultat: dict) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--societe")
+    parser.add_argument("--mois", help="période AAAA-MM (défaut : tous les mois présents)")
     parser.add_argument("--json", action="store_true", help="config bloc 15 en JSON")
     parser.add_argument(
         "--ecrire",
@@ -200,35 +213,45 @@ def main() -> int:
 
     societes = [args.societe] if args.societe else ["cartol", "colorplast", "comitech", "lewis", "mbc"]
     for societe in societes:
-        resultat = analyser(societe)
-        if not resultat:
-            continue
-        print(f"\n{'=' * 66}\n{societe} — {resultat['nb']} salariés, {len(resultat['contrats'])} contrats au bloc 15")
-        if args.json:
-            print(json.dumps(resultat["contrats"], indent=1, ensure_ascii=False))
-        for (statut, signature), nirs in sorted(resultat["profils"].items()):
-            blocs = " | ".join(
-                f"opt={o or '—'} pop={p or '—'} ctr={c or '—'} aff={a or '—'}"
-                for o, p, c, a in signature
-            ) or "aucune affiliation"
-            print(f"  {statut:9} ×{len(nirs):<3} {blocs}")
-
-        if args.ecrire:
-            chemin = FIXTURES / societe / "settings.json"
-            if not chemin.exists():
-                print("  (pas de settings.json, ignoré)")
-                continue
-            donnees = json.loads(chemin.read_text())
-            donnees["organismes_complementaires"] = resultat["contrats"]
-            chemin.write_text(
-                json.dumps(donnees, indent=1, ensure_ascii=False) + "\n",
-                encoding="utf-8",
+        # Chaque mois porte sa reprise : les affiliations d'un salarié comme le
+        # bloc 15 se lisent dans la DSN cabinet du mois déclaré. Le settings
+        # (--ecrire), lui, est par société : le dernier mois analysé l'emporte.
+        if args.mois:
+            mois_dispos = [args.mois]
+        else:
+            mois_dispos = sorted(
+                d.name for d in (FIXTURES / societe).glob("20*-*") if d.is_dir()
             )
-            print(f"  -> {len(resultat['contrats'])} contrats écrits dans {chemin.name}")
+        for mois in mois_dispos:
+            resultat = analyser(societe, mois)
+            if not resultat:
+                continue
+            print(f"\n{'=' * 66}\n{societe} {mois} — {resultat['nb']} salariés, {len(resultat['contrats'])} contrats au bloc 15")
+            if args.json:
+                print(json.dumps(resultat["contrats"], indent=1, ensure_ascii=False))
+            for (statut, signature), nirs in sorted(resultat["profils"].items()):
+                blocs = " | ".join(
+                    f"opt={o or '—'} pop={p or '—'} ctr={c or '—'} aff={a or '—'}"
+                    for o, p, c, a in signature
+                ) or "aucune affiliation"
+                print(f"  {statut:9} ×{len(nirs):<3} {blocs}")
 
-        if args.ecrire_salaries:
-            enrichis = ecrire_salaries(resultat)
-            print(f"  -> {enrichis} salariés enrichis dans input.json")
+            if args.ecrire:
+                chemin = FIXTURES / societe / "settings.json"
+                if not chemin.exists():
+                    print("  (pas de settings.json, ignoré)")
+                    continue
+                donnees = json.loads(chemin.read_text())
+                donnees["organismes_complementaires"] = resultat["contrats"]
+                chemin.write_text(
+                    json.dumps(donnees, indent=1, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                print(f"  -> {len(resultat['contrats'])} contrats écrits dans {chemin.name}")
+
+            if args.ecrire_salaries:
+                enrichis = ecrire_salaries(resultat)
+                print(f"  -> {enrichis} salariés enrichis dans input.json")
     return 0
 
 

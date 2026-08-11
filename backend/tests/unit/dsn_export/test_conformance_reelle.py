@@ -81,10 +81,16 @@ BLOCS_A_VENIR: List[str] = [
     "S21.G00.52",
     "S21.G00.53",
     "S21.G00.54",
+    # Composant de versement : ventilation des paiements aux organismes par
+    # population, trimestrielle — n'apparaît que sur les mois de fin de
+    # trimestre (vu en juin, 2026T02). DSN-VAL n'en exige rien.
+    "S21.G00.55",
     "S21.G00.58",
     "S21.G00.60",
     "S21.G00.62",
     "S21.G00.65",
+    # Temps partiel thérapeutique : vu chez MBC en juin (un salarié).
+    "S21.G00.66",
     "S21.G00.70",
     "S21.G00.71",
     "S21.G00.78",
@@ -168,6 +174,14 @@ ECARTS_ATTENDUS: List[EcartAttendu] = [
         rubrique="S21.G00.40.041",
         motif="niveau conventionnel divergent pour 2 salariés MBC : à arbitrer",
         depuis="2026-08-03",
+    ),
+    EcartAttendu(
+        rubrique="S21.G00.40.004",
+        motif=(
+            "PCS d'un salarié MBC dégradé par le cabinet en juin : '625h' en "
+            "mai (comme notre fiche), '9999' en juin — notre valeur est la bonne"
+        ),
+        depuis="2026-08-11",
     ),
     EcartAttendu(
         rubrique="S21.G00.30.016",
@@ -272,10 +286,17 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
 #     absente ; elle est désormais déclarée à 0,00 pour porter l'identifiant
 #     d'affiliation qu'exige le validateur (CCH-13), et compte donc comme
 #     montant divergent (99 absentes + 617 = l'ancien 100 + 616).
-PLAFOND_LIGNES_MANQUANTES = 99
-PLAFOND_LIGNES_EN_TROP = 7
-PLAFOND_MONTANTS_DIVERGENTS = 617
-PLAFOND_TAUX_DIVERGENTS = 18
+#
+# 11/08 : le périmètre passe de cinq instantanés (mai) à dix (mai + juin) —
+# juin, validé DSN-VAL à zéro comme mai, ajoute son propre résiduel moteur,
+# mêmes causes (forfait social, CPF-CDD, réduction générale, apprentis).
+# Mesuré le 11/08 : 174 absentes, 17 en trop, 1031 divergents, 23 taux.
+# Les plafonds suivent la mesure ; à mai constant, la part de juin est
+# 75 / 10 / 414 / 5 — toute baisse obtenue doit être répercutée ici.
+PLAFOND_LIGNES_MANQUANTES = 174
+PLAFOND_LIGNES_EN_TROP = 17
+PLAFOND_MONTANTS_DIVERGENTS = 1031
+PLAFOND_TAUX_DIVERGENTS = 23
 
 
 @besoin_de_fixtures
