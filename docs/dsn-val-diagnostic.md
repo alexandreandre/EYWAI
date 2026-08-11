@@ -1,5 +1,11 @@
 # DSN-VAL — ce que le validateur officiel reproche à notre export
 
+**10/08/2026, dernière passe : les cinq sociétés passent à ZÉRO anomalie.**
+Même verdict que les fichiers du cabinet — nos cinq DSN de mai 2026 sont
+déposables au sens du validateur. Le détail du chemin 587 → 0 est en fin de
+document (« La passe finale »). Les montants restent l'affaire du backtest :
+zéro anomalie = déposable, pas juste.
+
 **10/08/2026.** Première passe de nos DSN dans **DSN-VAL 2026.1.0.16**, l'outil
 de contrôle de la CNAV distribué par net-entreprises. Il répond à la question du
 point #20 : *qu'est-ce qui empêche notre DSN d'être déposable ?*
@@ -11,14 +17,14 @@ Ce n'est pas la même chose : sur Colorplast, l'écart au cabinet tenait en
 
 ## Le résultat
 
-| Société | Première passe | Tri des rubriques | + 4 blocs | + prévoyance, net social, PAS | Cabinet |
-|---|---|---|---|---|---|
-| Cartol | 7 250 | 1 378 | 1 035 | **286** | 0 |
-| Mont Blanc Composite | 6 027 | 1 196 | 904 | **114** | 0 |
-| LEWIS | 3 355 | 632 | 469 | **105** | 0 |
-| Comitech | 1 502 | 294 | 227 | **82** | 0 |
-| Colorplast | 628 | 106 | 78 | **0** ✅ | 0 |
-| **Total** | **18 762** | **3 606** | **2 713** | **587** | **0** |
+| Société | Première passe | Tri des rubriques | + 4 blocs | + prévoyance, net social, PAS | Passe finale | Cabinet |
+|---|---|---|---|---|---|---|
+| Cartol | 7 250 | 1 378 | 1 035 | 286 | **0** ✅ | 0 |
+| Mont Blanc Composite | 6 027 | 1 196 | 904 | 114 | **0** ✅ | 0 |
+| LEWIS | 3 355 | 632 | 469 | 105 | **0** ✅ | 0 |
+| Comitech | 1 502 | 294 | 227 | 82 | **0** ✅ | 0 |
+| Colorplast | 628 | 106 | 78 | **0** ✅ | **0** ✅ | 0 |
+| **Total** | **18 762** | **3 606** | **2 713** | **587** | **0** | **0** |
 
 **Colorplast passe le validateur officiel à zéro anomalie**, même verdict que le
 fichier du cabinet. 97 % du chemin fait sur l'ensemble, 34 règles ramenées à 14.
@@ -117,20 +123,48 @@ Le cliquet de conformité cotisations passe de 616 à 617 montants divergents :
 **un transfert, pas un recul** — la 059 retraite sup était une ligne absente,
 elle est devenue une ligne à 0,00 (99 + 617 = 100 + 616).
 
-## Ce qui reste : 587 anomalies, 14 règles
+## La passe finale (10/08 au soir) : 587 → 0
 
-Le détail vit dans `data/_dsn_conformance/_rapports_dsnval/` (gitignoré, il
-contient des NIR). Colorplast est à zéro ; le reste se concentre sur quatre
-sujets :
+Les quatre sujets du résiduel sont tombés en quatre temps, chacun vérifié
+contre les DSN du cabinet, jamais deviné :
 
-| Sujet | Occ. | Cause |
-|---|---|---|
-| `78.005` CCH-11/12 | 281 | **salariés multi-contrats** : l'affiliation est rattachée au mauvais contrat quand un salarié en a plusieurs (intérim Cartol surtout) |
-| `51.010` / `40.009` CCH | 144 | même racine : rémunérations pointant un numéro de contrat qui n'existe pas chez nous |
-| `30.014` absent | 124 | salariés **nés hors de France** : on n'émet ni département 99 ni code pays — les 51 avertissements « code pays inconnu » du générateur |
-| Divers (86.003 à zéro, 30.016, 40.010, regex 30.010…) | ~38 | petits cas de données |
+**1. « Multi-contrats » : deux bugs distincts, aucun n'était du multi-contrats
+(587 → 175).** Les 144 anomalies 51.010/40.009 venaient d'un `contrat_ref`
+codé en dur `'00000'` dans le builder, quand le 40.009 du contrat portait
+`'00001'` : chaque rémunération pointait un contrat inexistant. Les 281
+anomalies 78.005 venaient du **quatrième piège d'ordre du chantier**, côté
+lecture cette fois : le parseur de `dsn_deriver_psc.py` n'ouvrait une
+affiliation que sur `70.004`, or un bloc 70 peut commencer à `70.005` — deux
+affiliations consécutives étaient fusionnées en une, et la reprise perdait la
+moitié des affiliations.
 
-Le gros morceau suivant est donc le **multi-contrats**, concentré sur Cartol.
+**2. Nés hors de France et DOM (175 → 63).** Le cabinet déclare `30.014='99'`
++ `30.015` pour l'étranger — et le pays est souvent **'FR'** (nés à l'étranger
+de nationalité française) ; pour les DOM, Mayotte comprise, il déclare
+`30.014='97'` + `'FR'`. Aucune règle à déduire : le couple département/pays
+est repris tel quel dans `dsn_reprise` par salarié.
+
+**3. Une base 31 par affiliation, jamais plus (63 → ~37).** Quand le bulletin
+porte plus de lignes 059 que le salarié n'a d'affiliations, les identifiants
+78.005 excédentaires (3, 4…) ne correspondent à aucun bloc 70. Le surplus se
+replie sur la dernière affiliation, montants additionnés — la structure suit
+les affiliations, le rattachement fin ligne à ligne reste au moteur.
+
+**4. Les petits cas.** Embauchés du mois : périodes 51.001/78.002/58.001
+bornées au premier jour du contrat, et ancienneté déclarée **en jours**
+(86.002='01', du premier jour inclus : entré le 04/05, 28 jours fin mai) —
+zéro mois est refusé. Apprentis : `30.025` (niveau de diplôme préparé) et
+`40.010` repris du cabinet. Caractères : la localité (30.010) n'admet ni
+apostrophe ni tiret (« L ABSIE », « LE BOURGET DU LAC »), les textes CSL-11
+(30.007, 30.016) perdent virgule, barre oblique et tiret entre espaces.
+
+Onze tests verrouillent l'ensemble (`test_builder_individu_contrat.py`,
+`test_cotisation_mapping.py`). Les 5 162 tests passent, le cliquet
+`test_conformance_reelle.py` est vert sans toucher aux plafonds.
+
+Reste connu, hors validateur : le loader de la reprise vers la base réelle,
+l'enrichissement moteur `montant_smic_reduction_generale`, et la validation
+d'un second mois — les jeux sont calibrés sur 2026-05 uniquement.
 
 ### Notes de chantier (résolu le 10/08 au soir)
 
