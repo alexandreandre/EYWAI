@@ -163,8 +163,28 @@ Onze tests verrouillent l'ensemble (`test_builder_individu_contrat.py`,
 `test_conformance_reelle.py` est vert sans toucher aux plafonds.
 
 Reste connu, hors validateur : le loader de la reprise vers la base réelle,
-l'enrichissement moteur `montant_smic_reduction_generale`, et la validation
-d'un second mois — les jeux sont calibrés sur 2026-05 uniquement.
+et l'enrichissement moteur `montant_smic_reduction_generale`.
+
+## Le second mois (11/08) : juin à zéro sans toucher aux règles
+
+La vraie preuve de généralité : **les cinq DSN de juin 2026 passent DSN-VAL à
+zéro anomalie**, sans modifier ni le builder ni le writer. Ce que juin a
+demandé n'était que de la plomberie de données :
+
+- **Le bloc 15 est une donnée par mois** : le cabinet a réordonné celui de
+  Comitech entre mai et juin, les 70.013 repris pointaient l'ordre du mauvais
+  mois. La reprise (`dsn_deriver_psc.py`, désormais `--mois`, tous les mois
+  par défaut) porte le bloc 15 du mois dans le `dsn_settings` du jeu.
+- Le snapshot complète `organismes_complementaires` depuis le settings.json
+  local tant que le loader n'a pas porté le bloc 15 en base.
+- Deux blocs vus seulement en juin, hors périmètre et sans exigence DSN-VAL :
+  `S21.G00.55` (composant de versement, trimestriel — 2026T02) et
+  `S21.G00.66` (temps partiel thérapeutique, un salarié MBC).
+- Le cliquet couvre désormais dix instantanés : plafonds recalés sur la
+  mesure mai + juin (174 / 17 / 1031 / 23), part de juin documentée.
+- Écarts de données relevés : VUILLERMET (Comitech) payé par le cabinet en
+  juin sans bulletin chez nous ; le PCS de NGOM (MBC) dégradé en '9999' par
+  le cabinet quand notre fiche garde le '625h' de mai.
 
 ### Notes de chantier (résolu le 10/08 au soir)
 
