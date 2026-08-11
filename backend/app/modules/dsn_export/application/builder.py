@@ -84,13 +84,37 @@ def _voie_dsn(valeur: str) -> str:
     return " ".join(texte.split())
 
 
+def _ville_dsn(valeur: str) -> str:
+    """Nettoie une localité (S21.G00.30.010, CSL-00).
+
+    La regex de la norme n'y admet ni apostrophe ni trait d'union : le cabinet
+    déclare « L ABSIE » et « LE BOURGET DU LAC ». On remplace l'interdit par
+    une espace, rien d'autre.
+    """
+    texte = re.sub(r"[',/-]", " ", str(valeur or ""))
+    return " ".join(texte.split())
+
+
+def _texte_dsn(valeur: str) -> str:
+    """Nettoie un texte libre soumis à CSL-11 (30.007, 30.016…).
+
+    Apostrophe, espace, trait d'union et point n'y sont admis qu'« à bon
+    escient » : jamais accolés à un autre séparateur, ni en bord de champ.
+    Vu chez le cabinet : virgule et barre oblique retirées, « ANDRE - REUNION »
+    resserré en « ANDRE REUNION ». On ne corrige que l'interdit.
+    """
+    texte = str(valeur or "").replace(",", " ").replace("/", " ")
+    texte = re.sub(r"\s+-\s+", " ", texte)
+    return " ".join(texte.split()).strip(" .'-")
+
+
 def _addr(obj: Any) -> Dict[str, str]:
     if not isinstance(obj, dict):
         return {"rue": "", "code_postal": "", "ville": ""}
     return {
         "rue": _voie_dsn(obj.get("rue") or obj.get("street") or ""),
         "code_postal": str(obj.get("code_postal") or obj.get("postal_code") or ""),
-        "ville": str(obj.get("ville") or obj.get("city") or ""),
+        "ville": _ville_dsn(obj.get("ville") or obj.get("city") or ""),
     }
 
 
@@ -228,16 +252,29 @@ def _naissance(employee: Dict[str, Any], nir: str) -> Tuple[str, str, str, List[
         libelle = DEPARTEMENT_DANS_LIBELLE.sub("", libelle).strip()
     if not departement and len(nir) >= 7:
         departement = nir[5:7]
+    libelle = _texte_dsn(libelle)
     pays = ""
     if departement in DEPARTEMENTS_METROPOLE_ET_DOM:
         pays = "FR"
     elif departement:
-        # 99 = né à l'étranger : le code pays ISO n'est pas dans la fiche.
-        avertissements.append(
-            f"Code pays de naissance inconnu pour le NIR {nir[:13]} "
-            f"(né hors de France, département {departement})"
-        )
-        departement = ""
+        # Né à l'étranger ou dans les DOM : ni le département déclarable ni le
+        # pays ne se déduisent du NIR. Ils viennent de la fiche ou de la
+        # reprise des DSN du cabinet — qui déclare '99' + pays (souvent 'FR')
+        # pour l'étranger, '97' + 'FR' pour les DOM, Mayotte comprise.
+        reprise = employee.get("dsn_reprise") or {}
+        pays = str(
+            employee.get("pays_naissance") or reprise.get("pays_naissance") or ""
+        ).strip().upper()
+        if pays:
+            departement = str(
+                reprise.get("departement_naissance") or ""
+            ).strip() or "99"
+        else:
+            avertissements.append(
+                f"Code pays de naissance inconnu pour le NIR {nir[:13]} "
+                f"(né hors de France, département {departement})"
+            )
+            departement = ""
     return libelle, departement, pays, avertissements
 
 
@@ -521,6 +558,18 @@ def build_individu_from_payroll(
     if not date_debut:
         raise DsnBuildError(f"Date d'embauche manquante pour NIR {nir_dsn}")
 
+    # Embauché en cours de mois : les périodes des rémunérations (51.001), des
+    # bases assujetties (78.002) et du net social (58.001) démarrent au premier
+    # jour du contrat, pas au premier du mois — c'est ce que déclare le cabinet
+    # et ce que le validateur attend (CCH-11 sur 51.001, SIG-17 sur 78.003).
+    try:
+        if datetime.strptime(date_debut, "%d%m%Y") > datetime.strptime(
+            period_start, "%d%m%Y"
+        ):
+            period_start = date_debut
+    except ValueError:
+        pass
+
     brut = float(payslip_data.get("salaire_brut") or 0)
     if brut <= 0:
         raise DsnBuildError(f"Brut ≤ 0 pour NIR {nir_dsn}")
@@ -573,7 +622,7 @@ def build_individu_from_payroll(
         period_start=period_start,
         period_end=period_end,
         period=period,
-        contrat_ref="00000",
+        contrat_ref=numero,
     )
 
     # Type et identifiant du taux PAS : « 01 - taux transmis par la DGFiP »
@@ -711,7 +760,7 @@ def build_individu_from_payroll(
     # fiche ; le motif vient du contrat quand il y est, sinon de la reprise.
     date_fin_prev = iso_to_dsn_date(
         employee.get("contract_end_date") or employee.get("date_fin_contrat")
-    )
+    ) or str(reprise.get("date_fin_contrat") or "")
     if date_fin_prev:
         rubriques_contrat["S21.G00.40.010"] = date_fin_prev
     motif_recours = str(
@@ -760,12 +809,14 @@ def build_individu_from_payroll(
     # sept sociétés, cadres compris.
     ctr.rubriques["_regime_retraite_complementaire"] = "RUAA"
 
-    # Ancienneté dans l'entreprise, en mois révolus depuis la date d'entrée.
-    mois_anciennete = _anciennete_en_mois(date_debut, period_end)
-    if mois_anciennete is not None:
+    # Ancienneté dans l'entreprise depuis la date d'entrée : en mois révolus,
+    # ou en jours pour un embauché du mois (zéro mois est refusé, CCH-12).
+    anciennete = _anciennete_entreprise(date_debut, period_end)
+    if anciennete is not None:
+        unite_anciennete, valeur_anciennete = anciennete
         ctr.rubriques["_anciennete_entreprise"] = {
-            "unite": "02",  # mois
-            "valeur": str(mois_anciennete),
+            "unite": unite_anciennete,
+            "valeur": valeur_anciennete,
             "contrat": numero,
         }
 
@@ -805,13 +856,23 @@ def build_individu_from_payroll(
     }
     if employee.get("nom_usage"):
         rubriques_individu["S21.G00.30.003"] = str(employee["nom_usage"]).upper()
+    # Niveau de diplôme préparé (30.025), exigé avec un dispositif de politique
+    # publique alternance (40.008 = 64/65/66). Donnée par salarié, reprise du
+    # cabinet à défaut de saisie.
+    niveau_diplome = str(
+        employee.get("niveau_diplome_prepare")
+        or reprise.get("niveau_diplome_prepare")
+        or ""
+    )
+    if niveau_diplome:
+        rubriques_individu["S21.G00.30.025"] = niveau_diplome
     if departement_naissance:
         rubriques_individu["S21.G00.30.014"] = departement_naissance
     if pays_naissance:
         rubriques_individu["S21.G00.30.015"] = pays_naissance
     complement = (employee.get("adresse") or employee.get("address") or {})
     if isinstance(complement, dict) and complement.get("complement"):
-        rubriques_individu["S21.G00.30.016"] = str(complement["complement"])
+        rubriques_individu["S21.G00.30.016"] = _texte_dsn(complement["complement"])
     rubriques_individu.update(CONSTANTES_INDIVIDU)
 
     ind = IndividuBlock(
@@ -835,11 +896,16 @@ def build_individu_from_payroll(
     return ind, warnings
 
 
-def _anciennete_en_mois(date_debut_dsn: str, fin_periode: str) -> Optional[int]:
-    """Mois révolus entre l'entrée et la fin du mois déclaré (S21.G00.86.003).
+def _anciennete_entreprise(
+    date_debut_dsn: str, fin_periode: str
+) -> Optional[Tuple[str, str]]:
+    """(unité, valeur) de l'ancienneté entreprise (S21.G00.86.002/003).
 
     Les deux dates arrivent au format DSN `JJMMAAAA`. Contrôlé sur les DSN du
-    cabinet : une entrée au 01/12/2022 déclarée sur mai 2026 donne 41 mois.
+    cabinet : une entrée au 01/12/2022 déclarée sur mai 2026 donne 41 mois
+    (unité 02). Moins d'un mois révolu, la valeur 0 est refusée (CCH-12) : le
+    cabinet passe en jours (unité 01), comptés du premier jour inclus — une
+    entrée au 04/05 déclarée fin mai donne 28 jours.
     """
     try:
         debut = datetime.strptime(date_debut_dsn, "%d%m%Y")
@@ -849,7 +915,12 @@ def _anciennete_en_mois(date_debut_dsn: str, fin_periode: str) -> Optional[int]:
     mois = (fin.year - debut.year) * 12 + (fin.month - debut.month)
     if fin.day < debut.day:
         mois -= 1
-    return mois if mois >= 0 else None
+    if mois >= 1:
+        return "02", str(mois)
+    jours = (fin - debut).days + 1
+    if jours < 0:
+        return None
+    return "01", str(jours)
 
 
 def build_parsed_dsn_from_payroll(

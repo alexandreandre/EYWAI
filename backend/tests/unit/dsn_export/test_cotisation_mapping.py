@@ -99,3 +99,41 @@ def test_build_bases_and_cotisations_ok():
     ags = next(c for c in cots if c.code == "048")
     assert ags.rubriques.get("S21.G00.81.007") == "0.250"
     assert ags.rubriques.get("S21.G00.81.002") == "79484650100011"
+
+
+def test_pas_plus_de_bases_31_que_d_affiliations():
+    """Un 78.005 sans bloc 70 correspondant est refusé (CCH-11/CCH-12) : le
+    surplus de lignes 059 se replie sur la dernière affiliation, montants
+    additionnés — une base 31 par affiliation, comme le cabinet."""
+    bases, cots, _ = build_bases_and_cotisations(
+        [
+            {"coti_id": "mutuelle", "base": 2500, "montant_patronal": 58.48},
+            {"coti_id": "mutuelle", "base": 2500, "montant_patronal": 87.71},
+            {"coti_id": "mutuelle", "base": 2500, "montant_patronal": 23.92},
+            {"coti_id": "mutuelle", "base": 2500, "montant_patronal": 200.24},
+        ],
+        brut=2500,
+        period_start="01052026",
+        period_end="31052026",
+        affiliation_ids=["1", "2"],
+    )
+    bases_31 = [b for b in bases if b.rubriques.get("S21.G00.78.001") == "31"]
+    assert [b.rubriques["S21.G00.78.005"] for b in bases_31] == ["1", "2"]
+    montants_059 = [
+        c.montant_patronal for c in cots if c.rubriques.get("S21.G00.81.001") == "059"
+    ]
+    assert montants_059 == [58.48, round(87.71 + 23.92 + 200.24, 2)]
+
+
+def test_chaque_affiliation_recoit_sa_base_31_meme_sans_cotisation():
+    """Plus d'affiliations que de lignes 059 : les restantes reçoivent une
+    base et une cotisation à zéro (CCH-13), le manque du moteur reste visible."""
+    bases, cots, _ = build_bases_and_cotisations(
+        [{"coti_id": "mutuelle", "base": 2500, "montant_patronal": 58.48}],
+        brut=2500,
+        period_start="01052026",
+        period_end="31052026",
+        affiliation_ids=["1", "2"],
+    )
+    bases_31 = [b for b in bases if b.rubriques.get("S21.G00.78.001") == "31"]
+    assert [b.rubriques["S21.G00.78.005"] for b in bases_31] == ["1", "2"]

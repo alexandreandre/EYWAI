@@ -145,3 +145,121 @@ def test_le_forfait_jours_se_compte_en_jours():
     assert contrat["S21.G00.40.011"] == "20"
     assert contrat["S21.G00.40.012"] == "21.27"
     assert contrat["S21.G00.40.013"] == "21.27"
+
+
+def construire_individu(salarie: Dict = None, bulletin: Dict = None):
+    individu, avertissements = build_individu_from_payroll(
+        salarie or SALARIE,
+        bulletin or BULLETIN,
+        period="2026-05",
+        company_siret="80248516900022",
+    )
+    return individu, avertissements
+
+
+def test_les_remunerations_portent_le_numero_de_leur_contrat():
+    """Un 51.010 qui ne pointe aucun 40.009 fabrique un contrat sans
+    rémunération (CCH-13) et une rémunération orpheline (CCH-11)."""
+    salarie = {
+        **SALARIE,
+        "classification_conventionnelle": {
+            **SALARIE["classification_conventionnelle"],
+            "numero_contrat_dsn": "00001",
+        },
+    }
+    individu, _ = construire_individu(salarie)
+    contrat = individu.contrats[0]
+    assert contrat.rubriques["S21.G00.40.009"] == "00001"
+    for rem in contrat.versements[0].remunerations:
+        assert rem.rubriques["S21.G00.51.010"] == "00001"
+
+
+def test_un_embauche_du_mois_compte_son_anciennete_en_jours():
+    """86.003 à zéro est refusé (CCH-12) : le cabinet passe en jours, du
+    premier jour inclus — entré le 04/05, déclaré fin mai : 28 jours."""
+    salarie = {**SALARIE, "hire_date": "2026-05-04"}
+    individu, _ = construire_individu(salarie)
+    anciennete = individu.contrats[0].rubriques["_anciennete_entreprise"]
+    assert anciennete["unite"] == "01"
+    assert anciennete["valeur"] == "28"
+
+
+def test_les_periodes_demarrent_au_premier_jour_du_contrat():
+    """Embauché en cours de mois : 51.001 et 78.002 au début du contrat,
+    pas au premier du mois (CCH-11 sur 51.001, SIG-17 sur 78.003)."""
+    salarie = {**SALARIE, "hire_date": "2026-05-04"}
+    individu, _ = construire_individu(salarie)
+    versement = individu.contrats[0].versements[0]
+    for rem in versement.remunerations:
+        assert rem.rubriques["S21.G00.51.001"] == "04052026"
+    for base in versement.bases_assujetties:
+        assert base.rubriques["S21.G00.78.002"] == "04052026"
+
+
+def test_naissance_a_l_etranger_reprend_le_departement_et_le_pays_du_cabinet():
+    """Le cabinet déclare 30.014='99' et 30.015='FR' pour un né à l'étranger :
+    repris tels quels, le pays ne se déduit pas du NIR."""
+    salarie = {
+        **SALARIE,
+        "nir": "163089913913944",
+        "lieu_naissance": "PORTO",
+        "dsn_reprise": {"departement_naissance": "99", "pays_naissance": "FR"},
+    }
+    individu, avertissements = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.014"] == "99"
+    assert individu.rubriques["S21.G00.30.015"] == "FR"
+    assert not any("pays de naissance" in a for a in avertissements)
+
+
+def test_naissance_dans_les_dom_reprend_le_97_du_cabinet():
+    """Mayotte comprise, le cabinet déclare 30.014='97' + 30.015='FR'."""
+    salarie = {
+        **SALARIE,
+        "nir": "193079850500404",
+        "lieu_naissance": "CHICONI",
+        "dsn_reprise": {"departement_naissance": "97", "pays_naissance": "FR"},
+    }
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.014"] == "97"
+    assert individu.rubriques["S21.G00.30.015"] == "FR"
+
+
+def test_la_ville_perd_apostrophe_et_trait_d_union():
+    """La regex de la localité (CSL-00) n'admet ni l'un ni l'autre : le
+    cabinet déclare « L ABSIE » et « LE BOURGET DU LAC »."""
+    salarie = {**SALARIE, "adresse": {**SALARIE["adresse"], "ville": "L'ABSIE"}}
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.010"] == "L ABSIE"
+    salarie = {**SALARIE, "adresse": {**SALARIE["adresse"], "ville": "LE BOURGET-DU-LAC"}}
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.010"] == "LE BOURGET DU LAC"
+
+
+def test_le_complement_d_adresse_perd_les_separateurs_interdits():
+    """Virgule et barre oblique sont interdites, le tiret entre espaces
+    aussi (CSL-11) : « BAT A1 - Appart 3 » passe, resserré."""
+    salarie = {
+        **SALARIE,
+        "adresse": {**SALARIE["adresse"], "complement": "Appt 6 / Bat A1 - étage 2, B"},
+    }
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.016"] == "Appt 6 Bat A1 étage 2 B"
+
+
+def test_le_lieu_de_naissance_resserre_le_tiret_entre_espaces():
+    salarie = {**SALARIE, "lieu_naissance": "SAINT ANDRE - REUNION", "nir": "169069740909304"}
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.007"] == "SAINT ANDRE REUNION"
+
+
+def test_l_apprenti_reprend_niveau_de_diplome_et_date_de_fin():
+    """Dispositif alternance : 30.025 exigé (CCH-11) et 40.010 exigée pour un
+    CDD (CCH-12) — repris du cabinet quand la fiche ne les porte pas."""
+    salarie = {
+        **SALARIE,
+        "contract_type": "CDD",
+        "dsn_reprise": {"niveau_diplome_prepare": "06", "date_fin_contrat": "31082026"},
+    }
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.025"] == "06"
+    assert individu.contrats[0].rubriques["S21.G00.40.010"] == "31082026"

@@ -756,6 +756,23 @@ def build_bases_and_cotisations(
     lignes_31: List[Optional[LigneDsn]] = list(lignes_prevoyance)
     while affiliation_ids and len(lignes_31) < len(affiliation_ids):
         lignes_31.append(None)
+    # Et jamais plus de bases 31 que d'affiliations déclarées : un identifiant
+    # 78.005 sans bloc 70 correspondant est refusé (CCH-11/CCH-12). Quand le
+    # bulletin porte plus de lignes 059 que le salarié n'a d'affiliations, le
+    # surplus est replié sur la dernière — le rattachement fin ligne à ligne
+    # relève du moteur, la structure suit les affiliations, comme le cabinet.
+    if affiliation_ids and len(lignes_31) > len(affiliation_ids):
+        garder = len(affiliation_ids) - 1
+        surplus = [l for l in lignes_31[garder:] if l is not None]
+        lignes_31 = lignes_31[:garder] + [
+            LigneDsn(
+                code="059",
+                base=BASE_PREVOYANCE,
+                montant=round(sum(l.montant for l in surplus), 2),
+                assiette=surplus[0].assiette if surplus else 0.0,
+                taux=0.0,
+            )
+        ]
     for index, ligne_ou_vide in enumerate(lignes_31):
         ligne = ligne_ou_vide or LigneDsn(
             code="059",
