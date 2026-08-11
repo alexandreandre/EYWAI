@@ -235,6 +235,16 @@ DEPARTEMENTS_METROPOLE_ET_DOM = set(f"{n:02d}" for n in range(1, 96)) | {
 }
 
 
+def _reprise_dsn(employee: Dict[str, Any]) -> Dict[str, Any]:
+    """La reprise DSN du salarié : au niveau racine dans les jeux de
+    conformité, sous specificites_paie en base réelle (dsn_reprise_loader)."""
+    specs = employee.get("specificites_paie") or {}
+    if not isinstance(specs, dict):
+        specs = {}
+    reprise = employee.get("dsn_reprise") or specs.get("dsn_reprise") or {}
+    return reprise if isinstance(reprise, dict) else {}
+
+
 def _naissance(employee: Dict[str, Any], nir: str) -> Tuple[str, str, str, List[str]]:
     """Retourne (lieu, département, pays, avertissements).
 
@@ -261,7 +271,7 @@ def _naissance(employee: Dict[str, Any], nir: str) -> Tuple[str, str, str, List[
         # pays ne se déduisent du NIR. Ils viennent de la fiche ou de la
         # reprise des DSN du cabinet — qui déclare '99' + pays (souvent 'FR')
         # pour l'étranger, '97' + 'FR' pour les DOM, Mayotte comprise.
-        reprise = employee.get("dsn_reprise") or {}
+        reprise = _reprise_dsn(employee)
         pays = str(
             employee.get("pays_naissance") or reprise.get("pays_naissance") or ""
         ).strip().upper()
@@ -578,12 +588,21 @@ def build_individu_from_payroll(
     net_verse = _net_a_payer(payslip_data)
     pas_montant, pas_taux, pas_assiette = _pas_details(payslip_data)
 
-    # Données de reprise DSN posées sur la fiche par les scripts de reprise :
-    # affiliations prévoyance/santé du salarié, type et identifiant du taux
-    # PAS, SMIC retenu — tout ce qui ne se déduit ni du bulletin ni du contrat.
-    reprise = employee.get("dsn_reprise") or {}
+    # Données de reprise DSN : affiliations prévoyance/santé du salarié, type
+    # et identifiant du taux PAS, SMIC retenu, naissance hors de France — tout
+    # ce qui ne se déduit ni du bulletin ni du contrat. Posées au niveau racine
+    # par les jeux de conformité, dans specificites_paie par le loader
+    # (scripts/dsn_reprise_loader.py) pour la base réelle.
+    specs = employee.get("specificites_paie") or {}
+    if not isinstance(specs, dict):
+        specs = {}
+    reprise = _reprise_dsn(employee)
     affiliations_psc = [
-        a for a in (employee.get("affiliations_psc") or []) if isinstance(a, dict)
+        a
+        for a in (
+            employee.get("affiliations_psc") or specs.get("affiliations_psc") or []
+        )
+        if isinstance(a, dict)
     ]
 
     synthese_net = payslip_data.get("synthese_net") or {}
@@ -699,7 +718,6 @@ def build_individu_from_payroll(
                 rubriques={k: v for k, v in rubriques_aff.items() if v},
             )
         )
-    specs = employee.get("specificites_paie") or {}
     if not affiliations and isinstance(specs, dict):
         mutuelle = specs.get("mutuelle") or {}
         if isinstance(mutuelle, dict) and mutuelle.get("adhesion"):

@@ -263,3 +263,32 @@ def test_l_apprenti_reprend_niveau_de_diplome_et_date_de_fin():
     individu, _ = construire_individu(salarie)
     assert individu.rubriques["S21.G00.30.025"] == "06"
     assert individu.contrats[0].rubriques["S21.G00.40.010"] == "31082026"
+
+
+def test_la_reprise_se_lit_aussi_dans_specificites_paie():
+    """En base réelle, la reprise DSN vit sous specificites_paie (portée par
+    dsn_reprise_loader.py) — le builder doit la lire là aussi."""
+    salarie = {
+        **SALARIE,
+        "nir": "163089913913944",
+        "lieu_naissance": "PORTO",
+        "specificites_paie": {
+            "dsn_reprise": {
+                "departement_naissance": "99",
+                "pays_naissance": "FR",
+                "pas_type": "01",
+                "pas_identifiant": "434178834",
+            },
+            "affiliations_psc": [
+                {"option": "E", "population": "ENSP", "id_affiliation": "1", "id_contrat": "2"}
+            ],
+        },
+    }
+    individu, _ = construire_individu(salarie)
+    assert individu.rubriques["S21.G00.30.014"] == "99"
+    assert individu.rubriques["S21.G00.30.015"] == "FR"
+    contrat = individu.contrats[0]
+    assert contrat.affiliations[0].rubriques["S21.G00.70.012"] == "1"
+    versement = contrat.versements[0]
+    assert versement.rubriques["S21.G00.50.007"] == "01"
+    assert versement.rubriques["S21.G00.50.008"] == "434178834"
