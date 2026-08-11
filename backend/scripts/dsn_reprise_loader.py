@@ -130,9 +130,56 @@ def traiter(societe: str, appliquer: bool) -> Tuple[int, int, int]:
     return ecrits, a_jour, absents
 
 
+def traiter_organismes(societe: str, appliquer: bool) -> int:
+    """Porte le bloc 15 (settings.json local) vers company_dsn_settings.
+
+    Exige la colonne ``organismes_complementaires`` (migration
+    20260811170000). L'ordre 15.005 fait partie de la donnée : les 70.013
+    des salariés le référencent.
+    """
+    from app.core.database import supabase  # import tardif
+    from app.modules.dsn_export.infrastructure import settings_repository
+
+    chemin = FIXTURES / societe / "settings.json"
+    if not chemin.exists():
+        print(f"{societe} : pas de settings.json local, ignoré")
+        return 0
+    organismes = json.loads(chemin.read_text()).get("organismes_complementaires") or []
+    if not organismes:
+        print(f"{societe} : pas d'organismes dans le settings.json, ignoré")
+        return 0
+
+    nom = json.loads((dernier_jeu(societe) / "input.json").read_text())["company_name"]
+    reponse = (
+        supabase.table("companies").select("id").eq("company_name", nom).execute()
+    )
+    lignes = reponse.data or []
+    if not lignes:
+        print(f"{societe} : société «{nom}» introuvable en base, ignoré")
+        return 0
+    company_id = lignes[0]["id"]
+
+    parametrage = settings_repository.charger(company_id)
+    if parametrage.organismes_complementaires == organismes:
+        print(f"{societe} : bloc 15 déjà à jour ({len(organismes)} contrats)")
+        return 0
+    parametrage.organismes_complementaires = organismes
+    if appliquer:
+        settings_repository.enregistrer(company_id, parametrage)
+        print(f"{societe} : {len(organismes)} contrats du bloc 15 écrits")
+    else:
+        print(f"{societe} : {len(organismes)} contrats du bloc 15 À ÉCRIRE")
+    return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--societe", choices=SOCIETES)
+    parser.add_argument(
+        "--organismes",
+        action="store_true",
+        help="porte aussi le bloc 15 des settings.json vers company_dsn_settings",
+    )
     parser.add_argument("--apply", action="store_true", help="écrit en base (simulation sinon)")
     parser.add_argument(
         "--projet",
@@ -157,6 +204,8 @@ def main() -> int:
     for societe in [args.societe] if args.societe else SOCIETES:
         resultat = traiter(societe, args.apply)
         total = tuple(a + b for a, b in zip(total, resultat))
+        if args.organismes:
+            traiter_organismes(societe, args.apply)
     ecrits, a_jour, absents = total
     verbe = "écrits" if args.apply else "à écrire"
     print(f"\nTotal : {ecrits} {verbe}, {a_jour} déjà à jour, {absents} non appariés")
