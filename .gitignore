@@ -418,3 +418,9 @@ __pycache__/
 WhatsApp Chat*/
 WhatsApp Chat*.zip
 _chat.txt
+
+# QA / Playwright E2E
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/
+!frontend/.env.e2e.example
