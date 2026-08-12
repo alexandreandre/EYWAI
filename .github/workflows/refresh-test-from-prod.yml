@@ -91,6 +91,23 @@ jobs:
           SUPABASE_TEST_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
         run: ./scripts/test_env/refresh_from_prod.sh
 
+      # La resynchro copie auth.users depuis la prod et efface donc le compte
+      # QA des tests E2E : on le recrée aussitôt. Sans le secret, on prévient
+      # sans faire échouer la resynchro elle-même.
+      - name: Recréer le compte QA E2E
+        env:
+          TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
+          QA_PW: ${{ secrets.QA_E2E_PASSWORD }}
+        run: |
+          if [ -z "$QA_PW" ]; then
+            echo "::warning::Secret QA_E2E_PASSWORD absent : compte QA non recréé, la suite E2E échouera au login (voir docs/qa/strategie-qa.md)."
+            exit 0
+          fi
+          psql "$TEST_DB_URL" -v ON_ERROR_STOP=1 \
+            -c "select set_config('qa.pw', '$QA_PW', false);" \
+            -f scripts/qa/seed_qa_user.sql
+          echo "Compte QA E2E recréé."
+
       - name: Résumé
         if: always()
         run: |

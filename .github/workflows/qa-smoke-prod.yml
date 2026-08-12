@@ -1,0 +1,45 @@
+# Smoke production — vérifie toutes les heures que l'EYWAI de production
+# répond, SANS s'y connecter et sans rien y écrire (deux GET anonymes).
+# Un échec = run rouge → notification GitHub au propriétaire du dépôt.
+# C'est le « Checkly maison » : suffisant tant qu'on n'a pas besoin de
+# scénarios connectés multi-régions.
+
+name: Smoke prod (horaire)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 * * * *'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Frontend prod servi
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/front.html -w '%{http_code}' --max-time 30 \
+              https://sirh-frontend-505040845625.europe-west1.run.app/) && break || sleep 10
+          done
+          echo "HTTP $code"
+          [ "$code" = "200" ] || { echo '::error::Frontend prod ne répond pas en 200'; exit 1; }
+          grep -q '<div id="root"' /tmp/front.html || { echo '::error::La page servie ne contient pas l’app React'; exit 1; }
+
+      - name: Bundle JS servi (pas seulement la coquille HTML)
+        run: |
+          js=$(grep -oE 'src="[^"]+\.js"' /tmp/front.html | head -1 | sed 's/src="//;s/"$//')
+          [ -n "$js" ] || { echo '::error::Aucun script JS référencé dans index.html'; exit 1; }
+          case "$js" in /*) url="https://sirh-frontend-505040845625.europe-west1.run.app$js" ;; *) url="$js" ;; esac
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$url")
+          echo "$url → HTTP $code"
+          [ "$code" = "200" ] || { echo '::error::Le bundle JS de la prod ne se charge pas'; exit 1; }
+
+      - name: Backend prod en bonne santé
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 30 \
+              https://sirh-backend-505040845625.europe-west1.run.app/health) && break || sleep 10
+          done
+          echo "HTTP $code — $(cat /tmp/health.json)"
+          [ "$code" = "200" ] || { echo '::error::Backend prod /health ne répond pas en 200'; exit 1; }

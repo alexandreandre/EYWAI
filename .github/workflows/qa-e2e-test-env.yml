@@ -1,0 +1,71 @@
+# QA E2E — joue la suite Playwright contre l'ENVIRONNEMENT DE TEST.
+#
+# Jamais contre la production : playwright.config.ts refuse de démarrer si
+# l'URL cible est la prod. Secrets requis (Settings → Secrets → Actions) :
+#   QA_E2E_EMAIL / QA_E2E_PASSWORD — identifiants du compte QA
+#   (créé par scripts/qa/seed_qa_user.sql, à rejouer après chaque resynchro).
+# Sans eux, seuls les tests publics (disponibilité, login) tournent.
+
+name: QA E2E (env de test)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 5 * * 1-5' # chaque matin de semaine, avant la journée de travail
+  workflow_run:
+    workflows: ['Deploy test env'] # rejoue la suite après chaque déploiement du test
+    types: [completed]
+
+concurrency:
+  group: qa-e2e-test-env
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    # Sur workflow_run : seulement si le déploiement du test a réussi.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sans les secrets, la config dégraderait silencieusement en 2 tests
+      # publics avec un run vert : on préfère un échec explicite.
+      - name: Vérifier les secrets QA
+        env:
+          QA_PW: ${{ secrets.QA_E2E_PASSWORD }}
+        run: |
+          if [ -z "$QA_PW" ]; then
+            echo '::error::Secrets QA_E2E_EMAIL / QA_E2E_PASSWORD absents (Settings → Secrets → Actions). Voir docs/qa/strategie-qa.md.'
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Typecheck des specs
+        run: npm run e2e:typecheck
+
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      # ⚠ Dépôt PUBLIC : ne JAMAIS uploader le rapport HTML, les screenshots,
+      # vidéos ou traces en artefact — l'environnement de test contient une
+      # copie des données de paie réelles et les artefacts d'un dépôt public
+      # sont téléchargeables par n'importe quel compte GitHub. En cas d'échec,
+      # rejouer en local (`npm run e2e`) pour obtenir traces et captures.
+      - name: Jouer la suite E2E
+        env:
+          E2E_QA_EMAIL: ${{ secrets.QA_E2E_EMAIL }}
+          E2E_QA_PASSWORD: ${{ secrets.QA_E2E_PASSWORD }}
+          PLAYWRIGHT_NO_MEDIA: '1'
+        run: npx playwright test
