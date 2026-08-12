@@ -145,7 +145,13 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
       return countSchedulesToEnter(rows);
     },
     enabled: companyEnabled,
-    staleTime: STALE,
+    // Ce badge coûte 3 requêtes PAR salarié (calendrier prévu, heures réelles,
+    // absences) : ~260 appels sur une société de 86. Avec le staleTime commun
+    // (30 s), la sidebar relançait la rafale à chaque navigation — avec des
+    // échecs CORS intermittents sous charge. Une pastille « calendriers à
+    // saisir » peut être fraîche à 5 minutes près ; les mutations passent par
+    // invalidateRhSidebarBadges pour forcer le refresh immédiat.
+    staleTime: 5 * 60_000,
   });
 
   const workMedalsQuery = useQuery({
