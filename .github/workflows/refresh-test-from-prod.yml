@@ -94,7 +94,12 @@ jobs:
       # La resynchro copie auth.users depuis la prod et efface donc le compte
       # QA des tests E2E : on le recrée aussitôt. Sans le secret, on prévient
       # sans faire échouer la resynchro elle-même.
+      # `if: always()` : la base peut être refreshée même quand le job échoue
+      # plus loin (ex. un objet Storage en 400) — le 12/08 le re-seed a été
+      # sauté pour ça. Le seed est idempotent et sans danger sur base non
+      # refreshée.
       - name: Recréer le compte QA E2E
+        if: always()
         env:
           TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
           QA_PW: ${{ secrets.QA_E2E_PASSWORD }}
