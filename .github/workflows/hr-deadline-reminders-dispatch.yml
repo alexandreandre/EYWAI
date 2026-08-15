@@ -3,8 +3,20 @@ name: HR deadline reminders dispatch
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 7 * * *"
+  # Cron désactivé le 2026-08-15, en attente de la mise en production.
+  #
+  # Réactiver le cron et créer le secret SUPABASE_SERVICE_ROLE_KEY sont un seul
+  # et même geste : sans cette clé, get_supabase_admin_client() retombe sur la
+  # clé anon, RLS bloque la lecture de platform_email_settings (où vit la config
+  # SMTP), et l'envoi échoue en « SMTP non configuré ». Avec elle, les relances
+  # partent réellement dès l'exécution suivante, sans confirmation.
+  #
+  # Avant de réactiver : corriger les 2 comptes RH de Cartol Industrie qui
+  # portent une adresse fabriquée non routable (@eywai.access.local). Ils sont
+  # exclus des envois avec un warning, donc rien ne casse — ils ne reçoivent
+  # simplement jamais rien.
+  # schedule:
+  #   - cron: "0 7 * * *"
 
 jobs:
   dispatch:
