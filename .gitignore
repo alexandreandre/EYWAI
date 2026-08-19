@@ -419,6 +419,9 @@ WhatsApp Chat*/
 WhatsApp Chat*.zip
 _chat.txt
 
+# Vercel (landing sirh-maji)
+.vercel/
+
 # QA / Playwright E2E
 frontend/e2e/.auth/
 frontend/test-results/
@@ -426,3 +429,4 @@ frontend/playwright-report/
 !frontend/.env.e2e.example
 # seed du compte QA : requis par la CI, sans secret (mot de passe via set_config)
 !scripts/qa/seed_qa_user.sql
+.superpowers/
