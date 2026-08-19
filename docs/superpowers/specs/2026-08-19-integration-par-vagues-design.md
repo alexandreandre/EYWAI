@@ -18,7 +18,7 @@ réponses élargissent le déploiement, elles ne conditionnent pas le départ.
 | Vague | Qui | Quoi |
 | --- | --- | --- |
 | **0** | Gaëlle (RH usines), Vanessa (MAJI/Zone 404), Elsa, puis les 5 directeurs de site | Activation de leurs comptes + tour des modules RH — composition donnée par Elsa le 19/08 |
-| **1** | Salariés Colorplast + Comitech **à e-mail réel** (5/7 et 8/18, s'élargit au fil des réponses d'Elsa) | 🔑 Activation + ⏱ badgeage/pointages + demandes de congés (compteur masqué, voir plus bas) |
+| **1** | Salariés Colorplast + Comitech **à e-mail réel** (5/7 et 8/18, s'élargit au fil des réponses d'Elsa) | 🔑 Activation + ⏱ badgeage/pointages + demandes de congés (soldes chargés au préalable, voir règle d'ordre) |
 | **2** | Cartol, MBC, LEWIS | 🔑 + ⏱, plus 🗂 RH interne partout (visites médicales, titres de séjour, périodes d'essai) |
 | **3** | Boîte par boîte, quand sa paie a basculé | 📄 Espace salarié (bulletins, soldes, acomptes) |
 
@@ -69,13 +69,19 @@ d'historique préalable — aucun bulletin en base).
 - Défaut : tout éteint pour les salariés ; les écrans RH restent pilotés
   par le RBAC existant.
 
-### 3. Congés sans compteur (nouveau, léger)
+### 3. Règle d'ordre : soldes avant invitations (décision du 19/08)
 
-- Le salarié peut poser ses congés dès la vague 1 ; le compteur affiché
-  est masqué (« solde en cours de reprise ») tant que la société n'a pas
-  le drapeau **« soldes repris »**.
-- Drapeau par société, activé après chargement de l'état de provision du
-  cabinet.
+Conçu d'abord comme un « compteur masqué » (le salarié pose ses congés
+mais ne voit pas de solde tant que sa société n'est pas reprise), ce
+composant a été **rétrogradé** après réception des états de provision le
+19/08 :
+
+- **Règle d'ordre, pas du dev** : aucune invitation salariés dans une
+  société tant que ses soldes N-1 ne sont pas chargés et vérifiés. Pour
+  la vague 1 (Colorplast, Comitech), les états sont déjà là.
+- **Filet optionnel** (~1 h de dev, non prioritaire) : un drapeau
+  « soldes repris » par société qui masque le compteur — utile seulement
+  pour MAJI/Zone 404 (états manquants) et les reprises futures.
 
 ### 4. Chargement des soldes N-1 (données, pas du dev)
 
