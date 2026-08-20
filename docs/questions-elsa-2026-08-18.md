@@ -140,6 +140,18 @@ Le nouvel état Cartol compte ~88 lignes (contre 71 dans celui du 21/07,
 pour 86 payés en juin) : l'ancien fichier était simplement une extraction
 antérieure aux embauches. À confirmer au chargement, plus rien à demander.
 
+### Addendum du 20/08 — trois réponses de plus
+
+- **Cantine (reliquat #13)** : « 648 100, dernière ligne sur le journal
+  de paie MBC » — cohérent avec l'OD MBC de juillet (compte `64810000`,
+  au crédit). Réponse pour MBC ; à confirmer si le même compte vaut pour
+  les autres sociétés. Elsa « demande pour la cantine » par ailleurs.
+- **Fichiers de virement** : disponibles le **27/08** au moment des paies
+  (« éditables qu'une fois ») — ce seront les références du critère
+  banque de la bascule paie.
+- **Réunion au retour de Vanessa le 24/08** : remise des accès +
+  signature + acompte proposés dans la foulée (voir mémoire vente EYWAI).
+
 ### Groupe d'intégration : les premiers utilisateurs sont connus
 Elsa a donné la composition (message du 19/08 vers 9h29) : d'abord
 **Gaëlle (RH usines), Vanessa (MAJI/Zone 404) et Elsa**, ensuite les
