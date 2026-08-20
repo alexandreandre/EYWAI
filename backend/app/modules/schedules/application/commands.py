@@ -57,15 +57,26 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         ]
         # Fusion sur l'existant : le payload client n'embarque pas toujours
         # les métadonnées d'absence, et un remplacement les effacerait.
+        #
+        # Un mois inexistant renvoie {"calendrier_prevu": []} sans lever :
+        # l'exception ne survient donc que sur une vraie panne de lecture —
+        # précisément le cas où écraser le mois avec le payload appauvri
+        # détruirait des absences validées. On refuse d'écrire, en 503 pour
+        # que l'appel soit rejouable.
         try:
             existant = queries.get_planned_calendar(
                 employee_id, payload.year, payload.month
             ).get("calendrier_prevu", [])
         except Exception as e:
             logger.warning(
-                "Calendrier existant illisible (%s) — fusion sans base.", e
+                "Calendrier existant illisible (%s) — enregistrement refusé.", e
             )
-            existant = []
+            raise ScheduleAppError(
+                "unavailable",
+                "Planning existant illisible : enregistrement refusé pour ne pas "
+                "écraser d'éventuelles absences validées. Réessayez.",
+                status_code=503,
+            ) from e
         calendrier_prevu_raw = domain_rules.merge_planned_entries(
             existant, calendrier_prevu_raw
         )

@@ -234,6 +234,52 @@ def test_update_planned_calendar_ne_detruit_pas_les_metadonnees(monkeypatch):
     assert jour3["subrogation_active"] is True
 
 
+def test_update_planned_calendar_refuse_d_ecrire_si_la_relecture_echoue(monkeypatch):
+    """Une panne de lecture ne doit pas se solder par un écrasement en HTTP 200.
+
+    Un mois inexistant renvoie `{"calendrier_prevu": []}` sans lever :
+    l'exception ne survient donc que sur une vraie panne — précisément le cas
+    où il ne faut surtout pas remplacer le mois par le payload appauvri.
+    """
+    import pytest
+
+    from app.modules.schedules.application import commands
+    from app.modules.schedules.application.exceptions import ScheduleAppError
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarRequest,
+    )
+
+    monkeypatch.setattr(
+        commands, "get_employee_company_and_statut", lambda _id: ("comp-1", "Employé")
+    )
+
+    def _lecture_en_panne(*_a, **_k):
+        raise RuntimeError("PostgREST indisponible")
+
+    monkeypatch.setattr(commands.queries, "get_planned_calendar", _lecture_en_panne)
+
+    appels = []
+    monkeypatch.setattr(
+        commands.schedule_repository,
+        "upsert_schedule",
+        lambda *a, **k: appels.append(a),
+    )
+
+    payload = PlannedCalendarRequest(
+        year=2026,
+        month=7,
+        calendrier_prevu=[
+            PlannedCalendarEntry(jour=3, type="travail", heures_prevues=7.0)
+        ],
+    )
+    with pytest.raises(ScheduleAppError) as exc:
+        commands.update_planned_calendar("emp-1", payload)
+
+    assert exc.value.status_code == 503
+    assert appels == []
+
+
 def _provider_avec_calendrier(monkeypatch, calendrier_existant):
     """
     Monte un CalendarUpdateProvider sur un faux Supabase, et rend la fonction
