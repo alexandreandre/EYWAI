@@ -56,3 +56,38 @@ def test_admin_env_prefere_service_role_dans_les_deux_etats(monkeypatch):
         monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
         url, key = settings.get_supabase_admin_env()
         assert key == SERVICE
+
+
+def test_database_default_client_choisit_service_role(monkeypatch):
+    """Le client par défaut du backend doit être service_role dans les deux états."""
+    import importlib
+
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", ANON)  # état cible (post-bascule)
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", SERVICE)
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+
+    captured = {}
+
+    def fake_create_client(url, key, options=None):
+        captured["key"] = key
+
+        class _Fake:  # objet client minimal
+            pass
+
+        return _Fake()
+
+    import app.core.database as database_mod
+    import app.core.settings as settings_mod
+
+    try:
+        importlib.reload(settings_mod)
+        monkeypatch.setattr("supabase.create_client", fake_create_client)
+        importlib.reload(database_mod)
+        assert captured["key"] == SERVICE
+    finally:
+        # Restaure l'état réel des modules pour le reste de la suite
+        # (env + create_client d'origine, puis reload propre).
+        monkeypatch.undo()
+        importlib.reload(settings_mod)
+        importlib.reload(database_mod)

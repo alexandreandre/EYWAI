@@ -2,9 +2,11 @@
 Centralisation de la création et de l'accès aux clients Supabase.
 
 Stratégie unifiée :
-- get_supabase_client() : client par défaut (SUPABASE_KEY, usage API courant).
-- get_supabase_admin_client() : client avec privilèges admin (SUPABASE_SERVICE_KEY
-  ou SUPABASE_SERVICE_ROLE_KEY, sinon repli sur SUPABASE_KEY).
+- get_supabase_client() : client par défaut = service_role sélectionné par claim
+  JWT (backend de confiance ; les noms de variables ont été historiquement
+  inversés, seul le claim fait foi).
+- get_supabase_admin_client() : client avec privilèges admin (service_role,
+  même sélection par claim).
 - Les variables de module `supabase`, `supabase_url`, `supabase_key` permettent
   une migration progressive : le code legacy peut continuer à importer depuis
   core.config (wrapper) sans changement.
@@ -29,14 +31,12 @@ from __future__ import annotations
 from supabase import Client, create_client
 from supabase.lib.client_options import SyncClientOptions
 
-from app.core.settings import (
-    get_supabase_admin_env,
-    require_supabase_env,
-)
+from app.core.settings import get_supabase_admin_env
 from app.core.supabase_resilience import create_supabase_httpx_client
 
-# --- Client par défaut (clé anon/standard) ---
-_default_url, _default_key = require_supabase_env()
+# --- Client par défaut (backend de confiance : service_role, sélection par
+# claim JWT — les noms de variables ont été historiquement inversés) ---
+_default_url, _default_key = get_supabase_admin_env()
 _supabase_httpx = create_supabase_httpx_client()
 _supabase_options = SyncClientOptions(httpx_client=_supabase_httpx)
 supabase: Client = create_client(_default_url, _default_key, options=_supabase_options)
@@ -45,7 +45,7 @@ supabase_key: str = _default_key
 
 
 def get_supabase_client() -> Client:
-    """Retourne le client Supabase par défaut (SUPABASE_URL + SUPABASE_KEY)."""
+    """Retourne le client Supabase par défaut (service_role sélectionné par claim)."""
     return supabase
 
 
