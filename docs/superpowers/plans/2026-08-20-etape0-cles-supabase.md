@@ -501,7 +501,33 @@ git commit -m "fix(participation): trace de campagne ciblée par ids créés, pl
 
 ---
 
+### Tasks 1-6 : LIVRÉES le 20/08/2026
+
+Mergées dans `main` (merge `d81d6c4d`), suite unitaire **5181 passed / 0 échec**.
+Revue de code : une faiblesse trouvée et corrigée (filtre `in_` de la trace
+participation découpé par lots de 50 — l'URL portait jusqu'à ~180 UUID).
+
+**Défaut intercepté après merge, corrigé par `c3ea559c`** : `SECRET_ENCRYPTION_KEY`
+existait comme secret GitHub depuis le 12/06 mais **n'était transmise à aucun
+des deux services Cloud Run**. Le repli supprimé en Task 5 la rendait
+obligatoire : sans ce correctif, l'enregistrement de credentials d'intégration
+aurait levé une RuntimeError en prod. Elle est désormais dans les `env_vars`
+test et prod de `deploy.yml`.
+
+---
+
 ### Task 7: Runbook de bascule (opérations, PAS de code — exécution supervisée)
+
+**Faits vérifiés le 20/08 qui précisent ce runbook :**
+- Secrets GitHub existants : `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_TEST_URL`,
+  `SUPABASE_TEST_KEY`, `SUPABASE_TEST_SERVICE_KEY`, `SUPABASE_DB_URL`,
+  `SUPABASE_TEST_DB_URL`, `SUPABASE_PROD_READ_URL`, `SECRET_ENCRYPTION_KEY`.
+- **`SUPABASE_SERVICE_KEY` et `SUPABASE_SERVICE_ROLE_KEY` n'existent PAS comme
+  secrets GitHub** : la valeur présente sur Cloud Run prod y a été posée à la
+  main et survit grâce à `env_vars_update_strategy: merge`. C'est le point
+  central de la bascule — tant qu'elle n'est pas pilotée par le workflow, elle
+  échappe au versionnement.
+- `SECRET_ENCRYPTION_KEY` : plus rien à faire (réglé par `c3ea559c`).
 
 Pré-requis : Tasks 1-6 mergées sur main, CI verte, déploiement test + prod
 effectué avec le code role-aware (comportement identique attendu — vérifier
