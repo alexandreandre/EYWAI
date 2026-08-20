@@ -570,13 +570,21 @@ def _employment_statuses(
     }
 
 
+_TAG_CHUNK_SIZE = 50
+
+
 def _tag_campaign_inputs(campaign_id: str, inserted_ids: list[str]) -> None:
-    """Trace la campagne sur les seules lignes créées par elle (jamais de filtre global)."""
-    if not inserted_ids:
-        return
-    supabase.table("monthly_inputs").update(
-        {"participation_campaign_id": campaign_id}
-    ).in_("id", inserted_ids).execute()
+    """
+    Trace la campagne sur les seules lignes créées par elle (jamais de filtre global).
+
+    Découpé par lots : le filtre ``in_`` voyage dans l'URL, et une campagne
+    peut créer deux lignes par salarié (plusieurs centaines d'UUID).
+    """
+    for start in range(0, len(inserted_ids), _TAG_CHUNK_SIZE):
+        chunk = inserted_ids[start : start + _TAG_CHUNK_SIZE]
+        supabase.table("monthly_inputs").update(
+            {"participation_campaign_id": campaign_id}
+        ).in_("id", chunk).execute()
 
 
 def generate_payroll_lines(
