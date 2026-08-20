@@ -3,6 +3,12 @@
 
 import os
 
+# Clé de chiffrement déterministe pour la suite : secret_store l'exige désormais
+# (plus de repli sur les clés Supabase), et des fixtures chiffrent dès l'import.
+# Posée AVANT tout import applicatif : sur un runner CI il n'y a pas de .env, et
+# `setdefault` laisse intacte une vraie valeur déjà présente en local.
+os.environ.setdefault("SECRET_ENCRYPTION_KEY", "cle-de-test-deterministe")
+
 import pytest
 from fastapi.testclient import TestClient
 
