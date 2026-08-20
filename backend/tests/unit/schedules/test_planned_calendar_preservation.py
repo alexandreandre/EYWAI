@@ -165,6 +165,71 @@ def test_fusion_trie_les_jours():
     assert [e["jour"] for e in merged] == [2, 5, 10]
 
 
+def test_fusion_normalise_les_jours_en_chaine():
+    """Des `jour` en chaîne existent en base — la fusion doit les rapprocher.
+
+    `calendar_generation_rules.build_month_calendrier_prevu` s'en défend déjà
+    explicitement (int(e.get("jour")) sous try/except).
+    """
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": "3",
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        }
+    ]
+    incoming = [{"jour": 3, "type": "arret_maladie", "heures_prevues": 0}]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert len(merged) == 1
+    assert merged[0]["jour"] == 3
+    assert merged[0]["arret_type"] == "maladie_simple"
+
+
+def test_fusion_ignore_une_entree_inexploitable_sans_perdre_le_mois():
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [{"jour": 1, "type": "travail", "heures_prevues": 7.0}]
+    incoming = [
+        {"type": "travail", "heures_prevues": 7.0},  # pas de jour
+        {"jour": "n/a", "type": "travail"},  # jour illisible
+        "pas un dict",
+        {"jour": 2, "type": "conge", "heures_prevues": 0},
+    ]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert [e["jour"] for e in merged] == [1, 2]
+
+
+def test_fusion_supporte_des_jours_melanges_int_et_chaine():
+    """Le tri ne doit pas exploser sur un mois mi-int mi-chaîne."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {"jour": "10", "type": "travail", "heures_prevues": 7.0},
+        {"jour": 2, "type": "travail", "heures_prevues": 7.0},
+    ]
+    merged = merge_planned_entries(
+        existing, [{"jour": 5, "type": "travail", "heures_prevues": 7.0}]
+    )
+    assert [e["jour"] for e in merged] == [2, 5, 10]
+
+
+def test_le_schema_borne_le_jour_du_mois():
+    import pytest
+    from pydantic import ValidationError
+
+    from app.modules.schedules.schemas.requests import PlannedCalendarEntry
+
+    for jour_invalide in (0, 32, -1):
+        with pytest.raises(ValidationError):
+            PlannedCalendarEntry(jour=jour_invalide, type="travail")
+
+
 def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
     from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
 

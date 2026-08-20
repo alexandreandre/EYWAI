@@ -44,6 +44,23 @@ def normalize_planned_calendar_for_forfait_jour(
     return normalized
 
 
+def coerce_jour(raw: Any) -> int | None:
+    """Normalise un numéro de jour du mois en int, ou None s'il est illisible.
+
+    Des `jour` en chaîne existent en base (imports historiques) :
+    `calendar_generation_rules.build_month_calendrier_prevu` s'en défend déjà
+    explicitement. Sans normalisation, une même journée existe deux fois dans
+    la fusion et le tri lève un TypeError sur tout le mois.
+    """
+    if isinstance(raw, bool) or raw is None:
+        return None
+    try:
+        jour = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return jour if 1 <= jour <= 31 else None
+
+
 def merge_planned_entries(
     existing: List[Dict[str, Any]] | None,
     incoming: List[Dict[str, Any]],
@@ -66,20 +83,34 @@ def merge_planned_entries(
     Enfin, la fusion porte sur **tout le mois** et non sur les seuls jours
     cités : un jour stocké absent du payload est conservé tel quel, sinon un
     payload partiel ferait disparaître une absence validée. La sortie est
-    triée par jour.
+    triée par jour, les `jour` étant normalisés en int des deux côtés et les
+    entrées inexploitables ignorées — plutôt que de faire échouer tout le mois.
     """
-    par_jour: Dict[Any, Dict[str, Any]] = {
-        e["jour"]: dict(e) for e in (existing or []) if e.get("jour") is not None
-    }
-    fusionnes: Dict[Any, Dict[str, Any]] = dict(par_jour)
+    par_jour: Dict[int, Dict[str, Any]] = {}
+    for e in existing or []:
+        if not isinstance(e, dict):
+            continue
+        jour_stocke = coerce_jour(e.get("jour"))
+        if jour_stocke is None:
+            continue
+        stocke = dict(e)
+        stocke["jour"] = jour_stocke
+        par_jour[jour_stocke] = stocke
+
+    fusionnes: Dict[int, Dict[str, Any]] = dict(par_jour)
     for entree in incoming:
-        jour = entree.get("jour")
+        if not isinstance(entree, dict):
+            continue
+        jour = coerce_jour(entree.get("jour"))
+        if jour is None:
+            continue
         base = dict(par_jour.get(jour, {}))
         for cle, valeur in entree.items():
             if cle in SERVER_OWNED_ABSENCE_KEYS:
                 continue
             if valeur is not None or cle in base:
                 base[cle] = valeur
+        base["jour"] = jour
         if base.get("type") not in ABSENCE_CALENDAR_TYPES:
             strip_server_owned_keys(base)
         fusionnes[jour] = base

@@ -30,7 +30,7 @@ class PlannedCalendarEntry(BaseModel):
     # reprises depuis l'entrée stockée par `merge_planned_entries`. Les
     # accepter en entrée laisserait « copier le mois précédent » rejouer un
     # arrêt de travail sur un mois qui n'en a pas.
-    jour: int
+    jour: int = Field(ge=1, le=31)
     type: str
     heures_prevues: float | None = None
 
