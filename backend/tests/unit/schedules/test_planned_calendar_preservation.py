@@ -128,6 +128,43 @@ def test_fusion_conserve_les_cles_serveur_entre_deux_types_d_absence():
     assert merged[0]["arret_type"] == "maladie_simple"
 
 
+def test_fusion_conserve_les_jours_stockes_absents_du_payload():
+    """Un payload partiel ne doit pas faire disparaître le reste du mois."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {"jour": 1, "type": "travail", "heures_prevues": 7.0},
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        },
+        {"jour": 4, "type": "travail", "heures_prevues": 7.0},
+    ]
+    incoming = [{"jour": 4, "type": "conge", "heures_prevues": 0}]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert [e["jour"] for e in merged] == [1, 3, 4]
+    jour3 = next(e for e in merged if e["jour"] == 3)
+    assert jour3["arret_type"] == "maladie_simple"
+    assert next(e for e in merged if e["jour"] == 4)["type"] == "conge"
+
+
+def test_fusion_trie_les_jours():
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    merged = merge_planned_entries(
+        [{"jour": 10, "type": "travail", "heures_prevues": 7.0}],
+        [
+            {"jour": 5, "type": "travail", "heures_prevues": 7.0},
+            {"jour": 2, "type": "travail", "heures_prevues": 7.0},
+        ],
+    )
+    assert [e["jour"] for e in merged] == [2, 5, 10]
+
+
 def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
     from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
 

@@ -62,11 +62,16 @@ def merge_planned_entries(
     jour dont le type résultant n'est plus un type d'absence les perd : sans
     cela il garderait ``origine="absence"`` et resterait gelé à vie contre les
     régénérations, sans aucun moyen de le débloquer depuis l'interface.
+
+    Enfin, la fusion porte sur **tout le mois** et non sur les seuls jours
+    cités : un jour stocké absent du payload est conservé tel quel, sinon un
+    payload partiel ferait disparaître une absence validée. La sortie est
+    triée par jour.
     """
-    par_jour = {
+    par_jour: Dict[Any, Dict[str, Any]] = {
         e["jour"]: dict(e) for e in (existing or []) if e.get("jour") is not None
     }
-    fusionnes: List[Dict[str, Any]] = []
+    fusionnes: Dict[Any, Dict[str, Any]] = dict(par_jour)
     for entree in incoming:
         jour = entree.get("jour")
         base = dict(par_jour.get(jour, {}))
@@ -77,8 +82,8 @@ def merge_planned_entries(
                 base[cle] = valeur
         if base.get("type") not in ABSENCE_CALENDAR_TYPES:
             strip_server_owned_keys(base)
-        fusionnes.append(base)
-    return fusionnes
+        fusionnes[jour] = base
+    return [fusionnes[jour] for jour in sorted(fusionnes)]
 
 
 def normalize_actual_hours_for_forfait_jour(
