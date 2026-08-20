@@ -9,7 +9,11 @@ normalize_actual_hours_for_forfait_jour). Aucune I/O, pas de dépendance FastAPI
 from typing import Any, Dict, List
 
 
-from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
+from app.shared.domain.absence_calendar import (
+    ABSENCE_CALENDAR_TYPES,
+    SERVER_OWNED_ABSENCE_KEYS,
+    strip_server_owned_keys,
+)
 from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
 
 
@@ -54,7 +58,10 @@ def merge_planned_entries(
     uniquement les champs fournis.
 
     Les clés de ``SERVER_OWNED_ABSENCE_KEYS`` ne sont **jamais** reprises du
-    payload : elles ne viennent que de l'entrée stockée.
+    payload : elles ne viennent que de l'entrée stockée. En contrepartie, un
+    jour dont le type résultant n'est plus un type d'absence les perd : sans
+    cela il garderait ``origine="absence"`` et resterait gelé à vie contre les
+    régénérations, sans aucun moyen de le débloquer depuis l'interface.
     """
     par_jour = {
         e["jour"]: dict(e) for e in (existing or []) if e.get("jour") is not None
@@ -68,6 +75,8 @@ def merge_planned_entries(
                 continue
             if valeur is not None or cle in base:
                 base[cle] = valeur
+        if base.get("type") not in ABSENCE_CALENDAR_TYPES:
+            strip_server_owned_keys(base)
         fusionnes.append(base)
     return fusionnes
 

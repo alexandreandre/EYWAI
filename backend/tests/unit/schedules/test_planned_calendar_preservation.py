@@ -73,6 +73,61 @@ def test_fusion_ne_laisse_pas_le_payload_reecrire_une_cle_serveur():
     assert merged[0]["subrogation_active"] is True
 
 
+def test_fusion_purge_les_cles_serveur_quand_le_jour_redevient_travaille():
+    """Sinon le jour reste gelé à vie contre les régénérations, sans recours UI."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+            "nombre_enfants": 2,
+            "historique_arrets_annee": [{"debut": "2026-01-05"}],
+            "date_debut_arret_reel": "2026-07-01",
+            "salaire_periode_reelle": 1800.0,
+        }
+    ]
+    incoming = [{"jour": 3, "type": "travail", "heures_prevues": 7.0}]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert merged[0]["type"] == "travail"
+    assert merged[0]["heures_prevues"] == 7.0
+    for cle in (
+        "origine",
+        "arret_type",
+        "subrogation_active",
+        "nombre_enfants",
+        "historique_arrets_annee",
+        "date_debut_arret_reel",
+        "salaire_periode_reelle",
+    ):
+        assert cle not in merged[0]
+
+
+def test_fusion_conserve_les_cles_serveur_entre_deux_types_d_absence():
+    """Garde-fou : la purge ne doit pas frapper un jour resté en absence."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        }
+    ]
+    merged = merge_planned_entries(
+        existing, [{"jour": 3, "type": "arret_maladie", "heures_prevues": 0}]
+    )
+    assert merged[0]["origine"] == "absence"
+    assert merged[0]["arret_type"] == "maladie_simple"
+
+
 def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
     from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
 
