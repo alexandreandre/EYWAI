@@ -6,7 +6,7 @@ from __future__ import annotations
 from app.core.database import get_supabase_admin_client, supabase
 from app.core.logging import get_logger
 from app.core.security import get_current_user
-from app.core.settings import SUPABASE_KEY, SUPABASE_URL
+from app.core.settings import get_supabase_anon_env
 from app.modules.auth.domain.interfaces import (
     IAuthProvider,
     IEmailSender,
@@ -20,7 +20,8 @@ class SupabaseAuthProvider(IAuthProvider):
     """Délègue à Supabase Auth (client frais pour sign_in, admin pour update/list)."""
 
     def sign_in_with_password(self, email: str, password: str) -> dict:
-        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        anon_url, anon_key = get_supabase_anon_env()
+        auth_client = create_client(anon_url, anon_key)
         res = auth_client.auth.sign_in_with_password(
             {"email": email, "password": password}
         )
@@ -34,7 +35,8 @@ class SupabaseAuthProvider(IAuthProvider):
         }
 
     def refresh_session(self, refresh_token: str) -> dict:
-        auth_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        anon_url, anon_key = get_supabase_anon_env()
+        auth_client = create_client(anon_url, anon_key)
         res = auth_client.auth.refresh_session(refresh_token)
         session = res.session
         if not session or not session.access_token:

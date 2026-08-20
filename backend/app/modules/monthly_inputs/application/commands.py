@@ -55,7 +55,10 @@ def create_monthly_inputs_batch(
     if data_to_insert:
         log_app_debug(logger, f'\n[monthly_inputs] Insert batch: {len(data_to_insert)} row(s)')
     inserted = monthly_inputs_repository.insert_batch(data_to_insert)
-    return CreateBatchResultDto(inserted_count=len(inserted))
+    return CreateBatchResultDto(
+        inserted_count=len(inserted),
+        inserted_ids=[str(r["id"]) for r in inserted if r.get("id")],
+    )
 
 
 def create_employee_monthly_input(

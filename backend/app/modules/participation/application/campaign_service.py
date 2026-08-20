@@ -570,6 +570,23 @@ def _employment_statuses(
     }
 
 
+_TAG_CHUNK_SIZE = 50
+
+
+def _tag_campaign_inputs(campaign_id: str, inserted_ids: list[str]) -> None:
+    """
+    Trace la campagne sur les seules lignes créées par elle (jamais de filtre global).
+
+    Découpé par lots : le filtre ``in_`` voyage dans l'URL, et une campagne
+    peut créer deux lignes par salarié (plusieurs centaines d'UUID).
+    """
+    for start in range(0, len(inserted_ids), _TAG_CHUNK_SIZE):
+        chunk = inserted_ids[start : start + _TAG_CHUNK_SIZE]
+        supabase.table("monthly_inputs").update(
+            {"participation_campaign_id": campaign_id}
+        ).in_("id", chunk).execute()
+
+
 def generate_payroll_lines(
     campaign_id: str,
     company_id: str,
@@ -673,16 +690,12 @@ def generate_payroll_lines(
         raise ValueError("Aucune ligne de paie à créer.")
 
     if payloads:
-        create_monthly_inputs_batch(payloads)
+        batch_result = create_monthly_inputs_batch(payloads)
         # Traçabilité campagne sur les lignes créées (best effort)
         try:
-            supabase.table("monthly_inputs").update(
-                {"participation_campaign_id": campaign_id}
-            ).eq("year", body.payroll_year).eq("month", body.payroll_month).is_(
-                "participation_campaign_id", "null"
-            ).execute()
+            _tag_campaign_inputs(campaign_id, batch_result.inserted_ids)
         except Exception as exc:
-            logger.info("[participation] campaign_id trace skipped: %s", exc)
+            logger.warning("[participation] campaign_id trace échouée: %s", exc)
 
     updated = campaign_repository.update_campaign(campaign_id, {"status": "closed"})
     return _campaign_detail(updated), len(payloads) + regularisation_count

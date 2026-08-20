@@ -160,3 +160,23 @@ def get_supabase_admin_env() -> tuple[str, str]:
             "(SUPABASE_SERVICE_KEY / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_KEY)."
         )
     return url, key
+
+
+def get_supabase_anon_env() -> tuple[str, str]:
+    """
+    Retourne (url, key) pour un client Supabase anonyme (auth publique :
+    sign_in, refresh). Préfère la JWT dont le rôle est ``anon`` parmi
+    SUPABASE_KEY, SUPABASE_SERVICE_KEY, SUPABASE_SERVICE_ROLE_KEY — les
+    noms de variables ont été historiquement inversés, seul le claim fait foi.
+    """
+    if not SUPABASE_URL:
+        raise RuntimeError("Variable d'environnement SUPABASE_URL manquante.")
+    candidates = [
+        k for k in (SUPABASE_KEY, SUPABASE_SERVICE_KEY, SUPABASE_SERVICE_ROLE_KEY) if k
+    ]
+    for key in candidates:
+        if _jwt_role(key) == "anon":
+            return SUPABASE_URL, key
+    if not SUPABASE_KEY:
+        raise RuntimeError("Variable d'environnement SUPABASE_KEY manquante.")
+    return SUPABASE_URL, SUPABASE_KEY

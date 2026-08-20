@@ -8,12 +8,15 @@ import json
 import os
 from typing import Any, Dict, Optional
 
-from app.core import settings
-
 
 def _fernet_key() -> bytes:
-    """Dérive une clé Fernet 32 octets depuis SECRET_ENCRYPTION_KEY ou SUPABASE_KEY."""
-    raw = os.getenv("SECRET_ENCRYPTION_KEY") or getattr(settings, "SUPABASE_KEY", "") or "eywai-dev-fallback"
+    """Dérive une clé Fernet 32 octets depuis SECRET_ENCRYPTION_KEY (obligatoire)."""
+    raw = os.getenv("SECRET_ENCRYPTION_KEY")
+    if not raw:
+        raise RuntimeError(
+            "SECRET_ENCRYPTION_KEY manquante : le stockage chiffré de secrets "
+            "exige une clé dédiée (plus de repli sur les clés Supabase)."
+        )
     digest = hashlib.sha256(raw.encode("utf-8")).digest()
     return base64.urlsafe_b64encode(digest)
 
@@ -43,10 +46,12 @@ def decrypt_secret(ref: Optional[str]) -> Optional[Dict[str, Any]]:
             return parsed if isinstance(parsed, dict) else None
         except Exception:
             return None
+    # Erreur de config (clé absente) : doit remonter, jamais être avalée.
+    fernet_key = _fernet_key()
     try:
         from cryptography.fernet import Fernet
 
-        f = Fernet(_fernet_key())
+        f = Fernet(fernet_key)
         raw = f.decrypt(ref.encode("ascii"))
         parsed = json.loads(raw.decode("utf-8"))
         return parsed if isinstance(parsed, dict) else None
