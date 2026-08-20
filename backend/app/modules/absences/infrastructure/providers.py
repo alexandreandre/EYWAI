@@ -205,15 +205,20 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         subrogation_active: Optional[bool] = None,
         nombre_enfants: int = 0,
         historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
+        origine: Optional[str] = None,
     ) -> Dict[str, Any]:
         entry: Dict[str, Any] = {
             "jour": day,
             "type": calendar_type,
             "heures_prevues": heures if calendar_type == "travail" else 0,
-            # Marque la provenance : une régénération de planning ne doit pas
-            # effacer un jour issu d'une absence validée.
-            "origine": "absence",
         }
+        # Marqueur de provenance : une régénération de planning ne doit pas
+        # effacer un jour issu d'une absence validée. Réservé aux jours de
+        # l'absence — les jours de remplissage « travail » de la branche
+        # « mois non planifié » n'en portent pas, sinon tout le mois serait
+        # gelé contre les régénérations.
+        if origine:
+            entry["origine"] = origine
         if calendar_type == "arret_maladie" and arret_type:
             entry["arret_type"] = arret_type
             entry["subrogation_active"] = (
@@ -298,6 +303,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                                 subrogation_active=subrogation_active,
                                 nombre_enfants=nombre_enfants,
                                 historique_arrets_annee=historique_arrets_annee,
+                                origine="absence",
                             )
                         )
                     else:
@@ -323,6 +329,10 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                     if entry.get("jour") in day_list and entry.get("type") == "travail":
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
+                        # Branche nominale (le mois est déjà planifié) : c'est
+                        # elle qui traite la quasi-totalité des validations,
+                        # elle doit poser le marqueur au même titre que l'autre.
+                        entry["origine"] = "absence"
                         if new_calendar_type == "arret_maladie" and arret_type:
                             entry["arret_type"] = arret_type
                             entry["subrogation_active"] = (

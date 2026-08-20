@@ -110,13 +110,89 @@ def test_update_planned_calendar_ne_detruit_pas_les_metadonnees(monkeypatch):
     assert jour3["subrogation_active"] is True
 
 
-def test_jour_d_absence_porte_son_origine():
-    from app.modules.absences.infrastructure.providers import CalendarUpdateProvider
+def _provider_avec_calendrier(monkeypatch, calendrier_existant):
+    """
+    Monte un CalendarUpdateProvider sur un faux Supabase, et rend la fonction
+    qui capture le calendrier finalement écrit.
 
-    entry = CalendarUpdateProvider()._day_entry(
-        3, "arret_maladie", 0, arret_type="maladie_simple"
+    `calendrier_existant=None` simule un mois pas encore planifié (branche de
+    repli), sinon la branche nominale (mois déjà en base) — c'est cette
+    seconde branche qui traite la quasi-totalité des validations réelles.
+    """
+    from unittest.mock import MagicMock
+
+    from app.modules.absences.infrastructure import providers as mod
+
+    capture = {}
+    emp = MagicMock()
+    emp.data = {"company_id": "comp-1", "duree_hebdomadaire": 35}
+    schedule = MagicMock()
+    schedule.data = (
+        {"planned_calendar": {"calendrier_prevu": calendrier_existant}}
+        if calendrier_existant is not None
+        else None
     )
-    assert entry["origine"] == "absence"
+
+    def table(nom):
+        t = MagicMock()
+        if nom == "employees":
+            t.select.return_value.match.return_value.maybe_single.return_value.execute.return_value = emp
+        else:
+            t.select.return_value.match.return_value.maybe_single.return_value.execute.return_value = schedule
+
+            def _insert(payload):
+                capture["ecrit"] = payload["planned_calendar"]["calendrier_prevu"]
+                return MagicMock()
+
+            def _update(payload):
+                capture["ecrit"] = payload["planned_calendar"]["calendrier_prevu"]
+                return MagicMock()
+
+            t.insert.side_effect = _insert
+            t.update.side_effect = _update
+        return t
+
+    fake = MagicMock()
+    fake.table.side_effect = table
+    monkeypatch.setattr(mod, "supabase", fake)
+    return mod.CalendarUpdateProvider(), capture
+
+
+def test_validation_absence_marque_l_origine_sur_un_mois_deja_planifie(monkeypatch):
+    """Branche nominale : c'est elle qui traite presque toutes les validations."""
+    from datetime import date
+
+    existant = [
+        {"jour": j, "type": "travail", "heures_prevues": 7.0} for j in range(1, 6)
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1", [date(2026, 7, 3)], "arret_maladie", arret_type="maladie_simple"
+    )
+
+    jour3 = next(e for e in capture["ecrit"] if e["jour"] == 3)
+    assert jour3["type"] == "arret_maladie"
+    assert jour3["origine"] == "absence"
+    assert jour3["arret_type"] == "maladie_simple"
+
+
+def test_les_jours_de_remplissage_ne_sont_pas_marques(monkeypatch):
+    """Mois non planifié : seuls les jours de l'absence portent le marqueur.
+
+    Sinon le mois entier deviendrait immunisé contre toute régénération.
+    """
+    from datetime import date
+
+    provider, capture = _provider_avec_calendrier(monkeypatch, None)
+
+    provider.update_calendar_from_days(
+        "emp-1", [date(2026, 7, 3)], "arret_maladie", arret_type="maladie_simple"
+    )
+
+    marques = [e for e in capture["ecrit"] if e.get("origine") == "absence"]
+    assert [e["jour"] for e in marques] == [3]
+    assert len(capture["ecrit"]) == 31
 
 
 def _semaine_travail_lundi_vendredi(_monday):
