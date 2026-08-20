@@ -39,6 +39,31 @@ def normalize_planned_calendar_for_forfait_jour(
     return normalized
 
 
+def merge_planned_entries(
+    existing: List[Dict[str, Any]] | None,
+    incoming: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Fusionne le calendrier entrant sur le calendrier stocké, jour par jour.
+
+    Le payload d'un client ne porte souvent que ``jour``/``type``/
+    ``heures_prevues`` : remplacer le mois effacerait les métadonnées
+    d'absence (nature d'arrêt, subrogation, historique) posées par la
+    validation d'absence. On part donc de l'entrée stockée et on superpose
+    uniquement les champs fournis.
+    """
+    par_jour = {
+        e["jour"]: dict(e) for e in (existing or []) if e.get("jour") is not None
+    }
+    fusionnes: List[Dict[str, Any]] = []
+    for entree in incoming:
+        jour = entree.get("jour")
+        base = dict(par_jour.get(jour, {}))
+        base.update({k: v for k, v in entree.items() if v is not None or k in base})
+        fusionnes.append(base)
+    return fusionnes
+
+
 def normalize_actual_hours_for_forfait_jour(
     calendrier_reel: List[Dict[str, Any]], employee_statut: str | None
 ) -> List[Dict[str, Any]]:

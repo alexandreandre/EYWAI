@@ -13,6 +13,7 @@ import json
 from datetime import date
 from typing import Any, Dict, List, Tuple
 
+from app.modules.schedules.application import queries
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.service import (
     get_employee_company_and_statut,
@@ -54,6 +55,20 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         calendrier_prevu_raw = [
             entry.model_dump() for entry in payload.calendrier_prevu
         ]
+        # Fusion sur l'existant : le payload client n'embarque pas toujours
+        # les métadonnées d'absence, et un remplacement les effacerait.
+        try:
+            existant = queries.get_planned_calendar(
+                employee_id, payload.year, payload.month
+            ).get("calendrier_prevu", [])
+        except Exception as e:
+            logger.warning(
+                "Calendrier existant illisible (%s) — fusion sans base.", e
+            )
+            existant = []
+        calendrier_prevu_raw = domain_rules.merge_planned_entries(
+            existant, calendrier_prevu_raw
+        )
         calendrier_prevu_normalized = normalize_planned_calendar_for_employee(
             calendrier_prevu_raw, employee_statut
         )

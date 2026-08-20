@@ -36,6 +36,12 @@ class TestUpdatePlannedCalendar:
                 "app.modules.schedules.application.commands.get_employee_company_and_statut",
                 return_value=("company-1", "employé"),
             ),
+            # La commande relit le mois stocké pour fusionner : sans ce mock, le
+            # test unitaire irait interroger la vraie base.
+            patch(
+                "app.modules.schedules.application.commands.queries.get_planned_calendar",
+                return_value={"calendrier_prevu": []},
+            ),
             patch(
                 "app.modules.schedules.application.commands.normalize_planned_calendar_for_employee",
                 return_value=[{"jour": 1, "type": "work", "heures_prevues": 8}],
