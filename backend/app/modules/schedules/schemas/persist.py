@@ -35,6 +35,9 @@ class PersistTimesheetResponse(BaseModel):
     total_days_written: int
     results: List[PersistTimesheetResult] = Field(default_factory=list)
     errors: List[dict] = Field(default_factory=list)
+    # Ce qui n'a délibérément PAS été appliqué (ex. jour d'absence validée
+    # qu'un relevé d'heures voulait requalifier) — à afficher au RH.
+    warnings: List[dict] = Field(default_factory=list)
 
 
 __all__ = [

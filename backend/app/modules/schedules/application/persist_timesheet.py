@@ -5,31 +5,93 @@ from __future__ import annotations
 import calendar as cal_mod
 from typing import List
 
+from app.modules.schedules.domain.rules import coerce_jour, merge_planned_entries
 from app.modules.schedules.schemas.ai import DayNature
 from app.modules.schedules.schemas.persist import (
     PersistTimesheetRequest,
     PersistTimesheetResponse,
     PersistTimesheetResult,
 )
+from app.shared.domain.absence_calendar import is_absence_day
 
 
-def _merge_days(existing: list, incoming: list, nature: DayNature) -> list:
-    by_jour = {d.get("jour"): d for d in existing if d.get("jour")}
+def _merge_planned_days(
+    existing: list, incoming: list, warnings: List[dict] | None
+) -> list:
+    """Applique un relevé de pointages sur le calendrier prévu stocké.
+
+    Passe par la fusion serveur (`merge_planned_entries`) : reconstruire le
+    jour à trois clés effacerait `arret_type`/`subrogation_active`, donc le
+    maintien de salaire et les IJSS du bulletin.
+
+    Un jour issu d'une absence validée n'est jamais requalifié par un relevé
+    d'heures : le refus est signalé dans les avertissements du batch plutôt
+    qu'écrasé en silence.
+    """
+    stocke = {}
+    for entree in existing or []:
+        if not isinstance(entree, dict):
+            continue
+        jour = coerce_jour(entree.get("jour"))
+        if jour is not None:
+            stocke[jour] = entree
+
+    entrant: list = []
     for day in incoming:
-        jour = day.jour
-        if nature == "prevu":
-            by_jour[jour] = {
-                "jour": jour,
-                "type": day.type,
-                "heures_prevues": day.heures,
-            }
-        else:
-            by_jour[jour] = {
-                "jour": jour,
-                "type": day.type,
-                "heures_faites": day.heures,
-            }
-    return sorted(by_jour.values(), key=lambda x: x["jour"])
+        jour = coerce_jour(day.jour)
+        if jour is None:
+            continue
+        ancien = stocke.get(jour)
+        if is_absence_day(ancien) and ancien.get("type") != day.type:
+            if warnings is not None:
+                warnings.append(
+                    {
+                        "jour": jour,
+                        "code": "absence_validee_preservee",
+                        "message": (
+                            f"Jour {jour} : absence validée "
+                            f"({ancien.get('type')}) — le type « {day.type} » "
+                            "du relevé n'a pas été appliqué."
+                        ),
+                    }
+                )
+            continue
+        entrant.append(
+            {"jour": jour, "type": day.type, "heures_prevues": day.heures}
+        )
+    return merge_planned_entries(existing, entrant)
+
+
+def _merge_days(
+    existing: list,
+    incoming: list,
+    nature: DayNature,
+    *,
+    warnings: List[dict] | None = None,
+) -> list:
+    if nature == "prevu":
+        return _merge_planned_days(existing, incoming, warnings)
+
+    by_jour: dict = {}
+    for entree in existing or []:
+        if not isinstance(entree, dict):
+            continue
+        jour = coerce_jour(entree.get("jour"))
+        if jour is None:
+            continue
+        garde = dict(entree)
+        garde["jour"] = jour
+        by_jour[jour] = garde
+    for day in incoming:
+        jour = coerce_jour(day.jour)
+        if jour is None:
+            continue
+        by_jour[jour] = {
+            "jour": jour,
+            "type": day.type,
+            "heures_faites": day.heures,
+        }
+    return [by_jour[jour] for jour in sorted(by_jour)]
 
 
 def persist_timesheet_batch(
@@ -47,6 +109,7 @@ def persist_timesheet_batch(
     """
     results: List[PersistTimesheetResult] = []
     errors: List[dict] = []
+    warnings: List[dict] = []
     total_days = 0
 
     for emp in payload.employees:
@@ -58,8 +121,14 @@ def persist_timesheet_batch(
         try:
             if prevu_days:
                 existing = get_planned(emp.employee_id, payload.year, payload.month)
-                merged = _merge_days(existing, prevu_days, "prevu")
+                avertissements: List[dict] = []
+                merged = _merge_days(
+                    existing, prevu_days, "prevu", warnings=avertissements
+                )
                 update_planned(emp.employee_id, payload.year, payload.month, merged)
+                warnings.extend(
+                    {"employee_id": emp.employee_id, **w} for w in avertissements
+                )
                 days_written += len(prevu_days)
             if reel_days:
                 existing = get_actual(emp.employee_id, payload.year, payload.month)
@@ -92,6 +161,7 @@ def persist_timesheet_batch(
         total_days_written=total_days,
         results=results,
         errors=errors,
+        warnings=warnings,
     )
 
 
@@ -159,6 +229,7 @@ def run_persist_timesheet_batch(
                 for e in result.get("errors", [])
             ],
             errors=result.get("errors", []),
+            warnings=result.get("warnings", []),
         )
 
     from app.modules.schedules.application import commands, queries
@@ -227,6 +298,7 @@ def run_persist_with_bulk_commit(
         total_days_written=result["total_days_written"],
         results=[],
         errors=result.get("errors", []),
+        warnings=result.get("warnings", []),
     )
 
 

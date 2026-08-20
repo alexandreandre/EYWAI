@@ -125,9 +125,10 @@ def _upsert_employees_for_month(
     month: int,
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
-) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]]]:
+) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]], List[Dict[str, Any]]]:
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
+    warnings: List[Dict[str, Any]] = []
     total_days = 0
     days_in_month = cal_mod.monthrange(year, month)[1]
 
@@ -160,7 +161,13 @@ def _upsert_employees_for_month(
             days_written = 0
 
             if prevu_days:
-                merged_planned = _merge_days(planned_existing, prevu_days, "prevu")
+                avertissements: List[Dict[str, Any]] = []
+                merged_planned = _merge_days(
+                    planned_existing, prevu_days, "prevu", warnings=avertissements
+                )
+                warnings.extend(
+                    {"employee_id": emp.employee_id, **w} for w in avertissements
+                )
                 days_written += len(prevu_days)
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
@@ -200,7 +207,7 @@ def _upsert_employees_for_month(
         except Exception as exc:
             errors.append({"employee_id": emp.employee_id, "message": str(exc)})
 
-    return upsert_payloads, total_days, errors
+    return upsert_payloads, total_days, errors, warnings
 
 
 def _upsert_employees_for_month_fast(
@@ -211,9 +218,10 @@ def _upsert_employees_for_month_fast(
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
     employee_company_ids: Dict[str, str],
-) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]]]:
+) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]], List[Dict[str, Any]]]:
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
+    warnings: List[Dict[str, Any]] = []
     total_days = 0
     days_in_month = cal_mod.monthrange(year, month)[1]
 
@@ -246,7 +254,13 @@ def _upsert_employees_for_month_fast(
             days_written = 0
 
             if prevu_days:
-                merged_planned = _merge_days(planned_existing, prevu_days, "prevu")
+                avertissements: List[Dict[str, Any]] = []
+                merged_planned = _merge_days(
+                    planned_existing, prevu_days, "prevu", warnings=avertissements
+                )
+                warnings.extend(
+                    {"employee_id": emp.employee_id, **w} for w in avertissements
+                )
                 days_written += len(prevu_days)
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
@@ -286,7 +300,7 @@ def _upsert_employees_for_month_fast(
         except Exception as exc:
             errors.append({"employee_id": emp.employee_id, "message": str(exc)})
 
-    return upsert_payloads, total_days, errors
+    return upsert_payloads, total_days, errors, warnings
 
 
 def _employees_from_month_group(group: Dict[str, Any]) -> List[PersistTimesheetEmployee]:
@@ -441,6 +455,7 @@ def _commit_multi_month_batch(
 
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
+    warnings: List[Dict[str, Any]] = []
     total_days = 0
     recalc_targets: List[tuple[str, int, int]] = []
 
@@ -515,7 +530,12 @@ def _commit_multi_month_batch(
         existing_rows = schedule_repository.list_schedules_for_employees(
             employee_ids, year, month
         )
-        payloads, days_written, group_errors = _upsert_employees_for_month_fast(
+        (
+            payloads,
+            days_written,
+            group_errors,
+            group_warnings,
+        ) = _upsert_employees_for_month_fast(
             company_id=company_id,
             year=year,
             month=month,
@@ -527,6 +547,7 @@ def _commit_multi_month_batch(
             },
         )
         errors.extend(group_errors)
+        warnings.extend(group_warnings)
         if payloads:
             schedule_repository.bulk_upsert_schedules(payloads)
             upsert_payloads.extend(payloads)
@@ -602,6 +623,7 @@ def _commit_multi_month_batch(
             "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
             "months_committed": len(month_groups),
             "commit_errors": errors,
+            "commit_warnings": warnings,
             "commit_progress": {
                 "phase": "completed",
                 "employees_done": len({p["employee_id"] for p in upsert_payloads}),
@@ -629,6 +651,7 @@ def _commit_multi_month_batch(
         "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
         "total_days_written": total_days,
         "errors": errors,
+        "warnings": warnings,
     }
 
 
@@ -681,7 +704,7 @@ def commit_batch_bulk(
         employee_ids, year, month
     )
 
-    upsert_payloads, total_days, errors = _upsert_employees_for_month(
+    upsert_payloads, total_days, errors, warnings = _upsert_employees_for_month(
         company_id=company_id,
         year=year,
         month=month,
@@ -713,6 +736,7 @@ def commit_batch_bulk(
             "committed_days": total_days,
             "employees_processed": len(upsert_payloads),
             "commit_errors": errors,
+            "commit_warnings": warnings,
             "commit_progress": {
                 "phase": "completed",
                 "employees_done": len(upsert_payloads),
@@ -740,6 +764,7 @@ def commit_batch_bulk(
         "employees_processed": len(upsert_payloads),
         "total_days_written": total_days,
         "errors": errors,
+        "warnings": warnings,
     }
 
 

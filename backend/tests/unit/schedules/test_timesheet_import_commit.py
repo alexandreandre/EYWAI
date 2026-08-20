@@ -153,3 +153,82 @@ def test_begin_commit_rejects_committed(mock_repo):
             request=TimesheetImportCommitRequest(),
         )
     assert exc.value.status_code == 409
+
+
+def _arret_valide(jour: int) -> dict:
+    return {
+        "jour": jour,
+        "type": "arret_maladie",
+        "heures_prevues": 0,
+        "origine": "absence",
+        "arret_type": "maladie_simple",
+        "subrogation_active": True,
+    }
+
+
+@patch("app.modules.schedules.application.timesheet_import.commit_service.record_schedule_import_run")
+@patch("app.modules.schedules.application.timesheet_import.commit_service.schedule_repository")
+@patch("app.modules.schedules.application.timesheet_import.commit_service.timesheet_import_repository")
+@patch(
+    "app.modules.schedules.application.timesheet_import.commit_service.get_employee_company_and_statut"
+)
+def test_commit_bulk_ne_detruit_pas_une_absence_validee(
+    mock_statut, mock_repo, mock_sched_repo, _mock_audit
+):
+    """Le commit d'import écrivait le planning sans passer par la fusion serveur."""
+    mock_repo.get_batch.return_value = {
+        "id": "b-abs",
+        "company_id": "c1",
+        "status": "previewed",
+        "preview_json": AiCalendarProposalResponse(
+            year=2026,
+            month=7,
+            source="test",
+            employees=[
+                AiEmployeeProposal(
+                    raw_name="ADAM",
+                    employee_id="e1",
+                    days=[
+                        AiDayEntry(jour=3, heures=7.0, type="travail", nature="prevu"),
+                        AiDayEntry(jour=4, heures=8.5, type="travail", nature="prevu"),
+                    ],
+                    review_status="ok",
+                    match_confidence="high",
+                )
+            ],
+        ).model_dump(mode="json"),
+        "summary_json": {},
+    }
+    mock_statut.return_value = ("c1", "CDI")
+    mock_sched_repo.list_schedules_for_employees.return_value = {
+        "e1": {
+            "employee_id": "e1",
+            "company_id": "c1",
+            "planned_calendar": {
+                "calendrier_prevu": [
+                    _arret_valide(3),
+                    {"jour": 4, "type": "travail", "heures_prevues": 7.0},
+                ]
+            },
+            "actual_hours": {},
+        }
+    }
+
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        commit_batch_bulk,
+    )
+
+    result = commit_batch_bulk(
+        "b-abs",
+        company_id="c1",
+        request=TimesheetImportCommitRequest(),
+    )
+
+    payloads = mock_sched_repo.bulk_upsert_schedules.call_args[0][0]
+    jours = {
+        d["jour"]: d for d in payloads[0]["planned_calendar"]["calendrier_prevu"]
+    }
+    assert jours[3]["type"] == "arret_maladie"
+    assert jours[3]["arret_type"] == "maladie_simple"
+    assert jours[4]["heures_prevues"] == 8.5
+    assert [w["jour"] for w in result["warnings"]] == [3]
