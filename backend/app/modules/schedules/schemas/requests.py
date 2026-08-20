@@ -7,7 +7,7 @@ Comportement identique à l’ancien schemas/schedule.py et api/routers/schedule
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 # ----- Calendrier prévu (GET/POST /planned-calendar) -----
@@ -23,12 +23,13 @@ class PlannedCalendarEntry(BaseModel):
     Le forfait jour est déterminé par employees.statut (contient "forfait jour").
     """
 
-    # Les jours portent des métadonnées d'absence (arret_type,
-    # subrogation_active, nombre_enfants, historique_arrets_annee,
-    # date_debut_arret_reel…). Sans extra="allow", le GET les amputait et le
-    # POST suivant réécrivait le mois sans elles.
-    model_config = ConfigDict(extra="allow")
-
+    # Les métadonnées d'absence (arret_type, subrogation_active,
+    # nombre_enfants, historique_arrets_annee, date_debut_arret_reel…) ne
+    # figurent PAS ici : elles sont propriété du serveur
+    # (`app.shared.domain.absence_calendar.SERVER_OWNED_ABSENCE_KEYS`) et sont
+    # reprises depuis l'entrée stockée par `merge_planned_entries`. Les
+    # accepter en entrée laisserait « copier le mois précédent » rejouer un
+    # arrêt de travail sur un mois qui n'en a pas.
     jour: int
     type: str
     heures_prevues: float | None = None

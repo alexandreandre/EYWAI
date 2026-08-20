@@ -9,6 +9,7 @@ normalize_actual_hours_for_forfait_jour). Aucune I/O, pas de dépendance FastAPI
 from typing import Any, Dict, List
 
 
+from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
 from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
 
 
@@ -51,6 +52,9 @@ def merge_planned_entries(
     d'absence (nature d'arrêt, subrogation, historique) posées par la
     validation d'absence. On part donc de l'entrée stockée et on superpose
     uniquement les champs fournis.
+
+    Les clés de ``SERVER_OWNED_ABSENCE_KEYS`` ne sont **jamais** reprises du
+    payload : elles ne viennent que de l'entrée stockée.
     """
     par_jour = {
         e["jour"]: dict(e) for e in (existing or []) if e.get("jour") is not None
@@ -59,7 +63,11 @@ def merge_planned_entries(
     for entree in incoming:
         jour = entree.get("jour")
         base = dict(par_jour.get(jour, {}))
-        base.update({k: v for k, v in entree.items() if v is not None or k in base})
+        for cle, valeur in entree.items():
+            if cle in SERVER_OWNED_ABSENCE_KEYS:
+                continue
+            if valeur is not None or cle in base:
+                base[cle] = valeur
         fusionnes.append(base)
     return fusionnes
 

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from app.core.database import supabase
 
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
+from app.shared.domain.absence_calendar import ORIGINE_ABSENCE
 from app.modules.absences.domain.interfaces import (
     ICalendarUpdateService,
     IEvenementFamilialQuotaProvider,
@@ -303,7 +304,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                                 subrogation_active=subrogation_active,
                                 nombre_enfants=nombre_enfants,
                                 historique_arrets_annee=historique_arrets_annee,
-                                origine="absence",
+                                origine=ORIGINE_ABSENCE,
                             )
                         )
                     else:
@@ -332,7 +333,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         # Branche nominale (le mois est déjà planifié) : c'est
                         # elle qui traite la quasi-totalité des validations,
                         # elle doit poser le marqueur au même titre que l'autre.
-                        entry["origine"] = "absence"
+                        entry["origine"] = ORIGINE_ABSENCE
                         if new_calendar_type == "arret_maladie" and arret_type:
                             entry["arret_type"] = arret_type
                             entry["subrogation_active"] = (

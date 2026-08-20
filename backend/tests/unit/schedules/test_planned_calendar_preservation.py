@@ -1,7 +1,13 @@
 """Le planning ne doit jamais amputer ni écraser les métadonnées d'absence."""
 
 
-def test_entree_calendrier_conserve_les_cles_supplementaires():
+def test_entree_calendrier_refuse_les_cles_serveur_du_payload():
+    """Les métadonnées d'absence n'entrent jamais par le schéma d'API.
+
+    Elles pilotent le maintien de salaire et les IJSS : un porteur de
+    `schedules.update` ne doit pas pouvoir les injecter sans passer par la
+    validation d'absence.
+    """
     from app.modules.schedules.schemas.requests import PlannedCalendarEntry
 
     entry = PlannedCalendarEntry(
@@ -14,10 +20,73 @@ def test_entree_calendrier_conserve_les_cles_supplementaires():
         date_debut_arret_reel="2026-07-14",
     )
     dumped = entry.model_dump()
-    assert dumped["arret_type"] == "maladie_simple"
-    assert dumped["subrogation_active"] is True
-    assert dumped["nombre_enfants"] == 2
-    assert dumped["date_debut_arret_reel"] == "2026-07-14"
+    assert dumped == {"jour": 3, "type": "arret_maladie", "heures_prevues": 0.0}
+
+
+def test_fusion_ignore_les_cles_serveur_injectees_par_le_payload():
+    """« Copier le mois précédent » rejoue arret_type sur un mois sans arrêt."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [{"jour": 3, "type": "travail", "heures_prevues": 7.0}]
+    incoming = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+            "origine": "absence",
+        }
+    ]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert merged[0]["type"] == "arret_maladie"
+    assert "arret_type" not in merged[0]
+    assert "subrogation_active" not in merged[0]
+    assert "origine" not in merged[0]
+
+
+def test_fusion_ne_laisse_pas_le_payload_reecrire_une_cle_serveur():
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+        }
+    ]
+    incoming = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "arret_type": "accident_travail",
+            "subrogation_active": False,
+        }
+    ]
+
+    merged = merge_planned_entries(existing, incoming)
+    assert merged[0]["arret_type"] == "maladie_simple"
+    assert merged[0]["subrogation_active"] is True
+
+
+def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
+    from app.shared.domain.absence_calendar import SERVER_OWNED_ABSENCE_KEYS
+
+    assert SERVER_OWNED_ABSENCE_KEYS == frozenset(
+        {
+            "origine",
+            "arret_type",
+            "subrogation_active",
+            "nombre_enfants",
+            "historique_arrets_annee",
+            "date_debut_arret_reel",
+            "salaire_periode_reelle",
+        }
+    )
 
 
 def test_fusion_conserve_les_metadonnees_absentes_du_payload():
