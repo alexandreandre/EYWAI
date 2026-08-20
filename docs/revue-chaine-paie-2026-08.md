@@ -1,203 +1,214 @@
-# Revue de la chaîne de paie — 20 août 2026
+# Revue de la chaîne de paie — édition vérifiée du 20 août 2026
 
-**Question posée** : si les RH saisissent correctement (calendriers,
-pointages, absences, variables), la paie sort-elle juste — et sinon,
-est-ce signalé ?
+**Question** : si les RH saisissent correctement, la paie sort-elle juste,
+et sinon est-ce signalé ?
 
-**Méthode** : 4 explorations systématiques du backend (calendriers,
-pointages/déductions, absences/variables, alertes), vérification de
-l'état du paramétrage en prod, et contre-vérification manuelle des
-découvertes les plus lourdes (§A1, A5, B1 relues dans le code).
+**Méthode** : 4 explorations systématiques (calendriers, pointages,
+absences/variables, alertes), puis **contre-vérification adversariale**
+de chaque finding décisionnel par 5 vérificateurs indépendants chargés de
+les réfuter (chemins alternatifs, frontend compris), plus vérifications
+en base de production. Chaque point ci-dessous porte son verdict.
 
-## Verdict
+## Verdict global
 
-**Non.** Le moteur de *calcul* est éprouvé (backtests au centime sur
-plusieurs sociétés), mais la **chaîne de saisie applicative** — celle que
-les RH utiliseront en vrai — comporte des ruptures silencieuses : des
-saisies correctes qui ne produisent pas la paie attendue, et des
-contrôles qui semblent protéger mais ne font rien. Les backtests ne
-l'ont jamais vue : ils alimentent le moteur par les données historiques
-(DSN, imports), pas par les flux RH (validation d'absence, badgeage,
-imports de feuilles). **Valider le rail paie ne suffit donc pas : il faut
-valider le rail saisie→paie avant la vague 1.**
+**Non.** Le moteur de calcul est éprouvé (les backtests le prouvent au
+centime), mais la chaîne applicative écran→moteur comporte des ruptures
+silencieuses. La contre-vérification a **confirmé ou aggravé** la quasi-
+totalité des findings, en a **nuancé** plusieurs (portées précisées, deux
+conclusions corrigées), et a découvert **de nouveaux problèmes majeurs**,
+dont deux atteignables dès aujourd'hui depuis l'UI.
 
----
-
-## A. Paie fausse silencieuse, même avec une saisie correcte
-
-Confirmés dans le code (réf. exactes) :
-
-1. **Un congé payé validé ne produit rien en paie.** Le module absences
-   écrit le type `conge` au calendrier
-   (`absences/infrastructure/providers.py:236`), le moteur ne connaît
-   que `conges_payes` (`payroll/engine/calcul_brut.py:925`). Ni retenue,
-   ni indemnité CP, ni arbitrage 1/10 vs maintien, ni décompte du solde
-   (`absences/domain/planning_cp.py:14`). *Contre-vérifié le 20/08.*
-2. **Calendrier manquant = salaire plein, calendrier partiel = possible
-   bulletin à ~0 €**, sans signal dans les deux cas
-   (`payslip_generator.py:479-483` ; complément « absence intégrale »
-   `calcul_brut.py:1009-1038` déclenché quand 0 jour de travail
-   planifié). Le seul garde-fou (`payslip_run_heures.py:189-192`) est du
-   code mort. 8 actifs sont aujourd'hui sans calendrier en prod.
-3. **Annuler une absence validée ne remet pas le calendrier** : la
-   retenue persiste sur tous les bulletins suivants
-   (`absences/application/commands.py:291` — seul le statut change).
-4. **Maternité/paternité traitées comme une maladie.** La branche
-   maternité du moteur de maintien (100 %, sans carence) est
-   inatteignable depuis le flux RH : `ArretType` ne propose pas
-   `maternite` (`absences/schemas/requests.py:28-37`) alors que le
-   moteur l'exige (`maintien_salaire_service.py:126-137`). Résultat :
-   carence 3 j + carence employeur 7 j + barème dégressif, à tort.
-5. **Un recalcul écrase un bulletin validé sans trace** : upsert sans
-   `status` ni version (`payslip_generator.py:1054-1067`), les alertes
-   acquittées restent acquittées, une édition manuelle est écrasée, et
-   le salarié reçoit un e-mail identique sans mention de correction.
-   *Contre-vérifié le 20/08.*
-6. **La validation des heures sup est une impasse** : quand une revue
-   manager est requise, le pointé complet — HS incluses — est retenu
-   quand même (`punch_accounting_rules.py:283-286`), et une HS approuvée
-   n'est jamais injectée dans le bulletin (l'injection n'est branchée
-   que sur `calculate_payroll_events`, jamais sur le générateur).
-7. **Arrêt maladie posé directement au planning** (sans passer par une
-   demande d'absence) : déduction intégrale, **ni maintien ni IJSS**
-   (`payslip_run_heures.py:139-140` exige un `arret_type` que l'éditeur
-   de planning ne pose pas).
-8. **Arrêt long multi-mois : le maintien repart à taux plein chaque
-   mois.** `date_debut_arret_reel` n'a aucun producteur applicatif (seul
-   un script de backtest l'écrit) → le barème D1226-1 ne s'épuise
-   jamais.
-9. **Acomptes, trois circuits non réconciliés** : une avance
-   (`salary_advances`) sans ligne miroir en saisies peut être **déduite
-   deux fois** à la première génération, le net change entre deux
-   générations du même mois, un acompte saisi en **positif** devient une
-   prime cotisée, et les bulletins forfait-jour lisent une colonne
-   inexistante (aucune ligne d'avance au brut).
-10. **Bug de clé JSON** : le générateur écrit `calendrier_reel`, le
-    moteur lit `calendrier` (`payslip_generator.py:975-978` vs
-    `payslip_run_heures.py:327`) → le « réel » est toujours vu vide →
-    prorata de prime d'ancienneté forcé à 100 % quel que soit
-    l'absentéisme.
-11. **Jours fériés garantis seulement si le calendrier est généré par
-    l'outil.** Saisi à la main ou importé sans férié : le 1er mai
-    devient un jour ouvré, voire une absence injustifiée. Le moteur ne
-    réinjecte jamais les fériés.
-12. **Pauses** : le prompt IA d'import contient toujours « déduire ~1 h
-    de pause » (`timesheet_page_schema.py:80` — le fix du 05/08 n'a pas
-    touché le prompt) ; « pause = 0 » et « tolérance = 0 » sont
-    impossibles à enregistrer (`or 45` / `or 30`,
-    `punch_accounting_repository.py:31-32`) ; avec moteur activé, la
-    pause réellement badgée peut être réintégrée puis une pause
-    forfaitaire redéduite (première entrée / dernière sortie seulement).
-13. **Badgeuse en UTC** (horloge du conteneur, pas de TZ) : un badge de
-    8 h stocké à 6 h → fausses HS « entrée en avance », nuits coupées en
-    deux.
-14. **`sans_solde` et `jtc` n'ont aucun mapping calendrier**, `rtt` est
-    ignoré par le calcul du brut (pas de retenue, pas d'heures
-    assimilées) — congé sans solde non déduit si le mois n'a pas de
-    pointage.
-15. **La validation d'absence sur un mois non planifié fabrique un
-    calendrier avec les week-ends typés « travail »**
-    (`providers.py:280-316`) → jusqu'à ~8 jours d'absence injustifiée
-    fictifs dès qu'un pointage existe.
-16. **Échecs avalés** : génération auto des variables, avances,
-    enrichissement, maintien — tous sous `try/except` → le bulletin part
-    incomplet avec un simple warning serveur. Et l'UPDATE de traçabilité
-    participation est sans filtre société (risque de reclassement massif
-    de primes en participation exonérée).
-
-## B. Illusions de contrôle
-
-1. **L'e-mail « bulletin disponible » part à la génération**, avant
-   toute validation RH et sans consulter la moindre alerte
-   (`payslips/application/commands.py:61-82`).
-2. Le rapport d'anomalies bulletins (brut nul, net>brut, cotisations
-   négatives…) est **calculé mais jamais affiché** nominativement —
-   l'API est orpheline côté frontend.
-3. Les anomalies « bloquantes » de la revue pré-paie **ne bloquent
-   rien** : la génération ne les consulte pas ; un clic « générer quand
-   même » suffit.
-4. La règle R11 « acompte déduit sans avance déclarée » est du code mort
-   (contexte jamais renseigné).
-5. Le réglage `use_last_nonzero_exit` est exposé mais jamais lu ;
-   `manual_override` ne protège ni les lignes créées à la main, ni les
-   suppressions, ni les renommages (doublon → double paiement).
-6. Trois échelles de sévérité incompatibles selon le système d'alerte.
-
-## C. Garde-fous absents (standard paie)
-
-Net à payer négatif ; salarié actif sans bulletin (le compteur existe,
-jamais nominatif) ; variation de masse salariale ; salaire sous le SMIC
-(le proxy utilise un SMIC **figé à 2024**) ; durées légales (10 h/j,
-48 h/sem, repos 11 h) ; écart badgeage vs feuille importée ; bulletin
-périmé après modification d'une absence/variable ; arrêt « en cours »
-vs terminé (structurellement indistinguables).
-
-## D. État prod (20/08)
-
-- Réglages de pause : **Colorplast et MBC seulement**. Cartol, Comitech,
-  LEWIS badgent leurs pauses (chemin badgeuse : correct sans réglage),
-  mais tout **import de feuille** chez eux subit le 1 h du prompt IA.
-- **8 actifs sans aucun calendrier** (4 Cartol, 1 Comitech, 1 MBC,
-  1 MAJI, 1 Zone 404) → salaire plein silencieux (§A2).
-- MAJI/Zone 404 : aucun plan horaire société (cohérent, pas de badgeuse).
-
-## E. Ce que les RH doivent savoir (réunion du 24)
-
-Déductions et transformations automatiques, à dire explicitement :
-
-1. Pause déduite selon le réglage société (45 min par défaut si le
-   moteur est activé sans réglage ; **1 h sur les feuilles importées**
-   dans les sociétés non paramétrées).
-2. Écart pointé/théorique ≤ 30 min → on paie le théorique.
-3. Jour importé sans pointage → absence à 0 h (retenue).
-4. Mois entièrement sans pointage → le planning fait foi (aucune
-   retenue) ; c'est voulu, mais une badgeuse en panne un mois = bulletin
-   plein.
-5. HS au-delà du théorique + tolérance → détectées automatiquement,
-   mais la « validation manager » n'a aujourd'hui aucun effet réel (§A6).
-6. Les congés doivent passer par les demandes d'absence — et tant que
-   §A1 n'est pas corrigé, même ce chemin ne produit pas la paie.
-
-## F. Ce qui peut clôturer
-
-- **#29 Alertes de paie** : le bruit est bien traité (rétrogradations
-  CCN, fix VM arrondissements, « bulletins non validés » conditionné au
-  circuit de validation). Clos.
-- **Revue pré-paie** : le contrôle « calendrier du mois incomplet »
-  existe et fonctionne (informatif). Le concept est bon, à rendre
-  bloquant plutôt qu'à reconstruire.
-- **#27 Post-traitement pointages** : le chemin badgeage et le recalcul
-  serveur sont alignés sur le réglage société — mais **ne peut pas
-  clôturer** tant que le prompt IA garde son heure en dur (§A12) et que
-  « pause 0 » est inenregistrable.
-- La comparaison N/N-1 avec blocage de validation sur alerte critique
-  est un vrai garde-fou qui marche (hors R11).
-
-## G. Priorités de correction
-
-**Avant la vague 1 (salariés qui badgent et posent des congés) :**
-1. §A1 mapping `conge`→`conges_payes` (+ `sans_solde`, `rtt`, `jtc`)
-2. §A3 annulation d'absence → remise du calendrier
-3. §A15 week-ends « travail » à la validation d'absence
-4. §A12 prompt IA + `or 45`/`or 30` (pause 0)
-5. §A13 fuseau horaire badgeuse
-6. Alerte bloquante « calendrier manquant/incomplet » à la génération
-   (§A2) + les 8 actifs sans calendrier en prod
-
-**Avant la bascule paie d'une société (critères des 5 verts) :**
-7. §A5 recalcul : versionner, invalider le statut, ne plus écraser une
-   édition manuelle ; ne plus notifier le salarié avant validation (§B1)
-8. §A6 circuit HS réel ; §A9 acomptes (réconciliation + signe + forfait)
-9. §A4 maternité, §A7 arrêt au planning, §A8 `date_debut_arret_reel`
-10. Contrôles manquants : net négatif, actif sans bulletin, SMIC à jour
-
-**Ensuite** : §A10 (clé JSON — attention, corriger change les bulletins,
-à passer par backtest), fériés réinjectés, afficher le rapport
-d'anomalies, unifier les sévérités.
+Réfutations à retenir (honnêteté du rapport précédent) :
+- « ni décompte de solde CP » était **faux** — le solde est décompté via
+  les demandes ; c'est l'effet *paie* du CP qui manque.
+- « prorata d'ancienneté toujours à 100 % » était **surestimé** — le réel
+  atteint le moteur par un autre chemin ; le bug de clé JSON ne mord que
+  sur les mois sans aucune heure travaillée, et ampute les cumuls SMIC
+  des HS conjoncturelles.
+- `backend/.env` n'est **pas** versionné (fausse alerte de fuite).
+- Les e-mails de prod sont **tous redirigés** vers la boîte de test
+  depuis le 07/08 (commit `71b5faaa`) — l'e-mail prématuré de bulletin ne
+  part donc à personne aujourd'hui ; la notification **in-app**, si.
 
 ---
 
-*Les points non contre-vérifiés individuellement sortent d'une
-exploration statique : re-vérifier chaque référence avant de corriger
-(règle backtest : tout changement moteur reste généraliste et passe par
-les backtests).*
+## A. Confirmés — paie fausse silencieuse (verdicts et portées exactes)
+
+1. **CP validé sans effet paie** — CONFIRMÉ. Aucune branche `conge` dans
+   le moteur, aucun normaliseur, et *tous* les producteurs (UI, validation
+   d'absence, apply-model, import Quadra) écrivent `conge`. Le seul
+   producteur de `conges_payes` est… la récup modulation (à tort, voir
+   D3). **Aggravation** : le garde-fou « absence intégrale » ne compte que
+   `travail`/`conges_payes` → un mois CP + arrêt donne un **bulletin
+   ~0 €** (le complément déduit tout le mensualisé). Le fix n'est pas
+   1 ligne : chantier vocabulaire (~25 fichiers front+back), reprise des
+   calendriers existants (369 jours en prod, dont ~85 bulletins LEWIS et
+   8 MAJI générés dessus), heures assimilées à trancher, sous backtest.
+2. **Calendrier manquant → salaire plein** — CONFIRMÉ, pire : la
+   « génération en masse » est une boucle frontend, 4 chemins de la page
+   Paie ne consultent jamais le préflight, le seul garde est un
+   `window.confirm` du widget dashboard. Point de correction unique :
+   `generate_payslip` (couvre heures + forfait). 8 actifs sans calendrier
+   en prod.
+3. **Annuler une absence validée** — CONFIRMÉ techniquement, mais
+   **inatteignable aujourd'hui** : l'UI n'offre pas d'annulation. À
+   requalifier : *construire* la fonction d'annulation avec remise du
+   calendrier (le backend accepte déjà n'importe quelle transition, sans
+   garde — rejouer `validated` re-déclenche tout, y compris un **second
+   débit modulation**).
+4. **Maternité en régime maladie** — CONFIRMÉ aggravé : contrainte SQL,
+   sélecteur obligatoire limité aux natures maladie/AT, branche moteur
+   morte. **L'import DSN fait pire** : nature `None` → déduction sèche
+   sur les mois historiques rejoués. Bon fix : **dériver** la nature du
+   type d'absence (mapping + migration CHECK + DSN), pas l'ajouter au
+   menu.
+5. **Recalcul écrase un bulletin validé** — CONFIRMÉ élargi : les deux
+   générateurs (heures + forfait) ; `status` n'est même pas exposé à la
+   liste RH (l'UI ne peut rien afficher) ; l'historique d'édition ne
+   reçoit rien ; `manually_edited` ment après écrasement.
+6. **Heures sup** — CONFIRMÉ, pire : exiger la validation manager fait
+   payer **plus** que ne pas l'exiger (pointé complet vs théorique +
+   excédent) ; refuser une HS est un no-op ; chaque génération **écrase**
+   `payroll_events` où vivaient les validations. ⚠ Ne PAS brancher
+   l'injection au générateur (double comptage garanti) : retenir en
+   attente dans `punch_accounting_rules` + recalcul à l'approbation.
+7. **Arrêt sans nature = déduction sèche** — CONFIRMÉ + découverte
+   majeure (voir D1) : le POST du planning efface les métadonnées des
+   arrêts corrects. Le rapprochement IJSS n'est **pas** un filet (le
+   salarié y est invisible), la simulation reproduit les bugs.
+8. **Arrêt multi-mois** — CONFIRMÉ au jour près : sur 3 mois, ~6 j
+   d'IJSS et ~14 j de maintien perdus, barème D1226-1 qui redémarre.
+   `date_debut_arret_reel` sans producteur ; continuité <48 h et carence
+   annuelle unique **inertes** (champs jamais produits — le toggle UI est
+   un placebo). Fix : producteur + historique enrichi (jours consommés)
+   + cumul dans le calcul du rang.
+9. **Acomptes** — CONFIRMÉ : double déduction quand l'avance n'a aucune
+   ligne de saisie « net seulement » en face ; **régénérer efface une
+   retenue single** (remaining=0 au 1er passage) ;
+   `get_advances_to_repay` ignore year/month ; acompte saisi positif =
+   prime cotisée (aucun garde, ni front ni back). **Forfait-jour : deux
+   bugs s'annulent** (circuit du brut mort + enrichissement qui déduit) —
+   les corriger séparément crée une régression : lot unique.
+10. **Clé JSON `calendrier_reel`** — bug CONFIRMÉ, conclusion corrigée :
+    portée réelle = mois à 0 h travaillée (prorata figé, inversé si CC en
+    politique proratisée) + `heures_sup_conjoncturelles_mois` toujours 0
+    → **cumuls SMIC amputés des HS** (persistés). Second bug indépendant :
+    lecture `heures` vs `heures_faites`. À corriger **sous backtest**
+    (change des bulletins et des cumuls historiques).
+11. **Fériés** — CONFIRMÉ : le hint frontend ne rattrape jamais un
+    calendrier déjà persisté ; « copier le mois précédent » recopie par
+    numéro de jour (week-ends décalés, fériés du mois cible perdus). Fix
+    côté serveur à l'écriture, pas dans le hint.
+12. **Pauses** — CONFIRMÉ : le « ~1 h » vit dans le prompt **et** dans le
+    repli serveur ; `or 45`/`or 30` sur **5 sites** (créneaux compris —
+    précisément ce que configurerait une boîte qui badge ses pauses) ;
+    l'UI réaffiche 45 avec un toast « enregistré ». Nuance : ne touche
+    que les feuilles manuscrites IA, pas les exports CSV. ⚠ invalider le
+    cache d'aperçus (l'empreinte ignore la version du prompt).
+13. **Fuseau horaire badgeuse** — CONFIRMÉ requalifié : l'instant stocké
+    est correct (timestamptz) ; c'est l'arithmétique murale sans
+    conversion qui fabrique 2 h de fausses HS l'été et coupe les nuits.
+    Fix : conversions explicites Europe/Paris aux points de calcul (pas
+    un simple `TZ=`). Aucun dégât historique : la badgeuse n'a jamais
+    servi en prod (2 badges de test).
+14. **Pause badgée avec moteur activé** — requalifié : substitution, pas
+    double déduction — et c'est pire : une pause badgée longue fabrique
+    des **HS fantômes**. Activer le moteur *dégrade* le chemin badgeuse.
+15. **sans_solde / jtc / rtt** — NUANCÉ en 3 cas : `sans_solde`
+    inatteignable par l'UI mais **produit par l'import DSN** (défaut du
+    mapping) → no-op silencieux ; `jtc` réel (demande possible, aucun
+    effet) ; `rtt` surtout un problème de vocabulaire (repos payé = pas
+    de retenue, correct), mais type perdu à la moindre ré-édition et
+    retypé `travail` par « Appliquer le modèle ».
+16. **Week-ends « travail » du calendrier de repli** — NUANCÉ : neutralisé
+    tant que le mois n'a aucun pointage (repli planning), **dangereux dès
+    qu'un pointage arrive** — exactement la population de la vague 1.
+    Aussi déclenché par l'import DSN sur des mois passés. Fix : réutiliser
+    la génération standard (plan + fériés + temps partiel) + clé
+    `periode` manquante.
+
+## B. Illusions de contrôle (confirmées)
+
+Anomalies « bloquantes » qui ne bloquent rien (aucun chemin de génération
+ne consulte le préflight) ; rapport d'anomalies bulletins jamais affiché ;
+R11 acomptes = code mort ; `use_last_nonzero_exit` = réglage mort ;
+salarié qui **voit les bulletins brouillon** (aucun filtre `status` dans
+son espace — le vrai périmètre du « e-mail prématuré ») ; renotification
+à chaque régénération.
+
+## C. Sécurité (découvert en chemin)
+
+- **Clés Supabase inversées** : `SUPABASE_KEY` porte un JWT
+  `service_role`, `SUPABASE_SERVICE_KEY` un `anon`. Le client « par
+  défaut » de toute l'app contourne donc la RLS. Amplifie l'UPDATE
+  participation sans filtre société (tamponne les saisies de **toutes**
+  les sociétés → primes reclassées en participation exonérée). Deux
+  correctifs distincts : cibler l'UPDATE par ids (les ids sont déjà
+  retournés par l'insert), et remettre les clés à l'endroit.
+- Les e-mails prod étant tous redirigés (07/08), les **e-mails
+  d'activation** de la vague 0/1 ne partiront pas sans une levée ciblée
+  par flux (ne pas retirer le redirect global).
+
+## D. Nouveaux problèmes majeurs (hors rapport initial)
+
+1. **Enregistrer le planning d'un mois efface les métadonnées d'absence**
+   (nature d'arrêt, subrogation, historique) : le schéma GET/POST ne
+   connaît que `{jour, type, heures}` et réécrit le mois entier. Un
+   arrêt correctement saisi est dégradé en déduction sèche dès qu'une RH
+   touche au planning. **Atteignable aujourd'hui — correctif le plus
+   rentable du lot** (préserver les clés inconnues, merge au lieu de
+   remplacement).
+2. **Régénérer un planning efface les absences validées**
+   (`OVERWRITE_ALL` par défaut, et rien ne marque les jours d'absence
+   comme « manuels »). Atteignable aujourd'hui depuis l'UI.
+3. **Récup modulation** : seule productrice de `conges_payes` → double
+   débit (compteur modulation **et** solde CP) + affichage « congés
+   payés » sur le bulletin. Et rejouer un PATCH de validation double le
+   débit (aucune idempotence).
+4. **Régénérer un bulletin efface une retenue d'avance** (voir A9).
+5. « Copier le mois précédent » décale week-ends/fériés (voir A11).
+
+## E. Ce que les RH doivent savoir (réunion du 24) — inchangé
+
+Pause selon réglage société (45 min par défaut moteur activé ; 1 h sur
+feuilles manuscrites importées sans réglage) ; écart ≤ 30 min → théorique
+payé ; jour importé sans pointage → absence retenue ; mois sans pointage
+→ planning payé tel quel ; HS auto-détectées mais validation aujourd'hui
+sans effet ; congés via demandes d'absence (une fois le lot A livré).
+
+## F. Clôturable
+
+#29 alertes (bruit traité) : clos. Revue pré-paie : bon concept, à rendre
+bloquante. #27 pauses : ne clôture pas (prompt + `or 45`). Comparaison
+N/N-1 bloquante : vrai garde-fou (hors R11).
+
+## G. Cadre de correction — lots cohérents, dans l'ordre
+
+Chaque lot = TDD + backtest de non-régression (tout fix moteur reste
+généraliste) ; migrations d'abord sur l'environnement de test.
+
+- **Lot 1 — Préservation du planning** (D1+D2) : schéma qui préserve les
+  clés inconnues, merge, `manuel` sur les jours d'absence. *Le plus
+  rentable, atteignable aujourd'hui.*
+- **Lot 2 — Vocabulaire calendrier** (A1+A15+D3, garde-fou « absence
+  intégrale », heures assimilées, reprise des 369 jours + réexamen des
+  bulletins LEWIS/MAJI concernés). *Le plus gros ; sous backtest.*
+- **Lot 3 — Génération sûre** (A2 garde calendrier, A5 statut
+  validé/version, notification après validation, filtre `status` espace
+  salarié, B renotifications).
+- **Lot 4 — Pauses/HS/TZ avant vague 1** (A12 prompt+repli+`or45`+cache,
+  A6 retenue en attente + recalcul à l'approbation, A13 conversions TZ,
+  A14 pause mesurée prioritaire).
+- **Lot 5 — Arrêts** (A4 dérivation nature + DSN, A7, A8 producteur +
+  historique enrichi, D« transition d'états » + annulation A3).
+- **Lot 6 — Acomptes** (A9 en bloc : les deux générateurs ensemble,
+  year/month, idempotence, garde de signe).
+- **Lot 7 — Sécurité** (C : clés Supabase, UPDATE participation ciblé,
+  levée ciblée du redirect e-mail pour l'activation).
+- **Lot 8 — Fond** (A10 clé JSON sous backtest juillet, fériés côté
+  serveur, afficher le rapport d'anomalies, préflight bloquant, contrôles
+  manquants : net négatif, actif sans bulletin, SMIC à jour).
+
+Ordre recommandé avant la **vague 1** : Lots 1, 3 (garde calendrier +
+statut), 4. Le Lot 2 démarre en parallèle (le plus long). Avant toute
+**bascule paie** : 2, 5, 6, 8-A10.
