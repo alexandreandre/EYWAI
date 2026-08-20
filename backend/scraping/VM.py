@@ -2,6 +2,7 @@
 
 import os
 import csv
+import sys
 from datetime import date, datetime, timezone
 from urllib.parse import urljoin
 
@@ -9,7 +10,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from supabase import create_client
 
 # Charger .env depuis la racine backend_api
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -170,13 +170,14 @@ def _scrape_vmrr_from_reference_page(
 
 
 def get_supabase():
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        raise RuntimeError(
-            "SUPABASE_URL et SUPABASE_SERVICE_KEY (ou SUPABASE_KEY) requis."
-        )
-    return create_client(url, key)
+    # Client role-aware commun (service_role sélectionné par claim JWT,
+    # les noms de variables ayant été historiquement inversés).
+    scraping_dir = os.path.dirname(os.path.abspath(__file__))
+    if scraping_dir not in sys.path:
+        sys.path.insert(0, scraping_dir)
+    from core.supabase_io import init_supabase_client
+
+    return init_supabase_client()
 
 
 def iso_now():

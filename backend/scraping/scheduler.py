@@ -69,7 +69,6 @@ def load_env_and_supabase():
     Cherche dans backend/.env puis racine monorepo.
     """
     from dotenv import load_dotenv
-    import os
 
     for candidate in [
         BACKEND_DIR / ".env",
@@ -80,14 +79,16 @@ def load_env_and_supabase():
             logger.info(f"ENV chargé depuis {candidate}")
             break
 
-    from supabase import create_client
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or \
-          os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        logger.error("SUPABASE_URL / SUPABASE_SERVICE_KEY manquants")
+    # Client role-aware commun (service_role sélectionné par claim JWT).
+    if str(SCRAPING_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRAPING_DIR))
+    from core.supabase_io import init_supabase_client
+
+    try:
+        return init_supabase_client()
+    except EnvironmentError as exc:
+        logger.error("Client Supabase indisponible : %s", exc)
         sys.exit(1)
-    return create_client(url, key)
 
 
 def get_due_schedules(supabase) -> list:
