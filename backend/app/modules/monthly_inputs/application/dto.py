@@ -6,7 +6,7 @@ Objets de transfert applicatifs (optionnel : l'API actuelle renvoie des dict).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 
@@ -15,6 +15,7 @@ class CreateBatchResultDto:
     """Résultat de la création en batch."""
 
     inserted_count: int
+    inserted_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
