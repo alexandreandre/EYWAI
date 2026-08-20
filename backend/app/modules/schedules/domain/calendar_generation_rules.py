@@ -19,6 +19,7 @@ from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from app.modules.schedules.domain.break_policy import enrich_day_config_breaks
+from app.shared.domain.absence_calendar import is_absence_day
 
 # Types de jour considérés comme travaillés (les autres → 0 h).
 WORK_TYPES = {"work", "travail"}
@@ -176,7 +177,9 @@ def build_month_calendrier_prevu(
 
         # Un jour issu d'une absence validée n'est jamais balayé par une
         # régénération : l'écraser annulerait un arrêt ou un congé en silence.
-        if existing and existing.get("origine") == "absence":
+        # La garde exige les deux conditions (marqueur ET type d'absence) pour
+        # qu'un `origine` mal posé ne puisse jamais geler un jour travaillé.
+        if is_absence_day(existing):
             out.append(dict(existing))
             continue
 

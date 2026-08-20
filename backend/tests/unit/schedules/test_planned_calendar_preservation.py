@@ -498,6 +498,43 @@ def test_regeneration_conserve_un_jour_d_absence_meme_en_overwrite_all():
     assert jour3["arret_type"] == "maladie_simple"
 
 
+def test_regeneration_ne_gele_pas_un_jour_travaille_mal_marque():
+    """Un marqueur `origine` mal posé ne doit pas suffire à figer un jour.
+
+    Les deux conditions comptent : origine == "absence" ET type d'absence.
+    """
+    from app.modules.schedules.domain import calendar_generation_rules as gen
+
+    existant = [
+        {"jour": 3, "type": "travail", "heures_prevues": 0, "origine": "absence"}
+    ]
+    resultat = gen.build_month_calendrier_prevu(
+        2026,
+        7,
+        _semaine_travail_lundi_vendredi,
+        existing_entries=existant,
+        overwrite_mode=gen.OVERWRITE_ALL,
+    )
+    jour3 = next(e for e in resultat if e["jour"] == 3)
+    assert jour3["type"] == "travail"
+    assert jour3["heures_prevues"] == 7.0
+
+
+def test_regeneration_ne_gele_pas_un_type_d_absence_sans_marqueur():
+    """Symétrique : un type d'absence sans `origine` reste régénérable."""
+    from app.modules.schedules.domain import calendar_generation_rules as gen
+
+    existant = [{"jour": 3, "type": "conge", "heures_prevues": 0}]
+    resultat = gen.build_month_calendrier_prevu(
+        2026,
+        7,
+        _semaine_travail_lundi_vendredi,
+        existing_entries=existant,
+        overwrite_mode=gen.OVERWRITE_ALL,
+    )
+    assert next(e for e in resultat if e["jour"] == 3)["type"] == "travail"
+
+
 def test_regeneration_ecrase_bien_un_jour_ordinaire():
     """Garde-fou : la protection ne doit pas figer les jours sans origine absence."""
     from app.modules.schedules.domain import calendar_generation_rules as gen
