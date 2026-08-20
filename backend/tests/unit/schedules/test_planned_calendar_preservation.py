@@ -108,3 +108,60 @@ def test_update_planned_calendar_ne_detruit_pas_les_metadonnees(monkeypatch):
     jour3 = capture["planned"]["calendrier_prevu"][0]
     assert jour3["arret_type"] == "maladie_simple"
     assert jour3["subrogation_active"] is True
+
+
+def test_jour_d_absence_porte_son_origine():
+    from app.modules.absences.infrastructure.providers import CalendarUpdateProvider
+
+    entry = CalendarUpdateProvider()._day_entry(
+        3, "arret_maladie", 0, arret_type="maladie_simple"
+    )
+    assert entry["origine"] == "absence"
+
+
+def _semaine_travail_lundi_vendredi(_monday):
+    """resolve_week_day_map : lundi→vendredi travaillés 7 h, week-end au repos."""
+    return {
+        iso: {"type": "travail", "hours": 7.0, "day": iso} for iso in range(1, 6)
+    }
+
+
+def test_regeneration_conserve_un_jour_d_absence_meme_en_overwrite_all():
+    from app.modules.schedules.domain import calendar_generation_rules as gen
+
+    existant = [
+        {
+            "jour": 3,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "arret_type": "maladie_simple",
+            "origine": "absence",
+        }
+    ]
+    resultat = gen.build_month_calendrier_prevu(
+        2026,
+        7,
+        _semaine_travail_lundi_vendredi,
+        existing_entries=existant,
+        overwrite_mode=gen.OVERWRITE_ALL,
+    )
+    jour3 = next(e for e in resultat if e["jour"] == 3)
+    assert jour3["type"] == "arret_maladie"
+    assert jour3["arret_type"] == "maladie_simple"
+
+
+def test_regeneration_ecrase_bien_un_jour_ordinaire():
+    """Garde-fou : la protection ne doit pas figer les jours sans origine absence."""
+    from app.modules.schedules.domain import calendar_generation_rules as gen
+
+    existant = [{"jour": 3, "type": "repos", "heures_prevues": 0}]
+    resultat = gen.build_month_calendrier_prevu(
+        2026,
+        7,
+        _semaine_travail_lundi_vendredi,
+        existing_entries=existant,
+        overwrite_mode=gen.OVERWRITE_ALL,
+    )
+    jour3 = next(e for e in resultat if e["jour"] == 3)
+    assert jour3["type"] == "travail"
+    assert jour3["heures_prevues"] == 7.0

@@ -210,6 +210,9 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             "jour": day,
             "type": calendar_type,
             "heures_prevues": heures if calendar_type == "travail" else 0,
+            # Marque la provenance : une régénération de planning ne doit pas
+            # effacer un jour issu d'une absence validée.
+            "origine": "absence",
         }
         if calendar_type == "arret_maladie" and arret_type:
             entry["arret_type"] = arret_type

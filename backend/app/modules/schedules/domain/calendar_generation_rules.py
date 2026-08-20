@@ -174,6 +174,12 @@ def build_month_calendrier_prevu(
                 out.append(_make_entry(day, "repos", 0.0, None, is_forfait=False))
             continue
 
+        # Un jour issu d'une absence validée n'est jamais balayé par une
+        # régénération : l'écraser annulerait un arrêt ou un congé en silence.
+        if existing and existing.get("origine") == "absence":
+            out.append(dict(existing))
+            continue
+
         # Modes de préservation : on garde l'entrée existante sans régénérer.
         if overwrite_mode == PRESERVE_MANUAL and existing and existing.get("manuel"):
             out.append(dict(existing))
