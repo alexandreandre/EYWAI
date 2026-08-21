@@ -551,3 +551,130 @@ def test_ijss_sur_bulletin_valide_archive_et_remet_en_brouillon():
 
     assert ordre[:2] == ["archive", "generation"]
     assert "reset" in ordre
+
+
+def test_scenario_de_vie_generation_validation_regeneration():
+    """Task 6 — la chaîne complète, avec un vrai état partagé simulé :
+    génération → validation (notifie 1 fois) → re-validation (ne renotifie
+    pas) → régénération forcée (archive + brouillon) → re-validation
+    (renotifie : le contenu a changé)."""
+    from unittest.mock import MagicMock
+
+    from app.modules.payslips.application import commands as cmd_mod
+    from app.modules.payslips.application import comparison_service as svc
+    from app.modules.payslips.application.dto import GeneratePayslipInput
+
+    # ---- État partagé : la « base » du scénario -------------------------
+    store = {
+        "id": "p-1",
+        "status": None,          # pas encore généré
+        "payslip_data": None,
+        "url": None,
+        "edit_history": [],
+        "employee_id": "emp-1",
+        "company_id": "comp-1",
+        "year": 2026,
+        "month": 5,
+    }
+    notifications = []
+
+    def fake_generation(**k):
+        store["status"] = "brouillon"
+        store["payslip_data"] = {"net_a_payer": 1000}
+        store["url"] = "v1.pdf"
+        return {"status": "success", "message": "OK", "download_url": "u"}
+
+    def fake_mark_validated(payslip_id, user_id):
+        store["status"] = "valide"
+
+    def fake_persist_notifie(payslip_id, pd):
+        store["payslip_data"] = {**pd, "salarie_notifie_le": "2026-08-21T10:00"}
+
+    def fake_archive(existing, c):
+        store["edit_history"] = list(store["edit_history"]) + [
+            {"action": "regeneration", "previous_payslip_data": existing["payslip_data"]}
+        ]
+
+    def fake_reset(payslip_id):
+        store["status"] = "brouillon"
+
+    def generer(force_valide=False):
+        with (
+            patch.object(cmd_mod, "_employee_repository") as m_repo,
+            patch.object(cmd_mod, "employee_statut_reader") as m_reader,
+            patch.object(cmd_mod, "payslip_generator_provider") as m_prov,
+            patch.object(cmd_mod, "_calendar_row_status", return_value="saisi"),
+            patch.object(
+                cmd_mod, "_fetch_existing_payslip",
+                side_effect=lambda *a: dict(store) if store["status"] else None,
+            ),
+            patch.object(cmd_mod, "_archive_before_regeneration", side_effect=fake_archive),
+            patch.object(
+                cmd_mod, "_reset_payslip_flags_after_regeneration", side_effect=fake_reset
+            ),
+        ):
+            m_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            m_reader.get_employee_statut.return_value = "Non-Cadre"
+            m_prov.generate_heures.side_effect = lambda **k: fake_generation(**k)
+            return cmd_mod.generate_payslip(
+                GeneratePayslipInput(
+                    employee_id="emp-1", year=2026, month=5,
+                    regenerer_bulletin_valide=force_valide,
+                    requested_by="rh-1",
+                )
+            )
+
+    def valider():
+        resultat = MagicMock()
+        resultat.alerts = []
+        detail = dict(store)
+        with (
+            patch.object(svc, "payslip_meta_reader"),
+            patch.object(svc, "_ensure_edit_meta"),
+            patch.object(svc, "get_payslip_details", return_value=detail),
+            patch.object(svc, "fetch_previous_validated_payslip", return_value=None),
+            patch.object(svc, "fetch_employee_statut", return_value="Non-Cadre"),
+            patch.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),
+            patch.object(svc, "compute_comparison", return_value=resultat),
+            patch.object(svc, "mark_payslip_validated", side_effect=fake_mark_validated),
+            patch.object(
+                svc, "_notify_payslip_available",
+                side_effect=lambda *a: notifications.append(a),
+            ),
+            patch.object(
+                svc, "_persist_salarie_notifie_le", side_effect=fake_persist_notifie
+            ),
+        ):
+            ctx = MagicMock()
+            ctx.user_id = "rh-1"
+            svc.validate_payslip_for_user("p-1", ctx)
+
+    # 1. Génération initiale : brouillon, personne n'est notifié
+    generer()
+    assert store["status"] == "brouillon"
+    assert notifications == []
+
+    # 2. Validation : notifié UNE fois
+    valider()
+    assert store["status"] == "valide"
+    assert len(notifications) == 1
+
+    # 3. Re-validation (double clic) : pas de renotification
+    valider()
+    assert len(notifications) == 1
+
+    # 4. Régénérer sans force : refusé
+    from app.modules.payslips.application.dto import PayslipValidatedError
+
+    with pytest.raises(PayslipValidatedError):
+        generer()
+
+    # 5. Régénération forcée : archivé, retour en brouillon
+    generer(force_valide=True)
+    assert store["status"] == "brouillon"
+    assert len(store["edit_history"]) == 1
+
+    # 6. Re-validation : renotifie (le contenu a changé)
+    valider()
+    assert store["status"] == "valide"
+    assert len(notifications) == 2
