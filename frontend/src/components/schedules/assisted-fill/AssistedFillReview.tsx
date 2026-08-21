@@ -34,6 +34,7 @@ import {
   type DayNature,
   type ReviewStatus,
   type RosterEmployee,
+  type TimesheetCommitWarning,
 } from '@/api/calendar';
 
 const DAY_TYPES: { value: string; label: string }[] = [
@@ -44,6 +45,17 @@ const DAY_TYPES: { value: string; label: string }[] = [
   { value: 'absence', label: 'Absence' },
   { value: 'weekend', label: 'Week-end' },
 ];
+
+const DAY_TYPE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(DAY_TYPES.map((t) => [t.value, t.label])),
+  conges_payes: 'Congés payés',
+  rtt: 'RTT',
+};
+
+function dayTypeLabel(type: string | null | undefined): string {
+  if (!type) return '';
+  return DAY_TYPE_LABELS[type] ?? type;
+}
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -84,6 +96,13 @@ interface EditableRow {
 export interface AssistedFillApplyMeta {
   focusWeekIndex?: number | null;
   highlightDays?: number[];
+}
+
+/** Jour du relevé refusé à l'écriture : une absence validée occupe le planning. */
+interface PreservedAbsenceDay {
+  employeeLabel: string;
+  jour: number;
+  message: string | null;
 }
 
 interface AssistedFillReviewProps {
@@ -308,6 +327,10 @@ export function AssistedFillReview({
 }: AssistedFillReviewProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  // Jours refusés à l'écriture (absence validée préservée) : récapitulatif
+  // affiché après enregistrement, avant fermeture de la revue.
+  const [preservedAbsenceDays, setPreservedAbsenceDays] = useState<PreservedAbsenceDay[]>([]);
+  const [pendingApplyMeta, setPendingApplyMeta] = useState<AssistedFillApplyMeta | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>(() =>
     defaultReviewFilter(
       proposal.review_summary ?? {
@@ -523,6 +546,61 @@ export function AssistedFillReview({
     });
   };
 
+  const employeeWarningLabel = (employeeId: string | null | undefined): string => {
+    if (employeeId) {
+      const row = rows.find((r) => r.employeeId === employeeId);
+      if (row) return row.matchedName ?? row.rawName;
+      const emp = roster.find((e) => e.id === employeeId);
+      if (emp) return `${emp.last_name} ${emp.first_name}`;
+    }
+    return 'Salarié inconnu';
+  };
+
+  /** Ne garde que les refus « absence validée préservée », prêts à afficher. */
+  const toPreservedAbsenceDays = (
+    raw: TimesheetCommitWarning[] | null | undefined,
+  ): PreservedAbsenceDay[] => {
+    if (!raw?.length) return [];
+    return raw
+      .filter((w) => w.code === 'absence_validee_preservee')
+      .map((w) => ({
+        employeeLabel: employeeWarningLabel(w.employee_id),
+        jour: w.jour,
+        message:
+          w.message ??
+          (w.type_avant
+            ? `Absence validée (${dayTypeLabel(w.type_avant)}) conservée`
+              + (w.type_refuse
+                ? ` — « ${dayTypeLabel(w.type_refuse)} » du relevé ignoré.`
+                : '.')
+            : null),
+      }))
+      .sort(
+        (a, b) =>
+          a.employeeLabel.localeCompare(b.employeeLabel, 'fr') || a.jour - b.jour,
+      );
+  };
+
+  /** Toast final + soit fermeture immédiate, soit récapitulatif des refus. */
+  const finishSave = (
+    preserved: PreservedAbsenceDay[],
+    successDescription: string,
+    meta: AssistedFillApplyMeta,
+  ) => {
+    if (preserved.length > 0) {
+      toast({
+        title: 'Heures enregistrées — jours préservés',
+        description: `${preserved.length} jour(s) laissé(s) en l'état : absence validée (voir détail).`,
+        variant: 'warning',
+      });
+      setPreservedAbsenceDays(preserved);
+      setPendingApplyMeta(meta);
+      return;
+    }
+    toast({ title: 'Heures enregistrées', description: successDescription });
+    onApplied(meta);
+  };
+
   const handleSave = async () => {
     if (savableRows.length === 0) {
       toast({
@@ -560,22 +638,31 @@ export function AssistedFillReview({
         { batchId: batchId ?? undefined, allowPartial: true },
       );
 
+      const applyMeta: AssistedFillApplyMeta = {
+        focusWeekIndex: proposal.focus_week_index,
+        highlightDays: savableRows.flatMap((r) => r.days.map((d) => d.jour)),
+      };
+
       if (batchId && result.total_days_written === 0) {
         const committed = await waitForTimesheetImportBatchCommitted(batchId);
         const days = committed.preview?.employees.reduce(
           (acc, e) => acc + e.days.length,
           0,
         ) ?? 0;
-        toast({
-          title: 'Heures enregistrées',
-          description: `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
-        });
-        onApplied({
-          focusWeekIndex: proposal.focus_week_index,
-          highlightDays: savableRows.flatMap((r) => r.days.map((d) => d.jour)),
-        });
+        // Le commit asynchrone dépose ses refus dans le résumé du batch.
+        const preserved = toPreservedAbsenceDays(
+          result.warnings?.length
+            ? result.warnings
+            : committed.summary?.commit_warnings,
+        );
+        finishSave(
+          preserved,
+          `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
+          applyMeta,
+        );
         return;
       }
+      const preserved = toPreservedAbsenceDays(result.warnings);
       const failed = result.results.filter((r) => !r.success);
       if (failed.length > 0) {
         toast({
@@ -583,16 +670,19 @@ export function AssistedFillReview({
           description: `${result.total_days_written} jour(s) · ${failed.length} échec(s).`,
           variant: 'destructive',
         });
-      } else {
-        toast({
-          title: 'Heures enregistrées',
-          description: `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.`,
-        });
+        if (preserved.length > 0) {
+          setPreservedAbsenceDays(preserved);
+          setPendingApplyMeta(applyMeta);
+          return;
+        }
+        onApplied(applyMeta);
+        return;
       }
-      onApplied({
-        focusWeekIndex: proposal.focus_week_index,
-        highlightDays: savableRows.flatMap((r) => r.days.map((d) => d.jour)),
-      });
+      finishSave(
+        preserved,
+        `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.`,
+        applyMeta,
+      );
     } catch {
       toast({
         title: 'Erreur',
@@ -624,6 +714,50 @@ export function AssistedFillReview({
             ? 'Relevé Excel/CSV hebdomadaire'
             : 'Relevé Excel/CSV'
           : proposal.source;
+
+  if (preservedAbsenceDays.length > 0) {
+    // Récapitulatif post-enregistrement : jours refusés car absence validée.
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        <div className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {preservedAbsenceDays.length} jour(s) laissé(s) en l&apos;état : absence validée
+          </p>
+          <p className="mt-1 text-xs">
+            Une absence validée occupe déjà ces jours au planning : le relevé ne
+            les a pas modifiés. Le reste de l&apos;import a bien été enregistré.
+          </p>
+        </div>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-1 pr-3">
+            {preservedAbsenceDays.map((w, i) => (
+              <div
+                key={`${w.employeeLabel}-${w.jour}-${i}`}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md border border-amber-200/70 bg-amber-50/40 px-2 py-1.5 text-xs"
+              >
+                <span className="font-medium">{w.employeeLabel}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  jour {w.jour}
+                </span>
+                {w.message && <span className="text-amber-800">{w.message}</span>}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+        <div className="flex shrink-0 justify-end border-t pt-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => onApplied(pendingApplyMeta ?? undefined)}
+          >
+            <Check className="mr-2 h-4 w-4" />
+            Fermer
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">

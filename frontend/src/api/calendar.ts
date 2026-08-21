@@ -10,6 +10,12 @@ export interface PlannedEventData {
   jour: number;
   type: string;
   heures_prevues: number | null;
+  /**
+   * Marqueur de provenance posé par le serveur sur un jour issu d'une
+   * absence validée (`origine === 'absence'`). Jamais envoyé par le client ;
+   * peut être absent tant que le backend ne l'expose pas en lecture.
+   */
+  origine?: string | null;
 }
 
 export interface ActualHoursData {
@@ -29,11 +35,28 @@ export const getPlannedCalendar = (employeeId: string, year: number, month: numb
   });
 };
 
+/** Avertissement renvoyé par POST /planned-calendar (fusion serveur). */
+export interface PlannedCalendarWarning {
+  jour: number;
+  /** ex. "absence_validee_requalifiee" */
+  code: string;
+  type_avant?: string | null;
+  type_apres?: string | null;
+  type_refuse?: string | null;
+}
+
+export interface UpdatePlannedCalendarResponse {
+  status: string;
+  message: string;
+  /** Absent tant que le backend ne le renvoie pas — traiter comme liste vide. */
+  warnings?: PlannedCalendarWarning[];
+}
+
 /**
  * Met à jour le calendrier prévu pour un employé.
  */
 export const updatePlannedCalendar = (employeeId: string, year: number, month: number, data: PlannedEventData[]) => {
-  return apiClient.post(`/api/employees/${employeeId}/planned-calendar`, {
+  return apiClient.post<UpdatePlannedCalendarResponse>(`/api/employees/${employeeId}/planned-calendar`, {
     year,
     month,
     calendrier_prevu: data,
@@ -270,6 +293,20 @@ export interface PersistTimesheetEmployeePayload {
   days: AiDayEntry[];
 }
 
+/**
+ * Avertissement d'écriture d'un import de pointages : jour du relevé refusé
+ * parce qu'une absence validée occupe déjà le planning
+ * (code "absence_validee_preservee").
+ */
+export interface TimesheetCommitWarning {
+  employee_id?: string | null;
+  jour: number;
+  code: string;
+  message?: string | null;
+  type_avant?: string | null;
+  type_refuse?: string | null;
+}
+
 export interface PersistTimesheetResponse {
   year: number;
   month: number;
@@ -282,6 +319,8 @@ export interface PersistTimesheetResponse {
     error?: string | null;
   }>;
   errors: Array<{ employee_id: string; message: string }>;
+  /** Absent tant que le backend ne le renvoie pas — traiter comme liste vide. */
+  warnings?: TimesheetCommitWarning[];
 }
 
 export interface ExtractTimesheetOptions {
@@ -529,10 +568,21 @@ export type TimesheetImportBatchStatus =
   | 'failed'
   | 'cancelled';
 
+export interface TimesheetImportBatchSummary {
+  committed_days?: number;
+  employees_processed?: number;
+  /**
+   * Jours refusés au commit (absence validée préservée…). Champ défensif :
+   * absent tant que le schéma de réponse backend ne l'expose pas.
+   */
+  commit_warnings?: TimesheetCommitWarning[];
+}
+
 export interface TimesheetImportBatchResponse {
   batch_id: string;
   status: TimesheetImportBatchStatus;
   preview?: AiCalendarProposal | null;
+  summary?: TimesheetImportBatchSummary | null;
   parser_key?: string | null;
   error_message?: string | null;
 }
