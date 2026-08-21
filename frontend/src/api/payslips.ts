@@ -316,13 +316,28 @@ export const deletePayslip = async (payslipId: string): Promise<void> => {
 };
 
 /**
- * Génère un nouveau bulletin de paie
+ * Avertissement de génération : le backend mêle des chaînes (alertes RH du
+ * moteur) et des objets `{ code, message }` (gardes forcées, ex.
+ * `calendrier_incomplet_force`, `bulletin_valide_regenere`).
+ */
+export type PayslipGenerationWarning = string | { code?: string; message?: string };
+
+/**
+ * Génère un nouveau bulletin de paie.
+ *
+ * Sans flag, le backend refuse avec un `detail` structuré `{ code, message }` :
+ * 422 `calendrier_incomplet` ou 409 `bulletin_valide`. Les flags de forçage ne
+ * doivent être envoyés qu'après une confirmation explicite de l'utilisateur.
  */
 export const generatePayslip = async (
   data: {
     employee_id: string;
     year: number;
     month: number;
+    /** Génère malgré un calendrier incomplet (sinon 422 `calendrier_incomplet`). */
+    force_calendrier_incomplet?: boolean;
+    /** Régénère un bulletin validé en l'archivant (sinon 409 `bulletin_valide`). */
+    regenerer_bulletin_valide?: boolean;
   },
   signal?: AbortSignal
 ): Promise<{
@@ -330,7 +345,7 @@ export const generatePayslip = async (
   message: string;
   download_url: string;
   payslip_id?: string | null;
-  warnings?: string[];
+  warnings?: PayslipGenerationWarning[];
 }> => {
   const response = await apiClient.post('/api/actions/generate-payslip', data, { signal });
   return response.data;

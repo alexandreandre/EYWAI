@@ -8,18 +8,35 @@ import {
 } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
 import { invalidateExportsPageQueries } from '@/lib/exportsQuery';
+import { toast } from '@/hooks/use-toast';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import {
   monthYearLabel,
   readAverageGenerationMs,
   recordGenerationDuration,
 } from '@/features/payroll/utils/payrollMonth';
+import {
+  extractGenerationRefusal,
+  splitGenerationWarnings,
+  type GenerationRefusalCode,
+} from '@/features/payroll/utils/generationGuards';
 
 export type PayrollGenerationJob = {
   employeeId: string;
   employeeName: string;
   year: number;
   month: number;
+  /** Reposte avec `force_calendrier_incomplet` (après refus 422 confirmé). */
+  forceCalendrierIncomplet?: boolean;
+  /** Reposte avec `regenerer_bulletin_valide` (après refus 409 confirmé). */
+  regenererBulletinValide?: boolean;
+};
+
+/** Job refusé par une garde backend (422 calendrier / 409 bulletin validé). */
+export type PayrollGenerationRefusal = {
+  job: PayrollGenerationJob;
+  code: GenerationRefusalCode;
+  message: string;
 };
 
 export type PayrollGenerationLogEntry = {
@@ -68,6 +85,7 @@ export function usePayrollGeneration() {
   const [estimatedRemainingSec, setEstimatedRemainingSec] = useState<number | null>(null);
   const [totalJobs, setTotalJobs] = useState(0);
   const [failedJobs, setFailedJobs] = useState<Record<string, string>>({});
+  const [refusedJobs, setRefusedJobs] = useState<PayrollGenerationRefusal[]>([]);
 
   const abortRef = useRef(false);
   const tickRef = useRef<number | null>(null);
@@ -146,12 +164,19 @@ export function usePayrollGeneration() {
         abortControllerRef.current = controller;
 
         let entry: PayrollGenerationLogEntry;
+        let refusal: PayrollGenerationRefusal | null = null;
         try {
           const response = await generatePayslip(
             {
               employee_id: job.employeeId,
               year: job.year,
               month: job.month,
+              ...(job.forceCalendrierIncomplet
+                ? { force_calendrier_incomplet: true }
+                : {}),
+              ...(job.regenererBulletinValide
+                ? { regenerer_bulletin_valide: true }
+                : {}),
             },
             controller.signal
           );
@@ -161,7 +186,16 @@ export function usePayrollGeneration() {
           estimatedMsRef.current = readAverageGenerationMs();
 
           if (response.status === 'success') {
-            const warnings = response.warnings ?? [];
+            const { messages: warnings, guardWarnings } = splitGenerationWarnings(
+              response.warnings
+            );
+            for (const guardWarning of guardWarnings) {
+              toast({
+                variant: 'warning',
+                title: `${monthYearLabel(job.month, job.year)} — ${job.employeeName}`,
+                description: guardWarning.message,
+              });
+            }
             entry = {
               id: payrollJobKey(job),
               employeeId: job.employeeId,
@@ -196,7 +230,15 @@ export function usePayrollGeneration() {
             stopTick();
             break;
           }
-          const errorMessage = getPayrollGenerationErrorMessage(error);
+          // Refus structuré d'une garde (422 calendrier / 409 bulletin validé) :
+          // la boucle continue, le job est mémorisé pour un forçage explicite.
+          const structuredRefusal = extractGenerationRefusal(error);
+          if (structuredRefusal) {
+            refusal = { job, ...structuredRefusal };
+          }
+          const errorMessage = structuredRefusal
+            ? structuredRefusal.message
+            : getPayrollGenerationErrorMessage(error);
           entry = {
             id: payrollJobKey(job),
             employeeId: job.employeeId,
@@ -214,6 +256,14 @@ export function usePayrollGeneration() {
         stopTick();
 
         if (abortRef.current) break;
+
+        // Remplace un éventuel refus antérieur du même job par l'issue du jour.
+        setRefusedJobs((prev) => {
+          const rest = prev.filter(
+            (r) => payrollJobKey(r.job) !== payrollJobKey(job)
+          );
+          return refusal ? [...rest, refusal] : rest;
+        });
 
         completedCountRef.current += 1;
         logRef.current = [...logRef.current, entry];
@@ -260,6 +310,7 @@ export function usePayrollGeneration() {
         logRef.current = [];
         setLog([]);
         setFailedJobs({});
+        setRefusedJobs([]);
         completedCountRef.current = 0;
         totalRef.current = 0;
         setProgress(0);
@@ -267,7 +318,28 @@ export function usePayrollGeneration() {
         estimatedMsRef.current = readAverageGenerationMs();
       }
 
-      totalRef.current += newJobs.length;
+      // Relance d'un job déjà passé (refus forcé, nouvel essai après échec) :
+      // on retire l'ancienne entrée du journal pour que les compteurs et les
+      // clés restent exacts, sans recompter le job dans le total.
+      let retriedCount = 0;
+      if (!startingFresh) {
+        const retriedIds = new Set(
+          newJobs
+            .map(payrollJobKey)
+            .filter((id) => logRef.current.some((e) => e.id === id))
+        );
+        if (retriedIds.size > 0) {
+          logRef.current = logRef.current.filter((e) => !retriedIds.has(e.id));
+          setLog(logRef.current);
+          completedCountRef.current = Math.max(
+            0,
+            completedCountRef.current - retriedIds.size
+          );
+          retriedCount = retriedIds.size;
+        }
+      }
+
+      totalRef.current += newJobs.length - retriedCount;
       setTotalJobs(totalRef.current);
       queueRef.current.push(...newJobs);
       setQueuedJobs([...queueRef.current]);
@@ -296,6 +368,7 @@ export function usePayrollGeneration() {
     setEstimatedRemainingSec(null);
     setTotalJobs(0);
     setFailedJobs({});
+    setRefusedJobs([]);
     completedCountRef.current = 0;
     totalRef.current = 0;
     processingRef.current = false;
@@ -335,6 +408,23 @@ export function usePayrollGeneration() {
     [enqueueJobs]
   );
 
+  /**
+   * Relance uniquement les jobs refusés par une garde, avec le flag de forçage
+   * correspondant. À n'appeler que depuis un clic explicite de l'utilisateur
+   * (dialogue de refus / récapitulatif) — jamais automatiquement.
+   */
+  const forceRefused = useCallback(() => {
+    if (refusedJobs.length === 0) return;
+    const jobs = refusedJobs.map(({ job, code }) => ({
+      ...job,
+      forceCalendrierIncomplet:
+        job.forceCalendrierIncomplet || code === 'calendrier_incomplet',
+      regenererBulletinValide:
+        job.regenererBulletinValide || code === 'bulletin_valide',
+    }));
+    enqueueJobs(jobs);
+  }, [refusedJobs, enqueueJobs]);
+
   const completedCount = log.length;
 
   return {
@@ -350,6 +440,8 @@ export function usePayrollGeneration() {
     isRunning,
     generateJobs,
     failedJobs,
+    refusedJobs,
+    forceRefused,
     reset,
     cancel,
     dismiss,
