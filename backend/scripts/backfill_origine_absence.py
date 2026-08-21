@@ -54,8 +54,10 @@ from app.modules.absences.infrastructure.pagination import (  # noqa: E402
     DEFAULT_PAGE_SIZE,
     fetch_all_rows,
 )
+from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES  # noqa: E402
 from app.shared.domain.absence_calendar import (  # noqa: E402
     ABSENCE_CALENDAR_TYPES,
+    ABSENCE_TYPE_TO_CALENDAR_TYPE,
     ORIGINE_ABSENCE,
 )
 
@@ -145,6 +147,13 @@ def fetch_validated_absences(
 # ----- Règles pures --------------------------------------------------------
 
 
+TYPES_ECRIVANT_CALENDRIER: frozenset = frozenset(
+    ABSENCE_TYPE_TO_CALENDAR_TYPE
+) | frozenset(IJSS_ELIGIBLE_TYPES)
+
+JOURS_NON_OUVRES = {"ferie", "weekend", "repos"}
+
+
 def days_by_employee_month(
     absence_rows: List[Dict[str, Any]],
 ) -> Dict[Tuple[str, int, int], Set[int]]:
@@ -153,6 +162,10 @@ def days_by_employee_month(
     for row in absence_rows:
         employee_id = row.get("employee_id")
         if not employee_id:
+            continue
+        # jtc et sans_solde n'écrivent JAMAIS le calendrier (par design) :
+        # les compter fabriquerait des « absences perdues » fantômes.
+        if row.get("type") not in TYPES_ECRIVANT_CALENDRIER:
             continue
         for raw_day in row.get("selected_days") or []:
             jour = _as_date(raw_day)
@@ -207,8 +220,18 @@ def absences_perdues(
     perdues: List[Dict[str, Any]] = []
     for jour in sorted(jours):
         type_planning = types_par_jour.get(jour)
-        if type_planning not in ABSENCE_CALENDAR_TYPES:
-            perdues.append({"jour": jour, "type_planning": type_planning})
+        if type_planning in ABSENCE_CALENDAR_TYPES:
+            continue
+        # La validation d'absence n'écrit que sur les jours travaillés : un
+        # férié/week-end/repos dans la plage est NORMAL, pas une perte.
+        categorie = (
+            "jour_non_ouvre"
+            if type_planning in JOURS_NON_OUVRES
+            else "absence_perdue"
+        )
+        perdues.append(
+            {"jour": jour, "type_planning": type_planning, "categorie": categorie}
+        )
     return perdues
 
 
@@ -411,7 +434,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = _BACKEND / "scripts" / "data" / f"origine_absence-backup-{stamp}.json"
+    # data/ est gitignoré ; scripts/data/ est VERSIONNÉ dans un dépôt public —
+    # une sauvegarde nominative n'y a rien à faire.
+    backup_dir = _BACKEND.parent / "data" / "_backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup = backup_dir / f"origine_absence-backup-{stamp}.json"
     write_backup(backup, a_ecrire)
     print(f"Sauvegarde (calendrier d'avant compris) : {backup}")
 

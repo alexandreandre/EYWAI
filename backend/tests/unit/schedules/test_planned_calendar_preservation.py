@@ -685,24 +685,27 @@ def test_apply_model_preserve_les_absences_validees(monkeypatch):
 
 
 def test_type_mapping_absences_reste_couvert_par_les_types_calendrier():
-    """Verrou anti-dérive : tout type écrit au calendrier par la validation
-    d'absence doit rester connu de ABSENCE_CALENDAR_TYPES, sinon la
+    """Verrou anti-dérive : tout type que la validation d'absence écrit au
+    calendrier doit rester connu de ABSENCE_CALENDAR_TYPES, sinon la
     préservation et la purge cessent de le couvrir en silence."""
-    import inspect
+    from app.shared.domain.absence_calendar import (
+        ABSENCE_CALENDAR_TYPES,
+        ABSENCE_TYPE_TO_CALENDAR_TYPE,
+    )
 
-    from app.modules.absences.infrastructure import providers as mod
-    from app.shared.domain.absence_calendar import ABSENCE_CALENDAR_TYPES
-
-    source = inspect.getsource(mod.CalendarUpdateProvider.update_calendar_from_days)
-    # Le mapping vit dans le corps de la fonction : on l'extrait en l'exécutant.
-    import re
-
-    bloc = re.search(r"type_mapping = \{(.*?)\}", source, re.DOTALL)
-    assert bloc, "type_mapping introuvable — le test doit être adapté"
-    types_ecrits = set(re.findall(r':\s*"([a-z_]+)"', bloc.group(1)))
+    types_ecrits = set(ABSENCE_TYPE_TO_CALENDAR_TYPE.values())
     types_ecrits.add("arret_maladie")  # branche IJSS_ELIGIBLE_TYPES
     inconnus = types_ecrits - set(ABSENCE_CALENDAR_TYPES)
     assert not inconnus, f"types écrits au calendrier non couverts : {inconnus}"
+
+    # Et le provider consomme bien la source unique (pas un dict local qui
+    # pourrait dériver).
+    import inspect
+
+    from app.modules.absences.infrastructure import providers as mod
+
+    source = inspect.getsource(mod.CalendarUpdateProvider.update_calendar_from_days)
+    assert "ABSENCE_TYPE_TO_CALENDAR_TYPE" in source
 
 
 def test_lecture_tolerante_mais_saisie_bornee():
@@ -720,3 +723,36 @@ def test_lecture_tolerante_mais_saisie_bornee():
     # Mais la saisie reste bornée
     with pytest.raises(ValidationError):
         PlannedCalendarEntry(jour=42, type="travail")
+
+
+def test_le_get_expose_origine_mais_la_saisie_le_refuse_toujours():
+    """Le client doit VOIR origine (pour exclure ces jours de ses copies de
+    masse) sans jamais pouvoir l'ÉCRIRE."""
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarEntryOut,
+    )
+
+    lu = PlannedCalendarEntryOut(
+        jour=3, type="arret_maladie", heures_prevues=0, origine="absence"
+    )
+    assert lu.origine == "absence"
+
+    saisi = PlannedCalendarEntry(
+        jour=3, type="arret_maladie", heures_prevues=0, origine="absence"
+    )
+    assert "origine" not in saisi.model_dump()
+
+
+def test_le_resume_de_batch_conserve_les_refus_de_commit():
+    from app.modules.schedules.schemas.timesheet_import import (
+        TimesheetImportBatchSummary,
+    )
+
+    resume = TimesheetImportBatchSummary(
+        committed_days=3,
+        commit_warnings=[
+            {"employee_id": "e1", "jour": 4, "code": "absence_validee_preservee"}
+        ],
+    )
+    assert resume.model_dump()["commit_warnings"][0]["jour"] == 4

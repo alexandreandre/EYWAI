@@ -17,7 +17,10 @@ from typing import Any, Dict, List, Optional
 from app.core.database import supabase
 
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
-from app.shared.domain.absence_calendar import ORIGINE_ABSENCE
+from app.shared.domain.absence_calendar import (
+    ABSENCE_TYPE_TO_CALENDAR_TYPE,
+    ORIGINE_ABSENCE,
+)
 from app.modules.absences.domain.interfaces import (
     ICalendarUpdateService,
     IEvenementFamilialQuotaProvider,
@@ -241,13 +244,7 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         nombre_enfants: int = 0,
         historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        type_mapping = {
-            "conge_paye": "conge",
-            "rtt": "rtt",
-            "repos_compensateur": "conge",
-            "recuperation_modulation": "conges_payes",
-            "evenement_familial": "conge",
-        }
+        type_mapping = ABSENCE_TYPE_TO_CALENDAR_TYPE
         is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES
         new_calendar_type = "arret_maladie" if is_arret else type_mapping.get(absence_type_str)
         if not new_calendar_type:

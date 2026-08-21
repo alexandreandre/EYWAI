@@ -52,6 +52,11 @@ class PlannedCalendarEntryOut(BaseModel):
     jour: int
     type: str | None = None
     heures_prevues: float | None = None
+    # Marqueur de provenance, exposé en LECTURE seulement : le client s'en
+    # sert pour exclure les jours d'absence validée de ses actions de masse
+    # (copie de mois, modèle de semaine). Toujours refusé en écriture
+    # (PlannedCalendarEntry + SERVER_OWNED_ABSENCE_KEYS).
+    origine: str | None = None
 
 
 class PlannedCalendarResponse(BaseModel):

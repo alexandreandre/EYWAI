@@ -25,6 +25,18 @@ ORIGINE_ABSENCE = "absence"
 # Types de calendrier qu'une validation d'absence peut produire.
 # Source : absences.infrastructure.providers.CalendarUpdateProvider
 # (`type_mapping` + le cas arrêt de travail).
+# Mapping type de demande d'absence -> type de jour au calendrier.
+# Source unique : le provider de validation d'absence ET le script de reprise
+# le consomment ; les types absents de ce dict (jtc, sans_solde...) n'écrivent
+# JAMAIS le calendrier, par design.
+ABSENCE_TYPE_TO_CALENDAR_TYPE: dict[str, str] = {
+    "conge_paye": "conge",
+    "rtt": "rtt",
+    "repos_compensateur": "conge",
+    "recuperation_modulation": "conges_payes",
+    "evenement_familial": "conge",
+}
+
 ABSENCE_CALENDAR_TYPES: frozenset[str] = frozenset(
     {"arret_maladie", "conge", "conges_payes", "rtt"}
 )
@@ -66,6 +78,7 @@ def strip_server_owned_keys(entry: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "ABSENCE_CALENDAR_TYPES",
+    "ABSENCE_TYPE_TO_CALENDAR_TYPE",
     "ORIGINE_ABSENCE",
     "SERVER_OWNED_ABSENCE_KEYS",
     "is_absence_day",

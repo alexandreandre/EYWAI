@@ -52,6 +52,9 @@ class TimesheetImportBatchSummary(BaseModel):
     tokens_used: int = 0
     committed_days: int = 0
     commit_progress: Optional[Dict[str, Any]] = None
+    # Refus de commit (ex. absence validée préservée) : sans ce champ,
+    # Pydantic strippe la liste et la RH ne voit jamais les jours refusés.
+    commit_warnings: Optional[List[Dict[str, Any]]] = None
 
 
 class TimesheetImportParseResponse(BaseModel):

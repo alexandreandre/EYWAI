@@ -36,13 +36,17 @@ class TestAbsencesPerdues:
             {"jour": 4, "type": "conge", "heures_prevues": 0},
         ]
         perdues = script.absences_perdues(calendrier, {3, 4})
-        assert perdues == [{"jour": 3, "type_planning": "travail"}]
+        assert perdues == [
+            {"jour": 3, "type_planning": "travail", "categorie": "absence_perdue"}
+        ]
 
     def test_signale_un_jour_absent_du_planning(self):
         perdues = script.absences_perdues(
             [{"jour": 4, "type": "conge", "heures_prevues": 0}], {3, 4}
         )
-        assert perdues == [{"jour": 3, "type_planning": None}]
+        assert perdues == [
+            {"jour": 3, "type_planning": None, "categorie": "absence_perdue"}
+        ]
 
     def test_rien_a_signaler_quand_tout_concorde(self):
         calendrier = [{"jour": 3, "type": "arret_maladie", "heures_prevues": 0}]
