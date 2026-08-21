@@ -118,10 +118,14 @@ def merge_planned_entries(
             continue
         stocke = par_jour.get(jour, {})
         type_entrant = entree.get("type")
+        # Tout CHANGEMENT de type sur un jour d'absence validée compte comme
+        # requalification — y compris vers un autre type d'absence : un modèle
+        # « fermeture collective » en jours Congé ne doit pas transformer un
+        # arrêt maladie en CP (maintien/IJSS perdus, CP débités) en silence.
         requalifie = (
             is_absence_day(stocke)
             and type_entrant is not None
-            and type_entrant not in ABSENCE_CALENDAR_TYPES
+            and type_entrant != stocke.get("type")
         )
         if requalifie and preserve_absence_days:
             if warnings is not None:
@@ -141,9 +145,13 @@ def merge_planned_entries(
             if valeur is not None or cle in base:
                 base[cle] = valeur
         base["jour"] = jour
-        if base.get("type") not in ABSENCE_CALENDAR_TYPES:
+        if requalifie:
+            # Les métadonnées appartenaient à l'absence validée d'origine :
+            # elles ne survivent pas à sa requalification (même vers un autre
+            # type d'absence — un arret_type orphelin sur un jour de congé
+            # n'a aucun sens).
             strip_server_owned_keys(base)
-            if requalifie and warnings is not None:
+            if warnings is not None:
                 warnings.append(
                     {
                         "jour": jour,
@@ -152,6 +160,9 @@ def merge_planned_entries(
                         "type_apres": type_entrant,
                     }
                 )
+        elif base.get("type") not in ABSENCE_CALENDAR_TYPES:
+            # Filet : un jour non-absence ne porte jamais de clés serveur.
+            strip_server_owned_keys(base)
         fusionnes[jour] = base
     return [fusionnes[jour] for jour in sorted(fusionnes)]
 

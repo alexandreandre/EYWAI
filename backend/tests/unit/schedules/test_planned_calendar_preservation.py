@@ -756,3 +756,68 @@ def test_le_resume_de_batch_conserve_les_refus_de_commit():
         ],
     )
     assert resume.model_dump()["commit_warnings"][0]["jour"] == 4
+
+
+def test_preservation_refuse_aussi_une_requalification_absence_vers_absence():
+    """Fermeture collective en jours « Congé » : un arrêt validé ne doit pas
+    devenir un CP en silence (maintien/IJSS perdus, CP débités)."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 10,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+        }
+    ]
+    incoming = [{"jour": 10, "type": "conge", "heures_prevues": 0}]
+
+    avertissements: list = []
+    merged = merge_planned_entries(
+        existing, incoming, preserve_absence_days=True, warnings=avertissements
+    )
+    assert merged[0]["type"] == "arret_maladie"
+    assert merged[0]["arret_type"] == "maladie_simple"
+    assert avertissements == [
+        {
+            "jour": 10,
+            "code": "absence_validee_preservee",
+            "type_avant": "arret_maladie",
+            "type_refuse": "conge",
+        }
+    ]
+
+
+def test_edition_absence_vers_absence_signale_et_purge_les_metadonnees():
+    """L'édition délibérée arrêt→congé passe, mais se signale — et les
+    métadonnées de l'arrêt ne restent pas orphelines sur un jour de congé."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 10,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+        }
+    ]
+    incoming = [{"jour": 10, "type": "conge", "heures_prevues": 0}]
+
+    avertissements: list = []
+    merged = merge_planned_entries(existing, incoming, warnings=avertissements)
+    assert merged[0]["type"] == "conge"
+    for cle in ("arret_type", "subrogation_active", "origine"):
+        assert cle not in merged[0], cle
+    assert avertissements == [
+        {
+            "jour": 10,
+            "code": "absence_validee_requalifiee",
+            "type_avant": "arret_maladie",
+            "type_apres": "conge",
+        }
+    ]
