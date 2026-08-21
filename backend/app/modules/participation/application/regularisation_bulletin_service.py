@@ -165,6 +165,39 @@ def generate_regularisation_participation_payslip(
     if not employee:
         raise RegularisationBulletinError("Salarié introuvable pour ce bulletin.")
 
+    # Lot 3 : ce bulletin partage la clé d'unicité (company, employee, year,
+    # month) avec le bulletin MENSUEL et s'upsert en statut « valide ». Sans
+    # ces gardes, un clic sur la route manuelle écraserait le bulletin du
+    # mois d'un salarié actif — même validé — en le remplaçant par une
+    # régularisation auto-validée hors circuit.
+    if str(employee.get("employment_status") or "") == "actif":
+        raise RegularisationBulletinError(
+            "Ce salarié est actif : la régularisation de participation "
+            "s'intègre à son bulletin mensuel, pas en bulletin séparé "
+            "(réservé aux salariés sortis)."
+        )
+    bulletin_periode = (
+        supabase.table("payslips")
+        .select("id, bulletin_kind, status")
+        .match(
+            {
+                "company_id": company_id,
+                "employee_id": employee_id,
+                "year": year_paie,
+                "month": month_paie,
+            }
+        )
+        .maybe_single()
+        .execute()
+    )
+    existant = bulletin_periode.data if bulletin_periode else None
+    if existant and existant.get("bulletin_kind") != REGULARISATION_KIND:
+        raise RegularisationBulletinError(
+            f"Un bulletin existe déjà pour {month_paie:02d}/{year_paie} : "
+            "générer la régularisation l'écraserait. Choisissez une autre "
+            "période de rattachement."
+        )
+
     comp_res = (
         supabase.table("companies")
         .select("*")

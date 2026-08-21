@@ -952,3 +952,73 @@ class TestVisibiliteSalarieAuDetail:
     def test_la_rh_voit_toujours_les_brouillons(self):
         p = {"employee_id": "emp-2", "company_id": "comp-1", "status": "brouillon"}
         assert self._peut_voir(p, user_id="rh-1", rh=True) is True
+
+
+class TestRegularisationParticipation:
+    """T3 — la régularisation participation partage la clé d'unicité du
+    bulletin mensuel : sur un salarié actif ou une période déjà servie par
+    un bulletin mensuel, l'upsert auto-validé écraserait le bulletin du
+    mois. Refus explicite."""
+
+    def _appeler(self, employee, bulletin_existant):
+        from unittest.mock import MagicMock, patch as p_
+
+        from app.modules.participation.application import (
+            regularisation_bulletin_service as mod,
+        )
+
+        fake_supabase = MagicMock()
+
+        def table(nom):
+            t = MagicMock()
+            sel = MagicMock()
+            t.select.return_value = sel
+            sel.eq.return_value = sel
+            sel.match.return_value = sel
+            rep = MagicMock()
+            if nom == "employees":
+                rep.data = employee
+            elif nom == "payslips":
+                rep.data = bulletin_existant
+            else:
+                rep.data = {}
+            sel.maybe_single.return_value.execute.return_value = rep
+            return t
+
+        fake_supabase.table.side_effect = table
+        with (
+            p_.object(mod, "supabase", fake_supabase),
+            p_.object(mod, "campaign_repository") as fake_campaigns,
+        ):
+            fake_campaigns.get_bulletin.return_value = {
+                "id": "b-1", "campaign_id": "c-1", "employee_id": "emp-1",
+                "montant_net": 500,
+            }
+            fake_campaigns.get_campaign.return_value = {
+                "payroll_year": 2026, "payroll_month": 7,
+            }
+            return mod.generate_regularisation_participation_payslip(
+                "b-1", "comp-1"
+            )
+
+    def test_refuse_sur_salarie_actif(self):
+        from app.modules.participation.application.regularisation_bulletin_service import (
+            RegularisationBulletinError,
+        )
+
+        with pytest.raises(RegularisationBulletinError, match="actif"):
+            self._appeler(
+                {"id": "emp-1", "employment_status": "actif", "first_name": "A"},
+                None,
+            )
+
+    def test_refuse_si_un_bulletin_mensuel_existe_sur_la_periode(self):
+        from app.modules.participation.application.regularisation_bulletin_service import (
+            RegularisationBulletinError,
+        )
+
+        with pytest.raises(RegularisationBulletinError, match="existe"):
+            self._appeler(
+                {"id": "emp-1", "employment_status": "parti", "first_name": "A"},
+                {"id": "p-1", "bulletin_kind": None, "status": "brouillon"},
+            )
