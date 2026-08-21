@@ -285,8 +285,15 @@ def compute_punch_day(
         and overtime <= 0
     ):
         accounted = theoretical
-    elif overtime > 0 and not needs_review:
-        accounted = round(theoretical + overtime, 2)
+    elif overtime > 0:
+        # HS en attente de validation : NON payées (théorique retenu).
+        # L'ancienne branche retenait le pointé complet — exiger la
+        # validation payait PLUS que ne pas l'exiger, et l'approbation
+        # n'avait aucun effet. L'approbation écrit désormais les heures
+        # dans le calendrier réel (punch_accounting_commands).
+        accounted = (
+            theoretical if needs_review else round(theoretical + overtime, 2)
+        )
     else:
         accounted = pointed
 

@@ -6,6 +6,9 @@ from typing import Any
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.infrastructure import punch_accounting_repository as repo
+from app.modules.schedules.infrastructure.repository import (
+    schedule_repository,
+)
 from app.modules.schedules.schemas.punch_accounting import (
     PunchAccountingSettingsResponse,
     PunchAccountingSettingsUpdate,
@@ -171,6 +174,56 @@ def list_punch_overtime_reviews(
     return out
 
 
+def _appliquer_decision_hs(
+    company_id: str, row: dict, ancien_statut: str | None
+) -> None:
+    """Rend la décision de revue EFFECTIVE dans le calendrier réel.
+
+    Les heures retenues à l'import valent le théorique (HS en attente non
+    payées) : approuver AJOUTE l'excédent au jour, revenir sur une
+    approbation le retire. Idempotent par transition de statut — le
+    calendrier réel est le chemin que tous les recalculs lisent.
+    """
+    nouveau_statut = str(row.get("status") or "")
+    if nouveau_statut == (ancien_statut or ""):
+        return
+    excedent = round(float(row.get("overtime_hours") or 0), 2)
+    if excedent <= 0:
+        return
+    delta = 0.0
+    if nouveau_statut == "approved" and ancien_statut != "approved":
+        delta = excedent
+    elif ancien_statut == "approved" and nouveau_statut != "approved":
+        delta = -excedent
+    if not delta:
+        return
+    work_date = str(row.get("work_date") or "")
+    employee_id = str(row.get("employee_id") or "")
+    year, month, day = int(work_date[:4]), int(work_date[5:7]), int(work_date[8:10])
+    actual = schedule_repository.get_actual_hours(employee_id, year, month) or {}
+    calendrier = list(actual.get("calendrier_reel") or [])
+    trouve = False
+    for entree in calendrier:
+        try:
+            if int(entree.get("jour")) == day:
+                entree["heures_faites"] = round(
+                    float(entree.get("heures_faites") or 0) + delta, 2
+                )
+                trouve = True
+                break
+        except (TypeError, ValueError):
+            continue
+    if not trouve:
+        calendrier.append(
+            {"jour": day, "heures_faites": round(max(0.0, delta), 2), "type": "travail"}
+        )
+    actual["calendrier_reel"] = calendrier
+    actual.setdefault("periode", {"annee": year, "mois": month})
+    schedule_repository.upsert_schedule(
+        employee_id, company_id, year, month, actual_hours=actual
+    )
+
+
 def update_punch_overtime_review(
     company_id: str,
     review_id: str,
@@ -178,6 +231,7 @@ def update_punch_overtime_review(
     *,
     reviewed_by: str | None,
 ) -> PunchOvertimeReviewResponse:
+    ancien_statut = repo.get_overtime_review_status(company_id, review_id)
     row = repo.update_overtime_review(
         company_id,
         review_id,
@@ -187,6 +241,7 @@ def update_punch_overtime_review(
     )
     if not row:
         raise ScheduleAppError("not_found", "Revue HS introuvable.", status_code=404)
+    _appliquer_decision_hs(company_id, row, ancien_statut)
     reviews = list_punch_overtime_reviews(
         company_id,
         year=int(str(row["work_date"])[:4]),
