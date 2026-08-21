@@ -266,15 +266,23 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     if active_crit:
         raise PayslipCriticalActiveError(active_crit)
 
-    mark_payslip_validated(payslip_id, ctx.user_id)
+    updated = mark_payslip_validated(payslip_id, ctx.user_id)
 
     # Lot 3 : le salarié est notifié ICI — jamais à la génération — et une
     # seule fois par contenu (le marqueur vit dans payslip_data : une
     # régénération forcée le balaie, donc une re-validation renotifie).
-    if not pd.get("salarie_notifie_le"):
+    #
+    # F1 : le marqueur se pose sur l'état FRAIS retourné par la validation
+    # (qui vient de nettoyer les alertes moteur) — réécrire `pd` lu en début
+    # de fonction ressusciterait ces alertes et écraserait toute écriture
+    # concurrente de payslip_data.
+    fresh_pd = updated.get("payslip_data") if isinstance(updated, dict) else None
+    if not isinstance(fresh_pd, dict):
+        fresh_pd = pd
+    if not fresh_pd.get("salarie_notifie_le"):
         try:
-            _notify_payslip_available(emp_id, comp_id, year, month)
-            _persist_salarie_notifie_le(payslip_id, pd)
+            if _notify_payslip_available(emp_id, comp_id, year, month):
+                _persist_salarie_notifie_le(payslip_id, fresh_pd)
         except Exception:
             logger.warning(
                 "Notification bulletin %s après validation en échec", payslip_id

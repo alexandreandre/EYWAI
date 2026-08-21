@@ -67,7 +67,10 @@ def _notify_payslip_available(
     company_id: str,
     year: int,
     month: int,
-) -> None:
+) -> bool:
+    """Notifie le salarié ; renvoie False en cas d'échec (l'appelant décide
+    s'il pose le marqueur d'idempotence — jamais sur un échec, sinon le
+    salarié n'est jamais notifié et jamais re-tenté)."""
     try:
         notify_employee_new_document(
             employee_id,
@@ -76,14 +79,16 @@ def _notify_payslip_available(
             page_path="payslips",
             notification_type=NOTIFICATION_TYPE_PAYSLIP,
         )
+        return True
     except Exception as exc:
-        logger.info(
+        logger.warning(
             "[doc_notif] Bulletin non notifié pour %s (%02d/%d): %s",
             employee_id,
             month,
             year,
             exc,
         )
+        return False
 
 
 def _fetch_month_schedule(

@@ -414,7 +414,7 @@ class TestNotificationALaValidation:
             patch.object(svc, "_persist_salarie_notifie_le") as mock_persist,
         ):
             mock_meta.get_payslip_meta.return_value = {"id": "p-1"}
-            mock_notify.side_effect = lambda *a, **k: notifications.append(a)
+            mock_notify.side_effect = lambda *a, **k: (notifications.append(a), True)[1]
             ctx = MagicMock()
             ctx.user_id = "rh-1"
             svc.validate_payslip_for_user("p-1", ctx)
@@ -479,7 +479,7 @@ def test_un_echec_de_notification_ne_fait_pas_echouer_la_validation():
         p_.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),
         p_.object(svc, "compute_comparison", return_value=resultat),
         p_.object(svc, "mark_payslip_validated") as mock_mark,
-        p_.object(svc, "_notify_payslip_available", side_effect=RuntimeError("smtp down")),
+        p_.object(svc, "_notify_payslip_available", return_value=False),
         p_.object(svc, "_persist_salarie_notifie_le") as mock_persist,
     ):
         ctx = MagicMock()
@@ -586,6 +586,7 @@ def test_scenario_de_vie_generation_validation_regeneration():
 
     def fake_mark_validated(payslip_id, user_id):
         store["status"] = "valide"
+        return dict(store)
 
     def fake_persist_notifie(payslip_id, pd):
         store["payslip_data"] = {**pd, "salarie_notifie_le": "2026-08-21T10:00"}
@@ -639,7 +640,7 @@ def test_scenario_de_vie_generation_validation_regeneration():
             patch.object(svc, "mark_payslip_validated", side_effect=fake_mark_validated),
             patch.object(
                 svc, "_notify_payslip_available",
-                side_effect=lambda *a: notifications.append(a),
+                side_effect=lambda *a: (notifications.append(a), True)[1],
             ),
             patch.object(
                 svc, "_persist_salarie_notifie_le", side_effect=fake_persist_notifie
@@ -678,3 +679,86 @@ def test_scenario_de_vie_generation_validation_regeneration():
     valider()
     assert store["status"] == "valide"
     assert len(notifications) == 2
+
+
+def test_le_marqueur_de_notification_ne_ressuscite_pas_les_alertes():
+    """F1 — mark_payslip_validated nettoie les alertes moteur ; le marqueur
+    de notification doit s'appuyer sur cet état FRAIS, pas sur le pd lu en
+    début de validation (sinon chaque première validation ré-injecte les
+    alertes nettoyées). Ici, les deux vraies fonctions tournent : seul
+    Supabase est simulé."""
+    from unittest.mock import MagicMock
+
+    from app.modules.payslips.application import comparison_service as svc
+
+    pd_avant = {
+        "net_a_payer": 1000,
+        "alertes_baremes": [{"code": "vm_ecart_taux"}],
+    }
+    detail = {
+        "id": "p-1", "employee_id": "emp-1", "company_id": "comp-1",
+        "year": 2026, "month": 5, "payslip_data": dict(pd_avant),
+    }
+    etat = {"payslip_data": dict(pd_avant)}
+
+    def fake_table(nom):
+        t = MagicMock()
+        sel = MagicMock()
+        t.select.return_value = sel
+        sel.eq.return_value = sel
+        reponse = MagicMock()
+        reponse.data = {"payslip_data": dict(etat["payslip_data"])}
+        sel.maybe_single.return_value.execute.return_value = reponse
+
+        def _update(payload):
+            u = MagicMock()
+
+            def _eq(*a, **k):
+                if "payslip_data" in payload:
+                    etat["payslip_data"] = payload["payslip_data"]
+                res = MagicMock()
+                res.data = [
+                    {
+                        "id": "p-1",
+                        "payslip_data": dict(etat["payslip_data"]),
+                        **{k2: v for k2, v in payload.items() if k2 != "payslip_data"},
+                    }
+                ]
+                u.execute.return_value = res
+                return u
+
+            u.eq.side_effect = _eq
+            return u
+
+        t.update.side_effect = _update
+        return t
+
+    fake_supabase = MagicMock()
+    fake_supabase.table.side_effect = fake_table
+
+    resultat = MagicMock()
+    resultat.alerts = []
+    with (
+        patch.object(svc, "payslip_meta_reader"),
+        patch.object(svc, "_ensure_edit_meta"),
+        patch.object(svc, "get_payslip_details", return_value=detail),
+        patch.object(svc, "fetch_previous_validated_payslip", return_value=None),
+        patch.object(svc, "fetch_employee_statut", return_value="Non-Cadre"),
+        patch.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),
+        patch.object(svc, "compute_comparison", return_value=resultat),
+        patch.object(svc, "supabase", fake_supabase),
+        patch(
+            "app.modules.payslips.infrastructure.comparison_queries.supabase",
+            fake_supabase,
+        ),
+        patch.object(svc, "_notify_payslip_available", return_value=True),
+    ):
+        ctx = MagicMock()
+        ctx.user_id = "rh-1"
+        svc.validate_payslip_for_user("p-1", ctx)
+
+    final = etat["payslip_data"]
+    assert "salarie_notifie_le" in final
+    assert "alertes_baremes" not in final, (
+        "le marqueur a réécrit le payslip_data périmé et ressuscité les alertes"
+    )
