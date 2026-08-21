@@ -198,9 +198,17 @@ class TestPayslipsWiringDelete:
         """La route appelle delete_payslip qui appelle le repository."""
         from app.core.security import get_current_user
 
-        with patch(
-            "app.modules.payslips.infrastructure.repository.payslip_repository"
-        ) as mock_repo:
+        with (
+            patch(
+                "app.modules.payslips.infrastructure.repository.payslip_repository"
+            ) as mock_repo,
+            # Lot 3 : la garde lit le statut avant suppression — un brouillon
+            # reste supprimable, un validé serait refusé en 409.
+            patch(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "ps-123", "status": "brouillon"},
+            ),
+        ):
             app.dependency_overrides[get_current_user] = lambda: _rh_user()
             try:
                 response = client.delete("/api/payslips/ps-123")
