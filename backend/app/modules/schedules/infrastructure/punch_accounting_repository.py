@@ -20,6 +20,12 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _int_ou_defaut(valeur, defaut: int) -> int:
+    """0 est une valeur LÉGALE (« aucune pause », « tolérance nulle ») :
+    seul None/absent retombe sur le défaut — `or` écrasait les zéros."""
+    return defaut if valeur is None else int(valeur)
+
+
 def _row_to_settings(row: dict[str, Any] | None) -> PunchAccountingSettings:
     if not row:
         return PunchAccountingSettings()
@@ -28,8 +34,10 @@ def _row_to_settings(row: dict[str, Any] | None) -> PunchAccountingSettings:
         detection = "shift_code"
     return PunchAccountingSettings(
         enabled=bool(row.get("enabled")),
-        tolerance_minutes=int(row.get("tolerance_minutes") or 30),
-        default_break_deduct_minutes=int(row.get("default_break_deduct_minutes") or 45),
+        tolerance_minutes=_int_ou_defaut(row.get("tolerance_minutes"), 30),
+        default_break_deduct_minutes=_int_ou_defaut(
+            row.get("default_break_deduct_minutes"), 45
+        ),
         break_threshold_minutes=int(row.get("break_threshold_minutes") or 0),
         use_last_nonzero_exit=bool(row.get("use_last_nonzero_exit", True)),
         slot_detection=detection,
@@ -106,9 +114,9 @@ def create_slot(company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "entry_time": payload.get("entry_time"),
         "exit_time": payload.get("exit_time"),
         "theoretical_gross_minutes": int(
-            payload.get("theoretical_gross_minutes") or 465
+            _int_ou_defaut(payload.get("theoretical_gross_minutes"), 465)
         ),
-        "break_deduct_minutes": int(payload.get("break_deduct_minutes") or 45),
+        "break_deduct_minutes": _int_ou_defaut(payload.get("break_deduct_minutes"), 45),
         "paid_break_minutes": int(payload.get("paid_break_minutes") or 0),
         "paid_lunch_break": bool(payload.get("paid_lunch_break")),
         "sort_order": int(payload.get("sort_order") or 0),

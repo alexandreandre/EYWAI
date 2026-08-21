@@ -70,7 +70,8 @@ def slot_from_row(row: dict) -> PunchShiftSlot:
         exit_min = exit_t.hour * 60 + exit_t.minute
     else:
         exit_min = time_string_to_minutes(str(exit_t))
-    break_m = int(row.get("break_deduct_minutes") or 45)
+    brut_break = row.get("break_deduct_minutes")
+    break_m = 45 if brut_break is None else int(brut_break)  # 0 est légal
     paid_lunch = bool(row.get("paid_lunch_break"))
     paid_break = int(row.get("paid_break_minutes") or 0)
     if paid_lunch and break_m > 15:
@@ -81,7 +82,11 @@ def slot_from_row(row: dict) -> PunchShiftSlot:
         label=str(row.get("label") or ""),
         entry_minutes=entry_min,
         exit_minutes=exit_min,
-        theoretical_gross_minutes=int(row.get("theoretical_gross_minutes") or 465),
+        theoretical_gross_minutes=(
+            465
+            if row.get("theoretical_gross_minutes") is None
+            else int(row.get("theoretical_gross_minutes"))
+        ),
         break_deduct_minutes=break_m,
         paid_break_minutes=paid_break,
         paid_lunch_break=paid_lunch,

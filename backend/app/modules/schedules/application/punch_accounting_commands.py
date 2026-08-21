@@ -17,6 +17,11 @@ from app.modules.schedules.schemas.punch_accounting import (
 )
 
 
+def _int_ou_defaut(valeur, defaut: int) -> int:
+    """0 est légal ; seul None retombe sur le défaut (`or` écrasait 0)."""
+    return defaut if valeur is None else int(valeur)
+
+
 def _settings_response(company_id: str) -> PunchAccountingSettingsResponse:
     row = repo.get_settings_row(company_id)
     if not row:
@@ -24,8 +29,10 @@ def _settings_response(company_id: str) -> PunchAccountingSettingsResponse:
     return PunchAccountingSettingsResponse(
         configured=True,
         enabled=bool(row.get("enabled")),
-        tolerance_minutes=int(row.get("tolerance_minutes") or 30),
-        default_break_deduct_minutes=int(row.get("default_break_deduct_minutes") or 45),
+        tolerance_minutes=_int_ou_defaut(row.get("tolerance_minutes"), 30),
+        default_break_deduct_minutes=_int_ou_defaut(
+            row.get("default_break_deduct_minutes"), 45
+        ),
         break_threshold_minutes=int(row.get("break_threshold_minutes") or 0),
         use_last_nonzero_exit=bool(row.get("use_last_nonzero_exit", True)),
         slot_detection=row.get("slot_detection") or "shift_code",
@@ -92,8 +99,8 @@ def _slot_response(row: dict) -> PunchShiftSlotResponse:
         label=str(row.get("label") or ""),
         entry_time=entry,
         exit_time=exit_t,
-        theoretical_gross_minutes=int(row.get("theoretical_gross_minutes") or 465),
-        break_deduct_minutes=int(row.get("break_deduct_minutes") or 45),
+        theoretical_gross_minutes=_int_ou_defaut(row.get("theoretical_gross_minutes"), 465),
+        break_deduct_minutes=_int_ou_defaut(row.get("break_deduct_minutes"), 45),
         paid_break_minutes=int(row.get("paid_break_minutes") or 0),
         paid_lunch_break=bool(row.get("paid_lunch_break")),
         sort_order=int(row.get("sort_order") or 0),
