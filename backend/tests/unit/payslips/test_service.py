@@ -146,6 +146,7 @@ class TestGetPayslipDetailsForUser:
             "year": 2026,
             "month": 6,
             "url": "https://u.fr",
+            "status": "valide",
         }
         ctx = _ctx_employee("emp-1")
         with (
@@ -173,7 +174,7 @@ class TestGetPayslipDetailsForUser:
 
     def test_raises_forbidden_when_user_cannot_view(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit (pas employé, pas RH, pas super admin)."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6, "status": "valide"}
         ctx = _ctx_employee("other-user")  # autre utilisateur, pas RH
         with patch(
             "app.modules.payslips.application.service.get_payslip_details",
@@ -184,7 +185,7 @@ class TestGetPayslipDetailsForUser:
 
     def test_rh_with_access_can_view(self):
         """Un RH avec accès à l'entreprise du bulletin peut consulter."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6, "status": "valide"}
         ctx = _ctx_rh("co-1")
         with (
             patch(
@@ -201,7 +202,7 @@ class TestGetPayslipDetailsForUser:
 
     def test_super_admin_can_view_any(self):
         """Un super admin peut consulter n'importe quel bulletin."""
-        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6}
+        detail = {"id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026, "month": 6, "status": "valide"}
         ctx = _ctx_super_admin()
         with (
             patch(
@@ -222,7 +223,7 @@ class TestGetPayslipHistoryForUser:
 
     def test_returns_history_when_meta_found_and_user_can_view(self):
         """Retourne l'historique si la meta existe et l'utilisateur a le droit."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "status": "valide"}
         history = [{"version": 1, "edited_by": "user-1"}]
         ctx = _ctx_employee("emp-1")
         with (
@@ -250,7 +251,7 @@ class TestGetPayslipHistoryForUser:
 
     def test_raises_forbidden_when_user_cannot_view(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "status": "valide"}
         ctx = _ctx_employee("other-user")
         with patch(
             "app.modules.payslips.application.service.payslip_meta_reader"
@@ -399,7 +400,7 @@ class TestRestorePayslipForUser:
 
     def test_raises_forbidden_when_user_cannot_restore(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit."""
-        meta = {"employee_id": "emp-1", "company_id": "co-1"}
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "status": "valide"}
         ctx = _ctx_employee("emp-1")
         with patch(
             "app.modules.payslips.application.service.payslip_meta_reader"

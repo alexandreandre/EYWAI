@@ -199,6 +199,17 @@ def _archive_before_regeneration(
     history = existing.get("edit_history") or []
     if not isinstance(history, list):
         history = []
+    # F2 : si le générateur a échoué après une première archive, la
+    # re-tentative repasse ici — ne pas empiler un doublon du même état.
+    if history:
+        derniere = history[-1]
+        if (
+            isinstance(derniere, dict)
+            and derniere.get("action") == "regeneration"
+            and derniere.get("previous_payslip_data") == existing.get("payslip_data")
+            and derniere.get("previous_pdf_url") == existing.get("url")
+        ):
+            return
     history.append(
         {
             "version": len(history) + 1,
@@ -328,19 +339,59 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     )
 
 
+def _fetch_payslip_status(payslip_id: str) -> dict[str, Any] | None:
+    """Statut du bulletin, pour les gardes qui n'ont que son id."""
+    r = (
+        supabase.table("payslips")
+        .select("id, status")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r and r.data else None
+
+
 def delete_payslip(payslip_id: str) -> None:
     """
     Supprime un bulletin (BDD + storage) et déclenche recalc COR.
-    Délègue au repository (wrapper legacy ou implémentation future).
+
+    Lot 3 : un bulletin VALIDÉ ne se supprime pas — sinon delete+regen
+    contourne l'archive de la régénération forcée. Le protocole : régénérer
+    en forçant (qui archive et repasse en brouillon), puis supprimer.
     """
+    existing = _fetch_payslip_status(payslip_id)
+    if existing and existing.get("status") == "valide":
+        raise PayslipValidatedError(
+            "Ce bulletin est validé : sa suppression directe est refusée. "
+            "Régénérez-le en forçant (l'ancienne version sera archivée), "
+            "puis supprimez le brouillon si nécessaire."
+        )
     from app.modules.payslips.infrastructure.repository import payslip_repository
 
     payslip_repository.delete(payslip_id)
 
 
+def _set_payslip_status_brouillon(payslip_id: str) -> None:
+    """Repasse un bulletin en brouillon (contenu modifié → revalidation)."""
+    supabase.table("payslips").update({"status": "brouillon"}).eq(
+        "id", payslip_id
+    ).execute()
+
+
+def _etait_valide(payslip_id: str) -> bool:
+    existing = _fetch_payslip_status(payslip_id)
+    return bool(existing and existing.get("status") == "valide")
+
+
 def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
-    """Sauvegarde les modifications d'un bulletin. Délègue au provider legacy."""
-    return payslip_editor_provider.save_edited(
+    """Sauvegarde les modifications d'un bulletin. Délègue au provider legacy.
+
+    Lot 3 : éditer un bulletin VALIDÉ le repasse en brouillon — le salarié
+    ne doit jamais voir un contenu qui n'a pas été revalidé (l'éditeur
+    conserve l'historique, le statut doit suivre le contenu).
+    """
+    etait_valide = _etait_valide(cmd.payslip_id)
+    result = payslip_editor_provider.save_edited(
         payslip_id=cmd.payslip_id,
         new_payslip_data=cmd.payslip_data,
         changes_summary=cmd.changes_summary,
@@ -349,13 +400,29 @@ def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
         pdf_notes=cmd.pdf_notes,
         internal_note=cmd.internal_note,
     )
+    if etait_valide:
+        _set_payslip_status_brouillon(cmd.payslip_id)
+        logger.warning(
+            "[edition] Bulletin validé %s modifié par %s : repassé en brouillon.",
+            cmd.payslip_id,
+            cmd.current_user_id,
+        )
+    return result
 
 
 def restore_payslip_version(cmd: RestorePayslipInput) -> dict[str, Any]:
-    """Restaure une version d'un bulletin. Délègue au provider legacy."""
-    return payslip_editor_provider.restore_version(
+    """Restaure une version d'un bulletin. Délègue au provider legacy.
+
+    Même règle que l'édition : restaurer sur un bulletin validé le repasse
+    en brouillon.
+    """
+    etait_valide = _etait_valide(cmd.payslip_id)
+    result = payslip_editor_provider.restore_version(
         payslip_id=cmd.payslip_id,
         version=cmd.version,
         current_user_id=cmd.current_user_id,
         current_user_name=cmd.current_user_name,
     )
+    if etait_valide:
+        _set_payslip_status_brouillon(cmd.payslip_id)
+    return result

@@ -762,3 +762,193 @@ def test_le_marqueur_de_notification_ne_ressuscite_pas_les_alertes():
     assert "alertes_baremes" not in final, (
         "le marqueur a réécrit le payslip_data périmé et ressuscité les alertes"
     )
+
+
+def test_archive_idempotente_sur_retentative():
+    """F2 — générateur en échec après archive : la re-tentative ne doit pas
+    empiler une seconde entrée d'archive identique."""
+    from unittest.mock import MagicMock, patch as p_
+
+    from app.modules.payslips.application import commands as mod
+    from app.modules.payslips.application.dto import GeneratePayslipInput
+
+    existing = {
+        "id": "p-1",
+        "status": "valide",
+        "payslip_data": {"net_a_payer": 900},
+        "url": "v1.pdf",
+        "edit_history": [],
+    }
+    etat = {"history": []}
+
+    def fake_update(payload):
+        u = MagicMock()
+
+        def _eq(*a, **k):
+            etat["history"] = payload["edit_history"]
+            u.execute.return_value = MagicMock()
+            return u
+
+        u.eq.side_effect = _eq
+        return u
+
+    fake_supabase = MagicMock()
+    fake_supabase.table.return_value.update.side_effect = fake_update
+
+    cmd = GeneratePayslipInput(
+        employee_id="emp-1", year=2026, month=5, requested_by="rh-1"
+    )
+    with p_.object(mod, "supabase", fake_supabase):
+        mod._archive_before_regeneration(dict(existing), cmd)
+        # Re-tentative : le générateur a échoué, on rappelle avec le même état
+        existing2 = dict(existing)
+        existing2["edit_history"] = list(etat["history"])
+        mod._archive_before_regeneration(existing2, cmd)
+
+    assert len(etat["history"]) == 1, "archive dupliquée sur re-tentative"
+
+
+def test_supprimer_un_bulletin_valide_est_refuse():
+    """F4 — delete + regen contournait l'invariant : le delete d'un validé
+    est refusé (409). Le protocole : régénération forcée (archive) d'abord."""
+    from unittest.mock import patch as p_
+
+    from app.modules.payslips.application import commands as mod
+    from app.modules.payslips.application.dto import PayslipValidatedError
+
+    with (
+        p_.object(
+            mod,
+            "_fetch_payslip_status",
+            return_value={"id": "p-1", "status": "valide"},
+            create=True,
+        ),
+        p_.object(mod, "payslip_repository", create=True) as fake_repo,
+    ):
+        with pytest.raises(PayslipValidatedError):
+            mod.delete_payslip("p-1")
+    fake_repo.delete.assert_not_called()
+
+
+def test_supprimer_un_brouillon_reste_permis():
+    from unittest.mock import patch as p_
+
+    from app.modules.payslips.application import commands as mod
+
+    with (
+        p_.object(
+            mod,
+            "_fetch_payslip_status",
+            return_value={"id": "p-1", "status": "brouillon"},
+            create=True,
+        ),
+        p_(
+            "app.modules.payslips.infrastructure.repository.payslip_repository"
+        ) as fake_repo,
+    ):
+        mod.delete_payslip("p-1")
+    fake_repo.delete.assert_called_once_with("p-1")
+
+
+class TestEditionDUnBulletinValide:
+    """T1 — éditer ou restaurer un bulletin validé le repasse en brouillon :
+    le salarié ne doit jamais voir un contenu qui n'a pas été revalidé."""
+
+    def _editer(self, statut):
+        from unittest.mock import MagicMock, patch as p_
+
+        from app.modules.payslips.application import commands as mod
+        from app.modules.payslips.application.dto import EditPayslipInput
+
+        fake_provider = MagicMock()
+        fake_provider.save_edited.return_value = {"success": True}
+        with (
+            p_.object(mod, "payslip_editor_provider", fake_provider),
+            p_.object(
+                mod,
+                "_fetch_payslip_status",
+                return_value={"id": "p-1", "status": statut},
+            ),
+            p_.object(mod, "_set_payslip_status_brouillon") as mock_reset,
+        ):
+            mod.edit_payslip(
+                EditPayslipInput(
+                    payslip_id="p-1",
+                    payslip_data={"net_a_payer": 1},
+                    changes_summary="x",
+                    current_user_id="rh-1",
+                    current_user_name="RH",
+                )
+            )
+        return fake_provider, mock_reset
+
+    def test_editer_un_valide_le_repasse_en_brouillon(self):
+        provider, mock_reset = self._editer("valide")
+        provider.save_edited.assert_called_once()
+        mock_reset.assert_called_once_with("p-1")
+
+    def test_editer_un_brouillon_ne_touche_pas_le_statut(self):
+        provider, mock_reset = self._editer("brouillon")
+        provider.save_edited.assert_called_once()
+        mock_reset.assert_not_called()
+
+    def test_restaurer_un_valide_le_repasse_en_brouillon(self):
+        from unittest.mock import MagicMock, patch as p_
+
+        from app.modules.payslips.application import commands as mod
+        from app.modules.payslips.application.dto import RestorePayslipInput
+
+        fake_provider = MagicMock()
+        fake_provider.restore_version.return_value = {"success": True}
+        with (
+            p_.object(mod, "payslip_editor_provider", fake_provider),
+            p_.object(
+                mod,
+                "_fetch_payslip_status",
+                return_value={"id": "p-1", "status": "valide"},
+            ),
+            p_.object(mod, "_set_payslip_status_brouillon") as mock_reset,
+        ):
+            mod.restore_payslip_version(
+                RestorePayslipInput(
+                    payslip_id="p-1",
+                    version=1,
+                    current_user_id="rh-1",
+                    current_user_name="RH",
+                )
+            )
+        mock_reset.assert_called_once_with("p-1")
+
+
+class TestVisibiliteSalarieAuDetail:
+    """F5 — le salarié ne lit que du VALIDÉ, même au détail (la liste était
+    filtrée mais GET /payslips/{id} servait les brouillons)."""
+
+    def _peut_voir(self, payslip, user_id="emp-1", rh=False):
+        from app.modules.payslips.domain.rules import can_view_payslip
+
+        return can_view_payslip(
+            payslip,
+            user_id,
+            False,
+            (lambda _c: rh),
+            "comp-1" if rh else None,
+            None,
+        )
+
+    def test_salarie_ne_voit_pas_son_brouillon(self):
+        p = {"employee_id": "emp-1", "company_id": "comp-1", "status": "brouillon"}
+        assert self._peut_voir(p) is False
+
+    def test_salarie_voit_son_bulletin_valide(self):
+        p = {"employee_id": "emp-1", "company_id": "comp-1", "status": "valide"}
+        assert self._peut_voir(p) is True
+
+    def test_salarie_refuse_si_statut_absent(self):
+        """Défense en profondeur : sans statut connu, pas d'accès salarié."""
+        p = {"employee_id": "emp-1", "company_id": "comp-1"}
+        assert self._peut_voir(p) is False
+
+    def test_la_rh_voit_toujours_les_brouillons(self):
+        p = {"employee_id": "emp-2", "company_id": "comp-1", "status": "brouillon"}
+        assert self._peut_voir(p, user_id="rh-1", rh=True) is True

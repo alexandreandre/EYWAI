@@ -135,7 +135,7 @@ class TestCanViewPayslip:
 
     def test_employee_can_view_own_payslip(self):
         """L'employé peut consulter son propre bulletin (employee_id == user_id)."""
-        payslip = {"employee_id": "user-1", "company_id": "co-1"}
+        payslip = {"employee_id": "user-1", "company_id": "co-1", "status": "valide"}
         assert (
             can_view_payslip(
                 payslip,
@@ -149,7 +149,7 @@ class TestCanViewPayslip:
 
     def test_employee_can_view_payslip_via_resolved_employee_id(self):
         """Compte auth lié à une fiche employé distincte (user_id sur employees)."""
-        payslip = {"employee_id": "emp-99", "company_id": "co-1"}
+        payslip = {"employee_id": "emp-99", "company_id": "co-1", "status": "valide"}
         assert (
             can_view_payslip(
                 payslip,

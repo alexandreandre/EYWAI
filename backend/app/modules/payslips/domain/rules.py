@@ -29,10 +29,16 @@ def can_view_payslip(
     resolved_employee_id : fiche employees.id liée au compte (user_id sur employees).
     """
     employee_id = payslip.get("employee_id")
-    if employee_id == user_id:
-        return True
-    if resolved_employee_id and employee_id == resolved_employee_id:
-        return True
+    est_le_salarie = employee_id == user_id or (
+        resolved_employee_id is not None and employee_id == resolved_employee_id
+    )
+    if est_le_salarie:
+        # Lot 3 : le salarié ne lit que du VALIDÉ, même au détail — la liste
+        # est filtrée, le détail doit l'être aussi. Statut absent = refus
+        # (défense en profondeur) ; un RH qui est aussi le salarié retombe
+        # sur la branche RH ci-dessous.
+        if payslip.get("status") == "valide":
+            return True
     if is_platform_admin:
         return True
     company_id = payslip.get("company_id")

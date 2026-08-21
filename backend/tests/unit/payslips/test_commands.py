@@ -327,14 +327,30 @@ class TestDeletePayslipCommand:
 
     def test_calls_repository_delete(self):
         """delete_payslip appelle le repository avec l'id du bulletin."""
-        with patch(
-            "app.modules.payslips.infrastructure.repository.payslip_repository"
-        ) as mock_repo:
+        with (
+            patch(
+                "app.modules.payslips.infrastructure.repository.payslip_repository"
+            ) as mock_repo,
+            # Lot 3 : la garde lit le statut — un brouillon reste supprimable
+            patch(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "ps-123", "status": "brouillon"},
+            ),
+        ):
             delete_payslip("ps-123")
             mock_repo.delete.assert_called_once_with("ps-123")
 
 
 class TestEditPayslipCommand:
+    @pytest.fixture(autouse=True)
+    def _statut_brouillon(self):
+        """Lot 3 : edit/restore lisent le statut — brouillon par défaut ici."""
+        with patch(
+            "app.modules.payslips.application.commands._fetch_payslip_status",
+            return_value={"id": "ps-1", "status": "brouillon"},
+        ):
+            yield
+
     """Tests de la commande edit_payslip."""
 
     def test_delegates_to_editor_provider_save_edited(self):
@@ -390,6 +406,15 @@ class TestEditPayslipCommand:
 
 
 class TestRestorePayslipVersionCommand:
+    @pytest.fixture(autouse=True)
+    def _statut_brouillon(self):
+        """Lot 3 : edit/restore lisent le statut — brouillon par défaut ici."""
+        with patch(
+            "app.modules.payslips.application.commands._fetch_payslip_status",
+            return_value={"id": "ps-1", "status": "brouillon"},
+        ):
+            yield
+
     """Tests de la commande restore_payslip_version."""
 
     def test_delegates_to_editor_provider_restore_version(self):
