@@ -54,6 +54,9 @@ class TestGeneratePayslipCommand:
         ), patch(
             "app.modules.payslips.application.commands._calendar_row_status",
             return_value="saisi",
+        ), patch(
+            "app.modules.payslips.application.commands._fetch_existing_payslip",
+            return_value=None,
         ):
             yield
 

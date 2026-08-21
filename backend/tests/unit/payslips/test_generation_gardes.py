@@ -81,12 +81,16 @@ class TestGardeCalendrierIncomplet:
                 "app.modules.payslips.application.commands._fetch_month_schedule",
                 return_value=schedule_row,
             ),
+            patch(
+                "app.modules.payslips.application.commands._fetch_existing_payslip",
+                return_value=None,
+            ),
         )
 
     def test_mois_sans_calendrier_refuse_et_generateur_non_appele(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
-        p_repo, p_reader, p_provider, p_sched = self._patches(None)
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched:
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(None)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             with pytest.raises(PayslipCalendarIncompleteError):
@@ -102,8 +106,8 @@ class TestGardeCalendrierIncomplet:
         row["actual_hours"]["calendrier_reel"] = row["actual_hours"][
             "calendrier_reel"
         ][:-1]  # dernier jour non saisi
-        p_repo, p_reader, p_provider, p_sched = self._patches(row)
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched:
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(row)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             with pytest.raises(PayslipCalendarIncompleteError):
@@ -120,8 +124,8 @@ class TestGardeCalendrierIncomplet:
             requested_by="user-rh-1",
         )
         mock_result = {"status": "success", "message": "OK", "download_url": "u"}
-        p_repo, p_reader, p_provider, p_sched = self._patches(None)
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched:
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(None)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             mock_provider.generate_heures.return_value = mock_result
@@ -153,10 +157,10 @@ class TestGardeCalendrierIncomplet:
     def test_mois_complet_genere_sans_warning(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
         mock_result = {"status": "success", "message": "OK", "download_url": "u"}
-        p_repo, p_reader, p_provider, p_sched = self._patches(
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
             _schedule_complet(2026, 5)
         )
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched:
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             mock_provider.generate_heures.return_value = mock_result
@@ -173,10 +177,10 @@ class TestGardeCalendrierIncomplet:
         """Seul `a_saisir` bloque : un écart planifié/réel n'empêche pas la génération."""
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
         mock_result = {"status": "success", "message": "OK", "download_url": "u"}
-        p_repo, p_reader, p_provider, p_sched = self._patches(
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
             _schedule_avec_ecart(2026, 5)
         )
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched:
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             mock_provider.generate_heures.return_value = mock_result
@@ -262,3 +266,95 @@ class TestRouteGenerate422CalendrierIncomplet:
         assert response.json()["warnings"] == [
             {"code": "calendrier_incomplet_force"}
         ]
+
+
+class TestGardeBulletinValide:
+    """Task 2 : un bulletin validé n'est plus écrasable en silence."""
+
+    def _patches(self, existing_payslip):
+        return (
+            patch("app.modules.payslips.application.commands._employee_repository"),
+            patch("app.modules.payslips.application.commands.employee_statut_reader"),
+            patch("app.modules.payslips.application.commands.payslip_generator_provider"),
+            patch(
+                "app.modules.payslips.application.commands._calendar_row_status",
+                return_value="saisi",
+            ),
+            patch(
+                "app.modules.payslips.application.commands._fetch_existing_payslip",
+                return_value=existing_payslip,
+            ),
+        )
+
+    def test_regenerer_un_bulletin_valide_sans_force_est_refuse(self):
+        from app.modules.payslips.application.commands import generate_payslip
+        from app.modules.payslips.application.dto import (
+            GeneratePayslipInput,
+            PayslipValidatedError,
+        )
+
+        existing = {"id": "p-1", "status": "valide", "payslip_data": {}, "url": "u"}
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
+        p_repo, p_reader, p_provider, p_cal, p_fetch = self._patches(existing)
+        with p_repo as mock_repo, p_reader, p_provider as mock_provider, p_cal, p_fetch:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            with pytest.raises(PayslipValidatedError):
+                generate_payslip(cmd)
+        mock_provider.generate_heures.assert_not_called()
+        mock_provider.generate_forfait.assert_not_called()
+
+    def test_force_archive_avant_generation_puis_remet_en_brouillon(self):
+        from app.modules.payslips.application import commands as mod
+        from app.modules.payslips.application.dto import GeneratePayslipInput
+
+        existing = {
+            "id": "p-1",
+            "status": "valide",
+            "payslip_data": {"net_a_payer": 1000, "alerts_status": {"R01": "acquittee"}},
+            "url": "ancien.pdf",
+            "edit_history": [],
+        }
+        ordre = []
+        cmd = GeneratePayslipInput(
+            employee_id="emp-1", year=2026, month=5,
+            regenerer_bulletin_valide=True,
+            requested_by="user-rh-1", requested_by_name="RH Test",
+        )
+        p_repo, p_reader, p_provider, p_cal, p_fetch = self._patches(existing)
+        with (
+            p_repo as mock_repo,
+            p_reader as mock_reader,
+            p_provider as mock_provider,
+            p_cal,
+            p_fetch,
+            patch.object(mod, "_archive_before_regeneration") as mock_archive,
+            patch.object(mod, "_reset_payslip_flags_after_regeneration") as mock_reset,
+        ):
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_archive.side_effect = lambda *a, **k: ordre.append("archive")
+            mock_provider.generate_heures.side_effect = lambda **k: (
+                ordre.append("generation") or {"status": "success", "message": "OK", "download_url": "u"}
+            )
+            mock_reset.side_effect = lambda *a, **k: ordre.append("reset")
+            result = mod.generate_payslip(cmd)
+
+        assert ordre == ["archive", "generation", "reset"]
+        codes = [w.get("code") for w in (result.warnings or []) if isinstance(w, dict)]
+        assert "bulletin_valide_regenere" in codes
+
+    def test_un_brouillon_existant_ne_declenche_pas_la_garde(self):
+        from app.modules.payslips.application.commands import generate_payslip
+        from app.modules.payslips.application.dto import GeneratePayslipInput
+
+        existing = {"id": "p-1", "status": "brouillon", "payslip_data": {}, "url": "u"}
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
+        p_repo, p_reader, p_provider, p_cal, p_fetch = self._patches(existing)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_cal, p_fetch:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = {
+                "status": "success", "message": "OK", "download_url": "u",
+            }
+            result = generate_payslip(cmd)
+        assert result.status == "success"

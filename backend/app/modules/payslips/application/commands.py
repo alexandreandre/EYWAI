@@ -8,8 +8,10 @@ Logique applicative : décision forfait jour vs heures, délégation aux provide
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
+from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
 from app.modules.onboarding.domain.profile import payroll_block_reason
 from app.modules.payslips.application.dto import (
@@ -18,6 +20,7 @@ from app.modules.payslips.application.dto import (
     GeneratePayslipResult,
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
+    PayslipValidatedError,
     PayslipNotFoundError,
     RestorePayslipInput,
 )
@@ -166,6 +169,90 @@ def _check_calendar_guard(
     }
 
 
+def _fetch_existing_payslip(
+    employee_id: str, year: int, month: int
+) -> dict[str, Any] | None:
+    """Bulletin existant de la période (statut + contenu), None sinon."""
+    r = (
+        supabase.table("payslips")
+        .select("id, status, payslip_data, url, edit_history")
+        .match({"employee_id": employee_id, "year": year, "month": month})
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r and r.data else None
+
+
+def _archive_before_regeneration(
+    existing: dict[str, Any], cmd: GeneratePayslipInput
+) -> None:
+    """Archive le bulletin validé AVANT que le générateur ne l'écrase.
+
+    Même format que l'historique d'édition manuelle (payslip_editor) : la
+    version précédente reste consultable et restaurable.
+    """
+    history = existing.get("edit_history") or []
+    if not isinstance(history, list):
+        history = []
+    history.append(
+        {
+            "version": len(history) + 1,
+            "edited_at": datetime.now().isoformat(),
+            "edited_by": cmd.requested_by,
+            "edited_by_name": cmd.requested_by_name,
+            "changes_summary": "Régénération d'un bulletin validé (forçage explicite)",
+            "action": "regeneration",
+            "previous_payslip_data": existing.get("payslip_data", {}),
+            "previous_pdf_url": existing.get("url"),
+        }
+    )
+    supabase.table("payslips").update({"edit_history": history}).eq(
+        "id", existing["id"]
+    ).execute()
+
+
+def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
+    """Après régénération forcée : le bulletin redevient un brouillon.
+
+    Le statut « valide » portait sur l'ANCIEN contenu ; les acquittements
+    d'alertes vivent dans payslip_data et sont déjà balayés par l'upsert du
+    générateur. manually_edited est remis à False : les retouches manuelles
+    ont été archivées, pas conservées.
+    """
+    supabase.table("payslips").update(
+        {"status": "brouillon", "manually_edited": False}
+    ).eq("id", payslip_id).execute()
+
+
+def _check_validated_guard(
+    cmd: GeneratePayslipInput,
+) -> dict[str, Any] | None:
+    """Garde « bulletin validé » : refuse (409) sauf forçage explicite.
+
+    Retourne le bulletin existant si une régénération forcée est en cours
+    (l'appelant doit archiver avant, réinitialiser après), None sinon.
+    """
+    existing = _fetch_existing_payslip(cmd.employee_id, cmd.year, cmd.month)
+    if not existing or existing.get("status") != "valide":
+        return None
+    if not cmd.regenerer_bulletin_valide:
+        raise PayslipValidatedError(
+            f"Un bulletin validé existe déjà pour {cmd.month:02d}/{cmd.year}. "
+            "Le régénérer archivera la version validée et exigera une "
+            "nouvelle validation."
+        )
+    logger.warning(
+        "[generation] Bulletin validé %s (%02d/%d) régénéré par %s (%s) : "
+        "version archivée, statut remis à brouillon.",
+        existing.get("id"),
+        cmd.month,
+        cmd.year,
+        cmd.requested_by or "inconnu",
+        cmd.requested_by_name or "nom inconnu",
+    )
+    return existing
+
+
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
     Génère un bulletin pour un employé / période.
@@ -190,6 +277,9 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
         raise PayslipBadRequestError(period_block_reason)
 
     calendar_warning = _check_calendar_guard(employee, cmd)
+    validated_existing = _check_validated_guard(cmd)
+    if validated_existing:
+        _archive_before_regeneration(validated_existing, cmd)
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):
@@ -213,6 +303,18 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     warnings: list[Any] = list(result.get("warnings") or [])
     if calendar_warning:
         warnings.append(calendar_warning)
+    if validated_existing and str(result.get("status") or "") == "success":
+        _reset_payslip_flags_after_regeneration(str(validated_existing["id"]))
+        warnings.append(
+            {
+                "code": "bulletin_valide_regenere",
+                "message": (
+                    f"Le bulletin validé de {cmd.month:02d}/{cmd.year} a été "
+                    "régénéré : ancienne version archivée, nouvelle version en "
+                    "brouillon à revalider."
+                ),
+            }
+        )
 
     return GeneratePayslipResult(
         status=result["status"],
