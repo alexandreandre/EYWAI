@@ -34,6 +34,29 @@ _COMPLETE_EMPLOYEE = {
 
 
 class TestGeneratePayslipCommand:
+    @pytest.fixture(autouse=True)
+    def _mois_complet(self):
+        """La garde « calendrier incomplet » (lot 3) lit employee_schedules :
+        sans ce mock, ces tests partiraient vers une vraie base. On simule un
+        mois complet pour conserver leur comportement d'origine."""
+        with patch(
+            "app.modules.payslips.application.commands._fetch_month_schedule",
+            return_value={
+                "planned_calendar": {
+                    "calendrier_prevu": [
+                        {"jour": 1, "type": "travail", "heures_prevues": 7.0}
+                    ]
+                },
+                "actual_hours": {
+                    "calendrier_reel": [{"jour": 1, "heures_faites": 7.0}]
+                },
+            },
+        ), patch(
+            "app.modules.payslips.application.commands._calendar_row_status",
+            return_value="saisi",
+        ):
+            yield
+
     """Tests de la commande generate_payslip."""
 
     @pytest.mark.parametrize("month", [1, 2])

@@ -37,6 +37,18 @@ class PayslipCriticalActiveError(Exception):
         super().__init__("Alertes critiques actives")
 
 
+class PayslipCalendarIncompleteError(Exception):
+    """Génération refusée : calendrier du mois manquant ou incomplet (→ 422)."""
+
+    code = "calendrier_incomplet"
+
+
+class PayslipValidatedError(Exception):
+    """Génération refusée : un bulletin validé existe déjà pour la période (→ 409)."""
+
+    code = "bulletin_valide"
+
+
 @dataclass
 class UserContext:
     """
@@ -61,22 +73,34 @@ class UserContext:
 
 @dataclass
 class GeneratePayslipInput:
-    """Entrée pour la génération d'un bulletin."""
+    """Entrée pour la génération d'un bulletin.
+
+    Les overrides (`force_calendrier_incomplet`, `regenerer_bulletin_valide`)
+    sont explicites et tracés ; le défaut est toujours le refus.
+    """
 
     employee_id: str
     year: int
     month: int
+    force_calendrier_incomplet: bool = False
+    regenerer_bulletin_valide: bool = False
+    requested_by: str | None = None
+    requested_by_name: str | None = None
 
 
 @dataclass
 class GeneratePayslipResult:
-    """Résultat de la génération (status, message, download_url, alertes RH)."""
+    """Résultat de la génération (status, message, download_url, alertes RH).
+
+    `warnings` mêle chaînes (alertes RH du moteur) et dicts `{code, message}`
+    (avertissements de garde, ex. `calendrier_incomplet_force`).
+    """
 
     status: str
     message: str
     download_url: str
     payslip_id: str | None = None
-    warnings: list[str] | None = None
+    warnings: list[Any] | None = None
 
 
 @dataclass

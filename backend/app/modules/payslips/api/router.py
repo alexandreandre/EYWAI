@@ -24,9 +24,11 @@ from app.modules.payslips.application.anomalies_report import (
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
+    PayslipCalendarIncompleteError,
     PayslipCriticalActiveError,
     PayslipForbiddenError,
     PayslipNotFoundError,
+    PayslipValidatedError,
     UserContext,
     acquit_payslip_alert_for_user,
     delete_payslip,
@@ -65,12 +67,14 @@ from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Payslips"])
 
-# Exceptions applicatives à mapper vers HTTP (404, 403, 400)
+# Exceptions applicatives à mapper vers HTTP (404, 403, 400, 409, 422)
 _PAYSLIP_APP_ERRORS = (
     PayslipNotFoundError,
     PayslipForbiddenError,
     PayslipBadRequestError,
     PayslipCriticalActiveError,
+    PayslipCalendarIncompleteError,
+    PayslipValidatedError,
 )
 
 
@@ -102,6 +106,16 @@ def _map_app_errors(exc: Exception) -> None:
     if isinstance(exc, PayslipCriticalActiveError):
         raise HTTPException(
             status_code=400, detail={"critical_alerts": exc.critical_alerts}
+        ) from exc
+    if isinstance(exc, PayslipCalendarIncompleteError):
+        raise HTTPException(
+            status_code=422,
+            detail={"code": PayslipCalendarIncompleteError.code, "message": str(exc)},
+        ) from exc
+    if isinstance(exc, PayslipValidatedError):
+        raise HTTPException(
+            status_code=409,
+            detail={"code": PayslipValidatedError.code, "message": str(exc)},
         ) from exc
     if isinstance(exc, PayslipBadRequestError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -175,6 +189,13 @@ def generate_payslip_route(
                 employee_id=request.employee_id,
                 year=request.year,
                 month=request.month,
+                force_calendrier_incomplet=request.force_calendrier_incomplet,
+                regenerer_bulletin_valide=request.regenerer_bulletin_valide,
+                requested_by=str(current_user.id),
+                requested_by_name=(
+                    f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+                    or None
+                ),
             )
         )
         return {

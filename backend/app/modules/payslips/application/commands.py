@@ -17,6 +17,7 @@ from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
     GeneratePayslipResult,
     PayslipBadRequestError,
+    PayslipCalendarIncompleteError,
     PayslipNotFoundError,
     RestorePayslipInput,
 )
@@ -82,11 +83,98 @@ def _notify_payslip_available(
         )
 
 
+def _fetch_month_schedule(
+    company_id: str, employee_id: str, year: int, month: int
+) -> dict[str, Any] | None:
+    """Ligne employee_schedules (planned_calendar, actual_hours) du mois, ou None."""
+    from app.core.database import supabase
+
+    r = (
+        supabase.table("employee_schedules")
+        .select("planned_calendar, actual_hours")
+        .eq("company_id", company_id)
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r else None
+
+
+def _calendar_row_status(employee: dict[str, Any], year: int, month: int) -> str:
+    """Complétude du calendrier du mois — même règle que la revue pré-paie
+    (`compute_row_status`) : `a_saisir` | `saisi` | `saisi_avec_ecart`."""
+    from app.modules.schedules.domain.ecart_rules import compute_row_status
+    from app.shared.domain.employment_rules import (
+        is_forfait_jour as _is_forfait_jour_flag,
+    )
+
+    company_id = str(employee.get("company_id") or "").strip()
+    sched = (
+        _fetch_month_schedule(company_id, str(employee.get("id") or ""), year, month)
+        or {}
+    )
+    planned_raw = sched.get("planned_calendar") or {}
+    actual_raw = sched.get("actual_hours") or {}
+    planned_days = (
+        planned_raw.get("calendrier_prevu", []) if isinstance(planned_raw, dict) else []
+    )
+    actual_days = (
+        actual_raw.get("calendrier_reel", []) if isinstance(actual_raw, dict) else []
+    )
+    forfait = _is_forfait_jour_flag(
+        employee.get("statut"), employee.get("is_forfait_jour")
+    )
+    return compute_row_status(planned_days, actual_days, year, month, forfait)
+
+
+def _check_calendar_guard(
+    employee: dict[str, Any], cmd: GeneratePayslipInput
+) -> dict[str, Any] | None:
+    """Garde « calendrier manquant/incomplet ».
+
+    Refuse (422) si le mois est `a_saisir`, sauf override explicite
+    `force_calendrier_incomplet` — alors trace l'auteur et retourne le
+    warning à joindre à la réponse. Retourne None si le mois est complet.
+    """
+    row_status = _calendar_row_status(employee, cmd.year, cmd.month)
+    if row_status != "a_saisir":
+        return None
+    message = (
+        f"Calendrier {cmd.month:02d}/{cmd.year} incomplet pour cet employé : "
+        "des heures planifiées ou réelles manquent. Complétez le calendrier "
+        "avant de générer, ou forcez explicitement la génération."
+    )
+    if not cmd.force_calendrier_incomplet:
+        raise PayslipCalendarIncompleteError(message)
+    logger.warning(
+        "[generation] Calendrier %02d/%d incomplet pour l'employé %s : "
+        "génération FORCÉE par %s (%s).",
+        cmd.month,
+        cmd.year,
+        cmd.employee_id,
+        cmd.requested_by or "inconnu",
+        cmd.requested_by_name or "nom inconnu",
+    )
+    return {
+        "code": "calendrier_incomplet_force",
+        "message": (
+            f"Généré malgré un calendrier {cmd.month:02d}/{cmd.year} incomplet "
+            "(forçage explicite)."
+        ),
+    }
+
+
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
     Génère un bulletin pour un employé / période.
     Logique applicative : récupère le statut employé (via port), choisit forfait jour ou heures,
     délègue au provider (services legacy).
+
+    Gardes (lot 3 — génération sûre), côté serveur, jamais dans les générateurs :
+    - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
+      sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
     """
     employee = _employee_repository.get_by_id_only(cmd.employee_id)
     if not employee:
@@ -100,6 +188,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     )
     if period_block_reason:
         raise PayslipBadRequestError(period_block_reason)
+
+    calendar_warning = _check_calendar_guard(employee, cmd)
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):
@@ -120,12 +210,16 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
         if company_id:
             _notify_payslip_available(cmd.employee_id, company_id, cmd.year, cmd.month)
 
+    warnings: list[Any] = list(result.get("warnings") or [])
+    if calendar_warning:
+        warnings.append(calendar_warning)
+
     return GeneratePayslipResult(
         status=result["status"],
         message=result["message"],
         download_url=result["download_url"],
         payslip_id=result.get("payslip_id"),
-        warnings=result.get("warnings"),
+        warnings=warnings or None,
     )
 
 

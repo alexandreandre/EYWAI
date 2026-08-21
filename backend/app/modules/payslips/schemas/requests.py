@@ -11,11 +11,18 @@ from pydantic import BaseModel, Field
 
 
 class PayslipRequest(BaseModel):
-    """Requête de génération d'un bulletin (employee_id, year, month)."""
+    """Requête de génération d'un bulletin (employee_id, year, month).
+
+    Les overrides sont explicites et jamais le défaut :
+    - force_calendrier_incomplet : générer malgré un calendrier `a_saisir` (422 sinon).
+    - regenerer_bulletin_valide : écraser un bulletin validé, avec archivage (409 sinon).
+    """
 
     employee_id: str
     year: int
     month: int
+    force_calendrier_incomplet: bool = False
+    regenerer_bulletin_valide: bool = False
 
 
 class PayslipEditRequest(BaseModel):
