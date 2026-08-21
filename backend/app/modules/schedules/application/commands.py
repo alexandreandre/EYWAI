@@ -77,8 +77,9 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
                 "écraser d'éventuelles absences validées. Réessayez.",
                 status_code=503,
             ) from e
+        avert_requalification: List[Dict[str, Any]] = []
         calendrier_prevu_raw = domain_rules.merge_planned_entries(
-            existant, calendrier_prevu_raw
+            existant, calendrier_prevu_raw, warnings=avert_requalification
         )
         calendrier_prevu_normalized = normalize_planned_calendar_for_employee(
             calendrier_prevu_raw, employee_statut
@@ -108,7 +109,13 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
 
         log_app_debug(logger, '\n✅ Upsert réussi!')
         log_app_debug(logger, f"{'=' * 70}\n")
-        return {"status": "success", "message": "Planning prévisionnel enregistré."}
+        return {
+            "status": "success",
+            "message": "Planning prévisionnel enregistré.",
+            # Requalifications de jours d'absence validée : l'édition
+            # délibérée reste permise, mais jamais silencieuse.
+            "warnings": avert_requalification,
+        }
 
     except ScheduleAppError:
         raise
@@ -406,6 +413,7 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
         raise ScheduleAppError("validation", "Année invalide", status_code=400)
 
     try:
+        avertissements: List[Dict[str, Any]] = []
         num_days_in_month = cal_mod.monthrange(request.year, request.month)[1]
         first_day_of_month = date(request.year, request.month, 1)
         day_keys = [
@@ -461,6 +469,37 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
                 }
                 calendrier_prevu.append(calendar_entry)
 
+            # Le modèle régénère le mois entier : sans fusion préservante, il
+            # écraserait les jours d'absence validés et leurs métadonnées
+            # (nature d'arrêt, subrogation) — le bulletin perdrait maintien et
+            # IJSS. Même refus 503 que update_planned_calendar si la lecture
+            # échoue : écrire à l'aveugle serait précisément le danger.
+            try:
+                existant = queries.get_planned_calendar(
+                    employee_id, request.year, request.month
+                ).get("calendrier_prevu", [])
+            except Exception as lecture_exc:
+                logger.warning(
+                    "Calendrier existant illisible (%s) — modèle non appliqué.",
+                    lecture_exc,
+                )
+                raise ScheduleAppError(
+                    "unavailable",
+                    "Planning existant illisible : application du modèle "
+                    "refusée pour ne pas écraser d'éventuelles absences "
+                    "validées. Réessayez.",
+                    status_code=503,
+                ) from lecture_exc
+            avert_employe: List[Dict[str, Any]] = []
+            calendrier_prevu = domain_rules.merge_planned_entries(
+                existant,
+                calendrier_prevu,
+                preserve_absence_days=True,
+                warnings=avert_employe,
+            )
+            for a in avert_employe:
+                avertissements.append({"employee_id": employee_id, **a})
+
             planned_calendar_json = {"calendrier_prevu": calendrier_prevu}
 
             if schedule_repository.exists_schedule(
@@ -489,6 +528,7 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
                 "month": request.month,
                 "employee_count": len(request.employee_ids),
             },
+            "warnings": avertissements,
         }
 
     except ScheduleAppError:

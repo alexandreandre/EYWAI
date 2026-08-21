@@ -327,7 +327,10 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             else:
                 planned_calendar = schedule.data["planned_calendar"]
                 for entry in planned_calendar.get("calendrier_prevu", []):
-                    if entry.get("jour") in day_list and entry.get("type") == "travail":
+                    # WORK_TYPES = {'work', 'travail'} : apply-model écrit le
+                    # type du modèle tel quel, un jour 'work' doit aussi
+                    # pouvoir devenir une absence.
+                    if entry.get("jour") in day_list and entry.get("type") in ("travail", "work"):
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         # Branche nominale (le mois est déjà planifié) : c'est

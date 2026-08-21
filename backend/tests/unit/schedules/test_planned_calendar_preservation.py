@@ -550,3 +550,135 @@ def test_regeneration_ecrase_bien_un_jour_ordinaire():
     jour3 = next(e for e in resultat if e["jour"] == 3)
     assert jour3["type"] == "travail"
     assert jour3["heures_prevues"] == 7.0
+
+
+def test_fusion_mode_preservation_ne_requalifie_pas_une_absence():
+    """Écriture de masse (apply-model, copie) : le jour d'absence est gardé tel quel."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 10,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        }
+    ]
+    incoming = [{"jour": 10, "type": "travail", "heures_prevues": 7.0}]
+
+    avertissements: list = []
+    merged = merge_planned_entries(
+        existing, incoming, preserve_absence_days=True, warnings=avertissements
+    )
+    assert merged[0]["type"] == "arret_maladie"
+    assert merged[0]["arret_type"] == "maladie_simple"
+    assert avertissements == [
+        {
+            "jour": 10,
+            "code": "absence_validee_preservee",
+            "type_avant": "arret_maladie",
+            "type_refuse": "travail",
+        }
+    ]
+
+
+def test_fusion_mode_edition_signale_la_requalification():
+    """Édition délibérée : la requalification passe, mais elle est signalée."""
+    from app.modules.schedules.domain.rules import merge_planned_entries
+
+    existing = [
+        {
+            "jour": 10,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        }
+    ]
+    incoming = [{"jour": 10, "type": "travail", "heures_prevues": 7.0}]
+
+    avertissements: list = []
+    merged = merge_planned_entries(existing, incoming, warnings=avertissements)
+    assert merged[0]["type"] == "travail"
+    assert "arret_type" not in merged[0]
+    assert avertissements == [
+        {
+            "jour": 10,
+            "code": "absence_validee_requalifiee",
+            "type_avant": "arret_maladie",
+            "type_apres": "travail",
+        }
+    ]
+
+
+def test_apply_model_preserve_les_absences_validees(monkeypatch):
+    """Le bouton « Appliquer un modèle » ne détruit plus un arrêt validé."""
+    from types import SimpleNamespace
+
+    from app.modules.schedules.application import commands
+
+    stocke = {
+        "calendrier_prevu": [
+            {
+                "jour": 10,
+                "type": "arret_maladie",
+                "heures_prevues": 0,
+                "origine": "absence",
+                "arret_type": "maladie_simple",
+                "subrogation_active": True,
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        commands.employee_company_reader,
+        "get_company_and_statut",
+        lambda _id: ("comp-1", "Employé"),
+    )
+    monkeypatch.setattr(
+        commands.queries, "get_planned_calendar", lambda *a, **k: stocke
+    )
+    capture = {}
+    monkeypatch.setattr(
+        commands.schedule_repository, "exists_schedule", lambda *a, **k: True
+    )
+    monkeypatch.setattr(
+        commands.schedule_repository,
+        "update_planned_calendar_only",
+        lambda emp, y, m, pc: capture.setdefault("planned", pc),
+    )
+    monkeypatch.setattr(
+        commands.schedule_repository,
+        "insert_schedule",
+        lambda *a, **k: capture.setdefault("planned", a[4] if len(a) > 4 else k),
+    )
+
+    jour_travaille = SimpleNamespace(type="travail", hours=7.0)
+    semaine = SimpleNamespace(
+        monday=jour_travaille, tuesday=jour_travaille, wednesday=jour_travaille,
+        thursday=jour_travaille, friday=jour_travaille,
+        saturday=SimpleNamespace(type="repos", hours=0),
+        sunday=SimpleNamespace(type="repos", hours=0),
+    )
+    request = SimpleNamespace(
+        year=2026, month=7,
+        employee_ids=["emp-1"],
+        week_configs={n: semaine for n in range(1, 6)},
+    )
+    rh = SimpleNamespace(
+        active_company_id="comp-1",
+        has_rh_access_in_company=lambda _cid: True,
+    )
+    resultat = commands.apply_schedule_model(request, rh)
+
+    jours = capture["planned"]["calendrier_prevu"]
+    jour10 = next(e for e in jours if e["jour"] == 10)
+    assert jour10["type"] == "arret_maladie"
+    assert jour10["arret_type"] == "maladie_simple"
+    # Le reste du mois est bien régénéré
+    jour9 = next(e for e in jours if e["jour"] == 9)
+    assert jour9["type"] == "travail"
+    # Et le refus est signalé à l'appelant
+    assert any(
+        w.get("code") == "absence_validee_preservee" for w in resultat.get("warnings", [])
+    )

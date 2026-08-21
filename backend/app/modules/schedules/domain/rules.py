@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 from app.shared.domain.absence_calendar import (
     ABSENCE_CALENDAR_TYPES,
     SERVER_OWNED_ABSENCE_KEYS,
+    is_absence_day,
     strip_server_owned_keys,
 )
 from app.shared.domain.employment_rules import is_forfait_jour as is_forfait_jour
@@ -64,6 +65,9 @@ def coerce_jour(raw: Any) -> int | None:
 def merge_planned_entries(
     existing: List[Dict[str, Any]] | None,
     incoming: List[Dict[str, Any]],
+    *,
+    preserve_absence_days: bool = False,
+    warnings: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Fusionne le calendrier entrant sur le calendrier stocké, jour par jour.
@@ -85,6 +89,14 @@ def merge_planned_entries(
     payload partiel ferait disparaître une absence validée. La sortie est
     triée par jour, les `jour` étant normalisés en int des deux côtés et les
     entrées inexploitables ignorées — plutôt que de faire échouer tout le mois.
+
+    Deux modes, selon l'intention de l'appelant :
+    - édition délibérée (défaut) : requalifier un jour d'absence validée est
+      permis (et purge alors les clés serveur), mais **signalé** dans
+      ``warnings`` (code ``absence_validee_requalifiee``) ;
+    - écriture de masse (``preserve_absence_days=True`` — apply-model, copie
+      de mois…) : un jour d'absence validée est conservé tel quel, le jour
+      généré est écarté et signalé (code ``absence_validee_preservee``).
     """
     par_jour: Dict[int, Dict[str, Any]] = {}
     for e in existing or []:
@@ -104,7 +116,25 @@ def merge_planned_entries(
         jour = coerce_jour(entree.get("jour"))
         if jour is None:
             continue
-        base = dict(par_jour.get(jour, {}))
+        stocke = par_jour.get(jour, {})
+        type_entrant = entree.get("type")
+        requalifie = (
+            is_absence_day(stocke)
+            and type_entrant is not None
+            and type_entrant not in ABSENCE_CALENDAR_TYPES
+        )
+        if requalifie and preserve_absence_days:
+            if warnings is not None:
+                warnings.append(
+                    {
+                        "jour": jour,
+                        "code": "absence_validee_preservee",
+                        "type_avant": stocke.get("type"),
+                        "type_refuse": type_entrant,
+                    }
+                )
+            continue
+        base = dict(stocke)
         for cle, valeur in entree.items():
             if cle in SERVER_OWNED_ABSENCE_KEYS:
                 continue
@@ -113,6 +143,15 @@ def merge_planned_entries(
         base["jour"] = jour
         if base.get("type") not in ABSENCE_CALENDAR_TYPES:
             strip_server_owned_keys(base)
+            if requalifie and warnings is not None:
+                warnings.append(
+                    {
+                        "jour": jour,
+                        "code": "absence_validee_requalifiee",
+                        "type_avant": stocke.get("type"),
+                        "type_apres": type_entrant,
+                    }
+                )
         fusionnes[jour] = base
     return [fusionnes[jour] for jour in sorted(fusionnes)]
 

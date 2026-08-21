@@ -55,6 +55,7 @@ class TestUpdatePlannedCalendar:
         assert result == {
             "status": "success",
             "message": "Planning prévisionnel enregistré.",
+            "warnings": [],
         }
         repo.upsert_schedule.assert_called_once()
         call_kw = repo.upsert_schedule.call_args[1]
@@ -331,7 +332,11 @@ class TestApplyScheduleModel:
             reader.get_company_and_statut.return_value = ("comp-1", "employé")
             repo.exists_schedule.return_value = True
 
-            result = commands.apply_schedule_model(request, user)
+            with patch(
+                "app.modules.schedules.application.commands.queries.get_planned_calendar",
+                return_value={"calendrier_prevu": []},
+            ):
+                result = commands.apply_schedule_model(request, user)
 
         assert result["status"] == "success"
         assert result["details"]["employee_count"] == 1
@@ -375,7 +380,11 @@ class TestApplyScheduleModel:
             )
             repo.exists_schedule.return_value = False
 
-            result = commands.apply_schedule_model(request, user)
+            with patch(
+                "app.modules.schedules.application.commands.queries.get_planned_calendar",
+                return_value={"calendrier_prevu": []},
+            ):
+                result = commands.apply_schedule_model(request, user)
 
         assert result["status"] == "success"
         repo.insert_schedule.assert_called_once()
