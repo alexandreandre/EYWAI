@@ -19,6 +19,7 @@ import { PayrollGroupLaunchCta } from '@/features/payroll/components/PayrollGrou
 import { PayrollMonthList, type MonthStatusMap } from '@/features/payroll/components/PayrollMonthList';
 import type { PayslipRowState } from '@/features/payroll/components/PayrollPayslipRow';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
+import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
 import {
   usePayrollGeneration,
   type PayrollGenerationJob,
@@ -127,10 +128,16 @@ export default function Payroll() {
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
+  const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
 
   const generation = usePayrollGeneration();
 
   useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Une nouvelle passe de génération ré-arme le récapitulatif des refusés.
+  useEffect(() => {
+    if (generation.phase === 'running') setRefusalDialogDismissed(false);
+  }, [generation.phase]);
 
   useEffect(() => {
     if (employeeFromUrl) {
@@ -380,6 +387,14 @@ export default function Payroll() {
     ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
     : null;
 
+  const generatedCount = useMemo(
+    () =>
+      generation.log.filter(
+        (entry) => entry.status === 'success' || entry.status === 'warning'
+      ).length,
+    [generation.log]
+  );
+
   const progressSlot =
     generation.phase !== 'idle' ? (
       <PayrollProgressBar
@@ -473,6 +488,18 @@ export default function Payroll() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <PayrollGenerationRefusalDialog
+        open={
+          generation.phase === 'done' &&
+          generation.refusedJobs.length > 0 &&
+          !refusalDialogDismissed
+        }
+        refusals={generation.refusedJobs}
+        generatedCount={generatedCount}
+        onForce={generation.forceRefused}
+        onDismiss={() => setRefusalDialogDismissed(true)}
+      />
     </div>
   );
 }

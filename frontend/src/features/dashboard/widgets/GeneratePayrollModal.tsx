@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
+import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/PayrollPreflightAnomaliesSection';
 import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRoutingPanel';
@@ -47,6 +48,7 @@ export function GeneratePayrollModal({
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [uiPhase, setUiPhase] = useState<Phase>('select');
+  const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const generation = usePayrollGeneration();
@@ -100,6 +102,7 @@ export function GeneratePayrollModal({
   useEffect(() => {
     if (generation.phase === 'running') {
       setUiPhase('running');
+      setRefusalDialogDismissed(false);
     } else if (generation.phase === 'done') {
       setUiPhase('done');
     }
@@ -200,6 +203,7 @@ export function GeneratePayrollModal({
   const errorCount = generation.log.filter((l) => l.status === 'error').length;
 
   return (
+    <>
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
@@ -460,5 +464,19 @@ export function GeneratePayrollModal({
         )}
       </DialogContent>
     </Dialog>
+
+    <PayrollGenerationRefusalDialog
+      open={
+        isOpen &&
+        uiPhase === 'done' &&
+        generation.refusedJobs.length > 0 &&
+        !refusalDialogDismissed
+      }
+      refusals={generation.refusedJobs}
+      generatedCount={generatedCount}
+      onForce={generation.forceRefused}
+      onDismiss={() => setRefusalDialogDismissed(true)}
+    />
+    </>
   );
 }
