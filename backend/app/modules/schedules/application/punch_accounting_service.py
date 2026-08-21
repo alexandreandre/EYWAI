@@ -29,7 +29,7 @@ from app.modules.schedules.schemas.ai import (
 # même relevé peut donner des heures différentes — les aperçus mis en cache
 # sous une version antérieure sont alors ignorés.
 #   2 : pause des feuilles importées alignée sur le paramétrage société.
-PUNCH_CALC_RULES_VERSION = 2
+PUNCH_CALC_RULES_VERSION = 3  # lot 4 : pauses brutes sur imports (prompt + repli supprimé)
 
 
 def punch_calc_fingerprint(company_id: str | None) -> str:

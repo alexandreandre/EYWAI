@@ -65,10 +65,12 @@ def test_s18_weekday_maps_to_may_2026():
     )
 
 
-def test_handwritten_range_hours_deducts_lunch_break():
-    assert calculate_hours_from_range("8h", "17h") == 8.0
-    assert calculate_hours_from_range("6h45", "16h") == 8.25
-    assert calculate_hours_from_range("6h", "18h30") == 11.5
+def test_handwritten_range_hours_are_raw_without_settings():
+    """Lot 4 : sans paramétrage société, AUCUNE pause n'est déduite — le
+    -1 h en dur a produit des paies fausses silencieuses."""
+    assert calculate_hours_from_range("8h", "17h") == 9.0
+    assert calculate_hours_from_range("6h45", "16h") == 9.25
+    assert calculate_hours_from_range("6h", "18h30") == 12.5
 
 
 def test_handwritten_range_hours_follow_company_break_settings():
@@ -88,8 +90,9 @@ def test_handwritten_range_hours_follow_company_break_settings():
 
 
 def test_handwritten_range_hours_ignore_disabled_settings():
+    """Réglage désactivé = comme sans réglage : heures brutes."""
     settings = PunchAccountingSettings(enabled=False, default_break_deduct_minutes=30)
-    assert calculate_hours_from_range("8h", "17h", settings=settings) == 8.0
+    assert calculate_hours_from_range("8h", "17h", settings=settings) == 9.0
 
 
 def test_normalize_recomputes_hours_when_company_break_configured():
@@ -125,7 +128,9 @@ def test_normalize_recomputes_hours_when_company_break_configured():
     assert normalized["employees"][0]["days"][0]["heures"] == 8.5
 
 
-def test_normalize_keeps_ai_hours_without_company_settings():
+def test_normalize_recomputes_even_without_company_settings():
+    """Lot 4 : le serveur recalcule TOUJOURS depuis DEBUT/FIN — l'IA
+    appliquait sa propre pause, l'import n'en dépend plus."""
     payload = {
         "employees": [
             {
@@ -146,7 +151,7 @@ def test_normalize_keeps_ai_hours_without_company_settings():
 
     normalized = normalize_handwritten_weekly_payload(payload, year=2026, month=5)
 
-    assert normalized["employees"][0]["days"][0]["heures"] == 8.0
+    assert normalized["employees"][0]["days"][0]["heures"] == 9.0
 
 
 def test_hugo_not_junk_for_handwritten_format():

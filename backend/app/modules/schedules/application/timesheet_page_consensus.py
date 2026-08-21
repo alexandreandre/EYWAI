@@ -155,12 +155,21 @@ def build_page_consensus(
         or detect_handwritten_weekly_payload(text_data)
     ):
         detected_hint = FORMAT_HINT
+    avert_pause: list[dict[str, Any]] = []
     if detected_hint == FORMAT_HINT and year is not None and month is not None:
         vision_data = normalize_handwritten_weekly_payload(
-            vision_data, year=year, month=month, settings=punch_settings
+            vision_data,
+            year=year,
+            month=month,
+            settings=punch_settings,
+            warnings=avert_pause,
         )
         text_data = normalize_handwritten_weekly_payload(
-            text_data, year=year, month=month, settings=punch_settings
+            text_data,
+            year=year,
+            month=month,
+            settings=punch_settings,
+            warnings=avert_pause,
         )
 
     vision_emps = _parse_channel_data(vision_data, format_hint=detected_hint)
@@ -179,6 +188,9 @@ def build_page_consensus(
 
     employees: list[PageEmployee] = []
     warnings: list[str] = []
+    # Le signal « pause non paramétrée » doit atteindre la RH : c'est lui qui
+    # remplace l'heure de pause silencieuse d'avant le lot 4.
+    warnings.extend(a["message"] for a in avert_pause)
     conflicts_total = 0
 
     for key, (v_emp, t_emp) in index.items():

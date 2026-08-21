@@ -160,8 +160,9 @@ def calculate_hours_from_range(
         duration -= apply_break_threshold(
             settings.default_break_deduct_minutes, start, end, settings
         )
-    elif start < 12 * 60 and end >= 15 * 60 and duration >= 8 * 60 + 30:
-        duration -= 60
+    # Sans paramétrage société : AUCUNE déduction — l'heure de pause en dur
+    # a produit des paies fausses silencieuses ; l'appelant signale le cas
+    # (code pause_non_parametree) au lieu de deviner.
     return round(max(0, duration) / 60.0, 2)
 
 
@@ -171,6 +172,7 @@ def normalize_handwritten_weekly_payload(
     year: int,
     month: int,
     settings: PunchAccountingSettings | None = None,
+    warnings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     if not data:
         return data
@@ -192,10 +194,12 @@ def normalize_handwritten_weekly_payload(
                     week_number=week_number,
                     weekday=item.get("weekday"),
                 )
-            # Avec un paramétrage société, le calcul serveur prime sur les heures
-            # rendues par l'IA : elle applique sa propre pause forfaitaire.
-            recompute = item.get("heures") is None or (
-                settings is not None and settings.enabled
+            # Le calcul serveur prime TOUJOURS sur les heures rendues par
+            # l'IA dès qu'une plage DEBUT/FIN existe : le modèle a longtemps
+            # appliqué sa propre pause forfaitaire, et un import ne doit
+            # jamais dépendre de ce qu'un LLM a décidé de déduire.
+            recompute = bool(item.get("debut") and item.get("fin")) or (
+                item.get("heures") is None
             )
             if recompute:
                 heures = calculate_hours_from_range(
@@ -205,6 +209,25 @@ def normalize_handwritten_weekly_payload(
                 )
                 if heures is not None or item.get("heures") is None:
                     item["heures"] = heures
+                if (
+                    heures is not None
+                    and (settings is None or not settings.enabled)
+                    and warnings is not None
+                    and not any(
+                        w.get("code") == "pause_non_parametree" for w in warnings
+                    )
+                ):
+                    warnings.append(
+                        {
+                            "code": "pause_non_parametree",
+                            "message": (
+                                "Société sans paramétrage de pause : les heures "
+                                "importées sont BRUTES (aucune pause déduite). "
+                                "Configurez « Pointages & imports » ou corrigez "
+                                "manuellement."
+                            ),
+                        }
+                    )
             item["type"] = item.get("type") or "travail"
             if item.get("jour") is not None:
                 kept_days.append(item)
