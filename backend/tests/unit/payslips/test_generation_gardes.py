@@ -358,3 +358,132 @@ class TestGardeBulletinValide:
             }
             result = generate_payslip(cmd)
         assert result.status == "success"
+
+
+class TestNotificationALaValidation:
+    """Task 3 : le salarié est notifié à la VALIDATION, une seule fois."""
+
+    def test_la_generation_ne_notifie_plus(self):
+        from app.modules.payslips.application import commands as mod
+        from app.modules.payslips.application.dto import GeneratePayslipInput
+
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
+        with (
+            patch.object(mod, "_employee_repository") as mock_repo,
+            patch.object(mod, "employee_statut_reader") as mock_reader,
+            patch.object(mod, "payslip_generator_provider") as mock_provider,
+            patch.object(mod, "_calendar_row_status", return_value="saisi"),
+            patch.object(mod, "_fetch_existing_payslip", return_value=None),
+            patch.object(mod, "_notify_payslip_available") as mock_notify,
+        ):
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = {
+                "status": "success", "message": "OK", "download_url": "u",
+            }
+            mod.generate_payslip(cmd)
+        mock_notify.assert_not_called()
+
+    def _valider(self, payslip_data, notifications):
+        """Passe un bulletin dans le VRAI validate_payslip_for_user, I/O moquée."""
+        from unittest.mock import MagicMock
+
+        from app.modules.payslips.application import comparison_service as svc
+
+        detail = {
+            "id": "p-1",
+            "employee_id": "emp-1",
+            "company_id": "comp-1",
+            "year": 2026,
+            "month": 5,
+            "status": "brouillon",
+            "payslip_data": payslip_data,
+        }
+        resultat_comparaison = MagicMock()
+        resultat_comparaison.alerts = []
+        with (
+            patch.object(svc, "payslip_meta_reader") as mock_meta,
+            patch.object(svc, "_ensure_edit_meta"),
+            patch.object(svc, "get_payslip_details", return_value=detail),
+            patch.object(svc, "fetch_previous_validated_payslip", return_value=None),
+            patch.object(svc, "fetch_employee_statut", return_value="Non-Cadre"),
+            patch.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),
+            patch.object(svc, "compute_comparison", return_value=resultat_comparaison),
+            patch.object(svc, "mark_payslip_validated") as mock_mark,
+            patch.object(svc, "_notify_payslip_available") as mock_notify,
+            patch.object(svc, "_persist_salarie_notifie_le") as mock_persist,
+        ):
+            mock_meta.get_payslip_meta.return_value = {"id": "p-1"}
+            mock_notify.side_effect = lambda *a, **k: notifications.append(a)
+            ctx = MagicMock()
+            ctx.user_id = "rh-1"
+            svc.validate_payslip_for_user("p-1", ctx)
+        return mock_mark, mock_persist
+
+    def test_la_validation_notifie_une_fois(self):
+        notifications = []
+        mock_mark, mock_persist = self._valider({"net_a_payer": 100}, notifications)
+        assert len(notifications) == 1
+        mock_mark.assert_called_once()
+        mock_persist.assert_called_once()
+
+    def test_pas_de_renotification_si_deja_notifie(self):
+        notifications = []
+        _, mock_persist = self._valider(
+            {"net_a_payer": 100, "salarie_notifie_le": "2026-08-01T10:00:00"},
+            notifications,
+        )
+        assert notifications == []
+        mock_persist.assert_not_called()
+
+
+def test_espace_salarie_ne_liste_que_les_bulletins_valides():
+    """Task 4 : un salarié ne voit jamais un brouillon (contrat vague 3)."""
+    from unittest.mock import MagicMock
+
+    from app.modules.payslips.infrastructure import queries as q
+
+    fake = MagicMock()
+    table = MagicMock()
+    fake.table.return_value = table
+    table.select.return_value = table
+    table.eq.return_value = table
+    table.order.return_value = table
+    table.execute.return_value = MagicMock(data=[])
+
+    with patch.object(q, "supabase", fake):
+        q.get_my_payslips("emp-1")
+
+    filtres = {appel.args for appel in table.eq.call_args_list}
+    assert ("status", "valide") in filtres
+
+
+def test_un_echec_de_notification_ne_fait_pas_echouer_la_validation():
+    """Le marquage « validé » prime : une panne de notification se logge."""
+    from unittest.mock import MagicMock, patch as p_
+
+    from app.modules.payslips.application import comparison_service as svc
+
+    detail = {
+        "id": "p-1", "employee_id": "emp-1", "company_id": "comp-1",
+        "year": 2026, "month": 5, "payslip_data": {"net_a_payer": 100},
+    }
+    resultat = MagicMock()
+    resultat.alerts = []
+    with (
+        p_.object(svc, "payslip_meta_reader"),
+        p_.object(svc, "_ensure_edit_meta"),
+        p_.object(svc, "get_payslip_details", return_value=detail),
+        p_.object(svc, "fetch_previous_validated_payslip", return_value=None),
+        p_.object(svc, "fetch_employee_statut", return_value="Non-Cadre"),
+        p_.object(svc, "fetch_recent_nets_asc_for_r10", return_value=[]),
+        p_.object(svc, "compute_comparison", return_value=resultat),
+        p_.object(svc, "mark_payslip_validated") as mock_mark,
+        p_.object(svc, "_notify_payslip_available", side_effect=RuntimeError("smtp down")),
+        p_.object(svc, "_persist_salarie_notifie_le") as mock_persist,
+    ):
+        ctx = MagicMock()
+        ctx.user_id = "rh-1"
+        svc.validate_payslip_for_user("p-1", ctx)  # ne doit PAS lever
+    mock_mark.assert_called_once()
+    mock_persist.assert_not_called()

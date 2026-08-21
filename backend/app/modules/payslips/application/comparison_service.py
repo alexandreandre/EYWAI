@@ -4,6 +4,8 @@ Cas d'usage comparaison N vs N-1, tendance, acquittements, validation.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from typing import Any
 
 from app.modules.payslips.application.dto import (
@@ -32,7 +34,14 @@ from app.modules.payslips.infrastructure.comparison_queries import (
     mark_payslip_validated,
     update_payslip_data_alerts_status,
 )
+from app.core.database import supabase
+from app.core.logging import get_logger
+from app.modules.payslips.application.commands import (
+    _notify_payslip_available,
+)
 from app.modules.payslips.infrastructure.readers import payslip_meta_reader
+
+logger = get_logger("modules.payslips.application.comparison_service")
 
 
 def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict[str, Any]:
@@ -201,6 +210,15 @@ def ignore_payslip_alert_for_user(
     )
 
 
+def _persist_salarie_notifie_le(payslip_id: str, pd: dict[str, Any]) -> None:
+    """Pose le marqueur d'idempotence de notification dans payslip_data."""
+    pd = dict(pd)
+    pd["salarie_notifie_le"] = datetime.now().isoformat()
+    supabase.table("payslips").update({"payslip_data": pd}).eq(
+        "id", payslip_id
+    ).execute()
+
+
 def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     meta = payslip_meta_reader.get_payslip_meta(payslip_id)
     _ensure_edit_meta(meta, ctx)
@@ -249,3 +267,16 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
         raise PayslipCriticalActiveError(active_crit)
 
     mark_payslip_validated(payslip_id, ctx.user_id)
+
+    # Lot 3 : le salarié est notifié ICI — jamais à la génération — et une
+    # seule fois par contenu (le marqueur vit dans payslip_data : une
+    # régénération forcée le balaie, donc une re-validation renotifie).
+    if not pd.get("salarie_notifie_le"):
+        try:
+            _notify_payslip_available(emp_id, comp_id, year, month)
+            _persist_salarie_notifie_le(payslip_id, pd)
+        except Exception:
+            logger.warning(
+                "Notification bulletin %s après validation en échec", payslip_id
+            )
+            logger.exception("Exception")

@@ -295,10 +295,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
             month=cmd.month,
         )
 
-    if str(result.get("status") or "") == "success":
-        company_id = str(employee.get("company_id") or "").strip()
-        if company_id:
-            _notify_payslip_available(cmd.employee_id, company_id, cmd.year, cmd.month)
+    # Lot 3 : plus AUCUNE notification à la génération — le salarié n'est
+    # prévenu qu'à la VALIDATION du bulletin (comparison_service), une fois.
 
     warnings: list[Any] = list(result.get("warnings") or [])
     if calendar_warning:

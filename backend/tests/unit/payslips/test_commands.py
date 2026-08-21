@@ -252,7 +252,7 @@ class TestGeneratePayslipCommand:
         mock_provider.generate_forfait.assert_not_called()
         assert result.status == "ok"
 
-    def test_notifies_employee_when_generation_succeeds(self):
+    def test_generation_ne_notifie_plus_lot3(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
         mock_result = {
             "status": "success",
@@ -285,13 +285,7 @@ class TestGeneratePayslipCommand:
 
             generate_payslip(cmd)
 
-        mock_notify.assert_called_once_with(
-            "emp-1",
-            "co-1",
-            "Bulletin de paie — mars 2024",
-            page_path="payslips",
-            notification_type="nouveau_bulletin",
-        )
+        mock_notify.assert_not_called()
 
     def test_skips_notification_when_generation_fails(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2024, month=3)
