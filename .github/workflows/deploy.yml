@@ -257,6 +257,7 @@ jobs:
             ALLOWED_ORIGINS_EXTRA=${{ vars.FRONTEND_URL_TEST }}
             SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}
+            SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
             SECRET_ENCRYPTION_KEY=${{ secrets.SECRET_ENCRYPTION_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             COPILOT_RH_DATA_ENABLED=true
@@ -313,6 +314,7 @@ jobs:
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+            SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
             SECRET_ENCRYPTION_KEY=${{ secrets.SECRET_ENCRYPTION_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             COPILOT_RH_DATA_ENABLED=true
