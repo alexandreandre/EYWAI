@@ -49,11 +49,18 @@ def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
 
 
 def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
-    """Liste des bulletins de l'employé avec net_a_payer et URLs signées."""
+    """Liste des bulletins VALIDÉS de l'employé (net_a_payer, URLs signées).
+
+    Contrat vague 3 du design d'intégration : un salarié ne voit jamais un
+    brouillon. Tant que la RH ne valide pas, son espace est vide — c'est
+    voulu (au 21/08/2026 : 1308/1308 bulletins en brouillon, aucun salarié
+    connecté).
+    """
     r = (
         supabase.table("payslips")
         .select("id, month, year, pdf_storage_path, payslip_data")
         .eq("employee_id", employee_id)
+        .eq("status", "valide")
         .order("year", desc=True)
         .order("month", desc=True)
         .execute()
