@@ -268,7 +268,14 @@ export function useCalendar(
       const date = new Date(selectedDate.year, selectedDate.month - 1, day.jour);
       const dayOfWeek = date.getDay();
 
-      if (dayOfWeek >= 1 && dayOfWeek <= 5 && !['ferie', 'conge', 'arret_maladie'].includes(day.type)) {
+      // Un jour issu d'une absence validée (origine "absence") est préservé,
+      // comme les types ferie/conge/arret_maladie déjà exclus du modèle.
+      if (
+        dayOfWeek >= 1 &&
+        dayOfWeek <= 5 &&
+        day.origine !== 'absence' &&
+        !['ferie', 'conge', 'arret_maladie'].includes(day.type)
+      ) {
         const templateValue = weekTemplate[dayOfWeek];
 
         if (isForfaitJourMode) {
@@ -307,7 +314,7 @@ export function useCalendar(
 
     setIsSaving(true);
     try {
-      await Promise.all([
+      const [plannedRes] = await Promise.all([
         calendarApi.updatePlannedCalendar(
           employeeId,
           selectedDate.year,
@@ -331,10 +338,22 @@ export function useCalendar(
       setOriginalPlanned(plannedCalendar);
       setOriginalActual(actualHours);
 
-      toast({
-        title: 'Succès',
-        description: 'Calendrier et événements de paie sauvegardés et calculés.',
-      });
+      // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
+      const requalifications = (plannedRes.data?.warnings ?? []).filter(
+        (w) => w.code === 'absence_validee_requalifiee'
+      );
+      if (requalifications.length > 0) {
+        toast({
+          title: 'Enregistré — absences requalifiées',
+          description: `Ce changement requalifie ${requalifications.length} jour(s) d'absence validée.`,
+          variant: 'warning',
+        });
+      } else {
+        toast({
+          title: 'Succès',
+          description: 'Calendrier et événements de paie sauvegardés et calculés.',
+        });
+      }
     } catch (error) {
       log.error(error);
       toast({
@@ -426,9 +445,15 @@ export function useCalendar(
       const prevData: PlannedEventData[] = res.data.calendrier_prevu ?? [];
       const daysInMonth = new Date(selectedDate.year, selectedDate.month, 0).getDate();
 
+      // Un jour du mois cible issu d'une absence validée n'est jamais
+      // recouvert par la copie : il reste tel quel.
+      const preservedCount = plannedCalendar.filter(
+        (day) => day.jour <= daysInMonth && day.origine === 'absence'
+      ).length;
       setPlannedCalendar((prev) =>
         prev.map((day) => {
           if (day.jour > daysInMonth) return day;
+          if (day.origine === 'absence') return day;
           const fromPrev = prevData.find((p) => p.jour === day.jour);
           if (!fromPrev) return day;
           return {
@@ -441,7 +466,11 @@ export function useCalendar(
 
       toast({
         title: 'Mois précédent copié',
-        description: `Planning de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} appliqué au mois courant.`,
+        description:
+          `Planning de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} appliqué au mois courant.` +
+          (preservedCount > 0
+            ? ` ${preservedCount} jour(s) d'absence validée conservé(s).`
+            : ''),
       });
     } catch (error) {
       log.error(error);
@@ -453,7 +482,7 @@ export function useCalendar(
     } finally {
       setIsCopyingPrevMonth(false);
     }
-  }, [employeeId, selectedDate, toast]);
+  }, [employeeId, selectedDate, plannedCalendar, toast]);
 
   const handleDaySelection = (dayNumber: number) => {
     setSelectedDays((prev) =>

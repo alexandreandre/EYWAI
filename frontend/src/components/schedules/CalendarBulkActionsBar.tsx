@@ -94,6 +94,8 @@ export function CalendarBulkActionsBar({
 
     try {
       const snapshots: PlannedSnapshot[] = [];
+      let preservedCount = 0;
+      let requalifiedCount = 0;
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const [prevRes, currentPlannedRes] = await Promise.all([
           calendarApi.getPlannedCalendar(id, prevYear, prevMonth),
@@ -110,8 +112,15 @@ export function CalendarBulkActionsBar({
             (p: { jour: number }) => p.jour === jour
           );
           const existing = currentData.find(
-            (p: { jour: number }) => p.jour === jour
+            (p: { jour: number; origine?: string | null }) => p.jour === jour
           );
+          // Un jour du mois cible issu d'une absence validée n'est jamais
+          // recouvert par la copie : il reste tel quel.
+          if (existing?.origine === 'absence') {
+            preservedCount += 1;
+            merged.push(existing);
+            continue;
+          }
           merged.push(
             fromPrev
               ? { ...fromPrev, jour }
@@ -119,17 +128,36 @@ export function CalendarBulkActionsBar({
           );
         }
 
-        await calendarApi.updatePlannedCalendar(id, year, month, merged);
+        const res = await calendarApi.updatePlannedCalendar(id, year, month, merged);
+        // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
+        requalifiedCount += (res.data?.warnings ?? []).filter(
+          (w) => w.code === 'absence_validee_requalifiee'
+        ).length;
       });
 
       await runWithConcurrency(tasks, 5);
-      toast({
-        title: 'Mois précédent copié',
-        description: `Planning copié pour ${selectedEmployeeIds.length} employé(s).`,
-        action: undoToastAction(() =>
-          restorePlannedSnapshots(snapshots, year, month)
-        ),
-      });
+      const preservedNote =
+        preservedCount > 0
+          ? ` ${preservedCount} jour(s) d'absence validée conservé(s).`
+          : '';
+      if (requalifiedCount > 0) {
+        toast({
+          title: 'Mois précédent copié — absences requalifiées',
+          description: `Ce changement requalifie ${requalifiedCount} jour(s) d'absence validée.${preservedNote}`,
+          variant: 'warning',
+          action: undoToastAction(() =>
+            restorePlannedSnapshots(snapshots, year, month)
+          ),
+        });
+      } else {
+        toast({
+          title: 'Mois précédent copié',
+          description: `Planning copié pour ${selectedEmployeeIds.length} employé(s).${preservedNote}`,
+          action: undoToastAction(() =>
+            restorePlannedSnapshots(snapshots, year, month)
+          ),
+        });
+      }
       onActionComplete();
     } catch {
       toast({
