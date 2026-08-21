@@ -168,7 +168,8 @@ def _upsert_employees_for_month(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                days_written += len(prevu_days)
+                # Les jours refusés (absence validée préservée) ne comptent pas.
+                days_written += len(prevu_days) - len(avertissements)
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
@@ -261,7 +262,8 @@ def _upsert_employees_for_month_fast(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                days_written += len(prevu_days)
+                # Les jours refusés (absence validée préservée) ne comptent pas.
+                days_written += len(prevu_days) - len(avertissements)
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)

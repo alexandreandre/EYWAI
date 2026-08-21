@@ -30,6 +30,7 @@ from app.modules.schedules.schemas import (
     ImportBadgeuseEmployeeRequest,
     ParseInstructionRequest,
     PlannedCalendarRequest,
+    PlannedCalendarResponse,
     RosterEmployee,
     TimesheetExtractJobResponse,
     TimesheetExtractProgress,
@@ -91,7 +92,7 @@ def get_employee_calendar(
         _handle_schedule_error(e)
 
 
-@router.get("/planned-calendar", response_model=PlannedCalendarRequest)
+@router.get("/planned-calendar", response_model=PlannedCalendarResponse)
 def get_planned_calendar(
     employee_id: str,
     year: int,

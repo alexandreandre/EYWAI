@@ -41,6 +41,25 @@ class PlannedCalendarRequest(BaseModel):
     calendrier_prevu: List[PlannedCalendarEntry]
 
 
+class PlannedCalendarEntryOut(BaseModel):
+    """Entrée telle que stockée — lecture tolérante.
+
+    Les bornes de saisie (jour 1-31) ne s'appliquent pas à la lecture : une
+    donnée historique hors bornes doit rester lisible (et corrigeable), pas
+    transformer le GET en 500.
+    """
+
+    jour: int
+    type: str | None = None
+    heures_prevues: float | None = None
+
+
+class PlannedCalendarResponse(BaseModel):
+    year: int
+    month: int
+    calendrier_prevu: List[PlannedCalendarEntryOut]
+
+
 # ----- Heures réelles (GET/POST /actual-hours) -----
 
 

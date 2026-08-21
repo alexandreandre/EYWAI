@@ -20,6 +20,7 @@ from .requests import (
     ImportBadgeuseEmployeeRequest,
     PlannedCalendarEntry,
     PlannedCalendarRequest,
+    PlannedCalendarResponse,
     SchedulePlanUpsert,
     WeekConfigModel,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "ParseInstructionRequest",
     "PlannedCalendarEntry",
     "PlannedCalendarRequest",
+    "PlannedCalendarResponse",
     "RosterEmployee",
     "TimesheetExtractJobResponse",
     "TimesheetExtractProgress",

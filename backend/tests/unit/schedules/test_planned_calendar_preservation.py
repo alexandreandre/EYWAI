@@ -682,3 +682,41 @@ def test_apply_model_preserve_les_absences_validees(monkeypatch):
     assert any(
         w.get("code") == "absence_validee_preservee" for w in resultat.get("warnings", [])
     )
+
+
+def test_type_mapping_absences_reste_couvert_par_les_types_calendrier():
+    """Verrou anti-dérive : tout type écrit au calendrier par la validation
+    d'absence doit rester connu de ABSENCE_CALENDAR_TYPES, sinon la
+    préservation et la purge cessent de le couvrir en silence."""
+    import inspect
+
+    from app.modules.absences.infrastructure import providers as mod
+    from app.shared.domain.absence_calendar import ABSENCE_CALENDAR_TYPES
+
+    source = inspect.getsource(mod.CalendarUpdateProvider.update_calendar_from_days)
+    # Le mapping vit dans le corps de la fonction : on l'extrait en l'exécutant.
+    import re
+
+    bloc = re.search(r"type_mapping = \{(.*?)\}", source, re.DOTALL)
+    assert bloc, "type_mapping introuvable — le test doit être adapté"
+    types_ecrits = set(re.findall(r':\s*"([a-z_]+)"', bloc.group(1)))
+    types_ecrits.add("arret_maladie")  # branche IJSS_ELIGIBLE_TYPES
+    inconnus = types_ecrits - set(ABSENCE_CALENDAR_TYPES)
+    assert not inconnus, f"types écrits au calendrier non couverts : {inconnus}"
+
+
+def test_lecture_tolerante_mais_saisie_bornee():
+    """Un jour hors bornes stocké reste lisible ; il reste refusé en saisie."""
+    import pytest
+    from pydantic import ValidationError
+
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarEntryOut,
+    )
+
+    # Donnée historique corrompue : la lecture ne doit pas exploser (500 GET)
+    assert PlannedCalendarEntryOut(jour=42, type="travail").jour == 42
+    # Mais la saisie reste bornée
+    with pytest.raises(ValidationError):
+        PlannedCalendarEntry(jour=42, type="travail")

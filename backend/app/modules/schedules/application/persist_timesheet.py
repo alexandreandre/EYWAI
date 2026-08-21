@@ -129,7 +129,9 @@ def persist_timesheet_batch(
                 warnings.extend(
                     {"employee_id": emp.employee_id, **w} for w in avertissements
                 )
-                days_written += len(prevu_days)
+                # Les jours refusés (absence validée préservée) ne comptent
+                # pas comme « écrits » : le récapitulatif RH doit être exact.
+                days_written += len(prevu_days) - len(avertissements)
             if reel_days:
                 existing = get_actual(emp.employee_id, payload.year, payload.month)
                 merged = _merge_days(existing, reel_days, "reel")
