@@ -1022,3 +1022,39 @@ class TestRegularisationParticipation:
                 {"id": "emp-1", "employment_status": "parti", "first_name": "A"},
                 {"id": "p-1", "bulletin_kind": None, "status": "brouillon"},
             )
+
+
+def test_delete_d_un_valide_rend_409_pas_500():
+    """Le refus de suppression doit sortir en 409 structuré, pas en 500 :
+    la route delete était la seule sans mapping des erreurs applicatives."""
+    from unittest.mock import patch as p_
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.modules.users.schemas.responses import User
+
+    from app.modules.payslips.api import router as payslips_router
+
+    fake_user = User(
+        id="rh-1", email="rh@test.local", first_name="RH", last_name="Test",
+        is_platform_admin=False,
+    )
+    app.dependency_overrides = {}
+    from app.core.security import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+    try:
+        with (
+            p_.object(payslips_router, "_require_rh_company_context"),
+            p_(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "p-1", "status": "valide"},
+            ),
+        ):
+            client = TestClient(app, raise_server_exceptions=False)
+            r = client.delete("/api/payslips/p-1")
+    finally:
+        app.dependency_overrides = {}
+    assert r.status_code == 409, r.status_code
+    assert r.json()["detail"]["code"] == "bulletin_valide"

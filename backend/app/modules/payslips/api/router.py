@@ -259,6 +259,8 @@ def delete_payslip_route(
         delete_payslip(payslip_id)
     except HTTPException:
         raise
+    except _PAYSLIP_APP_ERRORS as e:
+        _map_app_errors(e)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
