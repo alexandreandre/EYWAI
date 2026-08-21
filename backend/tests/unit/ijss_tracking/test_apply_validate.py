@@ -72,6 +72,8 @@ def test_apply_validated_regenerates_payslip(monkeypatch):
         emp_mock
     )
     monkeypatch.setattr(mod, "get_supabase_admin_client", lambda: client_mock)
+    # Lot 3 : la garde « bulletin validé » lit le bulletin existant
+    monkeypatch.setattr(mod, "_fetch_existing_payslip", lambda *a: None)
 
     gen_calls: list = []
 

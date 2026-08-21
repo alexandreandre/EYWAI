@@ -487,3 +487,67 @@ def test_un_echec_de_notification_ne_fait_pas_echouer_la_validation():
         svc.validate_payslip_for_user("p-1", ctx)  # ne doit PAS lever
     mock_mark.assert_called_once()
     mock_persist.assert_not_called()
+
+
+def test_ijss_sur_bulletin_valide_archive_et_remet_en_brouillon():
+    """La porte latérale IJSS suit le même protocole que la régénération
+    forcée : archive avant, brouillon après — plus d'écrasement silencieux."""
+    from unittest.mock import MagicMock
+
+    from app.modules.ijss_tracking.application import apply_to_payslip as mod
+
+    ordre = []
+    existing = {
+        "id": "p-1",
+        "status": "valide",
+        "payslip_data": {"net_a_payer": 900},
+        "url": "ancien.pdf",
+        "edit_history": [],
+    }
+
+    def fake_generation(*a, **k):
+        ordre.append("generation")
+        return {"status": "success", "payslip_id": "p-1"}
+
+    fake_emp = MagicMock()
+    fake_emp.data = {"statut": "Non-Cadre", "is_forfait_jour": False}
+    fake_admin = MagicMock()
+    fake_admin.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fake_emp
+
+    with (
+        patch.object(mod, "repo") as fake_repo,
+        patch.object(mod, "get_supabase_admin_client", return_value=fake_admin),
+        patch.object(mod, "_fetch_existing_payslip", return_value=existing),
+        patch.object(mod, "_archive_before_regeneration") as m_archive,
+        patch.object(mod, "_reset_payslip_flags_after_regeneration") as m_reset,
+        patch(
+            "app.modules.ijss_tracking.application.service._recompute_period",
+            return_value={},
+        ),
+        patch(
+            "app.modules.payroll.documents.payslip_generator.process_payslip_generation",
+            side_effect=fake_generation,
+        ),
+    ):
+        fake_repo.get_expected_line.return_value = {
+            "id": "line-1",
+            "period_id": "per-1",
+            "employee_id": "emp-1",
+            "ijss_brut_validated": 350.0,
+            "ijss_theorique": 340.0,
+            "validation_source": "manual",
+        }
+        fake_repo.get_period.return_value = {
+            "id": "per-1",
+            "company_id": "comp-1",
+            "period_year": 2026,
+            "period_month": 5,
+            "status": "open",
+        }
+        fake_repo.list_expected_lines.return_value = []
+        m_archive.side_effect = lambda *a, **k: ordre.append("archive")
+        m_reset.side_effect = lambda *a, **k: ordre.append("reset")
+        mod.apply_validated_ijss_to_payslip("comp-1", "line-1", "rh-1")
+
+    assert ordre[:2] == ["archive", "generation"]
+    assert "reset" in ordre

@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from app.modules.payslips.application.commands import (
+    _archive_before_regeneration,
+    _fetch_existing_payslip,
+    _reset_payslip_flags_after_regeneration,
+)
+from app.modules.payslips.application.dto import GeneratePayslipInput
 from typing import Any, Dict, Optional
 
 from app.core.database import get_supabase_admin_client
@@ -113,6 +120,26 @@ def apply_validated_ijss_to_payslip(
     year = int(period["period_year"])
     month = int(period["period_month"])
 
+    # Lot 3 : ce chemin régénère le bulletin en direct (générateurs appelés
+    # sans passer par generate_payslip) — il suit donc le même protocole que
+    # la régénération forcée : bulletin validé → archive AVANT, retour en
+    # brouillon APRÈS (nouvelle validation exigée).
+    existing_payslip = _fetch_existing_payslip(employee_id, year, month)
+    was_validated = bool(
+        existing_payslip and existing_payslip.get("status") == "valide"
+    )
+    if was_validated:
+        _archive_before_regeneration(
+            existing_payslip,
+            GeneratePayslipInput(
+                employee_id=employee_id,
+                year=year,
+                month=month,
+                requested_by=user_id,
+                requested_by_name="rapprochement IJSS",
+            ),
+        )
+
     emp_res = (
         get_supabase_admin_client()
         .table("employees")
@@ -160,6 +187,12 @@ def apply_validated_ijss_to_payslip(
         )
 
     payslip_id = result.get("payslip_id") if isinstance(result, dict) else None
+    if (
+        was_validated
+        and isinstance(result, dict)
+        and str(result.get("status") or "") == "success"
+    ):
+        _reset_payslip_flags_after_regeneration(str(existing_payslip["id"]))
     now = datetime.now(timezone.utc).isoformat()
     repo.update_expected_line(
         expected_line_id,
