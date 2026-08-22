@@ -146,12 +146,20 @@ class SmtpMailSender:
         html_content: str,
         *,
         require_delivery: bool = False,
+        bypass_forced_redirect: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """
         Envoie un e-mail texte + HTML.
         Retourne (succès, message_erreur).
+
+        bypass_forced_redirect : levée CIBLÉE du redirect global, décidée par
+        l'appelant pour CE destinataire précis (ex. allowlist d'activation).
+        Le redirect global lui-même n'est jamais retiré.
         """
-        recipients, subject = self._apply_forced_redirect([to_email], subject)
+        if bypass_forced_redirect:
+            recipients = [to_email]
+        else:
+            recipients, subject = self._apply_forced_redirect([to_email], subject)
         to_email = recipients[0]
 
         config = self._load_config()

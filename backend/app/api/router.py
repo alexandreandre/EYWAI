@@ -8,6 +8,10 @@ from fastapi import APIRouter, Request, Response
 logger = logging.getLogger(__name__)
 
 from app.modules.audit.api.router import router as audit_router
+from app.modules.activation.api.router import (
+    router_public as activation_public_router,
+    router_rh as activation_rh_router,
+)
 from app.modules.access_control.api.router import router as access_control_router
 from app.modules.absences.api.router import router as absences_router
 from app.modules.annual_reviews.api.router import router as annual_reviews_router
@@ -116,6 +120,8 @@ router = APIRouter()
 
 router.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 router.include_router(audit_router)
+router.include_router(activation_public_router)
+router.include_router(activation_rh_router)
 router.include_router(access_control_router)
 router.include_router(annual_reviews_router)
 router.include_router(interview_templates_router)

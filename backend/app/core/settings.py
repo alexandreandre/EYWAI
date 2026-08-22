@@ -79,6 +79,13 @@ APP_ENV = os.getenv("APP_ENV", "prod").strip().lower() or "prod"
 # un filet de production pendant la collecte des adresses manquantes.
 EMAIL_FORCE_REDIRECT_TO = os.getenv("EMAIL_FORCE_REDIRECT_TO", "").strip() or None
 
+# Levée CIBLÉE du redirect, réservée aux e-mails d'ACTIVATION de compte :
+# adresses exactes séparées par des virgules (comparaison casse-insensible),
+# vide par défaut. Une adresse listée reçoit son invitation en direct ; toutes
+# les autres suivent le flux normal (donc redirigées tant que
+# EMAIL_FORCE_REDIRECT_TO est posé). Jamais de retrait du redirect global.
+ACTIVATION_EMAIL_ALLOWLIST = os.getenv("ACTIVATION_EMAIL_ALLOWLIST", "").strip()
+
 
 def is_test_environment() -> bool:
     """True si le service tourne dans l'environnement de test."""
