@@ -55,27 +55,30 @@ def get_company_name(company_id: str) -> str:
 # ----- Comptes auth (API admin — jamais exposée au client) -----
 
 
-def find_auth_user_id_by_email(email: str) -> Optional[str]:
-    """Même patron que auth.infrastructure.providers.find_user_id_by_email."""
-    target = (email or "").strip().lower()
-    if not target:
-        return None
-    users_response = supabase.auth.admin.list_users()
-    for user in users_response:
-        if user.email and user.email.lower() == target:
-            return str(user.id)
-    return None
+class EmailAlreadyRegisteredError(Exception):
+    """L'adresse porte déjà un compte auth — jamais écrasé sur simple e-mail."""
 
 
 def create_auth_user(email: str, password: str) -> str:
-    """Création confirmée d'office : le salarié vient de prouver son adresse."""
-    response = supabase.auth.admin.create_user(
-        {
-            "email": email,
-            "password": password,
-            "email_confirm": True,
-        }
-    )
+    """Création confirmée d'office : le salarié vient de prouver son adresse.
+
+    Création DIRECTE, jamais de recherche préalable par e-mail : le seul
+    compte qu'une activation a le droit de modifier est celui déjà lié à la
+    fiche (employees.user_id). Un conflit d'adresse sort en erreur dédiée.
+    """
+    try:
+        response = supabase.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+            }
+        )
+    except Exception as exc:  # AuthApiError : code email_exists / 422
+        message = str(exc).lower()
+        if "already" in message or "email_exists" in message:
+            raise EmailAlreadyRegisteredError(str(exc)) from exc
+        raise
     if response.user is None:
         raise RuntimeError("Création du compte impossible")
     return str(response.user.id)

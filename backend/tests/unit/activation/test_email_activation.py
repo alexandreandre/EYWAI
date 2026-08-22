@@ -166,3 +166,38 @@ class TestContenuEmail:
         msg = sent_messages[0]
         tout = (msg["Subject"] or "") + self._payload(msg)
         assert "supabase" not in tout.lower()
+
+
+class TestLeveeValableTousFlux:
+    """La levée n'est pas propre à l'activation : un utilisateur de la
+    vague 0 doit aussi recevoir son RESET de mot de passe en direct —
+    sinon il est joignable à l'invitation mais sourd au reset."""
+
+    def test_reset_password_allowliste_part_en_direct(self, sent_messages):
+        with (
+            patch("app.core.settings.EMAIL_FORCE_REDIRECT_TO", REDIRECT),
+            patch(
+                "app.core.settings.ACTIVATION_EMAIL_ALLOWLIST",
+                DESTINATAIRE,
+            ),
+        ):
+            ok = SmtpMailSender().send_password_reset_email(
+                to_email=DESTINATAIRE,
+                reset_token="jeton-reset-0123",
+                user_name="Jean",
+            )
+        assert ok is True
+        assert sent_messages[0]["To"] == DESTINATAIRE
+        assert "[dest." not in sent_messages[0]["Subject"]
+
+    def test_reset_password_hors_allowlist_reste_redirige(self, sent_messages):
+        with (
+            patch("app.core.settings.EMAIL_FORCE_REDIRECT_TO", REDIRECT),
+            patch("app.core.settings.ACTIVATION_EMAIL_ALLOWLIST", ""),
+        ):
+            ok = SmtpMailSender().send_password_reset_email(
+                to_email=DESTINATAIRE,
+                reset_token="jeton-reset-0123",
+            )
+        assert ok is True
+        assert sent_messages[0]["To"] == REDIRECT

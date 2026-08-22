@@ -5,20 +5,17 @@ Contenu sobre EYWAI, texte + HTML. Le lien pointe sur
 {FRONTEND_URL}/activation?token=… — le jeton en clair ne vit que dans cet
 e-mail. Aucune mention d'aucun mécanisme technique interne.
 
-Levée CIBLÉE du redirect global (EMAIL_FORCE_REDIRECT_TO) : uniquement si
-le destinataire figure, à l'adresse exacte près, dans
-ACTIVATION_EMAIL_ALLOWLIST. Sinon flux normal — donc redirigé en prod.
+La levée ciblée du redirect global (allowlist) est appliquée par le
+smtp_sender lui-même, pour TOUS les flux — et invite_employee refuse en
+amont d'inviter une adresse non levée quand le redirect est actif : le
+jeton en clair ne part donc jamais vers la boîte de redirection.
 """
 
 from __future__ import annotations
 
 from app.core import settings
 from app.core.logging import get_logger
-from app.modules.activation.domain.rules import (
-    TOKEN_VALIDITY_DAYS,
-    is_direct_delivery_allowed,
-    parse_email_allowlist,
-)
+from app.modules.activation.domain.rules import TOKEN_VALIDITY_DAYS
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
 
 logger = get_logger("modules.activation.email")
@@ -85,17 +82,12 @@ def send_activation_email(
     link = build_activation_link(raw_token)
     subject, text, html = _build_contents(prenom, societe, link)
 
-    allowlist = parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST)
-    direct = is_direct_delivery_allowed(to_email, allowlist)
-    if direct:
-        logger.info("Invitation activation : envoi DIRECT (allowlist)")
-
     ok, error = get_smtp_mail_sender().send_multipart_email(
         to_email=to_email,
         subject=subject,
         text_content=text,
         html_content=html,
-        bypass_forced_redirect=direct,
+        require_delivery=True,
     )
     if not ok:
         logger.warning("Invitation activation : envoi échoué (%s)", error)

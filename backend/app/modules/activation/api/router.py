@@ -36,12 +36,17 @@ def _map_activation_error(exc: commands.ActivationError) -> HTTPException:
         return HTTPException(status_code=400, detail=exc.message)
     if isinstance(exc, commands.EmployeeNotFoundError):
         return HTTPException(status_code=404, detail=exc.message)
+    if isinstance(exc, commands.AlreadyActivatedError):
+        return HTTPException(
+            status_code=409, detail={"code": exc.code, "message": exc.message}
+        )
     if isinstance(
         exc,
         (
             commands.EmailMissingError,
             commands.EmployeeInactiveError,
             commands.InvalidPasswordError,
+            commands.DirectDeliveryBlockedError,
         ),
     ):
         return HTTPException(

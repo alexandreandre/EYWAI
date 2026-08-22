@@ -15,6 +15,10 @@ from typing import Optional, Sequence, Tuple
 
 from app.core import settings
 from app.core.logging import get_logger, is_app_debug_enabled
+from app.shared.domain.email_delivery import (
+    is_direct_delivery_allowed,
+    parse_email_allowlist,
+)
 from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
 )
@@ -71,9 +75,24 @@ class SmtpMailSender:
         forced = settings.EMAIL_FORCE_REDIRECT_TO
         if not forced:
             return list(recipients), subject
-        intended = ", ".join(recipients) or "?"
+
+        # Levée CIBLÉE, valable pour TOUS les flux (activation, reset,
+        # notifications) : une adresse allowlistée reçoit ses e-mails en
+        # direct — sinon un utilisateur de la vague 0 serait joignable à
+        # l'invitation mais sourd au reset de mot de passe.
+        allowlist = parse_email_allowlist(settings.ACTIVATION_EMAIL_ALLOWLIST)
+        direct = [
+            r for r in recipients if is_direct_delivery_allowed(r, allowlist)
+        ]
+        redirected = [
+            r for r in recipients if not is_direct_delivery_allowed(r, allowlist)
+        ]
+        if not redirected:
+            logger.info("Email en envoi DIRECT (allowlist) malgré le redirect")
+            return list(recipients), subject
+        intended = ", ".join(redirected) or "?"
         logger.info("Email redirigé vers %s (dest. prévus %s)", forced, intended)
-        return [forced], f"[dest. {intended}] {subject}"
+        return direct + [forced], f"[dest. {intended}] {subject}"
 
     def send_email_with_attachments(
         self,
@@ -146,20 +165,15 @@ class SmtpMailSender:
         html_content: str,
         *,
         require_delivery: bool = False,
-        bypass_forced_redirect: bool = False,
     ) -> Tuple[bool, Optional[str]]:
         """
         Envoie un e-mail texte + HTML.
         Retourne (succès, message_erreur).
 
-        bypass_forced_redirect : levée CIBLÉE du redirect global, décidée par
-        l'appelant pour CE destinataire précis (ex. allowlist d'activation).
-        Le redirect global lui-même n'est jamais retiré.
+        La levée ciblée du redirect global (allowlist d'envoi direct) est
+        appliquée par _apply_forced_redirect — jamais par l'appelant.
         """
-        if bypass_forced_redirect:
-            recipients = [to_email]
-        else:
-            recipients, subject = self._apply_forced_redirect([to_email], subject)
+        recipients, subject = self._apply_forced_redirect([to_email], subject)
         to_email = recipients[0]
 
         config = self._load_config()

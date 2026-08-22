@@ -16,11 +16,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
+from app.shared.domain.email_delivery import (  # noqa: F401 — ré-export historique
+    is_direct_delivery_allowed,
+    parse_email_allowlist,
+)
 
 TOKEN_BYTE_LENGTH = 32
 TOKEN_VALIDITY_DAYS = 7
-# Alignée sur la règle existante du reset (frontend ResetPassword + schémas users).
+# Alignée sur les règles du front (Activation.tsx) : mêmes 4 exigences.
 PASSWORD_MIN_LENGTH = 8
+
+# Statuts d'emploi considérés actifs pour l'invitation. La base porte les
+# trois graphies ; « en_onboarding » est précisément la cible de la vague 0.
+ACTIVE_EMPLOYMENT_STATUSES = frozenset({"actif", "active", "en_onboarding"})
 
 # Le MÊME message pour tous les échecs de jeton : pas d'énumération possible.
 GENERIC_TOKEN_ERROR_MESSAGE = "Lien invalide ou expiré"
@@ -68,13 +76,29 @@ def mask_email(email: str) -> str:
     return f"{local[0]}***@{domain}"
 
 
+def is_activable_employment_status(status: Optional[str]) -> bool:
+    """Statut vide = actif (fiches historiques sans statut renseigné)."""
+    value = (status or "").strip().lower()
+    return not value or value in ACTIVE_EMPLOYMENT_STATUSES
+
+
 def validate_activation_password(password: str) -> Optional[str]:
-    """Retourne un message d'erreur, ou None si le mot de passe est acceptable."""
-    if len(password or "") < PASSWORD_MIN_LENGTH:
+    """Retourne un message d'erreur, ou None si le mot de passe est acceptable.
+
+    Mêmes 4 règles que le front : le serveur est la barrière, pas l'écran.
+    """
+    value = password or ""
+    if len(value) < PASSWORD_MIN_LENGTH:
         return (
             "Le mot de passe doit contenir au moins "
             f"{PASSWORD_MIN_LENGTH} caractères."
         )
+    if not any(c.isupper() for c in value):
+        return "Le mot de passe doit contenir au moins une majuscule."
+    if not any(c.islower() for c in value):
+        return "Le mot de passe doit contenir au moins une minuscule."
+    if not any(c.isdigit() for c in value):
+        return "Le mot de passe doit contenir au moins un chiffre."
     return None
 
 
@@ -106,15 +130,3 @@ def is_token_alive(row: Optional[Dict[str, Any]], now: Optional[datetime] = None
     return not is_token_expired(row, now)
 
 
-def parse_email_allowlist(raw: Optional[str]) -> frozenset[str]:
-    """Adresses exactes séparées par des virgules, comparaison casse-insensible."""
-    if not raw:
-        return frozenset()
-    return frozenset(
-        part.strip().lower() for part in raw.split(",") if part.strip()
-    )
-
-
-def is_direct_delivery_allowed(email: str, allowlist: frozenset[str]) -> bool:
-    """True si l'adresse figure exactement dans l'allowlist (levée ciblée du redirect)."""
-    return (email or "").strip().lower() in allowlist

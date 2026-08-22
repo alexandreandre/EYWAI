@@ -213,7 +213,6 @@ def chaine(monkeypatch):
         prov, "get_employee_for_activation", lambda _id: dict(employee)
     )
     monkeypatch.setattr(prov, "get_company_name", lambda _id: "Entreprise Test")
-    monkeypatch.setattr(prov, "find_auth_user_id_by_email", lambda _e: None)
     monkeypatch.setattr(prov, "create_auth_user", lambda _e, _p: AUTH_UID)
     monkeypatch.setattr(
         prov,

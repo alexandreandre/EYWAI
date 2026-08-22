@@ -126,14 +126,13 @@ class TestVerify:
 
 
 class TestComplete:
-    def _happy_patches(self, employee=None, existing_uid=None):
+    def _happy_patches(self, employee=None):
         p_repo, p_prov = _patches()
         repo = p_repo.start()
         prov = p_prov.start()
         repo.get_by_hash.return_value = _token_row()
         prov.get_employee_for_activation.return_value = employee or _employee()
         prov.get_company_name.return_value = "Entreprise Test"
-        prov.find_auth_user_id_by_email.return_value = existing_uid
         prov.create_auth_user.return_value = AUTH_UID
         return repo, prov, (p_repo, p_prov)
 
@@ -166,8 +165,12 @@ class TestComplete:
         lower = response.text.lower()
         assert "supabase" not in lower
 
-    def test_compte_existant_update_password_sans_create(self, client: TestClient):
-        repo, prov, patches = self._happy_patches(existing_uid=AUTH_UID)
+    def test_compte_deja_lie_update_password_sans_create(self, client: TestClient):
+        """Seul le compte DÉJÀ lié à la fiche (employees.user_id) peut voir
+        son mot de passe mis à jour — jamais un compte trouvé par e-mail."""
+        repo, prov, patches = self._happy_patches(
+            employee=_employee(user_id=AUTH_UID)
+        )
         try:
             response = client.post(
                 "/api/activation/complete",

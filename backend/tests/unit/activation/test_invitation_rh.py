@@ -12,11 +12,20 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
 from app.main import app
 from app.modules.users.schemas.responses import CompanyAccess, User
+
+
+@pytest.fixture(autouse=True)
+def _sans_redirect_global(monkeypatch):
+    """Neutralise EMAIL_FORCE_REDIRECT_TO : le refus d'inviter sous redirect
+    (jeton en clair vers la boîte interne) est couvert par
+    test_securite_activation — ici on teste le reste du contrat."""
+    monkeypatch.setattr("app.core.settings.EMAIL_FORCE_REDIRECT_TO", None)
 
 COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 OTHER_COMPANY_ID = "550e8400-e29b-41d4-a716-446655449999"
