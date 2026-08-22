@@ -1,13 +1,15 @@
 """Tableau de bord, pointage collaborateur, validation."""
 from __future__ import annotations
 
+from app.shared.domain.temps_local import aujourd_hui_local
+
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
 from app.modules.badgeuse.application.qr_service import get_qr_for_employee
 
 
 def get_dashboard_today(*, company_id: str) -> Dict[str, Any]:
-    today = date.today()
+    today = aujourd_hui_local()
     start_dt = datetime.combine(today, datetime.min.time())
     end_dt = datetime.combine(today, datetime.max.time())
 
@@ -158,7 +160,7 @@ def toggle_badge_for_me(current_user: User) -> Dict[str, Any]:
             "Aucune fiche employé n'est reliée à votre compte."
         )
 
-    today = date.today()
+    today = aujourd_hui_local()
     entries = deps.time_entry_repository.get_entries_for_employee_on_day(
         employee_id=employee_id,
         company_id=company_id,

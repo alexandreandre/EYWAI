@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.shared.domain.temps_local import fenetre_jour_local
 from datetime import datetime, date
 from typing import Any, List, Dict, Optional, Set
 
@@ -53,8 +54,9 @@ class TimeEntryRepository:
         company_id: str,
         day: date,
     ) -> List[TimeEntry]:
-        start = datetime.combine(day, datetime.min.time())
-        end = datetime.combine(day, datetime.max.time())
+        # Fenêtre du jour PARIS exprimée en instants aware : minuit→minuit
+        # UTC ratait les badges de fin de soirée locale.
+        start, end = fenetre_jour_local(day)
         return self.get_entries_for_employee_between(
             employee_id, company_id, start, end
         )

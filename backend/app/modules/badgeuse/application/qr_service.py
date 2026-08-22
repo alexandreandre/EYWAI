@@ -1,6 +1,8 @@
 """QR, scan et pointage badge."""
 from __future__ import annotations
 
+from app.shared.domain.temps_local import aujourd_hui_local
+
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
 def get_qr_for_employee(
@@ -98,7 +100,7 @@ def punch_from_qr(
     if deps._employee_is_forfait_jour(row):
         raise PermissionError("Employé au forfait jours, badgeuse non applicable")
 
-    today = date.today()
+    today = aujourd_hui_local()
     entries = deps.time_entry_repository.get_entries_for_employee_on_day(
         employee_id=resolved_employee_id,
         company_id=company_id,
@@ -170,7 +172,7 @@ def list_punch_candidates(
 
     from app.core.database import supabase
 
-    today = date.today()
+    today = aujourd_hui_local()
     start_dt = datetime.combine(today, datetime.min.time())
     end_dt = datetime.combine(today, datetime.max.time())
 

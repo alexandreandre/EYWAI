@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from app.shared.domain.temps_local import date_locale
 from datetime import datetime, date, timedelta
 from enum import StrEnum
 from typing import List, Tuple, Dict, Iterable
@@ -141,7 +142,7 @@ def compute_day_summary(entries: Iterable[TimeEntry]) -> DaySummary:
             anomalies=[],
         )
 
-    day = entries_list[0].timestamp.date()
+    day = date_locale(entries_list[0].timestamp)
     sequences, anomalies = build_sequences_and_anomalies(entries_list)
     total_duration = sum((seq.duration for seq in sequences), timedelta(0))
     return DaySummary(
@@ -155,7 +156,9 @@ def compute_day_summary(entries: Iterable[TimeEntry]) -> DaySummary:
 def group_entries_by_day(entries: Iterable[TimeEntry]) -> Dict[date, List[TimeEntry]]:
     by_day: Dict[date, List[TimeEntry]] = {}
     for entry in entries:
-        d = entry.timestamp.date()
+        # Jour LOCAL : un badge de 00:30 Paris (22:30 UTC la veille)
+        # appartient au jour Paris — la date UTC coupait les nuits en deux.
+        d = date_locale(entry.timestamp)
         by_day.setdefault(d, []).append(entry)
     for d in by_day:
         by_day[d] = _sort_entries(by_day[d])

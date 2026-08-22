@@ -6,6 +6,8 @@ from __future__ import annotations
 import calendar as cal_mod
 from dataclasses import dataclass, field
 from datetime import date
+
+from app.shared.domain.temps_local import en_heure_locale
 from typing import Any, Dict, List, Tuple
 
 from app.modules.badgeuse.application import punch_service as badgeuse_punch_service
@@ -73,7 +75,10 @@ def _first_last_punch_minutes(
     entry_min: int | None = None
     exit_min: int | None = None
     for entry in sorted_entries:
-        minutes = entry.timestamp.hour * 60 + entry.timestamp.minute
+        # Heure MURALE Paris : le stockage est en UTC, un badge de 8 h
+        # l'été vaudrait sinon 6 h → 2 h de fausses HS « entrée en avance ».
+        locale = en_heure_locale(entry.timestamp)
+        minutes = locale.hour * 60 + locale.minute
         if entry.event_type == TimeEntryType.ENTREE and entry_min is None:
             entry_min = minutes
         if entry.event_type == TimeEntryType.SORTIE:

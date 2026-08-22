@@ -1,6 +1,8 @@
 """Helpers partagés badgeuse (privés aux sous-services)."""
 from __future__ import annotations
 
+from app.shared.domain.temps_local import maintenant_utc
+
 from dataclasses import dataclass
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
@@ -210,8 +212,10 @@ def _insert_toggle_entry(
     now: Optional[datetime] = None,
     terminal_device_id: Optional[str] = None,
 ) -> TimeEntryType:
-    # Use local runtime clock to stay consistent with date.today() windows.
-    now = now or datetime.now()
+    # Instant aware UTC : plus jamais d'horodatage naïf dépendant de
+    # l'horloge du conteneur (les fenêtres de jour sont en heure locale
+    # entreprise, voir app.shared.domain.temps_local).
+    now = now or maintenant_utc()
     _check_debounce(entries, now)
     event_type = _resolve_next_event_type(entries)
     time_entry_repository.insert_entry(
