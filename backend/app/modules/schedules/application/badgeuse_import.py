@@ -98,6 +98,18 @@ def _planned_entry_by_day(
     return out
 
 
+def _paid_break_from_planned(entry: Dict[str, Any] | None) -> int:
+    """Part PAYÉE de la pause planifiée (MBC : pauses comprises dans les 7 h 30)."""
+    if not entry:
+        return 0
+    if entry.get("paid_break_minutes") is not None:
+        return max(0, int(entry["paid_break_minutes"]))
+    pause_min = entry.get("pause_min")
+    if pause_min and entry.get("pause_payee"):
+        return max(0, int(pause_min))
+    return 0
+
+
 def _unpaid_break_from_planned(entry: Dict[str, Any] | None) -> int | None:
     if not entry:
         return None
@@ -150,6 +162,7 @@ def _accounted_hours_for_day(
         exit_minutes=exit_min,
         shift_code=shift_code,
         planned_unpaid_break_minutes=_unpaid_break_from_planned(planned_entry),
+        planned_paid_break_minutes=_paid_break_from_planned(planned_entry),
         measured_break_minutes=mesure_pause,
     )
     if needs_review and overtime_hours > 0:

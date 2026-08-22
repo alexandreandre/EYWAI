@@ -109,8 +109,11 @@ def resolve_break_minutes(
     """
     if measured_break_minutes is not None and measured_break_minutes > 0:
         # La part PAYÉE de la pause (MBC : 2×10 min comprises dans les
-        # 7 h 30) reste acquise : on ne déduit que l'excédent badgé.
+        # 7 h 30) reste acquise : on ne déduit que l'excédent badgé. Elle
+        # vit dans le planning du jour OU, à défaut, sur le créneau.
         part_payee = int(planned.paid_break_minutes) if planned else 0
+        if part_payee <= 0 and slot is not None:
+            part_payee = int(slot.paid_break_minutes or 0)
         return max(0, int(measured_break_minutes) - max(0, part_payee))
     if planned and planned.unpaid_break_minutes is not None:
         return max(0, int(planned.unpaid_break_minutes))
@@ -254,8 +257,16 @@ def compute_punch_day(
     schedule_break = resolve_break_minutes(slot, settings, day_input.planned_shift)
     schedule_break = apply_break_threshold(schedule_break, entry, exit_m, settings)
     mesure = day_input.measured_break_minutes
+    # La pause CONSTATÉE passe par resolve_break_minutes : c'est là que la
+    # part payée est soustraite — la recalculer à la main ici court-circuitait
+    # le contrat (faux vert n°5 : le fix C5 n'était jamais appelé en prod).
     actual_break = (
-        max(0, int(mesure))
+        resolve_break_minutes(
+            slot,
+            settings,
+            day_input.planned_shift,
+            measured_break_minutes=mesure,
+        )
         if mesure is not None and mesure > 0
         else schedule_break
     )

@@ -141,17 +141,14 @@ def apply_punch_accounting_to_proposal(
                     )
                 )
 
-            new_days.append(
-                day.model_copy(update={"heures": result.accounted_hours})
-            )
-
+            heures_jour = result.accounted_hours
             if result.needs_review and emp.employee_id:
                 work_date = date(
                     day.year or proposal.year, day.month or proposal.month, day.jour
                 )
                 entry_min = parse_hhmm_value(entry_raw)
                 exit_min = parse_hhmm_value(exit_raw)
-                repo.upsert_overtime_review(
+                resultat_upsert = repo.upsert_overtime_review(
                     company_id,
                     employee_id=emp.employee_id,
                     work_date=work_date,
@@ -166,6 +163,17 @@ def apply_punch_accounting_to_proposal(
                     applied_slot_id=result.applied_slot_id,
                     status="pending",
                 )
+                # Miroir du canal badgeuse : une revue déjà APPROUVÉE (même
+                # excédent) reste effective au ré-import — sans ça, le jour
+                # repartait au théorique avec un statut approved figé, et
+                # plus rien ne re-créditait jamais.
+                if (
+                    isinstance(resultat_upsert, dict)
+                    and str(resultat_upsert.get("status") or "") == "approved"
+                ):
+                    heures_jour = round(heures_jour + result.overtime_hours, 2)
+
+            new_days.append(day.model_copy(update={"heures": heures_jour}))
 
         employees_out.append(emp.model_copy(update={"days": new_days, "warnings": warnings}))
 
@@ -194,8 +202,13 @@ def compute_accounted_hours_for_badgeuse_day(
 
     slots = repo.list_slots(company_id)
     planned_shift: PlannedShiftBreak | None = None
-    if planned_unpaid_break_minutes is not None or shift_code:
+    if (
+        planned_unpaid_break_minutes is not None
+        or shift_code
+        or planned_paid_break_minutes > 0
+    ):
         planned_shift = PlannedShiftBreak(
+            paid_break_minutes=max(0, int(planned_paid_break_minutes or 0)),
             unpaid_break_minutes=planned_unpaid_break_minutes,
             slot_code=shift_code,
         )

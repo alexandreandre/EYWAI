@@ -135,10 +135,13 @@ def test_le_canal_historique_d_injection_a_disparu():
     payroll_events ne doit plus exister nulle part."""
     import subprocess
 
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[3]
     r = subprocess.run(
         [
             "grep", "-rn", "--include=*.py",
-            "inject_approved_punch_overtime", "app/",
+            "inject_approved_punch_overtime", str(backend / "app"),
         ],
         capture_output=True, text=True,
     )
@@ -211,3 +214,68 @@ def test_le_reimport_ne_retrograde_pas_une_revue_approuvee():
     assert capture["payload"]["status"] == "approved", (
         "même excédent, même motif : la décision du manager est conservée"
     )
+
+
+def test_le_canal_feuilles_reapplique_aussi_l_excedent_approuve():
+    """Trou miroir attrapé par la vérif delta : le ré-import d'une FEUILLE
+    remettait le jour au théorique alors que la revue restait approved —
+    sans transition de statut, plus personne ne re-créditait jamais."""
+    from unittest.mock import patch as p_
+
+    from app.modules.schedules.application import punch_accounting_service as svc
+    from app.modules.schedules.domain.punch_accounting_entities import (
+        PunchAccountingSettings,
+    )
+    from app.modules.schedules.schemas.ai import (
+        AiCalendarProposalResponse,
+        AiDayEntry,
+        AiEmployeeProposal,
+    )
+
+    settings = PunchAccountingSettings(
+        enabled=True,
+        tolerance_minutes=10,
+        default_break_deduct_minutes=0,
+        require_manager_validation_for_overtime=True,
+    )
+    slot = {
+        "code": "M",
+        "entry_time": "08:00",
+        "exit_time": "16:00",
+        "theoretical_gross_minutes": 480,
+        "break_deduct_minutes": 0,
+    }
+    from app.modules.schedules.domain.punch_accounting_rules import slot_from_row
+
+    proposal = AiCalendarProposalResponse(
+        year=2026,
+        month=7,
+        source="feuille",
+        employees=[
+            AiEmployeeProposal(
+                employee_id="emp-1",
+                raw_name="HUGO",
+                days=[
+                    AiDayEntry(
+                        jour=3,
+                        type="travail",
+                        punch_entry_raw="08:00",
+                        punch_exit_raw="18:00",
+                    )
+                ],
+            )
+        ],
+    )
+    with (
+        p_.object(svc.repo, "get_settings", return_value=settings),
+        p_.object(svc.repo, "list_slots", return_value=[slot_from_row(slot)]),
+        p_.object(
+            svc.repo,
+            "upsert_overtime_review",
+            return_value={"status": "approved", "overtime_hours": 2.0},
+        ),
+    ):
+        out = svc.apply_punch_accounting_to_proposal(proposal, "comp-1")
+    jour = out.employees[0].days[0]
+    # théorique 8,0 + excédent approuvé 1,83 (10 h − 8 h − 10 min tolérance)
+    assert jour.heures > 8.0, jour.heures

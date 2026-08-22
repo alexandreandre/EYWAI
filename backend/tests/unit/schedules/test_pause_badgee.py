@@ -132,3 +132,86 @@ def test_pause_mesuree_plus_courte_que_la_part_payee():
         )
         == 0
     )
+
+
+def test_bout_en_bout_la_part_payee_traverse_compute_punch_day():
+    """Faux vert n°5 : le fix C5 vivait dans une branche que la prod
+    n'appelait pas. Le VRAI chemin (compute_punch_day) doit déduire
+    mesure − part payée, y compris quand la part payée vient du CRÉNEAU."""
+    from app.modules.schedules.domain.punch_accounting_entities import PunchDayInput
+
+    slot_paye = slot_from_row(
+        {
+            "code": "M",
+            "entry_time": "08:00",
+            "exit_time": "16:30",
+            "theoretical_gross_minutes": 510,
+            "break_deduct_minutes": 45,
+            "paid_break_minutes": 20,
+        }
+    )
+    jour = PunchDayInput(
+        entry_minutes=480,
+        exit_minutes=990,          # 08:00 → 16:30, amplitude 8,5 h
+        shift_code="M",
+        measured_break_minutes=60,  # 1 h badgée
+    )
+    r = compute_punch_day(jour, _SETTINGS, [slot_paye])
+    # 510 min − (60 − 20 payées) = 470 min = 7,83 h
+    assert r.pointed_net_hours == 7.83
+
+
+def test_resolve_lit_la_part_payee_du_creneau_sans_planning():
+    slot_paye = slot_from_row(
+        {
+            "code": "M",
+            "entry_time": "08:00",
+            "exit_time": "16:30",
+            "theoretical_gross_minutes": 510,
+            "break_deduct_minutes": 45,
+            "paid_break_minutes": 20,
+        }
+    )
+    assert (
+        resolve_break_minutes(
+            slot_paye, _SETTINGS, None, measured_break_minutes=60
+        )
+        == 40
+    )
+
+
+def test_import_badgeuse_transmet_la_part_payee_du_planning():
+    from datetime import date
+
+    from app.modules.schedules.application import badgeuse_import as mod
+
+    dto = MagicMock()
+    dto.has_override = False
+    dto.effective_seconds = 8 * 3600
+    capture = {}
+
+    def fake_compute(company_id, **kwargs):
+        capture.update(kwargs)
+        return 8.0, False, 0.0, None
+
+    with (
+        patch.object(mod, "_first_last_punch_minutes", return_value=(480, 990)),
+        patch(
+            "app.modules.schedules.application.punch_accounting_service."
+            "compute_accounted_hours_for_badgeuse_day",
+            side_effect=fake_compute,
+        ),
+        patch(
+            "app.modules.schedules.infrastructure.punch_accounting_repository."
+            "get_settings",
+            return_value=_SETTINGS,
+        ),
+    ):
+        mod._accounted_hours_for_day(
+            company_id="comp-1",
+            employee_id="emp-1",
+            day=date(2026, 7, 3),
+            dto=dto,
+            planned_entry={"jour": 3, "pause_min": 20, "pause_payee": True},
+        )
+    assert capture.get("planned_paid_break_minutes") == 20
