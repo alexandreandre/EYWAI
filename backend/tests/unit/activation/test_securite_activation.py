@@ -525,3 +525,42 @@ class TestCompleteBasculeEmailAuth:
             LINKED_UID, VALID_PASSWORD, email=None
         )
         repo.mark_used.assert_called_once()
+
+
+class TestCollisionAdresseDejaPrise:
+    """Cas réel (Elsa) : la bascule d'e-mail vise une adresse déjà portée
+    par un AUTRE compte auth → refus générique propre, jamais de 500, et
+    le jeton reste rejouable une fois la collision résolue."""
+
+    def test_collision_bascule_refus_generique_sans_consommation(self):
+        from app.modules.activation.infrastructure.providers import (
+            EmailAlreadyRegisteredError,
+        )
+
+        with (
+            patch(
+                "app.modules.activation.application.commands._token_repository"
+            ) as repo,
+            patch(
+                "app.modules.activation.application.commands.providers"
+            ) as providers,
+        ):
+            repo.get_by_hash.return_value = _token_row()
+            providers.get_employee_for_activation.return_value = _employee(
+                user_id=LINKED_UID
+            )
+            providers.get_auth_user_email.return_value = (
+                "import.x.y.123@951474782.dsn-import.local"
+            )
+            providers.update_auth_user_password.side_effect = (
+                EmailAlreadyRegisteredError("email exists")
+            )
+            resp = TestClient(app).post(
+                COMPLETE_URL,
+                json={"token": "jeton-test", "password": VALID_PASSWORD},
+            )
+
+            assert resp.status_code == 400
+            providers.ensure_profile.assert_not_called()
+            providers.link_employee_to_user.assert_not_called()
+            repo.mark_used.assert_not_called()

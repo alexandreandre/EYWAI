@@ -252,9 +252,18 @@ def complete_activation(raw_token: str, password: str) -> Dict[str, str]:
         nouvelle_adresse = (
             email if is_dsn_import_placeholder_email(auth_email) else None
         )
-        providers.update_auth_user_password(
-            linked_uid, password, email=nouvelle_adresse
-        )
+        try:
+            providers.update_auth_user_password(
+                linked_uid, password, email=nouvelle_adresse
+            )
+        except EmailAlreadyRegisteredError:
+            logger.critical(
+                "Activation REFUSÉE : l'adresse d'envoi du salarié %s est "
+                "déjà portée par un AUTRE compte auth — résoudre la "
+                "collision (compte orphelin ?) avant de ré-inviter.",
+                employee.get("id"),
+            )
+            raise InvalidTokenError()
         user_id = linked_uid
     else:
         try:

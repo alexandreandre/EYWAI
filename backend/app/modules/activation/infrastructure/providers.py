@@ -74,10 +74,8 @@ def create_auth_user(email: str, password: str) -> str:
                 "email_confirm": True,
             }
         )
-    except Exception as exc:  # AuthApiError : code email_exists / 422
-        message = str(exc).lower()
-        if "already" in message or "email_exists" in message:
-            raise EmailAlreadyRegisteredError(str(exc)) from exc
+    except Exception as exc:
+        _raise_if_email_conflict(exc)
         raise
     if response.user is None:
         raise RuntimeError("Création du compte impossible")
@@ -95,15 +93,30 @@ def get_auth_user_email(user_id: str) -> str:
     return str(user.email) if user is not None and user.email else ""
 
 
+def _raise_if_email_conflict(exc: Exception) -> None:
+    """AuthApiError « adresse déjà enregistrée » → EmailAlreadyRegisteredError."""
+    message = str(exc).lower()
+    if "already" in message or "email_exists" in message:
+        raise EmailAlreadyRegisteredError(str(exc)) from exc
+
+
 def update_auth_user_password(
     user_id: str, password: str, email: Optional[str] = None
 ) -> None:
     """Met à jour le mot de passe — et l'adresse si fournie (bascule d'un
-    compte placeholder DSN vers l'adresse réelle prouvée par le clic)."""
+    compte placeholder DSN vers l'adresse réelle prouvée par le clic).
+
+    Si l'adresse cible est déjà portée par un AUTRE compte auth, Supabase
+    refuse atomiquement (rien n'est modifié) : on traduit en erreur dédiée.
+    """
     attrs: Dict[str, Any] = {"password": password, "email_confirm": True}
     if email:
         attrs["email"] = email
-    supabase.auth.admin.update_user_by_id(str(user_id), attrs)
+    try:
+        supabase.auth.admin.update_user_by_id(str(user_id), attrs)
+    except Exception as exc:
+        _raise_if_email_conflict(exc)
+        raise
 
 
 # ----- Câblage compte ↔ salarié -----
