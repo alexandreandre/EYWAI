@@ -492,8 +492,11 @@ class TestCompleteBasculeEmailAuth:
             ) as providers,
         ):
             repo.get_by_hash.return_value = _token_row()
+            # Fiche VOLONTAIREMENT différente du jeton : la bascule doit viser
+            # email_envoye (prouvée par le clic), jamais l'e-mail de la fiche,
+            # que la RH peut avoir changé après l'envoi.
             providers.get_employee_for_activation.return_value = _employee(
-                user_id=LINKED_UID
+                user_id=LINKED_UID, email="fiche.changee.apres@exemple.fr"
             )
             providers.get_auth_user_email.return_value = auth_email
             resp = TestClient(app).post(
