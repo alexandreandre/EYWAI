@@ -201,3 +201,22 @@ class TestLeveeValableTousFlux:
             )
         assert ok is True
         assert sent_messages[0]["To"] == REDIRECT
+
+
+class TestAllowlistSeparateurs:
+    """deploy-cloudrun coupe les env_vars sur les virgules : une allowlist
+    à 3 adresses arrivait tronquée à la première. Le parseur accepte
+    donc aussi points-virgules et espaces."""
+
+    def test_point_virgule_et_espaces(self):
+        from app.shared.domain.email_delivery import parse_email_allowlist
+
+        assert parse_email_allowlist(
+            "a@x.fr; b@y.fr ;c@z.fr"
+        ) == frozenset({"a@x.fr", "b@y.fr", "c@z.fr"})
+        assert parse_email_allowlist("a@x.fr b@y.fr") == frozenset(
+            {"a@x.fr", "b@y.fr"}
+        )
+        assert parse_email_allowlist("a@x.fr,b@y.fr") == frozenset(
+            {"a@x.fr", "b@y.fr"}
+        )

@@ -14,15 +14,23 @@ et par le module activation (refus d'inviter un destinataire non levé).
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 
 def parse_email_allowlist(raw: Optional[str]) -> frozenset[str]:
-    """Adresses exactes séparées par des virgules, comparaison casse-insensible."""
+    """Adresses exactes, comparaison casse-insensible.
+
+    Séparateurs acceptés : virgule, point-virgule, espace — l'action
+    deploy-cloudrun coupe les env_vars sur les virgules, donc la valeur
+    déployée utilise des points-virgules.
+    """
     if not raw:
         return frozenset()
     return frozenset(
-        part.strip().lower() for part in raw.split(",") if part.strip()
+        part.strip().lower()
+        for part in re.split(r"[,;\s]+", raw)
+        if part.strip()
     )
 
 
