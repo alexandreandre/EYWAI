@@ -255,6 +255,8 @@ jobs:
             APP_ENV=test
             EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}
             ALLOWED_ORIGINS_EXTRA=${{ vars.FRONTEND_URL_TEST }}
+            FRONTEND_URL=${{ vars.FRONTEND_URL_TEST }}
+            ACTIVATION_EMAIL_ALLOWLIST=${{ vars.ACTIVATION_EMAIL_ALLOWLIST_TEST }}
             SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}
             SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
@@ -321,6 +323,8 @@ jobs:
             PISTE_CLIENT_ID=${{ secrets.PISTE_CLIENT_ID }}
             PISTE_CLIENT_SECRET=${{ secrets.PISTE_CLIENT_SECRET }}
             EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}
+            FRONTEND_URL=${{ vars.FRONTEND_URL_PROD || 'https://sirh-frontend-505040845625.europe-west1.run.app' }}
+            ACTIVATION_EMAIL_ALLOWLIST=${{ vars.ACTIVATION_EMAIL_ALLOWLIST }}
           env_vars_update_strategy: merge
 
       - uses: google-github-actions/deploy-cloudrun@v2
