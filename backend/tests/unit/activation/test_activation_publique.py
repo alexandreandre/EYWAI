@@ -18,7 +18,7 @@ COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 EMPLOYEE_ID = "770e8400-e29b-41d4-a716-446655440099"
 AUTH_UID = "990e8400-e29b-41d4-a716-446655440555"
 
-RAW_TOKEN = "jeton-de-test-suffisamment-long-0123456789abcdef"
+RAW_TOKEN = "jeton-de-test-suffisamment-long-pour-nos-regles"  # entropie basse : gitleaks
 TOKEN_HASH = hashlib.sha256(RAW_TOKEN.encode("utf-8")).hexdigest()
 
 MESSAGE_GENERIQUE = "Lien invalide ou expiré"
@@ -182,7 +182,7 @@ class TestComplete:
         assert response.status_code == 200, response.text
         prov.create_auth_user.assert_not_called()
         prov.update_auth_user_password.assert_called_once_with(
-            AUTH_UID, "MotDePasse!2026"
+            AUTH_UID, "MotDePasse!2026", email=None
         )
         prov.link_employee_to_user.assert_called_once_with(EMPLOYEE_ID, AUTH_UID)
         repo.mark_used.assert_called_once()

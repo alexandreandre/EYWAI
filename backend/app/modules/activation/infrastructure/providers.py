@@ -84,10 +84,26 @@ def create_auth_user(email: str, password: str) -> str:
     return str(response.user.id)
 
 
-def update_auth_user_password(user_id: str, password: str) -> None:
-    supabase.auth.admin.update_user_by_id(
-        str(user_id), {"password": password, "email_confirm": True}
-    )
+def get_auth_user_email(user_id: str) -> str:
+    """Adresse du compte auth lié — '' si compte introuvable (fail-closed)."""
+    try:
+        response = supabase.auth.admin.get_user_by_id(str(user_id))
+    except Exception:
+        logger.warning("Activation : compte auth %s illisible", user_id)
+        return ""
+    user = getattr(response, "user", None)
+    return str(user.email) if user is not None and user.email else ""
+
+
+def update_auth_user_password(
+    user_id: str, password: str, email: Optional[str] = None
+) -> None:
+    """Met à jour le mot de passe — et l'adresse si fournie (bascule d'un
+    compte placeholder DSN vers l'adresse réelle prouvée par le clic)."""
+    attrs: Dict[str, Any] = {"password": password, "email_confirm": True}
+    if email:
+        attrs["email"] = email
+    supabase.auth.admin.update_user_by_id(str(user_id), attrs)
 
 
 # ----- Câblage compte ↔ salarié -----

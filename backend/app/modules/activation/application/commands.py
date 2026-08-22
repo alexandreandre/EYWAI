@@ -31,6 +31,7 @@ from app.modules.activation.domain.rules import (
 )
 from app.modules.activation.infrastructure import email as activation_email
 from app.modules.activation.infrastructure import providers
+from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
 from app.modules.activation.infrastructure.providers import (
     EmailAlreadyRegisteredError,
 )
@@ -115,12 +116,19 @@ def invite_employee(
             "Ce salarié n'est plus actif : il n'est pas invitable."
         )
 
+    # Compte lié : refus SEULEMENT si son adresse auth est réelle (protection
+    # contre le détournement d'un compte utilisé). Un compte fabriqué par
+    # l'import DSN (adresse placeholder, jamais utilisable par le salarié)
+    # reste invitable : l'activation le rendra enfin sien. Adresse illisible
+    # → refus (fail-closed).
     if employee.get("user_id"):
-        raise AlreadyActivatedError(
-            "Ce salarié a déjà activé son compte. Pour un mot de passe "
-            "oublié, il doit passer par « Mot de passe oublié » sur l'écran "
-            "de connexion."
-        )
+        auth_email = providers.get_auth_user_email(str(employee["user_id"]))
+        if not is_dsn_import_placeholder_email(auth_email):
+            raise AlreadyActivatedError(
+                "Ce salarié a déjà activé son compte. Pour un mot de passe "
+                "oublié, il doit passer par « Mot de passe oublié » sur "
+                "l'écran de connexion."
+            )
 
     email = (employee.get("email") or "").strip()
     if not is_invitable_email(email):
@@ -238,7 +246,15 @@ def complete_activation(raw_token: str, password: str) -> Dict[str, str]:
     # appartient à ce salarié (sinon, escalade de privilèges possible).
     linked_uid = str(employee.get("user_id") or "").strip() or None
     if linked_uid:
-        providers.update_auth_user_password(linked_uid, password)
+        # Compte placeholder DSN : on bascule aussi son adresse auth vers
+        # l'adresse d'ENVOI — la seule prouvée par le clic sur le lien.
+        auth_email = providers.get_auth_user_email(linked_uid)
+        nouvelle_adresse = (
+            email if is_dsn_import_placeholder_email(auth_email) else None
+        )
+        providers.update_auth_user_password(
+            linked_uid, password, email=nouvelle_adresse
+        )
         user_id = linked_uid
     else:
         try:

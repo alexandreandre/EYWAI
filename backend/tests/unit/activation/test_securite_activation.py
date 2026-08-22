@@ -356,7 +356,7 @@ class TestAntiDetournementCompte:
 
             assert resp.status_code == 200
             providers.update_auth_user_password.assert_called_once_with(
-                LINKED_UID, VALID_PASSWORD
+                LINKED_UID, VALID_PASSWORD, email=None
             )
             providers.create_auth_user.assert_not_called()
             repo.mark_used.assert_called_once()
@@ -426,3 +426,99 @@ class TestPolitiqueMotDePasse:
 
     def test_conforme_accepte(self):
         assert self._complete("Motdepasse1") == 200
+
+
+# ----- Raffinement S3 : comptes placeholder DSN ré-invitables -----
+#
+# ~227 des 245 salariés actifs portent un compte auth créé par l'import DSN
+# avec une adresse FABRIQUÉE (jamais utilisable par le salarié). Refuser leur
+# invitation rendrait le module inerte. Règle : compte lié à adresse réelle →
+# refus (protection takeover) ; compte lié à adresse fabriquée → invitable,
+# et le complete bascule l'e-mail auth vers l'adresse vérifiée par le clic.
+
+
+class TestComptePlaceholderReinvitable:
+    def _invite(self, auth_email: str):
+        _as_rh()
+        try:
+            with (
+                patch(
+                    "app.modules.activation.application.commands._token_repository"
+                ) as repo,
+                patch(
+                    "app.modules.activation.application.commands.providers"
+                ) as providers,
+                patch(
+                    "app.modules.activation.application.commands.activation_email"
+                ) as mail,
+                patch("app.core.settings.EMAIL_FORCE_REDIRECT_TO", None),
+            ):
+                providers.get_employee_for_activation.return_value = _employee(
+                    user_id=LINKED_UID
+                )
+                providers.get_auth_user_email.return_value = auth_email
+                providers.get_company_name.return_value = "Entreprise Test"
+                mail.send_activation_email.return_value = True
+                return TestClient(app).post(INVITE_URL), repo, mail
+        finally:
+            _teardown()
+
+    def test_compte_place_holder_dsn_est_invitable(self):
+        resp, repo, mail = self._invite("jean.dupont@951474782.dsn-import.local")
+        assert resp.status_code == 200
+        mail.send_activation_email.assert_called_once()
+        repo.create.assert_called_once()
+
+    def test_compte_adresse_reelle_reste_refuse(self):
+        resp, repo, mail = self._invite("jean.dupont@exemple.fr")
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "deja_active"
+        mail.send_activation_email.assert_not_called()
+
+    def test_email_auth_illisible_refuse_fail_closed(self):
+        resp, repo, mail = self._invite("")
+        assert resp.status_code == 409
+        mail.send_activation_email.assert_not_called()
+
+
+class TestCompleteBasculeEmailAuth:
+    def _complete(self, auth_email: str):
+        with (
+            patch(
+                "app.modules.activation.application.commands._token_repository"
+            ) as repo,
+            patch(
+                "app.modules.activation.application.commands.providers"
+            ) as providers,
+        ):
+            repo.get_by_hash.return_value = _token_row()
+            providers.get_employee_for_activation.return_value = _employee(
+                user_id=LINKED_UID
+            )
+            providers.get_auth_user_email.return_value = auth_email
+            resp = TestClient(app).post(
+                COMPLETE_URL,
+                json={"token": "jeton-test", "password": VALID_PASSWORD},
+            )
+            return resp, providers, repo
+
+    def test_compte_placeholder_recoit_adresse_verifiee_et_mot_de_passe(self):
+        resp, providers, repo = self._complete(
+            "jean.dupont@951474782.dsn-import.local"
+        )
+        assert resp.status_code == 200
+        # L'e-mail auth bascule vers l'adresse d'ENVOI (prouvée par le clic),
+        # jamais vers une autre.
+        providers.update_auth_user_password.assert_called_once_with(
+            LINKED_UID, VALID_PASSWORD, email="jean.dupont@exemple.fr"
+        )
+        providers.create_auth_user.assert_not_called()
+        repo.mark_used.assert_called_once()
+
+    def test_compte_adresse_reelle_garde_son_email(self):
+        resp, providers, repo = self._complete("jean.dupont@exemple.fr")
+        assert resp.status_code == 200
+        providers.update_auth_user_password.assert_called_once_with(
+            LINKED_UID, VALID_PASSWORD, email=None
+        )
+        repo.mark_used.assert_called_once()
