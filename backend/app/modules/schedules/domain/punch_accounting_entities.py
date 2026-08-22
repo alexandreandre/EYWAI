@@ -54,6 +54,9 @@ class PunchDayInput:
     exit_minutes: int | None = None
     shift_code: str | None = None
     planned_shift: PlannedShiftBreak | None = None
+    # Pause réellement badgée (amplitude − séquences travaillées) : quand
+    # elle est connue, elle prime sur toute estimation (créneau, forfait).
+    measured_break_minutes: int | None = None
 
 
 @dataclass(frozen=True)

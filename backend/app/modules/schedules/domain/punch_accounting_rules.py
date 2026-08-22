@@ -98,8 +98,17 @@ def resolve_break_minutes(
     slot: PunchShiftSlot | None,
     settings: PunchAccountingSettings,
     planned: PlannedShiftBreak | None,
+    *,
+    measured_break_minutes: int | None = None,
 ) -> int:
-    """Minutes à déduire du brut pointé (pauses non payées uniquement)."""
+    """Minutes à déduire du brut pointé (pauses non payées uniquement).
+
+    Priorité : pause MESURÉE (badgée) > pause planifiée > créneau > forfait
+    société. Réintégrer une pause badgée puis déduire un forfait fabriquait
+    des HS fantômes (2 h de pause réelle ≈ 2 h de fausses HS).
+    """
+    if measured_break_minutes is not None and measured_break_minutes > 0:
+        return max(0, int(measured_break_minutes))
     if planned and planned.unpaid_break_minutes is not None:
         return max(0, int(planned.unpaid_break_minutes))
 
@@ -235,17 +244,31 @@ def compute_punch_day(
         detection=settings.slot_detection,
         planned=day_input.planned_shift,
     )
-    break_min = resolve_break_minutes(slot, settings, day_input.planned_shift)
-    break_min = apply_break_threshold(break_min, entry, exit_m, settings)
-    pointed = _pointed_net_hours(entry, exit_m, break_min)
-    theoretical = _theoretical_net_hours(slot, break_min) if slot else pointed
+    # Deux pauses distinctes : celle du PLANNING pour le théorique (le
+    # contrat de la journée), celle CONSTATÉE (badgée si mesurée, sinon la
+    # même estimation) pour le pointé. Mélanger les deux faisait fuir la
+    # pause badgée dans le théorique.
+    schedule_break = resolve_break_minutes(slot, settings, day_input.planned_shift)
+    schedule_break = apply_break_threshold(schedule_break, entry, exit_m, settings)
+    mesure = day_input.measured_break_minutes
+    actual_break = (
+        max(0, int(mesure))
+        if mesure is not None and mesure > 0
+        else schedule_break
+    )
+    pointed = _pointed_net_hours(entry, exit_m, actual_break)
+    theoretical = _theoretical_net_hours(slot, schedule_break) if slot else pointed
 
     tolerance_hours = settings.tolerance_minutes / 60.0
     alerts: list[str] = []
     overtime = 0.0
     reason: OvertimeReason | None = None
 
-    if slot:
+    # Une pause badgée rompt l'hypothèse de présence continue : l'avance
+    # d'entrée ou le retard de sortie ne mesurent plus du travail — seul
+    # l'excédent journalier (travaillé − théorique) fait foi.
+    pause_mesuree = mesure is not None and mesure > 0
+    if slot and not pause_mesuree:
         early_min = slot.entry_minutes - entry
         if early_min > settings.tolerance_minutes:
             ot = round(early_min / 60.0, 2)

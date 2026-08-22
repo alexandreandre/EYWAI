@@ -182,6 +182,7 @@ def compute_accounted_hours_for_badgeuse_day(
     shift_code: str | None = None,
     planned_paid_break_minutes: int = 0,
     planned_unpaid_break_minutes: int | None = None,
+    measured_break_minutes: int | None = None,
 ) -> tuple[float, bool, float, str | None]:
     """Retourne (heures_comptabilisées, needs_review, overtime_hours, reason)."""
     settings = repo.get_settings(company_id)
@@ -207,6 +208,7 @@ def compute_accounted_hours_for_badgeuse_day(
             exit_minutes=exit_minutes,
             shift_code=shift_code,
             planned_shift=planned_shift,
+            measured_break_minutes=measured_break_minutes,
         ),
         settings,
         slots,

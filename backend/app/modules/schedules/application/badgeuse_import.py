@@ -130,6 +130,15 @@ def _accounted_hours_for_day(
         return round(dto.effective_seconds / 3600.0, 2)
 
     entry_min, exit_min = _first_last_punch_minutes(employee_id, company_id, day)
+    # Pause réellement badgée = amplitude − temps travaillé en séquences.
+    # Quand elle existe, elle prime sur le forfait : réintégrer la pause
+    # puis déduire un forfait fabriquait des HS fantômes.
+    mesure_pause: int | None = None
+    if entry_min is not None and exit_min is not None and exit_min > entry_min:
+        amplitude_min = exit_min - entry_min
+        travail_min = int(round(float(dto.effective_seconds or 0) / 60.0))
+        if 0 < travail_min < amplitude_min:
+            mesure_pause = amplitude_min - travail_min
     shift_code = (
         str(planned_entry.get("shift_code")).strip().upper()
         if planned_entry and planned_entry.get("shift_code")
@@ -141,6 +150,7 @@ def _accounted_hours_for_day(
         exit_minutes=exit_min,
         shift_code=shift_code,
         planned_unpaid_break_minutes=_unpaid_break_from_planned(planned_entry),
+        measured_break_minutes=mesure_pause,
     )
     if needs_review and overtime_hours > 0:
         from app.modules.schedules.domain.punch_accounting_rules import (
