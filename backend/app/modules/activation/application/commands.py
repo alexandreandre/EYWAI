@@ -94,6 +94,10 @@ class DirectDeliveryBlockedError(ActivationError):
     code = "envoi_direct_non_autorise"
 
 
+class EmailConflictError(ActivationError):
+    code = "email_deja_utilise"
+
+
 # ----- Commande RH -----
 
 
@@ -135,6 +139,19 @@ def invite_employee(
         raise EmailMissingError(
             "Aucune adresse e-mail réelle sur la fiche : renseignez l'adresse "
             "personnelle du salarié avant de l'inviter."
+        )
+
+    # Collision détectée À L'INVITATION, pas au clic du salarié : si un
+    # AUTRE compte auth porte déjà cette adresse (compte orphelin, doublon),
+    # la RH doit le voir tout de suite — la bascule échouerait de toute
+    # façon chez le fournisseur d'auth, mais en erreur muette.
+    if providers.auth_email_deja_pris(
+        email, exclude_user_id=employee.get("user_id")
+    ):
+        raise EmailConflictError(
+            "Cette adresse est déjà utilisée par un autre compte. Corrigez "
+            "l'adresse de la fiche, ou faites résoudre le doublon de comptes "
+            "avant d'inviter."
         )
 
     # Redirect global actif (prod) : refuser plutôt que laisser le lien
@@ -256,12 +273,17 @@ def complete_activation(raw_token: str, password: str) -> Dict[str, str]:
             providers.update_auth_user_password(
                 linked_uid, password, email=nouvelle_adresse
             )
-        except EmailAlreadyRegisteredError:
+        except Exception as exc:
+            if nouvelle_adresse is None:
+                raise  # panne réelle sur mot de passe seul : 500 assumé
+            # GoTrue rend « unexpected_failure » sur une collision de
+            # bascule : indistinguable d'une panne. Dans les deux cas :
+            # refus générique, jeton NON consommé (rejouable), log critique.
             logger.critical(
-                "Activation REFUSÉE : l'adresse d'envoi du salarié %s est "
-                "déjà portée par un AUTRE compte auth — résoudre la "
-                "collision (compte orphelin ?) avant de ré-inviter.",
+                "Activation REFUSÉE : bascule d'adresse échouée pour le "
+                "salarié %s (collision probable avec un compte existant) : %s",
                 employee.get("id"),
+                exc,
             )
             raise InvalidTokenError()
         user_id = linked_uid

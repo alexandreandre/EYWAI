@@ -124,6 +124,7 @@ class TestRedirectionBloqueInvitation:
                 patch("app.core.settings.ACTIVATION_EMAIL_ALLOWLIST", ""),
             ):
                 providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
                 resp = TestClient(app).post(INVITE_URL)
 
                 assert resp.status_code == 422
@@ -159,6 +160,7 @@ class TestRedirectionBloqueInvitation:
                 ),
             ):
                 providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
                 providers.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
                 resp = TestClient(app).post(INVITE_URL)
@@ -186,6 +188,7 @@ class TestRedirectionBloqueInvitation:
                 patch("app.core.settings.ACTIVATION_EMAIL_ALLOWLIST", ""),
             ):
                 providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
                 providers.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
                 resp = TestClient(app).post(INVITE_URL)
@@ -218,6 +221,7 @@ class TestDejaActive:
                 providers.get_employee_for_activation.return_value = _employee(
                     user_id=LINKED_UID
                 )
+                providers.auth_email_deja_pris.return_value = False
                 resp = TestClient(app).post(INVITE_URL)
 
                 assert resp.status_code == 409
@@ -250,6 +254,7 @@ class TestStatutsInvitables:
                 providers.get_employee_for_activation.return_value = _employee(
                     employment_status=statut
                 )
+                providers.auth_email_deja_pris.return_value = False
                 providers.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
                 return TestClient(app).post(INVITE_URL).status_code
@@ -285,6 +290,7 @@ class TestEchecEnvoiSansJeton:
                 patch("app.core.settings.EMAIL_FORCE_REDIRECT_TO", None),
             ):
                 providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
                 providers.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = False
                 resp = TestClient(app).post(INVITE_URL)
@@ -319,6 +325,7 @@ class TestAntiDetournementCompte:
         ):
             repo.get_by_hash.return_value = _token_row()
             providers.get_employee_for_activation.return_value = _employee()
+            providers.auth_email_deja_pris.return_value = False
             providers.create_auth_user.side_effect = EmailAlreadyRegisteredError(
                 "existe déjà"
             )
@@ -349,6 +356,7 @@ class TestAntiDetournementCompte:
             providers.get_employee_for_activation.return_value = _employee(
                 user_id=LINKED_UID
             )
+            providers.auth_email_deja_pris.return_value = False
             resp = TestClient(app).post(
                 COMPLETE_URL,
                 json={"token": "jeton-test", "password": VALID_PASSWORD},
@@ -373,6 +381,7 @@ class TestAntiDetournementCompte:
         ):
             repo.get_by_hash.return_value = _token_row()
             providers.get_employee_for_activation.return_value = _employee()
+            providers.auth_email_deja_pris.return_value = False
             providers.create_auth_user.return_value = "nouveau-uid"
             resp = TestClient(app).post(
                 COMPLETE_URL,
@@ -402,6 +411,7 @@ class TestPolitiqueMotDePasse:
         ):
             repo.get_by_hash.return_value = _token_row()
             providers.get_employee_for_activation.return_value = _employee()
+            providers.auth_email_deja_pris.return_value = False
             providers.create_auth_user.return_value = "nouveau-uid"
             return (
                 TestClient(app)
@@ -456,6 +466,7 @@ class TestComptePlaceholderReinvitable:
                 providers.get_employee_for_activation.return_value = _employee(
                     user_id=LINKED_UID
                 )
+                providers.auth_email_deja_pris.return_value = False
                 providers.get_auth_user_email.return_value = auth_email
                 providers.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
@@ -498,6 +509,7 @@ class TestCompleteBasculeEmailAuth:
             providers.get_employee_for_activation.return_value = _employee(
                 user_id=LINKED_UID, email="fiche.changee.apres@exemple.fr"
             )
+            providers.auth_email_deja_pris.return_value = False
             providers.get_auth_user_email.return_value = auth_email
             resp = TestClient(app).post(
                 COMPLETE_URL,
@@ -549,6 +561,7 @@ class TestCollisionAdresseDejaPrise:
             providers.get_employee_for_activation.return_value = _employee(
                 user_id=LINKED_UID
             )
+            providers.auth_email_deja_pris.return_value = False
             providers.get_auth_user_email.return_value = (
                 "import.x.y.123@951474782.dsn-import.local"
             )
@@ -564,3 +577,82 @@ class TestCollisionAdresseDejaPrise:
             providers.ensure_profile.assert_not_called()
             providers.link_employee_to_user.assert_not_called()
             repo.mark_used.assert_not_called()
+
+
+class TestEchecBasculeRefusPropre:
+    """GoTrue rend « unexpected_failure » (500 générique) sur une collision
+    d'update : indistinguable d'une panne par le message. Tout échec de
+    bascule → refus générique rejouable, jamais de 500 brut."""
+
+    def test_echec_quelconque_de_bascule_400_generique(self):
+        with (
+            patch(
+                "app.modules.activation.application.commands._token_repository"
+            ) as repo,
+            patch(
+                "app.modules.activation.application.commands.providers"
+            ) as providers,
+        ):
+            repo.get_by_hash.return_value = _token_row()
+            providers.get_employee_for_activation.return_value = _employee(
+                user_id=LINKED_UID
+            )
+            providers.auth_email_deja_pris.return_value = False
+            providers.auth_email_deja_pris.return_value = False
+            providers.get_auth_user_email.return_value = (
+                "import.x.y.123@951474782.dsn-import.local"
+            )
+            providers.update_auth_user_password.side_effect = RuntimeError(
+                "Error updating user"
+            )
+            resp = TestClient(app).post(
+                COMPLETE_URL,
+                json={"token": "jeton-test", "password": VALID_PASSWORD},
+            )
+
+            assert resp.status_code == 400
+            repo.mark_used.assert_not_called()
+            providers.link_employee_to_user.assert_not_called()
+
+
+class TestCollisionDetecteeALInvitation:
+    """La collision (cas Elsa : compte orphelin portant l'adresse de la
+    fiche) doit être signalée à la RH AU MOMENT D'INVITER, pas au salarié
+    au clic."""
+
+    def _invite(self, deja_pris: bool):
+        _as_rh()
+        try:
+            with (
+                patch(
+                    "app.modules.activation.application.commands._token_repository"
+                ) as repo,
+                patch(
+                    "app.modules.activation.application.commands.providers"
+                ) as providers,
+                patch(
+                    "app.modules.activation.application.commands.activation_email"
+                ) as mail,
+                patch("app.core.settings.EMAIL_FORCE_REDIRECT_TO", None),
+            ):
+                providers.get_employee_for_activation.return_value = _employee()
+                providers.auth_email_deja_pris.return_value = False
+                providers.auth_email_deja_pris.return_value = deja_pris
+                providers.get_company_name.return_value = "Entreprise Test"
+                mail.send_activation_email.return_value = True
+                resp = TestClient(app).post(INVITE_URL)
+                return resp, repo, mail
+        finally:
+            _teardown()
+
+    def test_adresse_deja_prise_par_un_autre_compte_422_explicite(self):
+        resp, repo, mail = self._invite(deja_pris=True)
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["code"] == "email_deja_utilise"
+        repo.create.assert_not_called()
+        mail.send_activation_email.assert_not_called()
+
+    def test_adresse_libre_invitation_part(self):
+        resp, repo, mail = self._invite(deja_pris=False)
+        assert resp.status_code == 200
+        repo.create.assert_called_once()

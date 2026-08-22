@@ -59,6 +59,26 @@ class EmailAlreadyRegisteredError(Exception):
     """L'adresse porte déjà un compte auth — jamais écrasé sur simple e-mail."""
 
 
+def auth_email_deja_pris(email: str, exclude_user_id: Optional[str] = None) -> bool:
+    """True si l'adresse est portée par un compte auth AUTRE que exclude_user_id.
+
+    RPC security definer réservée au service_role (auth.users n'est pas
+    exposé par PostgREST). Fail-open sur panne : le refus d'aval (échec de
+    bascule → erreur générique rejouable) reste le filet.
+    """
+    try:
+        params: Dict[str, Any] = {"p_email": (email or "").strip()}
+        if exclude_user_id:
+            params["p_user_id"] = str(exclude_user_id)
+        response = supabase.rpc("activation_email_deja_pris", params).execute()
+        return bool(getattr(response, "data", False))
+    except Exception:
+        logger.warning(
+            "Activation : vérification de collision indisponible", exc_info=True
+        )
+        return False
+
+
 def create_auth_user(email: str, password: str) -> str:
     """Création confirmée d'office : le salarié vient de prouver son adresse.
 

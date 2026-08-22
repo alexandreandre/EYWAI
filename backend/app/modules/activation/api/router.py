@@ -47,6 +47,7 @@ def _map_activation_error(exc: commands.ActivationError) -> HTTPException:
             commands.EmployeeInactiveError,
             commands.InvalidPasswordError,
             commands.DirectDeliveryBlockedError,
+            commands.EmailConflictError,
         ),
     ):
         return HTTPException(

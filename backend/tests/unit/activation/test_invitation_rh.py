@@ -93,6 +93,7 @@ class TestInvitationRhAcces:
             p_repo, p_prov, p_mail = _patches()
             with p_repo, p_prov as prov, p_mail as mail:
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 response = client.post(INVITE_URL)
         finally:
             _teardown()
@@ -107,6 +108,7 @@ class TestInvitationRhAcces:
                 prov.get_employee_for_activation.return_value = _employee(
                     company_id=OTHER_COMPANY_ID
                 )
+                prov.auth_email_deja_pris.return_value = False
                 response = client.post(INVITE_URL)
         finally:
             _teardown()
@@ -121,6 +123,7 @@ class TestInvitationRhGardesEmail:
             p_repo, p_prov, p_mail = _patches()
             with p_repo as repo, p_prov as prov, p_mail as mail:
                 prov.get_employee_for_activation.return_value = _employee(email="")
+                prov.auth_email_deja_pris.return_value = False
                 response = client.post(INVITE_URL)
         finally:
             _teardown()
@@ -137,6 +140,7 @@ class TestInvitationRhGardesEmail:
                 prov.get_employee_for_activation.return_value = _employee(
                     email="import.jdupont@dsn-import.eywai.fr"
                 )
+                prov.auth_email_deja_pris.return_value = False
                 response = client.post(INVITE_URL)
         finally:
             _teardown()
@@ -153,6 +157,7 @@ class TestInvitationRhGardesEmail:
                 prov.get_employee_for_activation.return_value = _employee(
                     employment_status="sorti"
                 )
+                prov.auth_email_deja_pris.return_value = False
                 response = client.post(INVITE_URL)
         finally:
             _teardown()
@@ -169,6 +174,7 @@ class TestInvitationRhSucces:
             p_repo, p_prov, p_mail = _patches()
             with p_repo as repo, p_prov as prov, p_mail as mail:
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 prov.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
                 response = client.post(INVITE_URL)
@@ -214,6 +220,7 @@ class TestInvitationRhSucces:
             p_repo, p_prov, p_mail = _patches()
             with p_repo as repo, p_prov as prov, p_mail as mail:
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 prov.get_company_name.return_value = "Entreprise Test"
                 mail.send_activation_email.return_value = True
                 first = client.post(INVITE_URL)
@@ -243,6 +250,7 @@ class TestEtatInvitation:
                 ) as prov,
             ):
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 repo.get_latest_for_employee.return_value = None
                 response = client.get(INVITE_URL)
         finally:
@@ -265,6 +273,7 @@ class TestEtatInvitation:
                 ) as prov,
             ):
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 repo.get_latest_for_employee.return_value = {
                     "created_at": created,
                     "expires_at": expires,
@@ -297,6 +306,7 @@ class TestEtatInvitation:
                 ) as prov,
             ):
                 prov.get_employee_for_activation.return_value = _employee()
+                prov.auth_email_deja_pris.return_value = False
                 repo.get_latest_for_employee.return_value = {
                     "created_at": created,
                     "expires_at": expires,
@@ -325,6 +335,7 @@ class TestEtatInvitation:
                 prov.get_employee_for_activation.return_value = _employee(
                     user_id="880e8400-e29b-41d4-a716-446655440777"
                 )
+                prov.auth_email_deja_pris.return_value = False
                 repo.get_latest_for_employee.return_value = None
                 response = client.get(INVITE_URL)
         finally:
