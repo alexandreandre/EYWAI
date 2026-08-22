@@ -3,6 +3,7 @@ import { lazy } from 'react';
 export const LoginPage = lazy(() => import('@/pages/rh/auth/Login'));
 export const ForgotPasswordPage = lazy(() => import('@/pages/rh/auth/ForgotPassword'));
 export const ResetPasswordPage = lazy(() => import('@/pages/rh/auth/ResetPassword'));
+export const ActivationPage = lazy(() => import('@/pages/rh/auth/Activation'));
 
 export const RhDashboard = lazy(() => import('@/pages/rh/Dashboard'));
 export const Employees = lazy(() => import('@/pages/rh/Employees'));

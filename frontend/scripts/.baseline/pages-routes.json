@@ -5,6 +5,7 @@
     "*",
     "/",
     "/*",
+    "/activation",
     "/analytics",
     "/analytics-gestion",
     "/analytics-paie",
@@ -98,6 +99,7 @@
     "users"
   ],
   "lazyExportNames": [
+    "ActivationPage",
     "AdminAccessRH",
     "AdminActivityLog",
     "AdminRates",

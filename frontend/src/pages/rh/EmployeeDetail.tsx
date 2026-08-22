@@ -61,6 +61,7 @@ import type { Employee } from "@/features/employee-detail/types";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
 import { WorkMedalEmployeeSection } from "@/features/work-medals/components/WorkMedalEmployeeSection";
 import { EmployeeLoansCard } from "@/features/employee-detail/components/EmployeeLoansCard";
+import { EmployeeInvitationCard } from "@/features/employee-detail/components/EmployeeInvitationCard";
 import { ContractualChangeDialog } from "@/features/employee-detail/components/ContractualChangeDialog";
 import {
   employeePlaceholderFromList,
@@ -554,6 +555,14 @@ export default function EmployeeDetail() {
           onSheetOpenChange={setBoethSheetOpen}
         />
       ) : null}
+
+      {employeeId && employee && (
+        <EmployeeInvitationCard
+          employeeId={employeeId}
+          email={employee.email}
+          employmentStatus={employee.employment_status}
+        />
+      )}
 
       {employeeId && employee && (
         <EmployeeDetailTrialPeriodCard
