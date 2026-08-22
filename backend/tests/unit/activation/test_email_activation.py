@@ -75,7 +75,7 @@ class TestLeveeCibleeRedirect:
             # Casse différente : la comparaison est casse-insensible.
             patch(
                 "app.core.settings.ACTIVATION_EMAIL_ALLOWLIST",
-                f"Autre@Exemple.fr, Jean.DUPONT@Exemple.FR",
+                "Autre@Exemple.fr, Jean.DUPONT@Exemple.FR",
             ),
         ):
             ok = _send()
