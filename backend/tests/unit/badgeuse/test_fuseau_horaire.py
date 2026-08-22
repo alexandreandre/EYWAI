@@ -104,3 +104,94 @@ def test_l_horodatage_par_defaut_est_aware_utc():
             created_by="u-1",
         )
     assert inserted["timestamp"].tzinfo is not None
+
+
+def test_le_badge_qr_produit_un_instant_aware():
+    """F2 — le 2e badge du jour via QR levait TypeError : now() naïf
+    soustrait aux timestamps aware de la base."""
+    from datetime import datetime, timezone
+
+    from app.modules.badgeuse.application import qr_service as mod
+
+    entree_du_jour = MagicMock()
+    entree_du_jour.timestamp = datetime(2026, 7, 3, 6, 0, tzinfo=timezone.utc)
+    capture = {}
+
+    fake_deps = MagicMock()
+    fake_deps._employee_is_forfait_jour.return_value = False
+    fake_deps.resolve_employee_for_qr.return_value = {"id": "emp-1"}
+    fake_deps.time_entry_repository.get_entries_for_employee_on_day.return_value = [
+        entree_du_jour
+    ]
+
+    def fake_toggle(**kw):
+        capture.update(kw)
+        raise RuntimeError("stop-ici")
+
+    fake_deps._insert_toggle_entry.side_effect = fake_toggle
+    with (
+        patch.object(mod, "deps", fake_deps),
+        patch.object(
+            mod, "_resolve_employee_from_qr",
+            return_value={"id": "emp-1", "company_id": "comp-1"},
+            create=True,
+        ),
+        patch.object(
+            mod, "decode_qr_payload",
+            return_value={"employee_id": "emp-1"},
+            create=True,
+        ),
+    ):
+        try:
+            mod.punch_from_qr(
+                qr_payload=None,
+                employee_id="emp-1",
+                company_id="comp-1",
+                actor_user_id="u-1",
+            )
+        except (RuntimeError, ValueError, KeyError, AttributeError):
+            pass
+        except TypeError as exc:
+            raise AssertionError(f"TypeError aware/naïf: {exc}")
+    if "now" in capture and capture["now"] is not None:
+        assert capture["now"].tzinfo is not None
+
+
+def test_le_jour_de_reponse_suit_l_instant_badge_en_local():
+    """Un badge à 22:30 UTC appartient au lendemain Paris : la relecture du
+    jour doit interroger le jour LOCAL, pas la date UTC."""
+    from datetime import datetime, timezone
+
+    from app.modules.badgeuse.application import _internals as mod
+
+    capture = {}
+    with patch.object(mod, "time_entry_repository") as fake_repo:
+        fake_repo.get_entries_for_employee_on_day.side_effect = (
+            lambda **kw: capture.update(kw) or []
+        )
+        try:
+            mod._build_punch_response(
+                employee_id="emp-1",
+                company_id="comp-1",
+                employee_row={"first_name": "A", "last_name": "B"},
+                event_type=list(mod.TimeEntryType)[0],
+                punched_at=datetime(2026, 7, 3, 22, 30, tzinfo=timezone.utc),
+            )
+        except (KeyError, AttributeError, TypeError):
+            pass  # l'aval est moqué grossièrement ; seul `day` nous importe
+    from datetime import date
+
+    assert capture["day"] == date(2026, 7, 4)
+
+
+def test_la_saisie_rh_d_un_badge_est_en_heure_murale():
+    """C3 — « 08:00 » saisi par la RH doit rester 08:00 Paris à la relecture,
+    pas devenir 10:00 (naïf stocké comme UTC)."""
+    import inspect
+
+    from app.modules.badgeuse.api import router as mod
+
+    src = inspect.getsource(mod)
+    assert "tzinfo=FUSEAU_ENTREPRISE" in src
+    # plus aucune construction naïve de timestamp de badge
+    assert "datetime.combine(day, datetime.min.time()).replace" not in src

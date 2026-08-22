@@ -157,7 +157,7 @@ def _accounted_hours_for_day(
             minutes_to_time_string,
         )
 
-        punch_accounting_repository.upsert_overtime_review(
+        resultat_upsert = punch_accounting_repository.upsert_overtime_review(
             company_id,
             employee_id=employee_id,
             work_date=day,
@@ -172,6 +172,13 @@ def _accounted_hours_for_day(
             applied_slot_id=None,
             status="pending",
         )
+        # Revue déjà approuvée (même excédent) : la décision reste effective,
+        # le jour repart avec théorique + excédent — pas au théorique seul.
+        if (
+            isinstance(resultat_upsert, dict)
+            and str(resultat_upsert.get("status") or "") == "approved"
+        ):
+            heures = round(heures + overtime_hours, 2)
     return heures
 
 

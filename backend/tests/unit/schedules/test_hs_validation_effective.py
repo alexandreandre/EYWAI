@@ -127,3 +127,87 @@ class TestDecisionDeRevue:
 
     def test_re_approuver_n_ajoute_pas_deux_fois(self):
         assert self._decider("approved", "approved", heures_jour=10.0) == 10.0
+
+
+def test_le_canal_historique_d_injection_a_disparu():
+    """B1 — garder deux canaux payait les HS deux fois : l'approbation écrit
+    le calendrier réel (que l'analyseur qualifie), l'injection dans
+    payroll_events ne doit plus exister nulle part."""
+    import subprocess
+
+    r = subprocess.run(
+        [
+            "grep", "-rn", "--include=*.py",
+            "inject_approved_punch_overtime", "app/",
+        ],
+        capture_output=True, text=True,
+    )
+    assert r.stdout == "", r.stdout
+
+
+def test_la_retention_ne_credite_jamais_plus_que_le_pointe():
+    """B2 — badge 05:00→05:15 avec créneau 08:00-16:30 : la revue early_entry
+    ne doit pas créditer 7,75 h de théorique pour 15 minutes badgées."""
+    from app.modules.schedules.domain.punch_accounting_entities import PunchDayInput
+
+    slot = slot_from_row(
+        {
+            "code": "M",
+            "entry_time": "08:00",
+            "exit_time": "16:30",
+            "theoretical_gross_minutes": 510,
+            "break_deduct_minutes": 45,
+        }
+    )
+    jour = PunchDayInput(entry_minutes=300, exit_minutes=315, shift_code="M")
+    r = compute_punch_day(jour, _SETTINGS_AVEC_REVUE, [slot])
+    assert r.needs_review is True
+    assert r.accounted_hours == r.pointed_net_hours
+    assert r.accounted_hours <= 0.25
+
+
+def test_le_reimport_ne_retrograde_pas_une_revue_approuvee():
+    """F3 — un ré-import du mois (opération courante avant paie) remettait
+    la revue en pending et le jour au théorique : la décision du manager
+    disparaissait en silence."""
+    from unittest.mock import MagicMock, patch as p_
+
+    from app.modules.schedules.infrastructure import punch_accounting_repository as repo
+
+    fake_supabase = MagicMock()
+    existante = MagicMock()
+    existante.data = [
+        {"id": "rev-1", "status": "approved", "overtime_hours": 2.0, "reason": "late_exit"}
+    ]
+    table = MagicMock()
+    fake_supabase.table.return_value = table
+    sel = MagicMock()
+    table.select.return_value = sel
+    sel.eq.return_value = sel
+    sel.limit.return_value.execute.return_value = existante
+    capture = {}
+
+    def fake_update(payload):
+        capture["payload"] = payload
+        u = MagicMock()
+        u.eq.return_value.execute.return_value = MagicMock(data=[payload])
+        return u
+
+    table.update.side_effect = fake_update
+    from datetime import date
+
+    with p_.object(repo, "supabase", fake_supabase):
+        repo.upsert_overtime_review(
+            "comp-1",
+            employee_id="emp-1",
+            work_date=date(2026, 7, 3),
+            overtime_hours=2.0,
+            reason="late_exit",
+            raw_entry_time="08:00",
+            raw_exit_time="18:10",
+            applied_slot_id=None,
+            status="pending",
+        )
+    assert capture["payload"]["status"] == "approved", (
+        "même excédent, même motif : la décision du manager est conservée"
+    )

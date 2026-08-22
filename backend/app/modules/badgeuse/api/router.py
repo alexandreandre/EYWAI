@@ -7,6 +7,7 @@ Routers du module badgeuse (pointage).
 
 from __future__ import annotations
 
+from app.shared.domain.temps_local import FUSEAU_ENTREPRISE
 from datetime import date, datetime
 from io import StringIO
 from typing import Any, Dict, List, Optional
@@ -256,9 +257,11 @@ def add_employee_day_event(
 
     try:
         hour, minute = map(int, time_str.split(":"))
-        ts = datetime.combine(day, datetime.min.time()).replace(
-            hour=hour, minute=minute
-        )
+        # « 08:00 » saisi par la RH est une heure MURALE Paris : construit
+        # naïf, il serait stocké 08:00 UTC et relu 10:00 l'été.
+        ts = datetime.combine(
+            day, datetime.min.time(), tzinfo=FUSEAU_ENTREPRISE
+        ).replace(hour=hour, minute=minute)
     except Exception as e:
         raise HTTPException(status_code=422, detail="Heure invalide") from e
 
@@ -295,7 +298,9 @@ def update_event(
                 raise ValueError("date manquante pour la mise à jour de l'heure")
             d = date.fromisoformat(day_str)
             hour, minute = map(int, time_str.split(":"))
-            ts = datetime.combine(d, datetime.min.time()).replace(
+            ts = datetime.combine(
+                d, datetime.min.time(), tzinfo=FUSEAU_ENTREPRISE
+            ).replace(
                 hour=hour, minute=minute
             )
         except Exception as e:

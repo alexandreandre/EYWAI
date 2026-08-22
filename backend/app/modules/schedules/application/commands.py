@@ -356,18 +356,10 @@ def calculate_payroll_events(employee_id: str, year: int, month: int) -> Dict[st
                     )
         logger.info(f'-> Analyse terminée : {len(payroll_events_list)} événements de paie générés.')
 
-        if company_id and not is_employee_forfait_jour:
-            from app.modules.schedules.application.punch_accounting_service import (
-                inject_approved_punch_overtime_into_calendar,
-            )
-
-            payroll_events_list = inject_approved_punch_overtime_into_calendar(
-                payroll_events_list,
-                str(company_id),
-                employee_id,
-                year,
-                month,
-            )
+        # Lot 4 : l'injection des HS approuvées dans payroll_events est
+        # SUPPRIMÉE — l'approbation écrit désormais l'excédent dans le
+        # calendrier réel (_appliquer_decision_hs), que l'analyseur vient de
+        # qualifier ci-dessus. Garder les deux canaux payait les HS deux fois.
 
         result_json = {
             "periode": {"annee": year, "mois": month},

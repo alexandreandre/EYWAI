@@ -221,37 +221,3 @@ def compute_accounted_hours_for_badgeuse_day(
     )
 
 
-def inject_approved_punch_overtime_into_calendar(
-    calendrier_analyse: list[dict[str, Any]],
-    company_id: str,
-    employee_id: str,
-    year: int,
-    month: int,
-) -> list[dict[str, Any]]:
-    """Ajoute les HS pointage validées au calendrier analyse paie."""
-    settings = repo.get_settings(company_id)
-    if not settings.enabled:
-        return calendrier_analyse
-
-    approved = [
-        r
-        for r in repo.list_approved_overtime_for_month(company_id, year, month)
-        if str(r.get("employee_id")) == employee_id
-    ]
-    if not approved:
-        return calendrier_analyse
-
-    total_hs = round(sum(float(r.get("overtime_hours") or 0) for r in approved), 2)
-    if total_hs <= 0:
-        return calendrier_analyse
-
-    updated = list(calendrier_analyse)
-    found = False
-    for entry in updated:
-        if entry.get("type") == "travail_hs25":
-            entry["heures"] = round(float(entry.get("heures") or 0) + total_hs, 2)
-            found = True
-            break
-    if not found:
-        updated.append({"type": "travail_hs25", "heures": total_hs})
-    return updated

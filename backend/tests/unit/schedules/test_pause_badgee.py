@@ -110,3 +110,25 @@ def test_import_badgeuse_transmet_la_pause_mesuree():
         )
     # 11 h d'amplitude − 9 h badgées = 120 min de pause réelle
     assert capture.get("measured_break_minutes") == 120
+
+
+def test_la_part_payee_de_la_pause_n_est_pas_deduite_de_la_mesure():
+    """C5 — société à pauses payées (MBC : 2×10 min comprises dans les
+    7 h 30) : 60 min badgées ne retirent que 60 − 20 = 40 min."""
+    planned = PlannedShiftBreak(paid_break_minutes=20)
+    assert (
+        resolve_break_minutes(
+            _SLOT, _SETTINGS, planned, measured_break_minutes=60
+        )
+        == 40
+    )
+
+
+def test_pause_mesuree_plus_courte_que_la_part_payee():
+    planned = PlannedShiftBreak(paid_break_minutes=30)
+    assert (
+        resolve_break_minutes(
+            _SLOT, _SETTINGS, planned, measured_break_minutes=20
+        )
+        == 0
+    )

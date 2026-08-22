@@ -1,7 +1,7 @@
 """Helpers partagés badgeuse (privés aux sous-services)."""
 from __future__ import annotations
 
-from app.shared.domain.temps_local import maintenant_utc
+from app.shared.domain.temps_local import date_locale, maintenant_utc
 
 from dataclasses import dataclass
 from datetime import datetime, date
@@ -237,7 +237,8 @@ def _build_punch_response(
     event_type: TimeEntryType,
     punched_at: datetime,
 ) -> Dict[str, Any]:
-    today = punched_at.date()
+    # Jour LOCAL de l'instant badgé : 22:30 UTC = lendemain Paris.
+    today = date_locale(punched_at)
     updated_entries = time_entry_repository.get_entries_for_employee_on_day(
         employee_id=employee_id,
         company_id=company_id,

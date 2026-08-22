@@ -1,6 +1,8 @@
 """Exports CSV badgeuse."""
 from __future__ import annotations
 
+from app.shared.domain.temps_local import date_locale, fenetre_jour_local
+
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
 
@@ -16,8 +18,8 @@ def build_company_summary_csv(
     Construit le CSV de synthèse badgeuse pour une entreprise sur une période.
     Retourne (filename, contenu_csv).
     """
-    start_dt = datetime.combine(start, datetime.min.time())
-    end_dt = datetime.combine(end, datetime.max.time())
+    start_dt = fenetre_jour_local(start)[0]
+    end_dt = fenetre_jour_local(end)[1]
     rows = deps.time_entry_repository.get_entries_for_company_between(
         company_id=company_id,
         start=start_dt,
@@ -36,7 +38,7 @@ def build_company_summary_csv(
     for row in rows:
         emp_id = str(row["employee_id"])
         ts = datetime.fromisoformat(row["timestamp"])
-        d = ts.date()
+        d = date_locale(ts)
         grouped.setdefault(emp_id, {}).setdefault(d, []).append(
             deps.time_entry_repository._row_to_entry(row)  # type: ignore[attr-defined]
         )

@@ -269,13 +269,28 @@ def upsert_overtime_review(
     }
     existing = (
         supabase.table("employee_punch_overtime_reviews")
-        .select("id")
+        .select("id, status, overtime_hours, reason")
         .eq("employee_id", employee_id)
         .eq("work_date", work_date.isoformat())
         .limit(1)
         .execute()
     )
     rows = existing.data or []
+    # Un ré-import ne rétrograde JAMAIS une décision déjà prise quand
+    # l'excédent et le motif n'ont pas changé : la revue garde son statut
+    # (la décision du manager disparaissait en silence à chaque ré-import).
+    if rows:
+        actuel = rows[0]
+        meme_contenu = (
+            round(float(actuel.get("overtime_hours") or 0), 2)
+            == round(overtime_hours, 2)
+            and str(actuel.get("reason") or "") == str(reason or "")
+        )
+        if meme_contenu and str(actuel.get("status") or "") in (
+            "approved",
+            "rejected",
+        ):
+            payload["status"] = actuel["status"]
     if rows:
         resp = (
             supabase.table("employee_punch_overtime_reviews")
@@ -317,9 +332,3 @@ def update_overtime_review(
     return rows[0] if rows else None
 
 
-def list_approved_overtime_for_month(
-    company_id: str, year: int, month: int
-) -> list[dict[str, Any]]:
-    return list_overtime_reviews(
-        company_id, year=year, month=month, status="approved"
-    )

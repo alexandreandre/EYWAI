@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from app.shared.domain.temps_local import date_locale
+from app.shared.domain.temps_local import aujourd_hui_local, date_locale
 from datetime import datetime, date, timedelta
 from enum import StrEnum
 from typing import List, Tuple, Dict, Iterable
@@ -83,7 +83,7 @@ def build_sequences_and_anomalies(
     current_date: date | None = None
 
     for entry in sorted_entries:
-        current_date = entry.timestamp.date()
+        current_date = date_locale(entry.timestamp)
         if entry.event_type == TimeEntryType.ENTREE:
             if open_entry is not None:
                 anomalies.append(
@@ -101,7 +101,7 @@ def build_sequences_and_anomalies(
             if open_entry is None:
                 anomalies.append(
                     DayAnomaly(
-                        date=entry.timestamp.date(),
+                        date=date_locale(entry.timestamp),
                         message="Sortie sans entrée préalable",
                     )
                 )
@@ -109,7 +109,7 @@ def build_sequences_and_anomalies(
             if entry.timestamp <= open_entry.timestamp:
                 anomalies.append(
                     DayAnomaly(
-                        date=entry.timestamp.date(),
+                        date=date_locale(entry.timestamp),
                         message="Sortie antérieure ou égale à l'entrée correspondante",
                     )
                 )
@@ -122,7 +122,7 @@ def build_sequences_and_anomalies(
     if open_entry is not None:
         anomalies.append(
             DayAnomaly(
-                date=open_entry.timestamp.date(),
+                date=date_locale(open_entry.timestamp),
                 message="Entrée sans sortie correspondante",
             )
         )
@@ -134,7 +134,7 @@ def compute_day_summary(entries: Iterable[TimeEntry]) -> DaySummary:
     """Calcule le résumé d'une journée pour un employé."""
     entries_list = list(entries)
     if not entries_list:
-        today = date.today()
+        today = aujourd_hui_local()
         return DaySummary(
             date=today,
             total_duration=timedelta(0),

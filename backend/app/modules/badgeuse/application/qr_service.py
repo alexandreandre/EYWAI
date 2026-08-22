@@ -1,7 +1,7 @@
 """QR, scan et pointage badge."""
 from __future__ import annotations
 
-from app.shared.domain.temps_local import aujourd_hui_local
+from app.shared.domain.temps_local import aujourd_hui_local, maintenant_utc
 
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
@@ -106,7 +106,9 @@ def punch_from_qr(
         company_id=company_id,
         day=today,
     )
-    now = datetime.now()
+    # Instant aware : un naïf soustrait aux timestamps aware de la base
+    # levait TypeError au 2e badge du jour (badge-out en 500).
+    now = maintenant_utc()
     event_type = deps._insert_toggle_entry(
         employee_id=resolved_employee_id,
         company_id=company_id,

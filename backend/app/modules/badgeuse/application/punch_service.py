@@ -1,7 +1,7 @@
 """Tableau de bord, pointage collaborateur, validation."""
 from __future__ import annotations
 
-from app.shared.domain.temps_local import aujourd_hui_local
+from app.shared.domain.temps_local import aujourd_hui_local, fenetre_jour_local
 
 from app.modules.badgeuse.application.deps import deps
 from app.modules.badgeuse.application._internals import *  # noqa: F403
@@ -10,8 +10,7 @@ from app.modules.badgeuse.application.qr_service import get_qr_for_employee
 
 def get_dashboard_today(*, company_id: str) -> Dict[str, Any]:
     today = aujourd_hui_local()
-    start_dt = datetime.combine(today, datetime.min.time())
-    end_dt = datetime.combine(today, datetime.max.time())
+    start_dt, end_dt = fenetre_jour_local(today)
 
     from app.core.database import supabase
 
@@ -104,7 +103,7 @@ def get_today_status_for_me(
             "is_eligible_for_badgeuse": False,
             "reason": "Aucune fiche employé n'est reliée à votre compte.",
         }
-    target_day = day or date.today()
+    target_day = day or aujourd_hui_local()
     entries = deps.time_entry_repository.get_entries_for_employee_on_day(
         employee_id=employee_id,
         company_id=company_id,
@@ -122,7 +121,7 @@ def get_today_status_for_me(
 
     qr_payload = None
     settings = deps.get_badgeuse_settings(company_id)
-    if target_day == date.today():
+    if target_day == aujourd_hui_local():
         try:
             qr_data = get_qr_for_employee(
                 employee_id=employee_id, company_id=company_id
@@ -186,8 +185,8 @@ def get_summary_for_employee_period(
     start: date,
     end: date,
 ) -> Dict[date, deps.DayStatusDTO]:
-    start_dt = datetime.combine(start, datetime.min.time())
-    end_dt = datetime.combine(end, datetime.max.time())
+    start_dt = fenetre_jour_local(start)[0]
+    end_dt = fenetre_jour_local(end)[1]
     entries = deps.time_entry_repository.get_entries_for_employee_between(
         employee_id=employee_id,
         company_id=company_id,
@@ -306,8 +305,8 @@ def get_company_period_summary(
     """
     Synthèse par employé sur la période : total d'heures et nombre de jours en anomalie.
     """
-    start_dt = datetime.combine(start, datetime.min.time())
-    end_dt = datetime.combine(end, datetime.max.time())
+    start_dt = fenetre_jour_local(start)[0]
+    end_dt = fenetre_jour_local(end)[1]
     rows = deps.time_entry_repository.get_entries_for_company_between(
         company_id=company_id,
         start=start_dt,

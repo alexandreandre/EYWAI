@@ -108,7 +108,10 @@ def resolve_break_minutes(
     des HS fantômes (2 h de pause réelle ≈ 2 h de fausses HS).
     """
     if measured_break_minutes is not None and measured_break_minutes > 0:
-        return max(0, int(measured_break_minutes))
+        # La part PAYÉE de la pause (MBC : 2×10 min comprises dans les
+        # 7 h 30) reste acquise : on ne déduit que l'excédent badgé.
+        part_payee = int(planned.paid_break_minutes) if planned else 0
+        return max(0, int(measured_break_minutes) - max(0, part_payee))
     if planned and planned.unpaid_break_minutes is not None:
         return max(0, int(planned.unpaid_break_minutes))
 
@@ -314,8 +317,13 @@ def compute_punch_day(
         # validation payait PLUS que ne pas l'exiger, et l'approbation
         # n'avait aucun effet. L'approbation écrit désormais les heures
         # dans le calendrier réel (punch_accounting_commands).
+        # En attente de validation : le théorique est retenu, mais JAMAIS
+        # plus que le pointé — un badge de 15 min avec revue early_entry ne
+        # crédite pas la journée théorique complète.
         accounted = (
-            theoretical if needs_review else round(theoretical + overtime, 2)
+            min(theoretical, pointed)
+            if needs_review
+            else round(theoretical + overtime, 2)
         )
     else:
         accounted = pointed
