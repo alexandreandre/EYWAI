@@ -72,6 +72,22 @@ def get_all_expenses(company_id: str, status: Optional[str] = None) -> List[dict
     return repo.list_all(company_id, status)
 
 
+def get_receipt_signed_url(path: str, expires_in: int = 3600) -> str | None:
+    """URL signée de lecture d'un justificatif — None si le storage n'en rend pas.
+
+    Remplace l'URL publique que le frontend fabriquait : le bucket
+    expense_receipts redevient privé (audit sécurité 23/08/2026).
+    """
+    storage = ExpenseStorageProvider()
+    resultats = storage.create_signed_urls([path], expires_in)
+    for ligne in resultats or []:
+        if isinstance(ligne, dict):
+            url = ligne.get("signedURL") or ligne.get("signedUrl")
+            if url:
+                return url
+    return None
+
+
 def get_signed_upload_url(employee_id: str, filename: str) -> dict:
     """
     Génère une URL signée pour l'upload (path = employee_id/unique_filename).

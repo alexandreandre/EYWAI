@@ -57,14 +57,21 @@ export default function ExpensesPage() {
     }
   };
 
-  const getReceiptUrl = (path: string | null) => {
-    if (!path) return null;
-    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-    if (!SUPABASE_URL) {
-      log.error("Erreur: VITE_SUPABASE_URL n'est pas définie dans le fichier .env du frontend !");
-      return "#";
+  // Le bucket des justificatifs est PRIVÉ depuis l'audit du 23/08/2026 : on
+  // demande une URL signée au backend au lieu de fabriquer une URL publique.
+  const ouvrirJustificatif = async (path: string | null) => {
+    if (!path) return;
+    try {
+      const url = await expensesApi.getReceiptSignedUrl(path);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      log.error("Justificatif : URL signée indisponible", error);
+      toast({
+        title: "Erreur",
+        description: "Le justificatif n'a pas pu être ouvert.",
+        variant: "destructive",
+      });
     }
-    return `${SUPABASE_URL}/storage/v1/object/public/expense_receipts/${path}`;
   };
 
   // --- NOUVELLE FONCTION POUR GÉRER LE TÉLÉCHARGEMENT ---
@@ -72,8 +79,18 @@ export default function ExpensesPage() {
   const path = expense.receipt_url;
   if (!path) return;
 
-  const url = getReceiptUrl(path);
-  if (!url || url === "#") return;
+  let url: string;
+  try {
+    url = await expensesApi.getReceiptSignedUrl(path);
+  } catch (error) {
+    log.error("Justificatif : URL signée indisponible", error);
+    toast({
+      title: "Erreur",
+      description: "Le justificatif n'a pas pu être téléchargé.",
+      variant: "destructive",
+    });
+    return;
+  }
 
   try {
     const response = await fetch(url);
@@ -144,10 +161,13 @@ export default function ExpensesPage() {
               {req.receipt_url && (
                 <div className="flex gap-2">
                   {/* Bouton Voir (inchangé) */}
-                  <Button variant="outline" size="icon" asChild>
-                    <a href={getReceiptUrl(req.receipt_url)} target="_blank" rel="noopener noreferrer" title="Voir le justificatif">
-                      <Eye className="h-4 w-4" />
-                    </a>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => ouvrirJustificatif(req.receipt_url)}
+                    title="Voir le justificatif"
+                  >
+                    <Eye className="h-4 w-4" />
                   </Button>
                   {/* Bouton Télécharger MODIFIÉ */}
                   <Button

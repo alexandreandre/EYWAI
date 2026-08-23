@@ -162,6 +162,33 @@ async def get_all_expenses(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/receipt-url")
+async def get_receipt_signed_url(
+    path: str,
+    current_user: User = Depends(get_current_user),
+):
+    """URL signée d'un justificatif (écran RH).
+
+    Remplace l'URL publique que le frontend fabriquait lui-même : le bucket
+    `expense_receipts` peut ainsi redevenir privé (audit sécurité 23/08/2026).
+    """
+    _require_rh_or_admin(current_user)
+
+    # Le chemin vient du client : on refuse tout ce qui sort du bucket.
+    chemin = (path or "").strip()
+    if not chemin or chemin.startswith("/") or ".." in chemin:
+        raise HTTPException(status_code=400, detail="Chemin de justificatif invalide.")
+
+    try:
+        url = _expense_service.get_receipt_signed_url(chemin)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if not url:
+        raise HTTPException(status_code=404, detail="Justificatif introuvable.")
+    return {"url": url}
+
+
 @router.patch("/{expense_id}/status", response_model=Expense)
 async def update_expense_status(
     expense_id: str,

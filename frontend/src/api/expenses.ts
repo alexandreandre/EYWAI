@@ -94,6 +94,17 @@ export const createExpense = (payload: ExpenseCreatePayload) => {
 /**
  * (Employé) Récupère mes notes de frais.
  */
+/**
+ * URL signée d'un justificatif (le bucket est privé depuis l'audit du 23/08/2026 :
+ * le front ne fabrique plus d'URL publique).
+ */
+export const getReceiptSignedUrl = async (path: string): Promise<string> => {
+  const { data } = await apiClient.get<{ url: string }>('/api/expenses/receipt-url', {
+    params: { path },
+  });
+  return data.url;
+};
+
 export const getMyExpenses = () => {
   return apiClient.get<Expense[]>('/api/expenses/me');
 };

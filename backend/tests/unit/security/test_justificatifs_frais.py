@@ -1,0 +1,96 @@
+"""
+Justificatifs de notes de frais : URL signée au lieu du bucket public.
+
+Audit Axe A : le bucket `expense_receipts` est PUBLIC et le frontend
+construisait lui-même l'URL publique — n'importe qui connaissant le chemin
+téléchargeait le justificatif (achats personnels, adresses, identités).
+Le bucket ne peut être fermé qu'une fois cette route en place.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+
+from app.core.security import get_current_user
+from app.main import app
+from app.modules.users.schemas.responses import CompanyAccess, User
+
+SOCIETE = "11111111-1111-1111-1111-111111111111"
+CHEMIN = "salarie-42/2026-05/ticket.pdf"
+URL = f"/api/expenses/receipt-url?path={CHEMIN}"
+
+
+def _user(role: str = "rh") -> User:
+    return User(
+        id="22222222-2222-2222-2222-222222222222",
+        email="rh@entreprise.fr",
+        first_name="Rita",
+        last_name="Aitch",
+        is_platform_admin=False,
+        is_group_admin=False,
+        accessible_companies=[
+            CompanyAccess(
+                company_id=SOCIETE,
+                company_name="Entreprise",
+                role=role,
+                is_primary=True,
+            ),
+        ],
+        active_company_id=SOCIETE,
+    )
+
+
+def _teardown():
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+class TestUrlSigneeJustificatif:
+    def test_sans_jeton_refuse(self):
+        assert TestClient(app).get(URL).status_code in (401, 403)
+
+    def test_rh_obtient_une_url_signee(self):
+        app.dependency_overrides[get_current_user] = lambda: _user()
+        try:
+            with patch(
+                "app.modules.expenses.application.queries.ExpenseStorageProvider"
+            ) as provider:
+                provider.return_value.create_signed_urls.return_value = [
+                    {"path": CHEMIN, "signedURL": "https://signe/xyz"}
+                ]
+                reponse = TestClient(app).get(URL)
+
+            assert reponse.status_code == 200
+            assert reponse.json()["url"] == "https://signe/xyz"
+            provider.return_value.create_signed_urls.assert_called_once()
+        finally:
+            _teardown()
+
+    def test_collaborateur_refuse(self):
+        """Écran RH : un simple salarié n'ouvre pas les justificatifs des autres."""
+        app.dependency_overrides[get_current_user] = lambda: _user("collaborateur")
+        try:
+            with patch(
+                "app.modules.expenses.application.queries.ExpenseStorageProvider"
+            ) as provider:
+                reponse = TestClient(app).get(URL)
+            assert reponse.status_code == 403
+            provider.assert_not_called()
+        finally:
+            _teardown()
+
+    def test_chemin_hors_bucket_refuse(self):
+        """Pas de remontée d'arborescence via le paramètre `path`."""
+        app.dependency_overrides[get_current_user] = lambda: _user()
+        try:
+            with patch(
+                "app.modules.expenses.application.queries.ExpenseStorageProvider"
+            ) as provider:
+                reponse = TestClient(app).get(
+                    "/api/expenses/receipt-url?path=../payslips/secret.pdf"
+                )
+            assert reponse.status_code == 400
+            provider.assert_not_called()
+        finally:
+            _teardown()

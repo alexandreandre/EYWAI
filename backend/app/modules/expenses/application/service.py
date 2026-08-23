@@ -19,6 +19,7 @@ from app.modules.expenses.application.queries import (
     get_all_expenses as query_get_all_expenses,
     get_my_expenses as query_get_my_expenses,
     get_my_expenses_for_user_account as query_get_my_expenses_for_user_account,
+    get_receipt_signed_url as query_get_receipt_signed_url,
     get_signed_upload_url as query_get_signed_upload_url,
     resolve_employee_id_for_expense_account as query_resolve_employee_id_for_expense_account,
 )
@@ -53,3 +54,6 @@ class ExpenseApplicationService:
 
     def get_signed_upload_url(self, employee_id: str, filename: str) -> dict:
         return query_get_signed_upload_url(employee_id, filename)
+
+    def get_receipt_signed_url(self, path: str) -> str | None:
+        return query_get_receipt_signed_url(path)
