@@ -27,14 +27,33 @@ router = APIRouter(prefix="/api/modulation", tags=["Modulation"])
 
 
 def _resolve_company_id(company_id: str | None, current_user: User) -> str:
+    """Société visée, VÉRIFIÉE : le paramètre vient du client.
+
+    Sans ce contrôle, passer le company_id d'une autre société donnait accès
+    à ses réglages (audit sécurité 23/08/2026).
+    """
     target = company_id or current_user.active_company_id
     if not target:
         raise HTTPException(status_code=400, detail="company_id requis.")
-    return target
+    if not current_user.is_platform_admin and not current_user.has_access_to_company(
+        str(target)
+    ):
+        raise HTTPException(
+            status_code=403, detail="Accès non autorisé pour cette entreprise."
+        )
+    return str(target)
 
 
-def _require_rh(user: User) -> None:
-    if user.role not in ("admin", "rh", "collaborateur_rh"):
+def _require_rh(user: User, company_id: str) -> None:
+    """Droit RH DANS la société visée.
+
+    `user.role` est un rôle plat qui renvoie False pour les rôles `custom` :
+    les directeurs porteurs de 100 % de permissions RH étaient refusés, alors
+    que le reste de l'application les accepte via has_rh_access_in_company.
+    """
+    if user.is_platform_admin:
+        return
+    if not user.has_rh_access_in_company(str(company_id)):
         raise HTTPException(status_code=403, detail="Accès RH requis.")
 
 
@@ -53,8 +72,8 @@ async def update_settings(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         result = commands.update_modulation_settings(
             str(cid), body.model_dump(exclude_unset=True)
@@ -79,8 +98,8 @@ async def create_template(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     row = commands.save_week_template(str(cid), body.model_dump())
     return WeekTemplateSchema(
         id=str(row.get("id")),
@@ -101,8 +120,8 @@ async def update_template(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     row = commands.save_week_template(
         str(cid), body.model_dump(), template_id=template_id
     )
@@ -124,8 +143,8 @@ async def remove_template(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     commands.delete_week_template(str(cid), template_id)
     return {"status": "ok"}
 
@@ -183,8 +202,8 @@ async def post_opening_balance(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     return hour_account_commands.create_opening_balance(
         str(cid),
         employee_id,
@@ -200,8 +219,8 @@ async def post_adjustment(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     return hour_account_commands.create_manual_adjustment(
         str(cid),
         body.employee_id,
@@ -221,8 +240,8 @@ async def apply_preset(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         result = commands.apply_modulation_preset(str(cid), preset)
     except ValueError as exc:
@@ -291,8 +310,8 @@ async def create_work_time_period(
 ):
     from app.modules.modulation.application import reference_period_commands as period_cmds
 
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         row = period_cmds.create_period(str(cid), body.model_dump(exclude={"id"}))
     except ValueError as exc:
@@ -320,8 +339,8 @@ async def update_work_time_period(
 ):
     from app.modules.modulation.application import reference_period_commands as period_cmds
 
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         row = period_cmds.update_period(
             str(cid), period_id, body.model_dump(exclude_unset=True)
@@ -350,8 +369,8 @@ async def delete_work_time_period(
 ):
     from app.modules.modulation.application import reference_period_commands as period_cmds
 
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         period_cmds.delete_period(str(cid), period_id)
     except ValueError as exc:
@@ -387,8 +406,8 @@ async def put_overtime_routing(
 ):
     from app.modules.modulation.application import overtime_routing_queries as otr_q
 
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     try:
         row = otr_q.upsert_overtime_routing_decision(
             str(cid),

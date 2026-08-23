@@ -28,14 +28,33 @@ router = APIRouter(prefix="/api/payroll-variables", tags=["Variables paie"])
 
 
 def _resolve_company_id(company_id: str | None, current_user: User) -> str:
+    """Société visée, VÉRIFIÉE : le paramètre vient du client.
+
+    Sans ce contrôle, passer le company_id d'une autre société donnait accès
+    à ses réglages (audit sécurité 23/08/2026).
+    """
     target = company_id or current_user.active_company_id
     if not target:
         raise HTTPException(status_code=400, detail="company_id requis.")
-    return target
+    if not current_user.is_platform_admin and not current_user.has_access_to_company(
+        str(target)
+    ):
+        raise HTTPException(
+            status_code=403, detail="Accès non autorisé pour cette entreprise."
+        )
+    return str(target)
 
 
-def _require_rh(user: User) -> None:
-    if user.role not in ("admin", "rh", "collaborateur_rh"):
+def _require_rh(user: User, company_id: str) -> None:
+    """Droit RH DANS la société visée.
+
+    `user.role` est un rôle plat qui renvoie False pour les rôles `custom` :
+    les directeurs porteurs de 100 % de permissions RH étaient refusés, alors
+    que le reste de l'application les accepte via has_rh_access_in_company.
+    """
+    if user.is_platform_admin:
+        return
+    if not user.has_rh_access_in_company(str(company_id)):
         raise HTTPException(status_code=403, detail="Accès RH requis.")
 
 
@@ -55,8 +74,8 @@ async def create_rule(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     data = body.model_dump(exclude={"id"}, exclude_unset=True)
     row = repo.upsert_rule(str(cid), data)
     return PayrollVariableRuleSchema(**row)
@@ -69,8 +88,8 @@ async def update_rule(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     data = body.model_dump(exclude={"id"}, exclude_unset=True)
     row = repo.upsert_rule(str(cid), data, rule_id=rule_id)
     return PayrollVariableRuleSchema(**row)
@@ -82,8 +101,8 @@ async def delete_rule(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     repo.delete_rule(str(cid), rule_id)
     return {"status": "ok"}
 
@@ -93,8 +112,8 @@ async def preset_astreinte_equipes(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     result = apply_astreinte_equipes_preset(str(cid))
     return AstreintePresetResponse(**result)
 
@@ -104,8 +123,8 @@ async def preset_shift_teams_payroll(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     result = apply_shift_teams_payroll_preset(str(cid))
     return AstreintePresetResponse(**result)
 
@@ -127,8 +146,8 @@ async def create_special_day(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     data = body.model_dump(exclude={"id"}, exclude_unset=True)
     row = repo.create_special_day(str(cid), data)
     return SpecialPayrollDaySchema(**row)
@@ -140,8 +159,8 @@ async def delete_special_day(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     repo.delete_special_day(str(cid), day_id)
     return {"status": "ok"}
 
@@ -154,8 +173,8 @@ async def generate_variables(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
-    _require_rh(current_user)
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
     result = generate_monthly_variables(str(cid), year, month, dry_run=dry_run)
     return PayrollVariableGenerateResponse(
         company_id=result["company_id"],
