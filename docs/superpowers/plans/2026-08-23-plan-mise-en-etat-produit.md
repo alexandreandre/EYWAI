@@ -137,6 +137,41 @@ Gaëlle.
 
 ---
 
+### 2.0 ⚠ Constat du 23/08 : juillet est VIDE dans l'outil
+
+Mesuré en base, sur la production :
+
+| Donnée de juillet 2026 | Présent |
+| --- | --- |
+| Bulletins | **0** |
+| Saisies mensuelles (primes, acomptes) | **0** |
+| Demandes d'absence | **0** |
+| Calendriers avec heures réelles | **0** |
+| Calendriers prévisionnels auto-générés | 252 |
+| Jours de congé dans les calendriers | 31, pour 224 salariés |
+
+Trente-et-un jours de congé sur un mois de juillet, c'est invraisemblable.
+Le mois n'existe dans l'outil que sous forme de calendriers uniformes
+générés fin juin : LEWIS a planifié 154 h pour ses 39 salariés, MBC 165 h
+pour ses 75, temps partiels compris.
+
+**Conséquence directe** : le backtest comparerait un mois vide à un mois
+réel. Le premier essai sur Colorplast le confirme — la chaîne fonctionne
+(7 références appariées, écarts systématiques identifiés) mais les écarts
+par salarié atteignent 1 900 à 3 900 €.
+
+**Le backtest de juillet n'est donc pas un réglage à ajuster : il demande
+une SAISIE de juillet.** Trois sources, trois natures :
+- les **heures réelles** — feuilles de pointage S26 à S30, sur le Drive,
+  formats hétérogènes (scans pour la plupart, tableur pour LEWIS) ;
+- les **congés** — nulle part dans l'outil, Gaëlle les a ;
+- les **primes et acomptes** — dans les « TABLEAU RECAP » du Drive.
+
+C'est précisément l'objet de la session avec Gaëlle la semaine du 1er
+septembre. À arbitrer : soit on saisit juillet et le backtest est
+concluant, soit on l'acte comme théorique et il ne vérifie que la
+mécanique.
+
 ## Phase 3 — Avant d'ouvrir aux salariés : que la donnée ne se dégrade plus
 
 ### 3.1 Le canal des heures réelles qui efface les absences
