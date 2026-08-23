@@ -63,6 +63,21 @@ def _require_rh_or_admin(current_user: User) -> None:
         )
 
 
+def _societe_active_ou_403(current_user: User) -> str:
+    """Société active, sinon 403.
+
+    Sans ce contrôle, `str(None)` partait en base et l'erreur SQL brute
+    (« invalid input syntax for type uuid ») remontait au client en 500 —
+    constaté en réel sur un compte administrateur sans société active.
+    """
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(
+            status_code=403, detail="Impossible de déterminer l'entreprise."
+        )
+    return str(company_id)
+
+
 def _filter_expenses_in_scope(
     current_user: User, company_id: str, expenses: List[dict]
 ) -> List[dict]:
@@ -141,6 +156,8 @@ async def get_my_expenses(current_user: User = Depends(get_current_user)):
         return _expense_service.get_my_expenses_for_user_account(
             str(current_user.id), current_user.active_company_id
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -153,11 +170,13 @@ async def get_all_expenses(
     """(Pour les RH) Récupère toutes les notes de frais, avec détails de l'employé."""
     try:
         _require_rh_or_admin(current_user)
-        company_id = str(current_user.active_company_id)
+        company_id = _societe_active_ou_403(current_user)
         expenses = _expense_service.get_all_expenses(
             company_id, ListExpensesInput(status=status)
         )
         return _filter_expenses_in_scope(current_user, company_id, expenses)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -198,7 +217,7 @@ async def update_expense_status(
     """(Pour les RH) Valide ou rejette une note de frais."""
     try:
         _require_rh_or_admin(current_user)
-        company_id = str(current_user.active_company_id)
+        company_id = _societe_active_ou_403(current_user)
         expense = _expense_service.get_all_expenses(
             company_id, ListExpensesInput()
         )
@@ -217,6 +236,8 @@ async def update_expense_status(
         if result is None:
             raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
         return result
+    except HTTPException:
+        raise
     except HTTPException:
         raise
     except Exception as e:

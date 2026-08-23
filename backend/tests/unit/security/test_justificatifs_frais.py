@@ -94,3 +94,30 @@ class TestUrlSigneeJustificatif:
             provider.assert_not_called()
         finally:
             _teardown()
+
+
+class TestSocieteActiveManquante:
+    """Compte sans société active (ex. administrateur plateforme) : les
+    routes doivent répondre 403, pas 500 en laissant fuir une erreur SQL
+    (« invalid input syntax for type uuid: "None" » observé en réel)."""
+
+    def _sans_societe(self) -> User:
+        return User(
+            id="33333333-3333-3333-3333-333333333333",
+            email="admin@eywai.fr",
+            first_name="Admin",
+            last_name="Plateforme",
+            is_platform_admin=False,
+            is_group_admin=False,
+            accessible_companies=[],
+            active_company_id=None,
+        )
+
+    def test_liste_des_notes_de_frais_403_et_non_500(self):
+        app.dependency_overrides[get_current_user] = self._sans_societe
+        try:
+            reponse = TestClient(app).get("/api/expenses/")
+            assert reponse.status_code == 403
+            assert "uuid" not in reponse.text.lower()
+        finally:
+            _teardown()
