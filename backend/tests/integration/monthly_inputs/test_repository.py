@@ -53,10 +53,12 @@ class TestSupabaseMonthlyInputsRepositoryListByPeriod:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            result = repo.list_by_period(2025, 3)
+            result = repo.list_by_period(2025, 3, "11111111-1111-1111-1111-111111111111")
 
             table.select.assert_called_once_with("*")
-            chain.match.assert_called_once_with({"year": 2025, "month": 3})
+            chain.match.assert_called_once_with(
+            {"year": 2025, "month": 3, "company_id": "11111111-1111-1111-1111-111111111111"}
+        )
             chain.match.return_value.order.assert_called_once_with(
                 "created_at", desc=True
             )
@@ -78,7 +80,7 @@ class TestSupabaseMonthlyInputsRepositoryListByPeriod:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            result = repo.list_by_period(2024, 12)
+            result = repo.list_by_period(2024, 12, "11111111-1111-1111-1111-111111111111")
 
             assert result == []
 
@@ -100,11 +102,16 @@ class TestSupabaseMonthlyInputsRepositoryListByEmployeePeriod:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            result = repo.list_by_employee_period("emp-1", 2025, 6)
+            result = repo.list_by_employee_period("emp-1", 2025, 6, "11111111-1111-1111-1111-111111111111")
 
             chain.match.assert_called_once_with(
-                {"employee_id": "emp-1", "year": 2025, "month": 6}
-            )
+            {
+                "employee_id": "emp-1",
+                "year": 2025,
+                "month": 6,
+                "company_id": "11111111-1111-1111-1111-111111111111",
+            }
+        )
             assert len(result) == 1
             assert result[0]["employee_id"] == "emp-1"
 
@@ -222,7 +229,7 @@ class TestSupabaseMonthlyInputsRepositoryDeleteById:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            repo.delete_by_id("input-id-123")
+            repo.delete_by_id("input-id-123", "11111111-1111-1111-1111-111111111111")
 
             table.delete.assert_called_once()
             chain.eq.assert_called_once_with("id", "input-id-123")
@@ -243,7 +250,7 @@ class TestSupabaseMonthlyInputsRepositoryDeleteByIdAndEmployee:
             supabase.table.return_value = table
 
             repo = SupabaseMonthlyInputsRepository()
-            repo.delete_by_id_and_employee("input-1", "emp-1")
+            repo.delete_by_id_and_employee("input-1", "emp-1", "11111111-1111-1111-1111-111111111111")
 
             chain.eq.assert_called_once_with("id", "input-1")
             chain.eq.return_value.eq.assert_called_once_with("employee_id", "emp-1")

@@ -50,11 +50,18 @@ class TestWiringCalculateSeizable:
     """
 
     def test_calculate_seizable_end_to_end_uses_domain_rules(self, client: TestClient):
-        # Sans mock : le calcul réel est exécuté (règles pures + mapper)
-        response = client.post(
-            "/api/saisies-avances/salary-seizures/calculate-seizable",
-            json={"net_salary": 1500, "dependents_count": 0},
-        )
+        # Sans mock : le calcul réel est exécuté (règles pures + mapper).
+        # Authentification requise depuis l'audit du 22/08/2026.
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_user()
+        try:
+            response = client.post(
+                "/api/saisies-avances/salary-seizures/calculate-seizable",
+                json={"net_salary": 1500, "dependents_count": 0},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         # Barème : 1500€ -> tranche 1000-2000 -> 50 + (1500-1000)*0.20 = 150

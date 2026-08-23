@@ -39,7 +39,7 @@ class TestMonthlyInputsWiring:
         data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "Prime wiring"
-        list_fn.assert_called_once_with(2025, 3)
+        list_fn.assert_called_once_with(2025, 3, "11111111-1111-1111-1111-111111111111")
 
     def test_create_batch_flow_uses_commands(self, client: TestClient):
         """POST /api/monthly-inputs : router -> commands.create_monthly_inputs_batch -> repo.insert_batch."""
@@ -86,7 +86,7 @@ class TestMonthlyInputsWiring:
             response = client.delete("/api/monthly-inputs/wiring-delete-id")
 
         assert response.status_code == 200
-        repo.delete_by_id.assert_called_once_with("wiring-delete-id")
+        repo.delete_by_id.assert_called_once_with("wiring-delete-id", "11111111-1111-1111-1111-111111111111")
 
     def test_get_employee_monthly_inputs_flow_uses_queries(self, client: TestClient):
         """GET /api/employees/{id}/monthly-inputs : queries.list_monthly_inputs_by_employee_period."""
@@ -100,7 +100,7 @@ class TestMonthlyInputsWiring:
             )
 
         assert response.status_code == 200
-        list_fn.assert_called_once_with("emp-wiring", 2025, 6)
+        list_fn.assert_called_once_with("emp-wiring", 2025, 6, "11111111-1111-1111-1111-111111111111")
 
     def test_create_employee_monthly_input_flow_uses_commands(self, client: TestClient):
         """POST /api/employees/{id}/monthly-inputs : commands.create_employee_monthly_input -> repo.insert_one."""
@@ -145,7 +145,9 @@ class TestMonthlyInputsWiring:
 
         assert response.status_code == 200
         repo.delete_by_id_and_employee.assert_called_once_with(
-            "input-wiring-1", "emp-wiring"
+            "input-wiring-1",
+            "emp-wiring",
+            "11111111-1111-1111-1111-111111111111",
         )
 
     def test_primes_catalogue_flow_uses_queries(self, client: TestClient):

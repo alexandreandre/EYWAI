@@ -207,13 +207,27 @@ class TestSaisiesAvancesUnauthenticated:
 
 
 class TestCalculateSeizablePublic:
-    """POST /salary-seizures/calculate-seizable : pas d'auth requise."""
+    """POST /salary-seizures/calculate-seizable : authentification requise
+    depuis l'audit du 22/08/2026 (le calculateur était public)."""
 
-    def test_calculate_seizable_returns_200_and_calculation(self, client: TestClient):
+    def test_calculate_seizable_sans_jeton_refuse(self, client: TestClient):
         response = client.post(
             f"{BASE}/salary-seizures/calculate-seizable",
             json={"net_salary": 2000, "dependents_count": 0},
         )
+        assert response.status_code == 401
+
+    def test_calculate_seizable_returns_200_and_calculation(self, client: TestClient):
+        from app.core.security import get_current_user
+
+        app.dependency_overrides[get_current_user] = lambda: _make_collaborator_user()
+        try:
+            response = client.post(
+                f"{BASE}/salary-seizures/calculate-seizable",
+                json={"net_salary": 2000, "dependents_count": 0},
+            )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 200
         data = response.json()
         assert "seizable_amount" in data

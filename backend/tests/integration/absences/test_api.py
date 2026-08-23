@@ -608,15 +608,20 @@ class TestLeaveNotificationSettings:
 
 
 class TestGetAbsencesForEmployee:
-    """GET /api/absences/employees/{employee_id} — demandes pour un employé."""
+    """GET /api/absences/employees/{employee_id} — demandes pour un employé.
 
-    def test_get_absences_for_employee_returns_200(self, client: TestClient):
-        """Retourne une liste (vide ou non)."""
+    Route fermée par l'audit du 22/08/2026 : elle exposait en anonyme les
+    arrêts maladie et les URLs signées des justificatifs.
+    """
+
+    def test_get_absences_for_employee_without_token_returns_401(
+        self, client: TestClient
+    ):
+        """Sans jeton → 401, aucune donnée d'absence ne sort."""
         response = client.get(
             "/api/absences/employees/00000000-0000-0000-0000-000000000001"
         )
-        assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        assert response.status_code == 401
 
 
 # --- Routes protégées (nécessitent auth_headers) ---
