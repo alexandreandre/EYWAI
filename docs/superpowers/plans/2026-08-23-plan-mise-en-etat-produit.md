@@ -108,35 +108,6 @@ C'est le cœur de la valeur du produit, et la fenêtre est courte : Gaëlle
 produit cette paie cette semaine, et la rencontre est calée la semaine du
 1er septembre.
 
-### 2.1 Traiter d'abord les deux causes racines
-
-Sans ça, tous les écarts seront noyés dans ces deux-là :
-- **153 calendriers sur 252 planifient plus d'heures que le contrat**, ce
-  qui fabrique des heures supplémentaires fantômes ;
-- **139 types de mutuelle sur 155 sont importés à 100 % salarial.**
-
-### 2.2 Décider du sort des congés payés
-
-Le vocabulaire du lot 2 n'est pas livré : un `conge` validé n'a aucune
-branche dans le moteur. Sur un mois de juillet, c'est l'écart n°1 garanti.
-Soit on livre le lot 2 avant, soit on le déclare écart connu et on
-l'exclut du diagnostic — mais on le décide **avant**, pas en découvrant les
-résultats.
-
-### 2.3 Lancer et exploiter
-
-Déclarer d'avance en écarts connus les trois défauts moteur documentés et
-non corrigés (diviseur forfait 21,67 contre 22, retenue CP calculée au
-maintien, résidu de net imposable d'environ 3,35 € par salarié ayant des CP)
-plutôt que de les re-diagnostiquer. Bonne nouvelle : juillet est le premier
-mois où le SMIC en base est le bon.
-
-**Critère de sortie.** Un écart chiffré par société, chaque écart rattaché à
-une cause, et la liste de ce qui reste inexpliqué pour la séance avec
-Gaëlle.
-
----
-
 ### 2.0 ⚠ Constat du 23/08 : juillet est VIDE dans l'outil
 
 Mesuré en base, sur la production :
@@ -171,6 +142,47 @@ C'est précisément l'objet de la session avec Gaëlle la semaine du 1er
 septembre. À arbitrer : soit on saisit juillet et le backtest est
 concluant, soit on l'acte comme théorique et il ne vérifie que la
 mécanique.
+
+### 2.1 Traiter d'abord les causes racines — chiffres re-mesurés le 23/08
+
+- **Heures supplémentaires fantômes : alerte mal cadrée.** L'annonce parlait
+  de 153 calendriers sur 252 au-dessus du contrat. Mesuré : **23 sur 224**
+  dans le périmètre du backtest, dont la plupart sont des cadres et
+  forfaits-jours pour qui les heures du calendrier sont une convention. Le
+  vrai résidu tient en **5 temps partiels planifiés à temps plein** — dont
+  un à 12 h/semaine planifié 154 h.
+- **Mutuelles : défaut confirmé et plus grave que prévu.** 159 salariés ont
+  la cotisation entière à leur charge, alors que le bulletin réel de Cartol
+  (juillet, code EMU1) montre 29,64 € salarié / 29,63 € employeur. Cartol
+  80 salariés, LEWIS 37, MBC 24. Cause : les lignes DSN non rapprochées
+  d'une formule connue retombent sur « Mutuelle Autre », sans part
+  patronale. **Les fiches organisme de Cartol et LEWIS manquent** — à
+  demander. Détail dans la mémoire du projet.
+
+### 2.2 Décider du sort des congés payés
+
+Le vocabulaire du lot 2 n'est pas livré : vérifié le 23/08, l'analyseur ne
+connaît que `conges_payes` et jamais `conge`, et aucune traduction n'existe
+entre les deux — un congé payé validé reste donc invisible pour la paie.
+Nuance mesurée : sur juillet le sujet est moins brûlant qu'attendu, faute
+de données — 31 jours de congé seulement, et zéro demande d'absence.
+Soit on livre le lot 2 avant, soit on le déclare écart connu et on
+l'exclut du diagnostic — mais on le décide **avant**, pas en découvrant les
+résultats.
+
+### 2.3 Lancer et exploiter
+
+Déclarer d'avance en écarts connus les trois défauts moteur documentés et
+non corrigés (diviseur forfait 21,67 contre 22, retenue CP calculée au
+maintien, résidu de net imposable d'environ 3,35 € par salarié ayant des CP)
+plutôt que de les re-diagnostiquer. Bonne nouvelle : juillet est le premier
+mois où le SMIC en base est le bon.
+
+**Critère de sortie.** Un écart chiffré par société, chaque écart rattaché à
+une cause, et la liste de ce qui reste inexpliqué pour la séance avec
+Gaëlle.
+
+---
 
 ## Phase 3 — Avant d'ouvrir aux salariés : que la donnée ne se dégrade plus
 
