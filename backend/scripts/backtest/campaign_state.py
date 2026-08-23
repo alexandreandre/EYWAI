@@ -10,12 +10,26 @@ from typing import Any, Dict, List
 from app.core.database import supabase
 from app.modules.payroll.backtest.models import DiscrepancyReport, EmployeeConvergenceStatus, Verdict
 
-DOCS_ROOT = Path(__file__).resolve().parents[3] / "docs" / "backtest"
+#: Les rapports de campagne portent des NOMS de salariés, leurs SALAIRES et
+#: leurs NIR. Le dépôt est PUBLIC : ils vivent sous `data/`, qui est
+#: gitignoré, jamais sous `docs/`. Douze rapports avaient été committés
+#: avant ce correctif (23/08/2026), dont sept NIR et quatorze montants
+#: nominatifs — retirés du suivi, mais l'historique les conserve.
+RACINE_RAPPORTS = Path(__file__).resolve().parents[3] / "data" / "_backtests"
+
+#: Ancien emplacement, lu seulement pour retrouver une campagne existante.
+DOCS_ROOT_LEGACY = Path(__file__).resolve().parents[3] / "docs" / "backtest"
 
 
 def campaign_dir(company_name: str, year: int, month: int) -> Path:
+    """Dossier de campagne, sous data/. Une campagne déjà commencée à
+    l'ancien emplacement y est reprise plutôt que dédoublée."""
     slug = company_name.lower().replace(" ", "-")
-    return DOCS_ROOT / slug / f"{year}-{month:02d}"
+    periode = f"{year}-{month:02d}"
+    ancien = DOCS_ROOT_LEGACY / slug / periode
+    if ancien.is_dir():
+        return ancien
+    return RACINE_RAPPORTS / slug / periode
 
 
 class CampaignState:

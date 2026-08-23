@@ -430,3 +430,7 @@ frontend/playwright-report/
 # seed du compte QA : requis par la CI, sans secret (mot de passe via set_config)
 !scripts/qa/seed_qa_user.sql
 .superpowers/
+
+# Rapports de backtest : ils contiennent des données nominatives (noms,
+# salaires, NIR) et ce dépôt est PUBLIC. Ils vivent sous data/, gitignoré.
+docs/backtest/
