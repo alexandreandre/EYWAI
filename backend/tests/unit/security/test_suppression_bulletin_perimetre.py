@@ -76,3 +76,53 @@ class TestSuppressionBulletinPerimetre:
         reponse, suppr = self._supprimer(MA_SOCIETE)
         assert reponse.status_code == 204
         suppr.assert_called_once()
+
+
+class TestGenerationBulletinPerimetre:
+    """POST /api/actions/generate-payslip : le défaut fermé sur la
+    suppression le 23/08 était resté ouvert sur la porte de GÉNÉRATION.
+    Une RH de la société A pouvait générer le bulletin d'un salarié de la
+    société B — donc écrire dans la paie d'un autre client."""
+
+    def _generer(self, societe_du_salarie: str):
+        app.dependency_overrides[get_current_user] = _rh
+        try:
+            with (
+                patch("app.modules.payslips.api.router.generate_payslip") as gen,
+                patch(
+                    "app.modules.access_control.application.service.providers"
+                ) as providers,
+            ):
+                providers.get_employee_company_id.return_value = societe_du_salarie
+                gen.return_value = type(
+                    "R",
+                    (),
+                    {
+                        "status": "ok",
+                        "message": "",
+                        "download_url": None,
+                        "payslip_id": "bull-1",
+                        "warnings": [],
+                    },
+                )()
+                reponse = TestClient(app).post(
+                    "/api/actions/generate-payslip",
+                    json={
+                        "employee_id": "44444444-4444-4444-4444-444444444444",
+                        "year": 2026,
+                        "month": 7,
+                    },
+                )
+            return reponse, gen
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    def test_salarie_d_une_autre_societe_refuse(self):
+        reponse, gen = self._generer(AUTRE_SOCIETE)
+        assert reponse.status_code == 404
+        gen.assert_not_called()
+
+    def test_salarie_de_ma_societe_genere(self):
+        reponse, gen = self._generer(MA_SOCIETE)
+        assert reponse.status_code == 200
+        gen.assert_called_once()

@@ -217,6 +217,9 @@ class TestRouteGenerate422CalendrierIncomplet:
             side_effect=PayslipCalendarIncompleteError(
                 "Calendrier du mois incomplet — saisissez les heures avant de générer."
             ),
+        ), patch(
+            "app.modules.payslips.api.router.access_control_service."
+            "require_employee_access"
         ):
             app.dependency_overrides[get_current_user] = self._rh_user
             try:
@@ -237,7 +240,10 @@ class TestRouteGenerate422CalendrierIncomplet:
 
         with patch(
             "app.modules.payslips.api.router.generate_payslip"
-        ) as mock_gen:
+        ) as mock_gen, patch(
+            "app.modules.payslips.api.router.access_control_service."
+            "require_employee_access"
+        ):
             mock_gen.return_value = MagicMock(
                 status="success",
                 message="OK",

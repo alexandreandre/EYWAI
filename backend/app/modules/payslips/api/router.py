@@ -181,9 +181,18 @@ def generate_payslip_route(
     request: PayslipRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Génération d'un bulletin (forfait jour ou heures selon statut employé)."""
+    """Génération d'un bulletin (forfait jour ou heures selon statut employé).
+
+    Périmètre société vérifié comme sur /validate, /preview et /delete : la
+    garde RH seule répond « êtes-vous RH dans VOTRE société ? », jamais
+    « ce salarié est-il chez vous ? » — une RH pouvait donc écrire dans la
+    paie d'un autre client (audit du 23/08/2026).
+    """
     try:
-        _require_rh_company_context(current_user)
+        company_id = _require_rh_company_context(current_user)
+        access_control_service.require_employee_access(
+            current_user, company_id, "payslips.generate", request.employee_id
+        )
         result = generate_payslip(
             GeneratePayslipInput(
                 employee_id=request.employee_id,
