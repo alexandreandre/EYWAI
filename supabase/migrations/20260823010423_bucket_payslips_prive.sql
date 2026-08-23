@@ -1,0 +1,11 @@
+-- Bucket 'payslips' repassé en privé (23/08/2026, audit sécurité Axe A).
+--
+-- 1384 bulletins de paie nominatifs étaient servis par
+-- /storage/v1/object/public/payslips/... sans aucune authentification
+-- (vérifié en réel : HTTP 200, PDF complet). Le code applicatif signe déjà
+-- toutes ses URLs (create_signed_url) et n'utilise get_public_url que pour
+-- le bucket 'logos' : le drapeau public était un reliquat, pas une
+-- dépendance.
+--
+-- Idempotent : ré-exécutable sans erreur.
+UPDATE storage.buckets SET public = false WHERE id = 'payslips';

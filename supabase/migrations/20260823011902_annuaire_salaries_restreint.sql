@@ -26,6 +26,9 @@
 DROP POLICY IF EXISTS "Users can view employees from their company"
     ON public.employees;
 
+DROP POLICY IF EXISTS "Salaries : RH toute la societe, salarie sa fiche"
+    ON public.employees;
+
 CREATE POLICY "Salaries : RH toute la societe, salarie sa fiche"
     ON public.employees
     FOR SELECT
