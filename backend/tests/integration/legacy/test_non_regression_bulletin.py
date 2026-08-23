@@ -49,13 +49,55 @@ def _baremes_minimal() -> dict:
     }
 
 
+def _proprietes_du_contexte_reel() -> set[str]:
+    """Noms des propriétés portées par le VRAI ContextePaie."""
+    return {
+        nom for nom, valeur in vars(ContextePaie).items() if isinstance(valeur, property)
+    }
+
+
 def _make_contexte_mock() -> SimpleNamespace:
-    """Contexte cohérent avec test_maintien_salaire_service (duck typing)."""
+    """Fausse fiche de paie, construite sur la surface RÉELLE de ContextePaie.
+
+    Chaque propriété du contexte réel DOIT recevoir une valeur ici, et
+    `test_la_fausse_fiche_suit_le_contrat_reel` échoue si ce n'est plus le
+    cas. C'est précisément ce qui a manqué : le moteur a gagné des champs
+    (`heures_sup_du_mois`, `heures_sup_du_mois_50`…) que cette fiche n'a pas
+    suivis, et les quatre tests de non-régression du brut mouraient sur un
+    AttributeError avant même d'atteindre leurs comparaisons de montants.
+    Ils sont restés gelés du 7 au 23 août : plus aucun montant de référence
+    n'était vérifié sur le cœur du moteur.
+    """
     return SimpleNamespace(
         salaire_base_mensuel=2500.0,
         duree_hebdo_contrat=35.0,
         statut_salarie="Non-Cadre",
+        statut_categoriel_dsn="",
+        effectif=10,
         baremes=_baremes_minimal(),
+        # --- Éléments variables du mois : aucun, pour isoler le brut de base
+        saisie_du_mois={},
+        primes_du_mois={},
+        heures_sup_du_mois=0.0,
+        heures_sup_du_mois_50=0.0,
+        heures_absence_du_mois=0.0,
+        cumuls_annee_precedente={"brut_reference_n_1": 0.0},
+        # --- SMIC de référence (mars 2025) et dates du contrat
+        smic_horaire=11.88,
+        smic_mensuel=round(11.88 * 35 * 52 / 12, 2),
+        date_entree="2020-01-01",
+        date_anciennete_prime="2020-01-01",
+        date_conclusion_contrat="2020-01-01",
+        date_debut_execution="2020-01-01",
+        date_fin_contrat="",
+        date_naissance="1985-06-15",
+        # --- Situations particulières : toutes fausses pour ce scénario
+        is_alsace_moselle=False,
+        is_forfait_jour=False,
+        is_mandataire=False,
+        is_personnel_rd_eligible_jei=False,
+        is_professionnalisation=False,
+        is_stagiaire=False,
         contrat={
             "contrat": {
                 "date_entree": "2020-01-01",
@@ -288,4 +330,49 @@ class TestCreerBulletinFinalNonRegression:
         assert any(
             "cong" in (L.get("libelle") or "").lower()
             for L in bulletin["details_conges"]
+        )
+
+
+class TestFausseFicheSuitLeContratReel:
+    """Garde anti-dérive.
+
+    Le 7 août, le moteur a gagné des propriétés que la fausse fiche de paie
+    de ce fichier n'a pas suivies. Les quatre tests de non-régression du brut
+    sont alors morts sur un AttributeError — avant leurs comparaisons de
+    montants — et ont été gelés dans known_failures.txt. Résultat : plus
+    aucun montant de référence n'était vérifié sur le calcul du brut pendant
+    seize jours, sans que rien ne le signale.
+
+    Ce test compare la surface de la fausse fiche à celle du VRAI contexte :
+    une propriété ajoutée au moteur fait échouer la CI, avec le nom du champ
+    à renseigner.
+    """
+
+    def test_toutes_les_proprietes_du_contexte_ont_une_valeur(self):
+        attendues = _proprietes_du_contexte_reel()
+        posees = set(vars(_make_contexte_mock()))
+        manquantes = sorted(attendues - posees)
+        assert not manquantes, (
+            "Le contexte de paie a gagné des propriétés que la fausse fiche "
+            "de ce fichier ne pose pas — les tests de non-régression du brut "
+            "mourraient dessus sans vérifier un seul montant. À renseigner "
+            f"dans _make_contexte_mock : {', '.join(manquantes)}"
+        )
+
+    def test_la_fausse_fiche_n_invente_pas_de_champ(self):
+        """L'inverse : un champ posé ici qui n'existe plus côté moteur
+        signale une valeur devenue morte, donc un test qui n'exerce plus
+        ce qu'il croit exercer."""
+        proprietes = _proprietes_du_contexte_reel()
+        # Les attributs d'instance et les fonctions utilitaires ne sont pas
+        # des propriétés : on ne les compare pas.
+        tolerees = {
+            "baremes", "contrat", "entreprise", "cumuls",
+            "est_dernier_mois_cdd", "est_dernier_mois_mission",
+        }
+        posees = set(vars(_make_contexte_mock())) - tolerees
+        inventees = sorted(posees - proprietes)
+        assert not inventees, (
+            "Champs posés par la fausse fiche mais absents du contexte réel "
+            f"— valeurs mortes : {', '.join(inventees)}"
         )
