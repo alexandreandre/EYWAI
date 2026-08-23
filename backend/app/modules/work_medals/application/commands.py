@@ -128,7 +128,7 @@ def approve_work_medal_case(
         is_taxable=is_taxable,
         is_socially_taxed=is_social,
     )
-    result = create_employee_monthly_input(case.employee_id, prime_data)
+    result = create_employee_monthly_input(case.employee_id, prime_data, company_id)
     inserted = result.inserted_data or {}
     monthly_input_id = inserted.get("id")
 

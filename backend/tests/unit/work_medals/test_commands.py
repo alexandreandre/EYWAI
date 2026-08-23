@@ -66,6 +66,7 @@ def test_approve_creates_monthly_input(awaiting_rh_case, mock_settings):
             ):
                 with patch(
                     "app.modules.work_medals.application.commands.create_employee_monthly_input",
+                    autospec=True,
                     return_value=CreateSingleResultDto(
                         inserted_data={"id": "mi-1", "amount": 400}
                     ),
@@ -106,7 +107,8 @@ def test_dismissed_case_no_payroll(awaiting_rh_case):
         return_value=awaiting_rh_case,
     ):
         with patch(
-            "app.modules.work_medals.application.commands.create_employee_monthly_input"
+            "app.modules.work_medals.application.commands.create_employee_monthly_input",
+            autospec=True,
         ) as create_input:
             with patch(
                 "app.modules.work_medals.application.commands.work_medal_cases_repository.update"
@@ -146,6 +148,7 @@ def test_approve_legacy_awaiting_employee(awaiting_rh_case, mock_settings):
             ):
                 with patch(
                     "app.modules.work_medals.application.commands.create_employee_monthly_input",
+                    autospec=True,
                     return_value=CreateSingleResultDto(
                         inserted_data={"id": "mi-1", "amount": 400}
                     ),

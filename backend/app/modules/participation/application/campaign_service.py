@@ -690,7 +690,7 @@ def generate_payroll_lines(
         raise ValueError("Aucune ligne de paie à créer.")
 
     if payloads:
-        batch_result = create_monthly_inputs_batch(payloads)
+        batch_result = create_monthly_inputs_batch(payloads, company_id)
         # Traçabilité campagne sur les lignes créées (best effort)
         try:
             _tag_campaign_inputs(campaign_id, batch_result.inserted_ids)
