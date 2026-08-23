@@ -1,73 +1,154 @@
-"""Chargement PDF Cegid depuis Config/<Entreprise>/Compteur CP."""
+"""
+Chargement des bulletins de référence du cabinet, pour le backtest.
+
+Emplacement : `data/<societe>/bulletins/<AAAA-MM>/`, la convention en
+vigueur. L'ancien `Config/<Entreprise>/Compteur CP` reste consulté en
+dernier recours — il ne contient plus qu'une société sur sept.
+
+**Le mois demandé est le mois rendu, ou rien.** La version précédente
+retombait sur `pdfs[0]`, le premier fichier venu, quand aucun PDF ne
+correspondait : un backtest qui compare silencieusement le mauvais mois
+produit des écarts ininterprétables, et fait chercher un défaut de moteur
+là où il n'y a qu'une erreur de fichier. Un mois absent lève désormais une
+erreur qui nomme la société, le mois et les emplacements consultés.
+"""
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List
 
 from app.modules.payroll.backtest.models import ReferenceBulletin
 from app.modules.payroll.backtest.reference_parser import parse_cegid_text
 
-CONFIG_ROOT = Path(__file__).resolve().parents[3] / "Config"
+RACINE_DEPOT = Path(__file__).resolve().parents[2]
+RACINE_DATA = RACINE_DEPOT.parent / "data"
+CONFIG_ROOT = RACINE_DEPOT.parent / "Config"
 
-COMPANY_FOLDER_ALIASES: Dict[str, str] = {
+#: Nom saisi (minuscules) → dossier sous data/
+DOSSIERS_SOCIETES: Dict[str, str] = {
+    "colorplast": "colorplast",
+    "cartol": "cartol",
+    "cartol industrie": "cartol",
+    "comitech": "comitech",
+    "comitech composite": "comitech",
+    "lewis": "lewis",
+    "mbc": "mbc",
+    "mont blanc composite": "mbc",
+    "maji": "maji",
+    "zone": "zone",
+    "zone 404": "zone",
+    "zone 404 mars": "zone",
+    "exemple": "exemple",
+}
+
+#: Ancien emplacement, conservé le temps de la reprise.
+DOSSIERS_CONFIG_LEGACY: Dict[str, str] = {
     "colorplast": "Colorplast",
     "cartol": "Cartol",
     "comitech": "Comitech Composite",
-    "comitech composite": "Comitech Composite",
     "lewis": "Lewis",
     "mbc": "MBC",
-    "mont blanc composite": "MBC",
     "maji": "Maji",
     "zone": "Zone",
     "exemple": "Exemple",
 }
 
 
-def resolve_company_folder(company_name: str) -> Path:
-    key = company_name.strip().lower()
-    folder = COMPANY_FOLDER_ALIASES.get(key, company_name)
-    path = CONFIG_ROOT / folder
-    if not path.exists():
-        raise FileNotFoundError(f"Dossier Config introuvable pour '{company_name}': {path}")
-    return path
+def _cle_societe(nom: str) -> str:
+    return (nom or "").strip().lower()
 
 
-def find_reference_pdf(company_name: str, year: int, month: int) -> Path:
-    company_dir = resolve_company_folder(company_name)
-    cp_dirs = list(company_dir.glob("Compteur CP*"))
-    if not cp_dirs:
-        raise FileNotFoundError(f"Aucun dossier Compteur CP dans {company_dir}")
-    cp_dir = cp_dirs[0]
-    month_str = f"{month:02d}-{year}"
-    pdfs = sorted(cp_dir.glob("*.pdf"))
-    if not pdfs:
-        raise FileNotFoundError(f"Aucun PDF dans {cp_dir}")
-    # Préférer le PDF contenant le mois-année
-    for pdf in pdfs:
-        if month_str in pdf.name or f"{month:02d}" in pdf.name:
-            return pdf
-    return pdfs[0]
+def dossier_societe(nom_societe: str) -> str:
+    """Nom de dossier sous data/ pour une société — le nom saisi par défaut."""
+    cle = _cle_societe(nom_societe)
+    return DOSSIERS_SOCIETES.get(cle, cle)
 
 
-def extract_pdf_text(pdf_path: Path) -> str:
-    result = subprocess.run(
-        ["pdftotext", "-layout", str(pdf_path), "-"],
+def _candidats_data(nom_societe: str, annee: int, mois: int) -> List[Path]:
+    periode = f"{annee:04d}-{mois:02d}"
+    dossier = RACINE_DATA / dossier_societe(nom_societe) / "bulletins" / periode
+    if not dossier.is_dir():
+        return []
+    return sorted(dossier.glob("*.pdf"))
+
+
+def _candidats_config_legacy(nom_societe: str, annee: int, mois: int) -> List[Path]:
+    cle = _cle_societe(nom_societe)
+    dossier = CONFIG_ROOT / DOSSIERS_CONFIG_LEGACY.get(cle, nom_societe)
+    if not dossier.is_dir():
+        return []
+    attendu = f"{mois:02d}-{annee:04d}"
+    trouves: List[Path] = []
+    for compteur in sorted(dossier.glob("Compteur CP*")):
+        # Correspondance STRICTE mois-année : un simple « 07 » dans le nom
+        # peut désigner juillet d'une autre année, ou un numéro de dossier.
+        trouves.extend(p for p in sorted(compteur.glob("*.pdf")) if attendu in p.name)
+    return trouves
+
+
+def find_reference_pdf(nom_societe: str, annee: int, mois: int) -> Path:
+    """Bulletin de référence du mois demandé. Lève si ce mois est absent."""
+    for candidats in (
+        _candidats_data(nom_societe, annee, mois),
+        _candidats_config_legacy(nom_societe, annee, mois),
+    ):
+        if candidats:
+            return candidats[0]
+
+    periode = f"{annee:04d}-{mois:02d}"
+    emplacements = [
+        str(RACINE_DATA / dossier_societe(nom_societe) / "bulletins" / periode),
+        str(CONFIG_ROOT / DOSSIERS_CONFIG_LEGACY.get(_cle_societe(nom_societe), nom_societe)),
+    ]
+    raise FileNotFoundError(
+        f"Aucun bulletin de référence pour '{nom_societe}' sur {periode}. "
+        "Le mois demandé est le mois rendu : rien n'est substitué. "
+        f"Emplacements consultés : {' ; '.join(emplacements)}"
+    )
+
+
+def extract_pdf_text(chemin_pdf: Path) -> str:
+    """Texte du PDF. `-layout` est indispensable : les bulletins Cegid
+    tiennent sur deux pages et perdent leur alignement sans lui."""
+    resultat = subprocess.run(
+        ["pdftotext", "-layout", str(chemin_pdf), "-"],
         capture_output=True,
         text=True,
         check=True,
     )
-    return result.stdout
+    return resultat.stdout
 
 
 def load_reference_bulletins(
-    company_name: str,
-    year: int,
-    month: int,
+    nom_societe: str,
+    annee: int,
+    mois: int,
     *,
     pdf_path: Path | None = None,
 ) -> Dict[str, ReferenceBulletin]:
-    pdf = pdf_path or find_reference_pdf(company_name, year, month)
-    text = extract_pdf_text(pdf)
-    return parse_cegid_text(text)
+    pdf = pdf_path or find_reference_pdf(nom_societe, annee, mois)
+    return parse_cegid_text(extract_pdf_text(pdf))
+
+
+# --- Compatibilité : anciens noms utilisés par les scripts de backtest ---
+
+
+def resolve_company_folder(nom_societe: str) -> Path:
+    """Dossier de la société, en Path — `export_reference_md` y appelle
+    `.glob()`. Priorité à data/, repli sur l'ancien Config/."""
+    dossier = RACINE_DATA / dossier_societe(nom_societe) / "bulletins"
+    if dossier.is_dir():
+        return dossier
+    cle = _cle_societe(nom_societe)
+    legacy = CONFIG_ROOT / DOSSIERS_CONFIG_LEGACY.get(cle, nom_societe)
+    if legacy.is_dir():
+        return legacy
+    raise FileNotFoundError(
+        f"Aucun dossier de bulletins pour '{nom_societe}' "
+        f"(cherché : {dossier} ; {legacy})"
+    )
+
+
+COMPANY_FOLDER_ALIASES = DOSSIERS_CONFIG_LEGACY
