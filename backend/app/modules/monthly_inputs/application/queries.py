@@ -14,17 +14,21 @@ from app.modules.monthly_inputs.infrastructure.repository import (
 )
 
 
-def list_monthly_inputs_by_period(year: int, month: int) -> ListMonthlyInputsResultDto:
-    """Liste toutes les saisies du mois (tous salariés). Ordre created_at desc."""
-    items = monthly_inputs_repository.list_by_period(year, month)
+def list_monthly_inputs_by_period(
+    year: int, month: int, company_id: str
+) -> ListMonthlyInputsResultDto:
+    """Saisies du mois pour LA SOCIÉTÉ de l'appelant. Ordre created_at desc."""
+    items = monthly_inputs_repository.list_by_period(year, month, company_id)
     return ListMonthlyInputsResultDto(items=items)
 
 
 def list_monthly_inputs_by_employee_period(
-    employee_id: str, year: int, month: int
+    employee_id: str, year: int, month: int, company_id: str
 ) -> ListMonthlyInputsResultDto:
-    """Liste les saisies d'un employé pour un mois donné."""
-    items = monthly_inputs_repository.list_by_employee_period(employee_id, year, month)
+    """Saisies d'un salarié pour un mois, dans la société de l'appelant."""
+    items = monthly_inputs_repository.list_by_employee_period(
+        employee_id, year, month, company_id
+    )
     return ListMonthlyInputsResultDto(items=items)
 
 

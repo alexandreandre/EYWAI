@@ -29,10 +29,10 @@ class TestListMonthlyInputsByPeriod:
             "app.modules.monthly_inputs.application.queries.monthly_inputs_repository"
         ) as repo:
             repo.list_by_period.return_value = repo_items
-            result = queries.list_monthly_inputs_by_period(2025, 3)
+            result = queries.list_monthly_inputs_by_period(2025, 3, "11111111-1111-1111-1111-111111111111")
 
         assert result.items == repo_items
-        repo.list_by_period.assert_called_once_with(2025, 3)
+        repo.list_by_period.assert_called_once_with(2025, 3, "11111111-1111-1111-1111-111111111111")
 
     def test_empty_list_when_no_inputs(self):
         """Aucune saisie pour la période → items vide."""
@@ -40,10 +40,10 @@ class TestListMonthlyInputsByPeriod:
             "app.modules.monthly_inputs.application.queries.monthly_inputs_repository"
         ) as repo:
             repo.list_by_period.return_value = []
-            result = queries.list_monthly_inputs_by_period(2024, 12)
+            result = queries.list_monthly_inputs_by_period(2024, 12, "11111111-1111-1111-1111-111111111111")
 
         assert result.items == []
-        repo.list_by_period.assert_called_once_with(2024, 12)
+        repo.list_by_period.assert_called_once_with(2024, 12, "11111111-1111-1111-1111-111111111111")
 
 
 class TestListMonthlyInputsByEmployeePeriod:
@@ -65,10 +65,10 @@ class TestListMonthlyInputsByEmployeePeriod:
             "app.modules.monthly_inputs.application.queries.monthly_inputs_repository"
         ) as repo:
             repo.list_by_employee_period.return_value = repo_items
-            result = queries.list_monthly_inputs_by_employee_period("emp-abc", 2025, 6)
+            result = queries.list_monthly_inputs_by_employee_period("emp-abc", 2025, 6, "11111111-1111-1111-1111-111111111111")
 
         assert result.items == repo_items
-        repo.list_by_employee_period.assert_called_once_with("emp-abc", 2025, 6)
+        repo.list_by_employee_period.assert_called_once_with("emp-abc", 2025, 6, "11111111-1111-1111-1111-111111111111")
 
     def test_empty_list_when_no_inputs_for_employee(self):
         """Aucune saisie pour l'employé sur la période → items vide."""
@@ -76,9 +76,7 @@ class TestListMonthlyInputsByEmployeePeriod:
             "app.modules.monthly_inputs.application.queries.monthly_inputs_repository"
         ) as repo:
             repo.list_by_employee_period.return_value = []
-            result = queries.list_monthly_inputs_by_employee_period(
-                "emp-unknown", 2025, 1
-            )
+            result = queries.list_monthly_inputs_by_employee_period("emp-unknown", 2025, 1, "11111111-1111-1111-1111-111111111111")
 
         assert result.items == []
 

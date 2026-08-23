@@ -15,6 +15,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
+from app.modules.employees.api.deps import assert_can_read_employee_profile
 from app.modules.absences.application import router_support as absence_router
 from app.modules.audit.application.commands import log_audit_event
 from app.modules.webhooks.application.service import trigger_webhook_event
@@ -577,8 +578,20 @@ async def manager_approve_absence(
 
 
 @router.get("/employees/{employee_id}", response_model=List[AbsenceRequest])
-async def get_absences_for_employee(employee_id: str):
-    """Récupère toutes les demandes d'absence pour un employé avec URLs des justificatifs."""
+async def get_absences_for_employee(
+    employee_id: str, current_user: User = Depends(get_current_user)
+):
+    """Demandes d'absence d'un salarié (arrêts maladie, justificatifs signés).
+
+    RH de la société, ou le salarié lui-même — le contrôle précède la
+    génération des URLs signées des justificatifs.
+    """
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(
+            status_code=403, detail="Impossible de déterminer l'entreprise."
+        )
+    assert_can_read_employee_profile(current_user, employee_id, str(company_id))
     try:
         return queries.get_absences_for_employee(employee_id)
     except Exception as e:

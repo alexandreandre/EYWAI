@@ -55,7 +55,7 @@ class TestCreateMonthlyInputsBatch:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_batch.return_value = inserted_rows
-            result = commands.create_monthly_inputs_batch(payload)
+            result = commands.create_monthly_inputs_batch(payload, "11111111-1111-1111-1111-111111111111")
 
         assert result.inserted_count == 2
         repo.insert_batch.assert_called_once()
@@ -71,7 +71,7 @@ class TestCreateMonthlyInputsBatch:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_batch.return_value = []
-            result = commands.create_monthly_inputs_batch([])
+            result = commands.create_monthly_inputs_batch([], "11111111-1111-1111-1111-111111111111")
 
         assert result.inserted_count == 0
         repo.insert_batch.assert_called_once_with([])
@@ -92,7 +92,7 @@ class TestCreateMonthlyInputsBatch:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_batch.return_value = [{"id": "new-1", "name": "Prime unique"}]
-            result = commands.create_monthly_inputs_batch(payload)
+            result = commands.create_monthly_inputs_batch(payload, "11111111-1111-1111-1111-111111111111")
 
         assert result.inserted_count == 1
         call_arg = repo.insert_batch.call_args[0][0]
@@ -129,7 +129,7 @@ class TestCreateEmployeeMonthlyInput:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_one.return_value = inserted
-            result = commands.create_employee_monthly_input(employee_id, prime_data)
+            result = commands.create_employee_monthly_input(employee_id, prime_data, "11111111-1111-1111-1111-111111111111")
 
         assert result.inserted_data == inserted
         repo.insert_one.assert_called_once()
@@ -153,7 +153,7 @@ class TestCreateEmployeeMonthlyInput:
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
             repo.insert_one.return_value = {}
-            commands.create_employee_monthly_input("emp-1", prime_data)
+            commands.create_employee_monthly_input("emp-1", prime_data, "11111111-1111-1111-1111-111111111111")
 
         call_row = repo.insert_one.call_args[0][0]
         assert call_row["description"] == "Acompte mai"
@@ -167,9 +167,9 @@ class TestDeleteMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
-            commands.delete_monthly_input("input-id-123")
+            commands.delete_monthly_input("input-id-123", "11111111-1111-1111-1111-111111111111")
 
-        repo.delete_by_id.assert_called_once_with("input-id-123")
+        repo.delete_by_id.assert_called_once_with("input-id-123", "11111111-1111-1111-1111-111111111111")
 
 
 class TestDeleteEmployeeMonthlyInput:
@@ -180,11 +180,9 @@ class TestDeleteEmployeeMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
-            commands.delete_employee_monthly_input("emp-456", "input-id-789")
+            commands.delete_employee_monthly_input("emp-456", "input-id-789", "11111111-1111-1111-1111-111111111111")
 
-        repo.delete_by_id_and_employee.assert_called_once_with(
-            "input-id-789", "emp-456"
-        )
+        repo.delete_by_id_and_employee.assert_called_once_with("input-id-789", "emp-456", "11111111-1111-1111-1111-111111111111")
 
 
 class TestUpdateMonthlyInput:
@@ -197,10 +195,10 @@ class TestUpdateMonthlyInput:
 
         with patch.object(commands, "monthly_inputs_repository") as repo:
             repo.update_by_id.return_value = {"id": "abc", "amount": 200.0}
-            result = commands.update_monthly_input("abc", MonthlyInputUpdate(amount=200.0))
+            result = commands.update_monthly_input("abc", MonthlyInputUpdate(amount=200.0), "11111111-1111-1111-1111-111111111111")
 
         repo.update_by_id.assert_called_once()
-        input_id, changes = repo.update_by_id.call_args[0]
+        input_id, changes, company_id = repo.update_by_id.call_args[0]
         assert input_id == "abc"
         assert changes["amount"] == 200.0
         assert changes["manual_override"] is True
@@ -212,9 +210,9 @@ class TestUpdateMonthlyInput:
 
         with patch.object(commands, "monthly_inputs_repository") as repo:
             repo.update_by_id.return_value = {"id": "abc"}
-            commands.update_monthly_input("abc", MonthlyInputUpdate(amount=50.0))
+            commands.update_monthly_input("abc", MonthlyInputUpdate(amount=50.0), "11111111-1111-1111-1111-111111111111")
 
-        _, changes = repo.update_by_id.call_args[0]
+        _, changes, _company = repo.update_by_id.call_args[0]
         assert set(changes) == {"amount", "manual_override"}
 
     def test_empty_payload_is_rejected(self):
@@ -222,7 +220,7 @@ class TestUpdateMonthlyInput:
 
         with patch.object(commands, "monthly_inputs_repository"):
             try:
-                commands.update_monthly_input("abc", MonthlyInputUpdate())
+                commands.update_monthly_input("abc", MonthlyInputUpdate(), "11111111-1111-1111-1111-111111111111")
             except ValueError as e:
                 assert "Aucun champ" in str(e)
             else:
@@ -234,7 +232,7 @@ class TestUpdateMonthlyInput:
         with patch.object(commands, "monthly_inputs_repository") as repo:
             repo.update_by_id.return_value = None
             try:
-                commands.update_monthly_input("zzz", MonthlyInputUpdate(amount=1.0))
+                commands.update_monthly_input("zzz", MonthlyInputUpdate(amount=1.0), "11111111-1111-1111-1111-111111111111")
             except ValueError as e:
                 assert "introuvable" in str(e)
             else:

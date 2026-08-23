@@ -285,6 +285,7 @@ async def delete_salary_seizure(
 async def calculate_seizable(
     net_salary: Decimal = Body(...),
     dependents_count: int = Body(0),
+    current_user: User = Depends(get_current_user),
 ):
     """Calcule la quotité saisissable pour un salaire donné."""
     try:

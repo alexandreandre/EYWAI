@@ -1,0 +1,105 @@
+"""
+Garde structurelle : aucune route de DONNÉES ne doit être publique.
+
+Audit du 22/08/2026 : 10 routes montées sans aucune dépendance d'auth
+exposaient en anonyme, sur la PROD, les saisies de paie de toutes les
+sociétés (lecture ET écriture) et les historiques d'absences (arrêts
+maladie, URLs signées des justificatifs). Le client Supabase du backend
+tourne en service_role : une route sans garde contourne la RLS et tout
+cloisonnement société.
+
+Ce test inspecte l'application RÉELLE (app.main.app) et échoue dès qu'une
+route /api sort de la liste blanche sans dépendance d'authentification —
+y compris une route ajoutée demain.
+"""
+
+from __future__ import annotations
+
+from typing import Set
+
+from app.main import app
+
+# Noms de dépendances qui valent authentification.
+DEPENDANCES_AUTH = (
+    "get_current_user",
+    "require_",
+    "verify_super_admin",
+    "get_badgeuse_terminal_context",  # jeton terminal + rate limit dédiés
+)
+
+# Routes publiques par CONCEPTION, chacune justifiée.
+ROUTES_PUBLIQUES_ASSUMEES = {
+    # Authentification : ne peuvent pas exiger un jeton pour en délivrer un.
+    ("POST", "/api/auth/login"),
+    ("POST", "/api/auth/refresh"),
+    ("POST", "/api/auth/request-password-reset"),
+    ("POST", "/api/auth/reset-password"),
+    ("POST", "/api/auth/verify-reset-token"),
+    # Activation : le jeton d'invitation EST l'authentification (usage
+    # unique, 7 jours, empreinte seule en base).
+    ("POST", "/api/activation/verify"),
+    ("POST", "/api/activation/complete"),
+    # Environnement de test : 403 en dehors de APP_ENV=test.
+    ("GET", "/api/test-env/status"),
+    ("POST", "/api/test-env/refresh"),
+}
+
+
+def _dependances(route) -> Set[str]:
+    noms: Set[str] = set()
+    dependant = getattr(route, "dependant", None)
+    if dependant is None:
+        return noms
+    pile = list(dependant.dependencies)
+    while pile:
+        courant = pile.pop()
+        appel = getattr(courant, "call", None)
+        if appel is not None:
+            noms.add(getattr(appel, "__name__", str(appel)))
+        pile.extend(getattr(courant, "dependencies", []) or [])
+    return noms
+
+
+def test_aucune_route_de_donnees_sans_authentification():
+    non_gardees = set()
+    for route in app.routes:
+        chemin = getattr(route, "path", "")
+        if not chemin.startswith("/api"):
+            continue
+        noms = _dependances(route)
+        if any(any(garde in nom for garde in DEPENDANCES_AUTH) for nom in noms):
+            continue
+        for methode in getattr(route, "methods", set()) or set():
+            if methode == "OPTIONS":
+                continue
+            if (methode, chemin) not in ROUTES_PUBLIQUES_ASSUMEES:
+                non_gardees.add((methode, chemin))
+
+    assert not non_gardees, (
+        "Routes /api sans authentification (ajoutez une dépendance d'auth, ou "
+        "inscrivez-les dans ROUTES_PUBLIQUES_ASSUMEES avec leur justification) :\n"
+        + "\n".join(f"  {m} {c}" for m, c in sorted(non_gardees))
+    )
+
+
+def test_la_liste_blanche_ne_contient_pas_de_route_de_donnees():
+    """Filet anti-contournement : la liste blanche ne doit jamais accueillir
+    une route qui manipule des données métier."""
+    prefixes_metier = (
+        "/api/monthly-inputs",
+        "/api/employees",
+        "/api/payslips",
+        "/api/absences",
+        "/api/salaries",
+        "/api/documents",
+        "/api/schedules",
+        "/api/primes-catalogue",
+        "/api/saisies-avances",
+        "/api/dsn",
+    )
+    fautives = [
+        (m, c)
+        for (m, c) in ROUTES_PUBLIQUES_ASSUMEES
+        if c.startswith(prefixes_metier)
+    ]
+    assert not fautives, f"Routes métier dans la liste blanche : {fautives}"
