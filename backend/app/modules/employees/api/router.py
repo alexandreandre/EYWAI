@@ -604,8 +604,17 @@ def get_employee_credentials_pdf_url(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """(Espace RH) URL signée du PDF de création de compte."""
+    """(Espace RH) URL signée du PDF de création de compte.
+
+    ATTENTION : la chaîne appelée PROVISIONNE le compte si le salarié n'en a
+    pas — donc réinitialise son mot de passe. Contrôle RH + périmètre société
+    obligatoire (faille fermée le 23/08/2026, audit sécurité).
+    """
     try:
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        access_control_service.require_employee_access(
+            current_user, company_id, "employees.update", employee_id
+        )
         url, preview_url = queries.get_credentials_pdf_urls(employee_id)
         return ContractResponse(url=url, preview_url=preview_url)
     except HTTPException:
@@ -622,6 +631,10 @@ def stream_employee_credentials_pdf(
 ):
     """(Espace RH) Aperçu inline du PDF identifiants (proxy storage authentifié)."""
     try:
+        company_id = require_rh_access(current_user.active_company_id, current_user)
+        access_control_service.require_employee_access(
+            current_user, company_id, "employees.update", employee_id
+        )
         pdf_bytes, filename = queries.get_credentials_pdf_content(employee_id)
         return StreamingResponse(
             BytesIO(pdf_bytes),

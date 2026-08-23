@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException, status
 
 from app.modules.access_control.domain import rules
+from app.modules.access_control.infrastructure import providers
 from app.modules.access_control.domain.interfaces import IPermissionRepository
 from app.modules.access_control.infrastructure.repository import (
     SupabasePermissionRepository,
@@ -158,6 +159,23 @@ class AccessControlService:
             user_id, company_id, permission_code, employee_ids
         )
 
+    def assert_employee_in_company(self, company_id: str, employee_id: str) -> None:
+        """Refuse (404) un salarié qui n'appartient pas à cette société.
+
+        `company_id` est toujours la société ACTIVE de l'appelant, jamais
+        celle du salarié visé : sans ce contrôle, une RH de la société A
+        atteignait les bulletins, pointages, contrats et notes de frais d'un
+        salarié de la société B (IDOR fermé le 23/08/2026, audit sécurité).
+        Société illisible ou salarié inconnu = refus (fail-closed).
+        404 et non 403 : on ne révèle pas l'existence du salarié.
+        """
+        societe_du_salarie = providers.get_employee_company_id(employee_id)
+        if societe_du_salarie is None or societe_du_salarie != str(company_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ressource introuvable",
+            )
+
     def require_employee_access(
         self,
         current_user: "User",
@@ -176,6 +194,8 @@ class AccessControlService:
         """
         if current_user.is_platform_admin:
             return
+
+        self.assert_employee_in_company(company_id, employee_id)
 
         has_perm = self.check_user_has_permission(
             str(current_user.id), company_id, permission_code
