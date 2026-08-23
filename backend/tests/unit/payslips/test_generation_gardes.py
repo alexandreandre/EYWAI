@@ -1046,7 +1046,11 @@ def test_delete_d_un_valide_rend_409_pas_500():
     app.dependency_overrides[get_current_user] = lambda: fake_user
     try:
         with (
-            p_.object(payslips_router, "_require_rh_company_context"),
+            # Audit 23/08 : la suppression résout le périmètre depuis le
+            # bulletin. On neutralise ce contrôle — le sujet ici est le
+            # mapping de l'erreur applicative en 409, pas le périmètre
+            # (couvert par tests/unit/security).
+            p_.object(payslips_router, "_require_payslip_scope"),
             p_(
                 "app.modules.payslips.application.commands._fetch_payslip_status",
                 return_value={"id": "p-1", "status": "valide"},

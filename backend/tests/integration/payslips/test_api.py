@@ -271,10 +271,24 @@ class TestPayslipsDeleteRoute:
         assert response.status_code == 401
 
     def test_delete_returns_204_with_rh_user(self, client: TestClient):
-        """Suppression mockée → 204."""
+        """Suppression mockée → 204.
+
+        Le périmètre est désormais résolu depuis le BULLETIN (audit 23/08) :
+        les tests déclarent donc à quelle société il appartient.
+        """
         from app.core.security import get_current_user
 
-        with patch("app.modules.payslips.api.router.delete_payslip") as mock_del:
+        with (
+            patch("app.modules.payslips.api.router.delete_payslip") as mock_del,
+            patch(
+                "app.modules.payslips.api.router.get_payslip_meta_for_access"
+            ) as mock_meta,
+        ):
+            mock_meta.return_value = {
+                "company_id": TEST_COMPANY_ID,
+                "employee_id": "emp-1",
+                "status": "brouillon",
+            }
             app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
             try:
                 response = client.delete("/api/payslips/ps-123")
@@ -287,12 +301,43 @@ class TestPayslipsDeleteRoute:
         """Utilisateur sans accès RH → 403."""
         from app.core.security import get_current_user
 
-        app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
-        try:
-            response = client.delete("/api/payslips/ps-123")
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
+        with patch(
+            "app.modules.payslips.api.router.get_payslip_meta_for_access"
+        ) as mock_meta:
+            mock_meta.return_value = {
+                "company_id": TEST_COMPANY_ID,
+                "employee_id": "emp-1",
+                "status": "brouillon",
+            }
+            app.dependency_overrides[get_current_user] = lambda: _make_non_rh_user()
+            try:
+                response = client.delete("/api/payslips/ps-123")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
+
+    def test_delete_refuse_un_bulletin_d_une_autre_societe(self, client: TestClient):
+        """Périmètre : bulletin hors société active → 404, aucune suppression."""
+        from app.core.security import get_current_user
+
+        with (
+            patch("app.modules.payslips.api.router.delete_payslip") as mock_del,
+            patch(
+                "app.modules.payslips.api.router.get_payslip_meta_for_access"
+            ) as mock_meta,
+        ):
+            mock_meta.return_value = {
+                "company_id": "une-autre-societe",
+                "employee_id": "emp-1",
+                "status": "brouillon",
+            }
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.delete("/api/payslips/ps-123")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 404
+        mock_del.assert_not_called()
 
 
 # --- Routes protégées (détail, edit, history, restore) ---

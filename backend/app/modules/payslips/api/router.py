@@ -253,9 +253,15 @@ def delete_payslip_route(
     payslip_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Supprime un bulletin (BDD, storage, recalc COR)."""
+    """Supprime un bulletin (BDD, storage, recalc COR).
+
+    Périmètre résolu depuis le BULLETIN, comme /validate et /preview : la
+    garde précédente vérifiait seulement que l'appelant était RH quelque
+    part, sans jamais regarder à quelle société appartenait le bulletin
+    (audit sécurité 23/08/2026).
+    """
     try:
-        _require_rh_company_context(current_user)
+        _require_payslip_scope(current_user, payslip_id, "payslips.delete")
         delete_payslip(payslip_id)
     except HTTPException:
         raise

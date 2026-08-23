@@ -208,6 +208,15 @@ class TestPayslipsWiringDelete:
                 "app.modules.payslips.application.commands._fetch_payslip_status",
                 return_value={"id": "ps-123", "status": "brouillon"},
             ),
+            # Audit 23/08 : le périmètre est résolu depuis le bulletin.
+            patch(
+                "app.modules.payslips.api.router.get_payslip_meta_for_access",
+                return_value={
+                    "company_id": TEST_COMPANY_ID,
+                    "employee_id": "emp-1",
+                    "status": "brouillon",
+                },
+            ),
         ):
             app.dependency_overrides[get_current_user] = lambda: _rh_user()
             try:
