@@ -232,9 +232,31 @@ def get_my_current_cumuls(current_user: User = Depends(get_current_user)):
 
 # ----- Router 3 : /api/schedules (RH) -----
 
+def _exiger_profil_rh(current_user: User = Depends(get_current_user)) -> User:
+    """Droit RH dans la société active — garde de TOUT le routeur RH.
+
+    Ce routeur portait « RH » dans son nom et ses tags, mais ses routes ne
+    vérifiaient que l'authentification : n'importe quel salarié listait les
+    heures supplémentaires nominatives de ses collègues, approuvait les
+    SIENNES (donc se les faisait payer) et pouvait désactiver l'exigence de
+    validation manager pour toute la société (audit du 23/08/2026).
+    """
+    if current_user.is_platform_admin:
+        return current_user
+    company_id = current_user.active_company_id
+    if not company_id:
+        raise HTTPException(
+            status_code=403, detail="Impossible de déterminer l'entreprise."
+        )
+    if not current_user.has_rh_access_in_company(str(company_id)):
+        raise HTTPException(status_code=403, detail="Accès réservé au profil RH.")
+    return current_user
+
+
 router_rh = APIRouter(
     prefix="/api/schedules",
     tags=["RH - Schedule Management"],
+    dependencies=[Depends(_exiger_profil_rh)],
 )
 
 
