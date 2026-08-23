@@ -764,109 +764,215 @@ Seuls les bulletins LEWIS sont concernés : 35 sur les deux derniers mois.
 
 # Questions pour Elsa
 
-**21 questions.** Les 10 premières t'ont déjà été envoyées sur WhatsApp le
-7 août. Ce sont les mêmes phrases, pour que tu t'y retrouves. Les 11 suivantes
-sont nouvelles.
+**16 questions.** La liste précédente en comptait 21. Sept sont tombées : les
+fichiers que tu as déposés le 8 août y répondaient déjà, ou j'ai retrouvé la
+réponse sur le Drive. Elles sont listées tout en bas, ne perds pas de temps
+dessus.
 
-Tu peux répondre simplement par numéro.
+Chaque question tient toute seule : la société, le document attendu, et à quoi
+il sert. Réponds par numéro, dans l'ordre que tu veux.
 
-> **Les trois plus bloquantes : 1, 5 et 11.** La 1 empêche 148 salariés
-> d'utiliser EYWAI. La 5 bloque tout le CSE. La 11 fausse les compteurs de
-> congés de six sociétés.
+> **Si tu n'as le temps que pour trois : 1, 3 et 7.** Sans la 1, les salariés de
+> six sociétés ne peuvent pas se connecter du tout. Sans la 3, le CSE de Cartol
+> et LEWIS reste vide. Sans la 7, les compteurs de congés de six sociétés sont
+> faux.
 
-## Déjà demandé le 7 août, en attente
+## Déjà demandé, toujours en attente
 
-### Adresses e-mail *(WhatsApp 16 h 58)*, point #4
+### 1. Les adresses e-mail des salariés, pour six sociétés
 
-**1.** « Tu peux m'envoyer un fichier par société avec nom + mail ? Perso ou
-pro peu importe, mais vraie : case vide si tu ne l'as pas. »
+Chaque salarié a besoin d'une adresse e-mail pour recevoir son accès et son
+bulletin. Sans elle, il n'entre pas dans EYWAI.
 
-### Compteur JTC *(WhatsApp 17 h 07)*, point #8
+Pour Colorplast, c'est réglé : ton export Quadratus « Coordonnées salariés +
+RIB », déposé sur le Drive le 9 juin, contient une colonne e-mail.
 
-**2.** « Les soldes JTC 2026 des 75 salariés MBC. Je n'ai pas 2025 dans EYWAI,
-je ne peux pas les recalculer. À partir de 2027 EYWAI le fera seul. »
+**Ce que je te demande :** le même export, pour Cartol, Comitech, LEWIS, MAJI,
+MBC et Zone 404. Adresse perso ou pro, peu importe, du moment qu'elle est vraie.
+Si tu n'en as pas pour quelqu'un, laisse la case vide plutôt que d'en inventer
+une.
 
-*Tu as répondu « je demande 2025 ».*
+### 2. Les 16 salariés MBC absents du tableau JTC
 
-**3.** « L'onglet "détail absences" du fichier Excel que tu cites dans la note,
-je ne l'ai pas reçu. »
+Tu m'as envoyé le 8 août le classeur d'acquisition des JTC de Mont Blanc
+Composite. Il règle tout : j'ai les soldes au 1er janvier 2026, le détail des
+absences 2025 et la règle de calcul. Je n'ai plus besoin de l'historique 2025 ni
+de rien d'autre.
 
-**4.** « Prorata absences : quelqu'un absent 31 jours, il a 3 JTC ou 2 ?
-Autrement dit, les 30 jours c'est un seuil de déclenchement (on proratise
-ensuite sur toute l'absence) ou une franchise (on ne compte que ce qui
-dépasse) ? »
+Un seul point me bloque : **ton tableau liste 59 salariés, alors que MBC en
+compte 75 en poste.**
 
-### Élus CSE *(WhatsApp 17 h 31)*, point #11
+**Ce que je te demande :** est-ce que les 16 manquants n'ont pas droit aux JTC
+(arrivés en cours d'année, statut différent), ou est-ce qu'ils ont simplement
+été oubliés dans le tableau ? Tant que je ne sais pas, je ne charge rien : si je
+charge en l'état, ces 16 personnes se retrouvent à zéro JTC dans EYWAI.
 
-**5.** « Les dates d'élection et de fin de mandat par société (Cartol, LEWIS,
-MBC). La colonne "Date d'entrée" du fichier est la date d'embauche. Le PV des
-élections suffit. »
+### 3. Le PV des élections du CSE de Cartol et LEWIS
 
-*Avec ça seul, je peux déjà charger les 8 élus.*
+Pour afficher les élus du CSE, il me faut la date de l'élection, la liste des
+titulaires **et des suppléants**, et le collège de chacun. Le fichier
+`Membres_CSE.xlsx` que j'ai ne donne que les titulaires, et sa colonne « Date
+d'entrée » est la date d'embauche, pas la date d'élection.
 
-**6.** « Les suppléants (le fichier ne liste que des titulaires). »
+Pour MBC, c'est réglé : j'ai retrouvé sur le Drive l'affichage des résultats du
+1er tour du 20 novembre 2023, avec les 4 titulaires, les 4 suppléants et les
+deux collèges.
 
-**7.** « Le collège pour Cartol et LEWIS (renseigné pour MBC seulement). »
+**Ce que je te demande :** le PV des élections de **Cartol** et de **LEWIS**, ou
+à défaut l'affichage des résultats. Un seul document par société me suffit, tout
+y est.
 
-**8.** « Qui est secrétaire (et trésorier) dans chaque société. »
+### 4. Deux précisions sur le CSE de MBC
 
-**9.** « Pour Colorplast, MAJI et Zone 404 : CSE ou PV de carence ? Celui de
-Comitech est expiré depuis septembre 2023. »
+**a.** La date de fin de mandat n'apparaît nulle part. Je pars sur quatre ans
+après l'élection, soit le **19 novembre 2027**. Dis-moi si c'est faux.
 
-### Accès net-entreprises, point #31
+**b.** Sur le Drive, deux personnes différentes sont notées « secrétaire ». L'une
+est peut-être secrétaire adjointe, ou bien il y a eu un changement en cours de
+mandat. **Qui est secrétaire aujourd'hui ?** Et si tu l'as, qui est trésorier.
 
-**10.** Les codes net-entreprises.
+### 5. CSE ou PV de carence chez Colorplast, MAJI et Zone 404
 
-*Tu as répondu « j'ai demandé à Marie la compta, j'attends son retour ».*
+Une société sans CSE doit avoir un procès-verbal de carence, sinon elle est en
+infraction. Je dois savoir dans quelle situation sont ces trois-là.
 
-> *La question sur le **type de taux 13**, posée à 17 h 10, n'est plus utile :
-> on a trouvé la réponse nous-mêmes. C'est le barème par défaut. Tu peux
-> l'oublier.*
+Pour Comitech, j'ai retrouvé le PV de carence, daté du 16 novembre 2022 : il est
+donc périmé depuis, il faut relancer des élections.
+
+**Ce que je te demande :** pour **Colorplast**, **MAJI** et **Zone 404**, est-ce
+qu'il y a un CSE en place, ou un PV de carence ? Je n'ai aucun document pour ces
+trois sociétés.
+
+### 6. Les accès net-entreprises de quatre sociétés
+
+Il s'agit des identifiants pour déposer les DSN. Tu m'as envoyé ceux de **MBC,
+Comitech et Colorplast** en photo le 7 août au soir, ils sont bien arrivés.
+
+**Ce que je te demande :** les mêmes pour **Cartol, LEWIS, MAJI et Zone 404**.
+Tu m'avais dit avoir relayé la demande à Marie, à la compta.
 
 ## Pas encore demandé
 
-### Provision congés payés, point #23
+### 7. L'état de provision congés payés des six autres sociétés
 
-**11.** Le même état de provision CP que celui de Cartol, pour les six autres
-sociétés. Ce n'est pas que pour la provision : c'est ce qui corrigera leurs
-compteurs de congés.
+Tu m'as envoyé celui de Cartol, un PDF intitulé « PROVISION CP ». C'est le
+document qui donne, salarié par salarié, le solde de congés acquis et son
+montant.
 
-**12.** Ton fichier Cartol contient 71 salariés, alors que 86 ont été payés en
-juin. Les absents sont tous des embauches récentes. C'est voulu ou c'est un
-oubli ?
+Il ne sert pas qu'à la comptabilité : **c'est lui qui remet d'aplomb les
+compteurs de congés dans EYWAI.** Sans lui, les six autres sociétés affichent
+des soldes faux à leurs salariés.
 
-### Entretiens annuels, point #25
+**Ce que je te demande :** le même PDF pour Colorplast, Comitech, LEWIS, MAJI,
+MBC et Zone 404.
 
-**13.** Mont Blanc Composite ne colle pas : ton onglet compte 58 personnes, on
-en a 75 en poste. 13 de tes noms nous sont inconnus, 30 des nôtres n'y figurent
-pas. Lesquels sont concernés ?
+### 8. Pourquoi l'état Cartol ne liste que 71 salariés
 
-**14.** As-tu des dates d'entretien professionnel ou de bilan à six ans ? Ce
-sont les deux seuls entretiens obligatoires. Si elles n'existent nulle part,
-tout le monde repart de zéro.
+Ce même document pour Cartol contient 71 salariés, alors que 86 ont été payés en
+juin. Les 15 absents sont tous des embauches récentes.
 
-**15.** Mont Blanc Composite est bien sur un cycle de deux ans, alors que les
-six autres sont annuelles ?
+**Ce que je te demande :** c'est normal (ils n'ont pas encore de provision), ou
+c'est un oubli d'extraction ?
 
-### Pointages, point #27
+### 9. Le suivi des entretiens professionnels, pour cinq sociétés
 
-**16.** Quelle règle de pause pour les cinq sociétés qu'on n'a pas encore
-réglées ? Seules Colorplast et Mont Blanc Composite le sont. Ailleurs, une
-journée badgée serait comptée sans aucune pause.
+Tu m'as envoyé deux fichiers « Suivi bilan à 6 ans EP », un pour **Colorplast**
+et un pour **Comitech**. Ils donnent, par salarié, les échéances d'entretien
+professionnel et la date du bilan à six ans. C'est exactement ce qu'il me faut.
 
-### À demander au cabinet, points #20 et #26
+**Ce que je te demande :** les mêmes pour Cartol, LEWIS, MAJI, MBC et Zone 404.
+Sans eux, EYWAI repart de la date d'embauche pour tout le monde dans ces
+sociétés, et les échéances déjà passées disparaissent.
 
-**17.** La nomenclature officielle des codes de cotisation. Sans elle, notre
-DSN reste non déposable.
+### 10. Le périmètre des entretiens chez MBC
 
-**18.** Les comptes comptables des paniers, de la cantine et des IJSS.
+Dans le fichier de planification des entretiens, l'onglet Mont Blanc Composite
+liste 58 personnes, alors qu'on en compte 75 en poste. 13 de tes noms ne
+correspondent à personne chez nous, et 30 des nôtres n'y figurent pas.
 
-**19.** Les identifiants Cegid, pour envoyer les écritures automatiquement au
-lieu de déposer un fichier.
+**Ce que je te demande :** est-ce que cet onglet date d'avant les mouvements de
+juillet ? Si oui, je repars de notre effectif à jour et j'ignore ta liste,
+dis-moi juste que je peux.
 
-### Divers
+### 11. La règle de pause chez MAJI et Zone 404
 
-**20.** Les DSN de juillet, à déposer sur le Drive. *(point #31)*
+Quand un salarié badge sa journée, EYWAI doit savoir combien de temps de pause
+retirer. Sans règle, la journée est comptée sans aucune pause, et les heures
+sont fausses.
 
-**21.** Quand cale-t-on le point paye avec Gaëlle ? *(point #18)*
+Cinq sociétés sont réglées grâce à ce que tu m'as expliqué début juillet :
+Colorplast, MBC (10 minutes le matin et 10 l'après-midi, payées, comprises dans
+les 7 h 30), Cartol (les pauses sont pointées), Comitech et LEWIS (les salariés
+dépointent à leur pause).
+
+**Ce que je te demande :** comment ça se passe chez **MAJI** et **Zone 404** ?
+
+### 12. Les cotisations qui n'apparaissent pas tous les mois
+
+Oublie ma demande de « nomenclature DSN », je me suis débrouillé : la liste des
+codes est publique, et vos DSN de septembre 2025 à juin 2026 m'ont donné ceux
+que vous utilisez réellement, société par société.
+
+Il me reste un angle mort : **les cotisations qui ne tombent pas tous les mois**
+n'apparaissent nulle part dans ces dix mois.
+
+**Ce que je te demande :** est-ce qu'il y a, dans une de nos sept sociétés, une
+cotisation annuelle ou occasionnelle — contribution supplémentaire à
+l'apprentissage, taxe sur les CDD d'usage, caisse de congés payés, régularisation
+de fin d'année — que je n'aurais pas vue passer sur cette période ? Une phrase
+suffit, je vérifie le reste.
+
+### 13. Les comptes comptables des paniers, de la cantine et des IJSS *(cabinet)*
+
+Pour envoyer les écritures de paie à la comptabilité, il me faut le numéro de
+compte de chaque ligne. Ces trois-là me manquent.
+
+Le plus simple : **une OD de paie récente par société.** Les comptes s'y lisent
+directement. La seule que j'aie est celle de Colorplast d'octobre 2025.
+
+**Ce que je te demande :** une OD de paie pour les six autres sociétés.
+
+### 14. Les identifiants Cegid *(cabinet)*
+
+Avec eux, EYWAI envoie les écritures comptables automatiquement, au lieu de te
+faire déposer un fichier à la main chaque mois.
+
+Tu m'avais dit que Vanessa serait de retour mi-août : on y est.
+
+### 15. Les DSN de juillet
+
+Sur le Drive, le dossier `DSN` s'arrête à juin 2026. Les dossiers « JUILLET »
+créés le 3 août contiennent des bulletins, des calendriers et des pointages,
+mais aucune DSN.
+
+**Ce que je te demande :** dépose les DSN de juillet des sept sociétés au même
+endroit que celles de juin.
+
+### 16. Le point paye avec Gaëlle
+
+On en parle depuis un moment sans avoir fixé de date.
+
+**Ce que je te demande :** deux ou trois créneaux qui vous vont.
+
+## Réglé sans toi, ne réponds pas
+
+Ces sept questions étaient dans la liste précédente. Elles sont closes.
+
+- **Les soldes JTC 2026 de MBC** et **le détail des absences 2025** : les deux
+  étaient dans le classeur d'acquisition que tu as déposé le 8 août. Seul
+  l'écart 59 / 75 reste ouvert, c'est la question 2.
+- **Le prorata des absences JTC** : ta note et la formule de ton classeur disent
+  la même chose. Les 30 jours sont un seuil de déclenchement, et une fois
+  franchi, le prorata porte sur la totalité de l'absence. C'est déjà ce que fait
+  EYWAI.
+- **Le cycle de deux ans des entretiens chez MBC** : ton propre fichier l'écrit,
+  dans la colonne « Règle appliquée ».
+- **Le type de taux 13 du prélèvement à la source** : c'est le barème par
+  défaut, on a trouvé la réponse de notre côté.
+- **Le CSE de MBC** : date d'élection, titulaires, suppléants et collèges,
+  l'affichage des résultats était sur le Drive.
+- **Le PV de carence de Comitech** : retrouvé sur le Drive, daté du 16 novembre
+  2022.
+- **Les e-mails de Colorplast** : 5 adresses réelles sur 7 salariés, dans ton
+  export du 9 juin.
 

@@ -168,7 +168,7 @@ son espace — le vrai périmètre du « e-mail prématuré ») ; renotification
 4. **Régénérer un bulletin efface une retenue d'avance** (voir A9).
 5. « Copier le mois précédent » décale week-ends/fériés (voir A11).
 
-## E. Ce que les RH doivent savoir (réunion du 24) — inchangé
+## E. Ce que les RH doivent savoir (réunion du 26) — inchangé
 
 Pause selon réglage société (45 min par défaut moteur activé ; 1 h sur
 feuilles manuscrites importées sans réglage) ; écart ≤ 30 min → théorique
