@@ -59,7 +59,7 @@ def _require_rh(user: User, company_id: str) -> None:
 
 
 @router.get("/rules", response_model=list[PayrollVariableRuleSchema])
-async def list_rules(
+def list_rules(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -69,7 +69,7 @@ async def list_rules(
 
 
 @router.post("/rules", response_model=PayrollVariableRuleSchema)
-async def create_rule(
+def create_rule(
     body: PayrollVariableRuleSchema,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -82,7 +82,7 @@ async def create_rule(
 
 
 @router.put("/rules/{rule_id}", response_model=PayrollVariableRuleSchema)
-async def update_rule(
+def update_rule(
     rule_id: str,
     body: PayrollVariableRuleSchema,
     company_id: str | None = None,
@@ -96,7 +96,7 @@ async def update_rule(
 
 
 @router.delete("/rules/{rule_id}")
-async def delete_rule(
+def delete_rule(
     rule_id: str,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -108,7 +108,7 @@ async def delete_rule(
 
 
 @router.post("/rules/preset/astreinte-equipes", response_model=AstreintePresetResponse)
-async def preset_astreinte_equipes(
+def preset_astreinte_equipes(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -119,7 +119,7 @@ async def preset_astreinte_equipes(
 
 
 @router.post("/rules/preset/shift-teams-payroll", response_model=AstreintePresetResponse)
-async def preset_shift_teams_payroll(
+def preset_shift_teams_payroll(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -130,7 +130,7 @@ async def preset_shift_teams_payroll(
 
 
 @router.get("/special-days", response_model=list[SpecialPayrollDaySchema])
-async def list_special_days(
+def list_special_days(
     year: int | None = Query(None),
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -141,7 +141,7 @@ async def list_special_days(
 
 
 @router.post("/special-days", response_model=SpecialPayrollDaySchema)
-async def create_special_day(
+def create_special_day(
     body: SpecialPayrollDaySchema,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -154,7 +154,7 @@ async def create_special_day(
 
 
 @router.delete("/special-days/{day_id}")
-async def delete_special_day(
+def delete_special_day(
     day_id: str,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -166,7 +166,7 @@ async def delete_special_day(
 
 
 @router.post("/generate", response_model=PayrollVariableGenerateResponse)
-async def generate_variables(
+def generate_variables(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
     dry_run: bool = Query(False),

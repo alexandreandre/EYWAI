@@ -261,7 +261,7 @@ router_rh = APIRouter(
 
 
 @router_rh.post("/apply-model")
-async def apply_schedule_model(
+def apply_schedule_model(
     request: ApplyModelRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -525,7 +525,7 @@ async def assisted_fill_extract_timesheet_start(
     "/assisted-fill/extract-timesheet/jobs/{job_id}",
     response_model=TimesheetExtractJobResponse,
 )
-async def assisted_fill_extract_timesheet_job(
+def assisted_fill_extract_timesheet_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -574,7 +574,7 @@ async def assisted_fill_extract_timesheet_job(
 
 
 @router_rh.delete("/assisted-fill/extract-timesheet/jobs/{job_id}")
-async def assisted_fill_cancel_extract_timesheet_job(
+def assisted_fill_cancel_extract_timesheet_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -728,7 +728,7 @@ async def timesheet_import_parse(
 
 
 @router_rh.get("/timesheet-import/batches/{batch_id}")
-async def timesheet_import_get_batch(
+def timesheet_import_get_batch(
     batch_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -745,7 +745,7 @@ async def timesheet_import_get_batch(
 
 
 @router_rh.post("/timesheet-import/batches/{batch_id}/commit")
-async def timesheet_import_commit_batch(
+def timesheet_import_commit_batch(
     batch_id: str,
     background_tasks: BackgroundTasks,
     body: TimesheetImportCommitRequest | None = None,
@@ -845,7 +845,7 @@ async def timesheet_import_start_batch(
 
 
 @router_rh.get("/timesheet-import/profiles")
-async def timesheet_import_list_profiles(
+def timesheet_import_list_profiles(
     current_user: User = Depends(get_current_user),
 ):
     from app.modules.schedules.application.timesheet_import.parse_service import (
@@ -858,7 +858,7 @@ async def timesheet_import_list_profiles(
 
 
 @router_rh.put("/timesheet-import/profiles")
-async def timesheet_import_save_profile(
+def timesheet_import_save_profile(
     payload: TimesheetImportProfileUpdate,
     current_user: User = Depends(get_current_user),
 ):
@@ -880,7 +880,7 @@ async def timesheet_import_save_profile(
 
 
 @router_rh.get("/punch-accounting/settings")
-async def punch_accounting_get_settings(
+def punch_accounting_get_settings(
     current_user: User = Depends(get_current_user),
 ):
     from app.modules.schedules.application import punch_accounting_commands as pac
@@ -894,7 +894,7 @@ async def punch_accounting_get_settings(
 
 
 @router_rh.patch("/punch-accounting/settings")
-async def punch_accounting_update_settings(
+def punch_accounting_update_settings(
     payload: PunchAccountingSettingsUpdate,
     current_user: User = Depends(get_current_user),
 ):
@@ -913,7 +913,7 @@ async def punch_accounting_update_settings(
 
 
 @router_rh.post("/punch-accounting/settings/apply-preset/{preset}")
-async def punch_accounting_apply_preset(
+def punch_accounting_apply_preset(
     preset: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -928,7 +928,7 @@ async def punch_accounting_apply_preset(
 
 
 @router_rh.get("/punch-accounting/slots")
-async def punch_accounting_list_slots(
+def punch_accounting_list_slots(
     current_user: User = Depends(get_current_user),
 ):
     from app.modules.schedules.application import punch_accounting_commands as pac
@@ -937,7 +937,7 @@ async def punch_accounting_list_slots(
 
 
 @router_rh.post("/punch-accounting/slots")
-async def punch_accounting_create_slot(
+def punch_accounting_create_slot(
     payload: PunchShiftSlotCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -946,7 +946,7 @@ async def punch_accounting_create_slot(
 
 
 @router_rh.patch("/punch-accounting/slots/{slot_id}")
-async def punch_accounting_update_slot(
+def punch_accounting_update_slot(
     slot_id: str,
     payload: PunchShiftSlotUpdate,
     current_user: User = Depends(get_current_user),
@@ -961,7 +961,7 @@ async def punch_accounting_update_slot(
 
 
 @router_rh.delete("/punch-accounting/slots/{slot_id}")
-async def punch_accounting_delete_slot(
+def punch_accounting_delete_slot(
     slot_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -975,7 +975,7 @@ async def punch_accounting_delete_slot(
 
 
 @router_rh.get("/punch-overtime-reviews")
-async def punch_overtime_list_reviews(
+def punch_overtime_list_reviews(
     year: int,
     month: int,
     status: str | None = None,
@@ -992,7 +992,7 @@ async def punch_overtime_list_reviews(
 
 
 @router_rh.patch("/punch-overtime-reviews/{review_id}")
-async def punch_overtime_update_review(
+def punch_overtime_update_review(
     review_id: str,
     payload: PunchOvertimeReviewUpdate,
     current_user: User = Depends(get_current_user),

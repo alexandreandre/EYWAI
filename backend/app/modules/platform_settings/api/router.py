@@ -43,7 +43,7 @@ async def _verify_super_admin(
 
 
 @router.get("", response_model=EmailSettingsResponse)
-async def get_email_settings(
+def get_email_settings(
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ):
     try:
@@ -54,7 +54,7 @@ async def get_email_settings(
 
 
 @router.put("", response_model=EmailSettingsResponse)
-async def update_email_settings(
+def update_email_settings(
     body: EmailSettingsUpdate,
     current_user: User = Depends(get_current_user),
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
@@ -69,7 +69,7 @@ async def update_email_settings(
 
 
 @router.post("/test", response_model=EmailTestResponse)
-async def test_email_settings(
+def test_email_settings(
     body: EmailSettingsTestRequest,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ):

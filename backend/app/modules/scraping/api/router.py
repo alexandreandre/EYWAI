@@ -71,7 +71,7 @@ def _app(call: Callable[..., T], *args: Any, **kwargs: Any) -> T:
 
 
 @router.get("/dashboard")
-async def get_scraping_dashboard(super_admin: dict = Depends(verify_super_admin)):
+def get_scraping_dashboard(super_admin: dict = Depends(verify_super_admin)):
     """Récupère les statistiques globales du système de scraping."""
     return _app(queries.get_scraping_dashboard)
 
@@ -80,7 +80,7 @@ async def get_scraping_dashboard(super_admin: dict = Depends(verify_super_admin)
 
 
 @router.get("/sources")
-async def list_sources(
+def list_sources(
     source_type: Optional[str] = None,
     is_critical: Optional[bool] = None,
     is_active: Optional[bool] = None,
@@ -96,7 +96,7 @@ async def list_sources(
 
 
 @router.get("/sources/{source_id}")
-async def get_source_details(
+def get_source_details(
     source_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -108,7 +108,7 @@ async def get_source_details(
 
 
 @router.post("/execute")
-async def execute_scraper(
+def execute_scraper(
     request: ScraperExecutionRequest,
     background_tasks: BackgroundTasks,
     super_admin: dict = Depends(verify_super_admin),
@@ -129,7 +129,7 @@ async def execute_scraper(
 
 
 @router.post("/tripwire")
-async def run_tripwire(
+def run_tripwire(
     background_tasks: BackgroundTasks,
     source_key: Optional[str] = None,
     super_admin: dict = Depends(verify_super_admin),
@@ -149,7 +149,7 @@ async def run_tripwire(
 
 
 @router.get("/jobs")
-async def list_jobs(
+def list_jobs(
     source_id: Optional[str] = None,
     status: Optional[str] = None,
     success: Optional[bool] = None,
@@ -169,7 +169,7 @@ async def list_jobs(
 
 
 @router.get("/jobs/{job_id}")
-async def get_job_details(
+def get_job_details(
     job_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -178,7 +178,7 @@ async def get_job_details(
 
 
 @router.get("/jobs/{job_id}/logs")
-async def get_job_logs(
+def get_job_logs(
     job_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -190,7 +190,7 @@ async def get_job_logs(
 
 
 @router.get("/schedules")
-async def list_schedules(
+def list_schedules(
     is_enabled: Optional[bool] = None,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -199,7 +199,7 @@ async def list_schedules(
 
 
 @router.post("/schedules")
-async def create_schedule(
+def create_schedule(
     schedule: ScheduleCreate,
     super_admin: dict = Depends(verify_super_admin),
     current_user: User = Depends(get_current_user),
@@ -219,7 +219,7 @@ async def create_schedule(
 
 
 @router.patch("/schedules/{schedule_id}")
-async def update_schedule(
+def update_schedule(
     schedule_id: str,
     update: ScheduleUpdate,
     super_admin: dict = Depends(verify_super_admin),
@@ -230,7 +230,7 @@ async def update_schedule(
 
 
 @router.delete("/schedules/{schedule_id}")
-async def delete_schedule(
+def delete_schedule(
     schedule_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -242,7 +242,7 @@ async def delete_schedule(
 
 
 @router.get("/pending")
-async def list_pending_changes(
+def list_pending_changes(
     status: Optional[str] = "pending",
     tier: Optional[str] = None,
     limit: int = 100,
@@ -258,7 +258,7 @@ async def list_pending_changes(
 
 
 @router.get("/pending/{pending_id}")
-async def get_pending_change(
+def get_pending_change(
     pending_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -267,7 +267,7 @@ async def get_pending_change(
 
 
 @router.post("/pending/{pending_id}/approve")
-async def approve_pending_change(
+def approve_pending_change(
     pending_id: str,
     approval: PendingApprove,
     super_admin: dict = Depends(verify_super_admin),
@@ -283,7 +283,7 @@ async def approve_pending_change(
 
 
 @router.post("/pending/{pending_id}/reject")
-async def reject_pending_change(
+def reject_pending_change(
     pending_id: str,
     rejection: PendingReject,
     super_admin: dict = Depends(verify_super_admin),
@@ -302,7 +302,7 @@ async def reject_pending_change(
 
 
 @router.get("/repair-jobs")
-async def list_repair_jobs(
+def list_repair_jobs(
     status: Optional[str] = None,
     scraper_name: Optional[str] = None,
     limit: int = 50,
@@ -320,7 +320,7 @@ async def list_repair_jobs(
 
 
 @router.get("/repair-jobs/{job_id}")
-async def get_repair_job(
+def get_repair_job(
     job_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -332,7 +332,7 @@ async def get_repair_job(
 
 
 @router.get("/alerts")
-async def list_alerts(
+def list_alerts(
     is_read: Optional[bool] = None,
     is_resolved: Optional[bool] = None,
     severity: Optional[str] = None,
@@ -350,7 +350,7 @@ async def list_alerts(
 
 
 @router.patch("/alerts/{alert_id}/read")
-async def mark_alert_as_read(
+def mark_alert_as_read(
     alert_id: str,
     super_admin: dict = Depends(verify_super_admin),
 ):
@@ -359,7 +359,7 @@ async def mark_alert_as_read(
 
 
 @router.patch("/alerts/{alert_id}/resolve")
-async def resolve_alert(
+def resolve_alert(
     alert_id: str,
     resolution: AlertResolve,
     super_admin: dict = Depends(verify_super_admin),

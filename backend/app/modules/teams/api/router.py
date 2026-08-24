@@ -46,7 +46,7 @@ def _require_rh(current_user: User, company_id: str) -> None:
 
 
 @router.get("")
-async def list_teams(
+def list_teams(
     include_archived: bool = Query(False),
     current_user: User = Depends(get_current_user),
 ):
@@ -62,7 +62,7 @@ async def list_teams(
 
 
 @router.post("", status_code=201)
-async def create_team_endpoint(
+def create_team_endpoint(
     data: TeamCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -78,7 +78,7 @@ async def create_team_endpoint(
 
 
 @router.get("/analytics")
-async def team_analytics_endpoint(
+def team_analytics_endpoint(
     period_start: str = Query(..., description="Début (YYYY-MM-DD)"),
     period_end: str = Query(..., description="Fin (YYYY-MM-DD)"),
     team_ids: Optional[List[str]] = Query(None),
@@ -98,7 +98,7 @@ async def team_analytics_endpoint(
 
 
 @router.get("/check-name")
-async def check_team_name_endpoint(
+def check_team_name_endpoint(
     name: str = Query(..., min_length=1),
     exclude_team_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -117,7 +117,7 @@ async def check_team_name_endpoint(
 
 
 @router.patch("/employees/{employee_id}/team")
-async def assign_employee_team_endpoint(
+def assign_employee_team_endpoint(
     employee_id: str,
     body: AssignEmployeeTeamBody,
     current_user: User = Depends(get_current_user),
@@ -136,7 +136,7 @@ async def assign_employee_team_endpoint(
 
 
 @router.get("/{team_id}")
-async def get_team_endpoint(
+def get_team_endpoint(
     team_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -152,7 +152,7 @@ async def get_team_endpoint(
 
 
 @router.patch("/{team_id}")
-async def update_team_endpoint(
+def update_team_endpoint(
     team_id: str,
     data: TeamUpdate,
     current_user: User = Depends(get_current_user),
@@ -169,7 +169,7 @@ async def update_team_endpoint(
 
 
 @router.post("/{team_id}/archive")
-async def archive_team_endpoint(
+def archive_team_endpoint(
     team_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -185,7 +185,7 @@ async def archive_team_endpoint(
 
 
 @router.post("/{team_id}/reactivate")
-async def reactivate_team_endpoint(
+def reactivate_team_endpoint(
     team_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -201,7 +201,7 @@ async def reactivate_team_endpoint(
 
 
 @router.delete("/{team_id}", status_code=204)
-async def delete_team_endpoint(
+def delete_team_endpoint(
     team_id: str,
     current_user: User = Depends(get_current_user),
 ):

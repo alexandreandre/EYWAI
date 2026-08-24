@@ -94,7 +94,7 @@ def _value_error_to_http(e: ValueError) -> HTTPException:
 
 
 @router.post("/preview", response_model=ExportPreviewResponse)
-async def preview_export(
+def preview_export(
     request: ExportPreviewRequest,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -115,7 +115,7 @@ async def preview_export(
 @router.post(
     "/generate", response_model=Union[ExportGenerateResponse, DSNGenerateResponse]
 )
-async def generate_export(
+def generate_export(
     request: ExportGenerateRequest,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -134,7 +134,7 @@ async def generate_export(
 
 
 @router.get("/history", response_model=ExportHistoryResponse)
-async def get_export_history(
+def get_export_history(
     export_type: Optional[str] = None,
     period: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -152,7 +152,7 @@ async def get_export_history(
 
 
 @router.get("/download/{export_id}")
-async def download_export(
+def download_export(
     export_id: str,
     file_index: Optional[int] = None,
     current_user: User = Depends(get_current_user),
@@ -181,7 +181,7 @@ async def download_export(
 
 
 @router.get("/scheduled", response_model=List[ScheduledExportOut])
-async def list_scheduled_exports(
+def list_scheduled_exports(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
@@ -194,7 +194,7 @@ async def list_scheduled_exports(
 
 
 @router.post("/scheduled", response_model=ScheduledExportOut)
-async def create_scheduled_export(
+def create_scheduled_export(
     body: ScheduledExportCreate,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -215,7 +215,7 @@ async def create_scheduled_export(
     "/scheduled/{schedule_id}/history",
     response_model=ExportHistoryResponse,
 )
-async def scheduled_export_history(
+def scheduled_export_history(
     schedule_id: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -234,7 +234,7 @@ async def scheduled_export_history(
     "/scheduled/{schedule_id}/run-now",
     response_model=ScheduledExportRunNowResponse,
 )
-async def run_scheduled_export_now(
+def run_scheduled_export_now(
     schedule_id: str,
     period: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -253,7 +253,7 @@ async def run_scheduled_export_now(
 
 
 @router.patch("/scheduled/{schedule_id}", response_model=ScheduledExportOut)
-async def update_scheduled_export(
+def update_scheduled_export(
     schedule_id: str,
     body: ScheduledExportUpdate,
     current_user: User = Depends(get_current_user),
@@ -270,7 +270,7 @@ async def update_scheduled_export(
 
 
 @router.delete("/scheduled/{schedule_id}", status_code=204)
-async def delete_scheduled_export(
+def delete_scheduled_export(
     schedule_id: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -289,7 +289,7 @@ async def delete_scheduled_export(
 
 
 @router.get("/dispatch/status", response_model=DispatchStatusResponse)
-async def get_dispatch_status(
+def get_dispatch_status(
     period: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -303,7 +303,7 @@ async def get_dispatch_status(
 
 
 @router.post("/dispatch/compta", response_model=DispatchResultResponse)
-async def dispatch_compta(
+def dispatch_compta(
     body: DispatchComptaRequest,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -319,7 +319,7 @@ async def dispatch_compta(
 
 
 @router.post("/dispatch/banque", response_model=DispatchResultResponse)
-async def dispatch_banque(
+def dispatch_banque(
     body: DispatchBanqueRequest,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -339,7 +339,7 @@ async def dispatch_banque(
     "/dispatch/{dispatch_id}/mark-transmitted",
     response_model=MarkDispatchTransmittedResponse,
 )
-async def mark_dispatch_transmitted(
+def mark_dispatch_transmitted(
     dispatch_id: str,
     body: MarkDispatchTransmittedRequest,
     current_user: User = Depends(get_current_user),
@@ -358,7 +358,7 @@ async def mark_dispatch_transmitted(
 
 
 @router.get("/dispatch/history", response_model=DispatchHistoryResponse)
-async def get_dispatch_history(
+def get_dispatch_history(
     channel: Optional[str] = None,
     limit: int = 10,
     current_user: User = Depends(get_current_user),
@@ -373,7 +373,7 @@ async def get_dispatch_history(
 
 
 @router.get("/dispatch/schedules", response_model=DispatchSchedulesResponse)
-async def list_dispatch_schedules(
+def list_dispatch_schedules(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
@@ -386,7 +386,7 @@ async def list_dispatch_schedules(
 
 
 @router.put("/dispatch/schedules/{channel}", response_model=DispatchScheduleOut)
-async def upsert_dispatch_schedule(
+def upsert_dispatch_schedule(
     channel: str,
     body: DispatchScheduleUpsert,
     current_user: User = Depends(get_current_user),
@@ -408,7 +408,7 @@ async def upsert_dispatch_schedule(
     "/dispatch/schedules/{channel}/run-now",
     response_model=DispatchScheduleRunResponse,
 )
-async def run_dispatch_schedule_now(
+def run_dispatch_schedule_now(
     channel: str,
     period: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -427,7 +427,7 @@ async def run_dispatch_schedule_now(
 
 
 @router.get("/accounting-mappings", response_model=AccountingMappingsListResponse)
-async def list_accounting_mappings(
+def list_accounting_mappings(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
@@ -440,7 +440,7 @@ async def list_accounting_mappings(
 
 
 @router.put("/accounting-mappings", response_model=AccountingMappingOut)
-async def upsert_accounting_mapping(
+def upsert_accounting_mapping(
     body: AccountingMappingUpsert,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -456,7 +456,7 @@ async def upsert_accounting_mapping(
 
 
 @router.delete("/accounting-mappings/{rubrique_code}")
-async def delete_accounting_mapping(
+def delete_accounting_mapping(
     rubrique_code: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),

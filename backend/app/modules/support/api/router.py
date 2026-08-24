@@ -54,7 +54,7 @@ def _ticket_row_to_response(row: dict) -> TicketResponse:
 
 
 @router.post("/tickets", response_model=TicketResponse, status_code=201)
-async def post_ticket(
+def post_ticket(
     body: TicketCreate,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -87,7 +87,7 @@ async def post_ticket(
 
 
 @router.get("/tickets", response_model=List[TicketResponse])
-async def get_tickets(
+def get_tickets(
     company_id: Optional[str] = Query(None),
     urgency: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -141,7 +141,7 @@ async def get_tickets(
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketResponse)
-async def get_ticket(
+def get_ticket(
     ticket_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -175,7 +175,7 @@ async def get_ticket(
 
 
 @router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)
-async def patch_ticket_status(
+def patch_ticket_status(
     ticket_id: str,
     status_update: TicketStatusUpdate,
     current_user: User = Depends(get_current_user),

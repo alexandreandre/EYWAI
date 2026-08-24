@@ -54,7 +54,7 @@ def _require_platform_admin(current_user: User) -> None:
 
 
 @router.get("/all")
-async def get_all_rates_endpoint(
+def get_all_rates_endpoint(
     reader: IAllRatesReader = Depends(get_all_rates_reader),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -79,7 +79,7 @@ async def get_all_rates_endpoint(
 
 
 @router.post("/manual")
-async def manual_rate_update_endpoint(
+def manual_rate_update_endpoint(
     body: ManualRateUpdateRequest,
     writer: IRatesWriter = Depends(get_rates_writer),
     current_user: User = Depends(get_current_user),
@@ -112,7 +112,7 @@ async def manual_rate_update_endpoint(
 
 
 @router.get("/payslip-edit-lock")
-async def get_payslip_edit_lock_endpoint(
+def get_payslip_edit_lock_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Règle globale de verrouillage de l'édition manuelle des bulletins."""
@@ -127,7 +127,7 @@ async def get_payslip_edit_lock_endpoint(
 
 
 @router.patch("/payslip-edit-lock")
-async def patch_payslip_edit_lock_endpoint(
+def patch_payslip_edit_lock_endpoint(
     body: PayslipEditLockUpdateRequest,
     writer: IRatesWriter = Depends(get_rates_writer),
     current_user: User = Depends(get_current_user),
@@ -153,7 +153,7 @@ async def patch_payslip_edit_lock_endpoint(
 
 
 @router.get("/sync/sources")
-async def get_rates_sync_sources_endpoint(
+def get_rates_sync_sources_endpoint(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """Manifeste des sources mettables à jour (par catégorie et par cotisation)."""
@@ -168,7 +168,7 @@ async def get_rates_sync_sources_endpoint(
 
 
 @router.post("/sync")
-async def start_rates_sync_endpoint(
+def start_rates_sync_endpoint(
     background_tasks: BackgroundTasks,
     body: RatesSyncRequest | None = None,
     current_user: User = Depends(get_current_user),
@@ -202,7 +202,7 @@ async def start_rates_sync_endpoint(
 
 
 @router.post("/sync/{sync_id}/cancel")
-async def cancel_rates_sync_endpoint(
+def cancel_rates_sync_endpoint(
     sync_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -220,7 +220,7 @@ async def cancel_rates_sync_endpoint(
 
 
 @router.get("/sync/{sync_id}/status")
-async def get_rates_sync_status_endpoint(
+def get_rates_sync_status_endpoint(
     sync_id: str,
     current_user: User = Depends(get_current_user),
 ) -> dict:

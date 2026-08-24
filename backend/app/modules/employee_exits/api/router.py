@@ -121,7 +121,7 @@ def _to_http(e: EmployeeExitApplicationError) -> HTTPException:
 
 
 @router.post("/", response_model=EmployeeExit, status_code=201)
-async def create_employee_exit(
+def create_employee_exit(
     exit_data: EmployeeExitCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -148,7 +148,7 @@ async def create_employee_exit(
 
 
 @router.get("/eligible-employees", response_model=List[SimpleEmployee])
-async def list_exit_eligible_employees(
+def list_exit_eligible_employees(
     current_user: User = Depends(get_current_user),
 ):
     """Liste les collaborateurs éligibles à un nouveau départ (actifs + contrat généré)."""
@@ -158,7 +158,7 @@ async def list_exit_eligible_employees(
 
 
 @router.get("/notice-period-preview", response_model=NoticePeriodPreview)
-async def preview_notice_period(
+def preview_notice_period(
     employee_id: str = Query(..., description="Identifiant du collaborateur"),
     exit_type: str = Query(..., description="Type de départ"),
     reference_date: Optional[date] = Query(
@@ -186,7 +186,7 @@ async def preview_notice_period(
 
 
 @router.get("/", response_model=List[EmployeeExitWithDetails])
-async def list_employee_exits(
+def list_employee_exits(
     status: Optional[str] = None,
     exit_type: Optional[str] = None,
     employee_id: Optional[str] = None,
@@ -205,7 +205,7 @@ async def list_employee_exits(
 
 
 @router.get("/{exit_id}", response_model=EmployeeExitWithDetails)
-async def get_employee_exit(
+def get_employee_exit(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -218,7 +218,7 @@ async def get_employee_exit(
 
 
 @router.patch("/{exit_id}", response_model=EmployeeExit)
-async def update_employee_exit(
+def update_employee_exit(
     exit_id: str,
     exit_update: EmployeeExitUpdate,
     current_user: User = Depends(get_current_user),
@@ -238,7 +238,7 @@ async def update_employee_exit(
 
 
 @router.patch("/{exit_id}/status", response_model=StatusTransitionResponse)
-async def update_exit_status(
+def update_exit_status(
     exit_id: str,
     status_request: StatusUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -263,7 +263,7 @@ async def update_exit_status(
 
 
 @router.post("/{exit_id}/archive", response_model=StatusTransitionResponse)
-async def archive_employee_exit(
+def archive_employee_exit(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -286,7 +286,7 @@ async def archive_employee_exit(
 
 
 @router.delete("/{exit_id}", status_code=204)
-async def delete_employee_exit(
+def delete_employee_exit(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -308,7 +308,7 @@ async def delete_employee_exit(
 @router.post(
     "/{exit_id}/calculate-indemnities", response_model=ExitIndemnityCalculation
 )
-async def calculate_exit_indemnities(
+def calculate_exit_indemnities(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -328,7 +328,7 @@ async def calculate_exit_indemnities(
 @router.post(
     "/{exit_id}/documents/upload-url", response_model=DocumentUploadUrlResponse
 )
-async def get_document_upload_url(
+def get_document_upload_url(
     exit_id: str,
     request: DocumentUploadUrlRequest,
     current_user: User = Depends(get_current_user),
@@ -345,7 +345,7 @@ async def get_document_upload_url(
 
 
 @router.post("/{exit_id}/documents", response_model=ExitDocument, status_code=201)
-async def create_exit_document(
+def create_exit_document(
     exit_id: str,
     document_data: ExitDocumentCreate,
     current_user: User = Depends(get_current_user),
@@ -366,7 +366,7 @@ async def create_exit_document(
 
 
 @router.get("/{exit_id}/documents", response_model=List[ExitDocument])
-async def list_exit_documents(
+def list_exit_documents(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -379,7 +379,7 @@ async def list_exit_documents(
 
 
 @router.post("/{exit_id}/documents/generate/{document_type}")
-async def generate_exit_document(
+def generate_exit_document(
     exit_id: str,
     document_type: str,
     current_user: User = Depends(get_current_user),
@@ -398,7 +398,7 @@ async def generate_exit_document(
 
 
 @router.delete("/{exit_id}/documents/{document_id}", status_code=204)
-async def delete_exit_document(
+def delete_exit_document(
     exit_id: str,
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -415,7 +415,7 @@ async def delete_exit_document(
 @router.post(
     "/{exit_id}/documents/publish", response_model=PublishExitDocumentsResponse
 )
-async def publish_exit_documents(
+def publish_exit_documents(
     exit_id: str,
     request: PublishExitDocumentsRequest,
     current_user: User = Depends(get_current_user),
@@ -440,7 +440,7 @@ async def publish_exit_documents(
 @router.post(
     "/{exit_id}/documents/{document_id}/unpublish", response_model=ExitDocument
 )
-async def unpublish_exit_document(
+def unpublish_exit_document(
     exit_id: str,
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -460,7 +460,7 @@ async def unpublish_exit_document(
 @router.get(
     "/{exit_id}/documents/{document_id}/details", response_model=ExitDocumentDetails
 )
-async def get_exit_document_details(
+def get_exit_document_details(
     exit_id: str,
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -479,7 +479,7 @@ async def get_exit_document_details(
 @router.post(
     "/{exit_id}/documents/{document_id}/edit", response_model=ExitDocumentEditResponse
 )
-async def edit_exit_document(
+def edit_exit_document(
     exit_id: str,
     document_id: str,
     edit_request: ExitDocumentEditRequest,
@@ -512,7 +512,7 @@ async def edit_exit_document(
 
 
 @router.get("/{exit_id}/documents/{document_id}/history")
-async def get_document_edit_history(
+def get_document_edit_history(
     exit_id: str,
     document_id: str,
     current_user: User = Depends(get_current_user),
@@ -534,7 +534,7 @@ async def get_document_edit_history(
 
 
 @router.get("/{exit_id}/checklist", response_model=List[ChecklistItem])
-async def get_exit_checklist(
+def get_exit_checklist(
     exit_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -547,7 +547,7 @@ async def get_exit_checklist(
 
 
 @router.post("/{exit_id}/checklist", response_model=ChecklistItem, status_code=201)
-async def add_checklist_item(
+def add_checklist_item(
     exit_id: str,
     item_data: ChecklistItemCreate,
     current_user: User = Depends(get_current_user),
@@ -565,7 +565,7 @@ async def add_checklist_item(
 
 
 @router.patch("/{exit_id}/checklist/{item_id}/complete")
-async def mark_checklist_item_complete(
+def mark_checklist_item_complete(
     exit_id: str,
     item_id: str,
     item_update: ChecklistItemUpdate,
@@ -590,7 +590,7 @@ async def mark_checklist_item_complete(
 
 
 @router.delete("/{exit_id}/checklist/{item_id}", status_code=204)
-async def delete_checklist_item(
+def delete_checklist_item(
     exit_id: str,
     item_id: str,
     current_user: User = Depends(get_current_user),

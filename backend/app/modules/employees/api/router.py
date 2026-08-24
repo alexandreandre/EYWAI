@@ -502,7 +502,7 @@ async def create_employee(
 
 
 @router.put("/{employee_id}", response_model=FullEmployee)
-async def update_employee(
+def update_employee(
     employee_id: str,
     employee_data: UpdateEmployee,
     current_user: User = Depends(get_current_user),
@@ -528,7 +528,7 @@ async def update_employee(
 
 
 @router.patch("/{employee_id}/trial-period/confirm", response_model=FullEmployee)
-async def confirm_trial_period(
+def confirm_trial_period(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -551,7 +551,7 @@ async def confirm_trial_period(
 
 
 @router.get("/{employee_id}/deletion-impact", response_model=EmployeeDeletionImpact)
-async def get_employee_deletion_impact(
+def get_employee_deletion_impact(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -567,7 +567,7 @@ async def get_employee_deletion_impact(
 
 
 @router.delete("/{employee_id}", status_code=204)
-async def delete_employee(
+def delete_employee(
     request: Request,
     employee_id: str,
     current_user: User = Depends(get_current_user),

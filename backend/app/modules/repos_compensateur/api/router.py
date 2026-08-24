@@ -68,7 +68,7 @@ def _parse_reference_date(value: str | None, year: int) -> date:
 
 
 @router.get("/settings", response_model=ContingentSettingsResponse)
-async def get_contingent_settings_endpoint(
+def get_contingent_settings_endpoint(
     company_id: str | None = Query(None),
     current_user: ReposCompensateurUserContext = Depends(get_current_user),
 ) -> ContingentSettingsResponse:
@@ -78,7 +78,7 @@ async def get_contingent_settings_endpoint(
 
 
 @router.put("/settings", response_model=ContingentSettingsResponse)
-async def update_contingent_settings_endpoint(
+def update_contingent_settings_endpoint(
     body: ContingentSettingsUpdate,
     company_id: str | None = Query(None),
     current_user: ReposCompensateurUserContext = Depends(get_current_user),
@@ -90,7 +90,7 @@ async def update_contingent_settings_endpoint(
 
 
 @router.get("/overview", response_model=ContingentOverviewResponse)
-async def get_contingent_overview_endpoint(
+def get_contingent_overview_endpoint(
     year: int = Query(..., ge=2020, le=2030),
     reference_date: str | None = Query(None),
     company_id: str | None = Query(None),
@@ -112,7 +112,7 @@ async def get_contingent_overview_endpoint(
     "/employees/{employee_id}",
     response_model=ContingentEmployeeDetailResponse,
 )
-async def get_contingent_employee_detail_endpoint(
+def get_contingent_employee_detail_endpoint(
     employee_id: str,
     year: int = Query(..., ge=2020, le=2030),
     reference_date: str | None = Query(None),
@@ -139,7 +139,7 @@ async def get_contingent_employee_detail_endpoint(
     "/employees/{employee_id}/adjustment",
     response_model=EmployeeAdjustmentResponse,
 )
-async def update_employee_adjustment_endpoint(
+def update_employee_adjustment_endpoint(
     employee_id: str,
     body: EmployeeAdjustmentUpdate,
     year: int = Query(..., ge=2020, le=2030),
@@ -167,7 +167,7 @@ async def update_employee_adjustment_endpoint(
 
 
 @router.post("/calculer-credits", response_model=CalculerCreditsResponse)
-async def calculer_credits_repos(
+def calculer_credits_repos(
     year: int = Query(..., ge=2020, le=2030),
     month: int = Query(..., ge=1, le=12),
     company_id: str | None = Query(None),

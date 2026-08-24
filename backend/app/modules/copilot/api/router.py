@@ -34,7 +34,7 @@ router_agent = APIRouter(tags=["Copilot Agent"])
 
 
 @router.post("/query", response_model=QueryResponse)
-async def handle_query(
+def handle_query(
     request: QueryRequest,
     current_user: User = Depends(require_copilot_rh_user),
 ):
@@ -77,7 +77,7 @@ async def handle_query(
 
 
 @router_agent.post("/query-agent", response_model=AgentResponse)
-async def handle_agent_query(
+def handle_agent_query(
     request: AgentRequest,
     current_user: User = Depends(require_copilot_rh_user),
 ):

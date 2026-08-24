@@ -61,7 +61,7 @@ def _is_rh(user: CetUserContext, company_id: str) -> bool:
 
 
 @router.get("/settings", response_model=CetSettingsResponse)
-async def get_cet_settings(
+def get_cet_settings(
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
 ) -> CetSettingsResponse:
@@ -70,7 +70,7 @@ async def get_cet_settings(
 
 
 @router.put("/settings", response_model=CetSettingsResponse)
-async def update_cet_settings(
+def update_cet_settings(
     body: CetSettingsUpdate,
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
@@ -82,7 +82,7 @@ async def update_cet_settings(
 
 
 @router.get("/overview", response_model=list[CetOverviewRow])
-async def get_cet_overview(
+def get_cet_overview(
     year: int | None = Query(None, ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
@@ -93,7 +93,7 @@ async def get_cet_overview(
 
 
 @router.get("/pending", response_model=list[CetMovementDetail])
-async def list_cet_pending(
+def list_cet_pending(
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
 ) -> list[CetMovementDetail]:
@@ -103,7 +103,7 @@ async def list_cet_pending(
 
 
 @router.get("/pending-manager-approval", response_model=list[CetPendingManagerItem])
-async def list_pending_manager_approval(
+def list_pending_manager_approval(
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
 ) -> list[CetPendingManagerItem]:
@@ -124,7 +124,7 @@ async def list_pending_manager_approval(
 
 
 @router.get("/me/summary", response_model=CetSummaryResponse)
-async def get_my_cet_summary(
+def get_my_cet_summary(
     year: int | None = Query(None, ge=2000, le=2100),
     month: int | None = Query(None, ge=1, le=12),
     current_user: CetUserContext = Depends(get_current_user),
@@ -143,7 +143,7 @@ async def get_my_cet_summary(
 
 
 @router.get("/me/movements", response_model=list[CetMovementDetail])
-async def get_my_cet_movements(
+def get_my_cet_movements(
     year: int | None = Query(None, ge=2000, le=2100),
     current_user: CetUserContext = Depends(get_current_user),
 ) -> list[CetMovementDetail]:
@@ -156,7 +156,7 @@ async def get_my_cet_movements(
 
 
 @router.post("/me/deposits")
-async def create_my_cet_deposit(
+def create_my_cet_deposit(
     body: CetDepositRequest,
     current_user: CetUserContext = Depends(get_current_user),
 ):
@@ -178,7 +178,7 @@ async def create_my_cet_deposit(
 
 
 @router.post("/me/deposits/cp")
-async def create_my_cet_deposit_cp(
+def create_my_cet_deposit_cp(
     body: CetDepositCpRequest,
     current_user: CetUserContext = Depends(get_current_user),
 ):
@@ -200,7 +200,7 @@ async def create_my_cet_deposit_cp(
 
 
 @router.post("/me/withdrawals")
-async def create_my_cet_withdrawal(
+def create_my_cet_withdrawal(
     body: CetWithdrawalRequest,
     current_user: CetUserContext = Depends(get_current_user),
 ):
@@ -220,7 +220,7 @@ async def create_my_cet_withdrawal(
 
 
 @router.get("/employees/{employee_id}/summary", response_model=CetSummaryResponse)
-async def get_employee_cet_summary(
+def get_employee_cet_summary(
     employee_id: str,
     company_id: str | None = Query(None),
     year: int | None = Query(None, ge=2000, le=2100),
@@ -239,7 +239,7 @@ async def get_employee_cet_summary(
 
 
 @router.get("/employees/{employee_id}/movements", response_model=list[CetMovementDetail])
-async def get_employee_cet_movements(
+def get_employee_cet_movements(
     employee_id: str,
     year: int | None = Query(None, ge=2000, le=2100),
     company_id: str | None = Query(None),
@@ -252,7 +252,7 @@ async def get_employee_cet_movements(
 
 
 @router.patch("/movements/{movement_id}")
-async def validate_cet_movement(
+def validate_cet_movement(
     movement_id: str,
     body: CetMovementValidateRequest,
     company_id: str | None = Query(None),
@@ -274,7 +274,7 @@ async def validate_cet_movement(
 
 
 @router.post("/movements/{movement_id}/manager-approve")
-async def manager_approve_cet_movement(
+def manager_approve_cet_movement(
     movement_id: str,
     body: CetManagerApprovalRequest,
     company_id: str | None = Query(None),
@@ -308,7 +308,7 @@ async def manager_approve_cet_movement(
 
 
 @router.post("/opening-balances")
-async def create_cet_opening_balance(
+def create_cet_opening_balance(
     body: CetOpeningBalanceCreate,
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),
@@ -329,7 +329,7 @@ async def create_cet_opening_balance(
 
 
 @router.post("/adjustments")
-async def create_cet_adjustment(
+def create_cet_adjustment(
     body: CetAdjustmentCreate,
     company_id: str | None = Query(None),
     current_user: CetUserContext = Depends(get_current_user),

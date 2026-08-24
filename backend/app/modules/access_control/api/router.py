@@ -40,7 +40,7 @@ def _require_rh_access(current_user: User = Depends(get_current_user)) -> User:
 
 
 @router.get("/permission-categories", response_model=List[PermissionCategory])
-async def get_permission_categories(
+def get_permission_categories(
     current_user: User = Depends(_require_rh_access),
 ):
     """Liste toutes les catégories de permissions actives."""
@@ -48,7 +48,7 @@ async def get_permission_categories(
 
 
 @router.get("/permission-actions", response_model=List[PermissionAction])
-async def get_permission_actions(
+def get_permission_actions(
     current_user: User = Depends(_require_rh_access),
 ):
     """Liste toutes les actions de permissions actives."""
@@ -56,7 +56,7 @@ async def get_permission_actions(
 
 
 @router.get("/permissions", response_model=List[Permission])
-async def get_all_permissions(
+def get_all_permissions(
     category_id: Optional[str] = None,
     required_role: Optional[str] = None,
     current_user: User = Depends(_require_rh_access),
@@ -70,7 +70,7 @@ async def get_all_permissions(
 
 
 @router.get("/permissions/matrix", response_model=PermissionMatrix)
-async def get_permissions_matrix(
+def get_permissions_matrix(
     company_id: str,
     user_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -80,7 +80,7 @@ async def get_permissions_matrix(
 
 
 @router.get("/users/{user_id}/permissions", response_model=UserPermissionsSummary)
-async def get_user_permissions(
+def get_user_permissions(
     user_id: str,
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -90,7 +90,7 @@ async def get_user_permissions(
 
 
 @router.put("/users/{user_id}/permissions")
-async def put_user_permissions(
+def put_user_permissions(
     user_id: str,
     data: UserPermissionsUpdate,
     current_user: User = Depends(get_current_user),
@@ -114,7 +114,7 @@ async def put_user_permissions(
     "/users/{user_id}/permission-grants",
     response_model=List[PermissionGrantDetail],
 )
-async def get_user_permission_grants(
+def get_user_permission_grants(
     user_id: str,
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -125,7 +125,7 @@ async def get_user_permission_grants(
 
 
 @router.post("/users/{user_id}/permissions", status_code=status.HTTP_200_OK)
-async def post_user_permissions(
+def post_user_permissions(
     user_id: str,
     data: UserPermissionsUpdate,
     current_user: User = Depends(get_current_user),
@@ -148,7 +148,7 @@ async def post_user_permissions(
 
 
 @router.get("/role-templates", response_model=List[RoleTemplateDetail])
-async def get_role_templates(
+def get_role_templates(
     company_id: Optional[str] = None,
     base_role: Optional[str] = None,
     include_system: bool = True,
@@ -164,7 +164,7 @@ async def get_role_templates(
 
 
 @router.post("/role-templates/quick-create", status_code=status.HTTP_201_CREATED)
-async def quick_create_role_template(
+def quick_create_role_template(
     data: RoleTemplateQuickCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -181,7 +181,7 @@ async def quick_create_role_template(
 
 
 @router.get("/role-templates/{template_id}", response_model=RoleTemplateWithPermissions)
-async def get_role_template(
+def get_role_template(
     template_id: str,
     current_user: User = Depends(_require_rh_access),
 ):
@@ -193,7 +193,7 @@ async def get_role_template(
 
 
 @router.get("/check-hierarchy", response_model=RoleHierarchyCheckResponse)
-async def get_check_hierarchy(
+def get_check_hierarchy(
     target_role: str,
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -215,7 +215,7 @@ async def get_check_hierarchy(
 
 
 @router.get("/check-permission", response_model=PermissionCheckResponse)
-async def get_check_permission(
+def get_check_permission(
     user_id: str,
     company_id: str,
     permission_code: str,

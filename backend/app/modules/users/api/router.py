@@ -51,7 +51,7 @@ def _handle_application_errors(e: Exception) -> None:
 
 
 @router.get("/my-companies", response_model=List[CompanyAccess])
-async def get_my_companies(current_user: User = Depends(get_current_user)):
+def get_my_companies(current_user: User = Depends(get_current_user)):
     """Entreprises accessibles (super_admin: toutes actives, sinon accessible_companies)."""
     try:
         return queries.get_my_companies(current_user)
@@ -60,13 +60,13 @@ async def get_my_companies(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/me", response_model=User)
-async def get_my_profile(current_user: User = Depends(get_current_user)):
+def get_my_profile(current_user: User = Depends(get_current_user)):
     """Profil complet de l'utilisateur connecté."""
     return queries.get_me(current_user)
 
 
 @router.patch("/set-primary-company")
-async def set_primary_company(
+def set_primary_company(
     request: SetPrimaryCompanyRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -86,7 +86,7 @@ async def set_primary_company(
 
 
 @router.get("/company-accesses/{user_id}", response_model=List[CompanyAccess])
-async def get_user_company_accesses(
+def get_user_company_accesses(
     user_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -98,7 +98,7 @@ async def get_user_company_accesses(
 
 
 @router.post("/grant-access")
-async def grant_company_access(
+def grant_company_access(
     request: UserCompanyAccessCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -126,7 +126,7 @@ async def grant_company_access(
 
 
 @router.post("/grant-access-by-user-id")
-async def grant_company_access_by_user_id(
+def grant_company_access_by_user_id(
     request: UserCompanyAccessCreateByUserId,
     current_user: User = Depends(get_current_user),
 ):
@@ -154,7 +154,7 @@ async def grant_company_access_by_user_id(
 
 
 @router.delete("/revoke-access/{user_id}/{company_id}")
-async def revoke_company_access(
+def revoke_company_access(
     user_id: str,
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -178,7 +178,7 @@ async def revoke_company_access(
 
 
 @router.patch("/update-access/{user_id}/{company_id}")
-async def update_company_access(
+def update_company_access(
     user_id: str,
     company_id: str,
     request: UserCompanyAccessUpdate,
@@ -208,7 +208,7 @@ async def update_company_access(
 
 
 @router.post("/create-with-permissions", status_code=status.HTTP_201_CREATED)
-async def create_user_with_permissions(
+def create_user_with_permissions(
     data: UserCreateWithPermissions,
     current_user: User = Depends(get_current_user),
 ):
@@ -251,7 +251,7 @@ async def create_user_with_permissions(
 
 
 @router.get("/company/{company_id}", response_model=List[UserDetail])
-async def get_company_users(
+def get_company_users(
     company_id: str,
     role: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -270,7 +270,7 @@ async def get_company_users(
 
 
 @router.get("/accessible-companies")
-async def get_accessible_companies_for_user_creation(
+def get_accessible_companies_for_user_creation(
     current_user: User = Depends(get_current_user),
 ):
     """Entreprises dans lesquelles l'utilisateur peut créer des utilisateurs + rôles créables."""
@@ -281,7 +281,7 @@ async def get_accessible_companies_for_user_creation(
 
 
 @router.get("/{user_id}")
-async def get_user_detail(
+def get_user_detail(
     user_id: str,
     company_id: str,
     current_user: User = Depends(get_current_user),
@@ -294,7 +294,7 @@ async def get_user_detail(
 
 
 @router.put("/{user_id}/update")
-async def update_user_with_permissions(
+def update_user_with_permissions(
     user_id: str,
     data: UserUpdateWithPermissions,
     current_user: User = Depends(get_current_user),

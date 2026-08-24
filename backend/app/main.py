@@ -93,7 +93,7 @@ app.add_middleware(
 
 
 @app.exception_handler(APIError)
-async def postgrest_exception_handler(request: Request, exc: APIError):
+def postgrest_exception_handler(request: Request, exc: APIError):
     """Erreurs Supabase/PostgREST : message lisible + réponse JSON (headers CORS conservés)."""
     code = exc.code
     message = str(exc.message or exc)
@@ -143,7 +143,7 @@ async def postgrest_exception_handler(request: Request, exc: APIError):
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
@@ -152,7 +152,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 @app.exception_handler(httpx.HTTPError)
-async def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
+def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
     if is_transient_supabase_error(exc):
         logger.warning(
             "Erreur réseau transitoire Supabase on %s %s: %s",
@@ -179,7 +179,7 @@ async def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
+def global_exception_handler(request: Request, exc: Exception):
     """Catch-all : garantit une réponse JSON propre (avec headers CORS) même sur erreur 500."""
     if is_transient_supabase_error(exc):
         logger.warning(

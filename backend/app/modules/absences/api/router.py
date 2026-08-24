@@ -248,7 +248,7 @@ def _resolve_create_absence_employee_id(
 
 
 @router.post("/get-upload-url", response_model=SignedUploadURL)
-async def get_upload_url(
+def get_upload_url(
     filename: str = Body(..., embed=True),
     current_user: User = Depends(get_current_user),
 ):
@@ -265,7 +265,7 @@ async def get_upload_url(
 
 
 @router.post("/requests", response_model=AbsenceRequest, status_code=201)
-async def create_absence_request(
+def create_absence_request(
     request_data: AbsenceRequestCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -356,7 +356,7 @@ async def create_absence_request(
 
 
 @router.patch("/requests/{request_id}/status", response_model=AbsenceRequest)
-async def update_absence_request_status(
+def update_absence_request_status(
     request_id: str,
     http_request: Request,
     status_update: AbsenceRequestStatusUpdate,
@@ -452,7 +452,7 @@ async def update_absence_request(
 
 
 @router.get("/", response_model=List[AbsenceRequestWithEmployee])
-async def get_absence_requests(
+def get_absence_requests(
     status: Literal["pending", "validated", "rejected", "cancelled"] | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -468,7 +468,7 @@ async def get_absence_requests(
 
 
 @router.get("/pending-manager-approval", response_model=List[AbsencePendingManagerItem])
-async def list_pending_manager_approval(
+def list_pending_manager_approval(
     current_user: User = Depends(get_current_user),
 ):
     """Demandes en attente de validation manager (périmètre RH ou équipe du manager)."""
@@ -501,7 +501,7 @@ async def list_pending_manager_approval(
 
 
 @router.post("/{absence_id}/manager-approve", response_model=AbsenceRequest)
-async def manager_approve_absence(
+def manager_approve_absence(
     absence_id: str,
     body: ManagerApprovalRequest,
     current_user: User = Depends(get_current_user),
@@ -578,7 +578,7 @@ async def manager_approve_absence(
 
 
 @router.get("/employees/{employee_id}", response_model=List[AbsenceRequest])
-async def get_absences_for_employee(
+def get_absences_for_employee(
     employee_id: str, current_user: User = Depends(get_current_user)
 ):
     """Demandes d'absence d'un salarié (arrêts maladie, justificatifs signés).
@@ -608,7 +608,7 @@ async def get_absences_for_employee(
     "/employees/me/evenements-familiaux",
     response_model=EvenementFamilialQuotaResponse,
 )
-async def get_my_evenements_familiaux(
+def get_my_evenements_familiaux(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère la liste des événements familiaux disponibles avec quota et solde restant."""
@@ -626,7 +626,7 @@ async def get_my_evenements_familiaux(
 
 
 @router.get("/employees/me/balances", response_model=AbsenceBalancesResponse)
-async def get_my_absence_balances(
+def get_my_absence_balances(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère les soldes de congés calculés pour l'utilisateur connecté."""
@@ -642,7 +642,7 @@ async def get_my_absence_balances(
 
 
 @router.get("/employees/me/calendar", response_model=MonthlyCalendarResponse)
-async def get_my_monthly_calendar(
+def get_my_monthly_calendar(
     year: int,
     month: int,
     current_user: User = Depends(get_current_user),
@@ -661,7 +661,7 @@ async def get_my_monthly_calendar(
 
 
 @router.get("/employees/me/history", response_model=List[AbsenceRequest])
-async def get_my_absences_history(
+def get_my_absences_history(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère l'historique des demandes d'absence pour l'utilisateur connecté avec URLs des justificatifs."""
@@ -677,7 +677,7 @@ async def get_my_absences_history(
 
 
 @router.get("/employees/me/page-data", response_model=AbsencePageData)
-async def get_my_absences_page_data(
+def get_my_absences_page_data(
     year: int,
     month: int,
     current_user: User = Depends(get_current_user),
@@ -700,7 +700,7 @@ async def get_my_absences_page_data(
     "/employees/{employee_id}/balances",
     response_model=AbsenceBalancesResponse,
 )
-async def get_employee_absence_balances_route(
+def get_employee_absence_balances_route(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -720,7 +720,7 @@ async def get_employee_absence_balances_route(
 
 
 @router.get("/{absence_id}/maintenance-preview")
-async def get_absence_maintenance_preview(
+def get_absence_maintenance_preview(
     absence_id: str,
     subrogation_active: bool | None = Query(
         None,
@@ -743,7 +743,7 @@ async def get_absence_maintenance_preview(
 
 
 @router.post("/{absence_id}/regularisation-at")
-async def post_absence_regularisation_at(
+def post_absence_regularisation_at(
     absence_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -763,7 +763,7 @@ async def post_absence_regularisation_at(
 
 
 @router.post("/{absence_id}/generate-certificate")
-async def generate_salary_certificate(
+def generate_salary_certificate(
     absence_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -784,7 +784,7 @@ async def generate_salary_certificate(
 
 
 @router.get("/{absence_id}/certificate/download")
-async def download_salary_certificate(
+def download_salary_certificate(
     absence_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -810,7 +810,7 @@ async def download_salary_certificate(
 
 
 @router.get("/{absence_id}/certificate")
-async def get_salary_certificate(
+def get_salary_certificate(
     absence_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -831,7 +831,7 @@ async def get_salary_certificate(
 
 
 @router.patch("/{absence_id}/certificate/transmission")
-async def mark_salary_certificate_transmitted(
+def mark_salary_certificate_transmitted(
     absence_id: str,
     body: SalaryCertificateTransmissionUpdate,
     current_user: User = Depends(get_current_user),
@@ -858,7 +858,7 @@ async def mark_salary_certificate_transmitted(
     "/leave-notification-settings",
     response_model=LeaveNotificationSettingsResponse,
 )
-async def get_leave_notification_settings_route(
+def get_leave_notification_settings_route(
     current_user: User = Depends(get_current_user),
 ):
     cid = _require_rh_company_context(current_user)
@@ -869,7 +869,7 @@ async def get_leave_notification_settings_route(
     "/leave-notification-settings",
     response_model=LeaveNotificationSettingsResponse,
 )
-async def update_leave_notification_settings_route(
+def update_leave_notification_settings_route(
     body: LeaveNotificationSettingsUpdate,
     current_user: User = Depends(get_current_user),
 ):
@@ -885,7 +885,7 @@ async def update_leave_notification_settings_route(
 
 
 @router.get("/leave-settings", response_model=LeaveSettingsResponse)
-async def get_leave_settings_route(
+def get_leave_settings_route(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
@@ -896,7 +896,7 @@ async def get_leave_settings_route(
 
 
 @router.patch("/leave-settings", response_model=LeaveSettingsResponse)
-async def update_leave_settings_route(
+def update_leave_settings_route(
     body: LeaveSettingsUpdate,
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -911,7 +911,7 @@ async def update_leave_settings_route(
 
 
 @router.get("/leave-settings/jtc/annual-run", response_model=JtcAnnualRunResponse)
-async def get_jtc_annual_run_route(
+def get_jtc_annual_run_route(
     year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -924,7 +924,7 @@ async def get_jtc_annual_run_route(
 
 
 @router.post("/leave-settings/jtc/annual-run", response_model=JtcAnnualRunResponse)
-async def apply_jtc_annual_run_route(
+def apply_jtc_annual_run_route(
     year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -944,7 +944,7 @@ async def apply_jtc_annual_run_route(
     "/leave-settings/balances-overview",
     response_model=LeaveBalancesOverviewResponse,
 )
-async def get_leave_balances_overview_route(
+def get_leave_balances_overview_route(
     year: int | None = Query(None, ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -959,7 +959,7 @@ async def get_leave_balances_overview_route(
     "/leave-settings/employees/{employee_id}/adjustment",
     response_model=EmployeeLeaveAdjustmentResponse,
 )
-async def get_employee_leave_adjustment_route(
+def get_employee_leave_adjustment_route(
     employee_id: str,
     year: int = Query(..., ge=2000, le=2100),
     current_user: User = Depends(get_current_user),
@@ -977,7 +977,7 @@ async def get_employee_leave_adjustment_route(
     "/leave-settings/employees/{employee_id}/adjustment",
     response_model=EmployeeLeaveAdjustmentResponse,
 )
-async def update_employee_leave_adjustment_route(
+def update_employee_leave_adjustment_route(
     employee_id: str,
     body: EmployeeLeaveAdjustmentUpdate,
     year: int = Query(..., ge=2000, le=2100),
@@ -996,7 +996,7 @@ async def update_employee_leave_adjustment_route(
     "/leave-settings/employees/{employee_id}/rtt-solde",
     response_model=EmployeeLeaveAdjustmentResponse,
 )
-async def update_employee_rtt_solde_route(
+def update_employee_rtt_solde_route(
     employee_id: str,
     body: EmployeeRttSoldeUpdate,
     year: int = Query(..., ge=2000, le=2100),
@@ -1019,7 +1019,7 @@ async def update_employee_rtt_solde_route(
     "/leave-settings/adjustments/import",
     response_model=LeaveAdjustmentImportResult,
 )
-async def import_leave_adjustments_route(
+def import_leave_adjustments_route(
     body: LeaveAdjustmentImportRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -1028,7 +1028,7 @@ async def import_leave_adjustments_route(
 
 
 @router.get("/rtt-year-end/overview", response_model=RttYearEndOverviewResponse)
-async def get_rtt_year_end_overview_route(
+def get_rtt_year_end_overview_route(
     year: int | None = Query(None, ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1040,7 +1040,7 @@ async def get_rtt_year_end_overview_route(
 
 
 @router.post("/rtt-year-end/close", response_model=RttYearEndCloseResult)
-async def close_rtt_year_end_route(
+def close_rtt_year_end_route(
     body: RttYearEndCloseRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -1054,7 +1054,7 @@ async def close_rtt_year_end_route(
     "/fractionnement/settings",
     response_model=FractionnementSettingsResponse,
 )
-async def get_fractionnement_settings(
+def get_fractionnement_settings(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
@@ -1068,7 +1068,7 @@ async def get_fractionnement_settings(
     "/fractionnement/settings",
     response_model=FractionnementSettingsResponse,
 )
-async def update_fractionnement_settings(
+def update_fractionnement_settings(
     body: FractionnementSettingsUpdate,
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1086,7 +1086,7 @@ async def update_fractionnement_settings(
     "/fractionnement/preview",
     response_model=list[FractionnementPreviewRow],
 )
-async def get_fractionnement_preview(
+def get_fractionnement_preview(
     grant_year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1099,7 +1099,7 @@ async def get_fractionnement_preview(
 
 
 @router.put("/fractionnement/inputs/{employee_id}")
-async def upsert_fractionnement_input(
+def upsert_fractionnement_input(
     employee_id: str,
     body: FractionnementInputUpdate,
     company_id: str | None = Query(None),
@@ -1123,7 +1123,7 @@ async def upsert_fractionnement_input(
 @router.post(
     "/fractionnement/inputs/{employee_id}/reset-auto",
 )
-async def reset_fractionnement_input_auto(
+def reset_fractionnement_input_auto(
     employee_id: str,
     grant_year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
@@ -1141,7 +1141,7 @@ async def reset_fractionnement_input_auto(
     "/fractionnement/validate",
     response_model=FractionnementValidateResult,
 )
-async def validate_fractionnement_route(
+def validate_fractionnement_route(
     grant_year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1160,7 +1160,7 @@ async def validate_fractionnement_route(
     "/leave-campaign/dashboard",
     response_model=LeaveCampaignDashboard,
 )
-async def get_leave_campaign_dashboard_route(
+def get_leave_campaign_dashboard_route(
     grant_year: int | None = Query(None, ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1179,7 +1179,7 @@ async def get_leave_campaign_dashboard_route(
     "/cp-seniority-settings",
     response_model=CpSenioritySettingsResponse,
 )
-async def get_cp_seniority_settings_route(
+def get_cp_seniority_settings_route(
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
 ):
@@ -1193,7 +1193,7 @@ async def get_cp_seniority_settings_route(
     "/cp-seniority-settings",
     response_model=CpSenioritySettingsResponse,
 )
-async def update_cp_seniority_settings_route(
+def update_cp_seniority_settings_route(
     body: CpSenioritySettingsUpdate,
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1211,7 +1211,7 @@ async def update_cp_seniority_settings_route(
     "/cp-seniority-settings/apply-preset/{preset}",
     response_model=CpSenioritySettingsResponse,
 )
-async def apply_cp_seniority_preset_route(
+def apply_cp_seniority_preset_route(
     preset: str,
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1231,7 +1231,7 @@ async def apply_cp_seniority_preset_route(
     "/cp-seniority-settings/preview",
     response_model=list[CpSeniorityPreviewRow],
 )
-async def get_cp_seniority_preview_route(
+def get_cp_seniority_preview_route(
     grant_year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1247,7 +1247,7 @@ async def get_cp_seniority_preview_route(
     "/cp-seniority-settings/validate",
     response_model=CpSeniorityValidateResult,
 )
-async def validate_cp_seniority_route(
+def validate_cp_seniority_route(
     grant_year: int = Query(..., ge=2000, le=2100),
     company_id: str | None = Query(None),
     current_user: User = Depends(get_current_user),
@@ -1263,7 +1263,7 @@ async def validate_cp_seniority_route(
 
 
 @router.patch("/cp-seniority-grants/{employee_id}")
-async def override_cp_seniority_grant_route(
+def override_cp_seniority_grant_route(
     employee_id: str,
     body: CpSeniorityGrantOverride,
     company_id: str | None = Query(None),
@@ -1283,7 +1283,7 @@ async def override_cp_seniority_grant_route(
 
 
 @router.get("/{absence_id}", response_model=AbsenceRequest)
-async def get_absence_request_detail_for_user(
+def get_absence_request_detail_for_user(
     absence_id: str,
     current_user: User = Depends(get_current_user),
 ):

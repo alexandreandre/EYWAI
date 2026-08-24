@@ -185,7 +185,7 @@ def _handle_error(e: Exception) -> None:
 
 
 @router.post("/salary-seizures", response_model=SalarySeizure, status_code=201)
-async def create_salary_seizure(
+def create_salary_seizure(
     seizure_data: SalarySeizureCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -207,7 +207,7 @@ async def create_salary_seizure(
 
 
 @router.get("/salary-seizures", response_model=List[SalarySeizure])
-async def get_salary_seizures(
+def get_salary_seizures(
     employee_id: Optional[str] = Query(None),
     status: Optional[Literal["active", "suspended", "closed"]] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -229,7 +229,7 @@ async def get_salary_seizures(
 
 
 @router.get("/salary-seizures/{seizure_id}", response_model=SalarySeizure)
-async def get_salary_seizure(
+def get_salary_seizure(
     seizure_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -246,7 +246,7 @@ async def get_salary_seizure(
 
 
 @router.patch("/salary-seizures/{seizure_id}", response_model=SalarySeizure)
-async def update_salary_seizure(
+def update_salary_seizure(
     seizure_id: str,
     update_data: SalarySeizureUpdate,
     current_user: User = Depends(get_current_user),
@@ -264,7 +264,7 @@ async def update_salary_seizure(
 
 
 @router.delete("/salary-seizures/{seizure_id}", status_code=204)
-async def delete_salary_seizure(
+def delete_salary_seizure(
     seizure_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -282,7 +282,7 @@ async def delete_salary_seizure(
     "/salary-seizures/calculate-seizable",
     response_model=SeizableAmountCalculation,
 )
-async def calculate_seizable(
+def calculate_seizable(
     net_salary: Decimal = Body(...),
     dependents_count: int = Body(0),
     current_user: User = Depends(get_current_user),
@@ -301,7 +301,7 @@ async def calculate_seizable(
     "/employees/me/salary-advances",
     response_model=List[SalaryAdvance],
 )
-async def get_my_salary_advances(
+def get_my_salary_advances(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère mes avances (employé)."""
@@ -317,7 +317,7 @@ async def get_my_salary_advances(
     "/employees/me/advance-available",
     response_model=AdvanceAvailableAmount,
 )
-async def get_my_advance_available(
+def get_my_advance_available(
     advance_type: Optional[
         Literal["avance_salaire", "acompte_salaire", "acompte_prime"]
     ] = Query("avance_salaire"),
@@ -343,7 +343,7 @@ async def get_my_advance_available(
     "/employees/{employee_id}/advance-available",
     response_model=AdvanceAvailableAmount,
 )
-async def get_employee_advance_available(
+def get_employee_advance_available(
     employee_id: str,
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None, ge=1, le=12),
@@ -372,7 +372,7 @@ async def get_employee_advance_available(
     "/employees/{employee_id}/salary-seizures",
     response_model=List[SalarySeizure],
 )
-async def get_employee_salary_seizures(
+def get_employee_salary_seizures(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -395,7 +395,7 @@ async def get_employee_salary_seizures(
 
 
 @router.post("/salary-advances", response_model=SalaryAdvance, status_code=201)
-async def create_salary_advance(
+def create_salary_advance(
     advance_data: SalaryAdvanceCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -421,7 +421,7 @@ async def create_salary_advance(
 
 
 @router.get("/salary-advances", response_model=List[SalaryAdvance])
-async def get_salary_advances(
+def get_salary_advances(
     employee_id: Optional[str] = Query(None),
     status: Optional[Literal["pending", "approved", "rejected", "paid"]] = Query(None),
     advance_type: Optional[
@@ -450,7 +450,7 @@ async def get_salary_advances(
 
 
 @router.get("/salary-advances/{advance_id}", response_model=SalaryAdvance)
-async def get_salary_advance(
+def get_salary_advance(
     advance_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -470,7 +470,7 @@ async def get_salary_advance(
     "/salary-advances/{advance_id}/approve",
     response_model=SalaryAdvance,
 )
-async def approve_salary_advance(
+def approve_salary_advance(
     advance_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -492,7 +492,7 @@ async def approve_salary_advance(
     "/salary-advances/{advance_id}/reject",
     response_model=SalaryAdvance,
 )
-async def reject_salary_advance(
+def reject_salary_advance(
     advance_id: str,
     rejection_data: SalaryAdvanceReject,
     current_user: User = Depends(get_current_user),
@@ -518,7 +518,7 @@ async def reject_salary_advance(
     "/salary-advances/{advance_id}/reconcile-prime",
     response_model=SalaryAdvance,
 )
-async def reconcile_acompte_prime_endpoint(
+def reconcile_acompte_prime_endpoint(
     advance_id: str,
     reconcile_data: AcomptePrimeReconcile,
     current_user: User = Depends(get_current_user),
@@ -541,7 +541,7 @@ async def reconcile_acompte_prime_endpoint(
     "/employees/{employee_id}/salary-advances",
     response_model=List[SalaryAdvance],
 )
-async def get_employee_salary_advances(
+def get_employee_salary_advances(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -569,7 +569,7 @@ async def get_employee_salary_advances(
     "/payslips/{payslip_id}/deductions",
     response_model=List[SalarySeizureDeduction],
 )
-async def get_payslip_deductions(
+def get_payslip_deductions(
     payslip_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -586,7 +586,7 @@ async def get_payslip_deductions(
     "/payslips/{payslip_id}/advance-repayments",
     response_model=List[SalaryAdvanceRepayment],
 )
-async def get_payslip_advance_repayments(
+def get_payslip_advance_repayments(
     payslip_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -606,7 +606,7 @@ async def get_payslip_advance_repayments(
     "/advance-payments/upload-url",
     response_model=SignedUploadURL,
 )
-async def get_payment_upload_url(
+def get_payment_upload_url(
     filename: str = Body(embed=True),
     current_user: User = Depends(get_current_user),
 ):
@@ -625,7 +625,7 @@ async def get_payment_upload_url(
     response_model=SalaryAdvancePayment,
     status_code=201,
 )
-async def create_advance_payment(
+def create_advance_payment(
     payment_data: SalaryAdvancePaymentCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -647,7 +647,7 @@ async def create_advance_payment(
     "/advances/{advance_id}/payments",
     response_model=List[SalaryAdvancePayment],
 )
-async def get_advance_payments(
+def get_advance_payments(
     advance_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -664,7 +664,7 @@ async def get_advance_payments(
 
 
 @router.get("/advance-payments/{payment_id}/proof-url")
-async def get_payment_proof_url(
+def get_payment_proof_url(
     payment_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -684,7 +684,7 @@ async def get_payment_proof_url(
 
 
 @router.delete("/advance-payments/{payment_id}")
-async def delete_advance_payment(
+def delete_advance_payment(
     payment_id: str,
     current_user: User = Depends(get_current_user),
 ):

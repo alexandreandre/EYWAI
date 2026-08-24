@@ -58,7 +58,7 @@ def _require_rh(user: User, company_id: str) -> None:
 
 
 @router.get("/settings", response_model=ModulationSettingsResponse)
-async def get_settings(
+def get_settings(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -67,7 +67,7 @@ async def get_settings(
 
 
 @router.patch("/settings", response_model=ModulationSettingsResponse)
-async def update_settings(
+def update_settings(
     body: ModulationSettingsUpdate,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -84,7 +84,7 @@ async def update_settings(
 
 
 @router.get("/week-templates", response_model=list[WeekTemplateSchema])
-async def list_templates(
+def list_templates(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -93,7 +93,7 @@ async def list_templates(
 
 
 @router.post("/week-templates", response_model=WeekTemplateSchema)
-async def create_template(
+def create_template(
     body: WeekTemplateSchema,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -114,7 +114,7 @@ async def create_template(
 
 
 @router.put("/week-templates/{template_id}", response_model=WeekTemplateSchema)
-async def update_template(
+def update_template(
     template_id: str,
     body: WeekTemplateSchema,
     company_id: str | None = None,
@@ -138,7 +138,7 @@ async def update_template(
 
 
 @router.delete("/week-templates/{template_id}")
-async def remove_template(
+def remove_template(
     template_id: str,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -150,7 +150,7 @@ async def remove_template(
 
 
 @router.get("/overview", response_model=list[ModulationOverviewRow])
-async def get_overview(
+def get_overview(
     year: int | None = Query(None),
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -163,7 +163,7 @@ async def get_overview(
     "/employees/{employee_id}/balance",
     response_model=ModulationBalanceResponse,
 )
-async def get_employee_balance(
+def get_employee_balance(
     employee_id: str,
     year: int | None = Query(None),
     month: int | None = Query(None, ge=1, le=12),
@@ -180,7 +180,7 @@ async def get_employee_balance(
     "/employees/{employee_id}/movements",
     response_model=list[ModulationMovementSchema],
 )
-async def get_employee_movements(
+def get_employee_movements(
     employee_id: str,
     year: int | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -196,7 +196,7 @@ async def get_employee_movements(
     "/employees/{employee_id}/opening-balance",
     response_model=ModulationMovementSchema,
 )
-async def post_opening_balance(
+def post_opening_balance(
     employee_id: str,
     body: OpeningBalanceCreate,
     company_id: str | None = None,
@@ -214,7 +214,7 @@ async def post_opening_balance(
 
 
 @router.post("/adjustments", response_model=ModulationMovementSchema)
-async def post_adjustment(
+def post_adjustment(
     body: ManualAdjustmentCreate,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -235,7 +235,7 @@ async def post_adjustment(
     "/settings/apply-preset/{preset}",
     response_model=ModulationSettingsResponse,
 )
-async def apply_preset(
+def apply_preset(
     preset: str,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -250,7 +250,7 @@ async def apply_preset(
 
 
 @router.get("/workflow-status")
-async def get_workflow_status(
+def get_workflow_status(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -275,7 +275,7 @@ async def get_workflow_status(
 
 
 @router.get("/work-time-periods", response_model=list[WorkTimePeriodSchema])
-async def list_work_time_periods(
+def list_work_time_periods(
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -303,7 +303,7 @@ async def list_work_time_periods(
 
 
 @router.post("/work-time-periods", response_model=WorkTimePeriodSchema)
-async def create_work_time_period(
+def create_work_time_period(
     body: WorkTimePeriodSchema,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -331,7 +331,7 @@ async def create_work_time_period(
 
 
 @router.patch("/work-time-periods/{period_id}", response_model=WorkTimePeriodSchema)
-async def update_work_time_period(
+def update_work_time_period(
     period_id: str,
     body: WorkTimePeriodUpdate,
     company_id: str | None = None,
@@ -362,7 +362,7 @@ async def update_work_time_period(
 
 
 @router.delete("/work-time-periods/{period_id}")
-async def delete_work_time_period(
+def delete_work_time_period(
     period_id: str,
     company_id: str | None = None,
     current_user: User = Depends(get_current_user),
@@ -379,7 +379,7 @@ async def delete_work_time_period(
 
 
 @router.get("/overtime-routing", response_model=list[OvertimeRoutingRow])
-async def get_overtime_routing(
+def get_overtime_routing(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
     company_id: str | None = None,
@@ -396,7 +396,7 @@ async def get_overtime_routing(
     "/overtime-routing/{employee_id}",
     response_model=OvertimeRoutingRow,
 )
-async def put_overtime_routing(
+def put_overtime_routing(
     employee_id: str,
     body: OvertimeRoutingDecisionUpdate,
     year: int = Query(...),

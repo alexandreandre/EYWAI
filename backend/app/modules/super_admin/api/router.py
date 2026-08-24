@@ -106,7 +106,7 @@ def _super_admin_actor_id(super_admin: Dict[str, Any]) -> str:
 
 
 @router.get("/dashboard/stats")
-async def get_global_stats(
+def get_global_stats(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Récupère les statistiques globales de toute la plateforme."""
@@ -117,7 +117,7 @@ async def get_global_stats(
 
 
 @router.get("/dashboard/support-badges")
-async def get_support_badges(
+def get_support_badges(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Compteurs tickets pour la navigation Administration EYWAI."""
@@ -128,7 +128,7 @@ async def get_support_badges(
 
 
 @router.get("/activity/logs")
-async def list_platform_audit_logs(
+def list_platform_audit_logs(
     company_id: Optional[str] = None,
     user_id: Optional[str] = None,
     action: Optional[str] = None,
@@ -159,7 +159,7 @@ async def list_platform_audit_logs(
 
 
 @router.get("/companies")
-async def list_companies(
+def list_companies(
     skip: int = 0,
     limit: int = 50,
     search: Optional[str] = None,
@@ -176,7 +176,7 @@ async def list_companies(
 
 
 @router.get("/companies/{company_id}")
-async def get_company_details(
+def get_company_details(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -188,7 +188,7 @@ async def get_company_details(
 
 
 @router.post("/companies")
-async def create_company(
+def create_company(
     company: CompanyCreateWithAdmin,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -200,7 +200,7 @@ async def create_company(
 
 
 @router.patch("/companies/{company_id}")
-async def update_company(
+def update_company(
     company_id: str,
     company_update: CompanyUpdate,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -214,7 +214,7 @@ async def update_company(
 
 
 @router.delete("/companies/{company_id}")
-async def delete_company(
+def delete_company(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -226,7 +226,7 @@ async def delete_company(
 
 
 @router.delete("/companies/{company_id}/permanent")
-async def delete_company_permanent(
+def delete_company_permanent(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -238,7 +238,7 @@ async def delete_company_permanent(
 
 
 @router.delete("/companies/{company_id}/employees")
-async def delete_all_company_employees(
+def delete_all_company_employees(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -250,7 +250,7 @@ async def delete_all_company_employees(
 
 
 @router.post("/companies/{company_id}/employees/purge")
-async def purge_all_company_employees_stream(
+def purge_all_company_employees_stream(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -275,7 +275,7 @@ async def purge_all_company_employees_stream(
 
 
 @router.get("/companies/{company_id}/mutuelle-types")
-async def get_company_mutuelle_types(
+def get_company_mutuelle_types(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> List[dict]:
@@ -289,7 +289,7 @@ async def get_company_mutuelle_types(
 
 
 @router.post("/companies/{company_id}/mutuelle-types", status_code=201)
-async def create_company_mutuelle_type(
+def create_company_mutuelle_type(
     company_id: str,
     payload: MutuelleTypeCreate,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -307,7 +307,7 @@ async def create_company_mutuelle_type(
 
 
 @router.put("/companies/{company_id}/mutuelle-types/{mutuelle_type_id}")
-async def update_company_mutuelle_type(
+def update_company_mutuelle_type(
     company_id: str,
     mutuelle_type_id: str,
     payload: MutuelleTypeUpdate,
@@ -327,7 +327,7 @@ async def update_company_mutuelle_type(
 
 
 @router.delete("/companies/{company_id}/mutuelle-types/{mutuelle_type_id}")
-async def delete_company_mutuelle_type(
+def delete_company_mutuelle_type(
     company_id: str,
     mutuelle_type_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -345,7 +345,7 @@ async def delete_company_mutuelle_type(
     "/companies/{company_id}/psc-settings",
     response_model=PscSettingsResponse,
 )
-async def get_company_psc_settings(
+def get_company_psc_settings(
     company_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> dict:
@@ -362,7 +362,7 @@ async def get_company_psc_settings(
     "/companies/{company_id}/psc-settings",
     response_model=PscSettingsResponse,
 )
-async def update_company_psc_settings(
+def update_company_psc_settings(
     company_id: str,
     payload: PscSettingsUpdate,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -381,7 +381,7 @@ async def update_company_psc_settings(
 
 
 @router.get("/users")
-async def list_all_users(
+def list_all_users(
     skip: int = 0,
     limit: int = 50,
     company_id: Optional[str] = None,
@@ -406,7 +406,7 @@ async def list_all_users(
 
 
 @router.get("/companies/{company_id}/users")
-async def get_company_users(
+def get_company_users(
     company_id: str,
     role: Optional[str] = None,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -419,7 +419,7 @@ async def get_company_users(
 
 
 @router.post("/companies/{company_id}/users")
-async def create_company_user(
+def create_company_user(
     company_id: str,
     user_data: UserCreate,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -434,7 +434,7 @@ async def create_company_user(
 
 
 @router.patch("/companies/{company_id}/users/{user_id}")
-async def update_company_user(
+def update_company_user(
     company_id: str,
     user_id: str,
     update_data: Dict[str, Any] = Body(...),
@@ -450,7 +450,7 @@ async def update_company_user(
 
 
 @router.delete("/companies/{company_id}/users/{user_id}")
-async def delete_company_user(
+def delete_company_user(
     company_id: str,
     user_id: str,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -466,7 +466,7 @@ async def delete_company_user(
 
 
 @router.get("/system/health")
-async def get_system_health(
+def get_system_health(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Récupère l'état de santé du système."""
@@ -480,7 +480,7 @@ async def get_system_health(
 
 
 @router.get("/tests/tree")
-async def get_tests_tree(
+def get_tests_tree(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Arbre des cibles : pytest (``backend_api/tests``) + Playwright (``e2e/``) si le dossier existe."""
@@ -488,7 +488,7 @@ async def get_tests_tree(
 
 
 @router.post("/tests/run")
-async def run_tests(
+def run_tests(
     body: RunTestsRequest = Body(...),
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -497,7 +497,7 @@ async def run_tests(
 
 
 @router.get("/super-admins")
-async def list_super_admins(
+def list_super_admins(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Liste tous les super administrateurs."""
@@ -511,7 +511,7 @@ async def list_super_admins(
 
 
 @router.post("/reduction-fillon/calculate")
-async def calculate_reduction_fillon(
+def calculate_reduction_fillon(
     request: ReductionFillonRequest,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
@@ -525,7 +525,7 @@ async def calculate_reduction_fillon(
 
 
 @router.get("/reduction-fillon/employees")
-async def get_employees_for_reduction_fillon(
+def get_employees_for_reduction_fillon(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
     """Récupère la liste des employés pour le test réduction Fillon."""

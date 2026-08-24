@@ -66,7 +66,7 @@ def _ensure_company_id(user: CollectiveAgreementUserContext) -> str:
 
 
 @router.get("/catalog", response_model=List[CollectiveAgreementCatalog])
-async def list_catalog(
+def list_catalog(
     sector: str | None = Query(None, description="Filtrer par secteur"),
     search: str | None = Query(None, description="Rechercher par nom ou IDCC"),
     active_only: bool = Query(
@@ -87,7 +87,7 @@ async def list_catalog(
 
 
 @router.get("/catalog/suggest", response_model=CollectiveAgreementSuggestResponse)
-async def suggest_catalog(
+def suggest_catalog(
     q: str = Query(..., min_length=2, description="Recherche en langage naturel ou IDCC"),
     limit: int = Query(10, ge=1, le=20),
     active_only: bool = Query(True),
@@ -113,7 +113,7 @@ async def suggest_catalog(
 
 
 @router.get("/catalog/{agreement_id}", response_model=CollectiveAgreementCatalog)
-async def get_catalog_item(
+def get_catalog_item(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -133,7 +133,7 @@ async def get_catalog_item(
 
 
 @router.get("/catalog/{agreement_id}/classifications")
-async def get_agreement_classifications(
+def get_agreement_classifications(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -148,7 +148,7 @@ async def get_agreement_classifications(
 
 
 @router.get("/catalog/{agreement_id}/salary-minima")
-async def get_agreement_salary_minima(
+def get_agreement_salary_minima(
     agreement_id: str,
     code_postal: str | None = Query(None, description="Code postal établissement"),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -167,7 +167,7 @@ async def get_agreement_salary_minima(
 
 
 @router.post("/catalog/upload-url")
-async def get_catalog_upload_url(
+def get_catalog_upload_url(
     body: GetUploadUrlBody,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -187,7 +187,7 @@ async def get_catalog_upload_url(
 
 
 @router.post("/catalog", response_model=CollectiveAgreementCatalog, status_code=201)
-async def create_catalog_item(
+def create_catalog_item(
     agreement_data: CollectiveAgreementCatalogCreate,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -214,7 +214,7 @@ async def create_catalog_item(
 
 
 @router.patch("/catalog/{agreement_id}", response_model=CollectiveAgreementCatalog)
-async def update_catalog_item(
+def update_catalog_item(
     agreement_id: str,
     update_data: CollectiveAgreementCatalogUpdate,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -240,7 +240,7 @@ async def update_catalog_item(
 
 
 @router.delete("/catalog/{agreement_id}", status_code=204)
-async def delete_catalog_item(
+def delete_catalog_item(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -261,7 +261,7 @@ async def delete_catalog_item(
 
 
 @router.get("/my-company", response_model=List[CompanyCollectiveAgreementWithDetails])
-async def get_my_company_agreements(
+def get_my_company_agreements(
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
     """Récupère les conventions assignées à l'entreprise de l'utilisateur."""
@@ -280,7 +280,7 @@ async def get_my_company_agreements(
 
 
 @router.post("/assign", status_code=201)
-async def assign_agreement_to_company(
+def assign_agreement_to_company(
     collective_agreement_id: str = Body(..., embed=True),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -307,7 +307,7 @@ async def assign_agreement_to_company(
 
 
 @router.delete("/unassign/{assignment_id}", status_code=204)
-async def unassign_agreement_from_company(
+def unassign_agreement_from_company(
     assignment_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -354,7 +354,7 @@ def _stream_convention_document(
 
 
 @router.get("/catalog/{agreement_id}/document/full-text")
-async def get_convention_full_text_pdf(
+def get_convention_full_text_pdf(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -369,7 +369,7 @@ async def get_convention_full_text_pdf(
 
 
 @router.get("/catalog/{agreement_id}/document/synthesis")
-async def get_convention_synthesis_pdf(
+def get_convention_synthesis_pdf(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -387,7 +387,7 @@ async def get_convention_synthesis_pdf(
 
 
 @router.get("/all-assignments")
-async def get_all_company_assignments(
+def get_all_company_assignments(
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
     """Toutes les assignations par entreprise (super admin)."""
@@ -411,7 +411,7 @@ async def get_all_company_assignments(
     "/catalog/import-legifrance",
     response_model=KaliImportResponse,
 )
-async def import_from_legifrance(
+def import_from_legifrance(
     body: KaliImportRequest,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -434,7 +434,7 @@ async def import_from_legifrance(
     "/catalog/import-legifrance/batch",
     response_model=KaliImportBatchResponse,
 )
-async def import_from_legifrance_batch(
+def import_from_legifrance_batch(
     body: KaliImportBatchRequest,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -457,7 +457,7 @@ async def import_from_legifrance_batch(
     "/catalog/sync-legifrance",
     response_model=KaliImportBatchResponse,
 )
-async def sync_catalog_from_legifrance(
+def sync_catalog_from_legifrance(
     body: KaliSyncCatalogRequest = Body(default_factory=KaliSyncCatalogRequest),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -478,7 +478,7 @@ async def sync_catalog_from_legifrance(
     "/catalog/kali-import/cancel",
     response_model=KaliImportCancelResponse,
 )
-async def cancel_kali_import(
+def cancel_kali_import(
     body: KaliImportCancelRequest,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -500,7 +500,7 @@ async def cancel_kali_import(
     "/catalog/{agreement_id}/import-legifrance",
     response_model=KaliImportResponse,
 )
-async def import_agreement_from_legifrance(
+def import_agreement_from_legifrance(
     agreement_id: str,
     extract_rules: bool = Query(True),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -529,7 +529,7 @@ async def import_agreement_from_legifrance(
     "/catalog/{agreement_id}/extract-rules",
     response_model=ExtractRulesResponse,
 )
-async def extract_rules(
+def extract_rules(
     agreement_id: str,
     dry_run: bool = Query(False, description="Simuler sans appel IA"),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -552,7 +552,7 @@ async def extract_rules(
     "/catalog/extract-rules/batch",
     response_model=ExtractRulesBatchResponse,
 )
-async def extract_rules_batch(
+def extract_rules_batch(
     body: ExtractRulesBatchRequest,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -579,7 +579,7 @@ async def extract_rules_batch(
     "/catalog/{agreement_id}/extract-trainings",
     response_model=ExtractTrainingsResponse,
 )
-async def extract_trainings(
+def extract_trainings(
     agreement_id: str,
     dry_run: bool = Query(False, description="Simuler sans appel IA"),
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -602,7 +602,7 @@ async def extract_trainings(
     "/catalog/{agreement_id}/training-recommendations",
     response_model=List[CcTrainingRecommendation],
 )
-async def list_training_recommendations(
+def list_training_recommendations(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -623,7 +623,7 @@ async def list_training_recommendations(
     "/training-recommendations/{recommendation_id}",
     response_model=CcTrainingRecommendation,
 )
-async def patch_training_recommendation(
+def patch_training_recommendation(
     recommendation_id: str,
     body: CcTrainingRecommendationUpdate,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
@@ -646,7 +646,7 @@ async def patch_training_recommendation(
     "/catalog/{agreement_id}/rules-status",
     response_model=RulesStatusResponse,
 )
-async def get_rules_status(
+def get_rules_status(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -673,7 +673,7 @@ async def get_rules_status(
     "/catalog/rules/rollback/{log_id}",
     response_model=RollbackRulesResponse,
 )
-async def rollback_rules(
+def rollback_rules(
     log_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -698,7 +698,7 @@ router_chat = APIRouter(
 
 
 @router_chat.post("/ask", response_model=QuestionResponse)
-async def ask_question(
+def ask_question(
     request: QuestionRequest,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):
@@ -722,7 +722,7 @@ async def ask_question(
 
 
 @router_chat.post("/refresh-cache/{agreement_id}")
-async def refresh_cache(
+def refresh_cache(
     agreement_id: str,
     current_user: CollectiveAgreementUserContext = Depends(get_current_user),
 ):

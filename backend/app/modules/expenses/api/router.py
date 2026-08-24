@@ -105,7 +105,7 @@ def _filter_expenses_in_scope(
 
 
 @router.post("/get-upload-url", response_model=SignedUploadUrlResponse)
-async def get_upload_url(
+def get_upload_url(
     filename: Annotated[str, Body(embed=True)],
     current_user: User = Depends(get_current_user),
 ):
@@ -121,7 +121,7 @@ async def get_upload_url(
 
 
 @router.post("/", response_model=Expense, status_code=201)
-async def create_expense_report(
+def create_expense_report(
     expense_data: ExpenseBase,
     current_user: User = Depends(get_current_user),
 ):
@@ -150,7 +150,7 @@ async def create_expense_report(
 
 
 @router.get("/me", response_model=List[Expense])
-async def get_my_expenses(current_user: User = Depends(get_current_user)):
+def get_my_expenses(current_user: User = Depends(get_current_user)):
     """Récupère toutes les notes de frais de l'employé connecté, avec les URLs des justificatifs."""
     try:
         return _expense_service.get_my_expenses_for_user_account(
@@ -163,7 +163,7 @@ async def get_my_expenses(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/", response_model=List[ExpenseWithEmployee])
-async def get_all_expenses(
+def get_all_expenses(
     status: ExpenseStatus | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -182,7 +182,7 @@ async def get_all_expenses(
 
 
 @router.get("/receipt-url")
-async def get_receipt_signed_url(
+def get_receipt_signed_url(
     path: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -209,7 +209,7 @@ async def get_receipt_signed_url(
 
 
 @router.patch("/{expense_id}/status", response_model=Expense)
-async def update_expense_status(
+def update_expense_status(
     expense_id: str,
     status_update: ExpenseStatusUpdateRequest,
     current_user: User = Depends(get_current_user),

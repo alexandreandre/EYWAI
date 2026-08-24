@@ -72,7 +72,7 @@ async def parse_dsn_files(
 
 
 @router.get("/coverage", response_model=DsnCoverageResponse)
-async def get_dsn_coverage(
+def get_dsn_coverage(
     ctx: Dict[str, Any] = Depends(verify_super_admin_or_company_access),
 ) -> DsnCoverageResponse:
     """Couverture DSN (mois importés, trous, statut) pour une entreprise."""
@@ -85,7 +85,7 @@ async def get_dsn_coverage(
 
 
 @router.get("/coverage/admin-summary", response_model=DsnCoverageAdminSummary)
-async def get_dsn_admin_summary(
+def get_dsn_admin_summary(
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnCoverageAdminSummary:
     """Entreprises en retard d'import DSN (super-admin)."""
@@ -94,7 +94,7 @@ async def get_dsn_admin_summary(
 
 
 @router.get("/coverage/admin-matrix", response_model=DsnCoverageAdminMatrixResponse)
-async def get_dsn_admin_matrix(
+def get_dsn_admin_matrix(
     year: Optional[int] = Query(default=None),
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnCoverageAdminMatrixResponse:
@@ -109,7 +109,7 @@ async def get_dsn_admin_matrix(
 
 
 @router.post("/coverage/revoke-period", response_model=DsnImportRevokePeriodResponse)
-async def revoke_dsn_period_import(
+def revoke_dsn_period_import(
     body: DsnImportRevokePeriodBody,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportRevokePeriodResponse:
@@ -128,7 +128,7 @@ async def revoke_dsn_period_import(
 
 
 @router.get("/batches/pending", response_model=DsnImportBatchListResponse)
-async def list_pending_import_batches(
+def list_pending_import_batches(
     limit: int = 20,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportBatchListResponse:
@@ -152,7 +152,7 @@ async def list_pending_import_batches(
 
 
 @router.get("/companies", response_model=DsnImportCompanyListResponse)
-async def list_attribution_companies(
+def list_attribution_companies(
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportCompanyListResponse:
     """Entreprises existantes proposées pour rattacher un import DSN."""
@@ -163,7 +163,7 @@ async def list_attribution_companies(
 
 
 @router.get("/batches", response_model=DsnImportBatchListResponse)
-async def list_import_batches(
+def list_import_batches(
     limit: int = 50,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportBatchListResponse:
@@ -187,7 +187,7 @@ async def list_import_batches(
 
 
 @router.get("/batches/{batch_id}", response_model=DsnImportBatchDetailResponse)
-async def get_import_batch(
+def get_import_batch(
     batch_id: str,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> DsnImportBatchDetailResponse:
@@ -215,7 +215,7 @@ async def get_import_batch(
 
 
 @router.post("/batches/{batch_id}/revalidate", response_model=DsnImportRevalidateResponse)
-async def revalidate_import_batch(
+def revalidate_import_batch(
     batch_id: str,
     body: DsnImportRevalidateBody,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -239,7 +239,7 @@ async def revalidate_import_batch(
 
 
 @router.patch("/batches/{batch_id}/workforce-resolutions")
-async def save_workforce_resolutions(
+def save_workforce_resolutions(
     batch_id: str,
     body: DsnImportWorkforceResolutionsBody,
     _super_admin: Dict[str, Any] = Depends(verify_super_admin),
@@ -253,7 +253,7 @@ async def save_workforce_resolutions(
 
 
 @router.post("/batches/{batch_id}/commit", response_model=DsnImportCommitStartResponse)
-async def commit_import_batch(
+def commit_import_batch(
     batch_id: str,
     body: DsnImportCommitBody,
     background_tasks: BackgroundTasks,
@@ -301,7 +301,7 @@ async def commit_import_batch(
 
 
 @router.post("/employees/activate", response_model=ActivateImportedEmployeeResponse)
-async def activate_imported_employee(
+def activate_imported_employee(
     body: ActivateImportedEmployeeBody,
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ) -> ActivateImportedEmployeeResponse:

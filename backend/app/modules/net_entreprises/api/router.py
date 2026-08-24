@@ -62,7 +62,7 @@ def _require_rh(current_user: User, company_id: str) -> None:
 
 
 @router.get("/config", response_model=NetEntreprisesConfigResponse)
-async def get_net_entreprises_config(
+def get_net_entreprises_config(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
@@ -76,7 +76,7 @@ async def get_net_entreprises_config(
 
 
 @router.put("/config", response_model=NetEntreprisesConfigResponse)
-async def update_net_entreprises_config(
+def update_net_entreprises_config(
     body: NetEntreprisesConfigUpdate,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -95,7 +95,7 @@ async def update_net_entreprises_config(
 
 
 @router.post("/config/test-connection", response_model=ConnectionTestResponse)
-async def test_net_entreprises_connection(
+def test_net_entreprises_connection(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ):
@@ -105,7 +105,7 @@ async def test_net_entreprises_connection(
 
 
 @router.get("/transmissions", response_model=DSNTransmissionsResponse)
-async def list_net_entreprises_transmissions(
+def list_net_entreprises_transmissions(
     period: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -123,7 +123,7 @@ async def list_net_entreprises_transmissions(
     "/transmissions/{transmission_id}/mark-transmitted",
     response_model=DSNTransmissionEntry,
 )
-async def mark_transmission_transmitted(
+def mark_transmission_transmitted(
     transmission_id: str,
     body: MarkTransmittedRequest,
     current_user: User = Depends(get_current_user),
@@ -146,7 +146,7 @@ async def mark_transmission_transmitted(
 
 
 @router_admin.get("/transmissions", response_model=AdminDSNTransmissionsResponse)
-async def admin_list_transmissions(
+def admin_list_transmissions(
     status_filter: Optional[str] = None,
     period: Optional[str] = None,
     super_admin: Dict[str, Any] = Depends(_verify_super_admin),
@@ -162,7 +162,7 @@ async def admin_list_transmissions(
 @router_admin.get(
     "/config/{target_company_id}", response_model=NetEntreprisesConfigResponse
 )
-async def admin_get_config(
+def admin_get_config(
     target_company_id: str,
     super_admin: Dict[str, Any] = Depends(_verify_super_admin),
 ):
@@ -177,7 +177,7 @@ async def admin_get_config(
 @router_admin.put(
     "/config/{target_company_id}", response_model=NetEntreprisesConfigResponse
 )
-async def admin_update_config(
+def admin_update_config(
     target_company_id: str,
     body: NetEntreprisesConfigUpdate,
     super_admin: Dict[str, Any] = Depends(_verify_super_admin),

@@ -114,7 +114,7 @@ def _require_shift_scope(
 
 
 @router.get("/week")
-async def get_week_planning(
+def get_week_planning(
     week_start: str = Query(..., description="Lundi de la semaine (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
 ):
@@ -137,7 +137,7 @@ async def get_week_planning(
 
 
 @router.get("/month", response_model=List[ShiftResponseRH])
-async def get_month_planning(
+def get_month_planning(
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
     current_user: User = Depends(get_current_user),
@@ -156,7 +156,7 @@ async def get_month_planning(
 
 
 @router.get("/on-call", response_model=List[ShiftResponseRH])
-async def get_on_call_schedule(
+def get_on_call_schedule(
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     current_user: User = Depends(get_current_user),
@@ -178,7 +178,7 @@ async def get_on_call_schedule(
 
 
 @router.post("/on-call", status_code=201)
-async def create_on_call_shift(
+def create_on_call_shift(
     data: ShiftCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -206,7 +206,7 @@ async def create_on_call_shift(
 
 
 @router.get("/replacements", response_model=List[ShiftResponseRH])
-async def list_replacements(
+def list_replacements(
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     current_user: User = Depends(get_current_user),
@@ -228,7 +228,7 @@ async def list_replacements(
 
 
 @router.post("/replacements", status_code=201, response_model=ShiftResponseRH)
-async def create_replacement_shift(
+def create_replacement_shift(
     data: ShiftCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -272,7 +272,7 @@ async def create_replacement_shift(
 
 
 @router.post("/shifts", status_code=201)
-async def create_shift_endpoint(
+def create_shift_endpoint(
     data: ShiftCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -291,7 +291,7 @@ async def create_shift_endpoint(
 
 
 @router.patch("/shifts/{shift_id}")
-async def update_shift_endpoint(
+def update_shift_endpoint(
     shift_id: str,
     data: ShiftUpdate,
     current_user: User = Depends(get_current_user),
@@ -309,7 +309,7 @@ async def update_shift_endpoint(
 
 
 @router.delete("/shifts/{shift_id}", status_code=204)
-async def delete_shift_endpoint(
+def delete_shift_endpoint(
     shift_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -327,7 +327,7 @@ async def delete_shift_endpoint(
 
 
 @router.post("/week/lock", status_code=200)
-async def lock_week_endpoint(
+def lock_week_endpoint(
     data: WeekLockRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -343,7 +343,7 @@ async def lock_week_endpoint(
 
 
 @router.post("/week/unlock", status_code=200)
-async def unlock_week_endpoint(
+def unlock_week_endpoint(
     data: WeekLockRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -364,7 +364,7 @@ async def unlock_week_endpoint(
 
 
 @router.post("/day/lock", status_code=200)
-async def lock_day_endpoint(
+def lock_day_endpoint(
     data: DayLockRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -380,7 +380,7 @@ async def lock_day_endpoint(
 
 
 @router.post("/day/unlock", status_code=200)
-async def unlock_day_endpoint(
+def unlock_day_endpoint(
     data: DayLockRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -401,7 +401,7 @@ async def unlock_day_endpoint(
 
 
 @router.post("/week/publish", status_code=200)
-async def publish_week_endpoint(
+def publish_week_endpoint(
     data: WeekPublishRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -417,7 +417,7 @@ async def publish_week_endpoint(
 
 
 @router.post("/week/duplicate", status_code=200)
-async def duplicate_week_endpoint(
+def duplicate_week_endpoint(
     data: WeekDuplicateRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -433,7 +433,7 @@ async def duplicate_week_endpoint(
 
 
 @router.get("/lock-history")
-async def get_lock_history_endpoint(current_user: User = Depends(get_current_user)):
+def get_lock_history_endpoint(current_user: User = Depends(get_current_user)):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
     try:
@@ -446,7 +446,7 @@ async def get_lock_history_endpoint(current_user: User = Depends(get_current_use
 
 
 @router.get("/shifts/{shift_id}")
-async def get_shift_detail_endpoint(
+def get_shift_detail_endpoint(
     shift_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -463,7 +463,7 @@ async def get_shift_detail_endpoint(
 
 
 @router.get("/shift-types")
-async def get_shift_types_endpoint(current_user: User = Depends(get_current_user)):
+def get_shift_types_endpoint(current_user: User = Depends(get_current_user)):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
     try:
@@ -476,7 +476,7 @@ async def get_shift_types_endpoint(current_user: User = Depends(get_current_user
 
 
 @router.post("/shift-types", status_code=201)
-async def create_shift_type_endpoint(
+def create_shift_type_endpoint(
     body: ShiftTypeCreate,
     current_user: User = Depends(get_current_user),
 ):
@@ -495,7 +495,7 @@ async def create_shift_type_endpoint(
 
 
 @router.patch("/shift-types/{shift_type_id}")
-async def update_shift_type_endpoint(
+def update_shift_type_endpoint(
     shift_type_id: str,
     body: ShiftTypeUpdate,
     current_user: User = Depends(get_current_user),
@@ -517,7 +517,7 @@ async def update_shift_type_endpoint(
 
 
 @router.delete("/shift-types/{shift_type_id}")
-async def delete_shift_type_endpoint(
+def delete_shift_type_endpoint(
     shift_type_id: str,
     current_user: User = Depends(get_current_user),
 ):
@@ -536,7 +536,7 @@ async def delete_shift_type_endpoint(
 
 
 @router.post("/shift-types/preset/industrial-3x8")
-async def apply_industrial_3x8_preset_endpoint(
+def apply_industrial_3x8_preset_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     company_id = _require_active_company(current_user)
@@ -555,7 +555,7 @@ async def apply_industrial_3x8_preset_endpoint(
 
 
 @router.get("/settings")
-async def get_settings_endpoint(current_user: User = Depends(get_current_user)):
+def get_settings_endpoint(current_user: User = Depends(get_current_user)):
     company_id = _require_active_company(current_user)
     _require_rh(current_user, company_id)
     try:
@@ -568,7 +568,7 @@ async def get_settings_endpoint(current_user: User = Depends(get_current_user)):
 
 
 @router.patch("/settings")
-async def patch_settings_endpoint(
+def patch_settings_endpoint(
     data: CompanyPlanningSettingsUpdate,
     current_user: User = Depends(get_current_user),
 ):
@@ -584,7 +584,7 @@ async def patch_settings_endpoint(
 
 
 @router.get("/me/month", response_model=List[ShiftResponse])
-async def get_my_planning_month(
+def get_my_planning_month(
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
     current_user: User = Depends(get_current_user),
@@ -605,7 +605,7 @@ async def get_my_planning_month(
 
 
 @router.get("/me")
-async def get_my_planning_week(
+def get_my_planning_week(
     week_start: str = Query(..., description="Lundi de la semaine (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
 ):
@@ -624,7 +624,7 @@ async def get_my_planning_week(
 
 
 @router.get("/me/export/pdf")
-async def export_my_planning_week_pdf(
+def export_my_planning_week_pdf(
     week_start: str = Query(..., description="Lundi de la semaine (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
 ):

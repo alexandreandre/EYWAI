@@ -52,7 +52,7 @@ async def _verify_super_admin(
 
 
 @router.get("/config", response_model=AccountingConfigResponse)
-async def get_accounting_config(
+def get_accounting_config(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ) -> AccountingConfigResponse:
@@ -61,7 +61,7 @@ async def get_accounting_config(
 
 
 @router.patch("/config", response_model=AccountingConfigResponse)
-async def update_accounting_config(
+def update_accounting_config(
     body: AccountingConfigUpdate,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -75,7 +75,7 @@ async def update_accounting_config(
 
 
 @router.post("/test-connection", response_model=ConnectionTestResponse)
-async def test_accounting_connection(
+def test_accounting_connection(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ) -> ConnectionTestResponse:
@@ -84,7 +84,7 @@ async def test_accounting_connection(
 
 
 @router.get("/providers", response_model=ProvidersListResponse)
-async def list_accounting_providers(
+def list_accounting_providers(
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
 ) -> ProvidersListResponse:
@@ -93,7 +93,7 @@ async def list_accounting_providers(
 
 
 @router.get("/transmissions", response_model=AccountingTransmissionsResponse)
-async def list_accounting_transmissions(
+def list_accounting_transmissions(
     period: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 20,
@@ -110,7 +110,7 @@ async def list_accounting_transmissions(
     "/transmissions/{transmission_id}/retry",
     response_model=TransmitComptaResult,
 )
-async def retry_accounting_transmission(
+def retry_accounting_transmission(
     transmission_id: str,
     current_user: User = Depends(get_current_user),
     company_id: str = Depends(get_active_company_id),
@@ -123,7 +123,7 @@ async def retry_accounting_transmission(
 
 
 @router_admin.get("/catalog", response_model=PlatformCatalogResponse)
-async def get_platform_catalog(
+def get_platform_catalog(
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ) -> PlatformCatalogResponse:
     return service.get_platform_catalog()
@@ -133,7 +133,7 @@ async def get_platform_catalog(
     "/catalog/{provider_key}",
     response_model=PlatformProviderEntry,
 )
-async def update_platform_provider(
+def update_platform_provider(
     provider_key: str,
     body: PlatformProviderUpdate,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
@@ -149,7 +149,7 @@ async def update_platform_provider(
     "/catalog/{provider_key}/test-connection",
     response_model=ConnectionTestResponse,
 )
-async def admin_test_platform_accounting_connection(
+def admin_test_platform_accounting_connection(
     provider_key: str,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ) -> ConnectionTestResponse:
@@ -160,7 +160,7 @@ async def admin_test_platform_accounting_connection(
     "/companies/bulk-cegid-dossiers",
     response_model=BulkCegidDossiersResponse,
 )
-async def admin_bulk_update_cegid_dossiers(
+def admin_bulk_update_cegid_dossiers(
     body: BulkCegidDossiersUpdate,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ) -> BulkCegidDossiersResponse:
@@ -172,7 +172,7 @@ async def admin_bulk_update_cegid_dossiers(
 
 
 @router_admin.get("/transmissions", response_model=AccountingTransmissionsResponse)
-async def list_all_accounting_transmissions(
+def list_all_accounting_transmissions(
     company_id: Optional[str] = None,
     period: Optional[str] = None,
     status: Optional[str] = None,
@@ -193,7 +193,7 @@ async def list_all_accounting_transmissions(
     "/transmissions/{transmission_id}/retry",
     response_model=TransmitComptaResult,
 )
-async def admin_retry_transmission(
+def admin_retry_transmission(
     transmission_id: str,
     company_id: str,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
@@ -205,7 +205,7 @@ async def admin_retry_transmission(
     "/companies/{company_id}/config",
     response_model=AccountingConfigResponse,
 )
-async def admin_get_company_accounting_config(
+def admin_get_company_accounting_config(
     company_id: str,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ) -> AccountingConfigResponse:
@@ -216,7 +216,7 @@ async def admin_get_company_accounting_config(
     "/companies/{company_id}/config",
     response_model=AccountingConfigResponse,
 )
-async def admin_update_company_accounting_config(
+def admin_update_company_accounting_config(
     company_id: str,
     body: AccountingConfigUpdate,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
@@ -232,7 +232,7 @@ async def admin_update_company_accounting_config(
     "/companies/{company_id}/test-connection",
     response_model=ConnectionTestResponse,
 )
-async def admin_test_company_accounting_connection(
+def admin_test_company_accounting_connection(
     company_id: str,
     _admin: Dict[str, Any] = Depends(_verify_super_admin),
 ) -> ConnectionTestResponse:

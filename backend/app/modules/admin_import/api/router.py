@@ -230,7 +230,7 @@ def get_planning_import_parse_job_route(
 
 
 @router.post("/planning/commit", response_model=PlanningImportCommitResponse)
-async def commit_planning_import_route(
+def commit_planning_import_route(
     background_tasks: BackgroundTasks,
     batch_id: str = Query(...),
     company_id: str = Query(...),
