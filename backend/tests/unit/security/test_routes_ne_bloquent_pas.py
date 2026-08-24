@@ -23,7 +23,12 @@ import inspect
 import re
 from pathlib import Path
 
-import pytest
+# Import au chargement du module, comme test_routes_authentifiees.py : importer
+# l'application depuis une fixture la récupérerait APRÈS que d'autres tests ont
+# pu remplacer `app.main` dans sys.modules, et on inspecterait alors une
+# application vide sans le voir. C'est exactement ce qui est arrivé le 24/08 —
+# vert en local, rouge en CI, où l'ordre des tests diffère.
+from app.main import app
 
 RACINE_APP = Path(__file__).resolve().parents[3] / "app"
 
@@ -91,30 +96,29 @@ class TestAucuneRouteNeGeleLeBackend:
         assert not attend, "le motif fautif doit être reconnu comme n'attendant rien"
 
 
+def _routes_api() -> list:
+    return [
+        route
+        for route in app.routes
+        if getattr(route, "path", "").startswith("/api")
+        and getattr(route, "endpoint", None) is not None
+    ]
+
+
 class TestApplicationReelle:
     """Contrôle sur l'application montée, pas seulement sur le texte du code."""
 
-    @pytest.fixture(scope="class")
-    def routes_api(self):
-        from app.main import app
-
-        return [
-            route
-            for route in app.routes
-            if getattr(route, "path", "").startswith("/api")
-            and getattr(route, "endpoint", None) is not None
-        ]
-
-    def test_les_routes_sont_montees(self, routes_api):
+    def test_les_routes_sont_montees(self):
+        routes_api = _routes_api()
         assert len(routes_api) > 200, (
             f"seulement {len(routes_api)} routes /api montées — l'application "
             "ne s'est pas chargée correctement"
         )
 
-    def test_aucune_route_api_montee_n_est_une_coroutine_sans_await(self, routes_api):
+    def test_aucune_route_api_montee_n_est_une_coroutine_sans_await(self):
         """Une route asynchrone montée doit vraiment attendre quelque chose."""
         suspectes = []
-        for route in routes_api:
+        for route in _routes_api():
             fonction = route.endpoint
             if not inspect.iscoroutinefunction(fonction):
                 continue
