@@ -17,6 +17,10 @@ from app.modules.schedules.domain.exceptions import (
     ScheduleDatabaseError,
     ScheduleNotFoundError,
 )
+from app.shared.domain.periode_de_paie import (
+    COLONNES_REQUISES as COLONNES_PERIODE_DE_PAIE,
+    parametres_paie_depuis_societe,
+)
 from app.modules.schedules.domain.interfaces import IEmployeeCompanyReader
 from app.shared.domain.employment_rules import effective_statut_for_payroll
 
@@ -96,16 +100,21 @@ class EmployeeCompanyReader(IEmployeeCompanyReader):
         return data
 
     def get_company_parametres_paie(self, company_id: str) -> Optional[Dict[str, Any]]:
+        """Période de paie de la société, pour le découpage des forfaits-jours.
+
+        `parametres_paie` n'est pas une colonne : elle s'assemble à partir des
+        colonnes de `companies`. Voir `app.shared.domain.periode_de_paie`.
+        """
         response = (
             supabase.table("companies")
-            .select("parametres_paie")
+            .select(", ".join(COLONNES_PERIODE_DE_PAIE))
             .eq("id", company_id)
             .single()
             .execute()
         )
         if not response or not response.data:
             return None
-        return response.data.get("parametres_paie")
+        return parametres_paie_depuis_societe(response.data)
 
 
 # Instance unique pour l'application

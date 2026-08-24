@@ -137,20 +137,10 @@ def _emails_for_roles(company_id: str, roles: list[str]) -> list[str]:
         if not user_ids:
             return []
 
+        # `profiles` ne porte pas d'adresse : c'est `employees.email` qui fait
+        # foi. Une lecture de `profiles.email` vivait ici et levait à chaque
+        # appel, sans rien apporter — le repli ci-dessous faisait déjà tout.
         emails: list[str] = []
-        try:
-            profiles = (
-                supabase.table("profiles")
-                .select("id, email")
-                .in_("id", user_ids)
-                .execute()
-            )
-            for row in profiles.data or []:
-                email = str(row.get("email") or "").strip()
-                if email:
-                    emails.append(email)
-        except Exception:
-            pass
 
         try:
             employees = (

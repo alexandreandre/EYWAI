@@ -136,14 +136,14 @@ class PromotionQueries(IPromotionQueries):
             if user_id:
                 rh_access_response = (
                     supabase.table("user_company_accesses")
-                    .select("base_role")
+                    .select("role")
                     .eq("user_id", user_id)
                     .eq("company_id", company_id)
                     .maybe_single()
                     .execute()
                 )
                 if rh_access_response.data:
-                    current_role = rh_access_response.data.get("base_role")
+                    current_role = rh_access_response.data.get("role")
                     has_access = current_role in (
                         "collaborateur_rh",
                         "rh",
@@ -245,14 +245,14 @@ def get_employee_snapshot_for_promotion(
     if employee.get("user_id"):
         rh_response = (
             supabase.table("user_company_accesses")
-            .select("base_role")
+            .select("role")
             .eq("user_id", employee["user_id"])
             .eq("company_id", company_id)
             .maybe_single()
             .execute()
         )
         if rh_response.data:
-            previous_rh_access = rh_response.data.get("base_role")
+            previous_rh_access = rh_response.data.get("role")
     return {"employee": employee, "previous_rh_access": previous_rh_access}
 
 

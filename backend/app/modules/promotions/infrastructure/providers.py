@@ -169,7 +169,7 @@ class EmployeeUpdater(IEmployeeUpdater):
 
             current_access_response = (
                 supabase.table("user_company_accesses")
-                .select("id, base_role")
+                .select("id, role")
                 .eq("user_id", user_id)
                 .eq("company_id", company_id)
                 .maybe_single()
@@ -179,7 +179,7 @@ class EmployeeUpdater(IEmployeeUpdater):
                 current_access_response.data if current_access_response.data else None
             )
             previous_rh_access = (
-                current_access.get("base_role") if current_access else None
+                current_access.get("role") if current_access else None
             )
 
             if previous_rh_access:
@@ -189,7 +189,7 @@ class EmployeeUpdater(IEmployeeUpdater):
 
             if current_access:
                 supabase.table("user_company_accesses").update(
-                    {"base_role": new_rh_access}
+                    {"role": new_rh_access}
                 ).eq("id", current_access["id"]).execute()
             else:
                 other_accesses = (
@@ -203,7 +203,7 @@ class EmployeeUpdater(IEmployeeUpdater):
                     {
                         "user_id": user_id,
                         "company_id": company_id,
-                        "base_role": new_rh_access,
+                        "role": new_rh_access,
                         "is_primary": is_primary,
                         "contract_type": employee.get("contract_type"),
                         "statut": employee.get("statut"),

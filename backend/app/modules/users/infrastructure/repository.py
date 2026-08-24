@@ -8,6 +8,9 @@ from typing import List, Optional
 
 from app.core.database import supabase
 
+from app.modules.company_groups.infrastructure.user_lookup import (
+    SupabaseUserLookupProvider,
+)
 from app.modules.users.domain.interfaces import (
     ICompanyRepository,
     IRoleTemplateRepository,
@@ -15,6 +18,10 @@ from app.modules.users.domain.interfaces import (
     IUserPermissionRepository,
     IUserRepository,
 )
+
+
+#: Les adresses vivent dans `auth.users`, jamais dans `profiles`.
+user_lookup = SupabaseUserLookupProvider()
 
 
 class SupabaseUserRepository(IUserRepository):
@@ -25,8 +32,19 @@ class SupabaseUserRepository(IUserRepository):
         return r.data[0] if r.data else None
 
     def get_by_email(self, email: str) -> Optional[dict]:
-        r = supabase.table("profiles").select("id, email").eq("email", email).execute()
-        return r.data[0] if r.data else None
+        """Profil correspondant à une adresse.
+
+        `profiles` ne porte pas d'adresse : elle vit dans `auth.users`. La
+        requête filtrait sur une colonne inexistante et levait à chaque appel,
+        ce qui rendait « accorder un accès par adresse » inutilisable.
+        """
+        compte = user_lookup.get_user_by_email(email)
+        if not compte:
+            return None
+        profil = self.get_by_id(compte["id"])
+        if profil is None:
+            return None
+        return {**profil, "email": compte["email"]}
 
     def create(self, data: dict) -> None:
         supabase.table("profiles").insert(data).execute()

@@ -44,9 +44,12 @@ def fetch_overview_raw(company_id: str) -> Dict[str, Any]:
     mutuelle_ids: Set[str] = set()
     try:
         links = (
+            # La table n'a pas de `company_id` : on passe par le salarié.
+            # Le filtre direct levait à chaque appel, l'ensemble restait vide,
+            # et l'alerte « salariés sans mutuelle » ne se déclenchait jamais.
             supabase.table("employee_mutuelle_types")
-            .select("employee_id")
-            .eq("company_id", company_id)
+            .select("employee_id, employees!inner(company_id)")
+            .eq("employees.company_id", company_id)
             .execute()
         )
         for row in links.data or []:
