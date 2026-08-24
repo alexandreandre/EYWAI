@@ -63,6 +63,26 @@ jobs:
       # copie des données de paie réelles et les artefacts d'un dépôt public
       # sont téléchargeables par n'importe quel compte GitHub. En cas d'échec,
       # rejouer en local (`npm run e2e`) pour obtenir traces et captures.
+      # L'environnement de test descend à zéro instance entre deux runs :
+      # la première requête paie le démarrage à froid et dépasse le délai de
+      # 20 s de Playwright. La suite échoue alors sur la disponibilité
+      # publique — un faux rouge, constaté les 21 et 24/08 — et le navigateur
+      # rapporte les requêtes avortées comme des erreurs CORS, ce qui envoie
+      # le diagnostic dans la mauvaise direction.
+      - name: Réveiller l'environnement de test
+        run: |
+          for cible in \
+            "https://sirh-backend-test-505040845625.europe-west1.run.app/health" \
+            "https://sirh-frontend-test-505040845625.europe-west1.run.app/"
+          do
+            for tentative in 1 2 3 4 5 6; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$cible" || echo 000)
+              echo "  $cible -> $code (tentative $tentative)"
+              [ "$code" = "200" ] && break
+              sleep 10
+            done
+          done
+
       - name: Jouer la suite E2E
         env:
           E2E_QA_EMAIL: ${{ secrets.QA_E2E_EMAIL }}
