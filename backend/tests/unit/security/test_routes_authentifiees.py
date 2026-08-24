@@ -45,6 +45,34 @@ ROUTES_PUBLIQUES_ASSUMEES = {
 }
 
 
+def _routes_terminales() -> list:
+    """Toutes les routes, sous-routeurs dépliés.
+
+    Selon la version de FastAPI — non épinglée dans requirements.txt —
+    `app.routes` contient les routes à plat, ou un objet par `include_router`.
+    Le 24/08/2026 la CI installait une version qui n'aplatit pas : ce test y
+    voyait SIX routes au lieu de plusieurs centaines et passait donc à vide,
+    sans rien vérifier, depuis sa création. Même parcours que dans
+    `test_routes_ne_bloquent_pas.py`.
+    """
+    terminales = []
+    a_visiter = list(getattr(app, "routes", []) or [])
+    vus = set()
+    while a_visiter:
+        route = a_visiter.pop()
+        if id(route) in vus:
+            continue
+        vus.add(id(route))
+        sous = getattr(route, "routes", None)
+        if sous is None:
+            sous = getattr(getattr(route, "router", None), "routes", None)
+        if sous:
+            a_visiter.extend(sous)
+            continue
+        terminales.append(route)
+    return terminales
+
+
 def _dependances(route) -> Set[str]:
     noms: Set[str] = set()
     dependant = getattr(route, "dependant", None)
@@ -60,9 +88,21 @@ def _dependances(route) -> Set[str]:
     return noms
 
 
+def test_le_balayage_voit_bien_les_routes():
+    """Sans ce contrôle, le test suivant passe à vide et n'assure plus rien."""
+    routes_api = [
+        r for r in _routes_terminales()
+        if getattr(r, "path", "").startswith("/api")
+    ]
+    assert len(routes_api) > 200, (
+        f"seulement {len(routes_api)} routes /api balayées — la garde "
+        "ci-dessous serait verte sans rien vérifier."
+    )
+
+
 def test_aucune_route_de_donnees_sans_authentification():
     non_gardees = set()
-    for route in app.routes:
+    for route in _routes_terminales():
         chemin = getattr(route, "path", "")
         if not chemin.startswith("/api"):
             continue

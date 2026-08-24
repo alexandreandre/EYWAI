@@ -96,10 +96,38 @@ class TestAucuneRouteNeGeleLeBackend:
         assert not attend, "le motif fautif doit être reconnu comme n'attendant rien"
 
 
+def parcourir_routes(racine) -> list:
+    """Toutes les routes terminales, sous-routeurs dépliés.
+
+    Selon la version de FastAPI, `app.routes` contient soit les routes à plat,
+    soit un objet de sous-routeur par `include_router` — et le dépendre coûte
+    cher : le 24/08/2026, la CI installait une version qui n'aplatit pas, si
+    bien que toute garde balayant `app.routes` y voyait SIX routes au lieu de
+    plusieurs centaines, et passait à vide sans le dire. FastAPI n'est pas
+    épinglé dans requirements.txt : local, CI et production peuvent diverger.
+    """
+    terminales = []
+    a_visiter = list(getattr(racine, "routes", []) or [])
+    vus = set()
+    while a_visiter:
+        route = a_visiter.pop()
+        if id(route) in vus:
+            continue
+        vus.add(id(route))
+        sous = getattr(route, "routes", None)
+        if sous is None:
+            sous = getattr(getattr(route, "router", None), "routes", None)
+        if sous:
+            a_visiter.extend(sous)
+            continue
+        terminales.append(route)
+    return terminales
+
+
 def _routes_api() -> list:
     return [
         route
-        for route in app.routes
+        for route in parcourir_routes(app)
         if getattr(route, "path", "").startswith("/api")
         and getattr(route, "endpoint", None) is not None
     ]
@@ -117,16 +145,14 @@ class TestApplicationReelle:
         """
         routes_api = _routes_api()
         if len(routes_api) <= 200:
-            import app.main as module_app
-
-            toutes = list(app.routes)
+            toutes = parcourir_routes(app)
             apercu = [
                 f"{type(r).__name__} {getattr(r, 'path', '?')}" for r in toutes[:12]
             ]
             raise AssertionError(
                 f"seulement {len(routes_api)} routes /api montées.\n"
-                f"  app.main : {getattr(module_app, '__file__', '?')}\n"
-                f"  routes totales sur l'application : {len(toutes)}\n"
+                f"  routes terminales trouvées : {len(toutes)}\n"
+                f"  premier niveau de app.routes : {len(list(app.routes))}\n"
                 f"  échantillon : {apercu}"
             )
 
