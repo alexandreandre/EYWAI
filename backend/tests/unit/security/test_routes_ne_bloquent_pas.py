@@ -114,14 +114,29 @@ def parcourir_routes(racine) -> list:
         if id(route) in vus:
             continue
         vus.add(id(route))
-        sous = getattr(route, "routes", None)
-        if sous is None:
-            sous = getattr(getattr(route, "router", None), "routes", None)
+        sous = _sous_routes(route)
         if sous:
             a_visiter.extend(sous)
             continue
         terminales.append(route)
     return terminales
+
+
+def _sous_routes(route):
+    """Routes portées par un objet intermédiaire, quel que soit son nom.
+
+    FastAPI 0.141 expose `original_router` sur son `_IncludedRouter` ; les
+    versions antérieures aplatissaient directement. Un `Mount` porte `app`.
+    """
+    directes = getattr(route, "routes", None)
+    if directes:
+        return directes
+    for attribut in ("original_router", "router", "app"):
+        porteur = getattr(route, attribut, None)
+        portees = getattr(porteur, "routes", None)
+        if portees:
+            return portees
+    return None
 
 
 def _routes_api() -> list:
@@ -131,6 +146,52 @@ def _routes_api() -> list:
         if getattr(route, "path", "").startswith("/api")
         and getattr(route, "endpoint", None) is not None
     ]
+
+
+class TestParcoursIndifferentALaVersion:
+    """La branche « sous-routeur » ne s'exécute pas sur toutes les versions.
+
+    Selon le FastAPI installé, `app.routes` est déjà à plat et le dépliage
+    n'est jamais sollicité. Ces cas le sollicitent explicitement, pour que la
+    correction reste couverte même quand la version locale ne la déclenche pas.
+    """
+
+    class _Feinte:
+        """Objet minimal portant des routes sous un attribut donné."""
+
+        def __init__(self, attribut, routes):
+            setattr(self, attribut, routes)
+
+    class _Route:
+        def __init__(self, path):
+            self.path = path
+            self.endpoint = lambda: None
+
+    def _racine(self, attribut):
+        interne = self._Feinte("routes", [self._Route("/api/profond")])
+        intermediaire = self._Feinte(attribut, interne)
+        return self._Feinte("routes", [intermediaire, self._Route("/api/plat")])
+
+    def test_deplie_un_original_router(self):
+        """Nom utilisé par FastAPI 0.141 sur son `_IncludedRouter`."""
+        chemins = [r.path for r in parcourir_routes(self._racine("original_router"))]
+        assert sorted(chemins) == ["/api/plat", "/api/profond"]
+
+    def test_deplie_un_router(self):
+        chemins = [r.path for r in parcourir_routes(self._racine("router"))]
+        assert sorted(chemins) == ["/api/plat", "/api/profond"]
+
+    def test_deplie_un_mount(self):
+        """Un `Mount` Starlette porte son application sous `app`."""
+        chemins = [r.path for r in parcourir_routes(self._racine("app"))]
+        assert sorted(chemins) == ["/api/plat", "/api/profond"]
+
+    def test_un_cycle_ne_boucle_pas(self):
+        """Une application qui se référence elle-même ne doit pas figer le test."""
+        racine = self._Feinte("routes", [])
+        racine.routes.append(self._Feinte("router", racine))
+        racine.routes.append(self._Route("/api/x"))
+        assert [r.path for r in parcourir_routes(racine)] == ["/api/x"]
 
 
 class TestApplicationReelle:

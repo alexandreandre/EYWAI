@@ -63,11 +63,17 @@ def _routes_terminales() -> list:
         if id(route) in vus:
             continue
         vus.add(id(route))
-        sous = getattr(route, "routes", None)
-        if sous is None:
-            sous = getattr(getattr(route, "router", None), "routes", None)
-        if sous:
-            a_visiter.extend(sous)
+        directes = getattr(route, "routes", None)
+        if not directes:
+            # FastAPI 0.141 expose `original_router` sur son `_IncludedRouter` ;
+            # les versions antérieures aplatissaient. Un `Mount` porte `app`.
+            for attribut in ("original_router", "router", "app"):
+                porteur = getattr(route, attribut, None)
+                directes = getattr(porteur, "routes", None)
+                if directes:
+                    break
+        if directes:
+            a_visiter.extend(directes)
             continue
         terminales.append(route)
     return terminales
