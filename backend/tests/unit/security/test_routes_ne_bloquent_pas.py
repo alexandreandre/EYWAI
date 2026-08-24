@@ -109,11 +109,26 @@ class TestApplicationReelle:
     """Contrôle sur l'application montée, pas seulement sur le texte du code."""
 
     def test_les_routes_sont_montees(self):
+        """Sans ce contrôle, les gardes qui balaient `app.routes` passent à vide.
+
+        C'est le cas de `test_routes_authentifiees` : il affirme qu'aucune route
+        n'est publique en itérant `app.routes`, donc une application vide le
+        rend vert sans rien vérifier.
+        """
         routes_api = _routes_api()
-        assert len(routes_api) > 200, (
-            f"seulement {len(routes_api)} routes /api montées — l'application "
-            "ne s'est pas chargée correctement"
-        )
+        if len(routes_api) <= 200:
+            import app.main as module_app
+
+            toutes = list(app.routes)
+            apercu = [
+                f"{type(r).__name__} {getattr(r, 'path', '?')}" for r in toutes[:12]
+            ]
+            raise AssertionError(
+                f"seulement {len(routes_api)} routes /api montées.\n"
+                f"  app.main : {getattr(module_app, '__file__', '?')}\n"
+                f"  routes totales sur l'application : {len(toutes)}\n"
+                f"  échantillon : {apercu}"
+            )
 
     def test_aucune_route_api_montee_n_est_une_coroutine_sans_await(self):
         """Une route asynchrone montée doit vraiment attendre quelque chose."""
