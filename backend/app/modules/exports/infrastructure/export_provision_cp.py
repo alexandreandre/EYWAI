@@ -22,6 +22,9 @@ from app.modules.exports.domain.provision_cp import (
 )
 from app.shared.utils.export import generate_csv, generate_xlsx
 
+#: PostgREST tronque une réponse à 1000 lignes sans le dire — on pagine en deçà.
+TAILLE_PAGE = 500
+
 EXPORT_HEADERS = [
     "Matricule",
     "Nom de l'employé",
@@ -78,18 +81,34 @@ def _lire_salaries(
 def _lire_bulletins(
     company_id: str, mois_cibles: List[Tuple[int, int]]
 ) -> Dict[str, Dict[Tuple[int, int], Tuple[float, float]]]:
-    """Brut et cotisations patronales par salarié et par mois, sur la fenêtre demandée."""
+    """Brut et cotisations patronales par salarié et par mois, sur la fenêtre demandée.
+
+    La lecture est paginée : PostgREST plafonne une réponse à 1000 lignes sans
+    le signaler. Une société de 90 salariés dépasse ce seuil dès douze mois
+    d'historique, et les bulletins tombés dans la troncature ne sont pas
+    « manquants » — ils font chuter le salaire de référence, donc la provision,
+    sans la moindre anomalie affichée.
+    """
     annees = sorted({a for a, _ in mois_cibles})
-    reponse = (
-        supabase.table("payslips")
-        .select("employee_id, year, month, payslip_data")
-        .eq("company_id", company_id)
-        .in_("year", annees)
-        .execute()
-    )
+    lignes: List[Dict[str, Any]] = []
+    decalage = 0
+    while True:
+        lot = (
+            supabase.table("payslips")
+            .select("employee_id, year, month, payslip_data")
+            .eq("company_id", company_id)
+            .in_("year", annees)
+            .range(decalage, decalage + TAILLE_PAGE - 1)
+            .execute()
+        ).data or []
+        lignes.extend(lot)
+        if len(lot) < TAILLE_PAGE:
+            break
+        decalage += TAILLE_PAGE
+
     attendus = set(mois_cibles)
     resultat: Dict[str, Dict[Tuple[int, int], Tuple[float, float]]] = {}
-    for ligne in reponse.data or []:
+    for ligne in lignes:
         cle = (ligne["year"], ligne["month"])
         if cle not in attendus:
             continue
