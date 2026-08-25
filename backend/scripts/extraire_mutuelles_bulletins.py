@@ -74,27 +74,41 @@ def decouper_bulletins(texte: str):
 
 
 def extraire(pdf: Path) -> tuple[list[dict], int]:
+    """Une ligne par bulletin. Code vide = ce salarié n'a PAS de mutuelle.
+
+    L'absence est une information : si EYWAI lui retient malgré tout une
+    « mutuelle », c'est qu'une autre cotisation (prévoyance) a été rangée là.
+    """
     texte = pdf_en_texte(pdf)
     lignes: dict[str, dict] = {}
     for matricule, entete, bloc in decouper_bulletins(texte):
-        if matricule in lignes:
-            continue  # page 2 du même bulletin
+        if lignes.get(matricule, {}).get("code"):
+            continue  # page 2 d'un bulletin dont on a déjà la mutuelle
         noms = NOM.findall(entete)
+        trouvee = {
+            "matricule": matricule,
+            "nom": noms[-1].strip() if noms else "",
+            "code": "",
+            "libelle": "",
+            "part_salariale": "",
+            "part_patronale": "",
+            "total": "",
+        }
         for brute in bloc.splitlines():
             m = LIGNE_MUTUELLE.match(brute)
             if not m:
                 continue
             code, libelle, _base, _taux, salarial, patronal = m.groups()
-            lignes[matricule] = {
-                "matricule": matricule,
-                "nom": noms[-1].strip() if noms else "",
-                "code": code,
-                "libelle": " ".join(libelle.split()),
-                "part_salariale": _nombre(salarial),
-                "part_patronale": _nombre(patronal),
-                "total": round(_nombre(salarial) + _nombre(patronal), 2),
-            }
+            trouvee.update(
+                code=code,
+                libelle=" ".join(libelle.split()),
+                part_salariale=_nombre(salarial),
+                part_patronale=_nombre(patronal),
+                total=round(_nombre(salarial) + _nombre(patronal), 2),
+            )
             break
+        if trouvee["code"] or matricule not in lignes:
+            lignes[matricule] = trouvee
     return list(lignes.values()), len(set(MATRICULE.findall(texte)))
 
 
@@ -102,7 +116,11 @@ def traiter(societe: str, periode: str) -> int:
     dossier = DATA / societe / "bulletins" / periode
     pdfs = sorted(dossier.glob("*.pdf"))
     if not pdfs:
-        print(f"  aucun bulletin dans {dossier}")
+        # Certaines sociétés n'ont pas de dossier par mois mais un PDF unique
+        # couvrant plusieurs mois (« bulletins-2026-01-a-04.pdf »).
+        pdfs = sorted((DATA / societe / "bulletins").glob(f"*{periode}*.pdf"))
+    if not pdfs:
+        print(f"  aucun bulletin pour {societe} {periode}")
         return 1
 
     lignes: list[dict] = []
@@ -124,14 +142,16 @@ def traiter(societe: str, periode: str) -> int:
         w.writeheader()
         w.writerows(sorted(lignes, key=lambda l: l["matricule"]))
 
+    avec_mutuelle = [l for l in lignes if l["code"]]
     grilles: dict[tuple, int] = {}
-    for l in lignes:
+    for l in avec_mutuelle:
         cle = (l["code"], l["libelle"], l["part_salariale"],
                l["part_patronale"], l["total"])
         grilles[cle] = grilles.get(cle, 0) + 1
 
     print(f"\n=== {societe.upper()} {periode} ===")
-    print(f"  bulletins lus : {bulletins} — avec ligne mutuelle : {len(lignes)}")
+    print(f"  bulletins lus : {bulletins} — avec mutuelle : {len(avec_mutuelle)}"
+          f" — sans : {len(lignes) - len(avec_mutuelle)}")
     for (code, libelle, sal, pat, total), n in sorted(
         grilles.items(), key=lambda kv: -kv[1]
     ):

@@ -1,4 +1,4 @@
-"""Rétablit la part patronale des mutuelles (Cartol, LEWIS).
+"""Rétablit la part patronale des mutuelles (6 sociétés).
 
 Contexte
 --------
@@ -46,13 +46,13 @@ import csv
 import json
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.database import supabase  # noqa: E402
-from app.core import settings  # noqa: E402
+from app.core import settings
+from app.core.database import supabase
 
 RACINE = Path(__file__).resolve().parents[2]
 DATA = RACINE / "data"
@@ -64,6 +64,8 @@ SOCIETES = {
     "LEWIS": "lewis",
     "Mont Blanc Composite": "mbc",
     "Comitech Composite": "comitech",
+    "MAJI": "maji",
+    "Zone 404 Mars": "zone",
 }
 
 # ATTENTION : le code EMU n'a PAS le même sens d'une société à l'autre. EMU3 est
@@ -76,17 +78,34 @@ TOLERANCE = 0.01
 # ----- lecture des grilles -----
 
 
-def charger_grilles(dossier: str, periode: str) -> dict[str, dict]:
-    """code EMU → {libelle, part_salariale, part_patronale, total}."""
-    chemin = DATA / dossier / "referentiel" / f"mutuelles-{periode}.csv"
-    if not chemin.exists():
+def _grilles_disponibles(dossier: str, periode: str) -> list[Path]:
+    """CSV de grilles jusqu'au mois demandé, du plus ancien au plus récent."""
+    dossier_ref = DATA / dossier / "referentiel"
+    fichiers = [
+        f for f in sorted(dossier_ref.glob("mutuelles-*.csv"))
+        if f.stem <= f"mutuelles-{periode}"
+    ]
+    if not fichiers:
         raise SystemExit(
-            f"Grille absente : {chemin.relative_to(RACINE)}\n"
+            f"Aucune grille jusqu'à {periode} dans "
+            f"{dossier_ref.relative_to(RACINE)}\n"
             "Lancer d'abord scripts/extraire_mutuelles_bulletins.py"
         )
+    return fichiers
+
+
+def charger_grilles(dossier: str, periode: str) -> dict[str, dict]:
+    """code EMU → {libelle, parts, total}, d'après le mois le plus récent connu.
+
+    Toutes les sociétés n'ont pas un bulletin pour chaque mois : MAJI et
+    Zone 404 n'en ont que jusqu'en mai. On prend le plus récent disponible.
+    """
+    chemin = _grilles_disponibles(dossier, periode)[-1]
     grilles: dict[str, dict] = {}
     with chemin.open(encoding="utf-8") as f:
         for ligne in csv.DictReader(f, delimiter=";"):
+            if not ligne["code"]:
+                continue  # salarié sans mutuelle : pas une grille
             grilles[ligne["code"]] = {
                 "code": ligne["code"],
                 "libelle": ligne["libelle"],
@@ -97,28 +116,27 @@ def charger_grilles(dossier: str, periode: str) -> dict[str, dict]:
     return grilles
 
 
-def charger_affectations(dossier: str, periode: str) -> dict[str, str]:
-    """matricule → code EMU, en balayant TOUS les mois disponibles.
+def charger_affectations(
+    dossier: str, periode: str
+) -> tuple[dict[str, str], set[str]]:
+    """(matricule → code EMU, matricules vus au bulletin).
+
+    Un matricule connu mais absent des affectations n'a **aucune** mutuelle au
+    cabinet : si EYWAI lui en retient une, ce n'est pas une mutuelle.
 
     Un salarié entré ou sorti en cours d'année n'a pas de ligne mutuelle sur le
     mois de référence : son bulletin d'un autre mois la porte. On part du mois
     demandé et on remonte le temps — le plus récent gagne.
     """
-    dossier_ref = DATA / dossier / "referentiel"
-    fichiers = sorted(dossier_ref.glob("mutuelles-*.csv"))
-    if not fichiers:
-        raise SystemExit(
-            f"Aucune grille dans {dossier_ref.relative_to(RACINE)}\n"
-            "Lancer d'abord scripts/extraire_mutuelles_bulletins.py"
-        )
     affectations: dict[str, str] = {}
-    for chemin in fichiers:  # ordre croissant : les mois récents écrasent
-        if chemin.stem > f"mutuelles-{periode}":
-            continue
+    connus: set[str] = set()
+    for chemin in _grilles_disponibles(dossier, periode):  # récents en dernier
         with chemin.open(encoding="utf-8") as f:
             for ligne in csv.DictReader(f, delimiter=";"):
-                affectations[ligne["matricule"]] = ligne["code"]
-    return affectations
+                connus.add(ligne["matricule"])
+                if ligne["code"]:
+                    affectations[ligne["matricule"]] = ligne["code"]
+    return affectations, connus
 
 
 # ----- état actuel en base -----
@@ -197,12 +215,20 @@ def choisir_code(
     salarie: dict,
     type_actuel: dict | None,
     affectations: dict[str, str],
+    connus: set[str],
     grilles: dict[str, dict],
 ) -> tuple[str | None, str]:
     """Retourne (code EMU, motif). Code None = on ne touche pas."""
     matricule = (salarie.get("matricule") or "").strip()
     if matricule in affectations:
         return affectations[matricule], "bulletin"
+
+    if matricule in connus:
+        montant = float((type_actuel or {}).get("montant_salarial") or 0)
+        return None, (
+            f"AUCUNE mutuelle au bulletin — EYWAI retient {montant:.2f} € "
+            "(prévoyance rangée en mutuelle ?)"
+        )
 
     if type_actuel:
         actuel = float(type_actuel.get("montant_salarial") or 0)
@@ -238,7 +264,7 @@ def appliquer(periode: str, ecrire: bool) -> int:
         nom = societe["company_name"]
         dossier = SOCIETES[nom]
         grilles = charger_grilles(dossier, periode)
-        affectations = charger_affectations(dossier, periode)
+        affectations, connus = charger_affectations(dossier, periode)
         types, salaries = etat_societe(societe["id"])
         par_id = {t["id"]: t for t in types}
 
@@ -285,7 +311,7 @@ def appliquer(periode: str, ecrire: bool) -> int:
         for salarie in sorted(salaries, key=lambda s: s.get("matricule") or ""):
             lien = salarie["lien"]
             actuel = par_id.get(lien["mutuelle_type_id"]) if lien else None
-            code, motif = choisir_code(salarie, actuel, affectations, grilles)
+            code, motif = choisir_code(salarie, actuel, affectations, connus, grilles)
             etiquette = (
                 f"{salarie.get('matricule') or '?':<12} "
                 f"{salarie['last_name']} {salarie['first_name']}"
@@ -332,7 +358,7 @@ def appliquer(periode: str, ecrire: bool) -> int:
 
     if ecrire:
         SAUVEGARDES.mkdir(parents=True, exist_ok=True)
-        horodatage = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        horodatage = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         fichier = SAUVEGARDES / f"mutuelle-parts-{horodatage}.json"
         fichier.write_text(
             json.dumps(sauvegarde, indent=2, ensure_ascii=False), encoding="utf-8"
