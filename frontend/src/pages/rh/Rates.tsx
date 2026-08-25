@@ -22,6 +22,10 @@ import { RatesKeyParamsSection } from '@/components/rates/RatesKeyParamsSection'
 import { RatesCotisationsSection } from '@/components/rates/RatesCotisationsSection';
 import { RatesBaremesSection } from '@/components/rates/RatesBaremesSection';
 import { RatesAdminPanel } from '@/components/rates/RatesAdminPanel';
+import {
+  RATES_UPDATES_LOCKED,
+  RATES_UPDATES_LOCK_REASON,
+} from '@/lib/ratesUpdatesLock';
 import { getCategoryTitle, parseRatesError } from '@/lib/ratesUtils';
 import { getCotisationTitle } from '@/lib/ratesLabels';
 import type { RatesSyncTarget } from '@/lib/ratesSyncManifest';
@@ -97,7 +101,14 @@ function RatesEmptyState({ onFullSync }: { onFullSync: () => void }) {
           Lancez une mise à jour complète pour alimenter le référentiel depuis les sources
           officielles.
         </p>
-        <Button type="button" className="mt-6" size="sm" onClick={onFullSync}>
+        <Button
+          type="button"
+          className="mt-6"
+          size="sm"
+          onClick={onFullSync}
+          disabled={RATES_UPDATES_LOCKED}
+          title={RATES_UPDATES_LOCKED ? RATES_UPDATES_LOCK_REASON : undefined}
+        >
           <Upload className="mr-2 h-4 w-4" />
           Mise à jour complète
         </Button>
@@ -265,6 +276,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
     onMonthlyToggle: handleMonthlyToggle,
     onRunMonthly: handleMonthlySync,
     onRestartMonthly: handleRestartMonthly,
+    updatesLocked: RATES_UPDATES_LOCKED,
   };
 
   const header = (
@@ -351,6 +363,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
         onUpdateRateKey={handleUpdateRateKey}
         onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
+        updatesLocked={RATES_UPDATES_LOCKED}
       />
 
       {data.cotisations && (
@@ -367,6 +380,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
           isCotisationRunning={isCotisationRunning}
           isSourceRunning={isSourceRunning}
           isTargetRunning={isRateKeyRunning}
+          updatesLocked={RATES_UPDATES_LOCKED}
         />
       )}
 
@@ -381,6 +395,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
         onUpdateSection={handleUpdateSection}
         isTargetRunning={isRateKeyRunning}
         isSourceRunning={isSourceRunning}
+        updatesLocked={RATES_UPDATES_LOCKED}
       />
     </div>
   );

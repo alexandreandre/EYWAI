@@ -3,6 +3,7 @@ import { CloudDownload, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { RatesMonthlyAutoPanel } from '@/components/rates/RatesMonthlyAutoPanel';
 import type { MonthlyAutoSyncState } from '@/lib/ratesMonthlyAuto';
+import { RATES_UPDATES_LOCK_REASON } from '@/lib/ratesUpdatesLock';
 import { cn } from '@/lib/utils';
 
 type RatesPageToolbarProps = {
@@ -15,6 +16,8 @@ type RatesPageToolbarProps = {
   onMonthlyToggle: (enabled: boolean) => void;
   onRunMonthly: () => void;
   onRestartMonthly: () => void;
+  /** Verrouille tout ce qui déclenche un scraping (le rafraîchissement d'affichage reste actif). */
+  updatesLocked?: boolean;
   className?: string;
 };
 
@@ -28,6 +31,7 @@ export function RatesPageToolbar({
   onMonthlyToggle,
   onRunMonthly,
   onRestartMonthly,
+  updatesLocked = false,
   className,
 }: RatesPageToolbarProps) {
   return (
@@ -61,6 +65,8 @@ export function RatesPageToolbar({
               size="sm"
               className="h-9"
               onClick={onFullSync}
+              disabled={updatesLocked}
+              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
             >
               <CloudDownload
                 className={cn('mr-2 h-4 w-4 shrink-0', isSyncing && 'animate-pulse')}
@@ -83,6 +89,7 @@ export function RatesPageToolbar({
             onToggleEnabled={onMonthlyToggle}
             onRunMonthly={onRunMonthly}
             onRestartMonthly={onRestartMonthly}
+            updatesLocked={updatesLocked}
           />
         </div>
       </div>

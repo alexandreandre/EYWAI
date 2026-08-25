@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import type { MonthlyAutoSyncState } from '@/lib/ratesMonthlyAuto';
+import { RATES_UPDATES_LOCK_REASON } from '@/lib/ratesUpdatesLock';
 import { cn } from '@/lib/utils';
 
 type RatesMonthlyAutoPanelProps = {
@@ -13,6 +14,8 @@ type RatesMonthlyAutoPanelProps = {
   onToggleEnabled: (enabled: boolean) => void;
   onRunMonthly: () => void;
   onRestartMonthly: () => void;
+  /** Verrouille les lancements manuels ; l'interrupteur reste utilisable. */
+  updatesLocked?: boolean;
   /** Intégré dans la barre de commandes unifiée (sans bordure propre). */
   embedded?: boolean;
 };
@@ -24,6 +27,7 @@ export function RatesMonthlyAutoPanel({
   onToggleEnabled,
   onRunMonthly,
   onRestartMonthly,
+  updatesLocked = false,
   embedded = false,
 }: RatesMonthlyAutoPanelProps) {
   const showRunMonthly =
@@ -71,6 +75,8 @@ export function RatesMonthlyAutoPanel({
               size="sm"
               className="h-7 shrink-0 px-2.5 text-xs"
               onClick={onRunMonthly}
+              disabled={updatesLocked}
+              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
             >
               <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Lancer la mise à jour du mois
@@ -83,6 +89,8 @@ export function RatesMonthlyAutoPanel({
               size="sm"
               className="h-7 shrink-0 px-2.5 text-xs"
               onClick={onRestartMonthly}
+              disabled={updatesLocked}
+              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
             >
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Recommencer
