@@ -235,8 +235,21 @@ def analyser_horaires_du_mois(
                 ),
                 None,
             )
-            heures_faites_jour_centiemes = (
-                int((jour_reel.get("heures_faites") or 0.0) * 100) if jour_reel else 0
+            if jour_reel is None:
+                # Aucun pointage ce jour-là : on retient le prévu. Un jour sans
+                # donnée n'est pas un jour d'absence — l'absence est un fait
+                # constaté (zéro heure saisie, ou demande validée posée sur le
+                # planning), pas un trou. Le repli `mois_sans_pointage` ci-dessus
+                # ne couvre que les mois ENTIÈREMENT vides ; les calendriers
+                # réels sont partiels (322 h pointées pour 1 113 prévues chez
+                # Colorplast en janvier) et chaque jour manquant était retenu.
+                compteur_heures_faites_semaine_centiemes += (
+                    heures_prevues_jour_centiemes
+                )
+                continue
+
+            heures_faites_jour_centiemes = int(
+                (jour_reel.get("heures_faites") or 0.0) * 100
             )  # Robuste à None
 
             if heures_faites_jour_centiemes < heures_prevues_jour_centiemes:

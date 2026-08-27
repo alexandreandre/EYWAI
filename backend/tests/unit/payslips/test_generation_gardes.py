@@ -350,13 +350,18 @@ class TestGardeBulletinValide:
         assert "bulletin_valide_regenere" in codes
 
     def test_un_brouillon_existant_ne_declenche_pas_la_garde(self):
+        from app.modules.payslips.application import commands as mod
         from app.modules.payslips.application.commands import generate_payslip
         from app.modules.payslips.application.dto import GeneratePayslipInput
 
         existing = {"id": "p-1", "status": "brouillon", "payslip_data": {}, "url": "u"}
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
         p_repo, p_reader, p_provider, p_cal, p_fetch = self._patches(existing)
-        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_cal, p_fetch:
+        # Un brouillon est désormais archivé lui aussi avant d'être réécrit ;
+        # ce test ne porte que sur la garde, l'archivage a le sien.
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_cal, p_fetch, patch.object(
+            mod, "_archive_before_regeneration"
+        ):
             mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
             mock_reader.get_employee_statut.return_value = "Non-Cadre"
             mock_provider.generate_heures.return_value = {

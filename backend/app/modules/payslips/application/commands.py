@@ -188,6 +188,10 @@ def _fetch_existing_payslip(
     return r.data if r and r.data else None
 
 
+#: Versions antérieures gardées dans `edit_history` avant écrasement.
+VERSIONS_CONSERVEES = 10
+
+
 def _archive_before_regeneration(
     existing: dict[str, Any], cmd: GeneratePayslipInput
 ) -> None:
@@ -216,15 +220,22 @@ def _archive_before_regeneration(
             "edited_at": datetime.now().isoformat(),
             "edited_by": cmd.requested_by,
             "edited_by_name": cmd.requested_by_name,
-            "changes_summary": "Régénération d'un bulletin validé (forçage explicite)",
+            "changes_summary": (
+                "Régénération d'un bulletin validé (forçage explicite)"
+                if existing.get("status") == "valide"
+                else "Régénération d'un brouillon — version précédente conservée"
+            ),
             "action": "regeneration",
             "previous_payslip_data": existing.get("payslip_data", {}),
             "previous_pdf_url": existing.get("url"),
         }
     )
-    supabase.table("payslips").update({"edit_history": history}).eq(
-        "id", existing["id"]
-    ).execute()
+    # Une campagne de backtest régénère le même bulletin des dizaines de fois :
+    # sans plafond, `edit_history` enflerait indéfiniment. On garde les versions
+    # les plus récentes, seules utiles pour revenir en arrière.
+    supabase.table("payslips").update(
+        {"edit_history": history[-VERSIONS_CONSERVEES:]}
+    ).eq("id", existing["id"]).execute()
 
 
 def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
@@ -243,14 +254,19 @@ def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
 def _check_validated_guard(
     cmd: GeneratePayslipInput,
 ) -> dict[str, Any] | None:
-    """Garde « bulletin validé » : refuse (409) sauf forçage explicite.
+    """Garde « bulletin validé », et rend le bulletin existant s'il y en a un.
 
-    Retourne le bulletin existant si une régénération forcée est en cours
-    (l'appelant doit archiver avant, réinitialiser après), None sinon.
+    La garde refuse (409) d'écraser un bulletin validé sans forçage explicite.
+    Mais le bulletin est rendu **quel que soit son statut** : l'appelant doit
+    l'archiver avant de le laisser réécrire, brouillon compris. Un brouillon
+    écrasé sans copie est définitivement perdu — c'est ce qui est arrivé aux
+    bulletins de Colorplast le 26/08/2026.
     """
     existing = _fetch_existing_payslip(cmd.employee_id, cmd.year, cmd.month)
-    if not existing or existing.get("status") != "valide":
+    if not existing:
         return None
+    if existing.get("status") != "valide":
+        return existing
     if not cmd.regenerer_bulletin_valide:
         raise PayslipValidatedError(
             f"Un bulletin validé existe déjà pour {cmd.month:02d}/{cmd.year}. "
@@ -293,9 +309,14 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
         raise PayslipBadRequestError(period_block_reason)
 
     calendar_warning = _check_calendar_guard(employee, cmd)
-    validated_existing = _check_validated_guard(cmd)
-    if validated_existing:
-        _archive_before_regeneration(validated_existing, cmd)
+    bulletin_existant = _check_validated_guard(cmd)
+    if bulletin_existant:
+        _archive_before_regeneration(bulletin_existant, cmd)
+    validated_existing = (
+        bulletin_existant
+        if (bulletin_existant or {}).get("status") == "valide"
+        else None
+    )
 
     statut = employee_statut_reader.get_employee_statut(cmd.employee_id)
     if is_forfait_jour(statut):

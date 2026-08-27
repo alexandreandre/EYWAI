@@ -180,6 +180,32 @@ def _extraire_arret_pour_maintien(
     }
 
 
+def jour_du_calendrier_final(
+    jour_prevu: Dict[str, Any],
+    jour_reel: Dict[str, Any] | None,
+    day_num: int,
+) -> Dict[str, Any]:
+    """Le jour retenu pour la paie, entre ce qui était prévu et ce qui a été pointé.
+
+    Le pointage prime quand il existe. **Sans pointage, on retient le prévu** —
+    un jour sans donnée n'est pas un jour d'absence.
+
+    Le moteur en faisait auparavant une « absence injustifiée », donc une
+    retenue. C'est l'inverse de la bonne règle : une absence est un fait
+    constaté — zéro heure saisie, ou une demande validée posée sur le planning
+    — pas un trou dans les données. Le repli existant ne couvrait que les mois
+    *entièrement* sans pointage ; les calendriers réels sont partiels (322 h
+    pointées pour 1 113 prévues chez Colorplast en janvier), et chaque jour
+    manquant était retenu à tort.
+    """
+    if jour_reel:
+        jour_final = jour_reel.copy()
+    else:
+        jour_final = jour_prevu.copy()
+    jour_final["jour"] = day_num
+    return jour_final
+
+
 def _preparer_calendrier_enrichi(
     chemin_employe: Path, annee: int, mois: int
 ) -> List[Dict[str, Any]]:
@@ -203,21 +229,9 @@ def _preparer_calendrier_enrichi(
     calendrier_final_mois = []
     _, num_days = calendar.monthrange(annee, mois)
     for day_num in range(1, num_days + 1):
-        jour_prevu = prevu_par_jour.get(day_num, {})
-        jour_reel = reels_par_jour.get(day_num)
-        if jour_reel:
-            jour_final = jour_reel.copy()
-        else:
-            heures_prevues = jour_prevu.get("heures_prevues", 0.0)
-            if jour_prevu.get("type") == "travail" and heures_prevues > 0:
-                jour_final = {
-                    "jour": day_num,
-                    "type": "absence_injustifiee",
-                    "heures": heures_prevues,
-                }
-            else:
-                jour_final = jour_prevu.copy()
-        jour_final["jour"] = day_num
+        jour_final = jour_du_calendrier_final(
+            prevu_par_jour.get(day_num, {}), reels_par_jour.get(day_num), day_num
+        )
         calendrier_final_mois.append(jour_final)
     return calendrier_final_mois
 
