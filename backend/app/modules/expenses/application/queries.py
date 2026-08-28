@@ -26,6 +26,13 @@ def resolve_employee_id_for_expense_account(
     return resolve_employee_id_for_user_account(str(user_id), str(company_id))
 
 
+def get_employee_company_id_for_expense(employee_id: str) -> str | None:
+    """Société d'un salarié — contrôle d'appartenance pour la saisie RH."""
+    from app.modules.employees.infrastructure.queries import get_employee_company_id
+
+    return get_employee_company_id(str(employee_id))
+
+
 def get_my_expenses_for_user_account(
     user_id: str, company_id: str | None
 ) -> List[dict]:

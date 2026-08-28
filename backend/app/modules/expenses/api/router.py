@@ -62,9 +62,7 @@ def _is_rh(current_user: User) -> bool:
 
 def _resolve_rh_target_employee(current_user: User, employee_id: str) -> str:
     """Valide qu'une saisie RH cible un salarié de l'entreprise active."""
-    from app.modules.employees.infrastructure.queries import get_employee_company_id
-
-    emp_company = get_employee_company_id(str(employee_id))
+    emp_company = _expense_service.get_employee_company_id(str(employee_id))
     if not emp_company:
         raise HTTPException(status_code=404, detail="Employé non trouvé.")
     company_id = current_user.active_company_id

@@ -16,6 +16,7 @@ from app.modules.expenses.application.dto import (
     UpdateExpenseStatusInput,
 )
 from app.modules.expenses.application.queries import (
+    get_employee_company_id_for_expense as query_get_employee_company_id_for_expense,
     get_all_expenses as query_get_all_expenses,
     get_my_expenses as query_get_my_expenses,
     get_my_expenses_for_user_account as query_get_my_expenses_for_user_account,
@@ -51,6 +52,9 @@ class ExpenseApplicationService:
         self, company_id: str, input: ListExpensesInput
     ) -> List[dict]:
         return query_get_all_expenses(company_id, input.status)
+
+    def get_employee_company_id(self, employee_id: str) -> str | None:
+        return query_get_employee_company_id_for_expense(employee_id)
 
     def get_signed_upload_url(self, employee_id: str, filename: str) -> dict:
         return query_get_signed_upload_url(employee_id, filename)
