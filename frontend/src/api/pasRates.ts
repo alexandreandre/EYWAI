@@ -79,6 +79,12 @@ export interface PasApplication {
 
 export const getPasRates = () => apiClient.get<PasVue>("/api/pas-rates");
 
+export const setPasRateManuel = (employeeId: string, taux: number) =>
+  apiClient.put<{ taux: number; periode: string }>(
+    `/api/pas-rates/${employeeId}/taux`,
+    { taux },
+  );
+
 export const getPasHistorique = (employeeId: string) =>
   apiClient.get<PasHistoriqueLigne[]>(`/api/pas-rates/${employeeId}/historique`);
 

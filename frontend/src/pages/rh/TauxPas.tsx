@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Pencil,
   Percent,
   RefreshCw,
   Search,
@@ -21,7 +22,15 @@ import { RhPageHeader } from "@/components/layout";
 import { SharkFinLoader } from "@/components/SharkFinLoader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -33,50 +42,13 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PasImportDialog } from "@/features/pas-rates/components/PasImportDialog";
-import { PasStatutBadge } from "@/features/pas-rates/components/PasStatutBadge";
 import {
   exportPasRates,
   getPasRates,
   pasRatesErrorMessage,
+  setPasRateManuel,
   type PasLigne,
-  type PasStatut,
 } from "@/api/pasRates";
-import { cn } from "@/lib/utils";
-
-type Filtre = "tous" | PasStatut;
-
-const COMPTEURS: { cle: Filtre; label: string; aide: string; accent: string }[] = [
-  {
-    cle: "tous",
-    label: "Salariés",
-    aide: "Effectif suivi",
-    accent: "border-border",
-  },
-  {
-    cle: "manquant",
-    label: "Sans taux",
-    aide: "Bulletin à 0 % par défaut",
-    accent: "border-danger/50 bg-danger/5",
-  },
-  {
-    cle: "a_rafraichir",
-    label: "À rafraîchir",
-    aide: "Taux de plus de deux mois",
-    accent: "border-warning/50 bg-warning/5",
-  },
-  {
-    cle: "bareme",
-    label: "Au barème",
-    aide: "En attente du taux DGFiP",
-    accent: "border-border bg-muted/40",
-  },
-  {
-    cle: "a_jour",
-    label: "À jour",
-    aide: "Taux DGFiP récent",
-    accent: "border-success/50 bg-success/5",
-  },
-];
 
 function formatTaux(valeur: number | null): string {
   return valeur == null ? "—" : `${valeur.toFixed(2).replace(".", ",")} %`;
@@ -117,8 +89,10 @@ export default function TauxPas() {
   const { activeCompany } = useCompany();
   const activeCompanyId = activeCompany?.company_id ?? "";
 
-  const [filtre, setFiltre] = useState<Filtre>("tous");
   const [recherche, setRecherche] = useState("");
+  const [edition, setEdition] = useState<PasLigne | null>(null);
+  const [tauxSaisi, setTauxSaisi] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [importOuvert, setImportOuvert] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -139,13 +113,9 @@ export default function TauxPas() {
   }, [isError, error, toast]);
 
   const lignes = useMemo<PasLigne[]>(() => data?.lignes ?? [], [data]);
-  const compteurs = data?.compteurs ?? {};
 
   const affichees = useMemo(() => {
     let items = lignes;
-    if (filtre !== "tous") {
-      items = items.filter((l) => l.statut === filtre);
-    }
     const terme = recherche.trim().toLowerCase();
     if (terme) {
       items = items.filter(
@@ -156,7 +126,40 @@ export default function TauxPas() {
       );
     }
     return items;
-  }, [lignes, filtre, recherche]);
+  }, [lignes, recherche]);
+
+  const ouvrirEdition = (ligne: PasLigne) => {
+    setEdition(ligne);
+    setTauxSaisi(ligne.taux == null ? "" : String(ligne.taux));
+  };
+
+  const handleSaveTaux = async () => {
+    if (!edition) return;
+    const valeur = parseFloat(tauxSaisi.replace(",", "."));
+    if (!Number.isFinite(valeur) || valeur < 0 || valeur > 100) {
+      toast({
+        title: "Erreur",
+        description: "Indiquez un taux entre 0 et 100.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await setPasRateManuel(edition.employee_id, valeur);
+      toast({ title: "Succès", description: "Taux enregistré." });
+      setEdition(null);
+      await refetch();
+    } catch (saveError) {
+      toast({
+        title: "Erreur",
+        description: await pasRatesErrorMessage(saveError),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -181,32 +184,6 @@ export default function TauxPas() {
           activeCompany?.company_name ? ` — ${activeCompany.company_name}` : ""
         }.`}
       />
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {COMPTEURS.map((compteur) => {
-          const valeur =
-            compteur.cle === "tous"
-              ? compteurs.total ?? 0
-              : compteurs[compteur.cle] ?? 0;
-          const actif = filtre === compteur.cle;
-          return (
-            <button
-              key={compteur.cle}
-              type="button"
-              onClick={() => setFiltre(actif && compteur.cle !== "tous" ? "tous" : compteur.cle)}
-              className={cn(
-                "rounded-lg border p-4 text-left transition-colors hover:bg-muted/60",
-                compteur.accent,
-                actif && "ring-2 ring-primary ring-offset-1",
-              )}
-            >
-              <p className="text-2xl font-semibold tabular-nums">{valeur}</p>
-              <p className="text-sm font-medium">{compteur.label}</p>
-              <p className="text-xs text-muted-foreground">{compteur.aide}</p>
-            </button>
-          );
-        })}
-      </div>
 
       <Card>
         <CardHeader className="pb-4">
@@ -269,18 +246,17 @@ export default function TauxPas() {
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <Search className="mb-4 h-12 w-12 opacity-50" />
               <p className="font-medium">Aucun résultat</p>
-              <p className="mt-1 text-sm">Modifiez le filtre ou la recherche.</p>
+              <p className="mt-1 text-sm">Modifiez la recherche.</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[26%]">Collaborateur</TableHead>
-                  <TableHead className="w-[12%]">Taux</TableHead>
-                  <TableHead className="w-[22%]">Origine</TableHead>
+                  <TableHead className="w-[30%]">Collaborateur</TableHead>
+                  <TableHead className="w-[16%]">Taux</TableHead>
+                  <TableHead className="w-[26%]">Origine</TableHead>
                   <TableHead className="w-[18%]">Période du taux</TableHead>
-                  <TableHead className="w-[16%]">Statut</TableHead>
-                  <TableHead className="w-[6%]" />
+                  <TableHead className="w-[10%]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -309,14 +285,22 @@ export default function TauxPas() {
                     <TableCell className="text-muted-foreground">
                       {formatPeriode(ligne.periode)}
                     </TableCell>
-                    <TableCell>
-                      <PasStatutBadge
-                        statut={ligne.statut}
-                        libelle={ligne.statut_libelle}
-                      />
-                    </TableCell>
                     <TableCell className="text-right">
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <span className="inline-flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Modifier le taux"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ouvrirEdition(ligne);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -331,6 +315,41 @@ export default function TauxPas() {
         onOpenChange={setImportOuvert}
         onApplied={() => void refetch()}
       />
+
+      <Dialog open={!!edition} onOpenChange={(open) => !open && setEdition(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Taux de {edition?.prenom} {edition?.nom}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Saisie manuelle, appliquée aux prochains bulletins jusqu'au prochain
+              retour DGFiP.
+            </p>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="taux-manuel">Taux (%)</Label>
+            <Input
+              id="taux-manuel"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={tauxSaisi}
+              onChange={(e) => setTauxSaisi(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEdition(null)}>
+              Annuler
+            </Button>
+            <Button onClick={() => void handleSaveTaux()} disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
