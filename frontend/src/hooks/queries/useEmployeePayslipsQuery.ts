@@ -9,6 +9,7 @@ export function useEmployeePayslipsQuery(employeeId: string | undefined) {
     queryKey: queryKeys.employeePayslips(companyId, employeeId),
     queryFn: () => getEmployeePayslips(employeeId!),
     enabled: Boolean(companyId && employeeId),
-    placeholderData: (previous) => previous,
+    // Pas de placeholderData : au changement de salarié, on montre un état de
+    // chargement plutôt que les bulletins du salarié précédent.
   });
 }
