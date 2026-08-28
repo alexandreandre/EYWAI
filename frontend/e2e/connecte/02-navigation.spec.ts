@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { API_URL } from '../helpers/env';
 import { surveiller, verifierPageSaine } from '../helpers/erreurs';
 
 /**
@@ -25,10 +26,9 @@ const PAGES: Array<{ chemin: string; nom: string }> = [
   { chemin: '/trial-periods', nom: 'Périodes d’essai' },
 ];
 
-test('le bandeau ENVIRONNEMENT DE TEST est visible une fois connecté', async ({ page }) => {
-  await page.goto('/');
-  // Garde-fou : sans ce bandeau, on n'est PAS sur l'environnement de test.
-  await expect(page.getByText('ENVIRONNEMENT DE TEST')).toBeVisible();
+test('l’API de resynchro reste disponible (bandeau retiré)', async ({ request }) => {
+  const rep = await request.get(`${API_URL}/api/test-env/status`);
+  expect(rep.status()).not.toBe(404);
 });
 
 for (const { chemin, nom } of PAGES) {
