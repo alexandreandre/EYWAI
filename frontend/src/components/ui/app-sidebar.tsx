@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
 import { isPayrollFocusActive, restrictToPayrollFocus } from "@/lib/payrollFocus";
+import { resolveSidebarMenuKey } from "@/lib/sidebarMenuRole";
 import { isPlatformAdmin } from "@/lib/platformAdmin";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import { LaunchPayrollButton } from "@/features/payroll/components/LaunchPayrollButton";
@@ -896,27 +897,13 @@ export function AppSidebar() {
     return null;
   }
 
-  // Déterminer quel menu afficher selon le rôle et la vue
-  let userRole = user.role as keyof typeof menuItems;
-  let items: SidebarLinkItem[] = menuItems[userRole] ?? [];
-
-  // Si collaborateur_rh et vue Collaborateur, afficher le menu collaborateur
-  if (isCollaborateurRh && viewMode === 'collaborateur') {
-    userRole = 'employee';
-    items = menuItems.employee || [];
-  } else if (isCollaborateurRh && viewMode === 'rh') {
-    // Si collaborateur_rh et vue RH, afficher le menu RH
-    userRole = 'rh';
-    items = menuItems.rh || [];
-  } else if (user.role === 'admin') {
-    // Admin : même navigation que la RH (inclut les vues « équipe » manager)
-    userRole = 'rh';
-    items = menuItems.rh || [];
-  }
-
-  if (userRole === "rh" && collapsed) {
-    items = rhCollapsedNavItems;
-  }
+  const userRole = resolveSidebarMenuKey(user.role, viewMode);
+  const items: SidebarLinkItem[] =
+    userRole === "rh" && collapsed
+      ? rhCollapsedNavItems
+      : userRole
+        ? menuItems[userRole]
+        : [];
 
   const showRhAccordion = userRole === "rh" && !collapsed;
 
