@@ -41,6 +41,7 @@ import {
   PiggyBank,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // <-- IMPORTATION
+import { isPayrollFocusActive, restrictToPayrollFocus } from "@/lib/payrollFocus";
 import { isPlatformAdmin } from "@/lib/platformAdmin";
 import { useRhSidebarTaskBadges } from "@/hooks/useRhSidebarTaskBadges";
 import { LaunchPayrollButton } from "@/features/payroll/components/LaunchPayrollButton";
@@ -737,6 +738,7 @@ function SubNavCountBadge({ count }: { count: number }) {
 export function AppSidebar() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user);
   const { state } = useSidebar();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
@@ -834,7 +836,13 @@ export function AppSidebar() {
     () => monEntrepriseInsertIndexInConsolidated(accessibleGroups),
     [accessibleGroups],
   );
+  const rhTeamGroups = useMemo(
+    () => (payrollFocus ? restrictToPayrollFocus('team', RH_TEAM_GROUPS) : RH_TEAM_GROUPS),
+    [payrollFocus],
+  );
+
   const rhGestionGroups = useMemo(() => {
+    if (payrollFocus) return restrictToPayrollFocus('gestion', RH_GESTION_GROUPS);
     const base = RH_GESTION_GROUPS.map((g) => ({
       ...g,
       items: [...g.items],
@@ -845,38 +853,43 @@ export function AppSidebar() {
       base[0].items.splice(idx, 0, monEntrepriseNav);
     }
     return base;
-  }, [hasConsolidatedViews, monEntrepriseNav]);
+  }, [payrollFocus, hasConsolidatedViews, monEntrepriseNav]);
+
+  const rhPaieGroups = useMemo(
+    () => (payrollFocus ? restrictToPayrollFocus('paie', RH_PAIE_GROUPS) : RH_PAIE_GROUPS),
+    [payrollFocus],
+  );
 
   const rhCollapsedNavItems = useMemo(
     () => [
       RH_HOME,
-      ...flattenNavGroups(RH_TEAM_GROUPS),
+      ...flattenNavGroups(rhTeamGroups),
       ...flattenNavGroups(rhGestionGroups),
-      ...flattenNavGroups(RH_PAIE_GROUPS),
+      ...flattenNavGroups(rhPaieGroups),
     ],
-    [rhGestionGroups],
+    [rhTeamGroups, rhGestionGroups, rhPaieGroups],
   );
 
-  const teamSectionHasTasks = sectionHasTasksFromGroups(RH_TEAM_GROUPS, getCount);
+  const teamSectionHasTasks = sectionHasTasksFromGroups(rhTeamGroups, getCount);
   const gestionSectionHasTasks = sectionHasTasksFromGroups(rhGestionGroups, getCount);
   const paieSectionHasTasks =
-    !isPayrollPipelineLoading && sectionHasTasksFromGroups(RH_PAIE_GROUPS, getCount);
+    !isPayrollPipelineLoading && sectionHasTasksFromGroups(rhPaieGroups, getCount);
 
   const [teamOpen, setTeamOpen] = useState(() =>
-    sectionIsActiveFromGroups(RH_TEAM_GROUPS, isActive),
+    sectionIsActiveFromGroups(rhTeamGroups, isActive),
   );
   const [gestionOpen, setGestionOpen] = useState(() =>
     sectionIsActiveFromGroups(rhGestionGroups, isActive),
   );
   const [paieOpen, setPaieOpen] = useState(() =>
-    sectionIsActiveFromGroups(RH_PAIE_GROUPS, isActive),
+    sectionIsActiveFromGroups(rhPaieGroups, isActive),
   );
 
   useEffect(() => {
-    if (sectionIsActiveFromGroups(RH_TEAM_GROUPS, isActive)) setTeamOpen(true);
+    if (sectionIsActiveFromGroups(rhTeamGroups, isActive)) setTeamOpen(true);
     if (sectionIsActiveFromGroups(rhGestionGroups, isActive)) setGestionOpen(true);
-    if (sectionIsActiveFromGroups(RH_PAIE_GROUPS, isActive)) setPaieOpen(true);
-  }, [currentPath, location.hash, rhGestionGroups]);
+    if (sectionIsActiveFromGroups(rhPaieGroups, isActive)) setPaieOpen(true);
+  }, [currentPath, location.hash, rhTeamGroups, rhGestionGroups, rhPaieGroups]);
 
   // Si l'utilisateur n'est pas encore chargé, on n'affiche rien ou un loader
   if (!user) {
@@ -1031,7 +1044,7 @@ export function AppSidebar() {
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           <SidebarNavGroups
-                            groups={RH_TEAM_GROUPS}
+                            groups={rhTeamGroups}
                             getCount={getCount}
                             isActive={isActive}
                           />
@@ -1089,7 +1102,7 @@ export function AppSidebar() {
                       <CollapsibleContent>
                         <SidebarMenuSub className="mx-0 gap-1 border-0 px-0 py-0.5">
                           <SidebarPaieWorkflow
-                            groups={RH_PAIE_GROUPS}
+                            groups={rhPaieGroups}
                             getCount={getCount}
                             isActive={isActive}
                             pipelineLoading={isPayrollPipelineLoading}
