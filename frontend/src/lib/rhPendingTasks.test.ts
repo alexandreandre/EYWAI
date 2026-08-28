@@ -54,3 +54,40 @@ describe('buildRhPendingTasks', () => {
     expect(items[0].count).toBe(3);
   });
 });
+
+import { filterTasksToPayrollFocus } from './rhPendingTasks';
+import type { RhPendingTaskItem } from './rhPendingTasks';
+import { CalendarCheck } from 'lucide-react';
+
+const task = (id: string, href: string): RhPendingTaskItem =>
+  ({ id, label: id, count: 1, href, icon: CalendarCheck, hint: '' }) as RhPendingTaskItem;
+
+describe('filterTasksToPayrollFocus', () => {
+  it('garde les tâches dont la destination est dans le périmètre', () => {
+    const kept = filterTasksToPayrollFocus([
+      task('leaves', '/leaves'),
+      task('expenses', '/expenses'),
+      task('contracts', '/employees?alert=deadlines'),
+      task('rates', '/rates'),
+    ]);
+    expect(kept.map((t) => t.id)).toEqual(['leaves', 'expenses', 'contracts', 'rates']);
+  });
+
+  it('retire les tâches menant vers un écran retiré', () => {
+    const kept = filterTasksToPayrollFocus([
+      task('medical', '/medical-follow-up'),
+      task('residence', '/residence-permits'),
+      task('reviews', '/annual-reviews?focus=upcoming'),
+      task('recruitment', '/recruitment'),
+      task('onboarding', '/onboarding'),
+      task('company', '/company'),
+    ]);
+    expect(kept).toEqual([]);
+  });
+
+  it('ne modifie pas la liste reçue', () => {
+    const input = [task('leaves', '/leaves'), task('medical', '/medical-follow-up')];
+    filterTasksToPayrollFocus(input);
+    expect(input).toHaveLength(2);
+  });
+});

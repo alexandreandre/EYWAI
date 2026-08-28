@@ -17,6 +17,7 @@ import {
 
 import { ANNUAL_REVIEW_PRIORITY_WINDOW_DAYS } from '@/api/annualReviews';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
+import { isPayrollFocusAllowed } from '@/lib/payrollFocus';
 
 export type RhPendingTaskId =
   | 'leaves'
@@ -269,6 +270,17 @@ export function buildRhPendingTasks(input: RhPendingTasksInput): RhPendingTaskIt
 
 export function sumRhPendingActions(items: RhPendingTaskItem[]): number {
   return items.reduce((acc, item) => acc + item.count, 0);
+}
+
+/**
+ * Mode paie : ne conserve que les alertes dont la destination reste
+ * atteignable. Une alerte qui mène vers un écran retiré est incohérente, et une
+ * alerte sur laquelle on ne peut pas agir est pire qu'une absence d'alerte.
+ */
+export function filterTasksToPayrollFocus(
+  items: RhPendingTaskItem[],
+): RhPendingTaskItem[] {
+  return items.filter((item) => isPayrollFocusAllowed(item.href));
 }
 
 /** Mappe les items vers les compteurs sidebar (par route). */
