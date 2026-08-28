@@ -52,6 +52,34 @@ def _require_my_employee_id(current_user: User) -> str:
     return employee_id
 
 
+def _is_rh(current_user: User) -> bool:
+    company_id = current_user.active_company_id
+    return current_user.is_platform_admin or (
+        company_id is not None
+        and current_user.has_rh_access_in_company(str(company_id))
+    )
+
+
+def _resolve_rh_target_employee(current_user: User, employee_id: str) -> str:
+    """Valide qu'une saisie RH cible un salarié de l'entreprise active."""
+    from app.modules.employees.infrastructure.queries import get_employee_company_id
+
+    emp_company = get_employee_company_id(str(employee_id))
+    if not emp_company:
+        raise HTTPException(status_code=404, detail="Employé non trouvé.")
+    company_id = current_user.active_company_id
+    if (
+        company_id
+        and str(emp_company) != str(company_id)
+        and not current_user.is_platform_admin
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Cet employé n'appartient pas à l'entreprise active.",
+        )
+    return str(employee_id)
+
+
 def _require_rh_or_admin(current_user: User) -> None:
     if current_user.is_platform_admin:
         return
@@ -107,12 +135,20 @@ def _filter_expenses_in_scope(
 @router.post("/get-upload-url", response_model=SignedUploadUrlResponse)
 def get_upload_url(
     filename: Annotated[str, Body(embed=True)],
+    employee_id: Annotated[str | None, Body(embed=True)] = None,
     current_user: User = Depends(get_current_user),
 ):
-    """Génère une URL signée pour uploader un justificatif avec son nom original."""
+    """Génère une URL signée pour uploader un justificatif avec son nom original.
+
+    `employee_id` est réservé aux RH : le justificatif est alors rangé sous le
+    dossier du salarié cible.
+    """
     try:
-        employee_id = _require_my_employee_id(current_user)
-        return _expense_service.get_signed_upload_url(employee_id, filename)
+        if employee_id and _is_rh(current_user):
+            target_id = _resolve_rh_target_employee(current_user, employee_id)
+        else:
+            target_id = _require_my_employee_id(current_user)
+        return _expense_service.get_signed_upload_url(target_id, filename)
     except HTTPException:
         raise
     except Exception as e:
@@ -125,9 +161,20 @@ def create_expense_report(
     expense_data: ExpenseBase,
     current_user: User = Depends(get_current_user),
 ):
-    """Crée une nouvelle note de frais pour l'utilisateur connecté."""
+    """Crée une note de frais.
+
+    Collaborateur : pour lui-même, statut initial « pending ».
+    RH avec `employee_id` : saisie directe pour un salarié de l'entreprise
+    active, validée immédiatement (la RH enregistre un fait, pas une demande).
+    """
     try:
-        employee_id = _require_my_employee_id(current_user)
+        rh_saisie_directe = bool(expense_data.employee_id) and _is_rh(current_user)
+        if rh_saisie_directe:
+            employee_id = _resolve_rh_target_employee(
+                current_user, str(expense_data.employee_id)
+            )
+        else:
+            employee_id = _require_my_employee_id(current_user)
         input_ = CreateExpenseInput(
             employee_id=employee_id,
             date=expense_data.date,
@@ -138,6 +185,7 @@ def create_expense_report(
             receipt_url=expense_data.receipt_url,
             filename=expense_data.filename,
             company_id=current_user.active_company_id,
+            initial_status="validated" if rh_saisie_directe else None,
         )
         return _expense_service.create_expense(input_)
     except HTTPException:

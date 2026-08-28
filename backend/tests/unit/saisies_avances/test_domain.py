@@ -11,7 +11,6 @@ from decimal import Decimal
 
 from app.modules.saisies_avances.domain import rules
 from app.modules.saisies_avances.domain.enums import (
-    AUTO_APPROVAL_THRESHOLD_EUR,
     MAX_ADVANCE_DAYS,
     MAX_ADVANCE_NET_RATIO,
 )
@@ -22,9 +21,6 @@ from app.modules.saisies_avances.domain.enums import (
 
 class TestDomainEnums:
     """Constantes et types du domaine."""
-
-    def test_auto_approval_threshold_eur(self):
-        assert AUTO_APPROVAL_THRESHOLD_EUR == 100
 
     def test_max_advance_days(self):
         assert MAX_ADVANCE_DAYS == 10
@@ -206,26 +202,10 @@ class TestInitialAdvanceStatus:
     """Statut initial d'une demande d'avance (employé vs RH)."""
 
     def test_employe_request_toujours_pending(self):
-        assert (
-            rules.initial_advance_status(True, Decimal("50"), Decimal("100"))
-            == "pending"
-        )
-        assert (
-            rules.initial_advance_status(True, Decimal("200"), Decimal("100"))
-            == "pending"
-        )
+        assert rules.initial_advance_status(True) == "pending"
 
-    def test_rh_sous_seuil_approved(self):
-        assert (
-            rules.initial_advance_status(False, Decimal("80"), Decimal("100"))
-            == "approved"
-        )
-
-    def test_rh_au_dessus_seuil_pending(self):
-        assert (
-            rules.initial_advance_status(False, Decimal("150"), Decimal("100"))
-            == "pending"
-        )
+    def test_saisie_rh_toujours_approved(self):
+        assert rules.initial_advance_status(False) == "approved"
 
 
 # --- compute_available_by_advance_type ---

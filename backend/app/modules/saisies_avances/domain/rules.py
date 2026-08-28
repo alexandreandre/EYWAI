@@ -187,19 +187,14 @@ def compute_advance_available_from_figures(
     return available_amount, max_advance_amount
 
 
-def initial_advance_status(
-    is_employee_request: bool,
-    requested_amount: Decimal,
-    auto_approval_threshold: Decimal,
-) -> str:
+def initial_advance_status(is_employee_request: bool) -> str:
     """
     Détermine le statut initial d'une demande d'avance.
     - Employé qui demande pour lui-même : toujours 'pending'
-    - RH/Admin : 'approved' si montant <= seuil, sinon 'pending'
+    - RH/Admin : 'approved' — la saisie enregistre un accord déjà donné ;
+      les plafonds contrôlés à la création font office de garde-fou.
     """
-    if is_employee_request:
-        return "pending"
-    return "approved" if requested_amount <= auto_approval_threshold else "pending"
+    return "pending" if is_employee_request else "approved"
 
 
 def remaining_to_pay_value(approved_amount: Decimal, total_paid: Decimal) -> float:

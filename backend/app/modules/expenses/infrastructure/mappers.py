@@ -23,6 +23,7 @@ def build_create_payload(
     receipt_url: str | None = None,
     filename: str | None = None,
     company_id: str | None = None,
+    initial_status: str | None = None,
 ) -> Dict[str, Any]:
     """
     Construit le dictionnaire pour l'insert Supabase (table expense_reports).
@@ -41,7 +42,7 @@ def build_create_payload(
         "description": description,
         "receipt_url": receipt_url,
         "filename": filename if filename is not None else None,
-        "status": get_initial_expense_status(),
+        "status": initial_status or get_initial_expense_status(),
     }
     if company_id:
         payload["company_id"] = company_id

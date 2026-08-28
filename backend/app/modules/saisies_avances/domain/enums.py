@@ -32,7 +32,6 @@ DEFAULT_SEIZURE_ACCOUNTING_ACCOUNTS: dict[str, str] = {
 }
 
 # Constantes métier (à centraliser ici après migration)
-AUTO_APPROVAL_THRESHOLD_EUR = 100
 BUCKET_ADVANCE_PAYMENTS = "advance_payments"
 MAX_ADVANCE_DAYS = 10
 MAX_ADVANCE_NET_RATIO = 0.5
