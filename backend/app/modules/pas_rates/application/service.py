@@ -145,3 +145,39 @@ def historique(employee_id: str) -> List[Dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def definir_taux_manuel(
+    company_id: str,
+    employee_id: str,
+    taux: float,
+    applied_by: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Écrit un taux saisi à la main par la RH : historique + taux courant.
+
+    La période est le mois courant : un taux manuel vaut à partir d'aujourd'hui
+    et sera remplacé par le prochain retour DGFiP plus récent.
+    """
+    from datetime import datetime
+
+    taux_arrondi = round(float(taux), 2)
+    if not 0 <= taux_arrondi <= 100:
+        raise ValueError("Le taux doit être compris entre 0 et 100.")
+    periode = datetime.now().strftime("%Y-%m")
+    repo.enregistrer_taux(
+        [
+            {
+                "company_id": company_id,
+                "employee_id": employee_id,
+                "periode": periode,
+                "taux": taux_arrondi,
+                "type_taux": "01",
+                "identifiant_taux": None,
+                "source": "manuel",
+                "source_fichier": None,
+                "applied_by": applied_by,
+            }
+        ]
+    )
+    repo.maj_taux_courant(employee_id, taux_arrondi, "01", None, periode)
+    return {"taux": taux_arrondi, "periode": periode}

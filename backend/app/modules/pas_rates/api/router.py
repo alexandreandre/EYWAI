@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from pydantic import BaseModel, Field
 
 from app.core.security import get_current_user
 from app.modules.pas_rates.application import exports, ingest, service
@@ -120,6 +121,31 @@ async def appliquer_fichier(
     except ingest.FichierInvalide as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ApplicationReponse(periode=apercu.periode, **resultat)
+
+
+class TauxManuelRequete(BaseModel):
+    taux: float = Field(..., ge=0, le=100)
+
+
+@router.put("/{employee_id}/taux")
+def definir_taux_manuel(
+    employee_id: str,
+    payload: TauxManuelRequete,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Saisie manuelle du taux par la RH, historisée comme source « manuel »."""
+    cid = _require_rh(current_user)
+    from app.modules.pas_rates.infrastructure import repository as repo
+
+    salarie = repo.get_salarie(employee_id)
+    if not salarie or str(salarie.get("company_id")) != cid:
+        raise HTTPException(status_code=404, detail="Salarié introuvable.")
+    try:
+        return service.definir_taux_manuel(
+            cid, employee_id, payload.taux, str(current_user.id)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/export")
