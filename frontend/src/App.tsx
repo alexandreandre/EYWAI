@@ -26,6 +26,7 @@ import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
+import { isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
 import { TestEnvBanner } from '@/components/TestEnvBanner';
 
@@ -111,6 +112,17 @@ function ProtectedRoutes() {
     user.role !== 'collaborateur' &&
     !isCollaborateurRhView &&
     isEmployeeOnlyPath(location.pathname)
+  ) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Mode paie : les écrans hors périmètre ne sont pas seulement retirés du
+  // menu, ils sont inatteignables à l'URL.
+  if (
+    user.role !== 'collaborateur' &&
+    !isCollaborateurRhView &&
+    isPayrollFocusActive(user) &&
+    !isPayrollFocusAllowed(location.pathname)
   ) {
     return <Navigate to="/" replace />;
   }
