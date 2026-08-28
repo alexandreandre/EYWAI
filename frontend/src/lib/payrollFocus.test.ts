@@ -197,3 +197,24 @@ describe('restrictToPayrollFocus', () => {
     expect(new Set(all)).toEqual(new Set(PAYROLL_FOCUS_NAV_URLS));
   });
 });
+
+describe('routes du circuit de validation manager', () => {
+  it('laisse atteignables les files de validation', () => {
+    expect(isPayrollFocusAllowed('/approvals')).toBe(true);
+    expect(isPayrollFocusAllowed('/leave-requests')).toBe(true);
+    expect(isPayrollFocusAllowed('/cet-requests')).toBe(true);
+  });
+
+  it('ne les fait pas apparaître dans le menu RH', () => {
+    for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
+      expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
+    }
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(19);
+  });
+
+  it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {
+    for (const url of ['/planning', '/formation', '/analytics']) {
+      expect(isPayrollFocusAllowed(url)).toBe(false);
+    }
+  });
+});

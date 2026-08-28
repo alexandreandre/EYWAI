@@ -34,11 +34,21 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
 ];
 
 /**
- * Sous-routes atteignables depuis les écrans du périmètre mais absentes de la
- * navigation. `/employees/:id` et `/payroll/:id` sont déjà couvertes par le
- * préfixe de leur entrée de menu ; l'édition de bulletin ne l'est pas.
+ * Routes atteignables sans figurer dans le menu RH.
+ *
+ * - `/payslips` : édition d'un bulletin. `/employees/:id` et `/payroll/:id`
+ *   sont déjà couvertes par le préfixe de leur entrée de menu, pas celle-ci.
+ * - Les files de validation manager sont le transport d'actions qui sont, elles,
+ *   dans le périmètre : valider un bulletin, approuver une note de frais ou une
+ *   avance. Les couper reviendrait à priver les directeurs de leur seul rôle.
+ *   Elles vivent dans `menuItems.manager` et ne remontent donc pas dans le menu RH.
  */
-const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = ['/payslips'];
+const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = [
+  '/payslips',
+  '/approvals',
+  '/leave-requests',
+  '/cet-requests',
+];
 
 /** Comptes conservant la navigation complète en plus des admins plateforme. */
 export const PAYROLL_FOCUS_BYPASS_EMAILS: readonly string[] = [
