@@ -17,7 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { log } from '@/lib/logger';
 
@@ -75,14 +74,7 @@ function CompanyListItems({
           >
             <div className="flex items-center justify-between w-full gap-2">
               <div className="flex flex-col flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium truncate">{company.company_name}</span>
-                  {company.is_primary && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0">
-                      Principal
-                    </Badge>
-                  )}
-                </div>
+                <span className="font-medium truncate">{company.company_name}</span>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="capitalize">{company.role}</span>
                   {company.siret && (

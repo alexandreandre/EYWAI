@@ -23,6 +23,7 @@ import { ProtectedAppSkeleton } from '@/components/skeletons/ProtectedAppSkeleto
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PlanningPageSkeleton } from '@/components/skeletons/PlanningPageSkeleton';
 import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
+import { TestEnvBadge } from '@/components/TestEnvBadge';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
@@ -293,6 +294,7 @@ export default function App() {
     <TooltipProvider>
       <SignedPdfPreviewProvider>
         <Toaster />
+        <TestEnvBadge />
         <BootProvider>
         <AuthProvider>
           <BrowserRouter
