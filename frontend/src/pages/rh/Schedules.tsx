@@ -7,6 +7,7 @@ import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
 import { useEmployeeCalendarOverview } from '@/hooks/useEmployeeCalendarOverview';
 import type { SchedulesEmployeeInput } from '@/lib/schedulesOverview';
+import { filterPresentEmployees } from '@/lib/employmentStatus';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { CalendarPilotHeader } from '@/components/schedules/CalendarPilotHeader';
@@ -64,7 +65,7 @@ export default function Schedules() {
 
   const employeesQuery = useEmployeesQuery();
   const employees = useMemo(
-    () => (employeesQuery.data ?? []) as Employee[],
+    () => filterPresentEmployees((employeesQuery.data ?? []) as Employee[]),
     [employeesQuery.data],
   );
   const employeesLoading = employeesQuery.isLoading && !employeesQuery.data;

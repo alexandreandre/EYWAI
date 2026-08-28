@@ -21,6 +21,7 @@ import {
   fetchAllEmployeesOverview,
   type SchedulesEmployeeInput,
 } from '@/lib/schedulesOverview';
+import { filterPresentEmployees } from '@/lib/employmentStatus';
 import { getModulationWorkflowStatus } from '@/api/modulation';
 import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
@@ -144,7 +145,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],
     queryFn: async () => {
       const empRes = await apiClient.get<SchedulesEmployeeInput[]>('/api/employees');
-      const employees = empRes.data ?? [];
+      const employees = filterPresentEmployees(empRes.data ?? []);
       if (employees.length === 0) return 0;
       const rows = await fetchAllEmployeesOverview(employees, schedulesYear, schedulesMonth);
       return countSchedulesToEnter(rows);

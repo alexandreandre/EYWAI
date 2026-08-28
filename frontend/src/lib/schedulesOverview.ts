@@ -33,6 +33,7 @@ export interface SchedulesEmployeeInput {
   is_forfait_jour?: boolean | null;
   contract_type?: string | null;
   team_id?: string | null;
+  employment_status?: string | null;
 }
 
 export interface EmployeeCalendarOverviewRow {

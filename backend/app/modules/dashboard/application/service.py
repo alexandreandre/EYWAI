@@ -190,16 +190,17 @@ def build_full_dashboard(company_id: str) -> DashboardData:
     else:
         taux_absenteisme_reel = 0.0
 
-    contract_distribution = domain_rules.aggregate_contract_distribution(all_employees)
-    cdi_count = sum(1 for e in all_employees if e.get("contract_type") == "CDI")
-    cdd_count = sum(1 for e in all_employees if e.get("contract_type") == "CDD")
+    active_employees = domain_rules.filter_active_employees(all_employees)
+    contract_distribution = domain_rules.aggregate_contract_distribution(active_employees)
+    cdi_count = sum(1 for e in active_employees if e.get("contract_type") == "CDI")
+    cdd_count = sum(1 for e in active_employees if e.get("contract_type") == "CDD")
 
     handicapes_count = boeth_profiles_repository.count_active_by_company(company_id)
 
     kpis = KpiData(
         coutTotal=round(cout_total_mois_actuel, 2),
         netVerse=round(net_verse_mois_actuel, 2),
-        effectifActif=len(all_employees),
+        effectifActif=len(active_employees),
         tauxAbsenteisme=taux_absenteisme_reel,
         currentMonth=current_month_str,
         cdiCount=cdi_count,

@@ -32,7 +32,7 @@ class SupabaseCompanyDetailsProvider(ICompanyDetailsProvider):
 
         employees_res = (
             supabase.table("employees")
-            .select("id, contract_type, hire_date, job_title")
+            .select("id, contract_type, hire_date, job_title, employment_status")
             .eq("company_id", company_id)
             .execute()
         )

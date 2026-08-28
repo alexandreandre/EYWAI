@@ -7,6 +7,8 @@ Agrégation paie déléguée au resolver (bulletins vs DSN) via payroll_series.
 from datetime import date, timedelta
 from typing import Any, Dict, List, TYPE_CHECKING
 
+from app.modules.dashboard.domain.rules import filter_active_employees
+
 if TYPE_CHECKING:
     from app.modules.payroll.domain.payroll_kpi_resolver import PayrollPeriodSnapshot
 
@@ -18,8 +20,9 @@ def compute_company_kpis(
     """
     Calcule les KPIs dashboard à partir des employés et d'une série paie résolue.
     """
+    active_employees = filter_active_employees(all_employees)
     kpis: Dict[str, Any] = {}
-    kpis["total_employees"] = len(all_employees)
+    kpis["total_employees"] = len(active_employees)
 
     monthly_data: Dict[str, Dict[str, Any]] = {}
     for snap in payroll_series:
@@ -112,13 +115,13 @@ def compute_company_kpis(
     )
 
     contract_distribution: Dict[str, int] = {}
-    for employee in all_employees:
+    for employee in active_employees:
         ctype = employee.get("contract_type", "Non défini")
         contract_distribution[ctype] = contract_distribution.get(ctype, 0) + 1
     kpis["contract_distribution"] = contract_distribution
 
     job_distribution: Dict[str, int] = {}
-    for employee in all_employees:
+    for employee in active_employees:
         job = employee.get("job_title", "Non défini")
         job_distribution[job] = job_distribution.get(job, 0) + 1
     kpis["job_distribution"] = job_distribution

@@ -10,6 +10,18 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Set
 
 
+def is_active_employee(employee: Dict[str, Any]) -> bool:
+    """Un salarié compte dans l'effectif actif s'il n'est pas sorti."""
+    status = str(
+        employee.get("employment_status") or employee.get("status") or "actif"
+    ).strip().lower()
+    return status in ("actif", "active", "")
+
+
+def filter_active_employees(employees: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [e for e in employees if is_active_employee(e)]
+
+
 def count_working_days_between(start: date, end: date) -> int:
     """Nombre de jours ouvrés (lundi=0 à vendredi=4) entre start et end inclus."""
     if start > end:
