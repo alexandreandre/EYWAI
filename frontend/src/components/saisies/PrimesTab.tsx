@@ -20,6 +20,8 @@ import { SaisieModal } from "@/components/SaisieModal";
 import * as saisiesApi from '@/api/saisies';
 import { generatePayrollVariables } from '@/api/payrollVariables';
 import apiClient from '@/api/apiClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 
 // --- Types & Interfaces ---
 interface Employee { id: string; first_name: string; last_name: string; job_title: string; }
@@ -35,6 +37,8 @@ interface PrimesTabProps {
 
 export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthChange }: PrimesTabProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user);
   const [modalOpen, setModalOpen] = useState(false);
   const [monthlyInputs, setMonthlyInputs] = useState<MonthlyInput[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -197,19 +201,21 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            onClick={handleGenerateVariables}
-            disabled={isGenerating}
-            className="w-full md:w-auto"
-          >
-            {isGenerating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 h-4 w-4" />
-            )}
-            Préparer variables du mois
-          </Button>
+          {!payrollFocus && (
+            <Button
+              variant="outline"
+              onClick={handleGenerateVariables}
+              disabled={isGenerating}
+              className="w-full md:w-auto"
+            >
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              Préparer variables du mois
+            </Button>
+          )}
           <Button onClick={() => setModalOpen(true)} className="w-full md:w-auto">
             <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle saisie
           </Button>

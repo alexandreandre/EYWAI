@@ -108,6 +108,7 @@ def get_contingent_overview(
                 "hire_date": (
                     emp_input.hire_date.isoformat() if emp_input.hire_date else None
                 ),
+                "employment_status": emp.get("employment_status") or "actif",
                 **_breakdown_to_dict(breakdown),
             }
         )

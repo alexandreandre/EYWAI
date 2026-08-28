@@ -104,6 +104,8 @@ interface EmployeeDetailHeaderCardProps {
   onOpenBoethSheet?: () => void;
   /** Aménagement de poste en cours, issu de la dernière visite médicale réalisée. */
   hasWorkplaceAccommodation?: boolean;
+  /** Mode démo paie : masquer équipes, BOETH, titres de séjour, période d'essai, onboarding. */
+  payrollFocus?: boolean;
 }
 
 function MetadataField({
@@ -159,6 +161,7 @@ export function EmployeeDetailHeaderCard({
   canEditBoeth = false,
   onOpenBoethSheet,
   hasWorkplaceAccommodation = false,
+  payrollFocus = false,
 }: EmployeeDetailHeaderCardProps) {
   const fullName = `${employee.first_name} ${employee.last_name}`.trim();
   const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
@@ -198,7 +201,7 @@ export function EmployeeDetailHeaderCard({
 
   const menuItems: Array<{ key: string; node: React.ReactNode }> = [];
 
-  if (hasCredentialsPdf) {
+  if (!payrollFocus && hasCredentialsPdf) {
     menuItems.push({
       key: 'pdf',
       node: (
@@ -213,7 +216,7 @@ export function EmployeeDetailHeaderCard({
     });
   }
 
-  if (canEditBoeth && onOpenBoethSheet) {
+  if (!payrollFocus && canEditBoeth && onOpenBoethSheet) {
     menuItems.push({
       key: 'boeth',
       node: (
@@ -225,17 +228,19 @@ export function EmployeeDetailHeaderCard({
     });
   }
 
-  menuItems.push({
-    key: 'delete',
-    node: (
-      <EmployeeDeleteConfirmDialog
-        employeeId={employee.id}
-        employeeFullName={fullName}
-        onDelete={onDelete}
-        isDeleting={isDeleting}
-      />
-    ),
-  });
+  if (!payrollFocus) {
+    menuItems.push({
+      key: 'delete',
+      node: (
+        <EmployeeDeleteConfirmDialog
+          employeeId={employee.id}
+          employeeFullName={fullName}
+          onDelete={onDelete}
+          isDeleting={isDeleting}
+        />
+      ),
+    });
+  }
 
   const showActionsMenu = menuItems.length > 0;
 
@@ -251,7 +256,7 @@ export function EmployeeDetailHeaderCard({
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="line-clamp-2 text-2xl">{fullName}</CardTitle>
                 {employmentBadge}
-                {hasWorkplaceAccommodation ? (
+                {!payrollFocus && hasWorkplaceAccommodation ? (
                   <Badge variant="outline" className="shrink-0">
                     Aménagement de poste
                   </Badge>
@@ -298,7 +303,7 @@ export function EmployeeDetailHeaderCard({
                 Modifier la fiche
               </Button>
             ) : null}
-            {showOnboarding ? (
+            {!payrollFocus && showOnboarding ? (
               <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to={`/onboarding/${employee.id}`}>
                   <ClipboardList className="mr-2 h-4 w-4" />
@@ -344,10 +349,13 @@ export function EmployeeDetailHeaderCard({
         <EmployeeDetailLeaveBalancesSummary employeeId={employee.id} />
 
         <div className="space-y-4 border-t pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Affectation
-          </p>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {!payrollFocus ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Affectation
+            </p>
+          ) : null}
+          <div className={payrollFocus ? 'grid grid-cols-1' : 'grid grid-cols-1 gap-6 lg:grid-cols-2'}>
+            {!payrollFocus ? (
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Équipe
@@ -410,6 +418,7 @@ export function EmployeeDetailHeaderCard({
                 ) : null}
               </div>
             </div>
+            ) : null}
 
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -477,37 +486,41 @@ export function EmployeeDetailHeaderCard({
           </div>
         </div>
 
-        <ResidencePermitBadge
-          data={{
-            is_subject_to_residence_permit:
-              employee.is_subject_to_residence_permit ?? false,
-            residence_permit_status: employee.residence_permit_status ?? null,
-            residence_permit_expiry_date:
-              employee.residence_permit_expiry_date ?? null,
-            residence_permit_days_remaining:
-              employee.residence_permit_days_remaining ?? null,
-            residence_permit_data_complete:
-              employee.residence_permit_data_complete ?? null,
-          }}
-        />
-        <BoethBadge profile={boethProfile} />
-        <TrialPeriodBadge
-          data={{
-            trial_period_applicable: employee.trial_period_applicable,
-            trial_period_status: employee.trial_period_status,
-            trial_period_end_date: employee.trial_period_end_date,
-            trial_period_days_remaining: employee.trial_period_days_remaining,
-            trial_period_renewal_possible: employee.trial_period_renewal_possible,
-          }}
-        />
-        {canEditBoeth && !boethProfile && onOpenBoethSheet ? (
-          <button
-            type="button"
-            onClick={onOpenBoethSheet}
-            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            Déclarer un statut BOETH
-          </button>
+        {!payrollFocus ? (
+          <>
+            <ResidencePermitBadge
+              data={{
+                is_subject_to_residence_permit:
+                  employee.is_subject_to_residence_permit ?? false,
+                residence_permit_status: employee.residence_permit_status ?? null,
+                residence_permit_expiry_date:
+                  employee.residence_permit_expiry_date ?? null,
+                residence_permit_days_remaining:
+                  employee.residence_permit_days_remaining ?? null,
+                residence_permit_data_complete:
+                  employee.residence_permit_data_complete ?? null,
+              }}
+            />
+            <BoethBadge profile={boethProfile} />
+            <TrialPeriodBadge
+              data={{
+                trial_period_applicable: employee.trial_period_applicable,
+                trial_period_status: employee.trial_period_status,
+                trial_period_end_date: employee.trial_period_end_date,
+                trial_period_days_remaining: employee.trial_period_days_remaining,
+                trial_period_renewal_possible: employee.trial_period_renewal_possible,
+              }}
+            />
+            {canEditBoeth && !boethProfile && onOpenBoethSheet ? (
+              <button
+                type="button"
+                onClick={onOpenBoethSheet}
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Déclarer un statut BOETH
+              </button>
+            ) : null}
+          </>
         ) : null}
       </CardContent>
     </Card>

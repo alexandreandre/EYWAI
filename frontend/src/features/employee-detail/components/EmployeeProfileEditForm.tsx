@@ -46,6 +46,7 @@ interface EmployeeProfileEditFormProps {
   availableMutuelles: MutuelleType[];
   loadingMutuelles: boolean;
   companyOrganismeLabel?: string | null;
+  payrollFocus?: boolean;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,7 @@ export function EmployeeProfileEditForm({
   availableMutuelles,
   loadingMutuelles,
   companyOrganismeLabel,
+  payrollFocus = false,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
@@ -430,6 +432,7 @@ export function EmployeeProfileEditForm({
         </div>
       </section>
 
+      {!payrollFocus && (
       <section className="space-y-3">
         <SectionTitle>Organisation</SectionTitle>
         <FormField
@@ -457,6 +460,7 @@ export function EmployeeProfileEditForm({
           )}
         />
       </section>
+      )}
 
       <section className="space-y-3">
         <SectionTitle>Paie sociale</SectionTitle>
@@ -762,6 +766,7 @@ export function EmployeeProfileEditForm({
         </div>
       </section>
 
+      {!payrollFocus && (
       <section className="space-y-3">
         <SectionTitle>Titre de séjour</SectionTitle>
         <FormField
@@ -814,6 +819,7 @@ export function EmployeeProfileEditForm({
           </div>
         )}
       </section>
+      )}
     </div>
   );
 }

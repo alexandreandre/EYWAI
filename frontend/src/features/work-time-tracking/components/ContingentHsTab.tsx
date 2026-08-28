@@ -48,8 +48,10 @@ import {
 } from '@/features/overtime-contingent/lib/contingentStatus';
 import { workTimeHubPath } from '@/features/work-time-tracking/lib/workTimeTabRouting';
 import { cn } from '@/lib/utils';
-import { ArrowRight, Info, Search } from 'lucide-react';
+import { ArrowRight, Info, Search, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 
 const MONTH_LABELS = [
   'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
@@ -98,6 +100,29 @@ function BreakdownTooltip({ row }: { row: ContingentOverviewRow }) {
   );
 }
 
+function EmploymentStatusBadges({ status }: { status?: string | null }) {
+  return (
+    <>
+      {status === 'en_onboarding' && (
+        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-amber-200">
+          Onboarding
+        </Badge>
+      )}
+      {status === 'en_sortie' && (
+        <Badge variant="outline" className="text-xs flex items-center gap-1 bg-amber-50 text-amber-900 border-amber-200">
+          <UserMinus className="h-3 w-3" />
+          Départ à finaliser
+        </Badge>
+      )}
+      {status === 'parti' && (
+        <Badge variant="secondary" className="text-xs">
+          Parti
+        </Badge>
+      )}
+    </>
+  );
+}
+
 export interface ContingentHsTabProps {
   initialEmployeeId?: string | null;
   onEmployeeSelect?: (employeeId: string | null) => void;
@@ -110,6 +135,8 @@ export function ContingentHsTab({
   hourAccountEnabled = false,
 }: ContingentHsTabProps) {
   const companyId = useActiveCompanyId();
+  const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const currentYear = new Date().getFullYear();
@@ -262,6 +289,7 @@ export function ContingentHsTab({
           </Card>
         ) : (
           <>
+            {!payrollFocus && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard
                 title="Salariés suivis"
@@ -291,6 +319,7 @@ export function ContingentHsTab({
                 variant="danger"
               />
             </div>
+            )}
 
             <Card>
               <CardHeader className="pb-3">
@@ -333,7 +362,12 @@ export function ContingentHsTab({
                           onClick={() => openDetail(row.employee_id)}
                         >
                           <TableCell className="font-medium">
-                            {row.last_name} {row.first_name}
+                            <div className="flex items-center gap-2">
+                              <span>
+                                {row.last_name} {row.first_name}
+                              </span>
+                              <EmploymentStatusBadges status={row.employment_status} />
+                            </div>
                           </TableCell>
                           <TableCell>
                             <ContingentUsageBar usagePercent={row.usage_percent} />
@@ -386,7 +420,10 @@ export function ContingentHsTab({
               <>
                 <SheetHeader>
                   <SheetTitle>
-                    {selectedRow.last_name} {selectedRow.first_name}
+                    <span className="inline-flex items-center gap-2">
+                      {selectedRow.last_name} {selectedRow.first_name}
+                      <EmploymentStatusBadges status={selectedRow.employment_status} />
+                    </span>
                   </SheetTitle>
                   <SheetDescription>
                     Détail contingent {year} au {referenceDate}

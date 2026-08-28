@@ -591,8 +591,12 @@ export default function AbsencesPage() {
         }}
       />
       <div className="space-y-4">
-        <LeaveCampaignSection />
-        <LeaveNotificationSettingsPanel />
+        {!isPayrollFocusActive(user) && (
+          <>
+            <LeaveCampaignSection />
+            <LeaveNotificationSettingsPanel />
+          </>
+        )}
         <RttYearEndRhSection />
         <p className="text-sm text-muted-foreground">
           <Link to="/company?tab=paie#soldes-rtt" className="text-primary underline-offset-4 hover:underline">
