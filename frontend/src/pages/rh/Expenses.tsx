@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Check, X, Clock, Download, Eye } from "lucide-react";
+import { Check, X, Clock, Download, Eye, Plus } from "lucide-react";
+import { NewExpenseModal } from "@/components/NewExpenseModal";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import { downloadBlob } from '@/lib/downloadBlob';
@@ -20,6 +21,7 @@ type ExpenseRequest = expensesApi.ExpenseWithEmployee;
 
 export default function ExpensesPage() {
   const { toast } = useToast();
+  const [showNewExpense, setShowNewExpense] = useState(false);
   const [pending, setPending] = useState<ExpenseRequest[]>([]);
   const [processed, setProcessed] = useState<ExpenseRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -201,7 +203,21 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <RhPageHeader title="Gestion des Notes de Frais" />
+      <RhPageHeader
+        title="Gestion des Notes de Frais"
+        actions={
+          <Button onClick={() => setShowNewExpense(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvelle note de frais
+          </Button>
+        }
+      />
+      <NewExpenseModal
+        isOpen={showNewExpense}
+        onClose={() => setShowNewExpense(false)}
+        onSuccess={fetchData}
+        showEmployeeSelector
+      />
       <Tabs defaultValue="pending">
         <TabsList>
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> En attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>

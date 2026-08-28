@@ -111,7 +111,7 @@ interface AbsenceRequestModalProps {
   pendingAbsences?: absencesApi.AbsenceRequest[];
   /** Vue RH : liste des employés de l'entreprise active et choix du bénéficiaire. */
   showEmployeeSelector?: boolean;
-  /** Parcours RH : arrêt direct (validé immédiatement) ou demande de congé pour un salarié. */
+  /** Parcours RH : saisie directe (arrêt ou congé), validée immédiatement. */
   mode?: AbsenceRequestModalMode;
 }
 
@@ -285,7 +285,7 @@ export function AbsenceRequestModal({
         description: isRhArret
           ? "L'arrêt a été enregistré."
           : isRhLeave
-            ? "La demande a été créée pour le salarié."
+            ? "Le congé a été enregistré et validé."
             : "Votre demande d'absence a été soumise.",
       });
       onSuccess();
@@ -399,19 +399,19 @@ export function AbsenceRequestModal({
   const dialogTitle = isRhArret
     ? "Enregistrer un arrêt"
     : isRhLeave
-      ? "Créer une demande de congé"
+      ? "Nouveau congé"
       : "Faire une demande d'absence";
 
   const dialogDescription = isRhArret
     ? "Saisie directe par les RH — l'arrêt est enregistré immédiatement, sans demande du salarié."
     : isRhLeave
-      ? "Créez une demande de congé au nom d'un salarié. Elle devra être validée comme une demande classique."
+      ? "Saisie directe par les RH — le congé est enregistré et validé immédiatement."
       : "Sélectionnez un type et choisissez les jours dans le calendrier.";
 
   const submitLabel = isRhArret
     ? "Enregistrer l'arrêt"
     : isRhLeave
-      ? "Créer la demande"
+      ? "Enregistrer le congé"
       : "Soumettre la demande";
 
   const cpBalance = balances.find((b) => b.type === "Congés Payés");

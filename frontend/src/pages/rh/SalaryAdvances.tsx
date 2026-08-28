@@ -321,7 +321,7 @@ export default function SalaryAdvances() {
         </div>
         <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Nouvelle demande
+          Nouvelle avance ou acompte
         </Button>
       </div>
 

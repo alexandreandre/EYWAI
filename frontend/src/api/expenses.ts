@@ -31,7 +31,7 @@ export interface ExpenseWithEmployee extends Expense {
 }
 
 export interface ExpenseCreatePayload {
-  /** Ignoré côté API : l'employé est résolu depuis le compte connecté. */
+  /** Réservé RH : salarié cible (saisie directe, validée immédiatement). Ignoré pour un collaborateur. */
   employee_id?: string;
   date: string;
   amount: number;
@@ -47,11 +47,11 @@ export interface ExpenseCreatePayload {
 /**
  * Récupère une URL signée du backend pour uploader un fichier.
  */
-export const getUploadUrl = async (filename: string) => { // <-- Accepter filename ici
-  // Envoyer le nom du fichier dans le corps de la requête POST
+export const getUploadUrl = async (filename: string, employeeId?: string) => {
+  // `employee_id` (réservé RH) range le justificatif sous le dossier du salarié cible.
   const response = await apiClient.post<{ path: string; signedURL: string }>(
     '/api/expenses/get-upload-url',
-    { filename } // <-- Envoyer filename au backend
+    { filename, ...(employeeId ? { employee_id: employeeId } : {}) }
   );
   return response.data;
 };

@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import * as expensesApi from "@/api/expenses";
+import apiClient from "@/api/apiClient";
+import { log } from "@/lib/logger";
 import axios from "axios";
 import {
   computeVatBreakdown,
@@ -23,6 +25,14 @@ interface NewExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** Parcours RH : saisie directe pour un salarié, enregistrée et validée immédiatement. */
+  showEmployeeSelector?: boolean;
+}
+
+interface SelectableEmployee {
+  id: string;
+  first_name: string;
+  last_name: string;
 }
 
 const expenseTypes: expensesApi.ExpenseType[] = ["Restaurant", "Transport", "Hôtel", "Fournitures", "Autre"];
@@ -34,9 +44,11 @@ function presetFromRate(rate: number): VatRatePreset {
   return "custom";
 }
 
-export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalProps) {
+export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelector = false }: NewExpenseModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [employees, setEmployees] = useState<SelectableEmployee[]>([]);
+  const [employeeId, setEmployeeId] = useState("");
   const [date, setDate] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<expensesApi.ExpenseType | "">("");
@@ -48,6 +60,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
   const [error, setError] = useState("");
 
   const resetForm = () => {
+    setEmployeeId("");
     setDate("");
     setAmount("");
     setType("");
@@ -61,6 +74,19 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
   useEffect(() => {
     if (isOpen) resetForm();
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !showEmployeeSelector) return;
+    const fetchEmployees = async () => {
+      try {
+        const response = await apiClient.get('/api/employees');
+        setEmployees(response.data || []);
+      } catch (error) {
+        log.error('Erreur chargement employés:', error);
+      }
+    };
+    void fetchEmployees();
+  }, [isOpen, showEmployeeSelector]);
 
   const resolvedVatRate = useMemo(() => {
     if (vatPreset === "custom") {
@@ -92,6 +118,10 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
       setError("Tous les champs (sauf description) et un justificatif sont requis.");
       return;
     }
+    if (showEmployeeSelector && !employeeId) {
+      setError("Sélectionnez le salarié concerné.");
+      return;
+    }
     const amountTtc = parseFloat(amount.replace(",", "."));
     if (!Number.isFinite(amountTtc) || amountTtc <= 0) {
       setError("Indiquez un montant TTC valide.");
@@ -106,10 +136,12 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
     setError("");
 
     try {
-      const { path, signedURL } = await expensesApi.getUploadUrl(file.name);
+      const targetId = showEmployeeSelector ? employeeId : undefined;
+      const { path, signedURL } = await expensesApi.getUploadUrl(file.name, targetId);
       await expensesApi.uploadFile(signedURL, file);
 
       await expensesApi.createExpense({
+        employee_id: targetId,
         date,
         amount: amountTtc,
         vat_rate: resolvedVatRate,
@@ -119,7 +151,12 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
         filename: file.name,
       });
 
-      toast({ title: "Succès", description: "Note de frais soumise." });
+      toast({
+        title: "Succès",
+        description: showEmployeeSelector
+          ? "Note de frais enregistrée et validée."
+          : "Note de frais soumise.",
+      });
       onSuccess();
       onClose();
     } catch (err) {
@@ -138,12 +175,31 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nouvelle dépense</DialogTitle>
+          <DialogTitle>{showEmployeeSelector ? "Nouvelle note de frais" : "Nouvelle dépense"}</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Le justificatif (photo ou PDF) est obligatoire. Le montant saisi est le montant TTC.
+            {showEmployeeSelector
+              ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
+              : "Le justificatif (photo ou PDF) est obligatoire. Le montant saisi est le montant TTC."}
           </p>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {showEmployeeSelector && (
+            <div className="grid gap-2">
+              <Label htmlFor="expense-employee">Salarié</Label>
+              <Select value={employeeId} onValueChange={setEmployeeId}>
+                <SelectTrigger id="expense-employee">
+                  <SelectValue placeholder="Sélectionner un salarié..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="date">Date</Label>
@@ -255,7 +311,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Soumettre
+            {showEmployeeSelector ? "Enregistrer" : "Soumettre"}
           </Button>
         </DialogFooter>
       </DialogContent>
