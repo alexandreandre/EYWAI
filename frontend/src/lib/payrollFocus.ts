@@ -72,3 +72,22 @@ export function isPayrollFocusActive(
   if (email && PAYROLL_FOCUS_BYPASS_EMAILS.includes(email)) return false;
   return true;
 }
+
+export type PayrollFocusSection = 'team' | 'gestion' | 'paie';
+
+/**
+ * Filtre une section de navigation. Le filtrage est par section et non par URL
+ * seule : `/schedules` apparaît dans Gestion (« Calendriers ») et dans le
+ * parcours paie (« Calendrier »), et seule la seconde doit survivre.
+ */
+export function restrictToPayrollFocus<
+  TItem extends { url: string },
+  TGroup extends { items: TItem[] },
+>(section: PayrollFocusSection, groups: TGroup[]): TGroup[] {
+  if (section === 'gestion') return [];
+  const keep = (item: TItem) =>
+    section === 'team' ? item.url === '/employees' : isPayrollFocusAllowed(item.url);
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter(keep) }))
+    .filter((group) => group.items.length > 0);
+}

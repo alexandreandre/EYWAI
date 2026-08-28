@@ -4,6 +4,7 @@ import {
   PAYROLL_FOCUS_NAV_URLS,
   isPayrollFocusActive,
   isPayrollFocusAllowed,
+  restrictToPayrollFocus,
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
@@ -88,5 +89,111 @@ describe('isPayrollFocusActive', () => {
   it('est inactif sans utilisateur', () => {
     expect(isPayrollFocusActive(null)).toBe(false);
     expect(isPayrollFocusActive(undefined)).toBe(false);
+  });
+});
+
+const teamGroups = [
+  { items: [{ url: '/analytics' }] },
+  {
+    label: 'Effectifs',
+    items: [
+      { url: '/employees' },
+      { url: '/recruitment' },
+      { url: '/onboarding' },
+      { url: '/employee-exits' },
+      { url: '/trial-periods' },
+      { url: '/teams' },
+    ],
+  },
+  { label: 'Suivi documents', items: [{ url: '/documents' }, { url: '/residence-permits' }] },
+];
+
+const gestionGroups = [
+  {
+    items: [
+      { url: '/analytics-gestion' },
+      { url: '/badgeuse-rh' },
+      { url: '/schedules' },
+      { url: '/planning' },
+      { url: '/users' },
+    ],
+  },
+];
+
+const paieGroups = [
+  { items: [{ url: '/analytics-paie' }] },
+  {
+    workflow: true,
+    items: [
+      { url: '/schedules' },
+      { url: '/leaves' },
+      { url: '/suivi-ijss' },
+      { url: '/suivi-temps-travail' },
+      { url: '/suivi-contingent-hs' },
+      { url: '/suivi-modulation' },
+      { url: '/suivi-cet' },
+      { url: '/expenses' },
+      { url: '/saisies' },
+      { url: '/salary-seizures' },
+      { url: '/salary-advances' },
+      { url: '/employee-loans' },
+    ],
+  },
+  {
+    label: 'Outils paie',
+    items: [
+      { url: '/simulation' },
+      { url: '/rates' },
+      { url: '/taux-pas' },
+      { url: '/exports' },
+      { url: '/payroll' },
+    ],
+  },
+];
+
+const urlsOf = (groups: { items: { url: string }[] }[]) =>
+  groups.flatMap((g) => g.items.map((i) => i.url));
+
+describe('restrictToPayrollFocus', () => {
+  it('ne garde que Collaborateurs dans la section Effectifs', () => {
+    const out = restrictToPayrollFocus('team', teamGroups);
+    expect(urlsOf(out)).toEqual(['/employees']);
+  });
+
+  it('supprime entièrement la section Gestion', () => {
+    expect(restrictToPayrollFocus('gestion', gestionGroups)).toEqual([]);
+  });
+
+  it('garde tout le parcours paie sauf Analytics Paie', () => {
+    const out = restrictToPayrollFocus('paie', paieGroups);
+    expect(urlsOf(out)).not.toContain('/analytics-paie');
+    expect(urlsOf(out)).toHaveLength(17);
+  });
+
+  it('conserve les métadonnées de groupe', () => {
+    const out = restrictToPayrollFocus('paie', paieGroups);
+    expect(out.find((g) => g.label === 'Outils paie')).toBeDefined();
+    expect(out.find((g) => (g as { workflow?: boolean }).workflow)).toBeDefined();
+  });
+
+  it('supprime les groupes devenus vides', () => {
+    const out = restrictToPayrollFocus('paie', paieGroups);
+    expect(out).toHaveLength(2);
+  });
+
+  it('ne mute pas les groupes reçus', () => {
+    const before = urlsOf(paieGroups).length;
+    restrictToPayrollFocus('paie', paieGroups);
+    expect(urlsOf(paieGroups)).toHaveLength(before);
+  });
+
+  it('produit exactement les 19 URL du périmètre, toutes sections confondues', () => {
+    const all = [
+      '/',
+      ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
+      ...urlsOf(restrictToPayrollFocus('gestion', gestionGroups)),
+      ...urlsOf(restrictToPayrollFocus('paie', paieGroups)),
+    ];
+    expect(new Set(all)).toEqual(new Set(PAYROLL_FOCUS_NAV_URLS));
   });
 });
