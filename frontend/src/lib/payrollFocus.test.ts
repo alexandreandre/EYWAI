@@ -8,9 +8,9 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 19 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(19);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(19);
+  it('contient exactement 14 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(14);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(14);
   });
 });
 
@@ -129,8 +129,6 @@ const paieGroups = [
       { url: '/leaves' },
       { url: '/suivi-ijss' },
       { url: '/suivi-temps-travail' },
-      { url: '/suivi-contingent-hs' },
-      { url: '/suivi-modulation' },
       { url: '/suivi-cet' },
       { url: '/expenses' },
       { url: '/saisies' },
@@ -164,10 +162,13 @@ describe('restrictToPayrollFocus', () => {
     expect(restrictToPayrollFocus('gestion', gestionGroups)).toEqual([]);
   });
 
-  it('garde tout le parcours paie sauf Analytics Paie', () => {
+  it('écarte du parcours paie Analytics, IJSS, CET et prêts employeur', () => {
     const out = restrictToPayrollFocus('paie', paieGroups);
     expect(urlsOf(out)).not.toContain('/analytics-paie');
-    expect(urlsOf(out)).toHaveLength(17);
+    expect(urlsOf(out)).not.toContain('/suivi-ijss');
+    expect(urlsOf(out)).not.toContain('/suivi-cet');
+    expect(urlsOf(out)).not.toContain('/employee-loans');
+    expect(urlsOf(out)).toHaveLength(12);
   });
 
   it('conserve les métadonnées de groupe', () => {
@@ -187,7 +188,7 @@ describe('restrictToPayrollFocus', () => {
     expect(urlsOf(paieGroups)).toHaveLength(before);
   });
 
-  it('produit exactement les 19 URL du périmètre, toutes sections confondues', () => {
+  it('produit exactement les 14 URL du périmètre, toutes sections confondues', () => {
     const all = [
       '/',
       ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
@@ -209,7 +210,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(19);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(14);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {

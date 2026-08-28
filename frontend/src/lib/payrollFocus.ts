@@ -10,22 +10,17 @@
 
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 
-/** Les 19 entrées de menu conservées en mode paie. */
+/** Les 14 entrées de menu conservées en mode paie. */
 export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/',
   '/employees',
   '/schedules',
   '/leaves',
-  '/suivi-ijss',
   '/suivi-temps-travail',
-  '/suivi-contingent-hs',
-  '/suivi-modulation',
-  '/suivi-cet',
   '/expenses',
   '/saisies',
   '/salary-seizures',
   '/salary-advances',
-  '/employee-loans',
   '/simulation',
   '/rates',
   '/taux-pas',
@@ -48,6 +43,15 @@ const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = [
   '/approvals',
   '/leave-requests',
   '/cet-requests',
+  // Anciennes entrées de menu devenues de pures redirections vers
+  // /suivi-temps-travail : atteignables pour que les liens directs
+  // continuent de rediriger, absentes du menu.
+  '/suivi-contingent-hs',
+  '/suivi-modulation',
+  // Aucun mouvement CET ni prêt employeur dans le groupe pour l'instant :
+  // hors menu en mode paie, mais les routes restent atteignables.
+  '/suivi-cet',
+  '/employee-loans',
 ];
 
 /** Comptes conservant la navigation complète en plus des admins plateforme. */
@@ -95,8 +99,12 @@ export function restrictToPayrollFocus<
   TGroup extends { items: TItem[] },
 >(section: PayrollFocusSection, groups: TGroup[]): TGroup[] {
   if (section === 'gestion') return [];
+  // Filtre sur la liste des entrées de MENU, pas sur l'atteignabilité :
+  // une route peut rester atteignable (EXTRA_PREFIXES) sans être affichée.
   const keep = (item: TItem) =>
-    section === 'team' ? item.url === '/employees' : isPayrollFocusAllowed(item.url);
+    section === 'team'
+      ? item.url === '/employees'
+      : PAYROLL_FOCUS_NAV_URLS.includes(item.url);
   return groups
     .map((group) => ({ ...group, items: group.items.filter(keep) }))
     .filter((group) => group.items.length > 0);

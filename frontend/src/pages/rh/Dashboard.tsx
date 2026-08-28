@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import { useCompany } from '@/contexts/CompanyContext';
 import {
   useDashboardAllQuery,
@@ -47,6 +48,8 @@ import type { DashboardData } from '@/features/dashboard/types';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  // Mode démo paie : ne montrer que les cartes des modules présents dans le menu.
+  const payrollFocus = isPayrollFocusActive(user);
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id;
   const queryClient = useQueryClient();
@@ -184,7 +187,7 @@ export default function Dashboard() {
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <PendingSignaturesWidget mode="rh" />
+            {!payrollFocus && <PendingSignaturesWidget mode="rh" />}
             <RhParticipationCampaignWidget />
             {RIB_ALERTS_UI_ENABLED ? (
               <RibAlertsCard
@@ -197,29 +200,32 @@ export default function Dashboard() {
                 }}
               />
             ) : null}
-            {medicalModuleEnabled ? (
-              <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
-            ) : (
-              <Card className="border-dashed">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Stethoscope className="h-5 w-5 text-muted-foreground" />
-                    Suivi médical
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Module non activé pour cette entreprise.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+            {!payrollFocus &&
+              (medicalModuleEnabled ? (
+                <MedicalFollowUpCard kpis={medicalKpis} loading={medicalKpisLoading} />
+              ) : (
+                <Card className="border-dashed">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Stethoscope className="h-5 w-5 text-muted-foreground" />
+                      Suivi médical
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Module non activé pour cette entreprise.
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
           </div>
 
-          <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
+          {!payrollFocus && (
+            <ResidencePermitCard stats={residencePermitStats} loading={residencePermitLoading} />
+          )}
         </section>
 
-        <FormationTalentsDashboardWidget />
+        {!payrollFocus && <FormationTalentsDashboardWidget />}
 
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">
           <div>
@@ -236,7 +242,8 @@ export default function Dashboard() {
               absentsToday={data.teamPulse?.absentToday || []}
               upcomingEvents={data.teamPulse?.upcomingEvents || []}
             />
-            <RecruitmentKpisCard />
+            {!payrollFocus && <RecruitmentKpisCard />}
+            {!payrollFocus && (
             <Accordion type="single" collapsible defaultValue="">
               <AccordionItem value="team-analytics" className="border rounded-lg px-4">
                 <AccordionTrigger className="text-base font-semibold hover:no-underline py-4">
@@ -250,9 +257,10 @@ export default function Dashboard() {
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
+            )}
           </div>
 
-          <CSEDashboardBlock />
+          {!payrollFocus && <CSEDashboardBlock />}
         </section>
       </div>
 

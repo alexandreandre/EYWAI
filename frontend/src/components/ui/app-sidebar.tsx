@@ -212,8 +212,6 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
       { title: "Congés & Absences", url: "/leaves", icon: Plane },
       { title: "Suivi IJSS / CPAM", url: "/suivi-ijss", icon: FileCheck },
       { title: "Temps de travail & HS", url: "/suivi-temps-travail", icon: Clock },
-      { title: "Contingent HS", url: "/suivi-contingent-hs", icon: Clock },
-      { title: "Modulation", url: "/suivi-modulation", icon: Clock },
       { title: "Suivi CET", url: "/suivi-cet", icon: PiggyBank },
       { title: "Notes de frais", url: "/expenses", icon: Notebook },
       { title: "Primes", url: "/saisies", icon: ClipboardEdit },
@@ -1040,34 +1038,37 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   </Collapsible>
 
-                  <Collapsible open={gestionOpen} onOpenChange={setGestionOpen} className="group/collapsible">
-                    <SidebarMenuItem>
-                      <div className="relative w-full">
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton size="sm" className="w-full">
-                            <Settings className={SIDEBAR_NAV.iconPrimary} />
-                            <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Gestion</span>
-                            <ChevronRight
-                              className={cn(
-                                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                                "group-data-[state=open]/collapsible:rotate-90",
-                              )}
+                  {/* Section masquée tant qu'elle n'a aucun onglet (mode paie) */}
+                  {rhGestionGroups.length > 0 && (
+                    <Collapsible open={gestionOpen} onOpenChange={setGestionOpen} className="group/collapsible">
+                      <SidebarMenuItem>
+                        <div className="relative w-full">
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton size="sm" className="w-full">
+                              <Settings className={SIDEBAR_NAV.iconPrimary} />
+                              <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Gestion</span>
+                              <ChevronRight
+                                className={cn(
+                                  "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                                  "group-data-[state=open]/collapsible:rotate-90",
+                                )}
+                              />
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <SectionTaskDot visible={gestionSectionHasTasks} sectionLabel="EYWAI Gestion" />
+                        </div>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            <SidebarNavGroups
+                              groups={rhGestionGroups}
+                              getCount={getCount}
+                              isActive={isActive}
                             />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <SectionTaskDot visible={gestionSectionHasTasks} sectionLabel="EYWAI Gestion" />
-                      </div>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          <SidebarNavGroups
-                            groups={rhGestionGroups}
-                            getCount={getCount}
-                            isActive={isActive}
-                          />
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  )}
 
                   <Collapsible open={paieOpen} onOpenChange={setPaieOpen} className="group/collapsible">
                     <SidebarMenuItem>
