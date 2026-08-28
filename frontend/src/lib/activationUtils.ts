@@ -3,6 +3,16 @@
 
 import { isDsnImportPlaceholderEmail } from '@/lib/employeeProfileUtils';
 
+export function emailsMatch(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = (left || '').trim().toLowerCase();
+  const b = (right || '').trim().toLowerCase();
+  if (!a || !b) return false;
+  return a === b;
+}
+
 /** Invitable = adresse non vide et jamais fabriquée par la plateforme. */
 export function isEmployeeInvitable(email: string | null | undefined): boolean {
   const value = email?.trim();

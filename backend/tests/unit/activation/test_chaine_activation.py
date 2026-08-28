@@ -79,6 +79,16 @@ class FakeTokenRepository:
         rows = [r for r in self.rows if r["employee_id"] == str(employee_id)]
         return rows[-1] if rows else None
 
+    def list_live_by_lien_partage(self, lien_partage: str):
+        value = (lien_partage or "").strip()
+        return [
+            r
+            for r in self.rows
+            if r.get("lien_partage") == value
+            and not r.get("used_at")
+            and not r.get("invalidated_at")
+        ]
+
 
 class FakeEmployeesTableQuery:
     """Réponses de supabase.table('employees') pour la VRAIE résolution."""

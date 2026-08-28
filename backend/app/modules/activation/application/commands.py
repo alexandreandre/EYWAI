@@ -11,13 +11,14 @@ UN SEUL message générique (pas d'énumération).
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app.core import settings
 from app.core.logging import get_logger
 from app.modules.activation.domain.rules import (
     GENERIC_TOKEN_ERROR_MESSAGE,
     TOKEN_VALIDITY_DAYS,
+    emails_match,
     generate_activation_token,
     hash_activation_token,
     is_activable_employment_status,
@@ -206,26 +207,85 @@ def invite_employee(
 # ----- Endpoints publics -----
 
 
-def _get_live_token_row(raw_token: str) -> Dict[str, Any]:
-    """Empreinte → ligne vivante, sinon InvalidTokenError (message unique)."""
+def _list_live_partage(raw_token: str) -> list:
+    """Lignes vivantes d'un lien partagé. Liste vide si le dépôt n'a pas l'API."""
+    fn = getattr(_token_repository, "list_live_by_lien_partage", None)
+    if not callable(fn):
+        return []
+    found = fn((raw_token or "").strip())
+    return found if isinstance(found, list) else []
+
+
+def _get_live_token_row(
+    raw_token: str, email: Optional[str] = None
+) -> Dict[str, Any]:
+    """Empreinte unique, ou lien partagé + e-mail → ligne vivante."""
     row = _token_repository.get_by_hash(hash_activation_token(raw_token))
-    if not row or not token_matches(row.get("token_hash", ""), raw_token):
+    if row and token_matches(row.get("token_hash", ""), raw_token):
+        if not is_token_alive(row):
+            logger.warning(
+                "Activation : jeton mort (used=%s invalidated=%s expires=%s)",
+                bool(row.get("used_at")),
+                bool(row.get("invalidated_at")),
+                row.get("expires_at"),
+            )
+            raise InvalidTokenError()
+        if email and not emails_match(row.get("email_envoye"), email):
+            logger.warning("Activation : e-mail ne correspond pas au jeton")
+            raise InvalidTokenError()
+        return row
+
+    live = [r for r in _list_live_partage(raw_token) if is_token_alive(r)]
+    if email:
+        matched = [
+            r for r in live if emails_match(r.get("email_envoye"), email)
+        ]
+        if len(matched) == 1:
+            return matched[0]
+    elif len(live) == 1:
+        return live[0]
+
+    logger.warning("Activation : jeton inconnu")
+    raise InvalidTokenError()
+
+
+def verify_activation_token(
+    raw_token: str, email: Optional[str] = None
+) -> Dict[str, Any]:
+    """200 {prenom, societe} si le jeton est vivant — rien d'autre ne sort.
+
+    Lien partagé sans e-mail : {email_requise: true}, sans prénom ni société
+    identifiants — la personne saisit son adresse ensuite.
+    """
+    normalized_email = (email or "").strip() or None
+    if not normalized_email:
+        hashed_row = _token_repository.get_by_hash(
+            hash_activation_token(raw_token)
+        )
+        if (
+            hashed_row
+            and token_matches(hashed_row.get("token_hash", ""), raw_token)
+            and is_token_alive(hashed_row)
+        ):
+            employee = providers.get_employee_for_activation(
+                str(hashed_row["employee_id"])
+            )
+            if not employee:
+                logger.warning("Activation : jeton vivant sans fiche salarié")
+                raise InvalidTokenError()
+            return {
+                "prenom": employee.get("first_name") or "",
+                "societe": providers.get_company_name(
+                    str(hashed_row["company_id"])
+                ),
+            }
+        live = [r for r in _list_live_partage(raw_token) if is_token_alive(r)]
+        if live:
+            return {"prenom": "", "societe": "", "email_requise": True}
         logger.warning("Activation : jeton inconnu")
         raise InvalidTokenError()
-    if not is_token_alive(row):
-        logger.warning(
-            "Activation : jeton mort (used=%s invalidated=%s expires=%s)",
-            bool(row.get("used_at")),
-            bool(row.get("invalidated_at")),
-            row.get("expires_at"),
-        )
-        raise InvalidTokenError()
-    return row
 
-
-def verify_activation_token(raw_token: str) -> Dict[str, str]:
-    """200 {prenom, societe} si le jeton est vivant — rien d'autre ne sort."""
-    row = _get_live_token_row(raw_token)
+    row = _get_live_token_row(raw_token, email=normalized_email)
     employee = providers.get_employee_for_activation(str(row["employee_id"]))
     if not employee:
         logger.warning("Activation : jeton vivant sans fiche salarié")
@@ -236,12 +296,14 @@ def verify_activation_token(raw_token: str) -> Dict[str, str]:
     }
 
 
-def complete_activation(raw_token: str, password: str) -> Dict[str, str]:
+def complete_activation(
+    raw_token: str, password: str, email: Optional[str] = None
+) -> Dict[str, str]:
     """
     Valide le jeton, crée ou met à jour le compte auth, câble le compte au
     salarié (profil, accès société, employees.user_id) et consomme le jeton.
     """
-    row = _get_live_token_row(raw_token)
+    row = _get_live_token_row(raw_token, email=email)
 
     password_error = validate_activation_password(password)
     if password_error:

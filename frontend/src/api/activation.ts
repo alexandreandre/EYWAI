@@ -21,6 +21,7 @@ export interface InvitationSent {
 export interface ActivationVerifyResult {
   prenom: string;
   societe: string;
+  email_requise?: boolean;
 }
 
 export async function getInvitationStatus(
@@ -37,18 +38,24 @@ export async function inviteEmployee(employeeId: string): Promise<InvitationSent
 
 export async function verifyActivationToken(
   token: string,
+  email?: string,
 ): Promise<ActivationVerifyResult> {
-  const response = await apiClient.post('/api/activation/verify', { token });
+  const response = await apiClient.post('/api/activation/verify', {
+    token,
+    ...(email ? { email } : {}),
+  });
   return response.data;
 }
 
 export async function completeActivation(
   token: string,
   password: string,
+  email?: string,
 ): Promise<{ message: string }> {
   const response = await apiClient.post('/api/activation/complete', {
     token,
     password,
+    ...(email ? { email } : {}),
   });
   return response.data;
 }

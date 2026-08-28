@@ -67,6 +67,7 @@ export default function ActivationPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -75,6 +76,8 @@ export default function ActivationPage() {
   const [welcome, setWelcome] = useState<ActivationVerifyResult | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const emailRequise = Boolean(welcome?.email_requise);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -99,6 +102,12 @@ export default function ActivationPage() {
     e.preventDefault();
     setError('');
 
+    if (emailRequise && !email.trim()) {
+      setError(
+        'Saisissez l’adresse e-mail avec laquelle vous avez été invitée.',
+      );
+      return;
+    }
     if (!isPasswordAcceptable(password)) {
       setError(
         'Le mot de passe doit contenir au moins 8 caractères, dont une majuscule, une minuscule et un chiffre.',
@@ -112,7 +121,11 @@ export default function ActivationPage() {
 
     setIsSubmitting(true);
     try {
-      await completeActivation(token ?? '', password);
+      await completeActivation(
+        token ?? '',
+        password,
+        emailRequise ? email.trim() : undefined,
+      );
       setIsSuccess(true);
     } catch (err: unknown) {
       log.error('[ACTIVATION] Échec:', err);
@@ -203,14 +216,43 @@ export default function ActivationPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Bonjour {welcome.prenom} !</CardTitle>
+          <CardTitle className="text-2xl">
+            {emailRequise
+              ? 'Activez votre compte'
+              : `Bonjour ${welcome.prenom} !`}
+          </CardTitle>
           <CardDescription>
-            <strong>{welcome.societe}</strong> vous invite à activer votre
-            espace EYWAI. Choisissez votre mot de passe pour terminer.
+            {emailRequise ? (
+              <>
+                Saisissez votre adresse e-mail professionnelle, puis choisissez
+                votre mot de passe.
+              </>
+            ) : (
+              <>
+                <strong>{welcome.societe}</strong> vous invite à activer votre
+                espace EYWAI. Choisissez votre mot de passe pour terminer.
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {emailRequise ? (
+              <div className="grid gap-2">
+                <Label htmlFor="email">Adresse e-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="prenom.nom@entreprise.fr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                  autoFocus
+                  autoComplete="email"
+                />
+              </div>
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="password">Mot de passe</Label>
               <div className="relative">
@@ -222,7 +264,7 @@ export default function ActivationPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isSubmitting}
-                  autoFocus
+                  autoFocus={!emailRequise}
                 />
                 <button
                   type="button"

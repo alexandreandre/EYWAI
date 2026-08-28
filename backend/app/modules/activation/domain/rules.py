@@ -67,6 +67,15 @@ def is_invitable_email(email: Optional[str]) -> bool:
     return not is_dsn_import_placeholder_email(value)
 
 
+def emails_match(left: Optional[str], right: Optional[str]) -> bool:
+    """Comparaison d'adresses : casse et espaces ignorés. Vide ≠ vide."""
+    a = (left or "").strip().lower()
+    b = (right or "").strip().lower()
+    if not a or not b:
+        return False
+    return a == b
+
+
 def mask_email(email: str) -> str:
     """j***@exemple.fr — jamais l'adresse complète dans les réponses RH."""
     value = (email or "").strip()

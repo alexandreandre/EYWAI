@@ -61,11 +61,15 @@ def _map_activation_error(exc: commands.ActivationError) -> HTTPException:
 # ----- Public -----
 
 
-@router_public.post("/verify", response_model=ActivationVerifyResponse)
+@router_public.post(
+    "/verify",
+    response_model=ActivationVerifyResponse,
+    response_model_exclude_defaults=True,
+)
 def verify_activation_route(request: ActivationVerifyRequest):
     """Jeton vivant → prénom + société. Sinon 400 générique."""
     try:
-        return commands.verify_activation_token(request.token)
+        return commands.verify_activation_token(request.token, request.email)
     except commands.ActivationError as exc:
         raise _map_activation_error(exc)
 
@@ -74,7 +78,9 @@ def verify_activation_route(request: ActivationVerifyRequest):
 def complete_activation_route(request: ActivationCompleteRequest):
     """Choix du mot de passe : crée/relie le compte puis consomme le jeton."""
     try:
-        return commands.complete_activation(request.token, request.password)
+        return commands.complete_activation(
+            request.token, request.password, request.email
+        )
     except commands.ActivationError as exc:
         raise _map_activation_error(exc)
 

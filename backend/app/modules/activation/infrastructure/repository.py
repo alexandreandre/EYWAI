@@ -59,6 +59,22 @@ class ActivationTokenRepository:
         data = getattr(response, "data", None) if response else None
         return dict(data) if data else None
 
+    def list_live_by_lien_partage(self, lien_partage: str) -> list:
+        """Tous les jetons encore ouverts qui partagent le même identifiant de lien."""
+        value = (lien_partage or "").strip()
+        if not value:
+            return []
+        response = (
+            supabase.table(_TABLE)
+            .select("*")
+            .eq("lien_partage", value)
+            .is_("used_at", "null")
+            .is_("invalidated_at", "null")
+            .execute()
+        )
+        rows = getattr(response, "data", None) or []
+        return [dict(row) for row in rows]
+
     def mark_used(self, token_id: str, now_iso: str) -> None:
         (
             supabase.table(_TABLE)
