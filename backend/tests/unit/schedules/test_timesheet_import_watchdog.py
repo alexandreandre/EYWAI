@@ -119,3 +119,33 @@ def test_completed_job_untouched():
 
     assert job["status"] == "completed"
     mock_update.assert_not_called()
+
+
+def test_stale_queued_job_marked_failed():
+    """Un job resté queued (jamais promu à extracting, instance morte avant
+    l'upload/la promotion) doit lui aussi être fermé par le watchdog."""
+    from app.modules.schedules.application import timesheet_import_service as svc
+
+    with (
+        patch.object(svc, "_db", return_value=_db_returning(_job_row("queued", 11))),
+        patch.object(svc, "_update_job") as mock_update,
+    ):
+        job = svc.get_import_job("job-1")
+
+    assert job["status"] == "failed"
+    assert "interrompue" in job["error_message"]
+    payload = mock_update.call_args.args[1]
+    assert payload["status"] == "failed"
+
+
+def test_fresh_queued_job_untouched():
+    from app.modules.schedules.application import timesheet_import_service as svc
+
+    with (
+        patch.object(svc, "_db", return_value=_db_returning(_job_row("queued", 1))),
+        patch.object(svc, "_update_job") as mock_update,
+    ):
+        job = svc.get_import_job("job-1")
+
+    assert job["status"] == "queued"
+    mock_update.assert_not_called()

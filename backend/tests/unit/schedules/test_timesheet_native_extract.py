@@ -156,18 +156,41 @@ def test_native_batch_partial_payload_warns_missing_pages(monkeypatch):
     assert any("absente" in w for w in warnings_page2)
 
 
-def test_unsupported_file_format_raises_document_extraction_error():
-    """Un fichier non PDF/image (.docx…) ne doit jamais partir en vision — 400 propre."""
+def test_unsupported_file_format_raises_document_extraction_error(monkeypatch):
+    """Un fichier non PDF/image (.docx…) ne doit jamais partir en vision — 400 propre.
+
+    is_llm_configured est monkeypatché à True : sans ça, en l'absence de clé API
+    réelle dans l'environnement, la fonction lèverait DocumentExtractionError bien
+    plus tôt ("OPENROUTER_API_KEY non définie") et le test passerait vacuously sans
+    jamais exercer le garde de format. extract_structured_json_from_image est
+    monkeypatché pour faire échouer le test s'il est atteint : si le garde régresse
+    un jour, ce test doit le signaler au lieu de laisser passer un vrai appel réseau
+    en CI.
+    """
+    from unittest.mock import Mock
+
     from app.modules.schedules.application import timesheet_native_extract as native
     from app.shared.infrastructure.documents import DocumentExtractionError
 
-    with pytest.raises(DocumentExtractionError):
+    monkeypatch.setattr(native, "is_llm_configured", lambda: True)
+    vision_mock = Mock(
+        side_effect=AssertionError(
+            "extract_structured_json_from_image ne doit jamais être appelé "
+            "pour un format non supporté"
+        )
+    )
+    monkeypatch.setattr(native, "extract_structured_json_from_image", vision_mock)
+
+    with pytest.raises(DocumentExtractionError) as exc_info:
         native.extract_timesheet_native(
             file_content=b"PK\x03\x04 fake docx bytes",
             filename="releve.docx",
             year=2026,
             month=6,
         )
+
+    assert "Format non supporté" in str(exc_info.value)
+    vision_mock.assert_not_called()
 
 
 def test_deterministic_text_layer_short_circuits_llm(monkeypatch):

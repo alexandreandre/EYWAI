@@ -140,9 +140,17 @@ def create_import_job(
             company_id,
             job_id,
         )
-        _update_job(job_id, {"file_storage_path": storage_path, "status": "extracting"})
     except Exception as exc:
         logger.warning("Stockage PDF import échoué (job %s): %s", job_id, exc)
+
+    # Toujours promu, même si le stockage a échoué : sinon le job reste queued
+    # à vie, hors de portée du watchdog (qui ne surveillait que extracting),
+    # et plus aucun heartbeat ne le promeut depuis que ceux-ci ne touchent
+    # plus au statut.
+    promote_payload: dict[str, Any] = {"status": "extracting"}
+    if storage_path:
+        promote_payload["file_storage_path"] = storage_path
+    _update_job(job_id, promote_payload)
 
     return {**job, "id": job_id, "file_storage_path": storage_path}
 
@@ -152,7 +160,9 @@ def create_import_job(
 # intermédiaire. 600 s est un compromis — avec les gardes d'état ci-dessus,
 # un faux positif interrompt maintenant proprement le job vivant à son
 # prochain point de contrôle (heartbeat/complétion) plutôt que d'entrer en
-# course avec lui.
+# course avec lui. Même règle de péremption appliquée aux jobs restés
+# queued (instance morte avant la promotion à extracting) : ferme la même
+# classe de bug pour l'étape amont.
 _STALE_EXTRACTING_SECONDS = 600
 
 
@@ -174,7 +184,7 @@ def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, A
         query = query.eq("company_id", company_id)
     result = query.maybe_single().execute()
     job = result.data
-    if job and job.get("status") == "extracting":
+    if job and job.get("status") in ("extracting", "queued"):
         heartbeat = _parse_iso_datetime(job.get("updated_at"))
         stale = (
             heartbeat is None
