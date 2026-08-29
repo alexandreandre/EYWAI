@@ -350,6 +350,12 @@ async def extract_structured_json_from_pdf(
 __all__ = ["extract_structured_json_from_pdf"]
 ```
 
+> **Note routage OpenRouter** : par défaut OpenRouter peut router un PDF vers
+> son propre parseur (`mistral-ocr`, facturé par page) plutôt que vers la
+> lecture native de Gemini. Si l'éval (Task 9) montre un surcoût ou une
+> qualité dégradée, ajouter à `request_kwargs` :
+> `"extra_body": {"plugins": [{"id": "file-parser", "pdf": {"engine": "native"}}]}`.
+
 - [ ] **Step 4: Vérifier le vert**
 
 Run: `cd backend && ./venv/bin/python -m pytest tests/unit/shared_ai/test_structured_document.py -q`
