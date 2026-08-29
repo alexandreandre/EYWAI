@@ -888,6 +888,7 @@ def parse_instruction(
         schema_name="schedule_fill",
         model=MODEL_SCHEDULE_NL_FILL,
         max_tokens=4096,
+        timeout=60.0,
     )
     if result is None:
         raise ScheduleAppError(

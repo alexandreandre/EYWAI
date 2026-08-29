@@ -443,18 +443,22 @@ async def assisted_fill_extract_timesheet(
             ) from None
 
     scope = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    from starlette.concurrency import run_in_threadpool
+
     try:
-        return ai_fill.extract_timesheet(
-            year=year,
-            month=month,
-            file_content=content,
-            filename=file.filename or "",
-            roster=roster,
-            single_employee=single_employee,
-            document_scope=scope,
-            week_anchor_date=parsed_anchor,
-            company_id=current_user.active_company_id,
-            user_id=current_user.id,
+        return await run_in_threadpool(
+            lambda: ai_fill.extract_timesheet(
+                year=year,
+                month=month,
+                file_content=content,
+                filename=file.filename or "",
+                roster=roster,
+                single_employee=single_employee,
+                document_scope=scope,
+                week_anchor_date=parsed_anchor,
+                company_id=current_user.active_company_id,
+                user_id=current_user.id,
+            )
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
