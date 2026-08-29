@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MAJI — Accès au SIRH</title>
+<meta name="description" content="Les deux adresses du SIRH MAJI : l'environnement de production et l'environnement de test." />
+<meta property="og:title" content="MAJI — Accès au SIRH" />
+<meta property="og:description" content="Production et test : les deux accès au SIRH MAJI." />
+<meta name="theme-color" content="#028573" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 100 100&#39;%3E%3Crect width=&#39;100&#39; height=&#39;100&#39; rx=&#39;22&#39; fill=&#39;%23028573&#39;/%3E%3Ctext x=&#39;50&#39; y=&#39;68&#39; font-family=&#39;Georgia,serif&#39; font-size=&#39;54&#39; fill=&#39;white&#39; text-anchor=&#39;middle&#39;%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap" />
+<style>
+  :root {
+    --bg: #FBFAF8;
+    --bg-glow: rgba(2, 133, 115, .07);
+    --surface: #FFFFFF;
+    --ink: #14201E;
+    --muted: #5F6F6B;
+    --accent: #028573;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #EAF4F1;
+    --line: rgba(20, 32, 30, .11);
+    --line-strong: rgba(20, 32, 30, .20);
+    --shadow: 0 1px 2px rgba(20, 32, 30, .04), 0 12px 32px -18px rgba(20, 32, 30, .28);
+    --shadow-hover: 0 1px 2px rgba(20, 32, 30, .05), 0 22px 48px -22px rgba(20, 32, 30, .34);
+    --live: #12996F;
+    --sandbox: #B7791F;
+    --serif: "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0B1312;
+      --bg-glow: rgba(63, 179, 156, .10);
+      --surface: #121D1B;
+      --ink: #ECF2F0;
+      --muted: #94A6A1;
+      --accent: #3FB39C;
+      --accent-ink: #06201B;
+      --accent-soft: rgba(63, 179, 156, .12);
+      --line: rgba(236, 242, 240, .12);
+      --line-strong: rgba(236, 242, 240, .22);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 14px 34px -20px rgba(0, 0, 0, .7);
+      --shadow-hover: 0 1px 2px rgba(0, 0, 0, .45), 0 24px 52px -22px rgba(0, 0, 0, .8);
+      --live: #34C48E;
+      --sandbox: #D9A441;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    /* `safe` : si le contenu est plus haut que l'écran, il s'aligne en haut
+       au lieu d'être rogné — indispensable sur petits écrans en paysage. */
+    align-content: safe center;
+    justify-items: center;
+    padding:
+      max(1.75rem, env(safe-area-inset-top))
+      max(1.25rem, env(safe-area-inset-right))
+      max(1.75rem, env(safe-area-inset-bottom))
+      max(1.25rem, env(safe-area-inset-left));
+    background: var(--bg);
+    background-image: radial-gradient(70rem 34rem at 50% -12rem, var(--bg-glow), transparent 70%);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (min-width: 48rem) {
+    body { padding: clamp(2.5rem, 5vw, 4.5rem) clamp(2rem, 5vw, 2.5rem); }
+  }
+
+  .shell { width: 100%; max-width: 62rem; }
+
+  /* ---------- en-tête ---------- */
+  header { text-align: center; }
+  .logo {
+    display: block;
+    width: clamp(7.5rem, 32vw, 13rem);
+    height: auto;
+    margin: 0 auto;
+    color: var(--accent);
+  }
+  .kicker {
+    margin: clamp(1.1rem, 4vw, 1.75rem) 0 0;
+    font-size: .68rem;
+    font-weight: 500;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    margin: .4rem 0 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(1.7rem, 7vw, 2.6rem);
+    line-height: 1.15;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: .7rem auto 0;
+    max-width: 34rem;
+    color: var(--muted);
+    font-size: clamp(.925rem, 3.6vw, 1rem);
+    text-wrap: pretty;
+  }
+
+  /* ---------- cartes ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(.875rem, 3vw, 1.5rem);
+    margin-top: clamp(1.75rem, 5vw, 3.25rem);
+  }
+  /* En une colonne, on borne la largeur : sur iPad portrait une carte pleine
+     largeur donnerait des lignes de texte trop longues à lire. */
+  @media (max-width: 55.999rem) {
+    .grid { max-width: 34rem; margin-inline: auto; }
+  }
+  /* Deux colonnes seulement quand chaque carte garde de l'air :
+     iPad portrait (768 px) reste en une colonne, iPad paysage passe à deux. */
+  @media (min-width: 56rem) {
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1.25rem, 5vw, 2rem);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  @media (min-width: 48rem) { .card { border-radius: 18px; } }
+  /* Pas d'effet de survol collant sur écran tactile */
+  @media (hover: hover) {
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hover);
+      border-color: var(--line-strong);
+    }
+  }
+  .card:focus-within { border-color: var(--line-strong); }
+  .card:active { transform: scale(.995); }
+  @media (prefers-reduced-motion: reduce) {
+    .card { transition: none; }
+    .card:hover, .card:active { transform: none; }
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .dot {
+    width: .5rem; height: .5rem;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .card.live .dot { color: var(--live); }
+  .card.sandbox .dot { color: var(--sandbox); }
+
+  .card h2 {
+    margin: .75rem 0 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(1.4rem, 5.5vw, 1.85rem);
+    line-height: 1.2;
+    letter-spacing: -.005em;
+  }
+  .card p {
+    margin: .55rem 0 0;
+    color: var(--muted);
+    font-size: clamp(.9rem, 3.5vw, .95rem);
+    text-wrap: pretty;
+  }
+  /* `.card p.host` et non `.host` : `.card p { text-wrap: pretty }` pilote
+     text-wrap-mode et écraserait sinon le `white-space: nowrap` ci-dessous. */
+  .card p.host {
+    display: none; /* sur smartphone, l'URL longue coûte deux lignes pour rien */
+    margin-top: 1rem;
+    font-family: var(--mono);
+    font-size: .68rem;
+    color: var(--muted);
+    opacity: .8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .spacer { flex: 1; min-height: .75rem; }
+  @media (min-width: 48rem) {
+    .card p.host { display: block; font-size: .72rem; margin-top: 1.25rem; }
+    .spacer { min-height: 1.25rem; }
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    min-height: 3rem; /* cible tactile confortable */
+    padding: .8rem 1.15rem;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    font-size: .95rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+  }
+  .btn .arrow { transition: transform .22s ease; }
+  .btn-solid { background: var(--accent); color: var(--accent-ink); }
+  .btn-ghost { border-color: var(--line-strong); color: var(--ink); background: transparent; }
+  .btn-disabled {
+    background: var(--line);
+    color: var(--muted);
+    filter: grayscale(1);
+    opacity: .6;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .btn-disabled::after { content: none; }
+  @media (hover: hover) {
+    .card:hover .btn .arrow { transform: translateX(3px); }
+    .btn-solid:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+    .btn-ghost:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  }
+
+  /* lien étendu : toute la carte est cliquable */
+  .btn::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .btn:focus-visible { outline: none; }
+  .card:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* Smartphone en paysage : peu de hauteur, beaucoup de largeur.
+     On resserre l'en-tête et on repasse les deux cartes côte à côte. */
+  @media (orientation: landscape) and (max-height: 30rem) {
+    body { padding-top: .9rem; padding-bottom: .9rem; }
+    .logo { width: 5.25rem; }
+    .kicker, .lede, .card p.host { display: none; }
+    h1 { margin-top: .6rem; font-size: 1.3rem; }
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: none;
+      margin-top: .9rem;
+      gap: .75rem;
+    }
+    .card { padding: 1rem 1.15rem; }
+    .card h2 { font-size: 1.2rem; margin-top: .4rem; }
+    .card p { font-size: .875rem; }
+    .spacer { min-height: .6rem; }
+    footer { margin-top: 1rem; padding-top: .8rem; }
+  }
+
+  /* ---------- pied de page ---------- */
+  footer {
+    margin-top: clamp(1.75rem, 6vw, 3.5rem);
+    padding-top: clamp(1.1rem, 4vw, 1.5rem);
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0 .9rem;
+    text-align: center;
+    font-size: .82rem;
+    color: var(--muted);
+  }
+  footer .ask { flex-basis: 100%; margin-bottom: .6rem; }
+  footer .contacts { display: flex; align-items: center; gap: .6rem; }
+  /* Sur smartphone : deux puces tactiles. Les coordonnées complètes
+     n'ont pas de valeur à l'écran, on les garde pour les écrans larges. */
+  footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1.1rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    color: var(--ink);
+    text-decoration: none;
+    transition: color .18s ease, border-color .18s ease, background-color .18s ease;
+  }
+  footer a:active { background: var(--accent-soft); }
+  footer .wide { display: none; }
+  @media (hover: hover) {
+    footer a:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  }
+  footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* Dès la tablette : coordonnées en clair, tout tient sur une ligne */
+  @media (min-width: 40rem) {
+    footer { font-size: .875rem; gap: .25rem 1.25rem; }
+    footer .ask { flex-basis: auto; margin-bottom: 0; }
+    footer .contacts { gap: 1.25rem; }
+    footer .wide { display: inline; }
+    footer .narrow { display: none; }
+    footer a {
+      min-height: 0;
+      padding: 0 0 1px;
+      border: 0;
+      border-radius: 0;
+      box-shadow: inset 0 -1px 0 var(--line-strong);
+    }
+    footer a:hover { background: transparent; box-shadow: inset 0 -1px 0 var(--accent); }
+  }
+</style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <svg class="logo" role="img" aria-label="MAJI" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048.000000 760.000000"><g transform="translate(0.000000,760.000000) scale(0.100000,-0.100000)"
+fill="currentColor" stroke="none"><path d="M10075 7289 c-40 -35 -65 -77 -65 -108 0 -10 -15 -48 -34 -84 -19
+-36 -40 -84 -46 -108 -6 -24 -23 -64 -36 -88 -13 -24 -31 -66 -39 -94 -8 -27
+-29 -75 -46 -105 -50 -90 -50 -148 0 -246 23 -44 41 -87 41 -96 0 -9 15 -46
+34 -81 18 -35 39 -86 45 -114 7 -27 22 -66 34 -85 12 -19 34 -66 48 -105 27
+-71 63 -160 100 -250 12 -27 32 -77 46 -110 13 -33 37 -89 53 -125 16 -36 34
+-83 41 -105 6 -22 20 -54 31 -72 10 -17 30 -64 43 -104 14 -40 33 -86 44 -104
+10 -17 28 -62 41 -99 12 -37 32 -86 45 -109 13 -23 28 -61 35 -84 6 -24 26
+-75 45 -115 19 -40 35 -80 35 -89 0 -9 15 -45 34 -80 18 -35 39 -82 46 -104 7
+-22 25 -65 40 -95 16 -31 33 -76 40 -100 6 -25 24 -67 40 -95 15 -27 33 -72
+39 -100 7 -27 25 -70 41 -95 16 -25 34 -70 41 -100 6 -30 24 -74 39 -98 16
+-24 34 -67 40 -95 6 -28 24 -72 39 -97 16 -25 37 -72 46 -105 9 -33 27 -78 40
+-100 13 -22 29 -60 35 -85 6 -25 24 -67 39 -95 15 -27 33 -72 40 -99 6 -26 25
+-74 40 -105 16 -31 32 -67 36 -81 4 -14 22 -54 40 -90 18 -36 38 -92 45 -125
+7 -33 25 -90 41 -127 36 -84 41 -203 10 -254 -22 -37 -84 -101 -125 -130 -21
+-14 -28 -25 -23 -37 6 -16 53 -17 609 -19 690 -3 707 -3 722 12 13 14 7 18
+-105 80 -45 25 -97 58 -115 74 -80 67 -188 243 -234 380 -13 39 -31 84 -41
+100 -9 17 -25 58 -34 91 -10 33 -30 83 -45 110 -16 28 -34 73 -41 100 -7 28
+-25 73 -40 100 -15 28 -33 70 -39 94 -6 24 -24 67 -40 95 -16 28 -34 71 -40
+96 -7 25 -24 68 -40 95 -15 28 -33 68 -40 90 -7 22 -23 59 -37 83 -13 24 -31
+66 -40 95 -8 29 -30 83 -49 121 -19 39 -34 76 -34 84 0 8 -13 41 -30 73 -16
+32 -37 84 -46 116 -9 32 -27 76 -40 99 -13 23 -31 65 -40 94 -9 29 -26 69 -40
+89 -13 20 -31 61 -40 91 -9 30 -26 73 -38 95 -13 22 -31 65 -41 95 -10 30 -31
+78 -47 107 -16 28 -36 76 -44 105 -9 29 -24 67 -34 84 -10 17 -25 58 -35 90
+-9 33 -30 82 -46 110 -16 28 -29 59 -29 67 0 9 -18 50 -39 92 -22 42 -47 100
+-57 128 -9 29 -29 77 -44 107 -15 30 -31 71 -35 90 -4 19 -20 58 -36 85 -15
+28 -33 70 -39 94 -6 24 -23 61 -36 81 -14 21 -32 64 -40 97 -9 32 -27 74 -40
+95 -14 20 -32 62 -40 95 -9 32 -27 75 -41 97 -13 21 -32 61 -40 90 -8 28 -28
+74 -43 101 -16 28 -33 69 -39 92 -7 24 -27 75 -46 115 -19 40 -35 78 -35 86 0
+7 -15 43 -34 80 -19 37 -40 87 -46 111 -6 24 -24 67 -40 95 -15 28 -31 65 -35
+83 -8 39 -66 93 -100 93 -13 0 -40 -14 -60 -31z M578 7134 c-43 -13 -17 -55
+48 -78 122 -42 320 -248 350 -362 7 -29 27 -74 44 -100 16 -26 30 -53 30 -60
+0 -7 13 -37 29 -67 16 -30 34 -72 41 -93 7 -22 30 -72 51 -112 22 -41 39 -80
+39 -87 0 -8 18 -48 40 -90 22 -42 40 -84 40 -94 0 -9 14 -39 31 -66 17 -28 37
+-66 45 -87 7 -20 29 -67 48 -104 20 -37 36 -74 36 -82 0 -9 14 -40 31 -70 17
+-31 38 -78 46 -106 8 -28 27 -69 43 -91 15 -22 33 -58 40 -80 7 -22 23 -60 35
+-85 59 -117 123 -258 129 -285 4 -16 20 -50 36 -75 16 -25 32 -58 36 -75 3
+-16 20 -53 35 -82 16 -28 36 -72 44 -98 7 -26 25 -63 39 -84 14 -20 34 -62 45
+-94 11 -32 29 -70 39 -85 11 -15 27 -52 37 -82 9 -30 27 -71 39 -90 13 -19 32
+-61 44 -93 12 -31 33 -74 46 -95 13 -20 31 -62 40 -93 9 -31 25 -68 36 -82 12
+-14 28 -50 36 -78 9 -29 26 -68 40 -88 13 -20 31 -61 40 -91 9 -30 28 -75 44
+-100 15 -25 33 -63 40 -85 7 -22 24 -56 36 -75 13 -20 31 -60 40 -90 9 -30 28
+-75 44 -100 16 -25 33 -64 39 -86 6 -23 23 -59 37 -80 15 -22 35 -62 45 -91
+10 -29 29 -71 42 -95 14 -24 28 -57 32 -74 3 -18 19 -52 34 -76 16 -24 34 -62
+41 -84 7 -21 23 -59 37 -84 14 -25 33 -68 43 -97 10 -28 37 -82 59 -120 68
+-116 65 -113 126 -113 68 0 107 29 125 95 7 25 25 65 41 90 15 24 33 63 39 87
+6 24 23 60 37 82 14 21 34 63 44 94 11 30 30 75 44 98 35 60 34 121 -5 189
+-17 29 -37 73 -44 98 -7 25 -23 59 -35 76 -12 17 -30 55 -41 86 -11 31 -28 68
+-40 82 -11 14 -27 49 -35 78 -9 29 -29 73 -45 99 -16 25 -32 58 -36 74 -5 25
+-44 110 -130 287 -19 39 -34 76 -34 84 0 7 -15 43 -34 80 -64 124 -206 432
+-206 447 0 5 -15 41 -34 79 -19 39 -52 108 -74 155 -21 47 -60 128 -86 180
+-25 52 -46 102 -46 110 0 8 -12 35 -26 60 -14 25 -35 70 -47 100 -11 30 -31
+71 -43 90 -13 19 -32 61 -43 94 -12 32 -30 73 -41 91 -11 18 -29 58 -40 89
+-10 31 -29 70 -40 86 -11 16 -30 55 -40 86 -11 31 -29 71 -40 89 -11 18 -29
+58 -40 89 -10 31 -28 69 -38 84 -11 15 -25 45 -32 67 -7 22 -27 69 -46 105
+-52 103 -105 221 -120 270 -7 25 -25 61 -39 80 -14 18 -34 59 -45 89 -12 31
+-32 79 -45 106 -13 28 -45 97 -70 155 -25 58 -59 132 -75 165 -15 33 -44 94
+-62 135 -71 156 -48 149 -508 150 -222 0 -419 2 -439 4 -20 3 -44 2 -53 0z
+M5389 7117 c-39 -30 -38 10 -39 -2181 0 -1298 -4 -2162 -10 -2219 -12 -119
+-38 -292 -50 -338 -17 -63 -143 -197 -217 -232 -23 -10 -30 -31 -14 -41 17
+-11 1294 -7 1304 3 14 14 -5 34 -66 70 -79 44 -126 97 -154 171 -54 142 -54
+146 -63 420 -12 351 -12 3450 0 3750 9 235 9 235 47 349 38 114 39 115 100
+165 42 35 61 57 60 71 -2 20 -10 20 -442 22 -335 2 -444 0 -456 -10z M18311
+7116 c-17 -20 -3 -43 45 -76 22 -14 56 -51 78 -82 35 -51 39 -65 51 -164 29
+-241 35 -633 35 -2089 0 -1740 -12 -2234 -55 -2329 -46 -101 -123 -184 -214
+-230 -29 -16 -32 -20 -19 -32 22 -23 1283 -23 1305 -1 14 14 11 18 -28 43 -94
+58 -143 110 -186 196 -43 83 -43 83 -53 318 -13 298 -13 3609 0 3929 9 233 9
+233 49 316 33 68 50 89 96 124 55 41 70 73 40 85 -8 3 -266 5 -573 6 -479 0
+-561 -2 -571 -14z M15443 7095 c-4 -11 20 -40 74 -90 68 -62 82 -82 93 -122 6
+-26 24 -88 39 -138 26 -90 26 -90 26 -2550 0 -1871 -3 -2485 -12 -2565 -70
+-603 -71 -606 -96 -657 -14 -27 -31 -78 -37 -114 -6 -35 -22 -83 -35 -106 -13
+-24 -31 -67 -39 -97 -9 -30 -32 -73 -51 -96 -19 -23 -35 -48 -35 -55 0 -18
+-114 -159 -152 -189 -18 -14 -62 -47 -98 -73 -77 -57 -88 -83 -36 -83 56 0
+136 20 205 51 35 16 82 34 105 40 50 13 213 94 241 119 11 9 36 26 55 35 80
+41 306 257 382 366 84 121 118 175 143 229 14 30 39 80 54 110 16 31 34 84 41
+118 6 35 24 105 40 157 53 171 52 160 60 2740 8 2557 6 2472 56 2695 24 107
+50 144 171 236 24 19 26 24 14 38 -20 24 -1198 25 -1208 1z M8433 3309 c-6 -8
+-16 -32 -23 -54 -7 -22 -28 -62 -46 -88 -18 -27 -36 -65 -39 -85 -3 -20 -15
+-59 -27 -87 -11 -27 -29 -75 -39 -105 -11 -30 -35 -80 -53 -110 -18 -30 -37
+-66 -41 -80 -7 -22 -30 -65 -91 -166 -98 -162 -215 -278 -351 -349 -100 -52
+-117 -67 -86 -80 20 -8 1032 -7 1045 1 18 12 6 32 -34 54 -79 44 -148 101
+-174 143 -14 23 -34 54 -44 68 -63 89 -62 480 1 773 30 137 31 200 2 165z
+M816 2688 c-9 -12 -16 -27 -16 -33 0 -36 -156 -242 -253 -333 -66 -62 -97 -83
+-203 -133 -73 -35 -124 -65 -121 -72 6 -18 76 -29 143 -23 34 4 261 5 505 4
+244 -1 470 -1 502 -1 55 1 92 16 82 34 -9 13 -135 77 -187 95 -95 31 -303 261
+-388 428 -29 58 -42 65 -64 34z M13609 1225 c-3 -2 -34 -12 -70 -21 -79 -20
+-136 -68 -198 -168 -81 -132 -82 -295 -2 -451 48 -93 174 -228 256 -274 152
+-85 244 -123 358 -151 132 -32 145 -15 72 95 -65 97 -71 281 -15 444 48 141
+50 202 10 292 -35 77 -103 159 -154 186 -69 36 -238 68 -257 48z"/></g></svg>
+      <p class="kicker">Ressources humaines</p>
+      <h1>Accéder à votre SIRH</h1>
+      <p class="lede">Deux adresses, deux usages. L&rsquo;une pour travailler, l&rsquo;autre pour essayer.</p>
+    </header>
+
+    <div class="grid">
+      <article class="card live">
+        <span class="status"><span class="dot" aria-hidden="true"></span>En service</span>
+        <h2>Production</h2>
+        <p>L&rsquo;outil réel, celui du quotidien. Les données sont celles de vos salariés&nbsp;: les documents produits et les e-mails envoyés partent pour de bon.</p>
+        <p class="host" title="https://sirh-frontend-505040845625.europe-west1.run.app">sirh-frontend-505040845625.europe-west1.run.app</p>
+        <div class="spacer"></div>
+        <span class="btn btn-solid btn-disabled" aria-disabled="true" title="Accès désactivé pendant la phase de test">
+          <span>Ouvrir la production</span><span aria-hidden="true">&#128274;</span>
+        </span>
+      </article>
+
+      <article class="card sandbox">
+        <span class="status"><span class="dot" aria-hidden="true"></span>Bac à sable</span>
+        <h2>Test</h2>
+        <p>Une copie du SIRH pour explorer, se former, essayer sans rien risquer. Rien de ce qui s&rsquo;y passe n&rsquo;atteint les salariés&nbsp;: aucun e-mail ne leur parvient.</p>
+        <p class="host" title="https://sirh-frontend-test-505040845625.europe-west1.run.app">sirh-frontend-test-505040845625.europe-west1.run.app</p>
+        <div class="spacer"></div>
+        <a class="btn btn-ghost" href="https://sirh-frontend-test-505040845625.europe-west1.run.app">
+          <span>Ouvrir le test</span><span class="arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </article>
+    </div>
+
+    <footer>
+      <span class="ask">Une question, un souci&nbsp;?</span>
+      <span class="contacts">
+        <a href="mailto:alexandreandre2004@gmail.com">
+          <span class="wide">alexandreandre2004@gmail.com</span><span class="narrow">E-mail</span>
+        </a>
+        <a href="https://wa.me/33776357574">
+          <span class="wide">WhatsApp&nbsp;+33&nbsp;7&nbsp;76&nbsp;35&nbsp;75&nbsp;74</span><span class="narrow">WhatsApp</span>
+        </a>
+      </span>
+    </footer>
+  </main>
+</body>
+</html>
