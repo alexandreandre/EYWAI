@@ -10,6 +10,9 @@ pytestmark = pytest.mark.unit
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 DEPLOY_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "deploy.yml"
+DEPLOY_TEST_ENV_WORKFLOW = (
+    REPOSITORY_ROOT / ".github" / "workflows" / "deploy-test-env.yml"
+)
 
 
 def test_deployments_require_blocking_copilot_security_gate():
@@ -81,3 +84,11 @@ def test_production_ne_peut_pas_etre_deployee_avant_le_gate():
     # La production reste derrière le déploiement de test.
     assert "test-env" in jobs["production"]["needs"]
     assert jobs["production"]["environment"] == "production"
+
+
+def test_deploy_test_env_injects_openrouter_api_key():
+    """Sans cette clé, calendrier IA (503) et copilote (500) cassent sur le test."""
+    brut = DEPLOY_TEST_ENV_WORKFLOW.read_text(encoding="utf-8")
+    assert "gcloud run deploy" in brut
+    assert "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" in brut
+    assert "--set-env-vars" in brut or "--update-env-vars" in brut
