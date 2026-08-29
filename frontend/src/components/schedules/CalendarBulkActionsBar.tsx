@@ -7,6 +7,7 @@ import {
   LayoutTemplate,
   Loader2,
   CopyCheck,
+  Sparkles,
   Undo2,
   ScanLine,
 } from 'lucide-react';
@@ -32,6 +33,8 @@ interface CalendarBulkActionsBarProps {
   onClearSelection: () => void;
   onOpenApplyModel: () => void;
   onActionComplete: () => void;
+  /** Ouvre le remplissage IA ciblé sur la sélection courante. */
+  onFillWithAi: (ids: string[]) => void;
 }
 
 export function CalendarBulkActionsBar({
@@ -43,6 +46,7 @@ export function CalendarBulkActionsBar({
   onClearSelection,
   onOpenApplyModel,
   onActionComplete,
+  onFillWithAi,
 }: CalendarBulkActionsBarProps) {
   const { toast } = useToast();
   const { activeCompany } = useCompany();
@@ -314,6 +318,15 @@ export function CalendarBulkActionsBar({
           <ScanLine className="mr-1.5 h-4 w-4" />
         )}
         Réel depuis badgeuse
+      </Button>
+      <Button
+        size="sm"
+        onClick={() => onFillWithAi(selectedEmployeeIds)}
+        disabled={!!busy}
+        className="shrink-0 whitespace-nowrap"
+      >
+        <Sparkles className="mr-1.5 h-4 w-4" />
+        Remplir par l&apos;IA ({selectedCount})
       </Button>
       <Button
         size="sm"

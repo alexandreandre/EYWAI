@@ -238,18 +238,6 @@ export default function Schedules() {
     [sortedRows]
   );
 
-  const aSaisirIds = useMemo(
-    () => aSaisirRows.map((r) => r.employee.id),
-    [aSaisirRows]
-  );
-
-  const allASaisirSelected =
-    aSaisirIds.length > 0 && aSaisirIds.every((id) => selectedIds.has(id));
-
-  const selectSubsetToFill = useCallback((ids: string[]) => {
-    setSelectedIds(new Set(ids));
-  }, []);
-
   const orderedEmployeesForDrawer = useMemo(
     () => sortedRows.map((r) => r.employee),
     [sortedRows]
@@ -305,15 +293,21 @@ export default function Schedules() {
     };
   }, [aiTargetIds, aiDialogRoster]);
 
-  const openAssistedFillForAll = useCallback(() => {
-    setAiTargetIds(null);
-    setAssistedFillOpen(true);
-  }, []);
-
-  const openAssistedFillForASaisir = useCallback((ids: string[]) => {
+  const openAssistedFillForSelection = useCallback((ids: string[]) => {
     setAiTargetIds(ids);
     setAssistedFillOpen(true);
   }, []);
+
+  // Bouton d'en-tête : l'IA agit sur la sélection courante s'il y en a une,
+  // sinon consigne libre sur tout le roster.
+  const openAssistedFillFromHeader = useCallback(() => {
+    if (selectedIds.size > 0) {
+      setAiTargetIds([...selectedIds]);
+    } else {
+      setAiTargetIds(null);
+    }
+    setAssistedFillOpen(true);
+  }, [selectedIds]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -364,7 +358,7 @@ export default function Schedules() {
         onMonthChange={setSelectedMonth}
         kpis={globalKpis}
         isLoading={isPageLoading}
-        onOpenAssistedFill={openAssistedFillForAll}
+        onOpenAssistedFill={openAssistedFillFromHeader}
         onOpenPointageImport={() => setPointageImportOpen(true)}
       />
 
@@ -421,11 +415,7 @@ export default function Schedules() {
         onViewModeChange={setViewMode}
         filteredCount={filteredRows.length}
         totalCount={rows.length}
-        teamsById={teamsById}
-        aSaisirRows={aSaisirRows}
-        allASaisirSelected={allASaisirSelected}
-        onSelectSubset={selectSubsetToFill}
-        onFillASaisirWithAi={openAssistedFillForASaisir}
+        aSaisirCount={aSaisirRows.length}
         isLoading={isPageLoading}
       />
 
@@ -468,6 +458,9 @@ export default function Schedules() {
           onOpenEmployee={setDrawerEmployeeId}
           initialWeekIndex={planningFocusWeek}
           highlightDays={planningHighlightDays}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onToggleSelectAll={toggleSelectAll}
         />
       )}
 
@@ -491,6 +484,7 @@ export default function Schedules() {
         onClearSelection={() => setSelectedIds(new Set())}
         onOpenApplyModel={() => setApplyModelOpen(true)}
         onActionComplete={refreshCalendars}
+        onFillWithAi={openAssistedFillForSelection}
       />
 
       <ApplyModelDialog

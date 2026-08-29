@@ -3,6 +3,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import {
@@ -62,6 +63,10 @@ interface TeamPlanningViewProps {
   onOpenEmployee: (employeeId: string) => void;
   initialWeekIndex?: number | null;
   highlightDays?: number[];
+  /** Sélection pour actions en masse — mêmes contrats que la vue Liste. */
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: (ids: string[]) => void;
 }
 
 /** Calcule les semaines du mois sous forme de chunks de 7 jours, alignés sur le lundi. */
@@ -98,6 +103,9 @@ export function TeamPlanningView({
   onOpenEmployee,
   initialWeekIndex = null,
   highlightDays = [],
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
@@ -227,7 +235,18 @@ export function TeamPlanningView({
         <div className="min-w-[760px]">
           <div className="grid grid-cols-[220px_repeat(7,minmax(90px,1fr))]">
             {/* Header */}
-            <div className="bg-muted/60 border-b border-r p-2 text-xs font-medium sticky left-0 z-10">
+            <div className="bg-muted/60 border-b border-r p-2 text-xs font-medium sticky left-0 z-10 flex items-center gap-2">
+              <Checkbox
+                className="h-3.5 w-3.5"
+                aria-label="Tout sélectionner"
+                checked={
+                  rows.length > 0 &&
+                  rows.every((r) => selectedIds.has(r.employee.id))
+                }
+                onCheckedChange={() =>
+                  onToggleSelectAll(rows.map((r) => r.employee.id))
+                }
+              />
               Collaborateur
             </div>
             {weekDays.map((day, i) => {
@@ -275,20 +294,26 @@ export function TeamPlanningView({
             {/* Rows */}
             {rows.map((row) => (
               <div key={row.employee.id} className="contents">
-                <button
-                  type="button"
-                  className="bg-background hover:bg-muted/40 transition-colors p-2 text-left text-sm sticky left-0 z-10 border-b border-r flex items-center gap-2 group"
-                  onClick={() => onOpenEmployee(row.employee.id)}
-                  title="Ouvrir le calendrier complet"
-                >
-                  <div className="flex-1 min-w-0">
+                <div className="bg-background hover:bg-muted/40 transition-colors p-2 text-sm sticky left-0 z-10 border-b border-r flex items-center gap-2 group">
+                  <Checkbox
+                    className="h-3.5 w-3.5 shrink-0"
+                    aria-label={`Sélectionner ${row.employee.last_name} ${row.employee.first_name}`}
+                    checked={selectedIds.has(row.employee.id)}
+                    onCheckedChange={() => onToggleSelect(row.employee.id)}
+                  />
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 text-left"
+                    onClick={() => onOpenEmployee(row.employee.id)}
+                    title="Ouvrir le calendrier complet"
+                  >
                     <div className="truncate font-medium">
                       {row.employee.last_name} {row.employee.first_name}
                     </div>
                     <div className="text-[10px] text-muted-foreground truncate">
                       {row.employee.job_title ?? '—'}
                     </div>
-                  </div>
+                  </button>
                   {row.absenceConflictDays.length > 0 && (
                     <TooltipProvider>
                       <Tooltip>
@@ -304,7 +329,7 @@ export function TeamPlanningView({
                     </TooltipProvider>
                   )}
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
-                </button>
+                </div>
 
                 {weekDays.map((day, i) => {
                   if (day === 0) {

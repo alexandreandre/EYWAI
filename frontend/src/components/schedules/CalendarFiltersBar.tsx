@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -7,10 +8,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Search, LayoutList, Users } from 'lucide-react';
+import { Search, LayoutList, ListTodo, Users } from 'lucide-react';
 import type { Team } from '@/api/teams';
-import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
-import { ASaisirActionsMenu } from './ASaisirActionsMenu';
 import type { ModeFilter, SaisieStatusFilter, ViewMode } from './types';
 
 interface CalendarFiltersBarProps {
@@ -27,11 +26,8 @@ interface CalendarFiltersBarProps {
   onViewModeChange: (v: ViewMode) => void;
   filteredCount: number;
   totalCount: number;
-  teamsById: Map<string, Team>;
-  aSaisirRows: EmployeeCalendarOverviewRow[];
-  allASaisirSelected: boolean;
-  onSelectSubset: (ids: string[]) => void;
-  onFillASaisirWithAi: (ids: string[]) => void;
+  /** Nombre de calendriers restant à saisir (pour le filtre d'état). */
+  aSaisirCount: number;
   isLoading?: boolean;
 }
 
@@ -49,11 +45,7 @@ export function CalendarFiltersBar({
   onViewModeChange,
   filteredCount,
   totalCount,
-  teamsById,
-  aSaisirRows,
-  allASaisirSelected,
-  onSelectSubset,
-  onFillASaisirWithAi,
+  aSaisirCount,
   isLoading = false,
 }: CalendarFiltersBarProps) {
   const teamValue =
@@ -160,15 +152,21 @@ export function CalendarFiltersBar({
           </Select>
         </div>
 
-        {/* Menu « À saisir » : sélection partielle + remplissage IA */}
-        {isLoading ? null : (
-          <ASaisirActionsMenu
-            rows={aSaisirRows}
-            teamsById={teamsById}
-            allSelected={allASaisirSelected}
-            onSelectSubset={onSelectSubset}
-            onFillWithAi={onFillASaisirWithAi}
-          />
+        {/* Filtre d'état : montre les calendriers restant à saisir dans le
+            tableau — la sélection et les actions se font sur les lignes. */}
+        {!isLoading && aSaisirCount > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            variant={saisieFilter === 'a_saisir' ? 'default' : 'outline'}
+            className="h-9 gap-1.5"
+            aria-pressed={saisieFilter === 'a_saisir'}
+            onClick={() =>
+              onSaisieFilterChange(saisieFilter === 'a_saisir' ? 'all' : 'a_saisir')
+            }
+          >
+            <ListTodo className="h-4 w-4" />À saisir ({aSaisirCount})
+          </Button>
         )}
       </div>
 
