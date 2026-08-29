@@ -38,6 +38,12 @@ from app.shared.infrastructure.documents import (
     DocumentExtractionError,
     extract_document_text,
 )
+from app.modules.schedules.application.timesheet_native_extract import (
+    extract_timesheet_native as _native_extractor,
+)
+from app.shared.infrastructure.documents.text_extraction import (  # noqa: F811 - complète l'import existant
+    extract_pdf_text_layer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -935,6 +941,7 @@ def _extract_timesheet_hybrid_path(
     import_job_id: str | None,
     on_progress: Any | None,
     skip_audit: bool,
+    mode: str = "hybrid",
 ) -> AiCalendarProposalResponse:
     from app.modules.schedules.application.schedule_import_audit import (
         record_schedule_import_run,
@@ -958,10 +965,14 @@ def _extract_timesheet_hybrid_path(
 
     # Pré-scan OCR : détecter le mois réel avant l'extraction hybride (vision + LLM),
     # sinon les jours sont mappés sur le mois affiché dans le calendrier RH.
-    try:
-        preview_text, _, _ = extract_document_text(file_content, filename)
-    except DocumentExtractionError as e:
-        raise ScheduleAppError("validation", str(e), status_code=400) from e
+    if mode == "native":
+        # Jamais d'OCR en natif : couche texte PDF seule, pré-scan sauté sinon.
+        preview_text = extract_pdf_text_layer(file_content)
+    else:
+        try:
+            preview_text, _, _ = extract_document_text(file_content, filename)
+        except DocumentExtractionError as e:
+            raise ScheduleAppError("validation", str(e), status_code=400) from e
 
     period_detection = detect_timesheet_period(
         preview_text,
@@ -995,7 +1006,8 @@ def _extract_timesheet_hybrid_path(
         punch_settings = punch_accounting_repository.get_settings(company_id)
 
     try:
-        hybrid = extract_timesheet_hybrid(
+        extractor = _native_extractor if mode == "native" else extract_timesheet_hybrid
+        hybrid = extractor(
             file_content=file_content,
             filename=filename,
             year=year,
@@ -1152,8 +1164,9 @@ def extract_timesheet(
     extract_mode = timesheet_extract_mode()
     roster = enrich_roster_time_tracking_ids(roster, company_id)
 
-    if extract_mode == "hybrid":
+    if extract_mode in ("hybrid", "native"):
         return _extract_timesheet_hybrid_path(
+            mode=extract_mode,
             year=year,
             month=month,
             file_content=file_content,
