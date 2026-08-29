@@ -24,6 +24,7 @@ import { usePointageImportJobs, type PointageImportJob } from '@/hooks/usePointa
 import { PlanningImportBanner } from '@/components/schedules/PlanningImportBanner';
 import { usePlanningImportJobs, type PlanningImportJob } from '@/hooks/usePlanningImportJobs';
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
+import { defaultPlanningWeekIndex } from '@/lib/planningWeeks';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { SAISIE_FILTER_LABELS } from '@/components/schedules/types';
@@ -101,7 +102,9 @@ export default function Schedules() {
     cancelJob: cancelPlanningJob,
   } = usePlanningImportJobs();
   const handledPlanningImportJobsRef = useRef<Set<string>>(new Set());
-  const [planningFocusWeek, setPlanningFocusWeek] = useState<number | null>(null);
+  const [planningWeekIndex, setPlanningWeekIndex] = useState(() =>
+    defaultPlanningWeekIndex(now.getFullYear(), now.getMonth() + 1, now),
+  );
   const [planningHighlightDays, setPlanningHighlightDays] = useState<number[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -234,6 +237,16 @@ export default function Schedules() {
   }, [filteredRows, sortKey, sortDir, teamsById]);
 
   const visibleIds = sortedRows.map((r) => r.employee.id);
+
+  const handleYearChange = useCallback((year: number) => {
+    setSelectedYear(year);
+    setPlanningWeekIndex(defaultPlanningWeekIndex(year, selectedMonth));
+  }, [selectedMonth]);
+
+  const handleMonthChange = useCallback((month: number) => {
+    setSelectedMonth(month);
+    setPlanningWeekIndex(defaultPlanningWeekIndex(selectedYear, month));
+  }, [selectedYear]);
 
   // Compteurs sur tout le mois (avant filtres) : les segments de statut
   // doivent rester stables quand on filtre par équipe ou recherche.
@@ -461,8 +474,8 @@ export default function Schedules() {
             <CalendarPeriodSelect
               year={selectedYear}
               month={selectedMonth}
-              onYearChange={setSelectedYear}
-              onMonthChange={setSelectedMonth}
+              onYearChange={handleYearChange}
+              onMonthChange={handleMonthChange}
               compact
             />
           </div>
@@ -496,13 +509,14 @@ export default function Schedules() {
           unfilteredRowCount={rows.length}
           onApplyDayPatch={applyAndPersistDayPatch}
           onOpenEmployee={setDrawerEmployeeId}
-          initialWeekIndex={planningFocusWeek}
           highlightDays={planningHighlightDays}
           selectedIds={selectedIds}
           onSetSelected={setSelected}
           onToggleSelectAll={toggleSelectAll}
-          onYearChange={setSelectedYear}
-          onMonthChange={setSelectedMonth}
+          onYearChange={handleYearChange}
+          onMonthChange={handleMonthChange}
+          weekIndex={planningWeekIndex}
+          onWeekIndexChange={setPlanningWeekIndex}
         />
       )}
 
@@ -536,6 +550,8 @@ export default function Schedules() {
         employeeTeamId={selectedEmployeeTeamId}
         year={selectedYear}
         month={selectedMonth}
+        viewWeekIndex={planningWeekIndex}
+        overviewRows={rows}
         onApplied={() => {
           setSelectedIds(new Set());
           refreshCalendars();
@@ -603,7 +619,7 @@ export default function Schedules() {
         onApplied={(meta) => {
           refreshCalendars();
           if (meta?.focusWeekIndex != null) {
-            setPlanningFocusWeek(meta.focusWeekIndex);
+            setPlanningWeekIndex(meta.focusWeekIndex);
             if (viewMode !== 'team') setViewMode('team');
           }
           if (meta?.highlightDays?.length) {
@@ -615,7 +631,7 @@ export default function Schedules() {
           setSelectedMonth(m);
         }}
         onFocusPlanningWeek={(weekIndex) => {
-          setPlanningFocusWeek(weekIndex);
+          setPlanningWeekIndex(weekIndex);
           if (viewMode !== 'team') setViewMode('team');
         }}
       />

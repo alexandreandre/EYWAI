@@ -15,6 +15,7 @@ qui persiste vers le calendrier prévu et/ou les heures réelles selon la nature
 from __future__ import annotations
 
 import calendar as cal_mod
+import json
 import logging
 import unicodedata
 from datetime import date, timedelta
@@ -785,6 +786,7 @@ def parse_instruction(
     roster: List[RosterEmployee],
     single_employee: bool = False,
     broadcast: bool = False,
+    current_proposal: dict | None = None,
 ) -> AiCalendarProposalResponse:
     """Convertit une instruction en langage naturel en proposition de calendrier.
 
@@ -793,6 +795,12 @@ def parse_instruction(
 
     Si `broadcast` est vrai ou si la consigne vise « tout le monde », un même
     jeu de jours est appliqué à tous les employés du roster (hors exclusions « sauf »).
+
+    Si `current_proposal` est fourni (mode correction depuis l'écran de revue),
+    la consigne est un delta sur cette proposition : les fast-paths sont sautés
+    (ils régénéreraient de zéro), le mode collectif n'est jamais déduit de la
+    consigne, et le LLM reçoit la proposition actuelle comme source de vérité
+    à modifier ponctuellement.
     """
     if not (instruction or "").strip():
         raise ScheduleAppError(
@@ -806,8 +814,14 @@ def parse_instruction(
         try_mirror_planned_instruction,
     )
 
+    refinement = bool(current_proposal and current_proposal.get("employees"))
     target = roster[0] if (single_employee and roster) else None
-    broadcast_mode = bool(broadcast or is_broadcast_instruction(instruction))
+    # En correction, le mode collectif n'est jamais déduit de la consigne :
+    # « mets tout le monde à 7h lundi » reste un delta sur les salariés déjà
+    # présents dans la proposition, pas une diffusion au roster entier.
+    broadcast_mode = (
+        False if refinement else bool(broadcast or is_broadcast_instruction(instruction))
+    )
     collective = broadcast_mode and target is None and bool(roster)
     excluded = (
         excluded_employees_from_instruction(instruction, roster) if collective else []
@@ -815,30 +829,31 @@ def parse_instruction(
     excluded_ids = {e.id for e in excluded}
     target_roster = [e for e in roster if e.id not in excluded_ids]
 
-    mirror = try_mirror_planned_instruction(
-        year=year,
-        month=month,
-        instruction=instruction,
-        roster=target_roster if collective else roster,
-        target=target,
-        force_broadcast=collective,
-    )
-    if mirror is not None:
-        return mirror
-
-    # En mode mono-employé, on saute le fast-path (résolution par nom) pour
-    # garantir l'attribution à la bonne personne via le LLM puis le forçage.
-    # En mode collectif, on force la diffusion à tout le roster ciblé.
-    if target is None:
-        fast = try_fast_parse_instruction(
+    if not refinement:
+        mirror = try_mirror_planned_instruction(
             year=year,
             month=month,
             instruction=instruction,
             roster=target_roster if collective else roster,
+            target=target,
             force_broadcast=collective,
         )
-        if fast is not None:
-            return fast
+        if mirror is not None:
+            return mirror
+
+        # En mode mono-employé, on saute le fast-path (résolution par nom) pour
+        # garantir l'attribution à la bonne personne via le LLM puis le forçage.
+        # En mode collectif, on force la diffusion à tout le roster ciblé.
+        if target is None:
+            fast = try_fast_parse_instruction(
+                year=year,
+                month=month,
+                instruction=instruction,
+                roster=target_roster if collective else roster,
+                force_broadcast=collective,
+            )
+            if fast is not None:
+                return fast
 
     if not is_llm_configured():
         raise ScheduleAppError(
@@ -874,6 +889,27 @@ def parse_instruction(
             f"{instruction.strip()}"
         )
         system_prompt_name = None
+
+    if refinement:
+        # La proposition affichée est la source de vérité : le LLM reçoit son
+        # état exact et n'a le droit d'y toucher que là où la consigne le dit.
+        current_block = json.dumps(
+            current_proposal["employees"], ensure_ascii=False, indent=1
+        )
+        user_prompt = (
+            "Proposition actuelle (source de vérité affichée à l'écran) :\n"
+            f"{current_block}\n\n"
+            "Consigne de correction :\n"
+            f"{instruction.strip()}\n\n"
+            "Applique UNIQUEMENT cette correction à la proposition actuelle : "
+            "conserve à l'identique tous les autres jours et salariés, et "
+            "renvoie la proposition complète mise à jour."
+        )
+        if target is not None:
+            user_prompt += (
+                "\nLa correction concerne uniquement le salarié : "
+                f"{target.first_name} {target.last_name}."
+            )
 
     # Une instruction en langage naturel décrit le plus souvent ce qui a été fait ;
     # par défaut on retient « reel », mais l'IA bascule sur « prevu » si le libellé

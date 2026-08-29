@@ -167,6 +167,9 @@ export interface AiDayEntry {
   heures: number | null;
   type: string;
   nature: DayNature;
+  punch_entry_raw?: string | null;
+  punch_exit_raw?: string | null;
+  shift_code?: string | null;
   // Mois/année réels du jour si différents du (year, month) de la proposition
   // (semaine hebdomadaire à cheval sur deux mois). Absent = mois de la proposition.
   year?: number | null;
@@ -331,9 +334,20 @@ export interface ExtractTimesheetOptions {
   signal?: AbortSignal;
 }
 
+/** État courant de la revue, envoyé pour une correction en delta. */
+export interface ParseCurrentProposal {
+  employees: {
+    name: string;
+    days: { jour: number; heures: number | null; type: string; nature: DayNature }[];
+  }[];
+}
+
 /**
  * Analyse une instruction en langage naturel (texte ou dictée transcrite)
  * et renvoie une proposition d'heures réelles (non persistée).
+ *
+ * Avec `currentProposal`, la consigne est appliquée comme une correction de
+ * la proposition affichée (le backend saute ses raccourcis de régénération).
  */
 export const parseScheduleInstruction = async (
   year: number,
@@ -342,6 +356,7 @@ export const parseScheduleInstruction = async (
   employees: RosterEmployee[],
   singleEmployee = false,
   broadcast = false,
+  currentProposal?: ParseCurrentProposal,
 ): Promise<AiCalendarProposal> => {
   const { data } = await apiClient.post<AiCalendarProposal>(
     '/api/schedules/assisted-fill/parse-text',
@@ -352,6 +367,7 @@ export const parseScheduleInstruction = async (
       employees,
       single_employee: singleEmployee,
       broadcast,
+      ...(currentProposal ? { current_proposal: currentProposal } : {}),
     },
   );
   return data;

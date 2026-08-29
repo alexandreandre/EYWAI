@@ -250,18 +250,27 @@ export function CalendarBulkActionsBar({
 
   if (selectedCount === 0) return null;
 
+  const outlineAction =
+    'shrink-0 whitespace-nowrap border-2 border-foreground/25 bg-background shadow-none';
+
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(98vw,1280px)] bg-card border rounded-xl shadow-2xl px-3 py-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
-      <p className="text-sm font-medium pr-2 border-r mr-1 shrink-0 whitespace-nowrap">
+    <div
+      role="toolbar"
+      aria-label="Saisie rapide"
+      className="fixed bottom-4 left-1/2 z-50 flex w-max max-w-[min(98vw,1280px)] -translate-x-1/2 flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border-2 border-foreground/40 bg-background px-3 py-2.5 shadow-[0_12px_36px_-8px_hsl(215_25%_15%_/_0.35)]"
+    >
+      <p className="shrink-0 whitespace-nowrap rounded-md bg-primary px-2.5 py-1 text-sm font-semibold tabular-nums text-primary-foreground">
         {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
       </p>
+      <span aria-hidden className="mx-0.5 h-7 w-px shrink-0 bg-foreground/20" />
 
       <Button
         size="sm"
         variant="outline"
         onClick={onOpenApplyModel}
         disabled={!!busy}
-        className="shrink-0 whitespace-nowrap"
+        className={outlineAction}
+        title="Rythme de semaine : heures prévues, heures faites, ou les deux"
       >
         <LayoutTemplate className="mr-1.5 h-4 w-4" />
         Appliquer modèle
@@ -271,7 +280,7 @@ export function CalendarBulkActionsBar({
         variant="outline"
         onClick={() => void copyPreviousMonth()}
         disabled={!!busy}
-        className="shrink-0 whitespace-nowrap"
+        className={outlineAction}
       >
         {busy === 'copy' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -285,7 +294,7 @@ export function CalendarBulkActionsBar({
         variant="outline"
         onClick={() => void copyPlannedToActual()}
         disabled={!!busy}
-        className="shrink-0 whitespace-nowrap"
+        className={outlineAction}
       >
         {busy === 'equal' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -299,7 +308,7 @@ export function CalendarBulkActionsBar({
         variant="outline"
         onClick={() => void importFromBadgeuse()}
         disabled={!!busy || !companyId}
-        className="shrink-0 whitespace-nowrap"
+        className={outlineAction}
       >
         {busy === 'badgeuse' ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -319,9 +328,9 @@ export function CalendarBulkActionsBar({
       </Button>
       <Button
         size="sm"
-        variant="ghost"
+        variant="outline"
         onClick={onClearSelection}
-        className="ml-auto shrink-0 whitespace-nowrap"
+        className="shrink-0 whitespace-nowrap border-2 border-foreground/20 text-muted-foreground"
       >
         Annuler
       </Button>

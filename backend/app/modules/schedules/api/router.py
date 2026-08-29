@@ -389,6 +389,11 @@ def assisted_fill_parse_text(
             roster=payload.employees,
             single_employee=payload.single_employee,
             broadcast=payload.broadcast,
+            current_proposal=(
+                payload.current_proposal.model_dump()
+                if payload.current_proposal
+                else None
+            ),
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)

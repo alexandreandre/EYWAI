@@ -6,9 +6,13 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Mic,
+  Send,
+  Square,
   Trash2,
   UserCheck,
   UserX,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,10 +26,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { EmployeeAssociateCombobox } from './EmployeeAssociateCombobox';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  serializeRowsForRefinement,
+  type CurrentProposalPayload,
+} from './aiFillRefinement';
+import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { downloadBlob } from '@/lib/downloadBlob';
+import { showReviewSummaryBanner, removeReviewRow } from './assistedFillReviewLayout';
+import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
   persistTimesheetBatch,
   waitForTimesheetImportBatchCommitted,
@@ -68,6 +79,8 @@ interface EditableDay {
   heures: number | null;
   type: string;
   nature: DayNature;
+  punch_entry_raw?: string | null;
+  punch_exit_raw?: string | null;
   // Mois/année réels si différents du mois affiché (semaine à cheval sur 2 mois).
   year?: number | null;
   month?: number | null;
@@ -111,6 +124,16 @@ interface AssistedFillReviewProps {
   onApplied: (meta?: AssistedFillApplyMeta) => void;
   onBack: () => void;
   batchId?: string | null;
+  /**
+   * Correction par consigne pendant la revue : reçoit le texte et l'état
+   * courant des jours (source de vérité), renvoie true si la proposition a
+   * été remplacée. Absent = pas de barre de correction (imports fichiers).
+   */
+  onRefine?: (
+    instruction: string,
+    current: CurrentProposalPayload,
+  ) => Promise<boolean>;
+  isRefining?: boolean;
 }
 
 const MONTHS = [
@@ -324,9 +347,15 @@ export function AssistedFillReview({
   onApplied,
   onBack,
   batchId = null,
+  onRefine,
+  isRefining = false,
 }: AssistedFillReviewProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [refineText, setRefineText] = useState('');
+  const refineDictation = useSpeechDictation((text) =>
+    setRefineText((prev) => (prev ? `${prev} ${text}` : text)),
+  );
   // Jours refusés à l'écriture (absence validée préservée) : récapitulatif
   // affiché après enregistrement, avant fermeture de la revue.
   const [preservedAbsenceDays, setPreservedAbsenceDays] = useState<PreservedAbsenceDay[]>([]);
@@ -381,6 +410,8 @@ export function AssistedFillReview({
         heures: d.heures,
         type: d.type,
         nature: d.nature,
+        punch_entry_raw: d.punch_entry_raw ?? null,
+        punch_exit_raw: d.punch_exit_raw ?? null,
         year: d.year ?? null,
         month: d.month ?? null,
       })),
@@ -548,6 +579,32 @@ export function AssistedFillReview({
       prev.map((r) =>
         r.key === rowKey ? { ...r, days: r.days.filter((d) => d.jour !== jour) } : r,
       ),
+    );
+  };
+
+  const removeRow = (rowKey: string) => {
+    setRows((prev) => removeReviewRow(prev, rowKey));
+    setExpandedKeys((prev) => {
+      if (!prev.has(rowKey)) return prev;
+      const next = new Set(prev);
+      next.delete(rowKey);
+      return next;
+    });
+  };
+
+  const applyPunchBreakRule = (prev: PunchBreakRule, next: PunchBreakRule) => {
+    if (
+      prev.enabled === next.enabled &&
+      prev.breakMinutes === next.breakMinutes &&
+      prev.thresholdMinutes === next.thresholdMinutes
+    ) {
+      return;
+    }
+    setRows((rows) =>
+      rows.map((row) => ({
+        ...row,
+        days: row.days.map((day) => reapplyPauseOnDay(day, prev, next)),
+      })),
     );
   };
 
@@ -750,7 +807,7 @@ export function AssistedFillReview({
             les a pas modifiés. Le reste de l&apos;import a bien été enregistré.
           </p>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="space-y-1 pr-3">
             {preservedAbsenceDays.map((w, i) => (
               <div
@@ -765,7 +822,7 @@ export function AssistedFillReview({
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
         <div className="flex shrink-0 justify-end border-t pt-2">
           <Button
             type="button"
@@ -780,9 +837,17 @@ export function AssistedFillReview({
     );
   }
 
+  const handleRefine = async () => {
+    const text = refineText.trim();
+    if (!text || !onRefine || isRefining) return;
+    if (refineDictation.isListening) refineDictation.stop();
+    const replaced = await onRefine(text, serializeRowsForRefinement(rows));
+    if (replaced) setRefineText('');
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-      {/* Bandeau synthèse compact */}
+      {showReviewSummaryBanner(proposal) && (
       <div className="shrink-0 rounded-md border bg-muted/20 px-3 py-2 text-xs">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {periodRangeLabel && (
@@ -857,17 +922,15 @@ export function AssistedFillReview({
             Import IA — les noms lus sur le PDF peuvent être erronés.
           </p>
         )}
-        {isTextInstruction && (
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            Vérifiez les jours proposés avant d&apos;enregistrer.
-          </p>
-        )}
         {isTabularImport && (
           <p className="mt-1 text-[10px] text-muted-foreground">
             Import fichier — associez manuellement les salariés non reconnus si besoin.
           </p>
         )}
       </div>
+      )}
+
+      {!isTextInstruction && <ImportPunchRuleBar onApply={applyPunchBreakRule} />}
 
       {/* Barre outils — masquée pour une consigne texte sur peu de salariés */}
       {showToolbar && (
@@ -957,9 +1020,9 @@ export function AssistedFillReview({
         </div>
       )}
 
-      {/* Liste scrollable */}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-1.5 pr-3">
+      {/* Liste : overflow natif — Radix ScrollArea + max-h seul ne défile pas. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="space-y-1.5 pr-1">
           {filteredRows.map((row) => {
             const status = rowStatus(row);
             const expanded = expandedKeys.has(row.key);
@@ -1036,6 +1099,15 @@ export function AssistedFillReview({
                       Valider
                     </Button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => removeRow(row.key)}
+                    aria-label={`Retirer ${row.matchedName ?? row.rawName}`}
+                    title="Retirer cette ligne"
+                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
 
                 {row.warnings.length > 0 && status !== 'ok' && (
@@ -1125,14 +1197,95 @@ export function AssistedFillReview({
             </p>
           )}
         </div>
-      </ScrollArea>
+      </div>
+
+      {/* Correction par consigne : la liste reste la source de vérité, rien
+          n'est persisté — la proposition est simplement remplacée à l'écran. */}
+      {onRefine && (
+        <div className="shrink-0 border-t pt-2">
+          <div className="flex items-center gap-1.5">
+            {refineDictation.isSupported && (
+              <button
+                type="button"
+                onClick={() =>
+                  refineDictation.isListening
+                    ? refineDictation.stop()
+                    : refineDictation.start()
+                }
+                aria-label={
+                  refineDictation.isListening
+                    ? 'Arrêter la dictée'
+                    : 'Dicter une correction'
+                }
+                disabled={isRefining}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all',
+                  refineDictation.isListening
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground',
+                )}
+              >
+                {refineDictation.isListening ? (
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                ) : (
+                  <Mic className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+            <Input
+              value={refineText}
+              onChange={(e) => setRefineText(e.target.value)}
+              placeholder="Corriger la proposition : ex. « vendredi à 8h », « mets le samedi en week-end »…"
+              className="h-8 text-xs"
+              disabled={isRefining}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleRefine();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={() => void handleRefine()}
+              disabled={isRefining || !refineText.trim()}
+            >
+              {isRefining ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Corriger
+            </Button>
+          </div>
+          {isRefining && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Correction en cours — la liste sera mise à jour, rien n&apos;est
+              enregistré.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Pied fixe */}
       <div className="flex shrink-0 items-center justify-between border-t pt-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onBack} disabled={isSaving}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          disabled={isSaving || isRefining}
+        >
           Retour
         </Button>
-        <Button type="button" size="sm" onClick={() => void handleSave()} disabled={isSaving}>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void handleSave()}
+          disabled={isSaving || isRefining}
+        >
           {isSaving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (

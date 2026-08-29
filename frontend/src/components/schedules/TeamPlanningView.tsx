@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { isObservedHolidayHeaderDay } from '@/lib/companyCalendarHolidays';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import { computePlanningWeeks } from '@/lib/planningWeeks';
 
 const TYPE_BG: Record<string, string> = {
   travail: 'bg-sky-50 hover:bg-sky-100 border-sky-200/60',
@@ -64,7 +65,6 @@ interface TeamPlanningViewProps {
     patch: DayPatch
   ) => Promise<boolean>;
   onOpenEmployee: (employeeId: string) => void;
-  initialWeekIndex?: number | null;
   highlightDays?: number[];
   /** Sélection pour actions en masse — mêmes contrats que la vue Liste. */
   selectedIds: Set<string>;
@@ -72,27 +72,8 @@ interface TeamPlanningViewProps {
   onToggleSelectAll: (ids: string[]) => void;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
-}
-
-/** Calcule les semaines du mois sous forme de chunks de 7 jours, alignés sur le lundi. */
-function computeWeeks(year: number, month: number): number[][] {
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDow = (new Date(year, month - 1, 1).getDay() + 6) % 7; // 0 = lundi
-  const weeks: number[][] = [];
-  let current: number[] = Array(firstDow).fill(0);
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    current.push(d);
-    if (current.length === 7) {
-      weeks.push(current);
-      current = [];
-    }
-  }
-  if (current.length > 0) {
-    while (current.length < 7) current.push(0);
-    weeks.push(current);
-  }
-  return weeks;
+  weekIndex: number;
+  onWeekIndexChange: (index: number) => void;
 }
 
 export function TeamPlanningView({
@@ -106,32 +87,32 @@ export function TeamPlanningView({
   unfilteredRowCount = 0,
   onApplyDayPatch,
   onOpenEmployee,
-  initialWeekIndex = null,
   highlightDays = [],
   selectedIds,
   onSetSelected,
   onToggleSelectAll,
   onYearChange,
   onMonthChange,
+  weekIndex,
+  onWeekIndexChange,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
-  const weeks = useMemo(() => computeWeeks(year, month), [year, month]);
+  const weeks = useMemo(() => computePlanningWeeks(year, month), [year, month]);
   const rowIds = useMemo(() => rows.map((r) => r.employee.id), [rows]);
   const { onHandlePointerDown, onHandlePointerEnter } = usePaintSelect({
     ids: rowIds,
     selectedIds,
     onSetSelected,
   });
-  const [weekIndex, setWeekIndex] = useState(0);
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
   const [flashDays, setFlashDays] = useState<number[]>([]);
 
   useEffect(() => {
-    if (initialWeekIndex != null && initialWeekIndex >= 0) {
-      setWeekIndex(Math.min(initialWeekIndex, weeks.length - 1));
+    if (weekIndex > weeks.length - 1) {
+      onWeekIndexChange(Math.max(0, weeks.length - 1));
     }
-  }, [initialWeekIndex, year, month, weeks.length]);
+  }, [weekIndex, weeks.length, onWeekIndexChange]);
 
   useEffect(() => {
     if (highlightDays.length === 0) return;
@@ -222,7 +203,7 @@ export function TeamPlanningView({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={String(weekIndex)} onValueChange={(v) => setWeekIndex(Number(v))}>
+        <Tabs value={String(Math.min(weekIndex, weeks.length - 1))} onValueChange={(v) => onWeekIndexChange(Number(v))}>
           <TabsList>
             {weeks.map((week, idx) => {
               const validDays = week.filter((d) => d > 0);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -18,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ToastAction } from '@/components/ui/toast';
 import { Loader2, Undo2 } from 'lucide-react';
 import apiClient from '@/api/apiClient';
@@ -26,13 +25,28 @@ import * as calendarApi from '@/api/calendar';
 import { useToast } from '@/components/ui/use-toast';
 import { runWithConcurrency } from '@/lib/concurrency';
 import {
+  restoreActualSnapshots,
   restorePlannedSnapshots,
+  type ActualSnapshot,
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
+import {
+  buildActualEntriesFromWeekConfig,
+  buildPlannedEntriesFromWeekConfig,
+  sameWeekConfigAllMonth,
+  type ApplyModelTarget,
+  type ApplyModelWeekConfig,
+} from '@/lib/applyWeekModel';
+import {
+  computePlanningWeeks,
+  planningWeekDays,
+  planningWeekLabel,
+} from '@/lib/planningWeeks';
+import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
 import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from '@/lib/weekTemplateStorage';
 import { useCompany } from '@/contexts/CompanyContext';
 import type { WeekTemplate } from '@/hooks/useCalendar';
-import type { DayConfig, WeekConfig, WeekNumber } from './types';
+import type { DayConfig, WeekConfig } from './types';
 
 const TIER_LABELS: Record<string, string> = {
   high: '37h',
@@ -42,6 +56,7 @@ const TIER_LABELS: Record<string, string> = {
 
 const INITIAL_DAY: DayConfig = { type: 'travail', hours: 8 };
 const WEEKEND_DAY: DayConfig = { type: 'weekend', hours: 0 };
+const MONTH_SCOPE = 'month';
 
 const createInitialWeek = (): WeekConfig => ({
   monday: { ...INITIAL_DAY },
@@ -87,6 +102,9 @@ interface ApplyModelDialogProps {
   employeeTeamId?: string | null;
   year: number;
   month: number;
+  /** Semaine affichée dans la vue planning (0-based). */
+  viewWeekIndex: number;
+  overviewRows: EmployeeCalendarOverviewRow[];
   onApplied: () => void;
 }
 
@@ -97,23 +115,27 @@ export function ApplyModelDialog({
   employeeTeamId,
   year,
   month,
+  viewWeekIndex,
+  overviewRows,
   onApplied,
 }: ApplyModelDialogProps) {
   const { toast } = useToast();
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.company_id ?? '';
-  const [useForAllWeeks, setUseForAllWeeks] = useState(true);
-  const [activeWeekTab, setActiveWeekTab] = useState<WeekNumber>(1);
-  const [weekConfigs, setWeekConfigs] = useState<Record<WeekNumber, WeekConfig>>({
-    1: createInitialWeek(),
-    2: createInitialWeek(),
-    3: createInitialWeek(),
-    4: createInitialWeek(),
-    5: createInitialWeek(),
-  });
+  const weeks = useMemo(() => computePlanningWeeks(year, month), [year, month]);
+  const clampedViewWeek = Math.min(Math.max(viewWeekIndex, 0), Math.max(weeks.length - 1, 0));
+
+  const [weekConfig, setWeekConfig] = useState<WeekConfig>(createInitialWeek);
+  const [applyScope, setApplyScope] = useState(`week-${clampedViewWeek}`);
   const [isApplying, setIsApplying] = useState(false);
+  const [applyTarget, setApplyTarget] = useState<ApplyModelTarget>('planned');
   const [savedTemplates, setSavedTemplates] = useState<SavedWeekTemplateWithConfig[]>([]);
   const [templateName, setTemplateName] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setApplyScope(`week-${clampedViewWeek}`);
+  }, [open, clampedViewWeek]);
 
   useEffect(() => {
     if (!open || !companyId) return;
@@ -136,38 +158,42 @@ export function ApplyModelDialog({
     };
   }, [open, companyId, employeeTeamId]);
 
-  const applySavedTemplate = (tpl: SavedWeekTemplateWithConfig) => {
-    const config = tpl.weekConfig;
-    setWeekConfigs({
-      1: config,
-      2: config,
-      3: config,
-      4: config,
-      5: config,
-    });
-  };
+  const isMonthScope = applyScope === MONTH_SCOPE;
+  const scopeWeekIndex = isMonthScope
+    ? clampedViewWeek
+    : Number(applyScope.replace('week-', ''));
+  const scopedDays = isMonthScope
+    ? undefined
+    : planningWeekDays(weeks[scopeWeekIndex] ?? []);
+  const scopeLabel = isMonthScope
+    ? 'le mois entier'
+    : `la semaine ${planningWeekLabel(weeks[scopeWeekIndex] ?? [])}`;
 
   const updateDayConfig = (
-    week: WeekNumber,
     day: keyof WeekConfig,
     field: 'type' | 'hours',
-    value: string | number
+    value: string | number,
   ) => {
-    setWeekConfigs((prev) => ({
+    setWeekConfig((prev) => ({
       ...prev,
-      [week]: {
-        ...prev[week],
-        [day]: { ...prev[week][day], [field]: value },
-      },
+      [day]: { ...prev[day], [field]: value },
     }));
   };
 
-  const restoreModel = async (snapshots: PlannedSnapshot[]) => {
+  const restoreModel = async (
+    plannedSnapshots: PlannedSnapshot[],
+    actualSnapshots: ActualSnapshot[],
+  ) => {
     try {
-      await restorePlannedSnapshots(snapshots, year, month);
+      if (plannedSnapshots.length > 0) {
+        await restorePlannedSnapshots(plannedSnapshots, year, month);
+      }
+      if (actualSnapshots.length > 0) {
+        await restoreActualSnapshots(actualSnapshots, year, month);
+      }
       toast({
         title: 'Action annulée',
-        description: 'Le planning précédent a été restauré.',
+        description: 'L’état précédent a été restauré.',
       });
       onApplied();
     } catch {
@@ -179,41 +205,110 @@ export function ApplyModelDialog({
     }
   };
 
-  const handleApply = async () => {
-    if (selectedEmployeeIds.length === 0) return;
-    setIsApplying(true);
-    try {
-      const modelToApply = useForAllWeeks
-        ? {
-            1: weekConfigs[1],
-            2: weekConfigs[1],
-            3: weekConfigs[1],
-            4: weekConfigs[1],
-            5: weekConfigs[1],
-          }
-        : weekConfigs;
+  const applyActualHours = async (config: ApplyModelWeekConfig) => {
+    const snapshots: ActualSnapshot[] = [];
+    const tasks = selectedEmployeeIds.map((id) => async () => {
+      const [plannedRes, actualRes] = await Promise.all([
+        calendarApi.getPlannedCalendar(id, year, month),
+        calendarApi.getActualHours(id, year, month),
+      ]);
+      const existing = actualRes.data.calendrier_reel ?? [];
+      snapshots.push({ id, actual: existing });
+      const isForfait =
+        overviewRows.find((row) => row.employee.id === id)?.isForfaitJour ?? false;
+      const entries = buildActualEntriesFromWeekConfig(
+        year,
+        month,
+        config,
+        isForfait,
+        {
+          existing,
+          planned: plannedRes.data.calendrier_prevu ?? [],
+          onlyDays: scopedDays,
+        },
+      );
+      await calendarApi.updateActualHours(id, year, month, entries);
+    });
+    await runWithConcurrency(tasks, 5);
+    return snapshots;
+  };
 
-      const snapshots: PlannedSnapshot[] = [];
+  const applyPlannedHours = async (config: ApplyModelWeekConfig) => {
+    const snapshots: PlannedSnapshot[] = [];
+    if (isMonthScope) {
       const snapshotTasks = selectedEmployeeIds.map((id) => async () => {
         const res = await calendarApi.getPlannedCalendar(id, year, month);
         snapshots.push({ id, planned: res.data.calendrier_prevu ?? [] });
       });
       await runWithConcurrency(snapshotTasks, 5);
-
       await apiClient.post('/api/schedules/apply-model', {
         employee_ids: selectedEmployeeIds,
         year,
         month,
-        week_configs: modelToApply,
+        week_configs: sameWeekConfigAllMonth(config),
       });
+      return snapshots;
+    }
+
+    const tasks = selectedEmployeeIds.map((id) => async () => {
+      const res = await calendarApi.getPlannedCalendar(id, year, month);
+      const existing = res.data.calendrier_prevu ?? [];
+      snapshots.push({ id, planned: existing });
+      const isForfait =
+        overviewRows.find((row) => row.employee.id === id)?.isForfaitJour ?? false;
+      const entries = buildPlannedEntriesFromWeekConfig(
+        year,
+        month,
+        config,
+        isForfait,
+        { existing, onlyDays: scopedDays },
+      );
+      await calendarApi.updatePlannedCalendar(id, year, month, entries);
+    });
+    await runWithConcurrency(tasks, 5);
+    return snapshots;
+  };
+
+  const handleApply = async () => {
+    if (selectedEmployeeIds.length === 0) return;
+    setIsApplying(true);
+    try {
+      const writePlanned = applyTarget === 'planned' || applyTarget === 'both';
+      const writeActual = applyTarget === 'actual' || applyTarget === 'both';
+
+      let plannedSnapshots: PlannedSnapshot[] = [];
+      let actualSnapshots: ActualSnapshot[] = [];
+
+      if (writePlanned) {
+        plannedSnapshots = await applyPlannedHours(weekConfig);
+      }
+      if (writeActual) {
+        actualSnapshots = await applyActualHours(weekConfig);
+      }
+
+      const count = selectedEmployeeIds.length;
+      const toastCopy =
+        applyTarget === 'actual'
+          ? {
+              title: 'Heures faites appliquées',
+              description: `Heures faites posées sur ${scopeLabel} pour ${count} employé(s).`,
+            }
+          : applyTarget === 'both'
+            ? {
+                title: 'Modèle appliqué',
+                description: `Heures prévues et faites posées sur ${scopeLabel} pour ${count} employé(s).`,
+              }
+            : {
+                title: 'Modèle appliqué',
+                description: `Planning prévu appliqué sur ${scopeLabel} pour ${count} employé(s).`,
+              };
 
       toast({
-        title: 'Modèle appliqué',
-        description: `Planning appliqué à ${selectedEmployeeIds.length} employé(s).`,
+        ...toastCopy,
         action: (
           <ToastAction
             altText="Annuler l'application du modèle"
-            onClick={() => void restoreModel(snapshots)}
+            onClick={() => void restoreModel(plannedSnapshots, actualSnapshots)}
           >
             <Undo2 className="mr-1 h-3.5 w-3.5" />
             Annuler
@@ -257,9 +352,6 @@ export function ApplyModelDialog({
     sunday: 'Dimanche',
   };
 
-  const current = useForAllWeeks ? 1 : activeWeekTab;
-  const disabled = useForAllWeeks && activeWeekTab !== 1;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -271,10 +363,54 @@ export function ApplyModelDialog({
               month: 'long',
               year: 'numeric',
             })}
+            . Les absences validées restent intactes.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Écrire dans</Label>
+            <ToggleGroup
+              type="single"
+              value={applyTarget}
+              onValueChange={(v) => v && setApplyTarget(v as ApplyModelTarget)}
+              className="grid w-full grid-cols-3 border rounded-md"
+            >
+              <ToggleGroupItem value="planned" className="h-8 px-2 text-xs">
+                Heures prévues
+              </ToggleGroupItem>
+              <ToggleGroupItem value="actual" className="h-8 px-2 text-xs">
+                Heures faites
+              </ToggleGroupItem>
+              <ToggleGroupItem value="both" className="h-8 px-2 text-xs">
+                Les deux
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Appliquer à</Label>
+            <Select value={applyScope} onValueChange={setApplyScope}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {weeks.map((week, index) => {
+                  const label = planningWeekLabel(week);
+                  const isCurrent = index === clampedViewWeek;
+                  return (
+                    <SelectItem key={index} value={`week-${index}`}>
+                      {isCurrent
+                        ? `Cette semaine · ${label}`
+                        : `Sem. ${index + 1} · ${label}`}
+                    </SelectItem>
+                  );
+                })}
+                <SelectItem value={MONTH_SCOPE}>Mois entier</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {savedTemplates.length > 0 && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">
@@ -288,7 +424,7 @@ export function ApplyModelDialog({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => applySavedTemplate(tpl)}
+                    onClick={() => setWeekConfig(tpl.weekConfig)}
                   >
                     {tpl.name}
                     {tpl.modulation_tier && tpl.modulation_tier !== 'neutral' && (
@@ -302,35 +438,9 @@ export function ApplyModelDialog({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={useForAllWeeks}
-              onCheckedChange={(v) => setUseForAllWeeks(!!v)}
-              id="all-weeks"
-            />
-            <label htmlFor="all-weeks" className="text-sm">
-              Même modèle pour toutes les semaines du mois
-            </label>
-          </div>
-
-          {!useForAllWeeks && (
-            <Tabs
-              value={String(activeWeekTab)}
-              onValueChange={(v) => setActiveWeekTab(Number(v) as WeekNumber)}
-            >
-              <TabsList className="grid grid-cols-5 w-full">
-                {[1, 2, 3, 4, 5].map((w) => (
-                  <TabsTrigger key={w} value={String(w)} className="text-xs">
-                    S{w}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-
           <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
             {dayKeys.map((day) => {
-              const conf = weekConfigs[current][day];
+              const conf = weekConfig[day];
               return (
                 <div
                   key={day}
@@ -339,8 +449,7 @@ export function ApplyModelDialog({
                   <Label className="text-xs">{dayLabels[day]}</Label>
                   <Select
                     value={conf.type}
-                    onValueChange={(v) => updateDayConfig(current, day, 'type', v)}
-                    disabled={disabled}
+                    onValueChange={(v) => updateDayConfig(day, 'type', v)}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue />
@@ -360,9 +469,9 @@ export function ApplyModelDialog({
                     step={0.5}
                     value={conf.hours}
                     onChange={(e) =>
-                      updateDayConfig(current, day, 'hours', Number(e.target.value))
+                      updateDayConfig(day, 'hours', Number(e.target.value))
                     }
-                    disabled={disabled || conf.type !== 'travail'}
+                    disabled={conf.type !== 'travail'}
                     className="h-8"
                   />
                 </div>
@@ -384,13 +493,12 @@ export function ApplyModelDialog({
               className="h-8 text-xs"
               disabled={!templateName.trim()}
               onClick={async () => {
-                const config = weekConfigs[useForAllWeeks ? 1 : activeWeekTab];
                 const template = {
-                  1: config.monday.hours,
-                  2: config.tuesday.hours,
-                  3: config.wednesday.hours,
-                  4: config.thursday.hours,
-                  5: config.friday.hours,
+                  1: weekConfig.monday.hours,
+                  2: weekConfig.tuesday.hours,
+                  3: weekConfig.wednesday.hours,
+                  4: weekConfig.thursday.hours,
+                  5: weekConfig.friday.hours,
                 };
                 const next = await saveWeekTemplate(companyId, templateName, template);
                 setSavedTemplates(
@@ -414,7 +522,7 @@ export function ApplyModelDialog({
           </Button>
           <Button onClick={() => void handleApply()} disabled={isApplying}>
             {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Appliquer le modèle
+            {isMonthScope ? 'Appliquer au mois' : 'Appliquer à la semaine'}
           </Button>
         </DialogFooter>
       </DialogContent>

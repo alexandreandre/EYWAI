@@ -693,3 +693,88 @@ class TestExtractTimesheetCegid:
         prompt = mock_llm.call_args.kwargs.get("user_prompt") or mock_llm.call_args[1].get("user_prompt")
         assert len(prompt) < len(long_generic)
         assert any("tronqué" in w.lower() for w in proposal.extraction_warnings)
+
+
+# --- parse_instruction : mode correction (current_proposal) ---
+
+
+class TestParseInstructionRefinement:
+    CURRENT = {
+        "employees": [
+            {
+                "name": "Paul Martin",
+                "days": [
+                    {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"},
+                    {"jour": 2, "heures": 8, "type": "travail", "nature": "reel"},
+                ],
+            }
+        ]
+    }
+
+    def test_refinement_skips_fast_path_and_injects_current_proposal(self):
+        """Une consigne qui matcherait le fast-path passe au LLM avec la
+        proposition actuelle dans le prompt — jamais de régénération."""
+        extracted = {
+            "employees": [
+                {
+                    "name": "Paul Martin",
+                    "days": [
+                        {"jour": 1, "heures": 8, "type": "travail", "nature": "reel"},
+                        {"jour": 2, "heures": 7, "type": "travail", "nature": "reel"},
+                    ],
+                }
+            ],
+            "warnings": [],
+        }
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                # Formulation volontairement fast-path-compatible.
+                instruction="Paul Martin a fait 7h le 2",
+                roster=ROSTER,
+                current_proposal=self.CURRENT,
+            )
+        mock_llm.assert_called_once()
+        prompt = mock_llm.call_args.kwargs["user_prompt"]
+        assert "Proposition actuelle" in prompt
+        assert '"jour": 1' in prompt or '"jour":1' in prompt
+        assert "correction" in prompt.lower()
+        assert proposal.employees[0].employee_id == "e1"
+        assert proposal.source == "texte"
+
+    def test_refinement_ignores_broadcast_sniffing(self):
+        """« tout le monde » dans une correction ne bascule pas en mode collectif."""
+        extracted = {"employees": self.CURRENT["employees"], "warnings": []}
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="mets tout le monde à 7h le lundi",
+                roster=ROSTER,
+                current_proposal=self.CURRENT,
+            )
+        prompt = mock_llm.call_args.kwargs["user_prompt"]
+        assert "(tous)" not in prompt
+
+    def test_refinement_single_employee_keeps_target(self):
+        extracted = {"employees": self.CURRENT["employees"], "warnings": []}
+        with patch.object(ai_fill, "is_llm_configured", return_value=True), patch.object(
+            ai_fill, "extract_structured_json", return_value=_result(extracted)
+        ) as mock_llm:
+            proposal = ai_fill.parse_instruction(
+                year=2026,
+                month=6,
+                instruction="vendredi à 8h",
+                roster=[ROSTER[0]],
+                single_employee=True,
+                current_proposal=self.CURRENT,
+            )
+        prompt = mock_llm.call_args.kwargs["user_prompt"]
+        assert "Paul Martin" in prompt
+        assert "Proposition actuelle" in prompt
+        assert proposal.employees[0].employee_id == "e1"
