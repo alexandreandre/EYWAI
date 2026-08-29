@@ -11,6 +11,7 @@ import { filterPresentEmployees } from '@/lib/employmentStatus';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { CalendarPilotHeader } from '@/components/schedules/CalendarPilotHeader';
+import { CalendarPeriodSelect } from '@/components/schedules/CalendarPeriodSelect';
 import { CalendarFiltersBar } from '@/components/schedules/CalendarFiltersBar';
 import { CalendarEmployeeTable } from '@/components/schedules/CalendarEmployeeTable';
 import { CalendarEmployeeDrawer } from '@/components/schedules/CalendarEmployeeDrawer';
@@ -325,14 +326,14 @@ export default function Schedules() {
     }
   };
 
-  const toggleSelect = (id: string) => {
+  const setSelected = useCallback((ids: string[], selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (selected) ids.forEach((id) => next.add(id));
+      else ids.forEach((id) => next.delete(id));
       return next;
     });
-  };
+  }, []);
 
   const toggleSelectAll = (ids: string[]) => {
     const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
@@ -361,9 +362,8 @@ export default function Schedules() {
       <CalendarPilotHeader
         year={selectedYear}
         month={selectedMonth}
-        onYearChange={setSelectedYear}
-        onMonthChange={setSelectedMonth}
         kpis={globalKpis}
+        exportRows={sortedRows}
         isLoading={isPageLoading}
         onOpenAssistedFill={openAssistedFillFromHeader}
         onOpenPointageImport={() => setPointageImportOpen(true)}
@@ -456,7 +456,17 @@ export default function Schedules() {
                       )}
 
       {viewMode === 'list' ? (
-        <CalendarEmployeeTable
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <CalendarPeriodSelect
+              year={selectedYear}
+              month={selectedMonth}
+              onYearChange={setSelectedYear}
+              onMonthChange={setSelectedMonth}
+              compact
+            />
+          </div>
+          <CalendarEmployeeTable
           rows={sortedRows}
           teamsById={teamsById}
           isLoading={isPageLoading}
@@ -465,7 +475,7 @@ export default function Schedules() {
           onRetryEmployees={() => void refetchEmployees()}
           unfilteredRowCount={rows.length}
           selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
+          onSetSelected={setSelected}
           onToggleSelectAll={toggleSelectAll}
           onOpenEmployee={setDrawerEmployeeId}
           sortKey={sortKey}
@@ -473,6 +483,7 @@ export default function Schedules() {
           onSort={handleSort}
           visibleIds={visibleIds}
         />
+        </div>
       ) : (
         <TeamPlanningView
           rows={sortedRows}
@@ -488,8 +499,10 @@ export default function Schedules() {
           initialWeekIndex={planningFocusWeek}
           highlightDays={planningHighlightDays}
           selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
+          onSetSelected={setSelected}
           onToggleSelectAll={toggleSelectAll}
+          onYearChange={setSelectedYear}
+          onMonthChange={setSelectedMonth}
         />
       )}
 

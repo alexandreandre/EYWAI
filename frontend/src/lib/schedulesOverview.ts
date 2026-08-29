@@ -278,11 +278,26 @@ export async function persistEmployeeMonth(
   ]);
 }
 
-export function exportOverviewCsv(
+export type OverviewExportFormat = 'csv' | 'xlsx' | 'pdf';
+
+export interface OverviewExportTable {
+  monthLabel: string;
+  filenameBase: string;
+  headers: string[];
+  records: string[][];
+}
+
+function statusExportLabel(status: EmployeeCalendarOverviewRow['rowStatus']): string {
+  if (status === 'a_saisir') return 'À saisir';
+  if (status === 'saisi_avec_ecart') return 'Écart à vérifier';
+  return 'Saisi';
+}
+
+export function buildOverviewExportTable(
   rows: EmployeeCalendarOverviewRow[],
   year: number,
-  month: number
-): void {
+  month: number,
+): OverviewExportTable {
   const monthLabel = new Date(year, month - 1).toLocaleString('fr-FR', {
     month: 'long',
     year: 'numeric',
@@ -298,30 +313,116 @@ export function exportOverviewCsv(
     'Conflits absences (jours)',
     'Mois',
   ];
-  const lines = rows.map((r) => {
-    const statusLabel =
-      r.rowStatus === 'a_saisir'
-        ? 'À saisir'
-        : r.rowStatus === 'saisi_avec_ecart'
-          ? 'Écart à vérifier'
-          : 'Saisi';
+  const records = rows.map((r) => {
     const unit = r.isForfaitJour ? ' j' : ' h';
     return [
       r.employee.last_name,
       r.employee.first_name,
       r.employee.job_title ?? '',
-      statusLabel,
+      statusExportLabel(r.rowStatus),
       `${r.heuresPrevues.toFixed(1)}${unit}`,
       `${r.heuresFaites.toFixed(1)}${unit}`,
       `${r.ecart >= 0 ? '+' : ''}${r.ecart.toFixed(1)}${unit}`,
       r.absenceConflictDays.join('; ') || '—',
       monthLabel,
-    ]
-      .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-      .join(',');
+    ];
   });
+  return {
+    monthLabel,
+    filenameBase: `calendriers-${year}-${String(month).padStart(2, '0')}`,
+    headers,
+    records,
+  };
+}
 
-  const csv = [headers.join(','), ...lines].join('\n');
+function escapeCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export function exportOverviewCsv(
+  rows: EmployeeCalendarOverviewRow[],
+  year: number,
+  month: number
+): void {
+  const table = buildOverviewExportTable(rows, year, month);
+  const csv = [
+    table.headers.map(escapeCsvCell).join(','),
+    ...table.records.map((line) => line.map(escapeCsvCell).join(',')),
+  ].join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `calendriers-${year}-${String(month).padStart(2, '0')}.csv`);
+  downloadBlob(blob, `${table.filenameBase}.csv`);
+}
+
+export async function exportOverviewXlsx(
+  rows: EmployeeCalendarOverviewRow[],
+  year: number,
+  month: number,
+): Promise<void> {
+  const table = buildOverviewExportTable(rows, year, month);
+  const { loadExcelJS } = await import('@/lib/excelReport');
+  const ExcelJS = await loadExcelJS();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Calendriers');
+  ws.addRow(table.headers);
+  table.records.forEach((record) => ws.addRow(record));
+  ws.columns.forEach((col) => {
+    col.width = 18;
+  });
+  const buffer = await wb.xlsx.writeBuffer();
+  downloadBlob(
+    new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    `${table.filenameBase}.xlsx`,
+  );
+}
+
+export function exportOverviewPdf(
+  rows: EmployeeCalendarOverviewRow[],
+  year: number,
+  month: number,
+): void {
+  const table = buildOverviewExportTable(rows, year, month);
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Calendriers — ${escapeHtml(table.monthLabel)}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 12px; color: #111; margin: 24px; }
+    h1 { font-size: 16px; margin: 0 0 12px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f4f4f4; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Calendriers — ${escapeHtml(table.monthLabel)}</h1>
+  <table>
+    <thead><tr>${table.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${table.records
+        .map((record) => `<tr>${record.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
+        .join('')}
+    </tbody>
+  </table>
+</body>
+</html>`;
+  const popup = window.open('', '_blank', 'noopener,noreferrer');
+  if (!popup) {
+    downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${table.filenameBase}.html`);
+    return;
+  }
+  popup.document.write(html);
+  popup.document.close();
+  popup.focus();
+  popup.print();
 }
