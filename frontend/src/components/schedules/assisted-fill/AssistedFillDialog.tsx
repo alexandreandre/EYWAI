@@ -18,6 +18,7 @@ import {
   type AiCalendarProposal,
   type RosterEmployee,
 } from '@/api/calendar';
+import { AssistedFillProgress } from './AssistedFillProgress';
 import { AssistedFillReview } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
 
@@ -104,6 +105,7 @@ export function AssistedFillDialog({
 
   const analyzeText = async () => {
     if (!instruction.trim()) return;
+    if (dictation.isListening) dictation.stop();
     setIsAnalyzing(true);
     try {
       const result = await parseScheduleInstruction(
@@ -135,7 +137,9 @@ export function AssistedFillDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         className={cn(
-          'flex h-[90dvh] max-h-[90dvh] w-full max-w-3xl translate-y-0 flex-col gap-0 overflow-hidden p-0 top-[5dvh]',
+          // max-h seul : le modal épouse son contenu (une revue à 1 salarié ne
+          // flotte plus dans un écran vide) tout en restant plafonné.
+          'flex max-h-[90dvh] w-full max-w-3xl translate-y-0 flex-col gap-0 overflow-hidden p-0 top-[5dvh]',
           proposal && 'max-w-4xl',
         )}
       >
@@ -165,6 +169,8 @@ export function AssistedFillDialog({
             onApplied={handleApplied}
             onBack={() => setProposal(null)}
           />
+        ) : isAnalyzing ? (
+          <AssistedFillProgress />
         ) : (
           <div className="max-h-full space-y-2 overflow-y-auto pr-1">
             {targetSummary && targetSummary.count > 0 && !singleEmployee && (
