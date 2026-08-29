@@ -50,3 +50,42 @@ def test_create_async_logs_and_reraises_on_failure(monkeypatch):
             )
     logged = " ".join(str(a) for a in mock_warning.call_args.args)
     assert "gemini-2.5-flash" in logged
+
+
+def test_get_async_chat_client_is_scoped_per_event_loop(monkeypatch):
+    """Un asyncio.run() suivant d'un autre ne doit pas réutiliser le transport
+    httpx d'une boucle déjà fermée (fuite de transports entre jobs)."""
+    from app.shared.infrastructure.ai import client_async
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
+    client_async._clients_by_loop.clear()
+
+    made_clients = []
+
+    def _fake_async_openai(**kwargs):
+        client = MagicMock()
+        client.close = AsyncMock()
+        made_clients.append(client)
+        return client
+
+    monkeypatch.setattr(client_async, "AsyncOpenAI", _fake_async_openai)
+
+    first = asyncio.run(_call_and_return(client_async))
+    second = asyncio.run(_call_and_return(client_async))
+
+    assert first is not second
+    assert len(made_clients) == 2
+    assert client_async._clients_by_loop == {}
+
+
+async def _call_and_return(client_async):
+    client = client_async.get_async_chat_client()
+    await client_async.aclose_current_loop_client()
+    return client
+
+
+def test_aclose_current_loop_client_is_noop_when_nothing_cached():
+    from app.shared.infrastructure.ai import client_async
+
+    client_async._clients_by_loop.clear()
+    asyncio.run(client_async.aclose_current_loop_client())

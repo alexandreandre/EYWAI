@@ -71,9 +71,34 @@ def cancel_active_import_jobs(company_id: str) -> list[str]:
 
 
 def _raise_if_job_cancelled(job_id: str) -> None:
+    """Coupe le thread si le job a été annulé, ou marqué failed par le watchdog.
+
+    Un job « extracting » sans heartbeat récent peut être marqué failed pendant
+    que son thread tourne toujours : sans cette garde, ce thread zombie
+    ressusciterait le statut (heartbeat) ou écraserait la complétion, avec un
+    risque de double import au relancement par l'utilisateur.
+    """
     job = get_import_job(job_id)
-    if job and job.get("status") == "cancelled":
-        raise ScheduleAppError("cancelled", "Import annulé.", status_code=499)
+    if job and job.get("status") in ("cancelled", "failed"):
+        raise ScheduleAppError("cancelled", "Import interrompu.", status_code=499)
+
+
+def _job_is_terminal(job_id: str) -> bool:
+    """True si le job est déjà cancelled/failed (watchdog ou annulation).
+
+    Utilisé juste avant d'écrire une complétion, pour qu'un thread zombie ne
+    puisse pas écraser un statut déjà terminal après coup.
+    """
+    result = (
+        _db()
+        .table("schedule_import_jobs")
+        .select("status")
+        .eq("id", job_id)
+        .maybe_single()
+        .execute()
+    )
+    row = result.data
+    return bool(row) and row.get("status") in ("cancelled", "failed")
 
 
 def create_import_job(
@@ -122,10 +147,13 @@ def create_import_job(
     return {**job, "id": job_id, "file_storage_path": storage_path}
 
 
-# > 2 × le pire cas d'un lot natif (lecture 120 s × 2 tentatives) : au-delà,
-# l'instance qui portait le job est morte (OOM/redémarrage) et personne ne
-# marquera jamais l'échec — c'est le bug de l'attente infinie du 29/08.
-_STALE_EXTRACTING_SECONDS = 300
+# Pire cas empilé d'un seul lot natif : ~2 tentatives applicatives ×
+# (3 tentatives SDK × 120 s de lecture + backoff) ≈ 12 min sans heartbeat
+# intermédiaire. 600 s est un compromis — avec les gardes d'état ci-dessus,
+# un faux positif interrompt maintenant proprement le job vivant à son
+# prochain point de contrôle (heartbeat/complétion) plutôt que d'entrer en
+# course avec lui.
+_STALE_EXTRACTING_SECONDS = 600
 
 
 def _parse_iso_datetime(raw: str | None) -> datetime | None:
@@ -158,15 +186,34 @@ def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, A
                 "L'analyse a été interrompue (instance redémarrée). "
                 "Relancez l'import."
             )
-            _update_job(
-                job_id,
-                {
-                    "status": "failed",
-                    "error_message": message,
-                    "completed_at": _now_iso(),
-                },
-            )
-            job = {**job, "status": "failed", "error_message": message}
+            progress = dict(job.get("progress_json") or {})
+            progress.setdefault("pages_total", 0)
+            progress.setdefault("pages_done", 0)
+            progress.setdefault("current_page", 0)
+            progress["phase"] = "failed"
+            try:
+                _update_job(
+                    job_id,
+                    {
+                        "status": "failed",
+                        "error_message": message,
+                        "completed_at": _now_iso(),
+                        "progress_json": progress,
+                    },
+                )
+            except Exception as exc:
+                # Un GET ne doit jamais renvoyer 500 parce que l'écriture de
+                # marquage a échoué : on journalise et on renvoie quand même
+                # la copie failed en mémoire.
+                logger.warning(
+                    "Marquage watchdog du job %s en échec: %s", job_id, exc
+                )
+            job = {
+                **job,
+                "status": "failed",
+                "error_message": message,
+                "progress_json": progress,
+            }
     return job
 
 
@@ -228,7 +275,9 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
 
     def on_progress(progress: dict[str, Any]) -> None:
         _raise_if_job_cancelled(job_id)
-        _update_job(job_id, {"progress_json": progress, "status": "extracting"})
+        # Heartbeat : ne touche jamais au statut, pour ne pas ressusciter un
+        # job déjà marqué cancelled/failed par le watchdog.
+        _update_job(job_id, {"progress_json": progress})
 
     try:
         roster = [RosterEmployee(**item) for item in request.get("employees") or []]
@@ -289,6 +338,11 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             consensus_conflicts=proposal.consensus_conflicts,
         )
 
+        if _job_is_terminal(job_id):
+            # Le watchdog (ou une annulation) a déjà tranché pendant que ce
+            # thread terminait son travail : ne pas écraser ce statut, sous
+            # peine de double import silencieux au relancement.
+            return
         _update_job(
             job_id,
             {
@@ -385,6 +439,8 @@ def run_multi_timesheet_extraction_job(
         )
         master_id = str(master_batch["id"])
 
+        if _job_is_terminal(job_id):
+            return
         _update_job(
             job_id,
             {

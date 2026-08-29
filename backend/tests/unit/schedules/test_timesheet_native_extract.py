@@ -156,6 +156,20 @@ def test_native_batch_partial_payload_warns_missing_pages(monkeypatch):
     assert any("absente" in w for w in warnings_page2)
 
 
+def test_unsupported_file_format_raises_document_extraction_error():
+    """Un fichier non PDF/image (.docx…) ne doit jamais partir en vision — 400 propre."""
+    from app.modules.schedules.application import timesheet_native_extract as native
+    from app.shared.infrastructure.documents import DocumentExtractionError
+
+    with pytest.raises(DocumentExtractionError):
+        native.extract_timesheet_native(
+            file_content=b"PK\x03\x04 fake docx bytes",
+            filename="releve.docx",
+            year=2026,
+            month=6,
+        )
+
+
 def test_deterministic_text_layer_short_circuits_llm(monkeypatch):
     """Couche texte Cegid confiante → aucun appel IA (fast path de la spec)."""
     from unittest.mock import AsyncMock

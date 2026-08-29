@@ -40,6 +40,7 @@ from app.modules.schedules.domain.punch_accounting_entities import (
     PunchAccountingSettings,
 )
 from app.shared.infrastructure.ai import is_llm_configured
+from app.shared.infrastructure.ai.client_async import aclose_current_loop_client
 from app.shared.infrastructure.ai.structured_document import (
     extract_structured_json_from_pdf,
 )
@@ -177,48 +178,53 @@ async def _extract_pdf_batches_async(
             )
             return batch, payload
 
-    _heartbeat(0)
-    for coro in asyncio.as_completed([_run_batch(b) for b in batches]):
-        batch, payload = await coro
-        batch_pages = list(range(batch.page_start, batch.page_end + 1))
-        if payload is None:
-            for idx in batch_pages:
-                page_results.append(
-                    PageExtractionResult(
-                        page_index=idx,
-                        warnings=[f"Page {idx} : extraction native échouée."],
-                    )
-                )
-        else:
-            pages = payload.data.get("pages") or []
-            per_page_tokens = payload.tokens_used // max(1, len(pages))
-            covered_pages: set[int] = set()
-            for offset, page_data in enumerate(pages):
-                page_result = _consensus_from_page_data(
-                    page_data,
-                    fallback_index=batch_pages[min(offset, len(batch_pages) - 1)],
-                    tokens=per_page_tokens,
-                    year=year,
-                    month=month,
-                    punch_settings=punch_settings,
-                )
-                page_results.append(page_result)
-                covered_pages.add(page_result.page_index)
-            tokens_total += payload.tokens_used
-            # Une réponse partielle (modèle qui omet une page du lot) ne doit
-            # pas faire disparaître la page sans trace : on la signale.
-            for idx in batch_pages:
-                if idx not in covered_pages:
+    try:
+        _heartbeat(0)
+        for coro in asyncio.as_completed([_run_batch(b) for b in batches]):
+            batch, payload = await coro
+            batch_pages = list(range(batch.page_start, batch.page_end + 1))
+            if payload is None:
+                for idx in batch_pages:
                     page_results.append(
                         PageExtractionResult(
                             page_index=idx,
-                            warnings=[f"Page {idx} : absente de la réponse IA."],
+                            warnings=[f"Page {idx} : extraction native échouée."],
                         )
                     )
-        done_pages += len(batch_pages)
-        _heartbeat(batch.page_end)
+            else:
+                pages = payload.data.get("pages") or []
+                per_page_tokens = payload.tokens_used // max(1, len(pages))
+                covered_pages: set[int] = set()
+                for offset, page_data in enumerate(pages):
+                    page_result = _consensus_from_page_data(
+                        page_data,
+                        fallback_index=batch_pages[min(offset, len(batch_pages) - 1)],
+                        tokens=per_page_tokens,
+                        year=year,
+                        month=month,
+                        punch_settings=punch_settings,
+                    )
+                    page_results.append(page_result)
+                    covered_pages.add(page_result.page_index)
+                tokens_total += payload.tokens_used
+                # Une réponse partielle (modèle qui omet une page du lot) ne doit
+                # pas faire disparaître la page sans trace : on la signale.
+                for idx in batch_pages:
+                    if idx not in covered_pages:
+                        page_results.append(
+                            PageExtractionResult(
+                                page_index=idx,
+                                warnings=[f"Page {idx} : absente de la réponse IA."],
+                            )
+                        )
+            done_pages += len(batch_pages)
+            _heartbeat(batch.page_end)
 
-    return page_results, tokens_total, pages_total
+        return page_results, tokens_total, pages_total
+    finally:
+        # Fin de l'orchestration async de ce job : oublie et ferme le client
+        # (et son pool httpx) attaché à la boucle courante.
+        await aclose_current_loop_client()
 
 
 def extract_timesheet_native(
@@ -297,6 +303,12 @@ def extract_timesheet_native(
         # document. Le vrai comptage sert à détecter et signaler une troncature.
         real_pages_total = _real_pdf_page_count(file_content, fallback=pages_total)
     else:
+        from pathlib import Path
+
+        if Path(filename or "").suffix.lower() not in _IMAGE_MIMES:
+            raise DocumentExtractionError(
+                "Format non supporté. Formats acceptés : PDF, JPG, PNG."
+            )
         vision = extract_structured_json_from_image(
             system_prompt=build_page_system_prompt(
                 year=year,

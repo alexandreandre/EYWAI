@@ -41,7 +41,7 @@ from app.shared.infrastructure.documents import (
 from app.modules.schedules.application.timesheet_native_extract import (
     extract_timesheet_native as _native_extractor,
 )
-from app.shared.infrastructure.documents.text_extraction import (  # noqa: F811 - complète l'import existant
+from app.shared.infrastructure.documents.text_extraction import (
     extract_pdf_text_layer,
 )
 
@@ -1102,7 +1102,7 @@ def _extract_timesheet_hybrid_path(
     )
     final = final.model_copy(
         update={
-            "extraction_mode": "hybrid",
+            "extraction_mode": mode,
             "consensus_conflicts": hybrid.consensus_conflicts,
         }
     )
@@ -1117,7 +1117,7 @@ def _extract_timesheet_hybrid_path(
             extraction_method=method,
             raw_ocr_text=text,
             import_job_id=import_job_id,
-            extraction_mode="hybrid",
+            extraction_mode=mode,
             page_count=hybrid.pages_processed,
             consensus_conflicts=hybrid.consensus_conflicts,
         )

@@ -69,3 +69,4 @@ def test_native_mode_calls_native_extractor_not_ocr(monkeypatch):
     mock_native.assert_called_once()
     mock_ocr_prescan.assert_not_called()
     assert response.extraction_method == "native_pdf"
+    assert response.extraction_mode == "native"
