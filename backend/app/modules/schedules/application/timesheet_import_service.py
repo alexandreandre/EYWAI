@@ -122,12 +122,52 @@ def create_import_job(
     return {**job, "id": job_id, "file_storage_path": storage_path}
 
 
+# > 2 × le pire cas d'un lot natif (lecture 120 s × 2 tentatives) : au-delà,
+# l'instance qui portait le job est morte (OOM/redémarrage) et personne ne
+# marquera jamais l'échec — c'est le bug de l'attente infinie du 29/08.
+_STALE_EXTRACTING_SECONDS = 300
+
+
+def _parse_iso_datetime(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, Any] | None:
     query = _db().table("schedule_import_jobs").select("*").eq("id", job_id)
     if company_id:
         query = query.eq("company_id", company_id)
     result = query.maybe_single().execute()
-    return result.data
+    job = result.data
+    if job and job.get("status") == "extracting":
+        heartbeat = _parse_iso_datetime(job.get("updated_at"))
+        stale = (
+            heartbeat is None
+            or (datetime.now(timezone.utc) - heartbeat).total_seconds()
+            > _STALE_EXTRACTING_SECONDS
+        )
+        if stale:
+            message = (
+                "L'analyse a été interrompue (instance redémarrée). "
+                "Relancez l'import."
+            )
+            _update_job(
+                job_id,
+                {
+                    "status": "failed",
+                    "error_message": message,
+                    "completed_at": _now_iso(),
+                },
+            )
+            job = {**job, "status": "failed", "error_message": message}
+    return job
 
 
 def cancel_import_job(job_id: str, *, company_id: str) -> bool:
