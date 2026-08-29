@@ -233,9 +233,15 @@ export default function Schedules() {
 
   const visibleIds = sortedRows.map((r) => r.employee.id);
 
-  const aSaisirRows = useMemo(
-    () => sortedRows.filter((r) => r.rowStatus === 'a_saisir'),
-    [sortedRows]
+  // Compteurs sur tout le mois (avant filtres) : les segments de statut
+  // doivent rester stables quand on filtre par équipe ou recherche.
+  const statusCounts = useMemo(
+    () => ({
+      aSaisir: rows.filter((r) => r.rowStatus === 'a_saisir').length,
+      saisi: rows.filter((r) => r.rowStatus === 'saisi').length,
+      ecart: rows.filter((r) => r.rowStatus === 'saisi_avec_ecart').length,
+    }),
+    [rows]
   );
 
   const orderedEmployeesForDrawer = useMemo(
@@ -415,7 +421,7 @@ export default function Schedules() {
         onViewModeChange={setViewMode}
         filteredCount={filteredRows.length}
         totalCount={rows.length}
-        aSaisirCount={aSaisirRows.length}
+        statusCounts={statusCounts}
         isLoading={isPageLoading}
       />
 

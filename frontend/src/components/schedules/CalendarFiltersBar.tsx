@@ -8,9 +8,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Search, LayoutList, ListTodo, Users } from 'lucide-react';
+import { Search, LayoutList, Users } from 'lucide-react';
 import type { Team } from '@/api/teams';
 import type { ModeFilter, SaisieStatusFilter, ViewMode } from './types';
+
+const SAISIE_FILTER_LABELS: Record<Exclude<SaisieStatusFilter, 'all'>, string> = {
+  a_saisir: 'à saisir',
+  saisi: 'saisis',
+  saisi_avec_ecart: 'écarts à vérifier',
+};
 
 interface CalendarFiltersBarProps {
   searchQuery: string;
@@ -26,8 +32,8 @@ interface CalendarFiltersBarProps {
   onViewModeChange: (v: ViewMode) => void;
   filteredCount: number;
   totalCount: number;
-  /** Nombre de calendriers restant à saisir (pour le filtre d'état). */
-  aSaisirCount: number;
+  /** Compteurs par statut de saisie (sur tout le mois, avant filtres). */
+  statusCounts: { aSaisir: number; saisi: number; ecart: number };
   isLoading?: boolean;
 }
 
@@ -45,7 +51,7 @@ export function CalendarFiltersBar({
   onViewModeChange,
   filteredCount,
   totalCount,
-  aSaisirCount,
+  statusCounts,
   isLoading = false,
 }: CalendarFiltersBarProps) {
   const teamValue =
@@ -122,20 +128,47 @@ export function CalendarFiltersBar({
             </SelectContent>
           </Select>
 
-          <Select
-            value={saisieFilter}
-            onValueChange={(v) => onSaisieFilterChange(v as SaisieStatusFilter)}
+          {/* Statut de saisie : segments à compteurs — un clic filtre le
+              tableau, le segment actif reste en surbrillance. */}
+          <div
+            role="group"
+            aria-label="Filtrer le tableau par statut de saisie"
+            className="flex items-center gap-0.5 rounded-md border bg-muted/30 p-0.5"
           >
-            <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
-              <SelectValue placeholder="Statut saisie" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les statuts</SelectItem>
-              <SelectItem value="a_saisir">À saisir</SelectItem>
-              <SelectItem value="saisi">Saisi</SelectItem>
-              <SelectItem value="saisi_avec_ecart">Écart à vérifier</SelectItem>
-            </SelectContent>
-          </Select>
+            {(
+              [
+                { value: 'all', label: 'Tous', count: totalCount },
+                { value: 'a_saisir', label: 'À saisir', count: statusCounts.aSaisir },
+                { value: 'saisi', label: 'Saisis', count: statusCounts.saisi },
+                {
+                  value: 'saisi_avec_ecart',
+                  label: 'Écarts',
+                  count: statusCounts.ecart,
+                },
+              ] as { value: SaisieStatusFilter; label: string; count: number }[]
+            ).map((opt) => (
+              <Button
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={saisieFilter === opt.value ? 'default' : 'ghost'}
+                className="h-8 gap-1 px-2.5 text-xs"
+                aria-pressed={saisieFilter === opt.value}
+                onClick={() => onSaisieFilterChange(opt.value)}
+              >
+                {opt.label}
+                <span
+                  className={
+                    saisieFilter === opt.value
+                      ? 'tabular-nums opacity-80'
+                      : 'tabular-nums text-muted-foreground'
+                  }
+                >
+                  {opt.count}
+                </span>
+              </Button>
+            ))}
+          </div>
 
           <Select
             value={modeFilter}
@@ -152,30 +185,33 @@ export function CalendarFiltersBar({
           </Select>
         </div>
 
-        {/* Filtre d'état : montre les calendriers restant à saisir dans le
-            tableau — la sélection et les actions se font sur les lignes. */}
-        {!isLoading && aSaisirCount > 0 && (
-          <Button
-            type="button"
-            size="sm"
-            variant={saisieFilter === 'a_saisir' ? 'default' : 'outline'}
-            className="h-9 gap-1.5"
-            aria-pressed={saisieFilter === 'a_saisir'}
-            onClick={() =>
-              onSaisieFilterChange(saisieFilter === 'a_saisir' ? 'all' : 'a_saisir')
-            }
-          >
-            <ListTodo className="h-4 w-4" />À saisir ({aSaisirCount})
-          </Button>
-        )}
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {isLoading
-          ? 'Chargement des calendriers…'
-          : `${filteredCount} employé${filteredCount > 1 ? 's' : ''} affiché${
-              filteredCount !== totalCount ? ` sur ${totalCount}` : ''
-            }`}
+        {isLoading ? (
+          'Chargement des calendriers…'
+        ) : (
+          <>
+            {filteredCount} employé{filteredCount > 1 ? 's' : ''} affiché
+            {filteredCount > 1 ? 's' : ''}
+            {filteredCount !== totalCount && ` sur ${totalCount}`}
+            {saisieFilter !== 'all' && (
+              <>
+                {' — tableau filtré : '}
+                <span className="font-medium text-foreground">
+                  {SAISIE_FILTER_LABELS[saisieFilter]}
+                </span>
+                <button
+                  type="button"
+                  className="ml-2 underline underline-offset-2 hover:text-foreground"
+                  onClick={() => onSaisieFilterChange('all')}
+                >
+                  Tout afficher
+                </button>
+              </>
+            )}
+          </>
+        )}
       </p>
     </div>
   );
