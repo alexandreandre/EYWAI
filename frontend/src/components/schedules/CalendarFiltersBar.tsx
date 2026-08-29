@@ -8,15 +8,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Search, LayoutList, Users } from 'lucide-react';
+import { Search, LayoutList, ListFilter, Users } from 'lucide-react';
 import type { Team } from '@/api/teams';
 import type { ModeFilter, SaisieStatusFilter, ViewMode } from './types';
-
-const SAISIE_FILTER_LABELS: Record<Exclude<SaisieStatusFilter, 'all'>, string> = {
-  a_saisir: 'à saisir',
-  saisi: 'saisis',
-  saisi_avec_ecart: 'écarts à vérifier',
-};
 
 interface CalendarFiltersBarProps {
   searchQuery: string;
@@ -135,6 +129,10 @@ export function CalendarFiltersBar({
             aria-label="Filtrer le tableau par statut de saisie"
             className="flex items-center gap-0.5 rounded-md border bg-muted/30 p-0.5"
           >
+            <span className="flex items-center gap-1 pl-2 pr-1 text-xs font-medium text-muted-foreground">
+              <ListFilter className="h-3.5 w-3.5" />
+              Filtrer :
+            </span>
             {(
               [
                 { value: 'all', label: 'Tous', count: totalCount },
@@ -188,30 +186,11 @@ export function CalendarFiltersBar({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {isLoading ? (
-          'Chargement des calendriers…'
-        ) : (
-          <>
-            {filteredCount} employé{filteredCount > 1 ? 's' : ''} affiché
-            {filteredCount > 1 ? 's' : ''}
-            {filteredCount !== totalCount && ` sur ${totalCount}`}
-            {saisieFilter !== 'all' && (
-              <>
-                {' — tableau filtré : '}
-                <span className="font-medium text-foreground">
-                  {SAISIE_FILTER_LABELS[saisieFilter]}
-                </span>
-                <button
-                  type="button"
-                  className="ml-2 underline underline-offset-2 hover:text-foreground"
-                  onClick={() => onSaisieFilterChange('all')}
-                >
-                  Tout afficher
-                </button>
-              </>
-            )}
-          </>
-        )}
+        {isLoading
+          ? 'Chargement des calendriers…'
+          : `${filteredCount} employé${filteredCount > 1 ? 's' : ''} affiché${
+              filteredCount > 1 ? 's' : ''
+            }${filteredCount !== totalCount ? ` sur ${totalCount}` : ''}`}
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { RefreshCw } from 'lucide-react';
+import { ListFilter, RefreshCw } from 'lucide-react';
 import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
 import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
@@ -25,6 +25,7 @@ import { usePlanningImportJobs, type PlanningImportJob } from '@/hooks/usePlanni
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { SAISIE_FILTER_LABELS } from '@/components/schedules/types';
 import type {
   ModeFilter,
   SaisieStatusFilter,
@@ -424,6 +425,28 @@ export default function Schedules() {
         statusCounts={statusCounts}
         isLoading={isPageLoading}
       />
+
+      {/* Bandeau explicite : le tableau est filtré, et comment tout revoir. */}
+      {!isPageLoading && saisieFilter !== 'all' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <p className="flex flex-wrap items-center gap-1.5">
+            <ListFilter className="h-4 w-4 shrink-0 text-primary" />
+            Le tableau n&apos;affiche que les calendriers{' '}
+            <span className="font-semibold">
+              « {SAISIE_FILTER_LABELS[saisieFilter]} »
+            </span>
+            — {filteredRows.length} sur {rows.length}.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSaisieFilter('all')}
+          >
+            Afficher les {rows.length} calendriers
+          </Button>
+        </div>
+      )}
 
       {allSaisiBanner && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
