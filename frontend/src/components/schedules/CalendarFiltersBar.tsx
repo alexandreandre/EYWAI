@@ -122,52 +122,6 @@ export function CalendarFiltersBar({
             </SelectContent>
           </Select>
 
-          {/* Statut de saisie : segments à compteurs — un clic filtre le
-              tableau, le segment actif reste en surbrillance. */}
-          <div
-            role="group"
-            aria-label="Filtrer le tableau par statut de saisie"
-            className="flex items-center gap-0.5 rounded-md border bg-muted/30 p-0.5"
-          >
-            <span className="flex items-center gap-1 pl-2 pr-1 text-xs font-medium text-muted-foreground">
-              <ListFilter className="h-3.5 w-3.5" />
-              Filtrer :
-            </span>
-            {(
-              [
-                { value: 'all', label: 'Tous', count: totalCount },
-                { value: 'a_saisir', label: 'À saisir', count: statusCounts.aSaisir },
-                { value: 'saisi', label: 'Saisis', count: statusCounts.saisi },
-                {
-                  value: 'saisi_avec_ecart',
-                  label: 'Écarts',
-                  count: statusCounts.ecart,
-                },
-              ] as { value: SaisieStatusFilter; label: string; count: number }[]
-            ).map((opt) => (
-              <Button
-                key={opt.value}
-                type="button"
-                size="sm"
-                variant={saisieFilter === opt.value ? 'default' : 'ghost'}
-                className="h-8 gap-1 px-2.5 text-xs"
-                aria-pressed={saisieFilter === opt.value}
-                onClick={() => onSaisieFilterChange(opt.value)}
-              >
-                {opt.label}
-                <span
-                  className={
-                    saisieFilter === opt.value
-                      ? 'tabular-nums opacity-80'
-                      : 'tabular-nums text-muted-foreground'
-                  }
-                >
-                  {opt.count}
-                </span>
-              </Button>
-            ))}
-          </div>
-
           <Select
             value={modeFilter}
             onValueChange={(v) => onModeFilterChange(v as ModeFilter)}
@@ -183,6 +137,53 @@ export function CalendarFiltersBar({
           </Select>
         </div>
 
+      </div>
+
+      {/* Statut de saisie : sa propre ligne, toujours au même endroit —
+          les segments à compteurs filtrent le tableau, l'actif est en
+          surbrillance. */}
+      <div
+        role="group"
+        aria-label="Filtrer le tableau par statut de saisie"
+        className="flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-md border bg-muted/30 p-0.5"
+      >
+        <span className="flex items-center gap-1 pl-2 pr-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+          <ListFilter className="h-3.5 w-3.5" />
+          Filtrer :
+        </span>
+        {(
+          [
+            { value: 'all', label: 'Tous', count: totalCount },
+            { value: 'a_saisir', label: 'À saisir', count: statusCounts.aSaisir },
+            { value: 'saisi', label: 'Saisis', count: statusCounts.saisi },
+            {
+              value: 'saisi_avec_ecart',
+              label: 'Écarts',
+              count: statusCounts.ecart,
+            },
+          ] as { value: SaisieStatusFilter; label: string; count: number }[]
+        ).map((opt) => (
+          <Button
+            key={opt.value}
+            type="button"
+            size="sm"
+            variant={saisieFilter === opt.value ? 'default' : 'ghost'}
+            className="h-8 shrink-0 gap-1 px-2.5 text-xs"
+            aria-pressed={saisieFilter === opt.value}
+            onClick={() => onSaisieFilterChange(opt.value)}
+          >
+            {opt.label}
+            <span
+              className={
+                saisieFilter === opt.value
+                  ? 'tabular-nums opacity-80'
+                  : 'tabular-nums text-muted-foreground'
+              }
+            >
+              {opt.count}
+            </span>
+          </Button>
+        ))}
       </div>
 
       <p className="text-xs text-muted-foreground">
