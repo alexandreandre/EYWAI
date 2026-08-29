@@ -29,7 +29,7 @@ def get_employees_for_company(company_id: str) -> list[dict]:
     resp = (
         supabase.table("employees")
         .select(
-            "id, company_id, first_name, last_name, hire_date, duree_hebdomadaire"
+            "id, company_id, first_name, last_name, hire_date, duree_hebdomadaire, employment_status"
         )
         .eq("company_id", company_id)
         .execute()

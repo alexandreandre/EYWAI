@@ -21,12 +21,16 @@ import {
   fetchAllEmployeesOverview,
   type SchedulesEmployeeInput,
 } from '@/lib/schedulesOverview';
+import { filterPresentEmployees } from '@/lib/employmentStatus';
 import { getModulationWorkflowStatus } from '@/api/modulation';
 import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
+import { filterTasksToPayrollFocus } from '@/lib/rhPendingTasks';
 import {
   buildRhPendingTasks,
   rhPendingTasksToSidebarCounts,
@@ -55,6 +59,8 @@ const STALE = 30_000;
  * File unifiée des actions RH à traiter — même périmètre que la pastille « Tableau de bord » sidebar.
  */
 export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string | null) {
+  const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user);
   const activeCompanyId = useActiveCompanyId();
   const companyId = companyIdOverride ?? activeCompanyId ?? null;
   const companyEnabled = enabled && Boolean(companyId);
@@ -139,7 +145,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],
     queryFn: async () => {
       const empRes = await apiClient.get<SchedulesEmployeeInput[]>('/api/employees');
-      const employees = empRes.data ?? [];
+      const employees = filterPresentEmployees(empRes.data ?? []);
       if (employees.length === 0) return 0;
       const rows = await fetchAllEmployeesOverview(employees, schedulesYear, schedulesMonth);
       return countSchedulesToEnter(rows);
@@ -237,7 +243,7 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     const medicalKpis = medicalKpisQuery.data;
     const recruitmentEnabled = recruitmentSettingsQuery.data?.enabled === true;
 
-    return buildRhPendingTasks({
+    const built = buildRhPendingTasks({
       pendingAbsences: dash?.actions.pendingAbsences ?? 0,
       pendingExpenses: dash?.actions.pendingExpenses ?? 0,
       obsoleteRates: dash?.alerts.obsoleteRates ?? 0,
@@ -267,7 +273,10 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
       onboardingPreview,
       onboardingHref,
     });
+
+    return payrollFocus ? filterTasksToPayrollFocus(built) : built;
   }, [
+    payrollFocus,
     dashboardQuery.data,
     residenceQuery.data,
     medicalSettingsQuery.data?.enabled,

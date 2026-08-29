@@ -37,6 +37,7 @@ export interface ContingentOverviewRow {
   first_name: string;
   last_name: string;
   hire_date: string | null;
+  employment_status?: string | null;
   structural_hours: number;
   paid_hours: number;
   pause_deduction: number;
@@ -77,7 +78,7 @@ export interface ContingentEmployeeDetail {
   reference_date: string;
   breakdown: Omit<
     ContingentOverviewRow,
-    'employee_id' | 'first_name' | 'last_name' | 'hire_date'
+    'employee_id' | 'first_name' | 'last_name' | 'hire_date' | 'employment_status'
   >;
   monthly: ContingentMonthlyRow[];
   adjustment: {

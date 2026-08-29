@@ -71,3 +71,11 @@ class TestMigrationEmployeeActivationTokens:
             r"ON\s+public\.employee_activation_tokens\s*\(employee_id\)",
             sql,
         )
+
+
+def test_migration_lien_partage_ajoute_la_colonne():
+    sql = (
+        _MIGRATIONS_DIR / "20260828000000_activation_lien_partage.sql"
+    ).read_text(encoding="utf-8")
+    assert "ADD COLUMN IF NOT EXISTS lien_partage" in sql
+    assert "idx_employee_activation_tokens_lien_partage" in sql

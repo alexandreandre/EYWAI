@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { ToastAction } from '@/components/ui/toast';
 import {
   Copy,
-  Download,
   LayoutTemplate,
   Loader2,
   CopyCheck,
+  Sparkles,
   Undo2,
   ScanLine,
 } from 'lucide-react';
@@ -14,7 +14,6 @@ import * as calendarApi from '@/api/calendar';
 import { useCompany } from '@/contexts/CompanyContext';
 import { runWithConcurrency } from '@/lib/concurrency';
 import { useToast } from '@/components/ui/use-toast';
-import { exportOverviewCsv } from '@/lib/schedulesOverview';
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
 import {
   restoreActualSnapshots,
@@ -32,6 +31,8 @@ interface CalendarBulkActionsBarProps {
   onClearSelection: () => void;
   onOpenApplyModel: () => void;
   onActionComplete: () => void;
+  /** Ouvre le remplissage IA ciblé sur la sélection courante. */
+  onFillWithAi: (ids: string[]) => void;
 }
 
 export function CalendarBulkActionsBar({
@@ -43,15 +44,12 @@ export function CalendarBulkActionsBar({
   onClearSelection,
   onOpenApplyModel,
   onActionComplete,
+  onFillWithAi,
 }: CalendarBulkActionsBarProps) {
   const { toast } = useToast();
   const { activeCompany } = useCompany();
   const companyId = activeCompany?.id ?? '';
   const [busy, setBusy] = useState<string | null>(null);
-
-  const selectedRows = overviewRows.filter((r) =>
-    selectedEmployeeIds.includes(r.employee.id)
-  );
 
   const runUndo = async (restore: () => Promise<void>) => {
     setBusy('undo');
@@ -250,11 +248,6 @@ export function CalendarBulkActionsBar({
     }
   };
 
-  const handleExport = () => {
-    exportOverviewCsv(selectedRows, year, month);
-    toast({ title: 'Export CSV', description: 'Fichier téléchargé.' });
-  };
-
   if (selectedCount === 0) return null;
 
   return (
@@ -317,13 +310,12 @@ export function CalendarBulkActionsBar({
       </Button>
       <Button
         size="sm"
-        variant="outline"
-        onClick={handleExport}
+        onClick={() => onFillWithAi(selectedEmployeeIds)}
         disabled={!!busy}
         className="shrink-0 whitespace-nowrap"
       >
-        <Download className="mr-1.5 h-4 w-4" />
-        Export CSV
+        <Sparkles className="mr-1.5 h-4 w-4" />
+        Remplir par l&apos;IA ({selectedCount})
       </Button>
       <Button
         size="sm"

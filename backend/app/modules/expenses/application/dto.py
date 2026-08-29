@@ -22,6 +22,7 @@ class CreateExpenseInput:
     receipt_url: Optional[str] = None
     filename: Optional[str] = None
     company_id: Optional[str] = None
+    initial_status: Optional[str] = None
 
 
 @dataclass

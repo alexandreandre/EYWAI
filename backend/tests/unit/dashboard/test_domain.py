@@ -20,8 +20,10 @@ from app.modules.dashboard.domain.rules import (
     compute_absenteeism_rate,
     count_absence_days_in_range,
     count_working_days_between,
+    filter_active_employees,
     get_last_n_past_months,
     get_previous_month,
+    is_active_employee,
 )
 
 
@@ -215,6 +217,35 @@ class TestBuildUpcomingEventsRaw:
         ]
         events = build_upcoming_events_raw(employees, date(2025, 3, 17), 30)
         assert isinstance(events, list)
+
+
+# --- is_active_employee / filter_active_employees ---
+
+
+class TestIsActiveEmployee:
+    def test_actif_is_active(self):
+        assert is_active_employee({"employment_status": "actif"}) is True
+
+    def test_parti_is_not_active(self):
+        assert is_active_employee({"employment_status": "parti"}) is False
+
+    def test_inactif_is_not_active(self):
+        assert is_active_employee({"employment_status": "inactif"}) is False
+
+    def test_missing_status_defaults_to_active(self):
+        assert is_active_employee({"id": "e1"}) is True
+
+
+class TestFilterActiveEmployees:
+    def test_excludes_partis(self):
+        employees = [
+            {"id": "1", "employment_status": "actif"},
+            {"id": "2", "employment_status": "parti"},
+            {"id": "3", "employment_status": "actif"},
+            {"id": "4", "employment_status": "inactif"},
+        ]
+        active = filter_active_employees(employees)
+        assert [e["id"] for e in active] == ["1", "3"]
 
 
 # --- aggregate_contract_distribution ---

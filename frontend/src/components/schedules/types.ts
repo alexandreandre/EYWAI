@@ -4,6 +4,16 @@ export type SaisieStatusFilter =
   | 'saisi'
   | 'saisi_avec_ecart';
 
+/** Libellés utilisateur des statuts de saisie (filtres et bandeaux). */
+export const SAISIE_FILTER_LABELS: Record<
+  Exclude<SaisieStatusFilter, 'all'>,
+  string
+> = {
+  a_saisir: 'à saisir',
+  saisi: 'saisis',
+  saisi_avec_ecart: 'écarts à vérifier',
+};
+
 export type ModeFilter = 'all' | 'horaire' | 'forfait_jour';
 
 export type ViewMode = 'list' | 'team';

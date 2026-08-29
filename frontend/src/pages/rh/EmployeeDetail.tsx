@@ -50,13 +50,14 @@ import {
 } from "@/utils/employeeContractualWatch";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { SaisieModal } from "@/components/SaisieModal";
 import { cn } from "@/lib/utils";
 import {
   resolveDefaultCollectiveAgreementId,
   sortAffiliatedCompanyAgreements,
 } from '@/lib/companyCollectiveAgreementUtils';
-import { TAB_AUGMENTATIONS_PROMOTIONS, TAB_SOLDE_CONGES, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
+import { TAB_AUGMENTATIONS_PROMOTIONS, TAB_SAISIE, TAB_SOLDE_CONGES, coercePayrollFocusEmployeeTab, normalizeEmployeeDetailTab } from "@/features/employee-detail/utils/tabs";
 import type { Employee } from "@/features/employee-detail/types";
 import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/EmployeeDetailSaisiesTab";
 import { WorkMedalEmployeeSection } from "@/features/work-medals/components/WorkMedalEmployeeSection";
@@ -95,6 +96,8 @@ export default function EmployeeDetail() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user);
   const previewFromState = (location.state as EmployeeDetailLocationState | null)?.employeePreview;
   const employeePreview =
     previewFromState?.id === employeeId
@@ -108,7 +111,11 @@ export default function EmployeeDetail() {
   const employeeStatut = employee?.statut;
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
-    return normalizeEmployeeDetailTab(params.get("tab"));
+    const tab = normalizeEmployeeDetailTab(
+      params.get("tab"),
+      payrollFocus ? TAB_SAISIE : "documents",
+    );
+    return payrollFocus ? coercePayrollFocusEmployeeTab(tab) : tab;
   });
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [boethSheetOpen, setBoethSheetOpen] = useState(false);
@@ -152,14 +159,18 @@ export default function EmployeeDetail() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    setActiveTab(normalizeEmployeeDetailTab(params.get("tab")));
-  }, [employeeId, location.search]);
+    const tab = normalizeEmployeeDetailTab(
+      params.get("tab"),
+      payrollFocus ? TAB_SAISIE : "documents",
+    );
+    setActiveTab(payrollFocus ? coercePayrollFocusEmployeeTab(tab) : tab);
+  }, [employeeId, location.search, payrollFocus]);
 
   const { activeCompany } = useCompany();
   const activeCompanyId = activeCompany?.company_id ?? "";
-  const { user } = useAuth();
   const showEmployeeCSEBlock =
-    user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
+    !payrollFocus &&
+    (user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh");
   const canEditEmployeePaySettings =
     user?.role === "rh" || user?.role === "admin" || user?.role === "collaborateur_rh";
   const canDeleteReview =
@@ -173,13 +184,13 @@ export default function EmployeeDetail() {
   const teamsActiveQuery = useQuery({
     queryKey: ["teams-active"],
     queryFn: () => getTeams(false),
-    enabled: Boolean(employeeId && employeeReady),
+    enabled: Boolean(employeeId && employeeReady && !payrollFocus),
     staleTime: 5 * 60_000,
   });
   const employeeBoethQuery = useQuery({
     queryKey: ["employee-boeth", employeeId],
     queryFn: () => getEmployeeBoeth(employeeId!),
-    enabled: Boolean(employeeId && employeeReady),
+    enabled: Boolean(employeeId && employeeReady && !payrollFocus),
     staleTime: 60_000,
   });
   const activeTeamsSorted = useMemo(
@@ -242,10 +253,10 @@ export default function EmployeeDetail() {
   const medicalSettingsQuery = useQuery({
     queryKey: queryKeys.medicalSettings(activeCompanyId),
     queryFn: getMedicalSettings,
-    enabled: Boolean(activeCompanyId),
+    enabled: Boolean(activeCompanyId && !payrollFocus),
     staleTime: 5 * 60_000,
   });
-  const medicalModuleEnabled = medicalSettingsQuery.data?.enabled === true;
+  const medicalModuleEnabled = !payrollFocus && medicalSettingsQuery.data?.enabled === true;
 
   const medicalTabBadgeQuery = useQuery({
     queryKey: employeeId ? medicalEmployeeQueryKey(employeeId) : ["medical-follow-up", "employee", "none"],
@@ -264,7 +275,7 @@ export default function EmployeeDetail() {
       const res = await getEmployeeAnnualReviews(employeeId!);
       return res.data ?? [];
     },
-    enabled: !!employeeId && employeeReady,
+    enabled: !!employeeId && employeeReady && !payrollFocus,
     staleTime: 60_000,
   });
   const annualReviewTabHasAlert = hasAnnualReviewTabAlert(annualReviewsTabBadgeQuery.data ?? []);
@@ -287,7 +298,7 @@ export default function EmployeeDetail() {
         badgeuseWeekRange.from,
         badgeuseWeekRange.to
       ),
-    enabled: Boolean(employeeId && activeCompanyId && !isForfaitJour && employeeReady),
+    enabled: Boolean(employeeId && activeCompanyId && !isForfaitJour && employeeReady && !payrollFocus),
     staleTime: 60_000,
   });
   const badgeuseTabHasAnomaly = (badgeuseTabBadgeQuery.data ?? []).some((d) => d.has_anomalies);
@@ -383,7 +394,7 @@ export default function EmployeeDetail() {
         previewUrl: res.data.preview_url ?? res.data.url ?? null,
       };
     },
-    enabled: Boolean(employeeId),
+    enabled: Boolean(employeeId && !payrollFocus),
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -536,9 +547,10 @@ export default function EmployeeDetail() {
         boethProfile={employeeBoethQuery.data ?? null}
         canEditBoeth={canEditEmployeePaySettings}
         onOpenBoethSheet={() => setBoethSheetOpen(true)}
+        payrollFocus={payrollFocus}
       />
 
-      {employee.employment_status === 'en_sortie' ? (
+      {!payrollFocus && employee.employment_status === 'en_sortie' ? (
         <EmployeePendingExitBanner
           employeeId={employeeId!}
           exitId={employee.current_exit_id}
@@ -546,7 +558,7 @@ export default function EmployeeDetail() {
         />
       ) : null}
 
-      {employeeId && employee && (employeeBoethQuery.data || canEditEmployeePaySettings) ? (
+      {!payrollFocus && employeeId && employee && (employeeBoethQuery.data || canEditEmployeePaySettings) ? (
         <EmployeeBoethCard
           employeeId={employeeId}
           profile={employeeBoethQuery.data ?? null}
@@ -556,7 +568,7 @@ export default function EmployeeDetail() {
         />
       ) : null}
 
-      {employeeId && employee && (
+      {!payrollFocus && employeeId && employee && (
         <EmployeeInvitationCard
           employeeId={employeeId}
           email={employee.email}
@@ -564,7 +576,7 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {employeeId && employee && (
+      {!payrollFocus && employeeId && employee && (
         <EmployeeDetailTrialPeriodCard
           employee={employee}
           onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
@@ -578,11 +590,12 @@ export default function EmployeeDetail() {
           employeeId={employeeId}
           employee={employee}
           variant={profileIncomplete ? 'onboarding' : 'edit'}
+          payrollFocus={payrollFocus}
           onSuccess={handleProfileEditSuccess}
         />
       )}
 
-      {employeeId && employee && employee.employment_status !== 'en_sortie' && (
+      {!payrollFocus && employeeId && employee && employee.employment_status !== 'en_sortie' && (
         <EmployeeOnboardingCompletion
           employeeId={employeeId}
           employee={employee}
@@ -599,31 +612,37 @@ export default function EmployeeDetail() {
         />
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="documents" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue={payrollFocus ? TAB_SAISIE : "documents"} className="w-full">
         <TabsList className="flex h-auto w-full gap-0.5 p-1 max-lg:justify-start max-lg:overflow-x-auto">
-          <TabsTrigger value="documents" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
-            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
-            Documents
-          </TabsTrigger>
-          <TabsTrigger
-            value={TAB_AUGMENTATIONS_PROMOTIONS}
-            className="min-w-0 flex-[1.15] px-2 py-1.5 text-[13px] leading-snug max-lg:flex-none max-lg:shrink-0"
-            title="Augmentations et Promotions"
-          >
-            <TrendingUp className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">Augmentations et Promotions</span>
-          </TabsTrigger>
+          {!payrollFocus && (
+            <TabsTrigger value="documents" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
+              <FileText className="mr-1.5 h-4 w-4 shrink-0" />
+              Documents
+            </TabsTrigger>
+          )}
+          {!payrollFocus && (
+            <TabsTrigger
+              value={TAB_AUGMENTATIONS_PROMOTIONS}
+              className="min-w-0 flex-[1.15] px-2 py-1.5 text-[13px] leading-snug max-lg:flex-none max-lg:shrink-0"
+              title="Augmentations et Promotions"
+            >
+              <TrendingUp className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
+              <span className="truncate">Augmentations et Promotions</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="saisie" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <ClipboardEdit className="mr-1.5 h-4 w-4 shrink-0" />
             <span className="truncate">Primes et autres</span>
           </TabsTrigger>
-          <TabsTrigger value="entretiens" className="relative min-w-0 flex-1 gap-1.5 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
-            <MessageSquare className="h-4 w-4 shrink-0" aria-hidden />
-            Entretiens
-            {annualReviewTabHasAlert && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="Entretien à traiter" />
-            )}
-          </TabsTrigger>
+          {!payrollFocus && (
+            <TabsTrigger value="entretiens" className="relative min-w-0 flex-1 gap-1.5 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
+              <MessageSquare className="h-4 w-4 shrink-0" aria-hidden />
+              Entretiens
+              {annualReviewTabHasAlert && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label="Entretien à traiter" />
+              )}
+            </TabsTrigger>
+          )}
           {medicalModuleEnabled && (
             <TabsTrigger value="suivi_medical" className="relative min-w-0 flex-1 gap-1.5 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
               <Stethoscope className="h-4 w-4 shrink-0" aria-hidden />
@@ -637,19 +656,22 @@ export default function EmployeeDetail() {
             <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
             Calendrier
           </TabsTrigger>
-          <TabsTrigger value="badgeuse" className="relative min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
-            <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
-            Badgeuse
-            {badgeuseTabHasAnomaly && (
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" aria-label="Anomalie de pointage sur les 7 derniers jours" />
-            )}
-          </TabsTrigger>
+          {!payrollFocus && (
+            <TabsTrigger value="badgeuse" className="relative min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
+              <ScanLine className="mr-1.5 h-4 w-4 shrink-0" />
+              Badgeuse
+              {badgeuseTabHasAnomaly && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" aria-label="Anomalie de pointage sur les 7 derniers jours" />
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value={TAB_SOLDE_CONGES} className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
             <Palmtree className="mr-1.5 h-4 w-4 shrink-0" />
             <span className="truncate">Soldes congés</span>
           </TabsTrigger>
         </TabsList>
 
+        {!payrollFocus && (
         <TabsContent value="documents" className="mt-4 space-y-4">
           {employeeId && employee ? (
             <EmployeeDetailDocumentsTab
@@ -660,7 +682,9 @@ export default function EmployeeDetail() {
             <TabPanelSkeleton />
           )}
         </TabsContent>
+        )}
 
+        {!payrollFocus && (
         <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4">
           <Suspense fallback={<TabPanelSkeleton />}>
             <EmployeeDetailAugmentationsPromotionsTab
@@ -674,6 +698,7 @@ export default function EmployeeDetail() {
             />
           </Suspense>
         </TabsContent>
+        )}
 
         <TabsContent value="saisie" className="mt-4 space-y-4">
           {employeeId && employee ? (
@@ -690,6 +715,7 @@ export default function EmployeeDetail() {
                 canEdit={canEditEmployeePaySettings}
                 onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
               />
+              {!payrollFocus && (
               <WorkMedalEmployeeSection
                 employeeId={employeeId}
                 priorServiceMonths={employee.prior_service_months}
@@ -710,6 +736,7 @@ export default function EmployeeDetail() {
                   }
                 }}
               />
+              )}
               <EmployeeLoansCard
                 employeeId={employeeId}
                 employeeName={`${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim()}
@@ -726,6 +753,7 @@ export default function EmployeeDetail() {
           />
         </TabsContent>
 
+        {!payrollFocus && (
         <TabsContent value="entretiens" className="mt-4">
           {employeeId && employee && (
             <EmployeeDetailAnnualReviewsTab
@@ -736,6 +764,7 @@ export default function EmployeeDetail() {
             />
           )}
         </TabsContent>
+        )}
 
         {medicalModuleEnabled && employeeId && employee && (
           <TabsContent value="suivi_medical" className="mt-4">
@@ -783,6 +812,7 @@ export default function EmployeeDetail() {
           </Suspense>
         </TabsContent>
 
+        {!payrollFocus && (
         <TabsContent value="badgeuse" className="mt-4">
           {employeeId && activeCompanyId && employee && (
             <EmployeeDetailBadgeuseSection
@@ -794,6 +824,7 @@ export default function EmployeeDetail() {
             />
           )}
         </TabsContent>
+        )}
 
         <TabsContent value={TAB_SOLDE_CONGES} className="mt-4">
           {employeeId && employee ? (

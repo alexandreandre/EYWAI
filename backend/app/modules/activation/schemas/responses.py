@@ -24,6 +24,7 @@ class InvitationStatusResponse(BaseModel):
 class ActivationVerifyResponse(BaseModel):
     prenom: str
     societe: str
+    email_requise: bool = False
 
 
 class ActivationCompleteResponse(BaseModel):

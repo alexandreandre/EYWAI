@@ -11,9 +11,8 @@ test.describe('Disponibilité de l’environnement de test', () => {
   test('le frontend sert l’application', async ({ page }) => {
     const s = surveiller(page);
     await page.goto('/login');
-    // Constat QA 2026-08-11 : le bandeau « ENVIRONNEMENT DE TEST » n'existe
-    // pas sur /login (il vit dans les layouts connectés) — il est donc vérifié
-    // dans la suite connectée, pas ici.
+    // Le bandeau orange « ENVIRONNEMENT DE TEST » a été retiré : la resynchro
+    // reste sur GET/POST /api/test-env/* et le workflow GitHub.
     await expect(page.getByRole('heading', { name: /connexion/i })).toBeVisible();
     await verifierPageSaine(page, s);
   });

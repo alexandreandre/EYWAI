@@ -23,11 +23,12 @@ import { ProtectedAppSkeleton } from '@/components/skeletons/ProtectedAppSkeleto
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PlanningPageSkeleton } from '@/components/skeletons/PlanningPageSkeleton';
 import { BackgroundDataIndicator } from '@/components/BackgroundDataIndicator';
+import { TestEnvBadge } from '@/components/TestEnvBadge';
 import * as Pages from '@/app/lazyPages';
 import { employeeCollaboratorRoutes } from '@/app/employeeRoutes';
 import { isEmployeeOnlyPath } from '@/lib/routeAccess';
+import { isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { BADGEUSE_RH_TERMINAL_PATH } from '@/lib/badgeuseRoutes';
-import { TestEnvBanner } from '@/components/TestEnvBanner';
 
 const BadgeuseTerminalGate = lazy(
   () => import('@/components/badgeuse/rh/BadgeuseTerminalGate').then((m) => ({
@@ -55,7 +56,6 @@ function EmployeeLayout() {
       <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
         <EmployeeSidebar />
         <div className="flex min-w-0 flex-col flex-1">
-          <TestEnvBanner />
           <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
             <SidebarTrigger>
               <Button variant="ghost" size="icon" className="md:hidden">
@@ -115,6 +115,17 @@ function ProtectedRoutes() {
     return <Navigate to="/" replace />;
   }
 
+  // Mode paie : les écrans hors périmètre ne sont pas seulement retirés du
+  // menu, ils sont inatteignables à l'URL.
+  if (
+    user.role !== 'collaborateur' &&
+    !isCollaborateurRhView &&
+    isPayrollFocusActive(user) &&
+    !isPayrollFocusAllowed(location.pathname)
+  ) {
+    return <Navigate to="/" replace />;
+  }
+
   if (user.role === 'collaborateur') {
     return (
       <Routes>
@@ -130,7 +141,6 @@ function ProtectedRoutes() {
       <div className="min-h-screen flex w-full bg-muted/40">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <TestEnvBanner />
           {showCompanySwitcher && (
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
               <SidebarTrigger>
@@ -284,6 +294,7 @@ export default function App() {
     <TooltipProvider>
       <SignedPdfPreviewProvider>
         <Toaster />
+        <TestEnvBadge />
         <BootProvider>
         <AuthProvider>
           <BrowserRouter

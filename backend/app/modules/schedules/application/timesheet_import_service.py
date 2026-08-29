@@ -71,9 +71,34 @@ def cancel_active_import_jobs(company_id: str) -> list[str]:
 
 
 def _raise_if_job_cancelled(job_id: str) -> None:
+    """Coupe le thread si le job a été annulé, ou marqué failed par le watchdog.
+
+    Un job « extracting » sans heartbeat récent peut être marqué failed pendant
+    que son thread tourne toujours : sans cette garde, ce thread zombie
+    ressusciterait le statut (heartbeat) ou écraserait la complétion, avec un
+    risque de double import au relancement par l'utilisateur.
+    """
     job = get_import_job(job_id)
-    if job and job.get("status") == "cancelled":
-        raise ScheduleAppError("cancelled", "Import annulé.", status_code=499)
+    if job and job.get("status") in ("cancelled", "failed"):
+        raise ScheduleAppError("cancelled", "Import interrompu.", status_code=499)
+
+
+def _job_is_terminal(job_id: str) -> bool:
+    """True si le job est déjà cancelled/failed (watchdog ou annulation).
+
+    Utilisé juste avant d'écrire une complétion, pour qu'un thread zombie ne
+    puisse pas écraser un statut déjà terminal après coup.
+    """
+    result = (
+        _db()
+        .table("schedule_import_jobs")
+        .select("status")
+        .eq("id", job_id)
+        .maybe_single()
+        .execute()
+    )
+    row = result.data
+    return bool(row) and row.get("status") in ("cancelled", "failed")
 
 
 def create_import_job(
@@ -115,11 +140,42 @@ def create_import_job(
             company_id,
             job_id,
         )
-        _update_job(job_id, {"file_storage_path": storage_path, "status": "extracting"})
     except Exception as exc:
         logger.warning("Stockage PDF import échoué (job %s): %s", job_id, exc)
 
+    # Toujours promu, même si le stockage a échoué : sinon le job reste queued
+    # à vie, hors de portée du watchdog (qui ne surveillait que extracting),
+    # et plus aucun heartbeat ne le promeut depuis que ceux-ci ne touchent
+    # plus au statut.
+    promote_payload: dict[str, Any] = {"status": "extracting"}
+    if storage_path:
+        promote_payload["file_storage_path"] = storage_path
+    _update_job(job_id, promote_payload)
+
     return {**job, "id": job_id, "file_storage_path": storage_path}
+
+
+# Pire cas empilé d'un seul lot natif : ~2 tentatives applicatives ×
+# (3 tentatives SDK × 120 s de lecture + backoff) ≈ 12 min sans heartbeat
+# intermédiaire. 600 s est un compromis — avec les gardes d'état ci-dessus,
+# un faux positif interrompt maintenant proprement le job vivant à son
+# prochain point de contrôle (heartbeat/complétion) plutôt que d'entrer en
+# course avec lui. Même règle de péremption appliquée aux jobs restés
+# queued (instance morte avant la promotion à extracting) : ferme la même
+# classe de bug pour l'étape amont.
+_STALE_EXTRACTING_SECONDS = 600
+
+
+def _parse_iso_datetime(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, Any] | None:
@@ -127,7 +183,48 @@ def get_import_job(job_id: str, *, company_id: str | None = None) -> dict[str, A
     if company_id:
         query = query.eq("company_id", company_id)
     result = query.maybe_single().execute()
-    return result.data
+    job = result.data
+    if job and job.get("status") in ("extracting", "queued"):
+        heartbeat = _parse_iso_datetime(job.get("updated_at"))
+        stale = (
+            heartbeat is None
+            or (datetime.now(timezone.utc) - heartbeat).total_seconds()
+            > _STALE_EXTRACTING_SECONDS
+        )
+        if stale:
+            message = (
+                "L'analyse a été interrompue (instance redémarrée). "
+                "Relancez l'import."
+            )
+            progress = dict(job.get("progress_json") or {})
+            progress.setdefault("pages_total", 0)
+            progress.setdefault("pages_done", 0)
+            progress.setdefault("current_page", 0)
+            progress["phase"] = "failed"
+            try:
+                _update_job(
+                    job_id,
+                    {
+                        "status": "failed",
+                        "error_message": message,
+                        "completed_at": _now_iso(),
+                        "progress_json": progress,
+                    },
+                )
+            except Exception as exc:
+                # Un GET ne doit jamais renvoyer 500 parce que l'écriture de
+                # marquage a échoué : on journalise et on renvoie quand même
+                # la copie failed en mémoire.
+                logger.warning(
+                    "Marquage watchdog du job %s en échec: %s", job_id, exc
+                )
+            job = {
+                **job,
+                "status": "failed",
+                "error_message": message,
+                "progress_json": progress,
+            }
+    return job
 
 
 def cancel_import_job(job_id: str, *, company_id: str) -> bool:
@@ -188,7 +285,9 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
 
     def on_progress(progress: dict[str, Any]) -> None:
         _raise_if_job_cancelled(job_id)
-        _update_job(job_id, {"progress_json": progress, "status": "extracting"})
+        # Heartbeat : ne touche jamais au statut, pour ne pas ressusciter un
+        # job déjà marqué cancelled/failed par le watchdog.
+        _update_job(job_id, {"progress_json": progress})
 
     try:
         roster = [RosterEmployee(**item) for item in request.get("employees") or []]
@@ -249,6 +348,11 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             consensus_conflicts=proposal.consensus_conflicts,
         )
 
+        if _job_is_terminal(job_id):
+            # Le watchdog (ou une annulation) a déjà tranché pendant que ce
+            # thread terminait son travail : ne pas écraser ce statut, sous
+            # peine de double import silencieux au relancement.
+            return
         _update_job(
             job_id,
             {
@@ -345,6 +449,8 @@ def run_multi_timesheet_extraction_job(
         )
         master_id = str(master_batch["id"])
 
+        if _job_is_terminal(job_id):
+            return
         _update_job(
             job_id,
             {

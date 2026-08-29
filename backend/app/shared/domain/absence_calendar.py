@@ -29,8 +29,16 @@ ORIGINE_ABSENCE = "absence"
 # Source unique : le provider de validation d'absence ET le script de reprise
 # le consomment ; les types absents de ce dict (jtc, sans_solde...) n'écrivent
 # JAMAIS le calendrier, par design.
+#: Le moteur de paie ne compte que les jours `conges_payes` — `conge` ne figure
+#: nulle part dans `payslip_run_heures`, `analyzer` ni `temps_travail_mois`. Un
+#: congé payé écrit sous `conge` n'est donc ni travaillé ni en congé pour le
+#: bulletin : il disparaît. Mesuré le 26/08/2026 : 371 jours dans ce cas sur le
+#: groupe, dont la totalité de MAJI et de Zone 404.
+#: `repos_compensateur` et `evenement_familial` écrivent encore `conge` et
+#: souffrent du même aveuglement — à trancher contre les bulletins réels avant
+#: de les basculer, leur traitement en paie n'étant pas celui d'un congé payé.
 ABSENCE_TYPE_TO_CALENDAR_TYPE: dict[str, str] = {
-    "conge_paye": "conge",
+    "conge_paye": "conges_payes",
     "rtt": "rtt",
     "repos_compensateur": "conge",
     "recuperation_modulation": "conges_payes",

@@ -15,6 +15,8 @@ import {
 import { Calendar, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive } from '@/lib/payrollFocus';
 import type { MaintenancePreview } from '@/api/absences';
 import {
   isPayslipBlocMaintienPresent,
@@ -55,6 +57,7 @@ export default function CongesAbsencesSection({
   syntheseNet,
   onOpenMaintienModal,
 }: CongesAbsencesSectionProps) {
+  const { user } = useAuth();
   const handleCongeChange = (index: number, field: string, value: any) => {
     const newData = [...congesData];
     newData[index] = { ...newData[index], [field]: value };
@@ -412,7 +415,7 @@ export default function CongesAbsencesSection({
                 Voir détail calcul maintien
               </Button>
             ) : null}
-            {subrogationActive && ijssSub !== 0 ? (
+            {subrogationActive && ijssSub !== 0 && !isPayrollFocusActive(user) ? (
               <Button variant="link" size="sm" className="px-0 h-auto" asChild>
                 <Link to="/suivi-ijss">
                   {ijssSource === 'cpam_validated'

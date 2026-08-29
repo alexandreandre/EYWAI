@@ -3,6 +3,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import {
@@ -13,6 +14,9 @@ import {
 } from '@/components/ui/tooltip';
 import type { EmployeeCalendarOverviewRow, DayPatch } from '@/lib/schedulesOverview';
 import { PlanningDayEditor } from './PlanningDayEditor';
+import { CursorHint } from './CursorHint';
+import { CalendarPeriodSelect } from './CalendarPeriodSelect';
+import { usePaintSelect } from './usePaintSelect';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { isObservedHolidayHeaderDay } from '@/lib/companyCalendarHolidays';
@@ -62,6 +66,12 @@ interface TeamPlanningViewProps {
   onOpenEmployee: (employeeId: string) => void;
   initialWeekIndex?: number | null;
   highlightDays?: number[];
+  /** Sélection pour actions en masse — mêmes contrats que la vue Liste. */
+  selectedIds: Set<string>;
+  onSetSelected: (ids: string[], selected: boolean) => void;
+  onToggleSelectAll: (ids: string[]) => void;
+  onYearChange: (year: number) => void;
+  onMonthChange: (month: number) => void;
 }
 
 /** Calcule les semaines du mois sous forme de chunks de 7 jours, alignés sur le lundi. */
@@ -98,10 +108,21 @@ export function TeamPlanningView({
   onOpenEmployee,
   initialWeekIndex = null,
   highlightDays = [],
+  selectedIds,
+  onSetSelected,
+  onToggleSelectAll,
+  onYearChange,
+  onMonthChange,
 }: TeamPlanningViewProps) {
   const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
   const weeks = useMemo(() => computeWeeks(year, month), [year, month]);
+  const rowIds = useMemo(() => rows.map((r) => r.employee.id), [rows]);
+  const { onHandlePointerDown, onHandlePointerEnter } = usePaintSelect({
+    ids: rowIds,
+    selectedIds,
+    onSetSelected,
+  });
   const [weekIndex, setWeekIndex] = useState(0);
   const [openEditor, setOpenEditor] = useState<{ employeeId: string; day: number } | null>(null);
   const [flashDays, setFlashDays] = useState<number[]>([]);
@@ -218,18 +239,52 @@ export function TeamPlanningView({
             })}
           </TabsList>
         </Tabs>
-        <p className="text-xs text-muted-foreground">
-          Cliquez sur une cellule pour éditer · sur le nom pour ouvrir le calendrier complet
-        </p>
+        <CalendarPeriodSelect
+          year={year}
+          month={month}
+          onYearChange={onYearChange}
+          onMonthChange={onMonthChange}
+          compact
+        />
       </div>
 
       <ScrollArea className="w-full rounded-md border">
         <div className="min-w-[760px]">
-          <div className="grid grid-cols-[220px_repeat(7,minmax(90px,1fr))]">
+          <div className="grid grid-cols-[252px_repeat(7,minmax(90px,1fr))]">
             {/* Header */}
-            <div className="bg-muted/60 border-b border-r p-2 text-xs font-medium sticky left-0 z-10">
-              Collaborateur
-            </div>
+            <button
+              type="button"
+              className={cn(
+                'sticky left-0 z-10 flex w-full items-stretch border-b border-r text-left text-xs font-medium cursor-pointer transition-colors duration-150',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                rows.length > 0 &&
+                  rows.every((r) => selectedIds.has(r.employee.id))
+                  ? 'bg-[color-mix(in_srgb,hsl(var(--primary))_18%,hsl(var(--background)))]'
+                  : 'bg-muted/60',
+                'hover:bg-[color-mix(in_srgb,hsl(var(--primary))_28%,hsl(var(--background)))] hover:text-primary',
+              )}
+              onClick={() => onToggleSelectAll(rows.map((r) => r.employee.id))}
+              aria-label="Tout sélectionner - Saisie rapide"
+              aria-pressed={
+                rows.length > 0 &&
+                rows.every((r) => selectedIds.has(r.employee.id))
+              }
+            >
+              <span className="flex w-11 shrink-0 items-center justify-center border-r border-border/60 bg-muted/25">
+                <Checkbox
+                  className="h-4 w-4 shrink-0 pointer-events-none"
+                  aria-hidden
+                  tabIndex={-1}
+                  checked={
+                    rows.length > 0 &&
+                    rows.every((r) => selectedIds.has(r.employee.id))
+                  }
+                />
+              </span>
+              <span className="flex items-center px-2 py-2 leading-snug">
+                Tout sélectionner - Saisie rapide
+              </span>
+            </button>
             {weekDays.map((day, i) => {
               if (day === 0) {
                 return (
@@ -273,27 +328,61 @@ export function TeamPlanningView({
             })}
 
             {/* Rows */}
-            {rows.map((row) => (
+            {rows.map((row, rowIndex) => (
               <div key={row.employee.id} className="contents">
-                <button
-                  type="button"
-                  className="bg-background hover:bg-muted/40 transition-colors p-2 text-left text-sm sticky left-0 z-10 border-b border-r flex items-center gap-2 group"
-                  onClick={() => onOpenEmployee(row.employee.id)}
-                  title="Ouvrir le calendrier complet"
+                <div
+                  className="group/open bg-background p-0 text-sm sticky left-0 z-10 border-b border-r flex items-stretch"
+                  onPointerEnter={() => onHandlePointerEnter(rowIndex)}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate font-medium">
-                      {row.employee.last_name} {row.employee.first_name}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {row.employee.job_title ?? '—'}
-                    </div>
+                  <div
+                    role="checkbox"
+                    aria-checked={selectedIds.has(row.employee.id)}
+                    aria-label={`Sélectionner ${row.employee.last_name} ${row.employee.first_name}`}
+                    className="flex w-11 shrink-0 items-center justify-center select-none cursor-pointer border-r border-border/60 bg-muted/25 hover:bg-primary/20 transition-colors"
+                    tabIndex={0}
+                    onPointerDown={(event) => onHandlePointerDown(event, rowIndex)}
+                    onKeyDown={(event) => {
+                      if (event.key !== ' ' && event.key !== 'Enter') return;
+                      event.preventDefault();
+                      onSetSelected(
+                        [row.employee.id],
+                        !selectedIds.has(row.employee.id),
+                      );
+                    }}
+                  >
+                    <Checkbox
+                      className="h-4 w-4 shrink-0 pointer-events-none"
+                      aria-hidden
+                      tabIndex={-1}
+                      checked={selectedIds.has(row.employee.id)}
+                    />
                   </div>
+                  <CursorHint
+                    label="Ouvrir le calendrier complet"
+                    className="flex min-w-0 flex-1"
+                  >
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-1 px-1.5 py-1.5 text-left cursor-pointer transition-colors duration-150 hover:bg-[color-mix(in_srgb,hsl(var(--primary))_28%,hsl(var(--background)))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => onOpenEmployee(row.employee.id)}
+                      aria-label="Ouvrir le calendrier complet"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium group-hover/open:text-primary">
+                          {row.employee.last_name} {row.employee.first_name}
+                        </span>
+                        <span className="block truncate text-[10px] text-muted-foreground group-hover/open:text-primary/80">
+                          {row.employee.job_title ?? '—'}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-3.5 shrink-0 text-muted-foreground/50 transition-all duration-150 group-hover/open:text-primary group-hover/open:opacity-100 motion-safe:group-hover/open:translate-x-1" />
+                    </button>
+                  </CursorHint>
                   {row.absenceConflictDays.length > 0 && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 self-center mr-1.5" />
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="text-xs">
@@ -303,8 +392,7 @@ export function TeamPlanningView({
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors" />
-                </button>
+                </div>
 
                 {weekDays.map((day, i) => {
                   if (day === 0) {

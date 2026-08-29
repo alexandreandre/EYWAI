@@ -119,8 +119,43 @@ def build_page_user_prompt_vision(
     )
 
 
+# --- Extraction native par lot (mode TIMESHEET_EXTRACT_MODE=native) ---
+
+_BATCH_PAGE_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        **PAGE_EXTRACTION_JSON_SCHEMA["properties"],
+        "page_index": {"type": "integer"},
+    },
+    "required": [*PAGE_EXTRACTION_JSON_SCHEMA["required"], "page_index"],
+}
+
+BATCH_EXTRACTION_JSON_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"pages": {"type": "array", "items": _BATCH_PAGE_ITEM_SCHEMA}},
+    "required": ["pages"],
+}
+
+
+def build_batch_user_prompt_native(
+    *, page_start: int, page_end: int, pages_total: int, matricule_hint: str
+) -> str:
+    """Consigne utilisateur pour un lot de pages PDF envoyé nativement."""
+    return (
+        f"Le document PDF joint contient les pages {page_start} à {page_end} "
+        f"d'un relevé de pointeuse qui en compte {pages_total}.\n"
+        "Renvoie un élément par page dans `pages`, avec `page_index` égal au "
+        "numéro de page dans le document COMPLET (pas dans le lot).\n"
+        f"{matricule_hint}".strip()
+    )
+
+
 __all__ = [
+    "BATCH_EXTRACTION_JSON_SCHEMA",
     "PAGE_EXTRACTION_JSON_SCHEMA",
+    "build_batch_user_prompt_native",
     "build_page_system_prompt",
     "build_page_user_prompt_text",
     "build_page_user_prompt_vision",

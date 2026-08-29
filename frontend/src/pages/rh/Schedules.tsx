@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { RefreshCw } from 'lucide-react';
+import { ListFilter, RefreshCw } from 'lucide-react';
 import { useEmployeesQuery } from '@/hooks/queries/useEmployeesQuery';
 import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
 import { useEmployeeCalendarOverview } from '@/hooks/useEmployeeCalendarOverview';
 import type { SchedulesEmployeeInput } from '@/lib/schedulesOverview';
+import { filterPresentEmployees } from '@/lib/employmentStatus';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { CalendarPilotHeader } from '@/components/schedules/CalendarPilotHeader';
+import { CalendarPeriodSelect } from '@/components/schedules/CalendarPeriodSelect';
 import { CalendarFiltersBar } from '@/components/schedules/CalendarFiltersBar';
 import { CalendarEmployeeTable } from '@/components/schedules/CalendarEmployeeTable';
 import { CalendarEmployeeDrawer } from '@/components/schedules/CalendarEmployeeDrawer';
@@ -24,6 +26,7 @@ import { usePlanningImportJobs, type PlanningImportJob } from '@/hooks/usePlanni
 import { TeamPlanningView } from '@/components/schedules/TeamPlanningView';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { SAISIE_FILTER_LABELS } from '@/components/schedules/types';
 import type {
   ModeFilter,
   SaisieStatusFilter,
@@ -64,7 +67,7 @@ export default function Schedules() {
 
   const employeesQuery = useEmployeesQuery();
   const employees = useMemo(
-    () => (employeesQuery.data ?? []) as Employee[],
+    () => filterPresentEmployees((employeesQuery.data ?? []) as Employee[]),
     [employeesQuery.data],
   );
   const employeesLoading = employeesQuery.isLoading && !employeesQuery.data;
@@ -232,22 +235,16 @@ export default function Schedules() {
 
   const visibleIds = sortedRows.map((r) => r.employee.id);
 
-  const aSaisirRows = useMemo(
-    () => sortedRows.filter((r) => r.rowStatus === 'a_saisir'),
-    [sortedRows]
+  // Compteurs sur tout le mois (avant filtres) : les segments de statut
+  // doivent rester stables quand on filtre par équipe ou recherche.
+  const statusCounts = useMemo(
+    () => ({
+      aSaisir: rows.filter((r) => r.rowStatus === 'a_saisir').length,
+      saisi: rows.filter((r) => r.rowStatus === 'saisi').length,
+      ecart: rows.filter((r) => r.rowStatus === 'saisi_avec_ecart').length,
+    }),
+    [rows]
   );
-
-  const aSaisirIds = useMemo(
-    () => aSaisirRows.map((r) => r.employee.id),
-    [aSaisirRows]
-  );
-
-  const allASaisirSelected =
-    aSaisirIds.length > 0 && aSaisirIds.every((id) => selectedIds.has(id));
-
-  const selectSubsetToFill = useCallback((ids: string[]) => {
-    setSelectedIds(new Set(ids));
-  }, []);
 
   const orderedEmployeesForDrawer = useMemo(
     () => sortedRows.map((r) => r.employee),
@@ -304,15 +301,21 @@ export default function Schedules() {
     };
   }, [aiTargetIds, aiDialogRoster]);
 
-  const openAssistedFillForAll = useCallback(() => {
-    setAiTargetIds(null);
-    setAssistedFillOpen(true);
-  }, []);
-
-  const openAssistedFillForASaisir = useCallback((ids: string[]) => {
+  const openAssistedFillForSelection = useCallback((ids: string[]) => {
     setAiTargetIds(ids);
     setAssistedFillOpen(true);
   }, []);
+
+  // Bouton d'en-tête : l'IA agit sur la sélection courante s'il y en a une,
+  // sinon consigne libre sur tout le roster.
+  const openAssistedFillFromHeader = useCallback(() => {
+    if (selectedIds.size > 0) {
+      setAiTargetIds([...selectedIds]);
+    } else {
+      setAiTargetIds(null);
+    }
+    setAssistedFillOpen(true);
+  }, [selectedIds]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -323,14 +326,14 @@ export default function Schedules() {
     }
   };
 
-  const toggleSelect = (id: string) => {
+  const setSelected = useCallback((ids: string[], selected: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (selected) ids.forEach((id) => next.add(id));
+      else ids.forEach((id) => next.delete(id));
       return next;
     });
-  };
+  }, []);
 
   const toggleSelectAll = (ids: string[]) => {
     const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
@@ -359,11 +362,10 @@ export default function Schedules() {
       <CalendarPilotHeader
         year={selectedYear}
         month={selectedMonth}
-        onYearChange={setSelectedYear}
-        onMonthChange={setSelectedMonth}
         kpis={globalKpis}
+        exportRows={sortedRows}
         isLoading={isPageLoading}
-        onOpenAssistedFill={openAssistedFillForAll}
+        onOpenAssistedFill={openAssistedFillFromHeader}
         onOpenPointageImport={() => setPointageImportOpen(true)}
       />
 
@@ -420,13 +422,31 @@ export default function Schedules() {
         onViewModeChange={setViewMode}
         filteredCount={filteredRows.length}
         totalCount={rows.length}
-        teamsById={teamsById}
-        aSaisirRows={aSaisirRows}
-        allASaisirSelected={allASaisirSelected}
-        onSelectSubset={selectSubsetToFill}
-        onFillASaisirWithAi={openAssistedFillForASaisir}
+        statusCounts={statusCounts}
         isLoading={isPageLoading}
       />
+
+      {/* Bandeau explicite : le tableau est filtré, et comment tout revoir. */}
+      {!isPageLoading && saisieFilter !== 'all' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <p className="flex flex-wrap items-center gap-1.5">
+            <ListFilter className="h-4 w-4 shrink-0 text-primary" />
+            Le tableau n&apos;affiche que les calendriers{' '}
+            <span className="font-semibold">
+              « {SAISIE_FILTER_LABELS[saisieFilter]} »
+            </span>
+            — {filteredRows.length} sur {rows.length}.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSaisieFilter('all')}
+          >
+            Afficher les {rows.length} calendriers
+          </Button>
+        </div>
+      )}
 
       {allSaisiBanner && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
@@ -436,7 +456,17 @@ export default function Schedules() {
                       )}
 
       {viewMode === 'list' ? (
-        <CalendarEmployeeTable
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <CalendarPeriodSelect
+              year={selectedYear}
+              month={selectedMonth}
+              onYearChange={setSelectedYear}
+              onMonthChange={setSelectedMonth}
+              compact
+            />
+          </div>
+          <CalendarEmployeeTable
           rows={sortedRows}
           teamsById={teamsById}
           isLoading={isPageLoading}
@@ -445,7 +475,7 @@ export default function Schedules() {
           onRetryEmployees={() => void refetchEmployees()}
           unfilteredRowCount={rows.length}
           selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
+          onSetSelected={setSelected}
           onToggleSelectAll={toggleSelectAll}
           onOpenEmployee={setDrawerEmployeeId}
           sortKey={sortKey}
@@ -453,6 +483,7 @@ export default function Schedules() {
           onSort={handleSort}
           visibleIds={visibleIds}
         />
+        </div>
       ) : (
         <TeamPlanningView
           rows={sortedRows}
@@ -467,6 +498,11 @@ export default function Schedules() {
           onOpenEmployee={setDrawerEmployeeId}
           initialWeekIndex={planningFocusWeek}
           highlightDays={planningHighlightDays}
+          selectedIds={selectedIds}
+          onSetSelected={setSelected}
+          onToggleSelectAll={toggleSelectAll}
+          onYearChange={setSelectedYear}
+          onMonthChange={setSelectedMonth}
         />
       )}
 
@@ -490,6 +526,7 @@ export default function Schedules() {
         onClearSelection={() => setSelectedIds(new Set())}
         onOpenApplyModel={() => setApplyModelOpen(true)}
         onActionComplete={refreshCalendars}
+        onFillWithAi={openAssistedFillForSelection}
       />
 
       <ApplyModelDialog

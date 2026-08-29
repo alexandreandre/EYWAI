@@ -86,16 +86,36 @@ def _require_rh_or_admin(user: ParticipationUserContext) -> None:
         raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
 
 
+# Repli par rôle des permissions participation.*, aligné sur leur required_role
+# (migration 20260722140000) : financials → admin, allocation → niveau RH.
+_ROLE_FALLBACK_BY_PERMISSION: dict[str, tuple[str, ...]] = {
+    "participation.financials.view": ("admin",),
+    "participation.financials.manage": ("admin",),
+    "participation.allocation.view": ("admin", "rh", "collaborateur_rh"),
+    "participation.allocation.manage": ("admin", "rh", "collaborateur_rh"),
+}
+
+
 def _require_participation_permission(
     user: ParticipationUserContext, company_id: str, permission_code: str
 ) -> None:
-    """Sépare les droits financiers des opérations RH de répartition."""
+    """Sépare les droits financiers des opérations RH de répartition.
+
+    Un grant user_permissions explicite prime ; à défaut, repli sur le rôle
+    (admin/rh historiques sans ligne user_permissions — aucun grant
+    participation.* n'a jamais été rétro-alimenté, sans repli tout
+    non-super-admin prenait 403).
+    """
     if user.is_platform_admin:
         return
-    if not access_control_service.check_user_has_permission(
+    if access_control_service.check_user_has_permission(
         str(user.id), company_id, permission_code
     ):
-        raise HTTPException(status_code=403, detail="Permission insuffisante.")
+        return
+    role = user.get_role_in_company(company_id)
+    if role and role in _ROLE_FALLBACK_BY_PERMISSION.get(permission_code, ()):
+        return
+    raise HTTPException(status_code=403, detail="Permission insuffisante.")
 
 
 @router.get("/employee-data/{year}", response_model=EmployeeDataResponse)

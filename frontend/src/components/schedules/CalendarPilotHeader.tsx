@@ -1,39 +1,17 @@
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { pageTitleClassName } from '@/components/layout';
 import { Sparkles, Upload } from 'lucide-react';
-import type { GlobalOverviewKpis } from '@/lib/schedulesOverview';
+import type { EmployeeCalendarOverviewRow, GlobalOverviewKpis } from '@/lib/schedulesOverview';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const MONTHS = [
-  'Janvier',
-  'Février',
-  'Mars',
-  'Avril',
-  'Mai',
-  'Juin',
-  'Juillet',
-  'Août',
-  'Septembre',
-  'Octobre',
-  'Novembre',
-  'Décembre',
-];
+import { CALENDAR_MONTHS } from './CalendarPeriodSelect';
+import { CalendarExportMenu } from './CalendarExportMenu';
 
 interface CalendarPilotHeaderProps {
   year: number;
   month: number;
-  onYearChange: (year: number) => void;
-  onMonthChange: (month: number) => void;
   kpis: GlobalOverviewKpis;
+  exportRows: EmployeeCalendarOverviewRow[];
   onOpenAssistedFill: () => void;
   onOpenPointageImport: () => void;
   isLoading?: boolean;
@@ -42,14 +20,13 @@ interface CalendarPilotHeaderProps {
 export function CalendarPilotHeader({
   year,
   month,
-  onYearChange,
-  onMonthChange,
   kpis,
+  exportRows,
   onOpenAssistedFill,
   onOpenPointageImport,
   isLoading = false,
 }: CalendarPilotHeaderProps) {
-  const periodLabel = `${MONTHS[month - 1]} ${year}`;
+  const periodLabel = `${CALENDAR_MONTHS[month - 1]} ${year}`;
 
   return (
     <div className="-mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b space-y-3 lg:-mx-8 lg:px-8">
@@ -63,41 +40,7 @@ export function CalendarPilotHeader({
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 lg:items-end">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="grid gap-1">
-              <Label className="text-xs">Mois</Label>
-              <Select value={String(month)} onValueChange={(v) => onMonthChange(Number(v))}>
-                <SelectTrigger className="h-9 w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((m, i) => (
-                    <SelectItem key={i} value={String(i + 1)}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1">
-              <Label className="text-xs">Année</Label>
-              <Select value={String(year)} onValueChange={(v) => onYearChange(Number(v))}>
-                <SelectTrigger className="h-9 w-[100px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[year - 1, year, year + 1, year + 2].map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 lg:justify-end">
+        <div className="flex flex-wrap gap-3 lg:justify-end">
             <Button
               type="button"
               onClick={onOpenAssistedFill}
@@ -116,7 +59,8 @@ export function CalendarPilotHeader({
               <Upload className="mr-2 h-4 w-4" />
               Importer des pointages
             </Button>
-          </div>
+
+            <CalendarExportMenu rows={exportRows} year={year} month={month} />
         </div>
       </div>
 

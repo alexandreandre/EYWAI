@@ -250,7 +250,7 @@ jobs:
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build.outputs.backend_image }}
-          flags: '--memory=2Gi --timeout=900'
+          flags: '--memory=4Gi --cpu=2 --no-cpu-throttling --timeout=900'
           env_vars: |-
             APP_ENV=test
             EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}
@@ -262,6 +262,7 @@ jobs:
             SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
             SECRET_ENCRYPTION_KEY=${{ secrets.SECRET_ENCRYPTION_KEY }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            TIMESHEET_EXTRACT_MODE=native
             COPILOT_RH_DATA_ENABLED=true
             GITHUB_REPO=${{ github.repository }}
           env_vars_update_strategy: merge
@@ -312,7 +313,7 @@ jobs:
           service: ${{ env.BACKEND_SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ needs.build.outputs.backend_image }}
-          flags: '--memory=2Gi --timeout=900'
+          flags: '--memory=4Gi --cpu=2 --no-cpu-throttling --max-instances=5 --timeout=900'
           env_vars: |-
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}

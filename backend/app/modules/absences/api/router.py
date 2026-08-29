@@ -299,10 +299,9 @@ def create_absence_request(
         )
         rid = str(data["id"])
         eid = str(data["employee_id"])
-        is_rh_direct_arret = (
-            is_rh and str(request_data.type) in SALARY_CERTIFICATE_ABSENCE_TYPES
-        )
-        if is_rh_direct_arret:
+        # Toute saisie RH est validée immédiatement (arrêt comme congé) :
+        # la RH enregistre un fait déjà accordé, pas une demande à s'auto-approuver.
+        if is_rh:
             req_before = dict(data)
             data = commands.update_absence_request_status(
                 rid,
@@ -314,7 +313,7 @@ def create_absence_request(
             try:
                 _notify_rh_status_change(req_before, "validated")
             except Exception:
-                _log.exception("[absences] notifications arrêt direct ignorées")
+                _log.exception("[absences] notifications saisie directe RH ignorées")
         else:
             mgr = absence_router.get_team_manager_employee_id(eid)
             wf = "pending_manager" if mgr else "pending"

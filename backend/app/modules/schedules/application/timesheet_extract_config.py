@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import os
 
-ExtractMode = str  # deterministic | hybrid | llm_document
+ExtractMode = str  # deterministic | hybrid | llm_document | native
 
 
 def timesheet_extract_mode() -> str:
     raw = os.getenv("TIMESHEET_EXTRACT_MODE", "hybrid").strip().lower()
-    if raw in ("deterministic", "hybrid", "llm_document"):
+    if raw in ("deterministic", "hybrid", "llm_document", "native"):
         return raw
     return "hybrid"
+
+
+def timesheet_native_batch_size() -> int:
+    raw = os.getenv("TIMESHEET_NATIVE_BATCH_PAGES", "4").strip()
+    try:
+        return max(1, min(10, int(raw)))
+    except ValueError:
+        return 4
 
 
 def timesheet_page_concurrency() -> int:
@@ -42,6 +50,7 @@ def timesheet_hybrid_adaptive() -> bool:
 __all__ = [
     "timesheet_extract_mode",
     "timesheet_hybrid_adaptive",
+    "timesheet_native_batch_size",
     "timesheet_page_concurrency",
     "timesheet_page_text_model",
     "timesheet_vision_model",

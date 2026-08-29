@@ -40,6 +40,7 @@ class ContingentOverviewRow(BaseModel):
     first_name: str
     last_name: str
     hire_date: str | None
+    employment_status: str | None = None
     structural_hours: float
     paid_hours: float
     pause_deduction: float

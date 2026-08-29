@@ -101,6 +101,17 @@ class TestComputeCompanyKpis:
         kpis = compute_company_kpis(employees, [])
         assert kpis["total_employees"] == 2
 
+    def test_total_employees_excludes_partis(self):
+        employees = [
+            {"id": "e1", "contract_type": "CDI", "employment_status": "actif"},
+            {"id": "e2", "contract_type": "CDI", "employment_status": "parti"},
+            {"id": "e3", "contract_type": "CDD", "employment_status": "inactif"},
+            {"id": "e4", "contract_type": "CDI", "employment_status": "actif"},
+        ]
+        kpis = compute_company_kpis(employees, [])
+        assert kpis["total_employees"] == 2
+        assert kpis["contract_distribution"] == {"CDI": 2}
+
     def test_last_month_aggregates_from_series(self):
         key = _last_month_key()
         series = [

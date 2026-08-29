@@ -151,13 +151,17 @@ jobs:
       # et sortait « Variables d'environnement Supabase non configurées » — aucun
       # bulletin n'a jamais pu être généré sur le test. La production la définit
       # déjà. Même valeur que SUPABASE_KEY côté test, comme en production.
+      #
+      # OPENROUTER_API_KEY manquait : `--set-env-vars` remplace TOUTES les
+      # variables. Sans cette clé, le remplissage calendrier IA répond 503 et
+      # le copilote 500 (ValueError « pas configuré »). Même secret qu'en prod.
       - name: Deploy backend test
         run: |
           gcloud run deploy "$BACKEND_SERVICE" \
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
-            --memory 2Gi --timeout 900 --allow-unauthenticated \
-            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --memory 4Gi --cpu 2 --no-cpu-throttling --timeout 900 --allow-unauthenticated \
+            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
 
       - name: Relever l'URL du backend de test
         id: back

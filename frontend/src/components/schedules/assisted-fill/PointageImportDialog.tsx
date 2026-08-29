@@ -42,6 +42,10 @@ import {
 } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
 import {
+  expectedSegmentMs,
+  smoothedPercent,
+} from './importProgressSmoothing';
+import {
   usePointageImportJobs,
   type PointageImportJob,
 } from '@/hooks/usePointageImportJobs';
@@ -52,6 +56,42 @@ const MONTHS = [
 ];
 
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.csv,.xlsx,.xls';
+
+/**
+ * Barre lissée entre deux événements réels du job : le vrai pourcentage
+ * ré-ancre le plancher, puis la valeur avance en simulé (asymptotique,
+ * jamais 100 %) — sinon un PDF d'une page passe de vide à pleine.
+ */
+function useSmoothedProgress(
+  realPct: number,
+  expectedMs: number,
+  active: boolean,
+): number {
+  const [value, setValue] = useState(realPct);
+  const anchorRef = useRef({ floor: realPct, since: Date.now() });
+
+  useEffect(() => {
+    anchorRef.current = { floor: realPct, since: Date.now() };
+    setValue(realPct);
+  }, [realPct]);
+
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => {
+      const { floor, since } = anchorRef.current;
+      setValue(
+        smoothedPercent({
+          floorPct: floor,
+          elapsedMs: Date.now() - since,
+          expectedMs,
+        }),
+      );
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [active, expectedMs]);
+
+  return active ? value : realPct;
+}
 
 function isStructuredFile(name: string): boolean {
   const lower = name.toLowerCase();
@@ -175,6 +215,22 @@ export function PointageImportDialog({
   const [helpOpen, setHelpOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const hasPageProgress = pageProgress !== null && pageProgress.pages_total > 0;
+  const realPagePct = hasPageProgress
+    ? (pageProgress.pages_done / pageProgress.pages_total) * 100
+    : 0;
+  const smoothedPagePct = useSmoothedProgress(
+    realPagePct,
+    expectedSegmentMs(pageProgress?.pages_done ?? 0, pageProgress?.pages_total ?? 0),
+    isAnalyzing && hasPageProgress,
+  );
+  // File d'attente multi-fichiers : un fichier ≈ un segment de ~20 s.
+  const smoothedQueuePct = useSmoothedProgress(
+    queueProgress,
+    20000,
+    isAnalyzing && files.length > 1,
+  );
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
   const targetName =
@@ -605,21 +661,16 @@ export function PointageImportDialog({
 
             {isAnalyzing && (
               <div className="space-y-1">
-                {files.length > 1 && <Progress value={queueProgress} className="h-2" />}
-                {pageProgress && pageProgress.pages_total > 0 ? (
-                  <Progress
-                    value={Math.round(
-                      (pageProgress.pages_done / pageProgress.pages_total) * 100,
-                    )}
-                    className="h-2"
-                  />
+                {files.length > 1 && <Progress value={smoothedQueuePct} className="h-2" />}
+                {hasPageProgress ? (
+                  <Progress value={smoothedPagePct} className="h-2" />
                 ) : null}
                 <p className="text-xs text-muted-foreground">
-                  {pageProgress && pageProgress.pages_total > 0
+                  {hasPageProgress
                     ? `Page ${pageProgress.pages_done} / ${pageProgress.pages_total} — analyse IA…`
                     : files.length > 1
-                      ? `Analyse en cours… ${queueProgress}%`
-                      : 'Analyse IA en cours (1 à 3 min selon le nombre de pages)…'}
+                      ? `Analyse en cours… ${Math.round(smoothedQueuePct)}%`
+                      : 'Analyse IA en cours…'}
                 </p>
               </div>
             )}

@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
 import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, ExternalLink, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -484,12 +485,14 @@ export default function AbsencesPage() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to="/suivi-ijss">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Suivi IJSS
-                    </Link>
-                  </Button>
+                  {!isPayrollFocusActive(user) && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to="/suivi-ijss">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Suivi IJSS
+                      </Link>
+                    </Button>
+                  )}
                 </div>
                   )}
                 </div>
@@ -563,7 +566,7 @@ export default function AbsencesPage() {
                 variant="outline"
                 onClick={() => setShowLeaveModal(true)}
               >
-                Demande de congé
+                Nouveau congé
               </Button>
             </div>
           ) : null
@@ -588,8 +591,12 @@ export default function AbsencesPage() {
         }}
       />
       <div className="space-y-4">
-        <LeaveCampaignSection />
-        <LeaveNotificationSettingsPanel />
+        {!isPayrollFocusActive(user) && (
+          <>
+            <LeaveCampaignSection />
+            <LeaveNotificationSettingsPanel />
+          </>
+        )}
         <RttYearEndRhSection />
         <p className="text-sm text-muted-foreground">
           <Link to="/company?tab=paie#soldes-rtt" className="text-primary underline-offset-4 hover:underline">

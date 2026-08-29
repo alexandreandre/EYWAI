@@ -38,6 +38,7 @@ def _make_rh_user():
     user.active_company_id = TEST_COMPANY_ID
     user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = True
+    user.get_role_in_company.return_value = "rh"
     return user
 
 

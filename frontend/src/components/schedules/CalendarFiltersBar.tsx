@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -7,10 +8,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Search, LayoutList, Users } from 'lucide-react';
+import { Search, LayoutList, ListFilter, Users } from 'lucide-react';
 import type { Team } from '@/api/teams';
-import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
-import { ASaisirActionsMenu } from './ASaisirActionsMenu';
 import type { ModeFilter, SaisieStatusFilter, ViewMode } from './types';
 
 interface CalendarFiltersBarProps {
@@ -27,11 +26,8 @@ interface CalendarFiltersBarProps {
   onViewModeChange: (v: ViewMode) => void;
   filteredCount: number;
   totalCount: number;
-  teamsById: Map<string, Team>;
-  aSaisirRows: EmployeeCalendarOverviewRow[];
-  allASaisirSelected: boolean;
-  onSelectSubset: (ids: string[]) => void;
-  onFillASaisirWithAi: (ids: string[]) => void;
+  /** Compteurs par statut de saisie (sur tout le mois, avant filtres). */
+  statusCounts: { aSaisir: number; saisi: number; ecart: number };
   isLoading?: boolean;
 }
 
@@ -49,11 +45,7 @@ export function CalendarFiltersBar({
   onViewModeChange,
   filteredCount,
   totalCount,
-  teamsById,
-  aSaisirRows,
-  allASaisirSelected,
-  onSelectSubset,
-  onFillASaisirWithAi,
+  statusCounts,
   isLoading = false,
 }: CalendarFiltersBarProps) {
   const teamValue =
@@ -64,8 +56,8 @@ export function CalendarFiltersBar({
         : 'multi';
 
   return (
-    <div className="flex flex-col gap-3 py-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
+    <div className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
         <div
           className="flex items-center gap-2 shrink-0"
           role="group"
@@ -99,7 +91,7 @@ export function CalendarFiltersBar({
           </ToggleGroup>
         </div>
 
-        <div className="relative w-full min-w-[12rem] max-w-md lg:w-64 shrink-0">
+        <div className="relative w-full min-w-[10rem] max-w-xs sm:w-52 sm:flex-none">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher nom, prénom, poste…"
@@ -109,75 +101,91 @@ export function CalendarFiltersBar({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={teamValue}
-            onValueChange={(v) => {
-              if (v === 'all') onTeamIdsChange([]);
-              else onTeamIdsChange([v]);
-            }}
-          >
-            <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
-              <SelectValue placeholder="Équipe" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les équipes</SelectItem>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <Select
+          value={teamValue}
+          onValueChange={(v) => {
+            if (v === 'all') onTeamIdsChange([]);
+            else onTeamIdsChange([v]);
+          }}
+        >
+          <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
+            <SelectValue placeholder="Équipe" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les équipes</SelectItem>
+            {teams.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <Select
-            value={saisieFilter}
-            onValueChange={(v) => onSaisieFilterChange(v as SaisieStatusFilter)}
-          >
-            <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
-              <SelectValue placeholder="Statut saisie" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les statuts</SelectItem>
-              <SelectItem value="a_saisir">À saisir</SelectItem>
-              <SelectItem value="saisi">Saisi</SelectItem>
-              <SelectItem value="saisi_avec_ecart">Écart à vérifier</SelectItem>
-            </SelectContent>
-          </Select>
+        <Select
+          value={modeFilter}
+          onValueChange={(v) => onModeFilterChange(v as ModeFilter)}
+        >
+          <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
+            <SelectValue placeholder="Mode" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les modes</SelectItem>
+            <SelectItem value="horaire">Horaire</SelectItem>
+            <SelectItem value="forfait_jour">Forfait jour</SelectItem>
+          </SelectContent>
+        </Select>
 
-          <Select
-            value={modeFilter}
-            onValueChange={(v) => onModeFilterChange(v as ModeFilter)}
-          >
-            <SelectTrigger className="h-9 w-fit gap-1.5 px-2.5 [&>span]:line-clamp-none">
-              <SelectValue placeholder="Mode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les modes</SelectItem>
-              <SelectItem value="horaire">Horaire</SelectItem>
-              <SelectItem value="forfait_jour">Forfait jour</SelectItem>
-            </SelectContent>
-          </Select>
+        <div
+          role="group"
+          aria-label="Filtrer le tableau par statut de saisie"
+          className="flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-md border bg-muted/30 p-0.5"
+        >
+          <span className="flex items-center gap-1 pl-2 pr-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+            <ListFilter className="h-3.5 w-3.5" />
+            Filtrer :
+          </span>
+          {(
+            [
+              { value: 'all', label: 'Tous', count: totalCount },
+              { value: 'a_saisir', label: 'À saisir', count: statusCounts.aSaisir },
+              { value: 'saisi', label: 'Saisis', count: statusCounts.saisi },
+              {
+                value: 'saisi_avec_ecart',
+                label: 'Écarts',
+                count: statusCounts.ecart,
+              },
+            ] as { value: SaisieStatusFilter; label: string; count: number }[]
+          ).map((opt) => (
+            <Button
+              key={opt.value}
+              type="button"
+              size="sm"
+              variant={saisieFilter === opt.value ? 'default' : 'ghost'}
+              className="h-8 shrink-0 gap-1 px-2.5 text-xs"
+              aria-pressed={saisieFilter === opt.value}
+              onClick={() => onSaisieFilterChange(opt.value)}
+            >
+              {opt.label}
+              <span
+                className={
+                  saisieFilter === opt.value
+                    ? 'tabular-nums opacity-80'
+                    : 'tabular-nums text-muted-foreground'
+                }
+              >
+                {opt.count}
+              </span>
+            </Button>
+          ))}
         </div>
-
-        {/* Menu « À saisir » : sélection partielle + remplissage IA */}
-        {isLoading ? null : (
-          <ASaisirActionsMenu
-            rows={aSaisirRows}
-            teamsById={teamsById}
-            allSelected={allASaisirSelected}
-            onSelectSubset={onSelectSubset}
-            onFillWithAi={onFillASaisirWithAi}
-          />
-        )}
       </div>
 
       <p className="text-xs text-muted-foreground">
         {isLoading
           ? 'Chargement des calendriers…'
           : `${filteredCount} employé${filteredCount > 1 ? 's' : ''} affiché${
-              filteredCount !== totalCount ? ` sur ${totalCount}` : ''
-            }`}
+              filteredCount > 1 ? 's' : ''
+            }${filteredCount !== totalCount ? ` sur ${totalCount}` : ''}`}
       </p>
     </div>
   );

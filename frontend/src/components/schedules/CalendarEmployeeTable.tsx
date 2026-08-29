@@ -28,6 +28,8 @@ import {
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
 import type { Team } from '@/api/teams';
 import type { SortDir, SortKey } from './types';
+import { CursorHint } from './CursorHint';
+import { usePaintSelect } from './usePaintSelect';
 import { cn } from '@/lib/utils';
 import { isSignificantEcart } from '@/lib/calendarStats';
 
@@ -55,7 +57,7 @@ interface CalendarEmployeeTableProps {
   onRetryEmployees?: () => void;
   unfilteredRowCount?: number;
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onSetSelected: (ids: string[], selected: boolean) => void;
   onToggleSelectAll: (ids: string[]) => void;
   onOpenEmployee: (id: string) => void;
   sortKey: SortKey;
@@ -95,7 +97,7 @@ export function CalendarEmployeeTable({
   onRetryEmployees,
   unfilteredRowCount = 0,
   selectedIds,
-  onToggleSelect,
+  onSetSelected,
   onToggleSelectAll,
   onOpenEmployee,
   sortKey,
@@ -105,6 +107,11 @@ export function CalendarEmployeeTable({
 }: CalendarEmployeeTableProps) {
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const { onHandlePointerDown, onHandlePointerEnter } = usePaintSelect({
+    ids: visibleIds,
+    selectedIds,
+    onSetSelected,
+  });
 
   if (isLoading) {
     return (
@@ -173,22 +180,41 @@ export function CalendarEmployeeTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="w-10">
-              <Checkbox
-                checked={allVisibleSelected}
-                onCheckedChange={() => onToggleSelectAll(visibleIds)}
-                aria-label="Tout sélectionner"
-              />
-            </TableHead>
-            <TableHead>
+            <TableHead className="w-12">
               <button
                 type="button"
-                className="flex items-center gap-1 font-medium"
-                onClick={() => onSort('name')}
+                className="flex h-8 w-8 items-center justify-center rounded-md cursor-pointer transition-colors hover:bg-primary/20"
+                onClick={() => onToggleSelectAll(visibleIds)}
+                aria-label="Tout sélectionner"
+                aria-pressed={allVisibleSelected}
               >
-                Collaborateur
-                <SortIcon column="name" sortKey={sortKey} sortDir={sortDir} />
+                <Checkbox
+                  checked={allVisibleSelected}
+                  className="pointer-events-none"
+                  aria-hidden
+                  tabIndex={-1}
+                />
               </button>
+            </TableHead>
+            <TableHead>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1 text-left font-medium cursor-pointer transition-colors hover:bg-primary/20 hover:text-primary"
+                  onClick={() => onToggleSelectAll(visibleIds)}
+                  aria-label="Tout sélectionner - Saisie rapide"
+                >
+                  Tout sélectionner - Saisie rapide
+                </button>
+                <button
+                  type="button"
+                  className="flex shrink-0 items-center p-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => onSort('name')}
+                  aria-label="Trier par nom"
+                >
+                  <SortIcon column="name" sortKey={sortKey} sortDir={sortDir} />
+                </button>
+              </div>
             </TableHead>
             <TableHead>
               <button
@@ -245,7 +271,7 @@ export function CalendarEmployeeTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => {
+          {rows.map((row, rowIndex) => {
             const team = row.employee.team_id
               ? teamsById.get(row.employee.team_id)
               : undefined;
@@ -260,25 +286,40 @@ export function CalendarEmployeeTable({
               <TableRow
                 key={row.employee.id}
                 className={cn(
-                  'cursor-pointer',
+                  'group/row hover:bg-primary/20',
                   selectedIds.has(row.employee.id) && 'bg-primary/5',
                   row.loadError && 'bg-destructive/5'
                 )}
-                onClick={() => onOpenEmployee(row.employee.id)}
+                onPointerEnter={() => onHandlePointerEnter(rowIndex)}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedIds.has(row.employee.id)}
-                    onCheckedChange={() => onToggleSelect(row.employee.id)}
-                  />
+                <TableCell className="w-12 p-0">
+                  <div
+                    role="checkbox"
+                    aria-checked={selectedIds.has(row.employee.id)}
+                    aria-label={`Sélectionner ${row.employee.last_name} ${row.employee.first_name}`}
+                    className="flex h-full min-h-12 w-12 cursor-pointer select-none items-center justify-center hover:bg-primary/20"
+                    onPointerDown={(event) => onHandlePointerDown(event, rowIndex)}
+                  >
+                    <Checkbox
+                      checked={selectedIds.has(row.employee.id)}
+                      className="pointer-events-none"
+                      aria-hidden
+                      tabIndex={-1}
+                    />
+                  </div>
                 </TableCell>
-                <TableCell>
-                  <div className="font-medium">
-                    {row.employee.last_name} {row.employee.first_name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {row.employee.job_title ?? '—'}
-                  </div>
+                <TableCell
+                  className="cursor-pointer"
+                  onClick={() => onOpenEmployee(row.employee.id)}
+                >
+                  <CursorHint label="Ouvrir le calendrier complet">
+                    <div className="font-medium group-hover/row:text-primary">
+                      {row.employee.last_name} {row.employee.first_name}
+                    </div>
+                    <div className="text-xs text-muted-foreground group-hover/row:text-primary/70">
+                      {row.employee.job_title ?? '—'}
+                    </div>
+                  </CursorHint>
                 </TableCell>
                 <TableCell>
                   {team ? (

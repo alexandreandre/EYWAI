@@ -210,6 +210,41 @@ class TestBuildFullDashboard:
         return_value=0,
     )
     @patch("app.modules.dashboard.application.service.get_dashboard_repository")
+    def test_effectif_actif_excludes_partis(
+        self, mock_get_repo, _mock_boeth, _mock_payroll
+    ):
+        """L'effectif actif du tableau de bord ignore les salariés partis."""
+        mock_repo = MagicMock()
+        mock_repo.get_employees_for_dashboard.return_value = [
+            {"id": "1", "first_name": "A", "last_name": "A", "contract_type": "CDI", "employment_status": "actif"},
+            {"id": "2", "first_name": "B", "last_name": "B", "contract_type": "CDI", "employment_status": "actif"},
+            {"id": "3", "first_name": "C", "last_name": "C", "contract_type": "CDD", "employment_status": "actif"},
+            {"id": "4", "first_name": "D", "last_name": "D", "contract_type": "CDI", "employment_status": "parti"},
+            {"id": "5", "first_name": "E", "last_name": "E", "contract_type": "CDI", "employment_status": "parti"},
+            {"id": "6", "first_name": "F", "last_name": "F", "contract_type": "CDD", "employment_status": "parti"},
+        ]
+        mock_repo.get_pending_absence_requests_count.return_value = 0
+        mock_repo.get_pending_expense_reports_count.return_value = 0
+        mock_repo.get_absence_requests_validated_today.return_value = []
+        mock_repo.get_payslips_by_company.return_value = []
+        mock_repo.get_absence_requests_for_absenteeism.return_value = []
+        mock_get_repo.return_value = mock_repo
+
+        result = build_full_dashboard(COMPANY_ID)
+
+        assert result.kpis.effectifActif == 3
+        assert result.kpis.cdiCount == 2
+        assert result.kpis.cddCount == 1
+
+    @patch(
+        "app.modules.dashboard.application.service.resolve_company_payroll_dashboard",
+        return_value=_mock_payroll_dashboard(),
+    )
+    @patch(
+        "app.modules.dashboard.application.service.boeth_profiles_repository.count_active_by_company",
+        return_value=0,
+    )
+    @patch("app.modules.dashboard.application.service.get_dashboard_repository")
     def test_alerts_count_expiring_contracts_and_trial_periods(
         self, mock_get_repo, _mock_boeth, _mock_payroll
     ):

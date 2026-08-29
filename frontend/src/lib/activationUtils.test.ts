@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  emailsMatch,
   getInvitationDisabledReason,
   getPasswordChecks,
   getPasswordStrength,
@@ -61,6 +62,18 @@ describe('getPasswordChecks / isPasswordAcceptable', () => {
     expect(getPasswordChecks('MOTDEPASSE1').minuscule).toBe(false);
     expect(getPasswordChecks('MotDePasse').chiffre).toBe(false);
     expect(isPasswordAcceptable('court')).toBe(false);
+  });
+});
+
+describe('emailsMatch', () => {
+  it('identifie la même adresse sans tenir compte de la casse ni des espaces', () => {
+    expect(emailsMatch('  GBouali@maji-invest.fr ', 'gbouali@maji-invest.fr')).toBe(
+      true,
+    );
+    expect(emailsMatch('vamate@maji-invest.fr', 'gbouali@maji-invest.fr')).toBe(
+      false,
+    );
+    expect(emailsMatch('', 'gbouali@maji-invest.fr')).toBe(false);
   });
 });
 

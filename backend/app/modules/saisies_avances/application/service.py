@@ -20,7 +20,6 @@ from app.modules.saisies_avances.application.dto import (
     UserContext,
     ValidationError,
 )
-from app.modules.saisies_avances.domain.enums import AUTO_APPROVAL_THRESHOLD_EUR
 from app.modules.saisies_avances.domain import rules as domain_rules
 from app.modules.saisies_avances.infrastructure import mappers as infra_mappers
 from app.modules.saisies_avances.infrastructure.providers import advance_payment_storage
@@ -53,7 +52,6 @@ from app.modules.saisies_avances.schemas import (
     SeizableAmountCalculation,
 )
 
-AUTO_APPROVAL_THRESHOLD = Decimal(str(AUTO_APPROVAL_THRESHOLD_EUR))
 
 
 def resolve_employee_id_for_advance_account(
@@ -347,11 +345,7 @@ def create_salary_advance(advance_data: Any, ctx: UserContext) -> Dict[str, Any]
         override_reason=override_reason,
     )
     is_employee_request = ctx.role == "collaborateur"
-    initial_status = domain_rules.initial_advance_status(
-        is_employee_request,
-        Decimal(str(advance_data.requested_amount)),
-        AUTO_APPROVAL_THRESHOLD,
-    )
+    initial_status = domain_rules.initial_advance_status(is_employee_request)
 
     accounting_account = get_accounting_account(company_id, advance_type)
 

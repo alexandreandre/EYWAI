@@ -14,15 +14,15 @@ from app.core.security import get_current_user
 
 
 class ParticipationUserContext(Protocol):
-    """Contrat minimal du contexte utilisateur pour les routes participation.
-    Utilisé pour id et active_company_id uniquement.
-    """
+    """Contrat minimal du contexte utilisateur pour les routes participation."""
 
     id: str
     active_company_id: Optional[str]
-    is_super_admin: bool
+    is_platform_admin: bool
 
     def has_rh_access_in_company(self, company_id: str) -> bool: ...
+
+    def get_role_in_company(self, company_id: str) -> Optional[str]: ...
 
 
 __all__ = ["ParticipationUserContext", "get_current_user"]

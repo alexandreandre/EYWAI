@@ -344,13 +344,27 @@ export function AssistedFillReview({
   );
   const [includeEmpty, setIncludeEmpty] = useState(false);
   const [includeOrange, setIncludeOrange] = useState(false);
-  const [showGlobalWarnings, setShowGlobalWarnings] = useState(false);
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  // Consigne texte sur 1-3 salariés : les points d'attention sont LA chose à
+  // lire — ouverts d'office. Sur un gros import, repliés pour ne pas noyer.
+  const [showGlobalWarnings, setShowGlobalWarnings] = useState(
+    () => proposal.source === 'texte' && proposal.employees.length <= 3,
+  );
+  // Salarié unique : sa ligne dépliée d'office — le détail jour par jour est
+  // exactement ce que le RH vient vérifier, et il remplit le modal.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() =>
+    proposal.employees.length === 1
+      ? new Set([`0-${proposal.employees[0].raw_name}`])
+      : new Set(),
+  );
   const [search, setSearch] = useState('');
 
   const isTabularImport = Boolean(
     proposal.detected_format?.startsWith('tabular'),
   );
+  const isTextInstruction = proposal.source === 'texte';
+  // Juste ce qu'il faut pour le RH : la barre de filtres/CSV n'a de sens que
+  // sur un volume d'import — pas pour une consigne portant sur 1-3 salariés.
+  const showToolbar = !isTextInstruction || proposal.employees.length > 3;
 
   const [rows, setRows] = useState<EditableRow[]>(() =>
     proposal.employees.map((emp, idx) => ({
@@ -709,11 +723,18 @@ export function AssistedFillReview({
       ? 'Relevé Cegid hebdomadaire'
       : proposal.detected_format === 'hybrid_vision_ocr'
         ? 'IA hybride (vision + OCR)'
-        : isTabularImport
-          ? proposal.detected_scope === 'weekly'
-            ? 'Relevé Excel/CSV hebdomadaire'
-            : 'Relevé Excel/CSV'
-          : proposal.source;
+        : proposal.extraction_method === 'native_pdf' ||
+            proposal.extraction_method === 'native_image'
+          ? 'Lecture IA du relevé'
+          : proposal.extraction_method === 'native_text_layer'
+            ? 'Relevé Cegid (texte)'
+            : isTabularImport
+              ? proposal.detected_scope === 'weekly'
+                ? 'Relevé Excel/CSV hebdomadaire'
+                : 'Relevé Excel/CSV'
+              : isTextInstruction
+                ? 'Consigne texte'
+                : proposal.source;
 
   if (preservedAbsenceDays.length > 0) {
     // Récapitulatif post-enregistrement : jours refusés car absence validée.
@@ -774,7 +795,7 @@ export function AssistedFillReview({
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <Badge className="h-5 bg-emerald-600 px-1.5 text-[10px] hover:bg-emerald-600">
-            {summary.ready} prêts
+            {summary.ready} prêt{summary.ready > 1 ? 's' : ''}
           </Badge>
           {summary.incomplete > 0 && (
             <Badge variant="outline" className="h-5 border-yellow-400 px-1.5 text-[10px] text-yellow-800">
@@ -831,9 +852,14 @@ export function AssistedFillReview({
             {proposal.consensus_conflicts} écart(s) vision/OCR — vérifiez les heures signalées.
           </p>
         )}
-        {!isTabularImport && (
+        {!isTabularImport && !isTextInstruction && (
           <p className="mt-1 text-[10px] text-destructive">
             Import IA — les noms lus sur le PDF peuvent être erronés.
+          </p>
+        )}
+        {isTextInstruction && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Vérifiez les jours proposés avant d&apos;enregistrer.
           </p>
         )}
         {isTabularImport && (
@@ -843,7 +869,8 @@ export function AssistedFillReview({
         )}
       </div>
 
-      {/* Barre outils */}
+      {/* Barre outils — masquée pour une consigne texte sur peu de salariés */}
+      {showToolbar && (
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <Input
           placeholder="Rechercher…"
@@ -896,6 +923,7 @@ export function AssistedFillReview({
           </Button>
         </div>
       </div>
+      )}
 
       {(globalWarnings.length > 0 || noiseWarningCount > 0) && (
         <div className="shrink-0 rounded-md border border-amber-200/80 bg-amber-50/50 px-2 py-1.5 text-[11px] text-amber-900">
@@ -910,7 +938,7 @@ export function AssistedFillReview({
               <ChevronRight className="h-3.5 w-3.5" />
             )}
             {globalWarnings.length > 0
-              ? `${globalWarnings.length} alerte(s) utile(s)`
+              ? `${globalWarnings.length} point${globalWarnings.length > 1 ? 's' : ''} d'attention`
               : `${noiseWarningCount} alerte(s) masquée(s) (salariés hors PDF)`}
           </button>
           {showGlobalWarnings && (

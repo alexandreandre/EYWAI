@@ -246,3 +246,112 @@ class TestComplete:
         prov.create_auth_user.assert_not_called()
         prov.link_employee_to_user.assert_not_called()
         repo.mark_used.assert_not_called()
+
+
+SHARED_TOKEN = "lien-partage-demo-call-2026"
+GAELLE_EMAIL = "gbouali@maji-invest.fr"
+VANESSA_EMAIL = "vamate@maji-invest.fr"
+GAELLE_EMP = "11111111-1111-1111-1111-111111111111"
+VANESSA_EMP = "22222222-2222-2222-2222-222222222222"
+
+
+def _shared_rows():
+    return [
+        _token_row(
+            id="tok-gaelle",
+            employee_id=GAELLE_EMP,
+            email_envoye=GAELLE_EMAIL,
+            lien_partage=SHARED_TOKEN,
+            token_hash="hash-gaelle-distinct",
+        ),
+        _token_row(
+            id="tok-vanessa",
+            employee_id=VANESSA_EMP,
+            email_envoye=VANESSA_EMAIL,
+            lien_partage=SHARED_TOKEN,
+            token_hash="hash-vanessa-distinct",
+        ),
+    ]
+
+
+class TestLienPartage:
+    """Un même lien pour plusieurs personnes : identification par e-mail."""
+
+    def test_verify_sans_email_demande_adresse(self, client: TestClient):
+        p_repo, p_prov = _patches()
+        with p_repo as repo, p_prov as prov:
+            repo.get_by_hash.return_value = None
+            repo.list_live_by_lien_partage.return_value = _shared_rows()
+            response = client.post(
+                "/api/activation/verify", json={"token": SHARED_TOKEN}
+            )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["email_requise"] is True
+        assert "gbouali" not in response.text.lower()
+        assert "vamate" not in response.text.lower()
+        prov.get_employee_for_activation.assert_not_called()
+
+    def test_verify_avec_email_renvoie_prenom(self, client: TestClient):
+        p_repo, p_prov = _patches()
+        with p_repo as repo, p_prov as prov:
+            repo.get_by_hash.return_value = None
+            repo.list_live_by_lien_partage.return_value = _shared_rows()
+            prov.get_employee_for_activation.return_value = _employee(
+                id=GAELLE_EMP, first_name="Gaëlle", email=GAELLE_EMAIL
+            )
+            prov.get_company_name.return_value = "Colorplast"
+            response = client.post(
+                "/api/activation/verify",
+                json={"token": SHARED_TOKEN, "email": "  GBouali@maji-invest.fr "},
+            )
+        assert response.status_code == 200, response.text
+        assert response.json()["prenom"] == "Gaëlle"
+        assert response.json()["societe"] == "Colorplast"
+
+    def test_verify_email_inconnue_meme_message(self, client: TestClient):
+        p_repo, p_prov = _patches()
+        with p_repo as repo, p_prov:
+            repo.get_by_hash.return_value = None
+            repo.list_live_by_lien_partage.return_value = _shared_rows()
+            response = client.post(
+                "/api/activation/verify",
+                json={"token": SHARED_TOKEN, "email": "inconnu@exemple.fr"},
+            )
+        assert response.status_code == 400
+        assert response.json()["detail"] == MESSAGE_GENERIQUE
+
+    def test_complete_une_personne_laisse_lautre_jeton_vivant(
+        self, client: TestClient
+    ):
+        rows = _shared_rows()
+        p_repo, p_prov = _patches()
+        repo = p_repo.start()
+        prov = p_prov.start()
+        try:
+            repo.get_by_hash.return_value = None
+            repo.list_live_by_lien_partage.return_value = rows
+            prov.get_employee_for_activation.return_value = _employee(
+                id=GAELLE_EMP, first_name="Gaëlle", email=GAELLE_EMAIL,
+                user_id=AUTH_UID,
+            )
+            response = client.post(
+                "/api/activation/complete",
+                json={
+                    "token": SHARED_TOKEN,
+                    "email": GAELLE_EMAIL,
+                    "password": "MotDePasse!2026",
+                },
+            )
+        finally:
+            p_repo.stop()
+            p_prov.stop()
+
+        assert response.status_code == 200, response.text
+        repo.mark_used.assert_called_once_with(
+            "tok-gaelle", repo.mark_used.call_args.args[1]
+        )
+        used_id = repo.mark_used.call_args.args[0]
+        assert used_id != "tok-vanessa"
+        prov.update_auth_user_password.assert_called_once()
+        prov.create_auth_user.assert_not_called()

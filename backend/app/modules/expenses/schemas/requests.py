@@ -16,8 +16,13 @@ ExpenseStatusUpdateLiteral = Literal["validated", "rejected"]
 
 
 class ExpenseBase(BaseModel):
-    """Schéma de base pour une note de frais (création côté client, sans employee_id)."""
+    """Schéma de base pour une note de frais.
 
+    `employee_id` est réservé aux RH (saisie pour un salarié) ; il est ignoré
+    pour un collaborateur, dont la fiche est résolue depuis le compte connecté.
+    """
+
+    employee_id: str | None = None
     date: date
     amount: float = Field(..., gt=0, description="Montant TTC en euros")
     vat_rate: float = Field(

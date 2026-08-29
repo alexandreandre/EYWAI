@@ -227,7 +227,9 @@ export function SalaryAdvanceRequestForm({
       await createSalaryAdvance(submitData);
       toast({
         title: "Succès",
-        description: "Demande créée avec succès.",
+        description: isEmployeeRequest
+          ? "Demande envoyée pour validation."
+          : "Avance enregistrée et approuvée.",
       });
       onSuccess();
     } catch (error: unknown) {

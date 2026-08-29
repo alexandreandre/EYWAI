@@ -46,6 +46,7 @@ export interface EmployeeProfileEditDialogProps {
   employee: Employee;
   variant: EmployeeProfileEditVariant;
   onSuccess: (employee: Employee) => void;
+  payrollFocus?: boolean;
 }
 
 export function EmployeeProfileEditDialog({
@@ -55,6 +56,7 @@ export function EmployeeProfileEditDialog({
   employee,
   variant,
   onSuccess,
+  payrollFocus = false,
 }: EmployeeProfileEditDialogProps) {
   const companyId = useActiveCompanyId();
   const queryClient = useQueryClient();
@@ -195,6 +197,7 @@ export function EmployeeProfileEditDialog({
               availableMutuelles={availableMutuelles}
               loadingMutuelles={loadingMutuelles}
               companyOrganismeLabel={companyOrganismeLabel}
+              payrollFocus={payrollFocus}
             />
 
             <DialogFooter className="gap-2 sm:gap-0">
