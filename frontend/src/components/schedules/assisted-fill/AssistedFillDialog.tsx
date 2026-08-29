@@ -16,10 +16,12 @@ import { cn } from '@/lib/utils';
 import {
   parseScheduleInstruction,
   type AiCalendarProposal,
+  type ParseCurrentProposal,
   type RosterEmployee,
 } from '@/api/calendar';
 import { AssistedFillProgress } from './AssistedFillProgress';
 import { AssistedFillReview } from './AssistedFillReview';
+import { assistedFillDialogHeightClass } from './assistedFillReviewLayout';
 import { aiFillErrorMessage } from './aiFillUtils';
 
 const MONTHS = [
@@ -63,6 +65,10 @@ export function AssistedFillDialog({
   const [instruction, setInstruction] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [proposal, setProposal] = useState<AiCalendarProposal | null>(null);
+  const [isRefining, setIsRefining] = useState(false);
+  // Incrémenté à chaque correction acceptée : remonte la revue pour qu'elle
+  // reconstruise ses lignes depuis la nouvelle proposition.
+  const [proposalVersion, setProposalVersion] = useState(0);
 
   const appendTranscript = useCallback((text: string) => {
     setInstruction((prev) => (prev ? `${prev} ${text}` : text));
@@ -80,6 +86,48 @@ export function AssistedFillDialog({
     setInstruction('');
     setProposal(null);
     setIsAnalyzing(false);
+    setIsRefining(false);
+  };
+
+  /** Correction pendant la revue : remplace la proposition, ne persiste rien. */
+  const handleRefine = async (
+    text: string,
+    current: ParseCurrentProposal,
+  ): Promise<boolean> => {
+    setIsRefining(true);
+    try {
+      const result = await parseScheduleInstruction(
+        year,
+        month,
+        text,
+        roster,
+        singleEmployee,
+        broadcast,
+        current,
+      );
+      if (result.employees.length === 0) {
+        toast({
+          title: 'Correction impossible',
+          description:
+            result.warnings[0] ??
+            "L'IA n'a pas pu appliquer la correction. Reformulez.",
+          variant: 'destructive',
+        });
+        return false;
+      }
+      setProposal(result);
+      setProposalVersion((v) => v + 1);
+      return true;
+    } catch (e) {
+      toast({
+        title: 'Correction impossible',
+        description: aiFillErrorMessage(e),
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsRefining(false);
+    }
   };
 
   const handleClose = (next: boolean) => {
@@ -137,9 +185,10 @@ export function AssistedFillDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         className={cn(
-          // max-h seul : le modal épouse son contenu (une revue à 1 salarié ne
-          // flotte plus dans un écran vide) tout en restant plafonné.
-          'flex max-h-[90dvh] w-full max-w-3xl translate-y-0 flex-col gap-0 overflow-hidden p-0 top-[5dvh]',
+          // En revue, hauteur définie (pas seulement max-h) : sinon le flex-1
+          // de la liste n'est pas borné et les jours sont coupés sans scroll.
+          'flex min-h-0 w-full max-w-3xl translate-y-0 flex-col gap-0 overflow-hidden p-0 top-[5dvh]',
+          assistedFillDialogHeightClass(Boolean(proposal)),
           proposal && 'max-w-4xl',
         )}
       >
@@ -164,10 +213,13 @@ export function AssistedFillDialog({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-3">
         {proposal ? (
           <AssistedFillReview
+            key={proposalVersion}
             proposal={proposal}
             roster={roster}
             onApplied={handleApplied}
             onBack={() => setProposal(null)}
+            onRefine={handleRefine}
+            isRefining={isRefining}
           />
         ) : isAnalyzing ? (
           <AssistedFillProgress />

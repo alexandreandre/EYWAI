@@ -35,6 +35,26 @@ class RosterEmployee(BaseModel):
     time_tracking_id: Optional[str] = None
 
 
+class CurrentProposalDay(BaseModel):
+    """Jour de la proposition affichée, renvoyé pour une correction ciblée."""
+
+    jour: int
+    heures: Optional[float] = None
+    type: str = "travail"
+    nature: DayNature = "reel"
+
+
+class CurrentProposalEmployee(BaseModel):
+    name: str
+    days: List[CurrentProposalDay] = Field(default_factory=list)
+
+
+class CurrentProposalPayload(BaseModel):
+    """État courant de l'écran de revue — source de vérité d'une correction."""
+
+    employees: List[CurrentProposalEmployee] = Field(default_factory=list)
+
+
 class ParseInstructionRequest(BaseModel):
     """Body POST /api/schedules/assisted-fill/parse-text."""
 
@@ -44,6 +64,8 @@ class ParseInstructionRequest(BaseModel):
     employees: List[RosterEmployee] = Field(default_factory=list)
     single_employee: bool = False
     broadcast: bool = False
+    # Mode correction : la consigne s'applique en delta sur cette proposition.
+    current_proposal: Optional[CurrentProposalPayload] = None
 
 
 class AiDayEntry(BaseModel):
