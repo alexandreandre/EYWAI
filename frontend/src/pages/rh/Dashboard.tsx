@@ -188,7 +188,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {!payrollFocus && <PendingSignaturesWidget mode="rh" />}
-            <RhParticipationCampaignWidget />
+            {!payrollFocus && <RhParticipationCampaignWidget />}
             {RIB_ALERTS_UI_ENABLED ? (
               <RibAlertsCard
                 alerts={ribAlerts}
