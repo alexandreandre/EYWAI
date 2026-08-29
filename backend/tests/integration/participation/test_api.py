@@ -31,6 +31,7 @@ def _make_user_with_company():
     user.active_company_id = TEST_COMPANY_ID
     user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = True
+    user.get_role_in_company.return_value = "admin"
     return user
 
 
@@ -51,6 +52,17 @@ def _make_non_rh_user_with_company():
     user.active_company_id = TEST_COMPANY_ID
     user.is_platform_admin = False
     user.has_rh_access_in_company.return_value = False
+    return user
+
+
+def _make_user_with_role(role: str):
+    """Utilisateur RH/admin avec un rôle explicite dans l'entreprise active."""
+    user = MagicMock()
+    user.id = TEST_USER_ID
+    user.active_company_id = TEST_COMPANY_ID
+    user.is_platform_admin = False
+    user.has_rh_access_in_company.return_value = True
+    user.get_role_in_company.return_value = role
     return user
 
 
@@ -526,3 +538,97 @@ class TestParticipationSimulationDelete:
         assert (
             "supprim" in data["message"].lower() or "success" in data["message"].lower()
         )
+
+
+class TestParticipationPermissionRoleFallback:
+    """Repli sur le rôle quand aucun grant user_permissions n'existe.
+
+    Les codes participation.* (migration 20260722140000) n'ont jamais été
+    rétro-alimentés dans user_permissions : sans repli, tout utilisateur
+    non-super-admin prenait 403 sur toute la page. Règle : financials.* se
+    replie sur le rôle admin, allocation.* sur le niveau RH ; un grant
+    explicite reste prioritaire.
+    """
+
+    @pytest.fixture
+    def override_user(self, client: TestClient):
+        from app.modules.participation.api.dependencies import get_current_user
+
+        def _as(user) -> TestClient:
+            app.dependency_overrides[get_current_user] = lambda: user
+            return client
+
+        try:
+            yield _as
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+
+    @patch(
+        "app.modules.participation.api.router.access_control_service.check_user_has_permission",
+        return_value=False,
+    )
+    @patch("app.modules.participation.application.queries.get_participation_service")
+    def test_admin_role_without_grant_can_list_simulations(
+        self, mock_get_service, _mock_perm, override_user
+    ):
+        """Rôle admin sans grant → financials.view accordé par repli → 200."""
+        mock_svc = MagicMock()
+        mock_svc.list_simulations.return_value = []
+        mock_get_service.return_value = mock_svc
+
+        response = override_user(_make_user_with_role("admin")).get(
+            "/api/participation/simulations?year=2026"
+        )
+
+        assert response.status_code == 200
+
+    @patch(
+        "app.modules.participation.api.router.access_control_service.check_user_has_permission",
+        return_value=False,
+    )
+    def test_rh_role_without_grant_denied_on_financials(
+        self, _mock_perm, override_user
+    ):
+        """Rôle rh sans grant → financials.view refusé (required_role=admin) → 403."""
+        response = override_user(_make_user_with_role("rh")).get(
+            "/api/participation/simulations?year=2026"
+        )
+
+        assert response.status_code == 403
+
+    @patch(
+        "app.modules.participation.api.router.access_control_service.check_user_has_permission",
+        return_value=False,
+    )
+    @patch(
+        "app.modules.participation.api.router.campaign_svc.list_campaigns",
+        return_value=[],
+    )
+    def test_rh_role_without_grant_can_list_campaigns(
+        self, _mock_list, _mock_perm, override_user
+    ):
+        """Rôle rh sans grant → allocation.view accordé par repli niveau RH → 200."""
+        response = override_user(_make_user_with_role("rh")).get(
+            "/api/participation/campaigns"
+        )
+
+        assert response.status_code == 200
+
+    @patch(
+        "app.modules.participation.api.router.access_control_service.check_user_has_permission",
+        return_value=True,
+    )
+    @patch("app.modules.participation.application.queries.get_participation_service")
+    def test_custom_role_with_explicit_grant_allowed(
+        self, mock_get_service, _mock_perm, override_user
+    ):
+        """Rôle custom avec grant explicite → le grant prime sur le rôle → 200."""
+        mock_svc = MagicMock()
+        mock_svc.list_simulations.return_value = []
+        mock_get_service.return_value = mock_svc
+
+        response = override_user(_make_user_with_role("custom")).get(
+            "/api/participation/simulations?year=2026"
+        )
+
+        assert response.status_code == 200
