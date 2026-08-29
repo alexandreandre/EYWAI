@@ -725,6 +725,20 @@ def extract_document_text(
     )
 
 
+def extract_pdf_text_layer(file_content: bytes) -> str:
+    """Texte de la couche PDF seul (pdfplumber), sans jamais déclencher l'OCR.
+
+    Chaîne vide pour un scan, une image ou un PDF illisible : l'appelant du
+    mode natif saute alors la détection de période plutôt que payer un OCR.
+    """
+    if not file_content or not file_content[:4] == b"%PDF":
+        return ""
+    try:
+        return _extract_pdf_native(file_content) or ""
+    except Exception:  # pragma: no cover - repli défensif
+        return ""
+
+
 __all__ = [
     "DocumentExtractionError",
     "ExtractionMetadata",
@@ -733,6 +747,7 @@ __all__ = [
     "SUPPORTED_EXTENSIONS",
     "ensure_vision_image_under_limit",
     "extract_document_text",
+    "extract_pdf_text_layer",
     "is_ocr_text_reliable",
     "is_supported_document",
     "render_document_pages",
