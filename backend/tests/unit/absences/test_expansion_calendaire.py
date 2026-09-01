@@ -111,3 +111,69 @@ def test_schema_jours_seuls_comportement_inchange():
     req = AbsenceRequestCreate(**_payload_arret(selected_days=[date(2026, 8, 17)]))
     assert req.selected_days == [date(2026, 8, 17)]
     assert req.date_debut is None
+
+
+# ----- Commande create_absence_request : expansion serveur -----
+
+from unittest.mock import MagicMock, patch
+
+from app.modules.absences.application import commands
+
+
+def _request_data_periode():
+    request_data = MagicMock()
+    request_data.selected_days = []
+    request_data.date_debut = date(2026, 8, 14)  # vendredi
+    request_data.date_fin = date(2026, 8, 17)  # lundi
+    request_data.type = "arret_maladie"
+    request_data.employee_id = "emp-1"
+    request_data.event_subtype = None
+    request_data.comment = None
+    request_data.attachment_url = None
+    request_data.filename = None
+    request_data.arret_type = "maladie_simple"
+    return request_data
+
+
+def test_creation_par_periode_stocke_tous_les_jours_calendaires():
+    with patch(
+        "app.modules.absences.application.commands.get_employee_company_id",
+        return_value="comp-1",
+    ):
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.create.return_value = {"id": "req-1"}
+            commands.create_absence_request(_request_data_periode())
+
+    call_data = repo.create.call_args[0][0]
+    assert call_data["selected_days"] == [
+        "2026-08-14",
+        "2026-08-15",
+        "2026-08-16",
+        "2026-08-17",
+    ]
+
+
+def test_creation_par_jours_ignore_les_faux_attributs_periode():
+    # MagicMock auto-crée date_debut/date_fin (non-dates) : pas d'expansion.
+    request_data = MagicMock()
+    request_data.selected_days = [date(2026, 8, 14)]
+    request_data.type = "rtt"
+    request_data.employee_id = "emp-1"
+    request_data.event_subtype = None
+    request_data.comment = None
+    request_data.attachment_url = None
+    request_data.filename = None
+
+    with patch(
+        "app.modules.absences.application.commands.get_employee_company_id",
+        return_value="comp-1",
+    ):
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.create.return_value = {"id": "req-2"}
+            commands.create_absence_request(request_data)
+
+    assert repo.create.call_args[0][0]["selected_days"] == ["2026-08-14"]

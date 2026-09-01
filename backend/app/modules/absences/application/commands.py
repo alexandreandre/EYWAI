@@ -32,6 +32,7 @@ from app.modules.absences.infrastructure.queries import (
 )
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
+from app.shared.domain.absence_calendar import daterange_days
 from app.modules.absences.application.queries import (
     build_historique_arrets_annee,
     compute_subrogation_for_absence,
@@ -157,6 +158,15 @@ def create_absence_request(
     Raises: ValueError (validation métier), LookupError (employé non trouvé).
     """
     selected_days = getattr(request_data, "selected_days", None) or []
+    date_debut = getattr(request_data, "date_debut", None)
+    date_fin = getattr(request_data, "date_fin", None)
+    # Saisie par période (arrêts) : l'expansion calendaire est faite SERVEUR,
+    # pour que toute origine de saisie produise des jours cohérents, week-ends
+    # et fériés compris. `isinstance` : ne se déclenche que sur de vraies dates
+    # (schéma API) — pas sur les payloads DSN (déjà expansés) ni les doubles de
+    # test.
+    if isinstance(date_debut, date) and isinstance(date_fin, date):
+        selected_days = daterange_days(date_debut, date_fin)
     if not selected_days:
         raise ValueError("Veuillez sélectionner au moins un jour.")
 
