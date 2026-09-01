@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date
+from typing import Any, Dict, Optional, Tuple
 
 from app.modules.dsn_import.domain.normalize import normalize_date_dsn
+from app.shared.domain.absence_calendar import daterange_days
 
 # Motifs fin de contrat DSN (S21.G00.62.002) → ExitType EYWAI
 EXIT_MOTIF_MAP: Dict[str, str] = {
@@ -60,17 +61,6 @@ def map_suspension_to_absence(motif: str) -> str:
 def map_arret_motif(motif: str) -> Tuple[str, Optional[str]]:
     code = (motif or "").strip().zfill(2)[:2]
     return ARRET_MOTIF_MAP.get(code, ("arret_maladie", "maladie_simple"))
-
-
-def daterange_days(start: date, end: date) -> List[date]:
-    if end < start:
-        return [start]
-    days: List[date] = []
-    current = start
-    while current <= end:
-        days.append(current)
-        current += timedelta(days=1)
-    return days
 
 
 def build_absence_payload_from_arret(

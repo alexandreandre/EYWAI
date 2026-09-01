@@ -17,6 +17,7 @@ divergentes.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any, Mapping, Optional
 
 # Valeur du marqueur de provenance posé sur un jour issu d'une absence validée.
@@ -63,6 +64,23 @@ SERVER_OWNED_ABSENCE_KEYS: frozenset[str] = frozenset(
 )
 
 
+def daterange_days(start: date, end: date) -> list[date]:
+    """Tous les jours calendaires de `start` à `end`, bornes incluses.
+
+    Un arrêt de travail est une période calendaire (Cerfa : week-ends et fériés
+    compris) : c'est l'expansion de référence pour les arrêts. `end < start`
+    renvoie `[start]` — comportement historique de l'import DSN, conservé.
+    """
+    if end < start:
+        return [start]
+    days: list[date] = []
+    current = start
+    while current <= end:
+        days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
 def is_absence_day(entry: Optional[Mapping[str, Any]]) -> bool:
     """Vrai si le jour est réellement issu d'une absence validée.
 
@@ -89,6 +107,7 @@ __all__ = [
     "ABSENCE_TYPE_TO_CALENDAR_TYPE",
     "ORIGINE_ABSENCE",
     "SERVER_OWNED_ABSENCE_KEYS",
+    "daterange_days",
     "is_absence_day",
     "strip_server_owned_keys",
 ]
