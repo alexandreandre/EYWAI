@@ -148,3 +148,16 @@ def test_dry_run_presence_export_code_from_conditions(
     mock_repo.upsert_monthly_input.assert_called_once()
     payload = mock_repo.upsert_monthly_input.call_args[0][0]
     assert payload["export_code"] == "SPEQ"
+
+
+def test_un_dimanche_d_arret_disqualifie_la_semaine_de_presence():
+    """Décision figée (spec arrêts calendaires 2026-09-01) : un arrêt couvrant
+    le week-end disqualifie la semaine — l'arrêt couvre réellement ce jour."""
+    from datetime import date
+
+    from app.modules.payroll_variables.domain.presence_week import (
+        week_has_disqualifying_absence,
+    )
+
+    lundi = date(2026, 8, 24)
+    assert week_has_disqualifying_absence(lundi, {date(2026, 8, 30)}) is True

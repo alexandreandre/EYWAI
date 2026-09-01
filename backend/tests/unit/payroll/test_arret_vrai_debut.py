@@ -39,6 +39,22 @@ def test_arret_fallback_premier_jour_du_mois_sans_vrai_debut():
     assert arret["date_debut"] == "2026-01-05"
 
 
+def test_arret_finissant_un_dimanche_conserve_le_dimanche_en_date_fin():
+    """30/08/2026 = dimanche. Depuis l'expansion calendaire (spec 2026-09-01),
+    les week-ends d'un arrêt sont typés arret_maladie : la date_fin extraite
+    pour maintien/IJSS/prévoyance est ce dimanche, pas le dernier jour ouvré."""
+    cal = [
+        {"date_complete": "2026-08-28", "type": "arret_maladie",
+         "arret_type": "maladie_simple"},
+        {"date_complete": "2026-08-29", "type": "arret_maladie",
+         "arret_type": "maladie_simple"},
+        {"date_complete": "2026-08-30", "type": "arret_maladie",
+         "arret_type": "maladie_simple"},
+    ]
+    arret = _extraire_arret_pour_maintien(cal, _Ctx(), date(2026, 8, 1), date(2026, 8, 31))
+    assert arret["date_fin"] == "2026-08-30"
+
+
 from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois
 
 
