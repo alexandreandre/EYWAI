@@ -154,7 +154,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
       toast({
         title: "Succès",
         description: showEmployeeSelector
-          ? "Note de frais enregistrée et validée."
+          ? "Note enregistrée (déjà validée). Elle est dans l’onglet Historique."
           : "Note de frais soumise.",
       });
       onSuccess();

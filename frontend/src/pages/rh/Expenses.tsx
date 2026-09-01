@@ -14,7 +14,7 @@ import { NewExpenseModal } from "@/components/NewExpenseModal";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
 import { downloadBlob } from '@/lib/downloadBlob';
-import type * as expensesApi from '@/api/expenses';
+import * as expensesApi from '@/api/expenses';
 import { formatExpenseVatSummary } from '@/lib/expenseVat';
 
 type ExpenseRequest = expensesApi.ExpenseWithEmployee;
@@ -25,6 +25,8 @@ export default function ExpensesPage() {
   const [pending, setPending] = useState<ExpenseRequest[]>([]);
   const [processed, setProcessed] = useState<ExpenseRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  /** RH : une saisie directe est validée tout de suite → onglet Historique. */
+  const [activeTab, setActiveTab] = useState("pending");
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -215,13 +217,16 @@ export default function ExpensesPage() {
       <NewExpenseModal
         isOpen={showNewExpense}
         onClose={() => setShowNewExpense(false)}
-        onSuccess={fetchData}
+        onSuccess={() => {
+          setActiveTab("processed");
+          void fetchData();
+        }}
         showEmployeeSelector
       />
-      <Tabs defaultValue="pending">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> En attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
-          <TabsTrigger value="processed">Historique</TabsTrigger>
+          <TabsTrigger value="processed">Historique <Badge className="ml-2">{processed.length}</Badge></TabsTrigger>
         </TabsList>
         <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
         <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <SharkFinLoader label="Chargement des demandes…" /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
