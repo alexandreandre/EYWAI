@@ -467,6 +467,71 @@ def test_les_jours_de_remplissage_ne_sont_pas_marques(monkeypatch):
     assert len(capture["ecrit"]) == 31
 
 
+def test_validation_arret_convertit_week_ends_repos_et_feries(monkeypatch):
+    """Un arrêt est calendaire (Cerfa) : ses jours non travaillés deviennent
+    arret_maladie, sinon le bulletin tronque l'arrêt au dernier jour ouvré et
+    perd des jours d'IJSS / maintien / prévoyance en bord de mois."""
+    from datetime import date
+
+    existant = [
+        {"jour": 14, "type": "travail", "heures_prevues": 7.0},
+        {"jour": 15, "type": "weekend", "heures_prevues": 0},
+        {"jour": 16, "type": "repos", "heures_prevues": 0},
+        {"jour": 17, "type": "ferie", "heures_prevues": 0},
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 8, j) for j in (14, 15, 16, 17)],
+        "arret_maladie",
+        arret_type="maladie_simple",
+    )
+
+    for jour in (14, 15, 16, 17):
+        entree = next(e for e in capture["ecrit"] if e["jour"] == jour)
+        assert entree["type"] == "arret_maladie", f"jour {jour}"
+        assert entree["heures_prevues"] == 0
+        assert entree["origine"] == "absence"
+        assert entree["arret_type"] == "maladie_simple"
+
+
+def test_validation_conge_ne_convertit_pas_les_week_ends(monkeypatch):
+    """Le déverrouillage calendaire ne vaut que pour les arrêts : un congé payé
+    continue de ne se poser que sur des jours de travail planifiés."""
+    from datetime import date
+
+    existant = [
+        {"jour": 14, "type": "travail", "heures_prevues": 7.0},
+        {"jour": 15, "type": "weekend", "heures_prevues": 0},
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1", [date(2026, 8, 14), date(2026, 8, 15)], "conge_paye"
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    jour15 = next(e for e in capture["ecrit"] if e["jour"] == 15)
+    assert jour14["type"] == "conges_payes"
+    assert jour15["type"] == "weekend"
+
+
+def test_validation_arret_ne_requalifie_pas_un_conge_pose(monkeypatch):
+    """La requalification congé→arrêt est un sujet séparé (cf.
+    dev-lot1-preservation-planning) : un jour déjà en congé reste intact."""
+    from datetime import date
+
+    existant = [{"jour": 14, "type": "conges_payes", "heures_prevues": 0}]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1", [date(2026, 8, 14)], "arret_maladie", arret_type="maladie_simple"
+    )
+
+    assert capture["ecrit"][0]["type"] == "conges_payes"
+
+
 def _semaine_travail_lundi_vendredi(_monday):
     """resolve_week_day_map : lundi→vendredi travaillés 7 h, week-end au repos."""
     return {

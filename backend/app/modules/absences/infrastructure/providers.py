@@ -250,6 +250,17 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         if not new_calendar_type:
             return
 
+        # Un arrêt de travail est calendaire (Cerfa) : il couvre aussi les
+        # jours non travaillés. Sans cette conversion, le bulletin (min/max des
+        # jours typés arret_maladie) tronque l'arrêt au dernier jour ouvré et
+        # perd des jours d'IJSS / maintien / prévoyance en bord de mois. Les
+        # congés, eux, ne se posent que sur des jours de travail planifiés.
+        types_convertibles = (
+            ("travail", "work", "weekend", "repos", "ferie")
+            if is_arret
+            else ("travail", "work")
+        )
+
         emp_row = (
             supabase.table("employees")
             .select("company_id, duree_hebdomadaire")
@@ -324,10 +335,13 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             else:
                 planned_calendar = schedule.data["planned_calendar"]
                 for entry in planned_calendar.get("calendrier_prevu", []):
-                    # WORK_TYPES = {'work', 'travail'} : apply-model écrit le
-                    # type du modèle tel quel, un jour 'work' doit aussi
-                    # pouvoir devenir une absence.
-                    if entry.get("jour") in day_list and entry.get("type") in ("travail", "work"):
+                    # `types_convertibles` : cf. commentaire au calcul. 'work'
+                    # y figure car apply-model écrit le type du modèle tel
+                    # quel — un jour 'work' doit aussi devenir une absence.
+                    if (
+                        entry.get("jour") in day_list
+                        and entry.get("type") in types_convertibles
+                    ):
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         # Branche nominale (le mois est déjà planifié) : c'est
