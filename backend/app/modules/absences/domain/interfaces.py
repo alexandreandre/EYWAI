@@ -81,6 +81,8 @@ class ISalaryCertificateProvider(ABC):
         self,
         absence_request_id: str,
         generated_by: Optional[str] = None,
+        *,
+        replace_existing: bool = False,
     ) -> Optional[str]:
         """Génère l'attestation pour une demande validée. Retourne certificate_id ou None."""
         ...

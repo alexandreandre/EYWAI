@@ -448,5 +448,5 @@ class TestGenerateSalaryCertificate:
                 )
         assert result == "cert-uuid-123"
         prov.generate_for_absence.assert_called_once_with(
-            "req-1", generated_by="user-1"
+            "req-1", generated_by="user-1", replace_existing=True
         )

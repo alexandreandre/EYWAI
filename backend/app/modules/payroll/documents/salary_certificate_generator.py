@@ -1,21 +1,23 @@
 # app/modules/payroll/documents/salary_certificate_generator.py
-# Source de vérité pour les attestations de salaire (Cerfa 11135*04).
-# Harmonisé avec l’ancienne implémentation absences ; le module absences consomme ce générateur via son provider.
+# Attestation de salaire CPAM (IJ). Hors Cerfa officiels / télétransmission Net-Entreprises.
 
 """
-Génération d'attestations de salaire pour les arrêts de travail (Cerfa 11135*04).
+Attestation de salaire pour le paiement des IJ CPAM.
 
-Source de vérité : app.modules.payroll.documents. Le module absences utilise ce générateur
-via ISalaryCertificateProvider / SalaryCertificateProvider (injection du generator).
+Maladie / maternité / paternité : salaires rétablis (même logique DSN type 003).
+Accident du travail / maladie professionnelle : salaires nets.
+Ce n'est pas un Cerfa 11135 / 11137 télétransmis.
 """
+
+from __future__ import annotations
 
 import io
 from calendar import monthrange
 from datetime import date, datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
@@ -28,8 +30,10 @@ from reportlab.platypus import (
 )
 
 from app.core.database import supabase
+from app.modules.dsn_export.domain.remuneration_map import (
+    build_remunerations_from_payslip,
+)
 from app.shared.infrastructure.pdf.helpers import (
-    build_branding_header_reportlab,
     format_currency,
     format_date,
     safe_float,
@@ -37,9 +41,51 @@ from app.shared.infrastructure.pdf.helpers import (
     setup_custom_styles,
 )
 
+KIND_RETABLI = "salaires_retablis"
+KIND_NET = "salaires_nets"
+
+_AT_MP_TYPES = frozenset({"arret_at", "arret_maladie_pro"})
+_AT_ARRET_TYPES = frozenset({"accident_travail"})
+
+
+def resolve_cpam_attestation_kind(
+    absence_type: str,
+    arret_type: Optional[str] = None,
+) -> str:
+    """AT/MP → nets ; maladie / mat / paternité → rétablis."""
+    if (absence_type or "") in _AT_MP_TYPES:
+        return KIND_NET
+    if (arret_type or "") in _AT_ARRET_TYPES:
+        return KIND_NET
+    return KIND_RETABLI
+
+
+def amounts_from_payslip_data(payslip_data: Optional[Dict[str, Any]]) -> Dict[str, float]:
+    """Extrait brut, net, rétabli (DSN 003) et primes d'un bulletin."""
+    data = payslip_data if isinstance(payslip_data, dict) else {}
+    brut = safe_float(data.get("salaire_brut", 0))
+    net = safe_float(data.get("net_a_payer", 0))
+    primes = safe_float(data.get("total_primes", 0))
+    retabli = brut
+    if data:
+        built = build_remunerations_from_payslip(
+            data,
+            brut=brut,
+            period_start="01011900",
+            period_end="31011900",
+            period="1900-01",
+        )
+        retabli = float(built.salaire_retabli)
+    return {
+        "salaire_brut": round(brut, 2),
+        "salaire_net": round(net, 2),
+        "salaire_retabli": round(retabli, 2),
+        "primes": round(primes, 2),
+    }
+
 
 class SalaryCertificateGenerator:
-    """Générateur d'attestations de salaire pour arrêts de travail."""
+    """Générateur d'attestations de salaire pour arrêts de travail (CPAM)."""
 
     def __init__(self):
         self.styles = getSampleStyleSheet()
@@ -62,7 +108,7 @@ class SalaryCertificateGenerator:
         employee_id: str,
         absence_start_date: date,
     ) -> Dict[str, Any]:
-        """Récupère la rémunération de référence (3 derniers mois complets avant l'arrêt)."""
+        """Rémunération des 3 derniers mois complets avant l'arrêt (brut, rétabli, net)."""
         if absence_start_date.month == 1:
             ref_month_end = 12
             ref_year_end = absence_start_date.year - 1
@@ -88,6 +134,8 @@ class SalaryCertificateGenerator:
 
         total_brut = 0.0
         total_primes = 0.0
+        total_retabli = 0.0
+        total_net = 0.0
         for month_info in reference_months:
             payslip = (
                 supabase.table("payslips")
@@ -103,15 +151,17 @@ class SalaryCertificateGenerator:
                 .execute()
             )
             if payslip and payslip.data:
-                payslip_data = payslip.data.get("payslip_data", {})
-                brut = self._safe_float(payslip_data.get("salaire_brut", 0))
-                primes = self._safe_float(payslip_data.get("total_primes", 0))
-                month_info["brut"] = brut
-                month_info["primes"] = primes
-                month_info["total"] = brut + primes
+                amounts = amounts_from_payslip_data(
+                    payslip.data.get("payslip_data") or {}
+                )
+                month_info.update(amounts)
+                month_info["brut"] = amounts["salaire_brut"]
+                month_info["total"] = amounts["salaire_retabli"]
                 month_info["has_payslip"] = True
-                total_brut += brut
-                total_primes += primes
+                total_brut += amounts["salaire_brut"]
+                total_primes += amounts["primes"]
+                total_retabli += amounts["salaire_retabli"]
+                total_net += amounts["salaire_net"]
             else:
                 employee = (
                     supabase.table("employees")
@@ -120,35 +170,43 @@ class SalaryCertificateGenerator:
                     .maybe_single()
                     .execute()
                 )
+                brut = 0.0
                 if employee and employee.data:
-                    salaire_base = employee.data.get("salaire_de_base", {})
-                    brut = self._safe_float(salaire_base.get("valeur", 0))
-                    month_info["brut"] = brut
-                    month_info["primes"] = 0.0
-                    month_info["total"] = brut
-                    month_info["has_payslip"] = False
-                    total_brut += brut
-                else:
-                    month_info["brut"] = 0.0
-                    month_info["primes"] = 0.0
-                    month_info["total"] = 0.0
-                    month_info["has_payslip"] = False
+                    salaire_base = employee.data.get("salaire_de_base") or {}
+                    brut = self._safe_float(
+                        salaire_base.get("valeur", 0)
+                        if isinstance(salaire_base, dict)
+                        else salaire_base
+                    )
+                month_info["salaire_brut"] = brut
+                month_info["salaire_retabli"] = brut
+                month_info["salaire_net"] = 0.0
+                month_info["primes"] = 0.0
+                month_info["brut"] = brut
+                month_info["total"] = brut
+                month_info["has_payslip"] = False
+                total_brut += brut
+                total_retabli += brut
 
-        months_with_data = sum(1 for m in reference_months if m.get("total", 0) > 0)
-        average_monthly_brut = (
-            total_brut / max(months_with_data, 1) if months_with_data > 0 else 0.0
+        months_with_data = sum(
+            1
+            for m in reference_months
+            if m.get("salaire_retabli", 0) or m.get("salaire_net", 0)
         )
         first_month = reference_months[0]
         last_month = reference_months[-1]
         period_start = date(first_month["year"], first_month["month"], 1)
         last_day = monthrange(last_month["year"], last_month["month"])[1]
         period_end = date(last_month["year"], last_month["month"], last_day)
+        n = max(months_with_data, 1)
         return {
             "reference_months": reference_months,
             "total_brut": total_brut,
-            "average_monthly_brut": average_monthly_brut,
+            "total_retabli": total_retabli,
+            "total_net": total_net,
+            "average_monthly_brut": total_brut / n if months_with_data else 0.0,
             "total_primes": total_primes,
-            "total_remuneration": total_brut + total_primes,
+            "total_remuneration": total_retabli,
             "period_start": period_start,
             "period_end": period_end,
             "months_count": months_with_data,
@@ -182,6 +240,41 @@ class SalaryCertificateGenerator:
         }
         return labels.get(absence_type, "Arrêt de travail")
 
+    def _absence_bounds(self, absence_data: Dict[str, Any]) -> tuple[date, date]:
+        selected_days = absence_data.get("selected_days") or []
+        if selected_days:
+            dates = []
+            for day_str in selected_days:
+                if isinstance(day_str, str):
+                    dates.append(date.fromisoformat(day_str[:10]))
+                else:
+                    dates.append(day_str)
+            dates.sort()
+            return dates[0], dates[-1]
+        today = date.today()
+        return today, today
+
+    def _kv_table(self, rows: list[list[str]]) -> Table:
+        table = Table(rows, colWidths=[5.2 * cm, 11.3 * cm])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("BOX", (0, 0), (-1, -1), 0.6, colors.black),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.3, colors.HexColor("#d1d5db")),
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f3f4f6")),
+                ]
+            )
+        )
+        return table
+
     def generate_salary_certificate(
         self,
         employee_data: Dict[str, Any],
@@ -189,229 +282,251 @@ class SalaryCertificateGenerator:
         absence_data: Dict[str, Any],
         reference_salary: Dict[str, Any],
     ) -> bytes:
-        """Génère une attestation de salaire conforme au formulaire Cerfa 11135*04."""
+        """Génère l'attestation CPAM (salaires rétablis ou nets selon le motif)."""
+        kind = resolve_cpam_attestation_kind(
+            str(absence_data.get("type") or ""),
+            arret_type=absence_data.get("arret_type"),
+        )
+        amount_key = "salaire_net" if kind == KIND_NET else "salaire_retabli"
+        column_label = "Salaire net" if kind == KIND_NET else "Salaire rétabli"
+
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            topMargin=2 * cm,
-            bottomMargin=2 * cm,
-            leftMargin=2 * cm,
-            rightMargin=2 * cm,
+            topMargin=1.4 * cm,
+            bottomMargin=1.4 * cm,
+            leftMargin=1.6 * cm,
+            rightMargin=1.6 * cm,
         )
         story = []
-
-        build_branding_header_reportlab(story, self.styles, company_data)
-        story.append(Spacer(1, 1 * cm))
+        title_style = ParagraphStyle(
+            name="AttestationTitre",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            alignment=TA_CENTER,
+            spaceAfter=4,
+        )
+        subtitle_style = ParagraphStyle(
+            name="AttestationSousTitre",
+            parent=self.styles["Normal"],
+            fontSize=9,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#374151"),
+            spaceAfter=12,
+        )
+        section_style = ParagraphStyle(
+            name="AttestationSection",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=9,
+            textColor=colors.white,
+            alignment=TA_LEFT,
+        )
+        mention_style = ParagraphStyle(
+            name="AttestationMention",
+            parent=self.styles["Normal"],
+            fontSize=8,
+            textColor=colors.HexColor("#4b5563"),
+            alignment=TA_JUSTIFY,
+            spaceBefore=6,
+            spaceAfter=8,
+        )
 
         story.append(
             Paragraph(
-                "<b>ATTESTATION DE SALAIRE</b>",
-                self.styles["TitrePrincipal"],
+                "ATTESTATION DE SALAIRE",
+                title_style,
             )
         )
         story.append(
             Paragraph(
-                "<i>Pour le paiement des indemnités journalières</i>",
-                ParagraphStyle(
-                    name="SousTitre",
-                    parent=self.styles["Normal"],
-                    fontSize=10,
-                    alignment=TA_CENTER,
-                    spaceAfter=20,
-                ),
+                "Pour le paiement des indemnités journalières — Assurance maladie",
+                subtitle_style,
             )
         )
-        story.append(Spacer(1, 0.8 * cm))
 
-        story.append(
-            Paragraph(
-                "<b>INFORMATIONS SALARIÉ</b>",
-                self.styles["Important"],
-            )
+        raison = self._safe_str(
+            company_data.get("raison_sociale")
+            or company_data.get("company_name")
+            or ""
         )
-        story.append(Spacer(1, 0.3 * cm))
-        nom_complet = f"{employee_data.get('first_name', '')} {employee_data.get('last_name', '')}"
-        date_naissance = self._format_date(employee_data.get("date_naissance", ""))
-        nir = employee_data.get("nir", "Non renseigné")
-        date_embauche = self._format_date(employee_data.get("hire_date", ""))
-        poste = employee_data.get("job_title", "Non renseigné")
-        data_salarie = [
-            ["Nom et prénom :", nom_complet],
-            ["Date de naissance :", date_naissance],
-            ["N° de Sécurité Sociale :", nir],
-            ["Poste occupé :", poste],
-            ["Date d'embauche :", date_embauche],
-        ]
-        table_salarie = Table(data_salarie, colWidths=[5 * cm, 11 * cm])
-        table_salarie.setStyle(
-            TableStyle(
+        ville = self._safe_str(
+            company_data.get("adresse_ville") or company_data.get("city") or ""
+        )
+        adresse = " ".join(
+            part
+            for part in (
+                self._safe_str(company_data.get("adresse_rue") or ""),
+                self._safe_str(company_data.get("adresse_code_postal") or ""),
+                ville,
+            )
+            if part
+        )
+        story.append(self._section_banner("Employeur", section_style))
+        story.append(
+            self._kv_table(
                 [
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 10),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ["Raison sociale :", raison or "Non renseignée"],
+                    [
+                        "N° SIRET :",
+                        self._safe_str(company_data.get("siret") or "Non renseigné"),
+                    ],
+                    ["Adresse :", adresse or "Non renseignée"],
                 ]
             )
         )
-        story.append(table_salarie)
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.45 * cm))
 
+        nom_complet = (
+            f"{self._safe_str(employee_data.get('first_name', ''))} "
+            f"{self._safe_str(employee_data.get('last_name', ''))}"
+        ).strip()
+        story.append(self._section_banner("Salarié", section_style))
         story.append(
-            Paragraph(
-                "<b>INFORMATIONS SUR L'ARRÊT</b>",
-                self.styles["Important"],
+            self._kv_table(
+                [
+                    ["Nom et prénom :", nom_complet or "Non renseigné"],
+                    [
+                        "Date de naissance :",
+                        self._format_date(employee_data.get("date_naissance", "")),
+                    ],
+                    [
+                        "N° de Sécurité sociale :",
+                        self._safe_str(employee_data.get("nir") or "Non renseigné"),
+                    ],
+                    [
+                        "Date d'embauche :",
+                        self._format_date(employee_data.get("hire_date", "")),
+                    ],
+                    [
+                        "Emploi :",
+                        self._safe_str(employee_data.get("job_title") or "Non renseigné"),
+                    ],
+                ]
             )
         )
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Spacer(1, 0.45 * cm))
+
         absence_type = absence_data.get("type", "")
-        absence_label = self._get_absence_type_label(absence_type)
-        selected_days = absence_data.get("selected_days", [])
-        if selected_days:
-            dates = []
-            for day_str in selected_days:
-                if isinstance(day_str, str):
-                    dates.append(date.fromisoformat(day_str))
-                else:
-                    dates.append(day_str)
-            dates.sort()
-            date_debut = dates[0]
-            date_fin = dates[-1]
-        else:
-            date_debut = date.today()
-            date_fin = date.today()
-        data_arret = [
-            ["Type d'arrêt :", absence_label],
-            ["Date de début :", self._format_date(date_debut)],
-            ["Date de fin :", self._format_date(date_fin)],
-        ]
-        table_arret = Table(data_arret, colWidths=[5 * cm, 11 * cm])
-        table_arret.setStyle(
-            TableStyle(
+        date_debut, date_fin = self._absence_bounds(absence_data)
+        story.append(self._section_banner("Arrêt de travail", section_style))
+        story.append(
+            self._kv_table(
                 [
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 10),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ["Nature :", self._get_absence_type_label(str(absence_type))],
+                    ["Date de début :", self._format_date(date_debut)],
+                    ["Date de fin :", self._format_date(date_fin)],
                 ]
             )
         )
-        story.append(table_arret)
-        story.append(Spacer(1, 0.8 * cm))
+        story.append(Spacer(1, 0.45 * cm))
 
-        story.append(
-            Paragraph(
-                "<b>RÉMUNÉRATION DE RÉFÉRENCE</b>",
-                self.styles["Important"],
-            )
-        )
-        story.append(Spacer(1, 0.3 * cm))
         period_start_str = self._format_date(reference_salary["period_start"])
         period_end_str = self._format_date(reference_salary["period_end"])
         story.append(
+            self._section_banner("Rémunération des trois mois de référence", section_style)
+        )
+        story.append(Spacer(1, 0.15 * cm))
+        story.append(
             Paragraph(
-                f"Période de référence : du {period_start_str} au {period_end_str}",
+                f"Période : du {period_start_str} au {period_end_str}",
                 self.styles["Normal"],
             )
         )
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Spacer(1, 0.2 * cm))
 
-        table_data = [["Mois", "Salaire brut", "Primes", "Total"]]
-        for month_info in reference_salary["reference_months"]:
-            month_name = f"{month_info['month_name']} {month_info['year']}"
-            brut_str = self._format_currency(month_info.get("brut", 0))
-            primes_str = self._format_currency(month_info.get("primes", 0))
-            total_str = self._format_currency(month_info.get("total", 0))
-            table_data.append([month_name, brut_str, primes_str, total_str])
-        total_brut_str = self._format_currency(reference_salary["total_brut"])
-        total_primes_str = self._format_currency(reference_salary["total_primes"])
-        total_remuneration_str = self._format_currency(
-            reference_salary["total_remuneration"]
-        )
-        table_data.append(
-            [
-                "<b>TOTAL</b>",
-                f"<b>{total_brut_str}</b>",
-                f"<b>{total_primes_str}</b>",
-                f"<b>{total_remuneration_str}</b>",
-            ]
-        )
-        table_remuneration = Table(
-            table_data,
-            colWidths=[4 * cm, 3.5 * cm, 3.5 * cm, 3.5 * cm],
-        )
+        table_data = [["Mois", column_label]]
+        total_amount = 0.0
+        months_used = 0
+        for month_info in reference_salary.get("reference_months") or []:
+            month_name = f"{month_info.get('month_name', '')} {month_info.get('year', '')}"
+            amount = self._safe_float(month_info.get(amount_key, 0))
+            total_amount += amount
+            if amount:
+                months_used += 1
+            table_data.append([month_name.strip(), self._format_currency(amount)])
+        table_data.append(["TOTAL", self._format_currency(total_amount)])
+
+        table_remuneration = Table(table_data, colWidths=[9 * cm, 7.5 * cm])
         table_remuneration.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 10),
-                    ("FONTSIZE", (0, 1), (-1, -2), 9),
-                    ("FONTSIZE", (0, -1), (-1, -1), 10),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                    ("BOTTOMPADDING", (0, 1), (-1, -2), 8),
-                    ("BOTTOMPADDING", (0, -1), (-1, -1), 12),
-                    ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.6, colors.black),
+                    ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f3f4f6")),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ]
             )
         )
         story.append(table_remuneration)
-        story.append(Spacer(1, 0.5 * cm))
-        average_str = self._format_currency(reference_salary["average_monthly_brut"])
+
+        if kind == KIND_NET:
+            mention = (
+                "Les montants indiqués sont les salaires nets des trois mois civils "
+                "précédant l'arrêt (accident du travail ou maladie professionnelle)."
+            )
+        else:
+            mention = (
+                "Les montants indiqués sont les salaires rétablis des trois mois civils "
+                "précédant l'arrêt : rémunération que le salarié aurait perçue en l'absence "
+                "d'arrêt ou d'autre absence."
+            )
+        story.append(Paragraph(mention, mention_style))
+
+        average = total_amount / max(months_used, 1) if months_used else 0.0
         story.append(
             Paragraph(
-                f"<b>Rémunération mensuelle moyenne : {average_str}</b>",
+                f"<b>Moyenne mensuelle ({column_label.lower()}) : "
+                f"{self._format_currency(average)}</b>",
                 self.styles["Normal"],
             )
         )
-        story.append(Spacer(1, 1 * cm))
-        story.append(
-            Paragraph(
-                "Le présent document est établi pour permettre le calcul des indemnités journalières "
-                "par la Caisse Primaire d'Assurance Maladie (CPAM).",
-                ParagraphStyle(
-                    name="MentionLegale",
-                    parent=self.styles["Normal"],
-                    fontSize=9,
-                    textColor=colors.HexColor("#6b7280"),
-                    alignment=TA_JUSTIFY,
-                ),
-            )
-        )
-        story.append(Spacer(1, 1.5 * cm))
+        story.append(Spacer(1, 0.8 * cm))
         date_aujourd_hui = self._format_date(datetime.now().date())
         story.append(
             Paragraph(
-                f"Fait à {company_data.get('city', '___________')}, le {date_aujourd_hui}",
-                self.styles["Signature"],
+                f"Fait à {ville or '___________'}, le {date_aujourd_hui}",
+                self.styles.get("Signature", self.styles["Normal"]),
             )
         )
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Spacer(1, 0.25 * cm))
         story.append(
             Paragraph(
                 "Signature et cachet de l'employeur :",
-                self.styles["Signature"],
+                self.styles.get("Signature", self.styles["Normal"]),
             )
         )
-        story.append(Spacer(1, 2 * cm))
-        story.append(
-            Paragraph(
-                "<i>Formulaire Cerfa 11135*04 - Attestation de salaire pour le paiement des indemnités journalières</i>",
-                ParagraphStyle(
-                    name="PiedPage",
-                    parent=self.styles["Normal"],
-                    fontSize=8,
-                    textColor=colors.HexColor("#9ca3af"),
-                    alignment=TA_CENTER,
-                ),
-            )
-        )
+
         doc.build(story)
         pdf_bytes = buffer.getvalue()
         buffer.close()
         return pdf_bytes
+
+    def _section_banner(self, title: str, section_style: ParagraphStyle) -> Table:
+        banner = Table(
+            [[Paragraph(title.upper(), section_style)]],
+            colWidths=[16.5 * cm],
+        )
+        banner.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#111827")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        return banner

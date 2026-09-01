@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
-import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, ExternalLink, ChevronDown } from "lucide-react";
+import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, RefreshCw, ExternalLink, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   Collapsible,
@@ -465,6 +465,23 @@ export default function AbsencesPage() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setCertConfirmId(req.id)}
+                              title="Régénérer l'attestation de salaire"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Régénérer l'attestation de salaire</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </>
                   ) : (
                     <TooltipProvider>
@@ -618,8 +635,11 @@ export default function AbsencesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Générer l&apos;attestation de salaire</AlertDialogTitle>
             <AlertDialogDescription>
-              Confirmez la génération de l&apos;attestation Cerfa pour la CPAM. La subrogation
-              enregistrée sur l&apos;arrêt sera utilisée pour la suite du circuit IJSS.
+              Confirmez la génération (ou la régénération) de l&apos;attestation de
+              salaire pour la CPAM : salaires rétablis en maladie / maternité /
+              paternité, salaires nets en AT / maladie professionnelle. Un PDF déjà
+              créé sera remplacé. La subrogation enregistrée sur l&apos;arrêt sera
+              utilisée pour la suite du circuit IJSS.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -94,6 +94,8 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
         self,
         absence_request_id: str,
         generated_by: Optional[str] = None,
+        *,
+        replace_existing: bool = False,
     ) -> Optional[str]:
         try:
             absence_resp = (
@@ -139,13 +141,14 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
 
             existing = (
                 supabase.table("salary_certificates")
-                .select("id")
+                .select("id, storage_path")
                 .eq("absence_request_id", absence_request_id)
                 .maybe_single()
                 .execute()
             )
-            if existing and existing.data:
-                return existing.data["id"]
+            existing_row = existing.data if existing and existing.data else None
+            if existing_row and not replace_existing:
+                return existing_row["id"]
 
             selected_days = absence_data.get("selected_days", [])
             if not selected_days:
@@ -184,6 +187,26 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
                 "filename": filename,
                 "generated_by": generated_by,
             }
+            if existing_row:
+                old_path = existing_row.get("storage_path")
+                cert_resp = (
+                    supabase.table("salary_certificates")
+                    .update(certificate_data)
+                    .eq("id", existing_row["id"])
+                    .execute()
+                )
+                if old_path and old_path != storage_path:
+                    try:
+                        supabase.storage.from_(BUCKET_SALARY_CERTIFICATES).remove(
+                            [old_path]
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Ancien PDF attestation non supprimé: %s", old_path
+                        )
+                if cert_resp.data:
+                    return cert_resp.data[0]["id"]
+                return existing_row["id"]
             cert_resp = (
                 supabase.table("salary_certificates").insert(certificate_data).execute()
             )

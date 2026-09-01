@@ -373,7 +373,7 @@ def generate_salary_certificate(
     if not requires_salary_certificate(absence.get("type", "")):
         raise ValueError("Ce type d'arrêt ne nécessite pas d'attestation de salaire.")
     cert_id = salary_certificate_provider.generate_for_absence(
-        absence_id, generated_by=generated_by
+        absence_id, generated_by=generated_by, replace_existing=True
     )
     if not cert_id:
         raise RuntimeError("Erreur lors de la génération de l'attestation")
