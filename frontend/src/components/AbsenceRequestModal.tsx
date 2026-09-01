@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { type DateRange } from "react-day-picker";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ import {
   getAvailableCongePayeDays,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
+import { formatPeriodeArret } from "@/lib/arretPeriode";
 
 export type AbsenceRequestModalMode = "employee" | "rh_arret" | "rh_leave";
 
@@ -164,6 +166,7 @@ export function AbsenceRequestModal({
   const [eventSubtype, setEventSubtype] = useState<string>('');
   const [evenementFamilialEvents, setEvenementFamilialEvents] = useState<absencesApi.EvenementFamilialEvent[]>([]);
   const [selectedDays, setSelectedDays] = useState<Date[] | undefined>([]);
+  const [arretRange, setArretRange] = useState<DateRange | undefined>(undefined);
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -182,6 +185,7 @@ export function AbsenceRequestModal({
       setEventSubtype("");
       setEvenementFamilialEvents([]);
       setSelectedDays([]);
+      setArretRange(undefined);
       setComment("");
       setFile(null);
       setError("");
@@ -223,6 +227,13 @@ export function AbsenceRequestModal({
 
   const selectedDaysCount = selectedDays?.length ?? 0;
 
+  // Un arrêt (hors mi-temps thérapeutique : travail partiel) se saisit en
+  // période calendaire « du … au … » — l'expansion en jours est serveur.
+  const isSaisiePeriode =
+    isRhArret &&
+    isArretPrincipalType(absenceType) &&
+    arretType !== "mi_temps_therapeutique";
+
   const availableCongePayeDays = useMemo(
     () => getAvailableCongePayeDays(balances, pendingAbsences),
     [balances, pendingAbsences],
@@ -234,14 +245,15 @@ export function AbsenceRequestModal({
     selectedDaysCount > availableCongePayeDays;
 
   const doSubmit = async () => {
-    if (!selectedDays || selectedDays.length === 0) return;
+    if (isSaisiePeriode) {
+      if (!arretRange?.from || !arretRange?.to) return;
+    } else if (!selectedDays || selectedDays.length === 0) {
+      return;
+    }
     setError("");
     setIsLoading(true);
 
     try {
-      // Formatage des dates au format YYYY-MM-DD attendu par le backend
-      const formattedDays = selectedDays.map(day => format(day, "yyyy-MM-dd"));
-
       let attachmentUrl: string | null = null;
       let filename: string | null = null;
 
@@ -266,12 +278,20 @@ export function AbsenceRequestModal({
       // Créer la demande d'absence avec ou sans justificatif
       const payload: absencesApi.AbsenceCreationPayload = {
         employee_id: employeeId,
-        type: absenceType as 'conge_paye' | 'rtt' | 'jtc' | 'repos_compensateur' | 'evenement_familial' | 'arret_maladie' | 'arret_at' | 'arret_paternite' | 'arret_maternite' | 'arret_maladie_pro',
-        selected_days: formattedDays,
+        type: absenceType as absencesApi.AbsenceCreationPayload["type"],
         comment: comment || null,
         attachment_url: attachmentUrl,
         filename: filename,
       };
+      if (isSaisiePeriode && arretRange?.from && arretRange?.to) {
+        // Période calendaire : le backend étend en jours, week-ends compris.
+        payload.date_debut = format(arretRange.from, "yyyy-MM-dd");
+        payload.date_fin = format(arretRange.to, "yyyy-MM-dd");
+      } else {
+        payload.selected_days = (selectedDays ?? []).map((day) =>
+          format(day, "yyyy-MM-dd"),
+        );
+      }
       if (absenceType === 'evenement_familial' && eventSubtype) {
         payload.event_subtype = eventSubtype;
       }
@@ -327,7 +347,12 @@ export function AbsenceRequestModal({
       setError("Veuillez sélectionner le type d'arrêt.");
       return;
     }
-    if (!selectedDays || selectedDays.length === 0) {
+    if (isSaisiePeriode) {
+      if (!arretRange?.from || !arretRange?.to) {
+        setError("Veuillez sélectionner la période d'arrêt (du … au …).");
+        return;
+      }
+    } else if (!selectedDays || selectedDays.length === 0) {
       setError(
         isRhArret
           ? "Veuillez sélectionner au moins un jour d'arrêt."
@@ -542,16 +567,41 @@ export function AbsenceRequestModal({
             <Label>{isRhArret ? "Période d'arrêt" : "Jours demandés"}</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-start text-left font-normal", !selectedDaysCount && "text-muted-foreground")}>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    (isSaisiePeriode ? !arretRange?.from : !selectedDaysCount) &&
+                      "text-muted-foreground",
+                  )}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDaysCount > 0
-                    ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? "s" : ""} sélectionné${selectedDaysCount > 1 ? "s" : ""}`
-                    : isRhArret
-                      ? "Cliquez pour choisir la période"
-                      : "Cliquez pour choisir les dates"}
+                  {isSaisiePeriode
+                    ? arretRange?.from
+                      ? formatPeriodeArret(arretRange.from, arretRange.to)
+                      : "Cliquez pour choisir la période"
+                    : selectedDaysCount > 0
+                      ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? "s" : ""} sélectionné${selectedDaysCount > 1 ? "s" : ""}`
+                      : isRhArret
+                        ? "Cliquez pour choisir la période"
+                        : "Cliquez pour choisir les dates"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
+                {isSaisiePeriode ? (
+                  <Calendar
+                    mode="range"
+                    selected={arretRange}
+                    onSelect={(range) => {
+                      setError("");
+                      setArretRange(range);
+                    }}
+                    numberOfMonths={2}
+                    defaultMonth={arretRange?.from}
+                    initialFocus
+                    locale={fr}
+                  />
+                ) : (
                 <Calendar
                   mode="multiple"
                   selected={selectedDays}
@@ -588,6 +638,7 @@ export function AbsenceRequestModal({
                   locale={fr}
                   disabled={effectiveMode === "employee" ? { before: new Date() } : undefined}
                 />
+                )}
               </PopoverContent>
             </Popover>
           </div>
