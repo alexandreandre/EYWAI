@@ -126,3 +126,41 @@ class TestAnalyzerSansPointageRepli:
         )
 
         assert not any(e.get("type") in {"travail_hs25", "travail_hs50"} for e in events)
+
+
+def test_analyzer_conserve_un_week_end_porteur_des_bornes_d_arret():
+    """Un samedi d'arrêt (type weekend, 0 h) doit atteindre le bulletin s'il
+    porte date_*_arret_reel — sinon un mois de débordement week-end perd
+    prévoyance/IJSS. Un week-end ordinaire reste filtré."""
+    planned = [
+        {
+            "annee": 2026,
+            "mois": 8,
+            "jour": 1,
+            "type": "weekend",
+            "heures_prevues": 0,
+            "arret_type": "maladie_simple",
+            "date_debut_arret_reel": "2026-07-31",
+            "date_fin_arret_reel": "2026-08-02",
+        },
+        {
+            "annee": 2026,
+            "mois": 8,
+            "jour": 2,
+            "type": "weekend",
+            "heures_prevues": 0,
+        },
+        {
+            "annee": 2026,
+            "mois": 8,
+            "jour": 3,
+            "type": "travail",
+            "heures_prevues": 7.0,
+        },
+    ]
+    events = analyser_horaires_du_mois(planned, [], 35.0, 2026, 8, "Test")
+    par_jour = {e["jour"]: e for e in events}
+    assert par_jour[1]["type"] == "weekend"
+    assert par_jour[1]["heures"] == 0
+    assert par_jour[1]["date_fin_arret_reel"] == "2026-08-02"
+    assert 2 not in par_jour

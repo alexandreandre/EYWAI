@@ -35,6 +35,7 @@ _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "salaire_periode_reelle",
     "maintien_base_ouvree",
     "date_debut_arret_reel",  # vrai début d'un arrêt multi-mois (épuisement maintien)
+    "date_fin_arret_reel",  # vraie fin calendaire (week-end/férié en bord de mois)
 )
 
 
@@ -57,6 +58,19 @@ def _metadata_for_aggregated_event(
         if meta.get("arret_type"):
             break
     return meta
+
+
+def _conserver_evenement_a_zero_heure(type_ev: str, meta: Dict[str, Any]) -> bool:
+    """True si un événement à 0 h doit tout de même atteindre le bulletin.
+
+    `arret_maladie` / `ferie` : retenue (repli durée contractuelle).
+    Bornes `date_*_arret_reel` : week-end/repos d'un arrêt non retypé, pour
+    que le décompte calendaire (prévoyance / IJSS) survive à un mois qui
+    ne contient que ce débordement — sans retenue 7 h (`type` inchangé).
+    """
+    if type_ev in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+        return True
+    return bool(meta.get("date_debut_arret_reel") or meta.get("date_fin_arret_reel"))
 
 
 def analyser_horaires_du_mois(
@@ -305,16 +319,17 @@ def analyser_horaires_du_mois(
     evenements_agreges: List[Dict[str, Any]] = []
     for k, v in agregats.items():
         jour_ev, type_ev = k[0], k[1]
-        if v <= 0 and type_ev not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+        meta = _metadata_for_aggregated_event(
+            evenements_finaux, mois, jour_ev, type_ev
+        )
+        if v <= 0 and not _conserver_evenement_a_zero_heure(type_ev, meta):
             continue
         ev_out: Dict[str, Any] = {
             "jour": jour_ev,
             "type": type_ev,
             "heures": round(v, 2),
         }
-        ev_out.update(
-            _metadata_for_aggregated_event(evenements_finaux, mois, jour_ev, type_ev)
-        )
+        ev_out.update(meta)
         evenements_agreges.append(ev_out)
     evenements_agreges.extend(jours_sans_heures.values())
 

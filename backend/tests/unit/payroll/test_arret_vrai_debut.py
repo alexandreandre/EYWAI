@@ -40,19 +40,49 @@ def test_arret_fallback_premier_jour_du_mois_sans_vrai_debut():
 
 
 def test_arret_finissant_un_dimanche_conserve_le_dimanche_en_date_fin():
-    """30/08/2026 = dimanche. Depuis l'expansion calendaire (spec 2026-09-01),
-    les week-ends d'un arrêt sont typés arret_maladie : la date_fin extraite
-    pour maintien/IJSS/prévoyance est ce dimanche, pas le dernier jour ouvré."""
+    """30/08/2026 = dimanche. Les jours non travaillés d'un arrêt ne sont pas
+    typés au calendrier (un jour arret_maladie à 0 h serait déduit plein par
+    calcul_brut) : la vraie fin calendaire passe par date_fin_arret_reel,
+    posée à la validation — la date_fin extraite pour maintien/IJSS/prévoyance
+    est ce dimanche, pas le dernier jour ouvré typé."""
     cal = [
         {"date_complete": "2026-08-28", "type": "arret_maladie",
-         "arret_type": "maladie_simple"},
-        {"date_complete": "2026-08-29", "type": "arret_maladie",
-         "arret_type": "maladie_simple"},
-        {"date_complete": "2026-08-30", "type": "arret_maladie",
-         "arret_type": "maladie_simple"},
+         "arret_type": "maladie_simple", "date_fin_arret_reel": "2026-08-30"},
     ]
     arret = _extraire_arret_pour_maintien(cal, _Ctx(), date(2026, 8, 1), date(2026, 8, 31))
     assert arret["date_fin"] == "2026-08-30"
+
+
+def test_date_fin_reel_anterieure_au_dernier_jour_type_est_ignoree():
+    """Si un jour typé arret_maladie existe APRÈS la borne déclarée (autre
+    enregistrement, prolongation), le dernier jour typé prime : on prend le max."""
+    cal = [
+        {"date_complete": "2026-08-28", "type": "arret_maladie",
+         "arret_type": "maladie_simple", "date_fin_arret_reel": "2026-08-28"},
+        {"date_complete": "2026-08-31", "type": "arret_maladie",
+         "arret_type": "maladie_simple"},
+    ]
+    arret = _extraire_arret_pour_maintien(cal, _Ctx(), date(2026, 8, 1), date(2026, 8, 31))
+    assert arret["date_fin"] == "2026-08-31"
+
+
+def test_mois_ne_contenant_que_le_week_end_d_un_arret_reste_visible():
+    """Débordement ven. 31/07 → dim. 02/08 : le bulletin d'août n'a aucun jour
+    typé arret_maladie, seulement samedi/dimanche porteurs des bornes."""
+    cal = [
+        {"date_complete": "2026-08-01", "type": "weekend",
+         "arret_type": "maladie_simple",
+         "date_debut_arret_reel": "2026-07-31",
+         "date_fin_arret_reel": "2026-08-02"},
+        {"date_complete": "2026-08-02", "type": "weekend",
+         "arret_type": "maladie_simple",
+         "date_debut_arret_reel": "2026-07-31",
+         "date_fin_arret_reel": "2026-08-02"},
+    ]
+    arret = _extraire_arret_pour_maintien(cal, _Ctx(), date(2026, 8, 1), date(2026, 8, 31))
+    assert arret is not None
+    assert arret["date_debut"] == "2026-07-31"
+    assert arret["date_fin"] == "2026-08-02"
 
 
 from app.modules.payroll.engine.temps_travail_mois import compute_temps_retenu_mois

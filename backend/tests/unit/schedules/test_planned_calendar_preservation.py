@@ -241,6 +241,7 @@ def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
             "nombre_enfants",
             "historique_arrets_annee",
             "date_debut_arret_reel",
+            "date_fin_arret_reel",
             "salaire_periode_reelle",
         }
     )
@@ -467,10 +468,11 @@ def test_les_jours_de_remplissage_ne_sont_pas_marques(monkeypatch):
     assert len(capture["ecrit"]) == 31
 
 
-def test_validation_arret_convertit_week_ends_repos_et_feries(monkeypatch):
-    """Un arrêt est calendaire (Cerfa) : ses jours non travaillés deviennent
-    arret_maladie, sinon le bulletin tronque l'arrêt au dernier jour ouvré et
-    perd des jours d'IJSS / maintien / prévoyance en bord de mois."""
+def test_validation_arret_ne_retype_jamais_les_jours_non_travailles(monkeypatch):
+    """ANTI-RÉGRESSION PAIE : un jour `arret_maladie` à 0 h est déduit comme un
+    jour PLEIN par calcul_brut (repli durée contractuelle) — les week-ends,
+    repos et fériés d'un arrêt ne doivent donc JAMAIS être retypés. Les vraies
+    bornes calendaires passent par date_debut/date_fin_arret_reel."""
     from datetime import date
 
     existant = [
@@ -488,12 +490,84 @@ def test_validation_arret_convertit_week_ends_repos_et_feries(monkeypatch):
         arret_type="maladie_simple",
     )
 
-    for jour in (14, 15, 16, 17):
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "arret_maladie"
+    assert jour14["origine"] == "absence"
+    # Les bornes réelles de la période (week-end de fin compris) sont portées
+    # par le jour converti, pour le moteur maintien/IJSS/prévoyance.
+    assert jour14["date_debut_arret_reel"] == "2026-08-14"
+    assert jour14["date_fin_arret_reel"] == "2026-08-17"
+    for jour, type_attendu in ((15, "weekend"), (16, "repos"), (17, "ferie")):
         entree = next(e for e in capture["ecrit"] if e["jour"] == jour)
-        assert entree["type"] == "arret_maladie", f"jour {jour}"
-        assert entree["heures_prevues"] == 0
-        assert entree["origine"] == "absence"
+        assert entree["type"] == type_attendu, f"jour {jour}"
+        assert "origine" not in entree
+        assert entree["date_debut_arret_reel"] == "2026-08-14"
+        assert entree["date_fin_arret_reel"] == "2026-08-17"
         assert entree["arret_type"] == "maladie_simple"
+
+
+def test_reprojection_rafraichit_les_jours_deja_en_arret(monkeypatch):
+    """Script de reprise / prolongation : un jour déjà typé arret_maladie voit
+    ses métadonnées (bornes, subrogation, historique) rafraîchies — sinon un
+    même arrêt porterait des métadonnées incohérentes selon le jour lu."""
+    from datetime import date
+
+    existant = [
+        {
+            "jour": 14,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+        },
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 8, 14), date(2026, 8, 15), date(2026, 8, 16)],
+        "arret_maladie",
+        arret_type="maladie_simple",
+        subrogation_active=False,
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "arret_maladie"
+    assert jour14["subrogation_active"] is False
+    assert jour14["date_fin_arret_reel"] == "2026-08-16"
+
+
+def test_mois_non_planifie_remplit_les_week_ends_en_weekend(monkeypatch):
+    """Branche « mois non planifié » : les jours de remplissage tombant un
+    samedi/dimanche sont insérés en `weekend` 0 h (plus jamais `travail` 7 h),
+    et un jour d'arrêt tombant le week-end n'est pas typé arret_maladie."""
+    from datetime import date
+
+    provider, capture = _provider_avec_calendrier(monkeypatch, None)
+
+    # Arrêt ven. 14/08 → lun. 17/08/2026 sur un mois sans planning.
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 8, j) for j in (14, 15, 16, 17)],
+        "arret_maladie",
+        arret_type="maladie_simple",
+    )
+
+    ecrit = {e["jour"]: e for e in capture["ecrit"]}
+    assert len(ecrit) == 31
+    assert ecrit[14]["type"] == "arret_maladie"
+    assert ecrit[14]["date_fin_arret_reel"] == "2026-08-17"
+    assert ecrit[17]["type"] == "arret_maladie"
+    # 15 et 16 août 2026 = samedi et dimanche : jamais retypés.
+    assert ecrit[15]["type"] == "weekend"
+    assert ecrit[16]["type"] == "weekend"
+    assert ecrit[15]["date_fin_arret_reel"] == "2026-08-17"
+    assert ecrit[16]["arret_type"] == "maladie_simple"
+    # Remplissage : samedi 1er août en weekend 0 h, lundi 3 août en travail.
+    assert ecrit[1]["type"] == "weekend"
+    assert ecrit[1]["heures_prevues"] == 0
+    assert ecrit[3]["type"] == "travail"
 
 
 def test_validation_conge_ne_convertit_pas_les_week_ends(monkeypatch):

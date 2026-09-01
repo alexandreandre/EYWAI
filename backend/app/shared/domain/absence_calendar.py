@@ -59,6 +59,7 @@ SERVER_OWNED_ABSENCE_KEYS: frozenset[str] = frozenset(
         "nombre_enfants",
         "historique_arrets_annee",
         "date_debut_arret_reel",
+        "date_fin_arret_reel",
         "salaire_periode_reelle",
     }
 )

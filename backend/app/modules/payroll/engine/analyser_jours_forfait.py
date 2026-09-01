@@ -20,7 +20,7 @@ from app.modules.payroll.planning_repli import (
 )
 from app.modules.payroll.application.analyzer import (
     _MAINTIEN_EVENT_META_KEYS,
-    TYPES_SIGNIFICATIFS_A_ZERO_HEURE,
+    _conserver_evenement_a_zero_heure,
 )
 
 
@@ -273,7 +273,10 @@ def analyser_jours_forfait_du_mois(
     evenements_agreges: List[Dict[str, Any]] = []
     for k, v in agregats.items():
         jour_ev, mois_ev, annee_ev, type_ev = k
-        if v <= 0 and type_ev not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+        meta = _metadata_for_aggregated_event_forfait(
+            evenements_finaux, mois_ev, annee_ev, jour_ev, type_ev
+        )
+        if v <= 0 and not _conserver_evenement_a_zero_heure(type_ev, meta):
             continue
         ev_out: Dict[str, Any] = {
             "jour": jour_ev,
@@ -284,11 +287,7 @@ def analyser_jours_forfait_du_mois(
         }
         # Métadonnées perdues par l'agrégation (arret_type, subrogation_active…) :
         # `_extraire_arret_pour_maintien` en dépend pour qualifier l'arrêt.
-        ev_out.update(
-            _metadata_for_aggregated_event_forfait(
-                evenements_finaux, mois_ev, annee_ev, jour_ev, type_ev
-            )
-        )
+        ev_out.update(meta)
         evenements_agreges.append(ev_out)
     evenements_agreges.extend(jours_sans_heures.values())
 

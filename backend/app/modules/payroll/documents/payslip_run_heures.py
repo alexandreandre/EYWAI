@@ -134,9 +134,10 @@ def _extraire_arret_pour_maintien(
         d = date.fromisoformat(str(dc)[:10])
         if not (date_debut_periode <= d <= date_fin_periode):
             continue
-        if ev.get("type") != "arret_maladie":
-            continue
-        if not ev.get("arret_type"):
+        porte_arret = ev.get("type") == "arret_maladie" or ev.get(
+            "date_debut_arret_reel"
+        ) or ev.get("date_fin_arret_reel")
+        if not porte_arret or not ev.get("arret_type"):
             continue
         candidats.append((d, ev))
     if not candidats:
@@ -157,10 +158,23 @@ def _extraire_arret_pour_maintien(
          if ev.get("date_debut_arret_reel")),
         None,
     )
+    # Vraie fin calendaire de l'arrêt (week-end/férié en bord de mois) : les
+    # jours non travaillés ne sont pas typés au calendrier, la borne déclarée
+    # prime donc sur le dernier jour typé. Le moteur borne ses montants à
+    # l'intersection arrêt×période (_intersection_dates) : seuls rang de jour,
+    # franchises et décompte total deviennent calendaires.
+    date_fin_reel = next(
+        (ev.get("date_fin_arret_reel") for _, ev in candidats
+         if ev.get("date_fin_arret_reel")),
+        None,
+    )
+    date_fin = last_d.isoformat()
+    if date_fin_reel and str(date_fin_reel)[:10] > date_fin:
+        date_fin = str(date_fin_reel)[:10]
     return {
         "arret_type": first_ev["arret_type"],
         "date_debut": date_debut_reel or first_d.isoformat(),
-        "date_fin": last_d.isoformat(),
+        "date_fin": date_fin,
         "subrogation_active": bool(first_ev.get("subrogation_active", True)),
         "nombre_enfants": int(first_ev.get("nombre_enfants") or 0),
         "is_temps_partiel": bool(

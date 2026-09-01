@@ -23,11 +23,27 @@ Un arrêt de travail est légalement une période calendaire (Cerfa : date de d�
   - il faut soit `selected_days` non vide, soit le couple `date_debut`/`date_fin` complet avec `date_fin >= date_debut` ;
   - la saisie par période est **réservée aux types d'arrêt** (`IJSS_ELIGIBLE_TYPES` : `arret_maladie`, `arret_at`, `arret_maladie_pro`, `arret_maternite`, `arret_paternite`) ;
   - période + `arret_type == "mi_temps_therapeutique"` → erreur explicite (le mi-temps thérapeutique se saisit jour par jour, le salarié travaille partiellement).
-- `create_absence_request` (`absences/application/commands.py`) : si `date_debut`/`date_fin` fournis, `selected_days = daterange_days(date_debut, date_fin)` — **tous les jours calendaires**. Le stockage en base reste `selected_days` (aucune migration de schéma).
+- `create_absence_request` : ne consomme plus que `selected_days` (déjà expansés par le schéma, ou fournis tels quels par l'import DSN / la saisie jour par jour). Cap de 3 ans sur la période (`_PERIODE_ARRET_MAX_JOURS`) pour bloquer une faute de frappe sur l'année.
 
 ### 2. Backend — projection au calendrier de paie
 
-`update_calendar_from_days` (`providers.py:330`) : pour les types d'arrêt (`is_arret`, déjà calculé l.248), la conversion accepte aussi les jours typés `weekend`, `repos` et `ferie` (en plus de `travail`/`work`), avec `heures_prevues = 0` (les jours non travaillés en avaient déjà 0 → pas de sur-déduction : la retenue passe par les `heures_prevues`). Les types non-arrêt (CP, RTT…) gardent le comportement actuel (`travail`/`work` uniquement). Les jours `conge`/`conges_payes`/`rtt` ne sont **pas** écrasés (la requalification absence→absence est un sujet séparé, cf. `dev-lot1-preservation-planning`).
+**RÉVISÉ le 01/09 après revue de code** (l'approche initiale « retyper weekend/repos/ferie en `arret_maladie` » est invalidée : un jour `arret_maladie` à 0 h est déduit comme un jour plein par `calcul_brut` — repli durée contractuelle, cf. `TYPES_SIGNIFICATIFS_A_ZERO_HEURE` — et le retypage fausse fériés payés, jours ouvrables/HS conjoncturelles et proratas de primes).
+
+Design retenu : **les jours non travaillés ne sont jamais retypés**. `update_calendar_from_days` :
+
+- convertit comme avant les seuls jours `travail`/`work` ;
+- pour un arrêt, **stampe les vraies bornes calendaires** (`date_debut_arret_reel` / `date_fin_arret_reel` = min/max des `selected_days`) sur les jours convertis **et** sur les week-end/repos/fériés de la période (type inchangé) ;
+- pour un arrêt, **rafraîchit les métadonnées** (arret_type, subrogation, historique, bornes) des jours déjà typés `arret_maladie` sans toucher type/heures — re-projection idempotente (script de réparation, prolongations) ;
+- branche « mois non planifié » : les jours de remplissage tombant un samedi/dimanche sont insérés en `weekend` (0 h), plus jamais en `travail` 7 h — un arrêt multi-mois par période rend cette branche courante.
+
+`_extraire_arret_pour_maintien` (`payslip_run_heures.py`, partagé avec le forfait) :
+
+- étend `date_fin` à `date_fin_arret_reel` si elle dépasse le dernier jour typé du mois ;
+- accepte aussi un jour **non** typé `arret_maladie` dès qu'il porte `date_*_arret_reel` + `arret_type` (week-end/repos/férié tamponnés, type inchangé).
+
+L'analyzer conserve les événements 0 h porteurs de ces bornes (`_conserver_evenement_a_zero_heure`) sans les retyper — un mois qui ne contient que le week-end de débordement d'un arrêt (ex. ven. 31/07 → dim. 02/08) reste visible pour la prévoyance/IJSS, sans retenue 7 h. Le moteur borne déjà ses calculs à l'intersection arrêt×période (`_intersection_dates`). `date_fin_arret_reel` est ajouté à `SERVER_OWNED_ABSENCE_KEYS` et aux clés transmises par l'analyzer.
+
+Conséquence assumée : dans l'onglet calendrier, les week-ends d'un arrêt restent affichés en gris `weekend` (pas en ambre) — c'est le décompte (prévoyance, IJSS, exports, liste « du … au … ») qui devient calendaire, pas la couleur des cases.
 
 ### 3. Frontend — saisie en période
 
@@ -41,32 +57,31 @@ Un arrêt de travail est légalement une période calendaire (Cerfa : date de d�
 
 ### 4. Réparation de l'existant (script one-off)
 
-`backend/scripts/reparation/reparer_arrets_calendaires.py` :
+`backend/scripts/reparer_arrets_calendaires.py` :
 
-- cible : `absence_requests` de type arrêt (`IJSS_ELIGIBLE_TYPES`), `arret_type ≠ mi_temps_therapeutique`, statut `validated`, dont **au moins un jour ≥ 2026-08-01** (borne paramétrable `--depuis`). La borne protège les calendriers qui sous-tendent les bulletins Colorplast janvier→juin déjà convergés au centime (régénération du 27/08) ;
-- action par arrêt : ① combler `selected_days` en calendaire continu min→max (un enregistrement = une période, par construction du modèle) ; ② re-projeter le calendrier via le même chemin que la validation (`update_calendar_from_days` avec `arret_type`, subrogation, `nombre_enfants`, historique recalculés comme dans `update_absence_request_status`) ;
-- `--dry-run` par défaut (liste ce qui serait modifié), `--apply` pour exécuter ; idempotent (un arrêt déjà calendaire et déjà projeté ne change rien) ;
-- déroulé : env de **test** d'abord, vérification sur l'arrêt de Marion GAUTHERON (17/08→18/09), puis prod.
+- cible : `absence_requests` de type arrêt (`IJSS_ELIGIBLE_TYPES`), `arret_type ≠ mi_temps_therapeutique`, statut `validated`, dont **TOUS les jours sont ≥ `--depuis`** (défaut 2026-08-01). Un arrêt à cheval sur la borne est **signalé et non traité** (ne pas réécrire les calendriers Colorplast 01→06/2026 convergés) ;
+- action par arrêt : ① combler uniquement les **samedis/dimanches** manquants entre min et max — un trou en semaine (reprise réelle / deux épisodes en un enregistrement) n'est jamais comblé, seulement rapporté ; ② re-projeter via `update_calendar_from_days` (bornes `date_*_arret_reel`, subrogation calculée comme à la validation si absente) ;
+- deux passes si `--apply` : d'abord tous les `selected_days`, puis chaque projection (historique calculé sur données déjà comblées) ; une erreur sur une ligne n'interrompt pas les suivantes ;
+- sans `--apply` : simulation seulement ; idempotent.
 
 ### Hors périmètre
 
-- Le moteur maintien/IJSS/prévoyance (`maintien_salaire_service.py`) : déjà calendaire, y compris l'opt-in `maintien_base_ouvree` (Cegid) à préserver.
+- L'opt-in `maintien_base_ouvree` (Cegid) dans `maintien_salaire_service.py` : déjà calendaire, à préserver.
 - Les consommateurs qui filtrent déjà `weekday() < 5` (`calcul_absences.py`, `dashboard/application/service.py`, `transport_allowance.py`) : ils absorbent les week-ends sans régression.
-- L'« extension de robustesse » des dates dans `payslip_run_heures.py` : inutile une fois les données saines à la source et l'historique réparé.
 - La requalification d'un jour déjà en congé vers un arrêt.
 
 ## Points de vigilance
 
-- **Prime de présence** : `week_has_disqualifying_absence` (`payroll_variables/domain/presence_week.py:73`) — un dimanche désormais typé `arret_maladie` peut disqualifier une semaine. C'est le comportement *correct* (l'arrêt couvre réellement ce jour), mais un test doit figer cette décision.
-- **Branche « mois non planifié »** de `update_calendar_from_days` (insert) : comportement conservé tel quel (les jours de remplissage restent `travail`, test existant `test_les_jours_de_remplissage_ne_sont_pas_marques`).
-- **Import DSN** : produit déjà des `selected_days` calendaires ; il bénéficie du déverrouillage de la projection (ses week-ends étaient ignorés aussi).
+- **Prime de présence** : `week_has_disqualifying_absence` lit les `selected_days` de la demande, pas le type calendrier — un dimanche désormais présent dans `selected_days` disqualifie la semaine. C'est le comportement *correct*. Test : `test_un_dimanche_d_arret_disqualifie_la_semaine_de_presence`.
+- **Branche « mois non planifié »** : les samedis/dimanches de remplissage sont insérés en `weekend` 0 h (plus `travail` 7 h). Les fériés d'un mois encore non planifié restent `travail` (pas de calendrier des fériés dans cette branche).
+- **Import DSN** : produit déjà des `selected_days` calendaires ; il bénéficie du tamponnage des bornes sur les jours convertis (ses week-ends n'étaient pas retypés, et ne le sont toujours pas).
 
 ## Tests
 
-- **Schéma** : période valide → expansion refusée/acceptée selon type ; mi-temps thérapeutique + période → 422 ; ni jours ni période → 422 ; `date_fin < date_debut` → 422.
-- **Commande** : création par période → `selected_days` stockés = tous les jours calendaires ; création par `selected_days` → inchangé.
-- **Projection** (harnais existant `test_planned_calendar_preservation.py`, faux Supabase) : week-end/repos/férié → `arret_maladie` avec `heures_prevues=0` pour un arrêt ; restent intacts pour un CP ; jours `conge` non écrasés par un arrêt.
-- **Bulletin** : arrêt finissant un dimanche en fin de mois → `date_fin` de l'arrêt extraite = ce dimanche (jours IJSS/prévoyance non tronqués).
-- **Prime de présence** : semaine avec dimanche en arrêt → disqualifiée (décision figée).
-- **Script de réparation** : comblement min→max, respect de la borne `--depuis`, idempotence, dry-run sans écriture.
-- **Frontend** : utilitaire d'expansion/formatage de période testé (`*.test.ts`) ; le modal passe en range pour un arrêt et repasse en multiple pour mi-temps thérapeutique.
+- **Schéma** : période valide → expansion en jours calendaires ; mi-temps thérapeutique + période → 422 ; ni jours ni période → 400 à la commande ; `date_fin < date_debut` → 422 ; période > 3 ans → 422.
+- **Commande** : création par période (via schéma) → `selected_days` stockés = tous les jours calendaires ; création par `selected_days` → inchangé.
+- **Projection** : week-end/repos/férié **gardent leur type** mais portent `date_*_arret_reel` ; CP inchangé ; re-projection rafraîchit les jours déjà `arret_maladie` ; mois non planifié : week-ends en `weekend` 0 h.
+- **Bulletin** : arrêt finissant un dimanche → `date_fin` extraite = ce dimanche ; mois qui ne contient que le week-end de débordement → arrêt quand même visible via les bornes tamponnées.
+- **Prime de présence** : semaine avec dimanche en arrêt → disqualifiée.
+- **Script de réparation** : comblement des seuls week-ends, refus d'un trou en semaine, borne `--depuis` = min(jours) ≥ depuis, arrêts à cheval exclus.
+- **Frontend** : utilitaire de formatage de période (`*.test.ts`) ; modal range pour un arrêt, y compris 1 jour (`to` absent) ; purge de sélection au bascule mi-temps.

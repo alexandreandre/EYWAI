@@ -9,6 +9,9 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, model_validator
 
+from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
+from app.shared.domain.absence_calendar import daterange_days
+
 AbsenceType = Literal[
     "conge_paye",
     "rtt",
@@ -36,15 +39,14 @@ ArretType = Literal[
     "arret_exceptionnel",
 ]
 
-_ARRETS_TYPES_PRINCIPAUX = frozenset(
-    {
-        "arret_maladie",
-        "arret_at",
-        "arret_maladie_pro",
-        "arret_maternite",
-        "arret_paternite",
-    }
-)
+# Liste canonique du domaine (arrêts avec attestation / IJSS) : le front
+# (ARRET_PRINCIPAL_TYPES) et le script de réparation gardent la même source.
+_ARRETS_TYPES_PRINCIPAUX = IJSS_ELIGIBLE_TYPES
+
+# Garde-fou de saisie : une période d'arrêt au-delà de ~3 ans est presque
+# sûrement une faute de frappe sur l'année (l'expansion calendaire stockerait
+# des milliers de jours et le calendrier serait réécrit sur autant de mois).
+_PERIODE_ARRET_MAX_JOURS = 1096
 
 
 class AbsenceRequestCreate(BaseModel):
@@ -99,6 +101,14 @@ class AbsenceRequestCreate(BaseModel):
                     "Un mi-temps thérapeutique se saisit jour par jour "
                     "(le salarié travaille partiellement), pas par période."
                 )
+            if (self.date_fin - self.date_debut).days + 1 > _PERIODE_ARRET_MAX_JOURS:
+                raise ValueError(
+                    "Période d'arrêt de plus de 3 ans — vérifiez les dates saisies."
+                )
+            # L'expansion calendaire vit ICI, à la frontière d'entrée : la
+            # commande ne consomme qu'un seul contrat, selected_days, comme
+            # toutes les autres origines de saisie (import DSN compris).
+            self.selected_days = daterange_days(self.date_debut, self.date_fin)
         # « ni jours ni période » n'est PAS refusé ici : la commande le rejette
         # en ValueError → 400 « validation métier », contrat d'API historique
         # (cf. test_create_absence_request_empty_selected_days_returns_400).

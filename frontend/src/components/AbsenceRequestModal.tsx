@@ -210,6 +210,7 @@ export function AbsenceRequestModal({
   useEffect(() => {
     if (!isArretPrincipalType(absenceType)) {
       setArretType("");
+      setArretRange(undefined);
     }
   }, [absenceType]);
 
@@ -246,7 +247,8 @@ export function AbsenceRequestModal({
 
   const doSubmit = async () => {
     if (isSaisiePeriode) {
-      if (!arretRange?.from || !arretRange?.to) return;
+      // Un seul clic dans le sélecteur de plage = arrêt d'un jour (to absent).
+      if (!arretRange?.from) return;
     } else if (!selectedDays || selectedDays.length === 0) {
       return;
     }
@@ -283,10 +285,10 @@ export function AbsenceRequestModal({
         attachment_url: attachmentUrl,
         filename: filename,
       };
-      if (isSaisiePeriode && arretRange?.from && arretRange?.to) {
+      if (isSaisiePeriode && arretRange?.from) {
         // Période calendaire : le backend étend en jours, week-ends compris.
         payload.date_debut = format(arretRange.from, "yyyy-MM-dd");
-        payload.date_fin = format(arretRange.to, "yyyy-MM-dd");
+        payload.date_fin = format(arretRange.to ?? arretRange.from, "yyyy-MM-dd");
       } else {
         payload.selected_days = (selectedDays ?? []).map((day) =>
           format(day, "yyyy-MM-dd"),
@@ -348,7 +350,7 @@ export function AbsenceRequestModal({
       return;
     }
     if (isSaisiePeriode) {
-      if (!arretRange?.from || !arretRange?.to) {
+      if (!arretRange?.from) {
         setError("Veuillez sélectionner la période d'arrêt (du … au …).");
         return;
       }
@@ -508,7 +510,20 @@ export function AbsenceRequestModal({
               <Label htmlFor="arret-type">Type d&apos;arrêt</Label>
               <Select
                 value={arretType || undefined}
-                onValueChange={(v) => setArretType(v as absencesApi.ArretType)}
+                onValueChange={(v) => {
+                  const suivant = v as absencesApi.ArretType;
+                  // Basculement période ↔ jour par jour (mi-temps) : purger la
+                  // sélection de l'autre mode, sinon une plage devenue
+                  // invisible resurgirait telle quelle à l'enregistrement.
+                  const bascule =
+                    (suivant === "mi_temps_therapeutique") !==
+                    (arretType === "mi_temps_therapeutique");
+                  if (bascule) {
+                    setSelectedDays([]);
+                    setArretRange(undefined);
+                  }
+                  setArretType(suivant);
+                }}
               >
                 <SelectTrigger id="arret-type">
                   <SelectValue placeholder="Sélectionner le type d'arrêt…" />
@@ -578,7 +593,10 @@ export function AbsenceRequestModal({
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {isSaisiePeriode
                     ? arretRange?.from
-                      ? formatPeriodeArret(arretRange.from, arretRange.to)
+                      ? formatPeriodeArret(
+                          arretRange.from,
+                          arretRange.to ?? arretRange.from,
+                        )
                       : "Cliquez pour choisir la période"
                     : selectedDaysCount > 0
                       ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? "s" : ""} sélectionné${selectedDaysCount > 1 ? "s" : ""}`

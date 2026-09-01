@@ -224,6 +224,36 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         if origine:
             entry["origine"] = origine
         if calendar_type == "arret_maladie" and arret_type:
+            self._appliquer_meta_arret(
+                entry,
+                arret_type=arret_type,
+                subrogation_active=subrogation_active,
+                nombre_enfants=nombre_enfants,
+                historique_arrets_annee=historique_arrets_annee,
+            )
+        return entry
+
+    def _appliquer_meta_arret(
+        self,
+        entry: Dict[str, Any],
+        *,
+        arret_type: Optional[str],
+        subrogation_active: Optional[bool] = None,
+        nombre_enfants: int = 0,
+        historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
+        date_debut_arret_reel: Optional[str] = None,
+        date_fin_arret_reel: Optional[str] = None,
+    ) -> None:
+        """Pose les métadonnées d'arrêt sans changer type/heures.
+
+        Utilisé à la conversion (jours travaillés) ET sur les jours non
+        travaillés de la période (week-end/repos/férié) : ces derniers
+        gardent leur type pour ne pas déclencher une retenue 7 h, mais
+        portent les bornes calendaires pour le moteur maintien/IJSS/
+        prévoyance — y compris un mois qui ne contient que le week-end
+        de débordement de l'arrêt.
+        """
+        if arret_type:
             entry["arret_type"] = arret_type
             entry["subrogation_active"] = (
                 True if subrogation_active is None else bool(subrogation_active)
@@ -231,7 +261,10 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             entry["nombre_enfants"] = int(nombre_enfants or 0)
             if historique_arrets_annee:
                 entry["historique_arrets_annee"] = historique_arrets_annee
-        return entry
+        if date_debut_arret_reel:
+            entry["date_debut_arret_reel"] = date_debut_arret_reel
+        if date_fin_arret_reel:
+            entry["date_fin_arret_reel"] = date_fin_arret_reel
 
     def update_calendar_from_days(
         self,
@@ -251,15 +284,18 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             return
 
         # Un arrêt de travail est calendaire (Cerfa) : il couvre aussi les
-        # jours non travaillés. Sans cette conversion, le bulletin (min/max des
-        # jours typés arret_maladie) tronque l'arrêt au dernier jour ouvré et
-        # perd des jours d'IJSS / maintien / prévoyance en bord de mois. Les
-        # congés, eux, ne se posent que sur des jours de travail planifiés.
-        types_convertibles = (
-            ("travail", "work", "weekend", "repos", "ferie")
-            if is_arret
-            else ("travail", "work")
-        )
+        # jours non travaillés. Ces jours ne sont PAS retypés `arret_maladie`
+        # — un jour d'arrêt à 0 h est déduit comme un jour plein par le moteur
+        # de brut (repli durée contractuelle, cf. TYPES_SIGNIFICATIFS_A_ZERO_
+        # HEURE) et fausserait fériés payés, jours ouvrables et proratas. Les
+        # vraies bornes de la période sont portées par les jours d'arrêt
+        # convertis via date_debut/date_fin_arret_reel, que le moteur maintien/
+        # IJSS/prévoyance (déjà calendaire) consomme.
+        date_debut_arret_reel: Optional[str] = None
+        date_fin_arret_reel: Optional[str] = None
+        if is_arret and days:
+            date_debut_arret_reel = min(days).isoformat()
+            date_fin_arret_reel = max(days).isoformat()
 
         emp_row = (
             supabase.table("employees")
@@ -302,19 +338,46 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                 num_days = cal_module.monthrange(year, month)[1]
                 calendrier_prevu = []
                 for day in range(1, num_days + 1):
-                    if day in day_list:
-                        calendrier_prevu.append(
-                            self._day_entry(
-                                day,
-                                new_calendar_type,
-                                heures_jour,
+                    est_weekend = date(year, month, day).weekday() >= 5
+                    if day in day_list and not est_weekend:
+                        entry = self._day_entry(
+                            day,
+                            new_calendar_type,
+                            heures_jour,
+                            arret_type=arret_type,
+                            subrogation_active=subrogation_active,
+                            nombre_enfants=nombre_enfants,
+                            historique_arrets_annee=historique_arrets_annee,
+                            origine=ORIGINE_ABSENCE,
+                        )
+                        if entry.get("type") == "arret_maladie":
+                            self._appliquer_meta_arret(
+                                entry,
                                 arret_type=arret_type,
                                 subrogation_active=subrogation_active,
                                 nombre_enfants=nombre_enfants,
                                 historique_arrets_annee=historique_arrets_annee,
-                                origine=ORIGINE_ABSENCE,
+                                date_debut_arret_reel=date_debut_arret_reel,
+                                date_fin_arret_reel=date_fin_arret_reel,
                             )
-                        )
+                        calendrier_prevu.append(entry)
+                    elif est_weekend:
+                        # Jour de remplissage OU jour d'absence tombant le
+                        # week-end : typé `weekend` (0 h), jamais `travail`
+                        # 7 h — un arrêt multi-mois saisi par période rend
+                        # cette branche courante sur les mois futurs.
+                        weekend_entry = self._day_entry(day, "weekend", 0)
+                        if day in day_list and is_arret:
+                            self._appliquer_meta_arret(
+                                weekend_entry,
+                                arret_type=arret_type,
+                                subrogation_active=subrogation_active,
+                                nombre_enfants=nombre_enfants,
+                                historique_arrets_annee=historique_arrets_annee,
+                                date_debut_arret_reel=date_debut_arret_reel,
+                                date_fin_arret_reel=date_fin_arret_reel,
+                            )
+                        calendrier_prevu.append(weekend_entry)
                     else:
                         calendrier_prevu.append(
                             self._day_entry(day, "travail", heures_jour)
@@ -335,29 +398,56 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             else:
                 planned_calendar = schedule.data["planned_calendar"]
                 for entry in planned_calendar.get("calendrier_prevu", []):
-                    # `types_convertibles` : cf. commentaire au calcul. 'work'
-                    # y figure car apply-model écrit le type du modèle tel
-                    # quel — un jour 'work' doit aussi devenir une absence.
-                    if (
-                        entry.get("jour") in day_list
-                        and entry.get("type") in types_convertibles
-                    ):
+                    if entry.get("jour") not in day_list:
+                        continue
+                    # WORK_TYPES = {'work', 'travail'} : apply-model écrit le
+                    # type du modèle tel quel, un jour 'work' doit aussi
+                    # pouvoir devenir une absence.
+                    est_conversion = entry.get("type") in ("travail", "work")
+                    # Re-projection d'un arrêt déjà posé (script de reprise,
+                    # prolongation) : les métadonnées sont rafraîchies sans
+                    # toucher type/heures, pour rester cohérentes sur tous
+                    # les jours de l'arrêt.
+                    est_rafraichissement = (
+                        is_arret and entry.get("type") == "arret_maladie"
+                    )
+                    if not est_conversion and not est_rafraichissement:
+                        # Week-end / repos / férié dans la période : bornes
+                        # posées sans retypage, pour qu'un mois qui ne
+                        # contient que le débordement week-end reste visible
+                        # du moteur calendaire (prévoyance / IJSS).
+                        if is_arret and entry.get("type") in (
+                            "weekend",
+                            "repos",
+                            "ferie",
+                        ):
+                            self._appliquer_meta_arret(
+                                entry,
+                                arret_type=arret_type,
+                                subrogation_active=subrogation_active,
+                                nombre_enfants=nombre_enfants,
+                                historique_arrets_annee=historique_arrets_annee,
+                                date_debut_arret_reel=date_debut_arret_reel,
+                                date_fin_arret_reel=date_fin_arret_reel,
+                            )
+                        continue
+                    if est_conversion:
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         # Branche nominale (le mois est déjà planifié) : c'est
                         # elle qui traite la quasi-totalité des validations,
                         # elle doit poser le marqueur au même titre que l'autre.
                         entry["origine"] = ORIGINE_ABSENCE
-                        if new_calendar_type == "arret_maladie" and arret_type:
-                            entry["arret_type"] = arret_type
-                            entry["subrogation_active"] = (
-                                True
-                                if subrogation_active is None
-                                else bool(subrogation_active)
-                            )
-                            entry["nombre_enfants"] = int(nombre_enfants or 0)
-                            if historique_arrets_annee:
-                                entry["historique_arrets_annee"] = historique_arrets_annee
+                    if new_calendar_type == "arret_maladie":
+                        self._appliquer_meta_arret(
+                            entry,
+                            arret_type=arret_type,
+                            subrogation_active=subrogation_active,
+                            nombre_enfants=nombre_enfants,
+                            historique_arrets_annee=historique_arrets_annee,
+                            date_debut_arret_reel=date_debut_arret_reel,
+                            date_fin_arret_reel=date_fin_arret_reel,
+                        )
                 supabase.table("employee_schedules").update(
                     {"planned_calendar": planned_calendar}
                 ).match(
