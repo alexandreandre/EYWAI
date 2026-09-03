@@ -182,7 +182,10 @@ def create_expense_report(
             description=expense_data.description,
             receipt_url=expense_data.receipt_url,
             filename=expense_data.filename,
-            company_id=current_user.active_company_id,
+            # Repli sur la société du salarié : une NDF sans company_id est
+            # invisible de toutes les listes RH (filtre strict eq(company_id)).
+            company_id=current_user.active_company_id
+            or _expense_service.get_employee_company_id(employee_id),
             initial_status="validated" if rh_saisie_directe else None,
         )
         return _expense_service.create_expense(input_)
