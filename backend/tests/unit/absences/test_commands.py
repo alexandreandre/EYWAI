@@ -259,31 +259,78 @@ class TestUpdateAbsenceRequestStatus:
             repo.get_by_id.return_value = req_before
             repo.update.return_value = updated
             with patch(
-                "app.modules.absences.application.commands.get_employee_hire_date",
-                return_value="2020-01-01",
+                "app.modules.absences.application.commands.get_cp_solde_restant",
+                return_value=25.0,
             ):
                 with patch(
-                    "app.modules.absences.application.commands.list_absence_requests_validated_for_cp",
-                    return_value=[],
-                ):
+                    "app.modules.absences.application.commands.calendar_update_provider"
+                ) as cal:
                     with patch(
-                        "app.modules.absences.application.commands.calendar_update_provider"
-                    ) as cal:
-                        with patch(
-                            "app.modules.absences.application.commands.get_maintenance_settings",
-                            return_value=MaintenanceSettings(
-                                company_id="company-1"
-                            ),
-                        ):
-                            result = commands.update_absence_request_status(
-                                "req-cp", "validated", current_user_id="user-1"
-                            )
+                        "app.modules.absences.application.commands.get_maintenance_settings",
+                        return_value=MaintenanceSettings(company_id="company-1"),
+                    ):
+                        result = commands.update_absence_request_status(
+                            "req-cp", "validated", current_user_id="user-1"
+                        )
 
         assert result["status"] == "validated"
         call_update = repo.update.call_args[0][1]
         assert "status" in call_update
         assert "jours_payes" in call_update
         cal.update_calendar_from_days.assert_called_once()
+
+    def _valider_cp(self, nb_jours_demandes: int, solde_restant: float) -> dict:
+        """Valide un CP de nb_jours avec un solde affiché donné, rend l'update."""
+        req_before = {
+            "id": "req-cp",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "pending",
+            "selected_days": [
+                f"2026-08-{10 + i:02d}" for i in range(nb_jours_demandes)
+            ],
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            repo.update.return_value = {**req_before, "status": "validated"}
+            with patch(
+                "app.modules.absences.application.commands.get_cp_solde_restant",
+                return_value=solde_restant,
+            ):
+                with patch(
+                    "app.modules.absences.application.commands.calendar_update_provider"
+                ):
+                    with patch(
+                        "app.modules.absences.application.commands.get_maintenance_settings",
+                        return_value=MaintenanceSettings(company_id="company-1"),
+                    ):
+                        commands.update_absence_request_status(
+                            "req-cp", "validated", current_user_id="user-1"
+                        )
+            return repo.update.call_args[0][1]
+
+    def test_jours_payes_est_toujours_un_entier(self):
+        """Retour Gaëlle 03/09 : un solde float (10.0) partait tel quel dans la
+        colonne integer jours_payes → 22P02 « invalid input syntax ». Le cas
+        « demande > solde » doit produire un int."""
+        call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.0)
+        assert call_update["jours_payes"] == 10
+        assert isinstance(call_update["jours_payes"], int)
+
+    def test_jours_payes_utilise_le_solde_affiche(self):
+        """Le solde retenu est celui AFFICHÉ à la RH (report N-1 compris) :
+        24,96 j pour 15 demandés → 15 payés, aucun jour « sans solde »."""
+        call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=24.96)
+        assert call_update["jours_payes"] == 15
+        assert isinstance(call_update["jours_payes"], int)
+
+    def test_jours_payes_plancher_du_solde_fractionnaire(self):
+        """Un solde fractionnaire insuffisant est PLANCHÉ : 10,5 j pour 15
+        demandés → 10 payés (pas de fraction de jour payée)."""
+        call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.5)
+        assert call_update["jours_payes"] == 10
 
     def test_raises_lookup_error_if_update_returns_none(self):
         """Si repository.update retourne None → LookupError."""

@@ -601,6 +601,23 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
     return result
 
 
+def get_cp_solde_restant(employee_id: str) -> float:
+    """Solde CP restant tel qu'AFFICHÉ à la RH (report N-1, ajustements,
+    ancienneté, CET compris) — source unique pour décider un « sans solde »
+    à la validation. 0.0 si la fiche n'a pas de date d'embauche."""
+    try:
+        balances = get_my_absence_balances(employee_id)
+    except LookupError:
+        return 0.0
+    for row in balances:
+        if row.get("type") == "Congés Payés":
+            try:
+                return float(row.get("remaining") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
 def get_employee_absence_balances_for_rh(
     company_id: str, employee_id: str
 ) -> List[dict]:

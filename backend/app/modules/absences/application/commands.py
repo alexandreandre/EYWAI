@@ -16,7 +16,6 @@ from typing import Any
 from app.core.database import supabase
 from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.modules.absences.domain.rules import (
-    calculate_acquired_cp,
     requires_salary_certificate,
 )
 from app.services.document_service import document_service
@@ -28,13 +27,13 @@ from app.modules.absences.infrastructure.providers import (
 from app.modules.absences.infrastructure.queries import (
     get_employee_company_id,
     get_employee_hire_date,
-    list_absence_requests_validated_for_cp,
 )
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
 from app.modules.absences.application.queries import (
     build_historique_arrets_annee,
     compute_subrogation_for_absence,
+    get_cp_solde_restant,
     resolve_nombre_enfants_employee,
 )
 
@@ -239,27 +238,15 @@ def update_absence_request_status(
     update_dict: dict[str, Any] = {"status": status}
 
     if status == "validated" and req_before.get("type") == "conge_paye":
-        hire_date_raw = get_employee_hire_date(req_before["employee_id"])
-        hire_date = None
-        if hire_date_raw:
-            hire_date = (
-                date.fromisoformat(hire_date_raw)
-                if isinstance(hire_date_raw, str)
-                else hire_date_raw
-            )
-        cp_acquis = calculate_acquired_cp(hire_date, date.today()) if hire_date else 0
-        other_validated = list_absence_requests_validated_for_cp(
-            req_before["employee_id"], exclude_request_id=request_id
-        )
-        cp_pris_autres = sum(
-            r.get("jours_payes")
-            if r.get("jours_payes") is not None
-            else len(r.get("selected_days", []))
-            for r in other_validated
-        )
-        available = max(0, cp_acquis - cp_pris_autres)
+        # Solde = celui AFFICHÉ à la RH (report N-1, ajustements, ancienneté,
+        # CET compris) : l'ancien calcul maison (acquis période courante − pris)
+        # marquait « sans solde » des jours couverts par le report, et son float
+        # (10.0) partait tel quel dans la colonne integer jours_payes → 22P02
+        # (retour Gaëlle 03/09). int() : un solde fractionnaire ne paie pas de
+        # fraction de jour.
+        available = get_cp_solde_restant(req_before["employee_id"])
         requested = len(req_before.get("selected_days") or [])
-        update_dict["jours_payes"] = min(requested, available)
+        update_dict["jours_payes"] = min(requested, int(available))
 
     if subrogation_active is not None:
         update_dict["subrogation_active"] = bool(subrogation_active)
