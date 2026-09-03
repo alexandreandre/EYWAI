@@ -97,13 +97,14 @@ def _hours_for_modulation_absence(employee_id: str, selected_days: list) -> floa
     return round(len(selected_days) * daily, 2)
 
 
-def _apply_modulation_recovery_on_validation(
-    data: dict[str, Any], request_id: str
-) -> None:
-    """Débite le compte modulation lors de la validation d'une récup."""
-    from app.modules.modulation.application.hour_account_commands import (
-        create_debit_recovery_movement,
-    )
+def _verifier_modulation_recovery(data: dict[str, Any]):
+    """Vérifie settings + solde d'une récup modulation. Raises ValueError.
+
+    Appelée AVANT d'écrire le statut « validated » : sinon un refus (solde
+    insuffisant, modulation désactivée) laissait l'absence validée en base
+    sans mouvement de débit.
+    Retourne (heures à débiter, settings modulation).
+    """
     from app.modules.modulation.application.hour_account_queries import (
         get_employee_account_balance,
     )
@@ -128,6 +129,21 @@ def _apply_modulation_recovery_on_validation(
             f"Solde modulation insuffisant ({balance.account_balance_hours:.2f} h "
             f"disponibles pour {hours:.2f} h demandées)."
         )
+    return hours, settings
+
+
+def _apply_modulation_recovery_on_validation(
+    data: dict[str, Any], request_id: str
+) -> None:
+    """Débite le compte modulation lors de la validation d'une récup."""
+    from app.modules.modulation.application.hour_account_commands import (
+        create_debit_recovery_movement,
+    )
+
+    company_id = str(data.get("company_id") or "")
+    employee_id = str(data["employee_id"])
+    days = data.get("selected_days") or []
+    hours, settings = _verifier_modulation_recovery(data)
 
     if settings.recovery_debit_timing != "on_validation":
         return
@@ -236,6 +252,10 @@ def update_absence_request_status(
         raise LookupError(f"Demande {request_id} non trouvée.")
 
     update_dict: dict[str, Any] = {"status": status}
+
+    if status == "validated" and req_before.get("type") == "recuperation_modulation":
+        # Contrôle AVANT l'écriture du statut (cf. _verifier_modulation_recovery).
+        _verifier_modulation_recovery(req_before)
 
     if status == "validated" and req_before.get("type") == "conge_paye":
         # Solde = celui AFFICHÉ à la RH (report N-1, ajustements, ancienneté,

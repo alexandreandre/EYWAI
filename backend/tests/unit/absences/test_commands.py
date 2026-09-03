@@ -497,3 +497,30 @@ class TestGenerateSalaryCertificate:
         prov.generate_for_absence.assert_called_once_with(
             "req-1", generated_by="user-1", replace_existing=True
         )
+
+
+class TestModulationRecoveryPreCheck:
+    """Le refus d'une récup modulation ne doit PAS laisser l'absence validée."""
+
+    def test_solde_insuffisant_refuse_avant_l_ecriture_du_statut(self):
+        req_before = {
+            "id": "req-recup",
+            "employee_id": "emp-1",
+            "company_id": "comp-1",
+            "type": "recuperation_modulation",
+            "status": "pending",
+            "selected_days": ["2026-08-10"],
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            with patch(
+                "app.modules.absences.application.commands._verifier_modulation_recovery",
+                side_effect=ValueError("Solde modulation insuffisant"),
+            ):
+                with pytest.raises(ValueError, match="Solde modulation"):
+                    commands.update_absence_request_status(
+                        "req-recup", "validated", current_user_id="user-1"
+                    )
+        repo.update.assert_not_called()

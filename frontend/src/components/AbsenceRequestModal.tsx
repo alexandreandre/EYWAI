@@ -25,6 +25,7 @@ import { useEmployeeProfileQuery } from "@/hooks/queries/useEmployeeDashboardQue
 import { useToast } from "@/components/ui/use-toast";
 import * as absencesApi from "@/api/absences";
 import { getEmployeesLite, type EmployeeLite } from "@/api/employees";
+import { getEmployeeModulationBalance } from "@/api/modulation";
 import {
   EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
   RH_ONLY_ABSENCE_TYPES,
@@ -177,6 +178,9 @@ export function AbsenceRequestModal({
   const [employees, setEmployees] = useState<EmployeeLite[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
+  // Solde du compte modulation de l'employé choisi (mode RH « Nouveau congé »)
+  // — null si la modulation n'est pas activée pour la société ou pas chargée.
+  const [modBalanceRh, setModBalanceRh] = useState<number | null>(null);
 
   // Réinitialiser les états à l'ouverture du modal
   useEffect(() => {
@@ -213,6 +217,26 @@ export function AbsenceRequestModal({
       setArretRange(undefined);
     }
   }, [absenceType]);
+
+  // Mode RH « Nouveau congé » : charger le solde modulation du salarié choisi
+  // (le débit d'une récupération se fait en heures : jours × durée hebdo / 5).
+  useEffect(() => {
+    if (!isRhLeave || !selectedEmployeeId) {
+      setModBalanceRh(null);
+      return;
+    }
+    let annule = false;
+    getEmployeeModulationBalance(selectedEmployeeId)
+      .then((bal) => {
+        if (!annule) setModBalanceRh(bal.account_balance_hours ?? 0);
+      })
+      .catch(() => {
+        if (!annule) setModBalanceRh(null);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [isRhLeave, selectedEmployeeId]);
 
   // Charger les événements familiaux quand on sélectionne ce type
   useEffect(() => {
@@ -412,6 +436,16 @@ export function AbsenceRequestModal({
           { value: "rtt" as const, label: "RTT" },
           ...(hasJtc ? [{ value: "jtc" as const, label: "JTC" }] : []),
           { value: "repos_compensateur" as const, label: "Repos Compensateur" },
+          // « Heures de récup » : récupération d'heures du compte modulation,
+          // proposée seulement si la société a la modulation et un solde connu.
+          ...(modBalanceRh !== null
+            ? [
+                {
+                  value: "recuperation_modulation" as const,
+                  label: "Heures de récup (modulation)",
+                },
+              ]
+            : []),
           { value: "evenement_familial" as const, label: "Événement Familial" },
         ]
       : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
@@ -503,6 +537,14 @@ export function AbsenceRequestModal({
                 pendingAbsences={pendingAbsences}
               />
             )}
+            {isRhLeave &&
+              absenceType === "recuperation_modulation" &&
+              modBalanceRh !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Solde modulation : {modBalanceRh.toFixed(1)} h — le débit se
+                  fait en heures (jours sélectionnés × durée hebdo ÷ 5).
+                </p>
+              )}
           </div>
 
           {isArretPrincipalType(absenceType) && (
