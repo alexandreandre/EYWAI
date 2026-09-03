@@ -99,6 +99,11 @@ export function PlanningDayEditor({
       // Pour congé/férié/arrêt : heures prévues à null par défaut si non renseignées
       if (plannedHours === '') patch.heures_prevues = null;
     }
+    if (type !== 'travail' && type !== 'work') {
+      // Un réel > 0 sur un jour non travaillé compte les heures comme
+      // travaillées en paie et efface l'absence du bulletin : forcé à 0.
+      patch.heures_faites = 0;
+    }
     return patch;
   };
 

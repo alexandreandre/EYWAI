@@ -180,10 +180,14 @@ export function CalendarBulkActionsBar({
           id,
           actual: prevActualRes.data.calendrier_reel ?? [],
         });
+        // Le réel ne se copie que sur les jours de travail : un réel > 0 sur
+        // un jour congé/arrêt compte les heures comme travaillées en paie et
+        // efface l'absence du bulletin (analyzer).
         const actual = row.planned.map((p) => ({
           jour: p.jour,
           type: p.type,
-          heures_faites: p.heures_prevues,
+          heures_faites:
+            p.type === 'travail' || p.type === 'work' ? p.heures_prevues : 0,
         }));
         await calendarApi.updateActualHours(id, year, month, actual);
       });
