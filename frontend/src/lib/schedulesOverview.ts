@@ -121,7 +121,9 @@ async function fetchEmployeeOverview(
     );
     const absenceConflictDays = detectAbsenceConflictDays(
       planned,
-      validatedDays
+      validatedDays,
+      year,
+      month
     );
 
     return {
