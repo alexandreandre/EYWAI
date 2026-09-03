@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getAbsencesForEmployee } from "@/api/absences";
 import { CalendarDays, ChevronLeft, ChevronRight, Grid3x3, Loader2, Save, Sparkles, Upload } from "lucide-react";
 import { CalendarDayCell } from "@/components/CalendarDayCell";
 import { CalendarAbsencesHint } from "@/components/employee-detail/CalendarAbsencesHint";
@@ -84,6 +86,19 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     isCopyingPrevMonth,
     reloadCalendar,
   } = props;
+
+  // Absences validées du salarié : mêmes clé/donnée que CalendarAbsencesHint
+  // (React Query dédoublonne) — alimente les compteurs calendaires
+  // (tuile Arrêts, vue année, JTC).
+  const { data: employeeAbsences } = useQuery({
+    queryKey: ['employee-absences-calendar', employeeId],
+    queryFn: async () => {
+      const res = await getAbsencesForEmployee(employeeId);
+      return res.data;
+    },
+    enabled: Boolean(employeeId),
+    staleTime: 60_000,
+  });
 
   const [assistedFillOpen, setAssistedFillOpen] = useState(false);
   const [pointageImportOpen, setPointageImportOpen] = useState(false);
@@ -271,6 +286,9 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                     plannedCalendar={plannedCalendar}
                     actualHours={actualHours}
                     isForfaitJour={isForfaitJour}
+                    absences={employeeAbsences}
+                    year={selectedDate.year}
+                    month={selectedDate.month}
                   />
                 )}
                 {calendarView === 'month' && (
@@ -343,6 +361,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                         year={selectedDate.year}
                         employeeId={employeeId!}
                         isForfaitJour={isForfaitJour}
+                        absences={employeeAbsences}
                         onMonthClick={(month) => {
                           setSelectedDate({ year: selectedDate.year, month });
                           setCalendarView('month');

@@ -169,3 +169,56 @@ describe('computeEmployeeRowStatus', () => {
     expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true)).toBe('a_saisir');
   });
 });
+
+describe('joursArretCalendairesDuMois', () => {
+  const arretMarion = {
+    status: 'validated',
+    type: 'arret_maladie',
+    // 17/08 → 31/08 calendaire (week-ends compris) = 15 jours
+    selected_days: Array.from({ length: 15 }, (_, i) => `2026-08-${17 + i}`),
+  };
+
+  it('compte les jours calendaires du mois, samedis et dimanches compris', async () => {
+    const { joursArretCalendairesDuMois } = await import('./calendarStats');
+    expect(joursArretCalendairesDuMois([arretMarion], 2026, 8)).toBe(15);
+  });
+
+  it('ignore les autres mois, les non-validées et les non-arrêts', async () => {
+    const { joursArretCalendairesDuMois } = await import('./calendarStats');
+    expect(joursArretCalendairesDuMois([arretMarion], 2026, 9)).toBe(0);
+    expect(
+      joursArretCalendairesDuMois(
+        [{ ...arretMarion, status: 'pending' }],
+        2026,
+        8
+      )
+    ).toBe(0);
+    expect(
+      joursArretCalendairesDuMois(
+        [{ ...arretMarion, type: 'conge_paye' }],
+        2026,
+        8
+      )
+    ).toBe(0);
+  });
+
+  it('ne double-compte pas des demandes chevauchantes', async () => {
+    const { joursArretCalendairesDuMois } = await import('./calendarStats');
+    expect(
+      joursArretCalendairesDuMois([arretMarion, { ...arretMarion }], 2026, 8)
+    ).toBe(15);
+  });
+});
+
+describe('joursJtcDeLAnnee', () => {
+  it("compte les jours JTC validés de l'année (jamais écrits au calendrier)", async () => {
+    const { joursJtcDeLAnnee } = await import('./calendarStats');
+    const jtc = {
+      status: 'validated',
+      type: 'jtc',
+      selected_days: ['2026-05-04', '2026-05-05', '2025-12-31'],
+    };
+    expect(joursJtcDeLAnnee([jtc], 2026)).toBe(2);
+    expect(joursJtcDeLAnnee([{ ...jtc, status: 'pending' }], 2026)).toBe(0);
+  });
+});

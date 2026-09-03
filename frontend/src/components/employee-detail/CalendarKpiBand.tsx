@@ -1,4 +1,9 @@
-import { computeMonthStats, type CalendarMonthStats } from '@/lib/calendarStats';
+import {
+  computeMonthStats,
+  joursArretCalendairesDuMois,
+  type AbsenceLike,
+  type CalendarMonthStats,
+} from '@/lib/calendarStats';
 import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
 import { cn } from '@/lib/utils';
 
@@ -7,6 +12,11 @@ interface CalendarKpiBandProps {
   actualHours: ActualHoursData[];
   isForfaitJour: boolean;
   className?: string;
+  /** Absences validées du salarié : la tuile Arrêts passe alors en jours
+   * CALENDAIRES (week-ends compris, décompte prévoyance). */
+  absences?: AbsenceLike[];
+  year?: number;
+  month?: number;
 }
 
 function KpiTile({
@@ -42,12 +52,23 @@ export function CalendarKpiBand({
   actualHours,
   isForfaitJour,
   className,
+  absences,
+  year,
+  month,
 }: CalendarKpiBandProps) {
   const stats: CalendarMonthStats = computeMonthStats(
     plannedCalendar,
     actualHours,
     isForfaitJour
   );
+  const arretsCalendaires =
+    absences && year && month
+      ? joursArretCalendairesDuMois(absences, year, month)
+      : null;
+  const arretsTile =
+    arretsCalendaires !== null
+      ? { value: `${arretsCalendaires} j`, sub: 'calendaires (prévoyance)' }
+      : { value: `${stats.arrets} j`, sub: undefined };
 
   if (isForfaitJour) {
     return (
@@ -60,7 +81,7 @@ export function CalendarKpiBand({
           highlight={stats.ecartJours < 0 ? 'negative' : stats.ecartJours > 0 ? 'positive' : 'neutral'}
         />
         <KpiTile label="Congés" value={`${stats.conges} j`} />
-        <KpiTile label="Arrêts" value={`${stats.arrets} j`} />
+        <KpiTile label="Arrêts" value={arretsTile.value} sub={arretsTile.sub} />
         <KpiTile label="Fériés" value={`${stats.feriels} j`} />
       </div>
     );
@@ -80,7 +101,7 @@ export function CalendarKpiBand({
       />
       <KpiTile label="Jours travaillés" value={String(stats.joursTravailles)} />
       <KpiTile label="Congés" value={`${stats.conges} j`} />
-      <KpiTile label="Arrêts" value={`${stats.arrets} j`} />
+      <KpiTile label="Arrêts" value={arretsTile.value} sub={arretsTile.sub} />
     </div>
   );
 }

@@ -61,6 +61,51 @@ export function computeEmployeeCalendarSummary(
   };
 }
 
+/** Forme minimale d'une demande d'absence (module Absences). */
+export interface AbsenceLike {
+  status?: string | null;
+  type?: string | null;
+  selected_days?: string[] | null;
+}
+
+/** Jours CALENDAIRES d'arrêt du mois (samedis/dimanches compris), depuis les
+ * absences validées. Les cases du calendrier ne portent que les jours ouvrés
+ * (design « bornes calendaires » : les week-ends ne sont jamais retypés) —
+ * le décompte prévoyance/IJSS se fait donc ici, sur selected_days. */
+export function joursArretCalendairesDuMois(
+  absences: AbsenceLike[],
+  year: number,
+  month: number
+): number {
+  const prefix = `${year}-${String(month).padStart(2, '0')}-`;
+  const jours = new Set<string>();
+  for (const a of absences) {
+    if (a.status !== 'validated') continue;
+    if (!String(a.type ?? '').startsWith('arret')) continue;
+    for (const iso of a.selected_days ?? []) {
+      if (iso.startsWith(prefix)) jours.add(iso);
+    }
+  }
+  return jours.size;
+}
+
+/** Jours JTC validés de l'année — le type jtc n'écrit jamais le calendrier,
+ * seules les demandes d'absence peuvent alimenter ce compteur. */
+export function joursJtcDeLAnnee(
+  absences: AbsenceLike[],
+  year: number
+): number {
+  const prefix = `${year}-`;
+  const jours = new Set<string>();
+  for (const a of absences) {
+    if (a.status !== 'validated' || a.type !== 'jtc') continue;
+    for (const iso of a.selected_days ?? []) {
+      if (iso.startsWith(prefix)) jours.add(iso);
+    }
+  }
+  return jours.size;
+}
+
 export function computeMonthStats(
   planned: PlannedEventData[],
   actual: ActualHoursData[],
@@ -72,7 +117,7 @@ export function computeMonthStats(
   let joursTravailles = 0;
 
   for (const p of planned) {
-    if (p.type === 'conge') conges += 1;
+    if (p.type === 'conge' || p.type === 'conges_payes') conges += 1;
     else if (p.type === 'arret_maladie') arrets += 1;
     else if (p.type === 'ferie') feriels += 1;
     else if (p.type === 'travail') {

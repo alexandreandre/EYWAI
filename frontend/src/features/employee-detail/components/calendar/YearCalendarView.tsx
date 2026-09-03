@@ -4,7 +4,12 @@ import * as calendarApi from "@/api/calendar";
 import { log } from "@/lib/logger";
 import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { computeMonthStats } from "@/lib/calendarStats";
+import {
+  computeMonthStats,
+  joursArretCalendairesDuMois,
+  joursJtcDeLAnnee,
+  type AbsenceLike,
+} from "@/lib/calendarStats";
 
 type PlannedEventData = { jour: number; type: string | null; heures_prevues: number | null };
 type ActualHoursData = { jour: number; heures_faites: number | null };
@@ -14,6 +19,9 @@ interface YearCalendarViewProps {
   employeeId: string;
   isForfaitJour?: boolean;
   onMonthClick?: (month: number) => void;
+  /** Absences validées : les compteurs Arrêt passent en jours CALENDAIRES
+   * (week-ends compris, décompte prévoyance) et le total JTC apparaît. */
+  absences?: AbsenceLike[];
 }
 
 export function YearCalendarView({
@@ -21,6 +29,7 @@ export function YearCalendarView({
   employeeId,
   isForfaitJour = false,
   onMonthClick,
+  absences,
 }: YearCalendarViewProps) {
   const [yearData, setYearData] = useState<{
     [month: number]: {
@@ -211,7 +220,11 @@ export function YearCalendarView({
           {days}
         </div>
         <p className="mt-2 text-[10px] text-center text-muted-foreground leading-snug">
-          Travail : {monthStats.joursTravailles} j • Congés : {monthStats.conges} j • Arrêt : {monthStats.arrets} j
+          Travail : {monthStats.joursTravailles} j • Congés : {monthStats.conges} j • Arrêt :{' '}
+          {absences
+            ? joursArretCalendairesDuMois(absences, year, month)
+            : monthStats.arrets}{' '}
+          j
           {!isForfaitJour && (
             <>
               <br />
@@ -296,8 +309,25 @@ export function YearCalendarView({
             <span className="text-muted-foreground">Congés :</span> <strong>{yearTotals.conges} j</strong>
           </span>
           <span>
-            <span className="text-muted-foreground">Arrêts :</span> <strong>{yearTotals.arrets} j</strong>
+            <span className="text-muted-foreground">Arrêts :</span>{' '}
+            <strong>
+              {absences
+                ? Array.from({ length: 12 }, (_, i) =>
+                    joursArretCalendairesDuMois(absences, year, i + 1)
+                  ).reduce((a, b) => a + b, 0)
+                : yearTotals.arrets}{' '}
+              j
+            </strong>
+            {absences && (
+              <span className="text-muted-foreground"> (calendaires)</span>
+            )}
           </span>
+          {absences && (
+            <span>
+              <span className="text-muted-foreground">JTC :</span>{' '}
+              <strong>{joursJtcDeLAnnee(absences, year)} j</strong>
+            </span>
+          )}
           <span>
             <span className="text-muted-foreground">Fériés :</span> <strong>{yearTotals.feriels} j</strong>
           </span>
