@@ -66,3 +66,15 @@ export function recordGenerationDuration(ms: number): void {
     // ignore storage errors
   }
 }
+
+/** Mois de paie « par défaut » pour les garde-fous du lancement : jusqu'au 15
+ * du mois on prépare encore la paie du mois PRÉCÉDENT (pratique paie), ensuite
+ * celle du mois courant. Évite qu'un début de mois aux calendriers vierges
+ * bloque la paie du mois passé (retour Gaëlle 03/09). */
+export function moisDePaieParDefaut(ref: Date): { year: number; month: number } {
+  const d = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  if (ref.getDate() <= 15) {
+    d.setMonth(d.getMonth() - 1);
+  }
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
