@@ -18,6 +18,7 @@ import { shouldShowHolidayHint } from '@/lib/companyCalendarHolidays';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import {
   CALENDAR_TYPE_BAR_COLORS,
+  CALENDAR_TYPE_BG_COLORS,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
@@ -299,17 +300,20 @@ export function CalendarDayCell({
   };
 
   const barColor = CALENDAR_TYPE_BAR_COLORS[plannedDay.type] ?? 'bg-gray-300';
+  // Fond teinté par type : mêmes couleurs que la vue semaine équipe
+  // (congé vert, arrêt rouge…) pour vérifier d'un coup d'œil.
+  const bgColor = CALENDAR_TYPE_BG_COLORS[plannedDay.type] ?? 'bg-card';
 
   return (
     <div
       ref={cellRef}
       className={cn(
-        'group relative flex h-full min-h-[7.5rem] w-full flex-col rounded-2xl border bg-card transition-all duration-200',
+        'group relative flex h-full min-h-[7.5rem] w-full flex-col rounded-2xl border transition-all duration-200',
+        bgColor,
         'hover:shadow-md',
         isSelected && 'ring-2 ring-primary ring-offset-1',
         isToday && 'ring-2 ring-primary/60',
         needsInput && 'border-dashed border-amber-400/80',
-        hasHourValues && !isEditing && 'border-sky-200/60 bg-gradient-to-b from-card to-sky-50/30 dark:to-sky-950/20',
         isEditing && 'ring-1 ring-primary shadow-md z-10'
       )}
       onClick={() => setIsEditing(true)}

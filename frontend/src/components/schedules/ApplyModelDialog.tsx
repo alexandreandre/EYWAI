@@ -41,6 +41,7 @@ import {
   computePlanningWeeks,
   planningWeekDays,
   planningWeekLabel,
+  planningWeekIsoNumber,
 } from '@/lib/planningWeeks';
 import type { EmployeeCalendarOverviewRow } from '@/lib/schedulesOverview';
 import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from '@/lib/weekTemplateStorage';
@@ -398,11 +399,13 @@ export function ApplyModelDialog({
                 {weeks.map((week, index) => {
                   const label = planningWeekLabel(week);
                   const isCurrent = index === clampedViewWeek;
+                  const iso = planningWeekIsoNumber(year, month, week);
+                  const nom = iso ? `S${iso}` : `Sem. ${index + 1}`;
                   return (
                     <SelectItem key={index} value={`week-${index}`}>
                       {isCurrent
                         ? `Cette semaine · ${label}`
-                        : `Sem. ${index + 1} · ${label}`}
+                        : `${nom} · ${label}`}
                     </SelectItem>
                   );
                 })}

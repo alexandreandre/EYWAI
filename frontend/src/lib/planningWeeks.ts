@@ -47,3 +47,24 @@ export function defaultPlanningWeekIndex(
   const index = weeks.findIndex((week) => week.includes(day));
   return index >= 0 ? index : 0;
 }
+
+/** Numéro de semaine ISO (S27, S28…) d'un chunk du mois — celui du premier
+ * jour renseigné (les onglets « Sem. 1, 2, 3 » ne parlaient à personne en
+ * paie, cf. retour Gaëlle 03/09). */
+export function planningWeekIsoNumber(
+  year: number,
+  month: number,
+  week: number[],
+): number | null {
+  const days = planningWeekDays(week);
+  if (days.length === 0) return null;
+  const d = new Date(year, month - 1, days[0]);
+  // ISO 8601 : la semaine est celle de son jeudi.
+  const jeudi = new Date(d);
+  jeudi.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3);
+  const premierJeudiAn = new Date(jeudi.getFullYear(), 0, 4);
+  const diffJours = Math.round(
+    (jeudi.getTime() - premierJeudiAn.getTime()) / 86_400_000,
+  );
+  return 1 + Math.floor((diffJours + ((premierJeudiAn.getDay() + 6) % 7)) / 7);
+}

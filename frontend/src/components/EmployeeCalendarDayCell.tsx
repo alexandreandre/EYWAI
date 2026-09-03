@@ -3,6 +3,7 @@ import type { Shift } from '@/api/planning';
 import { cn } from '@/lib/utils';
 import {
   CALENDAR_TYPE_BAR_COLORS,
+  CALENDAR_TYPE_BG_COLORS,
   formatCalendarValue,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
@@ -141,8 +142,11 @@ export function EmployeeCalendarDayCell({
   );
 
   const className = cn(
-    'relative flex h-full min-h-[5.5rem] w-full flex-col rounded-xl border bg-card text-left transition-colors',
-    'hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    'relative flex h-full min-h-[5.5rem] w-full flex-col rounded-xl border text-left transition-colors',
+    // Fond teinté par type — mêmes couleurs que la vue semaine (congé vert,
+    // arrêt rouge…), pour vérifier d'un coup d'œil.
+    CALENDAR_TYPE_BG_COLORS[dayType] ?? 'bg-card hover:bg-muted/40',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isToday && 'ring-2 ring-primary'
   );
 

@@ -22,31 +22,14 @@ import { cn } from '@/lib/utils';
 import { isObservedHolidayHeaderDay } from '@/lib/companyCalendarHolidays';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
-import { computePlanningWeeks } from '@/lib/planningWeeks';
-
-const TYPE_BG: Record<string, string> = {
-  travail: 'bg-sky-50 hover:bg-sky-100 border-sky-200/60',
-  conge: 'bg-amber-50 hover:bg-amber-100 border-amber-200/60',
-  ferie: 'bg-purple-50 hover:bg-purple-100 border-purple-200/60',
-  arret_maladie: 'bg-red-50 hover:bg-red-100 border-red-200/60',
-  weekend: 'bg-slate-50 hover:bg-slate-100 border-slate-200/60',
-};
-
-const TYPE_BAR: Record<string, string> = {
-  travail: 'bg-sky-500',
-  conge: 'bg-amber-500',
-  ferie: 'bg-purple-500',
-  arret_maladie: 'bg-red-500',
-  weekend: 'bg-slate-400',
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  travail: 'Travail',
-  conge: 'Congé',
-  ferie: 'Férié',
-  arret_maladie: 'Arrêt',
-  weekend: 'Week-end',
-};
+import { computePlanningWeeks, planningWeekIsoNumber } from '@/lib/planningWeeks';
+// Source unique des couleurs/libellés (congé vert, arrêt rouge — partout
+// pareil, y compris le calendrier complet du salarié).
+import {
+  CALENDAR_TYPE_BAR_COLORS as TYPE_BAR,
+  CALENDAR_TYPE_BG_COLORS as TYPE_BG,
+  CALENDAR_TYPE_LABELS as TYPE_LABEL,
+} from '@/lib/calendarTypes';
 
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
@@ -209,9 +192,10 @@ export function TeamPlanningView({
               const validDays = week.filter((d) => d > 0);
               const first = validDays[0];
               const last = validDays[validDays.length - 1];
+              const iso = planningWeekIsoNumber(year, month, week);
               return (
                 <TabsTrigger key={idx} value={String(idx)} className="text-xs">
-                  Sem. {idx + 1}{' '}
+                  {iso ? `S${iso}` : `Sem. ${idx + 1}`}{' '}
                   <span className="ml-1 text-muted-foreground">
                     ({first}–{last})
                   </span>
