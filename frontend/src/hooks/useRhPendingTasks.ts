@@ -27,6 +27,7 @@ import { getWorkMedalSummary } from '@/api/workMedals';
 import { isRecruitmentPriorityCandidate } from '@/api/recruitment';
 import { ONBOARDING_LOOKBACK_DAYS } from '@/lib/onboardingUtils';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
+import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
@@ -137,9 +138,13 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     staleTime: STALE,
   });
 
-  const now = new Date();
-  const schedulesYear = now.getFullYear();
-  const schedulesMonth = now.getMonth() + 1;
+  // Mois de PAIE en préparation (jusqu'au 15 : le mois précédent) — le badge
+  // « Plannings du mois » et le verrou « Lancer la paie » regardent le même
+  // mois : début septembre, on prépare la paie d'août, pas les calendriers
+  // vierges de septembre (retour Gaëlle 03/09).
+  const { year: schedulesYear, month: schedulesMonth } = moisDePaieParDefaut(
+    new Date()
+  );
 
   const schedulesBadgeQuery = useQuery({
     queryKey: ['schedules', 'sidebar-badges', companyId, schedulesYear, schedulesMonth],

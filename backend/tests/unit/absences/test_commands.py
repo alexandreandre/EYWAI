@@ -529,37 +529,106 @@ class TestModulationRecoveryPreCheck:
 class TestCancelValidatedAbsence:
     """Annulation d'une absence validée → restauration du calendrier."""
 
-    def test_annulation_restaure_les_jours_hors_chevauchement(self):
+    def _annuler(self, req_before, autres_validees):
+        """Annule req_before avec un jeu d'autres absences validées en base."""
+        ordre: list = []
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+
+            def _update(*_a, **_k):
+                ordre.append("update")
+                return {**req_before, "status": "cancelled"}
+
+            repo.update.side_effect = _update
+            with patch(
+                "app.modules.absences.application.commands.calendar_update_provider"
+            ) as cal:
+                cal.restore_calendar_from_days.side_effect = (
+                    lambda *_a, **_k: ordre.append("restore")
+                )
+                with patch(
+                    "app.modules.absences.application.commands.supabase"
+                ) as sb:
+                    sb.table.return_value.select.return_value.eq.return_value.eq.return_value.neq.return_value.execute.return_value = MagicMock(
+                        data=autres_validees
+                    )
+                    commands.update_absence_request_status(
+                        req_before["id"], "cancelled", current_user_id="user-1"
+                    )
+        return cal, ordre
+
+    def test_annulation_restaure_hors_chevauchement_du_meme_type(self):
         req_before = {
-            "id": "req-rc",
+            "id": "req-cp",
             "employee_id": "emp-1",
-            "company_id": "comp-1",
-            "type": "repos_compensateur",
+            "type": "conge_paye",
             "status": "validated",
             "selected_days": ["2026-08-14", "2026-08-17"],
         }
-        autre_absence = {
+        autre_cp = {
             "id": "req-autre",
-            "selected_days": ["2026-08-17"],  # couvre le 17 → non restauré
+            "type": "conge_paye",
+            "selected_days": ["2026-08-17"],  # même type projeté → couvre le 17
+        }
+        cal, _ = self._annuler(req_before, [autre_cp])
+        args = cal.restore_calendar_from_days.call_args[0]
+        assert args[0] == "emp-1"
+        assert [d.isoformat() for d in args[1]] == ["2026-08-14"]
+        assert args[2] == "conge_paye"
+
+    def test_un_chevauchement_d_un_autre_type_projete_n_exclut_pas(self):
+        """Un arrêt qui chevauche un CP annulé ne « possède » pas les cases
+        conges_payes : la restauration garde ces jours (le contrôle
+        type/origine du provider protège déjà les jours de l'arrêt)."""
+        req_before = {
+            "id": "req-cp",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "validated",
+            "selected_days": ["2026-08-14", "2026-08-17"],
+        }
+        arret = {
+            "id": "req-arret",
+            "type": "arret_maladie",
+            "selected_days": ["2026-08-14"],
+        }
+        cal, _ = self._annuler(req_before, [arret])
+        args = cal.restore_calendar_from_days.call_args[0]
+        assert [d.isoformat() for d in args[1]] == ["2026-08-14", "2026-08-17"]
+
+    def test_la_restauration_precede_l_ecriture_du_statut(self):
+        """Si la restauration échoue, la demande doit rester validée pour que
+        l'annulation soit rejouable — l'inverse gèle les jours sans recours."""
+        req_before = {
+            "id": "req-cp",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "validated",
+            "selected_days": ["2026-08-14"],
+        }
+        _, ordre = self._annuler(req_before, [])
+        assert ordre == ["restore", "update"]
+
+    def test_annulation_d_une_recup_modulation_refusee(self):
+        """Pas de re-crédit modulation : l'annulation doit être bloquée."""
+        req_before = {
+            "id": "req-recup",
+            "employee_id": "emp-1",
+            "type": "recuperation_modulation",
+            "status": "validated",
+            "selected_days": ["2026-08-14"],
         }
         with patch(
             "app.modules.absences.application.commands.absence_repository"
         ) as repo:
             repo.get_by_id.return_value = req_before
-            repo.update.return_value = {**req_before, "status": "cancelled"}
-            repo.list_validated_for_employees.return_value = [autre_absence]
-            with patch(
-                "app.modules.absences.application.commands.calendar_update_provider"
-            ) as cal:
+            with pytest.raises(ValueError, match="re-crédit"):
                 commands.update_absence_request_status(
-                    "req-rc", "cancelled", current_user_id="user-1"
+                    "req-recup", "cancelled", current_user_id="user-1"
                 )
-
-        cal.restore_calendar_from_days.assert_called_once()
-        args = cal.restore_calendar_from_days.call_args[0]
-        assert args[0] == "emp-1"
-        assert [d.isoformat() for d in args[1]] == ["2026-08-14"]
-        assert args[2] == "repos_compensateur"
+        repo.update.assert_not_called()
 
     def test_annulation_d_une_demande_pending_ne_restaure_rien(self):
         req_before = {
@@ -581,3 +650,23 @@ class TestCancelValidatedAbsence:
                     "req-p", "cancelled", current_user_id="user-1"
                 )
         cal.restore_calendar_from_days.assert_not_called()
+
+    def test_revalider_une_demande_deja_validee_est_refuse(self):
+        """Garde de transition : la re-validation écraserait jours_payes (ses
+        propres jours comptant comme pris → 0) et re-débiterait la modulation."""
+        req_before = {
+            "id": "req-cp",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "validated",
+            "selected_days": ["2026-08-14"],
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            with pytest.raises(ValueError, match="déjà validée"):
+                commands.update_absence_request_status(
+                    "req-cp", "validated", current_user_id="user-1"
+                )
+        repo.update.assert_not_called()

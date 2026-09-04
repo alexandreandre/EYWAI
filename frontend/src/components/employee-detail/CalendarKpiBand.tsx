@@ -65,8 +65,10 @@ export function CalendarKpiBand({
     absences && year && month
       ? joursArretCalendairesDuMois(absences, year, month)
       : null;
+  // Repli sur le compte du calendrier quand aucune demande d'absence ne porte
+  // l'arrêt (jours typés à la main dans le planning, reprises).
   const arretsTile =
-    arretsCalendaires !== null
+    arretsCalendaires !== null && (arretsCalendaires > 0 || stats.arrets === 0)
       ? { value: `${arretsCalendaires} j`, sub: 'calendaires (prévoyance)' }
       : { value: `${stats.arrets} j`, sub: undefined };
 

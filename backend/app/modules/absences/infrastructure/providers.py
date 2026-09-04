@@ -16,7 +16,10 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 
-from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
+from app.modules.absences.domain.enums import (
+    IJSS_ELIGIBLE_TYPES,
+    type_calendrier_projete,
+)
 from app.shared.domain.absence_calendar import (
     ABSENCE_TYPE_TO_CALENDAR_TYPE,
     ORIGINE_ABSENCE,
@@ -456,6 +459,14 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                             )
                         continue
                     if est_conversion:
+                        # Photo de l'entrée d'origine : la restauration à
+                        # l'annulation rend au jour son vrai planning (heures
+                        # réelles du modèle, convention forfait 0/1) au lieu
+                        # d'un forfaitaire durée hebdo / 5.
+                        entry["entree_avant_absence"] = {
+                            "type": entry.get("type"),
+                            "heures_prevues": entry.get("heures_prevues"),
+                        }
                         entry["type"] = new_calendar_type
                         entry["heures_prevues"] = 0
                         # Branche nominale (le mois est déjà planifié) : c'est
@@ -490,20 +501,29 @@ class CalendarUpdateProvider(ICalendarUpdateService):
     ) -> None:
         """Rend au planning les jours d'une absence validée puis ANNULÉE.
 
-        Ne touche qu'un jour encore marqué origine='absence' ET typé comme la
-        projection de cette absence l'avait écrit — un jour requalifié depuis,
-        ou couvert par une absence d'un autre type, reste intact (les
-        chevauchements du même type sont exclus en amont par l'appelant).
-        Retour : `weekend` le samedi/dimanche, sinon `travail` aux heures du
-        profil ; les clés serveur (origine, arret_type…) sont purgées.
+        Réciproque de la projection : un jour n'est restauré que s'il est
+        encore marqué origine='absence' ET typé comme cette absence l'avait
+        écrit — un jour requalifié depuis, ou couvert par une absence d'un
+        autre type, reste intact (les chevauchements du même type sont exclus
+        en amont par l'appelant). Les jours week-end/repos/férié d'un arrêt,
+        jamais retypés mais porteurs des métadonnées calendaires, sont purgés
+        de ces métadonnées. Le planning restauré vient de la photo
+        `entree_avant_absence` posée à la conversion ; à défaut (absences
+        validées avant cette photo), des autres jours travaillés du mois au
+        même jour de semaine ; en dernier recours `weekend` ou `travail` à
+        durée hebdo / 5.
         """
-        type_mapping = ABSENCE_TYPE_TO_CALENDAR_TYPE
         is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES
-        expected_type = (
-            "arret_maladie" if is_arret else type_mapping.get(absence_type_str)
-        )
+        expected_type = type_calendrier_projete(absence_type_str)
         if not expected_type:
             return
+        # Les CP validés avant la bascule du mapping écrivaient 'conge' :
+        # les deux types restent restaurables.
+        expected_types = (
+            {"conges_payes", "conge"}
+            if expected_type == "conges_payes"
+            else {expected_type}
+        )
 
         emp_row = (
             supabase.table("employees")
@@ -541,21 +561,58 @@ class CalendarUpdateProvider(ICalendarUpdateService):
             ):
                 continue
             planned_calendar = schedule.data["planned_calendar"]
-            for entry in planned_calendar.get("calendrier_prevu", []):
+            entries = planned_calendar.get("calendrier_prevu", [])
+
+            # Heures habituelles par jour de semaine, déduites des jours
+            # travaillés du mois HORS période annulée (repli quand la photo
+            # entree_avant_absence n'existe pas : temps partiels, 8,5 h/j,
+            # forfait 0/1).
+            heures_par_weekday: Dict[int, Any] = {}
+            for entry in entries:
+                try:
+                    jour = int(entry.get("jour"))
+                except (TypeError, ValueError):
+                    continue
+                if jour in day_list:
+                    continue
+                if entry.get("type") not in ("travail", "work"):
+                    continue
+                wd = date(year, month, jour).weekday()
+                if wd not in heures_par_weekday:
+                    heures_par_weekday[wd] = entry.get("heures_prevues")
+
+            for entry in entries:
                 try:
                     jour = int(entry.get("jour"))
                 except (TypeError, ValueError):
                     continue
                 if jour not in day_list:
                     continue
-                if entry.get("origine") != ORIGINE_ABSENCE:
-                    continue
-                if entry.get("type") != expected_type:
-                    continue
-                est_weekend = date(year, month, jour).weekday() >= 5
-                entry["type"] = "weekend" if est_weekend else "travail"
-                entry["heures_prevues"] = 0 if est_weekend else heures_jour
-                strip_server_owned_keys(entry)
+                if entry.get("type") in expected_types and (
+                    entry.get("origine") == ORIGINE_ABSENCE
+                ):
+                    photo = entry.get("entree_avant_absence")
+                    wd = date(year, month, jour).weekday()
+                    if isinstance(photo, dict) and photo.get("type"):
+                        entry["type"] = str(photo["type"])
+                        entry["heures_prevues"] = photo.get("heures_prevues")
+                    elif wd >= 5:
+                        entry["type"] = "weekend"
+                        entry["heures_prevues"] = 0
+                    else:
+                        entry["type"] = "travail"
+                        entry["heures_prevues"] = (
+                            heures_par_weekday.get(wd)
+                            if heures_par_weekday.get(wd) is not None
+                            else heures_jour
+                        )
+                    strip_server_owned_keys(entry)
+                elif is_arret and entry.get("type") in ("weekend", "repos", "ferie"):
+                    # Jour non retypé mais stampé des bornes/métadonnées de
+                    # l'arrêt annulé : sans purge, le moteur calendaire
+                    # verrait encore l'arrêt (maintien/IJSS/prévoyance).
+                    strip_server_owned_keys(entry)
+
             supabase.table("employee_schedules").update(
                 {"planned_calendar": planned_calendar}
             ).match(

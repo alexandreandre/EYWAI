@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Sequence
+from typing import Any, Literal, Sequence
 
 BreakKind = Literal["short", "meal", "other"]
 

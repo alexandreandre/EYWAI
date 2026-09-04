@@ -149,6 +149,14 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         calendrier_reel_normalized = normalize_actual_hours_for_employee(
             calendrier_reel_raw, employee_statut
         )
+        # Aucun réel sur un jour d'absence, quel que soit le chemin d'écriture
+        # (un réel > 0 y compte les heures comme travaillées et efface
+        # l'absence du bulletin).
+        calendrier_reel_normalized = (
+            domain_rules.normalize_actual_hours_on_absence_days(
+                calendrier_reel_normalized
+            )
+        )
         if domain_rules.is_forfait_jour(employee_statut):
             log_app_debug(logger, f'✅ Normalisation forfait jour appliquée aux heures réelles: {len(calendrier_reel_normalized)} entrées normalisées')
 

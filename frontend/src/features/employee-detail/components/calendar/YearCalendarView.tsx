@@ -6,6 +6,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   computeMonthStats,
+  joursArretCalendairesDeLAnnee,
   joursArretCalendairesDuMois,
   joursJtcDeLAnnee,
   type AbsenceLike,
@@ -222,7 +223,8 @@ export function YearCalendarView({
         <p className="mt-2 text-[10px] text-center text-muted-foreground leading-snug">
           Travail : {monthStats.joursTravailles} j • Congés : {monthStats.conges} j • Arrêt :{' '}
           {absences
-            ? joursArretCalendairesDuMois(absences, year, month)
+            ? joursArretCalendairesDuMois(absences, year, month) ||
+              monthStats.arrets
             : monthStats.arrets}{' '}
           j
           {!isForfaitJour && (
@@ -261,6 +263,22 @@ export function YearCalendarView({
       feriels,
     };
   }, [yearData, isForfaitJour]);
+
+  // Totaux issus des demandes d'absence (jours calendaires, JTC) — une passe,
+  // mémoïsée : le rendu des 12 mois n'a pas à rescanner les absences.
+  const totauxAbsences = useMemo(() => {
+    if (!absences) {
+      return { arrets: yearTotals.arrets, jtc: 0, calendaires: false };
+    }
+    const calendaires = joursArretCalendairesDeLAnnee(absences, year);
+    return {
+      // Repli sur le calendrier si aucune demande ne porte d'arrêt
+      // (jours typés à la main, reprises).
+      arrets: calendaires || yearTotals.arrets,
+      jtc: joursJtcDeLAnnee(absences, year),
+      calendaires: calendaires > 0,
+    };
+  }, [absences, year, yearTotals.arrets]);
 
   if (isLoadingYear) {
     return (
@@ -310,22 +328,15 @@ export function YearCalendarView({
           </span>
           <span>
             <span className="text-muted-foreground">Arrêts :</span>{' '}
-            <strong>
-              {absences
-                ? Array.from({ length: 12 }, (_, i) =>
-                    joursArretCalendairesDuMois(absences, year, i + 1)
-                  ).reduce((a, b) => a + b, 0)
-                : yearTotals.arrets}{' '}
-              j
-            </strong>
-            {absences && (
+            <strong>{totauxAbsences.arrets} j</strong>
+            {totauxAbsences.calendaires && (
               <span className="text-muted-foreground"> (calendaires)</span>
             )}
           </span>
           {absences && (
             <span>
               <span className="text-muted-foreground">JTC :</span>{' '}
-              <strong>{joursJtcDeLAnnee(absences, year)} j</strong>
+              <strong>{totauxAbsences.jtc} j</strong>
             </span>
           )}
           <span>

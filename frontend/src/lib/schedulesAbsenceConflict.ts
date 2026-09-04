@@ -11,10 +11,9 @@ const ABSENCE_CALENDAR_TYPES = new Set([
   'ferie',
 ]);
 
-// Jours JAMAIS retypés par la projection d'absence (design « bornes
-// calendaires » : un arrêt couvre le week-end mais la case reste weekend/repos,
-// sinon la paie sur-retiendrait). Leur présence dans selected_days est normale.
-const NON_RETYPES = new Set(['weekend', 'repos', 'ferie']);
+// Types d'absence qui n'écrivent JAMAIS le calendrier (aligné backend) : leurs
+// jours restent « travail » par design — ce n'est pas un conflit.
+const TYPES_SANS_CALENDRIER = new Set(['jtc', 'sans_solde']);
 
 export function validatedAbsenceDaysInMonth(
   absences: AbsenceRequest[],
@@ -26,6 +25,7 @@ export function validatedAbsenceDaysInMonth(
 
   for (const a of absences) {
     if (a.status !== 'validated') continue;
+    if (TYPES_SANS_CALENDRIER.has(a.type)) continue;
     for (const iso of a.selected_days ?? []) {
       if (iso.startsWith(prefix)) {
         const day = parseInt(iso.slice(8, 10), 10);
@@ -48,12 +48,19 @@ export function detectAbsenceConflictDays(
   for (const day of validatedAbsenceDays) {
     const row = planned.find((p) => p.jour === day);
     const type = row?.type;
-    if (type && (ABSENCE_CALENDAR_TYPES.has(type) || NON_RETYPES.has(type))) {
+    if (type && ABSENCE_CALENDAR_TYPES.has(type)) {
       continue;
     }
-    // Pas de ligne planifiée : un samedi/dimanche d'absence est normal aussi.
+    // Jours JAMAIS retypés par la projection (design « bornes calendaires ») :
+    // 'repos'/'ferie' quel que soit le jour (temps partiels, fériés) ; le type
+    // 'weekend' n'est normal QUE le samedi/dimanche — un jour de semaine typé
+    // weekend sous une absence validée reste un vrai conflit.
     const jsDay = new Date(year, month - 1, day).getDay();
-    if (!type && (jsDay === 0 || jsDay === 6)) {
+    const estSamediDimanche = jsDay === 0 || jsDay === 6;
+    if (type === 'repos' || (type === 'weekend' && estSamediDimanche)) {
+      continue;
+    }
+    if (!type && estSamediDimanche) {
       continue;
     }
     conflicts.push(day);

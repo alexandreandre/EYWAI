@@ -167,6 +167,25 @@ def merge_planned_entries(
     return [fusionnes[jour] for jour in sorted(fusionnes)]
 
 
+def normalize_actual_hours_on_absence_days(
+    calendrier_reel: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Force heures_faites = 0 sur les jours typés absence.
+
+    Un réel > 0 sur un jour congé/arrêt compte les heures comme travaillées
+    en paie et efface l'absence du bulletin (analyzer) : la garde vit ICI,
+    côté serveur, pour couvrir tous les chemins d'écriture (éditeur de jour,
+    « Réel = prévu », import badgeuse, application de modèle).
+    """
+    normalized: List[Dict[str, Any]] = []
+    for entry in calendrier_reel:
+        e = entry.copy()
+        if e.get("type") in ABSENCE_CALENDAR_TYPES and (e.get("heures_faites") or 0):
+            e["heures_faites"] = 0
+        normalized.append(e)
+    return normalized
+
+
 def normalize_actual_hours_for_forfait_jour(
     calendrier_reel: List[Dict[str, Any]], employee_statut: str | None
 ) -> List[Dict[str, Any]]:

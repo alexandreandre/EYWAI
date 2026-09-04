@@ -33,3 +33,17 @@ SALARY_CERTIFICATE_ABSENCE_TYPES: tuple[str, ...] = (
 
 # Types éligibles attestation / maintien IJSS (alignés sur l'attestation de salaire).
 IJSS_ELIGIBLE_TYPES: frozenset[str] = frozenset(SALARY_CERTIFICATE_ABSENCE_TYPES)
+
+
+def type_calendrier_projete(absence_type: str) -> str | None:
+    """Type de jour que la VALIDATION de cette absence écrit au calendrier.
+
+    Source unique pour la projection ET sa réciproque (restauration à
+    l'annulation) : arrêts → 'arret_maladie', sinon le mapping partagé ;
+    None pour les types qui n'écrivent jamais le calendrier (jtc, sans_solde…).
+    """
+    from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
+
+    if absence_type in IJSS_ELIGIBLE_TYPES:
+        return "arret_maladie"
+    return ABSENCE_TYPE_TO_CALENDAR_TYPE.get(absence_type)

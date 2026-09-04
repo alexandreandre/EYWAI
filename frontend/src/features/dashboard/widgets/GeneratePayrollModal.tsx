@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -87,9 +88,12 @@ export function GeneratePayrollModal({
     monthOptions.find((o) => o.value === selectedMonth)?.label ?? '';
 
   useEffect(() => {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedMonth(currentMonth);
+    // Présélection = mois de paie en préparation (jusqu'au 15 : le mois
+    // précédent), aligné sur le verrou « Lancer la paie » — présélectionner
+    // le mois calendaire courant faisait générer un mois aux calendriers
+    // vierges d'un seul clic début de mois.
+    const { year, month } = moisDePaieParDefaut(new Date());
+    setSelectedMonth(`${year}-${String(month).padStart(2, '0')}`);
   }, []);
 
   useEffect(() => {

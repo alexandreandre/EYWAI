@@ -14,7 +14,10 @@ from datetime import date
 from typing import Any
 
 from app.core.database import supabase
-from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
+from app.modules.absences.domain.enums import (
+    IJSS_ELIGIBLE_TYPES,
+    type_calendrier_projete,
+)
 from app.modules.absences.domain.rules import (
     requires_salary_certificate,
 )
@@ -133,9 +136,14 @@ def _verifier_modulation_recovery(data: dict[str, Any]):
 
 
 def _apply_modulation_recovery_on_validation(
-    data: dict[str, Any], request_id: str
+    data: dict[str, Any], request_id: str, *, precheck=None
 ) -> None:
-    """Débite le compte modulation lors de la validation d'une récup."""
+    """Débite le compte modulation lors de la validation d'une récup.
+
+    `precheck` : résultat de _verifier_modulation_recovery déjà obtenu AVANT
+    l'écriture du statut — revérifier ici pourrait échouer après coup et
+    laisser l'absence validée sans débit.
+    """
     from app.modules.modulation.application.hour_account_commands import (
         create_debit_recovery_movement,
     )
@@ -143,7 +151,9 @@ def _apply_modulation_recovery_on_validation(
     company_id = str(data.get("company_id") or "")
     employee_id = str(data["employee_id"])
     days = data.get("selected_days") or []
-    hours, settings = _verifier_modulation_recovery(data)
+    hours, settings = (
+        precheck if precheck is not None else _verifier_modulation_recovery(data)
+    )
 
     if settings.recovery_debit_timing != "on_validation":
         return
@@ -251,11 +261,21 @@ def update_absence_request_status(
     if not req_before:
         raise LookupError(f"Demande {request_id} non trouvée.")
 
+    if status == "validated" and req_before.get("status") == "validated":
+        # Garde de transition : re-valider recalculerait jours_payes (à 0,
+        # ses propres jours comptant désormais comme « pris ») et
+        # re-débiterait le compte modulation.
+        raise ValueError("Demande déjà validée.")
+
     update_dict: dict[str, Any] = {"status": status}
 
+    precheck_modulation = None
     if status == "validated" and req_before.get("type") == "recuperation_modulation":
-        # Contrôle AVANT l'écriture du statut (cf. _verifier_modulation_recovery).
-        _verifier_modulation_recovery(req_before)
+        # Contrôle AVANT l'écriture du statut ; le résultat (heures, settings)
+        # est réutilisé au débit pour ne pas revérifier après l'écriture — une
+        # seconde vérification qui échouerait recréerait l'incohérence
+        # « validée sans débit ».
+        precheck_modulation = _verifier_modulation_recovery(req_before)
 
     if status == "validated" and req_before.get("type") == "conge_paye":
         # Solde = celui AFFICHÉ à la RH (report N-1, ajustements, ancienneté,
@@ -291,22 +311,41 @@ def update_absence_request_status(
             )
             update_dict["subrogation_active"] = resolved_sub
 
-    data = absence_repository.update(request_id, update_dict)
-    if not data:
-        raise LookupError("Demande introuvable après mise à jour.")
-
     if status == "cancelled" and req_before.get("status") == "validated":
-        # Annulation d'une absence déjà validée : rendre ses jours au planning
-        # (sinon ils restent gelés en absence à vie — retour Gaëlle 03/09).
-        # Les jours encore couverts par une AUTRE absence validée sont exclus.
+        if req_before.get("type") == "recuperation_modulation":
+            # Le re-crédit du compte modulation n'existe pas encore : annuler
+            # laisserait le salarié débité pour une absence disparue.
+            raise ValueError(
+                "Annulation impossible pour une récupération modulation : le "
+                "re-crédit des heures n'est pas encore géré."
+            )
+        # Restauration AVANT l'écriture du statut : si elle échoue, la demande
+        # reste validée et l'annulation peut être rejouée — l'inverse laisse
+        # des jours gelés sans recours (retour Gaëlle 03/09, RC de Bugny).
         employee_id = str(req_before["employee_id"])
-        autres = absence_repository.list_validated_for_employees([employee_id])
-        couverts = {
-            str(d)[:10]
-            for r in autres or []
-            if str(r.get("id")) != str(request_id)
-            for d in r.get("selected_days") or []
-        }
+        type_projete = type_calendrier_projete(str(req_before.get("type") or ""))
+        couverts: set[str] = set()
+        if type_projete:
+            # Requête directe (PAS list_validated_for_employees : elle fusionne
+            # les jours du planning en fausses absences, qui couvriraient tous
+            # les jours à restaurer). Seule une AUTRE absence projetant le MÊME
+            # type de jour possède encore ces cases ; les autres types sont
+            # déjà protégés par le contrôle type/origine de la restauration.
+            resp = (
+                supabase.table("absence_requests")
+                .select("id, type, selected_days")
+                .eq("employee_id", employee_id)
+                .eq("status", "validated")
+                .neq("id", request_id)
+                .execute()
+            )
+            for r in resp.data or []:
+                if (
+                    type_calendrier_projete(str(r.get("type") or ""))
+                    != type_projete
+                ):
+                    continue
+                couverts.update(str(d)[:10] for d in r.get("selected_days") or [])
         a_restaurer = [
             date.fromisoformat(str(d)[:10])
             for d in req_before.get("selected_days") or []
@@ -317,10 +356,16 @@ def update_absence_request_status(
                 employee_id, a_restaurer, str(req_before.get("type") or "")
             )
 
+    data = absence_repository.update(request_id, update_dict)
+    if not data:
+        raise LookupError("Demande introuvable après mise à jour.")
+
     if status == "validated":
         absence_type = data.get("type", "")
         if absence_type == "recuperation_modulation":
-            _apply_modulation_recovery_on_validation(data, request_id)
+            _apply_modulation_recovery_on_validation(
+                data, request_id, precheck=precheck_modulation
+            )
         days_to_update = [
             date.fromisoformat(d) if isinstance(d, str) else d
             for d in data["selected_days"]

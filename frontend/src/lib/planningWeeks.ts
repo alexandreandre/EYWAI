@@ -2,6 +2,7 @@
  * Semaines du calendrier planning : chunks lundi–dimanche,
  * identiques aux onglets « Sem. 1 (3–9) » de la vue équipe.
  */
+import { getISOWeekInfo } from './analyticsPeriod';
 
 export function computePlanningWeeks(year: number, month: number): number[][] {
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -50,7 +51,8 @@ export function defaultPlanningWeekIndex(
 
 /** Numéro de semaine ISO (S27, S28…) d'un chunk du mois — celui du premier
  * jour renseigné (les onglets « Sem. 1, 2, 3 » ne parlaient à personne en
- * paie, cf. retour Gaëlle 03/09). */
+ * paie, cf. retour Gaëlle 03/09). Délègue au calcul ISO déjà testé
+ * d'analyticsPeriod — une seule implémentation dans le repo. */
 export function planningWeekIsoNumber(
   year: number,
   month: number,
@@ -58,13 +60,5 @@ export function planningWeekIsoNumber(
 ): number | null {
   const days = planningWeekDays(week);
   if (days.length === 0) return null;
-  const d = new Date(year, month - 1, days[0]);
-  // ISO 8601 : la semaine est celle de son jeudi.
-  const jeudi = new Date(d);
-  jeudi.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3);
-  const premierJeudiAn = new Date(jeudi.getFullYear(), 0, 4);
-  const diffJours = Math.round(
-    (jeudi.getTime() - premierJeudiAn.getTime()) / 86_400_000,
-  );
-  return 1 + Math.floor((diffJours + ((premierJeudiAn.getDay() + 6) % 7)) / 7);
+  return getISOWeekInfo(new Date(year, month - 1, days[0])).week;
 }

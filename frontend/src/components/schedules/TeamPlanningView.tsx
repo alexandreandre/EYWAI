@@ -26,6 +26,7 @@ import { computePlanningWeeks, planningWeekIsoNumber } from '@/lib/planningWeeks
 // Source unique des couleurs/libellés (congé vert, arrêt rouge — partout
 // pareil, y compris le calendrier complet du salarié).
 import {
+  CALENDAR_LEGEND_ITEMS,
   CALENDAR_TYPE_BAR_COLORS as TYPE_BAR,
   CALENDAR_TYPE_BG_COLORS as TYPE_BG,
   CALENDAR_TYPE_LABELS as TYPE_LABEL,
@@ -509,12 +510,19 @@ export function TeamPlanningView({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Légende</span>
-        {Object.entries(TYPE_LABEL).map(([type, label]) => (
-          <span key={type} className="flex items-center gap-1.5">
-            <span className={cn('w-3 h-3 rounded-sm border', TYPE_BG[type])} />
-            {label}
-          </span>
-        ))}
+        {CALENDAR_LEGEND_ITEMS.filter((item) => item.key !== 'today').map(
+          (item) => (
+            <span key={item.key} className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  'w-3 h-3 rounded-sm border',
+                  TYPE_BG[item.key] ?? item.colorClass
+                )}
+              />
+              {item.label}
+            </span>
+          )
+        )}
         <span className="flex items-center gap-1.5">
           <span className="text-teal-700 font-medium">Réel</span>
           <span>/</span>

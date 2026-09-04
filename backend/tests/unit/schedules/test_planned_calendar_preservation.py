@@ -243,6 +243,7 @@ def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
             "date_debut_arret_reel",
             "date_fin_arret_reel",
             "salaire_periode_reelle",
+            "entree_avant_absence",
         }
     )
 
@@ -598,6 +599,126 @@ def test_annulation_ne_touche_pas_un_jour_requalifie_ou_d_une_autre_absence(monk
     jour17 = next(e for e in capture["ecrit"] if e["jour"] == 17)
     assert jour17["type"] == "conges_payes"
     assert jour17["origine"] == "absence"
+
+
+def test_projection_photographie_l_entree_d_origine(monkeypatch):
+    """La conversion pose entree_avant_absence pour une restauration sans perte."""
+    from datetime import date
+
+    existant = [{"jour": 14, "type": "travail", "heures_prevues": 8.5}]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days("emp-1", [date(2026, 8, 14)], "conge_paye")
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "conges_payes"
+    assert jour14["entree_avant_absence"] == {
+        "type": "travail",
+        "heures_prevues": 8.5,
+    }
+
+
+def test_annulation_restaure_depuis_la_photo_d_origine(monkeypatch):
+    """La photo prime sur toute heuristique : 8,5 h/j et forfait 0/1 rejoués."""
+    from datetime import date
+
+    existant = [
+        {
+            "jour": 14,
+            "type": "conges_payes",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "entree_avant_absence": {"type": "travail", "heures_prevues": 8.5},
+        },
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days("emp-1", [date(2026, 8, 14)], "conge_paye")
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "travail"
+    assert jour14["heures_prevues"] == 8.5
+    assert "entree_avant_absence" not in jour14
+    assert "origine" not in jour14
+
+
+def test_annulation_deduit_les_heures_du_meme_jour_de_semaine(monkeypatch):
+    """Sans photo (absence validée avant sa mise en place), les heures viennent
+    d'un autre jour travaillé du mois au même jour de semaine — pas durée/5."""
+    from datetime import date
+
+    existant = [
+        {"jour": 7, "type": "travail", "heures_prevues": 8.5},  # ven 07/08
+        {
+            "jour": 14,  # ven 14/08
+            "type": "conges_payes",
+            "heures_prevues": 0,
+            "origine": "absence",
+        },
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days("emp-1", [date(2026, 8, 14)], "conge_paye")
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "travail"
+    assert jour14["heures_prevues"] == 8.5
+
+
+def test_annulation_restaure_aussi_le_type_herite_conge(monkeypatch):
+    """Les CP validés avant la bascule du mapping écrivaient 'conge' : leur
+    annulation doit les restaurer aussi."""
+    from datetime import date
+
+    existant = [
+        {"jour": 14, "type": "conge", "heures_prevues": 0, "origine": "absence"},
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days("emp-1", [date(2026, 8, 14)], "conge_paye")
+
+    assert capture["ecrit"][0]["type"] == "travail"
+
+
+def test_annulation_purge_les_metadonnees_des_week_ends_d_un_arret(monkeypatch):
+    """Les week-ends d'un arrêt ne sont pas retypés mais portent bornes et
+    métadonnées : l'annulation doit les purger, sinon le moteur calendaire
+    verrait encore l'arrêt (maintien/IJSS/prévoyance)."""
+    from datetime import date
+
+    existant = [
+        {
+            "jour": 14,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+        },
+        {
+            "jour": 15,
+            "type": "weekend",
+            "heures_prevues": 0,
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+            "date_debut_arret_reel": "2026-08-14",
+            "date_fin_arret_reel": "2026-08-17",
+        },
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days(
+        "emp-1", [date(2026, 8, j) for j in (14, 15, 16, 17)], "arret_maladie"
+    )
+
+    jour15 = next(e for e in capture["ecrit"] if e["jour"] == 15)
+    assert jour15["type"] == "weekend"
+    for cle in (
+        "arret_type",
+        "subrogation_active",
+        "date_debut_arret_reel",
+        "date_fin_arret_reel",
+    ):
+        assert cle not in jour15
 
 
 def test_mois_non_planifie_remplit_les_week_ends_en_weekend(monkeypatch):

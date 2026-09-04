@@ -258,3 +258,26 @@ class TestScheduleDomainExceptions:
         """ScheduleDatabaseError peut être levée."""
         with pytest.raises(ScheduleDatabaseError, match="connexion"):
             raise ScheduleDatabaseError("Erreur de connexion à la base")
+
+
+class TestNormalizeActualHoursOnAbsenceDays:
+    """Le réel est forcé à 0 sur les jours typés absence, quel que soit le
+    chemin d'écriture (éditeur, masse, badgeuse, apply-model)."""
+
+    def test_reel_sur_jour_absence_force_a_zero(self):
+        from app.modules.schedules.domain.rules import (
+            normalize_actual_hours_on_absence_days,
+        )
+
+        reel = [
+            {"jour": 1, "type": "conges_payes", "heures_faites": 8.5},
+            {"jour": 2, "type": "conge", "heures_faites": 7},
+            {"jour": 3, "type": "arret_maladie", "heures_faites": 3},
+            {"jour": 4, "type": "rtt", "heures_faites": 8.5},
+            {"jour": 5, "type": "travail", "heures_faites": 8.5},
+            {"jour": 6, "type": "weekend", "heures_faites": 4},
+        ]
+        out = normalize_actual_hours_on_absence_days(reel)
+        assert [e["heures_faites"] for e in out] == [0, 0, 0, 0, 8.5, 4]
+        # entrée d'origine non mutée
+        assert reel[0]["heures_faites"] == 8.5

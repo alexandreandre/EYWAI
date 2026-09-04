@@ -43,7 +43,7 @@ export function computeEmployeeCalendarSummary(
     if (ABSENCE_HOUR_TYPES.has(p.type)) {
       heuresAbsence += p.heures_prevues ?? (isForfaitJour ? 1 : 0);
     }
-    if (p.type === 'travail' && !isForfaitJour) {
+    if ((p.type === 'travail' || p.type === 'work') && !isForfaitJour) {
       const faites = actualByDay.get(p.jour)?.heures_faites ?? 0;
       const prevues = p.heures_prevues ?? 0;
       if (faites > prevues) {
@@ -89,6 +89,23 @@ export function joursArretCalendairesDuMois(
   return jours.size;
 }
 
+/** Total annuel des jours calendaires d'arrêt (même définition que le mois). */
+export function joursArretCalendairesDeLAnnee(
+  absences: AbsenceLike[],
+  year: number
+): number {
+  const prefix = `${year}-`;
+  const jours = new Set<string>();
+  for (const a of absences) {
+    if (a.status !== 'validated') continue;
+    if (!String(a.type ?? '').startsWith('arret')) continue;
+    for (const iso of a.selected_days ?? []) {
+      if (iso.startsWith(prefix)) jours.add(iso);
+    }
+  }
+  return jours.size;
+}
+
 /** Jours JTC validés de l'année — le type jtc n'écrit jamais le calendrier,
  * seules les demandes d'absence peuvent alimenter ce compteur. */
 export function joursJtcDeLAnnee(
@@ -117,10 +134,11 @@ export function computeMonthStats(
   let joursTravailles = 0;
 
   for (const p of planned) {
-    if (p.type === 'conge' || p.type === 'conges_payes') conges += 1;
+    if (p.type === 'conge' || p.type === 'conges_payes' || p.type === 'rtt')
+      conges += 1;
     else if (p.type === 'arret_maladie') arrets += 1;
     else if (p.type === 'ferie') feriels += 1;
-    else if (p.type === 'travail') {
+    else if (p.type === 'travail' || p.type === 'work') {
       if (isForfaitJour ? p.heures_prevues === 1 : (p.heures_prevues ?? 0) > 0) {
         joursTravailles += 1;
       }
@@ -133,7 +151,9 @@ export function computeMonthStats(
   let joursPrevus = 0;
   let joursTravaillesForfait = 0;
   if (isForfaitJour) {
-    joursPrevus = planned.filter((p) => p.type === 'travail' && p.heures_prevues === 1).length;
+    joursPrevus = planned.filter(
+      (p) => (p.type === 'travail' || p.type === 'work') && p.heures_prevues === 1
+    ).length;
     joursTravaillesForfait = actual.filter((a) => a.heures_faites === 1).length;
   }
 
@@ -176,7 +196,7 @@ export function isDayReadyForPayroll(
   isForfaitJour = false
 ): boolean {
   if (!plannedDay) return false;
-  if (plannedDay.type === 'travail') {
+  if (plannedDay.type === 'travail' || plannedDay.type === 'work') {
     if (!hasHourValue(plannedDay.heures_prevues)) return false;
     if (!hasHourValue(actualDay?.heures_faites)) return false;
     const prev = plannedDay.heures_prevues as number;

@@ -73,4 +73,21 @@ describe("detectAbsenceConflictDays", () => {
     const days = validatedAbsenceDaysInMonth([arret(["2026-08-14"])], 2026, 8);
     expect(detectAbsenceConflictDays([], days, 2026, 8)).toEqual([14]);
   });
+
+  it("flagge un jour de SEMAINE mal typé weekend sous une absence validée", () => {
+    // mardi 18/08/2026 typé weekend : anomalie réelle, pas un design voulu.
+    const planned: PlannedEventData[] = [
+      { jour: 18, type: "weekend", heures_prevues: 0 },
+    ] as PlannedEventData[];
+    const days = validatedAbsenceDaysInMonth([arret(["2026-08-18"])], 2026, 8);
+    expect(detectAbsenceConflictDays(planned, days, 2026, 8)).toEqual([18]);
+  });
+
+  it("ignore les types d'absence qui n'écrivent jamais le calendrier (jtc, sans_solde)", () => {
+    const jtc = {
+      ...arret(["2026-08-14"]),
+      type: "jtc",
+    } as AbsenceRequest;
+    expect(validatedAbsenceDaysInMonth([jtc], 2026, 8)).toEqual([]);
+  });
 });
