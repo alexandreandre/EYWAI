@@ -524,3 +524,60 @@ class TestModulationRecoveryPreCheck:
                         "req-recup", "validated", current_user_id="user-1"
                     )
         repo.update.assert_not_called()
+
+
+class TestCancelValidatedAbsence:
+    """Annulation d'une absence validée → restauration du calendrier."""
+
+    def test_annulation_restaure_les_jours_hors_chevauchement(self):
+        req_before = {
+            "id": "req-rc",
+            "employee_id": "emp-1",
+            "company_id": "comp-1",
+            "type": "repos_compensateur",
+            "status": "validated",
+            "selected_days": ["2026-08-14", "2026-08-17"],
+        }
+        autre_absence = {
+            "id": "req-autre",
+            "selected_days": ["2026-08-17"],  # couvre le 17 → non restauré
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            repo.update.return_value = {**req_before, "status": "cancelled"}
+            repo.list_validated_for_employees.return_value = [autre_absence]
+            with patch(
+                "app.modules.absences.application.commands.calendar_update_provider"
+            ) as cal:
+                commands.update_absence_request_status(
+                    "req-rc", "cancelled", current_user_id="user-1"
+                )
+
+        cal.restore_calendar_from_days.assert_called_once()
+        args = cal.restore_calendar_from_days.call_args[0]
+        assert args[0] == "emp-1"
+        assert [d.isoformat() for d in args[1]] == ["2026-08-14"]
+        assert args[2] == "repos_compensateur"
+
+    def test_annulation_d_une_demande_pending_ne_restaure_rien(self):
+        req_before = {
+            "id": "req-p",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "pending",
+            "selected_days": ["2026-08-14"],
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            repo.update.return_value = {**req_before, "status": "cancelled"}
+            with patch(
+                "app.modules.absences.application.commands.calendar_update_provider"
+            ) as cal:
+                commands.update_absence_request_status(
+                    "req-p", "cancelled", current_user_id="user-1"
+                )
+        cal.restore_calendar_from_days.assert_not_called()

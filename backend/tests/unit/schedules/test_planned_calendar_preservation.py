@@ -410,6 +410,7 @@ def _provider_avec_calendrier(monkeypatch, calendrier_existant):
         t = MagicMock()
         if nom == "employees":
             t.select.return_value.match.return_value.maybe_single.return_value.execute.return_value = emp
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = emp
         else:
             t.select.return_value.match.return_value.maybe_single.return_value.execute.return_value = schedule
 
@@ -536,6 +537,67 @@ def test_reprojection_rafraichit_les_jours_deja_en_arret(monkeypatch):
     assert jour14["type"] == "arret_maladie"
     assert jour14["subrogation_active"] is False
     assert jour14["date_fin_arret_reel"] == "2026-08-16"
+
+
+def test_annulation_restaure_les_jours_du_calendrier(monkeypatch):
+    """Annulation d'une absence validée : ses jours redeviennent travail
+    (heures du profil) ou weekend, clés serveur purgées — sans quoi ils
+    restaient gelés en absence à vie (retour Gaëlle 03/09, RC de Bugny)."""
+    from datetime import date
+
+    existant = [
+        {
+            "jour": 14,
+            "type": "arret_maladie",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "arret_type": "maladie_simple",
+            "subrogation_active": True,
+            "date_fin_arret_reel": "2026-08-17",
+        },
+        {"jour": 15, "type": "weekend", "heures_prevues": 0},
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days(
+        "emp-1", [date(2026, 8, 14), date(2026, 8, 15)], "arret_maladie"
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "travail"
+    assert jour14["heures_prevues"] == 7.0  # 35 h / 5 (profil du faux employé)
+    for cle in ("origine", "arret_type", "subrogation_active", "date_fin_arret_reel"):
+        assert cle not in jour14
+    jour15 = next(e for e in capture["ecrit"] if e["jour"] == 15)
+    assert jour15["type"] == "weekend"
+
+
+def test_annulation_ne_touche_pas_un_jour_requalifie_ou_d_une_autre_absence(monkeypatch):
+    """Un jour déjà requalifié en travail, ou typé par une absence d'un AUTRE
+    type (conges_payes), reste intact lors de la restauration."""
+    from datetime import date
+
+    existant = [
+        {"jour": 14, "type": "travail", "heures_prevues": 7.5},
+        {
+            "jour": 17,
+            "type": "conges_payes",
+            "heures_prevues": 0,
+            "origine": "absence",
+        },
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.restore_calendar_from_days(
+        "emp-1", [date(2026, 8, 14), date(2026, 8, 17)], "arret_maladie"
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "travail"
+    assert jour14["heures_prevues"] == 7.5
+    jour17 = next(e for e in capture["ecrit"] if e["jour"] == 17)
+    assert jour17["type"] == "conges_payes"
+    assert jour17["origine"] == "absence"
 
 
 def test_mois_non_planifie_remplit_les_week_ends_en_weekend(monkeypatch):

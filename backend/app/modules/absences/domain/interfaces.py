@@ -143,3 +143,13 @@ class ICalendarUpdateService(ABC):
     ) -> None:
         """Met à jour ou crée les plannings pour les mois concernés."""
         ...
+
+    @abstractmethod
+    def restore_calendar_from_days(
+        self,
+        employee_id: str,
+        days: List[date],
+        absence_type_str: str,
+    ) -> None:
+        """Rend au planning les jours d'une absence validée puis ANNULÉE."""
+        ...

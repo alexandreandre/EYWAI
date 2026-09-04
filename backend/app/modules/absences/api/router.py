@@ -364,7 +364,9 @@ def update_absence_request_status(
     """Met à jour le statut d'une demande (utilisateur connecté). Génère l'attestation si nécessaire."""
     try:
         company_id = _require_active_company_absences(current_user)
-        if status_update.status in ("validated", "rejected"):
+        if status_update.status in ("validated", "rejected", "cancelled"):
+            # « cancelled » restaure le calendrier : même garde RH + périmètre
+            # société que la validation (aucun parcours salarié ne l'envoie).
             _require_rh_company_context(current_user)
             req_before = _ensure_absence_in_active_company(request_id, company_id)
         else:

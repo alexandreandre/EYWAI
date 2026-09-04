@@ -20,6 +20,7 @@ from app.modules.absences.domain.enums import IJSS_ELIGIBLE_TYPES
 from app.shared.domain.absence_calendar import (
     ABSENCE_TYPE_TO_CALENDAR_TYPE,
     ORIGINE_ABSENCE,
+    strip_server_owned_keys,
 )
 from app.modules.absences.domain.interfaces import (
     ICalendarUpdateService,
@@ -480,6 +481,90 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         "month": month,
                     }
                 ).execute()
+
+    def restore_calendar_from_days(
+        self,
+        employee_id: str,
+        days: List[date],
+        absence_type_str: str,
+    ) -> None:
+        """Rend au planning les jours d'une absence validée puis ANNULÉE.
+
+        Ne touche qu'un jour encore marqué origine='absence' ET typé comme la
+        projection de cette absence l'avait écrit — un jour requalifié depuis,
+        ou couvert par une absence d'un autre type, reste intact (les
+        chevauchements du même type sont exclus en amont par l'appelant).
+        Retour : `weekend` le samedi/dimanche, sinon `travail` aux heures du
+        profil ; les clés serveur (origine, arret_type…) sont purgées.
+        """
+        type_mapping = ABSENCE_TYPE_TO_CALENDAR_TYPE
+        is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES
+        expected_type = (
+            "arret_maladie" if is_arret else type_mapping.get(absence_type_str)
+        )
+        if not expected_type:
+            return
+
+        emp_row = (
+            supabase.table("employees")
+            .select("company_id, duree_hebdomadaire")
+            .eq("id", employee_id)
+            .maybe_single()
+            .execute()
+        )
+        if not emp_row or not emp_row.data:
+            return
+        heures_jour = float(emp_row.data.get("duree_hebdomadaire") or 35) / 5.0
+
+        grouped_by_month: Dict[tuple, List[int]] = {}
+        for d in days:
+            grouped_by_month.setdefault((d.year, d.month), []).append(d.day)
+
+        for (year, month), day_list in grouped_by_month.items():
+            schedule = (
+                supabase.table("employee_schedules")
+                .select("planned_calendar")
+                .match(
+                    {
+                        "employee_id": employee_id,
+                        "year": year,
+                        "month": month,
+                    }
+                )
+                .maybe_single()
+                .execute()
+            )
+            if (
+                not schedule
+                or not schedule.data
+                or not schedule.data.get("planned_calendar")
+            ):
+                continue
+            planned_calendar = schedule.data["planned_calendar"]
+            for entry in planned_calendar.get("calendrier_prevu", []):
+                try:
+                    jour = int(entry.get("jour"))
+                except (TypeError, ValueError):
+                    continue
+                if jour not in day_list:
+                    continue
+                if entry.get("origine") != ORIGINE_ABSENCE:
+                    continue
+                if entry.get("type") != expected_type:
+                    continue
+                est_weekend = date(year, month, jour).weekday() >= 5
+                entry["type"] = "weekend" if est_weekend else "travail"
+                entry["heures_prevues"] = 0 if est_weekend else heures_jour
+                strip_server_owned_keys(entry)
+            supabase.table("employee_schedules").update(
+                {"planned_calendar": planned_calendar}
+            ).match(
+                {
+                    "employee_id": employee_id,
+                    "year": year,
+                    "month": month,
+                }
+            ).execute()
 
 
 class EvenementFamilialQuotaProvider(IEvenementFamilialQuotaProvider):

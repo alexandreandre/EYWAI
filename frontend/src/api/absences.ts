@@ -146,7 +146,7 @@ export const managerApproveAbsence = (
  */
 export const updateAbsenceRequestStatus = (
   id: string,
-  status: 'validated' | 'rejected',
+  status: 'validated' | 'rejected' | 'cancelled',
   subrogationActive?: boolean,
 ) => {
   const body: { status: string; subrogation_active?: boolean } = { status };

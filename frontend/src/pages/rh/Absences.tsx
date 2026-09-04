@@ -33,6 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type * as absencesApi from '@/api/absences'; // <-- CHANGER en 'import type'
 import * as absencesApiFunctions from '@/api/absences';
@@ -150,12 +151,18 @@ export default function AbsencesPage() {
 
   const handleUpdateStatus = async (
     id: string,
-    status: 'validated' | 'rejected',
+    status: 'validated' | 'rejected' | 'cancelled',
     subrogationActive?: boolean,
   ) => {
     try {
       await absencesApiFunctions.updateAbsenceRequestStatus(id, status, subrogationActive);
-      toast({ title: "Succès", description: "La demande a été mise à jour." });
+      toast({
+        title: "Succès",
+        description:
+          status === 'cancelled'
+            ? "Absence annulée — les jours ont été rendus au planning."
+            : "La demande a été mise à jour.",
+      });
       fetchData();
     } catch (error) {
       toast({ title: "Erreur", description: "La mise à jour a échoué.", variant: "destructive" });
@@ -553,9 +560,44 @@ export default function AbsencesPage() {
                       <Check className="mr-2 h-4 w-4" /> Approuver
                     </Button>
                   </div>
+                ) : req.status === 'validated' ? (
+                  <div className="flex items-center gap-2 justify-end">
+                    <Badge variant="success" className="justify-end">
+                      <Check className="mr-1 h-3 w-3" /> Validée
+                    </Badge>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="text-muted-foreground">
+                          Annuler
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Annuler cette absence ?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            L'absence validée sera annulée et ses jours rendus au
+                            planning (travail ou week-end). Les compteurs sont
+                            recalculés.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Retour</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleUpdateStatus(req.id, 'cancelled')}
+                          >
+                            Annuler l'absence
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 ) : (
-                  <Badge variant={req.status === 'validated' ? 'success' : 'destructive'} className="justify-end">
-                    {req.status === 'validated' ? <><Check className="mr-1 h-3 w-3" /> Validée</> : <><X className="mr-1 h-3 w-3" /> Rejetée</>}
+                  <Badge
+                    variant={req.status === 'cancelled' ? 'secondary' : 'destructive'}
+                    className="justify-end"
+                  >
+                    <X className="mr-1 h-3 w-3" />{' '}
+                    {req.status === 'cancelled' ? 'Annulée' : 'Rejetée'}
                   </Badge>
                 )}
               </div>

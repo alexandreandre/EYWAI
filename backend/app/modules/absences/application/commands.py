@@ -295,6 +295,28 @@ def update_absence_request_status(
     if not data:
         raise LookupError("Demande introuvable après mise à jour.")
 
+    if status == "cancelled" and req_before.get("status") == "validated":
+        # Annulation d'une absence déjà validée : rendre ses jours au planning
+        # (sinon ils restent gelés en absence à vie — retour Gaëlle 03/09).
+        # Les jours encore couverts par une AUTRE absence validée sont exclus.
+        employee_id = str(req_before["employee_id"])
+        autres = absence_repository.list_validated_for_employees([employee_id])
+        couverts = {
+            str(d)[:10]
+            for r in autres or []
+            if str(r.get("id")) != str(request_id)
+            for d in r.get("selected_days") or []
+        }
+        a_restaurer = [
+            date.fromisoformat(str(d)[:10])
+            for d in req_before.get("selected_days") or []
+            if str(d)[:10] not in couverts
+        ]
+        if a_restaurer:
+            calendar_update_provider.restore_calendar_from_days(
+                employee_id, a_restaurer, str(req_before.get("type") or "")
+            )
+
     if status == "validated":
         absence_type = data.get("type", "")
         if absence_type == "recuperation_modulation":
