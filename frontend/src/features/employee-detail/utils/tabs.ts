@@ -8,6 +8,9 @@ export const PAYROLL_FOCUS_EMPLOYEE_TABS: readonly string[] = [
   TAB_SAISIE,
   TAB_CALENDRIER,
   TAB_SOLDE_CONGES,
+  // Les bulletins vivent dans Documents : les masquer coupait le geste
+  // métier n°1 après une génération (retour Gaëlle 04/09).
+  "documents",
 ];
 
 export function normalizeEmployeeDetailTab(tabParam: string | null | undefined, fallback = "documents"): string {

@@ -15,12 +15,14 @@ describe('coercePayrollFocusEmployeeTab', () => {
   });
 
   it('renvoie Primes et autres pour les onglets hors périmètre', () => {
-    expect(coercePayrollFocusEmployeeTab('documents')).toBe(TAB_SAISIE);
+    // documents (bulletins) fait désormais partie du périmètre paie
+    expect(coercePayrollFocusEmployeeTab('documents')).toBe('documents');
     expect(coercePayrollFocusEmployeeTab('entretiens')).toBe(TAB_SAISIE);
     expect(coercePayrollFocusEmployeeTab('badgeuse')).toBe(TAB_SAISIE);
     expect(coercePayrollFocusEmployeeTab('suivi_medical')).toBe(TAB_SAISIE);
+    // ?tab=bulletins → Documents, désormais dans le périmètre paie.
     expect(
       coercePayrollFocusEmployeeTab(normalizeEmployeeDetailTab('bulletins')),
-    ).toBe(TAB_SAISIE);
+    ).toBe('documents');
   });
 });

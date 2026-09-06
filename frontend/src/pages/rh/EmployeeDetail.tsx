@@ -614,12 +614,10 @@ export default function EmployeeDetail() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue={payrollFocus ? TAB_SAISIE : "documents"} className="w-full">
         <TabsList className="flex h-auto w-full gap-0.5 p-1 max-lg:justify-start max-lg:overflow-x-auto">
-          {!payrollFocus && (
-            <TabsTrigger value="documents" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
-              <FileText className="mr-1.5 h-4 w-4 shrink-0" />
-              Documents
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="documents" className="min-w-0 flex-1 px-2 py-1.5 text-[13px] max-lg:flex-none max-lg:shrink-0">
+            <FileText className="mr-1.5 h-4 w-4 shrink-0" />
+            Documents
+          </TabsTrigger>
           {!payrollFocus && (
             <TabsTrigger
               value={TAB_AUGMENTATIONS_PROMOTIONS}
@@ -671,7 +669,6 @@ export default function EmployeeDetail() {
           </TabsTrigger>
         </TabsList>
 
-        {!payrollFocus && (
         <TabsContent value="documents" className="mt-4 space-y-4">
           {employeeId && employee ? (
             <EmployeeDetailDocumentsTab
@@ -682,7 +679,6 @@ export default function EmployeeDetail() {
             <TabPanelSkeleton />
           )}
         </TabsContent>
-        )}
 
         {!payrollFocus && (
         <TabsContent value={TAB_AUGMENTATIONS_PROMOTIONS} className="mt-4">

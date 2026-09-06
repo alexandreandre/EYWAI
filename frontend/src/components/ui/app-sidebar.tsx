@@ -223,13 +223,16 @@ const RH_PAIE_GROUPS: SidebarLinkGroup[] = [
   {
     label: "Outils paie",
     items: [
+      // En tête et nommée par son contenu : « Paie » en dernière position
+      // rendait les bulletins introuvables après une génération (retour
+      // Gaëlle 04/09).
+      { title: "Bulletins de paie", url: "/payroll", icon: Calculator },
       { title: "Simulation Paie", url: "/simulation", icon: FlaskConical },
       { title: "Suivi des taux", url: "/rates", icon: TrendingUp },
       // Distinct de « Suivi des taux », qui porte les barèmes de cotisations :
       // ici il s'agit du taux d'imposition propre à chaque salarié.
       { title: "Prélèvement à la source", url: "/taux-pas", icon: Percent },
       { title: "Exports", url: "/exports", icon: FileDown },
-      { title: "Paie", url: "/payroll", icon: Calculator },
     ],
   },
 ];

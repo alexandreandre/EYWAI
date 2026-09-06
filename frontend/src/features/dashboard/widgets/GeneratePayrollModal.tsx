@@ -459,7 +459,9 @@ export function GeneratePayrollModal({
                     className="bg-cyan-500 hover:bg-cyan-600 text-white"
                     onClick={handleClose}
                   >
-                    Fermer
+                    {uiPhase === 'done' && errorCount === 0
+                      ? 'Voir les bulletins'
+                      : 'Fermer'}
                   </Button>
                 </>
               )}

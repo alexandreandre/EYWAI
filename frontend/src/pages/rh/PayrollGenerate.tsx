@@ -38,11 +38,10 @@ export default function PayrollGenerate() {
     employeesQueryErrorMessage(allEmployeesQuery.error);
 
   const handleClose = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate('/');
+    // Après une génération, atterrir sur les bulletins du mois — revenir au
+    // tableau de bord laissait la RH sans aucun chemin visible vers ce qui
+    // vient d'être produit (retour Gaëlle 04/09).
+    navigate('/payroll?view=month');
   };
 
   const handleRetryEmployees = () => {
