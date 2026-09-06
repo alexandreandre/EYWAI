@@ -7,7 +7,13 @@ import { type SimpleEmployee } from './absences'; // On réutilise cette interfa
 // --- INTERFACES ---
 
 export type ExpenseStatus = "pending" | "validated" | "rejected";
-export type ExpenseType = "Restaurant" | "Transport" | "Hôtel" | "Fournitures" | "Autre";
+export type ExpenseType =
+  | "Restaurant"
+  | "Transport"
+  | "Hôtel"
+  | "Fournitures"
+  | "Indemnités kilométriques"
+  | "Autre";
 
 export interface Expense {
   id: string;

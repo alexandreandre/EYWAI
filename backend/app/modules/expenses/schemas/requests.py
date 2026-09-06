@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field
 
 # Literals identiques au legacy (schemas/expense.py)
 ExpenseStatus = Literal["pending", "validated", "rejected"]
-ExpenseType = Literal["Restaurant", "Transport", "Hôtel", "Fournitures", "Autre"]
+ExpenseType = Literal[
+    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+]
 ExpenseStatusUpdateLiteral = Literal["validated", "rejected"]
 
 

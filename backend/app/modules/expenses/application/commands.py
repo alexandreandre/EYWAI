@@ -9,6 +9,7 @@ from app.modules.expenses.application.dto import (
     CreateExpenseInput,
     UpdateExpenseStatusInput,
 )
+from app.modules.expenses.domain.enums import ExpenseType
 from app.modules.expenses.domain.vat import validate_vat_rate
 from app.modules.expenses.infrastructure.mappers import build_create_payload
 from app.modules.expenses.infrastructure.repository import ExpenseRepository
@@ -23,12 +24,18 @@ def create_expense(input: CreateExpenseInput) -> dict:
     if vat_error:
         raise ValueError(vat_error)
 
+    # Les indemnités kilométriques (barème) sont hors champ de la TVA : taux
+    # forcé côté serveur, le front n'est pas la source de vérité.
+    vat_rate = (
+        0.0 if input.type == ExpenseType.INDEMNITES_KM.value else input.vat_rate
+    )
+
     repo = ExpenseRepository()
     db_data = build_create_payload(
         employee_id=input.employee_id,
         date_value=input.date,
         amount=input.amount,
-        vat_rate=input.vat_rate,
+        vat_rate=vat_rate,
         type_value=input.type,
         description=input.description,
         receipt_url=input.receipt_url,

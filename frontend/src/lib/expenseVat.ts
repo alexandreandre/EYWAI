@@ -12,6 +12,8 @@ export const DEFAULT_VAT_BY_EXPENSE_TYPE: Record<ExpenseType, number> = {
   Transport: 10,
   Hôtel: 10,
   Fournitures: 20,
+  // IK : barème kilométrique, hors champ de la TVA.
+  'Indemnités kilométriques': 0,
   Autre: 20,
 };
 

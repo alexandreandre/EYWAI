@@ -20,6 +20,8 @@ EXPENSE_TYPE_ACCOUNTS: Dict[str, str] = {
     "Restaurant": "625600",
     "Hôtel": "625600",
     "Fournitures": "625800",
+    # IK : remboursements de frais de véhicule personnel.
+    "Indemnités kilométriques": "625100",
     "Autre": "625000",
 }
 

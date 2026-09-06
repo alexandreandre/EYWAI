@@ -69,6 +69,33 @@ class TestCreateExpense:
         assert result == created_row
         assert result["id"] == "exp-new-1"
 
+    def test_indemnites_kilometriques_tva_forcee_a_zero(self):
+        """Les IK (barème) sont hors champ TVA : taux forcé serveur, même si
+        le client envoie 20 % — le TTC devient le HT, TVA nulle."""
+        input_ = CreateExpenseInput(
+            employee_id="emp-001",
+            date=date(2026, 9, 1),
+            amount=120.0,
+            vat_rate=20.0,
+            type="Indemnités kilométriques",
+            description="Déplacements chantier",
+            receipt_url="emp-001/ik.pdf",
+            filename="ik.pdf",
+        )
+        mock_repo = MagicMock()
+        mock_repo.create.return_value = {"id": "exp-ik"}
+
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            create_expense(input_)
+
+        call_payload = mock_repo.create.call_args[0][0]
+        assert call_payload["vat_rate"] == 0.0
+        assert call_payload["amount_ht"] == 120.0
+        assert call_payload["vat_amount"] == 0.0
+
     def test_create_expense_without_optional_fields(self):
         input_ = CreateExpenseInput(
             employee_id="emp-002",

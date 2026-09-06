@@ -211,7 +211,7 @@ def process_payslip_generation_forfait(
         last_day = calendar.monthrange(year, month)[1]
         expense_reports_res = (
             supabase.table("expense_reports")
-            .select("type, amount, date")
+            .select("type, amount, date, vat_rate, amount_ht, vat_amount")
             .match({"employee_id": employee_id, "status": "validated"})
             .gte("date", date(year, month, 1).isoformat())
             .lte("date", date(year, month, last_day).isoformat())

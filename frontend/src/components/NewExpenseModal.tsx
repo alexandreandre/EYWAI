@@ -35,7 +35,14 @@ interface SelectableEmployee {
   last_name: string;
 }
 
-const expenseTypes: expensesApi.ExpenseType[] = ["Restaurant", "Transport", "Hôtel", "Fournitures", "Autre"];
+const expenseTypes: expensesApi.ExpenseType[] = [
+  "Restaurant",
+  "Transport",
+  "Hôtel",
+  "Fournitures",
+  "Indemnités kilométriques",
+  "Autre",
+];
 
 function presetFromRate(rate: number): VatRatePreset {
   if ((STANDARD_VAT_RATES as readonly number[]).includes(rate)) {
@@ -236,7 +243,13 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
 
           <div className="grid gap-2">
             <Label htmlFor="vat-rate">Taux de TVA applicable</Label>
+            {type === "Indemnités kilométriques" && (
+              <p className="text-xs text-muted-foreground">
+                Non soumis à TVA (barème kilométrique) — taux verrouillé à 0 %.
+              </p>
+            )}
             <Select
+              disabled={type === "Indemnités kilométriques"}
               value={String(vatPreset)}
               onValueChange={(v) => {
                 if (v === "custom") {

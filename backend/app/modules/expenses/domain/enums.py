@@ -10,7 +10,9 @@ from typing import Literal
 
 # Literals pour compatibilité API (même valeurs que legacy)
 ExpenseStatusLiteral = Literal["pending", "validated", "rejected"]
-ExpenseTypeLiteral = Literal["Restaurant", "Transport", "Hôtel", "Fournitures", "Autre"]
+ExpenseTypeLiteral = Literal[
+    "Restaurant", "Transport", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+]
 
 
 class ExpenseStatus(str, Enum):
@@ -28,4 +30,5 @@ class ExpenseType(str, Enum):
     TRANSPORT = "Transport"
     HOTEL = "Hôtel"
     FOURNITURES = "Fournitures"
+    INDEMNITES_KM = "Indemnités kilométriques"
     AUTRE = "Autre"

@@ -100,7 +100,11 @@ class NotesFraisExportRequest(BaseModel):
     employee_ids: Optional[List[str]] = None
     status: Optional[List[Literal["validated"]]] = None
     expense_types: Optional[
-        List[Literal["Transport", "Restaurant", "Hôtel", "Fournitures", "Autre"]]
+        List[
+            Literal[
+                "Transport", "Restaurant", "Hôtel", "Fournitures", "Indemnités kilométriques", "Autre"
+            ]
+        ]
     ] = None
 
 
