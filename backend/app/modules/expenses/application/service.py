@@ -8,11 +8,14 @@ from typing import List
 
 from app.modules.expenses.application.commands import (
     create_expense as cmd_create_expense,
+    delete_expense as cmd_delete_expense,
+    update_expense as cmd_update_expense,
     update_expense_status as cmd_update_expense_status,
 )
 from app.modules.expenses.application.dto import (
     CreateExpenseInput,
     ListExpensesInput,
+    UpdateExpenseInput,
     UpdateExpenseStatusInput,
 )
 from app.modules.expenses.application.queries import (
@@ -34,6 +37,17 @@ class ExpenseApplicationService:
 
     def update_expense_status(self, input: UpdateExpenseStatusInput) -> dict | None:
         return cmd_update_expense_status(input)
+
+    def update_expense(self, input: UpdateExpenseInput) -> dict | None:
+        return cmd_update_expense(input)
+
+    def delete_expense(self, expense_id: str) -> bool:
+        return cmd_delete_expense(expense_id)
+
+    def get_expense(self, expense_id: str) -> dict | None:
+        from app.modules.expenses.infrastructure.repository import ExpenseRepository
+
+        return ExpenseRepository().get_by_id(expense_id)
 
     def get_my_expenses(self, employee_id: str) -> List[dict]:
         return query_get_my_expenses(employee_id)

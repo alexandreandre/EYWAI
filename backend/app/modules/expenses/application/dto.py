@@ -26,6 +26,18 @@ class CreateExpenseInput:
 
 
 @dataclass
+class UpdateExpenseInput:
+    """Entrée pour la modification des champs d'une note (RH)."""
+
+    expense_id: str
+    date: Optional[date] = None
+    amount: Optional[float] = None
+    vat_rate: Optional[float] = None
+    type: Optional[str] = None
+    description: Optional[str] = None
+
+
+@dataclass
 class UpdateExpenseStatusInput:
     """Entrée pour la mise à jour du statut (validated | rejected)."""
 

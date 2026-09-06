@@ -126,6 +126,22 @@ export const getAllExpenses = (status?: ExpenseStatus) => {
 /**
  * (RH) Met à jour le statut d'une note de frais.
  */
+export interface ExpenseUpdatePayload {
+  date?: string;
+  amount?: number;
+  vat_rate?: number;
+  type?: ExpenseType;
+  description?: string | null;
+}
+
+export const updateExpense = (id: string, payload: ExpenseUpdatePayload) => {
+  return apiClient.patch<Expense>(`/api/expenses/${id}`, payload);
+};
+
+export const deleteExpense = (id: string) => {
+  return apiClient.delete(`/api/expenses/${id}`);
+};
+
 export const updateExpenseStatus = (id: string, status: 'validated' | 'rejected') => {
   return apiClient.patch<Expense>(`/api/expenses/${id}/status`, { status });
 };

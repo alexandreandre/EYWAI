@@ -27,6 +27,15 @@ interface NewExpenseModalProps {
   onSuccess: () => void;
   /** Parcours RH : saisie directe pour un salarié, enregistrée et validée immédiatement. */
   showEmployeeSelector?: boolean;
+  /** Mode édition : note existante à modifier (le justificatif reste inchangé). */
+  expense?: {
+    id: string;
+    date: string;
+    amount: number;
+    vat_rate?: number | null;
+    type: expensesApi.ExpenseType;
+    description?: string | null;
+  } | null;
 }
 
 interface SelectableEmployee {
@@ -51,7 +60,14 @@ function presetFromRate(rate: number): VatRatePreset {
   return "custom";
 }
 
-export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelector = false }: NewExpenseModalProps) {
+export function NewExpenseModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  showEmployeeSelector = false,
+  expense = null,
+}: NewExpenseModalProps) {
+  const enEdition = expense != null;
   const { user } = useAuth();
   const { toast } = useToast();
   const [employees, setEmployees] = useState<SelectableEmployee[]>([]);
@@ -79,8 +95,20 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
   };
 
   useEffect(() => {
-    if (isOpen) resetForm();
-  }, [isOpen]);
+    if (!isOpen) return;
+    resetForm();
+    if (expense) {
+      setDate(expense.date?.slice(0, 10) ?? "");
+      setAmount(String(expense.amount));
+      setType(expense.type);
+      const taux = expense.vat_rate ?? 20;
+      const preset = presetFromRate(taux);
+      setVatPreset(preset);
+      setCustomVatRate(preset === "custom" ? String(taux) : "");
+      setDescription(expense.description ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, expense]);
 
   useEffect(() => {
     if (!isOpen || !showEmployeeSelector) return;
@@ -121,11 +149,11 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
   };
 
   const handleSubmit = async () => {
-    if (!user || !date || !amount || !type || !file) {
+    if (!user || !date || !amount || !type || (!file && !enEdition)) {
       setError("Tous les champs (sauf description) et un justificatif sont requis.");
       return;
     }
-    if (showEmployeeSelector && !employeeId) {
+    if (showEmployeeSelector && !employeeId && !enEdition) {
       setError("Sélectionnez le salarié concerné.");
       return;
     }
@@ -143,9 +171,24 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
     setError("");
 
     try {
+      if (enEdition && expense) {
+        // Édition : les champs seulement, le justificatif reste tel quel.
+        await expensesApi.updateExpense(expense.id, {
+          date,
+          amount: amountTtc,
+          vat_rate: resolvedVatRate,
+          type,
+          description,
+        });
+        toast({ title: "Succès", description: "Note de frais modifiée." });
+        onSuccess();
+        onClose();
+        return;
+      }
+
       const targetId = showEmployeeSelector ? employeeId : undefined;
-      const { path, signedURL } = await expensesApi.getUploadUrl(file.name, targetId);
-      await expensesApi.uploadFile(signedURL, file);
+      const { path, signedURL } = await expensesApi.getUploadUrl(file!.name, targetId);
+      await expensesApi.uploadFile(signedURL, file!);
 
       await expensesApi.createExpense({
         employee_id: targetId,
@@ -155,7 +198,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
         type,
         description,
         receipt_url: path,
-        filename: file.name,
+        filename: file!.name,
       });
 
       toast({
@@ -182,7 +225,13 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{showEmployeeSelector ? "Nouvelle note de frais" : "Nouvelle dépense"}</DialogTitle>
+          <DialogTitle>
+            {enEdition
+              ? "Modifier la note de frais"
+              : showEmployeeSelector
+                ? "Nouvelle note de frais"
+                : "Nouvelle dépense"}
+          </DialogTitle>
           <p className="text-sm text-muted-foreground">
             {showEmployeeSelector
               ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
@@ -190,7 +239,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
           </p>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {showEmployeeSelector && (
+          {showEmployeeSelector && !enEdition && (
             <div className="grid gap-2">
               <Label htmlFor="expense-employee">Salarié</Label>
               <Select value={employeeId} onValueChange={setEmployeeId}>
@@ -295,7 +344,9 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="receipt">Justificatif</Label>
+            <Label htmlFor="receipt">
+              {enEdition ? "Justificatif (inchangé en modification)" : "Justificatif"}
+            </Label>
             <Input
               id="receipt"
               type="file"
@@ -324,7 +375,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess, showEmployeeSelect
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {showEmployeeSelector ? "Enregistrer" : "Soumettre"}
+            {enEdition ? "Enregistrer les modifications" : showEmployeeSelector ? "Enregistrer" : "Soumettre"}
           </Button>
         </DialogFooter>
       </DialogContent>

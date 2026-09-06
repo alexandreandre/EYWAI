@@ -51,6 +51,38 @@ def build_create_payload(
     return payload
 
 
+def build_update_payload(
+    existing: Dict[str, Any],
+    *,
+    date_value: date | None = None,
+    amount: float | None = None,
+    vat_rate: float | None = None,
+    type_value: str | None = None,
+    description: str | None = None,
+) -> Dict[str, Any]:
+    """Payload d'update partiel — HT et TVA sont TOUJOURS recalculés depuis les
+    valeurs effectives (montant/taux modifiés ou existants), sinon les trois
+    colonnes se désynchronisent et l'export comptable est faux."""
+    payload: Dict[str, Any] = {}
+    if date_value is not None:
+        payload["date"] = (
+            date_value.isoformat() if isinstance(date_value, date) else date_value
+        )
+    if type_value is not None:
+        payload["type"] = type_value
+    if description is not None:
+        payload["description"] = description
+
+    montant = amount if amount is not None else float(existing.get("amount") or 0)
+    taux = vat_rate if vat_rate is not None else float(existing.get("vat_rate") or 0)
+    amount_ht, vat_amount = compute_vat_breakdown(montant, taux)
+    payload["amount"] = montant
+    payload["vat_rate"] = taux
+    payload["amount_ht"] = amount_ht
+    payload["vat_amount"] = vat_amount
+    return payload
+
+
 def row_to_entity(row: Dict[str, Any]) -> ExpenseReportEntity:
     """Mappe une ligne expense_reports (Supabase) vers ExpenseReportEntity."""
     date_val = row.get("date")

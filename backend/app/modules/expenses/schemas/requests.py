@@ -5,6 +5,7 @@ Migrés depuis schemas/expense.py — comportement identique.
 """
 
 from datetime import date
+from datetime import date as DateISO
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -37,6 +38,18 @@ class ExpenseBase(BaseModel):
     description: str | None = None
     receipt_url: str | None = None
     filename: str | None = None
+
+
+class ExpenseUpdateRequest(BaseModel):
+    """Modification partielle d'une note (RH) — champs absents = inchangés."""
+
+    # Alias DateISO : le champ s'appelle `date` et masquerait le type éponyme
+    # à l'évaluation des annotations (défaut None → `None | None`).
+    date: DateISO | None = None
+    amount: float | None = Field(None, gt=0, description="Montant TTC en euros")
+    vat_rate: float | None = Field(None, ge=0, le=100)
+    type: ExpenseType | None = None
+    description: str | None = None
 
 
 class ExpenseCreate(ExpenseBase):

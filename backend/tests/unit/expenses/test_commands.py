@@ -211,3 +211,60 @@ class TestUpdateExpenseStatus:
 
         assert result is None
         mock_repo.update_status.assert_called_once_with("exp-inexistant", "validated")
+
+
+class TestUpdateAndDeleteExpense:
+    """Modification / suppression d'une note (RH)."""
+
+    def _update(self, existing, **champs):
+        from app.modules.expenses.application.commands import update_expense
+        from app.modules.expenses.application.dto import UpdateExpenseInput
+
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _id, data: {**existing, **data}
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            update_expense(UpdateExpenseInput(expense_id="exp-1", **champs))
+        return mock_repo.update.call_args[0][1]
+
+    def test_modification_du_montant_recalcule_ht_et_tva(self):
+        existing = {"id": "exp-1", "amount": 55.0, "vat_rate": 10.0, "type": "Restaurant"}
+        payload = self._update(existing, amount=110.0)
+        assert payload["amount"] == 110.0
+        assert payload["amount_ht"] == 100.0
+        assert payload["vat_amount"] == 10.0
+
+    def test_bascule_vers_ik_force_la_tva_a_zero(self):
+        existing = {"id": "exp-1", "amount": 120.0, "vat_rate": 10.0, "type": "Transport"}
+        payload = self._update(existing, type="Indemnités kilométriques")
+        assert payload["vat_rate"] == 0.0
+        assert payload["amount_ht"] == 120.0
+        assert payload["vat_amount"] == 0.0
+
+    def test_note_inconnue_renvoie_none(self):
+        from app.modules.expenses.application.commands import update_expense
+        from app.modules.expenses.application.dto import UpdateExpenseInput
+
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = None
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            assert update_expense(UpdateExpenseInput(expense_id="exp-x")) is None
+        mock_repo.update.assert_not_called()
+
+    def test_suppression_renvoie_le_resultat_du_repo(self):
+        from app.modules.expenses.application.commands import delete_expense
+
+        mock_repo = MagicMock()
+        mock_repo.delete.return_value = True
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            assert delete_expense("exp-1") is True
+        mock_repo.delete.assert_called_once_with("exp-1")

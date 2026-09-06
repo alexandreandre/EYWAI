@@ -54,6 +54,26 @@ class ExpenseRepository(IExpenseRepository):
             return None
         return response.data[0]
 
+    def update(self, expense_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        response = (
+            self._client.table(TABLE_EXPENSE_REPORTS)
+            .update(data)
+            .eq("id", expense_id)
+            .execute()
+        )
+        if not response.data:
+            return None
+        return response.data[0]
+
+    def delete(self, expense_id: str) -> bool:
+        response = (
+            self._client.table(TABLE_EXPENSE_REPORTS)
+            .delete()
+            .eq("id", expense_id)
+            .execute()
+        )
+        return bool(response.data)
+
     def list_by_employee_id(self, employee_id: str) -> List[Dict[str, Any]]:
         response = (
             self._client.table(TABLE_EXPENSE_REPORTS)

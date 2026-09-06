@@ -17,6 +17,7 @@ from app.modules.users.schemas.responses import User
 from app.modules.expenses.application.dto import (
     CreateExpenseInput,
     ListExpensesInput,
+    UpdateExpenseInput,
     UpdateExpenseStatusInput,
 )
 from app.modules.expenses.application.service import ExpenseApplicationService
@@ -24,6 +25,7 @@ from app.modules.expenses.schemas.requests import (
     ExpenseBase,
     ExpenseStatus,
     ExpenseStatusUpdateRequest,
+    ExpenseUpdateRequest,
 )
 from app.modules.expenses.schemas.responses import (
     Expense,
@@ -255,6 +257,67 @@ def get_receipt_signed_url(
     if not url:
         raise HTTPException(status_code=404, detail="Justificatif introuvable.")
     return {"url": url}
+
+
+def _charger_note_rh(expense_id: str, current_user: User) -> tuple[str, dict]:
+    """Garde commune des actions RH sur une note : rôle, société, périmètre."""
+    _require_rh_or_admin(current_user)
+    company_id = _societe_active_ou_403(current_user)
+    target = _expense_service.get_expense(expense_id)
+    if not target or str(target.get("company_id") or "") != str(company_id):
+        raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
+    access_control_service.require_employee_access(
+        current_user, company_id, "expenses.approve", str(target["employee_id"])
+    )
+    return company_id, target
+
+
+@router.patch("/{expense_id}", response_model=Expense)
+def update_expense(
+    expense_id: str,
+    update: ExpenseUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """(Pour les RH) Modifie une note de frais — HT/TVA recalculés."""
+    try:
+        _charger_note_rh(expense_id, current_user)
+        result = _expense_service.update_expense(
+            UpdateExpenseInput(
+                expense_id=expense_id,
+                date=update.date,
+                amount=update.amount,
+                vat_rate=update.vat_rate,
+                type=update.type,
+                description=update.description,
+            )
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
+        return result
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{expense_id}", status_code=204)
+def delete_expense(
+    expense_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """(Pour les RH) Supprime une note de frais."""
+    try:
+        _charger_note_rh(expense_id, current_user)
+        if not _expense_service.delete_expense(expense_id):
+            raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.patch("/{expense_id}/status", response_model=Expense)

@@ -9,7 +9,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Check, X, Clock, Download, Eye, Plus } from "lucide-react";
+import { Check, X, Clock, Download, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { NewExpenseModal } from "@/components/NewExpenseModal";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import apiClient from '@/api/apiClient'; // <-- AJOUTER
@@ -22,6 +32,8 @@ type ExpenseRequest = expensesApi.ExpenseWithEmployee;
 export default function ExpensesPage() {
   const { toast } = useToast();
   const [showNewExpense, setShowNewExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseRequest | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<ExpenseRequest | null>(null);
   const [pending, setPending] = useState<ExpenseRequest[]>([]);
   const [processed, setProcessed] = useState<ExpenseRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,6 +61,18 @@ export default function ExpensesPage() {
   }, [toast]); // Ajout de 'toast' dans les dépendances
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleDelete = async () => {
+    if (!deletingExpense) return;
+    try {
+      await expensesApi.deleteExpense(deletingExpense.id);
+      toast({ title: "Succès", description: "Note de frais supprimée." });
+      setDeletingExpense(null);
+      fetchData();
+    } catch {
+      toast({ title: "Erreur", description: "La suppression a échoué.", variant: "destructive" });
+    }
+  };
 
   const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected') => {
     try {
@@ -186,16 +210,34 @@ export default function ExpensesPage() {
               )}
             </TableCell>
             <TableCell className="text-right">
-              {req.status === 'pending' ? (
-                <div className="flex gap-2 justify-end">
-                  <Button size="sm" variant="destructive" onClick={() => handleUpdateStatus(req.id, 'rejected')}><X className="mr-2 h-4 w-4" /> Rejeter</Button>
-                  <Button size="sm" onClick={() => handleUpdateStatus(req.id, 'validated')}><Check className="mr-2 h-4 w-4" /> Approuver</Button>
-                </div>
-              ) : (
-                <Badge variant={req.status === 'validated' ? 'success' : 'destructive'}>
-                  {req.status === 'validated' ? 'Approuvée' : 'Rejetée'}
-                </Badge>
-              )}
+              <div className="flex items-center gap-2 justify-end">
+                {req.status === 'pending' ? (
+                  <>
+                    <Button size="sm" variant="destructive" onClick={() => handleUpdateStatus(req.id, 'rejected')}><X className="mr-2 h-4 w-4" /> Rejeter</Button>
+                    <Button size="sm" onClick={() => handleUpdateStatus(req.id, 'validated')}><Check className="mr-2 h-4 w-4" /> Approuver</Button>
+                  </>
+                ) : (
+                  <Badge variant={req.status === 'validated' ? 'success' : 'destructive'}>
+                    {req.status === 'validated' ? 'Approuvée' : 'Rejetée'}
+                  </Badge>
+                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setEditingExpense(req)}
+                  title="Modifier la note"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setDeletingExpense(req)}
+                  title="Supprimer la note"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -223,6 +265,32 @@ export default function ExpensesPage() {
         }}
         showEmployeeSelector
       />
+      <NewExpenseModal
+        isOpen={editingExpense != null}
+        onClose={() => setEditingExpense(null)}
+        onSuccess={() => void fetchData()}
+        showEmployeeSelector
+        expense={editingExpense}
+      />
+      <AlertDialog
+        open={deletingExpense != null}
+        onOpenChange={(open) => !open && setDeletingExpense(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette note de frais ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingExpense
+                ? `${deletingExpense.employee.first_name} ${deletingExpense.employee.last_name} — ${deletingExpense.type}, ${deletingExpense.amount.toFixed(2)} € TTC. La suppression est définitive.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> En attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>

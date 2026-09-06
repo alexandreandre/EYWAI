@@ -7,11 +7,15 @@ Comportement identique à l'ancien router.
 
 from app.modules.expenses.application.dto import (
     CreateExpenseInput,
+    UpdateExpenseInput,
     UpdateExpenseStatusInput,
 )
 from app.modules.expenses.domain.enums import ExpenseType
 from app.modules.expenses.domain.vat import validate_vat_rate
-from app.modules.expenses.infrastructure.mappers import build_create_payload
+from app.modules.expenses.infrastructure.mappers import (
+    build_create_payload,
+    build_update_payload,
+)
 from app.modules.expenses.infrastructure.repository import ExpenseRepository
 
 
@@ -44,6 +48,40 @@ def create_expense(input: CreateExpenseInput) -> dict:
         initial_status=input.initial_status,
     )
     return repo.create(db_data)
+
+
+def update_expense(input: UpdateExpenseInput) -> dict | None:
+    """Modifie les champs d'une note (RH). None si la note n'existe pas."""
+    repo = ExpenseRepository()
+    existing = repo.get_by_id(input.expense_id)
+    if existing is None:
+        return None
+
+    if input.vat_rate is not None:
+        vat_error = validate_vat_rate(input.vat_rate)
+        if vat_error:
+            raise ValueError(vat_error)
+
+    # Même garde-fou qu'à la création : les IK sont hors champ de la TVA.
+    vat_rate = input.vat_rate
+    type_effectif = input.type or existing.get("type")
+    if type_effectif == ExpenseType.INDEMNITES_KM.value:
+        vat_rate = 0.0
+
+    payload = build_update_payload(
+        existing,
+        date_value=input.date,
+        amount=input.amount,
+        vat_rate=vat_rate,
+        type_value=input.type,
+        description=input.description,
+    )
+    return repo.update(input.expense_id, payload)
+
+
+def delete_expense(expense_id: str) -> bool:
+    """Supprime une note de frais. False si rien n'a été supprimé."""
+    return ExpenseRepository().delete(expense_id)
 
 
 def update_expense_status(input: UpdateExpenseStatusInput) -> dict | None:

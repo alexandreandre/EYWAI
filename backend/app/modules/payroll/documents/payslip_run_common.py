@@ -13,7 +13,6 @@ from app.modules.payroll.engine.reference_remuneration import mettre_a_jour_brut
 import calendar
 
 from app.modules.payroll.engine.contexte import ContextePaie
-from app.modules.payroll.engine.period_forfait import definir_periode_de_paie
 
 
 logger = get_logger("modules.payroll.documents.payslip_run_common")

@@ -28,6 +28,16 @@ class IExpenseRepository(ABC):
         ...
 
     @abstractmethod
+    def update(self, expense_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Met à jour les champs d'une note. Retourne la ligne mise à jour."""
+        ...
+
+    @abstractmethod
+    def delete(self, expense_id: str) -> bool:
+        """Supprime une note. Retourne True si une ligne a été supprimée."""
+        ...
+
+    @abstractmethod
     def list_by_employee_id(self, employee_id: str) -> List[Dict[str, Any]]:
         """Liste les notes d'un employé (ordre date desc)."""
         ...
