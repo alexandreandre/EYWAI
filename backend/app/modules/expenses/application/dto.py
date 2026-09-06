@@ -35,6 +35,8 @@ class UpdateExpenseInput:
     vat_rate: Optional[float] = None
     type: Optional[str] = None
     description: Optional[str] = None
+    # None peut vouloir dire « effacer » : la sentinelle distingue « absent ».
+    description_definie: bool = False
 
 
 @dataclass

@@ -29,6 +29,9 @@ class ExpenseStorageProvider(IExpenseStorageProvider):
             raise KeyError(f"Clé 'signedUrl' non trouvée: {signed_url_response}")
         return signed_url_response
 
+    def remove(self, paths: list) -> None:
+        self._client.storage.from_(BUCKET_NAME).remove(paths)
+
     def create_signed_urls(
         self, paths: List[str], expires_in: int = 3600
     ) -> List[dict]:

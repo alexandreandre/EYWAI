@@ -19,6 +19,7 @@ import {
   parseVatRateInput,
   STANDARD_VAT_RATES,
   type VatRatePreset,
+  isVatExemptExpenseType,
 } from "@/lib/expenseVat";
 
 interface NewExpenseModalProps {
@@ -101,10 +102,16 @@ export function NewExpenseModal({
       setDate(expense.date?.slice(0, 10) ?? "");
       setAmount(String(expense.amount));
       setType(expense.type);
-      const taux = expense.vat_rate ?? 20;
-      const preset = presetFromRate(taux);
-      setVatPreset(preset);
-      setCustomVatRate(preset === "custom" ? String(taux) : "");
+      if (expense.vat_rate == null) {
+        // Taux inconnu (note d'avant la TVA) : exiger un choix explicite
+        // plutôt que d'inventer 20 % de TVA déductible à l'export.
+        setVatPreset("custom");
+        setCustomVatRate("");
+      } else {
+        const preset = presetFromRate(expense.vat_rate);
+        setVatPreset(preset);
+        setCustomVatRate(preset === "custom" ? String(expense.vat_rate) : "");
+      }
       setDescription(expense.description ?? "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,6 +145,11 @@ export function NewExpenseModal({
 
   const handleTypeChange = (value: expensesApi.ExpenseType) => {
     setType(value);
+    if (enEdition && !isVatExemptExpenseType(value)) {
+      // En édition, ne pas écraser le taux réellement enregistré par la
+      // suggestion du type — sauf exonération forcée (IK).
+      return;
+    }
     const suggested = DEFAULT_VAT_BY_EXPENSE_TYPE[value];
     const preset = presetFromRate(suggested);
     setVatPreset(preset);
@@ -172,14 +184,19 @@ export function NewExpenseModal({
 
     try {
       if (enEdition && expense) {
-        // Édition : les champs seulement, le justificatif reste tel quel.
-        await expensesApi.updateExpense(expense.id, {
-          date,
-          amount: amountTtc,
-          vat_rate: resolvedVatRate,
-          type,
-          description,
-        });
+        // Édition : n'envoyer QUE ce qui a changé — un instantané périmé ne
+        // doit pas réécrire des champs que personne n'a touchés.
+        const patch: expensesApi.ExpenseUpdatePayload = {};
+        if (date !== (expense.date?.slice(0, 10) ?? "")) patch.date = date;
+        if (amountTtc !== expense.amount) patch.amount = amountTtc;
+        if (resolvedVatRate !== (expense.vat_rate ?? null))
+          patch.vat_rate = resolvedVatRate;
+        if (type !== expense.type) patch.type = type;
+        if (description !== (expense.description ?? ""))
+          patch.description = description;
+        if (Object.keys(patch).length > 0) {
+          await expensesApi.updateExpense(expense.id, patch);
+        }
         toast({ title: "Succès", description: "Note de frais modifiée." });
         onSuccess();
         onClose();
@@ -233,9 +250,11 @@ export function NewExpenseModal({
                 : "Nouvelle dépense"}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {showEmployeeSelector
-              ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
-              : "Le justificatif (photo ou PDF) est obligatoire. Le montant saisi est le montant TTC."}
+            {enEdition
+              ? "Le statut et le justificatif restent inchangés. Le montant saisi est le montant TTC."
+              : showEmployeeSelector
+                ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
+                : "Le justificatif (photo ou PDF) est obligatoire. Le montant saisi est le montant TTC."}
           </p>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -292,13 +311,13 @@ export function NewExpenseModal({
 
           <div className="grid gap-2">
             <Label htmlFor="vat-rate">Taux de TVA applicable</Label>
-            {type === "Indemnités kilométriques" && (
+            {isVatExemptExpenseType(type) && (
               <p className="text-xs text-muted-foreground">
                 Non soumis à TVA (barème kilométrique) — taux verrouillé à 0 %.
               </p>
             )}
             <Select
-              disabled={type === "Indemnités kilométriques"}
+              disabled={isVatExemptExpenseType(type)}
               value={String(vatPreset)}
               onValueChange={(v) => {
                 if (v === "custom") {
@@ -350,6 +369,7 @@ export function NewExpenseModal({
             <Input
               id="receipt"
               type="file"
+              disabled={enEdition}
               accept="image/*,application/pdf,.heic,.heif"
               capture="environment"
               onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}

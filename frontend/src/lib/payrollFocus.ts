@@ -10,7 +10,7 @@
 
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 
-/** Les 14 entrées de menu conservées en mode paie. */
+/** Les 15 entrées de menu conservées en mode paie. */
 export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/',
   '/employees',
@@ -105,10 +105,12 @@ export function restrictToPayrollFocus<
   if (section === 'gestion') return [];
   // Filtre sur la liste des entrées de MENU, pas sur l'atteignabilité :
   // une route peut rester atteignable (EXTRA_PREFIXES) sans être affichée.
+  // Une seule source de vérité : la liste NAV. Garde '/schedules' hors de la
+  // section Effectifs si elle venait à l'y dupliquer (l'entrée vit dans le
+  // groupe paie).
   const keep = (item: TItem) =>
-    section === 'team'
-      ? item.url === '/employees' || item.url === '/employee-exits'
-      : PAYROLL_FOCUS_NAV_URLS.includes(item.url);
+    PAYROLL_FOCUS_NAV_URLS.includes(item.url) &&
+    !(section === 'team' && item.url === '/schedules');
   return groups
     .map((group) => ({ ...group, items: group.items.filter(keep) }))
     .filter((group) => group.items.length > 0);

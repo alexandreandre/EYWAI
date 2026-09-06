@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { NewExpenseModal } from "@/components/NewExpenseModal";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
-import apiClient from '@/api/apiClient'; // <-- AJOUTER
+import axios from 'axios';
 import { downloadBlob } from '@/lib/downloadBlob';
 import * as expensesApi from '@/api/expenses';
 import { formatExpenseVatSummary } from '@/lib/expenseVat';
@@ -43,11 +43,10 @@ export default function ExpensesPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // On utilise apiClient avec les URL relatives (en HTTPS)
       const [pendingRes, validatedRes, rejectedRes] = await Promise.all([
-        apiClient.get<ExpenseRequest[]>(`/api/expenses/?status=pending`),
-        apiClient.get<ExpenseRequest[]>(`/api/expenses/?status=validated`),
-        apiClient.get<ExpenseRequest[]>(`/api/expenses/?status=rejected`),
+        expensesApi.getAllExpenses('pending'),
+        expensesApi.getAllExpenses('validated'),
+        expensesApi.getAllExpenses('rejected'),
       ]);
       setPending(pendingRes.data);
       // On fusionne et trie les demandes traitées (validées et refusées) par date de création
@@ -64,20 +63,30 @@ export default function ExpensesPage() {
 
   const handleDelete = async () => {
     if (!deletingExpense) return;
+    const etaitValidee = deletingExpense.status === 'validated';
     try {
       await expensesApi.deleteExpense(deletingExpense.id);
-      toast({ title: "Succès", description: "Note de frais supprimée." });
+      toast({
+        title: "Succès",
+        description: etaitValidee
+          ? "Note supprimée. Si le bulletin du mois est déjà généré, régénérez-le pour retirer le remboursement."
+          : "Note de frais supprimée.",
+      });
       setDeletingExpense(null);
       fetchData();
-    } catch {
-      toast({ title: "Erreur", description: "La suppression a échoué.", variant: "destructive" });
+    } catch (err) {
+      log.error('Suppression de note de frais échouée:', err);
+      const detail =
+        axios.isAxiosError(err) && typeof err.response?.data?.detail === 'string'
+          ? err.response.data.detail
+          : "La suppression a échoué.";
+      toast({ title: "Erreur", description: detail, variant: "destructive" });
     }
   };
 
   const handleUpdateStatus = async (id: string, status: 'validated' | 'rejected') => {
     try {
-      // On utilise apiClient.patch pour mettre à jour la ressource
-      await apiClient.patch(`/api/expenses/${id}/status`, { status: status });
+      await expensesApi.updateExpenseStatus(id, status);
       toast({ title: "Succès", description: "La note de frais a été mise à jour." });
       fetchData();
     } catch (error) {
@@ -268,8 +277,16 @@ export default function ExpensesPage() {
       <NewExpenseModal
         isOpen={editingExpense != null}
         onClose={() => setEditingExpense(null)}
-        onSuccess={() => void fetchData()}
-        showEmployeeSelector
+        onSuccess={() => {
+          if (editingExpense?.status === 'validated') {
+            toast({
+              title: 'Pensez au bulletin',
+              description:
+                'Cette note était validée : si le bulletin du mois est déjà généré, régénérez-le pour reprendre le bon montant.',
+            });
+          }
+          void fetchData();
+        }}
         expense={editingExpense}
       />
       <AlertDialog

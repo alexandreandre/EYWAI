@@ -65,3 +65,8 @@ class IExpenseStorageProvider(ABC):
     ) -> List[Dict[str, str]]:
         """Génère des URLs signées pour la lecture (ex. 1h). Retourne liste de { signedURL }."""
         ...
+
+    @abstractmethod
+    def remove(self, paths: List[str]) -> None:
+        """Supprime des justificatifs du bucket (au delete d'une note)."""
+        ...

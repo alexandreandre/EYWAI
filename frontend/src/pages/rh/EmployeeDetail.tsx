@@ -674,6 +674,7 @@ export default function EmployeeDetail() {
             <EmployeeDetailDocumentsTab
               employeeId={employeeId}
               employee={employee}
+              bulletinsSeulement={payrollFocus}
             />
           ) : (
             <TabPanelSkeleton />

@@ -37,3 +37,15 @@ def validate_vat_rate(vat_rate: float) -> str | None:
     if vat_rate < MIN_VAT_RATE or vat_rate > MAX_VAT_RATE:
         return f"Le taux de TVA doit être compris entre {MIN_VAT_RATE} et {MAX_VAT_RATE} %."
     return None
+
+
+# Types de frais hors champ de la TVA (barèmes) : taux TOUJOURS forcé à 0,
+# à la création comme à l'édition — source unique de la règle.
+VAT_EXEMPT_EXPENSE_TYPES: frozenset[str] = frozenset({"Indemnités kilométriques"})
+
+
+def taux_tva_effectif(type_value: str | None, vat_rate: float | None) -> float | None:
+    """Taux réellement applicable compte tenu du type (exonérations)."""
+    if type_value in VAT_EXEMPT_EXPENSE_TYPES:
+        return 0.0
+    return vat_rate

@@ -268,3 +268,103 @@ class TestUpdateAndDeleteExpense:
         ):
             assert delete_expense("exp-1") is True
         mock_repo.delete.assert_called_once_with("exp-1")
+
+    def test_patch_description_seule_ne_touche_pas_aux_montants(self):
+        """Un PATCH partiel reste partiel : sans montant ni taux, les colonnes
+        monétaires ne sont pas réécrites (une TVA inconnue reste inconnue)."""
+        from app.modules.expenses.application.commands import update_expense
+        from app.modules.expenses.application.dto import UpdateExpenseInput
+
+        existing = {"id": "exp-1", "amount": 120.0, "vat_rate": None, "type": "Autre"}
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _id, data: {**existing, **data}
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            update_expense(
+                UpdateExpenseInput(
+                    expense_id="exp-1",
+                    description="Repas client",
+                    description_definie=True,
+                )
+            )
+        payload = mock_repo.update.call_args[0][1]
+        assert payload == {"description": "Repas client"}
+
+    def test_montant_modifie_avec_taux_inconnu_ne_l_invente_pas(self):
+        from app.modules.expenses.application.commands import update_expense
+        from app.modules.expenses.application.dto import UpdateExpenseInput
+
+        existing = {"id": "exp-1", "amount": 120.0, "vat_rate": None, "type": "Autre"}
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _id, data: {**existing, **data}
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            update_expense(UpdateExpenseInput(expense_id="exp-1", amount=200.0))
+        payload = mock_repo.update.call_args[0][1]
+        assert payload["amount"] == 200.0
+        assert payload["amount_ht"] is None
+        assert payload["vat_amount"] is None
+        assert "vat_rate" not in payload
+
+    def test_quitter_un_type_exonere_sans_taux_est_refuse(self):
+        from app.modules.expenses.application.commands import update_expense
+        from app.modules.expenses.application.dto import UpdateExpenseInput
+
+        existing = {
+            "id": "exp-1",
+            "amount": 120.0,
+            "vat_rate": 0.0,
+            "type": "Indemnités kilométriques",
+        }
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(ValueError, match="taux de TVA"):
+                update_expense(
+                    UpdateExpenseInput(expense_id="exp-1", type="Transport")
+                )
+        mock_repo.update.assert_not_called()
+
+    def test_suppression_purge_le_justificatif(self):
+        from app.modules.expenses.application.commands import delete_expense
+
+        existing = {
+            "id": "exp-1",
+            "company_id": "comp-1",
+            "receipt_url": "emp-1/facture.pdf",
+        }
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.delete.return_value = True
+        mock_storage = MagicMock()
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            with patch(
+                "app.modules.expenses.infrastructure.providers.ExpenseStorageProvider",
+                return_value=mock_storage,
+            ):
+                assert delete_expense("exp-1", company_id="comp-1") is True
+        mock_storage.remove.assert_called_once_with(["emp-1/facture.pdf"])
+
+    def test_suppression_refusee_hors_societe(self):
+        from app.modules.expenses.application.commands import delete_expense
+
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = {"id": "exp-1", "company_id": "comp-AUTRE"}
+        with patch(
+            "app.modules.expenses.application.commands.ExpenseRepository",
+            return_value=mock_repo,
+        ):
+            assert delete_expense("exp-1", company_id="comp-1") is False
+        mock_repo.delete.assert_not_called()

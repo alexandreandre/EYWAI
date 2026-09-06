@@ -21,6 +21,7 @@ from app.modules.expenses.application.dto import (
 from app.modules.expenses.application.queries import (
     get_employee_company_id_for_expense as query_get_employee_company_id_for_expense,
     get_all_expenses as query_get_all_expenses,
+    get_expense_by_id as query_get_expense_by_id,
     get_my_expenses as query_get_my_expenses,
     get_my_expenses_for_user_account as query_get_my_expenses_for_user_account,
     get_receipt_signed_url as query_get_receipt_signed_url,
@@ -38,16 +39,18 @@ class ExpenseApplicationService:
     def update_expense_status(self, input: UpdateExpenseStatusInput) -> dict | None:
         return cmd_update_expense_status(input)
 
-    def update_expense(self, input: UpdateExpenseInput) -> dict | None:
-        return cmd_update_expense(input)
+    def update_expense(
+        self, input: UpdateExpenseInput, existing: dict | None = None
+    ) -> dict | None:
+        return cmd_update_expense(input, existing=existing)
 
-    def delete_expense(self, expense_id: str) -> bool:
-        return cmd_delete_expense(expense_id)
+    def delete_expense(
+        self, expense_id: str, company_id: str | None = None
+    ) -> bool:
+        return cmd_delete_expense(expense_id, company_id=company_id)
 
     def get_expense(self, expense_id: str) -> dict | None:
-        from app.modules.expenses.infrastructure.repository import ExpenseRepository
-
-        return ExpenseRepository().get_by_id(expense_id)
+        return query_get_expense_by_id(expense_id)
 
     def get_my_expenses(self, employee_id: str) -> List[dict]:
         return query_get_my_expenses(employee_id)

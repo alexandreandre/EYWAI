@@ -406,7 +406,7 @@ class CegidQuadraConnector:
             return ConnectionTestResult(
                 success=False,
                 status="not_configured",
-                message="Clés cabinet Cegid non configurées au niveau plateforme.",
+                message="Clés comptables Cegid non configurées au niveau plateforme.",
             )
         return self._run_auth_test(creds)
 
@@ -425,7 +425,7 @@ class CegidQuadraConnector:
             elif has_platform_cegid_auth_keys(self._platform_row):
                 msg = "Code dossier Cegid manquant pour cette filiale."
             else:
-                msg = "Credentials Cegid incomplets (clés cabinet ou code dossier)."
+                msg = "Credentials Cegid incomplets (clés comptables ou code dossier)."
             return ConnectionTestResult(
                 success=False,
                 status="not_configured",

@@ -50,6 +50,9 @@ interface ContractUrlResponse {
 export interface EmployeeDetailDocumentsTabProps {
   employeeId: string;
   employee: EmployeeDetailDocumentsRhEmployee;
+  /** Mode démo paie : ne montrer QUE les bulletins — contrat, identité et
+   * identifiants de connexion restent hors du périmètre paie. */
+  bulletinsSeulement?: boolean;
 }
 
 function FileListSkeleton() {
@@ -90,6 +93,7 @@ function filterPayslips(payslips: PayslipItem[], fileSearch: string): PayslipIte
 export function EmployeeDetailDocumentsTab({
   employeeId,
   employee,
+  bulletinsSeulement = false,
 }: EmployeeDetailDocumentsTabProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -149,7 +153,8 @@ export function EmployeeDetailDocumentsTab({
         previewUrl: res.data.preview_url ?? res.data.url ?? null,
       };
     },
-    enabled: Boolean(employeeId),
+    // Jamais en mode paie : le PDF porte le mot de passe provisoire.
+    enabled: Boolean(employeeId) && !bulletinsSeulement,
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -603,6 +608,18 @@ export function EmployeeDetailDocumentsTab({
         }}
       />
 
+      {bulletinsSeulement ? (
+        <div className="rounded-lg border bg-card">
+          <div className="border-b px-4 py-3">
+            <p className="text-sm font-medium">Bulletins de paie</p>
+            <p className="text-xs text-muted-foreground">
+              Les autres documents du salarié (contrat, identité…) sont hors du
+              périmètre paie.
+            </p>
+          </div>
+          {renderBulletinsFiles('')}
+        </div>
+      ) : (
       <EmployeeDocumentsFolderExplorer
         key={employeeId}
         initialFolder="contrat"
@@ -618,6 +635,7 @@ export function EmployeeDetailDocumentsTab({
           />
         }
       />
+      )}
     </div>
   );
 }

@@ -14,6 +14,12 @@ import calendar
 
 from app.modules.payroll.engine.contexte import ContextePaie
 
+# Ré-export : payslip_run_heures et payslip_run_forfait importent
+# definir_periode_de_paie depuis CE module — ne pas « nettoyer ».
+from app.modules.payroll.engine.period_forfait import (  # noqa: F401
+    definir_periode_de_paie,
+)
+
 
 logger = get_logger("modules.payroll.documents.payslip_run_common")
 

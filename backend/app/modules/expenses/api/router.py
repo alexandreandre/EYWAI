@@ -260,7 +260,11 @@ def get_receipt_signed_url(
 
 
 def _charger_note_rh(expense_id: str, current_user: User) -> tuple[str, dict]:
-    """Garde commune des actions RH sur une note : rôle, société, périmètre."""
+    """Garde commune des actions RH sur une note : rôle, société, périmètre.
+
+    Retourne (company_id, ligne) — la ligne chargée sert aux commandes pour
+    éviter une seconde lecture.
+    """
     _require_rh_or_admin(current_user)
     company_id = _societe_active_ou_403(current_user)
     target = _expense_service.get_expense(expense_id)
@@ -280,7 +284,7 @@ def update_expense(
 ):
     """(Pour les RH) Modifie une note de frais — HT/TVA recalculés."""
     try:
-        _charger_note_rh(expense_id, current_user)
+        _company_id, target = _charger_note_rh(expense_id, current_user)
         result = _expense_service.update_expense(
             UpdateExpenseInput(
                 expense_id=expense_id,
@@ -289,7 +293,10 @@ def update_expense(
                 vat_rate=update.vat_rate,
                 type=update.type,
                 description=update.description,
-            )
+                # None explicite = effacer ; absent = inchangé.
+                description_definie="description" in update.model_fields_set,
+            ),
+            existing=target,
         )
         if result is None:
             raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
@@ -310,8 +317,8 @@ def delete_expense(
 ):
     """(Pour les RH) Supprime une note de frais."""
     try:
-        _charger_note_rh(expense_id, current_user)
-        if not _expense_service.delete_expense(expense_id):
+        company_id, _target = _charger_note_rh(expense_id, current_user)
+        if not _expense_service.delete_expense(expense_id, company_id=company_id):
             raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
     except HTTPException:
         raise
@@ -328,20 +335,7 @@ def update_expense_status(
 ):
     """(Pour les RH) Valide ou rejette une note de frais."""
     try:
-        _require_rh_or_admin(current_user)
-        company_id = _societe_active_ou_403(current_user)
-        expense = _expense_service.get_all_expenses(
-            company_id, ListExpensesInput()
-        )
-        target = next((item for item in expense if str(item.get("id")) == expense_id), None)
-        if not target:
-            raise HTTPException(status_code=404, detail="Note de frais non trouvée.")
-        employee_id = str(
-            target.get("employee_id") or (target.get("employees") or {}).get("id") or ""
-        )
-        access_control_service.require_employee_access(
-            current_user, company_id, "expenses.approve", employee_id
-        )
+        _charger_note_rh(expense_id, current_user)
         result = _expense_service.update_expense_status(
             UpdateExpenseStatusInput(expense_id=expense_id, status=status_update.status)
         )

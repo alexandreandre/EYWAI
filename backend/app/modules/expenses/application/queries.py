@@ -70,6 +70,13 @@ def get_my_expenses(employee_id: str) -> List[dict]:
     return expenses_data
 
 
+def get_expense_by_id(expense_id: str) -> dict | None:
+    """Une note par id (garde des actions RH unitaires)."""
+    from app.modules.expenses.infrastructure.repository import ExpenseRepository
+
+    return ExpenseRepository().get_by_id(expense_id)
+
+
 def get_all_expenses(company_id: str, status: Optional[str] = None) -> List[dict]:
     """
     Liste toutes les notes (RH) avec join employee, optionnellement filtré par status.

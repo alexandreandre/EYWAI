@@ -59,10 +59,15 @@ def build_update_payload(
     vat_rate: float | None = None,
     type_value: str | None = None,
     description: str | None = None,
+    description_definie: bool = False,
 ) -> Dict[str, Any]:
-    """Payload d'update partiel — HT et TVA sont TOUJOURS recalculés depuis les
-    valeurs effectives (montant/taux modifiés ou existants), sinon les trois
-    colonnes se désynchronisent et l'export comptable est faux."""
+    """Payload d'update RÉELLEMENT partiel.
+
+    Les colonnes monétaires (amount, vat_rate, amount_ht, vat_amount) ne sont
+    réécrites que si le montant ou le taux change — et toujours ensemble,
+    sinon elles se désynchronisent et l'export comptable est faux. Un taux
+    existant NULL (note d'avant la TVA) reste NULL : « inconnu » n'est pas
+    « 0 % exonéré »."""
     payload: Dict[str, Any] = {}
     if date_value is not None:
         payload["date"] = (
@@ -70,16 +75,21 @@ def build_update_payload(
         )
     if type_value is not None:
         payload["type"] = type_value
-    if description is not None:
+    if description_definie:
         payload["description"] = description
 
-    montant = amount if amount is not None else float(existing.get("amount") or 0)
-    taux = vat_rate if vat_rate is not None else float(existing.get("vat_rate") or 0)
-    amount_ht, vat_amount = compute_vat_breakdown(montant, taux)
-    payload["amount"] = montant
-    payload["vat_rate"] = taux
-    payload["amount_ht"] = amount_ht
-    payload["vat_amount"] = vat_amount
+    if amount is not None or vat_rate is not None:
+        montant = amount if amount is not None else float(existing.get("amount") or 0)
+        taux = vat_rate if vat_rate is not None else existing.get("vat_rate")
+        payload["amount"] = montant
+        if taux is None:
+            payload["amount_ht"] = None
+            payload["vat_amount"] = None
+        else:
+            amount_ht, vat_amount = compute_vat_breakdown(montant, float(taux))
+            payload["vat_rate"] = float(taux)
+            payload["amount_ht"] = amount_ht
+            payload["vat_amount"] = vat_amount
     return payload
 
 

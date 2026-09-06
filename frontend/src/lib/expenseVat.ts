@@ -17,6 +17,12 @@ export const DEFAULT_VAT_BY_EXPENSE_TYPE: Record<ExpenseType, number> = {
   Autre: 20,
 };
 
+/** Types hors champ de la TVA (barèmes) — taux verrouillé à 0 %, aligné sur
+ * VAT_EXEMPT_EXPENSE_TYPES côté backend. */
+export function isVatExemptExpenseType(type: ExpenseType | ''): boolean {
+  return type === 'Indemnités kilométriques';
+}
+
 export function formatVatRateLabel(rate: number): string {
   if (rate === 0) return '0 % (exonéré)';
   const rounded = Math.round(rate * 10) / 10;

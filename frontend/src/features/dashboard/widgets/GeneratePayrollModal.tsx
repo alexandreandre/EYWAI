@@ -121,7 +121,7 @@ export function GeneratePayrollModal({
 
     const delayMs = generation.totalJobs <= 1 ? 3500 : 6000;
     const timer = window.setTimeout(() => {
-      handleClose();
+      handleTermineeSucces();
     }, delayMs);
 
     return () => window.clearTimeout(timer);
@@ -195,6 +195,19 @@ export function GeneratePayrollModal({
 
   const handleClose = () => {
     generation.dismiss();
+    onClose();
+  };
+
+  // Fin de génération sans erreur : atterrir sur les bulletins DU MOIS GÉNÉRÉ
+  // (?month) — fermer vers le tableau de bord laissait la RH sans chemin
+  // visible vers ce qui vient d'être produit (retour Gaëlle 04/09).
+  const handleTermineeSucces = () => {
+    generation.dismiss();
+    if (onNavigateTo && selectedMonth) {
+      onNavigateTo(`/payroll?view=month&month=${selectedMonth}`);
+      onClose();
+      return;
+    }
     onClose();
   };
 
@@ -457,9 +470,13 @@ export function GeneratePayrollModal({
                   )}
                   <Button
                     className="bg-cyan-500 hover:bg-cyan-600 text-white"
-                    onClick={handleClose}
+                    onClick={
+                      uiPhase === 'done' && errorCount === 0 && onNavigateTo
+                        ? handleTermineeSucces
+                        : handleClose
+                    }
                   >
-                    {uiPhase === 'done' && errorCount === 0
+                    {uiPhase === 'done' && errorCount === 0 && onNavigateTo
                       ? 'Voir les bulletins'
                       : 'Fermer'}
                   </Button>

@@ -211,7 +211,7 @@ def process_payslip_generation_forfait(
         last_day = calendar.monthrange(year, month)[1]
         expense_reports_res = (
             supabase.table("expense_reports")
-            .select("type, amount, date, vat_rate, amount_ht, vat_amount")
+            .select("type, amount, date")
             .match({"employee_id": employee_id, "status": "validated"})
             .gte("date", date(year, month, 1).isoformat())
             .lte("date", date(year, month, last_day).isoformat())
@@ -295,12 +295,6 @@ def process_payslip_generation_forfait(
                     "soumise_a_cotisations": False,
                     "soumise_a_impot": False,
                 }
-                if expense.get("vat_rate") is not None:
-                    expense_entry["vat_rate"] = expense["vat_rate"]
-                if expense.get("amount_ht") is not None:
-                    expense_entry["amount_ht"] = expense["amount_ht"]
-                if expense.get("vat_amount") is not None:
-                    expense_entry["vat_amount"] = expense["vat_amount"]
                 saisies_data["primes"].append(expense_entry)
 
         try:

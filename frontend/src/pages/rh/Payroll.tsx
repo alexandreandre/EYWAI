@@ -125,8 +125,17 @@ export default function Payroll() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
     employeeFromUrl
   );
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
+  // ?month=YYYY-MM : posé par « Voir les bulletins » après une génération,
+  // pour atterrir sur le mois réellement généré (souvent le mois précédent).
+  const monthFromUrl = searchParams.get('month');
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const y = monthFromUrl ? parseInt(monthFromUrl.split('-')[0], 10) : NaN;
+    return Number.isFinite(y) && y > 2000 ? y : new Date().getFullYear();
+  });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const m = monthFromUrl ? parseInt(monthFromUrl.split('-')[1], 10) : NaN;
+    return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1;
+  });
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
 
