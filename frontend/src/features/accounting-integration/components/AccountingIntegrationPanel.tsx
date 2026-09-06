@@ -371,7 +371,7 @@ export function AccountingIntegrationPanel() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="shared">
-                          Clés cabinet du groupe (code dossier uniquement)
+                          Clés comptables du groupe (code dossier uniquement)
                         </SelectItem>
                         <SelectItem value="dedicated">
                           Clés dédiées à cette filiale
@@ -380,7 +380,7 @@ export function AccountingIntegrationPanel() {
                     </Select>
                     {useSharedCabinetKeys ? (
                       <p className="text-muted-foreground text-xs">
-                        Les clés cabinet sont configurées par l&apos;administrateur. Indiquez
+                        Les clés comptables sont configurées par l&apos;administrateur. Indiquez
                         seulement le code dossier de cette entreprise.
                       </p>
                     ) : null}
@@ -537,7 +537,7 @@ export function AccountingIntegrationPanel() {
                     <Input
                       value={recipients}
                       onChange={(e) => setRecipients(e.target.value)}
-                      placeholder="compta@cabinet.fr"
+                      placeholder="compta@votre-entreprise.fr"
                     />
                   </div>
                 </div>

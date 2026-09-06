@@ -51,7 +51,7 @@ def generate_cabinet_generic_export(
         }
         for e in all_ecritures
     ]
-    sheet_name = f"Export Cabinet {format_period(period)}"
+    sheet_name = f"Export comptable {format_period(period)}"
     if format == "xlsx":
         return generate_xlsx(data, headers, sheet_name)
     return generate_csv(data, headers)

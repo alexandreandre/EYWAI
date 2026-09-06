@@ -91,7 +91,7 @@ export function PaieComptabiliteTab({
     },
     {
       id: "export_cabinet_generique",
-      name: "Export format cabinet générique",
+      name: "Export format comptable générique",
       description: "Export structuré pour intégration dans les logiciels comptables",
       icon: Database,
     },
@@ -133,7 +133,7 @@ export function PaieComptabiliteTab({
         <AlertTitle>Guide exports comptables</AlertTitle>
         <AlertDescription className="text-sm">
           Clôture mensuelle complète (OD + journal + FEC) : onglet Envois → Comptabilité.
-          Formats cabinet Quadra / Sage : cartes ci-dessous. FEC seul : contrôle fiscal.
+          Formats comptables Quadra / Sage : cartes ci-dessous. FEC seul : contrôle fiscal.
         </AlertDescription>
       </Alert>
       <AccountingIntegrationPanel />

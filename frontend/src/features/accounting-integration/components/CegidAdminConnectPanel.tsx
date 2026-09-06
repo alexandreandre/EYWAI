@@ -127,7 +127,7 @@ export function CegidAdminConnectPanel({
       }),
     onSuccess: () => {
       invalidateAll();
-      toast({ title: 'Clés cabinet enregistrées' });
+      toast({ title: 'Clés comptables enregistrées' });
     },
     onError: (e: Error) => {
       toast({ title: 'Erreur', description: e.message, variant: 'destructive' });
@@ -139,7 +139,7 @@ export function CegidAdminConnectPanel({
     onSuccess: (r) => {
       invalidateAll();
       toast({
-        title: r.success ? 'Cabinet connecté' : 'Échec connexion cabinet',
+        title: r.success ? 'Comptabilité connectée' : 'Échec de connexion à la comptabilité',
         description: r.message,
         variant: r.success ? 'default' : 'destructive',
       });
@@ -267,10 +267,10 @@ export function CegidAdminConnectPanel({
     <div className="space-y-6 border-t pt-4">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Label className="text-sm font-medium">Clés cabinet du groupe</Label>
+          <Label className="text-sm font-medium">Clés comptables du groupe</Label>
           {hasCabinetKeys ? (
             cabinetConnected ? (
-              <Badge className="bg-green-600 hover:bg-green-600">Cabinet connecté</Badge>
+              <Badge className="bg-green-600 hover:bg-green-600">Comptabilité connectée</Badge>
             ) : (
               <Badge variant="outline">Clés enregistrées — test requis</Badge>
             )
@@ -307,7 +307,7 @@ export function CegidAdminConnectPanel({
             disabled={testCabinetMutation.isPending}
             onClick={() => testCabinetMutation.mutate()}
           >
-            Tester la connexion cabinet
+            Tester la connexion comptable
           </Button>
         ) : null}
       </div>

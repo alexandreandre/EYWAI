@@ -28,7 +28,7 @@ const exportTypeLabels: Record<string, string> = {
   od_charges_sociales: "OD Charges sociales",
   od_pas: "OD PAS",
   od_globale: "OD Globale de paie",
-  export_cabinet_generique: "Export format cabinet générique",
+  export_cabinet_generique: "Export format comptable générique",
   export_cabinet_quadra: "Export format Quadra",
   export_cabinet_sage: "Export format Sage",
   // Déclarations

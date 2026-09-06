@@ -254,7 +254,7 @@ export default function AccountingIntegrations() {
         <CardHeader>
           <CardTitle className="text-base">Catalogue fournisseurs</CardTitle>
           <CardDescription>
-            Activez les connecteurs pour les entreprises. Clés cabinet une fois, code dossier par filiale (ou connexion dédiée par entreprise).
+            Activez les connecteurs pour les entreprises. Clés comptables une fois, code dossier par filiale (ou connexion dédiée par entreprise).
           </CardDescription>
         </CardHeader>
         <CardContent>

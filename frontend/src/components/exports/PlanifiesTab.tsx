@@ -1042,8 +1042,8 @@ export function PlanifiesTab() {
         <AlertTitle>Quel export pour quel besoin ?</AlertTitle>
         <AlertDescription>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            <li>Clôture mensuelle cabinet → Comptabilité (OD + journal + FEC)</li>
-            <li>Import Quadra / Sage → onglet Paie &amp; Comptabilité, formats cabinet</li>
+            <li>Clôture mensuelle paie → Comptabilité (OD + journal + FEC)</li>
+            <li>Import Quadra / Sage → onglet Paie &amp; Comptabilité, formats comptables</li>
             <li>Contrôle fiscal → FEC seul</li>
             <li>Paiement salaires → Banque ou Paiements → Virement</li>
           </ul>

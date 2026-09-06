@@ -167,7 +167,7 @@ export function AccountingIntegrationCard() {
               <Input
                 value={recipients}
                 onChange={(e) => setRecipients(e.target.value)}
-                placeholder="compta@cabinet.fr"
+                placeholder="compta@votre-entreprise.fr"
               />
             </div>
             {config?.last_test_message ? (

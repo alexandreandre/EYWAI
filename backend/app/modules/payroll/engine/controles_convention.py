@@ -385,11 +385,12 @@ def controle_plafond_transport(
             code="transport_plafond_annuel_depasse",
             critique=True,
             message=(
-                f"Indemnité trajet domicile-travail : {_eur(cumul_annuel)} € versés "
-                f"en {annee} pour un plafond d'exonération de {_eur(plafond)} € — "
-                f"dépassement de {_eur(exces)} €. La part excédentaire est "
-                "normalement soumise à cotisations et imposable. Le bulletin n'a "
-                "pas été modifié : à arbitrer avec le cabinet."
+                f"Indemnité trajet domicile-travail : cumul {_eur(cumul_annuel)} € "
+                f"versé en {annee}, pour un plafond d'exonération de "
+                f"{_eur(plafond)} € — soit {_eur(exces)} € au-delà du plafond. "
+                "Cette part excédentaire est normalement soumise à cotisations "
+                "et imposable. Le bulletin n'a pas été modifié : à arbitrer "
+                "côté paie."
             ),
         )
     ]

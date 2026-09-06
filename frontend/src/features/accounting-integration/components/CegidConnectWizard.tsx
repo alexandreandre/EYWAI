@@ -79,7 +79,7 @@ const GUIDE_STEPS = [
     id: 'loophub',
     title: 'Activer la clé dans Loop Hub',
     description:
-      'Étape indispensable : un administrateur du cabinet doit activer la clé API dans le Loop Hub de Cegid Loop. Sans cette activation, l’API refuse les appels même avec des clés valides.',
+      'Étape indispensable : un administrateur Cegid Loop doit activer la clé API dans le Loop Hub de Cegid Loop. Sans cette activation, l’API refuse les appels même avec des clés valides.',
     actionLabel: 'Guide Loop Hub',
     actionUrl: CEGID_DOC_LOOP_HUB,
   },
@@ -87,7 +87,7 @@ const GUIDE_STEPS = [
     id: 'dossier',
     title: 'Code dossier (codeIbs)',
     description:
-      'Le code du dossier comptable dans Loop (codeIbs). Votre expert-comptable le connaît — c’est l’identifiant de votre entreprise côté cabinet.',
+      'Le code du dossier comptable dans Loop (codeIbs). Votre expert-comptable le connaît — c’est l’identifiant de votre entreprise côté comptabilité.',
     actionLabel: null,
     actionUrl: null,
   },
@@ -146,7 +146,7 @@ export function CegidConnectWizard({
             <h3 className="text-base font-semibold">Connecter Cegid Loop</h3>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Envoyez vos écritures de paie (FEC) directement dans le logiciel comptable
-              de votre cabinet. La configuration prend environ 5 minutes.
+              de votre comptabilité. La configuration prend environ 5 minutes.
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function CegidConnectWizard({
           <AlertDescription>
             Demandez à votre expert-comptable de générer les identifiants, ou partagez-lui
             le guide Cegid. Aucun partenariat EYWAI/Cegid n’est nécessaire — ce sont les
-            clés de votre cabinet.
+            clés de votre comptabilité.
           </AlertDescription>
         </Alert>
 
@@ -276,7 +276,7 @@ export function CegidConnectWizard({
         <div>
           <p className="font-medium">
             {wizardMode === 'cabinet'
-              ? 'Clés cabinet du groupe'
+              ? 'Clés comptables du groupe'
               : wizardMode === 'dossier'
                 ? 'Code dossier de la filiale'
                 : wizardMode === 'dedicated'
@@ -378,7 +378,7 @@ export function CegidConnectWizard({
           disabled={!canFinalize || isSaving || isTesting}
           onClick={onFinalize}
         >
-          {isTesting ? 'Connexion en cours…' : wizardMode === 'cabinet' ? 'Enregistrer les clés cabinet' : 'Finaliser la connexion'}
+          {isTesting ? 'Connexion en cours…' : wizardMode === 'cabinet' ? 'Enregistrer les clés comptables' : 'Finaliser la connexion'}
         </Button>
         {wizardMode === 'full' ? (
         <Button type="button" variant="outline" onClick={() => setPhase('guide')}>

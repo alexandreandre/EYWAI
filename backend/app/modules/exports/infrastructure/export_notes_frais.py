@@ -331,7 +331,7 @@ def _generate_cabinet_file(
     headers = CABINET_HEADERS[cabinet_format]
     data = _format_cabinet_rows(ecritures, cabinet_format)
     labels = {
-        "generique": "Export Cabinet NDF",
+        "generique": "Export comptable NDF",
         "quadra": "Quadra NDF",
         "sage": "Sage NDF",
     }
