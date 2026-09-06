@@ -8,9 +8,9 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 14 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(14);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(14);
+  it('contient exactement 15 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(15);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(15);
   });
 });
 
@@ -33,7 +33,6 @@ describe('isPayrollFocusAllowed', () => {
       '/formation',
       '/recruitment',
       '/onboarding',
-      '/employee-exits',
       '/trial-periods',
       '/teams',
       '/documents',
@@ -65,8 +64,12 @@ describe('isPayrollFocusAllowed', () => {
   });
 
   it('ne confond pas deux chemins de même préfixe textuel', () => {
+    // /employee-exits est désormais DANS le périmètre (parcours STC) : le
+    // piège du préfixe se vérifie sur un chemin voisin inexistant.
     expect(isPayrollFocusAllowed('/employee-loans')).toBe(true);
-    expect(isPayrollFocusAllowed('/employee-exits')).toBe(false);
+    expect(isPayrollFocusAllowed('/employee-exits')).toBe(true);
+    expect(isPayrollFocusAllowed('/employeesXY')).toBe(false);
+    expect(isPayrollFocusAllowed('/payrolls')).toBe(false);
   });
 });
 
@@ -153,9 +156,9 @@ const urlsOf = (groups: { items: { url: string }[] }[]) =>
   groups.flatMap((g) => g.items.map((i) => i.url));
 
 describe('restrictToPayrollFocus', () => {
-  it('ne garde que Collaborateurs dans la section Effectifs', () => {
+  it('ne garde que Collaborateurs et Départs dans la section Effectifs', () => {
     const out = restrictToPayrollFocus('team', teamGroups);
-    expect(urlsOf(out)).toEqual(['/employees']);
+    expect(urlsOf(out)).toEqual(['/employees', '/employee-exits']);
   });
 
   it('supprime entièrement la section Gestion', () => {
@@ -188,7 +191,7 @@ describe('restrictToPayrollFocus', () => {
     expect(urlsOf(paieGroups)).toHaveLength(before);
   });
 
-  it('produit exactement les 14 URL du périmètre, toutes sections confondues', () => {
+  it('produit exactement les 15 URL du périmètre, toutes sections confondues', () => {
     const all = [
       '/',
       ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
@@ -210,7 +213,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(14);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(15);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {

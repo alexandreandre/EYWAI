@@ -26,6 +26,10 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/taux-pas',
   '/exports',
   '/payroll',
+  // Les départs font partie du parcours paie (STC, bulletin du dernier
+  // mois) : sans cette entrée, un salarié sorti était introuvable
+  // (retour Gaëlle 04/09, dossier Demory).
+  '/employee-exits',
 ];
 
 /**
@@ -103,7 +107,7 @@ export function restrictToPayrollFocus<
   // une route peut rester atteignable (EXTRA_PREFIXES) sans être affichée.
   const keep = (item: TItem) =>
     section === 'team'
-      ? item.url === '/employees'
+      ? item.url === '/employees' || item.url === '/employee-exits'
       : PAYROLL_FOCUS_NAV_URLS.includes(item.url);
   return groups
     .map((group) => ({ ...group, items: group.items.filter(keep) }))
