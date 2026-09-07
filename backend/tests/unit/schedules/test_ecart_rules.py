@@ -185,6 +185,19 @@ class TestAbsenceConflicts:
         planned = [{"jour": 10, "type": "repos", "heures_prevues": 0}]
         assert detect_absence_conflicts(planned, {10}, 2026, 6) == 0
 
+    def test_repos_en_heures_ignore_du_decompte(self):
+        """Une prise de repos compensateur en heures ne projette aucun jour
+        au calendrier (par design) : pas de conflit attendu."""
+        absences = [
+            {
+                "type": "repos_compensateur",
+                "selected_days": ["2026-06-10"],
+                "heures_par_jour": {"2026-06-10": 2.0},
+            },
+            {"type": "repos_compensateur", "selected_days": ["2026-06-11"]},
+        ]
+        assert validated_absence_days_in_month(absences, 2026, 6) == {11}
+
     def test_jtc_et_sans_solde_ignores_du_decompte(self):
         """jtc/sans_solde n'écrivent jamais le calendrier (par design) :
         leurs demandes validées ne créent pas de jours attendus."""

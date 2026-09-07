@@ -157,6 +157,10 @@ def validated_absence_days_in_month(
     for req in absences:
         if str(req.get("type") or "") in _TYPES_DEMANDE_SANS_CALENDRIER:
             continue
+        if req.get("heures_par_jour"):
+            # Repos compensateur pris en heures : la journée reste travaillée
+            # au calendrier PAR DESIGN (aucune projection) — pas un conflit.
+            continue
         selected = req.get("selected_days")
         if not isinstance(selected, list):
             continue

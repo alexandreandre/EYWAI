@@ -43,6 +43,8 @@ export interface AbsenceRequest {
   jours_payes?: number | null;
   /** Demi-journées de CP : {"2026-09-14": "matin"} — jour absent = jour plein. */
   demi_journees?: Record<string, 'matin' | 'apres_midi'> | null;
+  /** Repos compensateur en heures : {"2026-09-14": 2} — la journée reste travaillée. */
+  heures_par_jour?: Record<string, number> | null;
   arret_type?: ArretType | null;
   /** Statut attestation salaire / IJSS (API module Documents). */
   certificate_status?: 'generated' | 'not_required' | 'pending' | null;

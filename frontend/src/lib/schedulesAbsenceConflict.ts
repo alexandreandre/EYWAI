@@ -26,6 +26,9 @@ export function validatedAbsenceDaysInMonth(
   for (const a of absences) {
     if (a.status !== 'validated') continue;
     if (TYPES_SANS_CALENDRIER.has(a.type)) continue;
+    // Repos compensateur pris en heures : la journée reste travaillée au
+    // calendrier par design (aucune projection) — pas un conflit.
+    if (a.heures_par_jour && Object.keys(a.heures_par_jour).length > 0) continue;
     for (const iso of a.selected_days ?? []) {
       if (iso.startsWith(prefix)) {
         const day = parseInt(iso.slice(8, 10), 10);
