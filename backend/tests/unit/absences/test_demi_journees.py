@@ -51,6 +51,28 @@ class TestSchemaDemiJournees:
             )
 
 
+class TestGardeForfaitJours:
+    def test_demi_journee_refusee_pour_un_forfait_jours(self):
+        """Le forfait-jours se décompte à la journée : la ½ CP est refusée à
+        la création (sinon 0,5 débité au solde sans ligne fiable au bulletin)."""
+        from unittest.mock import patch
+
+        from app.modules.absences.application import commands
+
+        req = AbsenceRequestCreate(
+            employee_id="emp-1",
+            type="conge_paye",
+            selected_days=[date(2026, 9, 14)],
+            demi_journees={date(2026, 9, 14): "matin"},
+        )
+        with patch(
+            "app.modules.absences.application.commands.get_employee_statut",
+            return_value="Cadre au forfait jour",
+        ):
+            with pytest.raises(ValueError, match="forfait"):
+                commands.create_absence_request(req)
+
+
 class TestQuotiteDemiJournees:
     def test_cles_date_et_iso(self):
         jours = [date(2026, 9, 14), date(2026, 9, 15), date(2026, 9, 16)]

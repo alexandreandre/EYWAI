@@ -151,7 +151,10 @@ def analyser_horaires_du_mois(
                 and (j.get("heures_faites") or 0) > 0  # Robuste à None
                 for j in data["reel"]
             )
-            quotite = float(jour_prevu.get("quotite_absence") or 1.0)
+            try:
+                quotite = float(jour_prevu.get("quotite_absence") or 1.0)
+            except (TypeError, ValueError):
+                quotite = 1.0
             if not heures_reelles_ce_jour or 0.0 < quotite < 1.0:
                 evenements_finaux.append(jour_prevu)
 

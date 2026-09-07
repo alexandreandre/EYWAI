@@ -24,6 +24,18 @@ def get_employee_hire_date(employee_id: str) -> Optional[str]:
     return r.data.get("hire_date") if r and r.data else None
 
 
+def get_employee_statut(employee_id: str) -> Optional[str]:
+    """Retourne le statut contractuel (ex. « Cadre au forfait jour »)."""
+    r = (
+        supabase.table("employees")
+        .select("statut")
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    return r.data.get("statut") if r and r.data else None
+
+
 def get_employee_company_id(employee_id: str) -> Optional[str]:
     r = (
         supabase.table("employees")

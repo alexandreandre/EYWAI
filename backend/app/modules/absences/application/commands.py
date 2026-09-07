@@ -32,7 +32,9 @@ from app.modules.absences.infrastructure.providers import (
 from app.modules.absences.infrastructure.queries import (
     get_employee_company_id,
     get_employee_hire_date,
+    get_employee_statut,
 )
+from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.maintenance_settings.application.queries import get_maintenance_settings
 from app.modules.absences.application.queries import (
@@ -196,6 +198,14 @@ def create_absence_request(
         (k if isinstance(k, str) else k.isoformat()): v
         for k, v in demi_journees_raw.items()
     }
+    if demi_journees and is_forfait_jour(get_employee_statut(employee_id)):
+        # Le forfait-jours se décompte à la journée (réel 0/1) : une
+        # demi-journée débiterait 0,5 au solde sans ligne CP fiable au
+        # bulletin (l'analyseur forfait n'a pas la granularité).
+        raise ValueError(
+            "La demi-journée de congé n'est pas disponible pour un salarié "
+            "au forfait-jours (décompte à la journée)."
+        )
 
     if enforce_conge_paye_balance and absence_type == "conge_paye":
         from app.modules.absences.application.queries import (
