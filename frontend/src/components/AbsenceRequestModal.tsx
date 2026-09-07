@@ -100,7 +100,8 @@ function BalanceHint({
 
   return (
     <p className="text-xs text-muted-foreground">
-      Solde {typeLabel} restant : {rest.toFixed(1)} j
+      Solde {typeLabel} restant : {rest.toFixed(1)}{' '}
+      {absenceType === 'repos_compensateur' ? 'h' : 'j'}
     </p>
   );
 }
@@ -172,6 +173,10 @@ export function AbsenceRequestModal({
   const [demiJournees, setDemiJournees] = useState<
     Record<string, 'matin' | 'apres_midi'>
   >({});
+  // Repos compensateur en heures : { '2026-09-14': '2' }. Sémantique
+  // tout-ou-rien : si des heures sont saisies, CHAQUE jour sélectionné doit
+  // en porter (le serveur refuse les demandes mixtes heures + journées).
+  const [heuresParJour, setHeuresParJour] = useState<Record<string, string>>({});
   const [arretRange, setArretRange] = useState<DateRange | undefined>(undefined);
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -203,6 +208,7 @@ export function AbsenceRequestModal({
       setEvenementFamilialEvents([]);
       setSelectedDays([]);
       setDemiJournees({});
+      setHeuresParJour({});
       setArretRange(undefined);
       setComment("");
       setFile(null);
@@ -418,6 +424,21 @@ export function AbsenceRequestModal({
           : "Veuillez sélectionner au moins un jour de congé.",
       );
       return;
+    }
+
+    if (absenceType === 'repos_compensateur') {
+      const jours = (selectedDays ?? []).map((d) => format(d, 'yyyy-MM-dd'));
+      const remplis = jours.filter((iso) => {
+        const n = Number.parseFloat((heuresParJour[iso] ?? '').replace(',', '.'));
+        return Number.isFinite(n) && n > 0;
+      });
+      if (remplis.length > 0 && remplis.length < jours.length) {
+        setError(
+          'Repos en heures : saisissez les heures pour chaque jour sélectionné, ' +
+            'ou laissez tout vide pour des journées entières.',
+        );
+        return;
+      }
     }
 
     // Congés payés : blocage salarié si solde insuffisant ; RH peut confirmer du sans solde

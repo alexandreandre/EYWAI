@@ -148,10 +148,14 @@ class TestApplyRttSoldeManual:
     @patch(
         "app.modules.absences.application.leave_settings_commands._ensure_employee_in_company"
     )
+    @patch(
+        "app.modules.absences.application.leave_settings_commands.get_employee_adjustment"
+    )
     @patch("app.modules.absences.application.leave_settings_commands.supabase")
     def test_only_rtt_fields_sent_on_upsert(
         self,
         mock_supabase,
+        mock_get_adj,
         _mock_ensure,
         _mock_hire,
         mock_absence_repo,
@@ -161,6 +165,9 @@ class TestApplyRttSoldeManual:
         mock_compute_rtt,
         mock_upsert,
     ):
+        from app.modules.absences.domain.leave_policy import EmployeeLeaveAdjustment
+
+        mock_get_adj.return_value = EmployeeLeaveAdjustment.empty()
         mock_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
             data=[{"id": "emp-1"}]
         )
@@ -186,4 +193,8 @@ class TestApplyRttSoldeManual:
         payload = mock_upsert.call_args.args[3]
         assert set(payload.keys()) == {"rtt_opening_balance", "note"}
         assert payload["rtt_opening_balance"] == 4.5
-        assert payload["note"] == "Reprise"
+        # La note utilisateur est enveloppée dans la note d'audit (qui, pour
+        # un salarié repris, préserverait le marqueur « Import CP bulletin »
+        # en tête — il pilote le mode de calcul CP/RTT).
+        assert "Reprise" in payload["note"]
+        assert "Ajustement manuel RH" in payload["note"]

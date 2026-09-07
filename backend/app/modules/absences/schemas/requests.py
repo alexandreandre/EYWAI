@@ -90,6 +90,15 @@ class AbsenceRequestCreate(BaseModel):
             raise ValueError(
                 "Chaque prise en heures doit correspondre à un jour sélectionné."
             )
+        if set(self.heures_par_jour) != jours:
+            # Tout-ou-rien : une demande mixte (heures sur certains jours,
+            # journées entières sur d'autres) aurait deux traitements
+            # calendrier différents dans la même demande — les jours
+            # « journée entière » ne seraient pas projetés non plus.
+            raise ValueError(
+                "Repos en heures : saisissez les heures pour chaque jour "
+                "sélectionné (ou aucune pour des journées entières)."
+            )
         for d, h in self.heures_par_jour.items():
             if not (0 < float(h) <= 12):
                 raise ValueError(

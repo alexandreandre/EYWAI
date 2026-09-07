@@ -45,7 +45,7 @@ def get_validated_repos_requests(
         return {}
     resp = (
         supabase.table("absence_requests")
-        .select("employee_id, type, status, selected_days")
+        .select("employee_id, type, status, selected_days, heures_par_jour")
         .eq("company_id", company_id)
         .eq("type", "repos_compensateur")
         .eq("status", "validated")

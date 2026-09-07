@@ -202,7 +202,9 @@ export async function updateEmployeeLeaveAdjustment(
   return data;
 }
 
-export type CompteurAjustable = 'cp_n1' | 'cp_n' | 'rtt' | 'jtc';
+// CP volontairement exclus : leur recalage passe par la reprise d'un
+// bulletin (mécanique d'import), pas par une inversion cible→écart.
+export type CompteurAjustable = 'rtt' | 'jtc';
 
 export interface EmployeeLeaveSoldeUpdate {
   compteur: CompteurAjustable;

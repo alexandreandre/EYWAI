@@ -47,8 +47,6 @@ const EVENEMENT_FAMILIAL_TYPE = 'Événement familial';
 /** Compteurs dont le solde AFFICHÉ est ajustable par la RH (converti en
  * écart d'ouverture côté serveur, même mécanique que la reprise). */
 const COMPTEURS_AJUSTABLES: Record<string, CompteurAjustable> = {
-  'Congés Payés (période précédente)': 'cp_n1',
-  'Congés Payés (période en cours)': 'cp_n',
   RTT: 'rtt',
   JTC: 'jtc',
 };
@@ -85,7 +83,6 @@ export function EmployeeDetailLeaveBalancesTab({
 
   // Dialogue générique « Ajuster le solde » (CP N-1 / CP N / RTT / JTC).
   const [adjustType, setAdjustType] = useState<string | null>(null);
-  const [adjustYear, setAdjustYear] = useState(currentYear);
   const [adjustSolde, setAdjustSolde] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
 
@@ -97,7 +94,6 @@ export function EmployeeDetailLeaveBalancesTab({
   useEffect(() => {
     if (!adjustType) return;
     const current = visibleBalances.find((balance) => balance.type === adjustType);
-    setAdjustYear(currentYear);
     setAdjustSolde(
       formatSoldeDraft(
         typeof current?.remaining === 'number' ? current.remaining : null,
@@ -111,7 +107,10 @@ export function EmployeeDetailLeaveBalancesTab({
     mutationFn: () => {
       const parsed = Number.parseFloat(adjustSolde.replace(',', '.'));
       if (!adjustCompteur) throw new Error('Compteur non ajustable.');
-      return updateEmployeeLeaveSolde(employeeId, adjustYear, {
+      // Toujours l'année civile courante : écrire une autre année écraserait
+      // silencieusement une reprise historique (les bulletins passés relisent
+      // l'ajustement de LEUR année).
+      return updateEmployeeLeaveSolde(employeeId, currentYear, {
         compteur: adjustCompteur,
         solde_cible: parsed,
         note: adjustNote.trim() || null,
@@ -166,7 +165,8 @@ export function EmployeeDetailLeaveBalancesTab({
             </CardTitle>
             <CardDescription>
               Droits acquis, jours pris et soldes restants — le crayon d’une
-              ligne permet d’ajuster son solde (CP N-1, CP N, RTT, JTC).
+              ligne permet d’ajuster son solde (RTT, JTC). Les compteurs CP se
+              recalent par reprise d’un bulletin.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild className="shrink-0">
@@ -297,18 +297,7 @@ export function EmployeeDetailLeaveBalancesTab({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
-              <div className="space-y-2">
-                <Label htmlFor="employee-solde-year">Année</Label>
-                <Input
-                  id="employee-solde-year"
-                  type="number"
-                  min={2020}
-                  max={2035}
-                  value={adjustYear}
-                  onChange={(event) => setAdjustYear(Number(event.target.value) || currentYear)}
-                />
-              </div>
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="employee-solde-cible">
                   Solde restant souhaité (j)
