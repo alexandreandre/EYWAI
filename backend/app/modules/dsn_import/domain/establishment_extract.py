@@ -20,10 +20,17 @@ PAYROLL_MERGE_FIELDS = (
 )
 
 # Écrasés à chaque import DSN sans confirmation utilisateur.
-AUTO_OVERWRITE_FROM_DSN = frozenset({"taux_at_mp", "paie_occurrence"})
+AUTO_OVERWRITE_FROM_DSN = frozenset({"taux_at_mp"})
 
 # Remplis silencieusement uniquement si la base est vide (pas de case à cocher).
-AUTO_FILL_IF_EMPTY_FROM_DSN = frozenset({"paie_jour_de_fin", "effectif"})
+# Le couple (paie_jour_de_fin, paie_occurrence) est le régime d'arrêté des
+# variables, réglé à la main dans l'onglet Entreprise : un ré-import DSN ne
+# doit jamais le décaler. Cas concret : Colorplast est à (4, -2) =
+# avant-dernier vendredi ; l'inférence DSN poserait occurrence -1 (dernier
+# vendredi) et déplacerait la fenêtre de paie d'une semaine, silencieusement.
+AUTO_FILL_IF_EMPTY_FROM_DSN = frozenset(
+    {"paie_jour_de_fin", "paie_occurrence", "effectif"}
+)
 
 
 def extract_taux_at_mp(etab: EtablissementBlock) -> Optional[float]:
@@ -192,7 +199,7 @@ def apply_payroll_merge(
     existing: Optional[Dict[str, Any]],
     apply_fields: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
-    """Fusionne les paramètres paie DSN : AT/MP et occurrence écrasés, reste si vide."""
+    """Fusionne les paramètres paie DSN : AT/MP écrasé, le reste rempli si vide."""
     merged = dict(payload)
     merged["_payroll_conflicts"] = {}
 

@@ -65,7 +65,7 @@ export const DESCRIPTIONS_REGIME_PERIODE_PAIE: Record<RegimePeriodePaie, string>
     "précédent au dimanche de la semaine de l'avant-dernier vendredi — paies " +
     'bouclées vers le 24. Exemple : bulletin de juillet 2026 = semaines S26 à S30.',
   personnalise: 'Réglage spécifique (jour de la semaine et occurrence saisis à la main).',
-  non_defini: 'Aucun réglage : le moteur applique le mois civil.',
+  non_defini: "Aucun réglage : choisir un régime pour fixer l'arrêté des variables.",
 };
 
 export const formatJourDeFin = (day: number | null | undefined): string => {
