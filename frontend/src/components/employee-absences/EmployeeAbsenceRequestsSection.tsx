@@ -27,6 +27,8 @@ import {
   formatAbsenceDateRange,
   getAbsenceTypeLabel,
   getWorkflowStepLabel,
+  quotiteJoursDemande,
+  formatQuotiteJours,
 } from '@/lib/employeeAbsencesUtils';
 import { EmployeeAbsenceRequestActions } from './EmployeeAbsenceRequestActions';
 import { EmployeeAbsenceStatusBadge } from './EmployeeAbsenceStatusBadge';
@@ -44,13 +46,8 @@ interface EmployeeAbsenceRequestsSectionProps {
 
 function RequestMeta({ absence }: { absence: AbsenceRequest }) {
   const workflowLabel = getWorkflowStepLabel(absence.workflow_step);
-  const demi = absence.demi_journees ?? {};
-  const daysCount = (absence.selected_days ?? []).reduce(
-    (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
-    0,
-  );
-  const fmt = (n: number) =>
-    Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
+  const daysCount = quotiteJoursDemande(absence);
+  const fmt = formatQuotiteJours;
   const joursPayesNote =
     absence.type === 'conge_paye' &&
     absence.jours_payes != null &&
@@ -170,7 +167,7 @@ export function EmployeeAbsenceRequestsSection({
                           <RequestMeta absence={a} />
                         </TableCell>
                         <TableCell className="text-center">
-                          {a.selected_days?.length ?? 0}
+                          {formatQuotiteJours(quotiteJoursDemande(a))}
                         </TableCell>
                         <TableCell className="text-right">
                           <EmployeeAbsenceStatusBadge status={a.status} />

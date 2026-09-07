@@ -1,4 +1,5 @@
 import { RhPageHeader } from '@/components/layout';
+import { formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -180,15 +181,7 @@ export default function LeaveRequests() {
                     {formatDates(row.selected_days)}
                   </TableCell>
                   <TableCell>
-                    {(() => {
-                      const demi = row.demi_journees ?? {};
-                      const n = (row.selected_days ?? []).reduce(
-                        (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
-                        0,
-                      );
-                      return Number.isInteger(n) ? n : n.toFixed(1).replace('.', ',');
-                    })()}{' '}
-                    j.
+                    {formatQuotiteJours(quotiteJoursDemande(row))} j.
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button

@@ -1,6 +1,7 @@
 // Fichier : src/pages/Absences.tsx (VERSION COMPLÈTE ET AMÉLIORÉE)
 
 import { log } from '@/lib/logger';
+import { formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
@@ -192,11 +193,7 @@ export default function AbsencesPage() {
   // --- NOUVEAU : Fonction d'affichage intelligente des dates ---
   const renderDates = (days: string[], demiJournees?: Record<string, string> | null) => {
     if (!days || days.length === 0) return 'N/A';
-    const demi = demiJournees ?? {};
-    const count = days.reduce(
-      (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
-      0,
-    );
+    const count = quotiteJoursDemande({ selected_days: days, demi_journees: demiJournees });
     
     const sortedDates = days.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
     const groups = groupConsecutiveDates(sortedDates);
@@ -215,7 +212,7 @@ export default function AbsencesPage() {
 
     return (
       <div>
-        <p className="font-bold">{Number.isInteger(count) ? count : count.toFixed(1).replace('.', ',')} jour{count > 1 ? 's' : ''} :</p>
+        <p className="font-bold">{formatQuotiteJours(count)} jour{count > 1 ? 's' : ''} :</p>
         <div className="flex flex-col text-xs text-muted-foreground">
           {formattedParts.map((part, index) => (
             <span key={index}>{part}</span>
@@ -234,11 +231,7 @@ export default function AbsencesPage() {
     if (!balance || balance.remaining === 'N/A' || balance.remaining === 'selon événement') return <span className="text-muted-foreground">{balance?.remaining ?? 'N/A'}</span>;
 
     const remaining = balance.remaining as number;
-    const demi = req.demi_journees ?? {};
-    const requestedDaysCount = req.selected_days.reduce(
-      (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
-      0,
-    );
+    const requestedDaysCount = quotiteJoursDemande(req);
     const balanceAfterApproval = remaining - requestedDaysCount;
 
     const colorClass = balanceAfterApproval < 0 ? "text-destructive" : "text-muted-foreground";

@@ -30,6 +30,7 @@ import {
   EMPLOYEE_REQUESTABLE_ABSENCE_TYPES,
   RH_ONLY_ABSENCE_TYPES,
   formatCongePayeInsufficientMessage,
+  formatQuotiteJours,
   getAvailableCongePayeDays,
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
@@ -253,8 +254,7 @@ export function AbsenceRequestModal({
     (acc, day) => acc + (demiActives[format(day, 'yyyy-MM-dd')] ? 0.5 : 1),
     0,
   );
-  const formatJours = (n: number) =>
-    Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
+  const formatJours = formatQuotiteJours;
 
   // Un arrêt (hors mi-temps thérapeutique : travail partiel) se saisit en
   // période calendaire « du … au … » — l'expansion en jours est serveur.
@@ -742,7 +742,10 @@ export function AbsenceRequestModal({
                         </span>
                         <Select
                           value={valeur}
-                          onValueChange={(v) =>
+                          onValueChange={(v) => {
+                            // Une demi-journée peut faire repasser la quotité
+                            // sous le solde : l'erreur affichée est périmée.
+                            setError('');
                             setDemiJournees((prev) => {
                               const next = { ...prev };
                               if (v === 'matin' || v === 'apres_midi') {
@@ -751,8 +754,8 @@ export function AbsenceRequestModal({
                                 delete next[iso];
                               }
                               return next;
-                            })
-                          }
+                            });
+                          }}
                         >
                           <SelectTrigger className="h-8 w-40">
                             <SelectValue />

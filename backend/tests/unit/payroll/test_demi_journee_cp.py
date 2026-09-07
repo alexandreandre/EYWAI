@@ -5,8 +5,10 @@ porte `type="conges_payes"`, `heures_prevues=0`, `quotite_absence=0.5` et
 `demi_journee="matin"|"apres_midi"` (clés serveur). Le moteur doit :
 - émettre l'événement CP même si des heures sont pointées ce jour-là
   (l'autre demi-journée est travaillée) ;
-- conserver un CP à 0 h (un CP plein validé RH était silencieusement
-  supprimé : ni retenue, ni indemnité, ni arbitrage 1/10e au bulletin) ;
+- conserver une DEMI-journée de CP à 0 h (quotité < 1) — un CP PLEIN à 0 h
+  reste supprimé : comportement historique conservé tant que la récupération
+  modulation (même type calendrier) n'est pas distinguable, cf. NOTE sur
+  TYPES_SIGNIFICATIFS_A_ZERO_HEURE ;
 - compter 0,5 jour dans la retenue/indemnité CP.
 """
 
@@ -37,17 +39,31 @@ def _jour(annee, mois, jour, type_, heures_prevues, **extra):
 
 
 class TestAnalyzerDemiJourneeCp:
-    def test_cp_plein_a_zero_heure_atteint_le_bulletin(self):
-        """Un CP validé RH (heures_prevues=0) doit produire un événement —
-        c'était le bug : l'agrégation le jetait (0 h, type non significatif)."""
-        assert "conges_payes" in TYPES_SIGNIFICATIFS_A_ZERO_HEURE
+    def test_demi_cp_a_zero_heure_atteint_le_bulletin(self):
+        """Une demi-journée de CP (heures_prevues=0, quotite_absence=0.5)
+        survit à l'agrégation — calcul_brut la compte 0,5 jour."""
         planned = [
-            _jour(2026, 9, 14, "conges_payes", 0, origine="absence"),
+            _jour(
+                2026, 9, 14, "conges_payes", 0,
+                origine="absence", quotite_absence=0.5, demi_journee="matin",
+            ),
         ]
         events = analyser_horaires_du_mois(planned, [], 35.0, 2026, 9, "TEST")
         cp = [e for e in events if e["type"] == "conges_payes"]
         assert len(cp) == 1
         assert cp[0]["jour"] == 14
+        assert cp[0]["quotite_absence"] == 0.5
+
+    def test_cp_plein_a_zero_heure_reste_supprime(self):
+        """Comportement historique VOLONTAIREMENT conservé : un CP plein à
+        0 h n'atteint pas le bulletin (la récupération modulation partage le
+        même type calendrier — la distinction est un chantier séparé)."""
+        assert "conges_payes" not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE
+        planned = [
+            _jour(2026, 9, 14, "conges_payes", 0, origine="absence"),
+        ]
+        events = analyser_horaires_du_mois(planned, [], 35.0, 2026, 9, "TEST")
+        assert [e for e in events if e["type"] == "conges_payes"] == []
 
     def test_demi_cp_survit_aux_heures_pointees_le_meme_jour(self):
         """3,5 h pointées le matin + 0,5 CP l'après-midi : l'événement CP est

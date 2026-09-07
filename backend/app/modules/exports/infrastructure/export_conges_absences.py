@@ -56,6 +56,7 @@ def get_absences_for_export(
             type,
             status,
             selected_days,
+            demi_journees,
             comment,
             employee:employees(id, first_name, last_name)
             """
@@ -78,6 +79,9 @@ def get_absences_for_export(
             continue
         employee = row.get("employee") or {}
         absence_type = row.get("type") or ""
+        # Une demi-journée de CP (demi_journees) pèse 0,5 dans le nombre de jours.
+        demi = row.get("demi_journees") or {}
+        days_count = sum(0.5 if d in demi else 1.0 for d in days_in_period)
         normalized.append(
             {
                 "id": row.get("id"),
@@ -85,7 +89,7 @@ def get_absences_for_export(
                 "type": absence_type,
                 "type_label": ABSENCE_TYPE_LABELS.get(absence_type, absence_type),
                 "status": row.get("status"),
-                "days_count": len(days_in_period),
+                "days_count": days_count,
                 "days_in_period": days_in_period,
                 "employee_first_name": employee.get("first_name") or "",
                 "employee_last_name": employee.get("last_name") or "",

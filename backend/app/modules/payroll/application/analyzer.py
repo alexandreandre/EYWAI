@@ -22,13 +22,13 @@ logger = get_logger("modules.payroll.application.analyzer")
 # heures_prevues=0) : ne jamais les filtrer même à 0 h, sinon l'événement n'atteint
 # jamais calcul_brut et l'absence n'est jamais déduite. Partagé avec l'analyseur
 # forfait-jour (`engine.analyser_jours_forfait`), qui a le même repli.
-# `conges_payes` : un CP validé via le module absences est projeté à 0 h
-# (providers.py) ; calcul_brut le compte en JOURS (pas en heures) — le filtrer
-# supprimait la retenue ET l'indemnité CP du bulletin (l'arbitrage 1/10e ne
-# s'appliquait jamais). Sous maintien la correction est neutre sur le brut.
-TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset(
-    {"arret_maladie", "ferie", "conges_payes"}
-)
+# NOTE (chantier ouvert) : un CP PLEIN validé via le module absences est projeté
+# à 0 h et reste donc supprimé ici — aucune ligne CP au bulletin (l'arbitrage
+# 1/10e ne s'applique jamais). On ne peut PAS ajouter `conges_payes` tel quel :
+# la récupération modulation est projetée sous le MÊME type calendrier
+# (absence_calendar.ABSENCE_TYPE_TO_CALENDAR_TYPE) et générerait des lignes CP
+# indues. Correction à faire avec un marqueur distinguant les deux + backtest.
+TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset({"arret_maladie", "ferie"})
 
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "arret_type",
@@ -75,8 +75,17 @@ def _conserver_evenement_a_zero_heure(type_ev: str, meta: Dict[str, Any]) -> boo
     Bornes `date_*_arret_reel` : week-end/repos d'un arrêt non retypé, pour
     que le décompte calendaire (prévoyance / IJSS) survive à un mois qui
     ne contient que ce débordement — sans retenue 7 h (`type` inchangé).
+    `quotite_absence` < 1 : demi-journée de CP (projetée à 0 h) — calcul_brut
+    la compte en jours (0,5), l'événement doit donc survivre. Volontairement
+    limité aux demi-journées : cf. NOTE sur TYPES_SIGNIFICATIFS_A_ZERO_HEURE.
     """
     if type_ev in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+        return True
+    try:
+        quotite = float(meta.get("quotite_absence") or 0.0)
+    except (TypeError, ValueError):
+        quotite = 0.0
+    if 0.0 < quotite < 1.0:
         return True
     return bool(meta.get("date_debut_arret_reel") or meta.get("date_fin_arret_reel"))
 
