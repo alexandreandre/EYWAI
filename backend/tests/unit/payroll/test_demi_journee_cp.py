@@ -5,10 +5,10 @@ porte `type="conges_payes"`, `heures_prevues=0`, `quotite_absence=0.5` et
 `demi_journee="matin"|"apres_midi"` (clés serveur). Le moteur doit :
 - émettre l'événement CP même si des heures sont pointées ce jour-là
   (l'autre demi-journée est travaillée) ;
-- conserver une DEMI-journée de CP à 0 h (quotité < 1) — un CP PLEIN à 0 h
-  reste supprimé : comportement historique conservé tant que la récupération
-  modulation (même type calendrier) n'est pas distinguable, cf. NOTE sur
-  TYPES_SIGNIFICATIFS_A_ZERO_HEURE ;
+- conserver une DEMI-journée de CP à 0 h (quotité < 1), et un CP PLEIN à
+  0 h quand il porte le marqueur source_absence="conge_paye" (posé à la
+  génération depuis la demande d'origine — la récupération modulation, même
+  type calendrier, reste ignorée) ;
 - compter 0,5 jour dans la retenue/indemnité CP.
 """
 

@@ -208,6 +208,12 @@ def process_payslip_generation_forfait(
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
+        from app.modules.payroll.documents.payslip_generator import (
+            _stamp_source_absence_conges,
+        )
+
+        _stamp_source_absence_conges(planned_data_all_months, employee_id)
+
         last_day = calendar.monthrange(year, month)[1]
         expense_reports_res = (
             supabase.table("expense_reports")

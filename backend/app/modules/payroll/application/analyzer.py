@@ -22,12 +22,12 @@ logger = get_logger("modules.payroll.application.analyzer")
 # heures_prevues=0) : ne jamais les filtrer même à 0 h, sinon l'événement n'atteint
 # jamais calcul_brut et l'absence n'est jamais déduite. Partagé avec l'analyseur
 # forfait-jour (`engine.analyser_jours_forfait`), qui a le même repli.
-# NOTE (chantier ouvert) : un CP PLEIN validé via le module absences est projeté
-# à 0 h et reste donc supprimé ici — aucune ligne CP au bulletin (l'arbitrage
-# 1/10e ne s'applique jamais). On ne peut PAS ajouter `conges_payes` tel quel :
-# la récupération modulation est projetée sous le MÊME type calendrier
-# (absence_calendar.ABSENCE_TYPE_TO_CALENDAR_TYPE) et générerait des lignes CP
-# indues. Correction à faire avec un marqueur distinguant les deux + backtest.
+# NOTE : `conges_payes` n'y figure pas car la récupération modulation est
+# projetée sous le MÊME type calendrier (absence_calendar) ; la distinction se
+# fait par le marqueur `source_absence` posé à la génération depuis la demande
+# validée d'origine (payslip_generator._stamp_source_absence_conges) — seuls
+# les vrais congés payés sont conservés à 0 h (cf. _conserver_evenement_a_
+# zero_heure). Un jour sans marqueur (planning pur, reprise DSN) reste ignoré.
 TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset({"arret_maladie", "ferie"})
 
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
