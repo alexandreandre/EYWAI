@@ -27,12 +27,20 @@ ALTER TABLE public.employee_exits
   );
 
 -- 2) Correction du dossier BARBERET (id identique prod/test — copie).
+--    exit_notes est un JOURNAL jsonb : la correction s'y appose comme une
+--    entrée d'audit, au format des entrées existantes (exit_type_change).
 UPDATE employee_exits
 SET exit_type = 'transfert',
     last_working_day = '2026-02-28',
-    exit_notes = COALESCE(exit_notes, '')
-      || ' | Corrigé le 08/09/2026 : transfert intra-groupe vers ZONE 404 au'
-      || ' 28/02/2026, sans STC (solde CP et ancienneté conservés) — la fiche'
-      || ' portait à tort fin de période d''essai au 31/03.'
+    exit_notes = COALESCE(exit_notes, '{}'::jsonb) || jsonb_build_object(
+      'correction_transfert_20260908', jsonb_build_object(
+        'timestamp', now(),
+        'previous_exit_type', 'fin_periode_essai',
+        'previous_last_working_day', '2026-03-31',
+        'note', 'Transfert intra-groupe vers ZONE 404 au 28/02/2026, sans STC '
+                || '(solde CP et anciennete conserves) — la fiche portait a tort '
+                || 'fin de periode d''essai au 31/03. Source : declarante, 08/09/2026.'
+      )
+    )
 WHERE id = 'e58aea3e-8260-4a37-a42a-c568948fc4a4'
   AND exit_type = 'fin_periode_essai';
