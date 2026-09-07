@@ -44,6 +44,7 @@ _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "date_fin_arret_reel",  # vraie fin calendaire (week-end/férié en bord de mois)
     "quotite_absence",  # fraction de jour d'absence (0.5 = demi-journée de CP)
     "demi_journee",  # "matin" / "apres_midi" — informatif (affichage/traçabilité)
+    "source_absence",  # type de la demande d'origine (conge_paye / recuperation_modulation)
 )
 
 
@@ -80,6 +81,14 @@ def _conserver_evenement_a_zero_heure(type_ev: str, meta: Dict[str, Any]) -> boo
     limité aux demi-journées : cf. NOTE sur TYPES_SIGNIFICATIFS_A_ZERO_HEURE.
     """
     if type_ev in TYPES_SIGNIFICATIFS_A_ZERO_HEURE:
+        return True
+    if type_ev == "conges_payes" and meta.get("source_absence") == "conge_paye":
+        # Un VRAI congé payé validé (marqueur posé à la génération depuis la
+        # demande d'origine) atteint le bulletin même à 0 h : retenue +
+        # indemnité + arbitrage 1/10e. La récupération modulation, projetée
+        # sous le MÊME type calendrier, reste ignorée (aucune ligne CP) ; un
+        # jour sans marqueur (planning pur, reprise DSN) garde le comportement
+        # historique.
         return True
     try:
         quotite = float(meta.get("quotite_absence") or 0.0)

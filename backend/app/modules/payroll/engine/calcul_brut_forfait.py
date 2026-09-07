@@ -17,7 +17,11 @@ from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
-from .calcul_brut import _format_jours_conges, _jours_evenement_conges
+from .calcul_brut import (
+    _format_jours_conges,
+    _jours_evenement_conges,
+    _libelle_dates_conges,
+)
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -328,10 +332,15 @@ def calculer_salaire_brut_forfait(
             contexte, nombre_jours_conges, taux_horaire_equivalent
         )
 
+        dates_conges = _libelle_dates_conges(jours_conges_dans_periode)
+        libelle_conges = "Absence congés payés " + (
+            f"({_format_jours_conges(float(resultat_conges['nombre_jours']))} : {dates_conges})"
+            if dates_conges
+            else f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})"
+        )
         lignes_composants_brut.append(
             {
-                "libelle": "Absence congés payés "
-                f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})",
+                "libelle": libelle_conges,
                 "quantite": round(resultat_conges["total_heures_absence"], 2),
                 "taux": None,
                 "gain": None,

@@ -342,6 +342,55 @@ def _build_temps_travail_payload(employee_data: dict) -> dict[str, Any]:
     }
 
 
+def _source_conges_par_date(rows: list) -> dict:
+    """{date ISO: 'conge_paye' | 'recuperation_modulation'} depuis les demandes
+    validées. Un congé payé l'emporte si deux demandes couvrent le même jour."""
+    source_par_date: dict = {}
+    for row in rows or []:
+        type_demande = row.get("type")
+        for d in row.get("selected_days") or []:
+            iso = str(d)[:10]
+            if source_par_date.get(iso) != "conge_paye":
+                source_par_date[iso] = type_demande
+    return source_par_date
+
+
+def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> None:
+    """Étiquette chaque jour `conges_payes` avec le type de la demande validée
+    d'origine. Congé payé et récupération modulation partagent le MÊME type
+    calendrier, mais seuls les vrais CP produisent des lignes au bulletin
+    (retenue + indemnité, arbitrage 1/10e) — cf. analyzer.
+    _conserver_evenement_a_zero_heure. Lu en base à chaque génération : couvre
+    aussi l'historique projeté avant l'introduction du marqueur."""
+    if not employee_id:
+        return
+    jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
+    if not jours_cp:
+        return
+    try:
+        res = (
+            supabase.table("absence_requests")
+            .select("type, selected_days")
+            .eq("employee_id", employee_id)
+            .eq("status", "validated")
+            .in_("type", ["conge_paye", "recuperation_modulation"])
+            .execute()
+        )
+        rows = res.data or []
+    except Exception:
+        logger.exception("Étiquetage source_absence des congés ignoré")
+        return
+    source_par_date = _source_conges_par_date(rows)
+    for e in jours_cp:
+        try:
+            iso = date(int(e["annee"]), int(e["mois"]), int(e["jour"])).isoformat()
+        except (KeyError, TypeError, ValueError):
+            continue
+        src = source_par_date.get(iso)
+        if src:
+            e["source_absence"] = src
+
+
 def process_payslip_generation(
     employee_id: str,
     year: int,
@@ -494,6 +543,8 @@ def process_payslip_generation(
                 new_entry = entry.copy()
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
+
+        _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
         year_months = [(d["year"], d["month"]) for d in dates_to_process]
         actual_data_all_months = appliquer_repli_sans_pointage_par_mois(

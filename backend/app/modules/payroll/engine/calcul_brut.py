@@ -57,6 +57,48 @@ def _jours_evenement_conges(evenement: Dict[str, Any]) -> float:
     return min(quotite, 1.0)
 
 
+def _libelle_dates_conges(evenements: List[Dict[str, Any]]) -> str:
+    """« 13/07, 15/07→17/07, 21/07 (½) » — plages de jours pleins consécutifs
+    compressées, demi-journées marquées. Chaîne vide si aucune date lisible."""
+    jours: List[tuple] = []
+    for ev in evenements:
+        try:
+            d = date.fromisoformat(ev["date_complete"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        jours.append((d, 0.0 < _jours_evenement_conges(ev) < 1.0))
+    if not jours:
+        return ""
+    jours.sort()
+    segments: List[str] = []
+    debut, fin = None, None
+
+    def _flush():
+        if debut is None:
+            return
+        if debut == fin:
+            segments.append(debut.strftime("%d/%m"))
+        else:
+            segments.append(f"{debut.strftime('%d/%m')}→{fin.strftime('%d/%m')}")
+
+    for d, est_demi in jours:
+        if est_demi:
+            _flush()
+            debut, fin = None, None
+            segments.append(f"{d.strftime('%d/%m')} (½)")
+            continue
+        if fin is not None and (d - fin).days == 1:
+            fin = d
+            continue
+        _flush()
+        debut, fin = d, d
+    _flush()
+    libelle = ", ".join(segments)
+    if len(libelle) > 70 and len(jours) > 1:
+        return f"du {jours[0][0].strftime('%d/%m')} au {jours[-1][0].strftime('%d/%m')}"
+    return libelle
+
+
 def _format_jours_conges(nombre: float) -> str:
     """« 1 jour », « 5 jours », « 0,5 jour », « 2,5 jours » (libellé bulletin)."""
     if nombre == int(nombre):
@@ -1148,10 +1190,15 @@ def calculer_salaire_brut(
         resultat_conges = calculer_indemnite_conges(
             contexte, nombre_jours_conges, taux_horaire_de_base
         )
+        dates_conges = _libelle_dates_conges(jours_conges_dans_periode)
+        libelle_conges = "Absence congés payés " + (
+            f"({_format_jours_conges(float(resultat_conges['nombre_jours']))} : {dates_conges})"
+            if dates_conges
+            else f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})"
+        )
         lignes_composants_brut.append(
             {
-                "libelle": "Absence congés payés "
-                f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})",
+                "libelle": libelle_conges,
                 "quantite": round(resultat_conges["total_heures_absence"], 2),
                 "taux": None,
                 "gain": None,

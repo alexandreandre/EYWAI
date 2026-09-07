@@ -54,10 +54,36 @@ class TestAnalyzerDemiJourneeCp:
         assert cp[0]["jour"] == 14
         assert cp[0]["quotite_absence"] == 0.5
 
-    def test_cp_plein_a_zero_heure_reste_supprime(self):
-        """Comportement historique VOLONTAIREMENT conservé : un CP plein à
-        0 h n'atteint pas le bulletin (la récupération modulation partage le
-        même type calendrier — la distinction est un chantier séparé)."""
+    def test_cp_plein_marque_conge_paye_atteint_le_bulletin(self):
+        """Un jour CP à 0 h dont la demande d'origine est un VRAI congé payé
+        (marqueur source_absence posé à la génération) est conservé : la
+        retenue, l'indemnité et l'arbitrage 1/10e apparaissent au bulletin."""
+        planned = [
+            _jour(
+                2026, 9, 14, "conges_payes", 0,
+                origine="absence", source_absence="conge_paye",
+            ),
+        ]
+        events = analyser_horaires_du_mois(planned, [], 35.0, 2026, 9, "TEST")
+        cp = [e for e in events if e["type"] == "conges_payes"]
+        assert len(cp) == 1
+        assert cp[0]["source_absence"] == "conge_paye"
+
+    def test_recuperation_modulation_reste_invisible(self):
+        """Une récup modulation (même type calendrier que les CP) ne produit
+        JAMAIS de ligne CP."""
+        planned = [
+            _jour(
+                2026, 9, 14, "conges_payes", 0,
+                origine="absence", source_absence="recuperation_modulation",
+            ),
+        ]
+        events = analyser_horaires_du_mois(planned, [], 35.0, 2026, 9, "TEST")
+        assert [e for e in events if e["type"] == "conges_payes"] == []
+
+    def test_cp_plein_sans_marqueur_reste_supprime(self):
+        """Comportement historique conservé pour un jour sans marqueur
+        (planning pur, reprise DSN) : ignoré à 0 h."""
         assert "conges_payes" not in TYPES_SIGNIFICATIFS_A_ZERO_HEURE
         planned = [
             _jour(2026, 9, 14, "conges_payes", 0, origine="absence"),
