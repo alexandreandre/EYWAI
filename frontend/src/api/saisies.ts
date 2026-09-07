@@ -23,6 +23,8 @@ export interface MonthlyInput {
   amount: number;
   is_socially_taxed: boolean;
   is_taxable: boolean;
+  /** Id catalogue (ex. "prime_partage_valeur") — déclenche les traitements dédiés du moteur (PPV…). */
+  catalog_prime_id?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -247,9 +247,11 @@ export function AbsenceRequestModal({
 
   const selectedDaysCount = selectedDays?.length ?? 0;
 
-  // Quotité demandée en jours : une demi-journée de CP pèse 0,5. Les
-  // demi-journées ne concernent que les congés payés.
-  const demiActives = absenceType === 'conge_paye' ? demiJournees : {};
+  // Quotité demandée en jours : une demi-journée pèse 0,5. Les demi-journées
+  // ne concernent que les congés payés et les RTT.
+  const typeAvecDemiJournees =
+    absenceType === 'conge_paye' || absenceType === 'rtt';
+  const demiActives = typeAvecDemiJournees ? demiJournees : {};
   const quotiteSelectionnee = (selectedDays ?? []).reduce(
     (acc, day) => acc + (demiActives[format(day, 'yyyy-MM-dd')] ? 0.5 : 1),
     0,
@@ -328,7 +330,7 @@ export function AbsenceRequestModal({
       if (isArretPrincipalType(absenceType)) {
         payload.arret_type = arretType as absencesApi.ArretType;
       }
-      if (absenceType === 'conge_paye') {
+      if (typeAvecDemiJournees) {
         // Seuls les jours encore sélectionnés partent (une désélection ne
         // doit pas laisser une demi-journée orpheline dans le payload).
         const jours = new Set(
@@ -722,7 +724,7 @@ export function AbsenceRequestModal({
                 )}
               </PopoverContent>
             </Popover>
-            {absenceType === 'conge_paye' && (selectedDays?.length ?? 0) > 0 && (
+            {typeAvecDemiJournees && (selectedDays?.length ?? 0) > 0 && (
               <div className="space-y-1 rounded-md border p-2">
                 <p className="text-xs text-muted-foreground">
                   Journée entière ou demi-journée, jour par jour :

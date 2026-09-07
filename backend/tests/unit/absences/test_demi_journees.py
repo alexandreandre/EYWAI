@@ -23,11 +23,20 @@ class TestSchemaDemiJournees:
         )
         assert req.demi_journees == {date(2026, 9, 15): "matin"}
 
-    def test_demi_journee_refusee_hors_cp(self):
+    def test_demi_journee_acceptee_pour_rtt(self):
+        req = AbsenceRequestCreate(
+            employee_id="emp-1",
+            type="rtt",
+            selected_days=[date(2026, 9, 14)],
+            demi_journees={date(2026, 9, 14): "apres_midi"},
+        )
+        assert req.demi_journees == {date(2026, 9, 14): "apres_midi"}
+
+    def test_demi_journee_refusee_hors_cp_et_rtt(self):
         with pytest.raises(ValueError, match="congés payés"):
             AbsenceRequestCreate(
                 employee_id="emp-1",
-                type="rtt",
+                type="jtc",
                 selected_days=[date(2026, 9, 14)],
                 demi_journees={date(2026, 9, 14): "matin"},
             )

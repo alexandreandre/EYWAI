@@ -1,6 +1,7 @@
 // src/pages/Saisies.tsx - Page avec sous-onglets Primes et Participation & Intéressement
 
 import { useState } from 'react';
+import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import { RhPageHeader } from '@/components/layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Gift, Calculator } from "lucide-react";
@@ -8,8 +9,13 @@ import { PrimesTab } from "@/components/saisies/PrimesTab";
 import { ParticipationInteressementTab } from "@/components/saisies/ParticipationInteressementTab";
 
 export default function Saisies() {
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  // Mois de PAIE par défaut (≤ 15 → mois précédent), pas le mois calendaire :
+  // une prime saisie « pour la paie en cours » doit tomber sur le mois du
+  // bulletin — une PPV saisie sur le mauvais mois n'atteint jamais le
+  // bulletin (retour Gaëlle 07/09).
+  const moisPaie = moisDePaieParDefaut(new Date());
+  const [selectedYear, setSelectedYear] = useState<number>(moisPaie.year);
+  const [selectedMonth, setSelectedMonth] = useState<number>(moisPaie.month);
   const [activeTab, setActiveTab] = useState("primes");
 
   return (

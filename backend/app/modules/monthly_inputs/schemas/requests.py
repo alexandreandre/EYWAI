@@ -26,6 +26,10 @@ class MonthlyInput(BaseModel):
     amount: float
     is_socially_taxed: bool = True
     is_taxable: bool = True
+    # Id de la prime du catalogue (ex. "prime_partage_valeur") : c'est lui qui
+    # déclenche les traitements dédiés du moteur (exonération PPV…). Sans lui,
+    # le bulletin retombe sur les seuls flags de la saisie.
+    catalog_prime_id: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -42,6 +46,7 @@ class MonthlyInputCreate(BaseModel):
     amount: float
     is_socially_taxed: bool = True
     is_taxable: bool = True
+    catalog_prime_id: Optional[str] = None
 
 
 class MonthlyInputUpdate(BaseModel):

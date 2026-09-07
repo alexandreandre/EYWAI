@@ -272,6 +272,85 @@ class TestCalculerSalaireBrutNonRegression:
         assert (cp[0].get("perte") or 0) == pytest.approx(RETENUE_CP_S4, abs=0.02)
 
 
+class TestAbsenceInjustifieeRepartitionBaseHs:
+    """Contrat 39 h : la retenue « base » d'une absence injustifiée se
+    plafonne à la référence légale journalière (7 h) et alimente la
+    « Réduction HS structurelles » — même règle que l'arrêt maladie
+    (retour Gaëlle 07/09 : 8,5 h retenues plein taux base, réduction HS
+    jamais déclenchée → sur-retenue base, sous-retenue HS)."""
+
+    def _ctx_39h(self):
+        ctx = _make_contexte_mock()
+        ctx.duree_hebdo_contrat = 39.0
+        return ctx
+
+    def test_journee_complete_plafonnee_a_7h_et_reduction_hs(self):
+        wd = _weekdays_march_2025()
+        calendrier = [
+            {
+                "date_complete": wd[2].isoformat(),
+                "type": "absence_injustifiee_base",
+                "heures": 8.5,
+            }
+        ]
+        d0, d1 = _periode_mars_2025()
+        r = calculer_salaire_brut(self._ctx_39h(), calendrier, d0, d1)
+
+        lignes = r["lignes_composants_brut"]
+        absence = [
+            L for L in lignes if "Absence injustifiée" in (L.get("libelle") or "")
+        ]
+        assert len(absence) == 1
+        assert absence[0]["quantite"] == pytest.approx(7.0)
+
+        reduction = [
+            L
+            for L in lignes
+            if "Réduction HS structurelles" in (L.get("libelle") or "")
+        ]
+        assert len(reduction) == 1
+        # 17,333 h HS structurelles/mois × 1 jour / 21,667 jours légaux ≈ 0,80 h
+        assert reduction[0]["quantite"] == pytest.approx(0.80, abs=0.01)
+
+    def test_absence_fractionnaire_imputee_a_sa_valeur(self):
+        wd = _weekdays_march_2025()
+        calendrier = [
+            {
+                "date_complete": wd[2].isoformat(),
+                "type": "absence_injustifiee_base",
+                "heures": 0.25,
+            }
+        ]
+        d0, d1 = _periode_mars_2025()
+        r = calculer_salaire_brut(self._ctx_39h(), calendrier, d0, d1)
+        absence = [
+            L
+            for L in r["lignes_composants_brut"]
+            if "Absence injustifiée" in (L.get("libelle") or "")
+        ]
+        assert len(absence) == 1
+        assert absence[0]["quantite"] == pytest.approx(0.25)
+
+    def test_contrat_35h_sans_hs_structurelles_pas_de_reduction(self):
+        wd = _weekdays_march_2025()
+        calendrier = [
+            {
+                "date_complete": wd[2].isoformat(),
+                "type": "absence_injustifiee_base",
+                "heures": 7.0,
+            }
+        ]
+        ctx = _make_contexte_mock()  # 35 h
+        d0, d1 = _periode_mars_2025()
+        r = calculer_salaire_brut(ctx, calendrier, d0, d1)
+        reduction = [
+            L
+            for L in r["lignes_composants_brut"]
+            if "Réduction HS structurelles" in (L.get("libelle") or "")
+        ]
+        assert reduction == []
+
+
 class TestCreerBulletinFinalNonRegression:
     def test_assemblage_scenario_1(self):
         ctx = _make_contexte_mock()

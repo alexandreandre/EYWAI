@@ -17,6 +17,11 @@ export const CALENDAR_TYPE_LABELS: Record<string, string> = {
   arret_maladie: 'Arrêt maladie',
   weekend: 'Week-end',
   repos: 'Repos',
+  // Types posés par les reprises DSN : sans libellé ni édition, un jour
+  // « absence non rémunérée » hérité était invisible et incorrigible
+  // (cas Marion 30/06, retour Gaëlle 07/09).
+  absence_non_remuneree: 'Absence non rémunérée',
+  absence_justifiee: 'Absence justifiée',
 };
 
 export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
@@ -29,6 +34,8 @@ export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
   arret_maladie: 'bg-red-500',
   weekend: 'bg-slate-400',
   repos: 'bg-slate-400',
+  absence_non_remuneree: 'bg-orange-500',
+  absence_justifiee: 'bg-amber-500',
 };
 
 /** Fonds de cellule/carte teintés par type (mêmes teintes que la vue semaine). */
@@ -42,6 +49,8 @@ export const CALENDAR_TYPE_BG_COLORS: Record<string, string> = {
   arret_maladie: 'bg-red-50 hover:bg-red-100 border-red-200/60',
   weekend: 'bg-slate-50 hover:bg-slate-100 border-slate-200/60',
   repos: 'bg-slate-50 hover:bg-slate-100 border-slate-200/60',
+  absence_non_remuneree: 'bg-orange-50 hover:bg-orange-100 border-orange-200/60',
+  absence_justifiee: 'bg-amber-50 hover:bg-amber-100 border-amber-200/60',
 };
 
 export const CALENDAR_LEGEND_ITEMS: {

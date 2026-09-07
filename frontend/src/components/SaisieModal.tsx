@@ -94,6 +94,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [bonusTypes, setBonusTypes] = useState<BonusType[]>([]);
   const [isCustomPrime, setIsCustomPrime] = useState(true);
   const [selectedBonusTypeId, setSelectedBonusTypeId] = useState<string | null>(null);
+  // Id de la prime du CATALOGUE national sélectionnée (null = prime maison).
+  const [catalogPrimeId, setCatalogPrimeId] = useState<string | null>(null);
   const [showCreatePrimeForm, setShowCreatePrimeForm] = useState(false);
   const [primeForm, setPrimeForm] = useState(initialPrimeForm);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -129,6 +131,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       setPrimeForm(initialPrimeForm);
       setIsCustomPrime(true);
       setSelectedBonusTypeId(null);
+      setCatalogPrimeId(null);
       setShowCreatePrimeForm(false);
       setIsCalculating(false);
       if (employeeScopeId) {
@@ -276,6 +279,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       amount: amountsByEmployee[empId] !== undefined ? amountsByEmployee[empId] : Number(formData.amount),
       is_socially_taxed: formData.is_socially_taxed,
       is_taxable: formData.is_taxable,
+      catalog_prime_id: isCustomPrime ? undefined : catalogPrimeId ?? undefined,
       year: currentYear,
       month: currentMonth,
     }));
@@ -289,6 +293,10 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       is_socially_taxed: prime.soumise_a_cotisations,
       is_taxable: prime.soumise_a_impot,
     }));
+    // L'id catalogue voyage jusqu'au bulletin : c'est lui qui déclenche les
+    // traitements dédiés (ex. exonération PPV) — sans lui, le moteur ne
+    // reconnaît la prime que par ses flags.
+    setCatalogPrimeId(prime.id);
     setIsCustomPrime(false);
     setSelectedBonusTypeId(null);
     setShowCreatePrimeForm(false);
@@ -300,6 +308,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
 
     setSelectedBonusTypeId(bonusTypeId);
     setIsCustomPrime(false);
+    setCatalogPrimeId(null);
     setShowCreatePrimeForm(false);
 
     setFormData(prev => ({
@@ -358,6 +367,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const handleCreatePrimeClick = () => {
     setShowCreatePrimeForm(true);
     setSelectedBonusTypeId(null);
+    setCatalogPrimeId(null);
     setIsCustomPrime(true);
     setFormData(prev => ({ ...prev, name: "", amount: "" }));
   };
@@ -394,6 +404,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
     const isStandardPrime = primesCatalogue.some(p => p.libelle === value) ||
                            bonusTypes.some(bt => bt.libelle === value);
     setIsCustomPrime(!isStandardPrime);
+    setCatalogPrimeId(primesCatalogue.find(p => p.libelle === value)?.id ?? null);
     setSelectedBonusTypeId(null);
     setShowCreatePrimeForm(false);
   };

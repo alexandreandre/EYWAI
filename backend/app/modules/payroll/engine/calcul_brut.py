@@ -903,6 +903,24 @@ def calculer_salaire_brut(
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             if is_hs_absence:
                 heures_absence_hs_total += heures_abs
+            else:
+                # Même règle que l'arrêt maladie (cf. bloc arret_maladie plus
+                # bas, cas OSMANI2) : la retenue « base » d'une journée
+                # d'absence se plafonne à la référence journalière LÉGALE
+                # (min(contrat, 35)/5). Un contrat 39 h planifié 8,5 h/j
+                # retenait 8,5 h au taux de base — les heures structurelles
+                # du jour, payées majorées, étaient retenues au taux normal —
+                # et la quote-part d'HS structurelles n'était jamais réduite
+                # (retour Gaëlle 07/09, GAUTHERON juillet : sur-retenue base
+                # +19,72 € et réduction HS absente). Le `min` préserve les
+                # absences fractionnaires (0,25 h reste 0,25 h).
+                heures_abs = min(
+                    heures_abs, _heures_journalieres_contrat(duree_contrat_hebdo)
+                )
+                if not evenement.get("is_regularisation_anterieure"):
+                    jours_absence_legale_equivalents += (
+                        heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                    )
 
             montant_deduction = round(heures_abs * taux_deduction, 2)
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(

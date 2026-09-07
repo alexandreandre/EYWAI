@@ -67,19 +67,20 @@ class AbsenceRequestCreate(BaseModel):
         None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
     )
     arret_type: Optional[ArretType] = None
-    # Demi-journées de congé payé : {"2026-09-14": "matin"} — un jour absent de
-    # ce dict est un jour plein. Réservé aux CP : les arrêts sont calendaires
-    # par construction, et les autres compteurs (RTT, JTC…) restent au jour
-    # plein tant que le besoin n'existe pas.
+    # Demi-journées : {"2026-09-14": "matin"} — un jour absent de ce dict est
+    # un jour plein. Réservé aux CP et RTT (demande Gaëlle 07/09) : les arrêts
+    # sont calendaires par construction, et les autres compteurs (JTC…)
+    # restent au jour plein tant que le besoin n'existe pas.
     demi_journees: Optional[Dict[date, Literal["matin", "apres_midi"]]] = None
 
     @model_validator(mode="after")
     def demi_journees_reservees_aux_cp(self) -> "AbsenceRequestCreate":
         if not self.demi_journees:
             return self
-        if self.type != "conge_paye":
+        if self.type not in ("conge_paye", "rtt"):
             raise ValueError(
-                "La demi-journée n'est disponible que pour les congés payés."
+                "La demi-journée n'est disponible que pour les congés payés "
+                "et les RTT."
             )
         jours = set(self.selected_days)
         hors_selection = [d for d in self.demi_journees if d not in jours]

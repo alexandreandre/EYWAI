@@ -41,6 +41,10 @@ const EDITABLE_TYPES = [
   { value: 'ferie', label: 'Férié' },
   { value: 'arret_maladie', label: 'Arrêt maladie' },
   { value: 'weekend', label: 'Week-end' },
+  // Posé par les reprises DSN (jamais par la validation d'absence) : doit
+  // rester corrigeable à la main — un jour hérité mal placé était
+  // impossible à retyper (cas Marion 30/06, retour Gaëlle 07/09).
+  { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
 ] as const;
 
 const DEFAULT_SCALE_HOURS = 10;
