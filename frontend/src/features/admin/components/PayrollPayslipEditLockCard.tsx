@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
 export function PayrollPayslipEditLockCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [cutoffDay, setCutoffDay] = useState('15');
+  const [lockEnabled, setLockEnabled] = useState(true);
 
   const { data, isLoading } = useQuery({
     queryKey: ['payslip-edit-lock'],
@@ -26,6 +28,9 @@ export function PayrollPayslipEditLockCard() {
     if (data?.cutoff_day_of_next_month != null) {
       setCutoffDay(String(data.cutoff_day_of_next_month));
     }
+    if (data) {
+      setLockEnabled(data.enabled !== false);
+    }
   }, [data]);
 
   const saveMutation = useMutation({
@@ -34,11 +39,15 @@ export function PayrollPayslipEditLockCard() {
       if (Number.isNaN(parsed) || parsed < 1 || parsed > 28) {
         throw new Error('Le jour doit être un entier entre 1 et 28.');
       }
-      return updatePayslipEditLockSettings({ cutoff_day_of_next_month: parsed });
+      return updatePayslipEditLockSettings({
+        cutoff_day_of_next_month: parsed,
+        enabled: lockEnabled,
+      });
     },
     onSuccess: (result) => {
       queryClient.setQueryData(['payslip-edit-lock'], {
         cutoff_day_of_next_month: result.cutoff_day_of_next_month,
+        enabled: result.enabled,
       });
       toast({ title: 'Règle de verrouillage enregistrée' });
     },
@@ -64,6 +73,21 @@ export function PayrollPayslipEditLockCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex items-center justify-between gap-4 rounded-lg border p-3 max-w-md">
+          <div>
+            <Label htmlFor="payslip-edit-lock-enabled">Verrouillage actif</Label>
+            <p className="text-xs text-muted-foreground">
+              Désactivé : l’édition manuelle reste ouverte sans limite de date
+              (utilisé pendant la recette).
+            </p>
+          </div>
+          <Switch
+            id="payslip-edit-lock-enabled"
+            checked={lockEnabled}
+            disabled={isLoading || saveMutation.isPending}
+            onCheckedChange={setLockEnabled}
+          />
+        </div>
         <div className="space-y-2 max-w-xs">
           <Label htmlFor="payslip-edit-lock-day">Jour du mois suivant</Label>
           <Input

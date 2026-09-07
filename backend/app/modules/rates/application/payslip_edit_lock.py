@@ -23,9 +23,10 @@ def save_payslip_edit_lock_settings(
     cutoff_day_of_next_month: int,
     actor_label: str,
     comment: str | None = None,
+    enabled: bool = True,
 ) -> dict[str, Any]:
     cutoff = normalize_cutoff_day(cutoff_day_of_next_month)
-    config_data = {"cutoff_day_of_next_month": cutoff}
+    config_data = {"cutoff_day_of_next_month": cutoff, "enabled": bool(enabled)}
     result = apply_manual_rate_override(
         writer,
         config_key=CONFIG_KEY,
@@ -33,4 +34,4 @@ def save_payslip_edit_lock_settings(
         actor_label=actor_label,
         comment=comment,
     )
-    return {"cutoff_day_of_next_month": cutoff, **result}
+    return {"cutoff_day_of_next_month": cutoff, "enabled": bool(enabled), **result}

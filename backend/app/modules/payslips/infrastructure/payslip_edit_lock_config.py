@@ -14,8 +14,13 @@ from app.modules.payroll.engine.baremes_loader import ensure_dict
 CONFIG_KEY = "payslip_edit_lock"
 
 
+def _coerce_enabled(value: Any) -> bool:
+    """Seul un `false` booléen explicite désactive le verrou (sécurité par défaut)."""
+    return value if isinstance(value, bool) else True
+
+
 def get_payslip_edit_lock_config() -> dict[str, Any]:
-    """Retourne la config active (cutoff_day_of_next_month)."""
+    """Retourne la config active (cutoff_day_of_next_month, enabled)."""
     try:
         response = (
             supabase.table("payroll_config")
@@ -31,11 +36,18 @@ def get_payslip_edit_lock_config() -> dict[str, Any]:
         if rows:
             data = ensure_dict(rows[0].get("config_data"))
             cutoff = normalize_cutoff_day(data.get("cutoff_day_of_next_month"))
-            return {"cutoff_day_of_next_month": cutoff}
+            return {
+                "cutoff_day_of_next_month": cutoff,
+                "enabled": _coerce_enabled(data.get("enabled")),
+            }
     except Exception:
         pass
-    return {"cutoff_day_of_next_month": DEFAULT_CUTOFF_DAY}
+    return {"cutoff_day_of_next_month": DEFAULT_CUTOFF_DAY, "enabled": True}
 
 
 def get_cutoff_day_of_next_month() -> int:
     return int(get_payslip_edit_lock_config()["cutoff_day_of_next_month"])
+
+
+def is_payslip_edit_lock_enabled() -> bool:
+    return bool(get_payslip_edit_lock_config()["enabled"])

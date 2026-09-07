@@ -54,6 +54,10 @@ class PayslipEditLockUpdateRequest(BaseModel):
         le=28,
         description="Jour du mois suivant à partir duquel l'édition manuelle est bloquée",
     )
+    enabled: bool = Field(
+        default=True,
+        description="False = verrou entièrement désactivé (édition manuelle toujours permise)",
+    )
     comment: str | None = Field(
         default=None,
         max_length=500,

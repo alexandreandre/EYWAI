@@ -140,16 +140,20 @@ export async function saveManualRate(
 
 export type PayslipEditLockSettings = {
   cutoff_day_of_next_month: number;
+  /** false = verrou entièrement désactivé (édition manuelle toujours permise). */
+  enabled?: boolean;
 };
 
 export type PayslipEditLockUpdateRequest = {
   cutoff_day_of_next_month: number;
+  enabled?: boolean;
   comment?: string | null;
 };
 
 export type PayslipEditLockUpdateResponse = {
   success: boolean;
   cutoff_day_of_next_month: number;
+  enabled?: boolean;
   config_key?: string;
   version?: number;
   changed?: boolean;

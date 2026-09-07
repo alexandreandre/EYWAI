@@ -141,6 +141,7 @@ def patch_payslip_edit_lock_endpoint(
             cutoff_day_of_next_month=body.cutoff_day_of_next_month,
             actor_label=actor_label,
             comment=body.comment,
+            enabled=body.enabled,
         )
         return {"success": True, **result}
     except HTTPException:
