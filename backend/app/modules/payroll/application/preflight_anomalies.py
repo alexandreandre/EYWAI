@@ -247,7 +247,9 @@ def build_preflight_anomalies(
         validated_days = validated_absence_days_in_month(
             absences_by_emp.get(eid, []), year, month
         )
-        conflict_days = detect_absence_conflict_days(planned_days, validated_days)
+        conflict_days = detect_absence_conflict_days(
+            planned_days, validated_days, year, month
+        )
         if conflict_days:
             anomaly = PreflightAnomaly(
                 id=_anomaly_id(eid, "conflit_absence"),

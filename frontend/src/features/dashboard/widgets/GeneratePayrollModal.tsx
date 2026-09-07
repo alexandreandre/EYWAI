@@ -468,6 +468,16 @@ export function GeneratePayrollModal({
                       Nouvelle sélection
                     </Button>
                   )}
+                  {/* La consultation groupée reste accessible même si des
+                      bulletins ont échoué : un job en erreur ne doit pas
+                      priver la RH de la vue mensuelle des bulletins générés
+                      (retour Gaëlle 07/09 — seule l'auto-navigation reste
+                      réservée au succès complet). */}
+                  {uiPhase === 'done' && errorCount > 0 && onNavigateTo && (
+                    <Button variant="outline" onClick={handleTermineeSucces}>
+                      Voir les bulletins
+                    </Button>
+                  )}
                   <Button
                     className="bg-cyan-500 hover:bg-cyan-600 text-white"
                     onClick={

@@ -8,6 +8,7 @@ from app.modules.schedules.domain.ecart_rules import (
     compute_month_completion,
     compute_row_status,
     detect_absence_conflict_days,
+    validated_absence_days_in_month,
     detect_absence_conflicts,
     is_day_ready_for_payroll,
     is_significant_ecart,
@@ -151,14 +152,48 @@ class TestComputeRowStatus:
 
 
 class TestAbsenceConflicts:
+    # Juin 2026 : le 10 est un mercredi, les 13/14 un week-end.
+
     def test_detect_conflict_when_travail_on_absence_day(self):
         planned = [_weekday_planned(10)]
-        assert detect_absence_conflicts(planned, {10}) == 1
-        assert detect_absence_conflict_days(planned, {10}) == [10]
+        assert detect_absence_conflicts(planned, {10}, 2026, 6) == 1
+        assert detect_absence_conflict_days(planned, {10}, 2026, 6) == [10]
 
     def test_no_conflict_when_conge(self):
         planned = [{"jour": 10, "type": "conge", "heures_prevues": 0}]
-        assert detect_absence_conflicts(planned, {10}) == 0
+        assert detect_absence_conflicts(planned, {10}, 2026, 6) == 0
+
+    def test_no_conflict_when_conges_payes_rtt_ou_ferie(self):
+        """Un CP/RTT correctement projeté n'est PAS un conflit (retour
+        Gaëlle 07/09 : chaque CP saisi se déclarait en conflit)."""
+        for type_jour in ("conges_payes", "rtt", "arret_maladie", "ferie"):
+            planned = [{"jour": 10, "type": type_jour, "heures_prevues": 0}]
+            assert detect_absence_conflicts(planned, {10}, 2026, 6) == 0, type_jour
+
+    def test_no_conflict_weekend_couvert_par_arret(self):
+        """Un arrêt calendaire couvre le week-end sans le retyper : les
+        samedis/dimanches (typés weekend ou sans ligne) ne sont pas des
+        conflits."""
+        planned = [{"jour": 13, "type": "weekend", "heures_prevues": 0}]
+        assert detect_absence_conflict_days(planned, {13, 14}, 2026, 6) == []
+
+    def test_conflict_weekend_type_en_semaine(self):
+        planned = [{"jour": 10, "type": "weekend", "heures_prevues": 0}]
+        assert detect_absence_conflicts(planned, {10}, 2026, 6) == 1
+
+    def test_repos_jamais_en_conflit(self):
+        planned = [{"jour": 10, "type": "repos", "heures_prevues": 0}]
+        assert detect_absence_conflicts(planned, {10}, 2026, 6) == 0
+
+    def test_jtc_et_sans_solde_ignores_du_decompte(self):
+        """jtc/sans_solde n'écrivent jamais le calendrier (par design) :
+        leurs demandes validées ne créent pas de jours attendus."""
+        absences = [
+            {"type": "jtc", "selected_days": ["2026-06-10"]},
+            {"type": "sans_solde", "selected_days": ["2026-06-11"]},
+            {"type": "conge_paye", "selected_days": ["2026-06-12"]},
+        ]
+        assert validated_absence_days_in_month(absences, 2026, 6) == {12}
 
 
 class TestDayEcartsAndHeuresSup:

@@ -176,7 +176,7 @@ def _build_calendriers_overview(
         validated_days = validated_absence_days_in_month(
             absences_by_emp.get(eid, []), year, month
         )
-        if detect_absence_conflicts(planned_days, validated_days) > 0:
+        if detect_absence_conflicts(planned_days, validated_days, year, month) > 0:
             conflits += 1
 
     progress = round((saisis / total) * 100) if total else 0

@@ -9,6 +9,8 @@ import calendar
 from datetime import date, datetime
 from typing import Any, Dict, List, Set
 
+from app.shared.domain.absence_calendar import ABSENCE_CALENDAR_TYPES
+
 ECART_THRESHOLD_HOURS = 2.0
 ECART_THRESHOLD_RATIO = 0.1
 
@@ -133,12 +135,28 @@ def month_period_bounds(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, last_day)
 
 
+# Types de demande qui n'écrivent JAMAIS le calendrier (par design,
+# cf. shared/domain/absence_calendar.ABSENCE_TYPE_TO_CALENDAR_TYPE) : une
+# demande validée de ces types n'est pas un conflit de calendrier.
+_TYPES_DEMANDE_SANS_CALENDRIER = frozenset({"jtc", "sans_solde"})
+
+# Types de jour qui reflètent correctement une absence validée : la source
+# partagée ABSENCE_CALENDAR_TYPES (conge, conges_payes, rtt, arret_maladie)
+# + ferie (un férié couvert par une demande n'est jamais retypé). Miroir de
+# la détection frontend (src/lib/schedulesAbsenceConflict.ts) — l'ancienne
+# liste locale ("arret_maladie", "conge") déclarait en conflit chaque CP ou
+# RTT correctement projeté (retour Gaëlle 07/09, dossier GIRERD).
+_TYPES_JOUR_SANS_CONFLIT = frozenset(ABSENCE_CALENDAR_TYPES | {"ferie"})
+
+
 def validated_absence_days_in_month(
     absences: List[Dict[str, Any]], year: int, month: int
 ) -> Set[int]:
     days: Set[int] = set()
     start, end = month_period_bounds(year, month)
     for req in absences:
+        if str(req.get("type") or "") in _TYPES_DEMANDE_SANS_CALENDRIER:
+            continue
         selected = req.get("selected_days")
         if not isinstance(selected, list):
             continue
@@ -149,37 +167,53 @@ def validated_absence_days_in_month(
     return days
 
 
+def _jour_en_conflit(
+    row: Dict[str, Any] | None, day: int, year: int, month: int
+) -> bool:
+    """Un jour d'absence validée est en conflit si le calendrier le contredit.
+
+    Exemptions (mêmes règles que le frontend) : les types d'absence projetés
+    et `ferie` ; `repos` toujours ; `weekend` (ou ligne absente) un samedi ou
+    un dimanche — un arrêt calendaire couvre les week-ends sans les retyper.
+    """
+    try:
+        est_weekend = date(year, month, day).weekday() >= 5
+    except ValueError:
+        est_weekend = False
+    if not row:
+        return not est_weekend
+    t = str(row.get("type") or "")
+    if t in _TYPES_JOUR_SANS_CONFLIT:
+        return False
+    if t == "repos":
+        return False
+    if t == "weekend" and est_weekend:
+        return False
+    return True
+
+
 def detect_absence_conflicts(
-    planned_days: List[Dict[str, Any]], validated_days: Set[int]
+    planned_days: List[Dict[str, Any]],
+    validated_days: Set[int],
+    year: int,
+    month: int,
 ) -> int:
-    conflicts = 0
-    by_jour = {int(d.get("jour", 0)): d for d in planned_days if d.get("jour")}
-    for day in validated_days:
-        row = by_jour.get(day)
-        if not row:
-            conflicts += 1
-            continue
-        t = str(row.get("type") or "")
-        if t not in ("arret_maladie", "conge"):
-            conflicts += 1
-    return conflicts
+    return len(detect_absence_conflict_days(planned_days, validated_days, year, month))
 
 
 def detect_absence_conflict_days(
-    planned_days: List[Dict[str, Any]], validated_days: Set[int]
+    planned_days: List[Dict[str, Any]],
+    validated_days: Set[int],
+    year: int,
+    month: int,
 ) -> List[int]:
     """Retourne la liste des jours en conflit (absence validée vs calendrier)."""
-    conflict_days: List[int] = []
     by_jour = {int(d.get("jour", 0)): d for d in planned_days if d.get("jour")}
-    for day in sorted(validated_days):
-        row = by_jour.get(day)
-        if not row:
-            conflict_days.append(day)
-            continue
-        t = str(row.get("type") or "")
-        if t not in ("arret_maladie", "conge"):
-            conflict_days.append(day)
-    return conflict_days
+    return [
+        day
+        for day in sorted(validated_days)
+        if _jour_en_conflit(by_jour.get(day), day, year, month)
+    ]
 
 
 def compute_day_ecarts(
