@@ -7,7 +7,7 @@ La logique métier pure (sans DB, sans HTTP) est dans application (is_forfait_jo
 "domaine" exposé par le module.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -165,6 +165,52 @@ class TestDefinirPeriodeDePaie:
         assert date_fin is not None
         # La période s'arrête le dimanche de la semaine du jour de référence
         assert date_fin.weekday() == 6  # Dimanche
+
+
+def _contexte_avant_dernier_vendredi():
+    """Réglage Colorplast : arrêté à l'avant-dernier vendredi (4, -2)."""
+
+    class ContexteAvantDernierVendredi:
+        entreprise = {
+            "parametres_paie": {
+                "periode_de_paie": {"jour_de_fin": 4, "occurrence": -2},
+            }
+        }
+
+    return ContexteAvantDernierVendredi()
+
+
+class TestArreteAvantDernierVendredi:
+    """Arrêté des variables à l'avant-dernier vendredi — fenêtres exactes.
+
+    Pratique du groupe (paies bouclées vers le 24) : les variables du bulletin
+    de M couvrent les semaines complètes allant du lundi qui suit l'arrêté de
+    M-1 au dimanche de la semaine de l'avant-dernier vendredi de M.
+    """
+
+    def test_juillet_2026_va_de_s26_a_s30(self):
+        """Juillet 2026 : arrêté de juin ven 19/06 → dim 21/06, arrêté de
+        juillet ven 24/07 (5 vendredis) → dim 26/07. Fenêtre = 22/06 → 26/07,
+        soit S26 → S30 — la fenêtre décrite par la RH pour la paie de juillet."""
+        assert definir_periode_de_paie(
+            _contexte_avant_dernier_vendredi(), 2026, 7
+        ) == (date(2026, 6, 22), date(2026, 7, 26))
+
+    def test_pavage_sans_trou_ni_recouvrement(self):
+        """Le début d'un mois est le lendemain de la fin du précédent : un jour
+        pointé appartient à exactement un bulletin."""
+        ctx = _contexte_avant_dernier_vendredi()
+        _, fin_juillet = definir_periode_de_paie(ctx, 2026, 7)
+        debut_aout, fin_aout = definir_periode_de_paie(ctx, 2026, 8)
+        assert debut_aout == fin_juillet + timedelta(days=1)
+        assert (debut_aout, fin_aout) == (date(2026, 7, 27), date(2026, 8, 23))
+
+    def test_janvier_commence_en_decembre_precedent(self):
+        """Janvier 2027 : arrêté de décembre ven 18/12/2026 → dim 20/12 ;
+        la fenêtre traverse le changement d'année."""
+        assert definir_periode_de_paie(
+            _contexte_avant_dernier_vendredi(), 2027, 1
+        ) == (date(2026, 12, 21), date(2027, 1, 24))
 
 
 class TestEstimerCoefficientNetBrut:

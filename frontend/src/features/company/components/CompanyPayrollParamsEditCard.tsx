@@ -5,7 +5,24 @@ import { patchCompanyDetails } from '@/api/company';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import {
+  DESCRIPTIONS_REGIME_PERIODE_PAIE,
+  LIBELLES_REGIME_PERIODE_PAIE,
+  PAIRE_AVANT_DERNIER_VENDREDI,
+  PAIRE_MOIS_CIVIL,
+  formatJourDeFin,
+  formatOccurrence,
+  regimePeriodePaie,
+  type RegimePeriodePaie,
+} from '@/features/company/lib/periodePaie';
 
 export function CompanyPayrollParamsEditCard({
   company,
@@ -21,12 +38,11 @@ export function CompanyPayrollParamsEditCard({
   const [tauxAtMp, setTauxAtMp] = useState(
     company.taux_at_mp != null ? String(company.taux_at_mp) : '',
   );
-  const [jourFin, setJourFin] = useState(
-    company.paie_jour_de_fin != null ? String(company.paie_jour_de_fin) : '',
+  const regimeInitial = regimePeriodePaie(
+    company.paie_jour_de_fin,
+    company.paie_occurrence,
   );
-  const [occurrence, setOccurrence] = useState(
-    company.paie_occurrence != null ? String(company.paie_occurrence) : '',
-  );
+  const [regime, setRegime] = useState<RegimePeriodePaie>(regimeInitial);
 
   if (!canEdit) return null;
 
@@ -35,9 +51,11 @@ export function CompanyPayrollParamsEditCard({
     try {
       await patchCompanyDetails({
         taux_at_mp: tauxAtMp === '' ? undefined : Number(tauxAtMp.replace(',', '.')),
-        paie_jour_de_fin: jourFin === '' ? undefined : Number(jourFin),
-        paie_occurrence: occurrence === '' ? undefined : Number(occurrence),
-      } as Parameters<typeof patchCompanyDetails>[0]);
+        // Un régime « personnalisé » ou non choisi n'écrase jamais le couple
+        // (jour_de_fin, occurrence) existant.
+        ...(regime === 'avant_dernier_vendredi' ? PAIRE_AVANT_DERNIER_VENDREDI : {}),
+        ...(regime === 'mois_civil' ? PAIRE_MOIS_CIVIL : {}),
+      });
       toast({ title: 'Paramètres paie enregistrés' });
       onSaved?.();
     } catch {
@@ -54,7 +72,7 @@ export function CompanyPayrollParamsEditCard({
         Ces champs peuvent aussi être préremplis par un import DSN. Saisie manuelle en filet de
         sécurité.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="taux-at-mp">Taux AT/MP (%)</Label>
           <Input
@@ -66,24 +84,35 @@ export function CompanyPayrollParamsEditCard({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="paie-jour-fin">Jour fin période</Label>
-          <Input
-            id="paie-jour-fin"
-            inputMode="numeric"
-            value={jourFin}
-            onChange={(e) => setJourFin(e.target.value)}
-            placeholder="ex. 31"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="paie-occurrence">Occurrence (-1 = dernier du mois)</Label>
-          <Input
-            id="paie-occurrence"
-            inputMode="numeric"
-            value={occurrence}
-            onChange={(e) => setOccurrence(e.target.value)}
-            placeholder="ex. -1"
-          />
+          <Label>Arrêté de la période de paie</Label>
+          <Select
+            value={regime === 'non_defini' ? '' : regime}
+            onValueChange={(v) => setRegime(v as RegimePeriodePaie)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choisir un régime…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="avant_dernier_vendredi">
+                {LIBELLES_REGIME_PERIODE_PAIE.avant_dernier_vendredi}
+              </SelectItem>
+              <SelectItem value="mois_civil">
+                {LIBELLES_REGIME_PERIODE_PAIE.mois_civil}
+              </SelectItem>
+              {regimeInitial === 'personnalise' ? (
+                <SelectItem value="personnalise">
+                  {LIBELLES_REGIME_PERIODE_PAIE.personnalise} —{' '}
+                  {formatJourDeFin(company.paie_jour_de_fin)},{' '}
+                  {formatOccurrence(company.paie_occurrence).toLowerCase()}
+                </SelectItem>
+              ) : null}
+            </SelectContent>
+          </Select>
+          {regime !== 'non_defini' ? (
+            <p className="text-xs text-muted-foreground">
+              {DESCRIPTIONS_REGIME_PERIODE_PAIE[regime]}
+            </p>
+          ) : null}
         </div>
       </div>
       <Button type="button" size="sm" onClick={() => void handleSave()} disabled={saving}>

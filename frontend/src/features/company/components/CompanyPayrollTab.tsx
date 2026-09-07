@@ -38,6 +38,13 @@ import { WorkTimeHubIntro } from "@/features/work-time-tracking/components/WorkT
 import { PlanningHubIntro } from "@/features/work-time-tracking/components/PlanningHubIntro";
 import { formatCollectiveAgreementLabel } from "@/features/company/lib/companyPageTabs";
 import {
+  DESCRIPTIONS_REGIME_PERIODE_PAIE,
+  LIBELLES_REGIME_PERIODE_PAIE,
+  formatJourDeFin,
+  formatOccurrence,
+  regimePeriodePaie,
+} from "@/features/company/lib/periodePaie";
+import {
   DEFAULT_OPEN_PAYROLL_SECTIONS,
   PAYROLL_SECTION_KEYS,
   PayrollSettingsSection,
@@ -55,35 +62,6 @@ const ANCHOR_TO_SECTION: Record<ComplianceAnchor, PayrollSectionKey> = {
   "taux-vm": "taux-paie",
   cse: "dialogue-social",
   "temps-travail": "temps-travail",
-};
-
-const formatPayday = (day: number | null | undefined): string => {
-  if (day === null || day === undefined) return "Non défini";
-  const dayMap: Record<number, string> = {
-    0: "Lundi",
-    1: "Mardi",
-    2: "Mercredi",
-    3: "Jeudi",
-    4: "Vendredi",
-    5: "Samedi",
-    6: "Dimanche",
-  };
-  return dayMap[day] || String(day);
-};
-
-const formatOccurrence = (occ: number | null | undefined): string => {
-  if (occ === null || occ === undefined) return "Non défini";
-  const occurrenceMap: Record<number, string> = {
-    "-1": "Dernier du mois",
-    "-2": "Avant-dernier du mois",
-    "-3": "Antepénultième du mois",
-    "1": "Premier du mois",
-    "2": "Deuxième du mois",
-    "3": "Troisième du mois",
-    "4": "Quatrième du mois",
-    "5": "Cinquième du mois",
-  };
-  return occurrenceMap[occ] || String(occ);
 };
 
 const formatPercentage = (value: number | null | undefined) => {
@@ -276,10 +254,25 @@ export function CompanyPayrollTab({
                   <TableBody>
                     <TableRow>
                       <TableCell className="font-medium text-muted-foreground">
+                        Arrêté des variables
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {
+                          LIBELLES_REGIME_PERIODE_PAIE[
+                            regimePeriodePaie(
+                              company.paie_jour_de_fin,
+                              company.paie_occurrence,
+                            )
+                          ]
+                        }
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium text-muted-foreground">
                         Jour de fin de période
                       </TableCell>
                       <TableCell className="font-medium">
-                        {formatPayday(company.paie_jour_de_fin)}
+                        {formatJourDeFin(company.paie_jour_de_fin)}
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -292,6 +285,16 @@ export function CompanyPayrollTab({
                     </TableRow>
                   </TableBody>
                 </Table>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {
+                    DESCRIPTIONS_REGIME_PERIODE_PAIE[
+                      regimePeriodePaie(
+                        company.paie_jour_de_fin,
+                        company.paie_occurrence,
+                      )
+                    ]
+                  }
+                </p>
               </CardContent>
             </Card>
           </div>
