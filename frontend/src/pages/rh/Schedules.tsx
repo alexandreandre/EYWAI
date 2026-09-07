@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { displayNameNomPrenom } from '@/lib/employeeName';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { ListFilter, RefreshCw } from 'lucide-react';
@@ -186,6 +187,7 @@ export default function Schedules() {
         const match =
           row.employee.first_name.toLowerCase().includes(q) ||
           row.employee.last_name.toLowerCase().includes(q) ||
+          (row.employee.nom_usage ?? '').toLowerCase().includes(q) ||
           (row.employee.job_title ?? '').toLowerCase().includes(q);
         if (!match) return false;
       }
@@ -227,8 +229,8 @@ export default function Schedules() {
           return (a.ecart - b.ecart) * dir;
         case 'name':
         default: {
-          const na = `${a.employee.last_name} ${a.employee.first_name}`;
-          const nb = `${b.employee.last_name} ${b.employee.first_name}`;
+          const na = displayNameNomPrenom(a.employee);
+          const nb = displayNameNomPrenom(b.employee);
           return na.localeCompare(nb, 'fr') * dir;
         }
       }

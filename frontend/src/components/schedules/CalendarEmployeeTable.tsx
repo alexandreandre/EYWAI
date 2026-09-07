@@ -1,3 +1,4 @@
+import { displayNameNomPrenom } from '@/lib/employeeName';
 import {
   Table,
   TableBody,
@@ -296,7 +297,7 @@ export function CalendarEmployeeTable({
                   <div
                     role="checkbox"
                     aria-checked={selectedIds.has(row.employee.id)}
-                    aria-label={`Sélectionner ${row.employee.last_name} ${row.employee.first_name}`}
+                    aria-label={`Sélectionner ${displayNameNomPrenom(row.employee)}`}
                     className="flex h-full min-h-12 w-12 cursor-pointer select-none items-center justify-center hover:bg-primary/20"
                     onPointerDown={(event) => onHandlePointerDown(event, rowIndex)}
                   >
@@ -314,7 +315,7 @@ export function CalendarEmployeeTable({
                 >
                   <CursorHint label="Ouvrir le calendrier complet">
                     <div className="font-medium group-hover/row:text-primary">
-                      {row.employee.last_name} {row.employee.first_name}
+                      {displayNameNomPrenom(row.employee)}
                     </div>
                     <div className="text-xs text-muted-foreground group-hover/row:text-primary/70">
                       {row.employee.job_title ?? '—'}

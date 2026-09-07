@@ -8,6 +8,7 @@ export type EmployeeListItem = {
   id: string;
   first_name: string;
   last_name: string;
+  nom_usage?: string | null;
   job_title?: string | null;
   contract_type?: string | null;
   hire_date?: string | null;

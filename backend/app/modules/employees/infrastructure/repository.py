@@ -168,7 +168,7 @@ class EmployeeRepository(IEmployeeRepository):
     ) -> List[Dict[str, Any]]:
         """Liste allégée sans enrichissement (performances listes / planning)."""
         select_cols = (
-            "id, first_name, last_name, job_title, contract_type, "
+            "id, first_name, last_name, nom_usage, job_title, contract_type, "
             "statut, is_forfait_jour, hire_date, date_debut_execution, "
             "contract_end_date, seniority_reference_date, employment_status, "
             "current_exit_id, duree_hebdomadaire"

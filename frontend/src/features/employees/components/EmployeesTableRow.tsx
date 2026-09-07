@@ -1,4 +1,5 @@
 import { ChevronRight, UserMinus } from "lucide-react";
+import { displayLastName, displayNamePrenomNom } from '@/lib/employeeName';
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,13 +73,13 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
           <Avatar className="h-8 w-8">
             <AvatarFallback>
               {employee.first_name.charAt(0)}
-              {employee.last_name.charAt(0)}
+              {displayLastName(employee).charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="font-medium">
-                {employee.first_name} {employee.last_name}
+                {displayNamePrenomNom(employee)}
               </p>
               {employee.employment_status === "en_onboarding" && (
                 <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-amber-200">

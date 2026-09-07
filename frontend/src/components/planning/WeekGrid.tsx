@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { displayLastName } from '@/lib/employeeName';
 import { addDays, format, parseISO, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type {
@@ -108,7 +109,8 @@ export function WeekGrid({
         map.set(id, {
           employee_id: id,
           first_name: emp.first_name ?? '',
-          last_name: emp.last_name ?? '',
+          // Nom d'AFFICHAGE (usage prioritaire) — le tri et la grille suivent.
+          last_name: displayLastName(emp) || (emp.last_name ?? ''),
           contract_hours_per_week: hoursWeek,
           shifts_by_day: {},
           hours_data: {

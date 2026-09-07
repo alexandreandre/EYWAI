@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { displayLastName, displayNamePrenomNom } from '@/lib/employeeName';
 import {
   Accessibility,
   ClipboardList,
@@ -50,6 +51,7 @@ export interface EmployeeDetailHeaderEmployee {
   id: string;
   first_name: string;
   last_name: string;
+  nom_usage?: string | null;
   job_title: string | null;
   contract_type: string | null;
   statut: string | null;
@@ -163,8 +165,8 @@ export function EmployeeDetailHeaderCard({
   hasWorkplaceAccommodation = false,
   payrollFocus = false,
 }: EmployeeDetailHeaderCardProps) {
-  const fullName = `${employee.first_name} ${employee.last_name}`.trim();
-  const initials = `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`;
+  const fullName = displayNamePrenomNom(employee);
+  const initials = `${employee.first_name.charAt(0)}${(displayLastName(employee) || '?').charAt(0)}`;
   const showOnboarding = isRecentHire(employee.hire_date);
   const employmentBadge = getEmploymentStatusBadge(employee.employment_status);
   const displayEmail = getDisplayEmployeeEmail(employee.email);

@@ -74,6 +74,10 @@ class EmployeeSummary(BaseModel):
     id: str
     first_name: str
     last_name: str
+    # Nom d'usage (DSN S21.G00.30.003) : prioritaire à l'AFFICHAGE côté
+    # interface ; la DSN, les imports et les dossiers physiques restent sur
+    # last_name (nom de naissance).
+    nom_usage: str | None = None
     job_title: str | None = None
     contract_type: str | None = None
     statut: str | None = None
@@ -102,6 +106,7 @@ class FullEmployee(BaseModel):
     # Section Salarié
     first_name: str
     last_name: str
+    nom_usage: str | None = None  # Nom d'usage (affichage prioritaire)
     email: str | None = None
     phone_number: str | None = None
     salary_payment_method: str | None = None

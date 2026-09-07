@@ -73,7 +73,7 @@ def ChargerContexte(
             },
             "salarie": {
                 "prenom": employee_data.get("first_name", ""),
-                "nom": employee_data.get("last_name", ""),
+                "nom": employee_data.get("nom_usage") or employee_data.get("last_name", ""),
                 "nir": employee_data.get("nir", ""),
                 "date_naissance": employee_data.get("date_naissance") or "",
             },

@@ -6,6 +6,8 @@ export type EmployeeLite = {
   id: string;
   first_name: string;
   last_name: string;
+  /** Nom d'usage (affichage prioritaire) — cf. lib/employeeName. */
+  nom_usage?: string | null;
 };
 
 export type EmployeeSummaryStatus = 'active' | 'all' | 'payroll';
@@ -160,6 +162,7 @@ export const getEmployeesLite = async (): Promise<EmployeeLite[]> => {
     id: e.id,
     first_name: e.first_name,
     last_name: e.last_name,
+    nom_usage: e.nom_usage ?? null,
   }));
 };
 

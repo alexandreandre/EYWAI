@@ -371,7 +371,9 @@ def process_payslip_generation_forfait(
         contrat_json_content = {
             "employee_id": employee_id,
             "salarie": {
-                "nom": employee_data.get("last_name"),
+                # Nom d'usage prioritaire sur le bulletin (pratique paie) ; la DSN
+                # garde le nom de naissance (dsn_export lit la base, pas ce fichier).
+                "nom": employee_data.get("nom_usage") or employee_data.get("last_name"),
                 "prenom": employee_data.get("first_name"),
                 "nir": employee_data.get("nir"),
                 "date_naissance": employee_data.get("date_naissance"),

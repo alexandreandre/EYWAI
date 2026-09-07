@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { displayNameNomPrenom, displayNamePrenomNom } from '@/lib/employeeName';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -303,7 +304,7 @@ export function TeamPlanningView({
                   <div
                     role="checkbox"
                     aria-checked={selectedIds.has(row.employee.id)}
-                    aria-label={`Sélectionner ${row.employee.last_name} ${row.employee.first_name}`}
+                    aria-label={`Sélectionner ${displayNameNomPrenom(row.employee)}`}
                     className="flex w-11 shrink-0 items-center justify-center select-none cursor-pointer border-r border-border/60 bg-muted/25 hover:bg-primary/20 transition-colors"
                     tabIndex={0}
                     onPointerDown={(event) => onHandlePointerDown(event, rowIndex)}
@@ -335,7 +336,7 @@ export function TeamPlanningView({
                     >
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium group-hover/open:text-primary">
-                          {row.employee.last_name} {row.employee.first_name}
+                          {displayNameNomPrenom(row.employee)}
                         </span>
                         <span className="block truncate text-[10px] text-muted-foreground group-hover/open:text-primary/80">
                           {row.employee.job_title ?? '—'}
@@ -420,7 +421,7 @@ export function TeamPlanningView({
                             isOpen && 'ring-2 ring-primary z-10',
                             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
                           )}
-                          aria-label={`Éditer le ${day} pour ${row.employee.first_name} ${row.employee.last_name}`}
+                          aria-label={`Éditer le ${day} pour ${displayNamePrenomNom(row.employee)}`}
                         >
                           <div
                             className={cn(
@@ -479,7 +480,7 @@ export function TeamPlanningView({
                         sideOffset={4}
                       >
                         <PlanningDayEditor
-                          employeeName={`${row.employee.first_name} ${row.employee.last_name}`}
+                          employeeName={displayNamePrenomNom(row.employee)}
                           employeeId={row.employee.id}
                           day={day}
                           year={year}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { displayNamePrenomNom } from '@/lib/employeeName';
 import { Link } from 'react-router-dom';
 import {
   Sheet,
@@ -65,7 +66,7 @@ export function CalendarEmployeeDrawer({
     );
   }
 
-  const employeeName = `${employee.first_name} ${employee.last_name}`;
+  const employeeName = displayNamePrenomNom(employee);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

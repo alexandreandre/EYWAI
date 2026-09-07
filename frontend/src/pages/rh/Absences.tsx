@@ -1,6 +1,7 @@
 // Fichier : src/pages/Absences.tsx (VERSION COMPLÈTE ET AMÉLIORÉE)
 
 import { log } from '@/lib/logger';
+import { displayNamePrenomNom } from '@/lib/employeeName';
 import { formatQuotiteJours, quotiteJoursDemande } from '@/lib/employeeAbsencesUtils';
 import { RhPageHeader } from '@/components/layout';
 import { useState, useEffect, useMemo } from 'react';
@@ -121,7 +122,7 @@ export default function AbsencesPage() {
     if (!terme) return requests;
     return requests.filter((req) =>
       normaliser(
-        `${req.employee?.first_name ?? ''} ${req.employee?.last_name ?? ''}`,
+        `${req.employee?.first_name ?? ''} ${req.employee?.last_name ?? ''} ${req.employee?.nom_usage ?? ''}`,
       ).includes(terme),
     );
   };
@@ -407,7 +408,7 @@ export default function AbsencesPage() {
           <TableRow key={req.id}>
             <TableCell className="font-medium">
               <div>
-                <p>{req.employee.first_name} {req.employee.last_name}</p>
+                <p>{displayNamePrenomNom(req.employee)}</p>
                 {req.comment && <p className="text-xs text-muted-foreground italic mt-1">{req.comment}</p>}
               </div>
             </TableCell>

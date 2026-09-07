@@ -28,6 +28,7 @@ export interface SchedulesEmployeeInput {
   id: string;
   first_name: string;
   last_name: string;
+  nom_usage?: string | null;
   job_title?: string | null;
   statut?: string | null;
   is_forfait_jour?: boolean | null;

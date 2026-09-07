@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { displayNamePrenomNom } from '@/lib/employeeName';
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { useEmployeesQuery, type EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
@@ -91,7 +92,7 @@ export default function Employees() {
   const navigate = useNavigate();
 
   const filteredEmployees = employees.filter((emp) => {
-    const matchesSearch = `${emp.first_name} ${emp.last_name}`
+    const matchesSearch = `${emp.first_name} ${emp.last_name} ${emp.nom_usage ?? ''}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
     const status = emp.employment_status || "actif";
@@ -245,7 +246,7 @@ export default function Employees() {
               {(ccEmployeesAlert?.employees ?? []).slice(0, 3).map((emp) => (
                 <li key={emp.id} className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground truncate">
-                    {`${emp.first_name} ${emp.last_name}`.trim()}
+                    {displayNamePrenomNom(emp)}
                   </span>
                   <Button
                     variant="ghost"

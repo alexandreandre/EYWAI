@@ -107,7 +107,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         self, status: Optional[str], company_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         query = supabase.table("absence_requests").select(
-            "*, employee:employees(id, first_name, last_name)"
+            "*, employee:employees(id, first_name, last_name, nom_usage)"
         )
         if company_id:
             query = query.eq("company_id", company_id)
@@ -136,7 +136,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         """
         result = (
             supabase.table("absence_requests")
-            .select("*, employee:employees(id, first_name, last_name)")
+            .select("*, employee:employees(id, first_name, last_name, nom_usage)")
             .eq("company_id", company_id)
             .eq("workflow_step", "pending_manager")
             .eq("status", "pending")

@@ -9,6 +9,7 @@ export interface SimpleEmployee {
   id: string;
   first_name: string;
   last_name: string;
+  nom_usage?: string | null;
   balances: AbsenceBalance[]; // <-- On ajoute les soldes ici
 }
 
@@ -58,7 +59,7 @@ export interface AbsenceRequestWithEmployee extends AbsenceRequest {
 
 /** Ligne renvoyée par GET /api/absences/pending-manager-approval (ne pas confondre avec @/api/training). */
 export interface AbsencePendingManagerItem extends AbsenceRequest {
-  employee: Pick<SimpleEmployee, 'id' | 'first_name' | 'last_name'>;
+  employee: Pick<SimpleEmployee, 'id' | 'first_name' | 'last_name' | 'nom_usage'>;
 }
 
 export interface ManagerApprovalPayload {
