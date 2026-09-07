@@ -208,20 +208,27 @@ def compute_rcr_hours(
     if not validated_requests:
         return 0.0
     year_start, _ = _year_bounds(year)
-    days = 0.0
+    heures = 0.0
     for req in validated_requests:
         if req.get("type") != "repos_compensateur":
             continue
         if req.get("status") != "validated":
             continue
+        heures_map = req.get("heures_par_jour") or {}
         for day in req.get("selected_days") or []:
             parsed = _parse_day(day)
             if parsed is None:
                 continue
             if parsed > reference_date or parsed < year_start:
                 continue
-            days += 1.0
-    return round(days * hours_per_rest_day, 2)
+            # Prise en heures (heures_par_jour) à sa valeur réelle ; journée
+            # entière convertie via le réglage société.
+            h = heures_map.get(parsed.isoformat())
+            try:
+                heures += float(h) if h else float(hours_per_rest_day)
+            except (TypeError, ValueError):
+                heures += float(hours_per_rest_day)
+    return round(heures, 2)
 
 
 def _parse_day(value: object) -> date | None:

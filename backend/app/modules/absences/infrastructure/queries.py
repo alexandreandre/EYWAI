@@ -72,12 +72,17 @@ def get_employees_hire_dates_batch(
 def get_repos_credits_by_employee_year(
     employee_ids: List[str], year: int
 ) -> Dict[str, float]:
-    """Somme des jours repos_compensateur_credits par employee_id pour l'année."""
+    """Somme des HEURES repos_compensateur_credits par employee_id pour l'année.
+
+    Le crédit COR est nativement en heures ; la colonne `jours` n'en est
+    qu'une conversion d'affichage. Le compteur « Repos compensateur » est en
+    heures de bout en bout (le pris convertit les journées via le réglage
+    société hours_per_rest_day)."""
     if not employee_ids:
         return {}
     credits_resp = (
         supabase.table("repos_compensateur_credits")
-        .select("employee_id", "jours")
+        .select("employee_id", "heures")
         .in_("employee_id", employee_ids)
         .eq("year", year)
         .execute()
@@ -85,7 +90,7 @@ def get_repos_credits_by_employee_year(
     result: Dict[str, float] = {}
     for c in (credits_resp.data or []) if credits_resp else []:
         eid = c.get("employee_id")
-        result[eid] = result.get(eid, 0.0) + float(c.get("jours", 0) or 0)
+        result[eid] = result.get(eid, 0.0) + float(c.get("heures", 0) or 0)
     return result
 
 

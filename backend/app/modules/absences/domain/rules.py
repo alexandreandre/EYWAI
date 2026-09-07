@@ -243,6 +243,38 @@ def quotite_demi_journees(
     return total
 
 
+def heures_repos_prises(
+    requests: list[dict],
+    ref_date: date,
+    *,
+    hours_per_rest_day: float,
+    period_start: date | None = None,
+    period_end: date | None = None,
+) -> float:
+    """Heures de repos compensateur prises : `heures_par_jour` si présent,
+    sinon journée entière convertie via le réglage société."""
+    effective_end = ref_date
+    if period_end is not None:
+        effective_end = min(ref_date, period_end)
+    total = 0.0
+    for req in requests:
+        if req.get("type") != "repos_compensateur":
+            continue
+        heures_map = req.get("heures_par_jour") or {}
+        for day in req.get("selected_days") or []:
+            parsed = _parse_absence_day(day)
+            if parsed is None or parsed > effective_end:
+                continue
+            if period_start is not None and parsed < period_start:
+                continue
+            heures = heures_map.get(parsed.isoformat())
+            try:
+                total += float(heures) if heures else float(hours_per_rest_day)
+            except (TypeError, ValueError):
+                total += float(hours_per_rest_day)
+    return round(total, 2)
+
+
 def count_absence_days_taken(
     requests: list[dict],
     absence_type: str,
@@ -761,6 +793,7 @@ def compute_absence_balances(
     adjustment: EmployeeLeaveAdjustment | None = None,
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
+    hours_per_rest_day: float = 7.0,
 ) -> dict[str, dict[str, float]]:
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
@@ -842,10 +875,12 @@ def compute_absence_balances(
         validated_requests, ref_date, policy=policy, adjustment=adjustment
     )
 
-    repos_pris = count_absence_days_taken(
+    # Repos compensateur : compteur en HEURES des deux côtés (le crédit COR
+    # est nativement en heures ; une prise « journée » vaut hours_per_rest_day).
+    repos_pris = heures_repos_prises(
         validated_requests,
-        "repos_compensateur",
         ref_date,
+        hours_per_rest_day=hours_per_rest_day,
         period_start=date(ref_date.year, 1, 1),
         period_end=date(ref_date.year, 12, 31),
     )

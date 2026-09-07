@@ -51,6 +51,7 @@ from app.modules.absences.application import (
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.schemas.leave_settings import (
     EmployeeLeaveAdjustmentUpdate,
+    EmployeeLeaveSoldeUpdate,
     EmployeeRttSoldeUpdate,
     LeaveAdjustmentImportRequest,
     LeaveNotificationSettingsUpdate,
@@ -988,6 +989,31 @@ def update_employee_leave_adjustment_route(
     try:
         return leave_settings_commands.update_employee_leave_adjustment(
             str(cid), employee_id, year, body
+        )
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+
+
+@router.patch(
+    "/leave-settings/employees/{employee_id}/solde",
+    response_model=EmployeeLeaveAdjustmentResponse,
+)
+def update_employee_leave_solde_route(
+    employee_id: str,
+    body: EmployeeLeaveSoldeUpdate,
+    year: int = Query(..., ge=2000, le=2100),
+    current_user: User = Depends(get_current_user),
+):
+    """Saisie RH d'un solde cible (CP N-1 / CP N / RTT / JTC) converti en écart."""
+    cid = _require_rh_company_context(current_user)
+    try:
+        return leave_settings_commands.apply_leave_solde_manual(
+            str(cid),
+            employee_id,
+            year,
+            compteur=body.compteur,
+            solde_cible=body.solde_cible,
+            note=body.note,
         )
     except (ValueError, LookupError) as e:
         _handle_application_errors(e)

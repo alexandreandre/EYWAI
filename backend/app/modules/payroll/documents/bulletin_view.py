@@ -215,7 +215,7 @@ def construire_compteurs(bulletin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         colonnes.append(_colonne_compteur("JTC", solde.get("jtc")))
     if _compteur_alimente(solde.get("repos_compensateur")):
         colonnes.append(
-            _colonne_compteur("Repos comp.", solde.get("repos_compensateur"))
+            _colonne_compteur("Repos comp. (h)", solde.get("repos_compensateur"))
         )
 
     notes: List[str] = []

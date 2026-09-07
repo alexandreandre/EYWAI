@@ -192,6 +192,147 @@ def apply_rtt_solde_manual(
     )
 
 
+def _note_ajustement_manuel(
+    compteur: str,
+    solde_cible: float,
+    note_utilisateur: str | None,
+    ancienne_note: str | None,
+) -> str:
+    """Note d'audit d'un ajustement manuel, ancienne note conservée mais
+    NEUTRALISÉE : « Import CP bulletin » est du code (il ancre le calcul
+    « fidèle au bulletin » sur le mois cité dans la note, cf.
+    rules._bulletin_import_reference_date) — le laisser tel quel ferait
+    interpréter l'ajustement du jour avec l'ancre de l'ancien import."""
+    aujourd_hui = date.today().strftime("%d/%m/%Y")
+    partie = f"Ajustement manuel RH du {aujourd_hui} ({compteur} → {solde_cible} j)"
+    if note_utilisateur:
+        partie += f" : {note_utilisateur}"
+    ancienne = (ancienne_note or "").strip()
+    if ancienne:
+        ancienne = ancienne.replace("Import CP bulletin", "reprise bulletin (archivée)")
+        partie += f" — remplace : {ancienne}"
+    return partie[:2000]
+
+
+def apply_leave_solde_manual(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    *,
+    compteur: str,
+    solde_cible: float,
+    note: str | None = None,
+) -> EmployeeLeaveAdjustmentResponse:
+    """Convertit un solde AFFICHÉ cible en ajustement d'ouverture.
+
+    Même recette que la reprise et le solde RTT manuel : théorique recalculé
+    avec un ajustement NEUTRE, écart = cible − max(0, théorique), écriture
+    ABSOLUE (jamais d'incrément, sinon les arrondis s'empilent). Cas
+    particuliers : `jtc_opening_balance` est un DROIT absolu (cible + pris),
+    et les deux colonnes CP se réécrivent ENSEMBLE (même date de référence) —
+    le compteur non modifié garde son solde affiché actuel.
+    """
+    from app.modules.absences.domain.rules import (
+        _bulletin_faithful_cp_solde,
+        _is_bulletin_cp_import,
+        compute_cp_period_balances,
+        compute_jtc_balance,
+    )
+
+    if compteur == "rtt":
+        return apply_rtt_solde_manual(
+            company_id, employee_id, year, rtt_solde=solde_cible, note=note
+        )
+
+    _ensure_employee_in_company(employee_id, company_id)
+    policy = get_leave_policy(company_id)
+    validated = absence_repository.list_validated_for_employees([employee_id])
+    ajustement_actuel = get_employee_adjustment(employee_id, year)
+    ref = date.today()
+
+    if compteur == "jtc":
+        if not policy.jtc_enabled:
+            raise ValueError("Les JTC ne sont pas activés pour cette société.")
+        jtc = compute_jtc_balance(
+            validated, ref, policy=policy, adjustment=ajustement_actuel
+        )
+        droit = round(float(solde_cible) + float(jtc["pris"]), 2)
+        payload: dict = {"jtc_opening_balance": droit}
+        if note:
+            payload["note"] = _note_ajustement_manuel(
+                compteur, solde_cible, note, ajustement_actuel.note
+            )
+        row = upsert_employee_adjustment(company_id, employee_id, year, payload)
+        return _adjustment_response_from_row(employee_id, year, row)
+
+    if compteur not in ("cp_n1", "cp_n"):
+        raise ValueError(f"Compteur inconnu : {compteur}")
+
+    hire_raw = get_employee_hire_date(employee_id)
+    if not hire_raw:
+        raise ValueError("Date d'embauche manquante.")
+    hire_date = date.fromisoformat(hire_raw) if isinstance(hire_raw, str) else hire_raw
+
+    # Soldes AFFICHÉS actuels : même pipeline que l'écran (mode « fidèle au
+    # bulletin » compris) — le compteur non modifié doit rester à l'identique.
+    actuel = compute_cp_period_balances(
+        hire_date, validated, ref, policy=policy, adjustment=ajustement_actuel
+    )
+    n1_affiche = max(0.0, float(actuel["n1_remaining"]))
+    n_affiche = max(0.0, float(actuel["n_remaining"]))
+    if _is_bulletin_cp_import(ajustement_actuel):
+        fidele = _bulletin_faithful_cp_solde(
+            hire_date, validated, ref, ajustement_actuel, policy=policy
+        )
+        if fidele:
+            n1_affiche = max(0.0, float(fidele["n1_remaining"]))
+            n_affiche = max(0.0, float(fidele["n_remaining"]))
+
+    cible_n1 = float(solde_cible) if compteur == "cp_n1" else n1_affiche
+    cible_n = float(solde_cible) if compteur == "cp_n" else n_affiche
+
+    theorique = compute_cp_period_balances(
+        hire_date,
+        validated,
+        ref,
+        policy=policy,
+        adjustment=EmployeeLeaveAdjustment.empty(),
+    )
+    payload = {
+        "cp_n1_opening_balance": round(
+            cible_n1 - max(0.0, float(theorique["n1_remaining"])), 2
+        ),
+        "cp_n_opening_balance": round(
+            cible_n - max(0.0, float(theorique["n_remaining"])), 2
+        ),
+        # Les congés pris jusqu'à cette date sont déjà dans la cible : le
+        # moteur s'en sert pour ne pas les redéduire depuis le planning.
+        "cp_opening_reference_date": ref.isoformat(),
+        # Toujours réécrite pour les CP : neutralise un éventuel marqueur
+        # « Import CP bulletin » qui ancrerait le calcul sur l'ancien mois.
+        "note": _note_ajustement_manuel(
+            compteur, solde_cible, note, ajustement_actuel.note
+        ),
+    }
+    row = upsert_employee_adjustment(company_id, employee_id, year, payload)
+    return _adjustment_response_from_row(employee_id, year, row)
+
+
+def _adjustment_response_from_row(
+    employee_id: str, year: int, row: dict
+) -> EmployeeLeaveAdjustmentResponse:
+    return EmployeeLeaveAdjustmentResponse(
+        employee_id=employee_id,
+        year=year,
+        cp_n1_opening_balance=float(row.get("cp_n1_opening_balance") or 0),
+        cp_n_opening_balance=float(row.get("cp_n_opening_balance") or 0),
+        rtt_opening_balance=float(row.get("rtt_opening_balance") or 0),
+        rtt_forfeited_at=row.get("rtt_forfeited_at"),
+        rtt_forfeited_days=float(row.get("rtt_forfeited_days") or 0),
+        note=row.get("note"),
+    )
+
+
 def apply_cp_solde_import(
     company_id: str,
     employee_id: str,

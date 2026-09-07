@@ -196,6 +196,29 @@ def get_upload_url_signed(user_id: str, filename: str) -> dict:
     return {"path": path, "signedURL": url}
 
 
+def _hours_per_rest_day(company_id: str | None) -> float:
+    """Réglage société heures/journée de repos (défaut 7 h) — pivot unique
+    jours↔heures du repos compensateur."""
+    if not company_id:
+        return 7.0
+    try:
+        from app.modules.repos_compensateur.infrastructure.settings_repository import (
+            get_contingent_settings,
+        )
+
+        return float(get_contingent_settings(str(company_id)).hours_per_rest_day or 7.0)
+    except Exception:
+        return 7.0
+
+
+def _hours_per_rest_day_for_employee(employee_id: str) -> float:
+    """Variante par salarié — toute erreur (id inconnu, réseau) replie sur 7 h."""
+    try:
+        return _hours_per_rest_day(get_employee_company_id(employee_id))
+    except Exception:
+        return 7.0
+
+
 def get_absence_requests(
     status: str | None = None, *, company_id: str
 ) -> List[dict]:
@@ -209,6 +232,7 @@ def get_absence_requests(
     hire_dates = get_employees_hire_dates_batch(employee_ids)
     validated_reqs = absence_repository.list_validated_for_employees(employee_ids)
     repos_credits_by_emp = get_repos_credits_by_employee_year(employee_ids, today.year)
+    hprd = _hours_per_rest_day(company_id)
 
     balances_map: dict[str, List[dict]] = {}
     for emp_id in employee_ids:
@@ -230,6 +254,7 @@ def get_absence_requests(
             rtt_annual_base=rtt_base,
             policy=policy,
             adjustment=adjustment,
+            hours_per_rest_day=hprd,
             **extras,
         )
         balances_map[emp_id] = balances_to_api_list(
@@ -441,6 +466,7 @@ def get_absence_balances_at_date(
         rtt_annual_base=rtt_base,
         policy=policy,
         adjustment=adjustment,
+        hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
         **extras,
     )
 
@@ -475,6 +501,7 @@ def get_absence_balances_for_payslip(
         rtt_annual_base=rtt_base,
         policy=policy,
         adjustment=adjustment,
+        hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
         **extras,
     )
     balances: dict[str, object] = {
@@ -538,6 +565,7 @@ def get_my_absence_balances(employee_id: str) -> List[dict]:
         rtt_annual_base=rtt_base,
         policy=policy,
         adjustment=adjustment,
+        hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
         **extras,
     )
     try:
@@ -671,6 +699,7 @@ def get_my_absences_page_data(employee_id: str, year: int, month: int) -> dict:
         rtt_annual_base=rtt_base,
         policy=policy,
         adjustment=adjustment,
+        hours_per_rest_day=_hours_per_rest_day_for_employee(employee_id),
         **extras,
     )
     ss_pris = count_absence_days_taken(validated_requests, "sans_solde", today)

@@ -72,6 +72,31 @@ class AbsenceRequestCreate(BaseModel):
     # sont calendaires par construction, et les autres compteurs (JTC…)
     # restent au jour plein tant que le besoin n'existe pas.
     demi_journees: Optional[Dict[date, Literal["matin", "apres_midi"]]] = None
+    # Repos compensateur en HEURES : {"2026-09-14": 2.0}. La journée reste
+    # travaillée au calendrier, seul le compteur (en heures) est débité.
+    heures_par_jour: Optional[Dict[date, float]] = None
+
+    @model_validator(mode="after")
+    def heures_par_jour_reservees_aux_repos(self) -> "AbsenceRequestCreate":
+        if not self.heures_par_jour:
+            return self
+        if self.type != "repos_compensateur":
+            raise ValueError(
+                "La prise en heures n'est disponible que pour le repos compensateur."
+            )
+        jours = set(self.selected_days)
+        hors_selection = [d for d in self.heures_par_jour if d not in jours]
+        if hors_selection:
+            raise ValueError(
+                "Chaque prise en heures doit correspondre à un jour sélectionné."
+            )
+        for d, h in self.heures_par_jour.items():
+            if not (0 < float(h) <= 12):
+                raise ValueError(
+                    f"Heures de repos invalides le {d.isoformat()} : "
+                    "saisir entre 0 et 12 heures."
+                )
+        return self
 
     @model_validator(mode="after")
     def demi_journees_reservees_aux_cp(self) -> "AbsenceRequestCreate":

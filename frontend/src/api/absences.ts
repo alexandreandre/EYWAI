@@ -183,6 +183,8 @@ export interface AbsenceCreationPayload {
   arret_type?: ArretType | null;
   /** Demi-journées de CP (clés = jours ISO de selected_days). */
   demi_journees?: Record<string, 'matin' | 'apres_midi'>;
+  /** Repos compensateur en heures : {"2026-09-14": 2} — jour absent = journée entière. */
+  heures_par_jour?: Record<string, number>;
 }
 
 /**

@@ -259,6 +259,12 @@ def create_absence_request(
     }
     if demi_journees:
         db_data["demi_journees"] = demi_journees
+    heures_par_jour_raw = getattr(request_data, "heures_par_jour", None) or {}
+    if heures_par_jour_raw:
+        db_data["heures_par_jour"] = {
+            (k if isinstance(k, str) else k.isoformat()): float(v)
+            for k, v in heures_par_jour_raw.items()
+        }
     if absence_type == "evenement_familial" and event_subtype:
         db_data["event_subtype"] = event_subtype
 
@@ -426,16 +432,22 @@ def update_absence_request_status(
                 days_to_update[0].year,
                 exclude_request_id=request_id,
             )
-        calendar_update_provider.update_calendar_from_days(
-            data["employee_id"],
-            days_to_update,
-            absence_type,
-            arret_type=str(arret_type) if arret_type else None,
-            subrogation_active=sub_active if isinstance(sub_active, bool) else None,
-            nombre_enfants=nombre_enfants,
-            historique_arrets_annee=historique or None,
-            demi_journees=data.get("demi_journees") or None,
-        )
+        if data.get("heures_par_jour"):
+            # Repos compensateur pris en heures : la journée reste TRAVAILLÉE
+            # au calendrier (le salarié est présent), seul le compteur est
+            # débité — aucune projection.
+            pass
+        else:
+            calendar_update_provider.update_calendar_from_days(
+                data["employee_id"],
+                days_to_update,
+                absence_type,
+                arret_type=str(arret_type) if arret_type else None,
+                subrogation_active=sub_active if isinstance(sub_active, bool) else None,
+                nombre_enfants=nombre_enfants,
+                historique_arrets_annee=historique or None,
+                demi_journees=data.get("demi_journees") or None,
+            )
         # Types IJSS / attestation : alignés sur IJSS_ELIGIBLE_TYPES (= arrêts avec attestation).
         if requires_salary_certificate(absence_type) and absence_type in IJSS_ELIGIBLE_TYPES:
             try:

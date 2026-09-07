@@ -343,6 +343,20 @@ export function AbsenceRequestModal({
           payload.demi_journees = demi;
         }
       }
+      if (absenceType === 'repos_compensateur') {
+        const jours = new Set(
+          (selectedDays ?? []).map((day) => format(day, 'yyyy-MM-dd')),
+        );
+        const heures: Record<string, number> = {};
+        for (const [iso, brut] of Object.entries(heuresParJour)) {
+          if (!jours.has(iso)) continue;
+          const n = Number.parseFloat(brut.replace(',', '.'));
+          if (Number.isFinite(n) && n > 0) heures[iso] = n;
+        }
+        if (Object.keys(heures).length > 0) {
+          payload.heures_par_jour = heures;
+        }
+      }
       await absencesApi.createAbsenceRequest(payload);
 
       toast({
@@ -724,6 +738,48 @@ export function AbsenceRequestModal({
                 )}
               </PopoverContent>
             </Popover>
+            {absenceType === 'repos_compensateur' && (selectedDays?.length ?? 0) > 0 && (
+              <div className="space-y-1 rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">
+                  Heures de repos par jour (vide = journée entière) :
+                </p>
+                {[...(selectedDays ?? [])]
+                  .sort((a, b) => a.getTime() - b.getTime())
+                  .map((day) => {
+                    const iso = format(day, 'yyyy-MM-dd');
+                    return (
+                      <div
+                        key={iso}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="text-sm capitalize">
+                          {format(day, 'EEEE d MMMM', { locale: fr })}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0.5}
+                          max={12}
+                          step={0.5}
+                          inputMode="decimal"
+                          placeholder="journée"
+                          className="h-8 w-28 text-right tabular-nums"
+                          value={heuresParJour[iso] ?? ''}
+                          onChange={(e) =>
+                            setHeuresParJour((prev) => ({
+                              ...prev,
+                              [iso]: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-muted-foreground">
+                  La journée reste travaillée au planning : seules les heures
+                  saisies sont décomptées du compteur.
+                </p>
+              </div>
+            )}
             {typeAvecDemiJournees && (selectedDays?.length ?? 0) > 0 && (
               <div className="space-y-1 rounded-md border p-2">
                 <p className="text-xs text-muted-foreground">

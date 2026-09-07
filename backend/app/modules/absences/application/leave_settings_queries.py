@@ -133,6 +133,19 @@ def get_employee_leave_adjustment(
     )
 
 
+def _hours_per_rest_day_overview(company_id: str | None) -> float:
+    if not company_id:
+        return 7.0
+    try:
+        from app.modules.repos_compensateur.infrastructure.settings_repository import (
+            get_contingent_settings,
+        )
+
+        return float(get_contingent_settings(str(company_id)).hours_per_rest_day or 7.0)
+    except Exception:
+        return 7.0
+
+
 def get_leave_balances_overview(
     company_id: str, year: int | None = None
 ) -> LeaveBalancesOverviewResponse:
@@ -147,6 +160,7 @@ def get_leave_balances_overview(
     validated = absence_repository.list_validated_for_employees(employee_ids)
     adjustments = get_adjustments_by_employees_year(employee_ids, ref_year)
     repos = get_repos_credits_by_employee_year(employee_ids, ref_year)
+    hprd = _hours_per_rest_day_overview(company_id)
 
     items: list[EmployeeLeaveBalanceOverviewItem] = []
     for emp in employees:
@@ -171,6 +185,7 @@ def get_leave_balances_overview(
             repos_acquis=repos.get(eid, 0.0),
             policy=policy,
             adjustment=adj,
+            hours_per_rest_day=hprd,
             cp_seniority=cp_seniority,
             employee_ctx=ctx,
         )
@@ -277,6 +292,7 @@ def compute_balances_for_employee(
         rtt_annual_base=rtt_base,
         policy=policy,
         adjustment=adjustment,
+        hours_per_rest_day=_hours_per_rest_day_overview(company_id),
         **extras,
     )
     return balances_to_api_list(soldes, policy=policy, cp_seniority=cp_seniority)

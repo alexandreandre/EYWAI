@@ -44,6 +44,14 @@ class EmployeeRttSoldeUpdate(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
 
 
+class EmployeeLeaveSoldeUpdate(BaseModel):
+    """Saisie RH d'un solde AFFICHÉ cible pour un compteur (converti en écart)."""
+
+    compteur: Literal["cp_n1", "cp_n", "rtt", "jtc"]
+    solde_cible: float = Field(..., ge=0, le=200)
+    note: Optional[str] = Field(None, max_length=2000)
+
+
 class LeaveAdjustmentImportRow(BaseModel):
     email: Optional[str] = None
     matricule: Optional[str] = None

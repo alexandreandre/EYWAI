@@ -2,7 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertCircle, CalendarDays, Loader2, Palmtree, Pencil } from 'lucide-react';
-import { updateEmployeeRttSolde } from '@/api/leaveSettings';
+import {
+  updateEmployeeLeaveSolde,
+  type CompteurAjustable,
+} from '@/api/leaveSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useEmployeeAbsenceBalancesQuery } from '@/hooks/queries/useEmployeeAbsenceBalancesQuery';
 import { EvenementFamilialBalanceDialog } from '@/components/dashboard/EvenementFamilialBalanceDialog';
@@ -41,6 +44,15 @@ import { cn } from '@/lib/utils';
 
 const EVENEMENT_FAMILIAL_TYPE = 'Événement familial';
 
+/** Compteurs dont le solde AFFICHÉ est ajustable par la RH (converti en
+ * écart d'ouverture côté serveur, même mécanique que la reprise). */
+const COMPTEURS_AJUSTABLES: Record<string, CompteurAjustable> = {
+  'Congés Payés (période précédente)': 'cp_n1',
+  'Congés Payés (période en cours)': 'cp_n',
+  RTT: 'rtt',
+  JTC: 'jtc',
+};
+
 interface EmployeeDetailLeaveBalancesTabProps {
   employeeId: string;
   hireDate?: string | null;
@@ -53,7 +65,7 @@ function formatAmount(value: number | string | undefined, unit: string): string 
   return String(value);
 }
 
-function formatRttDraft(value: number | null): string {
+function formatSoldeDraft(value: number | null): string {
   return value == null ? '' : value.toFixed(1);
 }
 
@@ -69,32 +81,44 @@ export function EmployeeDetailLeaveBalancesTab({
   const balancesQuery = useEmployeeAbsenceBalancesQuery(employeeId);
   const visibleBalances =
     balancesQuery.data?.filter(isRhLeaveBalanceVisible) ?? [];
-  const rttBalance = visibleBalances.find((balance) => balance.type === 'RTT');
-  const currentRttRemaining =
-    typeof rttBalance?.remaining === 'number' ? rttBalance.remaining : null;
   const currentYear = new Date().getFullYear();
-  const [rttDialogOpen, setRttDialogOpen] = useState(false);
-  const [rttYear, setRttYear] = useState(currentYear);
-  const [rttSolde, setRttSolde] = useState(formatRttDraft(currentRttRemaining));
-  const [rttNote, setRttNote] = useState('');
+
+  // Dialogue générique « Ajuster le solde » (CP N-1 / CP N / RTT / JTC).
+  const [adjustType, setAdjustType] = useState<string | null>(null);
+  const [adjustYear, setAdjustYear] = useState(currentYear);
+  const [adjustSolde, setAdjustSolde] = useState('');
+  const [adjustNote, setAdjustNote] = useState('');
+
+  const adjustBalance = adjustType
+    ? visibleBalances.find((balance) => balance.type === adjustType)
+    : undefined;
+  const adjustCompteur = adjustType ? COMPTEURS_AJUSTABLES[adjustType] : undefined;
 
   useEffect(() => {
-    if (!rttDialogOpen) return;
-    setRttYear(currentYear);
-    setRttSolde(formatRttDraft(currentRttRemaining));
-    setRttNote('');
-  }, [currentRttRemaining, currentYear, rttDialogOpen]);
+    if (!adjustType) return;
+    const current = visibleBalances.find((balance) => balance.type === adjustType);
+    setAdjustYear(currentYear);
+    setAdjustSolde(
+      formatSoldeDraft(
+        typeof current?.remaining === 'number' ? current.remaining : null,
+      ),
+    );
+    setAdjustNote('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjustType, currentYear]);
 
-  const rttMutation = useMutation({
+  const adjustMutation = useMutation({
     mutationFn: () => {
-      const parsed = Number.parseFloat(rttSolde.replace(',', '.'));
-      return updateEmployeeRttSolde(employeeId, rttYear, {
-        rtt_solde: parsed,
-        note: rttNote.trim() || null,
+      const parsed = Number.parseFloat(adjustSolde.replace(',', '.'));
+      if (!adjustCompteur) throw new Error('Compteur non ajustable.');
+      return updateEmployeeLeaveSolde(employeeId, adjustYear, {
+        compteur: adjustCompteur,
+        solde_cible: parsed,
+        note: adjustNote.trim() || null,
       });
     },
     onSuccess: () => {
-      setRttDialogOpen(false);
+      setAdjustType(null);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.employeeAbsenceBalances(companyId, employeeId),
       });
@@ -102,14 +126,15 @@ export function EmployeeDetailLeaveBalancesTab({
         queryKey: companyQueryKey(companyId, 'leave-balances-overview'),
       });
       toast({
-        title: 'Solde RTT enregistré',
+        title: 'Solde enregistré',
         description: 'Les soldes du salarié ont été recalculés.',
       });
     },
     onError: () => {
       toast({
-        title: 'Solde RTT non enregistré',
-        description: 'Vérifiez l’éligibilité RTT du salarié et réessayez.',
+        title: 'Solde non enregistré',
+        description:
+          'Vérifiez l’éligibilité du salarié à ce compteur et réessayez.',
         variant: 'destructive',
       });
     },
@@ -120,14 +145,14 @@ export function EmployeeDetailLeaveBalancesTab({
     search: '?tab=calendrier',
   };
 
-  const parsedRttSolde = Number.parseFloat(rttSolde.replace(',', '.'));
-  const rttSoldeInvalid = Number.isNaN(parsedRttSolde) || parsedRttSolde < 0;
-  const rttActionDisabled = balancesQuery.isLoading || !hireDate;
+  const parsedSolde = Number.parseFloat(adjustSolde.replace(',', '.'));
+  const soldeInvalid = Number.isNaN(parsedSolde) || parsedSolde < 0;
+  const adjustActionDisabled = balancesQuery.isLoading || !hireDate;
 
-  const handleSubmitRtt = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmitAdjust = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (rttSoldeInvalid || rttMutation.isPending) return;
-    rttMutation.mutate();
+    if (soldeInvalid || adjustMutation.isPending) return;
+    adjustMutation.mutate();
   };
 
   return (
@@ -140,28 +165,16 @@ export function EmployeeDetailLeaveBalancesTab({
               Soldes de congés
             </CardTitle>
             <CardDescription>
-              Droits acquis, jours pris et soldes restants (CP, RTT, repos compensateur, etc.).
+              Droits acquis, jours pris et soldes restants — le crayon d’une
+              ligne permet d’ajuster son solde (CP N-1, CP N, RTT, JTC).
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              disabled={rttActionDisabled}
-              onClick={() => setRttDialogOpen(true)}
-            >
-              <Pencil className="mr-2 h-4 w-4" aria-hidden />
-              Ajuster RTT
-            </Button>
-            <Button variant="outline" size="sm" asChild className="shrink-0">
-              <Link to={calendarHref}>
-                <CalendarDays className="mr-2 h-4 w-4" aria-hidden />
-                Calendrier
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" asChild className="shrink-0">
+            <Link to={calendarHref}>
+              <CalendarDays className="mr-2 h-4 w-4" aria-hidden />
+              Calendrier
+            </Link>
+          </Button>
         </CardHeader>
 
         <CardContent>
@@ -198,6 +211,7 @@ export function EmployeeDetailLeaveBalancesTab({
                     <TableHead className="text-right">Acquis</TableHead>
                     <TableHead className="text-right">Pris</TableHead>
                     <TableHead className="text-right">Restant</TableHead>
+                    <TableHead className="w-10" aria-label="Actions" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -205,6 +219,7 @@ export function EmployeeDetailLeaveBalancesTab({
                     const unit = balanceUsesHours(balance.type) ? 'h' : 'j';
                     const isFamilial = balance.type === EVENEMENT_FAMILIAL_TYPE;
                     const remainingDisplay = formatBalanceRemaining(balance.remaining, unit);
+                    const ajustable = balance.type in COMPTEURS_AJUSTABLES;
 
                     return (
                       <TableRow key={balance.type}>
@@ -240,6 +255,21 @@ export function EmployeeDetailLeaveBalancesTab({
                             </span>
                           )}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {ajustable ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={adjustActionDisabled}
+                              onClick={() => setAdjustType(balance.type)}
+                              aria-label={`Ajuster le solde ${getRhLeaveBalanceShortLabel(balance.type)}`}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden />
+                            </Button>
+                          ) : null}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -250,56 +280,71 @@ export function EmployeeDetailLeaveBalancesTab({
         </CardContent>
       </Card>
 
-      <Dialog open={rttDialogOpen} onOpenChange={setRttDialogOpen}>
+      <Dialog
+        open={adjustType != null}
+        onOpenChange={(open) => !open && setAdjustType(null)}
+      >
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleSubmitRtt} className="space-y-4">
+          <form onSubmit={handleSubmitAdjust} className="space-y-4">
             <DialogHeader>
-              <DialogTitle>Ajuster le solde RTT</DialogTitle>
+              <DialogTitle>
+                Ajuster le solde {adjustType ? getRhLeaveBalanceShortLabel(adjustType) : ''}
+              </DialogTitle>
               <DialogDescription>
-                Saisie de reprise pour l’année sélectionnée.
+                Saisissez le solde restant souhaité : l’outil enregistre
+                l’écart avec le calcul théorique (même mécanique que la
+                reprise).
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 sm:grid-cols-[120px_1fr]">
               <div className="space-y-2">
-                <Label htmlFor="employee-rtt-year">Année</Label>
+                <Label htmlFor="employee-solde-year">Année</Label>
                 <Input
-                  id="employee-rtt-year"
+                  id="employee-solde-year"
                   type="number"
                   min={2020}
                   max={2035}
-                  value={rttYear}
-                  onChange={(event) => setRttYear(Number(event.target.value) || currentYear)}
+                  value={adjustYear}
+                  onChange={(event) => setAdjustYear(Number(event.target.value) || currentYear)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-rtt-solde">Solde RTT</Label>
+                <Label htmlFor="employee-solde-cible">
+                  Solde restant souhaité (j)
+                </Label>
                 <Input
-                  id="employee-rtt-solde"
+                  id="employee-solde-cible"
                   type="number"
                   min={0}
                   step={0.5}
                   inputMode="decimal"
-                  value={rttSolde}
-                  onChange={(event) => setRttSolde(event.target.value)}
+                  value={adjustSolde}
+                  onChange={(event) => setAdjustSolde(event.target.value)}
                   className="text-right tabular-nums"
                   autoFocus
                 />
+                {typeof adjustBalance?.remaining === 'number' ? (
+                  <p className="text-xs text-muted-foreground">
+                    Solde affiché actuellement :{' '}
+                    {adjustBalance.remaining.toFixed(1)} j
+                  </p>
+                ) : null}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="employee-rtt-note">Note</Label>
+              <Label htmlFor="employee-solde-note">Note</Label>
               <Textarea
-                id="employee-rtt-note"
-                value={rttNote}
-                onChange={(event) => setRttNote(event.target.value)}
-                placeholder="Reprise historique"
+                id="employee-solde-note"
+                value={adjustNote}
+                onChange={(event) => setAdjustNote(event.target.value)}
+                placeholder="Ex. recalage sur les compteurs du bulletin d’août"
                 rows={3}
               />
             </div>
 
-            {rttSoldeInvalid ? (
+            {soldeInvalid ? (
               <p className="text-sm text-destructive">
                 Saisissez un nombre de jours positif ou nul.
               </p>
@@ -309,12 +354,12 @@ export function EmployeeDetailLeaveBalancesTab({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setRttDialogOpen(false)}
+                onClick={() => setAdjustType(null)}
               >
                 Annuler
               </Button>
-              <Button type="submit" disabled={rttSoldeInvalid || rttMutation.isPending}>
-                {rttMutation.isPending ? (
+              <Button type="submit" disabled={soldeInvalid || adjustMutation.isPending}>
+                {adjustMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
                 Enregistrer

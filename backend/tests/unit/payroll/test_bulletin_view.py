@@ -187,7 +187,7 @@ class TestCompteurs:
             "CP N-1",
             "CP N",
             "RTT",
-            "Repos comp.",
+            "Repos comp. (h)",
         ]
 
     def test_cp_periode_precedente_vide_masquee(self):

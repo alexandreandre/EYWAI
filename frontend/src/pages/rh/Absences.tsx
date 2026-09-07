@@ -9,6 +9,7 @@ import { useAbsencesQueries } from '@/hooks/queries/useAbsencesQuery';
 import { TableSkeleton } from '@/components/skeletons/TableSkeleton';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +109,22 @@ export default function AbsencesPage() {
   }, [absencesQuery.validated, absencesQuery.rejected]);
   const isLoading = absencesQuery.isLoading;
   const fetchData = absencesQuery.refetch;
+  // Recherche par salarié (demande Gaëlle 07/09) — insensible aux accents.
+  const [rechercheSalarie, setRechercheSalarie] = useState('');
+  const normaliser = (v: string) =>
+    v
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  const filtrerParSalarie = (requests: AbsenceRequest[]) => {
+    const terme = normaliser(rechercheSalarie.trim());
+    if (!terme) return requests;
+    return requests.filter((req) =>
+      normaliser(
+        `${req.employee?.first_name ?? ''} ${req.employee?.last_name ?? ''}`,
+      ).includes(terme),
+    );
+  };
   const [certificates, setCertificates] = useState<Record<string, absencesApi.SalaryCertificate>>({});
   const [loadingCertificates, setLoadingCertificates] = useState<Set<string>>(new Set());
   const [pendingSubrogation, setPendingSubrogation] = useState<Record<string, boolean | undefined>>({});
@@ -231,6 +248,16 @@ export default function AbsencesPage() {
     if (!balance || balance.remaining === 'N/A' || balance.remaining === 'selon événement') return <span className="text-muted-foreground">{balance?.remaining ?? 'N/A'}</span>;
 
     const remaining = balance.remaining as number;
+    // Repos compensateur : compteur en HEURES (la demande, elle, est en
+    // jours/heures mixtes) — on affiche le solde sans arithmétique de
+    // prévision plutôt qu'une soustraction d'unités incompatibles.
+    if (req.type === 'repos_compensateur') {
+      return (
+        <span className="flex items-center gap-1 text-muted-foreground">
+          <Info className="h-4 w-4" /> {remaining} h
+        </span>
+      );
+    }
     const requestedDaysCount = quotiteJoursDemande(req);
     const balanceAfterApproval = remaining - requestedDaysCount;
 
@@ -666,12 +693,21 @@ export default function AbsencesPage() {
         </p>
       </div>
       <Tabs defaultValue="pending">
-        <TabsList>
-          <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
-          <TabsTrigger value="processed">Historique</TabsTrigger>
-        </TabsList>
-        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(pending)}</CardContent></Card></TabsContent>
-        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(processed)}</CardContent></Card></TabsContent>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList>
+            <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>
+            <TabsTrigger value="processed">Historique</TabsTrigger>
+          </TabsList>
+          <Input
+            value={rechercheSalarie}
+            onChange={(e) => setRechercheSalarie(e.target.value)}
+            placeholder="Rechercher un salarié…"
+            className="w-full sm:w-64"
+            aria-label="Rechercher un salarié"
+          />
+        </div>
+        <TabsContent value="pending"><Card><CardHeader><CardTitle>Demandes à valider</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(pending))}</CardContent></Card></TabsContent>
+        <TabsContent value="processed"><Card><CardHeader><CardTitle>Demandes traitées</CardTitle></CardHeader><CardContent>{isLoading ? <TableSkeleton rows={5} columns={5} /> : renderRequestsTable(filtrerParSalarie(processed))}</CardContent></Card></TabsContent>
       </Tabs>
       <AlertDialog open={Boolean(certConfirmId)} onOpenChange={(o) => !o && setCertConfirmId(null)}>
         <AlertDialogContent>

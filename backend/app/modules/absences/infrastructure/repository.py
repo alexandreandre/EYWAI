@@ -217,6 +217,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
                 "selected_days",
                 "jours_payes",
                 "demi_journees",
+                "heures_par_jour",
                 "arret_type",
             )
             .in_("employee_id", employee_ids)

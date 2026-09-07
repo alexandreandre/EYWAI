@@ -202,6 +202,28 @@ export async function updateEmployeeLeaveAdjustment(
   return data;
 }
 
+export type CompteurAjustable = 'cp_n1' | 'cp_n' | 'rtt' | 'jtc';
+
+export interface EmployeeLeaveSoldeUpdate {
+  compteur: CompteurAjustable;
+  solde_cible: number;
+  note?: string | null;
+}
+
+/** Saisie RH d'un solde AFFICHÉ cible — le serveur le convertit en écart. */
+export async function updateEmployeeLeaveSolde(
+  employeeId: string,
+  year: number,
+  payload: EmployeeLeaveSoldeUpdate,
+): Promise<EmployeeLeaveAdjustment> {
+  const { data } = await apiClient.patch<EmployeeLeaveAdjustment>(
+    `/api/absences/leave-settings/employees/${employeeId}/solde`,
+    payload,
+    { params: { year } },
+  );
+  return data;
+}
+
 export async function updateEmployeeRttSolde(
   employeeId: string,
   year: number,
