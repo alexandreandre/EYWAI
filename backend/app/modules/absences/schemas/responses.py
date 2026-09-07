@@ -29,7 +29,8 @@ class AbsenceRequest(BaseModel):
     attachment_url: str | None = None
     filename: str | None = None
     event_subtype: str | None = None
-    jours_payes: int | None = None  # Pour conge_paye: jours payés (reste = sans solde)
+    jours_payes: float | None = None  # Pour conge_paye: jours payés, pas de 0,5 (reste = sans solde)
+    demi_journees: dict[str, str] | None = None  # {"2026-09-14": "matin"} — demi-journées de CP
     arret_type: str | None = None
     certificate_status: Optional[Literal["generated", "not_required", "pending"]] = None
     certificate_id: str | None = None

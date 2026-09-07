@@ -39,8 +39,10 @@ export interface AbsenceRequest {
   attachment_url: string | null;
   filename: string | null;
   event_subtype?: string | null;
-  /** Pour conge_paye: nombre de jours payés (reste = congé sans solde). */
+  /** Pour conge_paye: nombre de jours payés, pas de 0,5 (reste = congé sans solde). */
   jours_payes?: number | null;
+  /** Demi-journées de CP : {"2026-09-14": "matin"} — jour absent = jour plein. */
+  demi_journees?: Record<string, 'matin' | 'apres_midi'> | null;
   arret_type?: ArretType | null;
   /** Statut attestation salaire / IJSS (API module Documents). */
   certificate_status?: 'generated' | 'not_required' | 'pending' | null;
@@ -179,6 +181,8 @@ export interface AbsenceCreationPayload {
   filename?: string | null;
   event_subtype?: string | null; // Requis si type = evenement_familial
   arret_type?: ArretType | null;
+  /** Demi-journées de CP (clés = jours ISO de selected_days). */
+  demi_journees?: Record<string, 'matin' | 'apres_midi'>;
 }
 
 /**

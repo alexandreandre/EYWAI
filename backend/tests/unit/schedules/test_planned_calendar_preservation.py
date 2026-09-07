@@ -244,6 +244,9 @@ def test_les_cles_serveur_sont_definies_a_un_seul_endroit():
             "date_fin_arret_reel",
             "salaire_periode_reelle",
             "entree_avant_absence",
+            # Demi-journée de CP (quotité 0,5 posée par la validation).
+            "quotite_absence",
+            "demi_journee",
         }
     )
 

@@ -311,26 +311,63 @@ class TestUpdateAbsenceRequestStatus:
                         )
             return repo.update.call_args[0][1]
 
-    def test_jours_payes_est_toujours_un_entier(self):
-        """Retour Gaëlle 03/09 : un solde float (10.0) partait tel quel dans la
-        colonne integer jours_payes → 22P02 « invalid input syntax ». Le cas
-        « demande > solde » doit produire un int."""
+    def test_jours_payes_par_pas_de_demi_journee(self):
+        """La colonne jours_payes est numérique (migration demi-journées) : le
+        22P02 du 03/09 (float dans une colonne integer) ne peut plus se
+        produire. Le paiement se fait par pas de 0,5 jour : demande > solde
+        entier → solde payé tel quel."""
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.0)
-        assert call_update["jours_payes"] == 10
-        assert isinstance(call_update["jours_payes"], int)
+        assert call_update["jours_payes"] == 10.0
 
     def test_jours_payes_utilise_le_solde_affiche(self):
         """Le solde retenu est celui AFFICHÉ à la RH (report N-1 compris) :
         24,96 j pour 15 demandés → 15 payés, aucun jour « sans solde »."""
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=24.96)
         assert call_update["jours_payes"] == 15
-        assert isinstance(call_update["jours_payes"], int)
 
-    def test_jours_payes_plancher_du_solde_fractionnaire(self):
-        """Un solde fractionnaire insuffisant est PLANCHÉ : 10,5 j pour 15
-        demandés → 10 payés (pas de fraction de jour payée)."""
+    def test_jours_payes_plancher_au_demi_jour(self):
+        """Un solde fractionnaire insuffisant est planché au 0,5 le plus
+        proche par en dessous : 10,5 j pour 15 demandés → 10,5 payés ;
+        10,33 j → 10,0 (on ne paie jamais une fraction hors pas de 0,5)."""
         call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.5)
-        assert call_update["jours_payes"] == 10
+        assert call_update["jours_payes"] == 10.5
+        call_update = self._valider_cp(nb_jours_demandes=15, solde_restant=10.33)
+        assert call_update["jours_payes"] == 10.0
+
+    def test_jours_payes_pondere_les_demi_journees(self):
+        """3 jours dont un posé « matin » = 2,5 jours payés quand le solde
+        couvre la demande."""
+        req_before = {
+            "id": "req-cp",
+            "employee_id": "emp-1",
+            "type": "conge_paye",
+            "status": "pending",
+            "selected_days": ["2026-08-10", "2026-08-11", "2026-08-12"],
+            "demi_journees": {"2026-08-12": "matin"},
+        }
+        with patch(
+            "app.modules.absences.application.commands.absence_repository"
+        ) as repo:
+            repo.get_by_id.return_value = req_before
+            repo.update.return_value = {**req_before, "status": "validated"}
+            with patch(
+                "app.modules.absences.application.commands.get_cp_solde_restant",
+                return_value=25.0,
+            ):
+                with patch(
+                    "app.modules.absences.application.commands.calendar_update_provider"
+                ) as cal:
+                    with patch(
+                        "app.modules.absences.application.commands.get_maintenance_settings",
+                        return_value=MaintenanceSettings(company_id="company-1"),
+                    ):
+                        commands.update_absence_request_status(
+                            "req-cp", "validated", current_user_id="user-1"
+                        )
+            assert repo.update.call_args[0][1]["jours_payes"] == 2.5
+            # Les demi-journées voyagent jusqu'à la projection calendrier.
+            kwargs = cal.update_calendar_from_days.call_args.kwargs
+            assert kwargs["demi_journees"] == {"2026-08-12": "matin"}
 
     def test_raises_lookup_error_if_update_returns_none(self):
         """Si repository.update retourne None → LookupError."""

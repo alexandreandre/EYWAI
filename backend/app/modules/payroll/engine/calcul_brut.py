@@ -40,6 +40,32 @@ def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> 
     return float(heures)
 
 
+def _jours_evenement_conges(evenement: Dict[str, Any]) -> float:
+    """Quotité de jour consommée par un événement conges_payes.
+
+    0.5 = demi-journée (clé `quotite_absence` posée par la validation
+    d'absence) ; absente ou invalide = jour plein. Plafonnée à 1 : jamais
+    plus d'un jour de CP par jour calendaire (miroir du plafond forfait,
+    cf. calcul_brut_forfait._jours_evenement_absence).
+    """
+    try:
+        quotite = float(evenement.get("quotite_absence") or 1.0)
+    except (TypeError, ValueError):
+        quotite = 1.0
+    if quotite <= 0:
+        return 1.0
+    return min(quotite, 1.0)
+
+
+def _format_jours_conges(nombre: float) -> str:
+    """« 1 jour », « 5 jours », « 0,5 jour », « 2,5 jours » (libellé bulletin)."""
+    if nombre == int(nombre):
+        n = int(nombre)
+        return f"{n} jour" + ("s" if n > 1 else "")
+    label = f"{nombre:.1f}".replace(".", ",")
+    return f"{label} jour" + ("s" if nombre > 1 else "")
+
+
 def _parse_date_contrat(value: Any) -> date | None:
     if not value:
         return None
@@ -1096,14 +1122,18 @@ def calculer_salaire_brut(
             }
         )
 
-    # 5. Calcul final des congés
+    # 5. Calcul final des congés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:
+        nombre_jours_conges = sum(
+            _jours_evenement_conges(ev) for ev in jours_conges_dans_periode
+        )
         resultat_conges = calculer_indemnite_conges(
-            contexte, len(jours_conges_dans_periode), taux_horaire_de_base
+            contexte, nombre_jours_conges, taux_horaire_de_base
         )
         lignes_composants_brut.append(
             {
-                "libelle": f"Absence congés payés ({resultat_conges['nombre_jours']} jours)",
+                "libelle": "Absence congés payés "
+                f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})",
                 "quantite": round(resultat_conges["total_heures_absence"], 2),
                 "taux": None,
                 "gain": None,

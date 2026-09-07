@@ -22,7 +22,13 @@ logger = get_logger("modules.payroll.application.analyzer")
 # heures_prevues=0) : ne jamais les filtrer même à 0 h, sinon l'événement n'atteint
 # jamais calcul_brut et l'absence n'est jamais déduite. Partagé avec l'analyseur
 # forfait-jour (`engine.analyser_jours_forfait`), qui a le même repli.
-TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset({"arret_maladie", "ferie"})
+# `conges_payes` : un CP validé via le module absences est projeté à 0 h
+# (providers.py) ; calcul_brut le compte en JOURS (pas en heures) — le filtrer
+# supprimait la retenue ET l'indemnité CP du bulletin (l'arbitrage 1/10e ne
+# s'appliquait jamais). Sous maintien la correction est neutre sur le brut.
+TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset(
+    {"arret_maladie", "ferie", "conges_payes"}
+)
 
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "arret_type",
@@ -36,6 +42,8 @@ _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "maintien_base_ouvree",
     "date_debut_arret_reel",  # vrai début d'un arrêt multi-mois (épuisement maintien)
     "date_fin_arret_reel",  # vraie fin calendaire (week-end/férié en bord de mois)
+    "quotite_absence",  # fraction de jour d'absence (0.5 = demi-journée de CP)
+    "demi_journee",  # "matin" / "apres_midi" — informatif (affichage/traçabilité)
 )
 
 
@@ -123,7 +131,10 @@ def analyser_horaires_du_mois(
             duree_hebdo_semaine = modulation_weekly_hours[cle_semaine]
         duree_contrat_centiemes = int(duree_hebdo_semaine * 100)
 
-        # On ajoute les jours non-travaillés sans heures réelles
+        # On ajoute les jours non-travaillés sans heures réelles.
+        # Exception : une demi-journée d'absence (quotite_absence < 1) coexiste
+        # avec des heures pointées sur l'autre demi-journée — l'événement doit
+        # quand même atteindre le bulletin (0,5 CP + matinée travaillée).
         for jour_prevu in data["jours_non_travailles"]:
             heures_reelles_ce_jour = any(
                 j["jour"] == jour_prevu["jour"]
@@ -131,7 +142,8 @@ def analyser_horaires_du_mois(
                 and (j.get("heures_faites") or 0) > 0  # Robuste à None
                 for j in data["reel"]
             )
-            if not heures_reelles_ce_jour:
+            quotite = float(jour_prevu.get("quotite_absence") or 1.0)
+            if not heures_reelles_ce_jour or 0.0 < quotite < 1.0:
                 evenements_finaux.append(jour_prevu)
 
         # Heures assimilées

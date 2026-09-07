@@ -190,9 +190,13 @@ export default function AbsencesPage() {
   };
   
   // --- NOUVEAU : Fonction d'affichage intelligente des dates ---
-  const renderDates = (days: string[]) => {
+  const renderDates = (days: string[], demiJournees?: Record<string, string> | null) => {
     if (!days || days.length === 0) return 'N/A';
-    const count = days.length;
+    const demi = demiJournees ?? {};
+    const count = days.reduce(
+      (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
+      0,
+    );
     
     const sortedDates = days.map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
     const groups = groupConsecutiveDates(sortedDates);
@@ -211,7 +215,7 @@ export default function AbsencesPage() {
 
     return (
       <div>
-        <p className="font-bold">{count} jour{count > 1 ? 's' : ''} :</p>
+        <p className="font-bold">{Number.isInteger(count) ? count : count.toFixed(1).replace('.', ',')} jour{count > 1 ? 's' : ''} :</p>
         <div className="flex flex-col text-xs text-muted-foreground">
           {formattedParts.map((part, index) => (
             <span key={index}>{part}</span>
@@ -230,7 +234,11 @@ export default function AbsencesPage() {
     if (!balance || balance.remaining === 'N/A' || balance.remaining === 'selon événement') return <span className="text-muted-foreground">{balance?.remaining ?? 'N/A'}</span>;
 
     const remaining = balance.remaining as number;
-    const requestedDaysCount = req.selected_days.length;
+    const demi = req.demi_journees ?? {};
+    const requestedDaysCount = req.selected_days.reduce(
+      (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
+      0,
+    );
     const balanceAfterApproval = remaining - requestedDaysCount;
 
     const colorClass = balanceAfterApproval < 0 ? "text-destructive" : "text-muted-foreground";
@@ -395,7 +403,7 @@ export default function AbsencesPage() {
                 typeLabels[req.type]
               )}
             </TableCell>
-            <TableCell>{renderDates(req.selected_days)}</TableCell>
+            <TableCell>{renderDates(req.selected_days, req.demi_journees)}</TableCell>
             <TableCell>{renderRemainingBalance(req)}</TableCell>
             <TableCell>
               {req.attachment_url && (

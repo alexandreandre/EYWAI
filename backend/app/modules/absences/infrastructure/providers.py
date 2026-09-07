@@ -303,8 +303,14 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         subrogation_active: Optional[bool] = None,
         nombre_enfants: int = 0,
         historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
+        demi_journees: Optional[Dict[str, str]] = None,
     ) -> None:
         type_mapping = ABSENCE_TYPE_TO_CALENDAR_TYPE
+        # Demi-journées de CP : {"2026-09-14": "matin"}. Le jour converti porte
+        # quotite_absence=0.5 (clé serveur, cf. SERVER_OWNED_ABSENCE_KEYS) que
+        # le moteur de paie consomme (retenue/indemnité 0,5 jour) et que le
+        # décompte de solde pondère.
+        demi_par_date = demi_journees or {}
         is_arret = absence_type_str in IJSS_ELIGIBLE_TYPES
         new_calendar_type = "arret_maladie" if is_arret else type_mapping.get(absence_type_str)
         if not new_calendar_type:
@@ -387,6 +393,10 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                                 date_debut_arret_reel=date_debut_arret_reel,
                                 date_fin_arret_reel=date_fin_arret_reel,
                             )
+                        demi = demi_par_date.get(date(year, month, day).isoformat())
+                        if demi:
+                            entry["quotite_absence"] = 0.5
+                            entry["demi_journee"] = demi
                         calendrier_prevu.append(entry)
                     elif est_weekend:
                         # Jour de remplissage OU jour d'absence tombant le
@@ -473,6 +483,12 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                         # elle qui traite la quasi-totalité des validations,
                         # elle doit poser le marqueur au même titre que l'autre.
                         entry["origine"] = ORIGINE_ABSENCE
+                        demi = demi_par_date.get(
+                            date(year, month, int(entry["jour"])).isoformat()
+                        )
+                        if demi:
+                            entry["quotite_absence"] = 0.5
+                            entry["demi_journee"] = demi
                     if new_calendar_type == "arret_maladie":
                         self._appliquer_meta_arret(
                             entry,

@@ -378,7 +378,7 @@ def _parse_hire_date(employee_id: str) -> date | None:
 
 
 def assert_employee_conge_paye_request_allowed(
-    employee_id: str, selected_days: list
+    employee_id: str, selected_days: list, demi_journees: dict | None = None
 ) -> None:
     """
     Vérifie qu'une demande CP salarié ne dépasse pas le solde disponible
@@ -416,6 +416,7 @@ def assert_employee_conge_paye_request_allowed(
         policy=policy,
         adjustment=adjustment,
         extra_committed_days=extra_cet,
+        demi_journees=demi_journees,
         **extras,
     )
 

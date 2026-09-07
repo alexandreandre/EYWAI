@@ -135,7 +135,10 @@ export function computeMonthStats(
 
   for (const p of planned) {
     if (p.type === 'conge' || p.type === 'conges_payes' || p.type === 'rtt')
-      conges += 1;
+      // Une demi-journée de CP (quotite_absence = 0.5) compte 0,5 jour.
+      conges += p.quotite_absence != null && p.quotite_absence > 0 && p.quotite_absence < 1
+        ? p.quotite_absence
+        : 1;
     else if (p.type === 'arret_maladie') arrets += 1;
     else if (p.type === 'ferie') feriels += 1;
     else if (p.type === 'travail' || p.type === 'work') {

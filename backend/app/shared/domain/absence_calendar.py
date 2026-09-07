@@ -62,6 +62,10 @@ SERVER_OWNED_ABSENCE_KEYS: frozenset[str] = frozenset(
         "date_fin_arret_reel",
         "salaire_periode_reelle",
         "entree_avant_absence",
+        # Demi-journée de CP : posées à la projection d'une absence validée,
+        # consommées par le moteur de paie (0,5 jour) et le décompte de solde.
+        "quotite_absence",
+        "demi_journee",
     }
 )
 

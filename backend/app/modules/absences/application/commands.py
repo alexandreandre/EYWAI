@@ -10,6 +10,7 @@ from app.core.logging import get_logger
 
 logger = get_logger("modules.absences.application.commands")
 
+import math
 from datetime import date
 from typing import Any
 
@@ -19,6 +20,7 @@ from app.modules.absences.domain.enums import (
     type_calendrier_projete,
 )
 from app.modules.absences.domain.rules import (
+    quotite_demi_journees,
     requires_salary_certificate,
 )
 from app.services.document_service import document_service
@@ -188,13 +190,21 @@ def create_absence_request(
     absence_type = getattr(request_data, "type", None)
     employee_id = getattr(request_data, "employee_id", None)
     event_subtype = getattr(request_data, "event_subtype", None)
+    demi_journees_raw = getattr(request_data, "demi_journees", None) or {}
+    # Clés normalisées en ISO : c'est la forme stockée (jsonb) et lue partout.
+    demi_journees = {
+        (k if isinstance(k, str) else k.isoformat()): v
+        for k, v in demi_journees_raw.items()
+    }
 
     if enforce_conge_paye_balance and absence_type == "conge_paye":
         from app.modules.absences.application.queries import (
             assert_employee_conge_paye_request_allowed,
         )
 
-        assert_employee_conge_paye_request_allowed(employee_id, selected_days)
+        assert_employee_conge_paye_request_allowed(
+            employee_id, selected_days, demi_journees=demi_journees
+        )
 
     if absence_type == "evenement_familial":
         if not event_subtype:
@@ -237,6 +247,8 @@ def create_absence_request(
         "attachment_url": getattr(request_data, "attachment_url", None),
         "filename": getattr(request_data, "filename", None),
     }
+    if demi_journees:
+        db_data["demi_journees"] = demi_journees
     if absence_type == "evenement_familial" and event_subtype:
         db_data["event_subtype"] = event_subtype
 
@@ -280,13 +292,17 @@ def update_absence_request_status(
     if status == "validated" and req_before.get("type") == "conge_paye":
         # Solde = celui AFFICHÉ à la RH (report N-1, ajustements, ancienneté,
         # CET compris) : l'ancien calcul maison (acquis période courante − pris)
-        # marquait « sans solde » des jours couverts par le report, et son float
-        # (10.0) partait tel quel dans la colonne integer jours_payes → 22P02
-        # (retour Gaëlle 03/09). int() : un solde fractionnaire ne paie pas de
-        # fraction de jour.
+        # marquait « sans solde » des jours couverts par le report (retour
+        # Gaëlle 03/09). La colonne jours_payes est numérique depuis la
+        # migration demi-journées ; on paie par pas de 0,5 jour — un solde à
+        # 10,33 paie au plus 10,5… non : 10,0 ou 10,5 ≤ solde, donc 10,0.
         available = get_cp_solde_restant(req_before["employee_id"])
-        requested = len(req_before.get("selected_days") or [])
-        update_dict["jours_payes"] = min(requested, int(available))
+        requested = quotite_demi_journees(
+            req_before.get("selected_days") or [],
+            req_before.get("demi_journees"),
+        )
+        payable = math.floor(float(available) * 2) / 2
+        update_dict["jours_payes"] = min(requested, payable)
 
     if subrogation_active is not None:
         update_dict["subrogation_active"] = bool(subrogation_active)
@@ -408,6 +424,7 @@ def update_absence_request_status(
             subrogation_active=sub_active if isinstance(sub_active, bool) else None,
             nombre_enfants=nombre_enfants,
             historique_arrets_annee=historique or None,
+            demi_journees=data.get("demi_journees") or None,
         )
         # Types IJSS / attestation : alignés sur IJSS_ELIGIBLE_TYPES (= arrêts avec attestation).
         if requires_salary_certificate(absence_type) and absence_type in IJSS_ELIGIBLE_TYPES:

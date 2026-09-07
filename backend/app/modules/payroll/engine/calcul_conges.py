@@ -39,7 +39,7 @@ def _lire_majoration_hs(contexte: ContextePaie) -> float:
 
 
 def calculer_indemnite_conges(
-    contexte: ContextePaie, nombre_jours_conges: int, salaire_horaire_base: float
+    contexte: ContextePaie, nombre_jours_conges: float, salaire_horaire_base: float
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité de congés payés en comparant les deux méthodes

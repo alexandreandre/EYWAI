@@ -167,6 +167,10 @@ export function AbsenceRequestModal({
   const [eventSubtype, setEventSubtype] = useState<string>('');
   const [evenementFamilialEvents, setEvenementFamilialEvents] = useState<absencesApi.EvenementFamilialEvent[]>([]);
   const [selectedDays, setSelectedDays] = useState<Date[] | undefined>([]);
+  // Demi-journées de CP : { '2026-09-14': 'matin' } — jour absent = jour plein.
+  const [demiJournees, setDemiJournees] = useState<
+    Record<string, 'matin' | 'apres_midi'>
+  >({});
   const [arretRange, setArretRange] = useState<DateRange | undefined>(undefined);
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -197,6 +201,7 @@ export function AbsenceRequestModal({
       setEventSubtype("");
       setEvenementFamilialEvents([]);
       setSelectedDays([]);
+      setDemiJournees({});
       setArretRange(undefined);
       setComment("");
       setFile(null);
@@ -241,6 +246,16 @@ export function AbsenceRequestModal({
 
   const selectedDaysCount = selectedDays?.length ?? 0;
 
+  // Quotité demandée en jours : une demi-journée de CP pèse 0,5. Les
+  // demi-journées ne concernent que les congés payés.
+  const demiActives = absenceType === 'conge_paye' ? demiJournees : {};
+  const quotiteSelectionnee = (selectedDays ?? []).reduce(
+    (acc, day) => acc + (demiActives[format(day, 'yyyy-MM-dd')] ? 0.5 : 1),
+    0,
+  );
+  const formatJours = (n: number) =>
+    Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
+
   // Un arrêt (hors mi-temps thérapeutique : travail partiel) se saisit en
   // période calendaire « du … au … » — l'expansion en jours est serveur.
   const isSaisiePeriode =
@@ -256,7 +271,7 @@ export function AbsenceRequestModal({
   const cpBalanceExceeded =
     effectiveMode === "employee" &&
     absenceType === "conge_paye" &&
-    selectedDaysCount > availableCongePayeDays;
+    quotiteSelectionnee > availableCongePayeDays;
 
   const doSubmit = async () => {
     if (isSaisiePeriode) {
@@ -312,6 +327,19 @@ export function AbsenceRequestModal({
       }
       if (isArretPrincipalType(absenceType)) {
         payload.arret_type = arretType as absencesApi.ArretType;
+      }
+      if (absenceType === 'conge_paye') {
+        // Seuls les jours encore sélectionnés partent (une désélection ne
+        // doit pas laisser une demi-journée orpheline dans le payload).
+        const jours = new Set(
+          (selectedDays ?? []).map((day) => format(day, 'yyyy-MM-dd')),
+        );
+        const demi = Object.fromEntries(
+          Object.entries(demiJournees).filter(([iso]) => jours.has(iso)),
+        );
+        if (Object.keys(demi).length > 0) {
+          payload.demi_journees = demi;
+        }
       }
       await absencesApi.createAbsenceRequest(payload);
 
@@ -378,7 +406,7 @@ export function AbsenceRequestModal({
 
     // Congés payés : blocage salarié si solde insuffisant ; RH peut confirmer du sans solde
     if (absenceType === "conge_paye") {
-      const nbJours = selectedDays.length;
+      const nbJours = quotiteSelectionnee;
       if (effectiveMode === "employee") {
         if (nbJours > availableCongePayeDays) {
           setError(formatCongePayeInsufficientMessage(availableCongePayeDays, nbJours));
@@ -466,7 +494,7 @@ export function AbsenceRequestModal({
 
   const cpBalance = balances.find((b) => b.type === "Congés Payés");
   const cpRestant = typeof cpBalance?.remaining === "number" ? cpBalance.remaining : 0;
-  const nbJoursSansSolde = Math.max(0, (selectedDays?.length ?? 0) - cpRestant);
+  const nbJoursSansSolde = Math.max(0, quotiteSelectionnee - cpRestant);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -631,7 +659,7 @@ export function AbsenceRequestModal({
                         )
                       : "Cliquez pour choisir la période"
                     : selectedDaysCount > 0
-                      ? `${selectedDaysCount} jour${selectedDaysCount > 1 ? "s" : ""} sélectionné${selectedDaysCount > 1 ? "s" : ""}`
+                      ? `${formatJours(quotiteSelectionnee)} jour${quotiteSelectionnee > 1 ? "s" : ""} sélectionné${quotiteSelectionnee > 1 ? "s" : ""}`
                       : isRhArret
                         ? "Cliquez pour choisir la période"
                         : "Cliquez pour choisir les dates"}
@@ -670,8 +698,11 @@ export function AbsenceRequestModal({
                       absenceType === "conge_paye" &&
                       dates.length > availableCongePayeDays
                     ) {
+                      // ceil : un solde à 2,5 permet de cocher 3 jours dont
+                      // un en demi-journée ; la quotité finale est revérifiée
+                      // à la soumission (et côté serveur).
                       const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
-                      const capped = sorted.slice(0, Math.max(0, Math.floor(availableCongePayeDays)));
+                      const capped = sorted.slice(0, Math.max(0, Math.ceil(availableCongePayeDays)));
                       setSelectedDays(capped);
                       setError(
                         formatCongePayeInsufficientMessage(
@@ -691,6 +722,55 @@ export function AbsenceRequestModal({
                 )}
               </PopoverContent>
             </Popover>
+            {absenceType === 'conge_paye' && (selectedDays?.length ?? 0) > 0 && (
+              <div className="space-y-1 rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">
+                  Journée entière ou demi-journée, jour par jour :
+                </p>
+                {[...(selectedDays ?? [])]
+                  .sort((a, b) => a.getTime() - b.getTime())
+                  .map((day) => {
+                    const iso = format(day, 'yyyy-MM-dd');
+                    const valeur = demiJournees[iso] ?? 'journee';
+                    return (
+                      <div
+                        key={iso}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="text-sm capitalize">
+                          {format(day, 'EEEE d MMMM', { locale: fr })}
+                        </span>
+                        <Select
+                          value={valeur}
+                          onValueChange={(v) =>
+                            setDemiJournees((prev) => {
+                              const next = { ...prev };
+                              if (v === 'matin' || v === 'apres_midi') {
+                                next[iso] = v;
+                              } else {
+                                delete next[iso];
+                              }
+                              return next;
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="journee">Journée entière</SelectItem>
+                            <SelectItem value="matin">½ — Matin</SelectItem>
+                            <SelectItem value="apres_midi">½ — Après-midi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-muted-foreground">
+                  Une demi-journée compte 0,5 jour sur le solde et la paie.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -739,8 +819,8 @@ export function AbsenceRequestModal({
           <AlertDialogHeader>
             <AlertDialogTitle>Attention — congé sans solde</AlertDialogTitle>
             <AlertDialogDescription>
-              Votre solde de congés payés est de {cpRestant} jour{cpRestant !== 1 ? "s" : ""}. Vous demandez {(selectedDays?.length ?? 0)} jour{(selectedDays?.length ?? 0) !== 1 ? "s" : ""}.
-              Les {nbJoursSansSolde} jour{nbJoursSansSolde !== 1 ? "s" : ""} excédentaire{nbJoursSansSolde !== 1 ? "s" : ""} seront considéré{nbJoursSansSolde !== 1 ? "s" : ""} comme congé sans solde (non rémunéré).
+              Votre solde de congés payés est de {formatJours(cpRestant)} jour{cpRestant > 1 ? "s" : ""}. Vous demandez {formatJours(quotiteSelectionnee)} jour{quotiteSelectionnee > 1 ? "s" : ""}.
+              Les {formatJours(nbJoursSansSolde)} jour{nbJoursSansSolde > 1 ? "s" : ""} excédentaire{nbJoursSansSolde > 1 ? "s" : ""} seront considéré{nbJoursSansSolde > 1 ? "s" : ""} comme congé sans solde (non rémunéré).
               Confirmez-vous cette demande ?
             </AlertDialogDescription>
           </AlertDialogHeader>

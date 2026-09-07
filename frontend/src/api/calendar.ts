@@ -16,6 +16,10 @@ export interface PlannedEventData {
    * peut être absent tant que le backend ne l'expose pas en lecture.
    */
   origine?: string | null;
+  /** Demi-journée de CP posée par le serveur : 0.5 (absent = jour plein). */
+  quotite_absence?: number | null;
+  /** 'matin' | 'apres_midi' pour une demi-journée de CP. */
+  demi_journee?: string | null;
 }
 
 export interface ActualHoursData {

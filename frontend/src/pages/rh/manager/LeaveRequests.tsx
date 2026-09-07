@@ -179,7 +179,17 @@ export default function LeaveRequests() {
                   <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                     {formatDates(row.selected_days)}
                   </TableCell>
-                  <TableCell>{row.selected_days?.length ?? 0} j.</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const demi = row.demi_journees ?? {};
+                      const n = (row.selected_days ?? []).reduce(
+                        (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
+                        0,
+                      );
+                      return Number.isInteger(n) ? n : n.toFixed(1).replace('.', ',');
+                    })()}{' '}
+                    j.
+                  </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button
                       size="sm"

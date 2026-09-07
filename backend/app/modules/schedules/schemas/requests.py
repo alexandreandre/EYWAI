@@ -57,6 +57,10 @@ class PlannedCalendarEntryOut(BaseModel):
     # (copie de mois, modèle de semaine). Toujours refusé en écriture
     # (PlannedCalendarEntry + SERVER_OWNED_ABSENCE_KEYS).
     origine: str | None = None
+    # Demi-journée de CP, LECTURE seulement (mêmes règles que `origine`) :
+    # quotite_absence=0.5 + demi_journee "matin"/"apres_midi" pour l'affichage.
+    quotite_absence: float | None = None
+    demi_journee: str | None = None
 
 
 class PlannedCalendarResponse(BaseModel):

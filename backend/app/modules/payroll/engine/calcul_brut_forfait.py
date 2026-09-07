@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
+from .calcul_brut import _format_jours_conges, _jours_evenement_conges
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -308,9 +309,11 @@ def calculer_salaire_brut_forfait(
                 }
             )
 
-    # 3. Calcul des congés payés
+    # 3. Calcul des congés payés (somme des quotités : une demi-journée = 0,5)
     if jours_conges_dans_periode:
-        nombre_jours_conges = len(jours_conges_dans_periode)
+        nombre_jours_conges = sum(
+            _jours_evenement_conges(ev) for ev in jours_conges_dans_periode
+        )
         # Pour le forfait jour, on utilise le même calcul que pour les heures
         # mais adapté : on calcule le taux horaire équivalent pour la méthode du maintien
         # En pratique, pour le forfait jour, on utilise souvent la méthode du 1/10ème
@@ -327,7 +330,8 @@ def calculer_salaire_brut_forfait(
 
         lignes_composants_brut.append(
             {
-                "libelle": f"Absence congés payés ({resultat_conges['nombre_jours']} jours)",
+                "libelle": "Absence congés payés "
+                f"({_format_jours_conges(float(resultat_conges['nombre_jours']))})",
                 "quantite": round(resultat_conges["total_heures_absence"], 2),
                 "taux": None,
                 "gain": None,

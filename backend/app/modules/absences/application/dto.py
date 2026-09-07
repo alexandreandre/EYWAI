@@ -23,7 +23,8 @@ class AbsenceRequestDto:
     attachment_url: Optional[str]
     filename: Optional[str]
     event_subtype: Optional[str]
-    jours_payes: Optional[int]
+    jours_payes: Optional[float]
+    demi_journees: Optional[dict] = None
     created_at: Optional[Any] = None
     manager_id: Optional[str] = None
 

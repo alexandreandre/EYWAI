@@ -11,6 +11,7 @@ import math
 import re
 import unicodedata
 from datetime import date, timedelta
+from typing import Any
 
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.domain.cp_seniority import (
@@ -225,6 +226,23 @@ def _parse_absence_day(value: object) -> date | None:
     return None
 
 
+def quotite_demi_journees(
+    selected_days: list[date], demi_journees: Any
+) -> float:
+    """Quotité totale en jours : 0,5 pour un jour listé dans demi_journees, 1 sinon.
+
+    `demi_journees` vient soit de la base ({"2026-09-14": "matin"}), soit du
+    schéma Pydantic (clés `date`) — les deux formes de clés sont acceptées.
+    """
+    demi = demi_journees or {}
+    demi_iso = {k if isinstance(k, str) else k.isoformat() for k in demi}
+    total = 0.0
+    for day in selected_days:
+        iso = day.isoformat() if hasattr(day, "isoformat") else str(day)[:10]
+        total += 0.5 if iso in demi_iso else 1.0
+    return total
+
+
 def count_absence_days_taken(
     requests: list[dict],
     absence_type: str,
@@ -252,10 +270,13 @@ def count_absence_days_taken(
                 continue
             days_in_range.append(parsed)
 
+        # Un jour posé en demi-journée pèse 0,5 (CP uniquement à la saisie ;
+        # neutre pour les autres types, qui n'ont jamais de demi_journees).
+        quotite = quotite_demi_journees(days_in_range, req.get("demi_journees"))
         if absence_type == "conge_paye" and req.get("jours_payes") is not None:
-            total += min(len(days_in_range), float(req["jours_payes"]))
+            total += min(quotite, float(req["jours_payes"]))
         else:
-            total += len(days_in_range)
+            total += quotite
     return total
 
 
@@ -956,6 +977,7 @@ def validate_conge_paye_request_days(
     extra_committed_days: float = 0.0,
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
+    demi_journees: Any = None,
 ) -> None:
     ref = ref_date or date.today()
     available = get_available_conge_paye_days(
@@ -968,7 +990,7 @@ def validate_conge_paye_request_days(
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
     )
-    requested = len(selected_days)
+    requested = quotite_demi_journees(selected_days, demi_journees)
     if requested <= available:
         return
     if available <= 0:
@@ -979,9 +1001,12 @@ def validate_conge_paye_request_days(
     avail_label = (
         str(int(available)) if available == int(available) else f"{available:.1f}"
     )
+    requested_label = (
+        str(int(requested)) if requested == int(requested) else f"{requested:.1f}"
+    )
     raise ValueError(
         f"Solde de congés payés insuffisant : il vous reste {avail_label} jour(s) "
-        f"disponible(s) pour {requested} jour(s) demandé(s). "
+        f"disponible(s) pour {requested_label} jour(s) demandé(s). "
         "Rapprochez-vous de votre direction pour une demande hors solde."
     )
 

@@ -211,7 +211,14 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
             return []
         result = (
             supabase.table("absence_requests")
-            .select("employee_id", "type", "selected_days", "jours_payes", "arret_type")
+            .select(
+                "employee_id",
+                "type",
+                "selected_days",
+                "jours_payes",
+                "demi_journees",
+                "arret_type",
+            )
             .in_("employee_id", employee_ids)
             .eq("status", "validated")
             .execute()

@@ -72,8 +72,12 @@ def _heures_dues_hors_conges(
         for j in calendrier_periode
         if j.get("type") not in ("weekend", "ferie")
     )
+    # Quotité : une demi-journée de CP (quotite_absence=0.5) ne décharge que
+    # la moitié de la journée due.
     jours_conges = sum(
-        1 for j in calendrier_periode if j.get("type") == "conges_payes"
+        float(j.get("quotite_absence") or 1.0)
+        for j in calendrier_periode
+        if j.get("type") == "conges_payes"
     )
     heures_theoriques = jours_ouvrables * (duree_hebdo / 5)
     return heures_theoriques - (jours_conges * (duree_hebdo / 5))

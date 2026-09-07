@@ -151,10 +151,18 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         )
         # Aucun réel sur un jour d'absence, quel que soit le chemin d'écriture
         # (un réel > 0 y compte les heures comme travaillées et efface
-        # l'absence du bulletin).
+        # l'absence du bulletin). Le prévu stocké est passé pour préserver le
+        # réel des demi-journées de CP (quotite_absence < 1).
+        prevu_stocke = (
+            schedule_repository.get_planned_calendar(
+                employee_id, payload.year, payload.month
+            )
+            or {}
+        ).get("calendrier_prevu") or []
         calendrier_reel_normalized = (
             domain_rules.normalize_actual_hours_on_absence_days(
-                calendrier_reel_normalized
+                calendrier_reel_normalized,
+                calendrier_prevu=prevu_stocke,
             )
         )
         if domain_rules.is_forfait_jour(employee_statut):

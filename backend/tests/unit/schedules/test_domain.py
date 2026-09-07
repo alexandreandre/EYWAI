@@ -281,3 +281,22 @@ class TestNormalizeActualHoursOnAbsenceDays:
         assert [e["heures_faites"] for e in out] == [0, 0, 0, 0, 8.5, 4]
         # entrée d'origine non mutée
         assert reel[0]["heures_faites"] == 8.5
+
+    def test_demi_journee_cp_conserve_le_reel(self):
+        """Le jour PRÉVU porte quotite_absence=0.5 (demi-CP validé) : les
+        heures pointées sur l'autre demi-journée survivent ; un CP plein
+        reste forcé à 0."""
+        from app.modules.schedules.domain.rules import (
+            normalize_actual_hours_on_absence_days,
+        )
+
+        reel = [
+            {"jour": 1, "type": "conges_payes", "heures_faites": 3.5},
+            {"jour": 2, "type": "conges_payes", "heures_faites": 7},
+        ]
+        prevu = [
+            {"jour": 1, "type": "conges_payes", "quotite_absence": 0.5},
+            {"jour": 2, "type": "conges_payes"},
+        ]
+        out = normalize_actual_hours_on_absence_days(reel, calendrier_prevu=prevu)
+        assert [e["heures_faites"] for e in out] == [3.5, 0]

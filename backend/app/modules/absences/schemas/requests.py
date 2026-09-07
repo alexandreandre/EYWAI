@@ -5,7 +5,7 @@ Migrés depuis schemas/absence.py — comportement identique.
 """
 
 from datetime import date
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, model_validator
 
@@ -67,6 +67,28 @@ class AbsenceRequestCreate(BaseModel):
         None  # Requis si type = evenement_familial (ex: mariage_salarie, deces_enfant)
     )
     arret_type: Optional[ArretType] = None
+    # Demi-journées de congé payé : {"2026-09-14": "matin"} — un jour absent de
+    # ce dict est un jour plein. Réservé aux CP : les arrêts sont calendaires
+    # par construction, et les autres compteurs (RTT, JTC…) restent au jour
+    # plein tant que le besoin n'existe pas.
+    demi_journees: Optional[Dict[date, Literal["matin", "apres_midi"]]] = None
+
+    @model_validator(mode="after")
+    def demi_journees_reservees_aux_cp(self) -> "AbsenceRequestCreate":
+        if not self.demi_journees:
+            return self
+        if self.type != "conge_paye":
+            raise ValueError(
+                "La demi-journée n'est disponible que pour les congés payés."
+            )
+        jours = set(self.selected_days)
+        hors_selection = [d for d in self.demi_journees if d not in jours]
+        if hors_selection:
+            raise ValueError(
+                "Chaque demi-journée doit correspondre à un jour sélectionné "
+                f"(hors sélection : {', '.join(d.isoformat() for d in sorted(hors_selection))})."
+            )
+        return self
 
     @model_validator(mode="after")
     def arret_type_required_for_arrets(self) -> "AbsenceRequestCreate":

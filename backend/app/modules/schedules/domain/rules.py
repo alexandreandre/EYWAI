@@ -169,6 +169,7 @@ def merge_planned_entries(
 
 def normalize_actual_hours_on_absence_days(
     calendrier_reel: List[Dict[str, Any]],
+    calendrier_prevu: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """Force heures_faites = 0 sur les jours typés absence.
 
@@ -176,12 +177,32 @@ def normalize_actual_hours_on_absence_days(
     en paie et efface l'absence du bulletin (analyzer) : la garde vit ICI,
     côté serveur, pour couvrir tous les chemins d'écriture (éditeur de jour,
     « Réel = prévu », import badgeuse, application de modèle).
+
+    Exception : une demi-journée de CP (le jour PRÉVU porte
+    quotite_absence < 1, clé serveur posée à la validation de l'absence)
+    laisse le réel intact — le salarié a réellement travaillé l'autre
+    demi-journée, et l'analyzer sait désormais émettre l'événement CP
+    malgré des heures pointées ce jour-là.
     """
+    quotites_prevu: Dict[Any, float] = {}
+    for j in calendrier_prevu or []:
+        try:
+            quotites_prevu[int(j.get("jour"))] = float(
+                j.get("quotite_absence") or 1.0
+            )
+        except (TypeError, ValueError):
+            continue
+
     normalized: List[Dict[str, Any]] = []
     for entry in calendrier_reel:
         e = entry.copy()
         if e.get("type") in ABSENCE_CALENDAR_TYPES and (e.get("heures_faites") or 0):
-            e["heures_faites"] = 0
+            try:
+                quotite = quotites_prevu.get(int(e.get("jour")), 1.0)
+            except (TypeError, ValueError):
+                quotite = 1.0
+            if not (0.0 < quotite < 1.0):
+                e["heures_faites"] = 0
         normalized.append(e)
     return normalized
 

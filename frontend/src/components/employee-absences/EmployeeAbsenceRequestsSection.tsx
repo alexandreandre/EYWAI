@@ -44,12 +44,18 @@ interface EmployeeAbsenceRequestsSectionProps {
 
 function RequestMeta({ absence }: { absence: AbsenceRequest }) {
   const workflowLabel = getWorkflowStepLabel(absence.workflow_step);
-  const daysCount = absence.selected_days?.length ?? 0;
+  const demi = absence.demi_journees ?? {};
+  const daysCount = (absence.selected_days ?? []).reduce(
+    (sum, d) => sum + (demi[d.slice(0, 10)] ? 0.5 : 1),
+    0,
+  );
+  const fmt = (n: number) =>
+    Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
   const joursPayesNote =
     absence.type === 'conge_paye' &&
     absence.jours_payes != null &&
     absence.jours_payes !== daysCount
-      ? ` · ${absence.jours_payes} j. payés`
+      ? ` · ${fmt(absence.jours_payes)} j. payés`
       : '';
 
   return (
@@ -59,7 +65,7 @@ function RequestMeta({ absence }: { absence: AbsenceRequest }) {
         {daysCount > 0 && (
           <span className="text-muted-foreground/80">
             {' '}
-            ({daysCount} j.{joursPayesNote})
+            ({fmt(daysCount)} j.{joursPayesNote})
           </span>
         )}
       </p>

@@ -207,6 +207,12 @@ def _send_leave_request_email(
     absence_label = ABSENCE_TYPE_LABELS.get(absence_type, "absence")
     d0, d1 = absence_date_range_iso(row)
     days = list(row.get("selected_days") or [])
+    # Demi-journées de CP : la durée annoncée pondère à 0,5.
+    demi = row.get("demi_journees") or {}
+    quotite = sum(0.5 if str(d)[:10] in demi else 1.0 for d in days)
+    duree_label = (
+        str(int(quotite)) if quotite == int(quotite) else f"{quotite:.1f}".replace(".", ",")
+    )
     comment = str(row.get("comment") or "").strip()
     url = _build_absence_action_url()
 
@@ -217,7 +223,7 @@ Nouvelle demande de {absence_label}
 Entreprise : {company_name}
 Salarié : {employee_name}
 Période : {d0} au {d1}
-Durée : {len(days)} jour(s)
+Durée : {duree_label} jour(s)
 Statut : {stage_label}
 Commentaire : {comment or "Aucun"}
 
@@ -242,7 +248,7 @@ Traiter la demande : {url}
   <p><strong>Entreprise :</strong> {esc["company"]}</p>
   <p><strong>Salarié :</strong> {esc["employee"]}</p>
   <p><strong>Période :</strong> {esc["d0"]} au {esc["d1"]}</p>
-  <p><strong>Durée :</strong> {len(days)} jour(s)</p>
+  <p><strong>Durée :</strong> {duree_label} jour(s)</p>
   <p><strong>Statut :</strong> {esc["stage"]}</p>
   <p><strong>Commentaire :</strong><br>{esc["comment"]}</p>
   <p><a href="{esc["url"]}">Ouvrir les demandes d'absence dans EYWAI</a></p>

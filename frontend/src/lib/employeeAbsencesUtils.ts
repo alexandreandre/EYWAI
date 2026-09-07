@@ -144,6 +144,23 @@ export function requiresSalaryCertificate(type: string): boolean {
 export const INSUFFICIENT_CP_BALANCE_MESSAGE =
   'Solde de congés payés insuffisant. Rapprochez-vous de votre direction pour toute demande hors droits acquis.';
 
+/** Quotité d'une demande en jours : une demi-journée (demi_journees) pèse 0,5. */
+export function quotiteJoursDemande(req: {
+  selected_days?: string[] | null;
+  demi_journees?: Record<string, string> | null;
+}): number {
+  const demi = req.demi_journees ?? {};
+  return (req.selected_days ?? []).reduce(
+    (sum, day) => sum + (demi[day.slice(0, 10)] ? 0.5 : 1),
+    0,
+  );
+}
+
+/** « 2 », « 2,5 » — quotité de jours pour affichage. */
+export function formatQuotiteJours(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ',');
+}
+
 export function getAvailableCongePayeDays(
   balances: AbsenceBalance[],
   pendingRequests: AbsenceRequest[] = [],
@@ -152,7 +169,7 @@ export function getAvailableCongePayeDays(
   const remaining = typeof row?.remaining === 'number' ? row.remaining : 0;
   const pendingDays = pendingRequests
     .filter((r) => r.type === 'conge_paye' && r.status === 'pending')
-    .reduce((sum, r) => sum + (r.selected_days?.length ?? 0), 0);
+    .reduce((sum, r) => sum + quotiteJoursDemande(r), 0);
   return Math.max(0, remaining - pendingDays);
 }
 
@@ -166,9 +183,12 @@ export function formatCongePayeInsufficientMessage(
   const availLabel = Number.isInteger(available)
     ? String(available)
     : available.toFixed(1);
+  const requestedLabel = Number.isInteger(requested)
+    ? String(requested)
+    : requested.toFixed(1);
   return (
     `Solde de congés payés insuffisant : il vous reste ${availLabel} jour(s) ` +
-    `disponible(s) pour ${requested} jour(s) demandé(s). ` +
+    `disponible(s) pour ${requestedLabel} jour(s) demandé(s). ` +
     'Rapprochez-vous de votre direction pour une demande hors solde.'
   );
 }

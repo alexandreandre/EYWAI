@@ -28,5 +28,6 @@ class AbsenceRequestEntity:
     attachment_url: Optional[str] = None
     filename: Optional[str] = None
     event_subtype: Optional[str] = None
-    jours_payes: Optional[int] = None
+    jours_payes: Optional[float] = None
+    demi_journees: Optional[dict] = None
     created_at: Optional[datetime] = None
