@@ -29,13 +29,18 @@ ALTER TABLE public.employee_exits
 -- 2) Correction du dossier BARBERET (id identique prod/test — copie).
 --    exit_notes est un JOURNAL jsonb : la correction s'y appose comme une
 --    entrée d'audit, au format des entrées existantes (exit_type_change).
+--    La contrainte employee_exits_check impose last_working_day >=
+--    exit_request_date : la date de demande enregistrée (31/03) est fausse
+--    elle aussi, on l'aligne sur la date du transfert.
 UPDATE employee_exits
 SET exit_type = 'transfert',
+    exit_request_date = '2026-02-28',
     last_working_day = '2026-02-28',
     exit_notes = COALESCE(exit_notes, '{}'::jsonb) || jsonb_build_object(
       'correction_transfert_20260908', jsonb_build_object(
         'timestamp', now(),
         'previous_exit_type', 'fin_periode_essai',
+        'previous_exit_request_date', '2026-03-31',
         'previous_last_working_day', '2026-03-31',
         'note', 'Transfert intra-groupe vers ZONE 404 au 28/02/2026, sans STC '
                 || '(solde CP et anciennete conserves) — la fiche portait a tort '
