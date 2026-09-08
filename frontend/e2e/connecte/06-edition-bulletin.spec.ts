@@ -185,7 +185,7 @@ test.describe('Ce que l’écran annonce selon la ligne corrigée', () => {
     await ligne.getByRole('spinbutton').nth(0).press('Tab');
 
     await expect(avertissement).toBeVisible();
-    await expect(avertissement).toContainText('ne suivent pas cette ligne');
+    await expect(avertissement).toContainText('ne suivent pas cette correction');
     await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
   });
 
@@ -193,6 +193,45 @@ test.describe('Ce que l’écran annonce selon la ligne corrigée', () => {
     await preparerBulletin(page);
     await expect(page.getByTestId('avertissement-recalcul-brut')).toBeHidden();
     await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
+  });
+
+  test('remettre les deux paliers à zéro ne promet aucun recalcul', async ({ page }) => {
+    // Le moteur n'y voit pas une déclaration : il repartirait du calendrier.
+    await preparerBulletin(page);
+    for (const [rang, libelle] of [
+      [2, 'Heures suppl. majorées à 25%'],
+      [3, 'Heures suppl. majorées à 50%'],
+    ] as const) {
+      const ligne = ligneDuBrut(page, rang);
+      await ligne.getByText(libelle, { exact: true }).click();
+      await ligne.getByRole('spinbutton').nth(0).fill('0');
+      await ligne.getByRole('spinbutton').nth(0).press('Tab');
+    }
+
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
+  });
+
+  test('déplacer une heure d’un palier à l’autre ne promet aucun recalcul', async ({
+    page,
+  }) => {
+    // 2 + 3,5 devient 3 + 2,5 : même total, le moteur ne bouge pas — alors que
+    // les taux diffèrent. Ne rien annoncer plutôt que mentir.
+    await preparerBulletin(page);
+    const ligne25 = ligneDuBrut(page, 2);
+    await ligne25.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
+    await ligne25.getByRole('spinbutton').nth(0).fill('3');
+    await ligne25.getByRole('spinbutton').nth(0).press('Tab');
+    // Total modifié pour l'instant : l'annonce est légitime.
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeVisible();
+
+    const ligne50 = ligneDuBrut(page, 3);
+    await ligne50.getByText('Heures suppl. majorées à 50%', { exact: true }).click();
+    await ligne50.getByRole('spinbutton').nth(0).fill('2.5');
+    await ligne50.getByRole('spinbutton').nth(0).press('Tab');
+
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
     await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
   });
 });

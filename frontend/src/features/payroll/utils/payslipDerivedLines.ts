@@ -22,12 +22,44 @@
 const HEURES_SUPP = /heures\s+suppl/i;
 const STRUCTURELLES = /structurelle/i;
 
-/** Ligne dont la correction déclenche un recalcul complet à l'enregistrement. */
+/** Ligne dont la correction peut déclencher un recalcul complet. */
 export function estLigneHeuresSupConjoncturelle(
   libelle: string | undefined | null
 ): boolean {
   if (!libelle) return false;
   return HEURES_SUPP.test(libelle) && !STRUCTURELLES.test(libelle);
+}
+
+/** Total des heures supplémentaires conjoncturelles portées par le brut. */
+export function totalHeuresSupConjoncturelles(lignes: unknown): number {
+  if (!Array.isArray(lignes)) return 0;
+  return lignes.reduce<number>((total, ligne) => {
+    if (!ligne || typeof ligne !== 'object') return total;
+    const { libelle, quantite } = ligne as { libelle?: unknown; quantite?: unknown };
+    if (!estLigneHeuresSupConjoncturelle(typeof libelle === 'string' ? libelle : null)) {
+      return total;
+    }
+    return total + (typeof quantite === 'number' ? quantite : 0);
+  }, 0);
+}
+
+/**
+ * Le moteur reprendra-t-il vraiment la main sur ce bulletin ?
+ *
+ * Deux conditions, celles du moteur lui-même : il n'applique des heures
+ * déclarées que si au moins une est non nulle, et seulement si leur total
+ * diffère de celui du calendrier. Sans ce filtre, l'écran promettrait un
+ * recalcul qui n'aurait pas lieu — remettre les deux paliers à zéro, ou
+ * déplacer une heure d'un palier à l'autre à total constant.
+ */
+export function leMoteurRecalculera(
+  lignesInitiales: unknown,
+  lignesModifiees: unknown
+): boolean {
+  const avant = totalHeuresSupConjoncturelles(lignesInitiales);
+  const apres = totalHeuresSupConjoncturelles(lignesModifiees);
+  if (apres <= 0) return false;
+  return Math.abs(apres - avant) > 0.001;
 }
 
 /** Lien vers la page Primes, positionnée sur le mois (et le salarié) du bulletin. */

@@ -411,8 +411,12 @@ export default function PayslipEdit() {
             onOpenMaintienModal={() => setShowMaintienModal(true)}
           />
 
-          {/* Section Calcul du Brut */}
+          {/* Section Calcul du Brut.
+              La clé la remonte après chaque enregistrement : elle compare les
+              heures corrigées à celles d'ouverture pour annoncer — ou non — le
+              recalcul, et cette référence doit repartir du bulletin rechargé. */}
           <CalculBrutSection
+            key={`brut-${payslip.edit_count}-${payslip.edited_at ?? ''}`}
             data={editedData.calcul_du_brut || []}
             salaireBrut={editedData.salaire_brut}
             onChange={(data, newBrut) => {
