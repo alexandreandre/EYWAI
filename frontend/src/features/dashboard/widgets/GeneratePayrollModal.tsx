@@ -6,6 +6,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
 import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
@@ -273,6 +274,15 @@ export function GeneratePayrollModal({
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedMonth && parsedMonth.year > 0 && (
+              <div className="px-6 pb-4">
+                <BlocPeriodeVariables
+                  year={parsedMonth.year}
+                  month={parsedMonth.month}
+                />
+              </div>
+            )}
 
             {employees.length > 0 && (
               <div className="px-6 pb-4">

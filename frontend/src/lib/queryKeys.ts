@@ -186,6 +186,10 @@ export const queryKeys = {
     companyQueryKey(companyId, 'formation', 'dashboard', 'achievement', year),
   payrollPreflight: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payroll', 'preflight-anomalies', year, month),
+  periodeVariables: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'payroll', 'periode-variables', year, month),
+  surchargesPeriodeVariables: (companyId: string | undefined, year: number) =>
+    companyQueryKey(companyId, 'payroll', 'periode-variables-surcharges', year),
   companySettings: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'company-settings'),
 } as const;
