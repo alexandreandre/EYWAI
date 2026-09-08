@@ -10,6 +10,42 @@
 
 **Spec :** `docs/superpowers/specs/2026-09-08-periode-variables-paie-design.md`
 
+## État d'exécution — 08/09/2026
+
+Tâches 1 à 10 : **faites**, sur `fix/payslip-edit-state`. 7 082 tests backend,
+538 front, `tsc` et lint propres.
+
+Tâche 11 : **bloquée**. Le backtest régénère des bulletins et `backend/.env`
+pointe sur la production (`slleauhyjnmiawosvlcg`, le test étant
+`tlvkjwleahkmuzcegrde`). Aucun fichier d'environnement de test n'existe.
+
+Trois écarts au plan, assumés :
+
+1. **La migration n'est pas passée par `deploy-test-env.yml`.** Ce workflow
+   redéploie aussi backend et frontend depuis la branche, et Gaëlle vérifie ses
+   bulletins de juillet sur le test. Migration appliquée seule, en direct.
+2. **Pas de test de composant pour le bloc de saisie.** Le front n'a pas de
+   pile de test DOM (`environment: "node"`, `.test.ts` seulement, ni jsdom ni
+   testing-library). La logique d'affichage est un module pur testé
+   (`fenetreVariables.ts`), comme `periodePaie.ts` ; monter une pile de test au
+   passage était hors sujet.
+3. **La cible du backtest n'est plus 7/7.** Mesure de référence relevée en
+   lecture seule (`--dry-run`) sur la production : Colorplast mai 2026 converge
+   à **6/7**, avec un écart systémique `smu2_gan_mutuelle_famille` de 98,12 € —
+   le sujet GIRERD traité par ailleurs. Le critère devient donc : toujours 6/7,
+   le même écart, rien de neuf.
+
+Deux décisions attendues :
+
+- les identifiants du projet de test, pour rejouer le backtest avec le nouveau
+  code sans écrire en production ;
+- le reparamétrage de Comitech, MBC, Cartol et Lewis en `(4, -2)`. Elles sont
+  réglées sur « mois civil » alors que Gaëlle décale leurs variables : sans ce
+  changement, le bloc leur proposerait le 1er au 31 et elle devrait tout
+  corriger à la main chaque mois.
+
+---
+
 ## Global Constraints
 
 - **Le moteur reste généraliste.** Aucune règle spécifique à un salarié ou à une société nommée dans le code : tout passe par un paramètre lu en base.
