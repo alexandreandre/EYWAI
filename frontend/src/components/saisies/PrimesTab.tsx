@@ -33,9 +33,19 @@ interface PrimesTabProps {
   selectedMonth: number;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
+  /** Salarié sur lequel arriver filtré (lien « Corriger la variable » d'un bulletin). */
+  focusEmployeeId?: string;
+  onClearFocusEmployee?: () => void;
 }
 
-export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthChange }: PrimesTabProps) {
+export function PrimesTab({
+  selectedYear,
+  selectedMonth,
+  onYearChange,
+  onMonthChange,
+  focusEmployeeId,
+  onClearFocusEmployee,
+}: PrimesTabProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const payrollFocus = isPayrollFocusActive(user);
@@ -157,6 +167,15 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
     }
   };
 
+  // Arrivée depuis un bulletin : on n'affiche que les saisies du salarié
+  // concerné, sinon elle doit le retrouver dans la liste de toute la société.
+  const saisiesAffichees = focusEmployeeId
+    ? monthlyInputs.filter((input) => input.employee_id === focusEmployeeId)
+    : monthlyInputs;
+  const salarieFocus = focusEmployeeId
+    ? employees.find((e) => e.id === focusEmployeeId)
+    : undefined;
+
   return (
     <div className="space-y-6">
       {/* Sélecteurs de date */}
@@ -222,10 +241,36 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
         </div>
       </div>
 
+      {focusEmployeeId && (
+        <div
+          data-testid="filtre-salarie-primes"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-4 py-3 text-sm"
+        >
+          <span>
+            Filtré sur{' '}
+            <strong>
+              {salarieFocus
+                ? `${salarieFocus.first_name} ${salarieFocus.last_name}`
+                : 'le salarié du bulletin'}
+            </strong>
+            .
+          </span>
+          {onClearFocusEmployee && (
+            <Button variant="ghost" size="sm" onClick={onClearFocusEmployee}>
+              Voir tout le mois
+            </Button>
+          )}
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Saisies enregistrées</CardTitle>
-          <CardDescription>Liste de toutes les saisies ponctuelles pour le mois en cours.</CardDescription>
+          <CardDescription>
+            {focusEmployeeId
+              ? 'Saisies ponctuelles de ce salarié pour le mois affiché.'
+              : 'Liste de toutes les saisies ponctuelles pour le mois en cours.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -243,8 +288,8 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {monthlyInputs.length > 0 ? (
-                  monthlyInputs.map((input) => {
+                {saisiesAffichees.length > 0 ? (
+                  saisiesAffichees.map((input) => {
                     const emp = employees.find(e => e.id === input.employee_id);
                     return (
                       <TableRow key={input.id}>
@@ -301,7 +346,11 @@ export function PrimesTab({ selectedYear, selectedMonth, onYearChange, onMonthCh
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24">Aucune saisie enregistrée pour ce mois.</TableCell>
+                    <TableCell colSpan={6} className="text-center h-24">
+                      {focusEmployeeId
+                        ? 'Aucune saisie pour ce salarié sur ce mois.'
+                        : 'Aucune saisie enregistrée pour ce mois.'}
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
