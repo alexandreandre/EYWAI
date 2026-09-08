@@ -139,3 +139,38 @@ test.describe('Édition du bulletin (données fictives)', () => {
     expect(sauvegardes).toHaveLength(0);
   });
 });
+
+test.describe('Recalcul des cotisations après édition du brut', () => {
+  test('modifier une ligne du brut avertit que les cotisations et le net ne suivent pas', async ({
+    page,
+  }) => {
+    await preparerBulletin(page);
+    const avertissement = page.getByTestId('avertissement-recalcul-brut');
+    await expect(avertissement).toBeHidden();
+
+    const ligne = page
+      .getByRole('table')
+      .filter({ hasText: 'Salaire de base QA' })
+      .getByRole('row')
+      .nth(2);
+    await ligne.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
+    await ligne.getByRole('spinbutton').nth(0).fill('12.5');
+    await ligne.getByRole('spinbutton').nth(0).press('Tab');
+
+    await expect(avertissement).toBeVisible();
+    await expect(avertissement).toContainText(
+      'Les cotisations et le net ne sont pas recalculés'
+    );
+    await expect(avertissement).toContainText('Saisies');
+    await expect(avertissement).toContainText('régénérez le bulletin');
+  });
+
+  test("ajouter ou supprimer une ligne déclenche le même avertissement", async ({ page }) => {
+    await preparerBulletin(page);
+    const avertissement = page.getByTestId('avertissement-recalcul-brut');
+    await expect(avertissement).toBeHidden();
+
+    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    await expect(avertissement).toBeVisible();
+  });
+});
