@@ -74,6 +74,7 @@
                 <div class="periode">Période : {{ vue.bandeau.periode }}</div>
                 {% if vue.bandeau.date_paiement %}<div class="periode">Paiement le : {{ vue.bandeau.date_paiement }}</div>{% endif %}
                 {% if vue.bandeau.du %}<div class="periode">Du : {{ vue.bandeau.du }} &nbsp; Au : {{ vue.bandeau.au }}</div>{% endif %}
+                {% if vue.bandeau.variables %}<div class="periode">Variables {{ vue.bandeau.variables }}</div>{% endif %}
             </td>
         </tr>
     </table>

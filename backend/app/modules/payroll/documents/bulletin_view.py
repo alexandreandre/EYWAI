@@ -120,18 +120,27 @@ def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     annee = en_tete.get("annee")
     mois = en_tete.get("mois")
     du = au = ""
-    # Arrêté glissant : le bulletin porte les bornes réelles de sa période de
-    # paie (ex. juillet = 22/06→26/07). On les affiche quand elles existent ;
-    # repli mois civil pour les bulletins antérieurs à leur introduction.
+    variables = ""
+    # Le bulletin porte le mois civil — c'est ce que la gestionnaire de paie
+    # lit et ce que fait le cabinet. La fenêtre des variables (heures sup,
+    # paniers) s'affiche à part, et seulement quand elle en diffère.
     debut_periode = _date_fr(en_tete.get("date_debut_periode"))
     fin_periode = _date_fr(en_tete.get("date_fin_periode"))
-    if debut_periode and fin_periode:
-        du = debut_periode
-        au = fin_periode
-    elif annee and mois:
+    if annee and mois:
         dernier_jour = calendar.monthrange(int(annee), int(mois))[1]
         du = f"01/{int(mois):02d}/{int(annee)}"
         au = f"{dernier_jour:02d}/{int(mois):02d}/{int(annee)}"
+    elif debut_periode and fin_periode:
+        du = debut_periode
+        au = fin_periode
+    debut_variables = _date_fr(en_tete.get("date_debut_variables"))
+    fin_variables = _date_fr(en_tete.get("date_fin_variables"))
+    if (
+        debut_variables
+        and fin_variables
+        and (debut_variables, fin_variables) != (du, au)
+    ):
+        variables = f"du {debut_variables} au {fin_variables}"
     return {
         "raison_sociale": entreprise.get("raison_sociale") or "",
         "adresse": _lignes_adresse(entreprise.get("adresse")),
@@ -142,6 +151,7 @@ def construire_bandeau(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         "date_paiement": _date_fr(en_tete.get("date_paiement")),
         "du": du,
         "au": au,
+        "variables": variables,
     }
 
 

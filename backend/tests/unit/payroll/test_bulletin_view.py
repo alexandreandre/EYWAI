@@ -701,3 +701,44 @@ class TestRevenusHorsBrutImposables:
         from app.modules.payroll.documents.bulletin_view import _lignes_hors_brut
 
         assert _lignes_hors_brut({"primes_non_soumises": []}) == []
+
+
+def test_entete_porte_le_mois_civil_et_pas_la_fenetre():
+    """Gaëlle lit « du 1er au 31 juillet » ; la fenêtre s'affiche à part."""
+    from app.modules.payroll.documents.bulletin_view import construire_bandeau
+
+    vue = construire_bandeau(
+        {
+            "en_tete": {
+                "annee": 2026,
+                "mois": 7,
+                "entreprise": {"raison_sociale": "Colorplast"},
+                "date_debut_periode": "2026-07-01",
+                "date_fin_periode": "2026-07-31",
+                "date_debut_variables": "2026-06-22",
+                "date_fin_variables": "2026-07-26",
+            }
+        }
+    )
+    assert vue["du"] == "01/07/2026"
+    assert vue["au"] == "31/07/2026"
+    assert vue["variables"] == "du 22/06/2026 au 26/07/2026"
+
+
+def test_pas_de_ligne_variables_quand_la_fenetre_est_le_mois():
+    from app.modules.payroll.documents.bulletin_view import construire_bandeau
+
+    vue = construire_bandeau(
+        {
+            "en_tete": {
+                "annee": 2026,
+                "mois": 7,
+                "entreprise": {"raison_sociale": "MAJI"},
+                "date_debut_periode": "2026-07-01",
+                "date_fin_periode": "2026-07-31",
+                "date_debut_variables": "2026-07-01",
+                "date_fin_variables": "2026-07-31",
+            }
+        }
+    )
+    assert vue["variables"] == ""

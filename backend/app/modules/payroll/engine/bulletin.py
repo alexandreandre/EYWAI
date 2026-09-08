@@ -455,6 +455,8 @@ def creer_bulletin_final(
 
     date_debut_periode = getattr(contexte, "date_debut_periode", None)
     date_fin_periode = getattr(contexte, "date_fin_periode", None)
+    date_debut_variables = getattr(contexte, "date_debut_variables", None)
+    date_fin_variables = getattr(contexte, "date_fin_variables", None)
 
     bulletin = {
         "en_tete": {
@@ -469,6 +471,14 @@ def creer_bulletin_final(
             ),
             "date_fin_periode": (
                 date_fin_periode.isoformat() if date_fin_periode else None
+            ),
+            # Fenêtre des heures sup et des paniers, affichée sous le bandeau
+            # quand elle diffère du mois civil.
+            "date_debut_variables": (
+                date_debut_variables.isoformat() if date_debut_variables else None
+            ),
+            "date_fin_variables": (
+                date_fin_variables.isoformat() if date_fin_variables else None
             ),
             "date_paiement": _calculer_date_paiement(contexte, annee, mois),
             "entreprise": {
