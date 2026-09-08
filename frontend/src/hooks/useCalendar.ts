@@ -8,6 +8,11 @@ import { DayData } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
 import { computeMonthCompletionStatus } from '@/lib/calendarStats';
+import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
+import {
+  planningWarningsToast,
+  summarizePlanningWarnings,
+} from '@/lib/planningAbsenceWarnings';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 
 type PlannedEventData = calendarApi.PlannedEventData;
@@ -339,15 +344,13 @@ export function useCalendar(
       setOriginalActual(actualHours);
 
       // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
-      const requalifications = (plannedRes.data?.warnings ?? []).filter(
-        (w) => w.code === 'absence_validee_requalifiee'
+      // Depuis le chantier calendrier→paie il porte aussi les demandes de
+      // congé créées/annulées et les écarts (solde, reprise…) : tout s'affiche.
+      const warningsToast = planningWarningsToast(
+        summarizePlanningWarnings(plannedRes.data?.warnings)
       );
-      if (requalifications.length > 0) {
-        toast({
-          title: 'Enregistré — absences requalifiées',
-          description: `Ce changement requalifie ${requalifications.length} jour(s) d'absence validée.`,
-          variant: 'warning',
-        });
+      if (warningsToast) {
+        toast(warningsToast);
       } else {
         toast({
           title: 'Succès',
@@ -456,6 +459,10 @@ export function useCalendar(
           if (day.origine === 'absence') return day;
           const fromPrev = prevData.find((p) => p.jour === day.jour);
           if (!fromPrev) return day;
+          // Les CP/RTT du mois source viennent de demandes validées : les
+          // recopier créerait autant de NOUVELLES demandes validées. Le jour
+          // cible garde son état (généralement travail).
+          if (NON_COPYABLE_DAY_TYPES.has(fromPrev.type)) return day;
           return {
             ...day,
             type: fromPrev.type,

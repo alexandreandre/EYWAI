@@ -11,6 +11,7 @@ import {
   detectAbsenceConflictDays,
   validatedAbsenceDaysInMonth,
 } from '@/lib/schedulesAbsenceConflict';
+import type { PlanningWarning } from '@/lib/planningAbsenceWarnings';
 import {
   buildBasePlannedCalendarWithHolidays,
 } from '@/lib/companyCalendarHolidays';
@@ -276,11 +277,14 @@ export async function persistEmployeeMonth(
   month: number,
   planned: PlannedEventData[],
   actual: ActualHoursData[]
-): Promise<void> {
-  await Promise.all([
+): Promise<PlanningWarning[]> {
+  const [plannedRes] = await Promise.all([
     calendarApi.updatePlannedCalendar(employeeId, year, month, planned),
     calendarApi.updateActualHours(employeeId, year, month, actual),
   ]);
+  // Warnings du POST planned-calendar : demandes de congé créées/annulées
+  // depuis la saisie, écarts de solde… — à afficher par l'appelant.
+  return (plannedRes.data?.warnings ?? []) as PlanningWarning[];
 }
 
 export type OverviewExportFormat = 'csv' | 'xlsx' | 'pdf';

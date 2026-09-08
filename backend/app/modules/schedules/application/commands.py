@@ -35,10 +35,20 @@ from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
 
 
-def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
+def update_planned_calendar(
+    employee_id: str,
+    payload: Any,
+    *,
+    materialiser_absences: bool = True,
+) -> Dict[str, str]:
     """
     Met à jour (ou crée) le calendrier prévu dans employee_schedules.
     payload : objet avec .year, .month, .calendrier_prevu (liste d'entrées Pydantic).
+
+    materialiser_absences : la SAISIE RH d'un jour CP/RTT crée la demande
+    validée correspondante. Les flux d'IMPORT (pointages, reprises) passent
+    False : un relevé de pointeuse n'est pas une décision RH d'accorder un
+    congé.
     """
     try:
         log_app_debug(logger, f"\n{'=' * 70}")
@@ -78,9 +88,37 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
                 status_code=503,
             ) from e
         avert_requalification: List[Dict[str, Any]] = []
+        existant_par_jour: Dict[int, Dict[str, Any]] = {}
+        for e in existant or []:
+            jour_e = domain_rules.coerce_jour(e.get("jour")) if isinstance(e, dict) else None
+            if jour_e is not None:
+                existant_par_jour[jour_e] = e
         calendrier_prevu_raw = domain_rules.merge_planned_entries(
             existant, calendrier_prevu_raw, warnings=avert_requalification
         )
+        # Saisie RH directe d'un jour CP/RTT au calendrier : repérer les jours
+        # NOUVELLEMENT typés (pas déjà projetés par une demande — origine
+        # 'absence' — ni déjà de ce type avant la fusion) pour matérialiser la
+        # demande validée après l'enregistrement, avec la photo du jour
+        # d'avant (elle sert à la restauration si la demande est annulée).
+        jours_absences_saisis: Dict[str, List[int]] = {}
+        photos_avant: Dict[str, Dict[str, Any]] = {}
+        for entry in calendrier_prevu_raw:
+            type_jour = entry.get("type")
+            if type_jour not in ("conges_payes", "rtt"):
+                continue
+            if entry.get("origine") == "absence":
+                continue
+            avant = existant_par_jour.get(entry.get("jour"))
+            if avant and avant.get("type") == type_jour:
+                continue  # jour historique, pas une saisie de ce push
+            jours_absences_saisis.setdefault(type_jour, []).append(entry["jour"])
+            if avant:
+                iso = date(payload.year, payload.month, entry["jour"]).isoformat()
+                photos_avant[iso] = {
+                    "type": avant.get("type"),
+                    "heures_prevues": avant.get("heures_prevues"),
+                }
         calendrier_prevu_normalized = normalize_planned_calendar_for_employee(
             calendrier_prevu_raw, employee_statut
         )
@@ -108,6 +146,63 @@ def update_planned_calendar(employee_id: str, payload: Any) -> Dict[str, str]:
         )
 
         log_app_debug(logger, '\n✅ Upsert réussi!')
+
+        # « Une saisie RH enregistre un fait » : les jours CP/RTT posés au
+        # calendrier deviennent des demandes VALIDÉES (une par jour), et le
+        # retypage d'un jour issu d'une telle demande l'annule. Import
+        # paresseux (couplage schedules → absences limité à ce point), et
+        # échec non bloquant : le planning est enregistré, l'écart éventuel
+        # est signalé dans warnings.
+        #
+        # NOTE permissions : ce POST n'exige que schedules.update, alors que
+        # valider une demande exige ailleurs le niveau RH. Aujourd'hui la
+        # saisie du planning EST un acte RH (aucun rôle planificateur non-RH
+        # en usage) ; si un tel rôle apparaît, ajouter un garde explicite ici.
+        if materialiser_absences and (jours_absences_saisis or avert_requalification):
+            try:
+                from app.modules.absences.application.commands import (
+                    cancel_planning_absences_for_requalified_days,
+                    create_absences_from_planning,
+                )
+
+                if avert_requalification:
+                    avert_requalification.extend(
+                        cancel_planning_absences_for_requalified_days(
+                            employee_id,
+                            year=payload.year,
+                            month=payload.month,
+                            requalifications=list(avert_requalification),
+                        )
+                    )
+                if jours_absences_saisis:
+                    avert_requalification.extend(
+                        create_absences_from_planning(
+                            employee_id,
+                            company_id,
+                            year=payload.year,
+                            month=payload.month,
+                            jours_par_type=jours_absences_saisis,
+                            photos_avant=photos_avant or None,
+                        )
+                    )
+            except Exception:
+                logger.exception(
+                    "Synchronisation absences depuis le planning échouée (%s %s/%s)",
+                    employee_id,
+                    payload.month,
+                    payload.year,
+                )
+                avert_requalification.append(
+                    {
+                        "code": "sync_absences_echouee",
+                        "detail": (
+                            "Planning enregistré, mais la création automatique "
+                            "des demandes de congé a échoué : saisissez-les "
+                            "dans Gestion des congés."
+                        ),
+                    }
+                )
+
         log_app_debug(logger, f"{'=' * 70}\n")
         return {
             "status": "success",

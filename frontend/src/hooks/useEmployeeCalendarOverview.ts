@@ -12,6 +12,11 @@ import {
 } from '@/lib/schedulesOverview';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  planningWarningsToast,
+  summarizePlanningWarnings,
+} from '@/lib/planningAbsenceWarnings';
 
 export function useEmployeeCalendarOverview(
   employees: SchedulesEmployeeInput[],
@@ -19,6 +24,7 @@ export function useEmployeeCalendarOverview(
   month: number
 ) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { observedHolidayIds } = useObservedPublicHolidays();
   const [rows, setRows] = useState<EmployeeCalendarOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,13 +90,19 @@ export function useEmployeeCalendarOverview(
       );
 
       try {
-        await persistEmployeeMonth(
+        const warnings = await persistEmployeeMonth(
           employeeId,
           year,
           month,
           nextRow.planned,
           nextRow.actual
         );
+        // Demandes de congé créées/annulées par la saisie, écarts de solde…
+        // — la vue semaine doit le dire autant que le calendrier complet.
+        const warningsToast = planningWarningsToast(
+          summarizePlanningWarnings(warnings)
+        );
+        if (warningsToast) toast(warningsToast);
         void invalidateRhSidebarBadges(queryClient);
         return true;
       } catch (err) {
@@ -100,7 +112,7 @@ export function useEmployeeCalendarOverview(
         throw err;
       }
     },
-    [year, month, queryClient]
+    [year, month, queryClient, toast]
   );
 
   return {

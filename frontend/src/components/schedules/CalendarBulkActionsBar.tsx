@@ -21,6 +21,7 @@ import {
   type ActualSnapshot,
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
+import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
 
 interface CalendarBulkActionsBarProps {
   selectedCount: number;
@@ -119,9 +120,15 @@ export function CalendarBulkActionsBar({
             merged.push(existing);
             continue;
           }
+          // Les CP/RTT du mois source viennent de demandes validées : les
+          // recopier créerait autant de NOUVELLES demandes validées.
+          const copiable =
+            fromPrev && !NON_COPYABLE_DAY_TYPES.has(fromPrev.type)
+              ? fromPrev
+              : null;
           merged.push(
-            fromPrev
-              ? { ...fromPrev, jour }
+            copiable
+              ? { ...copiable, jour }
               : existing ?? { jour, type: 'travail', heures_prevues: null }
           );
         }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Copy, Loader2, Save } from "lucide-react";
 import { DayData } from "@/components/ScheduleModal";
+import { CALENDAR_EDITABLE_TYPE_OPTIONS } from "@/lib/calendarTypes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,10 +169,11 @@ export function BulkActionPanel({
         <Select value={type} onValueChange={setType}>
           <SelectTrigger id="bulk-type" className="h-8 w-[130px] text-xs"><SelectValue placeholder="Type..." /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="travail">Travail</SelectItem>
-            <SelectItem value="conge">Congé</SelectItem>
-            <SelectItem value="ferie">Férié</SelectItem>
-            <SelectItem value="arret_maladie">Arrêt Maladie</SelectItem>
+            {CALENDAR_EDITABLE_TYPE_OPTIONS.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button
@@ -180,8 +182,9 @@ export function BulkActionPanel({
           size="sm"
           className="h-8 text-xs"
           onClick={() => {
-            setType("conge");
-            setPlannedHours(isForfaitJour ? "0" : "0");
+            // CP réels : la saisie crée les demandes validées côté serveur.
+            setType("conges_payes");
+            setPlannedHours("0");
           }}
         >
           Tout congé

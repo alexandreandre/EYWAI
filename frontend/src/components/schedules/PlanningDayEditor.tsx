@@ -2,18 +2,29 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee } from 'lucide-react';
+import { Loader2, ExternalLink, Briefcase, TreePalm, Sparkles, Stethoscope, Coffee, Leaf } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import type { DayPatch } from '@/lib/schedulesOverview';
 
+// conges_payes/rtt : la saisie crée automatiquement la demande validée côté
+// serveur (« une saisie RH enregistre un fait »). L'ancien « conge » (hors
+// paie) n'apparaît que si le jour le porte déjà.
 const TYPE_OPTIONS = [
   { value: 'travail', label: 'Travail', icon: Briefcase, cls: 'bg-sky-100 text-sky-700 border-sky-200' },
-  { value: 'conge', label: 'Congé', icon: TreePalm, cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { value: 'conges_payes', label: 'CP', icon: TreePalm, cls: 'bg-green-100 text-green-700 border-green-200' },
+  { value: 'rtt', label: 'RTT', icon: Leaf, cls: 'bg-teal-100 text-teal-700 border-teal-200' },
   { value: 'ferie', label: 'Férié', icon: Sparkles, cls: 'bg-purple-100 text-purple-700 border-purple-200' },
   { value: 'arret_maladie', label: 'Arrêt', icon: Stethoscope, cls: 'bg-red-100 text-red-700 border-red-200' },
   { value: 'weekend', label: 'Week-end', icon: Coffee, cls: 'bg-slate-100 text-slate-600 border-slate-200' },
 ] as const;
+
+const LEGACY_CONGE_OPTION = {
+  value: 'conge',
+  label: 'Congé (hors paie)',
+  icon: TreePalm,
+  cls: 'bg-amber-100 text-amber-700 border-amber-200',
+} as const;
 
 interface PlanningDayEditorProps {
   employeeName: string;
@@ -77,6 +88,11 @@ export function PlanningDayEditor({
       } else if (plannedHours === '' || plannedHours === '0') {
         setPlannedHours('1');
       }
+    } else if (newType === 'conges_payes' || newType === 'rtt') {
+      // Jour d'absence : 0 h au planning (convention bulletin) — la demande
+      // validée créée côté serveur porte le décompte.
+      setPlannedHours('0');
+      setActualHours('0');
     } else if (newType !== 'travail' && plannedHours === '') {
       // garde la saisie en cours
     } else if (newType === 'travail' && plannedHours === '') {
@@ -136,7 +152,10 @@ export function PlanningDayEditor({
       <div>
         <Label className="text-xs mb-1.5 block">Type</Label>
         <div className="grid grid-cols-3 gap-1.5">
-          {TYPE_OPTIONS.map((opt) => {
+          {(type === 'conge'
+            ? [...TYPE_OPTIONS, LEGACY_CONGE_OPTION]
+            : TYPE_OPTIONS
+          ).map((opt) => {
             const Icon = opt.icon;
             const active = type === opt.value;
             return (

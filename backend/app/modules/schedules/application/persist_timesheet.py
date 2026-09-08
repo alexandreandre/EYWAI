@@ -257,6 +257,9 @@ def run_persist_timesheet_batch(
         commands.update_planned_calendar(
             employee_id,
             PlannedCalendarRequest(year=year, month=month, calendrier_prevu=entries),
+            # Import de pointages : jamais de création de demandes de congé —
+            # un relevé n'est pas une décision RH d'accorder un CP/RTT.
+            materialiser_absences=False,
         )
 
     def update_actual(employee_id: str, year: int, month: int, rows: list) -> None:

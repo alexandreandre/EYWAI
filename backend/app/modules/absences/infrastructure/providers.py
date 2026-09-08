@@ -304,7 +304,18 @@ class CalendarUpdateProvider(ICalendarUpdateService):
         nombre_enfants: int = 0,
         historique_arrets_annee: Optional[List[Dict[str, Any]]] = None,
         demi_journees: Optional[Dict[str, str]] = None,
+        adopter_jours_deja_types: bool = False,
+        photos_avant: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
+        # adopter_jours_deja_types : saisie RH directe au CALENDRIER — le jour
+        # est DÉJÀ typé comme la cible quand la demande auto-créée se projette.
+        # Sans adoption, la projection le sautait (ni conversion ni
+        # rafraîchissement) et le jour restait ORPHELIN : pas d'origine
+        # 'absence' (donc écrasable par copie de mois / apply-model) et pas de
+        # photo entree_avant_absence (donc annulation sans restauration).
+        # photos_avant : {"2026-07-14": {"type": ..., "heures_prevues": ...}}
+        # — l'état du jour AVANT la saisie RH, fourni par l'appelant (le
+        # calendrier ne le connaît plus au moment de la projection).
         type_mapping = ABSENCE_TYPE_TO_CALENDAR_TYPE
         # Demi-journées de CP : {"2026-09-14": "matin"}. Le jour converti porte
         # quotite_absence=0.5 (clé serveur, cf. SERVER_OWNED_ABSENCE_KEYS) que
@@ -441,6 +452,37 @@ class CalendarUpdateProvider(ICalendarUpdateService):
                     # type du modèle tel quel, un jour 'work' doit aussi
                     # pouvoir devenir une absence.
                     est_conversion = entry.get("type") in ("travail", "work")
+                    # Saisie RH au calendrier : le jour porte déjà le type
+                    # cible — on l'ADOPTE (origine + photo) au lieu de le
+                    # sauter, sinon il reste orphelin (cf. docstring kwargs).
+                    est_adoption = (
+                        adopter_jours_deja_types
+                        and entry.get("type") == new_calendar_type
+                        and entry.get("origine") != ORIGINE_ABSENCE
+                    )
+                    if est_adoption:
+                        photo = (photos_avant or {}).get(
+                            date(year, month, int(entry["jour"])).isoformat()
+                        )
+                        if photo:
+                            entry["entree_avant_absence"] = {
+                                "type": photo.get("type"),
+                                "heures_prevues": photo.get("heures_prevues"),
+                            }
+                        entry["type"] = new_calendar_type
+                        entry["heures_prevues"] = 0
+                        entry["origine"] = ORIGINE_ABSENCE
+                        if new_calendar_type == "arret_maladie":
+                            self._appliquer_meta_arret(
+                                entry,
+                                arret_type=arret_type,
+                                subrogation_active=subrogation_active,
+                                nombre_enfants=nombre_enfants,
+                                historique_arrets_annee=historique_arrets_annee,
+                                date_debut_arret_reel=date_debut_arret_reel,
+                                date_fin_arret_reel=date_fin_arret_reel,
+                            )
+                        continue
                     # Re-projection d'un arrêt déjà posé (script de reprise,
                     # prolongation) : les métadonnées sont rafraîchies sans
                     # toucher type/heures, pour rester cohérentes sur tous

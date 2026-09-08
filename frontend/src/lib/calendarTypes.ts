@@ -67,6 +67,47 @@ export const CALENDAR_LEGEND_ITEMS: {
   { key: 'today', label: "Aujourd'hui", colorClass: 'ring-2 ring-primary' },
 ];
 
+/** Types proposés à la SAISIE d'un jour par la RH — source unique des
+ * sélecteurs (cellule calendrier, panneau bulk, éditeur vue semaine).
+ *
+ * `conges_payes` et `rtt` déclenchent côté serveur la création automatique
+ * d'une demande d'absence VALIDÉE (« une saisie RH enregistre un fait ») :
+ * soldes décomptés et bulletin alimentés. L'ancien type `conge` est déprécié
+ * à la saisie — il n'atteint ni la paie ni les soldes — et n'apparaît que
+ * pour retyper un jour historique qui le porte encore. */
+export const CALENDAR_EDITABLE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'travail', label: 'Travail' },
+  { value: 'conges_payes', label: 'Congés payés' },
+  { value: 'rtt', label: 'RTT' },
+  { value: 'ferie', label: 'Férié' },
+  { value: 'arret_maladie', label: 'Arrêt maladie' },
+  { value: 'weekend', label: 'Week-end' },
+  { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
+];
+
+/** Types qu'une COPIE de mois ne doit jamais répliquer : les jours CP/RTT du
+ * mois source viennent de demandes validées — les recopier créerait autant de
+ * nouvelles demandes validées (la saisie calendrier en matérialise une par
+ * jour) ; l'ancien `conge` (hors paie) ne doit plus se propager. */
+export const NON_COPYABLE_DAY_TYPES: ReadonlySet<string> = new Set([
+  'conges_payes',
+  'rtt',
+  'conge',
+]);
+
+/** Option « Congé (hors paie) » ajoutée uniquement quand le jour la porte déjà. */
+export function editableTypeOptionsFor(
+  currentType: string | null | undefined,
+): { value: string; label: string }[] {
+  if (currentType === 'conge') {
+    return [
+      ...CALENDAR_EDITABLE_TYPE_OPTIONS,
+      { value: 'conge', label: 'Congé (hors paie)' },
+    ];
+  }
+  return CALENDAR_EDITABLE_TYPE_OPTIONS;
+}
+
 export function getCalendarTypeLabel(type: string | null | undefined): string {
   if (!type) return 'Week-end';
   return CALENDAR_TYPE_LABELS[type] ?? type;

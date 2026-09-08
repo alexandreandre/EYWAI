@@ -19,6 +19,7 @@ import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import {
   CALENDAR_TYPE_BAR_COLORS,
   CALENDAR_TYPE_BG_COLORS,
+  editableTypeOptionsFor,
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
@@ -35,17 +36,9 @@ interface CalendarDayCellProps {
   onCopyPlannedToActual?: (dayNumber: number) => void;
 }
 
-const EDITABLE_TYPES = [
-  { value: 'travail', label: 'Travail' },
-  { value: 'conge', label: 'Congé' },
-  { value: 'ferie', label: 'Férié' },
-  { value: 'arret_maladie', label: 'Arrêt maladie' },
-  { value: 'weekend', label: 'Week-end' },
-  // Posé par les reprises DSN (jamais par la validation d'absence) : doit
-  // rester corrigeable à la main — un jour hérité mal placé était
-  // impossible à retyper (cas Marion 30/06, retour Gaëlle 07/09).
-  { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
-] as const;
+// Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
+// automatiquement la demande validée côté serveur ; l'ancien « conge » (hors
+// paie) n'est proposé que si le jour le porte déjà (retypage historique).
 
 const DEFAULT_SCALE_HOURS = 10;
 
@@ -294,6 +287,11 @@ export function CalendarDayCell({
         defaultHours = 8;
       }
     }
+    if (newType === 'conges_payes' || newType === 'rtt') {
+      // Jour d'absence : 0 h au planning (convention bulletin) — la demande
+      // validée créée côté serveur porte le décompte.
+      defaultHours = 0;
+    }
 
     updateDayData({
       jour: dayNumber,
@@ -388,7 +386,7 @@ export function CalendarDayCell({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-40 p-1" align="start" onClick={(e) => e.stopPropagation()}>
-            {EDITABLE_TYPES.map((t) => (
+            {editableTypeOptionsFor(plannedDay.type).map((t) => (
               <button
                 key={t.value}
                 type="button"

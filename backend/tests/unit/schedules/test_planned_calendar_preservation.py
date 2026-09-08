@@ -1146,3 +1146,254 @@ def test_edition_absence_vers_absence_signale_et_purge_les_metadonnees():
             "type_apres": "conge",
         }
     ]
+
+
+def test_adoption_pose_origine_et_photo_sur_un_jour_deja_type(monkeypatch):
+    """Saisie RH au calendrier : le jour est DÉJÀ conges_payes quand la
+    demande auto-créée se projette — sans adoption il restait ORPHELIN
+    (pas d'origine, pas de photo ⇒ écrasable et non restaurable)."""
+    from datetime import date
+
+    existant = [
+        {"jour": 14, "type": "conges_payes", "heures_prevues": 7.0},
+        {"jour": 15, "type": "travail", "heures_prevues": 7.0},
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 9, 14)],
+        "conge_paye",
+        adopter_jours_deja_types=True,
+        photos_avant={"2026-09-14": {"type": "travail", "heures_prevues": 8.5}},
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["type"] == "conges_payes"
+    assert jour14["origine"] == "absence"
+    assert jour14["heures_prevues"] == 0
+    assert jour14["entree_avant_absence"] == {
+        "type": "travail",
+        "heures_prevues": 8.5,
+    }
+    jour15 = next(e for e in capture["ecrit"] if e["jour"] == 15)
+    assert jour15["type"] == "travail"
+
+
+def test_sans_adoption_le_jour_deja_type_reste_intact(monkeypatch):
+    """Comportement historique préservé : par défaut, un jour déjà typé
+    comme la cible est sauté (ni origine ni photo posées)."""
+    from datetime import date
+
+    existant = [{"jour": 14, "type": "conges_payes", "heures_prevues": 7.0}]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days("emp-1", [date(2026, 9, 14)], "conge_paye")
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert "origine" not in jour14
+    assert jour14["heures_prevues"] == 7.0
+
+
+def test_adoption_ne_reecrit_pas_un_jour_deja_projete(monkeypatch):
+    """Un jour déjà origine='absence' (projeté par une vraie demande) n'est
+    pas re-adopté : sa photo d'origine doit survivre."""
+    from datetime import date
+
+    existant = [
+        {
+            "jour": 14,
+            "type": "conges_payes",
+            "heures_prevues": 0,
+            "origine": "absence",
+            "entree_avant_absence": {"type": "travail", "heures_prevues": 7.0},
+        }
+    ]
+    provider, capture = _provider_avec_calendrier(monkeypatch, existant)
+
+    provider.update_calendar_from_days(
+        "emp-1",
+        [date(2026, 9, 14)],
+        "conge_paye",
+        adopter_jours_deja_types=True,
+        photos_avant={"2026-09-14": {"type": "weekend", "heures_prevues": 0}},
+    )
+
+    jour14 = next(e for e in capture["ecrit"] if e["jour"] == 14)
+    assert jour14["entree_avant_absence"] == {
+        "type": "travail",
+        "heures_prevues": 7.0,
+    }
+
+
+def test_update_planned_calendar_materialise_les_jours_cp_rtt(monkeypatch):
+    """Le POST planning détecte les jours CP/RTT nouvellement saisis et
+    appelle la création de demandes validées avec la photo d'avant."""
+    from app.modules.absences.application import commands as absences_commands
+    from app.modules.schedules.application import commands
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarRequest,
+    )
+
+    stocke = {
+        "calendrier_prevu": [
+            {"jour": 14, "type": "travail", "heures_prevues": 8.5},
+            # Jour historique déjà CP (planning seul) : ne doit PAS être
+            # matérialisé — seule une saisie de CE push l'est.
+            {"jour": 20, "type": "conges_payes", "heures_prevues": 0},
+        ]
+    }
+    monkeypatch.setattr(
+        commands, "get_employee_company_and_statut", lambda _id: ("comp-1", "Employé")
+    )
+    monkeypatch.setattr(
+        commands.queries, "get_planned_calendar", lambda *a, **k: stocke
+    )
+    monkeypatch.setattr(
+        commands.schedule_repository, "upsert_schedule", lambda *a, **k: None
+    )
+    appels = {}
+
+    def fake_create(employee_id, company_id, **kw):
+        appels["create"] = {"employee_id": employee_id, **kw}
+        return [{"jour": 14, "code": "demande_creee_depuis_planning", "type": "conge_paye"}]
+
+    monkeypatch.setattr(
+        absences_commands, "create_absences_from_planning", fake_create
+    )
+    monkeypatch.setattr(
+        absences_commands,
+        "cancel_planning_absences_for_requalified_days",
+        lambda *a, **kw: [],
+    )
+
+    payload = PlannedCalendarRequest(
+        year=2026,
+        month=9,
+        calendrier_prevu=[
+            PlannedCalendarEntry(jour=14, type="conges_payes", heures_prevues=0),
+            PlannedCalendarEntry(jour=20, type="conges_payes", heures_prevues=0),
+        ],
+    )
+    resultat = commands.update_planned_calendar("emp-1", payload)
+
+    assert appels["create"]["jours_par_type"] == {"conges_payes": [14]}
+    assert appels["create"]["photos_avant"] == {
+        "2026-09-14": {"type": "travail", "heures_prevues": 8.5}
+    }
+    codes = [w.get("code") for w in resultat["warnings"]]
+    assert "demande_creee_depuis_planning" in codes
+
+
+def test_update_planned_calendar_annule_la_demande_planning_au_retypage(monkeypatch):
+    """Retyper un jour CP projeté (origine absence) déclenche l'annulation de
+    la demande d'origine planning, après l'enregistrement du mois."""
+    from app.modules.absences.application import commands as absences_commands
+    from app.modules.schedules.application import commands
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarRequest,
+    )
+
+    stocke = {
+        "calendrier_prevu": [
+            {
+                "jour": 14,
+                "type": "conges_payes",
+                "heures_prevues": 0,
+                "origine": "absence",
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        commands, "get_employee_company_and_statut", lambda _id: ("comp-1", "Employé")
+    )
+    monkeypatch.setattr(
+        commands.queries, "get_planned_calendar", lambda *a, **k: stocke
+    )
+    ordre = []
+    monkeypatch.setattr(
+        commands.schedule_repository,
+        "upsert_schedule",
+        lambda *a, **k: ordre.append("upsert"),
+    )
+    appels = {}
+
+    def fake_cancel(employee_id, **kw):
+        ordre.append("cancel")
+        appels["requalifications"] = kw["requalifications"]
+        return [{"jour": 14, "code": "demande_planning_annulee", "type": "conge_paye"}]
+
+    monkeypatch.setattr(
+        absences_commands,
+        "cancel_planning_absences_for_requalified_days",
+        fake_cancel,
+    )
+    monkeypatch.setattr(
+        absences_commands,
+        "create_absences_from_planning",
+        lambda *a, **kw: [],
+    )
+
+    payload = PlannedCalendarRequest(
+        year=2026,
+        month=9,
+        calendrier_prevu=[
+            PlannedCalendarEntry(jour=14, type="travail", heures_prevues=8.5)
+        ],
+    )
+    resultat = commands.update_planned_calendar("emp-1", payload)
+
+    # L'annulation passe APRÈS l'upsert : la fusion a déjà purgé origine,
+    # la restauration de l'annulation ne réécrira donc pas le jour retypé.
+    assert ordre == ["upsert", "cancel"]
+    assert appels["requalifications"][0]["code"] == "absence_validee_requalifiee"
+    codes = [w.get("code") for w in resultat["warnings"]]
+    assert "demande_planning_annulee" in codes
+
+
+def test_import_ne_materialise_jamais_les_absences(monkeypatch):
+    """Flux d'import (pointages) : materialiser_absences=False — aucun jour
+    CP/RTT importé ne crée de demande, aucune requalification n'annule."""
+    from app.modules.absences.application import commands as absences_commands
+    from app.modules.schedules.application import commands
+    from app.modules.schedules.schemas.requests import (
+        PlannedCalendarEntry,
+        PlannedCalendarRequest,
+    )
+
+    monkeypatch.setattr(
+        commands, "get_employee_company_and_statut", lambda _id: ("comp-1", "Employé")
+    )
+    monkeypatch.setattr(
+        commands.queries,
+        "get_planned_calendar",
+        lambda *a, **k: {"calendrier_prevu": []},
+    )
+    monkeypatch.setattr(
+        commands.schedule_repository, "upsert_schedule", lambda *a, **k: None
+    )
+    appels = []
+    monkeypatch.setattr(
+        absences_commands,
+        "create_absences_from_planning",
+        lambda *a, **kw: appels.append("create") or [],
+    )
+    monkeypatch.setattr(
+        absences_commands,
+        "cancel_planning_absences_for_requalified_days",
+        lambda *a, **kw: appels.append("cancel") or [],
+    )
+
+    payload = PlannedCalendarRequest(
+        year=2026,
+        month=9,
+        calendrier_prevu=[
+            PlannedCalendarEntry(jour=14, type="conges_payes", heures_prevues=0)
+        ],
+    )
+    commands.update_planned_calendar(
+        "emp-1", payload, materialiser_absences=False
+    )
+    assert appels == []

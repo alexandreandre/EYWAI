@@ -640,3 +640,242 @@ def create_reconciliation_absence(
         logger.exception("Sync calendrier absence DSN échouée pour %s", created.get("id"))
 
     return created
+
+
+# --- Saisie RH directe au calendrier (« une saisie RH enregistre un fait ») ---
+
+#: Marqueur des demandes auto-créées depuis le planning. Il permet de les
+#: reconnaître (filtrage, annulation au retypage) — ne jamais l'utiliser pour
+#: une demande saisie par un salarié ou par la RH dans le module Absences.
+PLANNING_SOURCE_COMMENT = "Saisie RH au calendrier"
+
+#: Seuls types de jour calendrier matérialisables en demande (lot 1 :
+#: CP/RTT jour plein). Les arrêts restent au module Absences (arret_type
+#: obligatoire, période calendaire réelle, attestation CPAM générée).
+_CALENDAR_TO_REQUEST_TYPE = {"conges_payes": "conge_paye", "rtt": "rtt"}
+
+
+def create_absences_from_planning(
+    employee_id: str,
+    company_id: str,
+    *,
+    year: int,
+    month: int,
+    jours_par_type: dict[str, list[int]],
+    photos_avant: dict[str, dict] | None = None,
+    aujourd_hui: date | None = None,
+) -> list[dict]:
+    """Matérialise en demandes VALIDÉES les jours CP/RTT saisis directement
+    au calendrier par la RH.
+
+    Une demande PAR JOUR (aucune API ne sait retrancher un jour d'une demande
+    existante) ; no-op si une demande validée projette déjà ce type de jour —
+    une récup modulation projette aussi ``conges_payes``, créer un CP
+    par-dessus double-débiterait ; un jour CP antérieur à la date de reprise
+    bulletin (``cp_opening_reference_date``) est laissé au calendrier seul :
+    il est déjà dans le solde d'ouverture, une demande le compterait deux
+    fois. Retourne des warnings à remonter au planning.
+    """
+    from app.modules.absences.infrastructure.planning_cp_repository import (
+        get_cp_opening_reference_dates,
+    )
+
+    warnings: list[dict] = []
+    ref_aujourd_hui = aujourd_hui or date.today()
+    cutoff = get_cp_opening_reference_dates([employee_id]).get(employee_id)
+
+    validated = (
+        supabase.table("absence_requests")
+        .select("id, type, selected_days")
+        .eq("employee_id", employee_id)
+        .eq("status", "validated")
+        .execute()
+    ).data or []
+    couverts_par_type: dict[str, set[str]] = {}
+    couverts_tous_types: set[str] = set()
+    for r in validated:
+        proj = type_calendrier_projete(str(r.get("type") or ""))
+        if proj:
+            couverts_par_type.setdefault(proj, set()).update(
+                str(d)[:10] for d in r.get("selected_days") or []
+            )
+            couverts_tous_types.update(
+                str(d)[:10] for d in r.get("selected_days") or []
+            )
+
+    for calendar_type, jours in jours_par_type.items():
+        request_type = _CALENDAR_TO_REQUEST_TYPE.get(calendar_type)
+        if not request_type:
+            continue
+        eligibles: list[date] = []
+        for jour in sorted(jours):
+            day = date(year, month, int(jour))
+            iso = day.isoformat()
+            if iso in couverts_par_type.get(calendar_type, set()):
+                continue  # une demande validée projette déjà ce jour
+            if iso in couverts_tous_types:
+                # Une demande validée d'un AUTRE type (arrêt, événement
+                # familial…) couvre ce jour : matérialiser un CP/RTT
+                # par-dessus créerait une double trace (arrêt toujours
+                # validé + CP débité). La RH doit d'abord traiter la
+                # demande existante dans Gestion des congés.
+                warnings.append(
+                    {
+                        "jour": int(jour),
+                        "code": "jour_couvert_par_autre_demande",
+                        "detail": (
+                            f"Le {day:%d/%m} est couvert par une demande "
+                            "validée d'un autre type : annulez-la d'abord "
+                            "dans Gestion des congés — aucune demande créée."
+                        ),
+                    }
+                )
+                continue
+            if request_type == "conge_paye" and cutoff and day <= cutoff:
+                warnings.append(
+                    {
+                        "jour": int(jour),
+                        "code": "cp_avant_reprise",
+                        "detail": (
+                            f"CP du {day:%d/%m} antérieur à la reprise des "
+                            f"compteurs ({cutoff:%d/%m/%Y}) : déjà compté dans "
+                            "le solde repris, aucune demande créée."
+                        ),
+                    }
+                )
+                continue
+            eligibles.append(day)
+
+        disponible = 0.0
+        if request_type == "conge_paye" and eligibles:
+            # Le solde AFFICHÉ décompte DÉJÀ les jours PASSÉS de cette rafale :
+            # le mois vient d'être enregistré, ils y figurent en pseudo-CP du
+            # planning (count_absence_days_taken s'arrête à AUJOURD'HUI —
+            # un jour futur n'est jamais compté comme pris). On ne réintègre
+            # donc que les éligibles ≤ aujourd'hui, puis on décrémente
+            # localement : sans quoi la dernière journée passée d'un solde
+            # juste serait payée 0, et un CP posé pour demain à solde nul
+            # serait payé 1.
+            deja_decomptes = sum(1 for d in eligibles if d <= ref_aujourd_hui)
+            disponible = float(get_cp_solde_restant(employee_id)) + deja_decomptes
+
+        for day in eligibles:
+            iso = day.isoformat()
+            jour = day.day
+            db_data: dict[str, Any] = {
+                "employee_id": employee_id,
+                "company_id": company_id,
+                "type": request_type,
+                "status": "validated",
+                "workflow_step": "approved_rh",
+                "selected_days": [iso],
+                "comment": f"{PLANNING_SOURCE_COMMENT} ({day:%d/%m/%Y})",
+            }
+            if request_type == "conge_paye":
+                # Même règle qu'à la validation RH : payé par pas de 0,5 dans
+                # la limite du solde, le dépassement devient du sans-solde.
+                payable = max(0.0, math.floor(disponible * 2) / 2)
+                db_data["jours_payes"] = min(1.0, payable)
+                disponible -= 1.0
+                if db_data["jours_payes"] < 1.0:
+                    warnings.append(
+                        {
+                            "jour": int(jour),
+                            "code": "cp_au_dela_du_solde",
+                            "detail": (
+                                f"CP du {day:%d/%m} posé au-delà du solde : "
+                                f"{db_data['jours_payes']:.1f} j payé(s) sur 1."
+                            ),
+                        }
+                    )
+            created = absence_repository.create(db_data)
+            couverts_par_type.setdefault(calendar_type, set()).add(iso)
+            try:
+                calendar_update_provider.update_calendar_from_days(
+                    employee_id,
+                    [day],
+                    request_type,
+                    adopter_jours_deja_types=True,
+                    photos_avant=photos_avant or None,
+                )
+            except Exception:
+                logger.exception(
+                    "Projection calendrier de la demande planning %s échouée",
+                    created.get("id"),
+                )
+            warnings.append(
+                {
+                    "jour": int(jour),
+                    "code": "demande_creee_depuis_planning",
+                    "type": request_type,
+                }
+            )
+    return warnings
+
+
+def cancel_planning_absences_for_requalified_days(
+    employee_id: str,
+    *,
+    year: int,
+    month: int,
+    requalifications: list[dict],
+) -> list[dict]:
+    """Annule les demandes AUTO-CRÉÉES depuis le planning quand la RH retype
+    leur jour (congé → travail…).
+
+    Ne touche jamais une demande saisie par le salarié ou par la RH dans le
+    module Absences (marqueur absent), ni une demande multi-jours : dans ces
+    cas le warning de requalification alerte, la demande se traite dans
+    Absences. La restauration de l'annulation est neutre : la RH vient de
+    retyper le jour et la fusion a purgé ``origine`` — le garde-fou de
+    ``restore_calendar_from_days`` la saute.
+    """
+    warnings: list[dict] = []
+    jours_par_type_avant: dict[str, list[int]] = {}
+    for w in requalifications:
+        if w.get("code") != "absence_validee_requalifiee":
+            continue
+        t_avant = w.get("type_avant")
+        if t_avant in _CALENDAR_TO_REQUEST_TYPE:
+            jours_par_type_avant.setdefault(t_avant, []).append(int(w["jour"]))
+    if not jours_par_type_avant:
+        return warnings
+
+    validated = (
+        supabase.table("absence_requests")
+        .select("id, type, selected_days, comment")
+        .eq("employee_id", employee_id)
+        .eq("status", "validated")
+        .execute()
+    ).data or []
+
+    for calendar_type, jours in jours_par_type_avant.items():
+        request_type = _CALENDAR_TO_REQUEST_TYPE[calendar_type]
+        for jour in jours:
+            iso = date(year, month, int(jour)).isoformat()
+            for r in validated:
+                if r.get("type") != request_type:
+                    continue
+                days = [str(d)[:10] for d in r.get("selected_days") or []]
+                if days != [iso]:
+                    continue  # jamais rétrécir une demande multi-jours
+                if not str(r.get("comment") or "").startswith(
+                    PLANNING_SOURCE_COMMENT
+                ):
+                    continue
+                try:
+                    update_absence_request_status(str(r["id"]), "cancelled")
+                    warnings.append(
+                        {
+                            "jour": int(jour),
+                            "code": "demande_planning_annulee",
+                            "type": request_type,
+                        }
+                    )
+                except Exception:
+                    logger.exception(
+                        "Annulation de la demande planning %s échouée",
+                        r.get("id"),
+                    )
+                break
+    return warnings

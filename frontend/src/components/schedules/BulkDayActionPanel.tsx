@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Save } from 'lucide-react';
 import type { DayData } from '@/components/ScheduleModal';
+import { CALENDAR_EDITABLE_TYPE_OPTIONS } from '@/lib/calendarTypes';
 
 interface BulkDayActionPanelProps {
   selectedCount: number;
@@ -126,11 +127,11 @@ export function BulkDayActionPanel({
             <SelectValue placeholder="Type…" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="travail">Travail</SelectItem>
-            <SelectItem value="conge">Congé</SelectItem>
-            <SelectItem value="ferie">Férié</SelectItem>
-            <SelectItem value="arret_maladie">Arrêt</SelectItem>
-            <SelectItem value="weekend">Week-end</SelectItem>
+            {CALENDAR_EDITABLE_TYPE_OPTIONS.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         {isForfaitJour ? (
