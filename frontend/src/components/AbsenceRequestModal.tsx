@@ -256,7 +256,7 @@ export function AbsenceRequestModal({
   // Quotité demandée en jours : une demi-journée pèse 0,5. Les demi-journées
   // ne concernent que les congés payés et les RTT.
   const typeAvecDemiJournees =
-    absenceType === 'conge_paye' || absenceType === 'rtt';
+    absenceType === 'conge_paye' || absenceType === 'rtt' || absenceType === 'jtc';
   const demiActives = typeAvecDemiJournees ? demiJournees : {};
   const quotiteSelectionnee = (selectedDays ?? []).reduce(
     (acc, day) => acc + (demiActives[format(day, 'yyyy-MM-dd')] ? 0.5 : 1),

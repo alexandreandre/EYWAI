@@ -32,14 +32,28 @@ class TestSchemaDemiJournees:
         )
         assert req.demi_journees == {date(2026, 9, 14): "apres_midi"}
 
-    def test_demi_journee_refusee_hors_cp_et_rtt(self):
-        with pytest.raises(ValueError, match="congés payés"):
-            AbsenceRequestCreate(
-                employee_id="emp-1",
-                type="jtc",
-                selected_days=[date(2026, 9, 14)],
-                demi_journees={date(2026, 9, 14): "matin"},
-            )
+    def test_demi_journee_acceptee_pour_jtc(self):
+        """Demande Vanessa 07/09 : la ½ journée vaut pour les JTC aussi."""
+        req = AbsenceRequestCreate(
+            employee_id="emp-1",
+            type="jtc",
+            selected_days=[date(2026, 9, 14)],
+            demi_journees={date(2026, 9, 14): "matin"},
+        )
+        assert req.demi_journees == {date(2026, 9, 14): "matin"}
+
+    def test_demi_journee_refusee_hors_compteurs_en_jours(self):
+        """Événement familial : droits légaux en jours pleins ; le repos
+        compensateur se prend en heures (heures_par_jour)."""
+        for absence_type in ("evenement_familial", "repos_compensateur"):
+            with pytest.raises(ValueError, match="congés payés"):
+                AbsenceRequestCreate(
+                    employee_id="emp-1",
+                    type=absence_type,
+                    selected_days=[date(2026, 9, 14)],
+                    demi_journees={date(2026, 9, 14): "matin"},
+                    event_subtype="mariage_salarie",
+                )
 
     def test_demi_journee_hors_selection_refusee(self):
         with pytest.raises(ValueError, match="jour sélectionné"):
@@ -124,6 +138,18 @@ class TestCountAbsenceDaysTakenPondere:
             count_absence_days_taken(requests, "conge_paye", date(2026, 12, 31))
             == 1.5
         )
+
+    def test_jtc_avec_demi_journee(self):
+        """Le compteur JTC pondère la ½ journée comme CP et RTT (0,5)."""
+        requests = [
+            {
+                "type": "jtc",
+                "status": "validated",
+                "selected_days": ["2026-08-10", "2026-08-11"],
+                "demi_journees": {"2026-08-11": "matin"},
+            }
+        ]
+        assert count_absence_days_taken(requests, "jtc", date(2026, 12, 31)) == 1.5
 
     def test_jour_plein_inchange(self):
         requests = [
