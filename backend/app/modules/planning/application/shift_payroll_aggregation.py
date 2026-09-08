@@ -25,9 +25,20 @@ def aggregate_shift_payroll_metrics(
     month: int,
     *,
     company_id: str | None = None,
+    start: date | None = None,
+    end: date | None = None,
 ) -> dict[str, Any]:
-    """Somme nuit / pause / postes panier pour un salarié sur un mois."""
-    start, end = _month_bounds(year, month)
+    """Somme nuit / pause / postes panier pour un salarié sur une période.
+
+    `start` / `end` permettent de compter sur la fenêtre des variables plutôt
+    que sur le mois civil — les paniers d'équipe en font partie. Sans elles,
+    les bornes restent celles du mois (agrégation à l'enregistrement du
+    planning, où la fenêtre de paie n'a pas de sens).
+    """
+    if start is not None and end is not None:
+        borne_debut, borne_fin = start.isoformat(), end.isoformat()
+    else:
+        borne_debut, borne_fin = _month_bounds(year, month)
     query = (
         supabase.table("shifts")
         .select(
@@ -37,8 +48,8 @@ def aggregate_shift_payroll_metrics(
         .eq("employee_id", employee_id)
         .eq("is_locked", True)
         .is_("transverse_category", "null")
-        .gte("shift_date", start)
-        .lte("shift_date", end)
+        .gte("shift_date", borne_debut)
+        .lte("shift_date", borne_fin)
     )
     if company_id:
         query = query.eq("company_id", company_id)

@@ -621,12 +621,44 @@ def process_payslip_generation(
         if ijss_brut_override is not None:
             saisies_data["ijss_brut_override"] = float(ijss_brut_override)
 
-        current_schedule = db_data_map.get((year, month)) or {}
-        payroll_events_raw = current_schedule.get("payroll_events") or {}
-        if isinstance(payroll_events_raw, dict):
-            summary = payroll_events_raw.get("shift_payroll_summary")
-            if isinstance(summary, dict) and summary:
-                saisies_data["shift_payroll_summary"] = summary
+        # Fenêtre des variables du mois : la surcharge de la gestionnaire de
+        # paie si elle existe, sinon la règle société. Le moteur s'en sert pour
+        # les heures sup, l'agrégateur de postes pour les paniers.
+        from app.modules.payroll.application.periode_variables_service import (
+            resoudre_fenetre_variables,
+        )
+
+        fenetre_variables = resoudre_fenetre_variables(
+            str(company_id), year, month, societe=company_data
+        )
+
+        # Le cache posé à l'enregistrement du planning compte sur le mois
+        # civil ; les paniers d'équipe suivent la fenêtre des variables. On
+        # recalcule ici sur la bonne fenêtre plutôt que de relire le cache.
+        from app.modules.planning.application.shift_payroll_aggregation import (
+            aggregate_shift_payroll_metrics,
+        )
+
+        try:
+            summary = aggregate_shift_payroll_metrics(
+                str(employee_id),
+                year,
+                month,
+                company_id=str(company_id),
+                start=fenetre_variables.debut,
+                end=fenetre_variables.fin,
+            )
+        except Exception as agg_exc:  # le bulletin ne tombe pas pour un panier
+            logger.warning("Agrégation postes indisponible : %s", agg_exc)
+            current_schedule = db_data_map.get((year, month)) or {}
+            payroll_events_raw = current_schedule.get("payroll_events") or {}
+            summary = (
+                payroll_events_raw.get("shift_payroll_summary")
+                if isinstance(payroll_events_raw, dict)
+                else None
+            )
+        if isinstance(summary, dict) and summary:
+            saisies_data["shift_payroll_summary"] = summary
 
         paniers_non_soumis_dans_mns = bool(
             (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns")
@@ -996,6 +1028,15 @@ def process_payslip_generation(
                             if company_data.get("paie_occurrence") is not None
                             else -2
                         ),
+                    },
+                    # Fenêtre des variables réellement retenue pour ce mois
+                    # (surcharge de la gestionnaire de paie, sinon la règle
+                    # ci-dessus). Le moteur s'en sert pour les heures sup ; le
+                    # reste du bulletin suit le mois civil.
+                    "periode_variables": {
+                        "debut": fenetre_variables.debut.isoformat(),
+                        "fin": fenetre_variables.fin.isoformat(),
+                        "origine": fenetre_variables.origine,
                     },
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
