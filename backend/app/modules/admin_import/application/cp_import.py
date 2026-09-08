@@ -561,3 +561,30 @@ def commit_cp_import(body: CpImportCommitBody) -> Dict[str, Any]:
         "results": results,
         "errors": errors,
     }
+
+
+def list_cp_roster(company_id: str) -> Dict[str, Any]:
+    """Salariés (présents) d'une société pour la saisie MANUELLE des compteurs.
+
+    L'import ne savait lire que des bulletins PDF ; l'état des compteurs du
+    service paie arrive parfois en tableur — cette liste alimente le
+    formulaire qui permet de les saisir tels quels.
+    """
+    employees = repo.list_company_employees(company_id)
+    presents = [
+        e
+        for e in employees
+        if str(e.get("employment_status") or "actif") in ("actif", "en_sortie")
+    ]
+    presents.sort(key=lambda e: (str(e.get("last_name") or ""), str(e.get("first_name") or "")))
+    return {
+        "employees": [
+            {
+                "id": str(e["id"]),
+                "first_name": str(e.get("first_name") or ""),
+                "last_name": str(e.get("last_name") or ""),
+                "time_tracking_id": e.get("time_tracking_id"),
+            }
+            for e in presents
+        ]
+    }

@@ -36,6 +36,7 @@ from app.modules.admin_import.schemas.responses import (
     CompanySetupStatusResponse,
     CpImportCommitResponse,
     CpImportParseResponse,
+    CpRosterResponse,
     PayrollExportCommitResponse,
     PayrollExportParseResponse,
     PlanningImportApplyMappingsResponse,
@@ -422,6 +423,21 @@ async def parse_cp_import(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return CpImportParseResponse(**result)
+
+
+@router.get("/cp/roster", response_model=CpRosterResponse)
+def get_cp_roster(
+    company_id: str = Query(..., description="Société ciblée"),
+    _super_admin: Dict[str, Any] = Depends(verify_super_admin),
+) -> CpRosterResponse:
+    """Salariés d'une société pour la saisie MANUELLE des compteurs CP.
+
+    L'import n'acceptait que des bulletins PDF ; l'état des compteurs du
+    service paie arrive parfois en tableur — il faut pouvoir le saisir tel
+    quel, salarié par salarié.
+    """
+    result = cp_import.list_cp_roster(company_id)
+    return CpRosterResponse(**result)
 
 
 @router.post("/cp/commit", response_model=CpImportCommitResponse)

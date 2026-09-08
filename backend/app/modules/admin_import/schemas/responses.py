@@ -164,6 +164,12 @@ class CpImportParseResponse(BaseModel):
     file_errors: List[str] = Field(default_factory=list)
 
 
+class CpRosterResponse(BaseModel):
+    """Salariés d'une société pour la saisie MANUELLE des compteurs CP."""
+
+    employees: List[CpImportRosterEmployee] = Field(default_factory=list)
+
+
 class CpImportCommitResultItem(BaseModel):
     row_index: int
     employee_id: str

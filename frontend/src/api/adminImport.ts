@@ -303,6 +303,18 @@ export async function commitCpImport(payload: {
   return data;
 }
 
+/** Salariés d'une société pour la saisie MANUELLE des compteurs CP
+ * (l'état du service paie arrive parfois en tableur, pas en PDF). */
+export async function fetchCpRoster(
+  companyId: string,
+): Promise<{ employees: CpImportRosterEmployee[] }> {
+  const { data } = await apiClient.get<{ employees: CpImportRosterEmployee[] }>(
+    '/api/admin-import/cp/roster',
+    { params: { company_id: companyId } },
+  );
+  return data;
+}
+
 export type PayrollExportMatchMethod = RibMatchMethod | 'nir';
 export type PayrollExportReviewStatus = RibReviewStatus;
 

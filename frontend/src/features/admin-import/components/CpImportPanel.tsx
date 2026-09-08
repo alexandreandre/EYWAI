@@ -35,6 +35,7 @@ import { EmployeeAssociateCombobox } from '@/components/schedules/assisted-fill/
 import type { RosterEmployee } from '@/api/calendar';
 import { getUserErrorMessage } from '@/lib/errorMessages';
 import { CpImportBulletinPreviewDialog } from '@/features/admin-import/components/CpImportBulletinPreviewDialog';
+import { CpManualEntryCard } from '@/features/admin-import/components/CpManualEntryCard';
 import { useCompanySetupStatus } from '@/features/admin-import/hooks/useCompanySetupStatus';
 
 const MAX_FILES = 1000;
@@ -718,6 +719,14 @@ export function CpImportPanel({
             {parseResult.file_errors.join(' · ')}
           </CardContent>
         </Card>
+      )}
+
+      {companyScoped && fixedCompanyId && (
+        <CpManualEntryCard
+          companyId={fixedCompanyId}
+          companyName={scopedCompanyName}
+          onComplete={onComplete}
+        />
       )}
     </div>
   );
