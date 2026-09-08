@@ -128,6 +128,62 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
     return round(part_patronale_mutuelle, 2)
 
 
+def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float:
+    """Part SALARIALE de mutuelle qui ne réduit PAS le net imposable.
+
+    Une cotisation salariale vient normalement en déduction du revenu
+    imposable. Les cotisations finançant les garanties frais de santé en sont
+    exclues (art. 83, 1° quater du CGI, exclusion introduite par la loi de
+    finances 2014) : le salarié les paie sur son net, sans économie d'impôt.
+
+    Le drapeau est porté par le type de mutuelle
+    (`part_salariale_deductible_impot`, défaut True = comportement historique,
+    donc aucun bulletin existant ne bouge). Il n'est posé aujourd'hui que sur
+    les compléments « Famille » intégralement à la charge du salarié, seul cas
+    où l'écart avec un bulletin réel du cabinet a été constaté et chiffré
+    (GIRERD, juillet 2026 : imposable 2 570,73 € au lieu de 2 668,88 €, PAS
+    inférieur de 4,22 €). Le sort des autres mutuelles sans part patronale
+    (une centaine de salariés sur le groupe) reste un arbitrage ouvert : ne
+    pas l'étendre sans bulletins de référence.
+
+    N'affecte que le net imposable — ni les cotisations, ni la CSG, ni le
+    montant net social, où la retenue reste due.
+    """
+    mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
+    if not mutuelle_spec.get("adhesion"):
+        return 0.0
+
+    part_non_deductible = 0.0
+    mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
+    if mutuelle_type_ids:
+        try:
+            from app.core.database import get_supabase_admin_client
+
+            reponse = (
+                get_supabase_admin_client()
+                .table("company_mutuelle_types")
+                .select("*")
+                .in_("id", mutuelle_type_ids)
+                .eq("is_active", True)
+                .execute()
+            )
+            for mutuelle in reponse.data or []:
+                if not mutuelle.get("part_salariale_deductible_impot", True):
+                    part_non_deductible += _get_safe_float(
+                        mutuelle.get("montant_salarial")
+                    )
+        except Exception as e:
+            logger.warning(
+                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
+            )
+
+    for ligne in mutuelle_spec.get("lignes_specifiques", []):
+        if not ligne.get("part_salariale_deductible_impot", True):
+            part_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
+
+    return round(part_non_deductible, 2)
+
+
 def calculer_montant_net_social(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -239,6 +295,9 @@ def _calculer_net_imposable(
             montant_csg_non_deductible += _get_safe_float(ligne.get("montant_salarial"))
 
     part_patronale_mutuelle = _get_part_patronale_mutuelle(contexte)
+    part_salariale_mutuelle_non_deductible = (
+        _get_part_salariale_mutuelle_non_deductible(contexte)
+    )
 
     salaire_brut_safe = _get_safe_float(salaire_brut)
     total_cotisations_safe = _get_safe_float(total_cotisations_salariales)
@@ -248,6 +307,7 @@ def _calculer_net_imposable(
         (salaire_brut_safe - total_cotisations_safe)
         + montant_csg_non_deductible
         + part_patronale_mutuelle
+        + part_salariale_mutuelle_non_deductible
     )
 
     # --- Défiscalisation des heures supplémentaires (art. 81 quater CGI) ---
@@ -288,6 +348,8 @@ def _calculer_net_imposable(
     log_payroll_debug(logger, f'\t  Net Social (Net à payer av. impôt) : {salaire_brut_safe - total_cotisations_safe:10.2f} €')
     log_payroll_debug(logger, f'\t+ CSG/CRDS non déductible          : {montant_csg_non_deductible:10.2f} €')
     log_payroll_debug(logger, f'\t+ Part Patronale Mutuelle          : {part_patronale_mutuelle:10.2f} €')
+    if part_salariale_mutuelle_non_deductible:
+        log_payroll_debug(logger, f'\t+ Part salariale mutuelle non déd. : {part_salariale_mutuelle_non_deductible:10.2f} €')
     log_payroll_debug(logger, '\t--------------------------------------------')
     log_payroll_debug(logger, f'\t= Imposable avant défiscalisation  : {net_imposable_avant_defiscalisation:10.2f} €')
     log_payroll_debug(logger, f'\t- Exonération Heures Supp. (net)   : {hs_defiscalisees:10.2f} € (théorique {hs_defiscalisees_theorique:10.2f} €, plafond annuel restant {solde_plafond_restant:10.2f} €, cumul avant ce mois {cumul_avant_ce_mois:10.2f} €)')
