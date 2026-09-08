@@ -131,12 +131,44 @@ _REQUETE = """
            m.ZTEXT            AS texte,
            i.Z_PK             AS piece,
            i.ZTITLE           AS legende,
-           i.ZMEDIALOCALPATH  AS media
+           i.ZMEDIALOCALPATH  AS media,
+           g.ZCONTACTNAME     AS membre,
+           g.ZFIRSTNAME       AS membre_prenom,
+           n.ZPUSHNAME        AS membre_profil,
+           g.ZMEMBERJID       AS membre_jid
       FROM ZWAMESSAGE m
       LEFT JOIN ZWAMEDIAITEM i ON i.ZMESSAGE = m.Z_PK
+      LEFT JOIN ZWAGROUPMEMBER g ON g.Z_PK = m.ZGROUPMEMBER
+      LEFT JOIN ZWAPROFILEPUSHNAME n ON n.ZJID = g.ZMEMBERJID
      WHERE m.ZCHATSESSION = ? AND m.ZMESSAGEDATE IS NOT NULL
      ORDER BY m.ZMESSAGEDATE
 """
+
+
+def auteur(ligne: sqlite3.Row, correspondant: str, moi: str) -> str:
+    """Qui a écrit ce message.
+
+    Dans une conversation à deux, la base ne nomme personne : l'auteur ne peut
+    être que le correspondant. Dans un groupe, elle rattache chaque message à
+    un membre, et c'est ce nom-là qu'il faut rendre — « Gaëlle » et « Vanessa »
+    dans un fil d'intégration ne disent pas la même chose que le nom du groupe.
+
+    Le nom se cherche à quatre endroits, du plus fiable au moins parlant. Le
+    carnet d'adresses d'abord : c'est sous ce nom-là que je connais la
+    personne. WhatsApp y laisse souvent une chaîne **vide** plutôt que NULL —
+    d'où le test de vérité, et non de présence. Vient ensuite le nom que la
+    personne affiche sur son profil, puis, à défaut, son identifiant. Les
+    comptes récents sont en `@lid`, un numéro opaque qui ne dit plus rien de
+    qui parle : c'est un dernier recours, jamais une réponse satisfaisante.
+    """
+    if ligne["de_moi"]:
+        return moi
+    for source in ("membre", "membre_prenom", "membre_profil"):
+        if ligne[source]:
+            return ligne[source]
+    if ligne["membre_jid"]:
+        return ligne["membre_jid"].split("@")[0]
+    return correspondant
 
 
 def lire_messages(
@@ -169,7 +201,7 @@ def lire_messages(
 
         message = MessageBrut(
             horodatage=horodatage(ligne["quand"]),
-            auteur=moi if ligne["de_moi"] else correspondant,
+            auteur=auteur(ligne, correspondant, moi),
             texte=(ligne["texte"] or "") if ligne["type"] == TYPE_TEXTE else "",
             nom_fichier=ligne["texte"] if est_document else None,
             legende=ligne["legende"] or None,

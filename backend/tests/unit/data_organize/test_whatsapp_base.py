@@ -187,3 +187,119 @@ def test_copier_base_emporte_les_journaux(fabriquer_base, tmp_path):
 def test_base_absente_leve_une_erreur(tmp_path):
     with pytest.raises(wb.BaseIntrouvable):
         wb.copier_base(tmp_path / "copie", source=tmp_path / "nulle-part.sqlite")
+
+
+def test_message_de_groupe_porte_le_nom_de_son_auteur(fabriquer_base):
+    """En groupe, « qui a dit quoi » est l'information qu'on vient chercher."""
+    base = fabriquer_base(
+        [
+            (
+                dt.datetime(2026, 9, 1, 9, 0),
+                0,
+                0,
+                "le lien d'activation ne marche pas",
+                None,
+                None,
+                ("Gaëlle", "33611111111@s.whatsapp.net"),
+            ),
+            (
+                dt.datetime(2026, 9, 1, 9, 5),
+                0,
+                0,
+                "chez moi non plus",
+                None,
+                None,
+                ("Vanessa", "33622222222@s.whatsapp.net"),
+            ),
+        ],
+        contact="MARTINE - MISE EN PROD",
+    )
+    connexion = wb.ouvrir(base)
+
+    messages = wb.lire_messages(connexion, 7, correspondant="MARTINE - MISE EN PROD")
+
+    assert [message.auteur for message in messages] == ["Gaëlle", "Vanessa"]
+
+
+def test_membre_de_groupe_hors_repertoire_est_designe_par_son_numero(fabriquer_base):
+    """Sans nom dans le carnet d'adresses, le numéro vaut mieux que le groupe."""
+    base = fabriquer_base(
+        [
+            (
+                dt.datetime(2026, 9, 1, 9, 0),
+                0,
+                0,
+                "bonjour",
+                None,
+                None,
+                (None, "33633333333@s.whatsapp.net"),
+            )
+        ],
+        contact="MARTINE - MISE EN PROD",
+    )
+    connexion = wb.ouvrir(base)
+
+    messages = wb.lire_messages(connexion, 7, correspondant="MARTINE - MISE EN PROD")
+
+    assert messages[0].auteur == "33633333333"
+
+
+def test_mes_messages_gardent_mon_nom_en_groupe(fabriquer_base):
+    """Ce que j'envoie n'a pas de membre : c'est ainsi que la base le note."""
+    base = fabriquer_base(
+        [(dt.datetime(2026, 9, 1, 9, 10), 1, 0, "je regarde", None, None)],
+        contact="MARTINE - MISE EN PROD",
+    )
+    connexion = wb.ouvrir(base)
+
+    messages = wb.lire_messages(
+        connexion, 7, correspondant="MARTINE - MISE EN PROD", moi="Alexandre"
+    )
+
+    assert messages[0].auteur == "Alexandre"
+
+
+def test_nom_du_profil_prend_le_relais_quand_le_carnet_est_vide(fabriquer_base):
+    """WhatsApp laisse `ZCONTACTNAME` à vide, pas à NULL : le nom est ailleurs."""
+    base = fabriquer_base(
+        [
+            (
+                dt.datetime(2026, 9, 1, 9, 0),
+                0,
+                0,
+                "le lien ne marche pas",
+                None,
+                None,
+                ("", "82639566426283@lid", None, "Gaëlle"),
+            )
+        ],
+        contact="MARTINE - MISE EN PROD",
+    )
+    connexion = wb.ouvrir(base)
+
+    messages = wb.lire_messages(connexion, 7, correspondant="MARTINE - MISE EN PROD")
+
+    assert messages[0].auteur == "Gaëlle"
+
+
+def test_le_carnet_dadresses_prime_sur_le_nom_de_profil(fabriquer_base):
+    """Le nom sous lequel je connais la personne vaut mieux que celui qu'elle affiche."""
+    base = fabriquer_base(
+        [
+            (
+                dt.datetime(2026, 9, 1, 9, 0),
+                0,
+                0,
+                "bonjour",
+                None,
+                None,
+                ("", "11111111111111@lid", "Vanessa", "V."),
+            )
+        ],
+        contact="MARTINE - MISE EN PROD",
+    )
+    connexion = wb.ouvrir(base)
+
+    messages = wb.lire_messages(connexion, 7, correspondant="MARTINE - MISE EN PROD")
+
+    assert messages[0].auteur == "Vanessa"
