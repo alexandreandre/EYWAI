@@ -1,0 +1,23 @@
+-- `recuperation_modulation` manquait à l'enum `absence_type`.
+--
+-- Le type existe partout ailleurs : `AbsenceType` (domain), les schémas d'API,
+-- la table de correspondance `ABSENCE_TYPE_TO_CALENDAR_TYPE`, le débit du
+-- compte modulation à la validation (`_apply_modulation_recovery_on_validation`)
+-- et l'écran de demande d'absence, qui propose « Récupération modulation » dès
+-- que le solde le permet. Seule la migration n'a jamais été écrite.
+--
+-- Deux conséquences mesurées le 08/09/2026 :
+--   1. aucune récupération de modulation n'a jamais pu être enregistrée — la
+--      RH recevait une erreur à la validation ;
+--   2. surtout, le moteur de paie filtrait les demandes validées sur ce type.
+--      Postgres refusait la valeur (22P02), la requête entière échouait, et
+--      TOUS les congés projetés à 0 h disparaissaient des bulletins : 67 jours
+--      d'août absents chez Colorplast, sans aucun signal.
+--
+-- Le moteur ne dépend plus de ce filtre (tri en Python côté paie), mais la
+-- divergence code/base devait être soldée : elle est surveillée par
+-- backend/tests/integration/absences/test_absence_type_enum.py.
+--
+-- Idempotent : `IF NOT EXISTS`. Aucune ligne existante n'est modifiée.
+
+ALTER TYPE absence_type ADD VALUE IF NOT EXISTS 'recuperation_modulation';
