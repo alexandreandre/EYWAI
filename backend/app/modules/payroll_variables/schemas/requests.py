@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -63,3 +64,31 @@ class PayrollVariableGenerateResponse(BaseModel):
     dry_run: bool
     preview: list[PayrollVariablePreviewItem]
     written_count: int
+
+
+class PeriodeVariablesSchema(BaseModel):
+    """Fenêtre des variables d'un mois, telle qu'affichée au lancement de paie."""
+
+    debut: str
+    fin: str
+    origine: str
+    semaines: list[int]
+    mois_civil: list[str]
+    report_debut: str
+
+
+class PeriodeVariablesUpdate(BaseModel):
+    """Arrêt des variables choisi par la gestionnaire de paie."""
+
+    company_id: Optional[str] = None
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    fin: date
+
+
+class PeriodeVariablesSurcharge(BaseModel):
+    """Un mois dont la fenêtre a été corrigée à la main."""
+
+    month: int
+    debut: str
+    fin: str

@@ -17,6 +17,9 @@ from app.modules.payroll_variables.application.preset_shift_teams_payroll import
 from app.modules.payroll_variables.infrastructure import repository as repo
 from app.modules.payroll_variables.schemas.requests import (
     AstreintePresetResponse,
+    PeriodeVariablesSchema,
+    PeriodeVariablesSurcharge,
+    PeriodeVariablesUpdate,
     PayrollVariableGenerateResponse,
     PayrollVariablePreviewItem,
     PayrollVariableRuleSchema,
@@ -184,3 +187,73 @@ def generate_variables(
         preview=[PayrollVariablePreviewItem(**p) for p in result["preview"]],
         written_count=result["written_count"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Fenêtre des variables — heures sup et paniers d'un mois.
+#
+# La gestionnaire de paie arrête les compteurs quand elle boucle la paie, et
+# ce n'est pas la même date pour toutes les sociétés. Le début n'est jamais
+# saisi : il est la suite du mois précédent, ce qui interdit de perdre une
+# semaine ou de la payer deux fois.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/period", response_model=PeriodeVariablesSchema)
+def lire_periode_variables(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Fenêtre en vigueur pour ce mois — surcharge si elle existe, sinon règle."""
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
+    from app.modules.payroll.application.periode_variables_service import apercu_fenetre
+
+    return apercu_fenetre(cid, year, month)
+
+
+@router.put("/period", response_model=PeriodeVariablesSchema)
+def enregistrer_periode_variables(
+    body: PeriodeVariablesUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Arrête les variables du mois à la date choisie (semaine complète)."""
+    cid = _resolve_company_id(body.company_id, current_user)
+    _require_rh(current_user, cid)
+    from app.modules.payroll.application.periode_variables_service import (
+        apercu_fenetre,
+        enregistrer_fenetre_variables,
+    )
+
+    try:
+        enregistrer_fenetre_variables(
+            cid, body.year, body.month, body.fin, user_id=str(current_user.id)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return apercu_fenetre(cid, body.year, body.month)
+
+
+@router.get("/periods", response_model=list[PeriodeVariablesSurcharge])
+def lister_surcharges_periode_variables(
+    year: int = Query(..., ge=2000, le=2100),
+    company_id: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """Mois de l'année dont la fenêtre a été corrigée à la main."""
+    cid = _resolve_company_id(company_id, current_user)
+    _require_rh(current_user, cid)
+    from app.modules.payroll.infrastructure.variable_periods_repository import (
+        list_variable_periods,
+    )
+
+    return [
+        {
+            "month": int(ligne["month"]),
+            "debut": str(ligne["start_date"])[:10],
+            "fin": str(ligne["end_date"])[:10],
+        }
+        for ligne in list_variable_periods(cid, year)
+    ]
