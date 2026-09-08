@@ -415,7 +415,6 @@ export default function PayslipEdit() {
           <CalculBrutSection
             data={editedData.calcul_du_brut || []}
             salaireBrut={editedData.salaire_brut}
-            lienVariables={lienVariables ?? undefined}
             onChange={(data, newBrut) => {
               updateEditedData(['calcul_du_brut'], data);
               updateEditedData(['salaire_brut'], newBrut);
