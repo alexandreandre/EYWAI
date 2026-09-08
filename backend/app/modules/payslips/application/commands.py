@@ -502,14 +502,24 @@ def _recalculer_apres_correction_heures_sup(
     saisie déclarée — c'est ce chemin qu'on emprunte, plutôt que de recalculer
     une seconde fois dans l'éditeur.
 
-    Deux cas restent au simple enregistrement :
-    - quantités inchangées (rien à redonner) ;
-    - remise à zéro des deux paliers, que le moteur ne lit pas comme une
-      déclaration (il repasserait au calendrier, cf. `domain.heures_sup`).
+    Deux cas restent au simple enregistrement, parce que le moteur ne les
+    appliquerait pas — écrire une déclaration qu'il ignore laisserait des
+    saisies fantômes, en désaccord visible avec le bulletin :
+
+    - **remise à zéro des deux paliers** : il n'y voit pas une déclaration et
+      repasse au calendrier ;
+    - **total inchangé** : il compare le total déclaré à celui du calendrier et
+      ne bouge que s'ils diffèrent. Déplacer une heure d'un palier à l'autre
+      (12 h + 3,5 h corrigé en 13 h + 2,5 h) le laisse donc immobile, alors que
+      les taux diffèrent. L'écran ne l'annonce pas non plus.
+
+    Ce second cas se corrige dans le calendrier du mois, pas ici.
     """
     heures_avant = quantites_heures_sup_conjoncturelles(avant.get("payslip_data"))
     heures_apres = quantites_heures_sup_conjoncturelles(cmd.payslip_data)
-    if heures_apres == heures_avant or heures_apres == (0.0, 0.0):
+    if heures_apres == (0.0, 0.0):
+        return False
+    if abs(sum(heures_apres) - sum(heures_avant)) <= 0.001:
         return False
 
     _remplacer_heures_sup_declarees(

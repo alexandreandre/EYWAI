@@ -128,6 +128,32 @@ class TestCorrectionDesHeuresSup:
         declarer.assert_not_called()
         regenerer.assert_not_called()
 
+    def test_deplacer_une_heure_entre_paliers_ne_declare_rien(self):
+        """12 h + 3,5 h corrigé en 13 h + 2,5 h : même total, le moteur ne
+        bouge pas. Déclarer quand même laisserait des saisies fantômes en
+        désaccord avec le bulletin."""
+        with patch(
+            "app.modules.payslips.application.commands._remplacer_heures_sup_declarees"
+        ) as declarer, patch(
+            "app.modules.payslips.application.commands.generate_payslip"
+        ) as regenerer:
+            edit_payslip(_commande(_bulletin(13.0, 2.5)))
+
+        declarer.assert_not_called()
+        regenerer.assert_not_called()
+
+    def test_un_seul_palier_a_zero_declenche_bien_le_recalcul(self):
+        """Le total change, et l'autre palier subsiste : le moteur applique."""
+        with patch(
+            "app.modules.payslips.application.commands._remplacer_heures_sup_declarees"
+        ) as declarer, patch(
+            "app.modules.payslips.application.commands.generate_payslip"
+        ):
+            edit_payslip(_commande(_bulletin(0.0, 3.5)))
+
+        assert declarer.call_args.kwargs["heures_25"] == 0.0
+        assert declarer.call_args.kwargs["heures_50"] == 3.5
+
     def test_remise_a_zero_des_deux_paliers_reste_un_simple_enregistrement(self):
         """Le moteur ne lit pas (0, 0) comme une déclaration : il repasserait au
         calendrier et rétablirait les heures. On ne prétend donc pas recalculer."""
