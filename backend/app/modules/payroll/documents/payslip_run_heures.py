@@ -295,11 +295,26 @@ def run_payslip_generation_heures(
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
     contexte.month = month
-    date_debut_periode, date_fin_periode = definir_periode_de_paie(
-        contexte, year, month
+    # Deux fenêtres : le bulletin porte le mois civil, les heures sup et les
+    # paniers suivent la fenêtre arrêtée par la gestionnaire de paie.
+    fenetre_cfg = (
+        contexte.entreprise.get("parametres_paie", {}).get("periode_variables") or {}
     )
+    if fenetre_cfg.get("debut") and fenetre_cfg.get("fin"):
+        date_debut_variables = date.fromisoformat(str(fenetre_cfg["debut"])[:10])
+        date_fin_variables = date.fromisoformat(str(fenetre_cfg["fin"])[:10])
+    else:
+        # Repli : aucune fenêtre transmise (appel direct du moteur, tests) —
+        # la règle société, comme avant.
+        date_debut_variables, date_fin_variables = definir_periode_de_paie(
+            contexte, year, month
+        )
+
+    date_debut_periode, date_fin_periode = bornes_mois_civil(year, month)
     contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
+    contexte.date_debut_variables = date_debut_variables
+    contexte.date_fin_variables = date_fin_variables
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
         # dernier jour travaillé en toute fin de M-1 appartient au bulletin
@@ -312,13 +327,19 @@ def run_payslip_generation_heures(
             date_fin_periode=date_fin_periode,
         )
     logging.info(
-        "Période de paie : %s - %s",
+        "Bulletin : %s - %s | variables : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),
         date_fin_periode.strftime("%d/%m/%Y"),
+        date_debut_variables.strftime("%d/%m/%Y"),
+        date_fin_variables.strftime("%d/%m/%Y"),
     )
 
+    # L'union des deux fenêtres : le filtrage par type se fait plus bas, dans
+    # calcul_brut.evenements_de_la_periode.
     calendrier_etendu = creer_calendrier_etendu(
-        employee_path, date_debut_periode, date_fin_periode
+        employee_path,
+        min(date_debut_periode, date_debut_variables),
+        max(date_fin_periode, date_fin_variables),
     )
     modulation_movement_ids: list[str] = []
     modulation_result = None
@@ -607,6 +628,8 @@ def run_payslip_generation_heures(
         jours_maintien=jours_maintien,
         actual_hours_raw=calendrier_du_mois,
         nb_jours_travail_planifies=nb_jours_travail_planifies,
+        date_debut_variables=date_debut_variables,
+        date_fin_variables=date_fin_variables,
     )
     salaire_brut_calcule = resultat_brut["salaire_brut_total"]
     details_brut = resultat_brut["lignes_composants_brut"]

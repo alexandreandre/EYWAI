@@ -598,6 +598,46 @@ def _prime_anciennete_deja_saisie(
 # moteur_paie/calcul_brut.py
 
 
+#: Types d'événements comptés sur la fenêtre des variables et non sur le mois
+#: civil. Les heures supplémentaires sont les seules heures que la gestionnaire
+#: de paie arrête à une date qu'elle choisit ; le salaire de base est
+#: mensualisé, et congés, arrêts et fériés appartiennent au mois du bulletin.
+TYPES_RATTACHES_AUX_VARIABLES = frozenset({"travail_hs25", "travail_hs50"})
+
+
+def evenements_de_la_periode(
+    calendrier_saisie: List[Dict[str, Any]],
+    bornes_mois: tuple[date, date],
+    bornes_variables: Optional[tuple[date, date]],
+) -> List[Dict[str, Any]]:
+    """Filtre les événements selon la fenêtre qui les concerne.
+
+    `bornes_variables` à None = comportement historique, une seule fenêtre.
+    """
+    debut_mois, fin_mois = bornes_mois
+    retenus: List[Dict[str, Any]] = []
+    for evenement in calendrier_saisie:
+        # Une régularisation antérieure est volontairement datée d'un mois
+        # antérieur : elle reste rattachée au bulletin courant.
+        if evenement.get("is_regularisation_anterieure"):
+            retenus.append(evenement)
+            continue
+        try:
+            date_evenement = date.fromisoformat(evenement["date_complete"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (
+            bornes_variables is not None
+            and evenement.get("type") in TYPES_RATTACHES_AUX_VARIABLES
+        ):
+            debut, fin = bornes_variables
+        else:
+            debut, fin = debut_mois, fin_mois
+        if debut <= date_evenement <= fin:
+            retenus.append(evenement)
+    return retenus
+
+
 def calculer_salaire_brut(
     contexte: ContextePaie,
     calendrier_saisie: List[Dict[str, Any]],
@@ -608,6 +648,8 @@ def calculer_salaire_brut(
     actual_hours_raw: Optional[List[Dict[str, Any]]] = None,
     actual_hours_all_months: Optional[List[Dict[str, Any]]] = None,
     nb_jours_travail_planifies: Optional[int] = None,
+    date_debut_variables: Optional[date] = None,
+    date_fin_variables: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
@@ -884,17 +926,21 @@ def calculer_salaire_brut(
         contrat_dates.get("date_sortie") or contrat_dates.get("date_fin_contrat")
     )
     jours_dans_periode = []
-    for evenement in calendrier_saisie:
+    bornes_variables = (
+        (date_debut_variables, date_fin_variables)
+        if date_debut_variables and date_fin_variables
+        else None
+    )
+    for evenement in evenements_de_la_periode(
+        calendrier_saisie,
+        (date_debut_periode, date_fin_periode),
+        bornes_variables,
+    ):
         try:
             date_evenement = date.fromisoformat(evenement["date_complete"])
         except (KeyError, TypeError, ValueError):
             continue
-        # Une régularisation antérieure reste rattachée au bulletin courant,
-        # mais aucun événement ne peut produire de paie hors contrat.
-        if not evenement.get("is_regularisation_anterieure") and not (
-            date_debut_periode <= date_evenement <= date_fin_periode
-        ):
-            continue
+        # Aucun événement ne peut produire de paie hors contrat.
         if date_entree_contrat and date_evenement < date_entree_contrat:
             continue
         if date_sortie_contrat and date_evenement > date_sortie_contrat:
