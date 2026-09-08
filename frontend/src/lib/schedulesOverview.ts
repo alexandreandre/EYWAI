@@ -35,6 +35,8 @@ export interface SchedulesEmployeeInput {
   contract_type?: string | null;
   team_id?: string | null;
   employment_status?: string | null;
+  /** Dernier jour travaillé (sortie la plus récente), même après archivage. */
+  exit_last_working_day?: string | null;
 }
 
 export interface EmployeeCalendarOverviewRow {

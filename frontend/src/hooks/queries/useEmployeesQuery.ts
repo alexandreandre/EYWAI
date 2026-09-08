@@ -16,6 +16,8 @@ export type EmployeeListItem = {
   seniority_reference_date?: string | null;
   employment_status?: string | null;
   current_exit_id?: string | null;
+  /** Dernier jour travaillé (sortie la plus récente), même après archivage. */
+  exit_last_working_day?: string | null;
   duree_hebdomadaire?: number | null;
   trial_period_applicable?: boolean | null;
   trial_period_status?: TrialPeriodStatus | null;

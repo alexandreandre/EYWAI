@@ -176,8 +176,11 @@ class ContextePaie:
         # Période du bulletin (année). Posée par les run_* après construction.
         # Sert d'aiguillage Fillon (< 2026) / RGDU (>= 2026) sans threader les signatures.
         self.year: Optional[int] = None
-        # Dernier jour de la période de paie courante. Posé par les run_* ;
-        # sert à dater le régime apprenti (bascule droit commun -> apprenti).
+        # Bornes de la période de paie courante. Posées par les run_* ;
+        # date_fin sert à dater le régime apprenti, les deux alimentent le
+        # bandeau « Du … Au … » du bulletin (arrêté glissant : la fenêtre
+        # de juillet peut commencer fin juin).
+        self.date_debut_periode: Optional[date] = None
         self.date_fin_periode: Optional[date] = None
 
         if baremes_override is not None:

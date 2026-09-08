@@ -145,18 +145,53 @@ def employee_has_work_contract(employee_id: str, company_id: str) -> bool:
     return bool(response.data)
 
 
+def _bulk_exit_last_working_days(company_id: str) -> Dict[str, str]:
+    """Dernier jour travaillé le plus récent par salarié (sorties non annulées).
+
+    Indépendant de current_exit_id, effacé à l'archivage : c'est ce qui permet
+    d'afficher un salarié parti sur les mois où il était encore présent
+    (calendrier et paie de son dernier mois — retour Gaëlle 07/09, Demory).
+    """
+    try:
+        r = (
+            supabase.table("employee_exits")
+            .select("employee_id, last_working_day, status")
+            .eq("company_id", company_id)
+            .not_.in_("status", ["annulee", "annule", "cancelled", "canceled"])
+            .execute()
+        )
+    except Exception:
+        return {}
+    out: Dict[str, str] = {}
+    for row in r.data or []:
+        emp = str(row.get("employee_id") or "")
+        lwd = row.get("last_working_day")
+        if not emp or not lwd:
+            continue
+        lwd_str = str(lwd)[:10]
+        if emp not in out or lwd_str > out[emp]:
+            out[emp] = lwd_str
+    return out
+
+
 def get_employees(company_id: str) -> List[Dict[str, Any]]:
     """
     Liste des employés de l'entreprise (enrichis titre de séjour).
     Comportement identique à get_employees (router legacy).
     """
     rows = _employee_repository.get_by_company(company_id)
-    return [
-        enrich_employee_with_trial_period_status(
+    exit_lwd_by_employee = _bulk_exit_last_working_days(company_id)
+    enriched = []
+    for row in rows:
+        row = enrich_employee_with_trial_period_status(
             enrich_employee_with_residence_permit_status(row)
         )
-        for row in rows
-    ]
+        if not row.get("exit_last_working_day"):
+            row["exit_last_working_day"] = exit_lwd_by_employee.get(
+                str(row.get("id") or "")
+            )
+        enriched.append(row)
+    return enriched
 
 
 def get_employees_summary(

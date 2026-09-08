@@ -453,11 +453,23 @@ def creer_bulletin_final(
         a.get("donnee_non_officielle") for a in alertes_baremes
     )
 
+    date_debut_periode = getattr(contexte, "date_debut_periode", None)
+    date_fin_periode = getattr(contexte, "date_fin_periode", None)
+
     bulletin = {
         "en_tete": {
             "periode": periode_formatee,
             "annee": annee,
             "mois": mois,
+            # Bornes réelles de la période de paie (arrêté glissant) : le
+            # bandeau « Du … Au … » les préfère au mois civil quand elles
+            # sont présentes.
+            "date_debut_periode": (
+                date_debut_periode.isoformat() if date_debut_periode else None
+            ),
+            "date_fin_periode": (
+                date_fin_periode.isoformat() if date_fin_periode else None
+            ),
             "date_paiement": _calculer_date_paiement(contexte, annee, mois),
             "entreprise": {
                 "raison_sociale": contexte.entreprise.get("identification", {}).get(

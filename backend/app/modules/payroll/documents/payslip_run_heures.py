@@ -298,6 +298,7 @@ def run_payslip_generation_heures(
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
+    contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un

@@ -8,7 +8,7 @@ import { getTeams, type Team } from '@/api/teams';
 import * as calendarApi from '@/api/calendar';
 import { useEmployeeCalendarOverview } from '@/hooks/useEmployeeCalendarOverview';
 import type { SchedulesEmployeeInput } from '@/lib/schedulesOverview';
-import { filterPresentEmployees } from '@/lib/employmentStatus';
+import { filterEmployeesForMonth } from '@/lib/employmentStatus';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { CalendarPilotHeader } from '@/components/schedules/CalendarPilotHeader';
@@ -69,8 +69,15 @@ export default function Schedules() {
 
   const employeesQuery = useEmployeesQuery();
   const employees = useMemo(
-    () => filterPresentEmployees((employeesQuery.data ?? []) as Employee[]),
-    [employeesQuery.data],
+    // Un salarié parti reste visible sur les mois où il était présent
+    // (calendrier + paie de son dernier mois — ex. Demory, sorti le 24/07).
+    () =>
+      filterEmployeesForMonth(
+        (employeesQuery.data ?? []) as Employee[],
+        selectedYear,
+        selectedMonth,
+      ),
+    [employeesQuery.data, selectedYear, selectedMonth],
   );
   const employeesLoading = employeesQuery.isLoading && !employeesQuery.data;
   const employeesLoadError = employeesQuery.isError;

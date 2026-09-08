@@ -178,6 +178,7 @@ def run_payslip_generation_forfait(
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
+    contexte.date_debut_periode = date_debut_periode
     contexte.date_fin_periode = date_fin_periode
     if resolved_employee_id:
         contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
