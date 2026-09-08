@@ -8,6 +8,9 @@ from datetime import date, timedelta
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.payroll.application.periode_variables_service import (
+    resoudre_fenetre_variables,
+)
 from app.modules.payroll.engine.baremes_loader import assembler_baremes, charger_db_baremes
 from app.modules.payroll_variables.domain.astreinte_km import (
     evaluate_astreinte_weekend_km,
@@ -39,6 +42,22 @@ from app.modules.payroll_variables.infrastructure import repository as repo
 def _month_bounds(year: int, month: int) -> tuple[date, date]:
     _, last = calendar.monthrange(year, month)
     return date(year, month, 1), date(year, month, last)
+
+
+def _bornes_variables(company_id: str, year: int, month: int) -> tuple[date, date]:
+    """Fenêtre sur laquelle les règles de variables comptent.
+
+    Les primes de présence, d'astreinte ou de poste portent sur les mêmes
+    semaines que les heures sup et les paniers, pas sur le mois civil.
+
+    Repli sur le mois si la résolution échoue : une prime calculée sur la
+    mauvaise fenêtre vaut mieux qu'une génération qui tombe.
+    """
+    try:
+        fenetre = resoudre_fenetre_variables(str(company_id), year, month)
+        return fenetre.debut, fenetre.fin
+    except Exception:  # noqa: BLE001 — repli volontaire, cf. docstring
+        return _month_bounds(year, month)
 
 
 def _slug_prime_id(label: str) -> str:
@@ -224,11 +243,12 @@ def _count_planning_shift_entries(
 
 def _count_shift_type_occurrences(
     employee_id: str,
+    company_id: str,
     year: int,
     month: int,
     shift_type_codes: list[str] | None,
 ) -> float:
-    start, end = _month_bounds(year, month)
+    start, end = _bornes_variables(company_id, year, month)
     resp = (
         supabase.table("shifts")
         .select("shift_date, shift_types(code)")
@@ -259,7 +279,7 @@ def _resolve_quantity(
     month: int,
 ) -> float:
     rule_type = rule.get("rule_type") or ""
-    start, end = _month_bounds(year, month)
+    start, end = _bornes_variables(company_id, year, month)
     if rule_type == "per_astreinte_week":
         return float(_count_astreinte_weeks(employee_id, start, end))
     if rule_type == "per_modulation_payout":
@@ -274,13 +294,15 @@ def _resolve_quantity(
         )
 
         live = aggregate_shift_payroll_metrics(
-            employee_id, year, month, company_id=company_id
+            employee_id, year, month, company_id=company_id, start=start, end=end
         )
         return float(live.get("night_hours") or 0)
     if rule_type == "per_shift_type":
         shift_codes = (rule.get("conditions") or {}).get("shift_type_codes")
         codes = [str(c) for c in shift_codes] if isinstance(shift_codes, list) else None
-        return _count_shift_type_occurrences(employee_id, year, month, codes)
+        return _count_shift_type_occurrences(
+            employee_id, company_id, year, month, codes
+        )
     if rule_type == "per_week_without_absence":
         return 0.0
     return 1.0
@@ -412,7 +434,7 @@ def generate_monthly_variables(
     employees = emp_resp.data or []
     preview: list[dict[str, Any]] = []
     written = 0
-    start, end = _month_bounds(year, month)
+    start, end = _bornes_variables(company_id, year, month)
     employee_ids = [str(e["id"]) for e in employees]
     all_absences = list_validated_absences_for_employees_in_range(
         employee_ids, start, end
