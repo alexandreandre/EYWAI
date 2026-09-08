@@ -114,7 +114,6 @@ export function NewExpenseModal({
       }
       setDescription(expense.description ?? "");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, expense]);
 
   useEffect(() => {
@@ -161,8 +160,8 @@ export function NewExpenseModal({
   };
 
   const handleSubmit = async () => {
-    if (!user || !date || !amount || !type || (!file && !enEdition)) {
-      setError("Tous les champs (sauf description) et un justificatif sont requis.");
+    if (!user || !date || !amount || !type) {
+      setError("Tous les champs (sauf description et justificatif) sont requis.");
       return;
     }
     if (showEmployeeSelector && !employeeId && !enEdition) {
@@ -204,8 +203,14 @@ export function NewExpenseModal({
       }
 
       const targetId = showEmployeeSelector ? employeeId : undefined;
-      const { path, signedURL } = await expensesApi.getUploadUrl(file!.name, targetId);
-      await expensesApi.uploadFile(signedURL, file!);
+      // Justificatif facultatif pendant la reprise des paies : on n'uploade
+      // que s'il y en a un.
+      let receiptPath: string | null = null;
+      if (file) {
+        const { path, signedURL } = await expensesApi.getUploadUrl(file.name, targetId);
+        await expensesApi.uploadFile(signedURL, file);
+        receiptPath = path;
+      }
 
       await expensesApi.createExpense({
         employee_id: targetId,
@@ -214,8 +219,8 @@ export function NewExpenseModal({
         vat_rate: resolvedVatRate,
         type,
         description,
-        receipt_url: path,
-        filename: file!.name,
+        receipt_url: receiptPath,
+        filename: file ? file.name : null,
       });
 
       toast({
@@ -254,7 +259,7 @@ export function NewExpenseModal({
               ? "Le statut et le justificatif restent inchangés. Le montant saisi est le montant TTC."
               : showEmployeeSelector
                 ? "Saisie directe par les RH — enregistrée et validée immédiatement. Le montant saisi est le montant TTC."
-                : "Le justificatif (photo ou PDF) est obligatoire. Le montant saisi est le montant TTC."}
+                : "Le justificatif (photo ou PDF) est recommandé — facultatif pendant la reprise des paies. Le montant saisi est le montant TTC."}
           </p>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -364,7 +369,7 @@ export function NewExpenseModal({
 
           <div className="grid gap-2">
             <Label htmlFor="receipt">
-              {enEdition ? "Justificatif (inchangé en modification)" : "Justificatif"}
+              {enEdition ? "Justificatif (inchangé en modification)" : "Justificatif (facultatif)"}
             </Label>
             <Input
               id="receipt"

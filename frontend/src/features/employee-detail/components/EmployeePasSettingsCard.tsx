@@ -1,15 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Percent } from 'lucide-react';
 
-import { updateEmployee } from '@/api/employees';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { Employee } from '@/features/employee-detail/types';
-import { useToast } from '@/hooks/use-toast';
 
 interface EmployeePasSettingsCardProps {
   employeeId: string;
@@ -56,50 +48,13 @@ function periodeLibelle(periode: string | null): string | null {
   return libelles[index] ? `Reçu sur la période de ${libelles[index]} ${annee}` : periode;
 }
 
-export function EmployeePasSettingsCard({
-  employeeId,
-  employee,
-  canEdit = true,
-  onEmployeeUpdated,
-}: EmployeePasSettingsCardProps) {
-  const { toast } = useToast();
-  const [isPersonnalise, setIsPersonnalise] = useState(false);
-  const [taux, setTaux] = useState('');
-
-  useEffect(() => {
-    const settings = readPasSettings(employee);
-    setIsPersonnalise(settings.isPersonnalise);
-    setTaux(settings.isPersonnalise ? String(settings.taux) : '');
-  }, [employee]);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const parsedTaux = isPersonnalise ? Number.parseFloat(taux.replace(',', '.')) : 0;
-      if (isPersonnalise && (Number.isNaN(parsedTaux) || parsedTaux < 0 || parsedTaux > 100)) {
-        throw new Error('Le taux PAS doit être un nombre entre 0 et 100.');
-      }
-      return updateEmployee(employeeId, {
-        specificites_paie: {
-          prelevement_a_la_source: {
-            is_personnalise: isPersonnalise,
-            taux: isPersonnalise ? parsedTaux : 0,
-          },
-        },
-      });
-    },
-    onSuccess: (updated) => {
-      onEmployeeUpdated(updated);
-      toast({ title: 'Taux PAS enregistré' });
-    },
-    onError: (error: unknown) => {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Impossible d’enregistrer le taux PAS.';
-      toast({ title: 'Erreur', description: message, variant: 'destructive' });
-    },
-  });
-
+/**
+ * Carte en LECTURE SEULE : le taux PAS est transmis par la DGFiP (compte
+ * rendu métier des déclarations), on n'a pas le droit de le modifier à la
+ * main — la saisie manuelle a été retirée à la demande de la déclarante
+ * (07/09/2026). Le dépannage reste possible côté admin/API si nécessaire.
+ */
+export function EmployeePasSettingsCard({ employee }: EmployeePasSettingsCardProps) {
   const current = readPasSettings(employee);
 
   return (
@@ -134,56 +89,11 @@ export function EmployeePasSettingsCard({
             </p>
           )}
         </div>
-        {canEdit ? (
-          <>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                id="pas-personnalise"
-                checked={isPersonnalise}
-                onCheckedChange={(checked) => {
-                  const enabled = checked === true;
-                  setIsPersonnalise(enabled);
-                  if (!enabled) {
-                    setTaux('');
-                  } else if (!taux) {
-                    setTaux(current.taux > 0 ? String(current.taux) : '');
-                  }
-                }}
-              />
-              <Label htmlFor="pas-personnalise" className="cursor-pointer">
-                Saisir le taux à la main
-              </Label>
-            </div>
-            {isPersonnalise ? (
-              <div className="space-y-2 pl-7">
-                <Label htmlFor="pas-taux">Taux (%)</Label>
-                <Input
-                  id="pas-taux"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  inputMode="decimal"
-                  value={taux}
-                  onChange={(e) => setTaux(e.target.value)}
-                  placeholder="Ex. 12.5"
-                />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Sans taux connu, le prélèvement à la source est calculé à 0 % sur le
-                bulletin. La saisie manuelle sera écrasée au prochain dépôt de
-                déclaration : elle sert à dépanner, pas à décider du taux.
-              </p>
-            )}
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-            >
-              Enregistrer le taux PAS
-            </Button>
-          </>
-        ) : null}
+        <p className="text-sm text-muted-foreground">
+          Ce taux n&apos;est pas modifiable à la main : il est mis à jour par les
+          retours DGFiP (compte rendu métier). Sans taux connu, 0&nbsp;% est
+          appliqué en attendant le premier retour.
+        </p>
       </CardContent>
     </Card>
   );
