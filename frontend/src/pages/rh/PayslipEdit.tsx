@@ -156,15 +156,20 @@ export default function PayslipEdit() {
   // Fonction pour mettre à jour les données éditées
   const updateEditedData = (path: string[], value: any) => {
     if (isEditLocked) return;
-    const newData = JSON.parse(JSON.stringify(editedData));
-    let current = newData;
+    // Plusieurs mises à jour peuvent se suivre dans le même événement
+    // (ligne de brut puis total). Toujours repartir du dernier état en attente.
+    setEditedData((previousData) => {
+      if (!previousData) return previousData;
+      const newData = JSON.parse(JSON.stringify(previousData));
+      let current = newData;
 
-    for (let i = 0; i < path.length - 1; i++) {
-      current = current[path[i]];
-    }
+      for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+      }
 
-    current[path[path.length - 1]] = value;
-    setEditedData(newData);
+      current[path[path.length - 1]] = value;
+      return newData;
+    });
     setHasUnsavedChanges(true);
   };
 

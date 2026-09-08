@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, DollarSign, Calculator } from 'lucide-react';
+import { PlusCircle, Trash2, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface CalculBrutSectionProps {
@@ -15,6 +16,9 @@ interface CalculBrutSectionProps {
 
 export default function CalculBrutSection({ data, salaireBrut, onChange }: CalculBrutSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Les cotisations et le net vivent dans d'autres sections et ne sont jamais
+  // recalculés à partir du brut : dès qu'une ligne bouge, il faut le dire.
+  const [brutRetouche, setBrutRetouche] = useState(false);
 
   // Fonction pour recalculer le total brut
   const recalculateBrut = (lines: any[]) => {
@@ -41,6 +45,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
     };
     const newData = [...data, newLine];
     const newBrut = recalculateBrut(newData);
+    setBrutRetouche(true);
     onChange(newData, newBrut);
   };
 
@@ -48,6 +53,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
   const handleDeleteLine = (index: number) => {
     const newData = data.filter((_, i) => i !== index);
     const newBrut = recalculateBrut(newData);
+    setBrutRetouche(true);
     onChange(newData, newBrut);
   };
 
@@ -64,6 +70,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
     }
 
     const newBrut = recalculateBrut(newData);
+    setBrutRetouche(true);
     onChange(newData, newBrut);
   };
 
@@ -79,6 +86,22 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {brutRetouche && (
+          <Alert variant="destructive" data-testid="avertissement-recalcul-brut">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Les cotisations et le net ne sont pas recalculés ici</AlertTitle>
+            <AlertDescription>
+              Cet écran corrige le brut ligne à ligne. Les cotisations, le net imposable
+              et le net à payer restent ceux du calcul d’origine : le bulletin sera
+              incohérent tant que vous ne les reprenez pas à la main.
+              <br />
+              Pour les heures supplémentaires ou les paniers, corrigez plutôt la variable
+              dans <strong>Saisies</strong>, puis régénérez le bulletin depuis <strong>Paie</strong> :
+              le moteur recalcule le brut, les cotisations et le net.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
