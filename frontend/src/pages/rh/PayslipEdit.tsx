@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Save, Eye, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Eye, History, Loader2, SlidersHorizontal } from 'lucide-react';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,6 +34,7 @@ import PrimesNonSoumisesSection from '@/components/payslip-edit/PrimesNonSoumise
 import NotesDeFraisSection from '@/components/payslip-edit/NotesDeFraisSection';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
+import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
@@ -41,6 +42,7 @@ import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { cn } from '@/lib/utils';
+import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 
 function isCriticalValidationBlock(err: unknown): boolean {
   const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
@@ -73,6 +75,17 @@ export default function PayslipEdit() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [validateModalOpen, setValidateModalOpen] = useState(false);
   const [validateBusy, setValidateBusy] = useState(false);
+
+  // Corriger une heure supplémentaire ou un panier se fait à la source, dans
+  // les variables du mois — puis on régénère. Le lien arrive sur le bon mois
+  // et le bon salarié pour lui éviter de les rechercher.
+  const lienVariables = payslip
+    ? lienVariablesDuMois({
+        employeeId: payslip.employee_id,
+        year: payslip.year,
+        month: payslip.month,
+      })
+    : null;
 
   const isRH = payslip ? hasRhAccess(user, payslip.company_id) : false;
   const isAdminPlatform = isPlatformAdmin(user);
@@ -311,6 +324,24 @@ export default function PayslipEdit() {
               Valider le bulletin
             </Button>
           ) : null}
+          {lienVariables ? (
+            <Button
+              variant="outline"
+              data-testid="corriger-les-variables"
+              onClick={() => navigate(lienVariables)}
+            >
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              Corriger les variables
+            </Button>
+          ) : null}
+          <RegeneratePayslipButton
+            employeeId={payslip.employee_id}
+            year={payslip.year}
+            month={payslip.month}
+            manuallyEdited={payslip.manually_edited}
+            disabled={isEditLocked}
+            onRegenerated={refreshPayslipFromServer}
+          />
           <Button variant="outline" onClick={() => setActiveTab('preview')}>
             <Eye className="h-4 w-4 mr-2" />
             Aperçu
@@ -380,8 +411,12 @@ export default function PayslipEdit() {
             onOpenMaintienModal={() => setShowMaintienModal(true)}
           />
 
-          {/* Section Calcul du Brut */}
+          {/* Section Calcul du Brut.
+              La clé la remonte après chaque enregistrement : elle compare les
+              heures corrigées à celles d'ouverture pour annoncer — ou non — le
+              recalcul, et cette référence doit repartir du bulletin rechargé. */}
           <CalculBrutSection
+            key={`brut-${payslip.edit_count}-${payslip.edited_at ?? ''}`}
             data={editedData.calcul_du_brut || []}
             salaireBrut={editedData.salaire_brut}
             onChange={(data, newBrut) => {

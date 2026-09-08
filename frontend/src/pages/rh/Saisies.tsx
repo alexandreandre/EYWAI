@@ -1,6 +1,7 @@
 // src/pages/Saisies.tsx - Page avec sous-onglets Primes et Participation & Intéressement
 
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import { RhPageHeader } from '@/components/layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,9 +15,29 @@ export default function Saisies() {
   // bulletin — une PPV saisie sur le mauvais mois n'atteint jamais le
   // bulletin (retour Gaëlle 07/09).
   const moisPaie = moisDePaieParDefaut(new Date());
-  const [selectedYear, setSelectedYear] = useState<number>(moisPaie.year);
-  const [selectedMonth, setSelectedMonth] = useState<number>(moisPaie.month);
+
+  // Arrivée depuis un bulletin (« Corriger la variable ») : le mois et le
+  // salarié sont dans l'URL, sinon on retombe sur le mois de paie par défaut.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const anneeUrl = Number(searchParams.get('year'));
+  const moisUrl = Number(searchParams.get('month'));
+  const employeUrl = searchParams.get('employee') || undefined;
+
+  const [selectedYear, setSelectedYear] = useState<number>(
+    Number.isInteger(anneeUrl) && anneeUrl > 1900 ? anneeUrl : moisPaie.year
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    Number.isInteger(moisUrl) && moisUrl >= 1 && moisUrl <= 12 ? moisUrl : moisPaie.month
+  );
   const [activeTab, setActiveTab] = useState("primes");
+
+  // Changer de mois ou lever le filtre nettoie l'URL : le lien d'origine ne
+  // doit pas ramener l'ancien salarié au rechargement.
+  const oublierFiltreSalarie = () => {
+    const suivant = new URLSearchParams(searchParams);
+    suivant.delete('employee');
+    setSearchParams(suivant, { replace: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -45,6 +66,8 @@ export default function Saisies() {
             selectedMonth={selectedMonth}
             onYearChange={setSelectedYear}
             onMonthChange={setSelectedMonth}
+            focusEmployeeId={employeUrl}
+            onClearFocusEmployee={oublierFiltreSalarie}
           />
         </TabsContent>
 

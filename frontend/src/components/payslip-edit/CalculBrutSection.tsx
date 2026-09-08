@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, DollarSign, Calculator } from 'lucide-react';
+import { PlusCircle, Trash2, DollarSign, Calculator, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  estLigneHeuresSupConjoncturelle,
+  leMoteurRecalculera,
+} from '@/features/payroll/utils/payslipDerivedLines';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface CalculBrutSectionProps {
@@ -13,8 +18,37 @@ interface CalculBrutSectionProps {
   onChange: (data: any[], newBrut: number) => void;
 }
 
-export default function CalculBrutSection({ data, salaireBrut, onChange }: CalculBrutSectionProps) {
+export default function CalculBrutSection({
+  data,
+  salaireBrut,
+  onChange,
+}: CalculBrutSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Deux comportements très différents selon la ligne touchée : corriger des
+  // heures supplémentaires fait recalculer tout le bulletin à l'enregistrement
+  // (le serveur les redonne au moteur), alors qu'une autre ligne ne bouge que
+  // le brut — cotisations et net restent ceux du calcul d'origine.
+  const [heuresSupCorrigees, setHeuresSupCorrigees] = useState(false);
+  const [autreLigneRetouchee, setAutreLigneRetouchee] = useState(false);
+
+  // Lignes telles qu'ouvertes : le moteur compare le total déclaré à celui du
+  // calendrier, il faut donc savoir d'où l'on part. Le parent remonte la
+  // section après chaque enregistrement, ce qui rafraîchit cette référence.
+  const [lignesInitiales] = useState(data);
+
+  const marquerRetouche = (libelle: unknown) => {
+    if (estLigneHeuresSupConjoncturelle(typeof libelle === 'string' ? libelle : null)) {
+      setHeuresSupCorrigees(true);
+    } else {
+      setAutreLigneRetouchee(true);
+    }
+  };
+
+  // N'annoncer le recalcul que s'il aura lieu : sinon l'écran promettrait ce
+  // que le moteur ne fera pas (deux paliers à zéro, ou répartition changée à
+  // total constant), et le bulletin repartirait incohérent sans un mot.
+  const recalculAnnonce = heuresSupCorrigees && leMoteurRecalculera(lignesInitiales, data);
+  const avertissementAffiche = autreLigneRetouchee || (heuresSupCorrigees && !recalculAnnonce);
 
   // Fonction pour recalculer le total brut
   const recalculateBrut = (lines: any[]) => {
@@ -41,6 +75,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
     };
     const newData = [...data, newLine];
     const newBrut = recalculateBrut(newData);
+    setAutreLigneRetouchee(true);
     onChange(newData, newBrut);
   };
 
@@ -48,6 +83,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
   const handleDeleteLine = (index: number) => {
     const newData = data.filter((_, i) => i !== index);
     const newBrut = recalculateBrut(newData);
+    marquerRetouche(data[index]?.libelle);
     onChange(newData, newBrut);
   };
 
@@ -64,6 +100,7 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
     }
 
     const newBrut = recalculateBrut(newData);
+    marquerRetouche(newData[index]?.libelle);
     onChange(newData, newBrut);
   };
 
@@ -79,6 +116,30 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {recalculAnnonce && (
+          <Alert data-testid="info-recalcul-heures-sup">
+            <RefreshCw className="h-4 w-4" />
+            <AlertTitle>Le bulletin sera recalculé</AlertTitle>
+            <AlertDescription>
+              Vous avez corrigé des heures supplémentaires. En enregistrant, le
+              bulletin est refait avec ces heures : brut, cotisations et net.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {avertissementAffiche && (
+          <Alert variant="destructive" data-testid="avertissement-recalcul-brut">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Les cotisations et le net ne suivent pas cette correction</AlertTitle>
+            <AlertDescription>
+              Cet écran ne corrige alors que le brut. Les cotisations, le net imposable
+              et le net à payer restent ceux du calcul d’origine : reprenez-les à la
+              main, ou corrigez les heures dans le calendrier du mois puis utilisez{' '}
+              <strong>Régénérer</strong> en haut de la page.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>

@@ -24,6 +24,9 @@ from app.modules.payslips.application.dto import (
     PayslipNotFoundError,
     RestorePayslipInput,
 )
+from app.modules.payslips.domain.heures_sup import (
+    quantites_heures_sup_conjoncturelles,
+)
 from app.modules.payslips.domain.rules import is_forfait_jour
 from app.modules.payslips.infrastructure.providers import (
     payslip_editor_provider,
@@ -404,14 +407,165 @@ def _etait_valide(payslip_id: str) -> bool:
     return bool(existing and existing.get("status") == "valide")
 
 
+# Libellés des saisies posées quand une RH corrige les heures supplémentaires
+# depuis le bulletin. Ils doivent rester reconnaissables par le générateur :
+# « heures » + « sup », jamais « struct », et « 50 » uniquement sur le second
+# palier (cf. `payslip_generator._is_heures_sup_conjoncturelle_input`).
+LIBELLE_HS_DECLAREES = "Heures supplémentaires (corrigées au bulletin)"
+LIBELLE_HS_DECLAREES_50 = (
+    "Heures supplémentaires majorées à 50 % (corrigées au bulletin)"
+)
+
+
+def _fetch_payslip_for_recalc(payslip_id: str) -> dict[str, Any] | None:
+    """Bulletin complet nécessaire au recalcul (données, salarié, période)."""
+    r = (
+        supabase.table("payslips")
+        .select("id, employee_id, company_id, year, month, payslip_data")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    return r.data if r and r.data else None
+
+
+def _remplacer_heures_sup_declarees(
+    *,
+    employee_id: str,
+    company_id: str,
+    year: int,
+    month: int,
+    heures_25: float,
+    heures_50: float,
+) -> None:
+    """Pose les deux paliers d'heures supplémentaires comme saisies du mois.
+
+    Les déclarations précédentes du même mois sont retirées d'abord : le moteur
+    additionne toutes les lignes reconnues, en laisser une ancienne doublerait
+    les heures. Les deux paliers sont toujours écrits ensemble, faute de quoi le
+    palier omis retomberait à zéro (cf. `domain.heures_sup`).
+    """
+    from app.modules.payroll.documents.payslip_generator import (
+        _is_heures_sup_conjoncturelle_input,
+    )
+
+    existantes = (
+        supabase.table("monthly_inputs")
+        .select("*")
+        .match(
+            {
+                "employee_id": employee_id,
+                "year": year,
+                "month": month,
+                "company_id": str(company_id),
+            }
+        )
+        .execute()
+    )
+    for row in existantes.data or []:
+        if _is_heures_sup_conjoncturelle_input(row):
+            supabase.table("monthly_inputs").delete().eq("id", row["id"]).execute()
+            logger.info(
+                "[edition] HS déclarée remplacée (%s, %s/%s) : %s",
+                employee_id,
+                month,
+                year,
+                row.get("name"),
+            )
+
+    base = {
+        "employee_id": employee_id,
+        "company_id": str(company_id),
+        "year": year,
+        "month": month,
+        "amount": 0,
+        "is_socially_taxed": True,
+        "is_taxable": True,
+    }
+    supabase.table("monthly_inputs").insert(
+        [
+            {**base, "name": LIBELLE_HS_DECLAREES, "payroll_quantity": heures_25},
+            {**base, "name": LIBELLE_HS_DECLAREES_50, "payroll_quantity": heures_50},
+        ]
+    ).execute()
+
+
+def _recalculer_apres_correction_heures_sup(
+    cmd: EditPayslipInput, avant: dict[str, Any]
+) -> bool:
+    """Redonne au moteur les heures supplémentaires corrigées, et régénère.
+
+    Rend True si le bulletin a été recalculé. Corriger la quantité d'heures
+    supplémentaires sur le bulletin ne changeait que le brut : cotisations et
+    net restaient ceux du calcul d'origine, et le bulletin devenait incohérent
+    sans que rien ne le signale. Le moteur sait reprendre ces heures depuis une
+    saisie déclarée — c'est ce chemin qu'on emprunte, plutôt que de recalculer
+    une seconde fois dans l'éditeur.
+
+    Deux cas restent au simple enregistrement, parce que le moteur ne les
+    appliquerait pas — écrire une déclaration qu'il ignore laisserait des
+    saisies fantômes, en désaccord visible avec le bulletin :
+
+    - **remise à zéro des deux paliers** : il n'y voit pas une déclaration et
+      repasse au calendrier ;
+    - **total inchangé** : il compare le total déclaré à celui du calendrier et
+      ne bouge que s'ils diffèrent. Déplacer une heure d'un palier à l'autre
+      (12 h + 3,5 h corrigé en 13 h + 2,5 h) le laisse donc immobile, alors que
+      les taux diffèrent. L'écran ne l'annonce pas non plus.
+
+    Ce second cas se corrige dans le calendrier du mois, pas ici.
+    """
+    heures_avant = quantites_heures_sup_conjoncturelles(avant.get("payslip_data"))
+    heures_apres = quantites_heures_sup_conjoncturelles(cmd.payslip_data)
+    if heures_apres == (0.0, 0.0):
+        return False
+    if abs(sum(heures_apres) - sum(heures_avant)) <= 0.001:
+        return False
+
+    _remplacer_heures_sup_declarees(
+        employee_id=avant["employee_id"],
+        company_id=avant["company_id"],
+        year=avant["year"],
+        month=avant["month"],
+        heures_25=heures_apres[0],
+        heures_50=heures_apres[1],
+    )
+    generate_payslip(
+        GeneratePayslipInput(
+            employee_id=avant["employee_id"],
+            year=avant["year"],
+            month=avant["month"],
+            # Le bulletin existe déjà : ces deux gardes ont été franchies à sa
+            # première génération. Les réopposer bloquerait une correction.
+            force_calendrier_incomplet=True,
+            regenerer_bulletin_valide=True,
+            requested_by=cmd.current_user_id,
+            requested_by_name=cmd.current_user_name,
+        )
+    )
+    logger.info(
+        "[edition] Heures supplémentaires corrigées au bulletin %s : %s -> %s, "
+        "bulletin recalculé par le moteur.",
+        cmd.payslip_id,
+        heures_avant,
+        heures_apres,
+    )
+    return True
+
+
 def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
     """Sauvegarde les modifications d'un bulletin. Délègue au provider legacy.
 
     Lot 3 : éditer un bulletin VALIDÉ le repasse en brouillon — le salarié
     ne doit jamais voir un contenu qui n'a pas été revalidé (l'éditeur
     conserve l'historique, le statut doit suivre le contenu).
+
+    Corriger les heures supplémentaires déclenche en plus un recalcul complet
+    par le moteur : sans lui, seul le brut suivait la correction et le bulletin
+    repartait avec les cotisations et le net d'avant.
     """
     etait_valide = _etait_valide(cmd.payslip_id)
+    avant = _fetch_payslip_for_recalc(cmd.payslip_id)
     result = payslip_editor_provider.save_edited(
         payslip_id=cmd.payslip_id,
         new_payslip_data=cmd.payslip_data,
@@ -428,6 +582,10 @@ def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
             cmd.payslip_id,
             cmd.current_user_id,
         )
+    # Après l'enregistrement : l'historique garde ainsi trace de sa saisie
+    # avant que le moteur ne réécrive le bulletin.
+    if avant:
+        _recalculer_apres_correction_heures_sup(cmd, avant)
     return result
 
 

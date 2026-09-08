@@ -16,6 +16,7 @@ from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
 from app.core.database import supabase
+from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -342,6 +343,16 @@ def _build_temps_travail_payload(employee_data: dict) -> dict[str, Any]:
     }
 
 
+#: Types de demande que la validation d'absence projette au calendrier sous
+#: `conges_payes` — dérivés de la table de correspondance partagée, pour que
+#: l'ajout d'un type là-bas n'oublie pas la paie ici.
+_TYPES_DEMANDE_PROJETES_EN_CONGES_PAYES: frozenset[str] = frozenset(
+    type_demande
+    for type_demande, type_calendrier in ABSENCE_TYPE_TO_CALENDAR_TYPE.items()
+    if type_calendrier == "conges_payes"
+)
+
+
 def _source_conges_par_date(rows: list) -> dict:
     """{date ISO: 'conge_paye' | 'recuperation_modulation'} depuis les demandes
     validées. Un congé payé l'emporte si deux demandes couvrent le même jour."""
@@ -361,25 +372,31 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> Non
     calendrier, mais seuls les vrais CP produisent des lignes au bulletin
     (retenue + indemnité, arbitrage 1/10e) — cf. analyzer.
     _conserver_evenement_a_zero_heure. Lu en base à chaque génération : couvre
-    aussi l'historique projeté avant l'introduction du marqueur."""
+    aussi l'historique projeté avant l'introduction du marqueur.
+
+    Le tri par type se fait EN PYTHON, jamais par un filtre SQL : filtrer sur
+    l'enum PostgreSQL `absence_type` fait échouer TOUTE la requête dès qu'un
+    libellé du code manque à l'enum (22P02). C'est arrivé du 07 au 08/09/2026
+    avec `recuperation_modulation` — 67 jours de congés absents des bulletins
+    d'août de Colorplast. Et l'échec n'est plus avalé : un bulletin sans ses
+    congés est pire qu'un bulletin non produit."""
     if not employee_id:
         return
     jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
     if not jours_cp:
         return
-    try:
-        res = (
-            supabase.table("absence_requests")
-            .select("type, selected_days")
-            .eq("employee_id", employee_id)
-            .eq("status", "validated")
-            .in_("type", ["conge_paye", "recuperation_modulation"])
-            .execute()
-        )
-        rows = res.data or []
-    except Exception:
-        logger.exception("Étiquetage source_absence des congés ignoré")
-        return
+    res = (
+        supabase.table("absence_requests")
+        .select("type, selected_days")
+        .eq("employee_id", employee_id)
+        .eq("status", "validated")
+        .execute()
+    )
+    rows = [
+        r
+        for r in (res.data or [])
+        if r.get("type") in _TYPES_DEMANDE_PROJETES_EN_CONGES_PAYES
+    ]
     source_par_date = _source_conges_par_date(rows)
     for e in jours_cp:
         try:

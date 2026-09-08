@@ -139,3 +139,167 @@ test.describe('Édition du bulletin (données fictives)', () => {
     expect(sauvegardes).toHaveLength(0);
   });
 });
+
+test.describe('Ce que l’écran annonce selon la ligne corrigée', () => {
+  function ligneDuBrut(page: Page, rang: number) {
+    return page
+      .getByRole('table')
+      .filter({ hasText: 'Salaire de base QA' })
+      .getByRole('row')
+      .nth(rang);
+  }
+
+  test('corriger des heures supplémentaires annonce un recalcul complet', async ({
+    page,
+  }) => {
+    await preparerBulletin(page);
+    const info = page.getByTestId('info-recalcul-heures-sup');
+    const avertissement = page.getByTestId('avertissement-recalcul-brut');
+    await expect(info).toBeHidden();
+
+    const ligne = ligneDuBrut(page, 2);
+    await ligne.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
+    await ligne.getByRole('spinbutton').nth(0).fill('12.5');
+    await ligne.getByRole('spinbutton').nth(0).press('Tab');
+
+    await expect(info).toBeVisible();
+    await expect(info).toContainText('Le bulletin sera recalculé');
+    // Pas d'alarme : sa correction suffit, le serveur refait le bulletin.
+    await expect(avertissement).toBeHidden();
+  });
+
+  test('corriger une autre ligne prévient que le net ne suit pas', async ({ page }) => {
+    await preparerBulletin(page);
+    const avertissement = page.getByTestId('avertissement-recalcul-brut');
+    await expect(avertissement).toBeHidden();
+
+    // Filtre sur l'en-tête : passer une ligne en édition remplace son libellé
+    // par un champ, et un filtre sur ce libellé cesserait alors de matcher.
+    const ligne = page
+      .getByRole('table')
+      .filter({ hasText: 'Base/Qté' })
+      .getByRole('row')
+      .nth(1);
+    await ligne.getByText('Salaire de base QA', { exact: true }).click();
+    await ligne.getByRole('spinbutton').nth(0).fill('99');
+    await ligne.getByRole('spinbutton').nth(0).press('Tab');
+
+    await expect(avertissement).toBeVisible();
+    await expect(avertissement).toContainText('ne suivent pas cette correction');
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
+  });
+
+  test('ajouter une ligne prévient aussi', async ({ page }) => {
+    await preparerBulletin(page);
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeHidden();
+    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
+  });
+
+  test('remettre les deux paliers à zéro ne promet aucun recalcul', async ({ page }) => {
+    // Le moteur n'y voit pas une déclaration : il repartirait du calendrier.
+    await preparerBulletin(page);
+    for (const [rang, libelle] of [
+      [2, 'Heures suppl. majorées à 25%'],
+      [3, 'Heures suppl. majorées à 50%'],
+    ] as const) {
+      const ligne = ligneDuBrut(page, rang);
+      await ligne.getByText(libelle, { exact: true }).click();
+      await ligne.getByRole('spinbutton').nth(0).fill('0');
+      await ligne.getByRole('spinbutton').nth(0).press('Tab');
+    }
+
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
+  });
+
+  test('déplacer une heure d’un palier à l’autre ne promet aucun recalcul', async ({
+    page,
+  }) => {
+    // 2 + 3,5 devient 3 + 2,5 : même total, le moteur ne bouge pas — alors que
+    // les taux diffèrent. Ne rien annoncer plutôt que mentir.
+    await preparerBulletin(page);
+    const ligne25 = ligneDuBrut(page, 2);
+    await ligne25.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
+    await ligne25.getByRole('spinbutton').nth(0).fill('3');
+    await ligne25.getByRole('spinbutton').nth(0).press('Tab');
+    // Total modifié pour l'instant : l'annonce est légitime.
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeVisible();
+
+    const ligne50 = ligneDuBrut(page, 3);
+    await ligne50.getByText('Heures suppl. majorées à 50%', { exact: true }).click();
+    await ligne50.getByRole('spinbutton').nth(0).fill('2.5');
+    await ligne50.getByRole('spinbutton').nth(0).press('Tab');
+
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
+  });
+});
+
+test.describe('Corriger à la source plutôt que patcher le bulletin', () => {
+  test('le bouton d’en-tête mène aux variables du mois, filtrées sur le salarié', async ({ page }) => {
+    await preparerBulletin(page);
+    await page.getByTestId('corriger-les-variables').click();
+    await expect(page).toHaveURL(new RegExp('/saisies\\?year=2026&month=7&employee='));
+    await expect(page.getByTestId('filtre-salarie-primes')).toBeVisible();
+  });
+
+  test('régénérer refait calculer le bulletin par le moteur', async ({ page }) => {
+    const appels: Array<Record<string, unknown>> = [];
+    await page.route('**/api/actions/generate-payslip', async (route) => {
+      appels.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        json: { status: 'success', message: 'ok', download_url: '', warnings: [] },
+      });
+    });
+    await preparerBulletin(page);
+
+    await page.getByTestId('regenerer-bulletin').click();
+    await page.getByRole('button', { name: 'Régénérer', exact: true }).last().click();
+
+    await expect(page.getByText('Bulletin régénéré', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(1);
+    expect(appels[0]).toMatchObject({
+      employee_id: '00000000-0000-4000-8000-000000000007',
+      year: 2026,
+      month: 7,
+    });
+    // Aucun forçage sans confirmation explicite.
+    expect(appels[0]).not.toHaveProperty('regenerer_bulletin_valide');
+  });
+
+  test('un bulletin validé n’est régénéré qu’après confirmation', async ({ page }) => {
+    const appels: Array<Record<string, unknown>> = [];
+    await page.route('**/api/actions/generate-payslip', async (route) => {
+      const corps = route.request().postDataJSON() as Record<string, unknown>;
+      appels.push(corps);
+      if (!corps.regenerer_bulletin_valide) {
+        await route.fulfill({
+          status: 409,
+          json: { detail: { code: 'bulletin_valide', message: 'Bulletin déjà validé.' } },
+        });
+        return;
+      }
+      await route.fulfill({
+        json: { status: 'success', message: 'ok', download_url: '', warnings: [] },
+      });
+    });
+    await preparerBulletin(page);
+
+    await page.getByTestId('regenerer-bulletin').click();
+    await page.getByRole('button', { name: 'Régénérer', exact: true }).last().click();
+
+    await expect(page.getByText('Bulletin déjà validé.', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(1);
+
+    await page.getByRole('button', { name: /Régénérer \(archive/ }).click();
+    await expect(page.getByText('Bulletin régénéré', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(2);
+    expect(appels[1]).toMatchObject({ regenerer_bulletin_valide: true });
+  });
+
+  test('un bulletin verrouillé ne peut pas être régénéré', async ({ page }) => {
+    await preparerBulletin(page, true);
+    await expect(page.getByTestId('regenerer-bulletin')).toBeDisabled();
+  });
+});
