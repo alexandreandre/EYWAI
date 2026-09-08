@@ -1,0 +1,54 @@
+name: Recalage CP (env de test)
+
+# Exécute le script de recalage des compteurs CP contre la BASE DE TEST.
+# Raison d'être : les écarts de reprise se calculent par environnement
+# (le moteur relit les absences validées de la base visée) et les
+# identifiants de la base de test ne vivent qu'ici, dans les secrets.
+# Déclenchement manuel uniquement ; simulation par défaut.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Écrire réellement (true) ou simuler (false)"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+jobs:
+  recalage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Paquets système (cairo / pango pour weasyprint à l'import)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Recalage CP Colorplast fin août (base de TEST)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+        run: |
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            python scripts/recalage_cp_test_env.py --apply
+          else
+            python scripts/recalage_cp_test_env.py
+          fi
