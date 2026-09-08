@@ -23,6 +23,7 @@ import {
   regimePeriodePaie,
   type RegimePeriodePaie,
 } from '@/features/company/lib/periodePaie';
+import { useSurchargesPeriodeVariables } from '@/features/payroll/hooks/usePeriodeVariables';
 
 export function CompanyPayrollParamsEditCard({
   company,
@@ -43,6 +44,10 @@ export function CompanyPayrollParamsEditCard({
     company.paie_occurrence,
   );
   const [regime, setRegime] = useState<RegimePeriodePaie>(regimeInitial);
+  // Le régime affiché mentirait s'il taisait les mois que la gestionnaire de
+  // paie a arrêtés à une autre date.
+  const anneeCourante = new Date().getFullYear();
+  const { data: surcharges } = useSurchargesPeriodeVariables(anneeCourante);
 
   if (!canEdit) return null;
 
@@ -111,6 +116,20 @@ export function CompanyPayrollParamsEditCard({
           {regime !== 'non_defini' ? (
             <p className="text-xs text-muted-foreground">
               {DESCRIPTIONS_REGIME_PERIODE_PAIE[regime]}
+            </p>
+          ) : null}
+          {surcharges && surcharges.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Fenêtre corrigée à la main sur{' '}
+              {surcharges.length === 1 ? 'le mois' : 'les mois'} de{' '}
+              {surcharges
+                .map((s) =>
+                  new Date(anneeCourante, s.month - 1).toLocaleString('fr-FR', {
+                    month: 'long',
+                  }),
+                )
+                .join(', ')}
+              .
             </p>
           ) : null}
         </div>

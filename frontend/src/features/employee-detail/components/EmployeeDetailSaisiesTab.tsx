@@ -2,6 +2,8 @@ import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePeriodeVariables } from "@/features/payroll/hooks/usePeriodeVariables";
+import { estSurLeMoisCivil, formatFr } from "@/features/payroll/lib/fenetreVariables";
 
 interface Props {
   selectedDate: { year: number; month: number };
@@ -24,12 +26,28 @@ export function EmployeeDetailSaisiesTab({
   onAddSaisie,
   onDeleteSaisie,
 }: Props) {
+  // Les saisies du mois ne portent pas de date : aucune fenêtre ne peut les
+  // découper. Elles valent pour la paie du mois, telle que la gestionnaire les
+  // saisit — d'où ce rappel de la période sur laquelle elle compte.
+  const { data: fenetre } = usePeriodeVariables(
+    selectedDate.year,
+    selectedDate.month,
+  );
+
   return (
           <Card>
             <CardHeader className="flex flex-row justify-between items-center">
               <div>
                 <CardTitle>Primes de {new Date(selectedDate.year, selectedDate.month - 1).toLocaleString("fr-FR", { month: "long" })}</CardTitle>
-                <CardDescription>Primes, acomptes et autres variables pour la paie de ce mois.</CardDescription>
+                <CardDescription>
+                  Primes, acomptes et autres variables pour la paie de ce mois.
+                  {fenetre && !estSurLeMoisCivil(fenetre) ? (
+                    <>
+                      {" "}Heures sup et paniers sont comptés du {formatFr(fenetre.debut)} au{" "}
+                      {formatFr(fenetre.fin)}.
+                    </>
+                  ) : null}
+                </CardDescription>
               </div>
               <Button onClick={() => onAddSaisie()}>+ Ajouter une saisie</Button>
             </CardHeader>
