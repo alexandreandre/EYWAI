@@ -880,6 +880,9 @@ class TestEditionDUnBulletinValide:
                 "_fetch_payslip_status",
                 return_value={"id": "p-1", "status": statut},
             ),
+            # L'édition relit le bulletin d'avant pour décider d'un recalcul des
+            # heures supplémentaires : ici aucun bulletin, donc rien à recalculer.
+            p_.object(mod, "_fetch_payslip_for_recalc", return_value=None),
             p_.object(mod, "_set_payslip_status_brouillon") as mock_reset,
         ):
             mod.edit_payslip(

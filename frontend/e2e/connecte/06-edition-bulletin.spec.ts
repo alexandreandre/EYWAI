@@ -140,58 +140,64 @@ test.describe('Édition du bulletin (données fictives)', () => {
   });
 });
 
-test.describe('Recalcul des cotisations après édition du brut', () => {
-  test('modifier une ligne du brut avertit que les cotisations et le net ne suivent pas', async ({
-    page,
-  }) => {
-    await preparerBulletin(page);
-    const avertissement = page.getByTestId('avertissement-recalcul-brut');
-    await expect(avertissement).toBeHidden();
-
-    const ligne = page
+test.describe('Ce que l’écran annonce selon la ligne corrigée', () => {
+  function ligneDuBrut(page: Page, rang: number) {
+    return page
       .getByRole('table')
       .filter({ hasText: 'Salaire de base QA' })
       .getByRole('row')
-      .nth(2);
+      .nth(rang);
+  }
+
+  test('corriger des heures supplémentaires annonce un recalcul complet', async ({
+    page,
+  }) => {
+    await preparerBulletin(page);
+    const info = page.getByTestId('info-recalcul-heures-sup');
+    const avertissement = page.getByTestId('avertissement-recalcul-brut');
+    await expect(info).toBeHidden();
+
+    const ligne = ligneDuBrut(page, 2);
     await ligne.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
     await ligne.getByRole('spinbutton').nth(0).fill('12.5');
     await ligne.getByRole('spinbutton').nth(0).press('Tab');
 
-    await expect(avertissement).toBeVisible();
-    await expect(avertissement).toContainText(
-      'Les cotisations et le net ne sont pas recalculés'
-    );
-    await expect(avertissement).toContainText('Corriger les variables');
-    await expect(avertissement).toContainText('Régénérer');
+    await expect(info).toBeVisible();
+    await expect(info).toContainText('Le bulletin sera recalculé');
+    // Pas d'alarme : sa correction suffit, le serveur refait le bulletin.
+    await expect(avertissement).toBeHidden();
   });
 
-  test("ajouter ou supprimer une ligne déclenche le même avertissement", async ({ page }) => {
+  test('corriger une autre ligne prévient que le net ne suit pas', async ({ page }) => {
     await preparerBulletin(page);
     const avertissement = page.getByTestId('avertissement-recalcul-brut');
     await expect(avertissement).toBeHidden();
 
-    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    // Filtre sur l'en-tête : passer une ligne en édition remplace son libellé
+    // par un champ, et un filtre sur ce libellé cesserait alors de matcher.
+    const ligne = page
+      .getByRole('table')
+      .filter({ hasText: 'Base/Qté' })
+      .getByRole('row')
+      .nth(1);
+    await ligne.getByText('Salaire de base QA', { exact: true }).click();
+    await ligne.getByRole('spinbutton').nth(0).fill('99');
+    await ligne.getByRole('spinbutton').nth(0).press('Tab');
+
     await expect(avertissement).toBeVisible();
+    await expect(avertissement).toContainText('ne suivent pas cette ligne');
+    await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
+  });
+
+  test('ajouter une ligne prévient aussi', async ({ page }) => {
+    await preparerBulletin(page);
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeHidden();
+    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
   });
 });
 
 test.describe('Corriger à la source plutôt que patcher le bulletin', () => {
-  const LIEN_VARIABLES = '/saisies?year=2026&month=7&employee=00000000-0000-4000-8000-000000000007';
-
-  test('les lignes issues d’une variable du mois renvoient vers la saisie', async ({ page }) => {
-    await preparerBulletin(page);
-    const table = page.getByRole('table').filter({ hasText: 'Salaire de base QA' });
-
-    // Les deux lignes d'heures supplémentaires, pas le salaire de base.
-    await expect(table.getByTestId('corriger-la-variable')).toHaveCount(2);
-    await expect(
-      table.getByRole('row').filter({ hasText: 'Salaire de base QA' }).getByTestId('corriger-la-variable')
-    ).toHaveCount(0);
-
-    const lien = table.getByTestId('corriger-la-variable').first();
-    await expect(lien).toHaveAttribute('href', LIEN_VARIABLES);
-  });
-
   test('le bouton d’en-tête mène aux variables du mois, filtrées sur le salarié', async ({ page }) => {
     await preparerBulletin(page);
     await page.getByTestId('corriger-les-variables').click();

@@ -1,31 +1,35 @@
 import { describe, it, expect } from 'vitest';
 import {
-  estLigneDeVariableMensuelle,
+  estLigneHeuresSupConjoncturelle,
   lienVariablesDuMois,
 } from './payslipDerivedLines';
 
-describe('estLigneDeVariableMensuelle', () => {
+describe('estLigneHeuresSupConjoncturelle', () => {
   it('reconnaît les heures supplémentaires conjoncturelles', () => {
-    expect(estLigneDeVariableMensuelle('Heures suppl. majorées à 25%')).toBe(true);
-    expect(estLigneDeVariableMensuelle('Heures suppl. majorées à 50%')).toBe(true);
+    expect(estLigneHeuresSupConjoncturelle('Heures suppl. majorées à 25%')).toBe(true);
+    expect(estLigneHeuresSupConjoncturelle('Heures suppl. majorées à 50%')).toBe(true);
   });
 
-  it('écarte les heures supplémentaires structurelles (elles viennent du contrat)', () => {
+  it('écarte les structurelles : elles viennent du contrat, pas du mois', () => {
     expect(
-      estLigneDeVariableMensuelle('Heures suppl. structurelles majorées à 25%')
+      estLigneHeuresSupConjoncturelle('Heures suppl. structurelles majorées à 25%')
     ).toBe(false);
   });
 
-  it('reconnaît les paniers', () => {
-    expect(estLigneDeVariableMensuelle('Panier repas')).toBe(true);
-    expect(estLigneDeVariableMensuelle('Réintégration panier Panier chantier')).toBe(true);
+  it('écarte les heures complémentaires du temps partiel', () => {
+    expect(
+      estLigneHeuresSupConjoncturelle('Heures complémentaires majorées à 10%')
+    ).toBe(false);
   });
 
-  it('écarte le salaire de base et les lignes sans libellé', () => {
-    expect(estLigneDeVariableMensuelle('Salaire de base')).toBe(false);
-    expect(estLigneDeVariableMensuelle('Heures normales travaillées')).toBe(false);
-    expect(estLigneDeVariableMensuelle('')).toBe(false);
-    expect(estLigneDeVariableMensuelle(undefined)).toBe(false);
+  it('écarte le salaire de base, les primes et les lignes sans libellé', () => {
+    expect(estLigneHeuresSupConjoncturelle('Salaire de base')).toBe(false);
+    expect(estLigneHeuresSupConjoncturelle('Panier repas')).toBe(false);
+    expect(estLigneHeuresSupConjoncturelle("Prime d'ancienneté (3 ans, 2 %)")).toBe(
+      false
+    );
+    expect(estLigneHeuresSupConjoncturelle('')).toBe(false);
+    expect(estLigneHeuresSupConjoncturelle(undefined)).toBe(false);
   });
 });
 

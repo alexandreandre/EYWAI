@@ -1,31 +1,32 @@
 /**
- * Lignes du brut qui proviennent d'une saisie mensuelle (page Primes), par
- * opposition à celles que le moteur déduit du contrat ou du calendrier.
+ * Reconnaissance des lignes du brut selon ce qui se passe quand on les corrige.
  *
- * Pourquoi c'est utile : l'écran d'édition d'un bulletin ne recalcule ni les
- * cotisations ni le net. Corriger une heure supplémentaire directement sur le
- * bulletin produit donc un document incohérent. Ces lignes-là se corrigent à
- * la source — la variable du mois — puis le bulletin se régénère.
+ * Les **heures supplémentaires conjoncturelles** sont le seul cas où corriger
+ * la quantité sur le bulletin suffit : à l'enregistrement, le serveur les
+ * redonne au moteur, qui refait le brut, les cotisations et le net. Toutes les
+ * autres lignes ne changent que le brut — cotisations et net restent ceux du
+ * calcul d'origine, et il faut le dire.
+ *
+ * Sont écartées :
+ * - les heures supplémentaires **structurelles**, qui viennent de l'horaire
+ *   contractuel (39 h) et non d'une variable du mois ;
+ * - les heures **complémentaires** du temps partiel, autre régime.
  *
  * La reconnaissance se fait sur le libellé : les lignes du bulletin ne portent
- * pas de clé stable (`calcul_brut.py` ne pose qu'un `libelle`), et les
- * bulletins déjà produits ne peuvent pas en gagner une rétroactivement. Un
- * faux négatif ne coûte qu'un lien manquant, jamais un blocage : le champ
- * reste éditable dans tous les cas.
+ * pas de clé stable (`calcul_brut.py` ne pose qu'un `libelle`) et les bulletins
+ * déjà produits ne peuvent pas en gagner une rétroactivement. Le même choix est
+ * fait côté serveur (`payslips/domain/heures_sup.py`) — les deux doivent rester
+ * d'accord, sinon l'écran promettrait un recalcul qui n'aura pas lieu.
  */
 
-/** HS conjoncturelles (`Heures suppl. majorées à 25%`), hors structurelles. */
 const HEURES_SUPP = /heures\s+suppl/i;
-
-/** Les structurelles viennent du contrat, pas d'une saisie du mois. */
 const STRUCTURELLES = /structurelle/i;
 
-/** Paniers et leur réintégration (`Panier repas`, `Réintégration panier …`). */
-const PANIER = /panier/i;
-
-export function estLigneDeVariableMensuelle(libelle: string | undefined | null): boolean {
+/** Ligne dont la correction déclenche un recalcul complet à l'enregistrement. */
+export function estLigneHeuresSupConjoncturelle(
+  libelle: string | undefined | null
+): boolean {
   if (!libelle) return false;
-  if (PANIER.test(libelle)) return true;
   return HEURES_SUPP.test(libelle) && !STRUCTURELLES.test(libelle);
 }
 

@@ -351,6 +351,17 @@ class TestEditPayslipCommand:
         ):
             yield
 
+    @pytest.fixture(autouse=True)
+    def _pas_de_recalcul(self):
+        """Corriger les heures supplémentaires relit le bulletin d'avant pour
+        décider d'un recalcul : sans ce mock, ces tests partiraient vers une
+        vraie base. Ici, pas de bulletin d'origine, donc aucun recalcul."""
+        with patch(
+            "app.modules.payslips.application.commands._fetch_payslip_for_recalc",
+            return_value=None,
+        ):
+            yield
+
     """Tests de la commande edit_payslip."""
 
     def test_delegates_to_editor_provider_save_edited(self):
