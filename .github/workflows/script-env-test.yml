@@ -1,0 +1,65 @@
+name: Script sur l'env de test
+
+# Exécute un script de backend/scripts/ contre la BASE DE TEST — le moteur
+# doit tourner par environnement (il relit les données de la base visée) et
+# les identifiants de la base de test ne vivent que dans ces secrets.
+# Déclenchement manuel uniquement ; simulation par défaut (--apply explicite).
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Nom du script dans backend/scripts/ (ex. barberet_cdd_maji.py)"
+        type: string
+        required: true
+      apply:
+        description: "Écrire réellement (true) ou simuler (false)"
+        type: choice
+        options: ["false", "true"]
+        default: "false"
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Valider le nom du script
+        run: |
+          case "${{ inputs.script }}" in
+            *[!a-zA-Z0-9_.-]*|*/*|.*)
+              echo "::error::Nom de script invalide."; exit 1;;
+          esac
+          test -f "scripts/${{ inputs.script }}" || { echo "::error::Script introuvable."; exit 1; }
+
+      - name: Paquets système (cairo / pango pour weasyprint à l'import)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgobject-2.0-0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Exécuter le script (base de TEST)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_KEY }}
+        run: |
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            python "scripts/${{ inputs.script }}" --apply
+          else
+            python "scripts/${{ inputs.script }}"
+          fi
