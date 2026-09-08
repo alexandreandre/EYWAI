@@ -6,15 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PlusCircle, Trash2, DollarSign, Calculator, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Link } from 'react-router-dom';
+import { estLigneDeVariableMensuelle } from '@/features/payroll/utils/payslipDerivedLines';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface CalculBrutSectionProps {
   data: any[];
   salaireBrut: number;
+  /** Page Primes, positionnée sur le mois et le salarié du bulletin. */
+  lienVariables?: string;
   onChange: (data: any[], newBrut: number) => void;
 }
 
-export default function CalculBrutSection({ data, salaireBrut, onChange }: CalculBrutSectionProps) {
+export default function CalculBrutSection({
+  data,
+  salaireBrut,
+  lienVariables,
+  onChange,
+}: CalculBrutSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   // Les cotisations et le net vivent dans d'autres sections et ne sont jamais
   // recalculés à partir du brut : dès qu'une ligne bouge, il faut le dire.
@@ -95,9 +104,9 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
               et le net à payer restent ceux du calcul d’origine : le bulletin sera
               incohérent tant que vous ne les reprenez pas à la main.
               <br />
-              Pour les heures supplémentaires ou les paniers, corrigez plutôt la variable
-              dans <strong>Saisies</strong>, puis régénérez le bulletin depuis <strong>Paie</strong> :
-              le moteur recalcule le brut, les cotisations et le net.
+              Pour une heure supplémentaire ou un panier, utilisez plutôt
+              <strong> Corriger les variables</strong> puis <strong>Régénérer</strong>,
+              en haut de la page : le moteur refait le brut, les cotisations et le net.
             </AlertDescription>
           </Alert>
         )}
@@ -128,6 +137,17 @@ export default function CalculBrutSection({ data, salaireBrut, onChange }: Calcu
                       <span onClick={() => setEditingIndex(index)} className="cursor-pointer hover:underline">
                         {ligne.libelle}
                       </span>
+                    )}
+                    {lienVariables && estLigneDeVariableMensuelle(ligne.libelle) && (
+                      <div>
+                        <Link
+                          to={lienVariables}
+                          data-testid="corriger-la-variable"
+                          className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                        >
+                          Corriger la variable
+                        </Link>
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="text-right">

@@ -161,8 +161,8 @@ test.describe('Recalcul des cotisations après édition du brut', () => {
     await expect(avertissement).toContainText(
       'Les cotisations et le net ne sont pas recalculés'
     );
-    await expect(avertissement).toContainText('Saisies');
-    await expect(avertissement).toContainText('régénérez le bulletin');
+    await expect(avertissement).toContainText('Corriger les variables');
+    await expect(avertissement).toContainText('Régénérer');
   });
 
   test("ajouter ou supprimer une ligne déclenche le même avertissement", async ({ page }) => {
@@ -172,5 +172,89 @@ test.describe('Recalcul des cotisations après édition du brut', () => {
 
     await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
     await expect(avertissement).toBeVisible();
+  });
+});
+
+test.describe('Corriger à la source plutôt que patcher le bulletin', () => {
+  const LIEN_VARIABLES = '/saisies?year=2026&month=7&employee=00000000-0000-4000-8000-000000000007';
+
+  test('les lignes issues d’une variable du mois renvoient vers la saisie', async ({ page }) => {
+    await preparerBulletin(page);
+    const table = page.getByRole('table').filter({ hasText: 'Salaire de base QA' });
+
+    // Les deux lignes d'heures supplémentaires, pas le salaire de base.
+    await expect(table.getByTestId('corriger-la-variable')).toHaveCount(2);
+    await expect(
+      table.getByRole('row').filter({ hasText: 'Salaire de base QA' }).getByTestId('corriger-la-variable')
+    ).toHaveCount(0);
+
+    const lien = table.getByTestId('corriger-la-variable').first();
+    await expect(lien).toHaveAttribute('href', LIEN_VARIABLES);
+  });
+
+  test('le bouton d’en-tête mène aux variables du mois, filtrées sur le salarié', async ({ page }) => {
+    await preparerBulletin(page);
+    await page.getByTestId('corriger-les-variables').click();
+    await expect(page).toHaveURL(new RegExp('/saisies\\?year=2026&month=7&employee='));
+    await expect(page.getByTestId('filtre-salarie-primes')).toBeVisible();
+  });
+
+  test('régénérer refait calculer le bulletin par le moteur', async ({ page }) => {
+    const appels: Array<Record<string, unknown>> = [];
+    await page.route('**/api/actions/generate-payslip', async (route) => {
+      appels.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        json: { status: 'success', message: 'ok', download_url: '', warnings: [] },
+      });
+    });
+    await preparerBulletin(page);
+
+    await page.getByTestId('regenerer-bulletin').click();
+    await page.getByRole('button', { name: 'Régénérer', exact: true }).last().click();
+
+    await expect(page.getByText('Bulletin régénéré', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(1);
+    expect(appels[0]).toMatchObject({
+      employee_id: '00000000-0000-4000-8000-000000000007',
+      year: 2026,
+      month: 7,
+    });
+    // Aucun forçage sans confirmation explicite.
+    expect(appels[0]).not.toHaveProperty('regenerer_bulletin_valide');
+  });
+
+  test('un bulletin validé n’est régénéré qu’après confirmation', async ({ page }) => {
+    const appels: Array<Record<string, unknown>> = [];
+    await page.route('**/api/actions/generate-payslip', async (route) => {
+      const corps = route.request().postDataJSON() as Record<string, unknown>;
+      appels.push(corps);
+      if (!corps.regenerer_bulletin_valide) {
+        await route.fulfill({
+          status: 409,
+          json: { detail: { code: 'bulletin_valide', message: 'Bulletin déjà validé.' } },
+        });
+        return;
+      }
+      await route.fulfill({
+        json: { status: 'success', message: 'ok', download_url: '', warnings: [] },
+      });
+    });
+    await preparerBulletin(page);
+
+    await page.getByTestId('regenerer-bulletin').click();
+    await page.getByRole('button', { name: 'Régénérer', exact: true }).last().click();
+
+    await expect(page.getByText('Bulletin déjà validé.', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(1);
+
+    await page.getByRole('button', { name: /Régénérer \(archive/ }).click();
+    await expect(page.getByText('Bulletin régénéré', { exact: true })).toBeVisible();
+    expect(appels).toHaveLength(2);
+    expect(appels[1]).toMatchObject({ regenerer_bulletin_valide: true });
+  });
+
+  test('un bulletin verrouillé ne peut pas être régénéré', async ({ page }) => {
+    await preparerBulletin(page, true);
+    await expect(page.getByTestId('regenerer-bulletin')).toBeDisabled();
   });
 });
