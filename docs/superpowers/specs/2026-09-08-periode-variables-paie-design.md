@@ -44,7 +44,12 @@ La fenêtre glissante existe déjà et tourne en production :
 - `est_mode_mois_calendaire` gère déjà le repli mois civil quand `jour_de_fin`
   sort de `[0, 6]`.
 
-Deux manques :
+Côté écran, `frontend/src/features/company/lib/periodePaie.ts` porte déjà le
+vocabulaire (« mois civil », « arrêté à l'avant-dernier vendredi »,
+« personnalisé ») et `CompanyPayrollParamsEditCard` permet de changer de régime.
+Le nouveau réglage mensuel doit s'y raccrocher, pas ouvrir un deuxième langage.
+
+Trois manques :
 
 1. **Elle ne peut pas corriger la fenêtre** quand elle décale (Cartol/Lewis en
    juillet). La règle est figée dans deux colonnes société.
@@ -53,6 +58,14 @@ Deux manques :
    fenêtre — donc congés, arrêts et absences décalent aussi. Un congé pris le
    30/07 atterrit aujourd'hui sur le bulletin d'août. C'est l'inverse de ce que
    Gaëlle demande.
+3. **Les paniers ne passent pas par ce calendrier.** Ils arrivent par deux
+   chemins qui raisonnent tous les deux en mois civil, en dehors de la fenêtre :
+   `aggregate_shift_payroll_metrics` (paniers d'équipe, heures de nuit, pauses
+   payées — agrégé à l'enregistrement du planning et mis en cache sur la ligne
+   `employee_schedules`, puis relu tel quel par le bulletin) et
+   `generate_monthly_variables` (règles de primes, trois appels à
+   `_month_bounds`). Ne toucher qu'au moteur livrerait une demi-fonctionnalité :
+   les heures sup décaleraient, les paniers non.
 
 ## Ce qu'on construit
 
@@ -108,6 +121,10 @@ sélecteur de mois, un bloc **« Variables (heures sup et paniers) »** :
 
 Pour une société en mois civil, le bloc affiche « mois civil » sans champ.
 
+Le bloc réutilise les libellés de `periodePaie.ts`. En regard, la fiche société
+(`CompanyPayrollParamsEditCard`) signale quand un mois porte une surcharge, pour
+que le régime affiché ne mente pas sur ce qui a réellement servi.
+
 La fenêtre est enregistrée à la validation, avant génération. Toute régénération
 ultérieure du même mois relit la ligne stockée : un bulletin régénéré en octobre
 donne le même résultat qu'en août.
@@ -126,6 +143,27 @@ tout. Cible : deux fenêtres explicites.
   supplémentaires (structurelles et conjoncturelles), majorations attachées aux
   heures et paniers issus des jours travaillés sont filtrés sur
   `periode_variables` ; tout le reste sur `periode_mois`.
+
+**Les trois consommateurs de la fenêtre.** Elle est résolue une fois, dans
+`periode_de_paie.py`, et lue par :
+
+1. le moteur — `creer_calendrier_etendu` et `calculer_salaire_brut`, pour les
+   heures et les heures supplémentaires structurelles ;
+2. `aggregate_shift_payroll_metrics`, qui gagne des bornes `start` / `end`
+   explicites (`year, month` restant la valeur par défaut). Le bulletin
+   **recalcule** le résumé sur la fenêtre au lieu de relire le cache mensuel du
+   planning ; ce cache reste ce qu'il est aujourd'hui pour l'affichage planning ;
+3. `generate_monthly_variables`, dont les trois `_month_bounds` deviennent la
+   fenêtre résolue.
+
+**Ce qui n'est pas filtrable.** Les saisies de `monthly_inputs` — heures sup
+conjoncturelles, paniers saisis à la main, primes — sont clés par
+`(salarié, année, mois)` et **ne portent pas de date**. Aucune fenêtre ne peut
+les découper : elles valent pour la paie du mois, telles que Gaëlle les saisit.
+On ne change rien à leur traitement ; on affiche la fenêtre en vigueur sur
+l'écran de saisie (`EmployeeDetailSaisiesTab`) pour qu'elle sache sur quelle
+période elle compte. Les notes de frais (`expense_reports`) sont déjà requêtées
+sur le mois civil : conforme à ce que Gaëlle demande, rien à faire.
 
 Décisions de rattachement, à figer dans le code et vérifiées par les tests :
 
@@ -175,5 +213,9 @@ Rien n'est livré sans ces quatre preuves :
 3. **Backtest Colorplast mai 2026** — 7/7 au centime, avant et après. C'est le
    garde-fou contre une régression du changement de rattachement : le mois
    convergeait déjà avec l'ancien découpage.
-4. **Cartol juillet 2026** — heures supplémentaires et paniers effectivement
+4. **Un panier suit la fenêtre** — un poste ouvrant droit au panier, posté le
+   28/07 et verrouillé, compte sur le bulletin d'août et pas sur celui de
+   juillet. C'est le test qui prouve que les trois consommateurs lisent bien la
+   même fenêtre.
+5. **Cartol juillet 2026** — heures supplémentaires et paniers effectivement
    bornés au 19/07 après saisie de la fenêtre.
