@@ -259,6 +259,12 @@ def calculate_exit_indemnities(
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
+    if str(exit_data.get("exit_type") or "") == "transfert":
+        raise EmployeeExitApplicationError(
+            400,
+            "Un transfert intra-groupe n'a pas d'indemnités de sortie : le solde "
+            "de congés et l'ancienneté suivent le salarié dans la société d'arrivée.",
+        )
     employee_data = exit_data.get("employees") or {}
     try:
         indemnities = calculator.calculate(employee_data, exit_data, sb)

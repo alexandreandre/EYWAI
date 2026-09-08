@@ -74,20 +74,17 @@ def est_mode_mois_calendaire(jour_de_fin: Any) -> bool:
     return jour is None or not (0 <= jour <= 6)
 
 
-def definir_periode_de_paie(
-    contexte: "ContextePaie", annee: int, mois: int
+def bornes_periode_de_paie(
+    annee: int, mois: int, jour_de_fin: Any = 4, occurrence: Any = -2
 ) -> tuple[date, date]:
     """
-    Détermine la période de paie en lisant les règles depuis la configuration de l'entreprise.
+    Bornes (début, fin) de la période de paie — fonction pure, sans ContextePaie.
     La période de travail s'arrête le dimanche de la semaine du jour de référence.
 
     Repli sur un mois calendaire plein si `jour_de_fin` n'est pas un weekday 0-6.
     """
-    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
-        "periode_de_paie", {}
-    )
-    jour_reference = _coerce_jour_reference(regles_paie.get("jour_de_fin", 4))
-    occurrence_reference = regles_paie.get("occurrence", -2)
+    jour_reference = _coerce_jour_reference(jour_de_fin)
+    occurrence_reference = occurrence
 
     if est_mode_mois_calendaire(jour_reference):
         return _periode_calendaire(annee, mois)
@@ -123,3 +120,21 @@ def definir_periode_de_paie(
     date_debut_periode = date_fin_periode_precedente + timedelta(days=1)
 
     return date_debut_periode, date_fin_periode
+
+
+def definir_periode_de_paie(
+    contexte: "ContextePaie", annee: int, mois: int
+) -> tuple[date, date]:
+    """
+    Détermine la période de paie en lisant les règles depuis la configuration
+    de l'entreprise, puis délègue à `bornes_periode_de_paie`.
+    """
+    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
+        "periode_de_paie", {}
+    )
+    return bornes_periode_de_paie(
+        annee,
+        mois,
+        regles_paie.get("jour_de_fin", 4),
+        regles_paie.get("occurrence", -2),
+    )

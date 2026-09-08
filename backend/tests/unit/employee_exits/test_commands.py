@@ -334,6 +334,79 @@ class TestUpdateEmployeeExit:
         assert exc_info.value.status_code == 400
         assert "archivé ou annulé" in exc_info.value.detail
 
+    def test_exit_type_change_to_transfert_rejected(self, mock_repo_class):
+        """Requalifier un départ en transfert laisserait indemnités/checklist
+        incohérentes : refusé, on supprime et on recrée."""
+        existing = _make_exit_record(status="demission_recue", exit_type="demission")
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo_class.return_value = mock_repo
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            update_employee_exit(
+                EXIT_ID,
+                COMPANY_ID,
+                {"exit_type": "transfert"},
+                supabase_client=MagicMock(),
+            )
+        assert exc_info.value.status_code == 400
+        assert "requalifié" in exc_info.value.detail
+        mock_repo.update.assert_not_called()
+
+    @patch("app.modules.employee_exits.application.commands.get_indemnity_calculator")
+    @patch("app.modules.employee_exits.application.commands.ExitDocumentRepository")
+    def test_lwd_change_on_transfert_never_stores_indemnities(
+        self, mock_doc_repo_class, mock_calculator_provider, mock_repo_class
+    ):
+        """Changer la date d'un transfert ne doit ni recalculer ni stocker
+        d'indemnités : champs forcés à None."""
+        existing = _make_exit_record(
+            status="demission_effective", exit_type="transfert"
+        )
+        existing["last_working_day"] = "2026-02-28"
+        mock_doc_repo = MagicMock()
+        mock_doc_repo.list_by_exit.return_value = []
+        mock_doc_repo_class.return_value = mock_doc_repo
+
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _exit_id, _company_id, data: {
+            **existing,
+            **data,
+        }
+        mock_repo_class.return_value = mock_repo
+
+        result = update_employee_exit(
+            EXIT_ID,
+            COMPANY_ID,
+            {"last_working_day": "2026-03-15"},
+            supabase_client=MagicMock(),
+        )
+
+        assert result["calculated_indemnities"] is None
+        assert result["remaining_vacation_days"] is None
+        assert result["final_net_amount"] is None
+        mock_calculator_provider.return_value.calculate.assert_not_called()
+
+    def test_exit_type_change_from_transfert_rejected(self, mock_repo_class):
+        existing = _make_exit_record(
+            status="demission_effective", exit_type="transfert"
+        )
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo_class.return_value = mock_repo
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            update_employee_exit(
+                EXIT_ID,
+                COMPANY_ID,
+                {"exit_type": "demission"},
+                supabase_client=MagicMock(),
+            )
+        assert exc_info.value.status_code == 400
+        assert "requalifié" in exc_info.value.detail
+        mock_repo.update.assert_not_called()
+
 
 @patch(
     "app.modules.employee_exits.application.commands.update_employee_employment_status"
@@ -537,6 +610,33 @@ class TestGenerateExitDocument:
                 supabase_client=MagicMock(),
             )
         assert exc_info.value.status_code == 404
+
+    def test_raises_400_for_transfert_stc_et_attestation(
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
+    ):
+        """Un transfert intra-groupe : ni STC ni attestation France Travail."""
+        exit_data = _make_exit_record(exit_type="transfert")
+        exit_data["employees"] = {"first_name": "Jean", "last_name": "Dupont"}
+        mock_exit_repo = MagicMock()
+        mock_exit_repo.get_with_employee.return_value = exit_data
+        mock_exit_repo_class.return_value = mock_exit_repo
+
+        for doc_type in ("solde_tout_compte", "attestation_pole_emploi"):
+            with pytest.raises(EmployeeExitApplicationError) as exc_info:
+                generate_exit_document(
+                    EXIT_ID,
+                    COMPANY_ID,
+                    doc_type,
+                    USER_ID,
+                    supabase_client=MagicMock(),
+                )
+            assert exc_info.value.status_code == 400
+            assert "transfert" in exc_info.value.detail.lower()
 
     def test_generates_certificat_travail(
         self,

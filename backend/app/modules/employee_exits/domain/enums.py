@@ -13,6 +13,12 @@ ExitType = Literal[
     "licenciement",
     "depart_retraite",
     "fin_periode_essai",
+    # Fin de contrat à durée déterminée : STC avec indemnité de précarité
+    # (portée par le BULLETIN du dernier mois) + ICCP.
+    "fin_cdd",
+    # Mutation intra-groupe : sortie purement administrative — jamais de STC,
+    # d'indemnités ni de documents (solde CP et ancienneté conservés).
+    "transfert",
 ]
 ExitStatus = Literal[
     "demission_recue",

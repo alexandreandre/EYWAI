@@ -135,10 +135,6 @@ def run_payslip_generation_forfait(
     contexte.year = year
     contexte.month = month
     resolved_employee_id = employee_id or contexte.contrat.get("employee_id")
-    if resolved_employee_id:
-        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
-            str(resolved_employee_id), year, month
-        )
 
     if not contexte.is_forfait_jour:
         raise ValueError(
@@ -178,10 +174,19 @@ def run_payslip_generation_forfait(
         except Exception:
             pass
 
+    # (déplacé) Rattachement du STC à la PÉRIODE DE PAIE, cf. payslip_run_heures.
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
     contexte.date_fin_periode = date_fin_periode
+    if resolved_employee_id:
+        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+            str(resolved_employee_id),
+            year,
+            month,
+            date_debut_periode=date_debut_periode,
+            date_fin_periode=date_fin_periode,
+        )
     logging.info(
         "Période de paie forfait : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),

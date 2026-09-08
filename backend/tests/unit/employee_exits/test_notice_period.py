@@ -105,6 +105,32 @@ class TestComputeNoticePeriod:
         assert result.source == "not_applicable"
         assert result.applicable is False
 
+    def test_fin_cdd_not_applicable(self):
+        """Un CDD prend fin de plein droit à son terme : pas de préavis."""
+        result = compute_notice_period(
+            exit_type="fin_cdd",
+            hire_date=date(2026, 6, 29),
+            reference_date=date(2026, 6, 30),
+            statut="Employé",
+        )
+        assert result.days == 0
+        assert result.source == "not_applicable"
+        assert result.applicable is False
+        assert "L1243-5" in result.detail
+
+    def test_transfert_not_applicable(self):
+        """Transfert intra-groupe : le contrat se poursuit, pas de préavis."""
+        result = compute_notice_period(
+            exit_type="transfert",
+            hire_date=date(2026, 1, 23),
+            reference_date=date(2026, 2, 28),
+            statut="Employé",
+        )
+        assert result.days == 0
+        assert result.source == "not_applicable"
+        assert result.applicable is False
+        assert "solde de tout compte" in result.detail
+
     def test_gross_misconduct_zero(self):
         result = compute_notice_period(
             exit_type="licenciement",

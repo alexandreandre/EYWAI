@@ -17,7 +17,7 @@ EXIT_MOTIF_MAP: Dict[str, str] = {
     "020": "rupture_conventionnelle",
     "025": "depart_retraite",
     "026": "depart_retraite",
-    "031": "licenciement",
+    "031": "fin_cdd",  # fin de CDD ou fin d'accueil occasionnel
     "032": "licenciement",
     "033": "licenciement",
     "034": "licenciement",

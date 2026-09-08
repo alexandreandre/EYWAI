@@ -101,8 +101,21 @@ def get_salary_prorata(
             mois_fin = date(exit_date.year, exit_date.month + 1, 1)
         jours_dans_mois = (mois_fin - mois_debut).days
 
-        # Nombre de jours travaillés dans le mois
-        jours_travailles = (exit_date - mois_debut).days + 1
+        # Nombre de jours travaillés dans le mois — borné par la date
+        # d'embauche : un CDD embauché le 29 et sorti le 30 a 2 jours de
+        # présence, pas un mois plein.
+        hire_raw = employee_data.get("hire_date")
+        debut_presence = mois_debut
+        if hire_raw:
+            try:
+                hire_date = datetime.fromisoformat(
+                    str(hire_raw).replace("Z", "+00:00")
+                ).date()
+                if hire_date > debut_presence:
+                    debut_presence = hire_date
+            except ValueError:
+                pass
+        jours_travailles = max((exit_date - debut_presence).days + 1, 0)
 
         # Prorata
         salaire_prorata = (

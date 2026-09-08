@@ -13,6 +13,7 @@ from app.modules.payslips.domain.anomaly_visibility import (
     parse_date_value,
 )
 from app.modules.payslips.infrastructure.repository import payslip_repository
+from app.shared.infrastructure.forfait_jour import bornes_periode_de_paie
 
 
 def strip_engine_alerts_from_payslip_data(
@@ -85,6 +86,46 @@ def cleanup_payslips_on_exit_archived(
     lwd = last_working_day
     rows = _fetch_employee_payslips(employee_id, company_id, sb)
 
+    # Période de paie de la société : pour un arrêté glissant, le bulletin du
+    # mois M peut couvrir des jours de M-1 — un départ au 30/06 vit sur le
+    # bulletin de JUILLET (fenêtre 22/06→26/07), qui ne doit pas être supprimé.
+    parametres_paie = None
+    try:
+        comp = (
+            sb.table("companies")
+            .select("paie_jour_de_fin, paie_occurrence")
+            .eq("id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        if comp and comp.data:
+            # PAS parametres_paie_depuis_societe : son repli NULL→(4, -2)
+            # diverge du moteur de bulletins, qui traite un paie_jour_de_fin
+            # NULL comme un mois calendaire. On transmet les valeurs brutes ;
+            # bornes_periode_de_paie applique alors le même repli que le moteur.
+            parametres_paie = {
+                "periode_de_paie": {
+                    "jour_de_fin": comp.data.get("paie_jour_de_fin"),
+                    "occurrence": comp.data.get("paie_occurrence"),
+                }
+            }
+    except Exception:
+        parametres_paie = None
+
+    debut_periode_cache: Dict[tuple, Optional[date]] = {}
+
+    def _debut_periode(y: int, m: int) -> Optional[date]:
+        key = (y, m)
+        if key not in debut_periode_cache:
+            debut = None
+            if parametres_paie is not None and y > 0 and 1 <= m <= 12:
+                try:
+                    debut = bornes_periode_de_paie(parametres_paie, y, m)[0]
+                except Exception:
+                    debut = None
+            debut_periode_cache[key] = debut
+        return debut_periode_cache[key]
+
     for row in rows:
         payslip_id = str(row.get("id") or "")
         if not payslip_id:
@@ -99,7 +140,9 @@ def cleanup_payslips_on_exit_archived(
         if row.get("bulletin_kind"):
             continue
 
-        if lwd and is_period_after_last_working_day(lwd, year, month):
+        if lwd and is_period_after_last_working_day(
+            lwd, year, month, date_debut_periode=_debut_periode(year, month)
+        ):
             if status != "valide":
                 payslip_repository.delete(payslip_id)
             continue

@@ -328,12 +328,26 @@ def resolve_exit_state_for_payslip(
     year: int,
     month: int,
     supabase_client: Any | None = None,
+    *,
+    date_debut_periode: date | None = None,
+    date_fin_periode: date | None = None,
 ) -> tuple[dict | None, bool]:
     """
     Retourne (indemnités calculées, blocage ICCP auto).
 
-    block_iccp_cdd=True si un départ tombe sur ce mois mais les indemnités
+    block_iccp_cdd=True si un départ tombe sur ce bulletin mais les indemnités
     n'ont pas encore été calculées (évite un ICCP 10e seul incorrect).
+
+    Rattachement : si les bornes de la PÉRIODE DE PAIE sont fournies, un
+    départ appartient au bulletin dont la période contient le dernier jour
+    travaillé — indispensable pour les sociétés à arrêté glissant (ex. un
+    CDD finissant le 30/06 est payé sur JUILLET quand la fenêtre de juillet
+    commence fin juin ; comparer le mois civil posait le STC sur juin, qui
+    ne couvre pas ces jours). Les périodes se pavant sans recouvrement, le
+    STC n'atterrit que sur UN bulletin. Repli : mois civil.
+
+    Les sorties « transfert » (mutation intra-groupe) sont ignorées : jamais
+    de STC ni d'indemnités, et elles ne doivent pas bloquer l'ICCP.
     """
     if not employee_id:
         return None, False
@@ -344,7 +358,7 @@ def resolve_exit_state_for_payslip(
         sb = supabase_client or default_supabase
         resp = (
             sb.table("employee_exits")
-            .select("id, last_working_day, status, calculated_indemnities")
+            .select("id, exit_type, last_working_day, status, calculated_indemnities")
             .eq("employee_id", employee_id)
             .not_.in_("status", ["cancelled", "canceled", "annule", "annulee"])
             .order("last_working_day", desc=True)
@@ -360,6 +374,8 @@ def resolve_exit_state_for_payslip(
         return None, False
 
     for row in rows:
+        if row.get("exit_type") == "transfert":
+            continue
         last_day_raw = row.get("last_working_day")
         if not last_day_raw:
             continue
@@ -367,7 +383,10 @@ def resolve_exit_state_for_payslip(
             last_day = date.fromisoformat(last_day_raw[:10])
         else:
             last_day = last_day_raw
-        if last_day.year != year or last_day.month != month:
+        if date_debut_periode is not None and date_fin_periode is not None:
+            if not (date_debut_periode <= last_day <= date_fin_periode):
+                continue
+        elif last_day.year != year or last_day.month != month:
             continue
 
         indemnities = row.get("calculated_indemnities")

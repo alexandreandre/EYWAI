@@ -46,6 +46,8 @@ const EXIT_TYPES: { value: ExitType; label: string }[] = [
   { value: 'licenciement', label: exitTypeLabels.licenciement },
   { value: 'depart_retraite', label: exitTypeLabels.depart_retraite },
   { value: 'fin_periode_essai', label: exitTypeLabels.fin_periode_essai },
+  { value: 'fin_cdd', label: exitTypeLabels.fin_cdd },
+  { value: 'transfert', label: exitTypeLabels.transfert },
 ];
 
 const MONTHS_FR = [

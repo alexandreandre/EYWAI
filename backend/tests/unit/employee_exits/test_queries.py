@@ -181,6 +181,22 @@ class TestCalculateExitIndemnities:
             )
         assert exc_info.value.status_code == 404
 
+    def test_raises_400_for_transfert(self, mock_repo_class, mock_calc_class):
+        """Un transfert intra-groupe n'a jamais d'indemnités : garde serveur."""
+        exit_data = {**_make_exit_with_employee(), "exit_type": "transfert"}
+        mock_repo = MagicMock()
+        mock_repo.get_with_employee.return_value = exit_data
+        mock_repo_class.return_value = mock_repo
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            queries.calculate_exit_indemnities(
+                EXIT_ID, COMPANY_ID, supabase_client=MagicMock()
+            )
+        assert exc_info.value.status_code == 400
+        assert "transfert" in exc_info.value.detail.lower()
+        mock_calc_class.return_value.calculate.assert_not_called()
+        mock_repo.update.assert_not_called()
+
 
 @patch("app.modules.employee_exits.application.queries.EmployeeExitRepository")
 class TestGetDocumentUploadUrl:

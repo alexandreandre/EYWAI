@@ -182,6 +182,12 @@ class TestGetInitialStatus:
     def test_fin_periode_essai(self):
         assert get_initial_status("fin_periode_essai") == "demission_effective"
 
+    def test_fin_cdd(self):
+        assert get_initial_status("fin_cdd") == "demission_effective"
+
+    def test_transfert(self):
+        assert get_initial_status("transfert") == "demission_effective"
+
     def test_type_inconnu_default(self):
         """Type non mappé → fallback demission_recue."""
         assert get_initial_status("inconnu") == "demission_recue"
@@ -238,6 +244,16 @@ class TestGetValidStatusTransitions:
         trans = get_valid_status_transitions("depart_retraite", "archivee")
         assert trans == []
 
+    def test_fin_cdd_effective_to_archivee(self):
+        trans = get_valid_status_transitions("fin_cdd", "demission_effective")
+        assert trans == ["archivee"]
+        assert get_valid_status_transitions("fin_cdd", "archivee") == []
+
+    def test_transfert_effective_to_archivee(self):
+        trans = get_valid_status_transitions("transfert", "demission_effective")
+        assert trans == ["archivee"]
+        assert get_valid_status_transitions("transfert", "archivee") == []
+
     def test_statut_inconnu_returns_empty(self):
         trans = get_valid_status_transitions("demission", "statut_inconnu")
         assert trans == []
@@ -258,6 +274,8 @@ class TestReconciliationArchiveChain:
             ("rupture_conventionnelle", "rupture_en_negociation"),
             ("depart_retraite", "demission_effective"),
             ("fin_periode_essai", "demission_effective"),
+            ("fin_cdd", "demission_effective"),
+            ("transfert", "demission_effective"),
         ],
     )
     def test_chain_steps_are_valid_transitions(self, exit_type, initial_status):

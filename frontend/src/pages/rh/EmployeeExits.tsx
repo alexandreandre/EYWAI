@@ -107,6 +107,8 @@ const EmployeeExitsPage = () => {
     { value: 'rupture_conventionnelle', label: 'Ruptures conv.' },
     { value: 'licenciement', label: 'Licenciements' },
     { value: 'fin_periode_essai', label: "Périodes d'essai" },
+    { value: 'fin_cdd', label: 'Fins de CDD' },
+    { value: 'transfert', label: 'Transferts' },
     { value: 'depart_retraite', label: 'Retraites' },
   ];
 

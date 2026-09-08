@@ -13,6 +13,26 @@ from app.modules.payroll.application.forfait_commands import (
     analyser_jours_forfait_du_mois as _analyser_impl,
     definir_periode_de_paie_forfait,
 )
+from app.modules.payroll.engine.period_forfait import (
+    bornes_periode_de_paie as _bornes_periode_impl,
+)
+
+
+def bornes_periode_de_paie(
+    parametres_paie: Dict[str, Any], year: int, month: int
+) -> Tuple[date, date]:
+    """
+    Bornes (début, fin) de la période de paie d'une société — fonction pure,
+    sans employé ni ContextePaie. `parametres_paie` vient de
+    app.shared.domain.periode_de_paie.parametres_paie_depuis_societe.
+    """
+    regles = (parametres_paie or {}).get("periode_de_paie", {})
+    return _bornes_periode_impl(
+        year,
+        month,
+        regles.get("jour_de_fin", 4),
+        regles.get("occurrence", -2),
+    )
 
 
 def definir_periode_de_paie(

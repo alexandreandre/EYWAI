@@ -42,10 +42,25 @@ def parse_date_value(value: Any) -> Optional[date]:
 
 
 def is_period_after_last_working_day(
-    last_working_day: Optional[date], year: int, month: int
+    last_working_day: Optional[date],
+    year: int,
+    month: int,
+    *,
+    date_debut_periode: Optional[date] = None,
 ) -> bool:
+    """
+    Le bulletin (year, month) est-il entièrement postérieur au départ ?
+
+    Pour une société à arrêté glissant, le bulletin de juillet peut couvrir
+    une période commençant fin juin : il porte alors le dernier salaire et le
+    STC d'un départ au 30/06. Quand `date_debut_periode` est fournie, seul un
+    bulletin dont la PÉRIODE démarre après le dernier jour travaillé est
+    « postérieur » ; sinon, repli sur la comparaison au mois civil.
+    """
     if last_working_day is None:
         return False
+    if date_debut_periode is not None:
+        return date_debut_periode > last_working_day
     return period_month_index(year, month) > period_month_index(
         last_working_day.year, last_working_day.month
     )

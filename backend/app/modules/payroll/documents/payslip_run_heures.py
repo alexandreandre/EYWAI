@@ -295,15 +295,21 @@ def run_payslip_generation_heures(
     # Aiguillage Fillon (< 2026) / RGDU (>= 2026) et suppression des bandeaux maladie/AF.
     contexte.year = year
     contexte.month = month
-    if employee_id:
-        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
-            employee_id, year, month
-        )
-
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
         contexte, year, month
     )
     contexte.date_fin_periode = date_fin_periode
+    if employee_id:
+        # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
+        # dernier jour travaillé en toute fin de M-1 appartient au bulletin
+        # de M — cf. resolve_exit_state_for_payslip.
+        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+            employee_id,
+            year,
+            month,
+            date_debut_periode=date_debut_periode,
+            date_fin_periode=date_fin_periode,
+        )
     logging.info(
         "Période de paie : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),

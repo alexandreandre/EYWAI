@@ -95,6 +95,24 @@ class TestHelpers:
         assert is_period_after_last_working_day(lwd, 2026, 5) is False
         assert is_period_after_last_working_day(lwd, 2026, 6) is True
 
+    def test_is_period_after_lwd_avec_fenetre_de_paie(self):
+        """Arrêté glissant : c'est le début de PÉRIODE qui décide, pas le mois
+        civil — le bulletin de juillet (période dès le 22/06) porte un départ
+        au 30/06."""
+        lwd = date(2026, 6, 30)
+        assert (
+            is_period_after_last_working_day(
+                lwd, 2026, 7, date_debut_periode=date(2026, 6, 22)
+            )
+            is False
+        )
+        assert (
+            is_period_after_last_working_day(
+                lwd, 2026, 8, date_debut_periode=date(2026, 7, 27)
+            )
+            is True
+        )
+
     def test_is_system_config_anomaly(self):
         assert is_system_config_anomaly("ALERTE_BAREME_CHEMIN_INVALIDE", "moteur_paie")
         assert not is_system_config_anomaly("BRUT_NEGATIF", "-10.22 €")

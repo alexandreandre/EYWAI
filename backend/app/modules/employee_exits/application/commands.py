@@ -68,6 +68,8 @@ EDITABLE_EXIT_TYPES = frozenset(
         "licenciement",
         "depart_retraite",
         "fin_periode_essai",
+        "fin_cdd",
+        "transfert",
     }
 )
 
@@ -139,6 +141,13 @@ def create_employee_exit(
 
     update_employee_employment_status(employee_id, "en_sortie", exit_id, sb)
     logger.info(f"✓ Employé {employee['first_name']} {employee['last_name']} marqué 'en_sortie'")
+
+    if exit_type == "transfert":
+        # Mutation intra-groupe : sortie purement administrative — pas de
+        # checklist STC/documents, pas d'indemnités (le solde CP et
+        # l'ancienneté suivent le salarié dans la société d'arrivée).
+        logger.info("✓ Transfert intra-groupe : ni checklist ni indemnités/documents")
+        return created
 
     create_default_checklist_sync(exit_id, company_id, sb)
 
@@ -233,7 +242,10 @@ def create_reconciliation_exit(
     created = exit_repo.create(record)
     exit_id = created["id"]
     update_employee_employment_status(employee_id, "en_sortie", exit_id, sb)
-    create_default_checklist_sync(exit_id, company_id, sb)
+    if exit_type_norm != "transfert":
+        # Même invariant qu'à la création classique : un transfert intra-groupe
+        # n'a pas de checklist STC/documents.
+        create_default_checklist_sync(exit_id, company_id, sb)
 
     if fast_archive:
         from datetime import date as date_cls
@@ -594,6 +606,20 @@ def update_employee_exit(
             400,
             "Impossible de modifier le type d'un départ archivé ou annulé.",
         )
+    if exit_type_changed and "transfert" in (
+        str(existing.get("exit_type") or ""),
+        str(new_exit_type or ""),
+    ):
+        # Le transfert intra-groupe n'a ni checklist ni indemnités ni documents :
+        # une requalification dans un sens comme dans l'autre laisserait la
+        # sortie dans un état incohérent (indemnités stockées sur un transfert,
+        # ou départ classique sans checklist). On supprime et on recrée.
+        raise EmployeeExitApplicationError(
+            400,
+            "Un transfert intra-groupe ne peut pas être requalifié (ni un départ "
+            "requalifié en transfert) : supprimez cette sortie et recréez-la "
+            "avec le bon type.",
+        )
 
     new_last_working_day = update_data.get("last_working_day")
     last_working_day_changed = bool(
@@ -643,29 +669,36 @@ def update_employee_exit(
         update_data["exit_notes"] = exit_notes
         update_data["updated_at"] = now
 
-        try:
-            employee_id = str(existing.get("employee_id") or "")
-            employee_full = get_employee_full(employee_id, sb) if employee_id else {}
-            recalculation_context = {**existing, **update_data}
-            indemnities = get_indemnity_calculator().calculate(
-                employee_full or {}, recalculation_context, sb
-            )
-            update_data["calculated_indemnities"] = indemnities
-            update_data["remaining_vacation_days"] = indemnities.get(
-                "indemnite_conges", {}
-            ).get("jours_restants", 0)
-            update_data["final_net_amount"] = indemnities.get(
-                "total_net_indemnities", 0
-            )
-        except Exception as exc:
-            logger.warning(
-                "Recalcul indemnités après modification sortie %s: %s",
-                exit_id,
-                exc,
-            )
+        if str(existing.get("exit_type") or "") == "transfert":
+            # Un transfert intra-groupe n'a jamais d'indemnités : le changement
+            # de date ne déclenche aucun recalcul et garantit des champs nuls.
             update_data["calculated_indemnities"] = None
             update_data["remaining_vacation_days"] = None
             update_data["final_net_amount"] = None
+        else:
+            try:
+                employee_id = str(existing.get("employee_id") or "")
+                employee_full = get_employee_full(employee_id, sb) if employee_id else {}
+                recalculation_context = {**existing, **update_data}
+                indemnities = get_indemnity_calculator().calculate(
+                    employee_full or {}, recalculation_context, sb
+                )
+                update_data["calculated_indemnities"] = indemnities
+                update_data["remaining_vacation_days"] = indemnities.get(
+                    "indemnite_conges", {}
+                ).get("jours_restants", 0)
+                update_data["final_net_amount"] = indemnities.get(
+                    "total_net_indemnities", 0
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Recalcul indemnités après modification sortie %s: %s",
+                    exit_id,
+                    exc,
+                )
+                update_data["calculated_indemnities"] = None
+                update_data["remaining_vacation_days"] = None
+                update_data["final_net_amount"] = None
     updated = exit_repo.update(exit_id, company_id, update_data)
     return updated if updated is not None else existing
 
@@ -827,6 +860,16 @@ def generate_exit_document(
     )
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
+    if str(exit_data.get("exit_type") or "") == "transfert" and document_type in (
+        "solde_tout_compte",
+        "attestation_pole_emploi",
+    ):
+        raise EmployeeExitApplicationError(
+            400,
+            "Un transfert intra-groupe ne donne lieu ni à un solde de tout compte "
+            "ni à une attestation France Travail : le contrat se poursuit dans la "
+            "société d'arrivée.",
+        )
     employee_data = exit_data.get("employees") or {}
     company_data = get_company_by_id(company_id, sb)
     if not company_data:

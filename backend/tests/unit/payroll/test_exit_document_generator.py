@@ -10,6 +10,9 @@ from app.modules.payroll.documents.attestation_employeur_salary_history import (
     compute_attestation_month_count,
     get_salary_history,
 )
+from app.modules.payroll.solde_de_tout_compte.common.socle_commun import (
+    get_salary_prorata,
+)
 from app.modules.payroll.solde_de_tout_compte.document_generator import (
     EmployeeExitDocumentGenerator,
 )
@@ -143,6 +146,45 @@ def test_attestation_pole_emploi_pdf() -> None:
     )
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 2000
+
+
+def test_salary_prorata_clampe_a_la_date_embauche() -> None:
+    """Un CDD embauché le 29/06 et sorti le 30/06 a 2 jours de présence,
+    pas un mois plein (cas Barberet)."""
+    emp = {**_EMP, "hire_date": "2026-06-29", "salaire_de_base": {"valeur": 1800.0}}
+    res = get_salary_prorata(emp, {"last_working_day": "2026-06-30"})
+    assert res["jours_travailles"] == 2
+    assert res["montant_brut"] == pytest.approx(1800.0 * 2 / 30, abs=0.01)
+
+
+def test_salary_prorata_embauche_anterieure_inchangee() -> None:
+    """Embauche avant le mois de sortie : comportement historique conservé."""
+    res = get_salary_prorata(_EMP, {"last_working_day": "2025-06-30"})
+    assert res["jours_travailles"] == 30
+
+
+def test_solde_tout_compte_fin_cdd_pdf() -> None:
+    """STC fin de CDD : PDF généré, précarité informative acceptée en entrée."""
+    gen = EmployeeExitDocumentGenerator()
+    exit_data = {
+        **_EXIT,
+        "exit_type": "fin_cdd",
+        "notice_period_days": 0,
+    }
+    indemnities = {
+        "indemnite_preavis": {"montant": 0.0},
+        "indemnite_conges": {
+            "montant": 800.0,
+            "details": {"prime_precarite_incluse": 1100.0},
+        },
+        "indemnite_precarite": {"montant": 1100.0, "versee_au_bulletin": True},
+        "total_gross_indemnities": 800.0,
+    }
+    pdf = gen.generate_solde_tout_compte(
+        _EMP, _CO, exit_data, indemnities, supabase_client=None
+    )
+    assert pdf.startswith(b"%PDF")
+    assert len(pdf) > 800
 
 
 def test_attestation_pole_emploi_pdf_senior_37_months() -> None:

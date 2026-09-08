@@ -611,6 +611,28 @@ def calculer_indemnites_sortie(
     # 5. Calculer l'indemnité spécifique selon le type de sortie
     indemnite_licenciement = None
     indemnite_rupture = None
+    indemnite_precarite = None
+
+    if exit_type == "fin_cdd":
+        # La précarité 10 % (art. L1243-8) est PORTÉE PAR LE BULLETIN du
+        # dernier mois du CDD (calcul_brut._calculer_prime_precarite_cdd) :
+        # ici elle n'est qu'INFORMATIVE — affichée au STC, jamais ajoutée à
+        # total_gross_indemnities, sinon elle serait versée deux fois. Le
+        # montant est celui déjà estimé par le chemin ICCP (mêmes règles,
+        # même assiette bulletins du contrat).
+        montant_precarite = float(
+            (indemnite_conges.get("details") or {}).get("prime_precarite_incluse")
+            or 0.0
+        )
+        indemnite_precarite = {
+            "montant": round(montant_precarite, 2),
+            "description": "Indemnité de fin de contrat (précarité, art. L1243-8)",
+            "calcul": (
+                "10 % des rémunérations brutes du CDD — versée sur le BULLETIN "
+                "du dernier mois du contrat, rappelée ici pour information"
+            ),
+            "versee_au_bulletin": True,
+        }
 
     if exit_type == "licenciement":
         indemnite_licenciement = calculer_indemnite_licenciement(
@@ -672,6 +694,9 @@ def calculer_indemnites_sortie(
             "salaire_ref_3_mois": salaire_ref_3,
         },
     }
+
+    if indemnite_precarite:
+        result["indemnite_precarite"] = indemnite_precarite
 
     # Ajouter les indemnités spécifiques selon le type
     if indemnite_licenciement:

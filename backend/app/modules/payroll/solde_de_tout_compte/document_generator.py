@@ -32,6 +32,9 @@ from app.shared.infrastructure.pdf.helpers import (
 from app.modules.payroll.solde_de_tout_compte.cases.demission import (
     generate_demission_solde,
 )
+from app.modules.payroll.solde_de_tout_compte.cases.fin_cdd import (
+    generate_fin_cdd_solde,
+)
 from app.modules.payroll.solde_de_tout_compte.cases.rupture_conventionnelle import (
     generate_rupture_conventionnelle_solde,
 )
@@ -326,6 +329,15 @@ class EmployeeExitDocumentGenerator:
             )
         elif exit_type == "fin_periode_essai":
             return generate_fin_periode_essai_solde(
+                self.styles,
+                employee_data,
+                company_data,
+                exit_data,
+                indemnities,
+                supabase_client,
+            )
+        elif exit_type == "fin_cdd":
+            return generate_fin_cdd_solde(
                 self.styles,
                 employee_data,
                 company_data,

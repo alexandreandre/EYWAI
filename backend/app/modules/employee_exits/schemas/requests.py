@@ -20,6 +20,8 @@ ExitType = Literal[
     "licenciement",
     "depart_retraite",
     "fin_periode_essai",
+    "fin_cdd",
+    "transfert",
 ]
 ExitStatus = Literal[
     "demission_recue",

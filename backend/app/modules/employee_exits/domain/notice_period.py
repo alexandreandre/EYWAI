@@ -114,6 +114,31 @@ def _legal_notice_days(
             ),
         )
 
+    if exit_type == "fin_cdd":
+        return NoticePeriodResult(
+            days=0,
+            source="not_applicable",
+            label="Préavis non applicable",
+            detail=(
+                "Un CDD prend fin de plein droit à son terme (art. L1243-5) : "
+                "pas de préavis. L'indemnité de fin de contrat est portée par le "
+                "bulletin du dernier mois."
+            ),
+            applicable=False,
+        )
+
+    if exit_type == "transfert":
+        return NoticePeriodResult(
+            days=0,
+            source="not_applicable",
+            label="Préavis non applicable",
+            detail=(
+                "Transfert intra-groupe : le contrat se poursuit dans la société "
+                "d'accueil (pas de rupture, pas de préavis, pas de solde de tout compte)."
+            ),
+            applicable=False,
+        )
+
     if exit_type not in ("demission", "licenciement"):
         return NoticePeriodResult(
             days=0,

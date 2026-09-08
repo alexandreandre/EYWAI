@@ -117,6 +117,8 @@ const EXIT_TYPE_OPTIONS: { value: ExitType; label: string }[] = [
   { value: 'licenciement', label: 'Licenciement' },
   { value: 'depart_retraite', label: 'Départ à la retraite' },
   { value: 'fin_periode_essai', label: "Fin de période d'essai" },
+  { value: 'fin_cdd', label: 'Fin de CDD' },
+  { value: 'transfert', label: 'Transfert intra-groupe' },
 ];
 
 export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetailsPanelProps) {
@@ -646,7 +648,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EXIT_TYPE_OPTIONS.map((option) => (
+                    {EXIT_TYPE_OPTIONS.filter(
+                      (option) => option.value !== 'transfert'
+                    ).map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -680,7 +684,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 <span className="text-sm text-muted-foreground">
                   {exitTypeLabels[exitDetails.exit_type]}
                 </span>
-                {!isArchived && !isCancelled && (
+                {!isArchived && !isCancelled && exitDetails.exit_type !== 'transfert' && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -995,7 +999,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
-                      {GENERATABLE_DOCUMENTS.map(({ type, label }) => (
+                      {GENERATABLE_DOCUMENTS.filter(
+                        ({ type }) =>
+                          exitDetails.exit_type !== 'transfert' ||
+                          type === 'certificat_travail'
+                      ).map(({ type, label }) => (
                         <DropdownMenuItem
                           key={type}
                           disabled={generatingDocument !== null}
@@ -1131,7 +1139,13 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!indemnities ? (
+                {exitDetails.exit_type === 'transfert' ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Un transfert intra-groupe n&apos;a pas d&apos;indemnités de sortie :
+                    le solde de congés et l&apos;ancienneté suivent le salarié dans la
+                    société d&apos;arrivée (pas de solde de tout compte).
+                  </p>
+                ) : !indemnities ? (
                   <div className="text-center py-8">
                     <Button
                       onClick={handleCalculateIndemnities}

@@ -187,7 +187,9 @@ export function CreateExitDialog({
     }
     if (
       value === 'rupture_conventionnelle' ||
-      value === 'depart_retraite'
+      value === 'depart_retraite' ||
+      value === 'fin_cdd' ||
+      value === 'transfert'
     ) {
       setNoticePeriodDays(0);
       setNoticeIndemnityType('not_applicable');
@@ -343,6 +345,8 @@ export function CreateExitDialog({
                 <SelectItem value="licenciement">Licenciement</SelectItem>
                 <SelectItem value="depart_retraite">Départ à la retraite</SelectItem>
                 <SelectItem value="fin_periode_essai">Fin de période d&apos;essai</SelectItem>
+                <SelectItem value="fin_cdd">Fin de CDD</SelectItem>
+                <SelectItem value="transfert">Transfert intra-groupe</SelectItem>
               </SelectContent>
             </Select>
           </div>
