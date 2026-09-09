@@ -65,6 +65,7 @@ export function BlocPeriodeVariables({ year, month }: Props) {
             type="date"
             value={finSaisie || fenetre.fin}
             min={fenetre.debut}
+            max={fenetre.mois_civil[1]}
             onChange={(e) => setFinSaisie(e.target.value)}
           />
         </div>
@@ -82,6 +83,15 @@ export function BlocPeriodeVariables({ year, month }: Props) {
         La semaine entamée est comptée en entier. Ce qui suit le{' '}
         {formatFr(fenetre.fin)} partira sur le mois suivant, à partir du{' '}
         {formatFr(fenetre.report_debut)}.
+      </p>
+
+      {/* Changer la période ne recalcule rien : les bulletins déjà générés
+          gardent celle qui était en vigueur au moment de leur génération.
+          Le dire est plus sûr que de régénérer d'office — un bulletin validé
+          ne doit pas se recalculer dans le dos de la gestionnaire de paie. */}
+      <p className="text-xs text-amber-700 dark:text-amber-500">
+        Les bulletins déjà générés pour ce mois gardent l'ancienne période :
+        régénérez-les pour appliquer celle-ci.
       </p>
     </div>
   );
