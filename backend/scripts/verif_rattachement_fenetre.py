@@ -2,19 +2,22 @@
 Avant/après du changement de rattachement, sur la BASE DE TEST.
 
 Le bulletin porte désormais le mois civil et seules les heures sup et les
-paniers suivent la fenêtre des variables. La question à laquelle ce script
-répond : qu'est-ce que ça déplace réellement, sur de vrais bulletins ?
+paniers suivent la fenêtre des variables. La question : qu'est-ce que ça
+déplace réellement, sur de vrais bulletins ?
 
-Deux sociétés sont examinées :
-- une à arrêté glissant (Colorplast, `paie_jour_de_fin` 4 / occurrence -2) :
-  les deux fenêtres diffèrent, des écarts sont ATTENDUS et doivent porter sur
-  les heures supplémentaires ;
-- une au mois civil (Comitech) : les deux fenêtres coïncident, il ne doit y
-  avoir AUCUN écart. C'est le témoin — sans lui, un « rien n'a bougé » ne
-  prouverait rien.
+Deux cas, dont un témoin :
+- Colorplast 05/2026 (arrêté glissant, 7 bulletins) : les deux fenêtres
+  diffèrent, des écarts sont ATTENDUS et doivent porter sur les heures sup ;
+- MAJI 01/2026 (mois civil, 1 bulletin) : les deux fenêtres coïncident, il ne
+  doit y avoir AUCUN écart. Sans ce témoin, un « rien n'a bougé » côté
+  Colorplast ne prouverait rien.
 
-Sans `--apply` : lecture seule (fenêtres résolues + totaux actuels).
-Avec `--apply` : régénère les bulletins et affiche l'avant/après.
+La comparaison porte sur l'INTÉGRALITÉ de `payslip_data`, feuille par feuille,
+et non sur une liste de champs choisis d'avance : un écart ne peut pas passer
+entre les mailles.
+
+Sans `--apply` : lecture seule (fenêtres résolues, inventaire des bulletins).
+Avec `--apply` : régénère puis affiche chaque valeur qui a changé.
 
 Usage (via .github/workflows/script-env-test.yml) :
     python scripts/verif_rattachement_fenetre.py [--apply]
@@ -24,7 +27,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -33,59 +36,69 @@ from app.modules.payroll.application.periode_variables_service import (  # noqa:
     resoudre_fenetre_variables,
 )
 
-ANNEE = 2026
-MOIS = 5
-
-#: (nom de société, ce qu'on attend du témoin)
-SOCIETES = [
-    ("Colorplast", "arrêté glissant — des écarts sur les heures sup sont attendus"),
-    ("Comitech Composite", "mois civil — AUCUN écart ne doit apparaître"),
+#: (société, année, mois, ce qu'on attend)
+CAS = [
+    ("Colorplast", 2026, 5, "arrêté glissant — des écarts sur les heures sup sont attendus"),
+    ("MAJI", 2026, 1, "mois civil — AUCUN écart ne doit apparaître"),
 ]
 
-#: Grandeurs comparées, cherchées où qu'elles soient dans payslip_data.
-CHAMPS = (
-    "salaire_brut_total",
-    "net_imposable",
-    "net_a_payer",
-    "total_heures_supp",
-    "remuneration_brute_heures_supp",
-)
+#: Clés dont la valeur bouge à chaque génération sans rien dire de la paie.
+VOLATILES = {
+    "generated_at",
+    "date_generation",
+    "created_at",
+    "updated_at",
+    "id",
+    "uuid",
+    "timestamp",
+}
 
 
-def _chercher(donnees: Any, champ: str) -> float | None:
-    """Première valeur numérique trouvée pour `champ`, à n'importe quelle profondeur."""
+def _feuilles(donnees: Any, chemin: str = "") -> Iterator[tuple[str, Any]]:
+    """Aplatit une structure imbriquée en (chemin, valeur terminale)."""
     if isinstance(donnees, dict):
-        valeur = donnees.get(champ)
-        if isinstance(valeur, (int, float)):
-            return round(float(valeur), 2)
-        for sous in donnees.values():
-            trouve = _chercher(sous, champ)
-            if trouve is not None:
-                return trouve
+        for cle, valeur in donnees.items():
+            if str(cle).lower() in VOLATILES:
+                continue
+            yield from _feuilles(valeur, f"{chemin}.{cle}" if chemin else str(cle))
     elif isinstance(donnees, list):
-        for sous in donnees:
-            trouve = _chercher(sous, champ)
-            if trouve is not None:
-                return trouve
-    return None
+        for i, valeur in enumerate(donnees):
+            yield from _feuilles(valeur, f"{chemin}[{i}]")
+    else:
+        yield chemin, donnees
 
 
-def _totaux(employee_id: str) -> dict[str, float | None]:
+def _bulletin(employee_id: str, annee: int, mois: int) -> dict[str, Any] | None:
     res = (
         supabase.table("payslips")
         .select("payslip_data")
-        .match({"employee_id": employee_id, "year": ANNEE, "month": MOIS})
+        .match({"employee_id": employee_id, "year": annee, "month": mois})
         .maybe_single()
         .execute()
     )
-    donnees = (res.data or {}).get("payslip_data") if res and res.data else None
-    return {champ: _chercher(donnees, champ) for champ in CHAMPS}
+    if not res or not res.data:
+        return None
+    donnees = res.data.get("payslip_data")
+    return donnees if isinstance(donnees, dict) else None
+
+
+def _ecarts(avant: dict | None, apres: dict | None) -> list[str]:
+    if avant is None or apres is None:
+        return ["bulletin absent avant ou après"]
+    a = dict(_feuilles(avant))
+    b = dict(_feuilles(apres))
+    lignes = []
+    for chemin in sorted(set(a) | set(b)):
+        va, vb = a.get(chemin, "∅"), b.get(chemin, "∅")
+        if va != vb:
+            lignes.append(f"{chemin} : {va} → {vb}")
+    return lignes
 
 
 def _salaries(company_id: str) -> list[dict[str, Any]]:
     res = (
         supabase.table("employees")
-        .select("id, last_name, first_name, statut")
+        .select("id, last_name, statut")
         .eq("company_id", company_id)
         .execute()
     )
@@ -103,7 +116,7 @@ def _societe(nom: str) -> dict[str, Any] | None:
     return res.data if res and res.data else None
 
 
-def _regenerer(employee_id: str, statut: str | None) -> str:
+def _regenerer(employee_id: str, statut: str | None, annee: int, mois: int) -> str:
     est_forfait = str(statut or "").lower().startswith("cadre")
     try:
         if est_forfait:
@@ -111,78 +124,79 @@ def _regenerer(employee_id: str, statut: str | None) -> str:
                 process_payslip_generation_forfait,
             )
 
-            process_payslip_generation_forfait(employee_id, ANNEE, MOIS)
+            process_payslip_generation_forfait(employee_id, annee, mois)
         else:
             from app.modules.payroll.documents.payslip_generator import (
                 process_payslip_generation,
             )
 
-            process_payslip_generation(employee_id, ANNEE, MOIS)
+            process_payslip_generation(employee_id, annee, mois)
         return "ok"
     except Exception as exc:  # noqa: BLE001 — on veut le rapport complet
-        return f"échec : {exc}"
+        return f"ÉCHEC : {exc}"
 
 
 def main() -> None:
     appliquer = "--apply" in sys.argv
-    print(f"=== Rattachement fenêtre / mois civil — {MOIS:02d}/{ANNEE} ===")
-    print("Mode :", "RÉGÉNÉRATION (écrit sur la base de test)" if appliquer else "lecture seule")
+    print("=== Rattachement fenêtre / mois civil — base de TEST ===")
+    print("Mode :", "RÉGÉNÉRATION" if appliquer else "lecture seule")
 
-    ecarts_totaux = 0
-    for nom, attendu in SOCIETES:
+    total_modifies = 0
+    for nom, annee, mois, attendu in CAS:
         societe = _societe(nom)
         if not societe:
-            print(f"\n--- {nom} : société introuvable, ignorée")
+            print(f"\n--- {nom} : société introuvable")
             continue
 
         fenetre = resoudre_fenetre_variables(
-            str(societe["id"]), ANNEE, MOIS, societe=societe
+            str(societe["id"]), annee, mois, societe=societe
         )
-        print(f"\n--- {nom} ({attendu})")
+        print(f"\n--- {nom} {mois:02d}/{annee} ({attendu})")
         print(
-            f"    réglage : jour_de_fin={societe.get('paie_jour_de_fin')} "
+            f"    réglage   : jour_de_fin={societe.get('paie_jour_de_fin')} "
             f"occurrence={societe.get('paie_occurrence')}"
         )
-        print(f"    bulletin  : 01/{MOIS:02d}/{ANNEE} → fin du mois")
         print(f"    variables : {fenetre.debut:%d/%m/%Y} → {fenetre.fin:%d/%m/%Y} ({fenetre.origine})")
 
         salaries = _salaries(str(societe["id"]))
-        avant = {str(s["id"]): _totaux(str(s["id"])) for s in salaries}
+        avant = {}
+        for s in salaries:
+            b = _bulletin(str(s["id"]), annee, mois)
+            if b is not None:
+                avant[str(s["id"])] = b
+        print(f"    bulletins : {len(avant)}")
 
         if not appliquer:
             for s in salaries:
-                t = avant[str(s["id"])]
-                if all(v is None for v in t.values()):
-                    continue
-                print(f"    {s['last_name']:<14} " + "  ".join(
-                    f"{c}={t[c]}" for c in CHAMPS if t[c] is not None
-                ))
+                if str(s["id"]) in avant:
+                    print(f"      {s['last_name']}")
             continue
 
         for s in salaries:
-            etat = _regenerer(str(s["id"]), s.get("statut"))
+            if str(s["id"]) not in avant:
+                continue
+            etat = _regenerer(str(s["id"]), s.get("statut"), annee, mois)
             if etat != "ok":
                 print(f"    {s['last_name']:<14} {etat}")
 
         for s in salaries:
             eid = str(s["id"])
-            apres = _totaux(eid)
-            lignes = []
-            for champ in CHAMPS:
-                a, b = avant[eid][champ], apres[champ]
-                if a is None and b is None:
-                    continue
-                if a != b:
-                    lignes.append(f"{champ} : {a} → {b}")
+            if eid not in avant:
+                continue
+            lignes = _ecarts(avant[eid], _bulletin(eid, annee, mois))
             if lignes:
-                ecarts_totaux += 1
-                print(f"    ⚠ {s['last_name']:<14} " + " | ".join(lignes))
+                total_modifies += 1
+                print(f"    ⚠ {s['last_name']} — {len(lignes)} valeur(s) changée(s) :")
+                for ligne in lignes[:25]:
+                    print(f"        {ligne}")
+                if len(lignes) > 25:
+                    print(f"        … et {len(lignes) - 25} autres")
             else:
-                print(f"      {s['last_name']:<14} inchangé")
+                print(f"      {s['last_name']} : bulletin identique au bit près")
 
     if appliquer:
-        print(f"\n=== {ecarts_totaux} bulletin(s) modifié(s) ===")
-        print("Attendu : des écarts sur Colorplast (heures sup), AUCUN sur Comitech.")
+        print(f"\n=== {total_modifies} bulletin(s) modifié(s) ===")
+        print("Attendu : des écarts sur Colorplast, AUCUN sur MAJI.")
 
 
 if __name__ == "__main__":
