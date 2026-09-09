@@ -35,6 +35,7 @@ from app.modules.payroll.engine.calcul_frais import (
     valeur_unitaire,
 )
 from app.modules.payroll.engine.contexte import ContextePaie
+from app.shared.domain.periode_variables import bornes_mois_civil
 from app.modules.payroll.engine.ijss_bulletin import (
     build_rappel_ijss_net_prime,
     compute_ijss_csg_lines,

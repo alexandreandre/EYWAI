@@ -98,7 +98,7 @@ def _ecarts(avant: dict | None, apres: dict | None) -> list[str]:
 def _salaries(company_id: str) -> list[dict[str, Any]]:
     res = (
         supabase.table("employees")
-        .select("id, last_name, statut")
+        .select("id, last_name, is_forfait_jour")
         .eq("company_id", company_id)
         .execute()
     )
@@ -116,8 +116,8 @@ def _societe(nom: str) -> dict[str, Any] | None:
     return res.data if res and res.data else None
 
 
-def _regenerer(employee_id: str, statut: str | None, annee: int, mois: int) -> str:
-    est_forfait = str(statut or "").lower().startswith("cadre")
+def _regenerer(employee_id: str, forfait_jour: Any, annee: int, mois: int) -> str:
+    est_forfait = bool(forfait_jour)
     try:
         if est_forfait:
             from app.modules.payroll.documents.payslip_generator_forfait import (
@@ -175,7 +175,7 @@ def main() -> None:
         for s in salaries:
             if str(s["id"]) not in avant:
                 continue
-            etat = _regenerer(str(s["id"]), s.get("statut"), annee, mois)
+            etat = _regenerer(str(s["id"]), s.get("is_forfait_jour"), annee, mois)
             if etat != "ok":
                 print(f"    {s['last_name']:<14} {etat}")
 
