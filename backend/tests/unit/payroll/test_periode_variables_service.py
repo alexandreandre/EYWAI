@@ -68,3 +68,21 @@ def test_apercu_expose_les_semaines_et_le_mois_civil(service):
     assert apercu["semaines"] == [26, 27, 28, 29, 30]
     assert apercu["mois_civil"] == ["2026-07-01", "2026-07-31"]
     assert apercu["report_debut"] == "2026-07-27"
+
+
+def test_janvier_va_chercher_decembre_de_lannee_precedente(service):
+    """Le passage d'année : janvier reprend là où décembre s'est arrêté."""
+    service._surcharges_de_test[("c1", 2025, 12)] = {
+        "start_date": "2025-11-24",
+        "end_date": "2025-12-21",
+        "origin": "manuel",
+    }
+    fenetre = service.resoudre_fenetre_variables("c1", 2026, 1)
+    assert fenetre.debut == date(2025, 12, 22)
+
+
+def test_janvier_sans_surcharge_suit_la_regle_de_decembre(service):
+    fenetre = service.resoudre_fenetre_variables("c1", 2026, 1)
+    assert fenetre.debut.year == 2025
+    assert fenetre.debut.month == 12
+    assert fenetre.fin.month == 1
