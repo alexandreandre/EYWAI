@@ -1065,6 +1065,11 @@ def process_payslip_generation(
                     "jour_solidarite": (company_data.get("settings") or {}).get(
                         "jour_solidarite"
                     ),
+                    # Quand payer — indépendant de la date à laquelle la
+                    # gestionnaire de paie arrête les variables.
+                    "date_paiement": (company_data.get("settings") or {}).get(
+                        "date_paiement"
+                    ),
                 },
             },
         }

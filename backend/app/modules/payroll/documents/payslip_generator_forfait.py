@@ -489,6 +489,11 @@ def process_payslip_generation_forfait(
                     "idcc": company_data.get("idcc"),
                     "effectif": company_data.get("effectif"),
                     "periode_de_paie": _periode_de_paie_company(company_data),
+                    # Quand payer — indépendant de la date à laquelle la
+                    # gestionnaire de paie arrête les variables.
+                    "date_paiement": (company_data.get("settings") or {}).get(
+                        "date_paiement"
+                    ),
                     "taux_specifiques": {
                         "taux_at_mp": company_data.get("taux_at_mp"),
                         "taux_versement_mobilite": company_data.get("taux_vm"),

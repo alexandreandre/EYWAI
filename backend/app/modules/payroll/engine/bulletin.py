@@ -30,17 +30,42 @@ def _get_end_date_for_month(
         return jours_trouves[-1]
 
 
+#: Réglage société `settings.date_paiement` — quand payer, indépendamment de
+#: la date à laquelle la gestionnaire de paie arrête les variables.
+DATE_PAIEMENT_DERNIER_JOUR = "dernier_jour_du_mois"
+DATE_PAIEMENT_ARRETE = "arrete_des_variables"
+
+
 def _calculer_date_paiement(contexte: ContextePaie, annee: int, mois: int) -> str:
+    """Date de paiement du bulletin.
+
+    Elle était déduite de l'arrêté des variables : une société dont les heures
+    sup s'arrêtent à l'avant-dernier vendredi se voyait payer ce jour-là. Les
+    deux n'ont pourtant rien à voir — Colorplast arrête ses variables le 22 et
+    paie le 31. D'où un réglage propre, `settings.date_paiement`.
+
+    Sans réglage, le comportement historique est conservé à l'identique : aucun
+    bulletin existant ne bouge tant que personne n'a choisi.
+    """
     from app.modules.payroll.engine.period_forfait import est_mode_mois_calendaire
 
-    regles_paie = contexte.entreprise.get("parametres_paie", {}).get(
-        "periode_de_paie", {}
-    )
+    parametres = contexte.entreprise.get("parametres_paie", {})
+    regles_paie = parametres.get("periode_de_paie", {})
     jour_reference = regles_paie.get("jour_de_fin", 4)
     occurrence_reference = regles_paie.get("occurrence", -2)
+
+    dernier_jour = date(annee, mois, calendar.monthrange(annee, mois)[1]).isoformat()
+
+    choix = parametres.get("date_paiement")
+    if choix == DATE_PAIEMENT_DERNIER_JOUR:
+        return dernier_jour
+    if choix != DATE_PAIEMENT_ARRETE and choix is not None:
+        # Valeur inattendue en base : on ne fait pas tomber un bulletin pour
+        # ça, on retombe sur le comportement historique.
+        logger.warning("Réglage date_paiement inconnu : %r — repli historique", choix)
+
     if est_mode_mois_calendaire(jour_reference):
-        _, num_days = calendar.monthrange(annee, mois)
-        return date(annee, mois, num_days).isoformat()
+        return dernier_jour
     date_paiement = _get_end_date_for_month(
         annee, mois, int(jour_reference), int(occurrence_reference)
     )
