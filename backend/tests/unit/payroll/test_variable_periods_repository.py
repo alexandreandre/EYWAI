@@ -39,6 +39,34 @@ def test_get_variable_period_renvoie_la_ligne(supabase_mock):
     assert repo.get_variable_period("c1", 2026, 7) == ligne
 
 
+def test_get_variable_period_table_absente_vaut_aucune_surcharge(supabase_mock):
+    """Base sans la migration : la paie applique la règle société, elle ne tombe pas."""
+    from postgrest.exceptions import APIError
+
+    from app.modules.payroll.infrastructure import variable_periods_repository as repo
+
+    chaine = supabase_mock.table.return_value.select.return_value.match.return_value
+    chaine.maybe_single.return_value.execute.side_effect = APIError(
+        {"message": "Could not find the table", "code": "PGRST205", "hint": None, "details": None}
+    )
+
+    assert repo.get_variable_period("c1", 2026, 7) is None
+
+
+def test_get_variable_period_propage_les_autres_erreurs(supabase_mock):
+    from postgrest.exceptions import APIError
+
+    from app.modules.payroll.infrastructure import variable_periods_repository as repo
+
+    chaine = supabase_mock.table.return_value.select.return_value.match.return_value
+    chaine.maybe_single.return_value.execute.side_effect = APIError(
+        {"message": "permission denied", "code": "42501", "hint": None, "details": None}
+    )
+
+    with pytest.raises(APIError):
+        repo.get_variable_period("c1", 2026, 7)
+
+
 def test_upsert_envoie_les_dates_en_iso(supabase_mock):
     from app.modules.payroll.infrastructure import variable_periods_repository as repo
 
