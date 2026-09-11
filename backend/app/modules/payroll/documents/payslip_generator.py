@@ -159,11 +159,18 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
       mai 2026 : -98,12 € identique sur les 3, donc indépendant du salaire —
       probablement une régularisation de cotisation mutuelle famille).
     """
-    if float(row.get("amount") or 0) >= 0:
-        return False
     label = " ".join(
         str(row.get(key) or "") for key in ("name", "description")
     ).lower()
+    # « Avance sur salaire » : somme versée au salarié en plus du net (montant
+    # positif, ex. Cegid ANDRE MAJI 02/2026 pendant un arrêt maladie non
+    # maintenu : 3 819,33 € versés, récupérés en « Acomptes » les mois suivants).
+    # Comme l'acompte, c'est de la trésorerie hors assiette sociale et fiscale :
+    # le canal net-only est signé, le montant positif devient un ajout au net.
+    if "avance sur salaire" in label:
+        return True
+    if float(row.get("amount") or 0) >= 0:
+        return False
     if "report" in label and "nap" in label:
         return True
     if "mutuelle" in label and "famille" in label:

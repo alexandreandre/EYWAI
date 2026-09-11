@@ -744,8 +744,16 @@ def calculer_salaire_brut(
     if duree_contrat_hebdo < duree_legale_hebdo:
         heures_mensuelles_contrat = round((duree_contrat_hebdo * 52) / 12, 2)
         if facteur_prorata < 1.0:
+            # Mois d'entrée/sortie : les heures réellement dues, si saisies
+            # (`remuneration_mois_partiel.heures_base`, comme à temps plein),
+            # priment sur le prorata calendaire — un temps partiel à répartition
+            # irrégulière (7/7/3/7/7) n'est pas payé « jours ouvrés × durée / 5 »
+            # (BOULAY MAJI 04/2026 : 24,33 h dues, 24,80 h par prorata).
             heures_mensuelles_contrat = round(
-                jours_ouvres_presence * duree_contrat_hebdo / 5, 2
+                heures_base_reelles
+                if heures_base_reelles is not None
+                else jours_ouvres_presence * duree_contrat_hebdo / 5,
+                2,
             )
             gain_base = round(
                 heures_mensuelles_contrat * taux_horaire_de_base, 2
