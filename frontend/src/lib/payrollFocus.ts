@@ -10,7 +10,7 @@
 
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';
 
-/** Les 15 entrées de menu conservées en mode paie. */
+/** Les 16 entrées de menu conservées en mode paie. */
 export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/',
   '/employees',
@@ -30,6 +30,12 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   // mois) : sans cette entrée, un salarié sorti était introuvable
   // (retour Gaëlle 04/09, dossier Demory).
   '/employee-exits',
+  // La page Entreprise porte les réglages qui produisent la paie : arrêté de
+  // la période de paie, fenêtre des variables corrigée à la main, barèmes de
+  // mutuelle. Exclue le 27/08 comme « administration », elle est devenue un
+  // passage obligé de la reprise (retour Alexandre 11/09 : clic sur la
+  // société → renvoyé au tableau de bord, paramétrage impossible).
+  '/company',
 ];
 
 /**

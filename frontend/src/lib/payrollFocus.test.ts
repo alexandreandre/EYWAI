@@ -8,9 +8,9 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 15 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(15);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(15);
+  it('contient exactement 16 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(16);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(16);
   });
 });
 
@@ -43,13 +43,21 @@ describe('isPayrollFocusAllowed', () => {
       '/analytics-paie',
       '/analytics-gestion',
       '/users',
-      '/company',
       '/planning',
       '/badgeuse-rh',
       '/augmentations-et-promotions',
     ]) {
       expect(isPayrollFocusAllowed(url)).toBe(false);
     }
+  });
+
+  it('autorise la page Entreprise, qui porte les réglages de paie', () => {
+    // Arrêté de la période de paie, fenêtre des variables corrigée, barèmes
+    // de mutuelle : sans elle, le paramétrage d'une société est impossible
+    // en mode paie (retour Alexandre 11/09).
+    expect(isPayrollFocusAllowed('/company')).toBe(true);
+    expect(isPayrollFocusAllowed('/company?tab=paie')).toBe(true);
+    expect(PAYROLL_FOCUS_NAV_URLS).toContain('/company');
   });
 
   it('ignore la query string et le fragment', () => {
@@ -191,12 +199,15 @@ describe('restrictToPayrollFocus', () => {
     expect(urlsOf(paieGroups)).toHaveLength(before);
   });
 
-  it('produit exactement les 15 URL du périmètre, toutes sections confondues', () => {
+  it('produit exactement les 16 URL du périmètre, toutes sections confondues', () => {
     const all = [
       '/',
       ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
       ...urlsOf(restrictToPayrollFocus('gestion', gestionGroups)),
       ...urlsOf(restrictToPayrollFocus('paie', paieGroups)),
+      // « Mon entreprise » n'est pas dans les groupes statiques : la barre
+      // latérale l'injecte avec le nom de la société active.
+      '/company',
     ];
     expect(new Set(all)).toEqual(new Set(PAYROLL_FOCUS_NAV_URLS));
   });
@@ -213,7 +224,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(15);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(16);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {

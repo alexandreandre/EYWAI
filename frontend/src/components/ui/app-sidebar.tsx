@@ -844,7 +844,12 @@ export function AppSidebar() {
   );
 
   const rhGestionGroups = useMemo(() => {
-    if (payrollFocus) return restrictToPayrollFocus('gestion', RH_GESTION_GROUPS);
+    if (payrollFocus) {
+      // Mode paie : la section Gestion disparaît, sauf « Mon entreprise » qui
+      // porte les paramètres de paie (période, fenêtre des variables, mutuelle).
+      const kept = restrictToPayrollFocus('gestion', RH_GESTION_GROUPS);
+      return hasConsolidatedViews ? kept : [...kept, { items: [monEntrepriseNav] }];
+    }
     const base = RH_GESTION_GROUPS.map((g) => ({
       ...g,
       items: [...g.items],
