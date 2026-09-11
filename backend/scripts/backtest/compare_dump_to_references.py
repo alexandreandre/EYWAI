@@ -73,8 +73,8 @@ def lire_releve(path: Path) -> dict:
     releve: dict = {}
     inside = False
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = re.sub(r"^\S*Z\s", "", raw.strip())  # horodatage de journal GitHub
-        line = re.sub(r"^.*\t", "", line)            # préfixe « job\tstep\t »
+        line = re.sub(r"^.*\t", "", raw.strip())     # préfixe « job\tstep\t » du journal GitHub
+        line = re.sub(r"^\S*Z\s", "", line)          # puis l'horodatage
         if line == "DUMP_BEGIN":
             inside = True; continue
         if line == "DUMP_END":
