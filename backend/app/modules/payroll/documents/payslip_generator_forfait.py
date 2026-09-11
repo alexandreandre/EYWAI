@@ -501,6 +501,15 @@ def process_payslip_generation_forfait(
                     },
                     "jei": jei_bloc,
                     "prime_anciennete": prime_anciennete_overrides or None,
+                    # Mêmes réglages société qu'en mode horaire : journée de
+                    # solidarité (férié travaillé) et diviseur de valorisation
+                    # d'une journée d'absence en forfait (21,67 par défaut).
+                    "jour_solidarite": (company_data.get("settings") or {}).get(
+                        "jour_solidarite"
+                    ),
+                    "forfait_jours_ouvres_mois": (company_data.get("settings") or {}).get(
+                        "forfait_jours_ouvres_mois"
+                    ),
                 },
             },
         }

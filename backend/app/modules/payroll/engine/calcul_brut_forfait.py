@@ -19,9 +19,33 @@ from app.shared.domain.employment_rules import is_cadre
 from .calcul_conges import calculer_indemnite_conges
 from .calcul_brut import (
     _format_jours_conges,
+    _jour_ferie_est_paye,
     _jours_evenement_conges,
     _libelle_dates_conges,
 )
+
+# Jours ouvrés moyens par mois (261 j / 12) : valorisation d'une journée de
+# forfait, à défaut d'un paramètre société `forfait_jours_ouvres_mois`.
+JOURS_OUVRES_MOYENS_MOIS = 21.67
+
+
+def _diviseur_jour_absence(contexte: ContextePaie) -> float:
+    """Nombre de jours ouvrés retenu pour valoriser UNE journée d'absence en
+    forfait jour (arrêt, absence non rémunérée, férié non payé).
+
+    Convention de paie, pas règle légale : 21,67 (moyenne légale) par défaut,
+    un cabinet peut retenir 22 (`companies.settings.forfait_jours_ouvres_mois`).
+    Les congés payés restent valorisés sur la moyenne 21,67 (méthode du
+    maintien), quel que soit ce paramètre.
+    """
+    brut = (contexte.entreprise.get("parametres_paie", {}) or {}).get(
+        "forfait_jours_ouvres_mois"
+    )
+    try:
+        valeur = float(brut) if brut is not None else 0.0
+    except (TypeError, ValueError):
+        valeur = 0.0
+    return valeur if valeur > 0 else JOURS_OUVRES_MOYENS_MOIS
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -184,11 +208,12 @@ def calculer_salaire_brut_forfait(
         contexte, contexte.salaire_base_mensuel
     )
 
-    # Calcul du salaire journalier pour les déductions d'absence
-    # En forfait jour, on utilise généralement le nombre de jours ouvrés moyens par mois
-    # Convention : 21.67 jours ouvrés par mois en moyenne (261 jours / 12 mois)
-    jours_ouvres_moyens_mois = 21.67
+    # Salaire journalier : moyenne légale 21,67 j (261 j / 12) pour les congés
+    # payés (méthode du maintien) ; les autres absences se valorisent sur le
+    # diviseur société (21,67 par défaut, 22 chez certains cabinets).
+    jours_ouvres_moyens_mois = JOURS_OUVRES_MOYENS_MOIS
     salaire_journalier = salaire_contractuel / jours_ouvres_moyens_mois
+    salaire_journalier_absence = salaire_contractuel / _diviseur_jour_absence(contexte)
 
     # 1. Salaire de base (forfait mensuel)
     lignes_composants_brut.append(
@@ -218,10 +243,26 @@ def calculer_salaire_brut_forfait(
         for offset in range((date_fin_periode - date_debut_periode).days + 1)
         if (date_debut_periode + timedelta(days=offset)).weekday() < 5
     ]
+    # Entré dès le premier jour ouvré (hors férié) du mois = présent tout le
+    # mois : aucun prorata d'entrée. Un férié chômé avant l'embauche n'est pas
+    # un jour perdu (SMITH MAJI, entré le lundi 04/05/2026 après le 1er mai :
+    # salaire plein chez le cabinet).
+    feries_periode = {
+        date.fromisoformat(j["date_complete"])
+        for j in calendrier_saisie
+        if j.get("type") == "ferie" and j.get("date_complete")
+    }
+    premier_jour_ouvre = next(
+        (jour for jour in jours_ouvres_mois if jour not in feries_periode), None
+    )
+    if date_entree and premier_jour_ouvre and date_entree <= premier_jour_ouvre:
+        date_entree_effective = None
+    else:
+        date_entree_effective = date_entree
     jours_hors_contrat = [
         jour
         for jour in jours_ouvres_mois
-        if (date_entree and jour < date_entree)
+        if (date_entree_effective and jour < date_entree_effective)
         or (date_sortie and jour > date_sortie)
     ]
     if jours_hors_contrat and jours_ouvres_mois:
@@ -250,10 +291,23 @@ def calculer_salaire_brut_forfait(
     jours_conges_dans_periode = []
     nombre_jours_absence_injustifiee = 0
     nombre_jours_travailles = 0
+    # Journées retenues (arrêt, non rémunérée, injustifiée, férié non payé) :
+    # sert à reconnaître un mois entièrement absent.
+    jours_absence_non_payes = 0.0
 
+    jours_hors_contrat_set = set(jours_hors_contrat)
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
+        # Un jour avant l'entrée ou après la sortie est déjà retenu par le
+        # prorata d'entrée/sortie : un férié ou une absence posés sur ce jour
+        # ne doivent pas être retenus une seconde fois (FILLINGER Zone 404,
+        # entré le 27/04 : lundi de Pâques 06/04 retenu deux fois).
+        try:
+            if date.fromisoformat(evenement["date_complete"]) in jours_hors_contrat_set:
+                continue
+        except (KeyError, TypeError, ValueError):
+            pass
 
         # En forfait jour, heures = 1 signifie "1 jour"
         if type_ev == "travail_base":
@@ -261,33 +315,58 @@ def calculer_salaire_brut_forfait(
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
         elif "absence_injustifiee" in type_ev:
-            nombre_jours_absence_injustifiee += heures
+            # Un jour calendaire coûte au plus UNE journée de forfait : le jour
+            # posé porte souvent 7 h / 7,8 h « prévues » (gabarit horaire), qui
+            # valaient ici 7,8 journées et vidaient le brut (ASSANHAJI Zone 404
+            # 03/2026 : 5 j d'absence non rémunérée → brut 0 au lieu de 2 788).
+            jours_abs = _jours_evenement_absence(evenement)
+            nombre_jours_absence_injustifiee += jours_abs
+            jours_absence_non_payes += jours_abs
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
-            montant_deduction = round(heures * salaire_journalier, 2)
+            montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
             lignes_composants_brut.append(
                 {
-                    "libelle": f"Absence injustifiée du {date_absence} ({heures:.0f} jour{'s' if heures > 1 else ''})",
-                    "quantite": heures,
-                    "taux": round(salaire_journalier, 4),
+                    "libelle": f"Absence injustifiée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
+                    "quantite": jours_abs,
+                    "taux": round(salaire_journalier_absence, 4),
                     "gain": None,
                     "perte": montant_deduction,
                 }
             )
         elif type_ev == "absence_non_remuneree":
-            nombre_jours_absence_injustifiee += heures
+            jours_abs = _jours_evenement_absence(evenement)
+            nombre_jours_absence_injustifiee += jours_abs
+            jours_absence_non_payes += jours_abs
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
-            montant_deduction = round(heures * salaire_journalier, 2)
+            montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
             lignes_composants_brut.append(
                 {
-                    "libelle": f"Absence non rémunérée du {date_absence} ({heures:.0f} jour{'s' if heures > 1 else ''})",
-                    "quantite": heures,
-                    "taux": round(salaire_journalier, 4),
+                    "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
+                    "quantite": jours_abs,
+                    "taux": round(salaire_journalier_absence, 4),
                     "gain": None,
                     "perte": montant_deduction,
+                }
+            )
+        elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
+            # Férié chômé non payé (ancienneté < 3 mois, art. L3133-3) : même
+            # règle qu'en mode horaire, une journée de forfait retenue.
+            jours_abs = 1.0
+            jours_absence_non_payes += jours_abs
+            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
+                "%d/%m/%y"
+            )
+            lignes_composants_brut.append(
+                {
+                    "libelle": f"Abs. jour férié non payé du {date_absence}",
+                    "quantite": jours_abs,
+                    "taux": round(salaire_journalier_absence, 4),
+                    "gain": None,
+                    "perte": round(jours_abs * salaire_journalier_absence, 2),
                 }
             )
         elif type_ev == "arret_maladie":
@@ -299,15 +378,16 @@ def calculer_salaire_brut_forfait(
             # journée de forfait ; le maintien (et les IJSS subrogées) sont
             # ajoutés en aval par le moteur maintien, pas ici.
             jours_abs = _jours_evenement_absence(evenement)
+            jours_absence_non_payes += jours_abs
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
-            montant_deduction = round(jours_abs * salaire_journalier, 2)
+            montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
             lignes_composants_brut.append(
                 {
                     "libelle": f"Absence maladie du {date_absence}",
                     "quantite": jours_abs,
-                    "taux": round(salaire_journalier, 4),
+                    "taux": round(salaire_journalier_absence, 4),
                     "gain": None,
                     "perte": montant_deduction,
                 }
@@ -376,6 +456,37 @@ def calculer_salaire_brut_forfait(
                     "taux": None,
                     "gain": resultat_conges["montant_indemnite"],
                     "perte": None,
+                }
+            )
+
+    # 3 bis. Mois entièrement absent : la retenue vaut exactement le salaire du
+    # mois (hors prorata d'entrée/sortie), quel que soit le nombre de jours
+    # ouvrés du mois. Sans ce complément, février (20 j ouvrés) laissait un
+    # brut résiduel de 7,7 % à un salarié absent tout le mois (ANDRE MAJI
+    # 02/2026 : 513,86 € au lieu de 0), tandis que mars (22 j) sur-déduisait.
+    jours_ouvres_contrat = [
+        jour for jour in jours_ouvres_mois if jour not in set(jours_hors_contrat)
+    ]
+    if jours_ouvres_contrat and jours_absence_non_payes >= len(jours_ouvres_contrat) - 1e-9:
+        perte_entree_sortie = sum(
+            (ligne.get("perte") or 0.0)
+            for ligne in lignes_composants_brut
+            if ligne.get("is_entree_sortie")
+        )
+        perte_absences = sum(
+            (ligne.get("perte") or 0.0)
+            for ligne in lignes_composants_brut
+            if ligne.get("perte") and not ligne.get("is_entree_sortie")
+        )
+        complement = round(salaire_contractuel - perte_entree_sortie - perte_absences, 2)
+        if abs(complement) >= 0.01:
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Absence sur tout le mois : retenue ramenée au salaire du mois",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": None if complement > 0 else round(-complement, 2),
+                    "perte": complement if complement > 0 else None,
                 }
             )
 
