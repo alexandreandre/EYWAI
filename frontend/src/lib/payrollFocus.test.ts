@@ -60,6 +60,14 @@ describe('isPayrollFocusAllowed', () => {
     expect(PAYROLL_FOCUS_NAV_URLS).toContain('/company');
   });
 
+  it('autorise le tableau de bord d’un groupe de sociétés', () => {
+    // Entrée construite par la barre latérale pour les gestionnaires
+    // multi-sociétés ; elle ramenait au tableau de bord (retour Alexandre 11/09).
+    expect(isPayrollFocusAllowed('/groups/1b2c3d')).toBe(true);
+    expect(isPayrollFocusAllowed('/groups')).toBe(true);
+    expect(PAYROLL_FOCUS_NAV_URLS).not.toContain('/groups');
+  });
+
   it('ignore la query string et le fragment', () => {
     expect(isPayrollFocusAllowed('/employees?alert=deadlines')).toBe(true);
     expect(isPayrollFocusAllowed('/annual-reviews?focus=upcoming')).toBe(false);

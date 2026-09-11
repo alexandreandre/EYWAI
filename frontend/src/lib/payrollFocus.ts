@@ -62,6 +62,11 @@ const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = [
   // hors menu en mode paie, mais les routes restent atteignables.
   '/suivi-cet',
   '/employee-loans',
+  // Tableau de bord d'un groupe de sociétés (`/groups/:groupId`) : c'est par
+  // là qu'une gestionnaire multi-sociétés passe d'une société à l'autre.
+  // L'entrée est construite dynamiquement par la barre latérale, elle ne
+  // figure donc pas dans la liste NAV (retour Alexandre 11/09).
+  '/groups',
 ];
 
 /** Comptes conservant la navigation complète en plus des admins plateforme. */
