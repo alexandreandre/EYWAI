@@ -137,6 +137,9 @@ def mettre_a_jour_cumuls(
             cumuls["cumul_tranche_2_appliquee"] = round(
                 agirc_arrco_cumuls.get("cumul_tranche_2_appliquee", 0.0), 2
             )
+            cumuls["cumul_tranche_1_appliquee"] = round(
+                agirc_arrco_cumuls.get("cumul_tranche_1_appliquee", 0.0), 2
+            )
         else:
             cumuls["cumul_brut_agirc_arrco"] = round(
                 agirc_arrco_cumuls.get(
@@ -154,6 +157,13 @@ def mettre_a_jour_cumuls(
                 agirc_arrco_cumuls.get(
                     "cumul_tranche_2_appliquee",
                     cumuls.get("cumul_tranche_2_appliquee", 0.0),
+                ),
+                2,
+            )
+            cumuls["cumul_tranche_1_appliquee"] = round(
+                agirc_arrco_cumuls.get(
+                    "cumul_tranche_1_appliquee",
+                    cumuls.get("cumul_tranche_1_appliquee", 0.0),
                 ),
                 2,
             )

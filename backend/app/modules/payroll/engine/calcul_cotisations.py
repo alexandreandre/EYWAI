@@ -15,6 +15,7 @@ from .exoneration_stage import (
     assiette_stage_residuelle,
     contexte_exoneration_stage,
 )
+from datetime import date, timedelta
 from typing import Dict, Any, List, Tuple, Optional
 import json
 from .cotisations_rubriques import enrichir_ligne_cotisation
@@ -97,6 +98,120 @@ def _cumul_agirc_arrco_debut_mois(
         return 0.0, 0.0, 0.0
 
 
+def _cumul_tranche_1_appliquee_debut_mois(
+    contexte: ContextePaie, cumul_brut_avant: float, cumul_t2_applique_avant: float
+) -> float:
+    """Tranche 1 déjà soumise sur l'année civile, avant le mois courant.
+
+    Stockée depuis la régularisation progressive de la tranche 1 (clé
+    `cumul_tranche_1_appliquee`) ; à défaut (cumuls antérieurs à ce mécanisme),
+    reconstituée comme cumul brut − tranche 2 déjà appliquée.
+    """
+    mois = getattr(contexte, "month", None)
+    if mois == 1:
+        return 0.0
+    cumuls_racine = getattr(contexte, "cumuls", None) or {}
+    cumuls = cumuls_racine.get("cumuls") if isinstance(cumuls_racine, dict) else None
+    if isinstance(cumuls, dict) and cumuls.get("cumul_tranche_1_appliquee") is not None:
+        try:
+            return float(cumuls.get("cumul_tranche_1_appliquee") or 0.0)
+        except (TypeError, ValueError):
+            pass
+    return max(0.0, cumul_brut_avant - cumul_t2_applique_avant)
+
+
+# Absences pendant lesquelles le contrat est suspendu sans rémunération : le
+# plafond de la Sécurité sociale est réduit prorata temporis (BOSS, assiette
+# générale : entrée/sortie en cours de mois et suspension du contrat sans
+# maintien intégral, en jours calendaires).
+_TYPES_ABSENCE_REDUISANT_PLAFOND = frozenset(
+    {"arret_maladie", "absence_non_remuneree", "absence_injustifiee", "sans_solde", "conge_sans_solde"}
+)
+
+
+def ratio_plafond_periode(
+    calendrier: List[Dict[str, Any]],
+    date_debut: date,
+    date_fin: date,
+    contexte: ContextePaie,
+) -> float:
+    """Fraction du plafond mensuel due sur la période : jours calendaires de
+    présence rémunérée / jours calendaires de la période.
+
+    * jours hors contrat (avant l'entrée, après la sortie) : non retenus ;
+    * jours d'absence non rémunérée (arrêt, absence non rémunérée, injustifiée,
+      férié chômé non payé) : non retenus ;
+    * un jour non ouvré (week-end, férié) encadré par deux jours d'absence est
+      compté dans l'absence (l'arrêt court sur le week-end) ; en bord de mois il
+      ne l'est pas ;
+    * tous les jours ouvrés du contrat absents : plafond nul.
+
+    Vérifié contre les bulletins du cabinet (Cegid) : entrée le 05/01 → 27/31 ;
+    arrêt du 29 au 30/01 (Sat. 31 non compté) → 29/31 ; arrêt du 01 au 10/04
+    (week-end et lundi de Pâques pontés) → 20/30 ; mois entier → 0.
+    """
+    from .calcul_brut import _jour_ferie_est_paye
+
+    nb_jours = (date_fin - date_debut).days + 1
+    if nb_jours <= 0:
+        return 1.0
+    contrat = contexte.contrat.get("contrat", {}) or {}
+
+    def _d(value: Any) -> Optional[date]:
+        try:
+            return date.fromisoformat(str(value)[:10]) if value else None
+        except (TypeError, ValueError):
+            return None
+
+    entree = _d(contrat.get("date_entree"))
+    sortie = _d(contrat.get("date_sortie") or contrat.get("date_fin_contrat"))
+    absents: set[date] = set()
+    feries: set[date] = set()
+    for ev in calendrier or []:
+        jour = _d(ev.get("date_complete"))
+        if jour is None or not (date_debut <= jour <= date_fin):
+            continue
+        type_ev = str(ev.get("type") or "")
+        if type_ev == "ferie":
+            feries.add(jour)
+            if not _jour_ferie_est_paye(contexte, ev):
+                absents.add(jour)
+        elif type_ev in _TYPES_ABSENCE_REDUISANT_PLAFOND:
+            absents.add(jour)
+
+    jours = [date_debut + timedelta(days=i) for i in range(nb_jours)]
+
+    def _hors_contrat(j: date) -> bool:
+        return bool((entree and j < entree) or (sortie and j > sortie))
+
+    def _ouvre(j: date) -> bool:
+        return j.weekday() < 5 and j not in feries
+
+    ouvres_contrat = [j for j in jours if _ouvre(j) and not _hors_contrat(j)]
+    if ouvres_contrat and all(j in absents for j in ouvres_contrat):
+        return 0.0
+
+    retenus = 0
+    for idx, j in enumerate(jours):
+        if _hors_contrat(j):
+            continue
+        if j in absents:
+            continue
+        if not _ouvre(j):
+            avant = next((k for k in reversed(jours[:idx]) if _ouvre(k)), None)
+            apres = next((k for k in jours[idx + 1 :] if _ouvre(k)), None)
+            if (
+                avant is not None
+                and apres is not None
+                and (avant in absents or _hors_contrat(avant))
+                and (apres in absents or _hors_contrat(apres))
+                and (avant in absents or apres in absents)
+            ):
+                continue
+        retenus += 1
+    return round(retenus / nb_jours, 6)
+
+
 def _calculer_assiettes(
     contexte: ContextePaie, salaire_brut: float, remuneration_heures_supp: float
 ) -> Dict[str, float]:
@@ -134,14 +249,20 @@ def _calculer_assiettes(
         log_payroll_debug(logger, f'INFO: Plafond SS proratisé pour temps partiel (HC {heures_comp_mois}h) : {pss_calcule:.2f} €')
     # --- FIN DU NOUVEAU BLOC ---
 
+    # Plafond réduit prorata temporis (jours calendaires) pour une entrée/sortie
+    # en cours de mois ou une suspension du contrat sans rémunération — ratio
+    # posé par le run de paie via `ratio_plafond_periode` (1,0 à défaut).
+    ratio_periode = getattr(contexte, "ratio_plafond_ss", None)
+    try:
+        ratio_periode = float(ratio_periode) if ratio_periode is not None else 1.0
+    except (TypeError, ValueError):
+        ratio_periode = 1.0
+    if 0.0 <= ratio_periode < 1.0:
+        pss_calcule = round(pss_calcule * ratio_periode, 2)
+        log_payroll_debug(logger, f'INFO: Plafond SS proratisé sur la période ({ratio_periode:.4f}) : {pss_calcule:.2f} €')
+
     # Assiettes conditionnelles
     assiette_cet = 0.0
-    # On utilise maintenant le pss_calcule (proratisé ou non)
-    if salaire_brut > pss_calcule:
-        # La CET (Contribution d'Équilibre Technique) suit sa propre logique
-        # (assiette = brut plafonné à 8×PSS, PAS de régularisation progressive
-        # tranche 1/tranche 2 — traitée séparément, comportement inchangé).
-        assiette_cet = min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule)
 
     # --- Tranche 2 : régularisation progressive Agirc-Arrco (cumul annuel) ---
     # Remplace l'ancien calcul purement mensuel (assiette_tranche_2 = max(0,
@@ -167,6 +288,29 @@ def _calculer_assiettes(
         - cumul_pss_incl,
     )
     assiette_tranche_2 = round(cumul_tranche_2_correct - cumul_t2_applique_avant, 2)
+    # --- Tranche 1 : même régularisation progressive (cumul annuel) ---
+    # La part plafonnée « correcte » de l'année est min(cumul brut, cumul PSS) ;
+    # ce mois porte la différence avec ce qui a déjà été soumis. Rémunération
+    # stable sous ou sur le plafond : strictement identique au calcul mensuel.
+    # Elle ne diverge que lorsque des mois sous le plafond précèdent un mois
+    # au-dessus (prime, régularisation) : la part inutilisée du plafond est
+    # alors reprise, comme sur les bulletins du cabinet (AGOUMBI Zone 404
+    # 05/2026 : 4 608 € entièrement en tranche 1). Sans cette symétrie, la
+    # tranche 2 cumulative laissait échapper la différence à toute cotisation.
+    cumul_t1_applique_avant = _cumul_tranche_1_appliquee_debut_mois(
+        contexte, cumul_brut_avant, cumul_t2_applique_avant
+    )
+    cumul_tranche_1_correct = max(0.0, min(cumul_brut_incl, cumul_pss_incl))
+    assiette_tranche_1 = round(
+        max(0.0, cumul_tranche_1_correct - cumul_t1_applique_avant), 2
+    )
+    # CET (Contribution d'Équilibre Technique, 0,14 % sur tout le salaire
+    # plafonné à 8 PSS) : due par les seuls salariés dont la rémunération
+    # dépasse le plafond — apprécié comme les tranches, sur le cumul annuel :
+    # tant que le cumul brut reste sous le cumul PSS, pas de CET (AGOUMBI Zone
+    # 404 05/2026 : 4 608 € sur un mois, cumul sous le plafond, pas de CET).
+    if cumul_tranche_2_correct > 0:
+        assiette_cet = min(salaire_brut, lc.FACTEUR_PLAFOND_TRANCHE_2 * pss_calcule)
     # Cumuls à jour (année civile), exposés via contexte pour persistance par
     # mettre_a_jour_cumuls (cf. payslip_run_common.py) — jamais un `if` sur un
     # salarié précis, s'applique uniformément à tous.
@@ -176,6 +320,9 @@ def _calculer_assiettes(
             "cumul_pss_agirc_arrco": round(cumul_pss_incl, 2),
             "cumul_tranche_2_appliquee": round(
                 cumul_t2_applique_avant + assiette_tranche_2, 2
+            ),
+            "cumul_tranche_1_appliquee": round(
+                cumul_t1_applique_avant + assiette_tranche_1, 2
             ),
         }
     except Exception:
@@ -229,7 +376,9 @@ def _calculer_assiettes(
                     mutuelle_spec.get("montant_patronal", 0.0) or 0.0
                 )
 
-    brut_plafonne = min(salaire_brut, pss_calcule)
+    # Part plafonnée du mois, régularisée sur l'année (cf. ci-dessus) : égale à
+    # min(brut, PSS) tant que le cumul brut n'a jamais dépassé le cumul PSS.
+    brut_plafonne = assiette_tranche_1
 
     part_patronale_prevoyance = 0.0
     prevoyance_spec = contexte.contrat.get("specificites_paie", {}).get(

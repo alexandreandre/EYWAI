@@ -13,7 +13,10 @@ from weasyprint import HTML
 
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
 from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
-from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
+from app.modules.payroll.engine.calcul_cotisations import (
+    calculer_cotisations,
+    ratio_plafond_periode,
+)
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
@@ -760,6 +763,11 @@ def run_payslip_generation_heures(
             2,
         )
 
+    # Plafond SS réduit prorata temporis (entrée/sortie en cours de mois,
+    # suspension du contrat sans rémunération), en jours calendaires.
+    contexte.ratio_plafond_ss = ratio_plafond_periode(
+        calendrier_etendu, date_debut_periode, date_fin_periode, contexte
+    )
     lignes_cotisations, total_salarial = calculer_cotisations(
         contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp
     )
