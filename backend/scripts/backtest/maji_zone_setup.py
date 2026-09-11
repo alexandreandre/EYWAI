@@ -353,6 +353,8 @@ def _emp_map(company_id: str) -> Dict[str, dict]:
     out: Dict[str, dict] = {}
     by_mat: Dict[str, List[dict]] = {}
     for r in rows:
+        if not r.get("matricule"):
+            continue  # fiche technique sans matricule (ex. « Test ACTIVATION » sur le test)
         by_mat.setdefault(r["matricule"], []).append(r)
     for mat, lst in by_mat.items():
         if len(lst) == 1:
@@ -368,12 +370,32 @@ def _emp_map(company_id: str) -> Dict[str, dict]:
     return out
 
 
+MUTUELLE_BAREMES = {
+    # libellé -> (part salariale, part patronale) lus sur les bulletins (EMUT)
+    "Mutuelle Apicil 17.62€ / 17.62€": (17.62, 17.62),
+    "Mutuelle 13.42€ / 13.42€": (13.42, 13.42),
+}
+
+
 def _mutuelle_type_id(admin, company_id: str, libelle: str) -> str:
+    """Le barème réel de la société, créé s'il manque (la base de test a été
+    copiée de la prod avant sa création)."""
     rows = (admin.table("company_mutuelle_types").select("id, libelle")
             .eq("company_id", company_id).eq("libelle", libelle).execute().data)
-    if not rows:
+    if rows:
+        return rows[0]["id"]
+    if libelle not in MUTUELLE_BAREMES:
         raise SystemExit(f"Barème mutuelle '{libelle}' introuvable pour {company_id}")
-    return rows[0]["id"]
+    sal, pat = MUTUELLE_BAREMES[libelle]
+    created = admin.table("company_mutuelle_types").insert({
+        "company_id": company_id, "libelle": libelle,
+        "montant_salarial": sal, "montant_patronal": pat,
+        "part_patronale_soumise_a_csg": True, "part_salariale_deductible_impot": True,
+        "is_active": True, "pack_couverture": "autre", "statut_categoriel": "tous",
+        "source": "dsn_import", "note": "Grille cabinet EMUT — bulletins 2026",
+    }).execute().data
+    print(f"[{libelle}] barème créé")
+    return created[0]["id"]
 
 
 def _salaire_payload(emp: dict, valeur: float) -> dict:
