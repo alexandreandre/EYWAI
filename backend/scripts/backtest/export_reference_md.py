@@ -134,9 +134,11 @@ def export_company(company_name: str, year: int, month: int) -> Path:
     # resolve_bulletin_pdf trouve le PDF du BON mois (find_reference_pdf retombait
     # sur le PDF de mai pour tous les mois de Cartol → MD/extract faux → reconcile
     # revertait tout). Repli sur find_reference_pdf si le résolveur mensuel échoue.
-    pdf_path = resolve_bulletin_pdf(company_name, year, month) or find_reference_pdf(
-        company_name, year, month
-    )
+    try:
+        pdf_path = resolve_bulletin_pdf(company_name, year, month)
+    except FileNotFoundError:
+        # Société absente du dossier `Bulletins/` : convention data/<societe>/bulletins/<AAAA-MM>/
+        pdf_path = find_reference_pdf(company_name, year, month)
     full_text = extract_pdf_text(pdf_path)
     references = parse_cegid_text(full_text)
     raw_blocks = _split_raw_text_per_matricule(full_text)

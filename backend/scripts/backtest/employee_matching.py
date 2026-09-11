@@ -50,17 +50,55 @@ def resolve_company_id(company_name: str) -> str:
 
 
 def load_active_employees(company_id: str) -> List[Dict[str, Any]]:
+    """Tous les salariés de la société, quel que soit leur statut.
+
+    Un backtest porte sur des mois passés : un salarié parti depuis doit
+    être apparié au bulletin réel du mois où il était présent. L'appariement
+    est piloté par les références (un salarié sans bulletin ce mois-là reste
+    simplement non apparié), le filtre sur `employment_status` excluait à
+    tort les sorties (JOLLY, PELLET, BARBERET chez MAJI / Zone 404).
+    """
     res = (
         supabase.table("employees")
         .select(
             "id, company_id, first_name, last_name, employee_folder_name, "
-            "is_forfait_jour, employment_status, specificites_paie, nir"
+            "is_forfait_jour, employment_status, specificites_paie, nir, "
+            "hire_date, contract_end_date"
         )
         .eq("company_id", company_id)
-        .eq("employment_status", "actif")
         .execute()
     )
     return res.data or []
+
+
+def _present_in_month(emp: Dict[str, Any], year: int, month: int) -> bool:
+    """True si le contrat couvre au moins un jour du mois (année, mois).
+
+    Sert à départager deux fiches d'une même personne (même NIR) dans la même
+    société — ex. BARBERET chez MAJI : CDI 23/01→28/02 puis CDD 29/06→30/06.
+    """
+    import calendar as _cal
+    from datetime import date
+
+    debut = date(year, month, 1)
+    fin = date(year, month, _cal.monthrange(year, month)[1])
+    try:
+        hire = date.fromisoformat(str(emp.get("hire_date"))[:10]) if emp.get("hire_date") else None
+    except ValueError:
+        hire = None
+    try:
+        end = (
+            date.fromisoformat(str(emp.get("contract_end_date"))[:10])
+            if emp.get("contract_end_date")
+            else None
+        )
+    except ValueError:
+        end = None
+    if hire and hire > fin:
+        return False
+    if end and end < debut:
+        return False
+    return True
 
 
 def _digits(s: str) -> str:
@@ -144,8 +182,12 @@ def _resolve_ref(
 def match_employees(
     company_id: str,
     references: Dict[str, ReferenceBulletin],
+    year: int | None = None,
+    month: int | None = None,
 ) -> MatchingResult:
     employees = load_active_employees(company_id)
+    if year and month:
+        employees = [e for e in employees if _present_in_month(e, year, month)]
     ref_by_norm = {_normalize(k): (k, v) for k, v in references.items()}
 
     # Regroupe les variantes de référence par racine normalisée, pour pouvoir

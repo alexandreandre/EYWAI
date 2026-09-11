@@ -35,10 +35,13 @@ _dump=None
 if "--dump-json" in args:
     _j=args.index("--dump-json"); _dump=args[_j+1]; args=args[:_j]+args[_j+2:]
     wanted=set(a for a in args if not a.startswith("--"))
-pdf=resolve_bulletin_pdf(company,year,month)
+try: pdf=resolve_bulletin_pdf(company,year,month)
+except FileNotFoundError:
+    from scripts.backtest.pdf_loader import find_reference_pdf
+    pdf=find_reference_pdf(company,year,month)
 refs=load_reference_bulletins(company,year,month,pdf_path=pdf)
 cid=resolve_company_id(company)
-matched=match_employees(cid,refs).matched
+matched=match_employees(cid,refs,year,month).matched
 if wanted: matched=[m for m in matched if m.matricule in wanted]
 errs=[]
 if regen:
