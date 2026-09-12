@@ -20,7 +20,7 @@ Colorplast). Les horodatages de l'export WhatsApp sont en heure de New York :
 | 4 | Fuckar, fin de contrat au 15/09 « non enregistrée » | enregistrée en base | rien à corriger ; demande d'historique des CDD = chantier de fond |
 | 5 | Bugny, Cotte, Espinosa : cotisations sans les HS corrigées | corrections jamais enregistrées (aperçu) | éditeur assoupli |
 | 6 | Gautheron, saisie sur salaire : écran blanc | plantage d'affichage | corrigé |
-| 7 | Demory absent des bulletins de juin et juillet | filtre sur le statut « parti » | corrigé (liste, écran, garde de génération) |
+| 7 | Demory absent des bulletins de juin et juillet | filtre sur le statut « parti » | corrigé (liste, écran, garde) ; juillet généré, ICCP dans le brut |
 
 ## 1. Compteurs CP en jours ouvrés
 
@@ -43,9 +43,10 @@ Fait :
   Vérifié sur Girerd : N-1 écart −3 → +2, N écart −1,76 → 0, soldes repris
   inchangés (12 et 6,24 à fin août).
 - `scripts/usines_jours_ouvres.py` : bascule les cinq usines de Gaëlle via
-  la commande, à lancer par `script-env-test.yml`. MAJI et ZONE 404 ne sont
-  pas touchées : à confirmer avec Vanessa (Elsa a demandé « toutes les
-  boîtes ? », Gaëlle a répondu « jours ouvrés » pour son périmètre).
+  la commande, lancé par `script-env-test.yml` le 12/09 à 20:31 UTC. MAJI
+  et ZONE 404 ne sont pas touchées : à confirmer avec Vanessa (Elsa a
+  demandé « toutes les boîtes ? », Gaëlle a répondu « jours ouvrés » pour
+  son périmètre).
 
 Les 271 reprises datées des sept sociétés (import des bulletins de mai,
 recalage Colorplast fin août) passent par ce recalage automatique.
@@ -175,15 +176,54 @@ Fait :
   passe la garde de statut ; la garde de période refuse toujours les mois
   suivants.
 
-Référence pour contrôler son solde de tout compte : bulletin Quadra de
-juillet, du 01/07 au 24/07 — base 126 h, HS 14,40 h, un jour de CP, prime de
-précarité 797,04, indemnité de CP 940,23, brut 3 509,91.
+Son bulletin de juillet a été généré sur le test par la commande réelle
+(`scripts/demory_juillet_test.py`, puis `demory_fin_cdd_test.py`). Trois
+choses sont apparues en le comparant à Quadra (du 01/07 au 24/07, brut
+3 509,91) :
+
+- **Le dossier de départ était typé « licenciement »**, validé et archivé la
+  même seconde le 28/08, sans indemnités calculées. C'est un CDD arrivé à
+  son terme : retypé `fin_cdd`, indemnités calculées par le module Départs.
+- **L'indemnité compensatrice de congés payés manquait.** Un dossier sans
+  indemnités calculées bloquait celle du moteur ; et une fois calculée par
+  le module Départs, elle était ajoutée *après* les cotisations (net
+  supérieur au brut). Corrigé : en fin de CDD, l'ICCP est portée par le
+  brut au dixième, cotisée, comme la prime de précarité ; le dossier ne
+  l'ajoute plus une seconde fois. Résultat 940,36 contre 940,23 chez Quadra.
+  Le même défaut (indemnités « soumises » ajoutées après cotisations)
+  subsiste pour les autres types de départ, préavis compris : à traiter.
+- **Un « rappel de salaire juin » de 16,69 € fantôme.** L'évolution de
+  salaire du 01/06 (SMIC, 1 850,37 → 1 867,06) déclenche un rappel sur
+  chaque bulletin postérieur tant qu'elle n'est pas marquée « déjà versé »,
+  alors que juin a été payé au nouveau taux. Trois cas sur le test (Alves
+  chez Cartol, Demory et Fuckar chez Colorplast) marqués à la main, comme le
+  backtest MAJI l'avait fait. Le moteur devrait vérifier ce que le bulletin
+  du mois a réellement payé : défaut à corriger.
+
+Bulletin final : base 126 h et heures sup 14,40 h au centime, congé du 13/07
+au centime, ICCP 940,36. Brut 3 567,87 contre 3 509,91 : l'écart de 57,96
+est la prime de précarité (854,87 contre 797,04), c'est-à-dire 10 % du brut
+de mai, où les absences de Demory ne sont pas saisies sur le test (Quadra :
+1 529,05 avec 0,8 h de HS ; EYWAI : 2 114,65 sans absence). À saisir par
+Gaëlle, puis régénérer mai et juillet.
+
+## État au soir du 12/09
+
+- Branche `fix/payslip-edit-state` déployée sur le test (révision backend
+  00262, 20:51 UTC).
+- Cinq usines en jours ouvrés, 2,083 j/mois ; 245 compteurs repris
+  réexprimés. Contrôle Girerd par le domaine : 27,00 et 4,16 à fin juillet,
+  12,00 et 6,24 à fin août, identiques à Quadra.
+- Bulletin de juillet de Demory en place. Les autres bulletins n'ont pas été
+  régénérés : c'est à Gaëlle de le faire, comme d'habitude.
 
 ## Reste à faire
 
-- Déployer la branche sur le test, lancer `usines_jours_ouvres.py --apply`,
-  vérifier Girerd (4,16 fin juillet ; 12 et 6,24 fin août).
 - Trancher la règle d'absence (§ 3) et le périmètre de l'unité ouvrée pour
   MAJI / ZONE 404.
+- Bulletin de sortie : intégrer les indemnités soumises dans le brut avant
+  cotisations pour tous les types de départ (§ 7).
+- Rappel de salaire : ne rappeler que les mois réellement payés à l'ancien
+  taux (§ 7).
 - Historique des contrats (§ 4) : à planifier.
 - Suivre la réduction générale sur août (§ 2).
