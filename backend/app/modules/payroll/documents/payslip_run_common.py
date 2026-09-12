@@ -407,6 +407,32 @@ def resolve_exit_state_for_payslip(
     return None, False
 
 
+def ecarter_iccp_du_dossier_pour_fin_cdd(
+    contexte: Any, date_debut_periode: date, date_fin_periode: date
+) -> None:
+    """Fin de CDD : l'indemnité compensatrice de congés payés est portée par
+    le BRUT du bulletin (1/10, cotisée), comme la prime de précarité.
+
+    Le dossier de départ, lui, l'ajoutait après les cotisations — net
+    supérieur au brut — et son absence bloquait celle du moteur (Demory,
+    Colorplast, juillet 2026 : Quadra porte « Ind. de CP des CDD » 940,23
+    dans le brut). Sur le dernier mois d'un CDD, on retire donc l'ICCP du
+    dossier et on lève le blocage ; les autres indemnités du dossier
+    (préavis, licenciement…) suivent leur chemin habituel.
+    """
+    est_fin_cdd = bool(getattr(contexte, "is_cdd", False)) and contexte.est_dernier_mois_cdd(
+        date_debut_periode, date_fin_periode
+    )
+    if not est_fin_cdd:
+        return
+    contexte.block_iccp_cdd = False
+    dossier = contexte.exit_indemnities
+    if isinstance(dossier, dict) and "indemnite_conges" in dossier:
+        contexte.exit_indemnities = {
+            k: v for k, v in dossier.items() if k != "indemnite_conges"
+        }
+
+
 def resolve_exit_indemnities_for_payslip(
     employee_id: str,
     year: int,

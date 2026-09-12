@@ -47,6 +47,7 @@ from app.modules.payroll.engine.ijss_bulletin import (
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
+    ecarter_iccp_du_dossier_pour_fin_cdd,
     heures_remunerees_mois_contrat,
     mettre_a_jour_cumuls,
     prefetch_jours_maintien_prime,
@@ -330,6 +331,7 @@ def run_payslip_generation_heures(
             date_debut_periode=date_debut_periode,
             date_fin_periode=date_fin_periode,
         )
+        ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
     logging.info(
         "Bulletin : %s - %s | variables : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),

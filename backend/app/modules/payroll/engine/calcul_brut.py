@@ -12,7 +12,6 @@ from .salary_evolution_brut import (
 from .salaire_contractuel import (
     heures_mensuelles_legales,
     heures_sup_structurelles_mensuelles as compute_hs_structurelles_mensuelles,
-    salaire_contractuel_total_hors_hs_mode,
     salaire_hors_hs_structurelles,
     taux_horaire_base_hors_hs_structurelles,
 )
@@ -337,7 +336,11 @@ def _calculer_iccp_cdd(
     if not (is_cdd_fin or is_interim_fin):
         return None
 
-    if getattr(contexte, "exit_indemnities", None):
+    # Un dossier de départ ne prime que s'il porte lui-même une ICCP : ses
+    # autres indemnités (préavis, licenciement…) n'ont pas à faire taire
+    # celle du contrat (fin de CDD, cf. `ecarter_iccp_du_dossier_pour_fin_cdd`).
+    dossier = getattr(contexte, "exit_indemnities", None) or {}
+    if float((dossier.get("indemnite_conges") or {}).get("montant") or 0) > 0:
         return None
 
     if getattr(contexte, "block_iccp_cdd", False):

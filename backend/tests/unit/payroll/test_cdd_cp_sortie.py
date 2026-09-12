@@ -77,3 +77,37 @@ def test_iccp_absente_si_sortie_en_attente():
     res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
     gains = _lignes_gain(res)
     assert not any("compensatrice de congés" in k for k in gains)
+
+
+def test_iccp_presente_si_le_dossier_de_depart_n_en_porte_pas():
+    """Un dossier sans ICCP (préavis nul, licenciement nul) ne fait pas
+    taire celle du contrat : c'est le brut qui la porte, cotisée."""
+    ctx = build_test_contexte(
+        salaire_base=2200.0,
+        type_contrat="CDD",
+        date_entree="2025-10-01",
+        date_fin_contrat="2026-04-30",
+        cumuls={"brut_total": 8800.0},
+    )
+    ctx.exit_indemnities = {
+        "indemnite_preavis": {"montant": 0.0},
+        "indemnite_licenciement": {"montant": 0.0},
+    }
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    gains = _lignes_gain(res)
+    iccp = next((v for k, v in gains.items() if "compensatrice de congés" in k), None)
+    assert iccp == pytest.approx(1210.0, abs=0.05)
+
+
+def test_iccp_absente_si_le_dossier_de_depart_en_porte_une():
+    ctx = build_test_contexte(
+        salaire_base=2200.0,
+        type_contrat="CDD",
+        date_entree="2025-10-01",
+        date_fin_contrat="2026-04-30",
+        cumuls={"brut_total": 8800.0},
+    )
+    ctx.exit_indemnities = {"indemnite_conges": {"montant": 900.0}}
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    gains = _lignes_gain(res)
+    assert not any("compensatrice de congés" in k for k in gains)

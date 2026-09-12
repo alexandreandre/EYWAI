@@ -131,3 +131,59 @@ def test_resolve_exit_state_transfert_saute_vrai_depart_resolu():
     )
     assert indemnities is not None
     assert block is False
+
+
+class _ContexteFinCdd:
+    def __init__(self, is_cdd: bool, dernier_mois: bool, dossier, block: bool):
+        self.is_cdd = is_cdd
+        self._dernier_mois = dernier_mois
+        self.exit_indemnities = dossier
+        self.block_iccp_cdd = block
+
+    def est_dernier_mois_cdd(self, debut, fin):
+        return self.is_cdd and self._dernier_mois
+
+
+def test_fin_cdd_retire_l_iccp_du_dossier_et_leve_le_blocage():
+    """Demory, Colorplast, juillet 2026 : l'ICCP du dossier arrivait après
+    les cotisations (net > brut) ; celle du brut, cotisée, doit prendre."""
+    from app.modules.payroll.documents.payslip_run_common import (
+        ecarter_iccp_du_dossier_pour_fin_cdd,
+    )
+
+    ctx = _ContexteFinCdd(
+        True,
+        True,
+        {"indemnite_conges": {"montant": 1037.21}, "indemnite_preavis": {"montant": 0.0}},
+        block=True,
+    )
+    ecarter_iccp_du_dossier_pour_fin_cdd(ctx, date(2026, 7, 1), date(2026, 7, 31))
+    assert ctx.block_iccp_cdd is False
+    assert "indemnite_conges" not in ctx.exit_indemnities
+    assert ctx.exit_indemnities == {"indemnite_preavis": {"montant": 0.0}}
+
+
+def test_fin_cdd_sans_dossier_leve_seulement_le_blocage():
+    from app.modules.payroll.documents.payslip_run_common import (
+        ecarter_iccp_du_dossier_pour_fin_cdd,
+    )
+
+    ctx = _ContexteFinCdd(True, True, None, block=True)
+    ecarter_iccp_du_dossier_pour_fin_cdd(ctx, date(2026, 7, 1), date(2026, 7, 31))
+    assert ctx.block_iccp_cdd is False
+    assert ctx.exit_indemnities is None
+
+
+def test_hors_fin_cdd_le_dossier_est_intact():
+    from app.modules.payroll.documents.payslip_run_common import (
+        ecarter_iccp_du_dossier_pour_fin_cdd,
+    )
+
+    dossier = {"indemnite_conges": {"montant": 500.0}}
+    for ctx in (
+        _ContexteFinCdd(False, False, dict(dossier), block=True),  # CDI
+        _ContexteFinCdd(True, False, dict(dossier), block=True),  # CDD, pas le dernier mois
+    ):
+        ecarter_iccp_du_dossier_pour_fin_cdd(ctx, date(2026, 7, 1), date(2026, 7, 31))
+        assert ctx.block_iccp_cdd is True
+        assert ctx.exit_indemnities == dossier

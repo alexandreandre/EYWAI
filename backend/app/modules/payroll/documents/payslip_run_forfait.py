@@ -42,6 +42,7 @@ from app.modules.payroll.engine.contexte import ContextePaie
 from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
+    ecarter_iccp_du_dossier_pour_fin_cdd,
     mettre_a_jour_cumuls,
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
@@ -191,6 +192,7 @@ def run_payslip_generation_forfait(
             date_debut_periode=date_debut_periode,
             date_fin_periode=date_fin_periode,
         )
+        ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
     logging.info(
         "Période de paie forfait : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),
