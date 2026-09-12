@@ -1,3 +1,4 @@
+import { libelleMontantSaisie } from '@/components/saisies-avances/seizureFormat';
 // frontend/src/components/saisies-avances/SalarySeizuresTab.tsx
 
 import { useState, useEffect } from 'react';
@@ -175,11 +176,7 @@ export function SalarySeizuresTab() {
                     <TableCell>{SEIZURE_TYPE_LABELS[seizure.type] || seizure.type}</TableCell>
                     <TableCell>{seizure.creditor_name}</TableCell>
                     <TableCell>
-                      {seizure.calculation_mode === 'fixe' && seizure.amount
-                        ? `${Number(seizure.amount || 0).toFixed(2)}€`
-                        : seizure.calculation_mode === 'pourcentage' && seizure.percentage
-                        ? `${seizure.percentage}%`
-                        : 'Barème légal'}
+                      {libelleMontantSaisie(seizure)}
                     </TableCell>
                     <TableCell>
                       {new Date(seizure.start_date).toLocaleDateString('fr-FR')}

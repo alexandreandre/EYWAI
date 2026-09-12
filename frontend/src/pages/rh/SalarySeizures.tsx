@@ -1,3 +1,4 @@
+import { libelleMontantSaisie } from '@/components/saisies-avances/seizureFormat';
 // frontend/src/pages/SalarySeizures.tsx
 
 import { RhPageHeader } from '@/components/layout';
@@ -243,11 +244,7 @@ export default function SalarySeizures() {
                       </TableCell>
                       <TableCell>{seizure.creditor_name}</TableCell>
                       <TableCell>
-                        {seizure.calculation_mode === 'fixe' && seizure.amount
-                          ? `${seizure.amount.toFixed(2)}€`
-                          : seizure.calculation_mode === 'pourcentage' && seizure.percentage
-                          ? `${seizure.percentage}%`
-                          : 'Barème légal'}
+                        {libelleMontantSaisie(seizure)}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
