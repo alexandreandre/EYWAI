@@ -20,6 +20,7 @@ def _rows():
     return [
         {"id": "actif", "employment_status": "actif"},
         {"id": "demory", "employment_status": "parti"},
+        {"id": "cdd-au-terme", "employment_status": "parti", "contract_end_date": "2026-09-15"},
         {"id": "sans-sortie", "employment_status": "parti"},
     ]
 
@@ -33,8 +34,10 @@ def test_liste_paie_garde_les_sortis_dates_et_porte_leur_dernier_jour(repo, bulk
     rows = queries.get_employees_summary("co-1", payroll_ready_only=True)
 
     by_id = {r["id"]: r for r in rows}
-    assert set(by_id) == {"actif", "demory"}
+    assert set(by_id) == {"actif", "demory", "cdd-au-terme"}
     assert by_id["demory"]["exit_last_working_day"] == "2026-07-24"
+    # Sans dossier de départ, la fin de contrat de la fiche date la sortie.
+    assert by_id["cdd-au-terme"]["exit_last_working_day"] == "2026-09-15"
     assert by_id["actif"]["exit_last_working_day"] is None
 
 
@@ -45,5 +48,5 @@ def test_liste_simple_sans_filtre_paie_inchangee(repo, bulk):
 
     rows = queries.get_employees_summary("co-1")
 
-    assert [r["id"] for r in rows] == ["actif", "demory", "sans-sortie"]
+    assert [r["id"] for r in rows] == ["actif", "demory", "cdd-au-terme", "sans-sortie"]
     bulk.assert_not_called()

@@ -216,7 +216,12 @@ def get_employees_summary(
     sorties = _bulk_exit_last_working_days(company_id)
     gardes: List[Dict[str, Any]] = []
     for row in rows:
-        dernier_jour = sorties.get(str(row.get("id") or ""))
+        # Sans dossier de départ (CDD arrivé à son terme, sortie annulée),
+        # la fin de contrat de la fiche date la sortie — même repli que les
+        # gardes de génération.
+        dernier_jour = sorties.get(str(row.get("id") or "")) or (
+            str(row["contract_end_date"])[:10] if row.get("contract_end_date") else None
+        )
         row["exit_last_working_day"] = dernier_jour
         if _est_parti(row.get("employment_status")) and not dernier_jour:
             continue
