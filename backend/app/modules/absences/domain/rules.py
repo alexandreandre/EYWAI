@@ -76,11 +76,24 @@ def _months_worked_in_period(
 
 
 def _acquired_cp_from_months(
-    months_worked: int, days_per_month: float = 2.5
+    months_worked: int,
+    days_per_month: float = 2.5,
+    *,
+    arrondi_superieur: bool = True,
 ) -> float:
+    """Jours acquis pour `months_worked` mois.
+
+    `arrondi_superieur` : entier supérieur (règle légale de clôture, et
+    comportement historique en jours ouvrables). Sinon le cumul est tronqué
+    au centième, comme l'affichent les cabinets en cours de période
+    (2 × 2,083 = 4,16 et non 4,17).
+    """
     if months_worked <= 0:
         return 0.0
-    return float(math.ceil(months_worked * days_per_month))
+    brut = round(months_worked * days_per_month, 6)
+    if arrondi_superieur:
+        return float(math.ceil(brut))
+    return math.floor(brut * 100 + 1e-6) / 100
 
 
 def calculate_acquired_cp(
@@ -95,8 +108,11 @@ def calculate_acquired_cp(
     )
     acquisition_end = min(ref_date, period_end)
     months_worked = _months_worked_in_period(hire_date, period_start, acquisition_end)
+    periode_close = acquisition_end >= period_end
     return _acquired_cp_from_months(
-        months_worked, policy.cp_acquisition_rate_internal
+        months_worked,
+        policy.cp_acquisition_rate_internal,
+        arrondi_superieur=policy.cp_arrondi_mensuel_superieur or periode_close,
     )
 
 
@@ -106,11 +122,16 @@ def calculate_acquired_cp_for_period(
     period_end: date,
     *,
     policy: LeavePolicySettings | None = None,
+    periode_close: bool = True,
 ) -> float:
+    """Acquis sur une période complète — close par défaut, donc arrondie à
+    l'entier supérieur quelle que soit l'unité."""
     policy = policy or DEFAULT_LEAVE_POLICY
     months_worked = _months_worked_in_period(hire_date, period_start, period_end)
     return _acquired_cp_from_months(
-        months_worked, policy.cp_acquisition_rate_internal
+        months_worked,
+        policy.cp_acquisition_rate_internal,
+        arrondi_superieur=policy.cp_arrondi_mensuel_superieur or periode_close,
     )
 
 

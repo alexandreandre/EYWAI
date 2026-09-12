@@ -195,7 +195,7 @@ export default function LeaveSettingsCard() {
       <CardContent className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Unité d&apos;affichage CP</Label>
+            <Label>Unité de décompte des CP</Label>
             <Select
               value={form.cp_counting_unit}
               disabled={!canEdit}

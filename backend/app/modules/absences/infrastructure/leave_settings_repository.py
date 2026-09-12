@@ -209,3 +209,16 @@ def list_company_adjustments(company_id: str, year: int) -> list[dict[str, Any]]
         .execute()
     )
     return resp.data or []
+
+
+def list_company_adjustments_avec_reference(company_id: str) -> list[dict[str, Any]]:
+    """Reprises datées (bulletin importé, recalage) : celles dont l'écart
+    dépend du calcul théorique à une date de référence."""
+    resp = (
+        supabase.table("employee_leave_adjustments")
+        .select("*")
+        .eq("company_id", company_id)
+        .not_.is_("cp_opening_reference_date", "null")
+        .execute()
+    )
+    return resp.data or []

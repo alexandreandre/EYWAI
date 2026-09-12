@@ -498,3 +498,61 @@ class TestRttPolicy:
         assert with_non_forfait["remaining"] == 0.0
         assert with_forfait["remaining"] > 0.0
         assert with_forfait["closure_required"] is True
+
+
+class TestAcquisitionJoursOuvres:
+    """Jours ouvrés : 25 j/an, soit 2,083 j/mois, cumulés sans arrondi au mois.
+
+    Référence : bulletins Quadra Colorplast (Girerd, juillet 2026) — période
+    ouverte le 1er juin, 2 mois acquis = 4,16 ; 3 mois = 6,24. L'arrondi à
+    l'entier supérieur (art. L3141-7) ne joue qu'à la clôture de la période.
+    """
+
+    POLICY = LeavePolicySettings(
+        cp_counting_unit="ouvre", cp_acquisition_days_per_month=2.083
+    )
+
+    def test_deux_mois_donnent_4_16(self):
+        assert (
+            calculate_acquired_cp(date(2014, 9, 1), date(2026, 7, 31), policy=self.POLICY)
+            == 4.16
+        )
+
+    def test_trois_mois_donnent_6_24(self):
+        assert (
+            calculate_acquired_cp(date(2014, 9, 1), date(2026, 8, 31), policy=self.POLICY)
+            == 6.24
+        )
+
+    def test_periode_close_arrondie_a_l_entier_superieur(self):
+        prev_start, prev_end = get_cp_previous_reference_period(date(2026, 7, 31))
+        assert (
+            calculate_acquired_cp_for_period(
+                date(2014, 9, 1), prev_start, prev_end, policy=self.POLICY
+            )
+            == 25.0
+        )
+
+    def test_dernier_jour_de_la_periode_courante_arrondi(self):
+        assert (
+            calculate_acquired_cp(date(2014, 9, 1), date(2026, 5, 31), policy=self.POLICY)
+            == 25.0
+        )
+
+    def test_embauche_en_cours_de_periode_close(self):
+        # Février → mai = 4 mois = 8,33, arrondis à 9 à la clôture.
+        prev_start, prev_end = get_cp_previous_reference_period(date(2026, 7, 31))
+        assert (
+            calculate_acquired_cp_for_period(
+                date(2026, 2, 1), prev_start, prev_end, policy=self.POLICY
+            )
+            == 9.0
+        )
+
+    def test_jours_ouvrables_inchanges(self):
+        assert calculate_acquired_cp(date(2020, 1, 1), date(2025, 6, 15)) == 3.0
+
+    def test_taux_affiches(self):
+        assert self.POLICY.cp_acquisition_rate_internal == 2.083
+        assert self.POLICY.cp_acquisition_rate_display == 2.08
+        assert self.POLICY.cp_annual_days_display == 25.0

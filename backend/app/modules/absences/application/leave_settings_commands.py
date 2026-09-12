@@ -23,12 +23,15 @@ from app.modules.absences.domain.rules import (
 )
 from app.modules.absences.domain.jtc import calculate_acquired_jtc
 from app.modules.absences.domain.leave_policy import (
+    CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT,
+    CP_ACQUISITION_DAYS_PER_MONTH_OUVRE,
     EmployeeLeaveAdjustment,
     LeavePolicySettings,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_employee_adjustment,
     get_leave_policy,
+    list_company_adjustments_avec_reference,
     upsert_employee_adjustment,
     upsert_leave_policy,
 )
@@ -82,13 +85,107 @@ _WRITABLE_POLICY_KEYS = frozenset(
 )
 
 
+def _taux_legal(unite: str) -> float:
+    return (
+        CP_ACQUISITION_DAYS_PER_MONTH_OUVRE
+        if unite == "ouvre"
+        else CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT
+    )
+
+
+def _acquisition_cp_changee(
+    avant: LeavePolicySettings, apres: LeavePolicySettings
+) -> bool:
+    return (avant.cp_counting_unit, avant.cp_acquisition_days_per_month) != (
+        apres.cp_counting_unit,
+        apres.cp_acquisition_days_per_month,
+    )
+
+
+def rebaser_reprises_cp(
+    company_id: str, ancienne: LeavePolicySettings, nouvelle: LeavePolicySettings
+) -> int:
+    """Réexprime les écarts des compteurs repris après un changement d'acquisition.
+
+    Un compteur repris d'un bulletin (« Import CP bulletin », recalage) est
+    stocké en ÉCART par rapport au calcul théorique à sa date de référence
+    (cf. `apply_cp_solde_import`). Changer l'unité de décompte ou le taux
+    mensuel déplace ce théorique, donc le solde affiché — alors que le solde
+    repris, lui, vient du cabinet et ne doit pas bouger. On retrouve la cible
+    (écart + théorique d'avant) et on repose l'écart contre le théorique
+    d'après. Rend le nombre de lignes réécrites.
+    """
+    from app.modules.absences.domain.rules import compute_cp_period_balances
+    from app.modules.absences.infrastructure.queries import get_employee_hire_date
+
+    reecrites = 0
+    for row in list_company_adjustments_avec_reference(company_id):
+        employee_id = str(row.get("employee_id") or "")
+        ref_raw = row.get("cp_opening_reference_date")
+        hire_raw = get_employee_hire_date(employee_id) if employee_id else None
+        if not ref_raw or not hire_raw:
+            continue
+        hire_date = (
+            date.fromisoformat(str(hire_raw)[:10]) if isinstance(hire_raw, str) else hire_raw
+        )
+        ref = date.fromisoformat(str(ref_raw)[:10])
+        validated = absence_repository.list_validated_for_employees([employee_id])
+        avant = compute_cp_period_balances(
+            hire_date, validated, ref, policy=ancienne,
+            adjustment=EmployeeLeaveAdjustment.empty(),
+        )
+        apres = compute_cp_period_balances(
+            hire_date, validated, ref, policy=nouvelle,
+            adjustment=EmployeeLeaveAdjustment.empty(),
+        )
+        ancien_n1 = round(float(row.get("cp_n1_opening_balance") or 0), 2)
+        ancien_n = round(float(row.get("cp_n_opening_balance") or 0), 2)
+        nouveau_n1 = round(
+            ancien_n1
+            + max(0.0, float(avant["n1_remaining"]))
+            - max(0.0, float(apres["n1_remaining"])),
+            2,
+        )
+        nouveau_n = round(
+            ancien_n
+            + max(0.0, float(avant["n_remaining"]))
+            - max(0.0, float(apres["n_remaining"])),
+            2,
+        )
+        if nouveau_n1 == ancien_n1 and nouveau_n == ancien_n:
+            continue
+        upsert_employee_adjustment(
+            company_id,
+            employee_id,
+            int(row.get("year") or ref.year),
+            {
+                "cp_n1_opening_balance": nouveau_n1,
+                "cp_n_opening_balance": nouveau_n,
+            },
+        )
+        reecrites += 1
+    return reecrites
+
+
 def update_leave_settings(
     company_id: str, body: LeaveSettingsUpdate
 ) -> LeaveSettingsResponse:
     current = get_leave_settings(company_id)
+    ancienne = get_leave_policy(company_id)
     merged = current.model_dump()
     patch = body.model_dump(exclude_unset=True)
     merged.update(patch)
+
+    # Changer d'unité : le taux suit l'unité. Sans taux fourni, ou avec le
+    # taux légal de l'ANCIENNE unité (l'écran renvoie toujours le taux
+    # affiché), on prend le taux légal de la nouvelle — 2,5 ouvrables ou
+    # 2,083 ouvrés. Garder 2,5 dans la nouvelle unité ferait 30 jours par an.
+    unite_demandee = patch.get("cp_counting_unit")
+    if unite_demandee and unite_demandee != ancienne.cp_counting_unit:
+        taux_fourni = patch.get("cp_acquisition_days_per_month")
+        taux_legal_ancien = _taux_legal(ancienne.cp_counting_unit)
+        if taux_fourni is None or round(float(taux_fourni), 3) == taux_legal_ancien:
+            merged["cp_acquisition_days_per_month"] = _taux_legal(unite_demandee)
 
     if merged.get("rtt_use_forfait_jours_formula"):
         merged["rtt_use_calendar_formula"] = False
@@ -102,6 +199,9 @@ def update_leave_settings(
 
     payload = {k: merged[k] for k in _WRITABLE_POLICY_KEYS if k in merged}
     upsert_leave_policy(company_id, payload)
+    nouvelle = get_leave_policy(company_id)
+    if _acquisition_cp_changee(ancienne, nouvelle):
+        rebaser_reprises_cp(company_id, ancienne, nouvelle)
     return get_leave_settings(company_id)
 
 

@@ -15,6 +15,9 @@ from app.modules.absences.domain.jtc import (
 CpCountingUnit = Literal["ouvrable", "ouvre"]
 
 CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT = 2.5
+# Jours ouvrés : 25 j/an, soit 2,083 j/mois (troncature au millième, comme
+# les cabinets : 3 mois = 6,24).
+CP_ACQUISITION_DAYS_PER_MONTH_OUVRE = 2.083
 CP_REFERENCE_PERIOD_START_MONTH_DEFAULT = 6
 # Aucun texte ne fixe un nombre de RTT : ils n'existent qu'en vertu d'un accord
 # qui compense en repos les heures au-delà de 35 h, ou du forfait-jours. Une
@@ -58,23 +61,29 @@ class LeavePolicySettings:
 
     @property
     def cp_acquisition_rate_internal(self) -> float:
-        """Taux utilisé pour le calcul (toujours en jours ouvrables équivalents)."""
-        if self.cp_counting_unit == "ouvre":
-            # 2,08 ouvrés/mois → 2,5 ouvrables/mois en interne
-            return CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT
+        """Taux mensuel utilisé pour le calcul, dans l'unité de décompte.
+
+        Les soldes, les jours posés et l'acquisition parlent la même unité :
+        une semaine posée en jours ouvrés retire 5 jours d'un droit acquis à
+        2,083 j/mois (25 j/an). Forcer 2,5 en interne quand l'unité est
+        « ouvré » donnait 30 jours pour 25 (retour Gaëlle 12/09, Girerd).
+        """
         return self.cp_acquisition_days_per_month
+
+    @property
+    def cp_arrondi_mensuel_superieur(self) -> bool:
+        """En ouvrables, l'acquis est arrondi à l'entier supérieur à chaque
+        mois (comportement historique). En ouvrés, il se cumule au centième
+        et n'est arrondi qu'à la clôture de la période (2 mois = 4,16)."""
+        return self.cp_counting_unit != "ouvre"
 
     @property
     def cp_acquisition_rate_display(self) -> float:
         """Taux affiché aux RH / salariés."""
-        if self.cp_counting_unit == "ouvre":
-            return round(CP_DAYS_PER_MONTH_OUVRE_DISPLAY, 2)
-        return self.cp_acquisition_days_per_month
+        return round(self.cp_acquisition_days_per_month, 2)
 
     @property
     def cp_annual_days_display(self) -> float:
-        if self.cp_counting_unit == "ouvre":
-            return 25.0
         return round(self.cp_acquisition_days_per_month * 12, 2)
 
     @property
