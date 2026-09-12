@@ -3,6 +3,7 @@ import {
   estLigneHeuresSupConjoncturelle,
   leMoteurRecalculera,
   lienVariablesDuMois,
+  resumeAutomatique,
   totalHeuresSupConjoncturelles,
 } from './payslipDerivedLines';
 
@@ -90,6 +91,27 @@ describe('lienVariablesDuMois', () => {
   it('reste utilisable sans salarié', () => {
     expect(lienVariablesDuMois({ year: 2026, month: 12 })).toBe(
       '/saisies?year=2026&month=12'
+    );
+  });
+});
+
+describe('resumeAutomatique', () => {
+  it('décrit la correction des heures supplémentaires quand la RH n’écrit rien', () => {
+    // Bugny, 12/09 : 12 h + 3,5 h corrigées en 19 h + 6,5 h, résumé laissé vide.
+    expect(resumeAutomatique(lignes(12, 3.5), lignes(19, 6.5))).toBe(
+      'Correction des heures supplémentaires : 15,5 h → 25,5 h'
+    );
+  });
+
+  it('reste générique quand les heures sup n’ont pas bougé', () => {
+    expect(resumeAutomatique(lignes(12, 3.5), lignes(12, 3.5))).toBe(
+      'Modification manuelle du bulletin'
+    );
+  });
+
+  it('écrit les heures entières sans décimale', () => {
+    expect(resumeAutomatique(lignes(12, 0), lignes(13, 0))).toBe(
+      'Correction des heures supplémentaires : 12 h → 13 h'
     );
   });
 });

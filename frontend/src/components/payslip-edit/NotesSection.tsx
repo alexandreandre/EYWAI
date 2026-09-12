@@ -43,7 +43,7 @@ export default function NotesSection({
         <div className="space-y-2">
           <Label htmlFor="changes-summary" className="flex items-center gap-2">
             <Edit3 className="h-4 w-4" />
-            Résumé des modifications <span className="text-red-500">*</span>
+            Résumé des modifications <span className="text-muted-foreground">(facultatif)</span>
           </Label>
           <Input
             id="changes-summary"
@@ -51,10 +51,10 @@ export default function NotesSection({
             onChange={(e) => onChangesSummaryChange(e.target.value)}
             placeholder="Ex: Ajout prime exceptionnelle 150€"
             maxLength={500}
-            required
           />
           <p className="text-xs text-muted-foreground">
-            {changesSummary.length}/500 caractères - Ce résumé sera visible dans l'historique
+            {changesSummary.length}/500 caractères - Visible dans l'historique ; sans texte, un
+            résumé est écrit automatiquement.
           </p>
         </div>
 

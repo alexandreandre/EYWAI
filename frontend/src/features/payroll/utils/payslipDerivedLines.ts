@@ -62,6 +62,29 @@ export function leMoteurRecalculera(
   return Math.abs(apres - avant) > 0.001;
 }
 
+const formatHeures = (heures: number): string =>
+  (Number.isInteger(heures) ? String(heures) : heures.toFixed(2).replace(/\.?0+$/, '')).replace(
+    '.',
+    ','
+  );
+
+/**
+ * Résumé d'historique quand la RH n'en écrit pas.
+ *
+ * Exiger un résumé bloquait l'enregistrement d'un simple toast, et la RH
+ * restait sur l'aperçu en croyant son bulletin corrigé (Bugny, Cotte,
+ * Espinosa le 12/09 : aucune correction d'heures sup n'était en base). Le
+ * résumé dit alors ce qui a changé sur les heures sup, sinon reste générique.
+ */
+export function resumeAutomatique(lignesInitiales: unknown, lignesModifiees: unknown): string {
+  const avant = totalHeuresSupConjoncturelles(lignesInitiales);
+  const apres = totalHeuresSupConjoncturelles(lignesModifiees);
+  if (Math.abs(apres - avant) > 0.001) {
+    return `Correction des heures supplémentaires : ${formatHeures(avant)} h → ${formatHeures(apres)} h`;
+  }
+  return 'Modification manuelle du bulletin';
+}
+
 /** Lien vers la page Primes, positionnée sur le mois (et le salarié) du bulletin. */
 export function lienVariablesDuMois({
   employeeId,

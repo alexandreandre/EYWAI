@@ -42,7 +42,10 @@ import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { cn } from '@/lib/utils';
-import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
+import {
+  lienVariablesDuMois,
+  resumeAutomatique,
+} from '@/features/payroll/utils/payslipDerivedLines';
 
 function isCriticalValidationBlock(err: unknown): boolean {
   const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
@@ -188,20 +191,21 @@ export default function PayslipEdit() {
 
   // Fonction de sauvegarde
   const handleSave = async () => {
-    if (!changesSummary.trim()) {
-      toast({
-        title: 'Résumé requis',
-        description: 'Veuillez fournir un résumé des modifications effectuées',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Le résumé est facultatif : l'exiger refusait l'enregistrement d'un
+    // simple toast, et la RH restait sur l'aperçu en croyant son bulletin
+    // corrigé (Bugny, Cotte, Espinosa le 12/09 : rien n'était en base).
+    const resume =
+      changesSummary.trim() ||
+      resumeAutomatique(
+        (payslip?.payslip_data as { calcul_du_brut?: unknown } | undefined)?.calcul_du_brut,
+        editedData?.calcul_du_brut
+      );
 
     setIsSaving(true);
     try {
       const request: PayslipEditRequest = {
         payslip_data: editedData,
-        changes_summary: changesSummary,
+        changes_summary: resume,
         pdf_notes: pdfNotes || undefined,
         internal_note: internalNote || undefined,
       };
@@ -369,7 +373,9 @@ export default function PayslipEdit() {
         <Card className="border-orange-500 bg-orange-50">
           <CardContent className="py-3">
             <p className="text-sm text-orange-800">
-              ⚠️ Vous avez des modifications non sauvegardées
+              ⚠️ Vos modifications ne sont pas enregistrées. Cet aperçu ne recalcule que le
+              brut : les cotisations et le net affichés sont ceux du bulletin d’origine tant
+              que vous n’avez pas cliqué sur « Enregistrer ».
             </p>
           </CardContent>
         </Card>
