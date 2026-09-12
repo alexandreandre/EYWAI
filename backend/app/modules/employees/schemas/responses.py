@@ -88,6 +88,9 @@ class EmployeeSummary(BaseModel):
     seniority_reference_date: date | None = None
     employment_status: str | None = None
     current_exit_id: str | None = None
+    # Dernier jour travaillé de la sortie la plus récente (liste paie) : un
+    # parti reste visible sur les mois où il était présent.
+    exit_last_working_day: date | None = None
     duree_hebdomadaire: float | None = None
     profile_complete: bool | None = None
     missing_payroll_fields: List[str] | None = None

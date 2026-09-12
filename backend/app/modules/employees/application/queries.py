@@ -200,12 +200,32 @@ def get_employees_summary(
     active_only: bool = False,
     payroll_ready_only: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Liste légère sans enrichissement (grilles RH, planning)."""
-    return _employee_repository.get_summary_by_company(
+    """Liste légère sans enrichissement (grilles RH, planning).
+
+    En mode paie, un salarié parti n'est gardé que si sa sortie est datée :
+    la liste porte alors `exit_last_working_day`, et l'écran le montre sur
+    les seuls mois où il était présent (bulletins passés, dernier mois payé).
+    """
+    rows = _employee_repository.get_summary_by_company(
         company_id,
         active_only=active_only,
         payroll_ready_only=payroll_ready_only,
     )
+    if not payroll_ready_only:
+        return rows
+    sorties = _bulk_exit_last_working_days(company_id)
+    gardes: List[Dict[str, Any]] = []
+    for row in rows:
+        dernier_jour = sorties.get(str(row.get("id") or ""))
+        row["exit_last_working_day"] = dernier_jour
+        if _est_parti(row.get("employment_status")) and not dernier_jour:
+            continue
+        gardes.append(row)
+    return gardes
+
+
+def _est_parti(employment_status: Any) -> bool:
+    return str(employment_status or "actif").lower() in ("parti", "sorti", "inactif")
 
 
 def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:

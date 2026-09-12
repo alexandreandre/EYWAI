@@ -19,6 +19,7 @@ from app.main import app
 from app.modules.payslips.application.commands import generate_payslip
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
+    PayslipBadRequestError,
     PayslipCalendarIncompleteError,
 )
 
@@ -1076,3 +1077,92 @@ def test_delete_d_un_valide_rend_409_pas_500():
         app.dependency_overrides = {}
     assert r.status_code == 409, r.status_code
     assert r.json()["detail"]["code"] == "bulletin_valide"
+
+
+def _patches_generation(schedule_row):
+    return (
+        patch("app.modules.payslips.application.commands._employee_repository"),
+        patch("app.modules.payslips.application.commands.employee_statut_reader"),
+        patch("app.modules.payslips.application.commands.payslip_generator_provider"),
+        patch(
+            "app.modules.payslips.application.commands._fetch_month_schedule",
+            return_value=schedule_row,
+        ),
+        patch(
+            "app.modules.payslips.application.commands._fetch_existing_payslip",
+            return_value=None,
+        ),
+    )
+
+
+class TestPartiDernierMois:
+    """Un parti garde le droit à son dernier bulletin.
+
+    Demory (Colorplast), sorti le 24/07/2026 : « Ce collaborateur n'est pas
+    actif » lui refusait le bulletin de juillet, donc le solde de tout compte
+    (retour Gaëlle 12/09). La sortie datée dans le mois ou après lève le
+    refus de statut ; la garde de période refuse toujours les mois suivants.
+    """
+
+    def _parti(self, **extra):
+        return {**_COMPLETE_EMPLOYEE, "employment_status": "parti", **extra}
+
+    def test_sorti_dans_le_mois_est_genere(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 7)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti(
+                contract_end_date="2026-07-24"
+            )
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = {
+                "status": "success", "message": "OK", "download_url": "u",
+            }
+            generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_called_once()
+
+    def test_sorti_avant_le_mois_est_refuse(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=8)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 8)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti(
+                contract_end_date="2026-07-24"
+            )
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            with pytest.raises(PayslipBadRequestError):
+                generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_not_called()
+
+    def test_parti_sans_date_de_sortie_reste_refuse(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 7)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti()
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            with pytest.raises(PayslipBadRequestError, match="pas actif"):
+                generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_not_called()
+
+    def test_parti_a_fiche_incomplete_reste_refuse(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 7)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti(
+                contract_end_date="2026-07-24", nir=None
+            )
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            with pytest.raises(PayslipBadRequestError, match="incompl"):
+                generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_not_called()

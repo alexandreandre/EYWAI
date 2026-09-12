@@ -28,6 +28,7 @@ export default function PayrollGenerate() {
     payroll_eligible: employee.payroll_eligible,
     missing_payroll_fields: employee.missing_payroll_fields,
     employment_status: employee.employment_status,
+    exit_last_working_day: employee.exit_last_working_day,
   }));
 
   const employeesLoading =

@@ -1,3 +1,4 @@
+import { isPresentDuringMonth } from '@/lib/employmentStatus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
@@ -117,7 +118,7 @@ export default function Payroll() {
   const queryClient = useQueryClient();
 
   const employeesQuery = usePayrollEmployeesQuery();
-  const employees = (employeesQuery.data ?? []) as EmployeeListItem[];
+  const employeesTous = (employeesQuery.data ?? []) as EmployeeListItem[];
 
   const employeeFromUrl = searchParams.get('employee');
   const viewFromUrl = searchParams.get('view') === 'month' ? 'month' : 'employee';
@@ -136,6 +137,18 @@ export default function Payroll() {
     const m = monthFromUrl ? parseInt(monthFromUrl.split('-')[1], 10) : NaN;
     return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1;
   });
+  // Un parti reste visible sur les mois où il était présent : toute l'année
+  // en vue salarié, le mois choisi en vue mois (Demory, sorti le 24/07 :
+  // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
+  const employees = useMemo(
+    () =>
+      employeesTous.filter((e) =>
+        view === 'month'
+          ? isPresentDuringMonth(e, selectedYear, selectedMonth)
+          : isPresentDuringMonth(e, selectedYear, 1)
+      ),
+    [employeesTous, view, selectedYear, selectedMonth]
+  );
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
 

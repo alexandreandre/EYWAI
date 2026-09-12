@@ -189,19 +189,33 @@ class EmployeeRepository(IEmployeeRepository):
             from app.modules.onboarding.domain.profile import (
                 enrich_employee_profile_completeness,
                 is_payroll_eligible,
+                is_profile_complete,
             )
 
-            payroll_launch_statuses = ("actif", "active", "en_onboarding")
+            # Les partis restent dans la liste paie : ils ont des bulletins à
+            # consulter et un dernier mois à payer (Demory, sorti le 24/07,
+            # invisible sur juin et juillet — retour Gaëlle 12/09). La couche
+            # application ne garde que ceux dont la sortie est datée, et
+            # l'écran filtre ensuite mois par mois.
+            statuts_paie = (
+                "actif", "active", "en_onboarding", "parti", "sorti", "inactif",
+            )
             active_rows = [
                 r
                 for r in rows
-                if (r.get("employment_status") or "actif").lower()
-                in payroll_launch_statuses
+                if (r.get("employment_status") or "actif").lower() in statuts_paie
             ]
             enriched: List[Dict[str, Any]] = []
             for row in active_rows:
                 item = enrich_employee_profile_completeness(dict(row))
-                item["payroll_eligible"] = is_payroll_eligible(row)
+                statut = (row.get("employment_status") or "actif").lower()
+                # Un parti est jugé sur sa fiche seule : sa présence sur le
+                # mois se décide à l'écran, à partir de sa date de sortie.
+                item["payroll_eligible"] = (
+                    is_profile_complete(row)
+                    if statut in ("parti", "sorti", "inactif")
+                    else is_payroll_eligible(row)
+                )
                 enriched.append(item)
             return enriched
         if not active_only:

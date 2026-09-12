@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { isPresentDuringMonth, isPresentEmployee } from '@/lib/employmentStatus';
 import { moisDePaieParDefaut } from '@/features/payroll/utils/payrollMonth';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -40,7 +41,7 @@ type Phase = 'select' | 'running' | 'done';
 export function GeneratePayrollModal({
   isOpen,
   onClose,
-  employees,
+  employees: employeesProposes,
   allEmployees = [],
   employeesLoading = false,
   employeesError = null,
@@ -61,6 +62,19 @@ export function GeneratePayrollModal({
         month: parseInt(selectedMonth.split('-')[1], 10),
       }
     : { year: 0, month: 0 };
+
+  // Un parti n'apparaît que sur les mois où il était présent : son dernier
+  // mois se paie (solde de tout compte), les suivants non (Demory, sorti le
+  // 24/07 — retour Gaëlle 12/09).
+  const employees = useMemo(
+    () =>
+      employeesProposes.filter((e) =>
+        selectedMonth
+          ? isPresentDuringMonth(e, parsedMonth.year, parsedMonth.month)
+          : isPresentEmployee(e.employment_status),
+      ),
+    [employeesProposes, selectedMonth, parsedMonth.year, parsedMonth.month],
+  );
 
   const {
     data: preflightData,

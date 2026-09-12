@@ -13,7 +13,10 @@ from typing import Any
 
 from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
-from app.modules.onboarding.domain.profile import payroll_block_reason
+from app.modules.onboarding.domain.profile import (
+    missing_payroll_fields,
+    payroll_block_reason,
+)
 from app.modules.payslips.application.dto import (
     EditPayslipInput,
     GeneratePayslipInput,
@@ -288,6 +291,39 @@ def _check_validated_guard(
     return existing
 
 
+_STATUTS_PARTIS = ("parti", "sorti", "inactif")
+
+
+def _sortie_dans_ou_apres_le_mois(employee: dict[str, Any], year: int, month: int) -> bool:
+    brut = employee.get("exit_last_working_day") or employee.get("contract_end_date")
+    if not brut:
+        return False
+    return str(brut)[:10] >= f"{year:04d}-{month:02d}-01"
+
+
+def _raison_de_blocage_du_salarie(
+    employee: dict[str, Any], year: int, month: int
+) -> str | None:
+    """Un parti garde le droit à son dernier bulletin.
+
+    « Ce collaborateur n'est pas actif » refusait le solde de tout compte de
+    Demory, sorti le 24/07 (retour Gaëlle 12/09). Si la sortie est datée dans
+    le mois demandé ou après, seule la complétude de la fiche compte ; la
+    garde de période, juste derrière, refuse toujours les mois postérieurs à
+    la sortie. Sans date de sortie, le refus de statut reste entier.
+    """
+    statut = str(employee.get("employment_status") or "actif").lower()
+    if statut in _STATUTS_PARTIS and _sortie_dans_ou_apres_le_mois(employee, year, month):
+        manquants = missing_payroll_fields(employee)
+        if manquants:
+            return (
+                "Impossible de générer un bulletin : fiche paie incomplète. "
+                f"Manque : {', '.join(manquants)}."
+            )
+        return None
+    return payroll_block_reason(employee)
+
+
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
     Génère un bulletin pour un employé / période.
@@ -301,10 +337,10 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     employee = _employee_repository.get_by_id_only(cmd.employee_id)
     if not employee:
         raise PayslipNotFoundError("Employé non trouvé.")
-    block_reason = payroll_block_reason(employee)
+    employee = enrich_employee_with_exit_context(employee)
+    block_reason = _raison_de_blocage_du_salarie(employee, cmd.year, cmd.month)
     if block_reason:
         raise PayslipBadRequestError(block_reason)
-    employee = enrich_employee_with_exit_context(employee)
     period_block_reason = payslip_employment_period_block_reason(
         employee, cmd.year, cmd.month
     )

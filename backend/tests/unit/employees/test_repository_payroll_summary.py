@@ -55,11 +55,16 @@ def test_payroll_summary_returns_active_with_eligibility_flags(mock_supabase):
     repo = EmployeeRepository()
     rows = repo.get_summary_by_company("company-1", payroll_ready_only=True)
 
-    assert len(rows) == 2
+    # Un parti reste dans la liste paie : il a des bulletins à voir et un
+    # dernier mois à payer (Demory, sorti le 24/07, absent de juin et juillet —
+    # retour Gaëlle 12/09). La couche application ne garde que ceux dont la
+    # sortie est datée ; l'écran décide ensuite mois par mois.
+    assert len(rows) == 3
     by_id = {row["id"]: row for row in rows}
     assert by_id["e1"]["payroll_eligible"] is True
     assert by_id["e1"]["profile_complete"] is True
     assert by_id["e2"]["payroll_eligible"] is False
     assert by_id["e2"]["employment_status"] == "en_onboarding"
     assert by_id["e2"]["missing_payroll_fields"]
-    assert "e3" not in by_id
+    assert by_id["e3"]["employment_status"] == "parti"
+    assert by_id["e3"]["payroll_eligible"] is True
