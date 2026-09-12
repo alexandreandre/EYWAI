@@ -397,6 +397,10 @@ class TestColonneLaterale:
         bulletin["pied_de_page"] = {
             "cout_total_employeur": 1649.98,
             "total_exonerations": 544.13,
+            # Allègements patronaux seuls : la réduction salariale sur heures
+            # sup ne fait pas partie de l'« Allègement cotis. employeur »
+            # (Quadra, Girerd juillet 2026 : 256,05 = 230,05 + 26,00).
+            "total_allegements_patronaux": 493.29,
         }
         return construire_vue_bulletin(bulletin)["lateral"]
 
@@ -416,8 +420,16 @@ class TestColonneLaterale:
     def test_bloc_cumuls_et_cout_employeur(self):
         valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("CUMULS")["valeurs"]}
         assert valeurs["Bruts"] == "4 788,07"
-        assert valeurs["Allègement cotis. employeur"] == "544,13"
+        assert valeurs["Allègement cotis. employeur"] == "493,29"
         assert valeurs["Total versé employeur"] == "1 649,98"
+
+    def test_allegement_employeur_retombe_sur_le_total_pour_un_bulletin_ancien(self):
+        bulletin = bulletin_minimal()
+        bulletin["pied_de_page"] = {"cout_total_employeur": 1.0, "total_exonerations": 544.13}
+        lateral = construire_vue_bulletin(bulletin)["lateral"]
+        bloc = next(b for b in lateral if b["titre"] == "CUMULS")
+        valeurs = {v["libelle"]: v["valeur"] for v in bloc["valeurs"]}
+        assert valeurs["Allègement cotis. employeur"] == "544,13"
 
     def test_mode_de_paiement(self):
         valeurs = {v["libelle"]: v["valeur"] for v in self._bloc("PAIEMENT")["valeurs"]}
@@ -742,3 +754,25 @@ def test_pas_de_ligne_variables_quand_la_fenetre_est_le_mois():
         }
     )
     assert vue["variables"] == ""
+
+
+class TestTotalAllegementsPatronaux:
+    def test_ne_compte_que_le_patronal_de_la_rubrique_exonerations(self):
+        from app.modules.payroll.engine.bulletin import total_allegements_patronaux
+
+        cotisations = [
+            {"code": "sante", "total_salarial": -100.0, "total_patronal": -200.0},
+            {
+                "code": "exonerations",
+                # Girerd juillet 2026 : réduction salariale HS −50,84 (salarial),
+                # réduction générale −244,54 + déduction forfaitaire −25,99.
+                "total_salarial": -50.84,
+                "total_patronal": -270.53,
+            },
+        ]
+        assert total_allegements_patronaux(cotisations) == 270.53
+
+    def test_sans_rubrique_exonerations(self):
+        from app.modules.payroll.engine.bulletin import total_allegements_patronaux
+
+        assert total_allegements_patronaux([{"code": "sante", "total_patronal": -5.0}]) == 0.0

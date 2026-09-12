@@ -182,6 +182,23 @@ def _acompte_participation_deja_verse(
     return round(total, 2)
 
 
+def total_allegements_patronaux(cotisations_officielles: list) -> float:
+    """Allègements PATRONAUX du mois : le bloc « Allègement cotis. employeur ».
+
+    Réduction générale, déduction forfaitaire sur heures sup… La réduction
+    SALARIALE sur heures sup est une exonération aussi, mais elle ne diminue
+    pas la charge de l'employeur : les cabinets ne la comptent pas dans ce
+    bloc (Quadra, Girerd juillet 2026 : 256,05 = 230,05 + 26,00). L'afficher
+    dedans faisait lire « 321,37 contre 256,05 » là où l'écart réel est de
+    14,49 (retour Gaëlle 12/09).
+    """
+    for rubrique in cotisations_officielles or []:
+        if rubrique.get("code") == "exonerations":
+            patronal = float(rubrique.get("total_patronal") or 0.0)
+            return round(abs(min(0.0, patronal)), 2)
+    return 0.0
+
+
 def _calculer_cout_total_employeur(
     salaire_brut: float,
     total_cotisations_patronales: float,
@@ -324,6 +341,7 @@ def creer_bulletin_final(
     cotisations_officielles, total_exonerations = construire_cotisations_officielles(
         lignes_cotisations
     )
+    allegements_patronaux = total_allegements_patronaux(cotisations_officielles)
 
     # Assemblage du dictionnaire final
     mois_nom_francais = [
@@ -587,6 +605,7 @@ def creer_bulletin_final(
                 primes_soumises_impot,
             ),
             "total_exonerations": total_exonerations,
+            "total_allegements_patronaux": allegements_patronaux,
             "solde_conges": build_solde_conges_pied_de_page(
                 _extraire_employee_id(contexte), annee, mois
             ),

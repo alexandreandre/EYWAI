@@ -525,7 +525,12 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             [
                 valeur("Bruts", cumuls.get("brut_total")),
                 valeur("Net imposable", cumuls.get("net_imposable")),
-                valeur("Allègement cotis. employeur", pied.get("total_exonerations")),
+                # Patronal seul ; les bulletins générés avant l'ajout de la
+                # clé retombent sur l'ancien total.
+                valeur(
+                    "Allègement cotis. employeur",
+                    pied.get("total_allegements_patronaux", pied.get("total_exonerations")),
+                ),
                 valeur("Total versé employeur", pied.get("cout_total_employeur")),
             ],
         ),
