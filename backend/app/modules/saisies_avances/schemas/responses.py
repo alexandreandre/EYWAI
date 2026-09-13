@@ -8,6 +8,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from app.shared.pydantic_types import Montant
+
 from .requests import (
     AdvanceType,
     CalculationMode,
@@ -29,9 +31,9 @@ class SalarySeizure(BaseModel):
     reference_legale: Optional[str] = None
     creditor_name: str
     creditor_iban: Optional[str] = None
-    amount: Optional[Decimal] = None
+    amount: Optional[Montant] = None
     calculation_mode: CalculationMode
-    percentage: Optional[Decimal] = None
+    percentage: Optional[Montant] = None
     start_date: date
     end_date: Optional[date] = None
     status: SalarySeizureStatus
@@ -48,11 +50,11 @@ class SalarySeizure(BaseModel):
 class SeizableAmountCalculation(BaseModel):
     """Résultat du calcul de quotité saisissable."""
 
-    net_salary: Decimal
+    net_salary: Montant
     dependents_count: int
-    adjusted_salary: Decimal
-    seizable_amount: Decimal
-    minimum_untouchable: Decimal  # Salaire insaisissable minimum
+    adjusted_salary: Montant
+    seizable_amount: Montant
+    minimum_untouchable: Montant  # Salaire insaisissable minimum
 
 
 class SalaryAdvance(BaseModel):
@@ -63,15 +65,15 @@ class SalaryAdvance(BaseModel):
     employee_id: str
     advance_type: AdvanceType = "avance_salaire"
     accounting_account: Optional[str] = None
-    requested_amount: Decimal
-    approved_amount: Optional[Decimal] = None
+    requested_amount: Montant
+    approved_amount: Optional[Montant] = None
     requested_date: date
     payment_date: Optional[date] = None
     payment_method: Optional[PaymentMethod] = None
     status: SalaryAdvanceStatus
     repayment_mode: RepaymentMode
     repayment_months: int
-    remaining_amount: Decimal
+    remaining_amount: Montant
     remaining_to_pay: Optional[float] = (
         None  # Montant restant à verser (calculé dynamiquement)
     )
@@ -79,8 +81,8 @@ class SalaryAdvance(BaseModel):
     rejection_reason: Optional[str] = None
     prime_label: Optional[str] = None
     prime_id: Optional[str] = None
-    prime_expected_amount: Optional[Decimal] = None
-    prime_final_amount: Optional[Decimal] = None
+    prime_expected_amount: Optional[Montant] = None
+    prime_final_amount: Optional[Montant] = None
     prime_reconciled_at: Optional[datetime] = None
     prime_reconciled_payslip_id: Optional[str] = None
     created_at: datetime
@@ -97,16 +99,16 @@ class AdvanceAvailableAmount(BaseModel):
     """Montant disponible pour une avance ou un acompte."""
 
     advance_type: AdvanceType = "avance_salaire"
-    daily_salary: Decimal
-    days_worked: Decimal
-    outstanding_advances: Decimal
-    available_amount: Decimal
+    daily_salary: Montant
+    days_worked: Montant
+    outstanding_advances: Montant
+    available_amount: Montant
     max_advance_days: int = 10
-    reference_net_salary: Decimal = Decimal("0")
+    reference_net_salary: Montant = Decimal("0")
     reference_payslip_year: Optional[int] = None
     reference_payslip_month: Optional[int] = None
-    max_advance_from_net: Decimal = Decimal("0")
-    max_advance_net_ratio: Decimal = Decimal("0.5")
+    max_advance_from_net: Montant = Decimal("0")
+    max_advance_net_ratio: Montant = Decimal("0.5")
     is_employee_right: bool = False
 
 
@@ -118,10 +120,10 @@ class SalarySeizureDeduction(BaseModel):
     payslip_id: str
     year: int
     month: int
-    gross_salary: Decimal
-    net_salary: Decimal
-    seizable_amount: Decimal
-    deducted_amount: Decimal
+    gross_salary: Montant
+    net_salary: Montant
+    seizable_amount: Montant
+    deducted_amount: Montant
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -135,8 +137,8 @@ class SalaryAdvanceRepayment(BaseModel):
     payslip_id: str
     year: int
     month: int
-    repayment_amount: Decimal
-    remaining_after: Decimal
+    repayment_amount: Montant
+    remaining_after: Montant
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -162,7 +164,7 @@ class PayslipSeizureInfo(BaseModel):
     """Information de saisie pour un bulletin."""
 
     type: str
-    montant: Decimal
+    montant: Montant
     creditor_name: str
     reference: Optional[str] = None
 
@@ -170,9 +172,9 @@ class PayslipSeizureInfo(BaseModel):
 class PayslipAdvanceRepaymentInfo(BaseModel):
     """Information de remboursement d'avance pour un bulletin."""
 
-    montant: Decimal
+    montant: Montant
     date_avance: date
-    reste_apres: Decimal
+    reste_apres: Montant
 
 
 class PayslipDeductionsEnrichment(BaseModel):
@@ -188,7 +190,7 @@ class SalaryAdvancePayment(BaseModel):
     id: str
     advance_id: str
     company_id: str
-    payment_amount: Decimal
+    payment_amount: Montant
     payment_date: date
     payment_method: Optional[PaymentMethod] = None
     proof_file_path: Optional[str] = None
