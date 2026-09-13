@@ -51,12 +51,16 @@ function ErrorFallback() {
       <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
       <h2 className="text-lg font-semibold mb-2">Une erreur s&apos;est produite</h2>
       <p className="text-muted-foreground text-sm mb-4 max-w-md">
-        Cette page n&apos;a pas pu s&apos;afficher correctement. Réessayez ou
-        revenez à l&apos;accueil. Si le problème persiste, contactez le support.
+        Cette page n&apos;a pas pu s&apos;afficher. Vos données sont enregistrées :
+        rechargez la page ou revenez à l&apos;accueil. Si le problème persiste,
+        contactez le support.
       </p>
-      <Button variant="outline" onClick={() => navigate("/")}>
-        Retour à l&apos;accueil
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={() => window.location.reload()}>Recharger la page</Button>
+        <Button variant="outline" onClick={() => navigate("/")}>
+          Retour à l&apos;accueil
+        </Button>
+      </div>
     </div>
   );
 }

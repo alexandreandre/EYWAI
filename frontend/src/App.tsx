@@ -37,6 +37,7 @@ const BadgeuseTerminalGate = lazy(
 );
 
 function EmployeeLayout() {
+  const location = useLocation();
   const { accessibleCompanies, activeCompany } = useCompany();
   const showCompanySwitcher =
     accessibleCompanies && accessibleCompanies.length > 1;
@@ -74,7 +75,9 @@ function EmployeeLayout() {
           )}
           <main className="min-w-0 flex-1 overflow-auto overflow-x-auto p-6 lg:p-8">
             <BackgroundDataIndicator />
-            <Outlet />
+            <ErrorBoundaryClass key={location.pathname}>
+              <Outlet />
+            </ErrorBoundaryClass>
           </main>
         </div>
       </div>
@@ -157,6 +160,10 @@ function ProtectedRoutes() {
           )}
           <main className="min-w-0 flex-1 overflow-x-auto overflow-y-auto bg-background p-6 lg:p-8">
             <BackgroundDataIndicator />
+            {/* Une page qui plante ne doit jamais laisser un écran blanc : la
+                limite d'erreur montre un message et un bouton pour recharger,
+                et se réarme à chaque changement d'écran (Gautheron, 12/09). */}
+            <ErrorBoundaryClass key={location.pathname}>
             <Routes>
               {isCollaborateurRhView ? (
                 <>{employeeCollaboratorRoutes}</>
@@ -271,6 +278,7 @@ function ProtectedRoutes() {
                 </>
               )}
             </Routes>
+            </ErrorBoundaryClass>
           </main>
         </div>
       </div>

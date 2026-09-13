@@ -80,9 +80,11 @@ describe('filterTasksToPayrollFocus', () => {
       task('reviews', '/annual-reviews?focus=upcoming'),
       task('recruitment', '/recruitment'),
       task('onboarding', '/onboarding'),
+      // La page Entreprise est restée accessible en mode paie (11/09) :
+      // sa tâche est conservée, les autres retirées.
       task('company', '/company'),
     ]);
-    expect(kept).toEqual([]);
+    expect(kept.map((t) => t.id)).toEqual(['company']);
   });
 
   it('ne modifie pas la liste reçue', () => {
