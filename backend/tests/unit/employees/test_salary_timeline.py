@@ -156,3 +156,74 @@ class TestPlusieursChangementsMemeMois:
         assert evo["salaire_debut_mois"] == 2200.0
         assert evo["salaire_fin_mois"] == 2200.0
         assert evo["rappel"]["montant"] == 0.0
+
+
+class TestRappelSelonBulletinsPayes:
+    """Ne rappeler que les mois réellement payés à l'ancien taux.
+
+    Demory (Colorplast) : SMIC revalorisé au 01/06, juin déjà payé au nouveau
+    taux, et le bulletin de juillet rappelait 16,69 € — comme l'aurait fait
+    chaque bulletin suivant. `bases_des_bulletins` dit sur quel salaire
+    mensuel chaque bulletin antérieur a été établi.
+    """
+
+    def test_mois_deja_paye_au_nouveau_taux_sans_rappel(self):
+        tl = [_entry("2026-06-01", 1850.37, 1867.06)]
+        r = calculer_rappel_mois_anterieurs(
+            tl, 2026, 7, bases_des_bulletins={(2026, 6): 1867.06}
+        )
+        assert r["montant"] == 0.0
+        assert r["periode_debut"] is None
+        assert r["periode_fin"] is None
+
+    def test_mois_payes_a_l_ancien_taux_rappeles(self):
+        tl = [_entry("2026-03-01", 2000, 2200)]
+        r = calculer_rappel_mois_anterieurs(
+            tl, 2026, 6,
+            bases_des_bulletins={(2026, 3): 2000, (2026, 4): 2000, (2026, 5): 2200},
+        )
+        assert r["montant"] == pytest.approx(400.0, abs=0.02)
+        assert r["periode_debut"] == "2026-03-01"
+        assert r["periode_fin"] == "2026-05-31"
+
+    def test_mois_sans_bulletin_n_est_pas_rappele(self):
+        # Payé hors EYWAI (cabinet) : rien ne prouve un rappel dû, il se
+        # saisit à la main s'il l'est.
+        tl = [_entry("2026-03-01", 2000, 2200)]
+        r = calculer_rappel_mois_anterieurs(tl, 2026, 6, bases_des_bulletins={(2026, 5): 2000})
+        assert r["montant"] == pytest.approx(200.0, abs=0.02)
+
+    def test_mois_paye_a_un_taux_intermediaire(self):
+        tl = [_entry("2026-03-01", 2000, 2200)]
+        r = calculer_rappel_mois_anterieurs(
+            tl, 2026, 6,
+            bases_des_bulletins={(2026, 3): 2100, (2026, 4): 2200, (2026, 5): 2200},
+        )
+        assert r["montant"] == pytest.approx(100.0, abs=0.02)
+
+    def test_mois_de_prise_d_effet_en_cours_de_mois(self):
+        tl = [_entry("2026-03-10", 2000, 2200)]
+        # Mars payé à l'ancien taux : 21/30 de la différence ; avril et mai au nouveau.
+        r = calculer_rappel_mois_anterieurs(
+            tl, 2026, 6,
+            bases_des_bulletins={(2026, 3): 2000, (2026, 4): 2200, (2026, 5): 2200},
+        )
+        assert r["montant"] == pytest.approx(200 * 21 / 30, abs=0.02)
+        # Mars déjà payé au prorata exact : rien.
+        r2 = calculer_rappel_mois_anterieurs(
+            tl, 2026, 6,
+            bases_des_bulletins={(2026, 3): 2140, (2026, 4): 2200, (2026, 5): 2200},
+        )
+        assert r2["montant"] == 0.0
+
+    def test_sans_information_le_comportement_historique_reste(self):
+        tl = [_entry("2026-03-01", 2000, 2200)]
+        assert calculer_rappel_mois_anterieurs(tl, 2026, 6)["montant"] == pytest.approx(600.0)
+
+    def test_construire_evolution_transmet_les_bases(self):
+        tl = [_entry("2026-06-01", 1850.37, 1867.06)]
+        evo = construire_evolution_salaire_mois(
+            tl, 2026, 7, 1867.06, bases_des_bulletins={(2026, 6): 1867.06}
+        )
+        assert evo["rappel"]["montant"] == 0.0
+        assert evo["salaire_fin_mois"] == 1867.06

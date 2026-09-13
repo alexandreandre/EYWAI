@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date, timedelta
-from typing import Any, TypedDict
+from typing import Any, Mapping, TypedDict
 
 JOURS_BASE_PRORATA = 30
 
@@ -145,10 +145,19 @@ def calculer_rappel_mois_anterieurs(
     timeline: list[dict[str, Any]],
     year: int,
     month: int,
+    bases_des_bulletins: Mapping[tuple[int, int], float] | None = None,
 ) -> RappelSalaire:
     """
     Différentiel dû pour les mois strictement antérieurs au bulletin (year, month).
     Versé en une ligne sur le bulletin courant.
+
+    `bases_des_bulletins` : salaire de base mensuel sur lequel chaque bulletin
+    antérieur a été établi, par (année, mois). Quand il est fourni, seul un
+    mois réellement payé en deçà du nouveau salaire est rappelé, à hauteur de
+    ce qui manque ; un mois sans bulletin n'est pas rappelé (payé hors EYWAI,
+    rien ne prouve un dû — il se saisit à la main). Sans lui, tous les mois
+    depuis la prise d'effet sont rappelés : c'est ce qui faisait rappeler
+    16,69 € à Demory chaque mois pour un juin déjà payé au SMIC revalorisé.
     """
     debut_bulletin = date(year, month, 1)
     entries = [
@@ -182,21 +191,36 @@ def calculer_rappel_mois_anterieurs(
         if diff <= 0:
             continue
 
-        if periode_debut is None or eff < periode_debut:
-            periode_debut = eff
-
+        premier_mois_du = None
         cursor = date(eff.year, eff.month, 1)
         while cursor < debut_bulletin:
             if cursor.year == eff.year and cursor.month == eff.month:
                 jours_nouveau = JOURS_BASE_PRORATA - (eff.day - 1)
-                total += diff * jours_nouveau / JOURS_BASE_PRORATA
+                attendu = (
+                    ancien * (JOURS_BASE_PRORATA - jours_nouveau) + nouveau * jours_nouveau
+                ) / JOURS_BASE_PRORATA
             else:
-                total += diff
+                attendu = nouveau
+            du_plein = attendu - ancien
+            if bases_des_bulletins is None:
+                du = du_plein
+            else:
+                paye = bases_des_bulletins.get((cursor.year, cursor.month))
+                du = 0.0 if paye is None else max(0.0, min(attendu - paye, du_plein))
+            if du > 0.005:
+                total += du
+                if premier_mois_du is None:
+                    premier_mois_du = cursor
             cursor = _avancer_mois(cursor)
+
+        if premier_mois_du is not None:
+            debut_effectif = eff if premier_mois_du == date(eff.year, eff.month, 1) else premier_mois_du
+            if periode_debut is None or debut_effectif < periode_debut:
+                periode_debut = debut_effectif
 
     return RappelSalaire(
         montant=round(total, 2),
-        periode_debut=periode_debut.isoformat() if periode_debut else None,
+        periode_debut=periode_debut.isoformat() if periode_debut and total > 0 else None,
         periode_fin=periode_fin.isoformat() if total > 0 else None,
     )
 
@@ -206,8 +230,12 @@ def construire_evolution_salaire_mois(
     year: int,
     month: int,
     salaire_initial: float | None = None,
+    bases_des_bulletins: Mapping[tuple[int, int], float] | None = None,
 ) -> EvolutionSalaireMois:
-    """Bloc remuneration.evolution_salaire_mois pour le moteur paie."""
+    """Bloc remuneration.evolution_salaire_mois pour le moteur paie.
+
+    `bases_des_bulletins` : cf. `calculer_rappel_mois_anterieurs`.
+    """
     debut_mois = date(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
     fin_mois = date(year, month, last_day)
@@ -228,7 +256,9 @@ def construire_evolution_salaire_mois(
                     salaire_debut_mois=nouveau,
                     salaire_fin_mois=nouveau,
                     prorata=None,
-                    rappel=calculer_rappel_mois_anterieurs(timeline, year, month),
+                    rappel=calculer_rappel_mois_anterieurs(
+                    timeline, year, month, bases_des_bulletins
+                ),
                 )
             if eff == debut_mois:
                 salaire_fin = nouveau
@@ -248,7 +278,9 @@ def construire_evolution_salaire_mois(
                 salaire_debut_mois=salaire_debut,
                 salaire_fin_mois=salaire_fin,
                 prorata=prorata,
-                rappel=calculer_rappel_mois_anterieurs(timeline, year, month),
+                rappel=calculer_rappel_mois_anterieurs(
+                    timeline, year, month, bases_des_bulletins
+                ),
             )
 
     salaire_fin = salaire_actif_a_date(timeline, fin_mois, salaire_initial)
@@ -256,7 +288,9 @@ def construire_evolution_salaire_mois(
         salaire_debut_mois=salaire_debut,
         salaire_fin_mois=salaire_fin,
         prorata=None,
-        rappel=calculer_rappel_mois_anterieurs(timeline, year, month),
+        rappel=calculer_rappel_mois_anterieurs(
+                    timeline, year, month, bases_des_bulletins
+                ),
     )
 
 

@@ -7,9 +7,70 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict
 
+from app.core.database import supabase
+from app.core.logging import get_logger
 from app.modules.employees.application.commands import sync_employee_salaire_actif
 from app.modules.employees.domain.salary_timeline import construire_evolution_salaire_mois
 from app.modules.employees.infrastructure.repository import EmployeeRepository
+from app.modules.payroll.engine.salaire_paye import (
+    base_mensuelle_du_bulletin,
+    heures_base_mensuelles,
+)
+
+logger = get_logger("modules.payroll.application.salary_evolution_payroll")
+
+
+def _lire_bulletins_anterieurs(employee_id: str, company_id: str) -> list[dict[str, Any]]:
+    """Bulletins déjà générés du salarié : période et ce qu'il faut pour relire
+    le salaire de base appliqué (paramètres mémorisés, ligne « Salaire de base »)."""
+    resp = (
+        supabase.table("payslips")
+        .select(
+            "year, month, parametres:payslip_data->parametres, "
+            "calcul_du_brut:payslip_data->calcul_du_brut"
+        )
+        .eq("employee_id", employee_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return resp.data or []
+
+
+def _bases_des_bulletins(
+    employee_id: str, company_id: str, year: int, month: int, duree_hebdo: Any
+) -> Dict[tuple[int, int], float] | None:
+    """Salaire de base mensuel sur lequel chaque bulletin ANTÉRIEUR a été établi.
+
+    Sert au rappel de salaire : un mois déjà payé au nouveau taux n'est pas
+    rappelé (Demory, juillet 2026 : 16,69 € rappelés pour un juin déjà payé
+    au SMIC revalorisé, et à nouveau chaque mois suivant). En cas d'échec de
+    lecture, None : le calcul retombe sur le comportement historique, signalé.
+    """
+    try:
+        rows = _lire_bulletins_anterieurs(employee_id, company_id)
+    except Exception as exc:  # noqa: BLE001 — la génération ne doit pas tomber
+        logger.warning(
+            "Bulletins antérieurs illisibles pour le rappel de salaire (%s) : %s",
+            employee_id,
+            exc,
+        )
+        return None
+    heures = heures_base_mensuelles(duree_hebdo)
+    bases: Dict[tuple[int, int], float] = {}
+    for row in rows:
+        try:
+            cle = (int(row.get("year")), int(row.get("month")))
+        except (TypeError, ValueError):
+            continue
+        if cle >= (year, month):
+            continue
+        base = base_mensuelle_du_bulletin(
+            {"parametres": row.get("parametres"), "calcul_du_brut": row.get("calcul_du_brut")},
+            heures,
+        )
+        if base:
+            bases[cle] = base
+    return bases
 
 
 def _valeur_salaire(salaire_de_base: Any) -> float:
@@ -42,7 +103,12 @@ def prepare_salary_evolution_for_payslip(
 
     timeline = repo.get_salary_history(employee_id, company_id)
     fallback = _valeur_salaire(emp.get("salaire_de_base"))
-    evolution = construire_evolution_salaire_mois(timeline, year, month, fallback)
+    bases = _bases_des_bulletins(
+        employee_id, company_id, year, month, emp.get("duree_hebdomadaire")
+    )
+    evolution = construire_evolution_salaire_mois(
+        timeline, year, month, fallback, bases_des_bulletins=bases
+    )
 
     prorata = evolution.get("prorata")
     salaire_contrat = (
