@@ -183,6 +183,25 @@ class FullEmployee(BaseModel):
     # Matricule badgeuse / GTA (import pointages Cegid)
     time_tracking_id: str | None = None
 
+    # Colonnes de la table `employees` qui manquaient à la réponse : Pydantic
+    # ignore les champs inconnus, la fiche ne pouvait donc jamais relire la
+    # fin de contrat d'un CDD qu'elle venait d'enregistrer (Fuckar, 12/09/2026).
+    # Toute colonne lue par l'écran doit avoir son champ ici (test dédié).
+    contract_end_date: date | None = None
+    date_conclusion_contrat: date | None = None
+    date_debut_execution: date | None = None
+    periode_essai: Any | None = None
+    sexe: str | None = None
+    matricule: str | None = None
+    is_poste_sir: bool | None = None
+    is_travail_nuit: bool | None = None
+    company_id: str | None = None
+    user_id: str | None = None
+    account_deactivated_at: datetime | None = None
+    account_deactivated_reason: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
 class NewEmployeeResponse(FullEmployee):
     """Modèle de réponse pour la création d'un employé, incluant le mot de passe généré."""
 
