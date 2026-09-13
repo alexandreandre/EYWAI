@@ -17,9 +17,9 @@ Colorplast). Les horodatages de l'export WhatsApp sont en heure de New York :
 | 1 | Compteurs CP à 2,08 et non 2,5 | réglage + arrondi du moteur | corrigé, à basculer sur le test |
 | 2 | Allègement employeur 256,05 vs 321,37 (Girerd) | comparaison faussée par notre affichage | affichage corrigé ; écart réel 14,49 € non résolu |
 | 3 | Absence de Marion : 0,23 × 13,143 ≠ 3,29 | aperçu non recalculé + règle de valorisation différente de Quadra | règle à trancher (voir § 3) |
-| 4 | Fuckar, fin de contrat au 15/09 « non enregistrée » | enregistrée en base | rien à corriger ; demande d'historique des CDD = chantier de fond |
+| 4 | Fuckar, fin de contrat au 15/09 « non enregistrée » | enregistrée, mais l'API ne renvoyait jamais le champ | modèle de réponse corrigé ; historique des CDD = chantier de fond |
 | 5 | Bugny, Cotte, Espinosa : cotisations sans les HS corrigées | corrections jamais enregistrées (aperçu) | éditeur assoupli |
-| 6 | Gautheron, saisie sur salaire : écran blanc | plantage d'affichage | corrigé |
+| 6 | Gautheron, saisie sur salaire : écran blanc | décimal en chaîne + aucune limite d'erreur | corrigé à l'API, à l'affichage, et limite d'erreur sur toutes les pages |
 | 7 | Demory absent des bulletins de juin et juillet | filtre sur le statut « parti » | corrigé (liste, écran, garde) ; juillet généré, ICCP dans le brut |
 
 ## 1. Compteurs CP en jours ouvrés
@@ -118,9 +118,21 @@ EYWAI porte aussi deux absences que Quadra n'a pas (17/07 0,25 h et 31/07
 
 ## 4. Fuckar
 
-La fiche porte bien la fin de contrat au 15/09/2026, enregistrée à 08:42
-(Paris), une minute avant son message. La capture montre le champ vide :
-affichage non rafraîchi, pas d'échec d'enregistrement. À faire recharger.
+La base porte bien la fin de contrat au 15/09/2026, enregistrée à 08:42
+(Paris), une minute avant son message. Mais la capture montrant le champ
+vide n'était pas un défaut de rafraîchissement : **la fiche ne pouvait
+jamais relire cette date**. L'API qui renvoie un salarié seul, en lecture
+comme après modification, passe par le modèle `FullEmployee`, qui ne
+déclarait pas `contract_end_date` ni treize autres colonnes de la table
+(`date_debut_execution`, `date_conclusion_contrat`, `sexe`, `matricule`…) ;
+Pydantic ignore les champs inconnus. Le champ existait depuis le 4 juin dans
+les requêtes et la liste allégée, jamais dans ce modèle : depuis trois mois,
+la fin d'un CDD se saisissait sans se relire, et recharger la page n'y
+changeait rien.
+
+Corrigé le 13/09 : les quatorze colonnes sont dans `FullEmployee`, un test
+compare le modèle aux colonnes de la table ; la fiche est en plus relue
+après chaque enregistrement.
 
 Sa demande de voir « toutes les dates des CDD et renouvellements » suppose un
 historique de contrats : aujourd'hui une fiche n'a qu'une date d'entrée et
@@ -149,12 +161,21 @@ modifie rien en base.
 
 ## 6. Saisie sur salaire (Gautheron)
 
-La saisie est en base (46,49 €, SGC Oyonnax, juillet, active). L'écran
-blanc venait de `seizure.amount.toFixed(2)` sur un montant reçu en chaîne :
-la page `/salary-seizures` plantait dès qu'une saisie existait. L'onglet
-équivalent de « Saisies et avances » faisait la conversion. Fait : un
-formateur commun, testé. « Rien dans le bulletin » est attendu : la saisie
-est lue à la génération, il faut régénérer juillet.
+La saisie est en base (46,49 €, SGC Oyonnax, juillet, active). Cause exacte
+de l'écran blanc : le montant est un `Decimal` dans le schéma de réponse,
+que Pydantic sérialise en chaîne (« "46.49" ») ; le type TypeScript le
+déclare `number`, la page appelait `toFixed` dessus, l'exception de rendu
+remontait jusqu'à la racine faute de limite d'erreur autour des pages, et
+React démontait tout. La saisie de Gautheron était la première jamais créée
+sur le test : la ligne fautive n'avait jamais été rendue. Un onglet jumeau,
+non branché, convertissait déjà depuis le premier commit.
+
+Corrigé le 13/09, aux trois niveaux : les montants des saisies et avances
+sortent en nombre dans le JSON (type partagé `Montant`) ; chaque page des
+deux espaces est sous une limite d'erreur avec un bouton « Recharger la
+page » ; les deux onglets jumeaux non branchés sont supprimés. « Rien dans
+le bulletin » est attendu : la saisie est lue à la génération, il faut
+régénérer juillet.
 
 ## 7. Demory (sorti le 24/07)
 
