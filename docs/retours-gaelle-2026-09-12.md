@@ -187,18 +187,22 @@ choses sont apparues en le comparant à Quadra (du 01/07 au 24/07, brut
 - **L'indemnité compensatrice de congés payés manquait.** Un dossier sans
   indemnités calculées bloquait celle du moteur ; et une fois calculée par
   le module Départs, elle était ajoutée *après* les cotisations (net
-  supérieur au brut). Corrigé : en fin de CDD, l'ICCP est portée par le
-  brut au dixième, cotisée, comme la prime de précarité ; le dossier ne
-  l'ajoute plus une seconde fois. Résultat 940,36 contre 940,23 chez Quadra.
-  Le même défaut (indemnités « soumises » ajoutées après cotisations)
-  subsiste pour les autres types de départ, préavis compris : à traiter.
+  supérieur au brut). Corrigé en deux temps : en fin de CDD, l'ICCP est
+  portée par le brut au dixième, cotisée, comme la prime de précarité
+  (940,36 contre 940,23 chez Quadra) ; puis, le 13/09, pour tous les types
+  de départ, préavis et ICCP du dossier entrent dans le brut avant
+  cotisations (`engine.indemnites_sortie_brut`), et le bulletin de sortie
+  n'ajoute après cotisations que les indemnités exonérées.
 - **Un « rappel de salaire juin » de 16,69 € fantôme.** L'évolution de
-  salaire du 01/06 (SMIC, 1 850,37 → 1 867,06) déclenche un rappel sur
-  chaque bulletin postérieur tant qu'elle n'est pas marquée « déjà versé »,
-  alors que juin a été payé au nouveau taux. Trois cas sur le test (Alves
-  chez Cartol, Demory et Fuckar chez Colorplast) marqués à la main, comme le
-  backtest MAJI l'avait fait. Le moteur devrait vérifier ce que le bulletin
-  du mois a réellement payé : défaut à corriger.
+  salaire du 01/06 (SMIC, 1 850,37 → 1 867,06) déclenchait un rappel sur
+  chaque bulletin postérieur tant qu'elle n'était pas marquée « déjà
+  versé », alors que juin avait été payé au nouveau taux. Trois cas sur le
+  test (Alves chez Cartol, Demory et Fuckar chez Colorplast) marqués à la
+  main le 12/09. Corrigé au moteur le 13/09 : le rappel relit le salaire de
+  base sur lequel chaque bulletin antérieur a été établi (champ mémorisé
+  `parametres.salaire_base_mensuel`, sinon ligne « Salaire de base » × heures
+  mensuelles) et ne rappelle que ce qui manque ; un mois sans bulletin EYWAI
+  n'est pas rappelé, il se saisit à la main.
 
 Bulletin final : base 126 h et heures sup 14,40 h au centime, congé du 13/07
 au centime, ICCP 940,36. Brut 3 567,87 contre 3 509,91 : l'écart de 57,96
@@ -221,9 +225,5 @@ Gaëlle, puis régénérer mai et juillet.
 
 - Trancher la règle d'absence (§ 3) et le périmètre de l'unité ouvrée pour
   MAJI / ZONE 404.
-- Bulletin de sortie : intégrer les indemnités soumises dans le brut avant
-  cotisations pour tous les types de départ (§ 7).
-- Rappel de salaire : ne rappeler que les mois réellement payés à l'ancien
-  taux (§ 7).
 - Historique des contrats (§ 4) : à planifier.
 - Suivre la réduction générale sur août (§ 2).
