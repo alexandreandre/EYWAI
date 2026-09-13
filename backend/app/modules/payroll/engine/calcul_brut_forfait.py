@@ -13,6 +13,7 @@ Le forfait jour fonctionne différemment du mode horaire :
 """
 
 from .contexte import ContextePaie
+from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from app.shared.domain.employment_rules import is_cadre
@@ -521,6 +522,10 @@ def calculer_salaire_brut_forfait(
         lignes_composants_brut.append(ligne_rappel)
 
     # Calcul du brut total
+    # Indemnités du dossier de départ soumises à cotisations (préavis, congés
+    # payés) : dans le brut, pas après les cotisations.
+    lignes_composants_brut.extend(lignes_indemnites_sortie_soumises(contexte))
+
     total_gains = sum(
         ligne.get("gain", 0.0) or 0.0
         for ligne in lignes_composants_brut

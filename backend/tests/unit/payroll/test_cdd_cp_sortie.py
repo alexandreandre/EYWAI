@@ -99,7 +99,9 @@ def test_iccp_presente_si_le_dossier_de_depart_n_en_porte_pas():
     assert iccp == pytest.approx(1210.0, abs=0.05)
 
 
-def test_iccp_absente_si_le_dossier_de_depart_en_porte_une():
+def test_iccp_du_dossier_de_depart_prime_et_entre_dans_le_brut():
+    """Le dossier porte sa propre ICCP : c'est elle qui va dans le brut,
+    cotisée, et le moteur ne calcule pas le dixième en plus."""
     ctx = build_test_contexte(
         salaire_base=2200.0,
         type_contrat="CDD",
@@ -110,4 +112,25 @@ def test_iccp_absente_si_le_dossier_de_depart_en_porte_une():
     ctx.exit_indemnities = {"indemnite_conges": {"montant": 900.0}}
     res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
     gains = _lignes_gain(res)
-    assert not any("compensatrice de congés" in k for k in gains)
+    assert gains["Indemnité compensatrice de congés payés"] == 900.0
+    assert "Indemnité compensatrice de congés payés (CDD)" not in gains
+
+
+def test_indemnites_soumises_du_dossier_dans_le_brut_pour_un_cdi():
+    """Préavis et congés payés sont des salaires : dans le brut, avant
+    cotisations. L'indemnité de licenciement, exonérée, reste hors brut
+    (Demory, juillet 2026 : net supérieur au brut quand elles étaient
+    ajoutées après les cotisations)."""
+    ctx = build_test_contexte(salaire_base=2200.0, type_contrat="CDI", date_entree="2020-01-01")
+    ctx.exit_indemnities = {
+        "indemnite_preavis": {"montant": 2200.0},
+        "indemnite_conges": {"montant": 640.5},
+        "indemnite_licenciement": {"montant": 3000.0},
+        "indemnite_rupture_conventionnelle": {"montant_negocie": 0.0},
+    }
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    gains = _lignes_gain(res)
+    assert gains["Indemnité compensatrice de préavis"] == 2200.0
+    assert gains["Indemnité compensatrice de congés payés"] == 640.5
+    assert not any("licenciement" in k.lower() for k in gains)
+    assert res["salaire_brut_total"] == pytest.approx(2200.0 + 2200.0 + 640.5, abs=0.05)

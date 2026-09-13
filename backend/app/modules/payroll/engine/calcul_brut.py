@@ -5,6 +5,7 @@ from . import legal_constants as lc
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
+from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -1360,6 +1361,10 @@ def calculer_salaire_brut(
     )
     if ligne_iccp:
         lignes_composants_brut.append(ligne_iccp)
+
+    # Indemnités du dossier de départ soumises à cotisations (préavis, congés
+    # payés) : dans le brut, pas après les cotisations.
+    lignes_composants_brut.extend(lignes_indemnites_sortie_soumises(contexte))
 
     # Le calcul du brut total reste inchangé
     total_gains = sum(

@@ -546,3 +546,37 @@ class TestDonneesEnTeteGabarit:
         parametres = self._bulletin()["parametres"]
         assert parametres["smic_horaire"] > 0
         assert parametres["pss_mensuel"] > 0
+
+
+class TestBulletinSortie:
+    """Les indemnités soumises sont déjà dans le brut ; seules les exonérées
+    s'ajoutent après cotisations (Demory, juillet 2026 : net > brut)."""
+
+    def _nets(self, net: float) -> dict:
+        return {
+            "net_a_payer": net,
+            "net_imposable": net,
+            "montant_net_social": net,
+            "net_avant_impot": net,
+        }
+
+    def test_soumises_integrees_au_brut_exonerees_ajoutees_au_net(self):
+        from app.modules.payroll.engine.bulletin import creer_bulletin_sortie
+
+        ctx = build_test_contexte(salaire_base=2000.0)
+        brut_avec_indemnites = 2000.0 + 500.0 + 300.0  # préavis et ICCP déjà dedans
+        indemnites = {
+            "indemnite_preavis": {"montant": 500.0},
+            "indemnite_conges": {"montant": 300.0},
+            "indemnite_licenciement": {"montant": 1000.0},
+        }
+        bulletin = creer_bulletin_sortie(
+            ctx, brut_avec_indemnites, [], [], self._nets(2100.0), [], indemnites, 2026, 7
+        )
+        bloc = bulletin["indemnites_sortie"]
+        assert all(l["integree_au_brut"] for l in bloc["lignes_soumises"])
+        assert bloc["total_soumises"] == 800.0
+        assert bloc["total_exonerees"] == 1000.0
+        assert bulletin["salaire_brut_avec_indemnites_soumises"] == 2800.0
+        assert bulletin["net_a_payer"] == 3100.0
+        assert bulletin["is_bulletin_sortie"] is True

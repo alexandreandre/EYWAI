@@ -182,6 +182,30 @@ def _acompte_participation_deja_verse(
     return round(total, 2)
 
 
+def _salaire_base_mensuel_en_vigueur(contexte) -> float | None:
+    """Salaire de base mensuel appliqué en fin de mois (après évolution).
+
+    Mémorisé dans le bulletin (`parametres.salaire_base_mensuel`) pour que le
+    rappel de salaire sache, plus tard, à quel taux ce mois a été payé.
+    """
+    remuneration = contexte.contrat.get("remuneration") or {}
+    evolution = remuneration.get("evolution_salaire_mois")
+    if isinstance(evolution, dict):
+        try:
+            valeur = float(evolution.get("salaire_fin_mois"))
+            if valeur > 0:
+                return round(valeur, 2)
+        except (TypeError, ValueError):
+            pass
+    salaire = remuneration.get("salaire_de_base")
+    brut = salaire.get("valeur") if isinstance(salaire, dict) else salaire
+    try:
+        valeur = float(brut)
+    except (TypeError, ValueError):
+        return None
+    return round(valeur, 2) if valeur > 0 else None
+
+
 def total_allegements_patronaux(cotisations_officielles: list) -> float:
     """Allègements PATRONAUX du mois : le bloc « Allègement cotis. employeur ».
 
@@ -572,6 +596,9 @@ def creer_bulletin_final(
             "smic_horaire": contexte.smic_horaire,
             "pss_mensuel": (contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0)
             or 0.0,
+            # Salaire de base mensuel en vigueur à la fin du mois : le rappel
+            # de salaire s'en sert pour savoir à quel taux ce mois a été payé.
+            "salaire_base_mensuel": _salaire_base_mensuel_en_vigueur(contexte),
         },
         "structure_cotisations": {
             "bloc_principales": bloc_principales,
@@ -747,15 +774,16 @@ def creer_bulletin_sortie(
         ligne["montant"] for ligne in lignes_indemnites_exonerees
     )
 
-    # Recalculer le brut total incluant les indemnités soumises
-    brut_total_avec_indemnites = salaire_brut + total_indemnites_soumises
+    # Les indemnités soumises (préavis, congés payés) sont DÉJÀ dans le brut :
+    # le moteur les y porte pour qu'elles soient cotisées et imposées (cf.
+    # engine.indemnites_sortie_brut). Les ajouter ici une seconde fois, après
+    # les cotisations, donnait un net supérieur au brut (Demory, juillet 2026).
+    for ligne in lignes_indemnites_soumises:
+        ligne["integree_au_brut"] = True
+    brut_total_avec_indemnites = salaire_brut
 
-    # Recalculer le net à payer incluant toutes les indemnités
-    net_a_payer_final = (
-        resultats_nets.get("net_a_payer", 0)
-        + total_indemnites_soumises
-        + total_indemnites_exonerees
-    )
+    # Seules les indemnités exonérées s'ajoutent après cotisations.
+    net_a_payer_final = resultats_nets.get("net_a_payer", 0) + total_indemnites_exonerees
 
     # Ajouter les sections d'indemnités au bulletin
     bulletin_base["indemnites_sortie"] = {
