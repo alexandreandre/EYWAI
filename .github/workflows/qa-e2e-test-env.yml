@@ -30,7 +30,17 @@ jobs:
       run:
         working-directory: frontend
     steps:
+      # Après un déploiement, jouer les specs du commit déployé, pas celles de
+      # main : une branche qui change un bouton met ses specs à jour, et c'est
+      # ce frontend-là qui tourne sur le test. Manuel et planifié : la branche
+      # d'où le workflow est lancé (main pour le cron).
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Annoncer le commit testé
+        run: |
+          echo "Specs jouées depuis ${{ github.event.workflow_run.head_branch || github.ref_name }} @ ${{ github.event.workflow_run.head_sha || github.sha }}"
 
       # Sans les secrets, la config dégraderait silencieusement en 2 tests
       # publics avec un run vert : on préfère un échec explicite.
