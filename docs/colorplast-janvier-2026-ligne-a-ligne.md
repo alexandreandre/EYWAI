@@ -68,10 +68,55 @@ ou partie et le SMIC de référence suit alors la part restée à la charge de
 l'employeur. Règle distincte, sans référence cabinet à ce jour, à traiter à
 part.
 
-Il reste 1,41 € et 4,50 € : Quadra compte une fraction d'heure de plus que son
-propre « cumul heures » imprimé (165,64 contre 165,50 ; 158,46 contre 158,00),
-soit environ 4 % des heures d'absence qu'il ne retranche pas. À élucider,
-éventuellement avec Gaëlle.
+#### Le reste de 1,41 € et 4,50 €
+
+En inversant la réduction cumulée de Quadra mois par mois sur les sept
+bulletins, on retrouve ses heures de SMIC de référence. La méthode est validée
+sur les deux salariés sans absence non rémunérée : chez Bugny et Girerd, les
+heures implicites collent au « cumul heures » imprimé à ± 0,05 h près sur sept
+mois.
+
+En janvier, Quadra utilise **165,6355 h** pour Cotte et **158,4595 h** pour
+Gautheron (mesure à ± 0,001 h), là où les heures payées valent 165,50 et
+158,00. Quadra ne retranche donc pas la totalité de l'absence : il en garde
+0,135 h et 0,460 h, soit environ 4 %.
+
+Aucune règle simple ne reproduit les deux valeurs :
+
+| règle testée | Cotte | Gautheron |
+|---|---|---|
+| Quadra (mesuré) | 165,6355 | 158,4595 |
+| heures payées (ce que nous faisons) | 165,500 | 158,000 |
+| prorata de la rémunération entière | 165,724 | 158,705 |
+| prorata hors prime d'ancienneté | 165,649 | 158,469 |
+| fraction constante des heures d'absence | 96,1 % | 95,8 % |
+| taux horaire constant sur la retenue | 13,82 €/h | 13,86 €/h |
+
+Les deux dernières lignes montrent qu'il ne s'agit ni d'une fraction constante
+ni d'un taux constant. Les deux salariés ayant exactement la même structure de
+paie, deux observations ne suffisent pas à identifier la convention. Le reste
+vaut 0,2 % de la réduction et joue en notre défaveur : nous réclamons un peu
+moins que le cabinet. À demander à Gaëlle plutôt qu'à deviner.
+
+#### Ce que le recoupement a révélé en plus : l'arrêt maladie
+
+Le même calcul, appliqué aux sept mois de Marion, montre un décalage stable :
+
+| | janv. | mars | avril | mai | juin | juil. |
+|---|---|---|---|---|---|---|
+| heures implicites − heures imprimées | +0,46 | +24,02 | +23,87 | +23,91 | +28,14 | +24,77 |
+
+Le saut apparaît en mars, au mois exact de son arrêt maladie (16→28/03 puis
+29/03→28/04), et ne se résorbe plus. **Quadra ne retire pas les heures d'arrêt
+maladie du SMIC de référence**, conformément à la règle BOSS : en cas de
+suspension avec maintien de rémunération, le SMIC ne baisse qu'à proportion de
+la part restée à la charge de l'employeur. Notre moteur ne les retire pas non
+plus depuis la correction du 15/09 : les deux sont alignés sur ce point.
+
+Deux anomalies d'un mois restent inexpliquées, sans lien avec les absences :
+Girerd en juin (+3,96 h alors qu'il n'a aucune absence) et Bugny en juillet
+(−3,90 h). Ce sont probablement les régularisations Quadra du « rythme » de
+juin.
 
 ### 2. Autres contributions employeur : deux taux de paramétrage
 
