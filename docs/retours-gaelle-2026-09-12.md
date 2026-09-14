@@ -326,6 +326,31 @@ Demory et Gautheron ne reproduit pas Quadra (participation, arrêts maladie,
 absences de mai), ces trois cumuls se corrigeront par une reprise complète du
 backtest de ces mois, pas à la main.
 
+Janvier 2026 rejoué depuis les feuilles de pointage (15/09, 0 h 40) : les
+27 feuilles de janvier à juin ont été remises en paysage
+(`data/colorplast/pointages/`), les quatre de janvier lues à la main avec la
+règle annotée par Gaëlle sur S03 (fin − début − 0,5 h de pause au-delà de
+6 h). Script `colorplast_janvier_feuilles_test.py` : état de janvier posé par
+le setup du backtest, absences et heures sup venant des feuilles et non des
+bulletins, génération, comparaison, puis fiches remises comme avant (juillet
+et la chaîne à partir de février non touchés).
+
+| Salarié | EYWAI | Quadra | Écart | Lecture |
+|---|---|---|---|---|
+| Cotte | 2 351,89 | 2 351,89 | 0,00 | absence du 21/01 (3,14 + 0,36) retrouvée par le bilan hebdo |
+| Gautheron | 2 252,28 | 2 252,28 | 0,00 | absences 13/01 (2,24) et 14/01 (7,63), réduction HS 1,13 identiques |
+| Girerd | 3 799,07 | 3 799,06 | +0,01 | arrondi |
+| Bugny | 3 033,90 | 3 023,40 | +10,50 | 0,5 h à 50 % de plus : mardi 6/01 lu 18 h 30 sur la feuille, Gaëlle a compté 18 h |
+| Espinosa | 3 023,66 | 3 046,68 | −23,02 | 1 h à 50 % de moins : une semaine comptée 45 par Gaëlle, 44 sur ma lecture |
+
+La fenêtre s'est bien posée du 22/12/2025 au 25/01/2026, la semaine S05
+partant en février. Les deux écarts sont des lectures d'une demi-heure et
+d'une heure sur des feuilles manuscrites, pas des règles. Le moteur a
+retrouvé au centime les absences et leur répartition 35/39. À noter : un
+avertissement « indemnité trajet au-delà du plafond annuel » apparaît sur une
+regénération de janvier parce que le cumul additionne toute l'année déjà
+saisie, à borner au mois généré.
+
 Reste pour le 15/09 (appel 17h30) : congés et arrêts dans la fenêtre ou au
 mois civil ; les 2 h de surplus de Fuckar la semaine du 27/07, payées en
 heures sup chez nous, rien chez Quadra ; compteurs CP N-1 (Bugny 40/0/40
