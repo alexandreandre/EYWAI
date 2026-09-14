@@ -73,19 +73,31 @@ def main() -> int:
         print("SIMULATION : rien n'est régénéré")
         return 0
 
-    try:
-        result = generate_payslip(
+    def _generer(force: bool):
+        return generate_payslip(
             GeneratePayslipInput(
                 employee_id=emp["id"],
                 year=YEAR,
                 month=MONTH,
+                force_calendrier_incomplet=force,
                 requested_by_name="script gautheron_juillet_test",
             )
         )
-    except (PayslipCalendarIncompleteError, PayslipBadRequestError) as exc:
+
+    try:
+        try:
+            result = _generer(False)
+        except PayslipCalendarIncompleteError as exc:
+            # Même passage outre que l'écran, qui demande confirmation à la RH
+            # (Gaëlle l'a fait le 12/09) : on le dit, on ne le cache pas.
+            print(f"::warning::Calendrier incomplet, génération forcée comme depuis l'écran : {exc}")
+            result = _generer(True)
+    except PayslipBadRequestError as exc:
         print(f"::error::Génération refusée : {exc}")
         return 1
     print(f"génération : {result.status} — {result.message}")
+    for w in result.warnings or []:
+        print(f"  avertissement : {w}")
 
     row = (
         supabase.table("payslips")
