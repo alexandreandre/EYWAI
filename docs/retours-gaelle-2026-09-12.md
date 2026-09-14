@@ -340,12 +340,12 @@ et la chaîne à partir de février non touchés).
 | Cotte | 2 351,89 | 2 351,89 | 0,00 | absence du 21/01 (3,14 + 0,36) retrouvée par le bilan hebdo |
 | Gautheron | 2 252,28 | 2 252,28 | 0,00 | absences 13/01 (2,24) et 14/01 (7,63), réduction HS 1,13 identiques |
 | Girerd | 3 799,07 | 3 799,06 | +0,01 | arrondi |
-| Bugny | 3 033,90 | 3 023,40 | +10,50 | 0,5 h à 50 % de plus : mardi 6/01 lu 18 h 30 sur la feuille, Gaëlle a compté 18 h |
-| Espinosa | 3 023,66 | 3 046,68 | −23,02 | 1 h à 50 % de moins : une semaine comptée 45 par Gaëlle, 44 sur ma lecture |
+| Bugny | 3 023,40 | 3 023,40 | 0,00 | après relecture du vendredi 23/01 (16 h, pas 16 h 30, « 8,5 » annoté par Gaëlle) |
+| Espinosa | 3 023,66 | 3 046,68 | −23,02 | 1 h à 50 % de moins : les trois feuilles de janvier donnent 44 h chacune, l'heure vient des semaines du 22 au 31 décembre, dans la fenêtre de janvier, dont on n'a pas les feuilles |
 
 La fenêtre s'est bien posée du 22/12/2025 au 25/01/2026, la semaine S05
-partant en février. Les deux écarts sont des lectures d'une demi-heure et
-d'une heure sur des feuilles manuscrites, pas des règles. Le moteur a
+partant en février. Quatre salariés sur cinq au centime ; le dernier écart
+est une semaine de décembre absente du dossier, pas une règle. Le moteur a
 retrouvé au centime les absences et leur répartition 35/39. À noter : un
 avertissement « indemnité trajet au-delà du plafond annuel » apparaît sur une
 regénération de janvier parce que le cumul additionne toute l'année déjà
