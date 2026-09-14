@@ -29,6 +29,11 @@ MARKER = "BACKTEST_AUTO_COLORPLAST"
 # non remuneree. hs25/hs50 = quantite HS conjoncturelles. inputs = liste de
 # (name, amount, is_socially_taxed, is_taxable).
 # ---------------------------------------------------------------------------
+# Le complément « GAN mutuelle famille » (−98,13 puis −98,12) n'est plus une
+# retenue mensuelle : il est porté par la fiche depuis le 25/08 (mutuelle
+# « GAN Famille 2026 (EMU3+SMU2) » d'Espinosa, Gautheron et Girerd). Le
+# laisser ici le comptait deux fois, net à payer plus bas de 98,13 que Quadra
+# (rejeu de janvier du 15/09).
 MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
     1: {
         "BUGNY": {"base": 2123.38, "cp": [2], "hs25": 12.0, "hs50": 8.5, "mut_reint": False,
@@ -40,15 +45,12 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                              ("Acompte", -1814.87, False, False)]},
         "ESPINOSA": {"base": 2328.00, "cp": [2], "hs25": 12.0, "hs50": 4.0, "mut_reint": False,
                      "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("GAN MUTUELLE FAMILLE", -98.13, False, False),
                                 ("Acompte", -2365.99, False, False)]},
         "GAUTHERON": {"base": 1964.00, "cp": [2, 23], "abs": {13: 2.24, 14: 7.63}, "mut_reint": False,
                       "inputs": [("Prime exceptionnelle", 100.0, True, True),
-                                 ("GAN MUTUELLE FAMILLE", -98.13, False, False),
                                  ("Acompte", -1616.26, False, False)]},
         "GIRERD": {"base": 3101.00, "cp": [2], "mut_reint": False,
                    "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("GAN MUTUELLE FAMILLE", -98.13, False, False),
                               ("Acompte", -2891.77, False, False)]},
     },
     2: {
@@ -58,14 +60,11 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "COTTE": {"base": 1964.00, "cp": [19],
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 15.0, "hs50": 4.0, "mut_reint": False,
-                     "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
+                     "inputs": [("Indemnite de transport", 100.0, False, False)]},
         "GAUTHERON": {"base": 1964.00, "hs25": 3.5, "mut_reint": False,
-                      "inputs": [("Prime exceptionnelle", 100.0, True, True),
-                                 ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
+                      "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
-                   "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
+                   "inputs": [("Indemnite de transport", 250.0, False, False)]},
     },
     3: {
         "BUGNY": {"base": 2123.38, "hs25": 16.0, "hs50": 10.0, "mut_reint": False,
@@ -74,11 +73,9 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "COTTE": {"base": 1964.00,
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 14.75, "hs50": 5.75, "mut_reint": False,
-                     "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
+                     "inputs": [("Indemnite de transport", 100.0, False, False)]},
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
-                   "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("GAN MUTUELLE FAMILLE", -98.13, False, False)]},
+                   "inputs": [("Indemnite de transport", 250.0, False, False)]},
         # DEMORY : embauche 23/03, rémunération issue des quantités réelles
         # du bulletin (47,50 h normales + 3 h structurelles à 25 %).
         "DEMORY": {
@@ -99,11 +96,9 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "COTTE": {"base": 1964.00, "hs25": 2.0,
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 18.0, "hs50": 3.75, "mut_reint": True,
-                     "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
+                     "inputs": [("Indemnite de transport", 100.0, False, False)]},
         "GIRERD": {"base": 3101.00, "mut_reint": True, "prevoyance": (0.00465, 0.00465),
-                   "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
+                   "inputs": [("Indemnite de transport", 250.0, False, False)]},
         # DEMORY : 1er mois plein. Ferie 06/04 non paye (anciennete < 3 mois).
         "DEMORY": {"base": 1850.37, "abs": {6: 7.0}, "inputs": []},
         # FUCKAR : Cegid mensualise puis déduit 30,50 h avant l'embauche,
@@ -139,8 +134,7 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
             "inputs": [],
         },
         "ESPINOSA": {"base": 2374.55, "hs25": 16.0, "hs50": 7.0,
-                     "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
+                     "inputs": [("Indemnite de transport", 100.0, False, False)]},
         "FUCKAR": {
             "base": 1867.06,
             "salary_effective_date": "2026-06-01",
@@ -154,11 +148,9 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         },
         "GAUTHERON": {"base": 1993.40, "abs": {10: 7.0},
                       "inputs": [("Prime exceptionnelle", 100.0, True, True),
-                                 ("GAN MUTUELLE FAMILLE", -98.12, False, False),
                                  ("Saisie SGC OYONNAX", -33.38, False, False)]},
         "GIRERD": {"base": 3147.46,
-                   "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("GAN MUTUELLE FAMILLE", -98.12, False, False)]},
+                   "inputs": [("Indemnite de transport", 250.0, False, False)]},
     },
 }
 

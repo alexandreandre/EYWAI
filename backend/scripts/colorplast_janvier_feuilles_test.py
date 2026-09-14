@@ -165,13 +165,6 @@ def _poser_calendriers(emps: dict) -> None:
         supabase.table("monthly_inputs").delete().match(
             {"employee_id": emps[nom]["id"], "year": YEAR, "month": MONTH}
         ).ilike("name", "%suppl%").execute()
-    # Le complément « GAN mutuelle famille » est une cotisation de la fiche depuis
-    # fin août ; le setup l'insère aussi en retenue mensuelle, d'où un net à
-    # payer plus bas de 98,13 que Quadra (Espinosa, Gautheron, Girerd).
-    for nom in emps:
-        supabase.table("monthly_inputs").delete().match(
-            {"employee_id": emps[nom]["id"], "year": YEAR, "month": MONTH}
-        ).ilike("name", "%MUTUELLE FAMILLE%").execute()
 
 
 def main() -> int:

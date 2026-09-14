@@ -351,6 +351,25 @@ avertissement « indemnité trajet au-delà du plafond annuel » apparaît sur u
 regénération de janvier parce que le cumul additionne toute l'année déjà
 saisie, à borner au mois généré.
 
+Janvier ligne à ligne (15/09, 1 h) : cotisations principales salariales et
+patronales identiques au centime pour les cinq ; nets après impôt : Bugny
+75,58, Espinosa 74,06, Girerd 47,93 au centime, Cotte à 0,03, Gautheron à
+0,10 (arrondis de base d'heures sup après absence). Trois écarts restent, tous
+identifiés :
+- réduction générale avec absences non rémunérées : exacte pour Bugny,
+  Espinosa, Girerd ; Cotte −643,01 contre −609,61, Gautheron −689,65 contre
+  −582,21. Notre SMIC de référence ne se réduit pas comme celui de Quadra en
+  présence d'heures non payées. Sujet moteur, probable origine des écarts de
+  juin et juillet sur Marion ;
+- « autres contributions » employeur : Quadra applique la formation à 0,55 %
+  (moins de 11 salariés) et un forfait social de 8 % sur prévoyance plus
+  mutuelle patronale ; nous prenons 1 % et pas de forfait social. Bugny :
+  63,36 contre 53,22. Réglages d'effectif à trancher ;
+- cumul heures : Quadra ajoute les heures sup conjoncturelles (Bugny 189,5
+  contre 169), convention déjà notée.
+Le doublon de mutuelle famille (retenue mensuelle du setup en plus de la
+cotisation de la fiche) est retiré du setup pour tous les mois.
+
 Reste pour le 15/09 (appel 17h30) : congés et arrêts dans la fenêtre ou au
 mois civil ; les 2 h de surplus de Fuckar la semaine du 27/07, payées en
 heures sup chez nous, rien chez Quadra ; compteurs CP N-1 (Bugny 40/0/40
