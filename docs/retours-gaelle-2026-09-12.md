@@ -280,13 +280,22 @@ Vérifié sur le test (fenêtre 22/06 → 26/07) : Fuckar 1 906,45 et Espinosa
 27 au 31 juillet une seule fois. MAJI et ZONE 404 rejoués : résultat identique
 au relevé du 11/09 sur les 81 bulletins.
 
-Chaîne des cumuls (Girerd) : une première remise d'aplomb par regénération de
-janvier à juin a recalculé ces mois avec la fiche d'aujourd'hui (Girerd à
-3 855,98 en janvier au lieu de 3 799,07) ; annulée depuis les sauvegardes de
-l'historique, maillons réalignés sur les bulletins restaurés. Juillet
-regénéré sur ces maillons : cumul net imposable 18 522,50 (Gaëlle lisait
-18 435,65). Règle à retenir : un mois passé ne se regénère qu'avec le setup
-mensuel du backtest, jamais directement.
+Chaîne des cumuls, rectificatif du 14/09 tard le soir : le diagnostic
+« 87 € manquants sur janvier à mars » était faux. Les bulletins Quadra relus
+montrent que le cabinet n'a réintégré la part patronale de mutuelle dans le
+net imposable qu'à partir d'avril (Girerd : 2 600,18 de janvier à mars,
+2 629,13 en avril). Le cumul que Gaëlle lisait sur notre juillet, 18 435,65,
+était à deux centimes du cumul Quadra, 18 435,67. L'écart qu'elle signale sur
+« le cumul net imposable » n'est donc pas celui-là : lui demander le chiffre
+Quadra qu'elle compare. Entre-temps, une regénération de janvier à juin puis
+un retour aux bulletins du 27/08 avaient décalé la chaîne de + 87 € ; le
+maillon de juin de chaque salarié a été réaligné sur le cumul Quadra à fin
+juin (`colorplast_liens_juin_quadra_test.py`) et juillet regénéré : Bugny,
+Cotte, Espinosa, Fuckar au centime de Quadra, Girerd à 0,02. Gautheron et
+Demory sur la meilleure valeur connue (PDF illisible / cumul de juin Quadra).
+Règle à retenir : sur une reprise en cours d'année, la chaîne suit le cabinet,
+c'est-à-dire ce qui a été déclaré, pas notre recalcul ; et un mois passé ne se
+regénère qu'avec le setup mensuel du backtest.
 
 Reste pour le 15/09 (appel 17h30) : congés et arrêts dans la fenêtre ou au
 mois civil ; les 2 h de surplus de Fuckar la semaine du 27/07, payées en
