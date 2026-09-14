@@ -40,6 +40,22 @@ def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> 
     return float(heures)
 
 
+def _repartir_absence_au_prorata_du_contrat(
+    heures: float, duree_hebdo: float
+) -> tuple[float, float]:
+    """Heures d'absence d'un contrat > 35 h : (part au taux de base, part HS).
+
+    Chaque heure planifiée absente est retirée 35/39 au taux de base et 4/39
+    sur les heures sup structurelles mensualisées — la règle du cabinet
+    (Quadra) : 8,5 h → 7,63 + 0,87 ; 7,8 h → 7,00 + 0,80 ; 0,25 h → 0,22 +
+    0,03. La part de base est arrondie au centième, le reste va aux HS pour
+    que les deux parts fassent exactement les heures absentes.
+    """
+    part_base = round(heures * lc.DUREE_LEGALE_HEBDO / duree_hebdo, 2)
+    part_hs = round(heures - part_base, 2)
+    return part_base, max(part_hs, 0.0)
+
+
 def _jours_evenement_conges(evenement: Dict[str, Any]) -> float:
     """Quotité de jour consommée par un événement conges_payes.
 
@@ -931,6 +947,9 @@ def calculer_salaire_brut(
     heures_travail_hc1_total = 0.0
     heures_travail_hc2_total = 0.0
     heures_absence_hs_total = 0.0  #
+    # Heures d'absence retirées sur les HS structurelles au prorata du contrat
+    # (contrats > 35 h), cf. `_repartir_absence_au_prorata_du_contrat`.
+    heures_hs_structurelles_perdues = 0.0
 
     contrat_dates = contexte.contrat.get("contrat", {}) or {}
     date_entree_contrat = _parse_date_contrat(contrat_dates.get("date_entree"))
@@ -1001,7 +1020,24 @@ def calculer_salaire_brut(
                 is_hs_absence = True
 
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
-            if is_hs_absence:
+            if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
+                # Contrat > 35 h : chaque heure d'absence est retirée au prorata
+                # du contrat, 35/39 au taux de base et 4/39 sur les heures sup
+                # structurelles mensualisées, sur les heures planifiées du jour.
+                # C'est ce que fait le cabinet : Colorplast juillet 2026,
+                # journée de 8,5 h → 7,63 + 0,87 (Marion, retour Gaëlle 12/09) ;
+                # MBC, journées de 7,8 h → 7,00 + 0,80. La position de l'absence
+                # dans la semaine (base/hs25 de l'analyseur) n'entre pas en jeu,
+                # et une journée n'est plus plafonnée à 7 h.
+                part_base, part_hs = _repartir_absence_au_prorata_du_contrat(
+                    heures_abs, duree_contrat_hebdo
+                )
+                if not evenement.get("is_regularisation_anterieure"):
+                    heures_hs_structurelles_perdues += part_hs
+                heures_abs = part_base
+                taux_deduction = taux_horaire_de_base
+                type_ev = "absence_injustifiee_base"
+            elif is_hs_absence:
                 heures_absence_hs_total += heures_abs
             else:
                 # Même règle que l'arrêt maladie (cf. bloc arret_maladie plus
@@ -1041,6 +1077,13 @@ def calculer_salaire_brut(
 
         elif type_ev == "absence_non_remuneree":
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
+            part_hs = 0.0
+            if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
+                # Même prorata du contrat que l'absence injustifiée ci-dessus
+                # (Demory, Colorplast juin 2026 : 8,5 h → 7,63 + 0,87).
+                heures_abs, part_hs = _repartir_absence_au_prorata_du_contrat(
+                    heures_abs, duree_contrat_hebdo
+                )
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             # Une régularisation antérieure (cf. `is_regularisation_anterieure`)
             # ne doit PAS contribuer à la quote-part des HS structurelles
@@ -1050,9 +1093,12 @@ def calculer_salaire_brut(
             # cf. KIRMIZI mai 2026 MBC : sans cette exclusion, la retenue est
             # sur-évaluée d'une réduction HS structurelles fantôme).
             if not evenement.get("is_regularisation_anterieure"):
-                jours_absence_legale_equivalents += (
-                    heures_abs / lc.DUREE_LEGALE_HEBDO * 5
-                )
+                if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
+                    heures_hs_structurelles_perdues += part_hs
+                else:
+                    jours_absence_legale_equivalents += (
+                        heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                    )
                 montant_absence_pleine_total += montant_deduction
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
@@ -1124,18 +1170,22 @@ def calculer_salaire_brut(
     # pour les journées d'absence déduites sur la référence légale : le salarié absent un
     # jour ne génère pas non plus sa quote-part de l'heure supplémentaire structurelle de
     # ce jour-là (17,33 h/mois répartis sur les jours ouvrés légaux du mois).
+    heures_hs_perdues = 0.0
     if jours_absence_legale_equivalents > 0 and heures_sup_structurelles_mensuelles > 0:
         jours_legaux_mensuels = (
             jours_ouvres_presence
             if facteur_prorata < 1.0
             else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
         )
-        heures_hs_perdues = round(
+        heures_hs_perdues = (
             heures_sup_structurelles_mensuelles
             * jours_absence_legale_equivalents
-            / jours_legaux_mensuels,
-            2,
+            / jours_legaux_mensuels
         )
+    # Part des absences retirée directement sur les HS structurelles (contrat
+    # > 35 h, prorata du contrat) : elle s'ajoute à la quote-part par journée.
+    heures_hs_perdues = round(heures_hs_perdues + heures_hs_structurelles_perdues, 2)
+    if heures_hs_perdues > 0 and heures_sup_structurelles_mensuelles > 0:
         if heures_hs_perdues > 0:
             montant_reduction_hs = round(heures_hs_perdues * taux_horaire_majore, 2)
             montant_absence_pleine_total += montant_reduction_hs

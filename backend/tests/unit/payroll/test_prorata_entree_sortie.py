@@ -202,4 +202,8 @@ def test_absences_reduisent_les_hs_sur_la_periode_partielle():
         for l in resultat["lignes_composants_brut"]
         if l.get("is_reduction_hs")
     )
-    assert reduction["quantite"] == pytest.approx(4.3)
+    # Les 8 jours d'arrêt maladie gardent la quote-part par journée légale
+    # (4,00 h) ; l'absence non rémunérée de 4,2 h d'un contrat 37,5 h est
+    # retirée au prorata du contrat, 4,2 × 2,5/37,5 = 0,28 h, quelle que soit
+    # la longueur du mois (règle du cabinet, cf. test_absence_prorata_contrat).
+    assert reduction["quantite"] == pytest.approx(4.28)
