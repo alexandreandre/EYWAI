@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calculator, Euro } from 'lucide-react';
-import { useEffect } from 'react';
+import { netAPayerApresModification } from '@/features/payroll/utils/payslipSyntheseNet';
 
 interface SyntheseNetSectionProps {
   data: any;
@@ -19,27 +19,14 @@ export default function SyntheseNetSection({ data, netAPayer, totalExonerations,
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
   };
 
-  // Recalculer le net à payer automatiquement
-  useEffect(() => {
-    const netSocial = parseFloat(data?.net_social_avant_impot || 0);
-    const impot = parseFloat(data?.impot_prelevement_a_la_source?.montant || 0);
-    const transport = parseFloat(data?.remboursement_transport || 0);
-    const indemniteTransport = parseFloat(data?.indemnite_transport_fixe || 0);
+  const lireChamp = (source: any, field: string): unknown =>
+    field.split('.').reduce((courant, cle) => (courant == null ? undefined : courant[cle]), source);
 
-    const calculatedNet = netSocial - impot + transport + indemniteTransport;
-
-    if (calculatedNet !== netAPayer) {
-      onChange(data, calculatedNet);
-    }
-  }, [
-    data?.net_social_avant_impot,
-    data?.impot_prelevement_a_la_source?.montant,
-    data?.remboursement_transport,
-    data?.indemnite_transport_fixe,
-  ]);
-
+  // Le net à payer enregistré reste la référence : on ne le décale que de la
+  // différence saisie. Aucun recalcul au chargement (cf. payslipSyntheseNet).
   const handleFieldChange = (field: string, value: any) => {
-    const newData = JSON.parse(JSON.stringify(data));
+    const newData = JSON.parse(JSON.stringify(data ?? {}));
+    const ancienneValeur = lireChamp(data, field);
 
     if (field.includes('.')) {
       const parts = field.split('.');
@@ -53,8 +40,7 @@ export default function SyntheseNetSection({ data, netAPayer, totalExonerations,
       newData[field] = value;
     }
 
-    // Le net à payer sera recalculé par le useEffect
-    onChange(newData, netAPayer);
+    onChange(newData, netAPayerApresModification(netAPayer, field, ancienneValeur, value));
   };
 
   return (

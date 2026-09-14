@@ -5,7 +5,11 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Building, TrendingDown, Calculator, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import {
+  avecTotauxCotisations,
+  totauxCotisations,
+} from '@/features/payroll/utils/payslipSyntheseNet';
 
 interface CotisationsSectionProps {
   data: any;
@@ -13,40 +17,19 @@ interface CotisationsSectionProps {
 }
 
 export default function CotisationsSection({ data, onChange }: CotisationsSectionProps) {
-  const [totals, setTotals] = useState({ salarial: 0, patronal: 0 });
-
-  useEffect(() => {
-    // Recalculer les totaux automatiquement
-    let totalSalarial = 0;
-    let totalPatronal = 0;
-
-    const blocs = [
-      data?.bloc_principales || [],
-      data?.bloc_allegements || [],
-      data?.bloc_csg_non_deductible || []
-    ];
-
-    blocs.forEach(bloc => {
-      bloc.forEach((cot: any) => {
-        totalSalarial += parseFloat(cot.montant_salarial || 0);
-        totalPatronal += parseFloat(cot.montant_patronal || 0);
-      });
-    });
-
-    setTotals({ salarial: totalSalarial, patronal: totalPatronal });
-
-    // Mettre à jour les totaux dans data
-    const newData = { ...data, total_salarial: totalSalarial, total_patronal: totalPatronal };
-    if (JSON.stringify(newData) !== JSON.stringify(data)) {
-      onChange(newData);
-    }
-  }, [data?.bloc_principales, data?.bloc_allegements, data?.bloc_csg_non_deductible]);
+  // Totaux affichés, dérivés des lignes : aucun recalcul poussé au parent au
+  // chargement (cf. payslipSyntheseNet). Les gestionnaires ci-dessous remettent
+  // les totaux dans la structure à chaque saisie.
+  const totals = useMemo(() => {
+    const { total_salarial, total_patronal } = totauxCotisations(data);
+    return { salarial: total_salarial, patronal: total_patronal };
+  }, [data]);
 
   const handleCotisationChange = (bloc: string, index: number, field: string, value: any) => {
     const newData = JSON.parse(JSON.stringify(data));
     if (!newData[bloc]) newData[bloc] = [];
     newData[bloc][index] = { ...newData[bloc][index], [field]: value };
-    onChange(newData);
+    onChange(avecTotauxCotisations(newData));
   };
 
   const addCotisation = (bloc: string, type: 'principale' | 'allegement' | 'csg') => {
@@ -63,14 +46,14 @@ export default function CotisationsSection({ data, onChange }: CotisationsSectio
     };
 
     newData[bloc].push(newCot);
-    onChange(newData);
+    onChange(avecTotauxCotisations(newData));
   };
 
   const removeCotisation = (bloc: string, index: number) => {
     const newData = JSON.parse(JSON.stringify(data));
     if (!newData[bloc]) return;
     newData[bloc].splice(index, 1);
-    onChange(newData);
+    onChange(avecTotauxCotisations(newData));
   };
 
   const renderCotisationRow = (cot: any, idx: number, bloc: string) => (
