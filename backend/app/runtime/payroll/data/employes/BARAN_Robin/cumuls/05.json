@@ -1,11 +1,20 @@
 {
   "cumuls": {
-    "brut_total": 14636.37,
-    "net_imposable": 11908.57,
-    "impot_preleve_a_la_source": 1432.74,
-    "heures_supplementaires_remunerees": 0.0,
-    "heures_remunerees": 58.0,
-    "reduction_generale_patronale": 0.0
+    "brut_total": 14636.369999999999,
+    "net_imposable": 11908.560000000001,
+    "heures_remunerees": 357.0,
+    "brut_reference_n_1": 14636.37,
+    "cumul_pss_agirc_arrco": 11106.34,
+    "hs_exonerees_ir_cumul": 0.0,
+    "montant_hs_remunerees": 0.0,
+    "cumul_brut_agirc_arrco": 14636.37,
+    "brut_reference_period_end": "2026-05-31",
+    "cumul_tranche_1_appliquee": 11106.34,
+    "cumul_tranche_2_appliquee": 3530.03,
+    "impot_preleve_a_la_source": 1432.7399999999998,
+    "brut_reference_period_start": "2025-06-01",
+    "reduction_generale_patronale": 0.0,
+    "heures_supplementaires_remunerees": 0.0
   },
   "periode": {
     "dernier_mois_calcule": 5

@@ -88,6 +88,14 @@ PLANNING_CONGE = {"GAUTHERON": {22: 8.5}}
 QUADRA_BRUT = {"BUGNY": 3023.40, "COTTE": 2351.89, "ESPINOSA": 3046.68, "GAUTHERON": 2252.28, "GIRERD": 3799.06}
 #: Net à payer avant impôt et PAS sur le bulletin Quadra de janvier.
 QUADRA_NET = {"BUGNY": (139.02, 63.44), "COTTE": (65.97, 35.52), "ESPINOSA": (74.06, 0.0), "GAUTHERON": (54.69, 25.42), "GIRERD": (159.74, 111.81)}
+#: Réduction générale (« EXO., ECRET. ET ALLEG. COTIS ») du bulletin Quadra.
+#: Les deux salariés absents étaient surévalués tant que les heures d'absence
+#: restaient dans le SMIC de référence (Cotte 643,01 ; Gautheron 689,65).
+QUADRA_REDUCTION = {"BUGNY": -569.91, "COTTE": -609.61, "ESPINOSA": -524.94, "GAUTHERON": -582.21, "GIRERD": -252.64}
+#: Tolérance sur la réduction : Quadra compte une fraction d'heure de plus que
+#: son propre « cumul heures » imprimé quand il y a une absence (165,64 contre
+#: 165,50 ; 158,46 contre 158,00), d'où un reste de 1,41 et 4,50.
+TOLERANCE_REDUCTION = 5.0
 
 
 def _generer(employee_id: str):
@@ -223,6 +231,25 @@ def main() -> int:
                 f"      net avant impôt {net_avant:.2f} (Quadra {q_net:.2f}, écart {net_avant - q_net:+.2f}) ; "
                 f"PAS {pas:.2f} (Quadra {q_pas:.2f}) ; net après impôt {net_avant - pas:.2f} (Quadra {q_net - q_pas:.2f})"
             )
+            structure = data.get("structure_cotisations") or {}
+            reduction = next(
+                (
+                    float(c.get("montant_patronal") or 0)
+                    for c in (structure.get("bloc_allegements") or [])
+                    if c.get("coti_id") == "reduction_generale"
+                ),
+                0.0,
+            )
+            q_red = QUADRA_REDUCTION[nom]
+            ecart_red = reduction - q_red
+            heures = ((data.get("cumuls") or {}).get("cumuls") or {}).get("heures_remunerees")
+            print(
+                f"      réduction générale {reduction:.2f} (Quadra {q_red:.2f}, écart {ecart_red:+.2f}) ; "
+                f"cumul heures {heures}"
+            )
+            if abs(ecart_red) > TOLERANCE_REDUCTION:
+                print(f"::error::{nom} : réduction générale hors tolérance ({ecart_red:+.2f})")
+                rc = 1
             for w in res.warnings or []:
                 print(f"      avertissement : {w}")
             if etat != "OK":

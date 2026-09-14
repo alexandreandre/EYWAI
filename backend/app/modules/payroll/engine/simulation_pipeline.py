@@ -96,12 +96,16 @@ def run_simulation_bulletin_pipeline(
     # canaux — calendrier ET saisies manuelles) pour ne pas double-compter les HS
     # structurelles déjà incluses dans l'horaire contractuel. Sans les HS, le
     # SMIC de référence est sous-évalué et la réduction générale trop faible.
+    # Les heures d'absence non rémunérée en sortent : le SMIC de référence est
+    # proportionnel aux heures rémunérées (même règle que `payslip_run_heures`).
     heures_mois = (duree_hebdo * 52) / 12
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
-    heures_remunerees_reduction = (
+    heures_remunerees_reduction = max(
+        0.0,
         min(heures_mois, heures_legales_mois)
         + float(total_heures_supp or 0.0)
         + float(brut_res.get("heures_complementaires", 0.0) or 0.0)
+        - float(brut_res.get("heures_absence_non_payees", 0.0) or 0.0),
     )
     ligne_reduction = calculer_reduction_generale(
         contexte, salaire_brut, heures_remunerees_reduction

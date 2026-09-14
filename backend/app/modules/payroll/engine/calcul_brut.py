@@ -962,6 +962,13 @@ def calculer_salaire_brut(
     # Heures d'absence retirées sur les HS structurelles au prorata du contrat
     # (contrats > 35 h), cf. `_repartir_absence_au_prorata_du_contrat`.
     heures_hs_structurelles_perdues = 0.0
+    # Heures dont la paie a réellement été retirée par une absence NON
+    # rémunérée (injustifiée, non rémunérée, férié chômé non payé). Elles
+    # sortent du SMIC de référence de la réduction générale, qui est
+    # proportionnel aux heures rémunérées. L'arrêt maladie en est exclu : la
+    # rémunération y est maintenue en tout ou partie et le SMIC suit alors la
+    # part restée à la charge de l'employeur (règle distincte).
+    heures_absence_non_payees = 0.0
 
     contrat_dates = contexte.contrat.get("contrat", {}) or {}
     date_entree_contrat = _parse_date_contrat(contrat_dates.get("date_entree"))
@@ -1046,11 +1053,14 @@ def calculer_salaire_brut(
                 )
                 if not evenement.get("is_regularisation_anterieure"):
                     heures_hs_structurelles_perdues += part_hs
+                    heures_absence_non_payees += part_hs
+                heures_absence_non_payees += part_base
                 heures_abs = part_base
                 taux_deduction = taux_horaire_de_base
                 type_ev = "absence_injustifiee_base"
             elif is_hs_absence:
                 heures_absence_hs_total += heures_abs
+                heures_absence_non_payees += heures_abs
             else:
                 # Même règle que l'arrêt maladie (cf. bloc arret_maladie plus
                 # bas, cas OSMANI2) : la retenue « base » d'une journée
@@ -1065,6 +1075,7 @@ def calculer_salaire_brut(
                 heures_abs = min(
                     heures_abs, _heures_journalieres_contrat(duree_contrat_hebdo)
                 )
+                heures_absence_non_payees += heures_abs
                 if not evenement.get("is_regularisation_anterieure"):
                     jours_absence_legale_equivalents += (
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -1104,9 +1115,11 @@ def calculer_salaire_brut(
             # de mai pour une absence d'avril rattachée au bulletin de mai,
             # cf. KIRMIZI mai 2026 MBC : sans cette exclusion, la retenue est
             # sur-évaluée d'une réduction HS structurelles fantôme).
+            heures_absence_non_payees += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
                 if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
                     heures_hs_structurelles_perdues += part_hs
+                    heures_absence_non_payees += part_hs
                 else:
                     jours_absence_legale_equivalents += (
                         heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -1129,6 +1142,7 @@ def calculer_salaire_brut(
         elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            heures_absence_non_payees += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -1496,6 +1510,9 @@ def calculer_salaire_brut(
         # pour le SMIC de référence de la réduction (heures rémunérées = contrat
         # + conjoncturelles + complémentaires), sans double-compter le structurel.
         "heures_sup_conjoncturelles": round(heures_sup_conjoncturelles, 2),
+        # Heures retirées de la paie par une absence non rémunérée : à sortir du
+        # SMIC de référence de la réduction générale (arrêt maladie exclu).
+        "heures_absence_non_payees": round(heures_absence_non_payees, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total + heures_travail_hc2_total, 2

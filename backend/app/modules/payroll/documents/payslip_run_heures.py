@@ -846,10 +846,17 @@ def run_payslip_generation_heures(
     # Heures rémunérées pour le SMIC de référence de la réduction générale :
     # base LÉGALE (min contrat/légal) + TOUTES les heures supp (`total_heures_supp`,
     # fiable quel que soit le canal — calendrier ou saisies manuelles) + heures
-    # complémentaires. Ne pas réutiliser `heures_sup_conjoncturelles_mois` (issue
-    # du seul calendrier : nulle quand les HS sont saisies manuellement).
+    # complémentaires, MOINS les heures d'absence non rémunérée. Ne pas
+    # réutiliser `heures_sup_conjoncturelles_mois` (issue du seul calendrier :
+    # nulle quand les HS sont saisies manuellement).
+    #
+    # Le SMIC de référence est proportionnel aux heures rémunérées : une heure
+    # d'absence non payée doit en sortir, sinon la réduction est surévaluée
+    # (Colorplast janvier 2026 : Cotte 643,01 au lieu de 609,61, Gautheron
+    # 689,65 au lieu de 582,21 — cf. `docs/colorplast-janvier-2026-ligne-a-ligne.md`).
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
-    heures_remunerees_reduction = (
+    heures_remunerees_reduction = max(
+        0.0,
         max(
             0.0,
             min(heures_contractuelles_mois, heures_legales_mois)
@@ -857,6 +864,7 @@ def run_payslip_generation_heures(
         )
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
+        - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),
     )
 
     ligne_exoneration_jei = calculer_exoneration_jei(
