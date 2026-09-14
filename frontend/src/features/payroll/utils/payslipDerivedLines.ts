@@ -99,3 +99,32 @@ export function lienVariablesDuMois({
   if (employeeId) params.set('employee', employeeId);
   return `/saisies?${params.toString()}`;
 }
+
+const SECTIONS_EDITABLES = [
+  'calcul_du_brut',
+  'details_absences',
+  'details_conges',
+  'primes_non_soumises',
+  'notes_de_frais',
+] as const;
+
+/**
+ * Nombre de lignes qui diffèrent entre le bulletin chargé et le bulletin en
+ * cours d'édition, pour dire à la RH ce qui attend d'être enregistré. Une
+ * ligne ajoutée ou retirée compte pour une.
+ */
+export function nombreDeLignesModifiees(original: unknown, edite: unknown): number {
+  if (!original || typeof original !== 'object' || !edite || typeof edite !== 'object') return 0;
+  const avant = original as Record<string, unknown>;
+  const apres = edite as Record<string, unknown>;
+  let total = 0;
+  for (const section of SECTIONS_EDITABLES) {
+    const a = Array.isArray(avant[section]) ? (avant[section] as unknown[]) : [];
+    const b = Array.isArray(apres[section]) ? (apres[section] as unknown[]) : [];
+    const longueur = Math.max(a.length, b.length);
+    for (let i = 0; i < longueur; i += 1) {
+      if (JSON.stringify(a[i] ?? null) !== JSON.stringify(b[i] ?? null)) total += 1;
+    }
+  }
+  return total;
+}

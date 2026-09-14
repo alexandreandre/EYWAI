@@ -3,6 +3,7 @@ import {
   estLigneHeuresSupConjoncturelle,
   leMoteurRecalculera,
   lienVariablesDuMois,
+  nombreDeLignesModifiees,
   resumeAutomatique,
   totalHeuresSupConjoncturelles,
 } from './payslipDerivedLines';
@@ -113,5 +114,35 @@ describe('resumeAutomatique', () => {
     expect(resumeAutomatique(lignes(12, 0), lignes(13, 0))).toBe(
       'Correction des heures supplémentaires : 12 h → 13 h'
     );
+  });
+});
+
+describe('nombreDeLignesModifiees', () => {
+  const original = {
+    calcul_du_brut: lignes(12, 3.5),
+    details_absences: [{ libelle: 'Absence injustifiée du 07/07/26 (base)', quantite: 7 }],
+    details_conges: [],
+  };
+
+  it('compte les lignes qui ont changé, section par section', () => {
+    const edite = {
+      ...original,
+      calcul_du_brut: lignes(19, 6.5),
+      details_absences: [{ libelle: 'Absence injustifiée du 07/07/26 (base)', quantite: 7.63 }],
+    };
+    // Deux lignes d'heures sup et une ligne d'absence.
+    expect(nombreDeLignesModifiees(original, edite)).toBe(3);
+  });
+
+  it('compte une ligne ajoutée ou retirée', () => {
+    const ajout = { ...original, details_conges: [{ libelle: 'Nouveau congé', quantite: 1 }] };
+    expect(nombreDeLignesModifiees(original, ajout)).toBe(1);
+    const retrait = { ...original, details_absences: [] };
+    expect(nombreDeLignesModifiees(original, retrait)).toBe(1);
+  });
+
+  it('rend zéro sans changement ou sans données', () => {
+    expect(nombreDeLignesModifiees(original, { ...original })).toBe(0);
+    expect(nombreDeLignesModifiees(undefined, original)).toBe(0);
   });
 });

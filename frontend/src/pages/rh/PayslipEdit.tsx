@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Save, Eye, History, Loader2, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Save, Eye, History, Loader2, SlidersHorizontal, Undo2 } from 'lucide-react';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -44,6 +44,7 @@ import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { cn } from '@/lib/utils';
 import {
   lienVariablesDuMois,
+  nombreDeLignesModifiees,
   resumeAutomatique,
 } from '@/features/payroll/utils/payslipDerivedLines';
 
@@ -108,6 +109,18 @@ export default function PayslipEdit() {
     setChangesSummary('');
     setInternalNote('');
   }, [payslipId]);
+
+  // Revenir au bulletin tel qu'il est enregistré, sans appel serveur.
+  const annulerModifications = useCallback(() => {
+    if (!payslip) return;
+    setEditedData(JSON.parse(JSON.stringify(payslip.payslip_data)) as PayslipBulletinData);
+    setHasUnsavedChanges(false);
+    setChangesSummary('');
+  }, [payslip]);
+
+  const lignesModifiees = hasUnsavedChanges
+    ? nombreDeLignesModifiees(payslip?.payslip_data, editedData)
+    : 0;
 
   // Charger les détails du bulletin
   useEffect(() => {
@@ -363,7 +376,7 @@ export default function PayslipEdit() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Enregistrer
+            Enregistrer et recalculer
           </Button>
         </div>
       </div>
@@ -534,6 +547,46 @@ export default function PayslipEdit() {
           maintien={editedData.bloc_maintien}
         />
       ) : null}
+      {/* Barre d'enregistrement, fixe en bas : dès qu'une ligne change, la RH
+          voit qu'il reste à enregistrer, où qu'elle soit dans la page. Le
+          12/09, Gaëlle a corrigé des heures sup sur l'aperçu sans jamais
+          enregistrer, le bouton du haut étant hors de vue. */}
+      {hasUnsavedChanges && !isEditLocked && (
+        <>
+          <div className="h-24" aria-hidden="true" />
+          <div
+            data-testid="barre-enregistrement"
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-orange-300 bg-orange-50 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
+          >
+            <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-orange-900">
+                <p className="font-semibold">
+                  {lignesModifiees > 1
+                    ? `${lignesModifiees} lignes modifiées, non enregistrées`
+                    : 'Modification non enregistrée'}
+                </p>
+                <p className="text-orange-800">
+                  Cliquez sur Enregistrer pour que le bulletin soit recalculé, cotisations et net compris.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={annulerModifications} disabled={isSaving}>
+                  <Undo2 className="h-4 w-4 mr-2" />
+                  Annuler les modifications
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving} data-testid="enregistrer-barre">
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Enregistrer et recalculer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
