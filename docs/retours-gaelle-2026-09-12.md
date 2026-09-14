@@ -275,8 +275,9 @@ et corrigées (d0dd4b08, 139476c4) :
   se solde maintenant en bloc, comme le fait Gaëlle à la main.
 
 Vérifié sur le test (fenêtre 22/06 → 26/07) : Fuckar 1 906,45 et Espinosa
-3 191,76 au centime ; Marion 2 085,64, les 3,42 restants étant son vendredi
-17/07 pointé 4 h 45 pour 5 h (absent chez Quadra). Août porte la semaine du
+3 191,76 au centime ; Marion 2 085,64 avec son vendredi 17/07 pointé 4 h 45,
+puis 2 089,03 une fois ce jour remis à 5 h comme sa feuille (Quadra 2 089,06 :
+3 centimes, le quart d'heure du 20/07 vaut 0,22 h chez nous et 0,23 chez eux). Août porte la semaine du
 27 au 31 juillet une seule fois. MAJI et ZONE 404 rejoués : résultat identique
 au relevé du 11/09 sur les 81 bulletins.
 
