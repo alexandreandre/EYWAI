@@ -87,9 +87,9 @@ test.describe('Édition du bulletin (données fictives)', () => {
     await expect(page.getByText('Total Brut: 1177.50 €', { exact: true })).toBeVisible();
 
     await page.locator('#changes-summary').fill('QA : correction de la quantité HS');
-    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await page.getByTestId('enregistrer-entete').click();
     await expect(page.locator('#changes-summary')).toHaveValue('');
-    await expect(page.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled();
+    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
     expect(sauvegardes).toHaveLength(1);
     expect(sauvegardes[0].payslip_data.calcul_du_brut?.[1]).toMatchObject({ quantite: 12.5, gain: 125 });
     expect(sauvegardes[0].payslip_data.salaire_brut).toBe(1177.5);
@@ -119,9 +119,9 @@ test.describe('Édition du bulletin (données fictives)', () => {
     await page.locator('#net_social').press('Tab');
     await expect(page.locator('#net_social')).toHaveValue('825');
     await page.locator('#changes-summary').fill('QA : modification de la synthèse');
-    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await page.getByTestId('enregistrer-entete').click();
     await expect(page.locator('#changes-summary')).toHaveValue('');
-    await expect(page.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled();
+    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
     expect(sauvegardes).toHaveLength(1);
     expect(sauvegardes[0].payslip_data.calcul_du_brut).toHaveLength(3);
     expect(sauvegardes[0].payslip_data.synthese_net?.net_social_avant_impot).toBe(825);
@@ -131,7 +131,7 @@ test.describe('Édition du bulletin (données fictives)', () => {
   test('un bulletin verrouillé reste non modifiable', async ({ page }) => {
     const sauvegardes = await preparerBulletin(page, true);
     await expect(page.getByText('Période verrouillée pour ce test', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Enregistrer', exact: true })).toBeDisabled();
+    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Ajouter une ligne', exact: true })).toBeDisabled();
     const ligne = page.getByRole('table').filter({ hasText: 'Salaire de base QA' }).getByRole('row').nth(2);
     await ligne.getByText('Heures suppl. majorées à 25%', { exact: true }).click();

@@ -370,6 +370,7 @@ export default function PayslipEdit() {
           <Button
             onClick={handleSave}
             disabled={isSaving || !hasUnsavedChanges || isEditLocked}
+            data-testid="enregistrer-entete"
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
