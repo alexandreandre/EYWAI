@@ -58,15 +58,27 @@ export default function CongesAbsencesSection({
   onOpenMaintienModal,
 }: CongesAbsencesSectionProps) {
   const { user } = useAuth();
+  // Changer la base ou le taux d'une ligne recalcule son montant, comme sur
+  // les lignes du brut. Sans cela, 0,23 h à 13,143 affichait toujours 3,29,
+  // le montant de l'ancienne quantité (Marion, retour Gaëlle 12/09).
+  const avecMontantRecalcule = (ligne: any, field: string) => {
+    if (field !== 'quantite' && field !== 'taux') return ligne;
+    const quantite = parseFloat(ligne.quantite) || 0;
+    const taux = parseFloat(ligne.taux) || 0;
+    const montant = Math.round(quantite * taux * 100) / 100;
+    const estUnGain = (Number(ligne.gain) || 0) > 0 && !(Number(ligne.perte) || 0);
+    return estUnGain ? { ...ligne, gain: montant, perte: 0 } : { ...ligne, perte: montant, gain: 0 };
+  };
+
   const handleCongeChange = (index: number, field: string, value: any) => {
     const newData = [...congesData];
-    newData[index] = { ...newData[index], [field]: value };
+    newData[index] = avecMontantRecalcule({ ...newData[index], [field]: value }, field);
     onCongesChange(newData);
   };
 
   const handleAbsenceChange = (index: number, field: string, value: any) => {
     const newData = [...absencesData];
-    newData[index] = { ...newData[index], [field]: value };
+    newData[index] = avecMontantRecalcule({ ...newData[index], [field]: value }, field);
     onAbsencesChange(newData);
   };
 
