@@ -16,7 +16,7 @@ Colorplast). Les horodatages de l'export WhatsApp sont en heure de New York :
 |---|---|---|---|
 | 1 | Compteurs CP à 2,08 et non 2,5 | réglage + arrondi du moteur | corrigé, à basculer sur le test |
 | 2 | Allègement employeur 256,05 vs 321,37 (Girerd) | comparaison faussée par notre affichage | affichage corrigé ; écart réel 14,49 € non résolu |
-| 3 | Absence de Marion : 0,23 × 13,143 ≠ 3,29 | aperçu non recalculé + règle de valorisation différente de Quadra | règle à trancher (voir § 3) |
+| 3 | Absence de Marion : 0,23 × 13,143 ≠ 3,29 | montant non recalculé à l'édition + règle de valorisation fausse pour les journées ≠ 7,8 h | corrigés, moteur et éditeur ; deux absences à vérifier |
 | 4 | Fuckar, fin de contrat au 15/09 « non enregistrée » | enregistrée, mais l'API ne renvoyait jamais le champ | modèle de réponse corrigé ; historique des CDD = chantier de fond |
 | 5 | Bugny, Cotte, Espinosa : cotisations sans les HS corrigées | corrections jamais enregistrées (aperçu) | éditeur assoupli |
 | 6 | Gautheron, saisie sur salaire : écran blanc | décimal en chaîne + aucune limite d'erreur | corrigé à l'API, à l'affichage, et limite d'erreur sur toutes les pages |
@@ -106,15 +106,25 @@ entièrement en base. Écart sur le brut de juillet : 6,88 € (2 082,18 chez
 nous, 2 089,06 chez Quadra). Les congés payés, eux, sont valorisés pareil des
 deux côtés (7 h + 0,8 h par jour).
 
-Notre règle actuelle vient du retour du 07/09 sur ce même bulletin et
-s'aligne sur Cegid (MBC, cas OSMANI2 : arrêt maladie retenu 7 h et non
-7,5 h). Les deux cabinets ne font donc pas pareil. Le moteur reste
-généraliste : il faut un **réglage par société** (« journée légale + quote-
-part HS » ou « heures planifiées au prorata base/HS »), pas une exception
-Colorplast dans le code. À trancher avec Alexandre avant d'écrire. Non fait.
+Ce n'est pas une différence de cabinet : les cinq usines sont sur le même
+logiciel (Cegid Quadra), et MBC montre la même règle avec des journées de
+7,8 h (7,8 × 35/39 = 7,00 + 0,80, d'où les « 7,00 » de ses bulletins).
+Notre règle du 07/09 (journée plafonnée à 7 h + quote-part d'heures sup par
+journée légale) n'était juste que pour des journées de 7,8 h.
 
-EYWAI porte aussi deux absences que Quadra n'a pas (17/07 0,25 h et 31/07
-1 h en HS) : elles viennent du calendrier de test, à vérifier avec Gaëlle.
+Corrigé le 13/09 au moteur, sans réglage par société : pour un contrat
+> 35 h, chaque heure d'absence non rémunérée est retirée 35/39 au taux de
+base et 4/39 sur les heures sup structurelles, sur les heures planifiées du
+jour, quelle que soit sa position dans la semaine. L'arrêt maladie garde la
+journée légale. Régénéré sur le test : 07/07 et 08/07 à 7,63 h (100,28),
+09/07 à 6,73 h (88,45), 23/07 à 0,67 h (8,81), identiques à Quadra ; 20/07 à
+0,22 h contre 0,23 (0,13 €, arrondi du cabinet). Brut 2 072,17 contre
+2 089,06 : les 16,89 € d'écart sont exactement les deux absences que Quadra
+n'a pas, le 17/07 (0,25 h) et le 31/07 (1 h). À vérifier par Gaëlle dans
+son calendrier.
+
+L'éditeur, lui, recalcule maintenant le montant d'une ligne d'absence ou de
+congé quand on change sa base ou son taux, comme sur les lignes du brut.
 
 ## 4. Fuckar
 
@@ -244,7 +254,8 @@ Gaëlle, puis régénérer mai et juillet.
 
 ## Reste à faire
 
-- Trancher la règle d'absence (§ 3) et le périmètre de l'unité ouvrée pour
-  MAJI / ZONE 404.
+- Périmètre de l'unité ouvrée pour MAJI / ZONE 404 (Vanessa).
+- Marion : les absences du 17/07 et du 31/07, absentes chez Quadra, à
+  confirmer ou retirer du calendrier de test.
 - Historique des contrats (§ 4) : à planifier.
 - Suivre la réduction générale sur août (§ 2).
