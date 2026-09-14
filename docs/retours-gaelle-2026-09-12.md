@@ -255,6 +255,47 @@ de mai, où les absences de Demory ne sont pas saisies sur le test (Quadra :
 1 529,05 avec 0,8 h de HS ; EYWAI : 2 114,65 sans absence). À saisir par
 Gaëlle, puis régénérer mai et juillet.
 
+## Retours du 14/09 et état au soir du 14/09
+
+Gaëlle a comparé ses bulletins Quadra de juillet aux nôtres, ligne à ligne
+(Espinosa, Fuckar, Marion). Bases, taux, valorisation 35/39 : identiques.
+Deux règles expliquaient tout l'écart de brut, spécifiées dans
+`docs/superpowers/specs/2026-09-14-fenetre-variables-et-bilan-hebdo-design.md`
+et corrigées (d0dd4b08, 139476c4) :
+
+- **Fenêtre des variables** : elle était affichée mais ne bornait que les
+  heures sup ; les absences suivaient le mois civil, la semaine du 27 au 31
+  juillet était retenue sur juillet puis reprise sur août. Les absences non
+  rémunérées suivent désormais la fenêtre ; congés, fériés et arrêts restent
+  au mois civil (à confirmer avec Gaëlle). Le compteur « cumul heures » se
+  calcule sur les événements retenus par la fenêtre.
+- **Bilan par semaine** : les absences étaient retenues jour par jour, sans
+  compensation par les heures faites plus tard dans la semaine (Fuckar,
+  semaine du 6 juillet : 5,5 h retenues pour 2,5 h de manque). Une semaine
+  se solde maintenant en bloc, comme le fait Gaëlle à la main.
+
+Vérifié sur le test (fenêtre 22/06 → 26/07) : Fuckar 1 906,45 et Espinosa
+3 191,76 au centime ; Marion 2 085,64, les 3,42 restants étant son vendredi
+17/07 pointé 4 h 45 pour 5 h (absent chez Quadra). Août porte la semaine du
+27 au 31 juillet une seule fois. MAJI et ZONE 404 rejoués : résultat identique
+au relevé du 11/09 sur les 81 bulletins.
+
+Chaîne des cumuls (Girerd) : une première remise d'aplomb par regénération de
+janvier à juin a recalculé ces mois avec la fiche d'aujourd'hui (Girerd à
+3 855,98 en janvier au lieu de 3 799,07) ; annulée depuis les sauvegardes de
+l'historique, maillons réalignés sur les bulletins restaurés. Juillet
+regénéré sur ces maillons : cumul net imposable 18 522,50 (Gaëlle lisait
+18 435,65). Règle à retenir : un mois passé ne se regénère qu'avec le setup
+mensuel du backtest, jamais directement.
+
+Reste pour le 15/09 (appel 17h30) : congés et arrêts dans la fenêtre ou au
+mois civil ; les 2 h de surplus de Fuckar la semaine du 27/07, payées en
+heures sup chez nous, rien chez Quadra ; compteurs CP N-1 (Bugny 40/0/40
+attendu, Marion 15/2/13) ; cumul réduction générale Quadra à fin juillet
+(le nôtre : 1 745,03) ; mails de Gaëlle (Bugny, Cotte, Girerd annotés) et de
+Vanessa (janvier) ; CP en jours ouvrés pour MAJI et ZONE 404 ; titres-restaurant
+à retirer sur tout le groupe (Elsa).
+
 ## État au soir du 13/09
 
 - Versement mobilité : plus d'alerte quand rien ne change la paie
