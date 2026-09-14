@@ -169,6 +169,19 @@ enregistré. Le circuit de recalcul lui-même fonctionne (suite e2e du 08/09).
 touchait un vrai bulletin. Le spec actuel intercepte les appels et ne
 modifie rien en base.
 
+Découvert à l'audit du 13/09 au soir : l'éditeur s'ouvrait déjà « modifié »
+avant toute saisie (barre d'enregistrement affichée dès l'ouverture sur
+Bugny juillet). Deux sections recalculaient au chargement — le net
+(2 973,61 − 65,66 donne 2 907,9500000000003 en JavaScript, pas 2 907,95) et
+les totaux de cotisations — et poussaient le résultat comme une saisie. Plus
+grave, la formule de l'écran ignorait titres-restaurant, acompte et primes
+non soumises : sur trois bulletins Zone 404 avec abonnement transport
+(Agoumbi janvier, février, avril), ouvrir l'éditeur réécrivait un net à payer
+faux de +36,50 €, prêt à être enregistré. Corrigé (ed0b0c82) : le net
+enregistré reste la référence et ne bouge que de ce que la RH saisit ; les
+totaux se recalculent dans les gestionnaires, jamais au chargement. Aucun
+bulletin en base n'a été touché (ces trois-là n'ont jamais été édités).
+
 ## 6. Saisie sur salaire (Gautheron)
 
 La saisie est en base (46,49 €, SGC Oyonnax, juillet, active). Cause exacte
@@ -241,6 +254,15 @@ est la prime de précarité (854,87 contre 797,04), c'est-à-dire 10 % du brut
 de mai, où les absences de Demory ne sont pas saisies sur le test (Quadra :
 1 529,05 avec 0,8 h de HS ; EYWAI : 2 114,65 sans absence). À saisir par
 Gaëlle, puis régénérer mai et juillet.
+
+## État au soir du 13/09
+
+- Versement mobilité : plus d'alerte quand rien ne change la paie
+  (effectif < 11, commune hors barème) ; 81 bulletins MAJI / ZONE 404
+  rejoués sans avertissement, écarts Quadra identiques au 11/09.
+- Éditeur de bulletin : ne s'ouvre plus « modifié » (§ 5).
+- Audit de quatre écrans (saisies sur salaire, fiche Fuckar, paie de juillet
+  avec Demory, éditeur Bugny) : à rejouer après le déploiement ed0b0c82.
 
 ## État au soir du 12/09
 
