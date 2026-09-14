@@ -46,7 +46,7 @@ TOLERANCE = 0.01
 
 def _lignes(data: dict, cle: str) -> list[dict]:
     valeur = data.get(cle)
-    return [l for l in valeur if isinstance(l, dict)] if isinstance(valeur, list) else []
+    return [ligne for ligne in valeur if isinstance(ligne, dict)] if isinstance(valeur, list) else []
 
 
 def _generer(employee_id: str) -> tuple[str, list[str]]:
