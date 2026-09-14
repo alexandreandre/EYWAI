@@ -342,6 +342,65 @@ class TestPreviewChannel:
             assert result["blocking_anomalies_count"] == 0
 
 
+    def test_une_od_desequilibree_est_une_anomalie_bloquante_pas_une_erreur(self):
+        """Colorplast, juillet 2026 : PPV et remboursement de fournitures sans
+        compte comptable. La prévisualisation de l'OD lève LedgerImbalanceError ;
+        le statut d'envoi doit la présenter comme anomalie bloquante, pas
+        répondre 500 et faire planter la page Exports (e2e du 14/09)."""
+        from app.modules.exports.infrastructure.payroll_ledger import LedgerImbalanceError
+
+        message = (
+            "L'écriture ne s'équilibre pas : écart de 999.15 €.\n"
+            "Éléments sans compte comptable :\n"
+            "  — INCONNUE — Prime de partage de la valeur (PPV) (500.0 €)"
+        )
+
+        def _preview_qui_leve(company_id, request):
+            if request.export_type in ("od_globale", "fec"):
+                raise LedgerImbalanceError(message)
+            return ExportPreviewResponse(
+                export_type=request.export_type,
+                period="2026-07",
+                employees_count=7,
+                totals=ExportTotals(employees_count=7, total_brut=21000.0),
+                anomalies=[],
+                warnings=[],
+                can_generate=True,
+            )
+
+        with patch.object(
+            dispatch_service.export_service, "preview_export", side_effect=_preview_qui_leve
+        ):
+            result = dispatch_service._preview_channel("co-1", "compta", "2026-07")
+
+        assert result["can_generate"] is False
+        # Une anomalie par type d'export en échec (OD globale et FEC), dédupliquées
+        # par message : les deux portent le même, une seule est présentée.
+        assert result["blocking_anomalies_count"] >= 1
+        messages = {a.message for a in result["blocking_anomalies"]}
+        assert any("ne s'équilibre pas" in m for m in messages)
+        assert any("PPV" in m for m in messages)
+        # Les totaux viennent du journal de paie, qui, lui, passe.
+        assert result["totals"].total_brut == 21000.0
+
+    def test_le_repli_des_totaux_ne_leve_pas_non_plus(self):
+        """Canal banque : un seul type, dont la prévisualisation échoue. Les
+        totaux de repli n'ont pas de source ; le statut reste calculable."""
+
+        def _tout_echoue(company_id, request):
+            raise ValueError("Aucun IBAN société paramétré")
+
+        with patch.object(
+            dispatch_service.export_service, "preview_export", side_effect=_tout_echoue
+        ):
+            result = dispatch_service._preview_channel("co-1", "banque", "2026-07")
+
+        assert result["can_generate"] is False
+        assert result["blocking_anomalies_count"] == 1
+        assert "IBAN" in result["blocking_anomalies"][0].message
+        assert result["totals"] is not None
+
+
 class TestRunScheduledNow:
     def test_does_not_raise_typeerror_and_updates_next_run(self):
         """Régression : compute_next_run_at était appelé avec un kwarg invalide

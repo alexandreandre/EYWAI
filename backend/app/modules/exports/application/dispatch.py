@@ -18,6 +18,7 @@ from app.modules.exports.schemas import (
     ExportGenerateRequest,
     ExportPreviewRequest,
     ExportPreviewResponse,
+    ExportTotals,
 )
 from app.modules.exports.schemas.dispatch import (
     DispatchBanqueRequest,
@@ -263,8 +264,19 @@ def _preview_channel(company_id: str, channel: str, period: str) -> Dict[str, An
 
     for export_type in generate_types:
         req = ExportPreviewRequest(export_type=cast(Any, export_type), period=period)
-        preview = export_service.preview_export(company_id, req)
         label = EXPORT_TYPE_LABELS.get(export_type, export_type)
+        try:
+            preview = export_service.preview_export(company_id, req)
+        except ValueError as exc:
+            # Une prévisualisation qui refuse (OD déséquilibrée faute de compte
+            # comptable, IBAN absent…) est une anomalie à corriger par la
+            # gestionnaire, pas une panne : elle s'affiche comme les autres
+            # blocages au lieu de répondre 500 et de faire planter la page
+            # Exports (Colorplast, juillet 2026, PPV sans compte).
+            blocking_details.append(
+                _to_blocking_anomaly(export_type, label, str(exc))
+            )
+            continue
         type_had_blocking = False
         for a in preview.anomalies:
             if a.severity == "blocking" or a.type == "error":
@@ -293,7 +305,12 @@ def _preview_channel(company_id: str, channel: str, period: str) -> Dict[str, An
         req = ExportPreviewRequest(
             export_type=cast(Any, CHANNEL_PREVIEW_TYPE[channel]), period=period
         )
-        totals = export_service.preview_export(company_id, req).totals
+        try:
+            totals = export_service.preview_export(company_id, req).totals
+        except ValueError:
+            # Déjà signalé comme anomalie bloquante ci-dessus : la carte
+            # s'affiche sans montants plutôt que pas du tout.
+            totals = ExportTotals(employees_count=0)
 
     blocking_details = _dedupe_blocking_anomalies(blocking_details)
 
