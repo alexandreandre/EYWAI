@@ -696,6 +696,19 @@ def taux_vm_entreprise_depuis_donnees(entreprise: Dict[str, Any]) -> Optional[fl
     return _normaliser_taux_vm_decimal(raw)
 
 
+SEUIL_EFFECTIF_VERSEMENT_MOBILITE = 11
+
+
+def _effectif_entreprise(entreprise: Dict[str, Any]) -> Optional[int]:
+    """Effectif déclaré sur la fiche, None s'il n'est pas renseigné."""
+    raw = (entreprise.get("parametres_paie") or {}).get("effectif")
+    try:
+        effectif = int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+    return effectif if effectif and effectif > 0 else None
+
+
 def resoudre_taux_vm_pour_paie(
     baremes: Dict[str, Any],
     entreprise: Dict[str, Any],
@@ -703,14 +716,28 @@ def resoudre_taux_vm_pour_paie(
     alertes: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[float]:
     """
-    Taux VM pour le calcul du bulletin :
-    1. Barème scrapé taux_vmrr + commune (prioritaire)
-    2. Repli fiche entreprise (taux_vm) si le barème n'est pas encore synchronisé
-    3. Alerte seulement si aucune des deux sources n'est utilisable
+    Taux de versement mobilité pour le bulletin, None si aucune cotisation.
+
+    1. Moins de 11 salariés : pas assujetti (art. L2333-64 CGCT), rien à
+       chercher, rien à signaler.
+    2. Barème URSSAF (taux_vmrr) + commune de l'entreprise.
+    3. Repli sur le taux saisi sur la fiche entreprise.
+    4. Commune connue mais absente du barème : aucune autorité organisatrice
+       ne lève de versement mobilité sur cette commune. Pas de cotisation et
+       pas d'alerte — le barème URSSAF liste précisément les communes
+       assujetties. Une alerte à chaque bulletin faisait paniquer pour rien
+       (MAJI à Villette-d'Anthon, retour du 14/09).
+    5. Alerte, d'une seule forme, seulement quand on ne peut pas savoir :
+       commune non renseignée, barème non synchronisé, ou commune ambiguë.
     """
+    effectif = _effectif_entreprise(entreprise)
+    if effectif is not None and effectif < SEUIL_EFFECTIF_VERSEMENT_MOBILITE:
+        return None
+
     commune = commune_entreprise_depuis_donnees(entreprise)
     taux_vmrr = baremes.get("taux_vmrr")
-    taux_officiel = resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=None)
+    alertes_resolution: List[Dict[str, Any]] = []
+    taux_officiel = resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=alertes_resolution)
     if taux_officiel is not None:
         return taux_officiel
 
@@ -718,6 +745,7 @@ def resoudre_taux_vm_pour_paie(
     if taux_entreprise is not None:
         return taux_entreprise
 
+    codes = {a.get("code") for a in alertes_resolution}
     if not commune:
         _ajouter_alerte(
             alertes,
@@ -725,11 +753,13 @@ def resoudre_taux_vm_pour_paie(
             cle="taux_vmrr",
             chemin=[],
             critique=False,
-            message="Commune entreprise absente — taux VM non résolu",
+            message=(
+                "Versement mobilité non vérifié : la commune de l'entreprise n'est pas "
+                "renseignée (fiche Entreprise)."
+            ),
         )
         return None
-
-    if not taux_vmrr:
+    if "vm_bareme_absent" in codes or "vm_bareme_vide" in codes:
         _ajouter_alerte(
             alertes,
             code="vm_bareme_absent",
@@ -737,13 +767,26 @@ def resoudre_taux_vm_pour_paie(
             chemin=[],
             critique=False,
             message=(
-                "Barème taux_vmrr absent et aucun taux VM sur la fiche entreprise — "
-                "synchronisez la source « Versement mobilité » (VM) ou renseignez le taux"
+                "Versement mobilité non vérifié : barème URSSAF non synchronisé "
+                "(référentiels taux, source « Versement mobilité »)."
             ),
         )
         return None
-
-    return resoudre_taux_vm_officiel(taux_vmrr, commune, alertes=alertes)
+    if "vm_taux_ambigu" in codes:
+        _ajouter_alerte(
+            alertes,
+            code="vm_taux_ambigu",
+            cle="taux_vmrr",
+            chemin=[commune],
+            critique=False,
+            message=(
+                f"Versement mobilité non vérifié : plusieurs taux pour « {commune} », "
+                "précisez l'arrondissement sur la fiche Entreprise."
+            ),
+        )
+        return None
+    # Commune absente du barème : pas de versement mobilité sur cette commune.
+    return None
 
 
 def comparer_taux_vm_entreprise(

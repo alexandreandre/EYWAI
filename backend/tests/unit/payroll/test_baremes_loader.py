@@ -355,3 +355,79 @@ def test_arrondissements_de_taux_divergents_ne_sont_pas_devines():
     alertes: list = []
     assert resoudre_taux_vm_officiel(rows, "VILLETEST", alertes=alertes) is None
     assert alertes[0]["code"] == "vm_taux_ambigu"
+
+
+# --- Versement mobilité : pas d'alerte quand il n'y a rien à corriger -------------
+
+_BAREME_VM = [
+    {"Taux\nVMRR": "2,08%", "Code commune INSEE": 13001, "Communes concernées": "AIX-EN-PROVENCE",
+     "Date de début d’effet": "2026-01-01", "Date de fin d’effet": None},
+    {"Taux\nVMRR": "2,08%", "Code commune INSEE": 75101, "Communes concernées": "PARIS 01",
+     "Date de début d’effet": "2026-01-01", "Date de fin d’effet": None},
+    {"Taux\nVMRR": "3,20%", "Code commune INSEE": 75102, "Communes concernées": "PARIS 02",
+     "Date de début d’effet": "2026-01-01", "Date de fin d’effet": None},
+]
+
+
+def _entreprise_vm(ville, effectif):
+    return {
+        "identification": {"adresse": {"ville": ville}},
+        "parametres_paie": {"effectif": effectif, "taux_specifiques": {}},
+    }
+
+
+def test_vm_moins_de_11_salaries_ni_cotisation_ni_alerte():
+    # Zone 404, 6 salariés, sans commune sur la fiche : rien à signaler.
+    alertes = []
+    assert resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, _entreprise_vm(None, 6), alertes=alertes) is None
+    assert alertes == []
+
+
+def test_vm_commune_hors_bareme_ni_cotisation_ni_alerte():
+    # MAJI, 14 salariés à Villette-d'Anthon : aucune AOM n'y lève de versement
+    # mobilité, le barème URSSAF ne la liste pas. Taux zéro, sans alerte.
+    alertes = []
+    assert (
+        resoudre_taux_vm_pour_paie(
+            {"taux_vmrr": _BAREME_VM}, _entreprise_vm("Villette d'Anthon", 14), alertes=alertes
+        )
+        is None
+    )
+    assert alertes == []
+
+
+def test_vm_commune_dans_le_bareme_cotise():
+    alertes = []
+    assert (
+        resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, _entreprise_vm("Aix en Provence", 14), alertes=alertes)
+        == 0.0208
+    )
+    assert alertes == []
+
+
+def test_vm_commune_absente_avec_11_salaries_une_seule_alerte():
+    alertes = []
+    assert resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, _entreprise_vm(None, 14), alertes=alertes) is None
+    assert [a["code"] for a in alertes] == ["vm_commune_absente"]
+    assert alertes[0]["message"].startswith("Versement mobilité non vérifié")
+
+
+def test_vm_bareme_absent_avec_11_salaries_une_seule_alerte():
+    alertes = []
+    assert resoudre_taux_vm_pour_paie({}, _entreprise_vm("Aix en Provence", 14), alertes=alertes) is None
+    assert [a["code"] for a in alertes] == ["vm_bareme_absent"]
+    assert alertes[0]["message"].startswith("Versement mobilité non vérifié")
+
+
+def test_vm_commune_ambigue_alerte_actionnable():
+    alertes = []
+    assert resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, _entreprise_vm("Paris", 14), alertes=alertes) is None
+    assert [a["code"] for a in alertes] == ["vm_taux_ambigu"]
+    assert "arrondissement" in alertes[0]["message"]
+
+
+def test_vm_effectif_inconnu_garde_la_recherche():
+    # Sans effectif renseigné, on ne présume pas de l'assujettissement.
+    alertes = []
+    entreprise = {"identification": {"adresse": {"ville": "Aix en Provence"}}, "parametres_paie": {"taux_specifiques": {}}}
+    assert resoudre_taux_vm_pour_paie({"taux_vmrr": _BAREME_VM}, entreprise, alertes=alertes) == 0.0208
