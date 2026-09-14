@@ -619,10 +619,22 @@ def _prime_anciennete_deja_saisie(
 
 
 #: Types d'événements comptés sur la fenêtre des variables et non sur le mois
-#: civil. Les heures supplémentaires sont les seules heures que la gestionnaire
-#: de paie arrête à une date qu'elle choisit ; le salaire de base est
-#: mensualisé, et congés, arrêts et fériés appartiennent au mois du bulletin.
-TYPES_RATTACHES_AUX_VARIABLES = frozenset({"travail_hs25", "travail_hs50"})
+#: civil : ce que la gestionnaire de paie arrête à une date qu'elle choisit,
+#: les heures supplémentaires et les absences non rémunérées (retour Gaëlle,
+#: Colorplast, 14/09/2026 : fenêtre arrêtée au 26/07, la semaine du 27 au 31
+#: est celle de la paie d'août — Espinosa, Fuckar, Marion). Le salaire de base
+#: est mensualisé ; congés, arrêts et fériés appartiennent au mois du bulletin
+#: (IJSS, DSN). Les fenêtres sont des semaines entières contiguës
+#: (`shared.domain.periode_variables`) : un jour n'appartient qu'à une seule.
+TYPES_RATTACHES_AUX_VARIABLES = frozenset(
+    {
+        "travail_hs25",
+        "travail_hs50",
+        "absence_injustifiee_base",
+        "absence_injustifiee_hs25",
+        "absence_non_remuneree",
+    }
+)
 
 
 def evenements_de_la_periode(

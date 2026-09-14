@@ -58,7 +58,40 @@ def test_une_regularisation_anterieure_passe_toujours():
 
 
 def test_le_catalogue_des_types_variables():
-    assert TYPES_RATTACHES_AUX_VARIABLES == frozenset({"travail_hs25", "travail_hs50"})
+    """Heures sup et absences non rémunérées : ce que la gestionnaire arrête
+    à sa date. Congés, fériés et arrêts restent au mois du bulletin."""
+    assert TYPES_RATTACHES_AUX_VARIABLES == frozenset(
+        {
+            "travail_hs25",
+            "travail_hs50",
+            "absence_injustifiee_base",
+            "absence_injustifiee_hs25",
+            "absence_non_remuneree",
+        }
+    )
+
+
+def test_une_absence_du_29_juillet_bascule_sur_aout():
+    """Retour Gaëlle du 14/09 : fenêtre arrêtée au 26, la semaine du 27 au 31
+    est celle de la paie d'août (Espinosa, Fuckar, Marion)."""
+    evenements = [
+        _ev("2026-07-29", "absence_injustifiee_base", 1.5),
+        _ev("2026-07-31", "absence_injustifiee_hs25", 2.0),
+        _ev("2026-07-30", "absence_non_remuneree", 7.0),
+    ]
+    assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == []
+
+
+def test_une_absence_du_24_juin_compte_en_juillet():
+    """Dans la fenêtre de juillet, hors de celle de juin : juillet la porte."""
+    evenements = [_ev("2026-06-24", "absence_injustifiee_base", 4.0)]
+    assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == evenements
+
+
+def test_un_arret_maladie_du_30_juillet_reste_sur_juillet():
+    """Les arrêts suivent le mois civil, comme les congés (IJSS, DSN)."""
+    evenements = [_ev("2026-07-30", "arret_maladie")]
+    assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == evenements
 
 
 def _ancien_filtre(

@@ -12,7 +12,10 @@ from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
-from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+from app.modules.payroll.engine.calcul_brut import (
+    calculer_salaire_brut,
+    evenements_de_la_periode,
+)
 from app.modules.payroll.engine.calcul_cotisations import (
     calculer_cotisations,
     ratio_plafond_periode,
@@ -948,7 +951,16 @@ def run_payslip_generation_heures(
         pss_du_mois,
         employee_path,
         heures_supplementaires_mois=total_heures_supp,
-        heures_remunerees_mois=heures_remunerees_mois_contrat(contexte, calendrier_etendu),
+        # Sur les événements retenus par la fenêtre, pas sur tout le calendrier
+        # étendu : les absences de la semaine suivante sont celles d'août.
+        heures_remunerees_mois=heures_remunerees_mois_contrat(
+            contexte,
+            evenements_de_la_periode(
+                calendrier_etendu,
+                (date_debut_periode, date_fin_periode),
+                (date_debut_variables, date_fin_variables),
+            ),
+        ),
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

@@ -53,10 +53,11 @@ atteignent le contrat. Les heures faites plus tard ne compensent rien. Une
 semaine peut porter une absence et des heures sup.
 
 **Demain.** Par semaine ISO, sur les jours de travail prévus qui ont un
-pointage : `bilan = heures faites − heures prévues` (les heures faites un jour
-non prévu comptent dans les heures faites). Si le bilan est négatif, c'est de
-l'absence ; s'il est positif, ce sont les heures sup d'aujourd'hui, inchangées.
-Jamais les deux dans la même semaine.
+pointage : `bilan = heures faites − heures prévues`. Les heures faites un jour
+non prévu (repos, demi-journée de congé) n'entrent pas dans ce bilan : elles
+comptent pour les heures sup comme aujourd'hui, sans effacer une absence. Si
+le bilan est négatif, c'est de l'absence ; s'il est positif, ce sont les
+heures sup d'aujourd'hui, inchangées. Jamais les deux dans la même semaine.
 
 L'absence de la semaine se pose sur les jours manqués, dans l'ordre : le
 surplus compense d'abord les premiers jours manqués, le reste porte sur les
