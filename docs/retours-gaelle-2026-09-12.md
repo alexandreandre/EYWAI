@@ -341,11 +341,11 @@ et la chaîne à partir de février non touchés).
 | Gautheron | 2 252,28 | 2 252,28 | 0,00 | absences 13/01 (2,24) et 14/01 (7,63), réduction HS 1,13 identiques |
 | Girerd | 3 799,07 | 3 799,06 | +0,01 | arrondi |
 | Bugny | 3 023,40 | 3 023,40 | 0,00 | après relecture du vendredi 23/01 (16 h, pas 16 h 30, « 8,5 » annoté par Gaëlle) |
-| Espinosa | 3 023,66 | 3 046,68 | −23,02 | 1 h à 50 % de moins : les trois feuilles de janvier donnent 44 h chacune, l'heure vient des semaines du 22 au 31 décembre, dans la fenêtre de janvier, dont on n'a pas les feuilles |
+| Espinosa | 3 046,68 | 3 046,68 | 0,00 | après alignement de la semaine du 5/01 sur la saisie Quadra (45 h ; la feuille donne 44, S03 et S04 sont annotées 44 par Gaëlle : question à lui poser) |
 
 La fenêtre s'est bien posée du 22/12/2025 au 25/01/2026, la semaine S05
-partant en février. Quatre salariés sur cinq au centime ; le dernier écart
-est une semaine de décembre absente du dossier, pas une règle. Le moteur a
+partant en février. Cinq salariés sur cinq au centime, dont un aligné sur
+la saisie Quadra pour une heure que la feuille ne montre pas. Le moteur a
 retrouvé au centime les absences et leur répartition 35/39. À noter : un
 avertissement « indemnité trajet au-delà du plafond annuel » apparaît sur une
 regénération de janvier parce que le cumul additionne toute l'année déjà
