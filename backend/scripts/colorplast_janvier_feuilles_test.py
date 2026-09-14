@@ -86,6 +86,8 @@ PLANNING_TRAVAIL = {"GAUTHERON": {13: 8.5, 14: 8.5, 23: 5.0}, "COTTE": {21: 8.5}
 #: Jours de congé d'après la feuille.
 PLANNING_CONGE = {"GAUTHERON": {22: 8.5}}
 QUADRA_BRUT = {"BUGNY": 3023.40, "COTTE": 2351.89, "ESPINOSA": 3046.68, "GAUTHERON": 2252.28, "GIRERD": 3799.06}
+#: Net à payer avant impôt et PAS sur le bulletin Quadra de janvier.
+QUADRA_NET = {"BUGNY": (139.02, 63.44), "COTTE": (65.97, 35.52), "ESPINOSA": (74.06, 0.0), "GAUTHERON": (54.69, 25.42), "GIRERD": (159.74, 111.81)}
 
 
 def _generer(employee_id: str):
@@ -163,6 +165,13 @@ def _poser_calendriers(emps: dict) -> None:
         supabase.table("monthly_inputs").delete().match(
             {"employee_id": emps[nom]["id"], "year": YEAR, "month": MONTH}
         ).ilike("name", "%suppl%").execute()
+    # Le complément « GAN mutuelle famille » est une cotisation de la fiche depuis
+    # fin août ; le setup l'insère aussi en retenue mensuelle, d'où un net à
+    # payer plus bas de 98,13 que Quadra (Espinosa, Gautheron, Girerd).
+    for nom in emps:
+        supabase.table("monthly_inputs").delete().match(
+            {"employee_id": emps[nom]["id"], "year": YEAR, "month": MONTH}
+        ).ilike("name", "%MUTUELLE FAMILLE%").execute()
 
 
 def main() -> int:
@@ -213,6 +222,14 @@ def main() -> int:
             for cle in ("details_absences", "details_conges"):
                 for ligne in data.get(cle) or []:
                     print(f"      {cle[8:15]:7s} {str(ligne.get('libelle'))[:50]:50s} q={ligne.get('quantite')} -{ligne.get('perte')} +{ligne.get('gain')}")
+            synthese = data.get("synthese_net") or {}
+            net_avant = float(synthese.get("net_social_avant_impot") or 0)
+            pas = float((synthese.get("impot_prelevement_a_la_source") or {}).get("montant") or 0)
+            q_net, q_pas = QUADRA_NET[nom]
+            print(
+                f"      net avant impôt {net_avant:.2f} (Quadra {q_net:.2f}, écart {net_avant - q_net:+.2f}) ; "
+                f"PAS {pas:.2f} (Quadra {q_pas:.2f}) ; net après impôt {net_avant - pas:.2f} (Quadra {q_net - q_pas:.2f})"
+            )
             for w in res.warnings or []:
                 print(f"      avertissement : {w}")
             if etat != "OK":
