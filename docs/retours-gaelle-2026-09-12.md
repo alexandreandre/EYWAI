@@ -298,6 +298,34 @@ Règle à retenir : sur une reprise en cours d'année, la chaîne suit le cabine
 c'est-à-dire ce qui a été déclaré, pas notre recalcul ; et un mois passé ne se
 regénère qu'avec le setup mensuel du backtest.
 
+Point cumuls de juillet, EYWAI contre Quadra (écart = EYWAI − Quadra), après
+reprise des maillons de juin sur le net imposable et le PAS Quadra
+(`colorplast_reprise_cumuls_juin_test.py` puis `_retour_test.py` : brut,
+heures et réduction générale cumulés restent les nôtres, ils forment le trio
+de la régularisation progressive et ne se reprennent pas séparément) :
+
+| Salarié | Net imposable | PAS | Cumul heures | Cumul h. sup | Bruts |
+|---|---|---|---|---|---|
+| Bugny | 0,00 | 0,00 | −126,0 | +84,00 | +1 539,79 |
+| Cotte | 0,00 | 0,00 | +16,9 | +2,76 | 0,00 |
+| Demory | −63,15 | 0,00 | +548,2 | +41,13 | +341,42 |
+| Espinosa | 0,00 | 0,00 | −130,0 | 0,00 | 0,00 |
+| Fuckar | 0,00 | 0,00 | +55,0 | +2,80 | −0,01 |
+| Gautheron | −27,77 | −0,45 | +265,9 | +29,97 | +1 938,11 |
+| Girerd | −0,02 | 0,00 | 0,0 | 0,00 | +0,04 |
+
+Lecture : net imposable et PAS au centime pour cinq salariés ; Demory et
+Gautheron portent l'écart de leur mois de juillet (Demory : brut 3 420,37
+contre 3 509,91, absences de mai non saisies ; Gautheron : net imposable de
+juillet 1 473,40 contre 1 501,17, à creuser). « Cumul heures » : Quadra compte
+la base au prorata d'entrée, moins les absences, plus les heures sup
+conjoncturelles ; nous comptons la base mensuelle moins les absences, sans
+prorata d'entrée (Fuckar +55 sur avril) ni heures sup (Bugny −126, Espinosa
+−130). Cumul heures sup et bruts : l'historique de janvier à juin de Bugny,
+Demory et Gautheron ne reproduit pas Quadra (participation, arrêts maladie,
+absences de mai), ces trois cumuls se corrigeront par une reprise complète du
+backtest de ces mois, pas à la main.
+
 Reste pour le 15/09 (appel 17h30) : congés et arrêts dans la fenêtre ou au
 mois civil ; les 2 h de surplus de Fuckar la semaine du 27/07, payées en
 heures sup chez nous, rien chez Quadra ; compteurs CP N-1 (Bugny 40/0/40
