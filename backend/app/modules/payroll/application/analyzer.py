@@ -99,6 +99,96 @@ def _conserver_evenement_a_zero_heure(type_ev: str, meta: Dict[str, Any]) -> boo
     return bool(meta.get("date_debut_arret_reel") or meta.get("date_fin_arret_reel"))
 
 
+def _absences_injustifiees_de_la_semaine(
+    data: Dict[str, Any],
+    reel_data: List[Dict[str, Any]],
+    annee: int,
+    duree_hebdo_semaine: float,
+) -> List[Dict[str, Any]]:
+    """Événements d'absence injustifiée d'une semaine, après bilan.
+
+    Le bilan porte sur les jours de travail prévus qui ont un pointage :
+    manque (prévu − fait) ou surplus (fait − prévu) de chaque jour. Le surplus
+    de la semaine compense les manques dans l'ordre des jours ; ce qui reste
+    est retenu sur les derniers jours manqués. Une semaine dont le total est
+    atteint ne porte donc aucune absence, même si un jour est incomplet.
+
+    Restent neutres : un mois sans pointage (repli planning), un jour prévu
+    sans pointage (un trou n'est pas une absence), un jour non prévu (ses
+    heures comptent pour les heures sup, pas ici).
+
+    Le typage base / hs25 par position dans la semaine est conservé : il n'a
+    plus d'effet sur un contrat de plus de 35 h (répartition 35/39 dans
+    calcul_brut), mais reste lu pour un contrat à 35 h.
+    """
+    duree_contrat_centiemes = int(duree_hebdo_semaine * 100)
+    jours_prevus = sorted(data["prevu"], key=lambda x: (x["mois"], x["jour"]))
+
+    # 1. Manque et surplus de chaque jour prévu pointé (centièmes d'heure).
+    heures_faites: Dict[tuple, int] = {}
+    manques: Dict[tuple, int] = {}
+    surplus_semaine = 0
+    for jour_prevu in jours_prevus:
+        cle = (jour_prevu["mois"], jour_prevu["jour"])
+        heures_prevues_jour = int((jour_prevu.get("heures_prevues") or 0.0) * 100)
+        jour_annee = jour_prevu.get("annee", annee)
+        if mois_sans_pointage(reel_data, annee=jour_annee, mois=jour_prevu["mois"]):
+            heures_faites[cle] = heures_prevues_jour
+            continue
+        jour_reel = next(
+            (
+                j
+                for j in data["reel"]
+                if j["jour"] == jour_prevu["jour"] and j["mois"] == jour_prevu["mois"]
+            ),
+            None,
+        )
+        if jour_reel is None:
+            heures_faites[cle] = heures_prevues_jour
+            continue
+        heures_faites_jour = int((jour_reel.get("heures_faites") or 0.0) * 100)
+        heures_faites[cle] = heures_faites_jour
+        ecart = heures_faites_jour - heures_prevues_jour
+        if ecart < 0:
+            manques[cle] = -ecart
+        elif ecart > 0:
+            surplus_semaine += ecart
+
+    # 2. Le surplus compense les premiers jours manqués.
+    for cle in list(manques):
+        compensation = min(surplus_semaine, manques[cle])
+        manques[cle] -= compensation
+        surplus_semaine -= compensation
+
+    # 3. Ce qui reste est typé par sa position dans la semaine.
+    evenements: List[Dict[str, Any]] = []
+    compteur_semaine = 0
+    for jour_prevu in jours_prevus:
+        cle = (jour_prevu["mois"], jour_prevu["jour"])
+        faites = heures_faites.get(cle, 0)
+        manque = manques.get(cle, 0)
+        curseur = compteur_semaine + faites
+        while manque > 0 and curseur < duree_contrat_centiemes:
+            tranche = min(1, manque, duree_contrat_centiemes - curseur)
+            type_abs = (
+                "absence_injustifiee_base"
+                if curseur + tranche <= 3500
+                else "absence_injustifiee_hs25"
+            )
+            evenements.append(
+                {
+                    "jour": jour_prevu["jour"],
+                    "mois": jour_prevu["mois"],
+                    "type": type_abs,
+                    "heures": tranche / 100.0,
+                }
+            )
+            curseur += tranche
+            manque -= tranche
+        compteur_semaine += faites
+    return evenements
+
+
 def analyser_horaires_du_mois(
     planned_data_all_months: List[Dict[str, Any]],
     actual_data_all_months: List[Dict[str, Any]],
@@ -259,79 +349,19 @@ def analyser_horaires_du_mois(
 
             compteur_heures_semaine_centiemes = fin_compteur
 
-        # Qualification des absences injustifiées
-        compteur_heures_faites_semaine_centiemes = 0
-        duree_contrat_centiemes_abs = int(duree_hebdo_semaine * 100)
-
-        for jour_prevu in sorted(data["prevu"], key=lambda x: (x["mois"], x["jour"])):
-            heures_prevues_jour_centiemes = int(
-                (jour_prevu.get("heures_prevues") or 0.0) * 100
-            )  # Robuste à None
-            jour_annee = jour_prevu.get("annee", annee)
-            jour_mois = jour_prevu["mois"]
-            if mois_sans_pointage(reel_data, annee=jour_annee, mois=jour_mois):
-                compteur_heures_faites_semaine_centiemes += heures_prevues_jour_centiemes
-                continue
-
-            jour_reel = next(
-                (
-                    j
-                    for j in data["reel"]
-                    if j["jour"] == jour_prevu["jour"]
-                    and j["mois"] == jour_prevu["mois"]
-                ),
-                None,
+        # Qualification des absences injustifiées : bilan de la semaine.
+        # Une heure manquée un jour est compensée par une heure faite en plus
+        # un autre jour de la même semaine, quel que soit l'ordre des jours.
+        # C'est ce que retient le cabinet (Quadra, Colorplast juillet 2026 :
+        # Fuckar, semaine du 6 juillet, −1,5 −4 +1 +2 → 2,5 h retenues). Retenir
+        # jour par jour laissait les heures faites APRÈS un jour manqué sans
+        # effet : ni payées, ni compensées, ni heures sup (semaine sous le
+        # contrat). Retour Gaëlle du 14/09/2026.
+        evenements_finaux.extend(
+            _absences_injustifiees_de_la_semaine(
+                data, reel_data, annee, duree_hebdo_semaine
             )
-            if jour_reel is None:
-                # Aucun pointage ce jour-là : on retient le prévu. Un jour sans
-                # donnée n'est pas un jour d'absence — l'absence est un fait
-                # constaté (zéro heure saisie, ou demande validée posée sur le
-                # planning), pas un trou. Le repli `mois_sans_pointage` ci-dessus
-                # ne couvre que les mois ENTIÈREMENT vides ; les calendriers
-                # réels sont partiels (322 h pointées pour 1 113 prévues chez
-                # Colorplast en janvier) et chaque jour manquant était retenu.
-                compteur_heures_faites_semaine_centiemes += (
-                    heures_prevues_jour_centiemes
-                )
-                continue
-
-            heures_faites_jour_centiemes = int(
-                (jour_reel.get("heures_faites") or 0.0) * 100
-            )  # Robuste à None
-
-            if heures_faites_jour_centiemes < heures_prevues_jour_centiemes:
-                manque_centiemes = (
-                    heures_prevues_jour_centiemes - heures_faites_jour_centiemes
-                )
-                curseur_centiemes = (
-                    compteur_heures_faites_semaine_centiemes
-                    + heures_faites_jour_centiemes
-                )
-                while manque_centiemes > 0:
-                    if curseur_centiemes >= duree_contrat_centiemes_abs:
-                        break
-                    tranche = min(
-                        1,
-                        manque_centiemes,
-                        duree_contrat_centiemes_abs - curseur_centiemes,
-                    )
-                    position_apres = curseur_centiemes + tranche
-                    type_abs = (
-                        "absence_injustifiee_base"
-                        if position_apres <= 3500
-                        else "absence_injustifiee_hs25"
-                    )
-                    evenements_finaux.append(
-                        {
-                            "jour": jour_prevu["jour"],
-                            "mois": jour_prevu["mois"],
-                            "type": type_abs,
-                            "heures": tranche / 100.0,
-                        }
-                    )
-                    curseur_centiemes += tranche
-                    manque_centiemes -= tranche
-            compteur_heures_faites_semaine_centiemes += heures_faites_jour_centiemes
+        )
 
     # Étape 3 : Agréger et filtrer uniquement le mois demandé
     agregats = defaultdict(float)
