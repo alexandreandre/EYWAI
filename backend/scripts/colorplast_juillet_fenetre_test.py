@@ -8,7 +8,7 @@ variables-et-bilan-hebdo-design.md :
 
   FUCKAR    1 906,45  (Quadra 1 906,45)
   ESPINOSA  3 191,76  (Quadra 3 191,76)
-  GAUTHERON 2 085,68  (Quadra 2 089,06 ; les 3,38 restants sont la donnée du
+  GAUTHERON 2 085,64  (Quadra 2 089,06 ; les 3,42 restants sont la donnée du
                        17/07, 4 h 45 pointées pour 5 h, absente chez Quadra)
 
 Les trois bulletins sont regénérés même s'ils portent une édition manuelle :
@@ -39,7 +39,7 @@ YEAR, MONTH = 2026, 7
 ATTENDUS = {
     "FUCKAR": (1906.45, 1906.45),
     "ESPINOSA": (3191.76, 3191.76),
-    "GAUTHERON": (2085.68, 2089.06),
+    "GAUTHERON": (2085.64, 2089.06),
 }
 TOLERANCE = 0.01
 

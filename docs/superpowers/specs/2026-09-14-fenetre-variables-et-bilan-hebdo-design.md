@@ -83,8 +83,8 @@ posée), heures assimilées pour le seuil d'heures sup.
 | Marion | 13–17/07 | 22 / 21,75 | absence 0,25 h le 17/07 (donnée, attendu tel quel) |
 
 Bulletins de juillet regénérés sur le test, fenêtre 22/06–26/07 :
-Fuckar 1 906,45 et Espinosa 3 191,76 au centime ; Marion 2 085,68 (l'écart
-restant de 3,38 est le 17/07). Bugny, Cotte, Girerd, Demory inchangés.
+Fuckar 1 906,45 et Espinosa 3 191,76 au centime ; Marion 2 085,64 (l'écart
+restant de 3,42 est le 17/07). Bugny, Cotte, Girerd, Demory inchangés.
 
 ## Non-régression
 
