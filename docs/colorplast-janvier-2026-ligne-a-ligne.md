@@ -33,11 +33,13 @@ Sur les cinq bulletins, toutes ces lignes tombent exactement :
 
 ### 1. Réduction générale quand il y a des absences non rémunérées — le seul écart d'argent important
 
-| | Cotte | Gautheron |
-|---|---|---|
-| EYWAI | −643,01 | −689,65 |
-| Quadra | −609,61 | −582,21 |
-| écart | **−33,40** | **−107,44** |
+**Corrigé le 15/09 (f79f3bb3).** État avant / après :
+
+| | EYWAI avant | EYWAI après | Quadra | reste |
+|---|---|---|---|---|
+| Cotte | −643,01 | −608,20 | −609,61 | +1,41 |
+| Gautheron | −689,65 | −577,71 | −582,21 | +4,50 |
+| Bugny / Espinosa / Girerd | −569,91 / −524,94 / −252,64 | inchangés | identiques | 0,00 |
 
 Cause exacte, vérifiée en inversant la formule RGDU (décret 2025-887,
 Tmin 0,02 / Tdelta 0,3781 / P 1,75 / SMIC de référence gelé 12,02) : le
@@ -51,12 +53,25 @@ nombre d'heures du SMIC de référence.
 | Cotte | **169,00** | **165,64** |
 | Gautheron | **169,00** | **158,46** |
 
-Notre SMIC de référence part des heures contractuelles (169 h) augmentées des
-heures sup conjoncturelles, **sans retrancher les heures d'absence non
-rémunérée**. Quadra part des heures réellement payées. Avec les heures payées,
-notre réduction donnerait 608,20 pour Cotte et 577,71 pour Gautheron : il reste
-1,41 et 4,50, Quadra comptant une fraction d'heure de plus que son propre
-« cumul heures » imprimé (165,64 contre 165,50 ; 158,46 contre 158,00).
+Notre SMIC de référence partait des heures contractuelles (169 h) augmentées
+des heures sup conjoncturelles, **sans retrancher les heures d'absence non
+rémunérée**. Quadra part des heures réellement payées.
+
+Le calcul du brut expose désormais `heures_absence_non_payees` — les heures
+dont la paie a effectivement été retirée par une absence injustifiée, une
+absence non rémunérée ou un férié chômé non payé, part base et part heures sup
+structurelles comprises — et les deux pipelines (bulletin et simulation) les
+retranchent du SMIC de référence.
+
+L'arrêt maladie reste hors périmètre : la rémunération y est maintenue en tout
+ou partie et le SMIC de référence suit alors la part restée à la charge de
+l'employeur. Règle distincte, sans référence cabinet à ce jour, à traiter à
+part.
+
+Il reste 1,41 € et 4,50 € : Quadra compte une fraction d'heure de plus que son
+propre « cumul heures » imprimé (165,64 contre 165,50 ; 158,46 contre 158,00),
+soit environ 4 % des heures d'absence qu'il ne retranche pas. À élucider,
+éventuellement avec Gaëlle.
 
 ### 2. Autres contributions employeur : deux taux de paramétrage
 
@@ -199,7 +214,7 @@ Quadra laisse la case vide.
 | Net imposable | = | +0,37 | = | +1,16 | = |
 | Net à payer | = | −0,03 | = | −0,10 | = |
 | Montant net social | = | −0,02 | **−98,13** | **−98,22** | **−98,13** |
-| Réduction générale | = | **−33,40** | = | **−107,44** | = |
+| Réduction générale | = | +1,41 | = | +4,50 | = | (corrigé, était −33,40 / −107,44)
 | Autres contributions | +10,14 | +9,70 | +10,24 | +6,95 | −9,78 |
 | Coût employeur | +10,15 | −24,19 | +10,25 | −102,10 | −9,75 |
 | Cumul heures | −20,50 | = | −16,00 | = | = |
@@ -208,9 +223,10 @@ Quadra laisse la case vide.
 
 ## À corriger, par ordre d'impact
 
-1. Réduction générale : retrancher les heures d'absence non rémunérée du SMIC
-   de référence (§ 1). C'est très probablement aussi la cause du « rythme »
-   qui décale Girerd et Marion en juin et juillet.
+1. ~~Réduction générale : retrancher les heures d'absence non rémunérée du
+   SMIC de référence~~ — **fait le 15/09 (f79f3bb3)**. Reste à vérifier l'effet
+   sur juin et juillet, où ce même défaut explique probablement le « rythme »
+   qui décale Girerd et Marion, et à traiter le cas de l'arrêt maladie (§ 1).
 2. Taux liés à l'effectif : formation professionnelle à 0,55 % sous 11
    salariés, forfait social 8 % sur prévoyance et mutuelle patronales, 20 %
    sur la retraite supplémentaire cadre (§ 2).
