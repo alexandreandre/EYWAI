@@ -296,6 +296,17 @@ attendu, Marion 15/2/13) ; cumul réduction générale Quadra à fin juillet
 Vanessa (janvier) ; CP en jours ouvrés pour MAJI et ZONE 404 ; titres-restaurant
 à retirer sur tout le groupe (Elsa).
 
+Suite e2e du test, remise au vert le 14/09 au soir (38 scénarios) :
+- la page Exports plantait sur un 500 du statut d'envoi quand l'OD globale
+  refusait de s'équilibrer (Colorplast juillet : PPV et remboursement de
+  fournitures sans compte comptable). Le refus est désormais une anomalie
+  bloquante affichée sur la carte, avec le message (b0485091) ; le
+  paramétrage des comptes reste à faire par Gaëlle dans Exports > Comptes
+  comptables ;
+- le workflow e2e jouait les specs de main contre le frontend de la branche
+  déployée. Il joue maintenant celles du commit déployé (621fd1cb) ; pour
+  les déclenchements automatiques, effet après fusion sur main.
+
 ## État au soir du 13/09
 
 - Versement mobilité : plus d'alerte quand rien ne change la paie
