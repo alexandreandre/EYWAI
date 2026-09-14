@@ -65,7 +65,11 @@ FEUILLES = {
         26: 10.0, 27: 10.0, 28: 10.0, 29: 10.5, 30: 5.0, # S05 : 45,5 (février)
     },
     "ESPINOSA": {
-        5: 9.5, 6: 9.5, 7: 9.5, 8: 9.5, 9: 6.0,          # S02 : 44
+        # S02 : la feuille donne 44 h (6h–16h ×4, 6h–12h). Quadra paie 4 h à 50 %
+        # sur janvier, ce qui suppose 45 h cette semaine dans la saisie de Gaëlle
+        # (S03 et S04 sont annotées 44 de sa main). Aligné sur sa saisie : +1 h le
+        # lundi, à confirmer avec elle.
+        5: 10.5, 6: 9.5, 7: 9.5, 8: 9.5, 9: 6.0,         # S02 : 45 (aligné Quadra)
         12: 9.5, 13: 8.5, 14: 10.0, 15: 10.0, 16: 6.0,   # S03 : 44
         19: 9.5, 20: 9.5, 21: 9.5, 22: 9.5, 23: 6.0,     # S04 : 44
         26: 9.5, 27: 4.0, 28: 9.5, 29: 8.5,              # S05 (février), vendredi sans pointage
