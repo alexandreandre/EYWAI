@@ -17,7 +17,7 @@ mois d'entrée.
 | Demory | ✓ | −0,01 | ✓ | −0,01 | ✓ | ✓ | ✓ | −29,70 |
 | Espinosa | ✓ | −0,01 | ✓ | −0,01 | ✓ | ✓ | ✓ | ✓ |
 | Girerd | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | −0,01 |
-| Gautheron | **en cours** | | | | | | | |
+| Gautheron | *en attente* | | | | | | | |
 
 ## Ce qui a été corrigé
 
@@ -64,6 +64,54 @@ comme pour la DSN.
 La base de test portait des bulletins fantômes de janvier et février pour
 Demory, embauché le 23/03 : 492,67 h et 1 056,21 € de cumul, dont le moteur
 repartait. Le rejeu vide le maillon du mois précédent pour qui débute.
+
+## Le maintien de salaire de Gautheron : question ouverte
+
+Arrêt du 16 au 28 mars, prolongé jusqu'au 28 avril. Le cabinet lui verse
+**310,78 €** de maintien, « du 16 au 18-03-2026 », puis plus rien : sur le
+bulletin d'avril, arrêt complet du 29/03 au 28/04, elle est à **20,20 € de
+brut**. Aucune indemnité journalière n'apparaît sur ses bulletins — la caisse
+la paie directement.
+
+### Ce que le bulletin nous a appris, et qui est acquis
+
+310,78 = 3 × **103,59**, et 103,59 est la valeur exacte d'une de ses journées
+complètes : 7 h de base à 12,9492 (90,64) **plus** sa quote-part d'heure
+supplémentaire structurelle, 0,80 h à 16,1865 (12,95). C'est le même montant
+que son indemnité de congé payé du 23 février.
+
+Notre maintien en jours ouvrés ne restituait que la base. L'absence, elle,
+retire les deux : un salarié à 39 h perdait ses heures structurelles sur un
+jour pourtant maintenu. **Corrigé** — sans effet sur les contrats à 35 h, où
+la part structurelle est nulle.
+
+### Pourquoi nous ne descendons pas à 310,78 €
+
+Marion a plus de quatre ans d'ancienneté. L'article L1226-1 lui garantit 90 %
+de son salaire pendant 30 jours. Trois journées à 100 % valent moins que ce
+plancher : notre moteur le calcule, signale `conflit_convention` et **retient
+le légal**. C'est une protection délibérée, pas un défaut.
+
+Le seul montage qui rendrait le bulletin du cabinet régulier est une prise en
+charge par la **prévoyance GAN**, versée directement à la salariée et donc
+absente du bulletin. C'est un montage courant, mais nous n'en avons aucune
+trace.
+
+Forcer le moteur à 310,78 € graverait une sous-paie possible dans les sept
+sociétés. Tant que la question n'est pas tranchée, Gautheron est imprimée au
+rejeu mais ne le fait pas échouer, et le paramétrage de Colorplast reste celui
+d'avant l'essai.
+
+**Question à Gaëlle** : chez Colorplast, qui verse le complément de salaire au
+delà du 3ᵉ jour d'arrêt ? La réponse décide d'un paramètre, pas d'une ligne de
+code — le moteur sait déjà exprimer un relais prévoyance.
+
+### Un défaut du chargeur DSN, corrigé au passage
+
+Les jours d'arrêt importés étaient posés sans leur nature ni leurs bornes.
+Sans elles, le moteur les ignore pour le maintien : **aucun arrêt importé
+d'une DSN ne produisait le moindre maintien de salaire**. Le chargeur les écrit
+désormais, et le rejeu complète ceux déjà posés.
 
 ## Ce que nous ne reproduisons pas, et pourquoi
 
