@@ -279,6 +279,31 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
                 print(f"  {nom:10s} : absences DSN mal datées remises au travail ({', '.join(remis)})")
 
 
+def _remettre_a_zero_le_cumul_d_entree(emps: dict, mois: int) -> None:
+    """Efface le cumul du mois précédent pour qui débute ce mois-ci.
+
+    Un salarié qui apparaît dans les références d'un mois sans figurer dans
+    celles du mois d'avant vient d'être embauché : son compteur doit partir de
+    zéro. La base de test porte pourtant des bulletins fantômes antérieurs à
+    l'embauche — Demory, arrivé le 23/03, y traîne 492,67 h et 1 056,21 € de
+    cumul —, et le moteur repart de ce maillon pour l'allègement comme pour les
+    compteurs. Vider la colonne suffit : le générateur retombe alors sur son
+    cumul de départ à zéro.
+    """
+    if mois <= min(REFERENCES):
+        return
+    precedent = max(m for m in REFERENCES if m < mois)
+    arrivants = set(_salaries_du_mois(mois)) - set(_salaries_du_mois(precedent))
+    if not arrivants:
+        return
+    admin = get_supabase_admin_client()
+    mois_avant, annee_avant = (mois - 1, YEAR) if mois > 1 else (12, YEAR - 1)
+    for nom in sorted(arrivants):
+        admin.table("employee_schedules").update({"cumuls": None}).match(
+            {"employee_id": emps[nom]["id"], "year": annee_avant, "month": mois_avant}
+        ).execute()
+        print(f"  {nom:10s} : compteur d'entrée remis à zéro ({mois_avant:02d}/{annee_avant})")
+
 def _controler(nom: str, mois: int, data: dict, res) -> int:
     ref = REFERENCES[mois]
     rc = 0
@@ -360,6 +385,7 @@ def _controler(nom: str, mois: int, data: dict, res) -> int:
 def _jouer_le_mois(emps: dict, mois: int) -> int:
     print(f"\n{'=' * 62}\n=== {mois:02d}/{YEAR} : état posé puis bulletins générés\n{'=' * 62}")
     apply_month("Colorplast", YEAR, mois)
+    _remettre_a_zero_le_cumul_d_entree(emps, mois)
     if mois == 1:
         poser_les_feuilles(emps)
     rc = 0
