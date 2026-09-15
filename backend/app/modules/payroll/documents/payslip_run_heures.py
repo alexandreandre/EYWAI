@@ -12,7 +12,10 @@ from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
-from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+from app.modules.payroll.engine.calcul_brut import (
+    calculer_salaire_brut,
+    evenements_de_la_periode,
+)
 from app.modules.payroll.engine.calcul_cotisations import (
     calculer_cotisations,
     ratio_plafond_periode,
@@ -766,8 +769,21 @@ def run_payslip_generation_heures(
 
     # Plafond SS réduit prorata temporis (entrée/sortie en cours de mois,
     # suspension du contrat sans rémunération), en jours calendaires.
+    # Sur les événements retenus par la fenêtre des variables, pas sur tout le
+    # calendrier étendu : une absence de la semaine rattachée au mois suivant
+    # n'a pas réduit la paie de ce mois-ci, elle ne doit pas en réduire le
+    # plafond. Sans ce filtre, Gautheron tombait juste en janvier — 29/31 — mais
+    # à cause de deux jours du 29 et 30 janvier, qui relèvent de février, et non
+    # de ses vraies absences des 13 et 14.
     contexte.ratio_plafond_ss = ratio_plafond_periode(
-        calendrier_etendu, date_debut_periode, date_fin_periode, contexte
+        evenements_de_la_periode(
+            calendrier_etendu,
+            (date_debut_periode, date_fin_periode),
+            (date_debut_variables, date_fin_variables),
+        ),
+        date_debut_periode,
+        date_fin_periode,
+        contexte,
     )
     # Heures sup nettes de la part perdue par une absence : c'est sur elles que
     # porte la déduction forfaitaire patronale (1,50 €/h sous 20 salariés), seul

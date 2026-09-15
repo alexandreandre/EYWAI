@@ -117,6 +117,10 @@ QUADRA_HEURES = {"BUGNY": (189.50, 37.83), "COTTE": (165.50, 16.97), "ESPINOSA":
 QUADRA_DEDUCTION_HS = {"BUGNY": -56.75, "COTTE": -25.49, "ESPINOSA": -50.00,
                        "GAUTHERON": -24.38, "GIRERD": -26.00}
 TOLERANCE_DEDUCTION_HS = 0.15
+#: Plafond Sécu imprimé sur le bulletin Quadra, proratisé en jours calendaires
+#: d'absence non rémunérée : Cotte 30/31, Gautheron 29/31.
+QUADRA_PLAFOND_SS = {"BUGNY": 4005.00, "COTTE": 3875.81, "ESPINOSA": 4005.00,
+                     "GAUTHERON": 3746.61, "GIRERD": 4005.00}
 #: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
 #: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
 #: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
@@ -279,6 +283,12 @@ def main() -> int:
             print(f"      net des heures sup exonérées {net_hs:.2f} (Quadra {q_hs:.2f}, écart {net_hs - q_hs:+.2f})")
             if abs(net_hs - q_hs) > TOLERANCE_NET_HS_EXO:
                 print(f"::error::{nom} : net des heures sup exonérées hors tolérance ({net_hs - q_hs:+.2f})")
+                rc = 1
+            pss = float((data.get("parametres") or {}).get("pss_mensuel") or 0)
+            q_pss = QUADRA_PLAFOND_SS[nom]
+            print(f"      plafond Sécu {pss:.2f} (Quadra {q_pss:.2f}, écart {pss - q_pss:+.2f})")
+            if abs(pss - q_pss) > 0.05:
+                print(f"::error::{nom} : plafond Sécu hors tolérance ({pss - q_pss:+.2f})")
                 rc = 1
             cumuls = (data.get("cumuls") or {}).get("cumuls") or {}
             h = float(cumuls.get("heures_remunerees") or 0)

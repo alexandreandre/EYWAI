@@ -147,6 +147,23 @@ _TYPES_ABSENCE_REDUISANT_PLAFOND = frozenset(
 )
 
 
+def _reduit_le_plafond(type_evenement: str) -> bool:
+    """Un événement de ce type suspend-il le contrat sans rémunération ?
+
+    La comparaison se fait par préfixe : l'analyseur ne pose pas
+    `absence_injustifiee` mais `absence_injustifiee_base` et
+    `absence_injustifiee_hs25`, selon la position de l'absence dans la semaine.
+    L'égalité stricte les laissait passer, et aucune absence issue d'un pointage
+    ne réduisait le plafond (Colorplast janvier 2026 : Cotte 4 005,00 € au lieu
+    des 3 875,81 € du cabinet).
+    """
+    type_evenement = str(type_evenement or "")
+    return any(
+        type_evenement == prefixe or type_evenement.startswith(prefixe + "_")
+        for prefixe in _TYPES_ABSENCE_REDUISANT_PLAFOND
+    )
+
+
 def ratio_plafond_periode(
     calendrier: List[Dict[str, Any]],
     date_debut: date,
@@ -194,7 +211,7 @@ def ratio_plafond_periode(
             feries.add(jour)
             if not _jour_ferie_est_paye(contexte, ev):
                 absents.add(jour)
-        elif type_ev in _TYPES_ABSENCE_REDUISANT_PLAFOND:
+        elif _reduit_le_plafond(type_ev):
             absents.add(jour)
 
     jours = [date_debut + timedelta(days=i) for i in range(nb_jours)]

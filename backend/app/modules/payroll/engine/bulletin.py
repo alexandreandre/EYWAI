@@ -118,6 +118,24 @@ def _extraire_naf_ape(entreprise: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _pss_de_la_periode(contexte) -> float:
+    """Plafond mensuel de la Sécurité sociale effectivement retenu ce mois-ci.
+
+    Le plafond plein du barème, réduit du ratio posé par le run de paie
+    (`ratio_plafond_periode`) : entrée ou sortie en cours de mois, suspension du
+    contrat sans rémunération. Sans ratio, le plafond plein.
+    """
+    plein = float((contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0) or 0.0)
+    ratio = getattr(contexte, "ratio_plafond_ss", None)
+    try:
+        ratio = float(ratio) if ratio is not None else 1.0
+    except (TypeError, ValueError):
+        ratio = 1.0
+    if not 0.0 <= ratio < 1.0:
+        return plein
+    return round(plein * ratio, 2)
+
+
 def build_solde_conges_pied_de_page(
     employee_id: Optional[str], annee: int, mois: int
 ) -> Optional[Dict[str, Any]]:
@@ -601,8 +619,11 @@ def creer_bulletin_final(
         "salaire_brut": salaire_brut,
         "parametres": {
             "smic_horaire": contexte.smic_horaire,
-            "pss_mensuel": (contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0)
-            or 0.0,
+            # Plafond de la période, proratisé comme le calcul l'a fait : le
+            # bulletin affichait le plafond plein même quand une absence non
+            # rémunérée l'avait réduit (Cotte janvier 2026 : 4 005,00 imprimé
+            # pour 3 875,81 appliqués, là où le cabinet imprime le proratisé).
+            "pss_mensuel": _pss_de_la_periode(contexte),
             # Salaire de base mensuel en vigueur à la fin du mois : le rappel
             # de salaire s'en sert pour savoir à quel taux ce mois a été payé.
             "salaire_base_mensuel": _salaire_base_mensuel_en_vigueur(contexte),
