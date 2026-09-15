@@ -26,7 +26,10 @@ MARKER = "BACKTEST_AUTO_COLORPLAST"
 # ---------------------------------------------------------------------------
 # Donnees par mois. base = valeur mensuelle (151.67h) du taux historique.
 # cp = liste des jours (numero) en conges payes. abs = {jour: heures} absence
-# non remuneree. hs25/hs50 = quantite HS conjoncturelles. inputs = liste de
+# non remuneree — le TOTAL des heures, que le moteur repartit 35/39 entre base
+# et heures structurelles. Quadra, lui, imprime la seule part de base : poser
+# sa quantite x 39/35 (journee entiere sur un contrat de 39 h : 7,80 et non
+# 7,00, sans quoi il manque 10,00 EUR sur le ferie non paye de Demory). hs25/hs50 = quantite HS conjoncturelles. inputs = liste de
 # (name, amount, is_socially_taxed, is_taxable).
 # ---------------------------------------------------------------------------
 # Le complément « GAN mutuelle famille » (−98,13 puis −98,12) n'est plus une
@@ -70,7 +73,7 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         # février mais payés sur le bulletin de mars : la fenêtre de février
         # s'arrête au 22.
         "GAUTHERON": {"base": 1964.00, "hs25": 3.5, "mut_reint": False,
-                      "cp": [23], "abs": {26: 0.90},
+                      "cp": [23], "abs": {26: 1.0},
                       "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
                    "inputs": [("Indemnite de transport", 250.0, False, False)]},
@@ -116,7 +119,7 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         # Le calendrier porte l'arret, pose par le chargeur DSN.
         "GAUTHERON": {"base": 1964.00, "mut_reint": True, "inputs": []},
         # DEMORY : 1er mois plein. Ferie 06/04 non paye (anciennete < 3 mois).
-        "DEMORY": {"base": 1850.37, "abs": {6: 7.0}, "inputs": []},
+        "DEMORY": {"base": 1850.37, "abs": {6: 7.8}, "inputs": []},
         # FUCKAR : Cegid mensualise puis déduit 30,50 h avant l'embauche,
         # tout en conservant les 17,33 h structurelles du mois.
         "FUCKAR": {

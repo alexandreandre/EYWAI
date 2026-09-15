@@ -987,7 +987,15 @@ def calculer_salaire_brut(
     # proportionnel aux heures rémunérées. L'arrêt maladie en est exclu : la
     # rémunération y est maintenue en tout ou partie et le SMIC suit alors la
     # part restée à la charge de l'employeur (règle distincte).
-    heures_absence_non_payees = 0.0
+    # La retenue d'entrée ou de sortie démarre le compteur : ces heures-là ne
+    # sont pas payées non plus. Le mois est mensualisé en entier puis la part
+    # antérieure à l'embauche (ou postérieure à la sortie) est retirée, donc
+    # elles doivent sortir des heures rémunérées et du SMIC de référence —
+    # sinon on réclame un allègement sur des heures qu'on n'a pas payées, le
+    # défaut corrigé en janvier pour les absences non rémunérées. Fuckar
+    # (Colorplast, avril 2026) : 30,50 h retirées de sa paie mais laissées dans
+    # son compteur, 82,02 € d'allègement de trop.
+    heures_absence_non_payees = float(retenue_entree_sortie_heures or 0.0)
 
     contrat_dates = contexte.contrat.get("contrat", {}) or {}
     date_entree_contrat = _parse_date_contrat(contrat_dates.get("date_entree"))
