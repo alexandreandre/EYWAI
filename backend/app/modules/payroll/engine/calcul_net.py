@@ -425,6 +425,20 @@ def _calculer_net_imposable(
     return round(net_imposable_final, 2), round(hs_defiscalisees, 2)
 
 
+def _taux_csg_deductible_bareme(contexte: ContextePaie) -> float:
+    """Taux de CSG déductible du catalogue, quelle que soit sa forme."""
+    for coti_id in ("csg", "csg_deductible"):
+        coti = contexte.get_cotisation_by_id(coti_id) or {}
+        salarial = coti.get("salarial")
+        if isinstance(salarial, dict):
+            taux = _get_safe_float(salarial.get("deductible"))
+        else:
+            taux = _get_safe_float(salarial)
+        if taux > 0:
+            return taux
+    return 0.0
+
+
 def montant_net_hs_exonerees(
     contexte: ContextePaie,
     lignes_cotisations: List[Dict[str, Any]],
@@ -459,18 +473,31 @@ def montant_net_hs_exonerees(
     if brut_hs <= 0:
         return 0.0
 
-    taux_csg_deductible = _get_safe_float(
-        (contexte.get_cotisation_by_id("csg_deductible") or {}).get("salarial")
-    )
-    if taux_csg_deductible <= 0:
-        return round(brut_hs, 2)
-
+    # Le taux se lit d'abord sur la ligne de CSG déductible du bulletin : c'est
+    # celui que le calcul a réellement appliqué, quelle que soit la forme du
+    # barème. Repli sur le catalogue, qui porte aujourd'hui une entrée unique
+    # `csg` avec `salarial.deductible` (et, historiquement, une entrée
+    # `csg_deductible` dont `salarial` est un nombre).
+    taux_csg_deductible = 0.0
     base_csg_hs = 0.0
     for ligne in lignes_cotisations:
         if ligne.get("is_participation"):
             continue
-        if "sur hs" in str(ligne.get("libelle", "")).lower():
+        libelle = str(ligne.get("libelle", "")).lower()
+        if "sur hs" in libelle:
             base_csg_hs += _get_safe_float(ligne.get("base"))
+        elif "csg" in libelle and "déductible" in libelle and "non déductible" not in libelle:
+            taux_csg_deductible = taux_csg_deductible or _get_safe_float(
+                ligne.get("taux_salarial")
+            )
+    if taux_csg_deductible <= 0:
+        taux_csg_deductible = _taux_csg_deductible_bareme(contexte)
+    if taux_csg_deductible <= 0:
+        logger.warning(
+            "Taux de CSG déductible introuvable : le montant net des heures "
+            "supplémentaires exonérées n'est pas calculé."
+        )
+        return 0.0
     if base_csg_hs <= 0:
         # Heures sup saisies à la main, sans ligne de CSG dédiée : on retient la
         # rémunération des HS abattue des frais professionnels, comme l'assiette

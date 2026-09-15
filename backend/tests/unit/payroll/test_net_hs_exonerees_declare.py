@@ -46,18 +46,33 @@ BASE_CSG_HS_GIRERD = 435.16
 ATTENDU_GIRERD = 413.32
 
 
-def _contexte():
+#: Forme réelle du catalogue 2026 : une entrée `csg` unique dont la part
+#: salariale se décompose. La première version de ce test utilisait une forme
+#: qui n'existe pas (`csg_deductible` avec un taux nombre), et laissait donc
+#: passer un moteur qui ne trouvait aucun taux et rendait le brut.
+CATALOGUE_2026 = {"csg": {"id": "csg", "libelle": "CSG/CRDS", "salarial": {"deductible": 0.068, "non_deductible": 0.029}}}
+#: Forme historique, encore présente dans les snapshots de test.
+CATALOGUE_HISTORIQUE = {"csg_deductible": {"id": "csg_deductible", "salarial": 0.068}}
+
+
+def _contexte(catalogue=None):
+    cat = CATALOGUE_2026 if catalogue is None else catalogue
     return SimpleNamespace(
         month=1,
         cumuls={},
         contrat={"specificites_paie": {}},
-        get_cotisation_by_id=lambda _id: {"salarial": 0.068},
+        get_cotisation_by_id=lambda _id: cat.get(_id),
     )
 
 
-def _lignes(base_csg_hs, taux=0.097):
+def _lignes(base_csg_hs, taux=0.097, taux_csg_deductible=0.068):
     return [
-        {"libelle": "CSG déductible", "base": 2334.11, "montant_salarial": 158.72},
+        {
+            "libelle": "CSG déductible",
+            "base": 2334.11,
+            "taux_salarial": taux_csg_deductible,
+            "montant_salarial": 158.72,
+        },
         {
             "libelle": "CSG/CRDS non déductible",
             "base": 2334.11,
@@ -98,10 +113,37 @@ class TestMontantNetHeuresSupExonerees:
         assert montant < BRUT_HS_BUGNY
         assert montant == pytest.approx(BRUT_HS_BUGNY * (1 - 0.068 * 0.9825), abs=0.5)
 
-    def test_le_taux_vient_du_bareme_pas_du_code(self):
-        contexte = _contexte()
-        contexte.get_cotisation_by_id = lambda _id: {"salarial": 0.05}
+    def test_le_taux_vient_de_la_ligne_du_bulletin(self):
+        """Le taux appliqué est celui que le bulletin a réellement utilisé."""
         montant = calcul_net.montant_net_hs_exonerees(
-            contexte, _lignes(BASE_CSG_HS_BUGNY), BRUT_HS_BUGNY
+            _contexte(), _lignes(BASE_CSG_HS_BUGNY, taux_csg_deductible=0.05),
+            BRUT_HS_BUGNY,
         )
         assert montant == pytest.approx(BRUT_HS_BUGNY - 0.05 * BASE_CSG_HS_BUGNY, abs=0.01)
+
+    def test_repli_sur_le_catalogue_forme_2026(self):
+        """Sans taux sur la ligne, le catalogue prend le relais — forme réelle,
+        une entrée `csg` dont la part salariale se décompose."""
+        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes[0].pop("taux_salarial")
+        montant = calcul_net.montant_net_hs_exonerees(
+            _contexte(CATALOGUE_2026), lignes, BRUT_HS_BUGNY
+        )
+        assert montant == pytest.approx(ATTENDU_BUGNY, abs=0.01)
+
+    def test_repli_sur_le_catalogue_forme_historique(self):
+        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes[0].pop("taux_salarial")
+        montant = calcul_net.montant_net_hs_exonerees(
+            _contexte(CATALOGUE_HISTORIQUE), lignes, BRUT_HS_BUGNY
+        )
+        assert montant == pytest.approx(ATTENDU_BUGNY, abs=0.01)
+
+    def test_sans_aucun_taux_connu_on_ne_declare_rien(self):
+        """Plutôt rendre zéro que le brut : un montant faux au revenu fiscal de
+        référence est pire qu'une ligne absente."""
+        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes[0].pop("taux_salarial")
+        assert calcul_net.montant_net_hs_exonerees(
+            _contexte({}), lignes, BRUT_HS_BUGNY
+        ) == 0.0
