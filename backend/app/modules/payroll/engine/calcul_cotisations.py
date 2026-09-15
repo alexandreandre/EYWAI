@@ -25,6 +25,24 @@ from app.shared.domain.employment_rules import is_cadre
 # Fichier : moteur_paie/calcul_cotisations.py
 
 
+def est_cdd(contexte: ContextePaie) -> bool:
+    """Contrat à durée déterminée, hors alternance et hors stage.
+
+    L'apprentissage et la professionnalisation sont des CDD particuliers,
+    expressément exclus de la contribution CPF-CDD (art. L6331-6 du code du
+    travail), comme les contrats aidés et les stages.
+    """
+    type_contrat = (contexte.type_contrat or "").lower()
+    if not type_contrat:
+        return False
+    if any(
+        mot in type_contrat
+        for mot in ("apprenti", "professionnalisation", "stage", "alternance")
+    ):
+        return False
+    return "cdd" in type_contrat or "déterminée" in type_contrat or "determinee" in type_contrat
+
+
 def _assiette_pour_base(
     base_id: str,
     *,
@@ -620,6 +638,15 @@ def calculer_cotisations(
             else:
                 taux_patronal_final = 0.0
 
+        # Contribution au financement du compte personnel de formation des
+        # titulaires de CDD (art. L6331-6 du code du travail) : 1 % de leur
+        # rémunération, et d'eux seuls. Le cabinet la facture bien ainsi sur
+        # Colorplast — Demory et Fuckar, les deux seuls CDD, portent un point de
+        # plus que les sept autres (2,646 % contre 1,646 % du brut, constant sur
+        # les 43 bulletins de janvier à juillet 2026).
+        if coti_id == "cpf_cdd" and not est_cdd(contexte):
+            taux_patronal_final = 0.0
+
         # SMIC mensuel TEMPS PLEIN (non proratisé) — seuils légaux maladie/AF.
         # Centralisé sur le contexte (DRY) sans changer le comportement existant.
         smic_mensuel = contexte.smic_mensuel
@@ -1008,6 +1035,31 @@ def calculer_cotisations(
                 )
                 if ligne_calculee:
                     bulletin_cotisations.append(ligne_calculee)
+                    # Forfait social : même règle que sur le chemin « lignes de
+                    # la fiche » ci-dessus, mais le taux vient ici du barème.
+                    # Sans cette accroche, un salarié dont la fiche ne porte
+                    # aucune ligne de prévoyance ne pouvait jamais en avoir
+                    # (sept des neuf salariés de Colorplast).
+                    taux_fs = float(coti_data.get("forfait_social") or 0.0)
+                    if taux_fs > 0:
+                        base_fs = round(
+                            sum(
+                                float(c.get("montant_patronal") or 0.0)
+                                for c in bulletin_cotisations
+                                if c.get("coti_id")
+                                in {"mutuelle", "prevoyance_non_cadre"}
+                            ),
+                            2,
+                        )
+                        ligne_fs = _calculer_une_ligne(
+                            f"Forfait social {taux_fs * 100:.0f}% sur prévoyance",
+                            base_fs,
+                            None,
+                            taux_fs,
+                            coti_id="forfait_social",
+                        )
+                        if ligne_fs:
+                            bulletin_cotisations.append(ligne_fs)
             else:
                 logger.warning(
                     "  -> ❌ Règle 'prevoyance_non_cadre' INTROUVABLE dans les barèmes."
@@ -1034,6 +1086,21 @@ def calculer_cotisations(
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
+                # Forfait social sur la retraite supplémentaire : 20 %, sans
+                # l'exonération des moins de 11 salariés qui vaut pour les 8 %
+                # de la prévoyance. Relevé sur Girerd (Colorplast) tous les mois
+                # de 2026 : 19,00 € sur 94,98 € de part patronale.
+                taux_fs = float(ligne.get("forfait_social") or 0.0)
+                if taux_fs > 0 and ligne_calculee.get("montant_patronal", 0) > 0:
+                    ligne_fs = _calculer_une_ligne(
+                        f"Forfait social {taux_fs * 100:.0f}% sur retraite supplémentaire",
+                        ligne_calculee["montant_patronal"],
+                        None,
+                        taux_fs,
+                        coti_id="forfait_social",
+                    )
+                    if ligne_fs:
+                        bulletin_cotisations.append(ligne_fs)
 
     # Ajout de la réduction salariale sur les heures supplémentaires
     if remuneration_heures_supp > 0:

@@ -52,6 +52,7 @@ COTI_ID_TO_RUBRIQUE: Dict[str, str] = {
     "fnal": "autres_contributions_employeur",
     "CFP": "autres_contributions_employeur",
     "cfp": "autres_contributions_employeur",
+    "cpf_cdd": "autres_contributions_employeur",
     "taxe_apprentissage": "autres_contributions_employeur",
     "taxe_apprentissage_solde": "autres_contributions_employeur",
     "csa": "autres_contributions_employeur",

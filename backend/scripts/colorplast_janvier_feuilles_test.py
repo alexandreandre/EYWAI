@@ -96,6 +96,14 @@ QUADRA_NET_SOCIAL = {"BUGNY": 2508.65, "COTTE": 1880.84, "ESPINOSA": 2538.18, "G
 #: le même que sur leur net avant impôt. Le seuil laisse passer ce résidu connu
 #: mais pas un retour du complément de mutuelle dans le net social (98,13).
 TOLERANCE_NET_SOCIAL = 0.15
+#: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
+#: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
+#: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
+#: + 20 % sur la retraite supplémentaire du cadre. Affiché sans contrôle
+#: bloquant : l'écart restant tient au taux de formation (1 % chez nous contre
+#: 0,55 %) et au forfait social de 8 %, tous deux suspendus à l'effectif de
+#: Colorplast, question posée à Gaëlle.
+QUADRA_AUTRES_CONTRIB = {"BUGNY": 53.22, "COTTE": 39.61, "ESPINOSA": 53.63, "GAUTHERON": 40.26, "GIRERD": 89.41}
 #: Réduction générale (« EXO., ECRET. ET ALLEG. COTIS ») du bulletin Quadra.
 #: Les deux salariés absents étaient surévalués tant que les heures d'absence
 #: restaient dans le SMIC de référence (Cotte 643,01 ; Gautheron 689,65).
@@ -246,6 +254,11 @@ def main() -> int:
                 print(f"::error::{nom} : montant net social hors tolérance ({mns - q_mns:+.2f})")
                 rc = 1
             structure = data.get("structure_cotisations") or {}
+            autres = float((structure.get("bloc_autres_contributions") or {}).get("total") or 0)
+            q_autres = QUADRA_AUTRES_CONTRIB[nom]
+            print(f"      autres contributions employeur {autres:.2f} (Quadra {q_autres:.2f}, écart {autres - q_autres:+.2f})")
+            for c in (structure.get("bloc_autres_contributions") or {}).get("lignes") or []:
+                print(f"        {str(c.get('libelle'))[:46]:46s} {c.get('montant_patronal')}")
             reduction = next(
                 (
                     float(c.get("montant_patronal") or 0)

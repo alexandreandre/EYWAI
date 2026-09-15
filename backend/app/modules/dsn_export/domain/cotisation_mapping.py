@@ -140,6 +140,8 @@ REGLES: Dict[str, Regle] = {
     "dialogue_social": Regle("100", BASE_BRUT_DEPLAFONNE),
     "CFP": Regle("128", BASE_BRUT_DEPLAFONNE),
     "cfp": Regle("128", BASE_BRUT_DEPLAFONNE),
+    # Contribution CPF des titulaires de CDD (art. L6331-6 du code du travail).
+    "cpf_cdd": Regle("129", BASE_BRUT_DEPLAFONNE),
     "taxe_apprentissage": Regle("130", BASE_BRUT_DEPLAFONNE),
     # Le versement mobilité a sa propre base assujettie, la 57.
     "versement_mobilite": Regle("081", BASE_VERSEMENT_MOBILITE),
