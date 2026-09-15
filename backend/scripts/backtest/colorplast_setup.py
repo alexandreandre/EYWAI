@@ -112,6 +112,9 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
         "GIRERD": {"base": 3101.00, "mut_reint": True, "prevoyance": (0.00465, 0.00465),
                    "inputs": [("Indemnite de transport", 250.0, False, False)]},
+        # Arret maladie du 29/03 au 28/04 : mois entier deduit, brut 20,20.
+        # Le calendrier porte l'arret, pose par le chargeur DSN.
+        "GAUTHERON": {"base": 1964.00, "mut_reint": True, "inputs": []},
         # DEMORY : 1er mois plein. Ferie 06/04 non paye (anciennete < 3 mois).
         "DEMORY": {"base": 1850.37, "abs": {6: 7.0}, "inputs": []},
         # FUCKAR : Cegid mensualise puis déduit 30,50 h avant l'embauche,

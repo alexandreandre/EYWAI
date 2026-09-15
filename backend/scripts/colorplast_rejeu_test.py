@@ -48,7 +48,7 @@ YEAR = 2026
 #: Toutes les fiches que le rejeu touche sur l'année. Chaque mois n'en joue
 #: qu'une partie — Demory est embauché le 23/03 — et c'est le tableau de
 #: références du mois qui dit lesquelles.
-SALARIES = ("BUGNY", "COTTE", "DEMORY", "ESPINOSA", "GAUTHERON", "GIRERD")
+SALARIES = ("BUGNY", "COTTE", "DEMORY", "ESPINOSA", "FUCKAR", "GAUTHERON", "GIRERD")
 SMIC_HORAIRE = 12.02  # 12,31 à partir de juin
 
 #: Tolérances par défaut : le centime, sauf le SMIC (au demi-centime) et les
@@ -190,6 +190,41 @@ REFERENCES: dict[int, dict] = {
                       "ESPINOSA": -56.75, "GAUTHERON": -17.48, "GIRERD": -26.00},
         "reduction": {"BUGNY": -581.69, "COTTE": -617.14, "DEMORY": -201.39,
                       "ESPINOSA": -531.66, "GAUTHERON": -419.16, "GIRERD": -252.64},
+    },
+    4: {
+        "fenetre": ("2026-03-23", "2026-04-19"),
+        # Avril apporte encore trois choses : l'embauche de Fuckar le 07/04 avec
+        # sa retenue d'entrée, un jour férié non payé chez Demory (moins de trois
+        # mois d'ancienneté), et la part patronale de mutuelle réintégrée au net
+        # imposable à partir de ce mois — le PAS de Girerd passe de 111,81 à
+        # 113,05. Gautheron est en arrêt tout le mois : son bulletin est négatif
+        # (−114,82 à payer) et son allègement se retourne en remboursement.
+        "en_attente": {
+            "GAUTHERON": "arrêt maladie du 29/03 au 28/04 — même question ouverte qu'en mars",
+        },
+        "brut": {"BUGNY": 2949.90, "COTTE": 2430.75, "DEMORY": 2017.05, "ESPINOSA": 3156.05,
+                 "FUCKAR": 1818.80, "GAUTHERON": 20.20, "GIRERD": 3799.06},
+        "net": {"BUGNY": (3415.42, 64.45), "COTTE": (1947.18, 36.22), "DEMORY": (1614.89, 0.0),
+                "ESPINOSA": (2538.45, 0.0), "FUCKAR": (1463.72, 0.0),
+                "GAUTHERON": (-114.82, 0.29), "GIRERD": (3051.48, 113.05)},
+        "net_social": {"BUGNY": 3415.42, "COTTE": 1947.18, "DEMORY": 1614.89, "ESPINOSA": 2636.57,
+                       "FUCKAR": 1463.72, "GAUTHERON": -16.70, "GIRERD": 3150.85},
+        "net_hs_exo": {"BUGNY": 576.97, "COTTE": 291.99, "DEMORY": 235.24, "ESPINOSA": 713.13,
+                       "FUCKAR": 274.38, "GAUTHERON": 0.00, "GIRERD": 413.31},
+        "heures": {"BUGNY": (740.50, 133.82), "COTTE": (651.10, 68.56), "DEMORY": (211.70, 19.53),
+                   "ESPINOSA": (753.25, 146.57), "FUCKAR": (143.50, 22.33),
+                   "GAUTHERON": (417.90, 46.26), "GIRERD": (676.00, 69.32)},
+        # Demory perd un jour sur son férié non payé (29/30), Fuckar entre le 07
+        # (24/30). Gautheron garde le plafond entier malgré son arrêt.
+        "pss": {"BUGNY": 4005.00, "COTTE": 4005.00, "DEMORY": 3871.50, "ESPINOSA": 4005.00,
+                "FUCKAR": 3204.00, "GAUTHERON": 4005.00, "GIRERD": 4005.00},
+        "autres": {"BUGNY": 51.98, "COTTE": 40.91, "DEMORY": 54.12, "ESPINOSA": 55.46,
+                   "FUCKAR": 48.81, "GAUTHERON": 2.68, "GIRERD": 85.28},
+        "deduction": {"BUGNY": -53.00, "COTTE": -29.00, "DEMORY": -24.80, "ESPINOSA": -58.62,
+                      "FUCKAR": -28.92, "GAUTHERON": 0.42, "GIRERD": -26.00},
+        # Gautheron : allègement positif, le cabinet rend ce qu'il avait accordé.
+        "reduction": {"BUGNY": -574.00, "COTTE": -627.87, "DEMORY": -725.53, "ESPINOSA": -536.88,
+                      "FUCKAR": -642.04, "GAUTHERON": 35.34, "GIRERD": -252.64},
     },
 }
 
