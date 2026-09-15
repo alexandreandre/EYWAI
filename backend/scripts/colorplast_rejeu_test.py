@@ -317,7 +317,8 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
                 if str(j.get("type", "")).startswith("arret") and j.get("dsn_loader")
             )
             if jours_arret and any(
-                not j.get("arret_type") for j in jours
+                not j.get("arret_type") or not j.get("maintien_base_ouvree")
+                for j in jours
                 if str(j.get("type", "")).startswith("arret")
             ):
                 debut = f"{YEAR:04d}-{mois:02d}-{jours_arret[0]:02d}"
