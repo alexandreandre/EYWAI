@@ -121,6 +121,8 @@ TOLERANCE_DEDUCTION_HS = 0.15
 #: d'absence non rémunérée : Cotte 30/31, Gautheron 29/31.
 QUADRA_PLAFOND_SS = {"BUGNY": 4005.00, "COTTE": 3875.81, "ESPINOSA": 4005.00,
                      "GAUTHERON": 3746.61, "GIRERD": 4005.00}
+#: SMIC horaire imprimé par le cabinet en janvier 2026 (12,31 à partir de juin).
+QUADRA_SMIC = 12.02
 #: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
 #: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
 #: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
@@ -283,6 +285,11 @@ def main() -> int:
             print(f"      net des heures sup exonérées {net_hs:.2f} (Quadra {q_hs:.2f}, écart {net_hs - q_hs:+.2f})")
             if abs(net_hs - q_hs) > TOLERANCE_NET_HS_EXO:
                 print(f"::error::{nom} : net des heures sup exonérées hors tolérance ({net_hs - q_hs:+.2f})")
+                rc = 1
+            smic = float((data.get("parametres") or {}).get("smic_horaire") or 0)
+            print(f"      SMIC horaire {smic:.2f} (Quadra {QUADRA_SMIC:.2f}, écart {smic - QUADRA_SMIC:+.2f})")
+            if abs(smic - QUADRA_SMIC) > 0.005:
+                print(f"::error::{nom} : SMIC horaire hors tolérance ({smic - QUADRA_SMIC:+.2f})")
                 rc = 1
             pss = float((data.get("parametres") or {}).get("pss_mensuel") or 0)
             q_pss = QUADRA_PLAFOND_SS[nom]

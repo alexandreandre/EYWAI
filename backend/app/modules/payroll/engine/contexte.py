@@ -531,8 +531,34 @@ class ContextePaie:
 
     @property
     def smic_horaire(self) -> float:
-        """SMIC horaire brut (cas général) issu des barèmes dynamiques."""
-        return self.baremes.get("smic", {}).get("cas_general", 0.0) or 0.0
+        """SMIC horaire brut (cas général) applicable à la période du bulletin.
+
+        Le barème porte une valeur courante et, facultativement, un
+        `historique` : des valeurs datées de leur entrée en vigueur. La plus
+        récente qui précède la fin de la période l'emporte. Sans historique, ou
+        pour une période antérieure à la première date connue, la valeur
+        courante s'applique — comportement d'avant, aucun bulletin ne bouge.
+
+        Le SMIC change en cours d'année (12,02 € puis 12,31 € au 1ᵉʳ juin 2026)
+        et sert de plafond à l'exonération des apprentis : sans la date, un mois
+        passé était calculé avec le SMIC d'aujourd'hui.
+        """
+        smic = self.baremes.get("smic", {}) or {}
+        courant = smic.get("cas_general", 0.0) or 0.0
+        fin_periode = self.date_fin_periode
+        if fin_periode is None:
+            return courant
+        applicable = None
+        for palier in smic.get("historique") or []:
+            try:
+                debut = date.fromisoformat(str(palier.get("date_debut"))[:10])
+            except (TypeError, ValueError):
+                continue
+            if debut <= fin_periode and (applicable is None or debut > applicable[0]):
+                applicable = (debut, palier.get("cas_general"))
+        if applicable is None or not applicable[1]:
+            return courant
+        return float(applicable[1])
 
     @property
     def smic_mensuel(self) -> float:
