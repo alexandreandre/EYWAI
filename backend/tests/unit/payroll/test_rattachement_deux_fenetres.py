@@ -58,8 +58,9 @@ def test_une_regularisation_anterieure_passe_toujours():
 
 
 def test_le_catalogue_des_types_variables():
-    """Heures sup et absences non rémunérées : ce que la gestionnaire arrête
-    à sa date. Congés, fériés et arrêts restent au mois du bulletin."""
+    """Ce que la gestionnaire arrête à sa date : heures sup, absences non
+    rémunérées et congés pour événement familial. Congés payés, fériés et
+    arrêts restent au mois du bulletin."""
     assert TYPES_RATTACHES_AUX_VARIABLES == frozenset(
         {
             "travail_hs25",
@@ -67,8 +68,25 @@ def test_le_catalogue_des_types_variables():
             "absence_injustifiee_base",
             "absence_injustifiee_hs25",
             "absence_non_remuneree",
+            "evenement_familial",
         }
     )
+
+
+def test_un_evenement_familial_du_27_juillet_bascule_sur_aout():
+    """Colorplast, mars 2026 : le cabinet paie sur le bulletin de mars le congé
+    du 25 au 27 février de Cotte, la fenêtre de février s'arrêtant au 22."""
+    assert evenements_de_la_periode(
+        [_ev("2026-07-27", "evenement_familial", 7.0)], MOIS, VARIABLES
+    ) == []
+
+
+def test_un_arret_maladie_reste_au_mois_du_bulletin():
+    """Il porte ses propres dates, pour les IJSS comme pour la DSN : le cabinet
+    déduit tout l'arrêt de Gautheron (16 au 28/03) sur mars, alors que la
+    semaine du 23 appartient à la fenêtre d'avril."""
+    evenement = _ev("2026-07-30", "arret_maladie", 7.0)
+    assert evenements_de_la_periode([evenement], MOIS, VARIABLES) == [evenement]
 
 
 def test_une_absence_du_29_juillet_bascule_sur_aout():
