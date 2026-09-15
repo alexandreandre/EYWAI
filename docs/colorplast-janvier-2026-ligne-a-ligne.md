@@ -120,6 +120,19 @@ juin.
 
 ### 2. Autres contributions employeur : deux taux de paramétrage
 
+**Partiellement corrigé le 15/09.** Le forfait social de 20 % sur la retraite
+supplémentaire de Girerd (19,00 € sur 94,98 €) et la contribution CPF-CDD de 1 %
+sur les titulaires de CDD ont été ajoutés ; le forfait social de 8 % a gagné une
+accroche sur le chemin du barème global, qui concerne sept des neuf salariés.
+Le classement des lignes au bulletin suit désormais la rubrique du catalogue et
+non plus de simples mots-clés, sans quoi ces contributions tombaient parmi les
+cotisations principales.
+
+Le **taux de formation** (1 % chez nous, 0,55 % chez Quadra) et le **forfait
+social de 8 %** restent suspendus à l'effectif de Colorplast : les deux lignes
+du cabinet se contredisent — 0,55 % suppose moins de 11 salariés, le forfait
+social de 8 % en suppose 11 ou plus. Question posée à Gaëlle.
+
 Quadra regroupe tout sous « Autres contrib. dues par empl. » avec plusieurs bases.
 
 | | EYWAI | Quadra | écart |
@@ -137,6 +150,12 @@ Deux causes, additives :
   social 0,016 + taxe d'apprentissage 0,59 + solde 0,09) font 1,096 %. Le
   reste est 0,55 %, le taux des entreprises de moins de 11 salariés. Nous
   appliquons 1 %. Écart : 0,45 % du brut.
+Découverte au passage, absente de l'audit initial : **Demory et Fuckar portent
+un point de plus** que les autres (2,646 % contre 1,646 %). Ce sont les deux
+seuls CDD. Vérifié sur une deuxième société et un deuxième cabinet — Mont Blanc
+Composite chez Cegid, mai 2026 : 4,946 % pour 67 salariés et 5,946 % pour sept,
+tous en CDD. C'est la contribution CPF-CDD, qui n'existait pas chez nous.
+
 - **Forfait social absent chez nous.** Quadra ajoute une ligne à 8 % sur la
   prévoyance et la mutuelle patronales (Bugny 3,46 sur 43,29 ; Espinosa 3,47
   sur 43,40 ; Gautheron 3,18 sur 39,70 ; Cotte 0,88 sur 10,94 ; Girerd 7,88
@@ -186,6 +205,26 @@ posent la même question sans référence cabinet : arbitrage ouvert.
 
 ### 4. Montant net des heures supplémentaires exonérées
 
+**Corrigé le 15/09.** Constat rectifié : la ligne n'était pas fausse, **elle
+n'existait pas**. Notre bulletin ne l'imprimait pas du tout, et le montant que
+l'audit comparait était un compteur interne de plafond annuel, jamais imprimé.
+C'est pourtant une ligne obligatoire du bulletin clarifié, celle que le salarié
+reporte sur sa déclaration.
+
+Elle vaut le brut des heures sup moins la seule CSG déductible, formule juste
+sur les 27 bulletins du cabinet. Le taux se lit sur la ligne de CSG déductible
+du bulletin, avec repli sur le catalogue : la première version le cherchait sous
+un identifiant qui n'existe pas dans le catalogue 2026 et rendait le brut.
+
+L'arithmétique du net imposable n'a pas été touchée : elle converge déjà au
+centime par une décomposition équivalente. Le plafond annuel de 7 500 € n'est
+pas appliqué à la ligne imprimée, sa convention restant à trancher — Espinosa
+est à 62 % du plafond à fin juillet et le franchira vers novembre.
+
+Reste Cotte −0,31 et Gautheron −0,76 : même cause que le § 1, notre base
+d'heures sup est un peu plus basse que celle du cabinet chez les salariés
+absents.
+
 | | EYWAI | Quadra | écart |
 |---|---|---|---|
 | Bugny | 625,85 | 645,56 | −19,71 |
@@ -204,6 +243,26 @@ référence). La CSG non déductible et la CRDS ne se retranchent pas d'un net
 imposable : Quadra a raison, nous retirons 2,9 % de trop.
 
 ### 5. Compteur d'heures de l'encadré
+
+**Corrigé le 15/09.** Les deux compteurs tombent maintenant au centime sur les
+cinq salariés — 189,50 / 165,50 / 185,00 / 158,00 / 169,00 pour les heures, et
+37,83 / 16,97 / 33,33 / 16,20 / 17,33 pour les heures sup.
+
+Le défaut ne touchait pas que l'impression. Le cumul d'heures rémunérées sert de
+point de départ au SMIC de référence de la réduction générale du **mois
+suivant** : le moteur calculait la réduction de janvier sur 189,50 h mais n'en
+mémorisait que 169,00. Dès février, le cumul de Bugny repartait 20,50 h trop bas
+et la réduction avec lui, l'écart s'empilant de mois en mois. Invisible en
+janvier, où le cumul du mois est le mois lui-même. C'est probablement une part
+du « rythme » signalé sur juin et juillet — et cela expliquerait pourquoi Girerd,
+sans heures sup conjoncturelles, n'était pas concerné alors que Bugny l'était.
+
+Conséquence : les bulletins de février à juillet sur le test ne reflètent plus le
+moteur actuel et devront être rejoués.
+
+Non corrigé : la base de la **déduction forfaitaire patronale** utilise encore
+les heures sup brutes (Cotte −0,50, Gautheron −1,61 contre le cabinet). La
+passer aux heures sup nettes ramènerait ces écarts à −0,03 et −0,08.
 
 | | EYWAI « cumul heures » | Quadra « heures période / cumul heures » |
 |---|---|---|
@@ -292,15 +351,16 @@ Quadra laisse la case vide.
    SMIC de référence~~ — **fait le 15/09 (f79f3bb3)**. Reste à vérifier l'effet
    sur juin et juillet, où ce même défaut explique probablement le « rythme »
    qui décale Girerd et Marion, et à traiter le cas de l'arrêt maladie (§ 1).
-2. Taux liés à l'effectif : formation professionnelle à 0,55 % sous 11
-   salariés, forfait social 8 % sur prévoyance et mutuelle patronales, 20 %
-   sur la retraite supplémentaire cadre (§ 2).
+2. Taux liés à l'effectif (§ 2) : le forfait social de 20 % sur la retraite
+   supplémentaire et la contribution CPF-CDD sont **faits le 15/09** ; le taux
+   de formation et le forfait social de 8 % attendent la réponse sur
+   l'effectif.
 3. ~~Mutuelle famille : la sortir du montant net social~~ — **fait le 15/09
    (f02cc862)**.
-4. Net des heures sup exonérées : 6,8 % et non 9,7 % (§ 4).
-5. Compteur d'heures imprimé : y inclure les heures sup conjoncturelles, et
-   retrancher les heures sup perdues par absence du compteur d'heures sup
-   (§ 5).
+4. ~~Net des heures sup exonérées~~ — **fait le 15/09** : la ligne, qui
+   n'existait pas, est créée (§ 4).
+5. ~~Compteur d'heures imprimé~~ — **fait le 15/09** (§ 5). Reste la base de la
+   déduction forfaitaire patronale.
 6. Plafond Sécu : proratiser de la même façon dans tous les cas d'absence et
    l'imprimer proratisé (§ 6).
 7. Historiser le barème SMIC pour que les mois passés s'impriment avec le
@@ -314,3 +374,11 @@ Quadra laisse la case vide.
   4 h à 50 %, ce qui suppose 45 h. Quelle saisie a-t-elle faite ?
 - Les soldes de congés N-1 d'ouverture (Bugny 28, Espinosa 27, Girerd 27
   chez Quadra contre 25 chez nous).
+- L'effectif de Colorplast au sens des cotisations : 17 dans notre base, mais
+  0,55 % de formation suppose moins de 11 et le forfait social de 8 % en suppose
+  11 ou plus.
+- Un bulletin d'une année où quelqu'un a dépassé les 7 500 € d'heures sup
+  défiscalisées, pour trancher la convention du plafond avant novembre.
+
+Les cinq questions sont rassemblées sur une page dédiée, tenue à jour au fil des
+points : <https://claude.ai/code/artifact/d5eea44e-8af6-4b33-a1a1-f75cfce11991>
