@@ -247,6 +247,43 @@ REFERENCES: dict[int, dict] = {
         "reduction": {"BUGNY": -574.00, "COTTE": -627.87, "DEMORY": -725.53, "ESPINOSA": -536.88,
                       "FUCKAR": -642.04, "GAUTHERON": 35.34, "GIRERD": -252.64},
     },
+    5: {
+        "fenetre": ("2026-04-20", "2026-05-24"),
+        # Mai est le mois le plus dense : augmentation générale au 01/05,
+        # versement de la participation 2025 (avec des acomptes déjà versés à
+        # déduire), journée de solidarité le 25 — travaillée par Bugny et Cotte,
+        # posée en congé par les trois autres —, fériés non payés du 8 et du 14
+        # pour les deux derniers embauchés, arrêt maladie de Fuckar et accident
+        # du travail de Demory. Marion reste en attente : ses cumuls dépendent
+        # de son arrêt d'avril, toujours suspendu à la question du maintien.
+        #
+        # Deux anciens salariés, Chaleyssin et Da Silva Car, reçoivent un
+        # bulletin sans salaire pour leur seule part de participation (11,04 et
+        # 221,81). Ils ne sont pas dans le périmètre du rejeu.
+        "en_attente": {
+            "GAUTHERON": "cumuls hérités de son arrêt d'avril — question du maintien toujours ouverte",
+        },
+        "brut": {"BUGNY": 2952.34, "COTTE": 2444.33, "DEMORY": 1529.05, "ESPINOSA": 2990.19,
+                 "FUCKAR": 1664.78, "GAUTHERON": 2432.78, "GIRERD": 3855.98},
+        "net": {"BUGNY": (5479.53, 190.41), "COTTE": (3867.27, 100.04), "DEMORY": (1224.20, 0.0),
+                "ESPINOSA": (4860.09, 0.0), "FUCKAR": (1336.64, 0.0),
+                "GAUTHERON": (2977.56, 67.22), "GIRERD": (3096.69, 114.75)},
+        "net_social": {"BUGNY": 5479.53, "COTTE": 3867.27, "DEMORY": 1224.20, "ESPINOSA": 4958.21,
+                       "FUCKAR": 1336.64, "GAUTHERON": 3190.79, "GIRERD": 3711.97},
+        "net_hs_exo": {"BUGNY": 538.53, "COTTE": 267.00, "DEMORY": 178.31, "ESPINOSA": 513.72,
+                       "FUCKAR": 225.28, "GAUTHERON": 265.69, "GIRERD": 419.51},
+        "heures": {"BUGNY": (924.50, 166.15), "COTTE": (820.10, 85.89), "DEMORY": (333.90, 32.06),
+                   "ESPINOSA": (931.75, 173.40), "FUCKAR": (276.00, 38.16),
+                   "GAUTHERON": (586.90, 63.59), "GIRERD": (845.00, 86.65)},
+        "pss": {"BUGNY": 4005.00, "COTTE": 4005.00, "DEMORY": 2842.26, "ESPINOSA": 4005.00,
+                "FUCKAR": 3359.03, "GAUTHERON": 4005.00, "GIRERD": 4005.00},
+        "autres": {"BUGNY": 52.04, "COTTE": 41.13, "DEMORY": 41.03, "ESPINOSA": 52.67,
+                   "FUCKAR": 44.67, "GAUTHERON": 43.28, "GIRERD": 86.53},
+        "deduction": {"BUGNY": -48.50, "COTTE": -26.00, "DEMORY": -18.80, "ESPINOSA": -40.25,
+                      "FUCKAR": -23.75, "GAUTHERON": -26.00, "GIRERD": -26.00},
+        "reduction": {"BUGNY": -546.88, "COTTE": -603.25, "DEMORY": -550.16, "ESPINOSA": -490.36,
+                      "FUCKAR": -592.89, "GAUTHERON": -608.28, "GIRERD": -244.99},
+    },
 }
 
 
