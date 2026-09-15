@@ -881,14 +881,18 @@ def run_payslip_generation_heures(
     # d'absence non payée doit en sortir, sinon la réduction est surévaluée
     # (Colorplast janvier 2026 : Cotte 643,01 au lieu de 609,61, Gautheron
     # 689,65 au lieu de 582,21 — cf. `docs/colorplast-janvier-2026-ligne-a-ligne.md`).
+    #
+    # Sur un mois d'entrée ou de sortie, la base n'est pas celle d'un mois plein
+    # mais les seules heures dues, que le calcul du brut expose (Demory, embauché
+    # le 23/03/2026 : 47,50 h et non 151,67, pour 50,50 h de période chez Quadra).
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
+    heures_base_mois = float(
+        resultat_brut.get("heures_base_remunerees")
+        or min(heures_contractuelles_mois, heures_legales_mois)
+    )
     heures_remunerees_reduction = max(
         0.0,
-        max(
-            0.0,
-            min(heures_contractuelles_mois, heures_legales_mois)
-            - heures_activite_partielle,
-        )
+        max(0.0, heures_base_mois - heures_activite_partielle)
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
         - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),

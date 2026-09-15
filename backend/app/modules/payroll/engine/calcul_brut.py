@@ -771,6 +771,10 @@ def calculer_salaire_brut(
 
     remuneration_hs_structurelles = 0.0
     heures_sup_structurelles_mensuelles = 0.0
+    #: Heures de base réellement payées : la quantité portée par la ligne
+    #: « Salaire de base ». Vaut le mois plein d'ordinaire, et les seules heures
+    #: dues sur un mois d'entrée ou de sortie.
+    heures_base_remunerees = 0.0
 
     # 1. Décomposition du salaire de base
     if duree_contrat_hebdo < duree_legale_hebdo:
@@ -792,6 +796,7 @@ def calculer_salaire_brut(
             )
         else:
             gain_base = round(salaire_contractuel, 2)
+        heures_base_remunerees = heures_mensuelles_contrat
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
@@ -820,6 +825,7 @@ def calculer_salaire_brut(
             salaire_base_35h = round(salaire_contractuel, 2)
         else:
             salaire_base_35h = heures_mensuelles_legales_val * taux_horaire_de_base
+        heures_base_remunerees = heures_mensuelles_legales_val
         lignes_composants_brut.append(
             {
                 "libelle": "Salaire de base",
@@ -1510,6 +1516,11 @@ def calculer_salaire_brut(
         # pour le SMIC de référence de la réduction (heures rémunérées = contrat
         # + conjoncturelles + complémentaires), sans double-compter le structurel.
         "heures_sup_conjoncturelles": round(heures_sup_conjoncturelles, 2),
+        # Heures de base effectivement payées — mois plein, ou les seules heures
+        # dues sur un mois d'entrée ou de sortie. Le compteur d'heures et le
+        # SMIC de référence en partent : Demory, embauché le 23/03/2026, a
+        # 47,50 h de base et non 151,67 (Quadra imprime 50,50 h de période).
+        "heures_base_remunerees": round(heures_base_remunerees, 2),
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
