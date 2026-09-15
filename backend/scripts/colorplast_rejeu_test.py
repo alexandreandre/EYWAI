@@ -126,6 +126,25 @@ REFERENCES: dict[int, dict] = {
         # heures sup dont une part perd l'exonération), le congé pour événement
         # familial de Cotte (25→27/02, payé mais qui sort les heures du compteur
         # et proratise le plafond) et l'embauche de Demory le 23/03.
+        # Écarts avec le cabinet que nous ne reproduisons pas, et pourquoi.
+        #
+        # Cotte, congé pour événement familial : sa rémunération étant
+        # intégralement maintenue, ni le plafond ni le compteur d'heures ne se
+        # réduisent. Le cabinet proratise pourtant le plafond de 3 jours — sans
+        # aucun effet financier, le brut (2 398,38) restant sous le plafond dans
+        # les deux cas — et sort les heures du compteur, alors qu'il garde
+        # celles du congé payé de Léo en février. Nous restons cohérents.
+        #
+        # Les deux écarts d'allègement ne sont pas tranchés : Cotte relève de la
+        # même incohérence que janvier (question Q3, le cabinet compte une
+        # fraction d'heure de plus ou de moins quand il y a une absence) et la
+        # règle du mois d'entrée de Demory n'est pas identifiée — notre formule
+        # tourne pourtant sur les bonnes heures, 50,50 comme lui.
+        "ecarts_documentes": {
+            "COTTE": {"pss": 429.11, "cumul_heures": 23.40, "cumul_hs": 2.40,
+                      "reduction": -5.71},
+            "DEMORY": {"reduction": -29.70},
+        },
         "brut": {"BUGNY": 3124.90, "COTTE": 2398.38, "DEMORY": 625.25,
                  "ESPINOSA": 3139.74, "GAUTHERON": 1609.96, "GIRERD": 3799.06},
         "net": {"BUGNY": (2751.38, 63.42), "COTTE": (1918.04, 36.22), "DEMORY": (496.93, 0.0),
@@ -308,12 +327,22 @@ def _controler(nom: str, mois: int, data: dict, res) -> int:
     ref = REFERENCES[mois]
     rc = 0
 
-    def verifier(cle: str, valeur: float, attendu: float, libelle: str, indent: str = "      ") -> None:
+    def verifier(cle: str, valeur: float, attendu: float, libelle: str,
+                 cle_ecart: str | None = None) -> None:
+        """Compare une ligne, en retirant d'abord l'écart documenté s'il y en a un."""
         nonlocal rc
         ecart = valeur - attendu
-        print(f"{indent}{libelle} {valeur:.2f} (Quadra {attendu:.2f}, écart {ecart:+.2f})")
-        if abs(ecart) > _tolerance(mois, cle):
-            print(f"::error::{nom} {mois:02d}/{YEAR} : {libelle} hors tolérance ({ecart:+.2f})")
+        documente = (ref.get("ecarts_documentes", {}).get(nom, {})
+                     .get(cle_ecart or cle))
+        if documente is None:
+            print(f"      {libelle} {valeur:.2f} (Quadra {attendu:.2f}, écart {ecart:+.2f})")
+            reste = ecart
+        else:
+            reste = ecart - documente
+            print(f"      {libelle} {valeur:.2f} (Quadra {attendu:.2f}, écart {ecart:+.2f} "
+                  f"dont {documente:+.2f} documenté, reste {reste:+.2f})")
+        if abs(reste) > _tolerance(mois, cle):
+            print(f"::error::{nom} {mois:02d}/{YEAR} : {libelle} hors tolérance ({reste:+.2f})")
             rc = 1
 
     brut = float(data.get("salaire_brut") or 0)
@@ -357,8 +386,10 @@ def _controler(nom: str, mois: int, data: dict, res) -> int:
 
     cumuls = (data.get("cumuls") or {}).get("cumuls") or {}
     q_h, q_hs = ref["heures"][nom]
-    verifier("heures", float(cumuls.get("heures_remunerees") or 0), q_h, "cumul heures")
-    verifier("heures", float(cumuls.get("heures_supplementaires_remunerees") or 0), q_hs, "cumul h. sup")
+    verifier("heures", float(cumuls.get("heures_remunerees") or 0), q_h,
+             "cumul heures", cle_ecart="cumul_heures")
+    verifier("heures", float(cumuls.get("heures_supplementaires_remunerees") or 0), q_hs,
+             "cumul h. sup", cle_ecart="cumul_hs")
 
     structure = data.get("structure_cotisations") or {}
     verifier("autres", float((structure.get("bloc_autres_contributions") or {}).get("total") or 0),
