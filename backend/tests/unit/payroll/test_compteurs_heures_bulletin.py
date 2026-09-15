@@ -169,10 +169,11 @@ class TestDeductionForfaitairePatronale:
         )
         assert heures_nettes == pytest.approx(16.97, abs=0.01)
         ligne = _deduction(ctx, heures_nettes)
-        # Quadra : −25,49 sur 16,99 h. Nous : −25,45 sur 16,97 h, soit 0,04
-        # d'écart — le cabinet compte deux centièmes d'heure de plus, comme sur
-        # son propre compteur d'heures sup (16,99 imprimé contre 16,97 calculé).
-        assert ligne["montant_patronal"] == pytest.approx(-25.45, abs=0.01)
+        # Quadra : −25,49 sur 16,99 h. Nous : −25,46 sur 16,97 h (16,97 × 1,50
+        # = 25,455, la moitié s'éloignant de zéro comme chez le cabinet), soit
+        # 0,03 d'écart — il compte deux centièmes d'heure de plus, comme sur son
+        # propre compteur d'heures sup (16,99 imprimé contre 16,97 calculé).
+        assert ligne["montant_patronal"] == pytest.approx(-25.46, abs=0.01)
 
     def test_gautheron(self):
         ctx = build_test_contexte(

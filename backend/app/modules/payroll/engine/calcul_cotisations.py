@@ -16,6 +16,7 @@ from .exoneration_stage import (
     contexte_exoneration_stage,
 )
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Any, List, Tuple, Optional
 import json
 from .cotisations_rubriques import enrichir_ligne_cotisation
@@ -23,6 +24,18 @@ from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
 
 # Fichier : moteur_paie/calcul_cotisations.py
+
+
+def _produit_arrondi_centime(quantite: float, prix_unitaire: float) -> float:
+    """Quantité × prix, arrondi au centime, la moitié s'éloignant de zéro.
+
+    Le produit est fait en décimal et non en flottant : 17,33 × 1,50 vaut
+    25,995 sur le papier mais 25,994999999999997 en binaire, et `round` — qui
+    retient en plus le pair le plus proche — le fait redescendre à 25,99 quand
+    Quadra imprime 26,00 (les cinq bulletins de février de Colorplast).
+    """
+    produit = Decimal(str(quantite)) * Decimal(str(prix_unitaire))
+    return float(produit.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def _assiette_forfait_social(lignes: List[Dict[str, Any]]) -> float:
@@ -1212,7 +1225,9 @@ def calculer_cotisations(
                 break
 
         if montant_par_heure > 0:
-            montant_deduction = round(-total_heures_supp * montant_par_heure, 2)
+            montant_deduction = -_produit_arrondi_centime(
+                total_heures_supp, montant_par_heure
+            )
             bulletin_cotisations.append(
                 enrichir_ligne_cotisation(
                     {

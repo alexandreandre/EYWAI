@@ -88,10 +88,13 @@ TOLERANCE_NET_HS_EXO = 0.05
 #: janvier : Bugny 189,50 + 169,00 = 358,50 et 37,83 + 17,33 = 55,16.
 QUADRA_HEURES = {"BUGNY": (358.50, 55.16), "COTTE": (334.50, 34.30), "ESPINOSA": (373.00, 69.66),
                  "GAUTHERON": (330.50, 37.03), "GIRERD": (338.00, 34.66)}
-#: Déduction forfaitaire patronale sur les heures sup (1,50 €/h sous 20 salariés).
+#: Déduction forfaitaire patronale sur les heures sup (1,50 €/h sous 20
+#: salariés). Contrôlée au centime : personne n'a d'absence non rémunérée ce
+#: mois-ci, et l'arrondi du demi-centime a été aligné sur celui du cabinet
+#: (17,33 × 1,50 = 25,995, imprimé 26,00).
 QUADRA_DEDUCTION_HS = {"BUGNY": -26.00, "COTTE": -26.00, "ESPINOSA": -54.50,
                        "GAUTHERON": -31.25, "GIRERD": -26.00}
-TOLERANCE_DEDUCTION_HS = 0.05
+TOLERANCE_DEDUCTION_HS = 0.005
 #: Plafond Sécu : février est un mois entier pour tout le monde, aucune absence
 #: non rémunérée ne le proratise.
 QUADRA_PLAFOND_SS = 4005.00
