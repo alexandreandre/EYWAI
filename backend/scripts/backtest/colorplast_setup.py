@@ -57,7 +57,10 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "BUGNY": {"base": 2123.38, "mut_reint": False,
                   "inputs": [("Prime exceptionnelle", 150.0, True, True),
                              ("Remboursement de notes de frais", 667.17, False, False)]},
-        "COTTE": {"base": 1964.00, "cp": [19],
+        # Congés des jeudi 19 et vendredi 20 (bulletin Quadra « Congés payés :
+        # 190226-200226 », 2 jours) : le compteur CP N-1 pris passe de 23,00 en
+        # janvier à 25,00 en février.
+        "COTTE": {"base": 1964.00, "cp": [19, 20],
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 15.0, "hs50": 4.0, "mut_reint": False,
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
