@@ -45,6 +45,9 @@ from app.modules.absences.infrastructure.leave_settings_repository import (
     get_employee_adjustment,
     get_leave_policy,
 )
+from app.modules.absences.infrastructure.planning_cp_repository import (
+    get_cp_opening_reference_dates,
+)
 from app.modules.absences.infrastructure.providers import (
     evenement_familial_provider,
     storage_provider,
@@ -471,6 +474,25 @@ def get_absence_balances_at_date(
     )
 
 
+def _reprise_posterieure_au_bulletin(employee_id: str, ref_date: date) -> bool:
+    """La reprise des soldes de congés est-elle postérieure au bulletin ?
+
+    Sans reprise datée, rien n'est bloqué : le comportement d'avant est
+    conservé pour toutes les sociétés qui n'en ont pas.
+    """
+    try:
+        reprise = get_cp_opening_reference_dates([employee_id]).get(employee_id)
+    except Exception:
+        logger.warning(
+            "Date de reprise des congés illisible pour %s : compteurs calculés "
+            "comme avant",
+            employee_id,
+            exc_info=True,
+        )
+        return False
+    return bool(reprise) and ref_date < reprise
+
+
 def get_absence_balances_for_payslip(
     employee_id: str, year: int, month: int
 ) -> dict[str, object] | None:
@@ -480,6 +502,18 @@ def get_absence_balances_for_payslip(
         return None
     _, last_day = calendar.monthrange(year, month)
     ref_date = date(year, month, last_day)
+
+    # Les compteurs partent d'un solde repris à une date donnée ; les congés
+    # antérieurs y sont réputés absorbés et ne sont plus décomptés. Demander
+    # les compteurs d'un mois ANTÉRIEUR à cette reprise revient à remonter le
+    # temps : le calcul ajoute alors le solde de reprise à une période entière
+    # d'acquisition et produit un chiffre impossible — Colorplast janvier 2026,
+    # 50 jours de solde pour 25 acquis et 0 pris, sur une reprise datée du
+    # 31/08/2026. On ne produit donc aucun compteur : une case vide dit la
+    # vérité, un solde faux serait lu comme un droit par le salarié.
+    if _reprise_posterieure_au_bulletin(employee_id, ref_date):
+        return None
+
     validated_list = absence_repository.list_validated_for_employees([employee_id])
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
