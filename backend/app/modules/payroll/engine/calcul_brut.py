@@ -1006,6 +1006,10 @@ def calculer_salaire_brut(
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
     deduction_arret_maladie_total = 0.0
+    #: Congé pour événement familial : heures déduites et journées légales
+    #: équivalentes, gardées à part pour remettre exactement la même somme.
+    montant_evenement_familial = 0.0
+    jours_legaux_evenement_familial = 0.0
     jours_absence_legale_equivalents = 0.0
     # Cumul des retenues "absence non rémunérée" / "arrêt maladie" / "réduction
     # HS structurelles" déjà appliquées jour par jour — comparé au montant
@@ -1145,6 +1149,45 @@ def calculer_salaire_brut(
             )
         elif type_ev == "conges_payes":
             jours_conges_dans_periode.append(evenement)
+        elif type_ev == "evenement_familial":
+            # Congé pour événement familial (art. L3142-1 et suivants) :
+            # absence autorisée dont la rémunération est intégralement
+            # maintenue. Déduite puis remise à l'identique, comme le fait le
+            # cabinet — le brut ne bouge pas, mais la journée cesse d'être
+            # invisible. Écrite jusqu'ici sous le type `conge`, que le moteur
+            # ne lit nulle part, elle n'était ni travaillée ni en congé : elle
+            # ne figurait pas au bulletin et minorait les heures sup de sa
+            # semaine (371 jours dans ce cas sur le groupe au 26/08/2026).
+            #
+            # Ni le compteur d'heures, ni le plafond, ni le SMIC de référence
+            # ne bougent : la rémunération étant maintenue, ces trois-là ne se
+            # réduisent pas. Le cabinet retire pourtant les heures du compteur
+            # et proratise le plafond, alors qu'il garde les heures d'un congé
+            # payé — sans conséquence financière ici, le brut restant sous le
+            # plafond dans les deux cas. Écarts documentés dans
+            # `docs/colorplast-mars-2026-ligne-a-ligne.md`.
+            heures_abs = min(
+                _heures_evenement_absence(evenement, duree_contrat_hebdo),
+                _heures_journalieres_contrat(duree_contrat_hebdo),
+            )
+            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
+            montant_evenement_familial += montant_deduction
+            if not evenement.get("is_regularisation_anterieure"):
+                jours_legaux_evenement_familial += (
+                    heures_abs / lc.DUREE_LEGALE_HEBDO * 5
+                )
+            date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
+                "%d/%m/%y"
+            )
+            lignes_composants_brut.append(
+                {
+                    "libelle": f"Absence événement familial du {date_absence}",
+                    "quantite": heures_abs,
+                    "taux": round(taux_horaire_de_base, 4),
+                    "gain": None,
+                    "perte": montant_deduction,
+                }
+            )
         elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
             heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
@@ -1229,6 +1272,51 @@ def calculer_salaire_brut(
                     "gain": None,
                     "perte": montant_reduction_hs,
                     "is_reduction_hs": True,
+                }
+            )
+
+    # Congé pour événement familial : sa quote-part d'heures sup structurelles
+    # est retirée comme pour toute journée d'absence, puis l'ensemble — base et
+    # heures sup — est remis par une ligne de maintien. Le calcul de la
+    # quote-part est celui des autres absences, appliqué aux seules journées
+    # d'événement familial (Cotte, mars 2026 : 3 jours, 21,00 h de base pour
+    # 271,93 € et 2,40 h structurelles pour 38,85 €, maintien de 310,78 €).
+    if jours_legaux_evenement_familial > 0:
+        if heures_sup_structurelles_mensuelles > 0:
+            jours_legaux_mensuels = (
+                jours_ouvres_presence
+                if facteur_prorata < 1.0
+                else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
+            )
+            heures_hs_evenement_familial = round(
+                heures_sup_structurelles_mensuelles
+                * jours_legaux_evenement_familial
+                / jours_legaux_mensuels,
+                2,
+            )
+            if heures_hs_evenement_familial > 0:
+                montant_hs_evenement_familial = round(
+                    heures_hs_evenement_familial * taux_horaire_majore, 2
+                )
+                montant_evenement_familial += montant_hs_evenement_familial
+                lignes_composants_brut.append(
+                    {
+                        "libelle": "Réduction HS structurelles (événement familial)",
+                        "quantite": heures_hs_evenement_familial,
+                        "taux": round(taux_horaire_majore, 4),
+                        "gain": None,
+                        "perte": montant_hs_evenement_familial,
+                    }
+                )
+        montant_evenement_familial = round(montant_evenement_familial, 2)
+        if montant_evenement_familial > 0:
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Maintien de salaire (événement familial)",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": montant_evenement_familial,
+                    "perte": None,
                 }
             )
 

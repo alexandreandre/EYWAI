@@ -35,19 +35,23 @@ ORIGINE_ABSENCE = "absence"
 #: congé payé écrit sous `conge` n'est donc ni travaillé ni en congé pour le
 #: bulletin : il disparaît. Mesuré le 26/08/2026 : 371 jours dans ce cas sur le
 #: groupe, dont la totalité de MAJI et de Zone 404.
-#: `repos_compensateur` et `evenement_familial` écrivent encore `conge` et
-#: souffrent du même aveuglement — à trancher contre les bulletins réels avant
-#: de les basculer, leur traitement en paie n'étant pas celui d'un congé payé.
+#: `repos_compensateur` écrit encore `conge` et souffre du même aveuglement —
+#: à trancher contre un bulletin réel avant de le basculer, son traitement en
+#: paie n'étant pas celui d'un congé payé.
+#: `evenement_familial` a été tranché le 15/09/2026 sur le bulletin de mars de
+#: Cotte (Colorplast) : absence déduite sur la référence journalière légale
+#: puis maintien intégral du salaire, brut inchangé. Il écrit désormais son
+#: propre type, que le moteur lit.
 ABSENCE_TYPE_TO_CALENDAR_TYPE: dict[str, str] = {
     "conge_paye": "conges_payes",
     "rtt": "rtt",
     "repos_compensateur": "conge",
     "recuperation_modulation": "conges_payes",
-    "evenement_familial": "conge",
+    "evenement_familial": "evenement_familial",
 }
 
 ABSENCE_CALENDAR_TYPES: frozenset[str] = frozenset(
-    {"arret_maladie", "conge", "conges_payes", "rtt"}
+    {"arret_maladie", "conge", "conges_payes", "evenement_familial", "rtt"}
 )
 
 # Clés d'un jour de planning que seul le serveur écrit.

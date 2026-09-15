@@ -60,7 +60,9 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         # Congés des jeudi 19 et vendredi 20 (bulletin Quadra « Congés payés :
         # 190226-200226 », 2 jours) : le compteur CP N-1 pris passe de 23,00 en
         # janvier à 25,00 en février.
-        "COTTE": {"base": 1964.00, "cp": [19, 20],
+        # Et un congé pour événement familial du 25 au 27 : daté de février mais
+        # payé sur le bulletin de mars, la fenêtre de février s'arrêtant au 22.
+        "COTTE": {"base": 1964.00, "cp": [19, 20], "evt_familial": [25, 26, 27],
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 15.0, "hs50": 4.0, "mut_reint": False,
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
@@ -284,7 +286,8 @@ def _set_mut_reint(admin, emp: dict, reintegree: bool) -> None:
 
 
 def _set_calendar(admin, emp_id: str, year: int, month: int,
-                  cp_days: List[int], abs_days: Dict[int, float]) -> str:
+                  cp_days: List[int], abs_days: Dict[int, float],
+                  evt_familial_days: List[int] | None = None) -> str:
     sch = (admin.table("employee_schedules").select("id,planned_calendar")
            .match({"employee_id": emp_id, "year": year, "month": month})
            .maybe_single().execute())
@@ -309,6 +312,15 @@ def _set_calendar(admin, emp_id: str, year: int, month: int,
         else:
             j["type"] = "absence_non_remuneree"; j["manuel"] = True; j["heures_prevues"] = round(h, 2)
         actions.append(f"abs:{d}={h}")
+    # Congé pour événement familial : salaire maintenu, la retenue se valorise
+    # sur la référence journalière légale (7 h), pas sur l'horaire du jour.
+    for d in evt_familial_days or []:
+        j = by_day.get(d)
+        if j is None:
+            cal.append({"jour": d, "type": "evenement_familial", "manuel": True, "heures_prevues": 8.5})
+        else:
+            j["type"] = "evenement_familial"; j["manuel"] = True
+        actions.append(f"evtfam:{d}")
     planned["calendrier_prevu"] = sorted(cal, key=lambda x: x["jour"])
     admin.table("employee_schedules").update({"planned_calendar": planned}).eq("id", sch.data["id"]).execute()
     return ",".join(actions) or "no-cal-change"
@@ -396,7 +408,8 @@ def apply_month(company: str, year: int, month: int, only: List[str] | None = No
             admin.table("employees").update({"specificites_paie": sp}).eq("id", emp["id"]).execute()
         cleared = _clear_actual(admin, emp["id"], year, month)
         cal_res = _set_calendar(admin, emp["id"], year, month,
-                                cfg.get("cp", []), cfg.get("abs", {}))
+                                cfg.get("cp", []), cfg.get("abs", {}),
+                                cfg.get("evt_familial", []))
         _clear_inputs(admin, emp["id"], company_id, year, month)
         for name, amount, taxed, taxable in cfg.get("inputs", []):
             _insert_input(admin, emp["id"], company_id, year, month, name, amount, taxed, taxable)
