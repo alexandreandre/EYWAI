@@ -18,6 +18,10 @@ sur 189,50 h mais n'en mémorisait que 169,00 : dès février, le SMIC de réfé
 cumulé repartait 20,50 h trop bas pour Bugny, et la réduction avec lui. Les deux
 figures sont désormais la même.
 
+La déduction forfaitaire patronale sur les heures sup (1,50 €/h sous 20
+salariés) se calcule sur les mêmes heures nettes : le cabinet la pose sur les
+heures restantes après absence, nous la posions sur le total d'avant.
+
 Chiffres repris des bulletins de janvier 2026 (env. de test).
 """
 
@@ -27,8 +31,12 @@ from datetime import date
 
 import pytest
 
-from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+import copy
 
+from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
+from app.modules.payroll.engine.calcul_cotisations import calculer_cotisations
+
+from .fixtures.baremes_snapshot import baremes_snapshot
 from .helpers import build_test_contexte
 
 pytestmark = pytest.mark.unit
@@ -122,3 +130,81 @@ class TestCumulHeuresSupEtAbsences:
         ctx = build_test_contexte(salaire_base=2123.38, duree_hebdo=39.0)
         res = calculer_salaire_brut(ctx, _calendrier(), *JANVIER, [])
         assert res["heures_sup_perdues_absence"] == 0.0
+
+
+#: Déduction forfaitaire patronale : 1,50 €/h sous 20 salariés.
+DEDUCTION_PATRONALE = {
+    "montants_forfaitaires": [
+        {"effectif_min": 0, "effectif_max": 19, "montant_par_heure_sup_eur": 1.50}
+    ]
+}
+
+
+def _baremes_avec_deduction():
+    b = copy.deepcopy(baremes_snapshot())
+    b.setdefault("heures_supp", {})["deduction_patronale"] = DEDUCTION_PATRONALE
+    return b
+
+
+def _deduction(ctx, heures_sup):
+    lignes, _ = calculer_cotisations(ctx, 2351.89, 280.51, heures_sup)
+    ligne = next(
+        (l for l in lignes if "Déduction forfaitaire" in str(l.get("libelle"))), None
+    )
+    return ligne
+
+
+class TestDeductionForfaitairePatronale:
+    """Le cabinet pose la déduction sur les heures sup restantes après absence."""
+
+    def test_cotte_sur_les_heures_restantes(self):
+        ctx = build_test_contexte(
+            salaire_base=1964.0, duree_hebdo=39.0, effectif=9,
+            baremes=_baremes_avec_deduction(),
+        )
+        res = calculer_salaire_brut(ctx, _calendrier(absences={"2026-01-21": 3.5}),
+                                    *JANVIER, [])
+        heures_nettes = round(
+            res["total_heures_supp"] - res["heures_sup_perdues_absence"], 2
+        )
+        assert heures_nettes == pytest.approx(16.97, abs=0.01)
+        ligne = _deduction(ctx, heures_nettes)
+        # Quadra : −25,49 sur 16,99 h. Nous : −25,45 sur 16,97 h, soit 0,04
+        # d'écart — le cabinet compte deux centièmes d'heure de plus, comme sur
+        # son propre compteur d'heures sup (16,99 imprimé contre 16,97 calculé).
+        assert ligne["montant_patronal"] == pytest.approx(-25.45, abs=0.01)
+
+    def test_gautheron(self):
+        ctx = build_test_contexte(
+            salaire_base=1964.0, duree_hebdo=39.0, effectif=9,
+            baremes=_baremes_avec_deduction(),
+        )
+        res = calculer_salaire_brut(
+            ctx, _calendrier(absences={"2026-01-13": 2.5, "2026-01-14": 8.5}),
+            *JANVIER, [],
+        )
+        heures_nettes = round(
+            res["total_heures_supp"] - res["heures_sup_perdues_absence"], 2
+        )
+        assert heures_nettes == pytest.approx(16.20, abs=0.01)
+        ligne = _deduction(ctx, heures_nettes)
+        # Quadra : −24,38 sur 16,25 h. Nous : −24,30 sur 16,20 h, soit 0,08.
+        assert ligne["montant_patronal"] == pytest.approx(-24.30, abs=0.01)
+
+    def test_sans_absence_la_deduction_ne_bouge_pas(self):
+        ctx = build_test_contexte(
+            salaire_base=2123.38, duree_hebdo=39.0, effectif=9,
+            baremes=_baremes_avec_deduction(),
+        )
+        cal = _calendrier(hs={
+            "2026-01-15": ("travail_hs25", 12.0),
+            "2026-01-16": ("travail_hs50", 8.5),
+        })
+        res = calculer_salaire_brut(ctx, cal, *JANVIER, [])
+        heures_nettes = round(
+            res["total_heures_supp"] - res["heures_sup_perdues_absence"], 2
+        )
+        assert heures_nettes == pytest.approx(37.83, abs=0.01)
+        assert _deduction(ctx, heures_nettes)["montant_patronal"] == pytest.approx(
+            -56.74, abs=0.01
+        )

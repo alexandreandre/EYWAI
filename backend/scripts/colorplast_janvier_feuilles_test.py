@@ -110,6 +110,13 @@ TOLERANCE_NET_HS_EXO = 1.0
 #: Compteurs « Heures période » et « Cumul h.sup » de l'encadré Quadra.
 QUADRA_HEURES = {"BUGNY": (189.50, 37.83), "COTTE": (165.50, 16.97), "ESPINOSA": (185.00, 33.33),
                  "GAUTHERON": (158.00, 16.20), "GIRERD": (169.00, 17.33)}
+#: Déduction forfaitaire patronale sur les heures sup (1,50 €/h sous 20
+#: salariés) du bulletin Quadra. Chez les deux salariés absents, le cabinet
+#: compte deux à cinq centièmes d'heure de plus que son propre compteur
+#: imprimé : il reste 0,04 et 0,08.
+QUADRA_DEDUCTION_HS = {"BUGNY": -56.75, "COTTE": -25.49, "ESPINOSA": -50.00,
+                       "GAUTHERON": -24.38, "GIRERD": -26.00}
+TOLERANCE_DEDUCTION_HS = 0.15
 #: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
 #: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
 #: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
@@ -296,6 +303,19 @@ def main() -> int:
                 ),
                 0.0,
             )
+            deduction = next(
+                (
+                    float(c.get("montant_patronal") or 0)
+                    for c in (structure.get("bloc_allegements") or [])
+                    if c.get("coti_id") == "deduction_hs_patronale"
+                ),
+                0.0,
+            )
+            q_ded = QUADRA_DEDUCTION_HS[nom]
+            print(f"      déduction forfaitaire HS {deduction:.2f} (Quadra {q_ded:.2f}, écart {deduction - q_ded:+.2f})")
+            if abs(deduction - q_ded) > TOLERANCE_DEDUCTION_HS:
+                print(f"::error::{nom} : déduction forfaitaire HS hors tolérance ({deduction - q_ded:+.2f})")
+                rc = 1
             q_red = QUADRA_REDUCTION[nom]
             ecart_red = reduction - q_red
             print(f"      réduction générale {reduction:.2f} (Quadra {q_red:.2f}, écart {ecart_red:+.2f})")

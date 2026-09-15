@@ -769,8 +769,23 @@ def run_payslip_generation_heures(
     contexte.ratio_plafond_ss = ratio_plafond_periode(
         calendrier_etendu, date_debut_periode, date_fin_periode, contexte
     )
+    # Heures sup nettes de la part perdue par une absence : c'est sur elles que
+    # porte la déduction forfaitaire patronale (1,50 €/h sous 20 salariés), seul
+    # usage de ce paramètre. Le cabinet la pose sur les heures restantes ; nous
+    # la posions sur le total d'avant l'absence, et réclamions donc un peu trop
+    # (Colorplast janvier : Cotte 25,99 au lieu de 25,49, Gautheron 25,99 au
+    # lieu de 24,38). Le SMIC de référence de la réduction générale ne passe pas
+    # par ici : il retranche les absences séparément, sans double compte.
+    heures_supp_nettes = round(
+        max(
+            0.0,
+            float(total_heures_supp or 0.0)
+            - float(resultat_brut.get("heures_sup_perdues_absence", 0.0) or 0.0),
+        ),
+        2,
+    )
     lignes_cotisations, total_salarial = calculer_cotisations(
-        contexte, salaire_brut_calcule, remuneration_hs, total_heures_supp
+        contexte, salaire_brut_calcule, remuneration_hs, heures_supp_nettes
     )
     if lignes_csg_ijss:
         lignes_cotisations.extend(lignes_csg_ijss)
@@ -955,12 +970,9 @@ def run_payslip_generation_heures(
         pss_du_mois,
         employee_path,
         # Heures sup du mois, nettes de la part perdue par une absence : c'est
-        # le « Cumul h. sup » imprimé (Cotte 16,97 et non 17,33 en janvier).
-        heures_supplementaires_mois=round(
-            float(total_heures_supp or 0.0)
-            - float(resultat_brut.get("heures_sup_perdues_absence", 0.0) or 0.0),
-            2,
-        ),
+        # le « Cumul h. sup » imprimé (Cotte 16,97 et non 17,33 en janvier), et
+        # la même valeur que celle qui porte la déduction forfaitaire patronale.
+        heures_supplementaires_mois=heures_supp_nettes,
         # Exactement les heures qui ont servi au SMIC de référence de la
         # réduction générale ci-dessus. Le compteur partait des seules heures
         # contractuelles, sans les heures sup conjoncturelles : le « Cumul
