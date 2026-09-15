@@ -36,7 +36,9 @@ Exécuté en CI via `script-env-test.yml`. Usage : [--apply]
 
 from __future__ import annotations
 
+import copy
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -140,6 +142,63 @@ def _ligne_allegement(data: dict, coti_id: str) -> float:
         (float(c.get("montant_patronal") or 0.0) for c in lignes if c.get("coti_id") == coti_id),
         0.0,
     )
+
+
+def _nettoyer_les_doublons_du_cabinet(emps: dict) -> None:
+    """Retire les copies que la base de test porte en double du cabinet.
+
+    Deux chargements coexistent : le setup du backtest et un import DSN. Là où
+    ils se recouvrent, le moteur additionne au lieu de choisir.
+
+    1. Les heures sup de février existent deux fois (Espinosa 15 et 4 de chaque
+       côté, Gautheron 3,5) : le bulletin en paie le double. Elles sont effacées
+       ici, le setup repose ensuite les siennes.
+    2. Les absences de janvier importées de la DSN sont datées en fin de mois
+       au lieu de leur vraie date : Cotte le 30 quand son bulletin Quadra dit le
+       21, Gautheron les 29 et 30 quand il dit les 13 et 14. Comme la fenêtre de
+       janvier s'arrête au 25, ces copies mal datées ne pèsent pas sur janvier
+       mais tombent dans celle de février et y créent des absences qui n'ont
+       jamais eu lieu. Les vraies dates sont posées par le setup ; les jours de
+       fin janvier sont remis à l'horaire normal de leur jour de semaine.
+    """
+    admin = get_supabase_admin_client()
+    for nom in SALARIES:
+        emp_id = emps[nom]["id"]
+        admin.table("monthly_inputs").delete().match(
+            {"employee_id": emp_id, "year": YEAR, "month": MONTH}
+        ).ilike("name", "%suppl%").execute()
+
+        sched = (
+            admin.table("employee_schedules").select("id, planned_calendar")
+            .match({"employee_id": emp_id, "year": YEAR, "month": 1})
+            .maybe_single().execute()
+        )
+        if not sched or not sched.data:
+            continue
+        planned = copy.deepcopy(sched.data.get("planned_calendar") or {})
+        jours = planned.get("calendrier_prevu") or []
+        heures_du_jour_de_semaine = {}
+        for j in jours:
+            if j.get("type") == "travail" and j.get("heures_prevues"):
+                heures_du_jour_de_semaine.setdefault(
+                    date(YEAR, 1, int(j["jour"])).weekday(), j["heures_prevues"]
+                )
+        remis = []
+        for j in jours:
+            jour = int(j["jour"])
+            if not j.get("dsn_loader") or jour <= 25 or j.get("type") == "travail":
+                continue
+            heures = heures_du_jour_de_semaine.get(date(YEAR, 1, jour).weekday())
+            if heures is None:
+                continue
+            j.update({"type": "travail", "heures_prevues": heures, "manuel": False})
+            j.pop("dsn_loader", None)
+            remis.append(f"{jour}={heures}")
+        if remis:
+            admin.table("employee_schedules").update(
+                {"planned_calendar": planned}
+            ).eq("id", sched.data["id"]).execute()
+            print(f"  {nom:10s} : absences DSN mal datées retirées de janvier ({', '.join(remis)})")
 
 
 def _rejouer_janvier(emps: dict) -> int:
@@ -301,6 +360,8 @@ def main() -> int:
         print(f"  {e['last_name']:10s} salaire_de_base={e.get('salaire_de_base')}")
     rc = 0
     try:
+        print("\n=== Doublons de la base de test retirés ===")
+        _nettoyer_les_doublons_du_cabinet(emps)
         print("\n=== Janvier reposé (porte d'entrée du cumul) ===")
         rc |= _rejouer_janvier(emps)
         print("\n=== Setup de février (backtest) ===")
