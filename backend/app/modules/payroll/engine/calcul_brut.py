@@ -1513,6 +1513,12 @@ def calculer_salaire_brut(
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
         # SMIC de référence de la réduction générale (arrêt maladie exclu).
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
+        # Part « heures sup structurelles » de ces absences, déjà retirée du brut
+        # par la ligne « Réduction HS structurelles ». Le compteur d'heures sup
+        # imprimé la retranche aussi (Cotte 16,97 et non 17,33 ; Gautheron
+        # 16,20). Ne pas la soustraire une seconde fois du SMIC de référence :
+        # `heures_absence_non_payees` la contient déjà.
+        "heures_sup_perdues_absence": round(heures_hs_perdues, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total + heures_travail_hc2_total, 2

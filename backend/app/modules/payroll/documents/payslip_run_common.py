@@ -39,28 +39,6 @@ def _periode_calendaire(annee: int, mois: int) -> tuple[date, date]:
     return _impl(annee, mois)
 
 
-def heures_remunerees_mois_contrat(
-    contexte: ContextePaie,
-    calendrier_etendu: list,
-) -> float:
-    """Heures rémunérées du mois = contractuel mensuel − absences injustifiées."""
-    from app.modules.payroll.engine import legal_constants as lc
-    from app.modules.payroll.engine.salaire_contractuel import (
-        heures_mensuelles_legales,
-        heures_sup_structurelles_mensuelles,
-    )
-
-    duree_hebdo = contexte.duree_hebdo_contrat
-    base = heures_mensuelles_legales()
-    if duree_hebdo > lc.DUREE_LEGALE_HEBDO:
-        base += heures_sup_structurelles_mensuelles(duree_hebdo)
-    heures_absence = sum(
-        float(j.get("heures") or 0)
-        for j in calendrier_etendu
-        if "absence_injustifiee" in str(j.get("type", ""))
-    )
-    return max(0.0, round(base - heures_absence, 2))
-
 
 def mettre_a_jour_cumuls(
     contexte: ContextePaie,

@@ -107,6 +107,9 @@ QUADRA_NET_HS_EXO = {"BUGNY": 645.56, "COTTE": 256.64, "ESPINOSA": 611.08, "GAUT
 #: Gaëlle). Le seuil laisse passer ce résidu mais pas une vraie régression :
 #: le défaut corrigé le 15/09 donnait +46,22 sur Bugny.
 TOLERANCE_NET_HS_EXO = 1.0
+#: Compteurs « Heures période » et « Cumul h.sup » de l'encadré Quadra.
+QUADRA_HEURES = {"BUGNY": (189.50, 37.83), "COTTE": (165.50, 16.97), "ESPINOSA": (185.00, 33.33),
+                 "GAUTHERON": (158.00, 16.20), "GIRERD": (169.00, 17.33)}
 #: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
 #: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
 #: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
@@ -270,6 +273,15 @@ def main() -> int:
             if abs(net_hs - q_hs) > TOLERANCE_NET_HS_EXO:
                 print(f"::error::{nom} : net des heures sup exonérées hors tolérance ({net_hs - q_hs:+.2f})")
                 rc = 1
+            cumuls = (data.get("cumuls") or {}).get("cumuls") or {}
+            h = float(cumuls.get("heures_remunerees") or 0)
+            hs = float(cumuls.get("heures_supplementaires_remunerees") or 0)
+            q_h, q_hs = QUADRA_HEURES[nom]
+            print(f"      cumul heures {h:.2f} (Quadra {q_h:.2f}, écart {h - q_h:+.2f}) ; "
+                  f"cumul h. sup {hs:.2f} (Quadra {q_hs:.2f}, écart {hs - q_hs:+.2f})")
+            if abs(h - q_h) > 0.05 or abs(hs - q_hs) > 0.05:
+                print(f"::error::{nom} : compteurs d'heures hors tolérance")
+                rc = 1
             structure = data.get("structure_cotisations") or {}
             autres = float((structure.get("bloc_autres_contributions") or {}).get("total") or 0)
             q_autres = QUADRA_AUTRES_CONTRIB[nom]
@@ -286,11 +298,7 @@ def main() -> int:
             )
             q_red = QUADRA_REDUCTION[nom]
             ecart_red = reduction - q_red
-            heures = ((data.get("cumuls") or {}).get("cumuls") or {}).get("heures_remunerees")
-            print(
-                f"      réduction générale {reduction:.2f} (Quadra {q_red:.2f}, écart {ecart_red:+.2f}) ; "
-                f"cumul heures {heures}"
-            )
+            print(f"      réduction générale {reduction:.2f} (Quadra {q_red:.2f}, écart {ecart_red:+.2f})")
             if abs(ecart_red) > TOLERANCE_REDUCTION:
                 print(f"::error::{nom} : réduction générale hors tolérance ({ecart_red:+.2f})")
                 rc = 1

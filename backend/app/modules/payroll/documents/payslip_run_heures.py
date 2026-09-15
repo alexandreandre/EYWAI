@@ -12,10 +12,7 @@ from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
 from app.modules.payroll.engine.bulletin import creer_bulletin_final, creer_bulletin_sortie
-from app.modules.payroll.engine.calcul_brut import (
-    calculer_salaire_brut,
-    evenements_de_la_periode,
-)
+from app.modules.payroll.engine.calcul_brut import calculer_salaire_brut
 from app.modules.payroll.engine.calcul_cotisations import (
     calculer_cotisations,
     ratio_plafond_periode,
@@ -51,7 +48,6 @@ from .payslip_run_common import (
     creer_calendrier_etendu,
     definir_periode_de_paie,
     ecarter_iccp_du_dossier_pour_fin_cdd,
-    heures_remunerees_mois_contrat,
     mettre_a_jour_cumuls,
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
@@ -958,17 +954,21 @@ def run_payslip_generation_heures(
         smic_calcule_mois,
         pss_du_mois,
         employee_path,
-        heures_supplementaires_mois=total_heures_supp,
-        # Sur les événements retenus par la fenêtre, pas sur tout le calendrier
-        # étendu : les absences de la semaine suivante sont celles d'août.
-        heures_remunerees_mois=heures_remunerees_mois_contrat(
-            contexte,
-            evenements_de_la_periode(
-                calendrier_etendu,
-                (date_debut_periode, date_fin_periode),
-                (date_debut_variables, date_fin_variables),
-            ),
+        # Heures sup du mois, nettes de la part perdue par une absence : c'est
+        # le « Cumul h. sup » imprimé (Cotte 16,97 et non 17,33 en janvier).
+        heures_supplementaires_mois=round(
+            float(total_heures_supp or 0.0)
+            - float(resultat_brut.get("heures_sup_perdues_absence", 0.0) or 0.0),
+            2,
         ),
+        # Exactement les heures qui ont servi au SMIC de référence de la
+        # réduction générale ci-dessus. Le compteur partait des seules heures
+        # contractuelles, sans les heures sup conjoncturelles : le « Cumul
+        # heures » imprimé était faux (Bugny 169,00 au lieu de 189,50, retour
+        # de Gaëlle), et surtout le cumul repris le mois suivant par la
+        # régularisation progressive de la réduction repartait trop bas.
+        # Les deux figures doivent être la même.
+        heures_remunerees_mois=heures_remunerees_reduction,
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"
