@@ -40,10 +40,8 @@ from app.modules.payslips.application.dto import (  # noqa: E402
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
 )
+from scripts.backtest.colorplast_feuilles_janvier import poser_les_feuilles  # noqa: E402
 from scripts.backtest.colorplast_setup import _clear_actual, apply_month  # noqa: E402
-from scripts.colorplast_janvier_feuilles_test import (  # noqa: E402
-    _poser_calendriers as poser_calendriers_janvier,
-)
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"  # Colorplast
 YEAR = 2026
@@ -318,7 +316,7 @@ def _jouer_le_mois(emps: dict, mois: int) -> int:
     print(f"\n{'=' * 62}\n=== {mois:02d}/{YEAR} : état posé puis bulletins générés\n{'=' * 62}")
     apply_month("Colorplast", YEAR, mois)
     if mois == 1:
-        poser_calendriers_janvier(emps)
+        poser_les_feuilles(emps)
     rc = 0
     for nom in SALARIES:
         try:

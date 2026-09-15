@@ -1,6 +1,6 @@
 # Colorplast, février 2026 : EYWAI contre Quadra, ligne à ligne
 
-Rejeu du 15/09/2026 (`backend/scripts/colorplast_fevrier_test.py`), comparé au
+Rejeu du 15/09/2026 (`backend/scripts/colorplast_rejeu_test.py`), comparé au
 PDF du cabinet `data/colorplast/bulletins/2026-02/02-2026-colorplast.pdf` et à
 la DSN `data/colorplast/dsn/2026-02.dsn`. Cinq salariés : Bugny, Cotte,
 Espinosa, Gautheron, Girerd.
