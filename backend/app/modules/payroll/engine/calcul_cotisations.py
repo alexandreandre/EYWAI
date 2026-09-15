@@ -25,6 +25,25 @@ from app.shared.domain.employment_rules import is_cadre
 # Fichier : moteur_paie/calcul_cotisations.py
 
 
+def _assiette_forfait_social(lignes: List[Dict[str, Any]]) -> float:
+    """Assiette du forfait social : toutes les contributions patronales de
+    protection sociale complémentaire déjà calculées, frais de santé compris.
+
+    Vérifié sur deux cabinets : Colorplast chez Quadra (Bugny janvier 2026,
+    43,29 = 14,06 de prévoyance + 29,23 de mutuelle) et Mont Blanc Composite
+    chez Cegid, cadres comme non-cadres.
+    """
+    return round(
+        sum(
+            float(ligne.get("montant_patronal") or 0.0)
+            for ligne in lignes
+            if ligne.get("coti_id")
+            in {"mutuelle", "prevoyance_non_cadre", "prevoyance_cadre"}
+        ),
+        2,
+    )
+
+
 def est_cdd(contexte: ContextePaie) -> bool:
     """Contrat à durée déterminée, hors alternance et hors stage.
 
@@ -959,6 +978,7 @@ def calculer_cotisations(
         # Cas CADRE : on lit les lignes depuis le contrat.json
         lignes_specifiques = prevoyance_spec.get("lignes_specifiques", [])
         log_payroll_debug(logger, f'  -> Lignes spécifiques trouvées pour le cadre: {len(lignes_specifiques)}')
+        taux_forfait_social_cadre = 0.0
         for ligne in lignes_specifiques:
             base_id = ligne.get("base", "brut_plafonne")
             assiette = assiettes.get(base_id, 0.0)
@@ -973,20 +993,29 @@ def calculer_cotisations(
                 bulletin_cotisations.append(ligne_calculee)
                 log_payroll_debug(logger, f'    -> Ligne calculée (Cadre): {ligne_calculee}')
 
-                # --- AJOUT DE LA LOGIQUE FORFAIT SOCIAL ---
-                taux_fs = ligne.get("forfait_social")
-                if taux_fs and ligne_calculee.get("montant_patronal", 0) > 0:
-                    montant_patronal_prev = ligne_calculee["montant_patronal"]
-                    ligne_fs = _calculer_une_ligne(
-                        f"Forfait social {taux_fs * 100:.0f}% sur prévoyance",
-                        montant_patronal_prev,
-                        None,
-                        taux_fs,
-                        coti_id="forfait_social",
-                    )
-                    if ligne_fs:
-                        bulletin_cotisations.append(ligne_fs)
-                        log_payroll_debug(logger, f'      -> Ligne Forfait Social ajoutée: {ligne_fs}')
+            # Le taux se retient, la ligne se pose une seule fois après la
+            # boucle : un cadre porte souvent deux tranches de prévoyance, et
+            # une ligne par tranche compterait le forfait social deux fois.
+            taux_forfait_social_cadre = max(
+                taux_forfait_social_cadre, float(ligne.get("forfait_social") or 0.0)
+            )
+
+        # Forfait social : même assiette que pour les non-cadres — l'ensemble
+        # des contributions patronales de protection sociale complémentaire,
+        # frais de santé compris. Il ne portait que sur la ligne de prévoyance
+        # en cours, ce qui sous-évaluait l'assiette dès qu'une mutuelle existait
+        # (Girerd, Colorplast janvier 2026 : 69,33 au lieu des 98,56 du cabinet ;
+        # même constat sur les cadres de Mont Blanc Composite chez Cegid).
+        if taux_forfait_social_cadre > 0:
+            ligne_fs = _calculer_une_ligne(
+                f"Forfait social {taux_forfait_social_cadre * 100:.0f}% sur prévoyance",
+                _assiette_forfait_social(bulletin_cotisations),
+                None,
+                taux_forfait_social_cadre,
+                coti_id="forfait_social",
+            )
+            if ligne_fs:
+                bulletin_cotisations.append(ligne_fs)
 
     elif adhesion_prevoyance and not is_cadre(contexte.statut_salarie):
         logger.info('  -> ✅ Branche NON-CADRE sélectionnée.')
@@ -1014,18 +1043,7 @@ def calculer_cotisations(
                     float(ligne.get("forfait_social") or 0.0),
                 )
             if taux_forfait_social > 0:
-                # Pour les employeurs assujettis, le forfait social à 8 %
-                # porte sur l'ensemble des contributions patronales de
-                # prévoyance complémentaire, frais de santé inclus.
-                base_forfait_social = round(
-                    sum(
-                        float(cotisation.get("montant_patronal") or 0.0)
-                        for cotisation in bulletin_cotisations
-                        if cotisation.get("coti_id")
-                        in {"mutuelle", "prevoyance_non_cadre"}
-                    ),
-                    2,
-                )
+                base_forfait_social = _assiette_forfait_social(bulletin_cotisations)
                 ligne_fs = _calculer_une_ligne(
                     f"Forfait social {taux_forfait_social * 100:.0f}% sur prévoyance",
                     base_forfait_social,

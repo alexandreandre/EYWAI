@@ -310,6 +310,9 @@ def main() -> int:
             autres = float((structure.get("bloc_autres_contributions") or {}).get("total") or 0)
             q_autres = QUADRA_AUTRES_CONTRIB[nom]
             print(f"      autres contributions employeur {autres:.2f} (Quadra {q_autres:.2f}, écart {autres - q_autres:+.2f})")
+            if abs(autres - q_autres) > 0.05:
+                print(f"::error::{nom} : contributions patronales hors tolérance ({autres - q_autres:+.2f})")
+                rc = 1
             for c in (structure.get("bloc_autres_contributions") or {}).get("lignes") or []:
                 print(f"        {str(c.get('libelle'))[:46]:46s} {c.get('montant_patronal')}")
             reduction = next(

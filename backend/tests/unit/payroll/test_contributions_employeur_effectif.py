@@ -232,3 +232,40 @@ class TestClassementAuBulletin:
             coti_id="cpf_cdd",
         )
         assert ligne["rubrique"] == "autres_contributions_employeur"
+
+
+class TestForfaitSocialCadre:
+    """Le cadre porte souvent deux tranches de prévoyance : une seule ligne de
+    forfait social doit en sortir, sur l'ensemble des contributions patronales
+    de protection sociale — prévoyance et mutuelle, comme chez les deux
+    cabinets (Girerd chez Quadra : 98,56 = 69,33 + 29,23)."""
+
+    def _contexte(self, deux_tranches=True):
+        lignes = [{
+            "id": "prev_ta", "base": "brut_plafonne", "libelle": "Prévoyance cadre TA",
+            "patronal": 0.01825, "salarial": 0.00365, "forfait_social": 0.08,
+        }]
+        if deux_tranches:
+            lignes.append({
+                "id": "prev_tb", "base": "brut_plafonne", "libelle": "Prévoyance cadre TB",
+                "patronal": 0.0171, "salarial": 0.0114, "forfait_social": 0.08,
+            })
+        return build_test_contexte(
+            statut="Cadre", salaire_base=BRUT_GIRERD, duree_hebdo=39.0, effectif=9,
+            specificites_extra={
+                "prevoyance": {"adhesion": True, "lignes_specifiques": lignes},
+                "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
+            },
+        )
+
+    def test_une_seule_ligne_meme_avec_deux_tranches(self):
+        lignes = _lignes(self._contexte(), BRUT_GIRERD)
+        forfaits = [l for l in lignes if "Forfait social" in str(l.get("libelle"))]
+        assert len(forfaits) == 1
+
+    def test_l_assiette_comprend_la_mutuelle(self):
+        lignes = _lignes(self._contexte(deux_tranches=False), BRUT_GIRERD)
+        forfait = _ligne(lignes, "Forfait social")
+        # 69,33 de prévoyance TA + 29,23 de mutuelle = 98,56 ; 8 % = 7,88.
+        assert forfait["base"] == pytest.approx(98.56, abs=0.02)
+        assert forfait["montant_patronal"] == pytest.approx(7.88, abs=0.01)
