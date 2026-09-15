@@ -190,3 +190,45 @@ class TestDeclarationDsn:
 
         assert REGLES["cpf_cdd"].code == "129"
         assert "CPF-CDD" in CODE_COTISATION_LIBELLE["129"]
+
+
+class TestClassementAuBulletin:
+    """Le bulletin range les cotisations par mots-clés sur le libellé. Le forfait
+    social et le CPF-CDD n'en portent aucun : ils tombaient parmi les cotisations
+    principales au lieu des contributions patronales, où le cabinet les place."""
+
+    def test_le_forfait_social_va_dans_les_autres_contributions(self):
+        from app.modules.payroll.engine.cotisations_rubriques import (
+            enrichir_ligne_cotisation,
+        )
+
+        ligne = enrichir_ligne_cotisation(
+            {
+                "libelle": "Forfait social 20% sur retraite supplémentaire",
+                "base": 94.98,
+                "taux_salarial": None,
+                "montant_salarial": 0.0,
+                "taux_patronal": 0.20,
+                "montant_patronal": 19.00,
+            },
+            coti_id="forfait_social",
+        )
+        assert ligne["rubrique"] == "autres_contributions_employeur"
+
+    def test_le_cpf_cdd_aussi(self):
+        from app.modules.payroll.engine.cotisations_rubriques import (
+            enrichir_ligne_cotisation,
+        )
+
+        ligne = enrichir_ligne_cotisation(
+            {
+                "libelle": "Contribution CPF des titulaires de CDD",
+                "base": 1818.80,
+                "taux_salarial": None,
+                "montant_salarial": 0.0,
+                "taux_patronal": 0.01,
+                "montant_patronal": 18.19,
+            },
+            coti_id="cpf_cdd",
+        )
+        assert ligne["rubrique"] == "autres_contributions_employeur"

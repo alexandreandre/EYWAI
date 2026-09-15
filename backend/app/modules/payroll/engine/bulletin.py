@@ -337,7 +337,13 @@ def creer_bulletin_final(
             bloc_csg_non_deductible.append(ligne)
         elif any(keyword in libelle for keyword in ALLEGEMENTS_KEYWORDS):
             bloc_allegements.append(ligne)
-        elif any(keyword in libelle for keyword in AUTRES_CONTRIBUTIONS_KEYWORDS):
+        # La rubrique vient du catalogue (`cotisations_rubriques`) : elle décrit
+        # ce qu'est la ligne, là où les mots-clés ne font que reconnaître les
+        # libellés connus. Le forfait social et la contribution CPF-CDD n'en
+        # portent aucun et atterrissaient parmi les cotisations principales.
+        elif ligne.get("rubrique") == "autres_contributions_employeur" or any(
+            keyword in libelle for keyword in AUTRES_CONTRIBUTIONS_KEYWORDS
+        ):
             bloc_autres_contributions.append(ligne)
         else:
             bloc_principales.append(ligne)
