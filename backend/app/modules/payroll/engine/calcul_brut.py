@@ -633,6 +633,15 @@ TYPES_RATTACHES_AUX_VARIABLES = frozenset(
         "absence_injustifiee_base",
         "absence_injustifiee_hs25",
         "absence_non_remuneree",
+        # Congé pour événement familial : le cabinet paie sur le bulletin de
+        # mars celui de Cotte du 25 au 27 février, la fenêtre de février
+        # s'arrêtant au 22. Comme les heures sup et les absences non payées,
+        # c'est un élément variable que la gestionnaire arrête à sa date.
+        # L'arrêt maladie, lui, reste au mois civil : le cabinet déduit
+        # l'intégralité de celui de Gautheron (16 au 28/03) sur mars, alors
+        # que la semaine du 23 appartient à la fenêtre d'avril — il porte ses
+        # propres dates, pour les IJSS comme pour la DSN.
+        "evenement_familial",
     }
 )
 
