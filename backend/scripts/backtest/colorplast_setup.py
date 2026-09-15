@@ -113,8 +113,10 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 18.0, "hs50": 3.75, "mut_reint": True,
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
+        # Retenue ponctuelle d'un trop-percu de mars, sur le net a payer.
         "GIRERD": {"base": 3101.00, "mut_reint": True, "prevoyance": (0.00465, 0.00465),
-                   "inputs": [("Indemnite de transport", 250.0, False, False)]},
+                   "inputs": [("Indemnite de transport", 250.0, False, False),
+                              ("Trop-percu mars 2026", -1.25, False, False)]},
         # Arret maladie du 29/03 au 28/04 : mois entier deduit, brut 20,20.
         # Le calendrier porte l'arret, pose par le chargeur DSN.
         "GAUTHERON": {"base": 1964.00, "mut_reint": True, "inputs": []},

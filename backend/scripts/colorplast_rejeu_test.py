@@ -202,6 +202,27 @@ REFERENCES: dict[int, dict] = {
         "en_attente": {
             "GAUTHERON": "arrêt maladie du 29/03 au 28/04 — même question ouverte qu'en mars",
         },
+        # Écarts avec le cabinet que nous ne reproduisons pas.
+        #
+        # Cotte traîne son congé pour événement familial de mars : le cabinet en
+        # a sorti les heures du compteur, nous les gardons (voir mars).
+        #
+        # Fuckar, mois d'embauche : le cabinet garde ses 17,33 h structurelles
+        # entières au compteur (22,33 avec ses heures sup) tout en n'en exonérant
+        # que 14,28 — son bulletin porte « 14,28 H.sup exo / 3,05 H n.exo ». Les
+        # 3,05 h sont celles rattachées aux 30,50 h non travaillées avant son
+        # embauche : nous les sortons du compteur comme du SMIC de référence,
+        # puisqu'elles ne sont pas payées. D'où les 42,38 d'allègement, dont
+        # environ 34 viennent de ces heures et 8 de l'écart habituel entre les
+        # heures que le cabinet imprime et celles qu'il calcule.
+        #
+        # Les deux petits restes d'allègement (Cotte, Demory) sont de la même
+        # famille que les précédents.
+        "ecarts_documentes": {
+            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": -0.51},
+            "DEMORY": {"reduction": -0.42},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05, "reduction": 42.38},
+        },
         "brut": {"BUGNY": 2949.90, "COTTE": 2430.75, "DEMORY": 2017.05, "ESPINOSA": 3156.05,
                  "FUCKAR": 1818.80, "GAUTHERON": 20.20, "GIRERD": 3799.06},
         "net": {"BUGNY": (3415.42, 64.45), "COTTE": (1947.18, 36.22), "DEMORY": (1614.89, 0.0),
