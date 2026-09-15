@@ -97,6 +97,9 @@ def _place_absence_days(cal, by_day, days, std, abs_type, dim, year, month):
             j["date_debut_arret_reel"] = debut
             j["date_fin_arret_reel"] = fin
             j["subrogation_active"] = False
+            # Le cabinet maintient jour ouvré par jour ouvré, pas en trentièmes
+            # calendaires : une journée maintenue vaut une journée d'absence.
+            j["maintien_base_ouvree"] = True
 
 
 def apply_records(company: str, year: int, month: int, recs: dict) -> None:

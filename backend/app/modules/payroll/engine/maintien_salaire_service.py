@@ -562,19 +562,27 @@ def _calculer_maintien_employeur(
     # calendaires, préservé pour la compatibilité (tests + autres clients).
     maintien_base_ouvree = bool(arret.get("maintien_base_ouvree"))
     if maintien_base_ouvree:
+        duree_hebdo = float(contexte.duree_hebdo_contrat or 0.0)
         try:
             from .calcul_brut import _get_salaire_horaire_base
 
-            taux_horaire_base = _get_salaire_horaire_base(
-                contexte, float(contexte.duree_hebdo_contrat or 0.0)
-            )
+            taux_horaire_base = _get_salaire_horaire_base(contexte, duree_hebdo)
         except Exception:
             taux_horaire_base = (
                 salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES
                 if salaire_mensuel
                 else 0.0
             )
+        # Une journée maintenue restitue ce que l'absence a retiré : la base
+        # légale ET la quote-part d'heures sup structurelles de la journée. Sans
+        # elle, un salarié à 39 h perd ses heures structurelles sur un jour
+        # pourtant maintenu. Gautheron (Colorplast, mars 2026) : le cabinet
+        # maintient 103,59 € par jour, soit 7 h à 12,9492 (90,64) plus 0,80 h à
+        # 16,1865 (12,95) — la valeur exacte d'une de ses journées de congé payé.
         brut_journalier = taux_horaire_base * (lc.DUREE_LEGALE_HEBDO / 5.0)
+        brut_journalier += _quote_part_hs_structurelles_journaliere(
+            contexte, duree_hebdo, taux_horaire_base
+        )
     else:
         brut_journalier = (
             salaire_mensuel / lc.DIVISEUR_JOURS_CALENDAIRES if salaire_mensuel else 0.0
@@ -921,6 +929,34 @@ def resolve_subrogation_active(
     if mode == "per_case":
         return maintien_eligible
     return maintien_eligible
+
+
+def _quote_part_hs_structurelles_journaliere(
+    contexte: ContextePaie, duree_hebdo: float, taux_horaire_base: float
+) -> float:
+    """Heures sup structurelles d'une journée, valorisées à leur taux majoré.
+
+    Les 17,33 h mensuelles d'un contrat de 39 h sont réparties sur les jours
+    ouvrés légaux du mois (151,67 / 7 = 21,67) : 0,80 h par journée.
+    Vaut zéro à 35 h ou moins.
+    """
+    if not duree_hebdo or duree_hebdo <= lc.DUREE_LEGALE_HEBDO:
+        return 0.0
+    try:
+        from .calcul_brut import (
+            _taux_majoration_hs,
+            compute_hs_structurelles_mensuelles,
+            heures_mensuelles_legales,
+        )
+
+        heures_mois = compute_hs_structurelles_mensuelles(duree_hebdo)
+        jours_legaux = heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5.0)
+        if not jours_legaux:
+            return 0.0
+        majoration = _taux_majoration_hs(contexte, 0) or 0.0
+    except Exception:
+        return 0.0
+    return (heures_mois / jours_legaux) * taux_horaire_base * (1 + majoration)
 
 
 # --- Point d'entrée ---

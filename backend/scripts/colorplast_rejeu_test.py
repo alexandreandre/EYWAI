@@ -314,6 +314,7 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
                     j["date_debut_arret_reel"] = debut
                     j["date_fin_arret_reel"] = fin
                     j["subrogation_active"] = False
+                    j["maintien_base_ouvree"] = True
                 remis.append(f"arrêt {jours_arret[0]}→{jours_arret[-1]} qualifié")
             if remis:
                 admin.table("employee_schedules").update(
