@@ -45,7 +45,10 @@ from scripts.backtest.colorplast_setup import _clear_actual, apply_month  # noqa
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"  # Colorplast
 YEAR = 2026
-SALARIES = ("BUGNY", "COTTE", "ESPINOSA", "GAUTHERON", "GIRERD")
+#: Toutes les fiches que le rejeu touche sur l'année. Chaque mois n'en joue
+#: qu'une partie — Demory est embauché le 23/03 — et c'est le tableau de
+#: références du mois qui dit lesquelles.
+SALARIES = ("BUGNY", "COTTE", "DEMORY", "ESPINOSA", "GAUTHERON", "GIRERD")
 SMIC_HORAIRE = 12.02  # 12,31 à partir de juin
 
 #: Tolérances par défaut : le centime, sauf le SMIC (au demi-centime) et les
@@ -108,7 +111,7 @@ REFERENCES: dict[int, dict] = {
                        "GAUTHERON": 314.63, "GIRERD": 413.31},
         "heures": {"BUGNY": (358.50, 55.16), "COTTE": (334.50, 34.30), "ESPINOSA": (373.00, 69.66),
                    "GAUTHERON": (330.50, 37.03), "GIRERD": (338.00, 34.66)},
-        "pss": {nom: 4005.00 for nom in SALARIES},
+        "pss": {nom: 4005.00 for nom in ("BUGNY", "COTTE", "ESPINOSA", "GAUTHERON", "GIRERD")},
         "autres": {"BUGNY": 46.68, "COTTE": 40.37, "ESPINOSA": 54.58,
                    "GAUTHERON": 43.66, "GIRERD": 89.41},
         "deduction": {"BUGNY": -26.00, "COTTE": -26.00, "ESPINOSA": -54.50,
@@ -116,7 +119,49 @@ REFERENCES: dict[int, dict] = {
         "reduction": {"BUGNY": -529.50, "COTTE": -622.61, "ESPINOSA": -531.17,
                       "GAUTHERON": -632.28, "GIRERD": -252.63},
     },
+    3: {
+        "fenetre": ("2026-02-23", "2026-03-22"),
+        # Mars apporte trois mécanismes nouveaux d'un coup : l'arrêt maladie de
+        # Gautheron (16→28/03, dont 3 jours de maintien de salaire, et des
+        # heures sup dont une part perd l'exonération), le congé pour événement
+        # familial de Cotte (25→27/02, payé mais qui sort les heures du compteur
+        # et proratise le plafond) et l'embauche de Demory le 23/03.
+        "brut": {"BUGNY": 3124.90, "COTTE": 2398.38, "DEMORY": 625.25,
+                 "ESPINOSA": 3139.74, "GAUTHERON": 1609.96, "GIRERD": 3799.06},
+        "net": {"BUGNY": (2751.38, 63.42), "COTTE": (1918.04, 36.22), "DEMORY": (496.93, 0.0),
+                "ESPINOSA": (2523.79, 0.0), "GAUTHERON": (1157.34, 18.02), "GIRERD": (3051.51, 111.81)},
+        "net_social": {"BUGNY": 2751.38, "COTTE": 1918.04, "DEMORY": 496.93,
+                       "ESPINOSA": 2621.92, "GAUTHERON": 1255.47, "GIRERD": 3149.64},
+        "net_hs_exo": {"BUGNY": 740.28, "COTTE": 261.77, "DEMORY": 42.69,
+                       "ESPINOSA": 697.92, "GAUTHERON": 175.97, "GIRERD": 413.31},
+        "heures": {"BUGNY": (553.50, 98.49), "COTTE": (480.10, 49.23), "DEMORY": (50.50, 3.00),
+                   "ESPINOSA": (562.50, 107.49), "GAUTHERON": (420.50, 46.26), "GIRERD": (507.00, 51.99)},
+        # Proratisé chez les trois salariés dont le mois n'est pas entier : Cotte
+        # ses 3 jours d'événement familial, Gautheron son arrêt, Demory son
+        # embauche le 23.
+        "pss": {"BUGNY": 4005.00, "COTTE": 3575.89, "DEMORY": 1162.74,
+                "ESPINOSA": 4005.00, "GAUTHERON": 2957.61, "GIRERD": 4005.00},
+        # Demory est en CDD : 2,646 % au lieu de 1,646 %, le point d'écart étant
+        # la contribution au financement du CPF des titulaires de CDD.
+        "autres": {"BUGNY": 54.93, "COTTE": 40.37, "DEMORY": 16.78,
+                   "ESPINOSA": 55.19, "GAUTHERON": 29.44, "GIRERD": 89.41},
+        # Chez Gautheron la base n'est pas son compteur d'heures sup (9,23) mais
+        # 11,65 h : le bulletin porte la mention « 11,65 H.sup exo / 5,68 H
+        # n.exo » — seules les heures sup rattachées à la part non maintenue de
+        # l'arrêt perdent l'exonération. Chez Cotte c'est l'inverse : 17,33 h de
+        # base alors que son compteur n'affiche que 14,93, parce que son absence
+        # est payée.
+        "deduction": {"BUGNY": -65.00, "COTTE": -26.00, "DEMORY": -4.50,
+                      "ESPINOSA": -56.75, "GAUTHERON": -17.48, "GIRERD": -26.00},
+        "reduction": {"BUGNY": -581.69, "COTTE": -617.14, "DEMORY": -201.39,
+                      "ESPINOSA": -531.66, "GAUTHERON": -419.16, "GIRERD": -252.64},
+    },
 }
+
+
+def _salaries_du_mois(mois: int) -> tuple[str, ...]:
+    """Les salariés que le cabinet a payés ce mois-là."""
+    return tuple(sorted(REFERENCES[mois]["brut"]))
 
 
 def _tolerance(mois: int, cle: str) -> float:
@@ -193,7 +238,7 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
     admin = get_supabase_admin_client()
     for mois in mois_joues:
         fin_fenetre = date.fromisoformat(REFERENCES[mois]["fenetre"][1])
-        for nom in SALARIES:
+        for nom in _salaries_du_mois(mois):
             emp_id = emps[nom]["id"]
             admin.table("monthly_inputs").delete().match(
                 {"employee_id": emp_id, "year": YEAR, "month": mois}
@@ -318,7 +363,7 @@ def _jouer_le_mois(emps: dict, mois: int) -> int:
     if mois == 1:
         poser_les_feuilles(emps)
     rc = 0
-    for nom in SALARIES:
+    for nom in _salaries_du_mois(mois):
         try:
             res = _generer(emps[nom]["id"], mois)
         except PayslipBadRequestError as exc:
@@ -334,7 +379,7 @@ def _jouer_le_mois(emps: dict, mois: int) -> int:
         # bulletin de janvier écrit, on l'efface : la fenêtre de février repart
         # du planning contractuel, c'est-à-dire de la saisie du cabinet.
         admin = get_supabase_admin_client()
-        for nom in SALARIES:
+        for nom in _salaries_du_mois(1):
             _clear_actual(admin, emps[nom]["id"], YEAR, 1)
         print("\n  pointages de janvier effacés : la fenêtre de février repart du planning")
     return rc
@@ -360,13 +405,13 @@ def main() -> int:
         for mois in mois_joues:
             ref = REFERENCES[mois]
             print(f"  {mois:02d}/{YEAR} — fenêtre {ref['fenetre'][0]} → {ref['fenetre'][1]}")
-            for nom in SALARIES:
+            for nom in _salaries_du_mois(mois):
                 net, pas = ref["net"][nom]
                 print(f"    {nom:10s} brut {ref['brut'][nom]:8.2f} ; "
                       f"net avant impôt {net:8.2f} ; impôt {pas:6.2f}")
         return 0
 
-    manquants = [nom for nom in SALARIES if nom not in emps]
+    manquants = sorted({nom for mois in mois_joues for nom in _salaries_du_mois(mois)} - set(emps))
     if manquants:
         print(f"::error::Salariés introuvables : {manquants}")
         return 1
