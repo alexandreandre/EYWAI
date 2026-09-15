@@ -188,6 +188,14 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     # trésorerie, hors assiette sociale/fiscale (cf. Cegid OVIE mai 2026).
     if "saisie" in label:
         return True
+    # « Trop-perçu MM/AAAA » : reprise d'une somme versée en trop sur un mois
+    # antérieur. Comme l'acompte, c'est de la trésorerie — elle ne change ni
+    # l'assiette sociale, ni l'assiette fiscale, ni le montant net social, qui
+    # se définit hors retenues sur salaire. Cf. Cegid GIRERD Colorplast avril
+    # 2026 : 1,25 € repris au titre de mars, le montant net social reste à
+    # 3 150,85 et seul le net à payer descend à 3 051,48.
+    if "trop" in label and ("perçu" in label or "percu" in label):
+        return True
     return "virement" in label and "salaire" in label
 
 
