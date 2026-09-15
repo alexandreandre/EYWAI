@@ -126,6 +126,22 @@ REFERENCES: dict[int, dict] = {
         # heures sup dont une part perd l'exonération), le congé pour événement
         # familial de Cotte (25→27/02, payé mais qui sort les heures du compteur
         # et proratise le plafond) et l'embauche de Demory le 23/03.
+        # Gautheron est imprimée mais ne fait pas échouer le rejeu : la
+        # question du maintien de salaire est ouverte, et son bulletin en
+        # dépend de bout en bout. Le cabinet lui verse 310,78 € — 3 journées
+        # entières — puis plus rien, ni en mars ni en avril où elle tombe à
+        # 20,20 € de brut pour un mois d'arrêt complet. Avec plus de quatre ans
+        # d'ancienneté, la loi lui garantit 90 % de son salaire pendant 30
+        # jours : notre moteur calcule ce plancher et refuse délibérément de
+        # descendre en dessous (`conflit_convention`). Le seul montage qui
+        # rendrait le bulletin du cabinet régulier est une prise en charge par
+        # la prévoyance GAN, versée directement à la salariée et donc absente
+        # du bulletin. Question posée à Gaëlle : forcer le moteur à 310,78 €
+        # graverait une sous-paie possible dans les sept sociétés.
+        "en_attente": {
+            "GAUTHERON": "maintien de salaire de l'arrêt du 16 au 28/03 — "
+                         "question ouverte, voir docs/colorplast-mars-2026-ligne-a-ligne.md",
+        },
         # Écarts avec le cabinet que nous ne reproduisons pas, et pourquoi.
         #
         # Cotte, congé pour événement familial : sa rémunération étant
@@ -351,6 +367,10 @@ def _remettre_a_zero_le_cumul_d_entree(emps: dict, mois: int) -> None:
 def _controler(nom: str, mois: int, data: dict, res) -> int:
     ref = REFERENCES[mois]
     rc = 0
+    # Salarié dont le bulletin est comparé et imprimé, mais ne fait pas échouer
+    # le rejeu : une question de fond est ouverte, et figer des écarts en
+    # attendant la réponse reviendrait à graver un chiffre qu'on ne défend pas.
+    en_attente = ref.get("en_attente", {}).get(nom)
 
     def verifier(cle: str, valeur: float, attendu: float, libelle: str,
                  cle_ecart: str | None = None) -> None:
@@ -366,18 +386,20 @@ def _controler(nom: str, mois: int, data: dict, res) -> int:
             reste = ecart - documente
             print(f"      {libelle} {valeur:.2f} (Quadra {attendu:.2f}, écart {ecart:+.2f} "
                   f"dont {documente:+.2f} documenté, reste {reste:+.2f})")
-        if abs(reste) > _tolerance(mois, cle):
+        if abs(reste) > _tolerance(mois, cle) and not en_attente:
             print(f"::error::{nom} {mois:02d}/{YEAR} : {libelle} hors tolérance ({reste:+.2f})")
             rc = 1
 
     brut = float(data.get("salaire_brut") or 0)
     en_tete = data.get("en_tete") or {}
     ecart = brut - ref["brut"][nom]
-    etat = "OK" if abs(ecart) <= _tolerance(mois, "brut") else "ECART"
+    etat = "OK" if abs(ecart) <= _tolerance(mois, "brut") else ("ATTENTE" if en_attente else "ECART")
     print(f"\n{etat:5s} {nom:10s} brut {brut:.2f} — Quadra {ref['brut'][nom]:.2f} — écart {ecart:+.2f} ; "
           f"fenêtre {en_tete.get('date_debut_variables')} → {en_tete.get('date_fin_variables')} ; {res.status}")
-    if etat != "OK":
+    if etat == "ECART":
         rc = 1
+    if en_attente:
+        print(f"      EN ATTENTE — {en_attente}")
     fenetre_attendue = ref["fenetre"]
     if (en_tete.get("date_debut_variables"), en_tete.get("date_fin_variables")) != fenetre_attendue:
         print(f"::error::{nom} {mois:02d}/{YEAR} : fenêtre des variables inattendue "
