@@ -149,6 +149,8 @@ derniers cumulant l'effet de la réduction générale).
 
 ### 3. Mutuelle famille : bon montant, mauvaise place
 
+**Corrigé le 15/09 (f02cc862).**
+
 Espinosa, Gautheron et Girerd paient 98,13 € de sur-cotisation « GAN mutuelle
 famille ». Quadra la place **après le net imposable**, en retenue nette
 (SMU2 −98,13). Nous la portons comme une cotisation du bloc principal.
@@ -161,8 +163,26 @@ Le net imposable, le net à payer avant impôt et le net à payer sont justes
   lieu de 2 538,18 ; Girerd 3 051,51 au lieu de 3 149,64 ; Gautheron 1 670,86
   au lieu de 1 769,08).
 
-Le montant net social est une donnée réglementaire transmise aux organismes :
-c'est le seul écart de cette liste qui sorte de l'entreprise.
+Le montant net social est une donnée réglementaire transmise aux organismes et
+qui sert au calcul des prestations (RSA, prime d'activité) : c'est le seul écart
+de cette liste qui sorte de l'entreprise.
+
+La règle retenue : l'arrêté du 31/01/2023 ne retranche du montant net social que
+les cotisations et contributions sociales **obligatoires**. La couverture
+collective frais de santé en est une, l'employeur devant la financer pour moitié
+au moins (art. L911-7 CSS) ; une extension facultative intégralement à la charge
+du salarié n'en est pas une.
+
+La preuve tient sur les sept mois : pour les trois salariés concernés, la
+relation `montant net social − net à payer avant impôt − acompte = 98,13` se
+vérifie sur les 21 bulletins, et vaut exactement zéro pour Bugny et Cotte, qui
+n'ont pas le complément.
+
+Nouveau drapeau `part_salariale_obligatoire` sur les types de mutuelle, de
+défaut `true` — aucun bulletin existant ne bouge. Posé uniquement sur les
+compléments « Famille » sans part patronale, comme la déductibilité à l'impôt
+l'avait été. Les mutuelles « Autre … / 0,00 € » des autres sociétés du groupe
+posent la même question sans référence cabinet : arbitrage ouvert.
 
 ### 4. Montant net des heures supplémentaires exonérées
 
@@ -258,7 +278,7 @@ Quadra laisse la case vide.
 | Brut | = | = | = | = | +0,01 |
 | Net imposable | = | +0,37 | = | +1,16 | = |
 | Net à payer | = | −0,03 | = | −0,10 | = |
-| Montant net social | = | −0,02 | **−98,13** | **−98,22** | **−98,13** |
+| Montant net social | = | −0,02 | = | = | = | (corrigé, était −98,13 / −98,22 / −98,13) |
 | Réduction générale | = | +1,41 | = | +4,50 | = | (corrigé, était −33,40 / −107,44)
 | Autres contributions | +10,14 | +9,70 | +10,24 | +6,95 | −9,78 |
 | Coût employeur | +10,15 | −24,19 | +10,25 | −102,10 | −9,75 |
@@ -275,8 +295,8 @@ Quadra laisse la case vide.
 2. Taux liés à l'effectif : formation professionnelle à 0,55 % sous 11
    salariés, forfait social 8 % sur prévoyance et mutuelle patronales, 20 %
    sur la retraite supplémentaire cadre (§ 2).
-3. Mutuelle famille : la sortir du bloc cotisations et la poser en retenue
-   nette après le net imposable, pour redresser le montant net social (§ 3).
+3. ~~Mutuelle famille : la sortir du montant net social~~ — **fait le 15/09
+   (f02cc862)**.
 4. Net des heures sup exonérées : 6,8 % et non 9,7 % (§ 4).
 5. Compteur d'heures imprimé : y inclure les heures sup conjoncturelles, et
    retrancher les heures sup perdues par absence du compteur d'heures sup
