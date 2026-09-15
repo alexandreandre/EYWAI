@@ -146,8 +146,9 @@ def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float
     (une centaine de salariés sur le groupe) reste un arbitrage ouvert : ne
     pas l'étendre sans bulletins de référence.
 
-    N'affecte que le net imposable — ni les cotisations, ni la CSG, ni le
-    montant net social, où la retenue reste due.
+    N'affecte que le net imposable — ni les cotisations, ni la CSG. Le sort du
+    montant net social se décide séparément, sur le caractère obligatoire ou
+    non de la cotisation (`_part_salariale_mutuelle_hors_net_social`).
     """
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
     if not mutuelle_spec.get("adhesion"):
@@ -184,6 +185,62 @@ def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float
     return round(part_non_deductible, 2)
 
 
+def _part_salariale_mutuelle_hors_net_social(contexte: ContextePaie) -> float:
+    """Part SALARIALE de mutuelle qui ne réduit PAS le montant net social.
+
+    L'arrêté du 31/01/2023 retranche du montant net social les seules
+    cotisations et contributions sociales **obligatoires**. La couverture
+    collective frais de santé en est une : l'employeur la finance pour moitié
+    au moins (art. L911-7 CSS). Une extension facultative entièrement à la
+    charge du salarié — le complément « Famille » — n'en est pas une : elle se
+    retient après le net social, sur le net à payer.
+
+    Le drapeau est porté par le type de mutuelle (`part_salariale_obligatoire`,
+    défaut True = comportement historique, donc aucun bulletin existant ne
+    bouge). Comme pour la déductibilité à l'impôt, il n'est posé que sur les
+    compléments « Famille » sans part patronale, seul cas recoupé avec des
+    bulletins réels : Colorplast, janvier à juillet 2026, où la relation
+    `montant net social − net à payer avant impôt − acompte = 98,13` se vérifie
+    sur les 21 bulletins des trois salariés concernés, et vaut zéro pour les
+    autres. Les mutuelles « Autre … / 0,00 € » des autres sociétés du groupe
+    posent la même question sans référence cabinet : arbitrage ouvert.
+
+    N'affecte que le montant net social : la retenue reste prélevée au salarié
+    et continue de réduire le net à payer.
+    """
+    mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
+    if not mutuelle_spec.get("adhesion"):
+        return 0.0
+
+    hors_mns = 0.0
+    mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
+    if mutuelle_type_ids:
+        try:
+            from app.core.database import get_supabase_admin_client
+
+            reponse = (
+                get_supabase_admin_client()
+                .table("company_mutuelle_types")
+                .select("*")
+                .in_("id", mutuelle_type_ids)
+                .eq("is_active", True)
+                .execute()
+            )
+            for mutuelle in reponse.data or []:
+                if not mutuelle.get("part_salariale_obligatoire", True):
+                    hors_mns += _get_safe_float(mutuelle.get("montant_salarial"))
+        except Exception as e:
+            logger.warning(
+                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
+            )
+
+    for ligne in mutuelle_spec.get("lignes_specifiques", []):
+        if not ligne.get("part_salariale_obligatoire", True):
+            hors_mns += _get_safe_float(ligne.get("montant_salarial"))
+
+    return round(hors_mns, 2)
+
+
 def calculer_montant_net_social(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -201,6 +258,9 @@ def calculer_montant_net_social(
           remplacement versés par l'employeur : IJSS subrogées, PPV imposable,
           remboursement de prévoyance non cotisé mais imposable…)
         − cotisations sociales obligatoires salariales (CSG/CRDS incluses)
+        + part salariale de mutuelle FACULTATIVE, comprise dans le total des
+          cotisations mais hors du champ de l'arrêté
+          (cf. `_part_salariale_mutuelle_hors_net_social`)
 
     Justification : l'arrêté du 31 janvier 2023 définit le montant net social
     comme l'ensemble des sommes versées au salarié (rémunérations, primes,
@@ -234,6 +294,7 @@ def calculer_montant_net_social(
         + total_primes_non_soumises
         + total_primes_soumises_impot
         - _get_safe_float(total_cotisations_salariales)
+        + _part_salariale_mutuelle_hors_net_social(contexte)
         + net_social_participation
     )
     return round(mns, 2)

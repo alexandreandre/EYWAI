@@ -88,6 +88,9 @@ PLANNING_CONGE = {"GAUTHERON": {22: 8.5}}
 QUADRA_BRUT = {"BUGNY": 3023.40, "COTTE": 2351.89, "ESPINOSA": 3046.68, "GAUTHERON": 2252.28, "GIRERD": 3799.06}
 #: Net à payer avant impôt et PAS sur le bulletin Quadra de janvier.
 QUADRA_NET = {"BUGNY": (139.02, 63.44), "COTTE": (65.97, 35.52), "ESPINOSA": (74.06, 0.0), "GAUTHERON": (54.69, 25.42), "GIRERD": (159.74, 111.81)}
+#: Montant net social imprimé sur le bulletin Quadra. Il exclut le complément
+#: de mutuelle famille, qui se retient après lui, sur le net à payer.
+QUADRA_NET_SOCIAL = {"BUGNY": 2508.65, "COTTE": 1880.84, "ESPINOSA": 2538.18, "GAUTHERON": 1769.08, "GIRERD": 3149.64}
 #: Réduction générale (« EXO., ECRET. ET ALLEG. COTIS ») du bulletin Quadra.
 #: Les deux salariés absents étaient surévalués tant que les heures d'absence
 #: restaient dans le SMIC de référence (Cotte 643,01 ; Gautheron 689,65).
@@ -231,6 +234,12 @@ def main() -> int:
                 f"      net avant impôt {net_avant:.2f} (Quadra {q_net:.2f}, écart {net_avant - q_net:+.2f}) ; "
                 f"PAS {pas:.2f} (Quadra {q_pas:.2f}) ; net après impôt {net_avant - pas:.2f} (Quadra {q_net - q_pas:.2f})"
             )
+            mns = float(synthese.get("montant_net_social") or 0)
+            q_mns = QUADRA_NET_SOCIAL[nom]
+            print(f"      montant net social {mns:.2f} (Quadra {q_mns:.2f}, écart {mns - q_mns:+.2f})")
+            if abs(mns - q_mns) > 0.05:
+                print(f"::error::{nom} : montant net social hors tolérance ({mns - q_mns:+.2f})")
+                rc = 1
             structure = data.get("structure_cotisations") or {}
             reduction = next(
                 (
