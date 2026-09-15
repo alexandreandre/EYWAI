@@ -96,6 +96,10 @@ QUADRA_NET_SOCIAL = {"BUGNY": 2508.65, "COTTE": 1880.84, "ESPINOSA": 2538.18, "G
 #: le même que sur leur net avant impôt. Le seuil laisse passer ce résidu connu
 #: mais pas un retour du complément de mutuelle dans le net social (98,13).
 TOLERANCE_NET_SOCIAL = 0.15
+#: « Montant net des heures compl/suppl exo. » du bulletin Quadra : brut des
+#: heures sup moins la seule CSG déductible. Alimente le revenu fiscal de
+#: référence du salarié.
+QUADRA_NET_HS_EXO = {"BUGNY": 645.56, "COTTE": 256.64, "ESPINOSA": 611.08, "GAUTHERON": 245.46, "GIRERD": 413.31}
 #: Total « Autres contrib. dues par empl. » du bulletin Quadra : taux de base
 #: 1,646 % du brut (formation 0,55 %, CSA, FNAL, dialogue social, taxe
 #: d'apprentissage et son solde), + 8 % sur prévoyance et mutuelle patronales,
@@ -252,6 +256,12 @@ def main() -> int:
             print(f"      montant net social {mns:.2f} (Quadra {q_mns:.2f}, écart {mns - q_mns:+.2f})")
             if abs(mns - q_mns) > TOLERANCE_NET_SOCIAL:
                 print(f"::error::{nom} : montant net social hors tolérance ({mns - q_mns:+.2f})")
+                rc = 1
+            net_hs = float(synthese.get("montant_net_hs_exonerees") or 0)
+            q_hs = QUADRA_NET_HS_EXO[nom]
+            print(f"      net des heures sup exonérées {net_hs:.2f} (Quadra {q_hs:.2f}, écart {net_hs - q_hs:+.2f})")
+            if abs(net_hs - q_hs) > 0.05:
+                print(f"::error::{nom} : net des heures sup exonérées hors tolérance ({net_hs - q_hs:+.2f})")
                 rc = 1
             structure = data.get("structure_cotisations") or {}
             autres = float((structure.get("bloc_autres_contributions") or {}).get("total") or 0)

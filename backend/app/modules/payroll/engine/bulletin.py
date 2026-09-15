@@ -427,6 +427,7 @@ def creer_bulletin_final(
             "taux": resultats_nets.get("taux_pas_applique", 0.0),
             "montant": resultats_nets.get("montant_impot_pas"),
         },
+        "montant_net_hs_exonerees": resultats_nets.get("montant_net_hs_exonerees", 0.0),
         "remboursement_transport": resultats_nets.get("remboursement_transport"),
         "indemnite_transport_fixe": resultats_nets.get("indemnite_transport_fixe"),
         "acompte_verse": resultats_nets.get(

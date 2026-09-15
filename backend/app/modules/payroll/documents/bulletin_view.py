@@ -598,6 +598,8 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
             "montant": pas.get("montant"),
             "cumul_net_imposable": cumuls.get("net_imposable"),
             "cumul_impot": cumuls.get("impot_preleve_a_la_source"),
+            "net_hs_exonerees": synthese.get("montant_net_hs_exonerees"),
+            "cumul_net_hs_exonerees": cumuls.get("montant_net_hs_exonerees_cumul"),
             "exoneration_apprenti": bool(synthese.get("exoneration_ir_apprenti")),
         },
         "net_a_payer": bulletin.get("net_a_payer"),

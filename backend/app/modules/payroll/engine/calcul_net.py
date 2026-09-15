@@ -425,6 +425,61 @@ def _calculer_net_imposable(
     return round(net_imposable_final, 2), round(hs_defiscalisees, 2)
 
 
+def montant_net_hs_exonerees(
+    contexte: ContextePaie,
+    lignes_cotisations: List[Dict[str, Any]],
+    remuneration_heures_supp: float,
+) -> float:
+    """Montant net des heures supplémentaires exonérées, ligne du bulletin.
+
+    Le modèle de bulletin clarifié impose cette ligne sous le bloc impôt : c'est
+    le montant que le salarié reporte sur sa déclaration, et qui entre dans son
+    revenu fiscal de référence.
+
+        montant = rémunération brute des HS − CSG **déductible** afférente
+
+    La CSG non déductible et la CRDS n'en sont pas retranchées : par
+    construction, elles ne diminuent pas un revenu imposable. Vérifié sur les
+    bulletins du cabinet de Colorplast, janvier à juillet 2026 — la formule
+    tombe juste sur les 27 bulletins, celle qui retrancherait les 9,7 % entiers
+    sur aucun.
+
+    À ne pas confondre avec la somme que `_calculer_net_imposable` retranche du
+    net imposable. Les deux décompositions sont équivalentes et donnent le même
+    net imposable, mais ne passent pas par les mêmes termes : le cabinet
+    retranche le brut des HS d'une base qui n'a jamais vu passer leur CSG, nous
+    retranchons un net d'une base qui l'exclut.
+
+    Le plafond annuel de 7 500 € (art. 81 quater CGI) n'est PAS appliqué ici :
+    il écrête déjà la somme retranchée du net imposable, et la convention à
+    retenir pour le compteur du plafond reste à trancher — aucun salarié de
+    Colorplast ne l'approche avant novembre.
+    """
+    brut_hs = _get_safe_float(remuneration_heures_supp)
+    if brut_hs <= 0:
+        return 0.0
+
+    taux_csg_deductible = _get_safe_float(
+        (contexte.get_cotisation_by_id("csg_deductible") or {}).get("salarial")
+    )
+    if taux_csg_deductible <= 0:
+        return round(brut_hs, 2)
+
+    base_csg_hs = 0.0
+    for ligne in lignes_cotisations:
+        if ligne.get("is_participation"):
+            continue
+        if "sur hs" in str(ligne.get("libelle", "")).lower():
+            base_csg_hs += _get_safe_float(ligne.get("base"))
+    if base_csg_hs <= 0:
+        # Heures sup saisies à la main, sans ligne de CSG dédiée : on retient la
+        # rémunération des HS abattue des frais professionnels, comme l'assiette
+        # qu'aurait portée la ligne (même 0,9825 que `calcul_cotisations`).
+        base_csg_hs = brut_hs * 0.9825
+
+    return round(max(0.0, brut_hs - taux_csg_deductible * base_csg_hs), 2)
+
+
 def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> float:
     """Base mensuelle du prélèvement à la source.
 
@@ -744,4 +799,11 @@ def calculer_net_et_impot(
         # cumuler dans `employee_schedules.cumuls.hs_exonerees_ir_cumul`
         # (cf. `mettre_a_jour_cumuls`).
         "hs_exonerees_ir_mois": hs_exonerees_ir_mois,
+        # Montant net des HS exonérées tel qu'il s'imprime sous le bloc impôt et
+        # entre dans le revenu fiscal de référence du salarié : brut des HS moins
+        # la seule CSG déductible (cf. `montant_net_hs_exonerees`). Distinct de
+        # `hs_exonerees_ir_mois`, qui sert l'arithmétique du net imposable.
+        "montant_net_hs_exonerees": montant_net_hs_exonerees(
+            contexte, lignes_cotisations, remuneration_heures_supp
+        ),
     }

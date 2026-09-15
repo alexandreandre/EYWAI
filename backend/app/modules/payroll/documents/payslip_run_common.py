@@ -112,6 +112,14 @@ def mettre_a_jour_cumuls(
     # Compteur DÉDIÉ, reset explicite au 1ᵉʳ janvier UNIQUEMENT pour cette clé
     # — ne touche à AUCUN autre cumul (`brut_total`, `net_imposable`, etc. ont
     # des règles de fenêtre différentes et volontaires, ne pas y toucher ici).
+    # Cumul annuel du montant net des HS exonérées imprimé sous le bloc impôt :
+    # remis à zéro en janvier comme le compteur du plafond.
+    base_net_hs_exo = 0.0 if mois == 1 else cumuls.get("montant_net_hs_exonerees_cumul", 0.0)
+    cumuls["montant_net_hs_exonerees_cumul"] = round(
+        base_net_hs_exo
+        + round(resultats_nets_mois.get("montant_net_hs_exonerees", 0.0), 2),
+        2,
+    )
     base_hs_exonerees_ir = 0.0 if mois == 1 else cumuls.get("hs_exonerees_ir_cumul", 0.0)
     cumuls["hs_exonerees_ir_cumul"] = round(
         base_hs_exonerees_ir

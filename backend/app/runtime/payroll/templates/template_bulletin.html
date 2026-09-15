@@ -220,6 +220,15 @@
                 <td>{% if vue.pied.impot.montant is not none %}{{ "%.2f"|format(vue.pied.impot.montant) }}{% endif %}</td>
                 <td>{% if vue.pied.impot.cumul_impot %}{{ "%.2f"|format(vue.pied.impot.cumul_impot) }}{% endif %}</td>
             </tr>
+            {% if vue.pied.impot.net_hs_exonerees %}
+            <tr>
+                <td>Montant net des heures compl/suppl exonérées</td>
+                <td></td>
+                <td></td>
+                <td>{{ "%.2f"|format(vue.pied.impot.net_hs_exonerees) }}</td>
+                <td>{% if vue.pied.impot.cumul_net_hs_exonerees %}{{ "%.2f"|format(vue.pied.impot.cumul_net_hs_exonerees) }}{% endif %}</td>
+            </tr>
+            {% endif %}
             {% if vue.pied.impot.exoneration_apprenti %}
             <tr>
                 <td colspan="5">Apprenti : rémunération exonérée d'impôt sur le revenu dans la limite du SMIC annuel.</td>
