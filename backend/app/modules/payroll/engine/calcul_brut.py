@@ -642,6 +642,10 @@ TYPES_RATTACHES_AUX_VARIABLES = frozenset(
         # que la semaine du 23 appartient à la fenêtre d'avril — il porte ses
         # propres dates, pour les IJSS comme pour la DSN.
         "evenement_familial",
+        # Congé payé : même chose, le cabinet paie sur le bulletin de mars
+        # celui de Gautheron du 23 février. L'indemnité et le décompte du solde
+        # suivent donc la fenêtre, pas le mois civil.
+        "conges_payes",
     }
 )
 

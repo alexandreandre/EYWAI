@@ -54,11 +54,31 @@ def _place_absence_hours(cal, by_day, year, month, hours, std, abs_type, dim):
     return remaining
 
 
-def _place_absence_days(cal, by_day, days, std, abs_type, dim):
-    """Pose une absence datée (arrêt) sur des jours précis (jours ouvrés du mois)."""
-    for d in days:
-        if not 1 <= d <= dim:
-            continue
+#: Nature de l'arrêt attendue par le calcul du maintien, par type de jour.
+ARRET_TYPE_PAR_CALENDRIER = {
+    "arret_maladie": "maladie",
+    "arret_maternite": "maternite",
+    "arret_paternite": "paternite",
+    "arret_at": "accident_travail",
+}
+
+
+def _place_absence_days(cal, by_day, days, std, abs_type, dim, year, month):
+    """Pose une absence datée (arrêt) sur des jours précis (jours ouvrés du mois).
+
+    Les jours d'arrêt portent la nature de l'arrêt et ses bornes réelles : sans
+    elles, `_extraire_arret_pour_maintien` les ignore et **aucun maintien de
+    salaire n'est calculé** (Gautheron, Colorplast mars 2026 : le cabinet
+    maintient 3 jours pour 310,78 €, nous n'en produisions aucun). La
+    subrogation est posée à faux : aucun bulletin Colorplast ne porte d'IJSS,
+    la caisse paie la salariée directement.
+    """
+    jours_poses = sorted(d for d in days if 1 <= d <= dim)
+    if not jours_poses:
+        return
+    debut = f"{year:04d}-{month:02d}-{jours_poses[0]:02d}"
+    fin = f"{year:04d}-{month:02d}-{jours_poses[-1]:02d}"
+    for d in jours_poses:
         j = by_day.get(d)
         if j is None:
             j = {"jour": d}
@@ -70,6 +90,13 @@ def _place_absence_days(cal, by_day, days, std, abs_type, dim):
         j["heures_prevues"] = std
         j["manuel"] = True
         j["dsn_loader"] = True
+        j["origine"] = "absence"
+        arret_type = ARRET_TYPE_PAR_CALENDRIER.get(abs_type)
+        if arret_type:
+            j["arret_type"] = arret_type
+            j["date_debut_arret_reel"] = debut
+            j["date_fin_arret_reel"] = fin
+            j["subrogation_active"] = False
 
 
 def apply_records(company: str, year: int, month: int, recs: dict) -> None:
@@ -114,7 +141,7 @@ def apply_records(company: str, year: int, month: int, recs: dict) -> None:
         # arrêts datés
         arret_days_all = set()
         for typ, lib, days, motif in rec["arrets"]:
-            _place_absence_days(cal, by_day, days, std, typ, dim)
+            _place_absence_days(cal, by_day, days, std, typ, dim, year, month)
             arret_days_all |= set(days)
             placed.append(f"{typ} j{days}")
         # absences non datées (53 nat02) NON déjà couvertes par un arrêt

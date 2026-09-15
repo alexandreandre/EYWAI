@@ -66,7 +66,11 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 15.0, "hs50": 4.0, "mut_reint": False,
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
+        # Le congé du lundi 23 et l'heure d'absence du jeudi 26 sont datés de
+        # février mais payés sur le bulletin de mars : la fenêtre de février
+        # s'arrête au 22.
         "GAUTHERON": {"base": 1964.00, "hs25": 3.5, "mut_reint": False,
+                      "cp": [23], "abs": {26: 0.90},
                       "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
                    "inputs": [("Indemnite de transport", 250.0, False, False)]},
@@ -79,6 +83,10 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                   "inputs": [("Prime exceptionnelle", 100.0, True, True)]},
         "ESPINOSA": {"base": 2328.00, "hs25": 14.75, "hs50": 5.75, "mut_reint": False,
                      "inputs": [("Indemnite de transport", 100.0, False, False)]},
+        # Arrêt maladie du 16 au 28/03, posé au calendrier par le chargeur DSN.
+        # Prime de moitié, le mois n'étant qu'à moitié travaillé.
+        "GAUTHERON": {"base": 1964.00, "mut_reint": False,
+                      "inputs": [("Prime exceptionnelle", 50.0, True, True)]},
         "GIRERD": {"base": 3101.00, "mut_reint": False, "prevoyance": (0.00365, 0.01825),
                    "inputs": [("Indemnite de transport", 250.0, False, False)]},
         # DEMORY : embauche 23/03, rémunération issue des quantités réelles

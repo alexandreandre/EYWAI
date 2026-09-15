@@ -27,16 +27,22 @@ def test_les_heures_sup_suivent_la_fenetre_des_variables():
     assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == evenements
 
 
-def test_un_conge_du_30_juillet_reste_sur_juillet():
-    """Hors fenêtre (qui s'arrête au 26) mais dans le mois : il compte."""
+def test_un_conge_du_30_juillet_bascule_sur_aout():
+    """Hors fenêtre (qui s'arrête au 26) : il sera payé sur le mois suivant.
+
+    Relevé sur les treize congés datés des bulletins Colorplast de janvier à
+    juillet 2026 : un seul change de mois, celui de Gautheron du 23 février,
+    payé sur le bulletin de mars — le 23 est le premier jour après la clôture
+    de février. Les douze autres tombent dans la fenêtre de leur propre mois.
+    """
     evenements = [_ev("2026-07-30", "conges_payes")]
-    assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == evenements
-
-
-def test_un_conge_du_24_juin_ne_compte_pas_en_juillet():
-    """Dans la fenêtre mais dans le mois de juin : il a été payé en juin."""
-    evenements = [_ev("2026-06-24", "conges_payes")]
     assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == []
+
+
+def test_un_conge_du_24_juin_compte_en_juillet():
+    """Dans la fenêtre de juillet, même daté de juin : c'est là qu'il est payé."""
+    evenements = [_ev("2026-06-24", "conges_payes")]
+    assert evenements_de_la_periode(evenements, MOIS, VARIABLES) == evenements
 
 
 def test_une_heure_sup_du_30_juillet_bascule_sur_aout():
@@ -59,8 +65,9 @@ def test_une_regularisation_anterieure_passe_toujours():
 
 def test_le_catalogue_des_types_variables():
     """Ce que la gestionnaire arrête à sa date : heures sup, absences non
-    rémunérées et congés pour événement familial. Congés payés, fériés et
-    arrêts restent au mois du bulletin."""
+    rémunérées, congés payés et congés pour événement familial. Fériés et
+    arrêts de travail restent au mois du bulletin — un arrêt porte ses propres
+    dates, pour les indemnités journalières comme pour la DSN."""
     assert TYPES_RATTACHES_AUX_VARIABLES == frozenset(
         {
             "travail_hs25",
@@ -69,6 +76,7 @@ def test_le_catalogue_des_types_variables():
             "absence_injustifiee_hs25",
             "absence_non_remuneree",
             "evenement_familial",
+            "conges_payes",
         }
     )
 

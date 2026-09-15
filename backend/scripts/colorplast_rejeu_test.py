@@ -291,11 +291,35 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
                 j.update({"type": "travail", "heures_prevues": heures, "manuel": False})
                 j.pop("dsn_loader", None)
                 remis.append(f"{jour:%d/%m}={heures}")
+            # 3. Les jours d'arrêt importés de la DSN n'ont ni nature ni bornes.
+            #    Sans elles le moteur les ignore pour le maintien de salaire, et
+            #    n'en produit aucun (Gautheron, mars : le cabinet maintient 3
+            #    jours pour 310,78 €). Le chargeur les écrit depuis le 15/09 ;
+            #    ceux déjà posés sont complétés ici.
+            jours_arret = sorted(
+                int(j["jour"]) for j in jours
+                if str(j.get("type", "")).startswith("arret") and j.get("dsn_loader")
+            )
+            if jours_arret and any(
+                not j.get("arret_type") for j in jours
+                if str(j.get("type", "")).startswith("arret")
+            ):
+                debut = f"{YEAR:04d}-{mois:02d}-{jours_arret[0]:02d}"
+                fin = f"{YEAR:04d}-{mois:02d}-{jours_arret[-1]:02d}"
+                for j in jours:
+                    if not str(j.get("type", "")).startswith("arret"):
+                        continue
+                    j.setdefault("origine", "absence")
+                    j["arret_type"] = "maladie"
+                    j["date_debut_arret_reel"] = debut
+                    j["date_fin_arret_reel"] = fin
+                    j["subrogation_active"] = False
+                remis.append(f"arrêt {jours_arret[0]}→{jours_arret[-1]} qualifié")
             if remis:
                 admin.table("employee_schedules").update(
                     {"planned_calendar": planned}
                 ).eq("id", sched.data["id"]).execute()
-                print(f"  {nom:10s} : absences DSN mal datées remises au travail ({', '.join(remis)})")
+                print(f"  {nom:10s} {mois:02d}/{YEAR} : {', '.join(remis)}")
 
 
 def _remettre_a_zero_le_cumul_d_entree(emps: dict, mois: int) -> None:
