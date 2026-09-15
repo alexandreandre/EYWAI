@@ -14,8 +14,15 @@ sans janvier juste, février ne peut pas l'être. Janvier est repris tel qu'il a
 
 Février vient du setup du backtest, pas des feuilles : les heures sup du mois
 sont celles que le cabinet a payées (Espinosa 15 + 4, Gautheron 3,5, personne
-d'autre). Les feuilles de février restent à confronter à cette saisie, mais
-c'est une question de saisie, pas de moteur.
+d'autre). Les pointages de janvier sont d'ailleurs effacés une fois son
+bulletin écrit, sinon la fenêtre de février — qui démarre le 26 janvier — les
+relirait et fabriquerait des heures que Quadra n'a pas payées.
+
+Ce que disent les feuilles de février est une autre question, de saisie et non
+de moteur : au-delà de 39 h sur les quatre semaines, elles donnent Espinosa
+19 h et Gautheron 3,5 h, ce que le cabinet a payé exactement, mais Bugny 38 h,
+qui n'ont pas été payées du tout (45,5 h, 49 h, 52 h et 47,5 h) alors qu'en
+janvier ses 20,5 h l'avaient été au centime. Question posée à Gaëlle.
 
 Deux congés chez Cotte les jeudi 19 et vendredi 20 février, sans effet sur le
 brut : Quadra retire 14 h de base et 1,60 h structurelles (2 jours × 7 h et
@@ -41,7 +48,8 @@ from app.modules.payslips.application.dto import (  # noqa: E402
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
 )
-from scripts.backtest.colorplast_setup import apply_month  # noqa: E402
+from app.core.database import get_supabase_admin_client  # noqa: E402
+from scripts.backtest.colorplast_setup import _clear_actual, apply_month  # noqa: E402
 from scripts.colorplast_janvier_feuilles_test import (  # noqa: E402
     QUADRA_BRUT as JANVIER_BRUT,
     QUADRA_HEURES as JANVIER_HEURES,
@@ -158,6 +166,20 @@ def _rejouer_janvier(emps: dict) -> int:
         if abs(ecart) > 0.05 or abs(h - q_h) > 0.05 or abs(hs - q_hs) > 0.05:
             print(f"::error::{nom} : janvier ne repart pas juste, février n'a pas de sens")
             rc = 1
+    # La fenêtre de février commence le 26 janvier : elle relit la dernière
+    # semaine du mois de janvier, où les feuilles viennent d'être posées. Le
+    # pointage de cette semaine n'est pas celui que le cabinet a retenu pour
+    # février (Bugny y fait 45,5 h, Gautheron n'a pas de feuille du tout), et
+    # le laisser fabriquerait des heures sup et des absences que Quadra n'a pas
+    # payées. Une fois le bulletin de janvier écrit, les pointages de janvier
+    # sont effacés : la fenêtre repart du planning contractuel, c'est-à-dire de
+    # la saisie du cabinet, seule référence pour juger le moteur. Ce que disent
+    # vraiment les feuilles de février est une question de saisie, traitée à
+    # part.
+    admin = get_supabase_admin_client()
+    for nom in SALARIES:
+        _clear_actual(admin, emps[nom]["id"], YEAR, 1)
+    print("  pointages de janvier effacés : la fenêtre de février repart du planning")
     return rc
 
 
