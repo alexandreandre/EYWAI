@@ -269,14 +269,12 @@ REFERENCES: dict[int, dict] = {
         # Fuckar traîne son mois d'embauche d'avril, et ses heures d'arrêt
         # maladie : le cabinet les garde au compteur, nous les en sortons.
         #
-        # Les heures d'arrêt de Demory et de Fuckar restent à leur compteur : le
-        # moteur ne les en sort pas, la rémunération d'un arrêt étant réputée
-        # maintenue. Elle ne l'est pas ici — c'est la même question ouverte que
-        # pour Gautheron, celle du maintien (question 4 de la page de Gaëlle).
+        # Fuckar garde le seul reste de son mois d'embauche : le cabinet laisse
+        # à son compteur les 3,05 h structurelles rattachées aux heures d'avant
+        # son arrivée, que nous en sortons (voir avril).
         "ecarts_documentes": {
             "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": 1.18},
-            "DEMORY": {"cumul_heures": 32.80, "reduction": -153.41},
-            "FUCKAR": {"cumul_heures": 28.95, "cumul_hs": -3.05, "reduction": -194.26},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05},
         },
         "brut": {"BUGNY": 2952.34, "COTTE": 2444.33, "DEMORY": 1529.05, "ESPINOSA": 2990.19,
                  "FUCKAR": 1664.78, "GAUTHERON": 2432.78, "GIRERD": 3855.98},

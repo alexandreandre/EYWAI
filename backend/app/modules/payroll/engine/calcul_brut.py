@@ -1045,6 +1045,13 @@ def calculer_salaire_brut(
     montant_evenement_familial = 0.0
     jours_legaux_evenement_familial = 0.0
     jours_absence_legale_equivalents = 0.0
+    # Les journees deduites sur la reference legale, ventilees par origine :
+    # leur quote-part d'heures sup structurelles n'est comptee dans aucun
+    # accumulateur (contrairement aux absences fractionnees, ou `part_hs`
+    # entre directement dans `heures_absence_non_payees`). On la leur rend
+    # en fin de calcul, quand la quote-part journaliere est connue.
+    jours_absence_legale_ferie = 0.0
+    jours_absence_legale_arret = 0.0
     # Cumul des retenues "absence non rémunérée" / "arrêt maladie" / "réduction
     # HS structurelles" déjà appliquées jour par jour — comparé au montant
     # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
@@ -1240,6 +1247,7 @@ def calculer_salaire_brut(
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
+                jours_absence_legale_ferie += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -1281,6 +1289,7 @@ def calculer_salaire_brut(
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
+                jours_absence_legale_arret += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 montant_absence_pleine_total += montant_deduction
             lignes_composants_brut.append(
                 {
@@ -1304,10 +1313,26 @@ def calculer_salaire_brut(
             if facteur_prorata < 1.0
             else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
         )
+        quote_part_hs_journaliere = (
+            heures_sup_structurelles_mensuelles / jours_legaux_mensuels
+        )
         heures_hs_perdues = (
-            heures_sup_structurelles_mensuelles
-            * jours_absence_legale_equivalents
-            / jours_legaux_mensuels
+            quote_part_hs_journaliere * jours_absence_legale_equivalents
+        )
+        # Un jour non travaillé et non payé ne vaut pas 7 h mais 7,80 sur un
+        # contrat de 39 h : 7 h de base plus la quote-part d'heure sup
+        # structurelle du jour. Le brut retirait bien les deux, mais le
+        # compteur d'heures et le SMIC de référence ne voyaient que la base —
+        # la part structurelle des jours fériés non payés et des jours d'arrêt
+        # y revenait comme si elle avait été payée. Colorplast mai 2026 :
+        # Demory 338,70 h au compteur au lieu des 333,90 du cabinet, soit
+        # 6 jours × 0,80. On la rattache à l'absence dont elle vient, pour que
+        # le maintien d'un arrêt la restitue comme il restitue la base.
+        heures_absence_non_payees += (
+            quote_part_hs_journaliere * jours_absence_legale_ferie
+        )
+        heures_arret_deduites += (
+            quote_part_hs_journaliere * jours_absence_legale_arret
         )
     # Part des absences retirée directement sur les HS structurelles (contrat
     # > 35 h, prorata du contrat) : elle s'ajoute à la quote-part par journée.
