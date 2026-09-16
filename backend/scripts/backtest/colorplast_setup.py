@@ -140,50 +140,19 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         },
     },
     5: {
-        # Mai augmente tout le monde (salary_effective_date au 01/05), verse la
-        # participation 2025 dont des acomptes de 1 000 a 1 100 EUR avaient deja
-        # ete verses, et designe le 25 mai comme journee de solidarite : Bugny et
-        # Cotte la travaillent, Espinosa, Gautheron et Girerd la posent en conge.
-        # Le 8 et le 14 mai sont feries et non payes pour les deux plus recents.
-        # Rappel : le nombre pose dans `abs` est le TOTAL de l'absence (x 39/35).
-        "BUGNY": {"base": 2165.85, "ancien_base": 2123.38,
-                  "salary_effective_date": "2026-05-01", "hs25": 15.0,
-                  "inputs": [("Prime exceptionnelle", 150.0, True, True),
-                             ("Remboursement de notes de frais", 569.59, False, False),
-                             ("Participation 2025", 3936.59, False, True),
-                             ("Acompte sur participation 2025", -1000.0, False, False)]},
-        "COTTE": {"base": 2003.26, "ancien_base": 1964.00,
-                  "salary_effective_date": "2026-05-01",
-                  "inputs": [("Prime exceptionnelle", 100.0, True, True),
-                             ("Participation 2025", 3225.33, False, True),
-                             ("Acompte sur participation 2025", -1000.0, False, False)]},
-        # Deux feries non payes (08 et 14/05) et un accident du travail du 23 au
-        # 29/05, plus un conge le 15.
-        "DEMORY": {"base": 1867.06, "ancien_base": 1850.37,
-                   "salary_effective_date": "2026-05-01", "cp": [15],
-                   "abs": {8: 7.8, 14: 7.8, 25: 7.8, 26: 7.8, 27: 7.8, 28: 7.8},
-                   "inputs": []},
-        "ESPINOSA": {"base": 2374.55, "ancien_base": 2328.00,
-                     "salary_effective_date": "2026-05-01", "hs25": 3.0, "hs50": 6.5,
-                     "cp": [25],
-                     "inputs": [("Indemnite de transport", 100.0, False, False),
-                                ("Participation 2025", 3849.67, False, True),
-                                ("Acompte sur participation 2025", -1000.0, False, False)]},
-        # Arret maladie du 05 au 08/05 et ferie non paye le 14.
-        "FUCKAR": {"base": 1867.06, "ancien_base": 1850.37,
-                   "salary_effective_date": "2026-05-01", "hs25": 2.5,
-                   "abs": {14: 7.8},
-                   "inputs": []},
-        "GAUTHERON": {"base": 1993.40, "ancien_base": 1964.00,
-                      "salary_effective_date": "2026-05-01", "cp": [15, 25],
-                      "inputs": [("Prime exceptionnelle", 100.0, True, True),
-                                 ("Participation 2025", 2632.65, False, True),
-                                 ("Acompte sur participation 2025", -1100.0, False, False),
-                                 ("Report NAP negatif avril", -115.11, False, False)]},
-        "GIRERD": {"base": 3147.46, "ancien_base": 3101.00,
-                   "salary_effective_date": "2026-05-01", "cp": [25],
-                   "inputs": [("Indemnite de transport", 250.0, False, False),
-                              ("Participation 2025", 5331.56, False, True)]},
+        # Mai etait deja saisi dans la base de test (« Saisie backtest paie mai
+        # 2026 », participation, acomptes, reports) et les calendriers portaient
+        # deja les arrets et les feries. On ne pose donc ICI que l'augmentation
+        # generale du 01/05 : tout le reste ferait doublon. La participation de
+        # Girerd y est placee sur un PEE, pas versee — d'ou son net a payer de
+        # 2 981,94 malgre 5 331,56 de participation.
+        "BUGNY": {"base": 2165.85, "ancien_base": 2123.38, "salary_effective_date": "2026-05-01", "inputs": []},
+        "COTTE": {"base": 2003.26, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
+        "DEMORY": {"base": 1867.06, "ancien_base": 1850.37, "salary_effective_date": "2026-05-01", "inputs": []},
+        "ESPINOSA": {"base": 2374.55, "ancien_base": 2328.00, "salary_effective_date": "2026-05-01", "inputs": []},
+        "FUCKAR": {"base": 1867.06, "ancien_base": 1850.37, "salary_effective_date": "2026-05-01", "inputs": []},
+        "GAUTHERON": {"base": 1993.40, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
+        "GIRERD": {"base": 3147.46, "ancien_base": 3101.00, "salary_effective_date": "2026-05-01", "inputs": []},
     },
     6: {
         # Juin : taux releves (mai/juin). mut_reint defaut True, GIRERD

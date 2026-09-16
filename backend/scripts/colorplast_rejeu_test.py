@@ -368,9 +368,12 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
         fin_fenetre = date.fromisoformat(REFERENCES[mois]["fenetre"][1])
         for nom in _salaries_du_mois(mois):
             emp_id = emps[nom]["id"]
-            admin.table("monthly_inputs").delete().match(
-                {"employee_id": emp_id, "year": YEAR, "month": mois}
-            ).ilike("name", "%suppl%").execute()
+            # Mai fait exception : ses heures sup ne viennent pas du setup mais
+            # de la saisie déjà en base, la seule qui existe pour ce mois.
+            if mois != 5:
+                admin.table("monthly_inputs").delete().match(
+                    {"employee_id": emp_id, "year": YEAR, "month": mois}
+                ).ilike("name", "%suppl%").execute()
 
             sched = (
                 admin.table("employee_schedules").select("id, planned_calendar")
