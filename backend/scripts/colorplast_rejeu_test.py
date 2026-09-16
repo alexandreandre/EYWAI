@@ -329,9 +329,31 @@ REFERENCES: dict[int, dict] = {
         },
         # Traînes connues : le congé pour événement familial de Cotte (mars) et
         # les heures d'avant l'embauche de Fuckar (avril).
+        #
+        # L'allègement de juin est le premier écart sérieux de la série : 18 à
+        # 44 € sur cinq salariés, là où les mois précédents tenaient au centime
+        # ou à l'euro. La cause est identifiée mais pas tranchée — le cabinet
+        # n'applique pas la même référence à tout le monde. En remontant sa
+        # formule sur le cumul de janvier à juin :
+        #
+        #   Bugny  : reproduit au centime par le SMIC de référence GELÉ (12,02),
+        #            celui de la configuration et de nos cinq premiers mois ;
+        #   Girerd : reproduit à 0,25 € par un SMIC REVALORISÉ (12,31) appliqué
+        #            aux seules heures de juin ; Espinosa à 0,74 € ;
+        #   Cotte, Fuckar : revalorisé, à 4,50 € près ;
+        #   Demory : ni l'un ni l'autre.
+        #
+        # Le gel est la règle que nous appliquons (LFSS 2025) et il a tenu de
+        # janvier à mai. Juin est le premier mois qui pouvait départager les
+        # deux, puisque le SMIC n'avait pas bougé avant. On ne change pas le
+        # moteur sur une observation qui se contredit d'un bulletin à l'autre :
+        # c'est la question 1, désormais chiffrée.
         "ecarts_documentes": {
-            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40},
-            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05},
+            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": 38.33},
+            "DEMORY": {"reduction": 43.66},
+            "ESPINOSA": {"reduction": 35.51},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05, "reduction": -1.90},
+            "GIRERD": {"reduction": 18.32},
         },
         "brut": {"BUGNY": 3084.43, "COTTE": 2444.33, "DEMORY": 2026.41, "ESPINOSA": 3256.34,
                  "FUCKAR": 2450.68, "GAUTHERON": 2327.64, "GIRERD": 3855.98},
