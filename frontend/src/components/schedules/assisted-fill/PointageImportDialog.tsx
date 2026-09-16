@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, XCircle } from 'lucide-react';
 import {
   Dialog,
@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -41,6 +40,7 @@ import {
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
+import { monthIsoWeekOptions } from './importWeekOptions';
 import {
   expectedSegmentMs,
   smoothedPercent,
@@ -56,6 +56,9 @@ const MONTHS = [
 ];
 
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.csv,.xlsx,.xls';
+
+/** Valeur Radix pour « pas de semaine » (un SelectItem ne peut pas valoir ''). */
+const NO_WEEK = '__none__';
 
 /**
  * Barre lissée entre deux événements réels du job : le vrai pourcentage
@@ -233,6 +236,7 @@ export function PointageImportDialog({
   );
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
+  const weekOptions = useMemo(() => monthIsoWeekOptions(year, month), [year, month]);
   const targetName =
     singleEmployee && roster[0]
       ? `${roster[0].first_name} ${roster[0].last_name}`
@@ -253,6 +257,12 @@ export function PointageImportDialog({
     setWeekAnchorDate('');
     setHelpOpen(false);
   };
+
+  // Le lundi choisi n'a de sens que pour le mois affiché : on repart de zéro
+  // si le calendrier change de mois pendant que la fenêtre est ouverte.
+  useEffect(() => {
+    setWeekAnchorDate('');
+  }, [year, month]);
 
   useEffect(() => {
     if (!open || !pendingReview?.proposal) return;
@@ -388,9 +398,9 @@ export function PointageImportDialog({
     if (files.length === 0) return;
     if (documentScope === 'weekly' && !weekAnchorDate) {
       toast({
-        title: 'Date de semaine recommandée',
+        title: 'Semaine à préciser',
         description:
-          'Pour un relevé hebdomadaire sans dates explicites, indiquez le lundi de la semaine.',
+          'Pour un relevé hebdomadaire sans dates explicites, choisissez la semaine concernée (S27, S28…).',
         variant: 'destructive',
       });
       return;
@@ -594,16 +604,25 @@ export function PointageImportDialog({
               {(documentScope === 'weekly' || documentScope === 'auto') && (
                 <div className="space-y-1.5">
                   <Label htmlFor="week-anchor" className="text-xs">
-                    Semaine commençant le
+                    Semaine
                     {documentScope === 'weekly' ? ' *' : ' (optionnel)'}
                   </Label>
-                  <Input
-                    id="week-anchor"
-                    type="date"
-                    value={weekAnchorDate}
-                    onChange={(e) => setWeekAnchorDate(e.target.value)}
-                    className="h-9"
-                  />
+                  <Select
+                    value={weekAnchorDate || NO_WEEK}
+                    onValueChange={(v) => setWeekAnchorDate(v === NO_WEEK ? '' : v)}
+                  >
+                    <SelectTrigger id="week-anchor" className="h-9">
+                      <SelectValue placeholder="Choisir la semaine" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_WEEK}>Non précisée</SelectItem>
+                      {weekOptions.map((w) => (
+                        <SelectItem key={w.value} value={w.value}>
+                          {w.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
