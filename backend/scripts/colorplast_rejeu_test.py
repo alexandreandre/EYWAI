@@ -49,7 +49,10 @@ YEAR = 2026
 #: qu'une partie — Demory est embauché le 23/03 — et c'est le tableau de
 #: références du mois qui dit lesquelles.
 SALARIES = ("BUGNY", "COTTE", "DEMORY", "ESPINOSA", "FUCKAR", "GAUTHERON", "GIRERD")
-SMIC_HORAIRE = 12.02  # 12,31 à partir de juin
+#: Le SMIC horaire imprimé change en cours d'année : 12,02 € jusqu'en mai,
+#: 12,31 € au 1ᵉʳ juin 2026. À ne pas confondre avec le SMIC de RÉFÉRENCE de
+#: l'allègement, lui gelé à 12,02 € pour toute l'année (LFSS 2025).
+SMIC_HORAIRE = {m: 12.02 for m in range(1, 6)} | {m: 12.31 for m in range(6, 13)}
 
 #: Tolérances par défaut : le centime, sauf le SMIC (au demi-centime) et les
 #: lignes où le cabinet est connu pour ne pas être cohérent avec lui-même.
@@ -302,6 +305,56 @@ REFERENCES: dict[int, dict] = {
         "reduction": {"BUGNY": -546.88, "COTTE": -603.25, "DEMORY": -550.16, "ESPINOSA": -490.36,
                       "FUCKAR": -592.89, "GAUTHERON": -608.28, "GIRERD": -244.99},
     },
+    6: {
+        # Fenêtre non confirmée sur les pointages : le détail des heures sup que
+        # le cabinet fournit pour juin
+        # (`data/colorplast/variables/2026-06/detail-heures-sup-06-2026-colorplast.xlsx`)
+        # ne reproduit ni les heures payées en juin ni celles de juillet — il
+        # donne 10 h à 25 % et 3,5 h à 50 % pour Bugny, qui en reçoit 14 et 7.
+        # La fenêtre retenue est la suite logique de mai : semaines ISO entières
+        # à partir du lendemain, 25/05 au 21/06.
+        "fenetre": ("2026-05-25", "2026-06-21"),
+        # Juin apporte deux choses : la revalorisation du SMIC imprimé (12,02 →
+        # 12,31 au 01/06 ; le SMIC de référence de l'allègement reste gelé à
+        # 12,02) et l'augmentation de Demory et Fuckar, qui passent à 1 867,06.
+        #
+        # Deux absences d'une journée, toutes deux non payées et toutes deux
+        # réduisant le plafond d'un trentième (3 871,50) : Demory le 08/06 et
+        # Gautheron le 10/06. Le cabinet les traite pourtant différemment —
+        # 8,50 h déduites pour l'un (7,63 + 0,87), 7,80 pour l'autre (7,00 +
+        # 0,80) — alors que sa propre feuille d'heures porte 8,50 pour les deux.
+        # On pose ce qu'il a payé.
+        "en_attente": {
+            "GAUTHERON": "cumuls hérités de son arrêt d'avril — question du maintien toujours ouverte",
+        },
+        # Traînes connues : le congé pour événement familial de Cotte (mars) et
+        # les heures d'avant l'embauche de Fuckar (avril).
+        "ecarts_documentes": {
+            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05},
+        },
+        "brut": {"BUGNY": 3084.43, "COTTE": 2444.33, "DEMORY": 2026.41, "ESPINOSA": 3256.34,
+                 "FUCKAR": 2450.68, "GAUTHERON": 2327.64, "GIRERD": 3855.98},
+        "net": {"BUGNY": (2889.30, 65.64), "COTTE": (1954.81, 36.91), "DEMORY": (1622.42, 0.0),
+                "ESPINOSA": (2623.27, 0.0), "FUCKAR": (1970.83, 0.0),
+                "GAUTHERON": (1697.87, 26.76), "GIRERD": (3096.69, 114.75)},
+        "net_social": {"BUGNY": 2889.30, "COTTE": 1954.81, "DEMORY": 1622.42,
+                       "ESPINOSA": 2721.39, "FUCKAR": 1970.83, "GAUTHERON": 1829.37,
+                       "GIRERD": 3194.81},
+        "net_hs_exo": {"BUGNY": 661.80, "COTTE": 267.00, "DEMORY": 236.36, "ESPINOSA": 762.10,
+                       "FUCKAR": 357.98, "GAUTHERON": 253.88, "GIRERD": 419.51},
+        "heures": {"BUGNY": (1114.50, 204.48), "COTTE": (989.10, 103.22), "DEMORY": (494.40, 48.52),
+                   "ESPINOSA": (1123.75, 213.73), "FUCKAR": (452.00, 62.49),
+                   "GAUTHERON": (748.10, 80.12), "GIRERD": (1014.00, 103.98)},
+        "pss": {"BUGNY": 4005.00, "COTTE": 4005.00, "DEMORY": 3871.50, "ESPINOSA": 4005.00,
+                "FUCKAR": 4005.00, "GAUTHERON": 3871.50, "GIRERD": 4005.00},
+        "autres": {"BUGNY": 54.25, "COTTE": 41.13, "DEMORY": 54.37, "ESPINOSA": 57.15,
+                   "FUCKAR": 65.76, "GAUTHERON": 41.50, "GIRERD": 86.53},
+        "deduction": {"BUGNY": -57.50, "COTTE": -26.00, "DEMORY": -24.69, "ESPINOSA": -60.50,
+                      "FUCKAR": -36.50, "GAUTHERON": -24.84, "GIRERD": -26.00},
+        "reduction": {"BUGNY": -552.97, "COTTE": -642.15, "DEMORY": -756.59, "ESPINOSA": -551.62,
+                      "FUCKAR": -662.25, "GAUTHERON": -617.82, "GIRERD": -263.27},
+    },
 }
 
 
@@ -547,7 +600,8 @@ def _controler(nom: str, mois: int, data: dict, res) -> int:
              ref["net_hs_exo"][nom], "net des heures sup exonérées")
 
     parametres = data.get("parametres") or {}
-    verifier("smic", float(parametres.get("smic_horaire") or 0), SMIC_HORAIRE, "SMIC horaire")
+    verifier("smic", float(parametres.get("smic_horaire") or 0), SMIC_HORAIRE[mois],
+             "SMIC horaire")
     verifier("pss", float(parametres.get("pss_mensuel") or 0), ref["pss"][nom], "plafond Sécu")
 
     cumuls = (data.get("cumuls") or {}).get("cumuls") or {}

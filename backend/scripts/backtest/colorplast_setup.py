@@ -177,7 +177,10 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
             "base": 1867.06,
             "salary_effective_date": "2026-06-01",
             "ancien_base": 1850.37,
-            "abs": {8: 7.63},
+            # 8,50 h = la journee entiere. Le cabinet imprime la part de base
+            # (7,63 = 8,50 x 35/39) et la part structurelle (0,87) sur deux
+            # lignes ; le setup attend le TOTAL, que le moteur repartit.
+            "abs": {8: 8.5},
             "inputs": [],
         },
         "ESPINOSA": {"base": 2374.55, "hs25": 16.0, "hs50": 7.0,
@@ -193,7 +196,10 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
                 ("Prime exceptionnelle 05-2026", 100.0, True, True),
             ],
         },
-        "GAUTHERON": {"base": 1993.40, "abs": {10: 7.0},
+        # Gautheron, 10/06 : sa feuille d'heures porte 8,50 h comme Demory, mais
+        # le cabinet ne lui en deduit que 7,80 (7,00 de base + 0,80 structurel).
+        # On pose ce qu'il a paye ; l'incoherence est inscrite au rejeu.
+        "GAUTHERON": {"base": 1993.40, "abs": {10: 7.8},
                       "inputs": [("Prime exceptionnelle", 100.0, True, True),
                                  ("Saisie SGC OYONNAX", -33.38, False, False)]},
         "GIRERD": {"base": 3147.46,
