@@ -377,6 +377,50 @@ REFERENCES: dict[int, dict] = {
         "reduction": {"BUGNY": -552.97, "COTTE": -642.15, "DEMORY": -756.59, "ESPINOSA": -551.62,
                       "FUCKAR": -662.25, "GAUTHERON": -617.82, "GIRERD": -263.27},
     },
+    7: {
+        # Fenêtre dans la continuité de juin, en semaines ISO entières.
+        "fenetre": ("2026-06-22", "2026-07-26"),
+        # Juillet apporte le morceau le plus lourd de la série : Demory sort le
+        # 24/07 en fin de CDD. Son bulletin porte une indemnité de précarité
+        # (797,04), une indemnité compensatrice de congés payés (940,23) et un
+        # arbitrage de congés (98,48) — trois mécanismes jamais éprouvés ici.
+        # Son allègement se retourne d'ailleurs en remboursement (+163,99).
+        #
+        # Fuckar et Gautheron ont des absences non payées au jour près, prises
+        # sur leurs bulletins : le détail n'existe nulle part ailleurs, les
+        # feuilles de pointage s'arrêtant à la semaine 25.
+        "en_attente": {
+            "GAUTHERON": "cumuls hérités de son arrêt d'avril — question du maintien toujours ouverte",
+        },
+        "ecarts_documentes": {
+            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05},
+        },
+        "brut": {"BUGNY": 3162.97, "COTTE": 2576.41, "DEMORY": 3509.91, "ESPINOSA": 3191.76,
+                 "FUCKAR": 1906.45, "GAUTHERON": 2089.06, "GIRERD": 3855.98},
+        "net": {"BUGNY": (3143.84, 65.63), "COTTE": (2173.64, 36.90), "DEMORY": (2785.59, 0.0),
+                "ESPINOSA": (2665.17, 0.0), "FUCKAR": (1526.35, 0.0),
+                "GAUTHERON": (1593.88, 24.02), "GIRERD": (3195.50, 114.76)},
+        "net_social": {"BUGNY": 3143.84, "COTTE": 2173.64, "DEMORY": 2785.59,
+                       "ESPINOSA": 2763.29, "FUCKAR": 1526.35, "GAUTHERON": 1738.49,
+                       "GIRERD": 3293.62},
+        "net_hs_exo": {"BUGNY": 735.09, "COTTE": 390.26, "DEMORY": 206.78, "ESPINOSA": 701.83,
+                       "FUCKAR": 222.29, "GAUTHERON": 227.20, "GIRERD": 419.51},
+        "heures": {"BUGNY": (1309.00, 247.31), "COTTE": (1166.10, 128.55),
+                   "DEMORY": (634.80, 62.92), "ESPINOSA": (1313.00, 251.31),
+                   "FUCKAR": (603.00, 77.97), "GAUTHERON": (891.60, 94.84),
+                   "GIRERD": (1183.00, 121.31)},
+        # Demory 24/31 (sortie), Fuckar 28/31, Gautheron 26/31.
+        "pss": {"BUGNY": 4005.00, "COTTE": 4005.00, "DEMORY": 3100.65, "ESPINOSA": 4005.00,
+                "FUCKAR": 3617.42, "GAUTHERON": 3359.03, "GIRERD": 4005.00},
+        "autres": {"BUGNY": 55.59, "COTTE": 43.37, "DEMORY": 94.18, "ESPINOSA": 56.06,
+                   "FUCKAR": 51.17, "GAUTHERON": 37.51, "GIRERD": 90.70},
+        "deduction": {"BUGNY": -64.25, "COTTE": -38.00, "DEMORY": -21.60, "ESPINOSA": -56.37,
+                      "FUCKAR": -23.22, "GAUTHERON": -22.23, "GIRERD": -26.00},
+        # Demory : allègement positif, le cabinet rend ce qu'il avait accordé.
+        "reduction": {"BUGNY": -531.92, "COTTE": -582.35, "DEMORY": 163.99, "ESPINOSA": -482.88,
+                      "FUCKAR": -669.08, "GAUTHERON": -473.41, "GIRERD": -230.05},
+    },
 }
 
 

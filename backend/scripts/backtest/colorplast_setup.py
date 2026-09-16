@@ -205,6 +205,27 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         "GIRERD": {"base": 3147.46,
                    "inputs": [("Indemnite de transport", 250.0, False, False)]},
     },
+    7: {
+        # Juillet est deja saisi dans la base de test (primes, PPV, indemnites
+        # de transport, conges payes au calendrier, ferie du 14). `_clear_inputs`
+        # n'efface que ce que le backtest a lui-meme pose : reposer ces saisies
+        # les dupliquerait. On ne pose donc QUE ce qui manque.
+        #
+        # Les heures sup font exception : le nettoyage du rejeu efface tout ce
+        # qui contient « suppl » avant de reposer, il faut donc les redeclarer.
+        #
+        # Les quantites d'absence sont les TOTAUX de la journee (le cabinet
+        # imprime la part de base, soit total x 35/39).
+        "BUGNY": {"hs25": 19.0, "hs50": 6.5},
+        "COTTE": {"hs25": 8.0},
+        "ESPINOSA": {"hs25": 16.0, "hs50": 4.25},
+        # Fuckar : 10/07 2,24 de base (2,50 au total), 15/07 6,28 (7,00),
+        # 20/07 7,63 (8,50) — 18,00 h en tout, ce que confirme son compteur.
+        "FUCKAR": {"abs": {10: 2.5, 15: 7.0, 20: 8.5}},
+        # Gautheron : cinq absences non payees, 25,50 h en tout. Ses deux
+        # journees de conges des 13 et 21 sont deja au calendrier.
+        "GAUTHERON": {"abs": {7: 8.5, 8: 8.5, 9: 7.5, 20: 0.26, 23: 0.75}},
+    },
 }
 
 
