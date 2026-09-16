@@ -19,13 +19,14 @@ du périmètre du rejeu.
 |---|---|---|---|---|---|---|---|---|---|
 | Bugny | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Cotte | ✓ | ✓ | ✓ | ✓ | *écart assumé* | ✓ | ✓ | ✓ | −1,18 |
-| Demory | ✓ | ✓ | ✓ | ✓ | *écart assumé* | ✓ | ✓ | ✓ | ✓ |
+| Demory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | +0,09 |
 | Espinosa | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Fuckar | −0,01 | ✓ | ✓ | ✓ | *écart assumé* | ✓ | ✓ | ✓ | ✓ |
+| Fuckar | −0,01 | ✓ | ✓ | ✓ | *écart assumé* | ✓ | ✓ | ✓ | +0,47 |
 | Girerd | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Gautheron | *en attente* | | | | | | | | |
 
-Les sept bruts tombent au centime, y compris les deux bulletins d'arrêt.
+Les sept bruts tombent au centime, y compris les deux bulletins d'arrêt, ainsi
+que les sept plafonds et tous les compteurs hors ceux nommés ci-dessous.
 
 ## Ce qui a été corrigé dans le moteur
 
@@ -67,6 +68,41 @@ maintient pas** : rien si le maintien est complet, tout s'il est nul, la
 fraction correspondante entre les deux. Couvert par
 `test_heures_arret_smic_reference.py`.
 
+### Une journée non payée ne coûtait que 7,00 h au compteur, pas 7,80
+
+Sur un contrat de 39 h, une journée de travail vaut **7,80 h payées** : 7,00 h
+de base plus la quote-part d'heure supplémentaire structurelle du jour (17,33 h
+réparties sur les jours ouvrés du mois). Le brut retirait bien les deux — la
+ligne « Réduction HS structurelles » est là pour ça — mais les compteurs ne
+voyaient que la base.
+
+Le moteur se contredisait donc lui-même : il ne payait rien pour une journée de
+7,80 h et en inscrivait 0,80 comme rémunérées, au compteur d'heures comme dans
+le SMIC de référence de l'allègement.
+
+Le défaut ne se voyait que sur une **journée entière** déduite sur la référence
+légale — un jour férié non payé ou un jour d'arrêt. Les absences fractionnées
+étaient déjà justes : leur part structurelle entre directement dans les heures
+non payées (Cotte, janvier : 3,50 h retirées pour une absence de 3,50 h, dont
+0,36 de structurel). C'est ce qui l'a caché de janvier à avril.
+
+Chez Demory, 6 journées × 0,80 = **4,80 h** de trop au compteur, et 55,39 € de
+trop d'allègement. La quote-part est désormais rattachée à l'absence dont elle
+vient, pour qu'un maintien d'arrêt la restitue comme il restitue la base, et
+pour qu'un congé maintenu — l'événement familial — n'y perde rien. Couvert par
+`test_compteur_journee_entiere.py`.
+
+### Ce que les trois corrections donnent, mesuré
+
+| Demory, mai | Avant | Après | Quadra |
+|---|---|---|---|
+| Cumul heures | 338,70 | **333,90** | 333,90 |
+| Cumul heures sup | 32,06 | 32,06 | 32,06 |
+| Plafond Sécu | 3 229,84 | **2 842,26** | 2 842,26 |
+| Allègement | −605,55 | **−550,07** | −550,16 |
+
+Chez Fuckar, l'écart d'allègement passe de 44,81 € à 0,47 €.
+
 ## Ce qui a été corrigé dans les données
 
 ### Demory et Fuckar ne sont augmentés qu'en juin
@@ -104,16 +140,18 @@ supplémentaires — et il se déroule sans intervention manuelle.
 
 ## Ce que nous ne reproduisons pas, et pourquoi
 
-### Les heures d'arrêt restent au compteur imprimé du cabinet
+### Les 3,05 h d'avant l'embauche de Fuckar
 
-Demory 32,80 h, Fuckar 28,95 h (dont −3,05 h au compteur d'heures sup). Le
-cabinet les garde au compteur imprimé du bulletin ; nous les en sortons,
-puisqu'elles ne sont pas payées.
+Seul reste de son mois d'entrée : le cabinet laisse à son compteur les 3,05 h
+structurelles rattachées aux heures qu'il n'a pas travaillées avant son arrivée,
+que nous en sortons. Le raisonnement est dans
+`docs/colorplast-avril-2026-ligne-a-ligne.md`.
 
-C'est la même question que pour Gautheron : **qui verse le complément de salaire
-au-delà du 3ᵉ jour d'arrêt ?** Si c'est l'employeur, les heures sont maintenues
-et le cabinet a raison de les garder. Si c'est la prévoyance, elles ne le sont
-pas. **Question 4** de la page tenue pour Gaëlle.
+### Deux restes d'allègement : 0,09 € et 0,47 €
+
+Demory et Fuckar, même famille que ceux de janvier, mars et avril : dès qu'il y
+a une absence, le cabinet compte une fraction d'heure autrement que nous, sans
+règle reproductible. **Question 1**.
 
 ### Cotte traîne toujours son congé pour événement familial de mars
 
