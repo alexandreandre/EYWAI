@@ -146,11 +146,11 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         # generale du 01/05 : tout le reste ferait doublon. La participation de
         # Girerd y est placee sur un PEE, pas versee — d'ou son net a payer de
         # 2 981,94 malgre 5 331,56 de participation.
-        "BUGNY": {"base": 2165.85, "ancien_base": 2123.38, "salary_effective_date": "2026-05-01", "inputs": []},
+        "BUGNY": {"base": 2165.85, "ancien_base": 2123.38, "hs25": 15.0, "salary_effective_date": "2026-05-01", "inputs": []},
         "COTTE": {"base": 2003.26, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
         "DEMORY": {"base": 1867.06, "ancien_base": 1850.37, "salary_effective_date": "2026-05-01", "inputs": []},
-        "ESPINOSA": {"base": 2374.55, "ancien_base": 2328.00, "salary_effective_date": "2026-05-01", "inputs": []},
-        "FUCKAR": {"base": 1867.06, "ancien_base": 1850.37, "salary_effective_date": "2026-05-01", "inputs": []},
+        "ESPINOSA": {"base": 2374.55, "ancien_base": 2328.00, "hs25": 3.0, "hs50": 6.5, "salary_effective_date": "2026-05-01", "inputs": []},
+        "FUCKAR": {"base": 1867.06, "ancien_base": 1850.37, "hs25": 2.5, "salary_effective_date": "2026-05-01", "inputs": []},
         "GAUTHERON": {"base": 1993.40, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
         "GIRERD": {"base": 3147.46, "ancien_base": 3101.00, "salary_effective_date": "2026-05-01", "inputs": []},
     },
