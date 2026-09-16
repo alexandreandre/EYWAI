@@ -174,8 +174,13 @@ def _cumul_tranche_1_appliquee_debut_mois(
 # plafond de la Sécurité sociale est réduit prorata temporis (BOSS, assiette
 # générale : entrée/sortie en cours de mois et suspension du contrat sans
 # maintien intégral, en jours calendaires).
+#: Un arrêt de travail suspend le contrat quelle que soit sa nature — maladie,
+#: accident du travail, maternité, paternité : tous réduisent le plafond au
+#: prorata. Seul `arret_maladie` y figurait, et l'accident du travail de Demory
+#: (Colorplast, 23 au 29/05/2026) laissait son plafond entier.
 _TYPES_ABSENCE_REDUISANT_PLAFOND = frozenset(
-    {"arret_maladie", "absence_non_remuneree", "absence_injustifiee", "sans_solde", "conge_sans_solde"}
+    {"arret_maladie", "arret_at", "arret_maternite", "arret_paternite",
+     "absence_non_remuneree", "absence_injustifiee", "sans_solde", "conge_sans_solde"}
 )
 
 
