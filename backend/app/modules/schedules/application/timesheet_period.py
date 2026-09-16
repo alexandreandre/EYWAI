@@ -267,14 +267,14 @@ def detect_timesheet_period(
         result.confidence = "low"
         result.warnings.append(
             "Numéro de semaine détecté sans dates explicites — précisez "
-            "« Semaine commençant le » si les jours semblent incorrects."
+            "la semaine (S27, S28…) si les jours semblent incorrects."
         )
     else:
         result.scope = "unknown"
         result.confidence = "low"
         result.warnings.append(
             "Aucune date explicite détectée dans le relevé. "
-            "Indiquez le type « Hebdomadaire » et la date de début de semaine."
+            "Indiquez le type « Hebdomadaire » et le numéro de la semaine."
         )
 
     if document_scope == "weekly":
