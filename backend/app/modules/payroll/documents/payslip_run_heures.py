@@ -890,9 +890,29 @@ def run_payslip_generation_heures(
         resultat_brut.get("heures_base_remunerees")
         or min(heures_contractuelles_mois, heures_legales_mois)
     )
+    # Un arrêt de travail ne sort du SMIC de référence qu'à proportion de ce que
+    # l'employeur NE maintient PAS : rémunération maintenue en entier, les heures
+    # restent ; maintien partiel, elles sortent d'autant ; aucun maintien, elles
+    # sortent toutes. Le moteur les gardait en bloc, en supposant le maintien
+    # acquis. Demory et Fuckar (Colorplast, mai 2026) ne reçoivent aucun maintien
+    # pendant leur arrêt : nous réclamions 347 € d'allègement sur des heures que
+    # personne n'a payées.
+    heures_arret = float(resultat_brut.get("heures_arret_deduites") or 0.0)
+    heures_arret_non_maintenues = 0.0
+    if heures_arret > 0:
+        deduction_arret = float(resultat_brut.get("deduction_arret_maladie") or 0.0)
+        maintien_verse = float(
+            ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
+        )
+        part_maintenue = (
+            min(1.0, maintien_verse / deduction_arret) if deduction_arret > 0 else 0.0
+        )
+        heures_arret_non_maintenues = round(heures_arret * (1.0 - part_maintenue), 2)
+
     heures_remunerees_reduction = max(
         0.0,
         max(0.0, heures_base_mois - heures_activite_partielle)
+        - heures_arret_non_maintenues
         + float(total_heures_supp or 0.0)
         + float(resultat_brut.get("heures_complementaires", 0.0) or 0.0)
         - float(resultat_brut.get("heures_absence_non_payees", 0.0) or 0.0),

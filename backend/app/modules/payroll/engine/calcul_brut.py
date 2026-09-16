@@ -1036,6 +1036,10 @@ def calculer_salaire_brut(
     # 3. Traitement de tous les événements de la période
     jours_conges_dans_periode = []
     deduction_arret_maladie_total = 0.0
+    #: Heures retirées de la paie par un arrêt de travail. Elles ne sortent du
+    #: SMIC de référence qu'à proportion de ce que l'employeur ne maintient pas
+    #: — arbitrage fait en aval, où le maintien est connu.
+    heures_arret_deduites = 0.0
     #: Congé pour événement familial : heures déduites et journées légales
     #: équivalentes, gardées à part pour remettre exactement la même somme.
     montant_evenement_familial = 0.0
@@ -1272,6 +1276,7 @@ def calculer_salaire_brut(
             )
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             deduction_arret_maladie_total += montant_deduction
+            heures_arret_deduites += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
@@ -1666,6 +1671,7 @@ def calculer_salaire_brut(
         # `heures_absence_non_payees` la contient déjà.
         "heures_sup_perdues_absence": round(heures_hs_perdues, 2),
         "deduction_arret_maladie": round(deduction_arret_maladie_total, 2),
+        "heures_arret_deduites": round(heures_arret_deduites, 2),
         "heures_complementaires": round(
             heures_travail_hc1_total + heures_travail_hc2_total, 2
         ),
