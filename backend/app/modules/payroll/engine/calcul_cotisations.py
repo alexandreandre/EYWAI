@@ -251,6 +251,23 @@ def ratio_plafond_periode(
         elif _reduit_le_plafond(type_ev):
             absents.add(jour)
 
+    # Un arrêt de travail suspend le contrat sur toute sa durée déclarée, pas
+    # seulement sur les jours ouvrés inscrits au calendrier : le week-end et les
+    # jours fériés qu'il enjambe en font partie. Sans cela, un arrêt qui commence
+    # un samedi ne réduit le plafond qu'à partir du lundi. Demory (Colorplast,
+    # mai 2026), accident du travail du 23 au 29/05 : le cabinet retire 7 jours,
+    # nous n'en retirions que 4 — les 23, 24 et 25 manquaient.
+    for ev in calendrier or []:
+        debut_arret = _d(ev.get("date_debut_arret_reel"))
+        fin_arret = _d(ev.get("date_fin_arret_reel"))
+        if not (debut_arret and fin_arret):
+            continue
+        jour_arret = max(debut_arret, date_debut)
+        borne = min(fin_arret, date_fin)
+        while jour_arret <= borne:
+            absents.add(jour_arret)
+            jour_arret += timedelta(days=1)
+
     jours = [date_debut + timedelta(days=i) for i in range(nb_jours)]
 
     def _hors_contrat(j: date) -> bool:

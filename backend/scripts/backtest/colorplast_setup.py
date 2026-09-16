@@ -375,6 +375,15 @@ def _set_calendar(admin, emp_id: str, year: int, month: int,
                   "arret_maternite": "maternite", "arret_paternite": "paternite"}.get(type_arret)
         debut = arret.get("debut") or f"{year:04d}-{month:02d}-{jours_arret[0]:02d}"
         fin = arret.get("fin") or f"{year:04d}-{month:02d}-{jours_arret[-1]:02d}"
+        # Un passage precedent a pu laisser les bornes d'arret sur un jour qui
+        # n'en est plus un (le ferie du 25/05 chez Demory) : on les efface, sans
+        # quoi le plafond se prorate sur une duree declaree fantome.
+        for j in cal:
+            if j.get("jour") not in jours_arret:
+                for cle in ("arret_type", "date_debut_arret_reel",
+                            "date_fin_arret_reel", "subrogation_active",
+                            "maintien_base_ouvree"):
+                    j.pop(cle, None)
         for d in jours_arret:
             j = by_day.get(d)
             if j is None:
