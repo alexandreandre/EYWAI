@@ -263,6 +263,27 @@ REFERENCES: dict[int, dict] = {
         "en_attente": {
             "GAUTHERON": "cumuls hérités de son arrêt d'avril — question du maintien toujours ouverte",
         },
+        # Écarts avec le cabinet que nous ne reproduisons pas.
+        #
+        # Cotte traîne toujours son congé pour événement familial de mars.
+        # Fuckar traîne son mois d'embauche d'avril, et ses heures d'arrêt
+        # maladie : le cabinet les garde au compteur, nous les en sortons.
+        #
+        # Demory, plafond : le cabinet proratise son accident du travail sur la
+        # durée calendaire déclarée (23 au 29/05, soit 7 jours week-end compris)
+        # alors que nous ne comptons que les jours ouvrés typés au calendrier —
+        # le 25 est un férié payé, journée de solidarité. Neuf jours chez lui,
+        # six chez nous.
+        #
+        # Les heures d'arrêt de Demory et de Fuckar restent à leur compteur : le
+        # moteur ne les en sort pas, la rémunération d'un arrêt étant réputée
+        # maintenue. Elle ne l'est pas ici — c'est la même question ouverte que
+        # pour Gautheron, celle du maintien (question 4 de la page de Gaëlle).
+        "ecarts_documentes": {
+            "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": 1.18},
+            "DEMORY": {"pss": 387.58, "cumul_heures": 32.80, "reduction": -153.41},
+            "FUCKAR": {"cumul_heures": 28.95, "cumul_hs": -3.05, "reduction": -194.26},
+        },
         "brut": {"BUGNY": 2952.34, "COTTE": 2444.33, "DEMORY": 1529.05, "ESPINOSA": 2990.19,
                  "FUCKAR": 1664.78, "GAUTHERON": 2432.78, "GIRERD": 3855.98},
         "net": {"BUGNY": (5479.53, 190.41), "COTTE": (3867.27, 100.04), "DEMORY": (1224.20, 0.0),
