@@ -76,7 +76,7 @@ def test_alerte_au_dessus_du_plafond():
     assert len(alertes) == 1
     alerte = alertes[0]
     assert alerte["code"] == "transport_plafond_annuel_depasse"
-    assert alerte["critique"] is True
+    assert alerte["critique"] is False  # point à arbitrer, pas défaut du bulletin
     message = alerte["message"].replace(" ", " ").replace("\xa0", " ")
     assert "2 400,00" in message
     assert "600,00" in message
@@ -106,3 +106,31 @@ def test_alerte_ne_modifie_pas_le_bulletin():
         "message",
         "donnee_non_officielle",
     }
+
+
+# --- Le signalement ne se répète pas ----------------------------------------
+
+
+def test_silencieux_si_le_plafond_etait_deja_franchi():
+    """Le plafond est annuel : une fois franchi il le reste jusqu'en décembre.
+
+    Le signaler sur chaque bulletin suivant n'apprend rien et apprend surtout à
+    ne plus regarder. Girerd (Colorplast) touche 250 €/mois : le plafond tombe
+    en mars, et c'est en mars seulement qu'on en parle.
+    """
+    assert controle_plafond_transport(
+        1000.0, BAREME, annee=2026, cumul_mois_precedents=750.0
+    ) == []
+
+
+def test_on_parle_le_mois_du_franchissement():
+    alertes = controle_plafond_transport(
+        750.0, BAREME, annee=2026, cumul_mois_precedents=500.0
+    )
+    assert len(alertes) == 1
+    assert "150,00" in alertes[0]["message"].replace("\u202f", " ").replace("\xa0", " ")
+
+
+def test_sans_historique_le_comportement_est_inchange():
+    """Par défaut, aucun cumul antérieur : le contrôle parle comme avant."""
+    assert len(controle_plafond_transport(3000.0, BAREME, annee=2026)) == 1

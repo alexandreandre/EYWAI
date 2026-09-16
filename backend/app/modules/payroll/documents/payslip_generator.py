@@ -1246,18 +1246,28 @@ def process_payslip_generation(
 
             saisies_annee = (
                 supabase.table("monthly_inputs")
-                .select("amount, name")
+                .select("amount, name, month")
                 .eq("employee_id", employee_id)
                 .eq("year", year)
                 .execute()
                 .data
                 or []
             )
-            cumul_transport = sum(
-                float(s.get("amount") or 0)
-                for s in saisies_annee
-                if "transport" in (s.get("name") or "").lower()
-            )
+
+            # Le cumul s'arrête au mois du bulletin. Sans cette borne, un mois
+            # déjà saisi mais pas encore payé était compté comme versé : sur le
+            # bulletin de juillet de Girerd (Colorplast), l'août saisi d'avance
+            # faisait annoncer 2 000 € versés au lieu de 1 750 €.
+            def _cumul_transport(jusqu_au_mois: int) -> float:
+                return sum(
+                    float(s.get("amount") or 0)
+                    for s in saisies_annee
+                    if "transport" in (s.get("name") or "").lower()
+                    and int(s.get("month") or 0) <= jusqu_au_mois
+                )
+
+            cumul_transport = _cumul_transport(month)
+            cumul_transport_avant = _cumul_transport(month - 1)
             if cumul_transport > 0:
                 spec_transport = (
                     (employee_data.get("specificites_paie") or {}).get("transport") or {}
@@ -1273,6 +1283,7 @@ def process_payslip_generation(
                     frais_pro,
                     avec_abonnement_public=abonnement > 0,
                     annee=year,
+                    cumul_mois_precedents=cumul_transport_avant,
                 ):
                     final_payslip_data.setdefault("alertes_baremes", []).append(alerte)
         except Exception as transport_err:

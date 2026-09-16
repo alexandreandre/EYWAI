@@ -357,13 +357,21 @@ def controle_plafond_transport(
     *,
     avec_abonnement_public: bool = False,
     annee: int,
+    cumul_mois_precedents: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    """Signale un dépassement du plafond annuel d'exonération des trajets.
+    """Signale, UNE FOIS, le franchissement du plafond annuel d'exonération.
 
     Contrôle non bloquant : le bulletin n'est PAS modifié. Une réintégration
     automatique changerait des bulletins qui convergent aujourd'hui avec ceux
     du cabinet, sans que la RH l'ait décidé. Le rôle du logiciel est de rendre
     l'écart visible ; la décision de régulariser appartient à la RH.
+
+    C'est donc un **point à arbitrer, pas un défaut du bulletin** : il est
+    classé en information et non en alerte. Et il ne se répète pas — le
+    plafond étant annuel, une fois franchi il le reste jusqu'en décembre ;
+    le signaler sur les dix bulletins suivants n'apprend rien et apprend
+    surtout à ne plus regarder. On ne parle donc que le mois du
+    franchissement, en comparant le cumul du mois à celui d'avant.
     """
     from app.modules.payroll.engine.plafond_transport import (
         depassement_annuel,
@@ -376,6 +384,9 @@ def controle_plafond_transport(
     exces = depassement_annuel(cumul_annuel, plafond)
     if exces <= 0:
         return []
+    # Deja franchi le mois d'avant : rien de nouveau a dire.
+    if depassement_annuel(cumul_mois_precedents, plafond) > 0:
+        return []
 
     def _eur(v: float) -> str:
         return f"{v:,.2f}".replace(",", " ").replace(".", ",")
@@ -383,7 +394,7 @@ def controle_plafond_transport(
     return [
         _alert(
             code="transport_plafond_annuel_depasse",
-            critique=True,
+            critique=False,
             message=(
                 f"Indemnité trajet domicile-travail : cumul {_eur(cumul_annuel)} € "
                 f"versé en {annee}, pour un plafond d'exonération de "
