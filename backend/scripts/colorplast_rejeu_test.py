@@ -272,9 +272,14 @@ REFERENCES: dict[int, dict] = {
         # Fuckar garde le seul reste de son mois d'embauche : le cabinet laisse
         # à son compteur les 3,05 h structurelles rattachées aux heures d'avant
         # son arrivée, que nous en sortons (voir avril).
+        # Demory et Fuckar gardent un reste d'allègement de 0,09 et 0,47 : même
+        # famille que celui de Cotte et que ceux de janvier, le cabinet compte
+        # une fraction d'heure autrement que nous dès qu'il y a une absence
+        # (question 1). Les compteurs et le plafond, eux, sont exacts.
         "ecarts_documentes": {
             "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": 1.18},
-            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05},
+            "DEMORY": {"reduction": 0.09},
+            "FUCKAR": {"cumul_heures": -3.05, "cumul_hs": -3.05, "reduction": 0.47},
         },
         "brut": {"BUGNY": 2952.34, "COTTE": 2444.33, "DEMORY": 1529.05, "ESPINOSA": 2990.19,
                  "FUCKAR": 1664.78, "GAUTHERON": 2432.78, "GIRERD": 3855.98},
