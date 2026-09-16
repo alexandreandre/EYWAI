@@ -392,6 +392,13 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
             admin.table("monthly_inputs").delete().match(
                 {"employee_id": emp_id, "year": YEAR, "month": mois}
             ).ilike("name", "%suppl%").execute()
+            # 3. Le complément de mutuelle famille est porté par la fiche depuis
+            #    le 25/08 ; une ligne de régularisation saisie en plus le retire
+            #    une seconde fois (Espinosa et Girerd, mai : −98,13 de trop sur
+            #    le net à payer).
+            admin.table("monthly_inputs").delete().match(
+                {"employee_id": emp_id, "year": YEAR, "month": mois}
+            ).ilike("name", "%mutuelle famille%").execute()
 
             sched = (
                 admin.table("employee_schedules").select("id, planned_calendar")
@@ -421,7 +428,7 @@ def _nettoyer_les_doublons_du_cabinet(emps: dict, mois_joues: list[int]) -> None
                 j.update({"type": "travail", "heures_prevues": heures, "manuel": False})
                 j.pop("dsn_loader", None)
                 remis.append(f"{jour:%d/%m}={heures}")
-            # 3. Les jours d'arrêt importés de la DSN n'ont ni nature ni bornes.
+            # 4. Les jours d'arrêt importés de la DSN n'ont ni nature ni bornes.
             #    Sans elles le moteur les ignore pour le maintien de salaire, et
             #    n'en produit aucun (Gautheron, mars : le cabinet maintient 3
             #    jours pour 310,78 €). Le chargeur les écrit depuis le 15/09 ;

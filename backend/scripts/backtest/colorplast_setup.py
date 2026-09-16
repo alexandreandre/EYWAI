@@ -148,9 +148,20 @@ MONTH_DATA: Dict[int, Dict[str, Dict[str, Any]]] = {
         # 2 981,94 malgre 5 331,56 de participation.
         "BUGNY": {"base": 2165.85, "ancien_base": 2123.38, "hs25": 15.0, "salary_effective_date": "2026-05-01", "inputs": []},
         "COTTE": {"base": 2003.26, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
-        "DEMORY": {"base": 1850.37, "inputs": []},  # augmente seulement en juin
+        # Accident du travail du 23 au 29/05 : le 25 est un ferie (journee de
+        # solidarite), donc quatre jours ouvres deduits. `prior_service_months`
+        # est remis a zero : la fiche y porte l'anciennete totale ecoulee et non
+        # des mois de service anterieurs, que le moteur ajouterait a l'anciennete
+        # calculee — ce qui lui faisait payer des feries que le cabinet ne paie
+        # pas. Augmente seulement en juin.
+        "DEMORY": {"base": 1850.37, "prior_service_months": 0,
+                   "arret": {"type": "arret_at", "jours": [26, 27, 28, 29],
+                             "debut": "2026-05-23", "fin": "2026-05-29"},
+                   "inputs": []},
         "ESPINOSA": {"base": 2374.55, "ancien_base": 2328.00, "hs25": 3.0, "hs50": 6.5, "salary_effective_date": "2026-05-01", "inputs": []},
-        "FUCKAR": {"base": 1850.37, "hs25": 2.5, "inputs": []},  # augmente seulement en juin
+        # Arret maladie du 05 au 08/05, pose par le chargeur DSN. Meme correction
+        # d'anciennete que Demory. Augmente seulement en juin.
+        "FUCKAR": {"base": 1850.37, "hs25": 2.5, "prior_service_months": 0, "inputs": []},
         "GAUTHERON": {"base": 1993.40, "ancien_base": 1964.00, "salary_effective_date": "2026-05-01", "inputs": []},
         "GIRERD": {"base": 3147.46, "ancien_base": 3101.00, "salary_effective_date": "2026-05-01", "inputs": []},
     },
@@ -318,7 +329,8 @@ def _set_mut_reint(admin, emp: dict, reintegree: bool) -> None:
 
 def _set_calendar(admin, emp_id: str, year: int, month: int,
                   cp_days: List[int], abs_days: Dict[int, float],
-                  evt_familial_days: List[int] | None = None) -> str:
+                  evt_familial_days: List[int] | None = None,
+                  arret: Dict[str, Any] | None = None) -> str:
     sch = (admin.table("employee_schedules").select("id,planned_calendar")
            .match({"employee_id": emp_id, "year": year, "month": month})
            .maybe_single().execute())
@@ -352,6 +364,29 @@ def _set_calendar(admin, emp_id: str, year: int, month: int,
         else:
             j["type"] = "evenement_familial"; j["manuel"] = True
         actions.append(f"evtfam:{d}")
+    # Arret de travail date : le chargeur DSN ne pose pas toujours tous les
+    # jours (l'accident du travail de Demory du 23 au 29/05 n'y figurait que
+    # pour le 29). On les pose explicitement, avec la nature et les bornes que
+    # le calcul du maintien attend.
+    if arret and arret.get("jours"):
+        jours_arret = sorted(arret["jours"])
+        type_arret = arret.get("type", "arret_maladie")
+        nature = {"arret_maladie": "maladie", "arret_at": "accident_travail",
+                  "arret_maternite": "maternite", "arret_paternite": "paternite"}.get(type_arret)
+        debut = arret.get("debut") or f"{year:04d}-{month:02d}-{jours_arret[0]:02d}"
+        fin = arret.get("fin") or f"{year:04d}-{month:02d}-{jours_arret[-1]:02d}"
+        for d in jours_arret:
+            j = by_day.get(d)
+            if j is None:
+                j = {"jour": d}
+                cal.append(j); by_day[d] = j
+            if j.get("type") in ("repos", "ferie"):
+                continue
+            j.update({"type": type_arret, "heures_prevues": 8.5, "manuel": True,
+                      "origine": "absence", "arret_type": nature,
+                      "date_debut_arret_reel": debut, "date_fin_arret_reel": fin,
+                      "subrogation_active": False, "maintien_base_ouvree": True})
+        actions.append(f"{type_arret}:{jours_arret[0]}-{jours_arret[-1]}")
     planned["calendrier_prevu"] = sorted(cal, key=lambda x: x["jour"])
     admin.table("employee_schedules").update({"planned_calendar": planned}).eq("id", sch.data["id"]).execute()
     return ",".join(actions) or "no-cal-change"
@@ -437,10 +472,14 @@ def apply_month(company: str, year: int, month: int, only: List[str] | None = No
                 prev["lignes_specifiques"] = lignes; prev["adhesion"] = True
                 sp["prevoyance"] = prev
             admin.table("employees").update({"specificites_paie": sp}).eq("id", emp["id"]).execute()
+        if "prior_service_months" in cfg:
+            admin.table("employees").update(
+                {"prior_service_months": cfg["prior_service_months"]}
+            ).eq("id", emp["id"]).execute()
         cleared = _clear_actual(admin, emp["id"], year, month)
         cal_res = _set_calendar(admin, emp["id"], year, month,
                                 cfg.get("cp", []), cfg.get("abs", {}),
-                                cfg.get("evt_familial", []))
+                                cfg.get("evt_familial", []), cfg.get("arret"))
         _clear_inputs(admin, emp["id"], company_id, year, month)
         for name, amount, taxed, taxable in cfg.get("inputs", []):
             _insert_input(admin, emp["id"], company_id, year, month, name, amount, taxed, taxable)
