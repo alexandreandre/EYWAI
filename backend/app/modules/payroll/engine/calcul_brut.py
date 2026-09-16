@@ -32,6 +32,15 @@ def _heures_journalieres_contrat(duree_hebdo: float) -> float:
     return 7.0
 
 
+#: Libellé de la ligne de retenue, par nature d'arrêt de travail.
+LIBELLES_ARRET: Dict[str, str] = {
+    "arret_maladie": "arrêt maladie",
+    "arret_at": "accident du travail",
+    "arret_maternite": "congé maternité",
+    "arret_paternite": "congé paternité",
+}
+
+
 def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> float:
     """Heures imputées sur une absence (impute la journée si heures absentes/nulles)."""
     heures = evenement.get("heures")
@@ -1239,8 +1248,15 @@ def calculer_salaire_brut(
                     "perte": montant_deduction,
                 }
             )
-        elif type_ev == "arret_maladie":
-            # La retenue d'un jour d'arrêt maladie se valorise sur la référence
+        elif type_ev.startswith("arret"):
+            # Tous les arrêts de travail se déduisent de la même façon —
+            # maladie, accident du travail, maternité, paternité. Seul le
+            # maintien de salaire les distingue, et il se joue ailleurs (à
+            # partir de `arret_type`). La branche ne reconnaissait que
+            # `arret_maladie` : l'accident du travail de Demory (Colorplast,
+            # 23 au 29/05/2026) passait à travers, 390,40 € de trop au brut.
+            #
+            # La retenue d'un jour d'arrêt se valorise sur la référence
             # journalière LÉGALE (7 h temps plein), jamais sur les heures
             # planifiées du jour (souvent 7,5 h contractuelles issues d'un
             # template) : le salaire de base est mensualisé sur 151,67 h légales
@@ -1263,7 +1279,7 @@ def calculer_salaire_brut(
                 montant_absence_pleine_total += montant_deduction
             lignes_composants_brut.append(
                 {
-                    "libelle": "Absence arrêt maladie (jours déduction)",
+                    "libelle": f"Absence {LIBELLES_ARRET.get(type_ev, 'arrêt de travail')} (jours déduction)",
                     "quantite": heures_abs,
                     "taux": round(taux_horaire_de_base, 4),
                     "gain": None,
