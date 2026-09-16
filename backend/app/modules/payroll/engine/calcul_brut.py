@@ -1210,7 +1210,17 @@ def calculer_salaire_brut(
                 }
             )
         elif type_ev == "ferie" and not _jour_ferie_est_paye(contexte, evenement):
-            heures_abs = _heures_evenement_absence(evenement, duree_contrat_hebdo)
+            # Comme l'arrêt maladie et le congé pour événement familial, une
+            # journée de férié non payé se valorise sur la référence journalière
+            # légale : 7 h de base, la quote-part d'heures sup structurelles
+            # étant retirée séparément juste après. Déduire les heures planifiées
+            # (7,80 sur un contrat de 39 h) retirerait deux fois la part
+            # structurelle. Demory et Fuckar, Colorplast mai 2026 : le cabinet
+            # déduit 7,00 h à 12,20 (85,40) et 0,80 h structurelles.
+            heures_abs = min(
+                _heures_evenement_absence(evenement, duree_contrat_hebdo),
+                _heures_journalieres_contrat(duree_contrat_hebdo),
+            )
             montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
             heures_absence_non_payees += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
