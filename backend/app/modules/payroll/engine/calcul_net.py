@@ -535,9 +535,15 @@ def _base_pas_du_mois(contexte: ContextePaie, net_imposable_mois: float) -> floa
 
     plafond_ir_annuel = contexte.smic_mensuel * 12 * pct_annuel
 
-    cumuls = contexte.cumuls_annee_precedente if isinstance(
-        contexte.cumuls, dict
-    ) else {}
+    # Le plafond d'exonération de l'apprenti court sur l'ANNÉE CIVILE. En janvier,
+    # le générateur lit décembre N-1 et `net_imposable` n'est pas remis à zéro à
+    # l'écriture : sans cette garde, l'apprenti arriverait en janvier avec le
+    # cumul de l'année précédente et serait imposé dès le premier euro.
+    cumuls = (
+        {}
+        if getattr(contexte, "month", None) == 1
+        else (contexte.cumuls_annee_precedente if isinstance(contexte.cumuls, dict) else {})
+    )
     net_imposable_cumule_avant = _get_safe_float(cumuls.get("net_imposable"))
     net_imposable_cumule_avec = net_imposable_cumule_avant + net_imposable_mois
 

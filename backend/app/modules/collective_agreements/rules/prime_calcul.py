@@ -294,10 +294,10 @@ def calculer_prime_anciennete_plein_mois(
         return None
 
     montant = base_de_calcul * taux_applicable
-    libelle = (
-        f"Prime d'ancienneté ({anciennete_annees:.0f} ans, "
-        f"{taux_applicable * 100:.0f} %)"
-    )
+    # Le taux conventionnel n'est pas toujours entier (plasturgie : 2,4 %, 4,8 %…) :
+    # l'arrondir à l'entier écrivait « 2 % » pour une prime calculée à 2,4 %.
+    taux_txt = f"{taux_applicable * 100:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+    libelle = f"Prime d'ancienneté ({anciennete_annees:.0f} ans, {taux_txt} %)"
     return PrimeAncienneteResult(
         base_plein_mois=round(base_de_calcul, 2),
         montant_plein_mois=round(montant, 2),

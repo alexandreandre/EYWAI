@@ -60,6 +60,31 @@ def mettre_a_jour_cumuls(
     nouveaux_cumuls_data.setdefault("periode", {})["dernier_mois_calcule"] = mois
     cumuls = nouveaux_cumuls_data.setdefault("cumuls", {})
 
+    # --- Remise à zéro au 1ᵉʳ janvier des compteurs d'ANNÉE CIVILE.
+    #
+    # Le générateur lit délibérément décembre N-1 pour produire janvier
+    # (payslip_generator : prev_year = year - 1 quand mois == 1). Sans cette
+    # remise à zéro, le bulletin de janvier imprimerait des cumuls portant toute
+    # l'année précédente : un net imposable cumulé faux sur l'avis d'imposition,
+    # un « Cumul heures » et un « Cumul h. sup » faux au pied du bulletin.
+    #
+    # `brut_total` n'y figure PAS, et c'est volontaire : il sert aussi la prime de
+    # précarité et l'IFM (fenêtre du contrat, cf. calcul_brut) et la base du
+    # dixième des congés (fenêtre du 1ᵉʳ juin au 31 mai, cf.
+    # reference_remuneration). Lui donner la fenêtre de l'année civile casserait
+    # ces deux usages. Les calculs qui ont besoin du brut de l'année civile
+    # écartent janvier à la lecture, comme la réduction générale.
+    if mois == 1:
+        for compteur in (
+            "net_imposable",
+            "impot_preleve_a_la_source",
+            "heures_remunerees",
+            "heures_supplementaires_remunerees",
+            "montant_hs_remunerees",
+            "reduction_generale_patronale",
+        ):
+            cumuls[compteur] = 0.0
+
     cumuls["brut_total"] = cumuls.get("brut_total", 0.0) + round(salaire_brut_mois, 2)
     cumuls["net_imposable"] = cumuls.get("net_imposable", 0.0) + round(
         resultats_nets_mois.get("net_imposable", 0.0), 2

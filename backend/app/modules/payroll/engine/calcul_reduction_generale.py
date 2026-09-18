@@ -196,7 +196,22 @@ def calculer_coefficient_rgdu(
 
 
 def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float]:
-    """Lit les cumuls (brut, heures rémunérées, réduction déjà appliquée) du mois N-1."""
+    """Lit les cumuls (brut, heures rémunérées, réduction déjà appliquée) du mois N-1.
+
+    La régularisation progressive de la réduction générale se calcule sur l'ANNÉE
+    CIVILE. Or le générateur lit délibérément décembre N-1 quand il produit
+    janvier, et aucun de ces trois compteurs n'est remis à zéro à l'écriture.
+    Sans la garde de janvier ci-dessous, le coefficient partirait du brut de toute
+    l'année précédente, et la réduction déjà appliquée l'an dernier serait
+    soustraite de celle du mois : le bulletin de janvier rembourserait la
+    réduction de l'année entière.
+
+    Même garde que `calcul_cotisations._cumul_agirc_arrco_debut_mois` et
+    `calcul_net._cumul_hs_exonerees_ir_debut_mois`, qui l'avaient déjà pour leurs
+    propres compteurs d'année civile.
+    """
+    if getattr(contexte, "month", None) == 1:
+        return 0.0, 0.0, 0.0
     if contexte.cumuls is None:
         contexte.cumuls = {}
     cumuls_precedents = (

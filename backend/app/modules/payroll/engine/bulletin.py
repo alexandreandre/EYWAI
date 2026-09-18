@@ -310,10 +310,20 @@ def creer_bulletin_final(
         libelle = ligne.get("libelle", "").lower()
         if "conges payes" in libelle.replace("é", "e"):
             lignes_conges.append(ligne)
-            if "indemnité" in libelle:
-                indemnite_conges = ligne.get("gain", 0.0)
+            # L'indemnité du mois arrive en DEUX lignes, partie base et partie
+            # heures sup : il faut les additionner. Les écraser l'une par l'autre
+            # ne laissait que la part HS, quelques euros, et faisait dire au
+            # bulletin que le maintien l'emportait alors qu'on ne comparait rien.
+            #
+            # Et l'indemnité COMPENSATRICE de fin de contrat n'entre pas dans
+            # l'arbitrage : elle se cumule avec l'indemnité du mois, elle ne s'y
+            # substitue pas. La laisser passer ici faisait annoncer la règle du
+            # dixième avec son montant (876,74 € pour Cédric Demory en 07/2026)
+            # face au maintien du mois (98,48 €), deux grandeurs sans rapport.
+            if "indemnité" in libelle and "compensatrice" not in libelle:
+                indemnite_conges += ligne.get("gain", 0.0) or 0.0
             if "absence" in libelle:
-                retenue_conges = ligne.get("perte", 0.0)
+                retenue_conges += ligne.get("perte", 0.0) or 0.0
         elif "absence" in libelle and "congés payés" not in libelle:
             lignes_absences.append(ligne)
         else:
@@ -321,7 +331,12 @@ def creer_bulletin_final(
 
     # Préparation du texte pour l'arbitrage des congés payés
     texte_arbitrage = None
-    if lignes_conges:
+    # Sans indemnité de congés du mois, aucun arbitrage n'a eu lieu : un bulletin
+    # qui ne porte qu'une indemnité compensatrice de fin de contrat ne doit pas
+    # annoncer une comparaison entre le maintien et le dixième. Le texte du
+    # bulletin de sortie, lui, est écrit plus bas depuis la méthode réellement
+    # retenue par l'arbitrage.
+    if lignes_conges and (indemnite_conges > 0.0 or retenue_conges > 0.0):
         if indemnite_conges > retenue_conges:
             texte_arbitrage = f"L'indemnité de congés payés a été calculée selon la règle du 1/10ème (soit {indemnite_conges:.2f} €), plus favorable que le maintien de salaire ({retenue_conges:.2f} €)."
         else:
