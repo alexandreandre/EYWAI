@@ -7,6 +7,7 @@ Aucun accès DB : toutes les données passent en paramètres.
 from __future__ import annotations
 
 import calendar
+import dataclasses
 import math
 import re
 import unicodedata
@@ -517,18 +518,35 @@ def _resolve_cp_adjustment_for_ref_date(
     """
     Après le 1er jour d'une nouvelle période CP (ex. 1er juin), le solde N importé
     au bulletin précédent devient le stock N-1 — on recale l'ajustement d'ouverture.
-    """
-    if adjustment.cp_n_opening_balance == 0:
-        return adjustment
 
+    Une reprise datée calibre les deux périodes en cours à sa date de référence :
+    dans la même période, ses écarts valent tels quels ; à la période suivante, on
+    roule ; deux périodes plus tard, elle ne dit plus rien. Sans date, on ne peut
+    que deviner : écart N non nul et bulletin après le 1er juin → reprise calibrée
+    avant juin, on roule (ancien comportement).
+    """
     start_month = policy.cp_reference_period_start_month
-    # Reprise bulletin calibrée sur la période N en cours à l'import (souvent fin mai).
-    # Au 1er jour de la nouvelle période CP (ex. 1er juin), le solde N devient N-1.
-    if ref_date.month < start_month:
-        return adjustment
-    period_opening = date(ref_date.year, start_month, 1)
-    if ref_date < period_opening:
-        return adjustment
+    reference = adjustment.cp_opening_reference_date
+    if reference is not None:
+        periode_ref = get_cp_reference_period(ref_date, start_month=start_month)
+        if get_cp_reference_period(reference, start_month=start_month) == periode_ref:
+            return adjustment
+        periode_prec = get_cp_previous_reference_period(ref_date, start_month=start_month)
+        if get_cp_reference_period(reference, start_month=start_month) != periode_prec:
+            return dataclasses.replace(
+                adjustment, cp_n1_opening_balance=0.0, cp_n_opening_balance=0.0
+            )
+        period_opening = periode_ref[0]
+    else:
+        if adjustment.cp_n_opening_balance == 0:
+            return adjustment
+        # Reprise bulletin calibrée sur la période N en cours à l'import (souvent
+        # fin mai). Au 1er jour de la nouvelle période CP, le solde N devient N-1.
+        if ref_date.month < start_month:
+            return adjustment
+        period_opening = date(ref_date.year, start_month, 1)
+        if ref_date < period_opening:
+            return adjustment
 
     prev_period_last = period_opening - timedelta(days=1)
 
@@ -566,13 +584,8 @@ def _resolve_cp_adjustment_for_ref_date(
     )
     rolled_n1_opening = round(closing_prev_n - (prev_acquis - prev_pris), 2)
 
-    return EmployeeLeaveAdjustment(
-        cp_n1_opening_balance=rolled_n1_opening,
-        cp_n_opening_balance=0.0,
-        rtt_opening_balance=adjustment.rtt_opening_balance,
-        rtt_forfeited_at=adjustment.rtt_forfeited_at,
-        rtt_forfeited_days=adjustment.rtt_forfeited_days,
-        note=adjustment.note,
+    return dataclasses.replace(
+        adjustment, cp_n1_opening_balance=rolled_n1_opening, cp_n_opening_balance=0.0
     )
 
 

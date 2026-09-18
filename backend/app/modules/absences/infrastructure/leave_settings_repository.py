@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import dataclasses
+from datetime import date, datetime, timezone
 from typing import Any
 
 from app.core.database import supabase
@@ -69,6 +70,16 @@ def _row_to_policy(row: dict[str, Any] | None) -> LeavePolicySettings:
     )
 
 
+def _date_de_reference(row: dict[str, Any]) -> date | None:
+    brut = row.get("cp_opening_reference_date")
+    if not brut:
+        return None
+    try:
+        return date.fromisoformat(str(brut)[:10])
+    except ValueError:
+        return None
+
+
 def _row_to_adjustment(row: dict[str, Any] | None) -> EmployeeLeaveAdjustment:
     if not row:
         return EmployeeLeaveAdjustment.empty()
@@ -81,7 +92,73 @@ def _row_to_adjustment(row: dict[str, Any] | None) -> EmployeeLeaveAdjustment:
         rtt_forfeited_days=float(row.get("rtt_forfeited_days") or 0),
         jtc_opening_balance=float(row.get("jtc_opening_balance") or 0),
         note=row.get("note"),
+        cp_opening_reference_date=_date_de_reference(row),
     )
+
+
+def resoudre_ajustement_applicable(
+    rows: list[dict[str, Any]], year: int
+) -> EmployeeLeaveAdjustment:
+    """L'ajustement qui vaut pour une année, parmi les lignes du salarié.
+
+    La ligne de l'année s'applique telle quelle. Mais une reprise de soldes est
+    datée et calibre les deux périodes de congés qu'elle touche, qui chevauchent
+    deux années civiles : ses écarts CP suivent donc les années suivantes tant
+    qu'aucune reprise plus récente ne les remplace — sinon ils disparaissaient au
+    1er janvier au milieu de la période (Bugny, Colorplast : 28 → 3 jours de N-1
+    entre décembre 2026 et janvier 2027). Les compteurs annuels (RTT, JTC) et la
+    note, qui pilote le mode « fidèle au bulletin », restent ceux de l'année.
+    """
+    candidates = [r for r in rows if int(r.get("year") or 0) <= year]
+    de_l_annee = next((r for r in candidates if int(r["year"]) == year), None)
+    base = _row_to_adjustment(de_l_annee)
+    if de_l_annee is not None and base.cp_opening_reference_date is not None:
+        return base
+    datees = [r for r in candidates if _date_de_reference(r) is not None]
+    if not datees:
+        return base
+    reprise = _row_to_adjustment(max(datees, key=_date_de_reference))
+    return dataclasses.replace(
+        base,
+        cp_n1_opening_balance=reprise.cp_n1_opening_balance,
+        cp_n_opening_balance=reprise.cp_n_opening_balance,
+        cp_opening_reference_date=reprise.cp_opening_reference_date,
+    )
+
+
+def get_applicable_adjustment(employee_id: str, year: int) -> EmployeeLeaveAdjustment:
+    """Ajustement applicable au calcul des soldes d'une année (reprise datée
+    des années précédentes comprise). L'écran de saisie, lui, lit la ligne de
+    l'année : `get_employee_adjustment`."""
+    resp = (
+        supabase.table("employee_leave_adjustments")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .lte("year", year)
+        .execute()
+    )
+    return resoudre_ajustement_applicable(resp.data or [], year)
+
+
+def get_applicable_adjustments_by_employees(
+    employee_ids: list[str], year: int
+) -> dict[str, EmployeeLeaveAdjustment]:
+    if not employee_ids:
+        return {}
+    resp = (
+        supabase.table("employee_leave_adjustments")
+        .select("*")
+        .in_("employee_id", employee_ids)
+        .lte("year", year)
+        .execute()
+    )
+    par_salarie: dict[str, list[dict[str, Any]]] = {}
+    for row in resp.data or []:
+        par_salarie.setdefault(str(row["employee_id"]), []).append(row)
+    return {
+        eid: resoudre_ajustement_applicable(lignes, year)
+        for eid, lignes in par_salarie.items()
+    }
 
 
 def get_leave_policy(company_id: str) -> LeavePolicySettings:

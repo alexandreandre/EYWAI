@@ -42,7 +42,7 @@ from app.modules.absences.infrastructure.cp_seniority_repository import (
     get_cp_seniority_settings,
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
-    get_employee_adjustment,
+    get_applicable_adjustment,
     get_leave_policy,
 )
 from app.modules.absences.infrastructure.planning_cp_repository import (
@@ -372,7 +372,7 @@ def _leave_context(
             CpSenioritySettings.disabled(),
         )
     policy = get_leave_policy(cid)
-    adjustment = get_employee_adjustment(employee_id, year)
+    adjustment = get_applicable_adjustment(employee_id, year)
     rtt_base = _resolve_employee_rtt_base(employee_id, cid, year, policy)
     cp_seniority = get_cp_seniority_settings(cid)
     return policy, adjustment, rtt_base, cp_seniority

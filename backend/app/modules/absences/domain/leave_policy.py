@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from dataclasses import dataclass
 from typing import Literal
 
@@ -108,6 +109,9 @@ class EmployeeLeaveAdjustment:
     rtt_forfeited_days: float = 0.0
     jtc_opening_balance: float = 0.0
     note: str | None = None
+    #: Date de référence d'une reprise de soldes (fin du bulletin repris).
+    #: Absente pour un ajustement saisi à la main : il vaut pour son année.
+    cp_opening_reference_date: date | None = None
 
     @staticmethod
     def empty() -> "EmployeeLeaveAdjustment":

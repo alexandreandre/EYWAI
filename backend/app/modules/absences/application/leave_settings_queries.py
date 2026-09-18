@@ -33,6 +33,8 @@ from app.modules.absences.infrastructure.fractionnement_repository import (
 )
 from app.modules.absences.infrastructure.leave_settings_repository import (
     get_adjustments_by_employees_year,
+    get_applicable_adjustment,
+    get_applicable_adjustments_by_employees,
     get_employee_adjustment,
     get_leave_policy,
     get_leave_policy_row,
@@ -158,7 +160,7 @@ def get_leave_balances_overview(
     employee_ids = [str(e["id"]) for e in employees]
     hire_dates = get_employees_hire_dates_batch(employee_ids)
     validated = absence_repository.list_validated_for_employees(employee_ids)
-    adjustments = get_adjustments_by_employees_year(employee_ids, ref_year)
+    adjustments = get_applicable_adjustments_by_employees(employee_ids, ref_year)
     repos = get_repos_credits_by_employee_year(employee_ids, ref_year)
     hprd = _hours_per_rest_day_overview(company_id)
 
@@ -278,7 +280,7 @@ def compute_balances_for_employee(
 ) -> list[dict]:
     policy = get_leave_policy(company_id)
     cp_seniority = get_cp_seniority_settings(company_id)
-    adjustment = get_employee_adjustment(employee_id, ref_date.year)
+    adjustment = get_applicable_adjustment(employee_id, ref_date.year)
     observed = _load_observed_holiday_ids(company_id)
     rtt_base = resolve_rtt_annual_base(
         ref_date.year, policy, observed_holiday_ids=observed
