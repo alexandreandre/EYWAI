@@ -265,9 +265,12 @@ def run_payslip_generation_heures(
     company_id: str | None = None,
     employee_id: str | None = None,
     baremes_override: dict | None = None,
+    persister: bool = True,
 ) -> dict:
     """
     Génère un bulletin heures en processus (sans subprocess).
+    `persister=False` (bac à sable) : même calcul, mais aucun mouvement de
+    modulation ou de CET n'est créé ni finalisé, aucun compteur synchronisé.
     Lit les JSON préparés sous employee_path et engine_root, appelle le moteur app.modules.payroll.engine,
     écrit cumuls et PDF, retourne le bulletin_final (dict).
     """
@@ -363,6 +366,7 @@ def run_payslip_generation_heures(
                 year,
                 month,
                 calendrier_etendu,
+                persister=persister,
             )
         )
     cet_movement_ids: list[str] = []
@@ -1044,7 +1048,7 @@ def run_payslip_generation_heures(
     pdf_filename.parent.mkdir(parents=True, exist_ok=True)
     HTML(string=html_genere, base_url=str(engine_root)).write_pdf(pdf_filename)
 
-    if employee_id:
+    if employee_id and persister:
         from app.modules.cet.application.payroll_hook import (
             apply_cet_cp_debits_for_payroll,
             finalize_cet_payroll_application,

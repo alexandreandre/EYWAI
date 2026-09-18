@@ -78,6 +78,7 @@ def test_run_heures_has_run_function():
         "company_id",
         "employee_id",
         "baremes_override",
+        "persister",
     ]
     assert all(
         sig.parameters[name].default is None

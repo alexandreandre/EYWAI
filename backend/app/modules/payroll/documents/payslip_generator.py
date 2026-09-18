@@ -17,6 +17,8 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 )
 from app.core.database import supabase
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
+from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -430,10 +432,14 @@ def process_payslip_generation(
     *,
     ijss_brut_override: float | None = None,
     ijss_tracking_meta: dict | None = None,
+    bac_a_sable: BacASable | None = None,
 ):
     """
     Workflow de génération de paie "juste à temps", 100% basé sur la BDD,
     avec une gestion propre des fichiers temporaires.
+
+    En bac à sable (`bac_a_sable`), le passé vient de l'appelant et rien n'est
+    persisté : le bulletin calculé et ses cumuls sont rendus dans le résultat.
     """
     files_to_cleanup = []
     dirs_to_cleanup = []
@@ -865,18 +871,22 @@ def process_payslip_generation(
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
         )
-        if previous_cumuls_data is None:
-            previous_cumuls_data = {
-                "periode": {"annee_en_cours": year, "dernier_mois_calcule": 0},
-                "cumuls": {
-                    "brut_total": 0.0,
-                    "heures_remunerees": 0.0,
-                    "reduction_generale_patronale": 0.0,
-                    "net_imposable": 0.0,
-                    "impot_preleve_a_la_source": 0.0,
-                    "heures_supplementaires_remunerees": 0.0,
-                },
-            }
+        if bac_a_sable is not None:
+            # Bac à sable : le passé vient de l'appelant, la chaîne de la base
+            # n'est ni la source ni la destination.
+            previous_cumuls_data = cumuls_de_depart(bac_a_sable, year)
+        elif previous_cumuls_data is None:
+            # Un cumul absent ne vaut pas zéro : il fausserait en silence la
+            # régularisation progressive de la réduction générale, les tranches
+            # Agirc-Arrco, le plafond d'exonération des heures sup et la base du
+            # dixième des congés. Seul le tout premier bulletin d'un salarié a le
+            # droit de partir de zéro.
+            raison = raison_de_cumul_manquant(
+                str(company_id), employee_id, year, month, cumul_trouve=False
+            )
+            if raison:
+                raise HTTPException(status_code=422, detail=raison)
+            previous_cumuls_data = cumuls_de_depart(BacASable(), year)
 
         # --- ÉTAPE 3 : ÉCRIRE LES FICHIERS TEMPORAIRES ET EXÉCUTER ---
 
@@ -1126,6 +1136,7 @@ def process_payslip_generation(
             engine_root,
             company_id=str(company_id),
             employee_id=str(employee_id),
+            persister=bac_a_sable is None,
         )
 
         from app.modules.modulation.application.payroll_hook import (
@@ -1160,6 +1171,25 @@ def process_payslip_generation(
             else {}
         )
         files_to_cleanup.append(new_cumuls_path)
+
+        if bac_a_sable is not None:
+            # Bac à sable : rien n'est persisté — ni storage, ni `payslips`, ni
+            # cumuls, ni repos compensateur, ni prêts. Le bulletin et ses cumuls
+            # sont rendus à l'appelant, qui chaîne lui-même ses mois.
+            files_to_cleanup.append(employee_path / "bulletins" / f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf")
+            from app.modules.payroll.engine.controles_convention import (
+                extraire_messages_alertes_rh,
+            )
+
+            return {
+                "status": "success",
+                "message": "Bulletin calculé en bac à sable : rien n'a été écrit.",
+                "download_url": None,
+                "payslip_id": None,
+                "payslip_data": payslip_json_data,
+                "cumuls": new_cumuls_json,
+                "warnings": extraire_messages_alertes_rh(payslip_json_data),
+            }
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
         local_pdf_path = employee_path / "bulletins" / pdf_name

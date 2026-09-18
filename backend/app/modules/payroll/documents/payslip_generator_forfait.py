@@ -24,6 +24,9 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
+from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
+
 from app.core.database import supabase
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
@@ -77,9 +80,11 @@ def process_payslip_generation_forfait(
     *,
     ijss_brut_override: float | None = None,
     ijss_tracking_meta: dict | None = None,
+    bac_a_sable: BacASable | None = None,
 ):
     """
     Génère une fiche de paie pour un employé en forfait jour.
+    En bac à sable, le passé vient de l'appelant et rien n'est persisté.
 
     Cette fonction est similaire à process_payslip_generation mais utilise
     les modules spécifiques au forfait jour.
@@ -544,7 +549,15 @@ def process_payslip_generation_forfait(
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
         )
-        if not isinstance(previous_cumuls_data, dict):
+        if bac_a_sable is not None:
+            previous_cumuls_data = cumuls_de_depart(bac_a_sable, year)
+        elif not isinstance(previous_cumuls_data, dict):
+            # Même règle que le chemin heures : un cumul absent ne vaut pas zéro.
+            raison = raison_de_cumul_manquant(
+                str(company_id), employee_id, year, month, cumul_trouve=False
+            )
+            if raison:
+                raise HTTPException(status_code=422, detail=raison)
             previous_cumuls_data = {"cumuls": {}, "periode": {}}
 
         write_temp_json(
@@ -581,6 +594,25 @@ def process_payslip_generation_forfait(
             else {}
         )
         files_to_cleanup.append(new_cumuls_path)
+
+        if bac_a_sable is not None:
+            # Bac à sable : rien n'est persisté — ni storage, ni `payslips`, ni
+            # cumuls, ni repos compensateur, ni prêts. Le bulletin et ses cumuls
+            # sont rendus à l'appelant, qui chaîne lui-même ses mois.
+            files_to_cleanup.append(employee_path / "bulletins" / f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf")
+            from app.modules.payroll.engine.controles_convention import (
+                extraire_messages_alertes_rh,
+            )
+
+            return {
+                "status": "success",
+                "message": "Bulletin calculé en bac à sable : rien n'a été écrit.",
+                "download_url": None,
+                "payslip_id": None,
+                "payslip_data": payslip_json_data,
+                "cumuls": new_cumuls_json,
+                "warnings": extraire_messages_alertes_rh(payslip_json_data),
+            }
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
         local_pdf_path = employee_path / "bulletins" / pdf_name

@@ -136,9 +136,13 @@ def apply_modulation_hour_account_to_calendar(
     year: int,
     month: int,
     calendrier_etendu: list[dict[str, Any]],
+    *,
+    persister: bool = True,
 ) -> tuple[list[dict[str, Any]], list[str], ModulationPayrollResult]:
     """
     Applique la franchise compte modulation : crédit HS différées, réduction calendrier paie.
+    `persister=False` (bac à sable) : le routage est calculé et le calendrier
+    réduit à l'identique, mais aucun mouvement n'est créé ni compteur écrit.
     """
     settings = repo.get_modulation_settings(company_id)
     if settings.hs_routing_policy == "pay_all":
@@ -194,6 +198,7 @@ def apply_modulation_hour_account_to_calendar(
     movement_ids: list[str] = []
     if split.to_account > 0:
         updated_calendar, _ = reduce_hs_in_calendar(calendrier_etendu, split.to_account)
+    if split.to_account > 0 and persister:
         row = repo.insert_movement(
             {
                 "company_id": company_id,
@@ -213,14 +218,15 @@ def apply_modulation_hour_account_to_calendar(
         movement_ids.append(str(row["id"]))
         sync_account_balance_cache(company_id, employee_id, year)
 
-    sync_employee_modulation_counter(
-        company_id,
-        employee_id,
-        year,
-        settings=settings,
-        period_credited_hours=split.to_account,
-        period_paid_hours=split.to_pay,
-    )
+    if persister:
+        sync_employee_modulation_counter(
+            company_id,
+            employee_id,
+            year,
+            settings=settings,
+            period_credited_hours=split.to_account,
+            period_paid_hours=split.to_pay,
+        )
 
     return (
         updated_calendar,
