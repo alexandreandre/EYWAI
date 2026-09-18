@@ -13,7 +13,8 @@ de 6 h) ; les mois suivants viennent du setup du backtest, c'est-à-dire des
 heures sup que le cabinet a réellement payées. C'est volontaire : on juge le
 moteur sur les entrées de Quadra, pas sur notre lecture des feuilles. Ce que les
 feuilles disent est une question de saisie, traitée à part (Bugny, 95 h relevées
-sur janvier-mars pour 46,5 payées, question Q6 à Gaëlle).
+sur janvier-mars pour 46,5 payées, question Q6 à Gaëlle). Juin se rejoue aussi
+depuis ses feuilles, hors de cet enchaînement : `colorplast_feuilles_juin_test.py`.
 
 Deux copies en double sont écartées avant de commencer, faute de quoi le moteur
 les additionne — voir `_nettoyer_les_doublons_du_cabinet`.
@@ -51,7 +52,8 @@ YEAR = 2026
 SALARIES = ("BUGNY", "COTTE", "DEMORY", "ESPINOSA", "FUCKAR", "GAUTHERON", "GIRERD")
 #: Le SMIC horaire imprimé change en cours d'année : 12,02 € jusqu'en mai,
 #: 12,31 € au 1ᵉʳ juin 2026. À ne pas confondre avec le SMIC de RÉFÉRENCE de
-#: l'allègement, lui gelé à 12,02 € pour toute l'année (LFSS 2025).
+#: l'allègement, gelé à sa valeur du 1ᵉʳ janvier (12,02 €) pour toute l'année
+#: par le décret n° 2026-509 du 12 juin 2026 (BOSS du 5 juin).
 SMIC_HORAIRE = {m: 12.02 for m in range(1, 6)} | {m: 12.31 for m in range(6, 13)}
 
 #: Tolérances par défaut : le centime, sauf le SMIC (au demi-centime) et les
@@ -306,13 +308,13 @@ REFERENCES: dict[int, dict] = {
                       "FUCKAR": -592.89, "GAUTHERON": -608.28, "GIRERD": -244.99},
     },
     6: {
-        # Fenêtre non confirmée sur les pointages : le détail des heures sup que
-        # le cabinet fournit pour juin
-        # (`data/colorplast/variables/2026-06/detail-heures-sup-06-2026-colorplast.xlsx`)
-        # ne reproduit ni les heures payées en juin ni celles de juillet — il
-        # donne 10 h à 25 % et 3,5 h à 50 % pour Bugny, qui en reçoit 14 et 7.
-        # La fenêtre retenue est la suite logique de mai : semaines ISO entières
-        # à partir du lendemain, 25/05 au 21/06.
+        # Fenêtre confirmée par les feuilles de pointage, S22 à S25 (rejouées à
+        # part par `scripts/colorplast_feuilles_juin_test.py`). Le classeur du
+        # cabinet (`data/colorplast/variables/2026-06/detail-heures-sup-06-2026-
+        # colorplast.xlsx`) s'arrête à S24 — 10 h à 25 % et 3,5 h à 50 % pour
+        # Bugny — ; prolongé à S25 par sa propre méthode, il donne les 14 et 7
+        # du bulletin. Semaines ISO entières à partir du lendemain de mai,
+        # 25/05 au 21/06.
         "fenetre": ("2026-05-25", "2026-06-21"),
         # Juin apporte deux choses : la revalorisation du SMIC imprimé (12,02 →
         # 12,31 au 01/06 ; le SMIC de référence de l'allègement reste gelé à
@@ -343,11 +345,13 @@ REFERENCES: dict[int, dict] = {
         #   Cotte, Fuckar : revalorisé, à 4,50 € près ;
         #   Demory : ni l'un ni l'autre.
         #
-        # Le gel est la règle que nous appliquons (LFSS 2025) et il a tenu de
-        # janvier à mai. Juin est le premier mois qui pouvait départager les
-        # deux, puisque le SMIC n'avait pas bougé avant. On ne change pas le
-        # moteur sur une observation qui se contredit d'un bulletin à l'autre :
-        # c'est la question 1, désormais chiffrée.
+        # Le gel est la règle : décret n° 2026-509 du 12 juin 2026, SMIC de la
+        # réduction générale retenu à sa valeur du 1ᵉʳ janvier pour toute
+        # l'année (tolérance limitée aux contrats finissant en juin). Bugny
+        # le confirme chez le cabinet ; les quatre autres allègements du
+        # cabinet dépassent les nôtres — le SMIC revalorisé les explique au
+        # centime pour Girerd et Espinosa, à 4,50 € près pour Cotte, pas pour
+        # Demory. Inscrits ici sans être reproduits.
         "ecarts_documentes": {
             "COTTE": {"cumul_heures": 23.40, "cumul_hs": 2.40, "reduction": 38.33},
             "DEMORY": {"reduction": 43.66},

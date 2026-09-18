@@ -94,6 +94,8 @@ def poser_les_feuilles(emps: dict) -> None:
         print(f"  {nom:10s} : {len([r for r in reel if r['type'] == 'travail'])} jours pointés posés")
     # Les heures sup du setup (lues sur les bulletins Quadra) laissent la place aux feuilles.
     for nom in ("BUGNY", "ESPINOSA"):
+        if nom not in emps:
+            continue  # rejeu limité à un salarié
         supabase.table("monthly_inputs").delete().match(
             {"employee_id": emps[nom]["id"], "year": YEAR, "month": MOIS}
         ).ilike("name", "%suppl%").execute()
