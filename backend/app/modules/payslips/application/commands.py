@@ -42,6 +42,7 @@ from app.modules.notifications.application.employee_document_alerts import (
 )
 from app.modules.employees.application.service import enrich_employee_with_exit_context
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
+from app.shared.reprise_paie import raison_de_blocage_avant_bascule
 
 _employee_repository = EmployeeRepository()
 logger = logging.getLogger(__name__)
@@ -346,6 +347,13 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     )
     if period_block_reason:
         raise PayslipBadRequestError(period_block_reason)
+    # Reprise de paie : un mois payé par le logiciel précédent est importé, pas
+    # recalculé. Le refus est ici, côté serveur, jamais dans les générateurs.
+    bascule_block_reason = raison_de_blocage_avant_bascule(
+        employee.get("company_id"), cmd.year, cmd.month
+    )
+    if bascule_block_reason:
+        raise PayslipBadRequestError(bascule_block_reason)
 
     calendar_warning = _check_calendar_guard(employee, cmd)
     bulletin_existant = _check_validated_guard(cmd)
