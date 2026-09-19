@@ -355,6 +355,89 @@ d'Alexandre : la page est partagée).
   `tests/unit/absences/test_reprise_datee_roulement.py`. Bugny : N-1 25 au
   30/06/2027 (roulé), 25 au 30/06/2028 (éteint).
 
+### 5. Import des pointages S27–S30 du 19/09 sur le test — constat, correctif, suite
+
+Alexandre a importé quatre feuilles (S27 à S30) en une fois sur le test (lot
+`4c3ae0aa`, 120 jours, 21:04). Relecture case par case des quatre PDF : 94 cases
+justes sur 120, 24 mal lues, 2 illisibles.
+
+- **Bug de persistance, corrigé (non commité, non déployé)** : `commit_batch_bulk`
+  n'allait vers le chemin multi-mois que si le lot portait `month_groups`, ce que
+  seul l'ancien `persist-timesheet` pose ; un lot du job groupé écrivait donc les
+  jours par numéro dans le mois cible → les 29 et 30 juin de S27 ont écrasé les
+  29 et 30 juillet de cinq salariés, et des heures négatives (Espinosa 16/07 :
+  −10,5 h) sont passées. Désormais le commit répartit les jours par (année, mois)
+  réel (`_employes_par_mois`, un upsert par mois, recalcul de paie par mois
+  écrit) ; il refuse une heure négative (422 nommant salarié et jour,
+  `jours_a_heures_negatives`, partagé avec `validate_persist_payload` du chemin
+  legacy) ; l'extraction signale une heure négative dans les avertissements du
+  salarié ; le front affiche la phrase du serveur au lieu de « L'enregistrement a
+  échoué ». Tests : `tests/unit/schedules/test_commit_par_lot_mois_croise.py` (4),
+  `test_timesheet_hybrid_extract.py` (+1). Le test garde le bug tant que la
+  branche n'est pas poussée et redéployée.
+- **Lecture** : S27 et S28 justes ; S29 et S30 fausses sur 24 cases — après le
+  mardi 14 férié (hachuré ou vide), le vendredi glisse sur le jeudi et le vendredi
+  reste à 0 (Michel, Léo, Anthony dont les heures deviennent négatives) ; « 16H »
+  lu « 17H » ; décalages de colonne en S30. Deux cases de Marion illisibles
+  (10/07 barré, 17/07 raturé) : question pour Gaëlle. La feuille
+  `semaine-30.pdf` est titrée « S29 » à la main.
+- **Correction des données, appliquée le 19/09 au soir** (sauvegarde des six
+  lignes de juillet : `avant_correction_juillet_19-09.json` dans le scratchpad de
+  session ; seul `actual_hours` a changé, contrôlé colonne par colonne) :
+  `backend/scripts/correction_pointages_colorplast_juillet.py` (simulation par
+  défaut, `--apply` n'écrit que `actual_hours`, relit, rejouable) a remis les 24
+  cases à la feuille, retiré les 29–30/07 chez les cinq (leur réel de juillet
+  était vide avant l'import, instantané du 18/09 ; Demory inchangé, il avait déjà
+  8,5/8,5) et rien écrit en juin (mois repris, réel vide). Reste à faire, à la
+  main d'Alexandre : régénérer les bulletins de juillet (brouillons, aucun
+  régénéré depuis l'import).
+- **Origine des heures négatives, et garde-fou** : le modèle de vision lit
+  lui-même des cellules mélangées (Anthony jeudi S29 : debut « 16H30 », fin
+  « 6H ») et rend son propre calcul (−10,5) ; le serveur recalculait, trouvait la
+  plage incohérente… et gardait la valeur du modèle.
+  `normalize_handwritten_weekly_payload` met désormais `heures` à `null` et pose
+  l'avertissement `plage_incoherente` (nom, jour, plage), visible à la relecture
+  (`test_handwritten_weekly.py`, +1).
+- **Jeu d'or posé** : `tests/fixtures/timesheets/colorplast_2026_s27_s30_attendu.json`
+  (120 cases attendues, `null` = pas d'heures, « illisible » pour les deux cases
+  de Marion) et `backend/scripts/pointages_jeu_d_or_colorplast.py`, qui relit les
+  quatre feuilles avec le pipeline réel (semaine ancrée, pause société, modèle du
+  `.env` — la clé OpenRouter **est** renseignée en local, contrairement à ce que
+  disait la mémoire) et compte justes / fausses / illisibles. À lancer en
+  arrière-plan ; `--sortie` écrit le brut (jours lus par page, avertissements).
+  C'est l'étalon de tout changement de prompt ou de pipeline.
+- **Première mesure au jeu d'or (pipeline du soir, avant correction)** :
+  102 justes / 16 fausses / 2 illisibles sur 120 — et un autre motif d'erreur
+  que lors de l'import d'Alexandre (le modèle n'est pas déterministe). La trace
+  brute a montré la vraie cause : **les images partaient de travers au modèle de
+  lecture**. S29 (scan) partait à l'envers : l'OSD avait dit 270 pour une feuille
+  à tourner de 90, le texte OCR était pauvre, et le dernier ressort — le modèle
+  de vision — rendait toujours `None` : le schéma `{"type": "integer", "enum":
+  [0, 90, 180, 270]}` fait répondre `{}` à gemini-2.5-flash via OpenRouter, en
+  silence. S28 (photo) partait couchée : l'EXIF redressait la photo, et le
+  court-circuit EXIF ne regardait plus si la feuille était posée de côté dedans.
+- **Orientation corrigée** (`text_extraction.py`, 34 tests verts) : l'EXIF n'est
+  plus qu'un point de départ (OSD, texte et modèle passent derrière) ; le modèle
+  ne reçoit plus la question « de combien tourner ? » — mesuré sur S28 et S29
+  dans les quatre sens, il répondait 270 à tout — mais une **mosaïque des quatre
+  sens étiquetés A/B/C/D** dont il désigne la vignette droite : 16 réponses
+  justes sur 16 (`_mosaique_des_quatre_sens`, `_rotation_pil_depuis_vignette`).
+  **Jeu d'or relancé après correction : 115 justes / 3 fausses / 2 illisibles
+  sur 120** (S29 redressée par la mosaïque, S28 par l'OSD). Les trois cases
+  restantes, vues en gros plan : Hugo 24/07 « 7h → 12h00 » = 5 h, lue 10,5
+  (erreur du modèle) ; Marion 09/07 « 6h → 7h » = 1 h, lue 0 (erreur du
+  modèle) ; Marion 03/07 « 6h → 11h » ou « 6h → 14h », l'écriture est
+  ambiguë — trois passages du modèle lisent 14h (7,5 h), ma transcription disait
+  11h (5,0 h) et c'est **5,0 qui est écrit en base par la correction du soir** :
+  à confirmer avec Gaëlle, la case est désormais marquée « à confirmer » dans le
+  jeu d'or (comptée hors bilan, comme les deux illisibles).
+- **Chantier qualité de lecture** : une fois l'image droite, il restera les
+  erreurs de lecture propres au modèle (colonnes perdues, « 16H » lu « 17H »,
+  photo où le tableau est petit) ; le jeu d'or les mesure. Piste la plus robuste
+  si nécessaire : détecter la grille imprimée (les traits se détectent par
+  projection sur un scan, moins bien sur une photo de biais) et lire par
+  colonne de jour ou par cellule, ce qui interdit tout glissement.
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
