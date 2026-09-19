@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover
 try:
     from pdf2image import convert_from_bytes
     import pytesseract
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageEnhance, ImageOps
 
     _OCR_AVAILABLE = True
 except ImportError:  # pragma: no cover
@@ -57,6 +57,20 @@ _CEGID_PARTIAL_SIGNATURE = re.compile(
 _BANQUE_HEURES_SIGNATURE = re.compile(r"BANQUE\s+HEURES", re.IGNORECASE)
 _OCR_RELIABILITY_MIN_SCORE = 8
 _OCR_PSM_MODES = (3, 4, 6)
+#: Angles que le modèle de vision peut proposer, en degrés dans le sens horaire.
+_ROTATIONS_HORAIRES = (0, 90, 180, 270)
+_ORIENTATION_SCHEMA = {
+    "type": "object",
+    "properties": {"rotation_horaire": {"type": "integer", "enum": [0, 90, 180, 270]}},
+    "required": ["rotation_horaire"],
+    "additionalProperties": False,
+}
+_ORIENTATION_SYSTEM_PROMPT = (
+    "Tu redresses des documents scannés ou photographiés (feuilles de pointage, "
+    "relevés d'heures). Réponds uniquement par l'angle, en degrés dans le sens "
+    "horaire, dont il faut tourner l'image pour que son texte se lise normalement ; "
+    "0 si elle est déjà droite."
+)
 _DEFAULT_OCR_MAX_PAGES = 120
 _DEFAULT_OCR_DPI = 300
 _DEFAULT_VISION_MAX_BYTES = 8 * 1024 * 1024
@@ -129,6 +143,22 @@ def _preprocess_image(image: "Image.Image") -> "Image.Image":
     image = ImageEnhance.Contrast(image).enhance(2.0)
     image = ImageEnhance.Sharpness(image).enhance(1.5)
     return image
+
+
+def _ouvrir_image(file_content: bytes) -> tuple["Image.Image", bool]:
+    """Ouvre une image en la redressant selon son EXIF.
+
+    Une photo de téléphone prise en portrait est stockée couchée avec un tag
+    « orientation » que `Image.open` ignore : sans ce redressement, seul l'OCR
+    pouvait la remettre droite, et il n'y arrive pas sur une feuille manuscrite.
+    Rend aussi vrai si l'EXIF demandait un redressement.
+    """
+    image = Image.open(io.BytesIO(file_content))
+    # 1 = déjà droite ; 2 à 8 = une transposition à appliquer.
+    if image.getexif().get(0x0112, 1) not in (2, 3, 4, 5, 6, 7, 8):
+        return image, False
+    redressee = ImageOps.exif_transpose(image)
+    return (redressee if redressee is not None else image), True
 
 
 def _ocr_image_with_psm(image: "Image.Image", psm: int) -> str:
@@ -281,6 +311,116 @@ def _ocr_image_adaptive(image: "Image.Image") -> tuple[str, int, "Image.Image", 
     return best_text, best_psm, best_image, best_angle
 
 
+def _demander_orientation_au_modele(image: "Image.Image", model: str) -> int | None:
+    """Angle horaire (0/90/180/270) proposé par le modèle de vision, None sinon.
+
+    Dernier ressort quand l'OCR n'a rien départagé (feuille manuscrite floue ou
+    de biais). Modèle non configuré, réponse hors des quatre angles ou erreur :
+    None — l'orientation ne fait jamais échouer une lecture.
+    """
+    try:
+        from app.shared.infrastructure.ai.structured_vision import (
+            extract_structured_json_from_image,
+        )
+
+        octets, mime = _image_to_vision_bytes(image)
+        resultat = extract_structured_json_from_image(
+            system_prompt=_ORIENTATION_SYSTEM_PROMPT,
+            user_prompt=(
+                "De combien de degrés, dans le sens horaire, faut-il tourner cette "
+                "image pour la lire ?"
+            ),
+            image_bytes=octets,
+            mime_type=mime,
+            json_schema=_ORIENTATION_SCHEMA,
+            schema_name="orientation_document",
+            model=model,
+            max_tokens=20,
+        )
+    except Exception as exc:
+        logger.warning("Orientation par le modèle de vision indisponible : %s", exc)
+        return None
+    if not resultat:
+        return None
+    angle = resultat.data.get("rotation_horaire")
+    return int(angle) if angle in _ROTATIONS_HORAIRES else None
+
+
+@dataclass
+class ImageOrientee:
+    texte: str
+    psm: int
+    image: "Image.Image"
+    #: Rotation PIL appliquée à l'image reçue (degrés, sens anti-horaire).
+    angle: int
+    #: exif | osd | ocr | vision | aucune
+    source: str
+
+
+def _angle_osd(image: "Image.Image") -> int | None:
+    """Rotation PIL (anti-horaire) qui redresse l'image selon l'OSD de Tesseract.
+
+    None si l'OSD ne se prononce pas (trop peu de caractères). Sur des feuilles
+    manuscrites Colorplast tournées dans les quatre sens, à 200 et 300 dpi,
+    l'OSD a répondu juste 24 fois sur 24 — à des confiances de 0,1 à 2,1, loin
+    sous le seuil de 5 qu'exigeait l'ancienne `_osd_rotate_image`, qui ne
+    l'écoutait donc jamais et laissait décider une course aux scores OCR que
+    Tesseract fausse en lisant lui-même le texte couché.
+    """
+    if not _OCR_AVAILABLE:
+        return None
+    try:
+        osd = pytesseract.image_to_osd(_preprocess_image(image))
+    except Exception as exc:
+        logger.debug("OSD Tesseract muet : %s", exc)
+        return None
+    correspondance = re.search(r"Rotate:\s+(\d+)", osd)
+    if not correspondance:
+        return None
+    # « Rotate: 90 » = tourner de 90° horaire pour lire, soit 270° pour PIL.
+    return (360 - int(correspondance.group(1))) % 360
+
+
+def _orienter(
+    image: "Image.Image",
+    *,
+    orientation_model: str | None,
+    exif_redressee: bool = False,
+) -> ImageOrientee:
+    """Le sens de l'image : l'EXIF, l'OSD pour le côté, le texte, le modèle de vision.
+
+    - L'EXIF a redressé la photo : l'OCR lit, il ne tourne plus.
+    - L'OSD de Tesseract remet une image de côté (90/270) : sûr même à faible
+      confiance. Il n'est pas cru sur 0/180, qu'il confond à faible confiance
+      (image droite en JPEG → « 180 »).
+    - Le texte OCR de l'image obtenue est fiable : c'est qu'elle est droite.
+    - Sinon le modèle de vision regarde cette image et tranche (surtout
+      droite ou à l'envers, sur une feuille manuscrite) ; à défaut, elle reste
+      telle quelle — le cas droit est le plus fréquent.
+
+    La course aux scores OCR (0/90/180/270) ne décide plus : à 200 dpi, l'image
+    droite scorait 0 et sa variante à 90° scorait 22, Tesseract lisant lui-même
+    le texte couché.
+    """
+    if exif_redressee:
+        texte, psm, _ = _ocr_image_for_orientation(image)
+        return ImageOrientee(texte, psm, image, 0, "exif")
+    angle = _angle_osd(image)
+    angle = angle if angle in (90, 270) else 0
+    base = image.rotate(angle, expand=True) if angle else image
+    source = "osd" if angle else "aucune"
+    texte, psm, _ = _ocr_image_for_orientation(base)
+    if _orientation_quality_score(texte) >= _OCR_RELIABILITY_MIN_SCORE or not orientation_model:
+        return ImageOrientee(texte, psm, base, angle, source)
+    horaire = _demander_orientation_au_modele(base, orientation_model)
+    if not horaire:
+        return ImageOrientee(texte, psm, base, angle, source)
+    complement = (360 - horaire) % 360
+    finale = base.rotate(complement, expand=True)
+    texte, psm, _ = _ocr_image_for_orientation(finale)
+    return ImageOrientee(texte, psm, finale, (angle + complement) % 360, "vision")
+
+
 def _post_process_ocr_text(text: str) -> str:
     """Normalisations légères pour relevés Cegid OCR."""
     if not text:
@@ -416,7 +556,7 @@ def _extract_image(file_content: bytes) -> tuple[str, int]:
             "La lecture des images nécessite l'OCR (Tesseract), indisponible sur ce serveur."
         )
     try:
-        image = Image.open(io.BytesIO(file_content))
+        image, _ = _ouvrir_image(file_content)
         text, psm, _, _ = _ocr_image_adaptive(image)
         return text.strip(), psm
     except DocumentExtractionError:
@@ -459,6 +599,10 @@ class RenderedPage:
     ocr_text: str
     ocr_psm: int | None = None
     vision_mime_type: str = "image/jpeg"
+    #: Rotation PIL appliquée à l'image reçue (degrés, sens anti-horaire).
+    orientation_angle: int = 0
+    #: Qui a décidé du sens : exif | osd | ocr | vision | aucune.
+    orientation_source: str = "aucune"
 
 
 @dataclass
@@ -544,10 +688,16 @@ def ensure_vision_image_under_limit(
 
 
 def render_document_pages(
-    file_content: bytes, filename: str | None
+    file_content: bytes,
+    filename: str | None,
+    *,
+    orientation_model: str | None = None,
 ) -> RenderedDocument:
     """
     Rend chaque page en PNG + OCR texte pour extraction IA hybride par page.
+
+    `orientation_model` : modèle de vision consulté en dernier ressort pour le
+    sens de l'image quand l'OCR n'a rien départagé (voir `_orienter`).
     """
     if not file_content:
         raise DocumentExtractionError("Le fichier est vide.")
@@ -565,18 +715,20 @@ def render_document_pages(
             raise DocumentExtractionError(
                 "La lecture des images nécessite l'OCR (Tesseract), indisponible sur ce serveur."
             )
-        image = Image.open(io.BytesIO(file_content))
-        text, psm, oriented, _ = _ocr_image_adaptive(image)
-        text = _post_process_ocr_text(text)
-        vision_bytes, vision_mime = _image_to_vision_bytes(oriented)
+        image, exif = _ouvrir_image(file_content)
+        o = _orienter(image, orientation_model=orientation_model, exif_redressee=exif)
+        text = _post_process_ocr_text(o.texte)
+        vision_bytes, vision_mime = _image_to_vision_bytes(o.image)
         return RenderedDocument(
             pages=[
                 RenderedPage(
                     page_index=1,
                     png_bytes=vision_bytes,
                     ocr_text=text,
-                    ocr_psm=psm,
+                    ocr_psm=o.psm,
                     vision_mime_type=vision_mime,
+                    orientation_angle=o.angle,
+                    orientation_source=o.source,
                 )
             ],
             pages_total=1,
@@ -589,6 +741,7 @@ def render_document_pages(
     rendered: list[RenderedPage] = []
     calibrated_psm: int | None = None
     page_rotation = 0
+    page_source = "aucune"
 
     if not _OCR_AVAILABLE:
         raise DocumentExtractionError(
@@ -607,7 +760,9 @@ def render_document_pages(
                 break
             img = images[0]
             if page_num == 1:
-                text, psm, oriented, page_rotation = _ocr_image_adaptive(img)
+                o = _orienter(img, orientation_model=orientation_model)
+                text, psm, oriented, page_rotation = o.texte, o.psm, o.image, o.angle
+                page_source = o.source
                 calibrated_psm = psm
             else:
                 assert calibrated_psm is not None
@@ -625,6 +780,8 @@ def render_document_pages(
                     ocr_text=text,
                     ocr_psm=psm,
                     vision_mime_type=vision_mime,
+                    orientation_angle=page_rotation,
+                    orientation_source=page_source,
                 )
             )
     except Exception as exc:

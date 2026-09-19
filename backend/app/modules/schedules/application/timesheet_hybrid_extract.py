@@ -259,7 +259,9 @@ def extract_timesheet_hybrid(
             "L'extraction hybride nécessite OPENROUTER_API_KEY."
         )
 
-    rendered: RenderedDocument = render_document_pages(file_content, filename)
+    rendered: RenderedDocument = render_document_pages(
+        file_content, filename, orientation_model=timesheet_vision_model()
+    )
     full_ocr_text = "\n\n".join(p.ocr_text for p in rendered.pages if p.ocr_text)
     format_hint = FORMAT_HINT if detect_handwritten_weekly_text(full_ocr_text) else None
     mat_hint = _matricule_hint(known_matricules or [])

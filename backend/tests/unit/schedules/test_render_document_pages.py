@@ -8,11 +8,12 @@ from app.shared.infrastructure.documents.text_extraction import render_document_
 @patch("app.shared.infrastructure.documents.text_extraction._OCR_AVAILABLE", True)
 @patch("app.shared.infrastructure.documents.text_extraction._image_to_vision_bytes", return_value=(b"jpeg-bytes", "image/jpeg"))
 @patch("app.shared.infrastructure.documents.text_extraction.Image")
-@patch("app.shared.infrastructure.documents.text_extraction._ocr_image_adaptive")
-def test_render_single_image(mock_ocr, mock_image_cls, _mock_vision):
+@patch("app.shared.infrastructure.documents.text_extraction._angle_osd", return_value=None)
+@patch("app.shared.infrastructure.documents.text_extraction._ocr_image_for_orientation")
+def test_render_single_image(mock_ocr, _mock_osd, mock_image_cls, _mock_vision):
     mock_img = MagicMock()
     mock_image_cls.open.return_value = mock_img
-    mock_ocr.return_value = ("DUPONT 42", 6, mock_img, 0)
+    mock_ocr.return_value = ("DUPONT 42", 6, 0)
 
     doc = render_document_pages(b"fake-image", "scan.png")
     assert doc.pages_processed == 1
