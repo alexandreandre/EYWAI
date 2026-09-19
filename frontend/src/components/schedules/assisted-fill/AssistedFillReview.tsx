@@ -754,10 +754,13 @@ export function AssistedFillReview({
         `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.`,
         applyMeta,
       );
-    } catch {
+    } catch (e) {
+      // Le serveur explique son refus (heures négatives, salarié non rapproché…) :
+      // on affiche sa phrase plutôt qu'un échec anonyme.
       toast({
         title: 'Erreur',
-        description: "L'enregistrement a échoué.",
+        description:
+          e instanceof Error && e.message ? e.message : "L'enregistrement a échoué.",
         variant: 'destructive',
       });
     } finally {
