@@ -166,6 +166,13 @@ def calculate_hours_from_range(
     return round(max(0, duration) / 60.0, 2)
 
 
+def _plage_incoherente(debut: Any, fin: Any) -> bool:
+    """Deux heures lisibles mais FIN avant ou égale à DEBUT : cellules mélangées."""
+    start = _parse_time(debut)
+    end = _parse_time(fin)
+    return start is not None and end is not None and end <= start
+
+
 def normalize_handwritten_weekly_payload(
     data: dict[str, Any] | None,
     *,
@@ -207,7 +214,23 @@ def normalize_handwritten_weekly_payload(
                     item.get("fin"),
                     settings=settings,
                 )
-                if heures is not None or item.get("heures") is None:
+                if heures is None and _plage_incoherente(item.get("debut"), item.get("fin")):
+                    # Le modèle a mélangé des cellules (S29 Colorplast : « 16H30 → 6H »,
+                    # heures −10,5 de son propre calcul) : on ne garde rien et on le dit.
+                    item["heures"] = None
+                    if warnings is not None:
+                        ou = item.get("weekday") or f"jour {item.get('jour')}"
+                        warnings.append(
+                            {
+                                "code": "plage_incoherente",
+                                "message": (
+                                    f"{emp.get('raw_name') or '?'} {ou} : plage "
+                                    f"{item.get('debut')} → {item.get('fin')} incohérente, "
+                                    "heures non retenues, à corriger."
+                                ),
+                            }
+                        )
+                elif heures is not None or item.get("heures") is None:
                     item["heures"] = heures
                 if (
                     heures is not None

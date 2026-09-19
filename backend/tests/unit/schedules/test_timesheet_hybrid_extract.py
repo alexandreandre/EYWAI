@@ -199,3 +199,34 @@ def test_hybrid_extract_handwritten_weekly_mock(
     assert all(
         day.heures > 0 for emp in result.parse_result.employees for day in emp.days
     )
+
+
+def test_une_heure_negative_lue_est_signalee_des_l_extraction():
+    """Import S29 Colorplast : −10,5 h lues pour Espinosa le 16/07 (plages
+    DÉBUT/FIN inversées). La valeur reste visible à la relecture, mais le
+    salarié porte un avertissement qui nomme le jour."""
+    from app.modules.schedules.application.timesheet_hybrid_extract import (
+        _merged_to_cegid_result,
+    )
+    from app.modules.schedules.application.timesheet_page_merge import (
+        MergedEmployee,
+        MergedExtractionResult,
+    )
+
+    merged = MergedExtractionResult(
+        employees=[
+            MergedEmployee(
+                raw_name="ESPINOSA",
+                days=[
+                    {"jour": 16, "heures": -10.5, "type": "travail"},
+                    {"jour": 17, "heures": 8.0, "type": "travail"},
+                ],
+            )
+        ],
+        confidence=0.9,
+    )
+
+    bloc = _merged_to_cegid_result(merged, target_year=2026, target_month=7).employees[0]
+
+    assert [d.heures for d in bloc.days] == [-10.5, 8.0]
+    assert any("16" in w and "négative" in w for w in bloc.parse_warnings), bloc.parse_warnings

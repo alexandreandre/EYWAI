@@ -8,7 +8,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
-from app.modules.schedules.application.persist_timesheet import _merge_days
+from app.modules.schedules.application.persist_timesheet import (
+    _merge_days,
+    jours_a_heures_negatives,
+)
 from app.modules.schedules.application.schedule_import_audit import (
     record_schedule_import_run,
 )
@@ -657,6 +660,30 @@ def _commit_multi_month_batch(
     }
 
 
+def _employes_par_mois(
+    employees: List[PersistTimesheetEmployee],
+    year: int,
+    month: int,
+) -> Dict[tuple[int, int], List[PersistTimesheetEmployee]]:
+    """Répartit les jours de chaque salarié par (année, mois) réel.
+
+    Une semaine à cheval sur deux mois (S27 : 29/06 → 05/07) porte des jours
+    d'un autre mois que celui de la proposition ; écrits sous leur seul numéro
+    dans le mois cible, ils écraseraient les 29 et 30 juillet.
+    """
+    par_mois: Dict[tuple[int, int], List[PersistTimesheetEmployee]] = {}
+    for emp in employees:
+        jours_par_mois: Dict[tuple[int, int], List[AiDayEntry]] = {}
+        for day in emp.days:
+            cle = (day.year or year, day.month or month)
+            jours_par_mois.setdefault(cle, []).append(day)
+        for cle, jours in jours_par_mois.items():
+            par_mois.setdefault(cle, []).append(
+                PersistTimesheetEmployee(employee_id=emp.employee_id, days=jours)
+            )
+    return par_mois
+
+
 def commit_batch_bulk(
     batch_id: str,
     *,
@@ -701,32 +728,54 @@ def commit_batch_bulk(
             status_code=422,
         )
 
-    employee_ids = [e.employee_id for e in employees]
-    existing_rows = schedule_repository.list_schedules_for_employees(
-        employee_ids, year, month
-    )
+    libelles = {
+        e.employee_id: str(e.matched_name or e.raw_name or e.employee_id)
+        for e in proposal.employees
+        if e.employee_id
+    }
+    negatifs = jours_a_heures_negatives(employees, year, month, libelles=libelles)
+    if negatifs:
+        raise ScheduleAppError(
+            "validation",
+            "Heures négatives dans le relevé, à corriger avant d'enregistrer : "
+            + " ; ".join(negatifs),
+            status_code=422,
+        )
 
-    upsert_payloads, total_days, errors, warnings = _upsert_employees_for_month(
-        company_id=company_id,
-        year=year,
-        month=month,
-        employees=employees,
-        existing_rows=existing_rows,
-    )
-
-    if upsert_payloads:
-        schedule_repository.bulk_upsert_schedules(upsert_payloads)
+    upsert_payloads: List[Dict[str, Any]] = []
+    total_days = 0
+    errors: List[Dict[str, str]] = []
+    warnings: List[Dict[str, Any]] = []
+    for (annee, mois), employes_du_mois in sorted(
+        _employes_par_mois(employees, year, month).items()
+    ):
+        existing_rows = schedule_repository.list_schedules_for_employees(
+            [e.employee_id for e in employes_du_mois], annee, mois
+        )
+        payloads, jours_ecrits, erreurs, avertissements = _upsert_employees_for_month(
+            company_id=company_id,
+            year=annee,
+            month=mois,
+            employees=employes_du_mois,
+            existing_rows=existing_rows,
+        )
+        if payloads:
+            schedule_repository.bulk_upsert_schedules(payloads)
+        upsert_payloads.extend(payloads)
+        total_days += jours_ecrits
+        errors.extend(erreurs)
+        warnings.extend(avertissements)
 
     if request.recalculate_payroll:
         from app.modules.schedules.application.commands import calculate_payroll_events
 
-        for emp in employees:
-            if emp.employee_id not in {p["employee_id"] for p in upsert_payloads}:
-                continue
+        for payload in upsert_payloads:
             try:
-                calculate_payroll_events(emp.employee_id, year, month)
+                calculate_payroll_events(
+                    payload["employee_id"], payload["year"], payload["month"]
+                )
             except Exception as exc:
-                logger.warning("Recalc paie %s: %s", emp.employee_id, exc)
+                logger.warning("Recalc paie %s: %s", payload["employee_id"], exc)
 
     summary = batch.get("summary_json") or {}
     _finalize_batch_as_committed(
@@ -736,7 +785,7 @@ def commit_batch_bulk(
         summary=summary,
         extra_summary_fields={
             "committed_days": total_days,
-            "employees_processed": len(upsert_payloads),
+            "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
             "commit_errors": errors,
             "commit_warnings": warnings,
             "commit_progress": {
@@ -763,7 +812,7 @@ def commit_batch_bulk(
     return {
         "batch_id": batch_id,
         "status": "committed",
-        "employees_processed": len(upsert_payloads),
+        "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
         "total_days_written": total_days,
         "errors": errors,
         "warnings": warnings,

@@ -215,3 +215,36 @@ def test_consensus_applies_company_break_settings():
 
     # Lundi 08h-17h : 9 h d'amplitude, 30 min de pause société.
     assert page.employees[0].days[0]["heures"] == 8.5
+
+
+def test_une_plage_incoherente_ne_garde_pas_l_arithmetique_du_modele():
+    """S29 Colorplast, Anthony jeudi : le modèle a rendu debut « 16H30 », fin « 6H »
+    et heures −10,5 (son propre calcul). Le serveur recalcule, trouve la plage
+    incohérente… et gardait la valeur négative du modèle."""
+    warnings: list[dict] = []
+    payload = {
+        "employees": [
+            {
+                "raw_name": "ANTHONY",
+                "matricule": None,
+                "week_number": 29,
+                "weekly_total_pdf": None,
+                "days": [
+                    {"weekday": "jeudi", "debut": "16H30", "fin": "6H", "heures": -10.5, "type": "travail"},
+                    {"weekday": "vendredi", "debut": "6H", "fin": "13H", "heures": 7.0, "type": "travail"},
+                ],
+            }
+        ],
+        "page_period_hint": "S29",
+        "confidence": 0.8,
+        "warnings": [],
+    }
+
+    resultat = normalize_handwritten_weekly_payload(payload, year=2026, month=7, warnings=warnings)
+
+    jours = {d["weekday"]: d for d in resultat["employees"][0]["days"]}
+    assert jours["jeudi"]["heures"] is None
+    assert jours["vendredi"]["heures"] == 7.0
+    incoherentes = [w for w in warnings if w.get("code") == "plage_incoherente"]
+    assert len(incoherentes) == 1
+    assert "ANTHONY" in incoherentes[0]["message"] and "jeudi" in incoherentes[0]["message"]

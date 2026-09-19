@@ -8,6 +8,7 @@ from typing import List
 from app.modules.schedules.domain.rules import coerce_jour, merge_planned_entries
 from app.modules.schedules.schemas.ai import DayNature
 from app.modules.schedules.schemas.persist import (
+    PersistTimesheetEmployee,
     PersistTimesheetRequest,
     PersistTimesheetResponse,
     PersistTimesheetResult,
@@ -167,7 +168,36 @@ def persist_timesheet_batch(
     )
 
 
+def jours_a_heures_negatives(
+    employees: List[PersistTimesheetEmployee],
+    year: int,
+    month: int,
+    *,
+    libelles: dict[str, str] | None = None,
+) -> List[str]:
+    """Liste « BUGNY 16/07/2026 (-10.5 h) » pour chaque jour à heures négatives.
+
+    Une heure négative n'est jamais une donnée de pointage : c'est une lecture
+    ratée (plages DÉBUT/FIN inversées) à corriger à l'écran, pas à écrire dans
+    le planning.
+    """
+    constats: List[str] = []
+    for emp in employees:
+        qui = (libelles or {}).get(emp.employee_id) or emp.employee_id
+        for day in emp.days:
+            if day.heures is None or day.heures >= 0:
+                continue
+            annee, mois = day.year or year, day.month or month
+            constats.append(
+                f"{qui} {day.jour:02d}/{mois:02d}/{annee} ({day.heures:g} h)"
+            )
+    return constats
+
+
 def validate_persist_payload(payload: PersistTimesheetRequest) -> None:
+    negatifs = jours_a_heures_negatives(payload.employees, payload.year, payload.month)
+    if negatifs:
+        raise ValueError("Heures négatives : " + " ; ".join(negatifs))
     default_days_in_month = cal_mod.monthrange(payload.year, payload.month)[1]
     for emp in payload.employees:
         for day in emp.days:
@@ -307,4 +337,10 @@ def run_persist_with_bulk_commit(
     )
 
 
-__all__ = ["persist_timesheet_batch", "run_persist_timesheet_batch", "run_persist_with_bulk_commit", "validate_persist_payload"]
+__all__ = [
+    "jours_a_heures_negatives",
+    "persist_timesheet_batch",
+    "run_persist_timesheet_batch",
+    "run_persist_with_bulk_commit",
+    "validate_persist_payload",
+]

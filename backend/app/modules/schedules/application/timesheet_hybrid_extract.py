@@ -207,6 +207,13 @@ def _merged_to_cegid_result(
                 heures_val = 0.0 if heures is None else float(heures)
             except (TypeError, ValueError):
                 heures_val = 0.0
+            if heures_val < 0:
+                # Plages DÉBUT/FIN inversées à la lecture : on garde la valeur
+                # visible à la relecture, le commit la refusera de toute façon.
+                block.parse_warnings.append(
+                    f"Heures négatives lues le {jour} ({heures_val:g} h) : "
+                    "à corriger avant d'enregistrer."
+                )
             day_year, day_month = resolve_anchor_day_date(
                 jour, week_anchor_date, target_year, target_month
             )
