@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover
 try:
     from pdf2image import convert_from_bytes
     import pytesseract
-    from PIL import Image, ImageEnhance, ImageOps
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
     _OCR_AVAILABLE = True
 except ImportError:  # pragma: no cover
@@ -59,17 +59,22 @@ _OCR_RELIABILITY_MIN_SCORE = 8
 _OCR_PSM_MODES = (3, 4, 6)
 #: Angles que le modèle de vision peut proposer, en degrés dans le sens horaire.
 _ROTATIONS_HORAIRES = (0, 90, 180, 270)
+# Vignette k de la mosaïque = image tournée de k × 90° (PIL, anti-horaire).
+_VIGNETTES = ("A", "B", "C", "D")
 _ORIENTATION_SCHEMA = {
     "type": "object",
-    "properties": {"rotation_horaire": {"type": "integer", "enum": [0, 90, 180, 270]}},
-    "required": ["rotation_horaire"],
+    "properties": {"vignette_droite": {"type": "string", "enum": list(_VIGNETTES)}},
+    "required": ["vignette_droite"],
     "additionalProperties": False,
 }
 _ORIENTATION_SYSTEM_PROMPT = (
     "Tu redresses des documents scannés ou photographiés (feuilles de pointage, "
-    "relevés d'heures). Réponds uniquement par l'angle, en degrés dans le sens "
-    "horaire, dont il faut tourner l'image pour que son texte se lise normalement ; "
-    "0 si elle est déjà droite."
+    "relevés d'heures)."
+)
+_ORIENTATION_USER_PROMPT = (
+    "Quatre vignettes A, B, C, D montrent le même document tourné différemment. "
+    "Une seule se lit normalement : texte imprimé horizontal, lisible de gauche à "
+    "droite, en-têtes en haut du tableau. Laquelle ?"
 )
 _DEFAULT_OCR_MAX_PAGES = 120
 _DEFAULT_OCR_DPI = 300
@@ -311,39 +316,76 @@ def _ocr_image_adaptive(image: "Image.Image") -> tuple[str, int, "Image.Image", 
     return best_text, best_psm, best_image, best_angle
 
 
+def _mosaique_des_quatre_sens(image: "Image.Image", *, cote: int = 900) -> "Image.Image":
+    """Les quatre rotations de l'image côte à côte, étiquetées A, B, C, D.
+
+    Vignette k = image tournée de k × 90° (PIL, anti-horaire), réduite à `cote`.
+    """
+    bandeau = max(24, cote // 15)
+    vignettes = []
+    for k, lettre in enumerate(_VIGNETTES):
+        tournee = image.rotate(90 * k, expand=True) if k else image.copy()
+        tournee.thumbnail((cote, cote))
+        cadre = Image.new("RGB", (cote, cote + bandeau), "white")
+        cadre.paste(tournee, ((cote - tournee.width) // 2, bandeau + (cote - tournee.height) // 2))
+        dessin = ImageDraw.Draw(cadre)
+        dessin.rectangle([0, 0, cote, bandeau - 2], fill=(30, 30, 30))
+        try:
+            police = ImageFont.load_default(size=max(12, int(bandeau * 0.7)))
+        except TypeError:  # Pillow < 10.1
+            police = ImageFont.load_default()
+        dessin.text((bandeau // 3, bandeau // 8), lettre, fill="white", font=police)
+        vignettes.append(cadre)
+    marge = max(10, cote // 30)
+    mosaique = Image.new(
+        "RGB", (2 * cote + marge, 2 * (cote + bandeau) + marge), (200, 200, 200)
+    )
+    for k, vignette in enumerate(vignettes):
+        mosaique.paste(vignette, ((k % 2) * (cote + marge), (k // 2) * (cote + bandeau + marge)))
+    return mosaique
+
+
+def _rotation_pil_depuis_vignette(lettre: object) -> int | None:
+    """Rotation PIL (anti-horaire) qui redresse l'image, d'après la vignette désignée."""
+    if lettre not in _VIGNETTES:
+        return None
+    return 90 * _VIGNETTES.index(lettre)  # type: ignore[arg-type]
+
+
 def _demander_orientation_au_modele(image: "Image.Image", model: str) -> int | None:
-    """Angle horaire (0/90/180/270) proposé par le modèle de vision, None sinon.
+    """Angle horaire (0/90/180/270) qui redresse l'image, d'après le modèle de vision.
 
     Dernier ressort quand l'OCR n'a rien départagé (feuille manuscrite floue ou
-    de biais). Modèle non configuré, réponse hors des quatre angles ou erreur :
-    None — l'orientation ne fait jamais échouer une lecture.
+    de biais). On montre les quatre sens côte à côte et le modèle désigne la
+    vignette droite : à la question directe « de combien tourner ? »,
+    gemini-2.5-flash répondait 270 à tout (mesuré sur S28 et S29 Colorplast) ;
+    devant la mosaïque, 16 réponses justes sur 16. Modèle non configuré, réponse
+    hors des quatre vignettes ou erreur : None — l'orientation ne fait jamais
+    échouer une lecture.
     """
     try:
         from app.shared.infrastructure.ai.structured_vision import (
             extract_structured_json_from_image,
         )
 
-        octets, mime = _image_to_vision_bytes(image)
+        octets, mime = _image_to_vision_bytes(_mosaique_des_quatre_sens(image))
         resultat = extract_structured_json_from_image(
             system_prompt=_ORIENTATION_SYSTEM_PROMPT,
-            user_prompt=(
-                "De combien de degrés, dans le sens horaire, faut-il tourner cette "
-                "image pour la lire ?"
-            ),
+            user_prompt=_ORIENTATION_USER_PROMPT,
             image_bytes=octets,
             mime_type=mime,
             json_schema=_ORIENTATION_SCHEMA,
-            schema_name="orientation_document",
+            schema_name="vignette_droite",
             model=model,
-            max_tokens=20,
+            max_tokens=32,
         )
     except Exception as exc:
         logger.warning("Orientation par le modèle de vision indisponible : %s", exc)
         return None
     if not resultat:
         return None
-    angle = resultat.data.get("rotation_horaire")
-    return int(angle) if angle in _ROTATIONS_HORAIRES else None
+    pil = _rotation_pil_depuis_vignette(resultat.data.get("vignette_droite"))
+    return None if pil is None else (360 - pil) % 360
 
 
 @dataclass
@@ -389,26 +431,25 @@ def _orienter(
 ) -> ImageOrientee:
     """Le sens de l'image : l'EXIF, l'OSD pour le côté, le texte, le modèle de vision.
 
-    - L'EXIF a redressé la photo : l'OCR lit, il ne tourne plus.
-    - L'OSD de Tesseract remet une image de côté (90/270) : sûr même à faible
-      confiance. Il n'est pas cru sur 0/180, qu'il confond à faible confiance
-      (image droite en JPEG → « 180 »).
+    - L'EXIF a redressé la photo : c'est le point de départ, pas la fin — la
+      feuille peut être posée de côté dans la photo (S28 Colorplast).
+    - L'OSD de Tesseract remet une image de côté (90/270), première hypothèse
+      même à faible confiance ; il n'est pas cru sur 0/180, qu'il confond à
+      faible confiance (image droite en JPEG → « 180 »), et il peut se tromper
+      de sens entre 90 et 270 (S29 : 270 pour une feuille qu'il fallait tourner
+      de 90) — le modèle rattrape ce cas quand le texte reste pauvre.
     - Le texte OCR de l'image obtenue est fiable : c'est qu'elle est droite.
-    - Sinon le modèle de vision regarde cette image et tranche (surtout
-      droite ou à l'envers, sur une feuille manuscrite) ; à défaut, elle reste
-      telle quelle — le cas droit est le plus fréquent.
+    - Sinon le modèle de vision voit les quatre sens côte à côte et désigne le
+      bon ; à défaut, elle reste telle quelle — le cas droit est le plus fréquent.
 
     La course aux scores OCR (0/90/180/270) ne décide plus : à 200 dpi, l'image
     droite scorait 0 et sa variante à 90° scorait 22, Tesseract lisant lui-même
     le texte couché.
     """
-    if exif_redressee:
-        texte, psm, _ = _ocr_image_for_orientation(image)
-        return ImageOrientee(texte, psm, image, 0, "exif")
     angle = _angle_osd(image)
     angle = angle if angle in (90, 270) else 0
     base = image.rotate(angle, expand=True) if angle else image
-    source = "osd" if angle else "aucune"
+    source = "osd" if angle else ("exif" if exif_redressee else "aucune")
     texte, psm, _ = _ocr_image_for_orientation(base)
     if _orientation_quality_score(texte) >= _OCR_RELIABILITY_MIN_SCORE or not orientation_model:
         return ImageOrientee(texte, psm, base, angle, source)

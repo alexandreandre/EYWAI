@@ -53,23 +53,55 @@ def test_une_image_sans_consigne_exif_est_ouverte_telle_quelle():
 # --- 2. Le modèle de vision, en dernier ressort ----------------------------
 
 
+def test_la_mosaique_montre_les_quatre_sens_etiquetes():
+    """Mesuré sur S28 (photo) et S29 (scan) : à la question « de combien tourner ? »
+    gemini-2.5-flash répond 270 à tout ; devant les quatre vignettes, il désigne
+    la bonne 16 fois sur 16."""
+    image = Image.new("RGB", (100, 50), "white")
+
+    mosaique = te._mosaique_des_quatre_sens(image, cote=100)
+
+    assert mosaique.width > 2 * image.width
+    assert mosaique.height > 2 * image.height
+
+
+@pytest.mark.parametrize(
+    ("vignette", "rotation_pil"), [("A", 0), ("B", 90), ("C", 180), ("D", 270), ("E", None), (None, None)]
+)
+def test_la_vignette_designee_donne_la_rotation_pil(vignette, rotation_pil):
+    assert te._rotation_pil_depuis_vignette(vignette) == rotation_pil
+
+
 @patch(f"{_MODULE}._image_to_vision_bytes", return_value=(b"jpg", "image/jpeg"))
 @patch("app.shared.infrastructure.ai.structured_vision.extract_structured_json_from_image")
-def test_le_modele_repond_un_angle_horaire(mock_extract, _bytes):
-    mock_extract.return_value = MagicMock(data={"rotation_horaire": 90})
+def test_le_modele_designe_la_vignette_droite_et_on_en_deduit_l_angle_horaire(mock_extract, mock_bytes):
+    # Vignette D = image tournée de 270° PIL (anti-horaire) → 90° horaire pour la lire.
+    mock_extract.return_value = MagicMock(data={"vignette_droite": "D"})
+    image = Image.new("RGB", (100, 50), "white")
 
-    assert te._demander_orientation_au_modele(MagicMock(), "vision-x") == 90
+    assert te._demander_orientation_au_modele(image, "vision-x") == 90
     appel = mock_extract.call_args.kwargs
     assert appel["model"] == "vision-x"
-    assert appel["json_schema"]["properties"]["rotation_horaire"]["enum"] == [0, 90, 180, 270]
+    assert appel["json_schema"]["properties"]["vignette_droite"]["enum"] == ["A", "B", "C", "D"]
+    envoyee = mock_bytes.call_args.args[0]
+    assert envoyee.width > 2 * image.width, "c'est la mosaïque qui part au modèle, pas l'image seule"
+
+
+@pytest.mark.parametrize(("vignette", "horaire"), [("A", 0), ("B", 270), ("C", 180), ("D", 90)])
+@patch(f"{_MODULE}._image_to_vision_bytes", return_value=(b"jpg", "image/jpeg"))
+@patch("app.shared.infrastructure.ai.structured_vision.extract_structured_json_from_image")
+def test_chaque_vignette_correspond_a_un_angle_horaire(mock_extract, _bytes, vignette, horaire):
+    mock_extract.return_value = MagicMock(data={"vignette_droite": vignette})
+
+    assert te._demander_orientation_au_modele(Image.new("RGB", (40, 20)), "vision-x") == horaire
 
 
 @patch(f"{_MODULE}._image_to_vision_bytes", return_value=(b"jpg", "image/jpeg"))
 @patch("app.shared.infrastructure.ai.structured_vision.extract_structured_json_from_image")
-def test_une_reponse_hors_des_quatre_angles_est_ignoree(mock_extract, _bytes):
-    mock_extract.return_value = MagicMock(data={"rotation_horaire": 45})
+def test_une_reponse_hors_des_quatre_vignettes_est_ignoree(mock_extract, _bytes):
+    mock_extract.return_value = MagicMock(data={"vignette_droite": "E"})
 
-    assert te._demander_orientation_au_modele(MagicMock(), "vision-x") is None
+    assert te._demander_orientation_au_modele(Image.new("RGB", (40, 20)), "vision-x") is None
 
 
 @patch(f"{_MODULE}._image_to_vision_bytes", return_value=(b"jpg", "image/jpeg"))
@@ -77,7 +109,7 @@ def test_une_reponse_hors_des_quatre_angles_est_ignoree(mock_extract, _bytes):
 def test_un_modele_indisponible_ne_fait_pas_echouer_la_lecture(mock_extract, _bytes):
     mock_extract.side_effect = RuntimeError("clé API absente")
 
-    assert te._demander_orientation_au_modele(MagicMock(), "vision-x") is None
+    assert te._demander_orientation_au_modele(Image.new("RGB", (40, 20)), "vision-x") is None
 
 
 # --- 3. L'OSD de Tesseract, autoritaire dès qu'il répond ------------------
@@ -128,20 +160,46 @@ def _orienter_avec(image, *, osd, texte, modele, model="vision-x"):
     return resultat, {"osd": mock_osd, "ocr": mock_ocr, "course": mock_course, "modele": mock_modele}
 
 
-def test_l_exif_tranche_l_ocr_lit_mais_ne_tourne_plus():
-    """Sur une vraie feuille Colorplast redressée par son EXIF, la course OCR
-    (scores de bruit, 1 contre 0) la re-tournait de travers."""
-    image = MagicMock()
+def _orienter_apres_exif(image, *, osd, texte, modele):
     with patch(f"{_MODULE}._OCR_AVAILABLE", True), \
-         patch(f"{_MODULE}._angle_osd") as mock_osd, \
-         patch(f"{_MODULE}._ocr_image_for_orientation", return_value=(PAUVRE, 6, 0)), \
-         patch(f"{_MODULE}._demander_orientation_au_modele") as mock_modele:
+         patch(f"{_MODULE}._angle_osd", return_value=osd), \
+         patch(f"{_MODULE}._ocr_image_for_orientation", return_value=(texte, 6, 0)), \
+         patch(f"{_MODULE}._demander_orientation_au_modele", return_value=modele) as mock_modele:
         o = te._orienter(image, orientation_model="vision-x", exif_redressee=True)
+    return o, mock_modele
 
-    mock_osd.assert_not_called()
-    mock_modele.assert_not_called()
+
+def test_l_exif_redresse_la_photo_et_un_texte_fiable_confirme():
+    image = MagicMock()
+
+    o, mock_modele = _orienter_apres_exif(image, osd=None, texte=FIABLE, modele=180)
+
     image.rotate.assert_not_called()
-    assert (o.image, o.angle, o.source, o.texte) == (image, 0, "exif", PAUVRE)
+    mock_modele.assert_not_called()
+    assert (o.image, o.angle, o.source, o.texte) == (image, 0, "exif", FIABLE)
+
+
+def test_l_exif_n_est_qu_un_point_de_depart_la_feuille_peut_etre_couchee_dans_la_photo():
+    """S28 Colorplast : la photo portrait est redressée par son EXIF, mais la
+    feuille y est posée de côté. Le court-circuit EXIF l'envoyait couchée au
+    modèle de lecture ; l'OSD voit le côté et la remet droite."""
+    image, redressee = MagicMock(), MagicMock()
+    image.rotate.return_value = redressee
+
+    o, _ = _orienter_apres_exif(image, osd=90, texte=FIABLE, modele=0)
+
+    image.rotate.assert_called_once_with(90, expand=True)
+    assert (o.image, o.angle, o.source) == (redressee, 90, "osd")
+
+
+def test_apres_l_exif_texte_pauvre_le_modele_tranche_encore():
+    image, tournee = MagicMock(), MagicMock()
+    image.rotate.return_value = tournee
+
+    o, mock_modele = _orienter_apres_exif(image, osd=None, texte=PAUVRE, modele=180)
+
+    mock_modele.assert_called_once_with(image, "vision-x")
+    assert (o.image, o.angle, o.source) == (tournee, 180, "vision")
 
 
 def test_de_cote_selon_l_osd_on_redresse_et_un_texte_fiable_suffit():
