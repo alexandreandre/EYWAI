@@ -279,6 +279,8 @@ export interface TimesheetExtractProgress {
   batch_id?: string;
   files_total?: number;
   files_done?: number;
+  /** Fichier en cours d'un lot, nommé par sa semaine (« S28 · feuille.pdf »). */
+  current_file?: string;
 }
 
 export interface TimesheetExtractStartResponse {
@@ -334,6 +336,8 @@ export interface ExtractTimesheetOptions {
   singleEmployee?: boolean;
   documentScope?: DocumentScopeInput;
   weekAnchorDate?: string | null;
+  /** Import groupé : une semaine par fichier, dans l'ordre des fichiers (null = non précisée). */
+  weekAnchorDates?: (string | null)[];
   onProgress?: (progress: TimesheetExtractProgress) => void;
   signal?: AbortSignal;
 }
@@ -647,6 +651,9 @@ export const startTimesheetExtractBatch = async (
   formData.append('employees', JSON.stringify(employees));
   formData.append('single_employee', String(options.singleEmployee ?? false));
   formData.append('document_scope', options.documentScope ?? 'auto');
+  if (options.weekAnchorDates) {
+    formData.append('week_anchor_dates', JSON.stringify(options.weekAnchorDates));
+  }
   const { data } = await apiClient.post<{ job_id: string; file_count: number }>(
     '/api/schedules/timesheet-import/extract-timesheet/start-batch',
     formData,

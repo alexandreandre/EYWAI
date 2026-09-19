@@ -563,6 +563,10 @@ def assisted_fill_extract_timesheet_job(
                 "files_done": int(progress_raw.get("files_done") or 0),
             }
         )
+    if progress_raw.get("current_file"):
+        progress = progress.model_copy(
+            update={"current_file": str(progress_raw.get("current_file"))}
+        )
 
     proposal = None
     if job.get("status") == "completed" and job.get("proposal_json"):
@@ -799,15 +803,22 @@ async def timesheet_import_start_batch(
     employees: str = Form("[]"),
     single_employee: bool = Form(False),
     document_scope: str = Form("auto"),
+    week_anchor_dates: str = Form("[]"),
     current_user: User = Depends(get_current_user),
 ):
-    """Lance l'extraction de plusieurs relevés en un job fusionné."""
+    """Lance l'extraction de plusieurs relevés en un job fusionné.
+
+    `week_anchor_dates` : liste JSON alignée sur `files`, une entrée par fichier,
+    lundi ISO (YYYY-MM-DD) de la semaine du relevé ou null si non précisée.
+    """
     from app.modules.schedules.application.timesheet_import.job_runner import (
         BackgroundTasksRunner,
     )
     from app.modules.schedules.application.timesheet_import_service import (
+        FichierAImporter,
         create_import_job,
         run_multi_timesheet_extraction_job,
+        semaines_alignees,
     )
     from app.modules.schedules.schemas.timesheet_import import (
         TimesheetImportMultiStartResponse,
@@ -820,7 +831,16 @@ async def timesheet_import_start_batch(
         data = await f.read()
         if data:
             contents.append((f.filename or "document.pdf", data))
-
+    if not contents:
+        raise HTTPException(status_code=400, detail="Tous les fichiers sont vides.")
+    try:
+        semaines = semaines_alignees(week_anchor_dates, len(contents))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    fichiers = [
+        FichierAImporter(nom, data, semaine)
+        for (nom, data), semaine in zip(contents, semaines)
+    ]
     request_json = {
         "year": year,
         "month": month,
@@ -828,28 +848,34 @@ async def timesheet_import_start_batch(
         "single_employee": single_employee,
         "document_scope": document_scope,
         "multi_file": True,
+        "files": [
+            {
+                "filename": f.filename,
+                "week_anchor_date": (
+                    f.week_anchor_date.isoformat() if f.week_anchor_date else None
+                ),
+            }
+            for f in fichiers
+        ],
     }
-    first_name, first_content = contents[0]
     try:
         job = create_import_job(
             company_id=str(current_user.active_company_id),
             user_id=str(current_user.id),
-            filename=f"{len(contents)} fichiers",
-            file_content=first_content,
+            filename=f"{len(fichiers)} fichiers",
+            file_content=fichiers[0].content,
             request_json=request_json,
         )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
-
     job_id = str(job["id"])
     runner = BackgroundTasksRunner(background_tasks)
-    runner.enqueue(run_multi_timesheet_extraction_job, job_id, contents)
-
+    runner.enqueue(run_multi_timesheet_extraction_job, job_id, fichiers)
     return TimesheetImportMultiStartResponse(
         job_id=job_id,
         batch_id=job_id,
         status="extracting",
-        file_count=len(contents),
+        file_count=len(fichiers),
     )
 
 

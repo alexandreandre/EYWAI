@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+from dataclasses import dataclass
 from datetime import date as date_type, datetime, timezone
 from typing import Any, List
 
@@ -23,6 +25,62 @@ from app.modules.schedules.application.timesheet_import.parse_service import (
 from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class FichierAImporter:
+    """Un fichier du lot et la semaine que l'utilisateur lui a donnée (lundi ISO)."""
+
+    filename: str
+    content: bytes
+    week_anchor_date: date_type | None = None
+
+
+def semaines_alignees(brut: str | None, nb_fichiers: int) -> list[date_type | None]:
+    """`week_anchor_dates` du formulaire : une entrée par fichier, date ISO ou null."""
+    if not brut or not brut.strip():
+        return [None] * nb_fichiers
+    try:
+        valeurs = json.loads(brut)
+    except json.JSONDecodeError as exc:
+        raise ValueError("week_anchor_dates doit être une liste JSON.") from exc
+    if not isinstance(valeurs, list) or len(valeurs) != nb_fichiers:
+        raise ValueError(
+            "week_anchor_dates doit avoir une entrée par fichier, dans le même ordre."
+        )
+    semaines: list[date_type | None] = []
+    for valeur in valeurs:
+        if valeur in (None, ""):
+            semaines.append(None)
+            continue
+        try:
+            semaines.append(date_type.fromisoformat(str(valeur)))
+        except ValueError as exc:
+            raise ValueError(
+                f"Semaine illisible : {valeur!r} (format attendu AAAA-MM-JJ)."
+            ) from exc
+    return semaines
+
+
+def libelle_fichier(fichier: FichierAImporter) -> str:
+    if fichier.week_anchor_date is None:
+        return fichier.filename
+    return f"S{fichier.week_anchor_date.isocalendar()[1]} · {fichier.filename}"
+
+
+def avertissement_semaines_en_double(fichiers: list[FichierAImporter]) -> list[str]:
+    """Deux fichiers sur la même semaine : la fusion garde le dernier sur les
+    jours communs, il faut le dire plutôt que de le taire."""
+    par_semaine: dict[date_type, list[str]] = {}
+    for f in fichiers:
+        if f.week_anchor_date is not None:
+            par_semaine.setdefault(f.week_anchor_date, []).append(f.filename)
+    return [
+        f"S{lundi.isocalendar()[1]} : deux fichiers ({', '.join(noms)}) — "
+        "le dernier écrase le premier sur les jours communs."
+        for lundi, noms in sorted(par_semaine.items())
+        if len(noms) > 1
+    ]
 
 
 def _db():
@@ -393,9 +451,9 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
 
 def run_multi_timesheet_extraction_job(
     job_id: str,
-    files: List[tuple[str, bytes]],
+    files: List[FichierAImporter],
 ) -> None:
-    """Fusionne plusieurs fichiers en un batch unique."""
+    """Fusionne plusieurs fichiers en un batch unique, chacun extrait avec sa semaine."""
     job = get_import_job(job_id)
     if not job or job.get("status") == "cancelled":
         return
@@ -409,7 +467,7 @@ def run_multi_timesheet_extraction_job(
     proposals: List[AiCalendarProposalResponse] = []
     batch_ids: List[str] = []
     try:
-        for i, (filename, content) in enumerate(files):
+        for i, fichier in enumerate(files):
             _raise_if_job_cancelled(job_id)
             _update_job(
                 job_id,
@@ -418,26 +476,32 @@ def run_multi_timesheet_extraction_job(
                         "phase": "extracting",
                         "files_total": len(files),
                         "files_done": i,
-                        "current_file": filename,
+                        "current_file": libelle_fichier(fichier),
                     },
                 },
             )
             proposal, batch_id = parse_with_llm_fallback(
                 company_id=company_id,
                 user_id=str(user_id) if user_id else None,
-                content=content,
-                filename=filename,
+                content=fichier.content,
+                filename=fichier.filename,
                 year=year,
                 month=month,
                 roster=roster,
                 single_employee=bool(request.get("single_employee")),
                 document_scope=str(request.get("document_scope") or "auto"),
+                week_anchor_date=fichier.week_anchor_date,
                 import_job_id=job_id,
             )
             proposals.append(proposal)
             batch_ids.append(batch_id)
 
         merged = _merge_proposals(proposals)
+        doublons = avertissement_semaines_en_double(files)
+        if doublons:
+            merged = merged.model_copy(
+                update={"warnings": list(merged.warnings) + doublons}
+            )
         master_batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=str(user_id) if user_id else None,
@@ -495,5 +559,9 @@ __all__ = [
     "create_import_job",
     "get_import_job",
     "run_multi_timesheet_extraction_job",
+    "FichierAImporter",
+    "avertissement_semaines_en_double",
+    "libelle_fichier",
+    "semaines_alignees",
     "run_timesheet_extraction_job",
 ]

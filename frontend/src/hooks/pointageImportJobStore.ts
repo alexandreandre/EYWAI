@@ -205,7 +205,8 @@ export function progressLabel(job: PointageImportJob): string {
   if (job.status === 'cancelled') return 'Analyse annulée';
   if (total > 0) {
     const unit = progress.files_total ? 'fichier' : 'page';
-    return `${done}/${total} ${unit}${total > 1 ? 's' : ''} — analyse IA…`;
+    const courant = progress.current_file ? ` — ${progress.current_file}` : '';
+    return `${done}/${total} ${unit}${total > 1 ? 's' : ''}${courant} — analyse IA…`;
   }
   return 'Analyse IA en cours…';
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, XCircle } from 'lucide-react';
+import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, X, XCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,12 @@ import {
 } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
 import { monthIsoWeekOptions } from './importWeekOptions';
+import {
+  duplicateWeekLabels,
+  filesMissingWeek,
+  weeksAlignedWithFiles,
+  type WeekByFile,
+} from './importWeekAssignments';
 import {
   expectedSegmentMs,
   smoothedPercent,
@@ -214,7 +220,7 @@ export function PointageImportDialog({
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [localJobId, setLocalJobId] = useState<string | null>(null);
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
-  const [weekAnchorDate, setWeekAnchorDate] = useState('');
+  const [weekByFile, setWeekByFile] = useState<WeekByFile>({});
   const [helpOpen, setHelpOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -237,6 +243,10 @@ export function PointageImportDialog({
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
   const weekOptions = useMemo(() => monthIsoWeekOptions(year, month), [year, month]);
+  const duplicateWeeks = useMemo(
+    () => duplicateWeekLabels(files, weekByFile, weekOptions),
+    [files, weekByFile, weekOptions],
+  );
   const targetName =
     singleEmployee && roster[0]
       ? `${roster[0].first_name} ${roster[0].last_name}`
@@ -254,14 +264,14 @@ export function PointageImportDialog({
     setQueueProgress(0);
     setPageProgress(null);
     setDocumentScope('auto');
-    setWeekAnchorDate('');
+    setWeekByFile({});
     setHelpOpen(false);
   };
 
   // Le lundi choisi n'a de sens que pour le mois affiché : on repart de zéro
   // si le calendrier change de mois pendant que la fenêtre est ouverte.
   useEffect(() => {
-    setWeekAnchorDate('');
+    setWeekByFile({});
   }, [year, month]);
 
   useEffect(() => {
@@ -396,14 +406,16 @@ export function PointageImportDialog({
 
   const analyzeFiles = async () => {
     if (files.length === 0) return;
-    if (documentScope === 'weekly' && !weekAnchorDate) {
-      toast({
-        title: 'Semaine à préciser',
-        description:
-          'Pour un relevé hebdomadaire sans dates explicites, choisissez la semaine concernée (S27, S28…).',
-        variant: 'destructive',
-      });
-      return;
+    if (documentScope === 'weekly') {
+      const manquants = filesMissingWeek(files, weekByFile);
+      if (manquants.length > 0) {
+        toast({
+          title: 'Semaine à préciser',
+          description: `Pour un relevé hebdomadaire sans dates explicites, choisissez la semaine (S27, S28…) de : ${manquants.join(', ')}.`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
     setIsAnalyzing(true);
     setQueueProgress(0);
@@ -420,6 +432,7 @@ export function PointageImportDialog({
         const started = await startTimesheetExtractBatch(files, year, month, roster, {
           singleEmployee,
           documentScope,
+          weekAnchorDates: weeksAlignedWithFiles(files, weekByFile),
         });
         trackedId = registerBackendJob(
           started.job_id,
@@ -455,7 +468,7 @@ export function PointageImportDialog({
           const started = await startTimesheetExtract(file, year, month, roster, {
             singleEmployee,
             documentScope,
-            weekAnchorDate: weekAnchorDate || null,
+            weekAnchorDate: weekByFile[file.name] || null,
           });
           trackedId = registerBackendJob(started.job_id, file.name);
           result = await waitForTimesheetExtractJob(
@@ -517,6 +530,24 @@ export function PointageImportDialog({
     setFiles((prev) => {
       const names = new Set(prev.map((f) => f.name));
       return [...prev, ...list.filter((f) => !names.has(f.name))];
+    });
+  };
+
+  const removeFile = (name: string) => {
+    setFiles((prev) => prev.filter((f) => f.name !== name));
+    setWeekByFile((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  };
+
+  const setWeekOf = (name: string, value: string) => {
+    setWeekByFile((prev) => {
+      const next = { ...prev };
+      if (value === NO_WEEK) delete next[name];
+      else next[name] = value;
+      return next;
     });
   };
 
@@ -601,30 +632,6 @@ export function PointageImportDialog({
                   </SelectContent>
                 </Select>
               </div>
-              {(documentScope === 'weekly' || documentScope === 'auto') && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="week-anchor" className="text-xs">
-                    Semaine
-                    {documentScope === 'weekly' ? ' *' : ' (optionnel)'}
-                  </Label>
-                  <Select
-                    value={weekAnchorDate || NO_WEEK}
-                    onValueChange={(v) => setWeekAnchorDate(v === NO_WEEK ? '' : v)}
-                  >
-                    <SelectTrigger id="week-anchor" className="h-9">
-                      <SelectValue placeholder="Choisir la semaine" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_WEEK}>Non précisée</SelectItem>
-                      {weekOptions.map((w) => (
-                        <SelectItem key={w.value} value={w.value}>
-                          {w.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
 
             <button
@@ -669,13 +676,55 @@ export function PointageImportDialog({
             />
 
             {files.length > 0 && (
-              <ul className="max-h-24 overflow-y-auto rounded border px-2 py-1 text-xs">
+              <ul className="max-h-44 divide-y overflow-y-auto rounded border text-xs">
                 {files.map((f) => (
-                  <li key={f.name} className="truncate py-0.5">
-                    {f.name}
+                  <li key={f.name} className="flex items-center gap-2 px-2 py-1">
+                    <span className="min-w-0 flex-1 truncate" title={f.name}>
+                      {f.name}
+                    </span>
+                    {(documentScope === 'weekly' || documentScope === 'auto') && (
+                      <Select
+                        value={weekByFile[f.name] || NO_WEEK}
+                        onValueChange={(v) => setWeekOf(f.name, v)}
+                      >
+                        <SelectTrigger
+                          className="h-7 w-60 text-xs"
+                          aria-label={`Semaine de ${f.name}`}
+                        >
+                          <SelectValue
+                            placeholder={
+                              documentScope === 'weekly' ? 'Semaine *' : 'Semaine (optionnel)'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_WEEK}>Non précisée</SelectItem>
+                          {weekOptions.map((w) => (
+                            <SelectItem key={w.value} value={w.value}>
+                              {w.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(f.name)}
+                      className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                      aria-label={`Retirer ${f.name}`}
+                      disabled={isAnalyzing}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </li>
                 ))}
               </ul>
+            )}
+            {duplicateWeeks.length > 0 && (
+              <p className="text-[11px] text-amber-700">
+                {duplicateWeeks.join(', ')} attribuée{duplicateWeeks.length > 1 ? 's' : ''} à
+                plusieurs fichiers : le dernier écrasera le premier sur les jours communs.
+              </p>
             )}
 
             {isAnalyzing && (

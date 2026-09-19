@@ -177,6 +177,8 @@ class TimesheetExtractProgress(BaseModel):
     batch_id: Optional[str] = None
     files_total: Optional[int] = None
     files_done: Optional[int] = None
+    #: Fichier en cours d'un lot, nommé par sa semaine (« S28 · feuille.pdf »).
+    current_file: Optional[str] = None
 
 
 class TimesheetExtractJobResponse(BaseModel):
