@@ -361,7 +361,10 @@ Alexandre a importé quatre feuilles (S27 à S30) en une fois sur le test (lot
 `4c3ae0aa`, 120 jours, 21:04). Relecture case par case des quatre PDF : 94 cases
 justes sur 120, 24 mal lues, 2 illisibles.
 
-- **Bug de persistance, corrigé (non commité, non déployé)** : `commit_batch_bulk`
+- **Bug de persistance, corrigé** (commits `c0341a90` persistance, `485e2f9c`
+  orientation, `0acc5d0e` scripts, `23970e66` front, `a00bfaa1` docs sur
+  `fix/payslip-edit-state`, poussés et déployés sur le test le 19/09 au soir) :
+  `commit_batch_bulk`
   n'allait vers le chemin multi-mois que si le lot portait `month_groups`, ce que
   seul l'ancien `persist-timesheet` pose ; un lot du job groupé écrivait donc les
   jours par numéro dans le mois cible → les 29 et 30 juin de S27 ont écrasé les
