@@ -838,13 +838,36 @@ Puis, dans le même mouvement (Alexandre : « la santé doit être bonne ») :
   **après** le net imposable, hors du total ; nous l'y comptons. Différence de
   présentation, vérifiée sur Espinosa janvier (476,68 contre 574,81 = +98,13,
   exactement la mutuelle).
-- `net_avant_impot` (20 lignes) : le PDF de janvier imprime « NET A PAYER
-  AVANT IMPOT SUR LE REVENU 139,02 » sous un « MONTANT NET SOCIAL 2 508,65 »
-  pour Bugny — la valeur lue n'est pas un net. Anomalie du document, pas de
-  nos données.
-- Restent 17 écarts réels et petits : quelques contributions patronales
-  regroupées par Quadra, la réduction des heures sup structurelles de
-  Gautheron, le plafond proratisé des mois partiels (défaut connu, §4).
+- `net_avant_impot` : ce n'était **pas** une anomalie du PDF, contrairement à
+  ce que j'avais d'abord écrit. Bugny a reçu un **acompte de 2 369,63** en
+  janvier : Quadra imprime « NET A PAYER AVANT IMPOT » **après** déduction de
+  l'acompte (2 508,65 − 2 369,63 = 139,02), là où notre `net_social_avant_impot`
+  est le net avant acompte. Nos données portaient déjà l'acompte et le bon net
+  à payer (75,58). C'est l'outil d'audit qui comparait deux grandeurs
+  différentes : corrigé dans `colorplast_lignes.aplatir`. Les acomptes sont
+  aussi repris du PDF par l'import (`_synthese_du_pdf`), janvier et mai en
+  portent.
+- **L'écart récurrent est 98,13 €, la mutuelle famille** : Quadra l'imprime
+  après le net imposable, en négatif (« SMU2 GAN MUTUELLE FAMILLE −98,13 »),
+  hors du total des retenues ; nous la comptons dans les retenues salariales.
+  Elle explique 27 des écarts restants (10 sur le total des retenues, 17 sur
+  le net avant impôt). Le **net à payer final est identique** des deux côtés.
+  Différence de présentation, à trancher si on veut l'alignement.
+- Restent une quarantaine d'écarts petits : contributions patronales
+  regroupées par Quadra, réduction des heures sup structurelles de Gautheron,
+  plafond proratisé des mois partiels (défaut connu, §4).
+
+**État au 31/07, socle de la paie d'août** (vérifié salarié par salarié) :
+
+| Salarié | cumul brut nous / Quadra | écart |
+|---|---|---|
+| Bugny, Cotte, Espinosa, Girerd | identiques | 0,00 |
+| Demory | 9 533,83 / 9 707,67 | −173,84 (indemnité de fin de contrat, §9) |
+| Fuckar | 7 853,36 / 7 840,71 | +12,65 (semaine courte non retenue, question 4 bis) |
+| Gautheron | 13 186,79 / 13 186,95 | −0,16 (arrondi des HS structurelles) |
+
+Heures et heures sup cumulées identiques pour les sept. Une reprise au 31/07
+partirait donc d'un état conforme, aux trois écarts assumés près.
 
 **Rappel utile** : le PDF servi pour janvier→juin est la **copie du document
 Quadra** découpée par salarié. Ce que Gaëlle ouvre est donc exact ; les écarts
