@@ -217,3 +217,47 @@ class TestAvecSaisieManuelle:
         resume = self._resume()
         avec_saisie_manuelle(resume, 8.0, 0.0)
         assert "heures_saisies" not in resume
+
+
+class TestAbsencePartielleDeclaree:
+    """Un jour prévu en absence déclarée de X h, où le salarié a quand même
+    travaillé : il devait faire la journée moins X. Marion Gautheron, juillet
+    2026 : jeudi 09/07 absence de 7,5 h sur une journée de 8,5, 1 h faite →
+    écart 0, pas 1 h de surplus."""
+
+    def _planning(self):
+        # juillet 2026 : jeudis 02, 09, 16, 23, 30 ; lundis 06, 13, 20, 27 ; vendredis 03, 10, 17, 24
+        jours = []
+        for j in (1, 2, 6, 7, 8, 13, 15, 16, 21, 22, 23, 27, 28, 29, 30):
+            jours.append({"annee": 2026, "mois": 7, "jour": j, "type": "travail", "heures_prevues": 8.5})
+        for j in (3, 17, 24, 31):
+            jours.append({"annee": 2026, "mois": 7, "jour": j, "type": "travail", "heures_prevues": 5.0})
+        jours.append({"annee": 2026, "mois": 7, "jour": 9, "type": "absence_non_remuneree", "heures_prevues": 7.5})
+        jours.append({"annee": 2026, "mois": 7, "jour": 20, "type": "absence_non_remuneree", "heures_prevues": 0.26})
+        jours.append({"annee": 2026, "mois": 7, "jour": 10, "type": "absence_non_remuneree", "heures_prevues": 2.5})
+        jours.append({"annee": 2026, "mois": 7, "jour": 14, "type": "ferie", "heures_prevues": 0})
+        return jours
+
+    def _reel(self, **faites):
+        return [{"annee": 2026, "mois": 7, "jour": int(j), "type": "travail", "heures_faites": h} for j, h in faites.items()]
+
+    def test_une_heure_faite_sur_une_absence_de_sept_heures_et_demie_est_neutre(self):
+        ecarts = ecarts_par_semaine(self._planning(), self._reel(**{"6": 8.5, "7": 0, "8": 0, "9": 1.0, "10": 2.5}), (date(2026, 6, 22), date(2026, 7, 26)))
+        # 07 et 08 : 0 h faite sur un jour prévu 8,5 → −8,5 chacun ; 09 : 1 − (8,5 − 7,5) = 0 ; 10 : 2,5 − (5 − 2,5) = 0
+        assert ecarts[(2026, 28)] == pytest.approx(-17.0)
+
+    def test_un_quart_d_heure_d_absence_declaree_et_la_journee_faite(self):
+        ecarts = ecarts_par_semaine(self._planning(), self._reel(**{"20": 8.25, "21": 8.5, "22": 8.5, "23": 8.5, "24": 5.0}), (date(2026, 6, 22), date(2026, 7, 26)))
+        # 20/07 : 8,25 − (8,5 − 0,26) = +0,01
+        assert ecarts[(2026, 30)] == pytest.approx(0.01)
+
+    def test_travailler_plus_que_le_reste_attendu_est_du_surplus(self):
+        """Hugo Fuckar, 10/07 : absence de 2,5 h sur un vendredi de 5 h, 7 h faites → +4,5."""
+        ecarts = ecarts_par_semaine(self._planning(), self._reel(**{"6": 8.5, "7": 8.5, "8": 8.5, "9": 1.0, "10": 7.0}), (date(2026, 6, 22), date(2026, 7, 26)))
+        assert ecarts[(2026, 28)] == pytest.approx(4.5)
+
+    def test_absence_complete_sans_pointage_reste_neutre(self):
+        planning = [{"annee": 2026, "mois": 7, "jour": 20, "type": "absence_non_remuneree", "heures_prevues": 8.5},
+                    {"annee": 2026, "mois": 7, "jour": 21, "type": "travail", "heures_prevues": 8.5}]
+        ecarts = ecarts_par_semaine(planning, self._reel(**{"21": 8.5}), (date(2026, 6, 22), date(2026, 7, 26)))
+        assert ecarts.get((2026, 30), 0.0) == pytest.approx(0.0)

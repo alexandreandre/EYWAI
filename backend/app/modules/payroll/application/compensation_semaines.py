@@ -85,6 +85,28 @@ def _lundi(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
 
+def _journee_type_par_jour_de_semaine(
+    planned_all: list[dict[str, Any]],
+) -> dict[tuple[int, int, int], float]:
+    """Les heures d'une journée normale, par (année, mois, jour de semaine) :
+    la valeur la plus fréquente des jours de travail prévus. Sert à mesurer ce
+    qu'un salarié devait encore faire un jour d'absence déclarée partielle."""
+    valeurs: dict[tuple[int, int, int], list[float]] = {}
+    for p in planned_all:
+        if p.get("type") != "travail":
+            continue
+        try:
+            d = date(int(p["annee"]), int(p["mois"]), int(p["jour"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        heures = float(p.get("heures_prevues") or 0.0)
+        if heures > 0:
+            valeurs.setdefault((d.year, d.month, d.weekday()), []).append(heures)
+    return {
+        cle: max(set(liste), key=lambda h: (liste.count(h), h)) for cle, liste in valeurs.items()
+    }
+
+
 def ecarts_par_semaine(
     planned_all: list[dict[str, Any]],
     actual_all: list[dict[str, Any]],
@@ -107,6 +129,7 @@ def ecarts_par_semaine(
 
     ecarts: dict[tuple[int, int], float] = {}
     vus: set[date] = set()
+    journee_type = _journee_type_par_jour_de_semaine(planned_all)
 
     def ajouter(d: date, ecart: float) -> None:
         cle = (d.isocalendar()[0], d.isocalendar()[1])
@@ -117,14 +140,28 @@ def ecarts_par_semaine(
             d = date(int(p["annee"]), int(p["mois"]), int(p["jour"]))
         except (KeyError, TypeError, ValueError):
             continue
-        if not (debut <= _lundi(d) <= fin) or p.get("type") != "travail":
+        if not (debut <= _lundi(d) <= fin):
+            continue
+        type_prevu = str(p.get("type") or "")
+        if type_prevu != "travail" and not type_prevu.startswith("absence"):
             continue
         if mois_sans_pointage(actual_all, annee=d.year, mois=d.month):
             continue
         vus.add(d)
         if d not in reel_par_jour:
             continue
-        ajouter(d, reel_par_jour[d] - float(p.get("heures_prevues") or 0.0))
+        heures_prevues = float(p.get("heures_prevues") or 0.0)
+        if type_prevu == "travail":
+            ajouter(d, reel_par_jour[d] - heures_prevues)
+            continue
+        # Absence déclarée de X h : le salarié devait faire la journée moins X.
+        # Sans pointage ou à 0 h, le jour est neutre (l'absence est retenue
+        # ailleurs) ; s'il a travaillé, l'écart se mesure à ce qui restait dû.
+        if reel_par_jour[d] <= 0:
+            continue
+        journee = journee_type.get((d.year, d.month, d.weekday()), heures_prevues)
+        attendu = max(journee - heures_prevues, 0.0)
+        ajouter(d, reel_par_jour[d] - attendu)
 
     for d, faites in reel_par_jour.items():
         if d in vus or not (debut <= _lundi(d) <= fin) or faites <= 0:
