@@ -678,8 +678,10 @@ plan `docs/superpowers/plans/2026-09-21-indemnite-cp-fin-cdd-methode.md`.
   indemnité 940,23, brut 3 509,91, net imposable 2 679,30, net social 2 785,59,
   Quadra au centime ; méthode par défaut → 876,74 inchangé. Un seul cas de
   fin de CDD en 2026 : la mention sur le bulletin fait voir la formule.
-- **État** : non commité, non déployé ; pour Colorplast, la méthode reste à
-  poser dans la carte (ou en base) après déploiement.
+- **État** : commité le 21/09 (8ea71728 backend, 3a84da41 front, 1d062715
+  docs) et déployé sur le test ; la méthode « salaire rétabli, congés N-1
+  inclus » est posée pour Colorplast en base test, à la demande d'Alexandre.
+  Prod : ni code ni réglage.
 
 ## Le registre des variables dépendantes du passé
 
