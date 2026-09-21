@@ -18,6 +18,23 @@ from app.core.paths import payroll_engine_templates, payroll_engine_employee_bul
 logger = logging.getLogger(__name__)
 
 
+def cumuls_pour_le_rendu(
+    payslip_data: Dict[str, Any], cumuls_en_base: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """Les cumuls à imprimer sont ceux du bulletin rendu.
+
+    Le générateur appelle ce rendu juste après l'insertion du bulletin et
+    avant d'écrire les cumuls du mois dans employee_schedules : la base porte
+    alors encore ceux de la génération précédente (Cotte, juillet 2026 : corps
+    à jour, cumuls d'une génération en retard). Seuls les bulletins sans bloc
+    cumuls — les mois importés à la reprise — se lisent en base.
+    """
+    du_bulletin = payslip_data.get("cumuls")
+    if isinstance(du_bulletin, dict) and (du_bulletin.get("cumuls") or {}):
+        return du_bulletin
+    return cumuls_en_base
+
+
 def regenerate_pdf_from_data(
     payslip_data: Dict[str, Any],
     employee_id: str,
@@ -80,7 +97,7 @@ def regenerate_pdf_from_data(
             "pdf_notes": pdf_notes,
             "manually_edited": manually_edited,
             "edited_at": edited_at.strftime("%d/%m/%Y à %H:%M") if edited_at else None,
-            "cumuls": cumuls_data,
+            "cumuls": cumuls_pour_le_rendu(payslip_data, cumuls_data),
         }
 
         from app.modules.payroll.documents.bulletin_view import (
