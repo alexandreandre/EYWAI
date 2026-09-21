@@ -4,6 +4,9 @@ from datetime import date
 
 import pytest
 
+from app.modules.payslips.application.period_edit_lock import (
+    enrich_payslip_detail_with_edit_lock,
+)
 from app.modules.payslips.domain.period_edit_lock import (
     DEFAULT_CUTOFF_DAY,
     is_payslip_manual_edit_allowed,
@@ -125,3 +128,36 @@ class TestVerrouDesactivable:
         assert _coerce_enabled(True) is True
         assert _coerce_enabled("false") is True  # chaîne ≠ booléen : verrou gardé
         assert _coerce_enabled(None) is True
+
+
+class TestBulletinImporteVerrouille:
+    """Un bulletin repris de l'ancien logiciel est verrouillé à l'édition, quoi
+    qu'en dise le verrou de période, sans contournement admin."""
+
+    def test_verrouille_avec_le_motif(self):
+        out = enrich_payslip_detail_with_edit_lock(
+            {"year": 2026, "month": 3, "origine": "importe"},
+            bypass_lock=True,
+            today=date(2026, 3, 15),
+            cutoff_day=10,
+            lock_enabled=True,
+        )
+        assert out["manual_edit_locked"] is True
+        assert "repris" in (out["manual_edit_lock_reason"] or "").lower()
+        assert out["period_edit_locked"] is True
+        assert out["manual_edit_lock_until"] is None
+
+    def test_meme_verrou_de_periode_desactive(self):
+        out = enrich_payslip_detail_with_edit_lock(
+            {"year": 2026, "month": 3, "origine": "importe"}, lock_enabled=False, cutoff_day=10
+        )
+        assert out["manual_edit_locked"] is True
+
+    def test_un_bulletin_calcule_suit_le_verrou_de_periode(self):
+        out = enrich_payslip_detail_with_edit_lock(
+            {"year": 2026, "month": 3, "origine": "calcule"},
+            today=date(2026, 3, 15),
+            cutoff_day=10,
+            lock_enabled=True,
+        )
+        assert out["manual_edit_locked"] is False

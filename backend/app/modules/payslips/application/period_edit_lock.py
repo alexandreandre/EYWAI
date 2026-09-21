@@ -38,6 +38,16 @@ def enrich_payslip_detail_with_edit_lock(
 ) -> dict[str, Any]:
     """Ajoute manual_edit_locked, manual_edit_lock_reason, manual_edit_lock_until."""
     out = dict(detail)
+    if str(detail.get("origine") or "") == "importe":
+        # Bulletin repris à la bascule : intouchable, sans contournement admin —
+        # il ne pourrait pas être recalculé (cf. commands.MESSAGE_BULLETIN_IMPORTE).
+        from app.modules.payslips.application.commands import MESSAGE_BULLETIN_IMPORTE
+
+        out["period_edit_locked"] = True
+        out["manual_edit_locked"] = True
+        out["manual_edit_lock_reason"] = MESSAGE_BULLETIN_IMPORTE
+        out["manual_edit_lock_until"] = None
+        return out
     cutoff, enabled = _resolve_lock_settings(cutoff_day, lock_enabled)
     if not enabled:
         # Verrou désactivé globalement (réglage admin) : l'édition manuelle

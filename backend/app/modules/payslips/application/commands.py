@@ -384,15 +384,29 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
 
 
 def _fetch_payslip_status(payslip_id: str) -> dict[str, Any] | None:
-    """Statut du bulletin, pour les gardes qui n'ont que son id."""
+    """Statut et origine du bulletin, pour les gardes qui n'ont que son id."""
     r = (
         supabase.table("payslips")
-        .select("id, status")
+        .select("id, status, origine")
         .eq("id", payslip_id)
         .maybe_single()
         .execute()
     )
     return r.data if r and r.data else None
+
+
+MESSAGE_BULLETIN_IMPORTE = (
+    "Ce bulletin a été payé par le logiciel précédent et repris tel quel : il ne se "
+    "modifie pas, ne se supprime pas et ne se recalcule pas."
+)
+
+
+def _refuser_si_importe(payslip_id: str) -> None:
+    """Un bulletin repris à la bascule (origine « importe ») est intouchable : il ne
+    pourrait pas être recalculé, et sa chaîne de cumuls fait foi."""
+    existing = _fetch_payslip_status(payslip_id)
+    if existing and str(existing.get("origine") or "") == "importe":
+        raise PayslipBadRequestError(MESSAGE_BULLETIN_IMPORTE)
 
 
 def delete_payslip(payslip_id: str) -> None:
@@ -403,6 +417,7 @@ def delete_payslip(payslip_id: str) -> None:
     contourne l'archive de la régénération forcée. Le protocole : régénérer
     en forçant (qui archive et repasse en brouillon), puis supprimer.
     """
+    _refuser_si_importe(payslip_id)
     existing = _fetch_payslip_status(payslip_id)
     if existing and existing.get("status") == "valide":
         raise PayslipValidatedError(
@@ -584,6 +599,7 @@ def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
     par le moteur : sans lui, seul le brut suivait la correction et le bulletin
     repartait avec les cotisations et le net d'avant.
     """
+    _refuser_si_importe(cmd.payslip_id)
     etait_valide = _etait_valide(cmd.payslip_id)
     avant = _fetch_payslip_for_recalc(cmd.payslip_id)
     result = payslip_editor_provider.save_edited(

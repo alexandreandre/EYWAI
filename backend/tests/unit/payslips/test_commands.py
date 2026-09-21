@@ -444,3 +444,53 @@ class TestRestorePayslipVersionCommand:
             current_user_name="Admin",
         )
         assert result == expected
+
+
+class TestBulletinImporteIntouchable:
+    """Un bulletin repris de l'ancien logiciel (origine « importe ») ne se
+    supprime pas et ne se modifie pas : il ne pourrait pas être recalculé."""
+
+    def test_la_suppression_est_refusee(self):
+        with (
+            patch("app.modules.payslips.infrastructure.repository.payslip_repository") as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "ps-imp", "status": "brouillon", "origine": "importe"},
+            ),
+        ):
+            with pytest.raises(PayslipBadRequestError) as exc:
+                delete_payslip("ps-imp")
+            assert "repris" in str(exc.value).lower()
+            mock_repo.delete.assert_not_called()
+
+    def test_l_edition_est_refusee(self):
+        with (
+            patch(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "ps-imp", "status": "brouillon", "origine": "importe"},
+            ),
+            patch("app.modules.payslips.application.commands.payslip_editor_provider") as mock_editor,
+            patch("app.modules.payslips.application.commands._fetch_payslip_for_recalc", return_value=None),
+        ):
+            with pytest.raises(PayslipBadRequestError):
+                edit_payslip(
+                    EditPayslipInput(
+                        payslip_id="ps-imp",
+                        payslip_data={},
+                        changes_summary="x",
+                        current_user_id="u",
+                        current_user_name="n",
+                    )
+                )
+            mock_editor.save_edited.assert_not_called()
+
+    def test_un_bulletin_calcule_reste_supprimable(self):
+        with (
+            patch("app.modules.payslips.infrastructure.repository.payslip_repository") as mock_repo,
+            patch(
+                "app.modules.payslips.application.commands._fetch_payslip_status",
+                return_value={"id": "ps-ok", "status": "brouillon", "origine": "calcule"},
+            ),
+        ):
+            delete_payslip("ps-ok")
+            mock_repo.delete.assert_called_once_with("ps-ok")
