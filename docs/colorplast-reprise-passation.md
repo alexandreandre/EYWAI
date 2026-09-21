@@ -743,6 +743,17 @@ qu'une fois par an, mais il sortait comme une alerte.
   déclarée partielle à ce qui restait dû (spec amendée, 4 tests) ; sans cela
   Marion aurait eu 16 h de surplus fantômes. Non commité.
 
+### 12. Les bulletins importés sont intouchables (21/09)
+
+Alexandre pouvait, depuis la démo, supprimer et modifier les bulletins de
+janvier à juin repris de Quadra (`origine = importe`) ; seule la régénération
+était refusée par le serveur. Désormais : suppression et édition refusées
+côté serveur (`commands._refuser_si_importe`, même message que la bascule),
+page d'édition verrouillée avec le motif (`period_edit_lock`, sans
+contournement admin), et dans la liste un badge « Importé » avec les boutons
+Modifier et Supprimer grisés mais visibles, motif au survol — à sa demande,
+grisés plutôt que cachés.
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
