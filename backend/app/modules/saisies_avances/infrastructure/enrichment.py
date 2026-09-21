@@ -23,7 +23,8 @@ def get_existing_deduction(
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    # maybe_single() rend None sans ligne : ne pas lire .data dessus.
+    return r.data if r and r.data else None
 
 
 def get_existing_repayment(
@@ -38,7 +39,8 @@ def get_existing_repayment(
         .maybe_single()
         .execute()
     )
-    return r.data if r.data else None
+    # maybe_single() rend None sans ligne : ne pas lire .data dessus.
+    return r.data if r and r.data else None
 
 
 def insert_seizure_deduction(

@@ -43,6 +43,8 @@ class SalarySeizure(BaseModel):
     created_at: datetime
     updated_at: datetime
     created_by: Optional[str] = None
+    # Nom complet joint à la liste (liste RH) ; absent sur le détail.
+    employee_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
