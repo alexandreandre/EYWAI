@@ -613,10 +613,28 @@ non travaillés prévus, là où le compteur hebdomadaire les compte à 0 h (le
 manque connu de [[defauts-moteur-paie-revus]]).
 
 **État** : commité le 21/09 (a2c7e6ca backend, ed36a7be front, e7fa1cd0 docs)
-et déployé sur le test ; l'option reste décochée pour Colorplast, Alexandre la
-coche lui-même. Suites :
+et déployé sur le test ; à la demande d'Alexandre, l'option est cochée le
+21/09 sur la base test pour toutes les sociétés sauf MAJI et Zone 404 Mars
+(Cartol, Colorplast, Comitech, LEWIS, Mont Blanc). Pas touché à la prod, où
+le code n'est pas déployé. Suites :
 backend 6141 verts (un rouge d'environnement), vitest 592 verts, eslint propre,
 tsc avec ses 3 erreurs préexistantes hors périmètre.
+
+### 8. Le PDF imprimait les cumuls de la génération précédente (21/09) — corrigé
+
+Constat sur Cotte, juillet : corps du bulletin à jour (brut 2 576,41, mention
+de l'option) mais cumuls d'avant l'option (Bruts 17 030,93 = juin + 2 562,87,
+Cumul heures 1 165,10…), alors que `payslip_data.cumuls` en base était juste
+(17 044,47). Cause : après l'insertion du bulletin, le générateur fait rendre
+un PDF « enrichi » par `payslip_editor.regenerate_pdf_from_data`, qui
+**remplaçait les cumuls du bulletin par ceux lus dans `employee_schedules`**
+pour le mois — encore ceux de la génération précédente, la ligne n'étant mise
+à jour qu'ensuite. Tout bulletin régénéré dont les cumuls changent imprimait
+donc des cumuls d'une génération en retard ; la base, elle, était bonne.
+Correctif : `cumuls_pour_le_rendu` — les cumuls du bulletin priment, la base
+ne sert qu'aux bulletins sans bloc cumuls (mois importés à la reprise) ;
+tests `tests/unit/payroll/test_payslip_editor_cumuls.py`. En attendant le
+déploiement, régénérer une seconde fois donne un PDF juste (la base a rattrapé).
 
 ## Le registre des variables dépendantes du passé
 
