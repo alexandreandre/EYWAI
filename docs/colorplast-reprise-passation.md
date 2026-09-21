@@ -537,6 +537,85 @@ Trois bugs trouvés en le faisant, corrigés (tests, non commités à cet instan
    (`test_apercu_en_cache_rerapproche`, 3). À vérifier côté front : la page
    Plannings met-elle les partis du mois dans le roster de l'import ?
 
+**Heure manquante sur une semaine courte (Cotte, 24/07, 38 h pour 39)** : le
+moteur étale déjà les heures à la semaine et retient le reste ; Gaëlle compense
+entre semaines sur sa fenêtre. Décision prise le 21/09 : une option société,
+voir §7. À noter aussi que les heures sup des bulletins de juillet sur le test
+sont sa saisie recopiée, pas nos feuilles (Cotte : 8 h saisies contre 1,5 à 3 h
+calculées).
+
+### 7. Option société « compensation des heures entre semaines » (21/09) — construite, non commitée
+
+**La décision.** Alexandre : « je veux qu'on puisse cocher l'option pour faire
+la paie comme Gaëlle. C'est pas grave si c'est illégal, c'est un logiciel
+interne à eux. » La règle légale reste hebdomadaire (heures sup et absences
+semaine par semaine) ; l'option est un choix explicite de l'entreprise, nommé
+pour ce qu'il est, désactivée par défaut — rien ne change pour les autres
+sociétés ni pour Colorplast tant qu'elle n'est pas cochée.
+
+**La règle, lue dans son classeur** (`data/colorplast/variables/2026-06/
+detail-heures-sup-06-2026-colorplast.xlsx`) : écart journalier faites − prévues ;
+par semaine `majo25 = min(TOTAL, seuil25)` (négatif compris) et
+`majo50 = max(TOTAL − seuil25, 0)`, avec `seuil25 = 43 − durée hebdo` (4 h à
+39 h) ; par paie, somme des semaines de la fenêtre des variables, semaines
+négatives comprises ; si le net à 25 % est négatif il mange le net à 50 %, le
+reste n'est ni retenu ni reporté, seulement dit. Recette : juin 2026 redonne
+Bugny 14 h/7 h et Fuckar 4 h/3 h (semaines +2, +4, +7,5, +7,5 et −5, +7, +1, +4).
+
+**Où ça vit.** Spec `docs/superpowers/specs/2026-09-21-compensation-heures-entre-semaines-design.md`,
+plan `docs/superpowers/plans/2026-09-21-compensation-heures-entre-semaines.md`.
+- Domaine pur : `backend/app/modules/payroll/application/compensation_semaines.py`
+  (`ecarts_par_semaine`, `compenser`, `appliquer`, `appliquer_aux_mois`,
+  `mention`, `option_active`), 23 tests dans
+  `tests/unit/payroll/test_compensation_semaines.py`.
+- Générateur (`payslip_generator.py`, juste après la résolution de la
+  fenêtre) : `if option_active(company_data)` → remplace, dans les événements
+  de M et M-1 datés dans la fenêtre, les `travail_hs25/50` et
+  `absence_injustifiee_*` par les nets datés du dernier jour de la fenêtre ;
+  congés, fériés, arrêts et régularisations antérieures ne bougent pas ;
+  résumé déposé dans `saisies/MM.json["compensation_semaines"]`.
+- Moteur : `payslip_run_heures` → `contexte.compensation_semaines` →
+  `bulletin["compensation_semaines"]` (détail par semaine, nets, solde) ;
+  `bulletin_view` ajoute une ligne « note » avant le brut, comme l'arbitrage
+  CP : « Heures compensées entre semaines (option société) : S27 +1,5 · S30
+  −1,0 → 0,5 h à 25 %, 0 h à 50 %. »
+- Réglage : `companies.settings.compensation_heures_entre_semaines`, booléen
+  déclaré dans `CompanySettingsUpdate` (PATCH `/api/company/settings`, une
+  chaîne est refusée). Front : carte `CompensationSemainesSettingsCard`
+  (onglet Paie de la société, section « Organisation du temps & compte
+  d'heures », case + avertissement + Enregistrer).
+
+**Comment l'activer pour Colorplast** : Société → Paie → « Organisation du
+temps & compte d'heures » → carte « Compensation des heures entre semaines »
+→ cocher → Enregistrer ; puis régénérer les bulletins du mois. Ou :
+`PATCH /api/company/settings {"compensation_heures_entre_semaines": true}`.
+
+**Hors périmètre, dit dans la spec** : le compteur de récupération entre mois
+(report d'un solde négatif ou d'heures non payées), les journées « en récup »
+et la journée de solidarité que Gaëlle saisit à la main.
+
+**Recette du 21/09 en bac à sable (juillet, rien d'écrit, option simulée en
+remplaçant `option_active` dans le module du générateur)** — brut option
+désactivée → activée :
+
+| Salarié | Brut OFF | Brut ON | Ce qui change |
+|---|---|---|---|
+| Bugny | 3 162,97 | 3 162,97 | rien : les 19 h/6,5 h saisies à la main priment ; la compensation calculée (S26 +4,5 · S27 +5,5 · S28 +7 · S29 +3 · S30 +3,5 → 18,5 h/5 h) n'est que dite |
+| Cotte | 2 562,87 | 2 576,41 | +13,54 : l'heure manquante du 24/07 n'est plus retenue ; les 8 h saisies priment sur les 2 h calculées (S27 +1,5 · S29 +1,5 · S30 −1), la mention le dit |
+| Demory | 3 370,05 | 3 446,42 | +76,37 : les absences des 22 et 24/07 (63,12) ne sont plus retenues, précarité et ICCP suivent ; S30 −5 h, « solde non payé : −5 h » |
+| Fuckar | 1 881,22 | 2 014,96 | +133,74 : 5 h à 25 % (76,94 ; S28 +2,5 · S29 +2,5, le travail du 10/07 prévu « absence » compense les manques des 7 et 8/07), plus d'absence injustifiée (49,73) et réduction des HS structurelles moindre (7,07). Restent, option ou pas : « absence non rémunérée » des 15/07 et 20/07 (171,24) — prévues en absence au planning, **à vérifier avec les feuilles** |
+
+Lecture : Cotte et Demory rejoignent Quadra sur les retenues d'absence (les
+deux écarts relevés au §5) ; les heures sup restent celles saisies à la main
+quand il y en a — l'option ne remplace pas la saisie, elle l'accompagne.
+Fuckar montre l'effet de bord attendu : l'écart journalier ignore les jours
+non travaillés prévus, là où le compteur hebdomadaire les compte à 0 h (le
+manque connu de [[defauts-moteur-paie-revus]]).
+
+**État** : non commité, non déployé — attend l'accord d'Alexandre. Suites :
+backend 6141 verts (un rouge d'environnement), vitest 592 verts, eslint propre,
+tsc avec ses 3 erreurs préexistantes hors périmètre.
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
