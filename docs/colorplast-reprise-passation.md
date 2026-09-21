@@ -441,6 +441,43 @@ justes sur 120, 24 mal lues, 2 illisibles.
   projection sur un scan, moins bien sur une photo de biais) et lire par
   colonne de jour ou par cellule, ce qui interdit tout glissement.
 
+### 6. Le garde-fou de génération juge la période de la paie, pas le mois civil (20/09)
+
+Constat sur Michel : « Calendrier 07/2026 incomplet » pour les 27–31/07, que le
+moteur ne lit pas (fenêtre des variables de juillet : **22/06 → 26/07**, S26–S30,
+règle « avant-dernier vendredi » ; août : 27/07 → 23/08), et rien sur les
+22–30/06 qu'il lit et qui sont vides. Spec :
+`docs/superpowers/specs/2026-09-20-periode-a-saisir-pour-la-paie-design.md` ;
+plan du pas 1 : `docs/superpowers/plans/2026-09-20-periode-a-saisir-socle-backend.md`.
+
+Pas 1 livré en local (non commité) :
+- `schedules/domain/periode_a_saisir.py` (pur) : jours manquants sur l'union
+  mois civil ∪ fenêtre, **bloquants** dans la fenêtre, **informatifs** hors
+  fenêtre, bornés par le contrat, mois civil seul pour un forfait jour ; la
+  règle « jour prêt » est réutilisée, pas réécrite.
+- `schedules/application/periode_a_saisir_service.py` : fenêtre par
+  `resoudre_fenetre_variables`, une lecture de planning par mois couvert,
+  contrat par `hire_date` / `exit_last_working_day` / `contract_end_date`.
+- Trois consommateurs sur le même juge : garde-fou de génération (422 avec
+  `fenetre`, `jours_manquants`, `jours_informatifs` ; forçage qui nomme les
+  jours ; avertissement `jours_hors_fenetre` sinon), revue pré-paie (anomalie
+  datée), tableau de bord. `compute_row_status(..., a_saisir=)` garde les
+  écarts d'heures. Au passage : `analytics_gestion` importait `is_forfait_jour`
+  d'`ecart_rules` (un argument) et l'appelait avec deux — la vue « calendriers »
+  plantait dès qu'un salarié est actif ; corrigé.
+- Tests : 21 nouveaux (`test_periode_a_saisir`, `_service`, `test_ecart_rules`,
+  `test_generation_gardes`, `test_preflight_anomalies`, `test_analytics_calendriers_periode`),
+  suite complète 6 100 verts.
+- Contrôle réel en lecture sur le test, juillet 2026 : les cinq (Bugny, Cotte,
+  Espinosa, Fuckar, Gautheron) `a_saisir` sur **22/06–26/06, 29/06–30/06**,
+  informatifs 27/07–31/07 ; Demory et Girerd `a_saisir` sur juin seulement ;
+  Gautheron porte en plus le **10/07** (réel à 0 h sur un jour prévu — la case
+  barrée, à demander à Gaëlle). Exactement ce que le moteur lit.
+
+Restent les pas 2 (front : dialogue de refus daté, bloc fenêtre dans la
+régénération unitaire, « à régénérer » quand la fenêtre change) et 3 (mois de
+paie affiché par semaine à l'import).
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
