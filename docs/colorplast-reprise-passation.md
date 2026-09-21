@@ -293,6 +293,24 @@ d'Alexandre : la page est partagée).
 4. **Bulletin de sortie d'Aurélien Demory (juillet)** : Quadra imprime les compteurs
    de congés à zéro (soldés par l'indemnité compensatrice) ; nous imprimons
    2,78 / 4,16. Quelle présentation veut-elle sur un bulletin de sortie ?
+   **Et surtout l'indemnité compensatrice de CP (21/09)** : Quadra 940,23, nous
+   876,74, tout l'écart de brut (63,49). Nous : 1/10 de la rémunération brute du
+   contrat précarité comprise (6 197,76 + 1 772,64 + 797,04 = 8 767,44). Son
+   940,23 suppose une base de 9 402,30 que rien ne redonne : ni ses cumuls
+   (Bruts 9 707,67 moins l'ICCP = 8 767,44, la nôtre), ni le maintien sur ses
+   compteurs (3,78 + 2,08 + juillet − 1 pris ≈ 7 jours × 98,48 ≈ 690 €). La
+   précarité, elle, est identique (797,04), donc le brut du contrat aussi.
+   Décomposition exacte trouvée le 21/09 : sa base = 6 197,76 (cumul fin juin)
+   + 2 133,73 (juillet reconstitué en mois complet : 151,67 h + 17,33 h HS)
+   + 273,77 (solde CP N-1 de 2,78 j × 98,48, valorisé au maintien) + 797,04
+   (précarité) = 9 402,30 → 940,23 au centime. Soit +36,11 pour le mois complet
+   et +27,38 pour le solde N-1 compté dans l'assiette. Seule combinaison qui
+   tombe juste parmi dix variantes testées (mois réel, solde N, solde total,
+   N-1 avant le jour pris, jour de CP non déduit…). Lecture : paramétrage
+   Quadra du dixième sur « salaire rétabli » du mois de sortie, l'indemnité du
+   solde N-1 entrant dans la base N comme si elle avait été payée en salaire.
+   Unique fin de CDD de 2026 chez Colorplast, donc pas de second cas pour
+   confirmer : le lui faire dire. Nous restons au 1/10 du brut réellement versé.
 5. **Doublons d'août sur le test** (annulés le 18/09) : Bugny 10 j + 12 j sur les
    mêmes jours, Gautheron 4 j + 10 j, Espinosa 13/07 deux fois — s'assurer que la
    prod ne porte pas les mêmes (la reprise CP y est encore au 31/08, calibrée
@@ -635,6 +653,33 @@ Correctif : `cumuls_pour_le_rendu` — les cumuls du bulletin priment, la base
 ne sert qu'aux bulletins sans bloc cumuls (mois importés à la reprise) ;
 tests `tests/unit/payroll/test_payslip_editor_cumuls.py`. En attendant le
 déploiement, régénérer une seconde fois donne un PDF juste (la base a rattrapé).
+
+### 9. Indemnité de CP de fin de CDD : méthode au choix (21/09) — construite, non commitée
+
+Décision d'Alexandre : régler côté moteur l'écart de Demory (§3 question 4)
+par un réglage société nommé, la règle par défaut restant la règle légale.
+Spec `docs/superpowers/specs/2026-09-21-indemnite-cp-fin-cdd-methode-design.md`,
+plan `docs/superpowers/plans/2026-09-21-indemnite-cp-fin-cdd-methode.md`.
+
+- **Réglage** `companies.settings.indemnite_cp_fin_cdd` : `remuneration_versee`
+  (défaut) ou `salaire_retabli_solde_n1`. Carte « Indemnité de congés payés de
+  fin de CDD » dans Société → Paie → « Jours fériés & congés », deux méthodes
+  au choix : « Rémunération réellement versée » / « Salaire rétabli du mois de
+  sortie, congés N-1 inclus ». Une valeur inconnue est refusée par le PATCH.
+- **Moteur** : `engine/iccp_fin_cdd.py` (pur) ; `calcul_brut._calculer_iccp_cdd`
+  remplace le sous-total contractuel du dernier mois par celui du mois plein,
+  garde les autres éléments du mois, ajoute le solde N-1 × valeur du jour au
+  maintien ; `payslip_run_heures` lit ce solde (requête du pied de page)
+  seulement quand la méthode est active et que c'est le dernier mois d'un CDD ;
+  générateur : `parametres_paie.indemnite_cp_fin_cdd`. Intérim non concerné.
+- **Bulletin** : note avant le brut avec les briques et le résultat,
+  `payslip_data.indemnite_cp_fin_cdd` pour le rapprochement.
+- **Recette en bac à sable (rien d'écrit)** : Demory juillet, méthode forcée →
+  indemnité 940,23, brut 3 509,91, net imposable 2 679,30, net social 2 785,59,
+  Quadra au centime ; méthode par défaut → 876,74 inchangé. Un seul cas de
+  fin de CDD en 2026 : la mention sur le bulletin fait voir la formule.
+- **État** : non commité, non déployé ; pour Colorplast, la méthode reste à
+  poser dans la carte (ou en base) après déploiement.
 
 ## Le registre des variables dépendantes du passé
 
