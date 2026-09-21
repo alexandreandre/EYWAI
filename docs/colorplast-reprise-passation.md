@@ -857,7 +857,40 @@ Puis, dans le même mouvement (Alexandre : « la santé doit être bonne ») :
   regroupées par Quadra, réduction des heures sup structurelles de Gautheron,
   plafond proratisé des mois partiels (défaut connu, §4).
 
-**État au 31/07, socle de la paie d'août** (vérifié salarié par salarié) :
+### 15. Juillet repris de Quadra, bascule au 31/07 (21/09)
+
+Décision d'Alexandre : **juillet aussi se copie, il ne se calcule pas**. Notre
+moteur ne doit pas décider du passé ; août est le premier mois de paie EYWAI.
+
+- `reprise_colorplast_import_litteral` : `MOIS_REPRIS` va jusqu'à juillet. Les
+  sept bulletins portent `origine = importe` et servent le **PDF découpé de
+  Quadra**.
+- `reprise_colorplast_solde_ouverture` : `MOIS_REPRIS` (1→7) et
+  `BASCULE = (2026, 7)`. Le solde d'ouverture est agrégé des sept mois et
+  contrôlé contre le bloc de cumuls imprimé.
+- `company_payroll_takeover` : `cutoff_month` 6 → 7. **Juillet est refusé à la
+  génération, août est autorisé.**
+
+**Vérifié après reprise, les sept salariés au centime :**
+
+| Contrôle | Résultat |
+|---|---|
+| Cumul brut au 31/07, nous contre Quadra | écart nul pour les sept |
+| Net imposable cumulé | écart nul pour les sept |
+| Compteurs CP au 31/07 | identiques, sauf Demory (sorti, Quadra le met à zéro) |
+| Origine des bulletins de juillet | `importe` |
+| PDF servi | copie du document Quadra |
+
+Conséquence : les écarts de juillet relevés au §14 (Demory 173,84, Fuckar
+12,65, Gautheron 0,16, allègements au SMIC gelé) **n'existent plus** — les
+valeurs sont celles de Gaëlle. Les deux options société (compensation des
+heures entre semaines, §7 ; règle légale de l'indemnité de fin de contrat, §9)
+ne jouent donc qu'**à partir d'août**.
+
+Sauvegardes avant reprise dans le scratchpad de la session :
+`sauvegarde_payslips_juillet.json`, `sauvegarde_cumuls_juillet.json`.
+
+**État au 31/07 avant cette reprise** (pour mémoire, vérifié salarié par salarié) :
 
 | Salarié | cumul brut nous / Quadra | écart |
 |---|---|---|
