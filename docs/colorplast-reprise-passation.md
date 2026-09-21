@@ -683,6 +683,30 @@ plan `docs/superpowers/plans/2026-09-21-indemnite-cp-fin-cdd-methode.md`.
   inclus » est posée pour Colorplast en base test, à la demande d'Alexandre.
   Prod : ni code ni réglage.
 
+### 10. Les points à arbitrer ne sont plus des alertes orange (21/09)
+
+Retour d'Alexandre sur le plafond transport d'Espinosa (700 € versés en 2026
+pour 600 € exonérables) : « on peut pas être plus discret, au lieu d'une énorme
+phrase et plein d'orange ? ». Le contrôle est juste (prime forfaitaire, plafond
+URSSAF 600 €, Quadra exonère tout, Girerd est à 2 000 € par an) et il ne parle
+qu'une fois par an, mais il sortait comme une alerte.
+
+- Moteur : une alerte peut porter `a_arbitrer=True` (`_alert`) ; le plafond
+  transport l'a, avec un message d'une phrase : « Indemnité de transport :
+  700,00 € versés en 2026 pour 600,00 € exonérables, excédent 100,00 € à
+  arbitrer (bulletin inchangé). » `avertissements_de_generation` renvoie ces
+  points en `{code, severity: "info", message}` et les alertes en chaînes comme
+  avant ; `extraire_messages_alertes_rh` (listes) en dérive ;
+  `payslip_list_meta` sépare `warnings` et `points_a_arbitrer`.
+- Front : `splitGenerationWarnings` rend `infos` à part ; le journal de
+  génération garde le statut « c'est fait » et ajoute « · à arbitrer : … » en
+  gris ; la modale compte « N points à arbitrer » en gris, hors des alertes ;
+  la liste des bulletins montre un badge gris « À arbitrer » avec le détail au
+  survol. Les alertes non critiques mais à corriger (classification manquante,
+  grille vide…) restent en orange.
+- Question pour Gaëlle : cette indemnité est-elle un forfait (plafond) ou des
+  kilomètres justifiés (pas de plafond) ?
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
