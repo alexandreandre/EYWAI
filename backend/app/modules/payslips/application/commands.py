@@ -384,15 +384,34 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
 
 
 def _fetch_payslip_status(payslip_id: str) -> dict[str, Any] | None:
-    """Statut et origine du bulletin, pour les gardes qui n'ont que son id."""
-    r = (
-        supabase.table("payslips")
-        .select("id, status, origine")
-        .eq("id", payslip_id)
-        .maybe_single()
-        .execute()
-    )
-    return r.data if r and r.data else None
+    """Statut et origine du bulletin, pour les gardes qui n'ont que son id.
+
+    `origine` vient de la migration de reprise (20260917090000). Tant qu'elle
+    n'est pas appliquée partout, demander la colonne ferait échouer la lecture,
+    donc la suppression et l'édition d'un bulletin : on retombe alors sur le
+    statut seul, et la garde des bulletins importés ne s'applique simplement
+    pas — la bascule de la société, elle, refuse déjà de les recalculer.
+    """
+    for colonnes in ("id, status, origine", "id, status"):
+        try:
+            r = (
+                supabase.table("payslips")
+                .select(colonnes)
+                .eq("id", payslip_id)
+                .maybe_single()
+                .execute()
+            )
+        except Exception as exc:  # noqa: BLE001 — colonne absente : on réessaie sans
+            if "origine" not in colonnes:
+                raise
+            logger.warning(
+                "Colonne payslips.origine absente (migration de reprise non appliquée) : "
+                "lecture du statut seul. %s",
+                exc,
+            )
+            continue
+        return r.data if r and r.data else None
+    return None
 
 
 MESSAGE_BULLETIN_IMPORTE = (
