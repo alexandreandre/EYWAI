@@ -68,6 +68,9 @@ export function PayrollPayslipRow({
     .filter((w) => !isNetSuperieurBrutWarning(w))
     .map(normalizePayslipWarning);
   const firstOtherWarning = otherWarnings[0];
+  // Points à arbitrer (plafond transport…) : le bulletin est bon, la RH a une
+  // décision à prendre. Pas une alerte : un badge gris, le détail au survol.
+  const pointsAArbitrer = payslip?.points_a_arbitrer ?? [];
 
   const statusBadge =
     state.status === 'success' ? (
@@ -102,6 +105,15 @@ export function PayrollPayslipRow({
   const meta = (
     <>
       {statusBadge}
+      {state.status === 'success' && pointsAArbitrer.length > 0 && (
+        <Badge
+          variant="outline"
+          className="text-muted-foreground"
+          title={pointsAArbitrer.join(' · ')}
+        >
+          À arbitrer
+        </Badge>
+      )}
       {netLabel && <span className="text-xs text-muted-foreground">Net {netLabel}</span>}
       {payslip?.manually_edited && (
         <Badge variant="secondary" className="text-xs">

@@ -231,6 +231,9 @@ export function GeneratePayrollModal({
     selectedEmployees.size === eligibleEmployees.length;
   const successCount = generation.log.filter((l) => l.status === 'success').length;
   const warningCount = generation.log.filter((l) => l.status === 'warning').length;
+  const arbitrageCount = generation.log.filter(
+    (l) => l.status === 'success' && (l.infos?.length ?? 0) > 0
+  ).length;
   const generatedCount = successCount + warningCount;
   const errorCount = generation.log.filter((l) => l.status === 'error').length;
 
@@ -453,6 +456,12 @@ export function GeneratePayrollModal({
                       {generatedCount} bulletin{generatedCount > 1 ? 's' : ''} généré
                       {generatedCount > 1 ? 's' : ''} avec succès.
                     </span>
+                    {arbitrageCount > 0 && (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {arbitrageCount} point{arbitrageCount > 1 ? 's' : ''} à arbitrer
+                      </span>
+                    )}
                   </>
                 ) : successCount === 0 ? (
                   <>

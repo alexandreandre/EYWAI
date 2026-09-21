@@ -117,6 +117,8 @@ export interface PayslipInfo {
   preview_url?: string;
   net_a_payer?: number;
   warnings?: string[];
+  /** Points à arbitrer par la RH (plafond transport…) : pas des alertes, affichés discrètement. */
+  points_a_arbitrer?: string[];
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
@@ -320,7 +322,10 @@ export const deletePayslip = async (payslipId: string): Promise<void> => {
  * moteur) et des objets `{ code, message }` (gardes forcées, ex.
  * `calendrier_incomplet_force`, `bulletin_valide_regenere`).
  */
-export type PayslipGenerationWarning = string | { code?: string; message?: string };
+/** `severity: 'info'` = point à arbitrer (plafond transport…) : affiché discrètement, hors du compte des alertes. */
+export type PayslipGenerationWarning =
+  | string
+  | { code?: string; message?: string; severity?: 'info' | 'warning' };
 
 /**
  * Génère un nouveau bulletin de paie.

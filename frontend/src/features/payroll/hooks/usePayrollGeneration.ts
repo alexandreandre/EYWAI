@@ -48,6 +48,8 @@ export type PayrollGenerationLogEntry = {
   status: 'success' | 'warning' | 'error';
   error?: string;
   warnings?: string[];
+  /** Points à arbitrer : le bulletin est bon, la RH a une décision à prendre. */
+  infos?: string[];
 };
 
 export type PayrollGenerationPhase = 'idle' | 'running' | 'done';
@@ -186,9 +188,11 @@ export function usePayrollGeneration() {
           estimatedMsRef.current = readAverageGenerationMs();
 
           if (response.status === 'success') {
-            const { messages: warnings, guardWarnings } = splitGenerationWarnings(
-              response.warnings
-            );
+            const {
+              messages: warnings,
+              infos,
+              guardWarnings,
+            } = splitGenerationWarnings(response.warnings);
             for (const guardWarning of guardWarnings) {
               toast({
                 variant: 'warning',
@@ -204,6 +208,7 @@ export function usePayrollGeneration() {
               month: job.month,
               status: warnings.length > 0 ? 'warning' : 'success',
               warnings,
+              infos: infos.length > 0 ? infos : undefined,
               error: warnings.length > 0 ? warnings.join(' · ') : undefined,
             };
             setFailedJobs((prev) => {

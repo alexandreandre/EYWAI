@@ -107,10 +107,12 @@ describe('splitGenerationWarnings', () => {
   it('tolère un champ warnings absent ou non-tableau', () => {
     expect(splitGenerationWarnings(undefined)).toEqual({
       messages: [],
+      infos: [],
       guardWarnings: [],
     });
     expect(splitGenerationWarnings('oops')).toEqual({
       messages: [],
+      infos: [],
       guardWarnings: [],
     });
   });
@@ -136,5 +138,26 @@ describe('extractGenerationRefusal — détails de la période à saisir', () =>
   it('reste compatible avec un 422 sans détails (backend ancien)', () => {
     const error = httpError(422, { code: 'calendrier_incomplet', message: 'incomplet' });
     expect(extractGenerationRefusal(error)?.details).toBeUndefined();
+  });
+});
+
+describe('splitGenerationWarnings — points à arbitrer', () => {
+  it('sépare un point d’information des alertes', () => {
+    const { messages, infos, guardWarnings } = splitGenerationWarnings([
+      'Vraie alerte.',
+      { code: 'transport_plafond_annuel_depasse', severity: 'info', message: 'Transport : 700 €.' },
+    ]);
+    expect(messages).toEqual(['Vraie alerte.']);
+    expect(infos).toEqual(['Transport : 700 €.']);
+    expect(guardWarnings).toEqual([]);
+  });
+
+  it('un objet sans sévérité reste une alerte, comme avant', () => {
+    const { messages, infos, guardWarnings } = splitGenerationWarnings([
+      { code: 'bulletin_valide_regenere', message: 'Régénéré.' },
+    ]);
+    expect(messages).toEqual(['Régénéré.']);
+    expect(infos).toEqual([]);
+    expect(guardWarnings).toEqual([{ code: 'bulletin_valide_regenere', message: 'Régénéré.' }]);
   });
 });

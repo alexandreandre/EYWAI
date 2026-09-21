@@ -81,13 +81,12 @@ export default function RegeneratePayslipButton({
       setConfirmationOuverte(false);
       setRefus(null);
 
-      const { messages } = splitGenerationWarnings(reponse.warnings);
+      const { messages, infos } = splitGenerationWarnings(reponse.warnings);
+      const details = [...messages, ...infos];
       toast({
         title: 'Bulletin régénéré',
         description:
-          messages.length > 0
-            ? messages.join(' · ')
-            : 'Brut, cotisations et net ont été recalculés.',
+          details.length > 0 ? details.join(' · ') : 'Brut, cotisations et net ont été recalculés.',
       });
 
       await onRegenerated();

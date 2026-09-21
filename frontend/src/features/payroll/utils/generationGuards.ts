@@ -142,11 +142,14 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
  */
 export function splitGenerationWarnings(warnings: unknown): {
   messages: string[];
+  /** Points à arbitrer (`severity: 'info'`) : montrés sans orange, hors du compte des alertes. */
+  infos: string[];
   guardWarnings: GenerationGuardWarning[];
 } {
   const messages: string[] = [];
+  const infos: string[] = [];
   const guardWarnings: GenerationGuardWarning[] = [];
-  if (!Array.isArray(warnings)) return { messages, guardWarnings };
+  if (!Array.isArray(warnings)) return { messages, infos, guardWarnings };
 
   for (const item of warnings) {
     if (typeof item === 'string') {
@@ -154,14 +157,21 @@ export function splitGenerationWarnings(warnings: unknown): {
       continue;
     }
     if (item && typeof item === 'object') {
-      const { code, message } = item as { code?: unknown; message?: unknown };
-      if (typeof message === 'string' && message.trim()) {
-        messages.push(message);
-        if (typeof code === 'string' && code.trim()) {
-          guardWarnings.push({ code, message });
-        }
+      const { code, message, severity } = item as {
+        code?: unknown;
+        message?: unknown;
+        severity?: unknown;
+      };
+      if (typeof message !== 'string' || !message.trim()) continue;
+      if (severity === 'info') {
+        infos.push(message);
+        continue;
+      }
+      messages.push(message);
+      if (typeof code === 'string' && code.trim()) {
+        guardWarnings.push({ code, message });
       }
     }
   }
-  return { messages, guardWarnings };
+  return { messages, infos, guardWarnings };
 }

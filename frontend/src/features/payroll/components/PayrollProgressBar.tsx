@@ -124,7 +124,13 @@ export function PayrollProgressBar({
                   {monthYearLabel(entry.month, entry.year)} — {entry.employeeName}
                 </span>
                 {entry.status === 'success' ? (
-                  <span className="text-muted-foreground"> — c&apos;est fait</span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    — c&apos;est fait
+                    {entry.infos && entry.infos.length > 0
+                      ? ` · à arbitrer : ${entry.infos.join(' · ')}`
+                      : ''}
+                  </span>
                 ) : entry.status === 'warning' ? (
                   <span className="text-amber-700 dark:text-amber-400">
                     {' '}
