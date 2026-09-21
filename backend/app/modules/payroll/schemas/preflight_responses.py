@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -60,6 +60,10 @@ class PreflightAnomaly(BaseModel):
     detail_jours: List[PreflightDayEcartDetail] = Field(default_factory=list)
     conflict_days: List[int] = Field(default_factory=list)
     days_with_pointage_anomalies: Optional[int] = None
+    #: Jours de la fenêtre des variables sans réel (ISO), pour `heures_non_saisies`.
+    jours_manquants: List[str] = Field(default_factory=list)
+    #: Fenêtre des variables jugée : {debut, fin, semaines, origine}.
+    fenetre: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     resolution: Optional[PreflightAnomalyResolution] = None
 

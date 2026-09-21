@@ -10,12 +10,15 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.schedules.application.periode_a_saisir_service import (
+    charger_periodes_a_saisir,
+)
 from app.modules.schedules.domain.ecart_rules import (
     compute_row_status,
     detect_absence_conflicts,
-    is_forfait_jour,
     validated_absence_days_in_month,
 )
+from app.shared.domain.employment_rules import is_forfait_jour
 from app.modules.annual_reviews.infrastructure.repository import SupabaseAnnualReviewRepository
 from app.modules.certifications.application import queries as cert_queries
 from app.modules.cse.application import queries as cse_queries
@@ -129,6 +132,8 @@ def _build_calendriers_overview(
     schedule_by_emp = {
         str(r["employee_id"]): r for r in (sched_res.data or [])
     }
+    # Même juge que la génération et la revue pré-paie : mois civil ∪ fenêtre.
+    periodes = charger_periodes_a_saisir(company_id, employees, year, month)
 
     absences = []
     try:
@@ -164,8 +169,14 @@ def _build_calendriers_overview(
             if isinstance(actual_raw, dict)
             else []
         )
+        periode = periodes.get(eid)
         row_status = compute_row_status(
-            planned_days, actual_days, year, month, forfait
+            planned_days,
+            actual_days,
+            year,
+            month,
+            forfait,
+            a_saisir=(periode.statut == "a_saisir") if periode is not None else None,
         )
         if row_status == "a_saisir":
             a_saisir += 1

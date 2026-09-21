@@ -1,11 +1,52 @@
 """Tests unitaires — agrégation anomalies pré-paie."""
 
+import calendar
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.modules.modulation.domain.entities import ModulationSettings
 from app.modules.payroll.application import preflight_anomalies
+from app.shared.domain.periode_variables import FenetreVariables
+
+_SERVICE = "app.modules.schedules.application.periode_a_saisir_service"
+
+
+def _mois_civil(year: int, month: int) -> FenetreVariables:
+    return FenetreVariables(
+        debut=date(year, month, 1),
+        fin=date(year, month, calendar.monthrange(year, month)[1]),
+        origine="regle",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _periode_a_saisir_sur_le_mock_supabase():
+    """La période à saisir (mois civil ∪ fenêtre) lit les plannings via son
+    propre dépôt : on le fait lire les lignes que `_configure_supabase` a posées
+    sur le mock du module, fenêtre = mois civil sauf si un test la remplace."""
+
+    def _lignes(ids, year, month):
+        rows = (
+            preflight_anomalies.supabase.table("employee_schedules")
+            .select("employee_id, planned_calendar, actual_hours")
+            .eq("company_id", "")
+            .eq("year", year)
+            .eq("month", month)
+            .in_("employee_id", ids)
+            .execute()
+            .data
+            or []
+        )
+        return {str(r["employee_id"]): r for r in rows}
+
+    with patch(f"{_SERVICE}.schedule_repository") as mock_repo, patch(
+        f"{_SERVICE}.resoudre_fenetre_variables",
+        side_effect=lambda cid, y, m, societe=None: _mois_civil(y, m),
+    ):
+        mock_repo.list_schedules_for_employees.side_effect = _lignes
+        yield
 
 COMPANY_ID = "550e8400-e29b-41d4-a716-446655440000"
 EMP_ID = "660e8400-e29b-41d4-a716-446655440001"
@@ -287,3 +328,83 @@ class TestJustifyAnomaly:
         )
         assert row["status"] == "justifie"
         mock_upsert.assert_called_once()
+
+
+class TestPeriodeASaisir:
+    """L'anomalie « heures non saisies » juge la fenêtre des variables, pas le mois civil."""
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_des_jours_hors_fenetre_ne_font_pas_d_anomalie(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        actual = [d for d in _full_june_2026_actual() if d["jour"] <= 19]  # S26 (22–26/06) non saisie
+        _configure_supabase(
+            mock_supabase,
+            schedules=[
+                {
+                    "employee_id": EMP_ID,
+                    "planned_calendar": {"calendrier_prevu": _full_june_2026_planned()},
+                    "actual_hours": {"calendrier_reel": actual},
+                }
+            ],
+        )
+
+        # Fenêtre arrêtée au 21/06 (début au 1er pour ne pas dépendre d'une ligne de mai).
+        with patch(
+            f"{_SERVICE}.resoudre_fenetre_variables",
+            return_value=FenetreVariables(debut=date(2026, 6, 1), fin=date(2026, 6, 21), origine="regle"),
+        ), patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        # Les 22–26/06 et 29–30/06 sont hors fenêtre : informatifs, pas d'anomalie.
+        assert [a for a in result.anomalies if a.type == "heures_non_saisies"] == []
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_un_jour_de_la_fenetre_manquant_fait_une_anomalie_datee(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        actual = [d for d in _full_june_2026_actual() if d["jour"] != 15]
+        _configure_supabase(
+            mock_supabase,
+            schedules=[
+                {
+                    "employee_id": EMP_ID,
+                    "planned_calendar": {"calendrier_prevu": _full_june_2026_planned()},
+                    "actual_hours": {"calendrier_reel": actual},
+                }
+            ],
+        )
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        anomalie = next(a for a in result.anomalies if a.type == "heures_non_saisies")
+        assert anomalie.jours_manquants == ["2026-06-15"]
+        assert anomalie.fenetre["debut"] == "2026-06-01"
+        assert "15/06" in anomalie.message

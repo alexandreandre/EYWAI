@@ -17,6 +17,10 @@ from app.modules.payroll.schemas.preflight_responses import (
     PreflightAnomaliesResponse,
     PreflightDayEcartDetail,
 )
+from app.modules.schedules.application.periode_a_saisir_service import (
+    charger_periodes_a_saisir,
+    resume_api,
+)
 from app.modules.schedules.domain.ecart_rules import (
     compute_day_ecarts,
     compute_heures_supplementaires,
@@ -26,6 +30,7 @@ from app.modules.schedules.domain.ecart_rules import (
     sum_hours,
     validated_absence_days_in_month,
 )
+from app.modules.schedules.domain.periode_a_saisir import libelle_plages
 from app.shared.domain.employment_rules import is_forfait_jour
 
 OPEN_STATUSES = frozenset({"a_traiter"})
@@ -120,6 +125,9 @@ def build_preflight_anomalies(
         .execute()
     )
     schedule_by_emp = {str(r["employee_id"]): r for r in (sched_res.data or [])}
+    # Un seul juge de « ce qui manque » : mois civil ∪ fenêtre des variables,
+    # comme le moteur et le garde-fou de génération.
+    periodes = charger_periodes_a_saisir(company_id, employees, year, month)
 
     absences: List[Dict[str, Any]] = []
     try:
@@ -181,9 +189,27 @@ def build_preflight_anomalies(
         heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
         heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])
         ecart = heures_faites - heures_prevues
-        row_status = compute_row_status(planned_days, actual_days, year, month, forfait)
+        periode = periodes.get(eid)
+        row_status = compute_row_status(
+            planned_days,
+            actual_days,
+            year,
+            month,
+            forfait,
+            a_saisir=(periode.statut == "a_saisir") if periode is not None else None,
+        )
 
         if row_status == "a_saisir":
+            resume = resume_api(periode) if periode is not None else {}
+            bloquants = [j.jour for j in periode.bloquants] if periode is not None else []
+            if bloquants:
+                debut, fin = periode.fenetre
+                message = (
+                    f"{len(bloquants)} jour(s) à saisir dans la fenêtre des variables "
+                    f"({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)}."
+                )
+            else:
+                message = "Calendrier du mois incomplet — heures planifiées manquantes."
             anomaly = PreflightAnomaly(
                 id=_anomaly_id(eid, "heures_non_saisies"),
                 employee_id=eid,
@@ -196,7 +222,9 @@ def build_preflight_anomalies(
                 heures_faites=heures_faites,
                 ecart=ecart,
                 is_forfait_jour=forfait,
-                message="Calendrier du mois incomplet — heures planifiées manquantes.",
+                jours_manquants=resume.get("jours_manquants", []),
+                fenetre=resume.get("fenetre"),
+                message=message,
             )
             anomalies.append(
                 _merge_resolution(
