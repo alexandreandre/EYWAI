@@ -507,8 +507,33 @@ Colorplast : S26 à S31 — et suffixe celles qui sortent de la fenêtre
 seront enregistrés à leur date. Sans fenêtre ou en mois civil, rien ne change.
 Tests vitest +4 (`importWeekOptions`, `importWeekAssignments`).
 
-Les trois pas de la spec sont faits. Reste, côté données du test : saisir S26
-et S27 en juin pour que juillet passe sans forçage.
+Les trois pas de la spec sont faits.
+
+**Saisie de S26 et S27 sur le test (21/09, par le même chemin de code que les
+routes `start-batch` → relecture → `persist-timesheet`, en local contre la base
+test)** : 60 jours écrits pour Bugny, Cotte, Demory, Espinosa, Fuckar,
+Gautheron — 22–26/06 et 29–30/06 dans juin, 1–3/07 dans juillet, le reste de
+juillet intact. Lecture du modèle : S27 juste sur 30 cases, S26 sur 25 ; six
+corrections de relecture appliquées (Michel 25/06 9,5 et 26/06 6,5 ; Anthony
+26/06 5,5 ; Aurélien 25/06 8,5 ; Marion 25/06 7,5 — annotation « −1h » en rouge
+que le modèle ignore — et Marion 03/07 gardée à 5,0). **Girerd n'est sur aucune
+feuille** : son juin reste vide, juillet reste « à saisir » pour lui — comment ses
+heures sont-elles pointées ? Question pour Gaëlle.
+
+Trois bugs trouvés en le faisant, corrigés (tests, non commités à cet instant) :
+1. `persist-timesheet` avec un `batch_id` **ignorait les cases corrigées à
+   l'écran** (le lot était commité tel quel) : `appliquer_revue_au_lot` remplace
+   d'abord les jours relus dans l'aperçu (`test_revue_appliquee_au_lot`, 3).
+2. Le **cache d'aperçu par empreinte** ne connaissait pas la semaine ancrée : le
+   même fichier réimporté sur une autre semaine ressortait avec les dates de la
+   première. `week_anchor_date` fait partie de la proposition et de la clé du
+   cache (`test_timesheet_preview_cache`, +1).
+3. Un aperçu resservi depuis le cache **gardait son rapprochement figé** : un
+   salarié absent du roster à la première extraction (Demory, sorti le 24/07,
+   hors « actifs ») restait « texte OCR non salarié » à chaque réimport.
+   `rematch_proposal_employees` refait le rapprochement avec le roster du jour
+   (`test_apercu_en_cache_rerapproche`, 3). À vérifier côté front : la page
+   Plannings met-elle les partis du mois dans le roster de l'import ?
 
 ## Le registre des variables dépendantes du passé
 
