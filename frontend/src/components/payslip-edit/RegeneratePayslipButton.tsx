@@ -30,6 +30,8 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { generatePayslip } from '@/api/payslips';
 import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
+import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
+import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
 import {
   extractGenerationRefusal,
   splitGenerationWarnings,
@@ -142,6 +144,9 @@ export default function RegeneratePayslipButton({
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* La fenêtre des variables se voit ici aussi : c'est elle que le
+              moteur lit pour les heures sup, pas le mois civil. */}
+          <BlocPeriodeVariables year={year} month={month} lectureSeule />
           <AlertDialogFooter>
             <AlertDialogCancel disabled={enCours}>Annuler</AlertDialogCancel>
             <AlertDialogAction
@@ -165,6 +170,12 @@ export default function RegeneratePayslipButton({
             </AlertDialogTitle>
             <AlertDialogDescription>{refus?.message}</AlertDialogDescription>
           </AlertDialogHeader>
+          {refus?.code === 'calendrier_incomplet' && refus.details && (
+            <JoursASaisirListe
+              details={refus.details}
+              lienPlanning={`/schedules?employee=${encodeURIComponent(employeeId)}`}
+            />
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={enCours}>Annuler</AlertDialogCancel>
             <AlertDialogAction

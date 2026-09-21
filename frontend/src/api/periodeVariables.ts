@@ -8,6 +8,9 @@ export interface PeriodeVariables {
   semaines: number[];
   mois_civil: [string, string];
   report_debut: string;
+  /** Bulletins du mois calculés sur une autre fenêtre (à régénérer). Backend ≥ 20/09/2026. */
+  bulletins_a_regenerer?: number;
+  employes_a_regenerer?: string[];
 }
 
 /** Un mois dont la fenêtre a été corrigée à la main. */

@@ -6,7 +6,8 @@ export type PreflightAnomalyType =
   | 'pointage'
   | 'conflit_absence'
   | 'hs_routing_pending'
-  | 'hs_pointage_a_valider';
+  | 'hs_pointage_a_valider'
+  | 'fenetre_modifiee';
 
 export type PreflightAnomalySeverity = 'bloquant' | 'a_verifier';
 
@@ -50,6 +51,10 @@ export interface PreflightAnomaly {
   detail_jours: PreflightDayEcartDetail[];
   conflict_days: number[];
   days_with_pointage_anomalies?: number | null;
+  /** Jours de la fenêtre des variables sans réel (ISO) — `heures_non_saisies`. Backend ≥ 20/09/2026. */
+  jours_manquants?: string[];
+  /** Fenêtre des variables jugée. */
+  fenetre?: { debut: string; fin: string; semaines: number[]; origine: string } | null;
   message?: string | null;
   resolution?: PreflightAnomalyResolution | null;
 }
@@ -61,6 +66,7 @@ export interface PreflightAnomalyCounts {
   conflit_absence: number;
   hs_routing_pending: number;
   hs_pointage_a_valider: number;
+  fenetre_modifiee?: number;
   bloquant: number;
   a_verifier: number;
 }

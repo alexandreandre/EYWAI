@@ -11,6 +11,7 @@ export const PREFLIGHT_ANOMALY_TYPE_LABELS: Record<PreflightAnomalyType, string>
   conflit_absence: 'Conflit absence',
   hs_routing_pending: 'HS à arbitrer',
   hs_pointage_a_valider: 'HS pointage à valider',
+  fenetre_modifiee: 'Fenêtre modifiée',
 };
 
 export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
@@ -18,6 +19,7 @@ export const PREFLIGHT_ANOMALY_TYPE_ORDER: PreflightAnomalyType[] = [
   'hs_pointage_a_valider',
   'ecart_heures',
   'heures_non_saisies',
+  'fenetre_modifiee',
   'pointage',
   'conflit_absence',
 ];
@@ -51,6 +53,10 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
   }
   if (anomaly.type === 'pointage') {
     return `/badgeuse-rh?employee=${encodeURIComponent(anomaly.employee_id)}`;
+  }
+  if (anomaly.type === 'fenetre_modifiee') {
+    // Le remède est de régénérer : le lancement de paie.
+    return '/payroll';
   }
   return '/schedules';
 }

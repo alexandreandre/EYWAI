@@ -115,3 +115,26 @@ describe('splitGenerationWarnings', () => {
     });
   });
 });
+
+describe('extractGenerationRefusal — détails de la période à saisir', () => {
+  it('porte les détails quand le backend les donne', () => {
+    const error = httpError(422, {
+      code: 'calendrier_incomplet',
+      message:
+        '07/2026 — 7 jour(s) à saisir dans la fenêtre des variables (22/06 → 26/07) : 22/06–26/06, 29/06–30/06.',
+      fenetre: { debut: '2026-06-22', fin: '2026-07-26', semaines: [26, 27, 28, 29, 30], origine: 'regle' },
+      jours_manquants: ['2026-06-22', '2026-06-23'],
+      jours_informatifs: ['2026-07-27'],
+    });
+    expect(extractGenerationRefusal(error)?.details).toEqual({
+      fenetre: { debut: '2026-06-22', fin: '2026-07-26', semaines: [26, 27, 28, 29, 30], origine: 'regle' },
+      joursManquants: ['2026-06-22', '2026-06-23'],
+      joursInformatifs: ['2026-07-27'],
+    });
+  });
+
+  it('reste compatible avec un 422 sans détails (backend ancien)', () => {
+    const error = httpError(422, { code: 'calendrier_incomplet', message: 'incomplet' });
+    expect(extractGenerationRefusal(error)?.details).toBeUndefined();
+  });
+});

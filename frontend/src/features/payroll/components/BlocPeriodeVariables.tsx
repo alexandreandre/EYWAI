@@ -11,10 +11,13 @@ import {
   useEnregistrerPeriodeVariables,
   usePeriodeVariables,
 } from '@/features/payroll/hooks/usePeriodeVariables';
+import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 interface Props {
   year: number;
   month: number;
+  /** Bornes et semaines seulement ; « Modifier la fenêtre » déplie le réglage. */
+  lectureSeule?: boolean;
 }
 
 /**
@@ -23,13 +26,26 @@ interface Props {
  * Le début n'est pas modifiable : il est la suite du mois précédent, et c'est
  * ce qui garantit qu'aucune semaine n'est ni perdue ni payée deux fois. Seule
  * la date d'arrêt se choisit, et la semaine entamée est comptée en entier.
+ *
+ * La fenêtre est un réglage société-mois : depuis la fiche d'un salarié, on la
+ * voit en lecture, et la modifier est annoncé comme valant pour toute la société.
  */
-export function BlocPeriodeVariables({ year, month }: Props) {
+export function BlocPeriodeVariables({ year, month, lectureSeule = false }: Props) {
   const { data: fenetre, isLoading } = usePeriodeVariables(year, month);
   const enregistrer = useEnregistrerPeriodeVariables(year, month);
   const [finSaisie, setFinSaisie] = useState<string>('');
+  const [modification, setModification] = useState(false);
 
   if (isLoading || !fenetre) return null;
+
+  const aRegenerer = fenetre.bulletins_a_regenerer ?? 0;
+  const mentionBulletins =
+    aRegenerer > 0 ? (
+      <p className="text-xs text-amber-700 dark:text-amber-500">
+        {aRegenerer} bulletin{aRegenerer > 1 ? 's' : ''} déjà généré{aRegenerer > 1 ? 's' : ''}{' '}
+        pour ce mois garde{aRegenerer > 1 ? 'nt' : ''} l'ancienne fenêtre : à régénérer.
+      </p>
+    ) : null;
 
   if (estSurLeMoisCivil(fenetre)) {
     return (
@@ -39,6 +55,28 @@ export function BlocPeriodeVariables({ year, month }: Props) {
           Mois civil — du {formatFr(fenetre.mois_civil[0])} au{' '}
           {formatFr(fenetre.mois_civil[1])}.
         </p>
+        {mentionBulletins}
+      </div>
+    );
+  }
+
+  if (lectureSeule && !modification) {
+    return (
+      <div className="rounded-md border p-3 space-y-2">
+        <Label className="text-sm font-medium">Variables (heures sup et paniers)</Label>
+        <p className="text-sm">
+          Du <strong>{formatFr(fenetre.debut)}</strong> au{' '}
+          <strong>{formatFr(fenetre.fin)}</strong> — {libelleSemaines(fenetre.semaines)}.
+        </p>
+        {mentionBulletins}
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto p-0 text-xs"
+          onClick={() => setModification(true)}
+        >
+          Modifier la fenêtre de {monthYearLabel(month, year)} (pour toute la société)
+        </Button>
       </div>
     );
   }
@@ -88,11 +126,14 @@ export function BlocPeriodeVariables({ year, month }: Props) {
       {/* Changer la période ne recalcule rien : les bulletins déjà générés
           gardent celle qui était en vigueur au moment de leur génération.
           Le dire est plus sûr que de régénérer d'office — un bulletin validé
-          ne doit pas se recalculer dans le dos de la gestionnaire de paie. */}
-      <p className="text-xs text-amber-700 dark:text-amber-500">
-        Les bulletins déjà générés pour ce mois gardent l'ancienne période :
-        régénérez-les pour appliquer celle-ci.
-      </p>
+          ne doit pas se recalculer dans le dos de la gestionnaire de paie.
+          Quand le serveur en compte, on donne le nombre. */}
+      {mentionBulletins ?? (
+        <p className="text-xs text-amber-700 dark:text-amber-500">
+          Les bulletins déjà générés pour ce mois gardent l'ancienne période :
+          régénérez-les pour appliquer celle-ci.
+        </p>
+      )}
     </div>
   );
 }

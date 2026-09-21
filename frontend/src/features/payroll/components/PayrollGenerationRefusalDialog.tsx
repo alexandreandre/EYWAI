@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
 import type { PayrollGenerationRefusal } from '@/features/payroll/hooks/usePayrollGeneration';
 import { REFUSAL_DIALOG_LABELS } from '@/features/payroll/utils/generationGuards';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
@@ -90,6 +91,10 @@ export function PayrollGenerationRefusalDialog({
             </AlertDialogDescription>
           )}
         </AlertDialogHeader>
+
+        {single?.code === 'calendrier_incomplet' && single.details && (
+          <JoursASaisirListe details={single.details} />
+        )}
 
         {!single && (
           <div className="max-h-[220px] space-y-1 overflow-y-auto rounded-md border border-border/60 bg-muted/20 p-3 text-sm">

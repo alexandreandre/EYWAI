@@ -15,10 +15,56 @@ import { sanitizeBackendMessage } from '@/lib/errorMessages';
 
 export type GenerationRefusalCode = 'calendrier_incomplet' | 'bulletin_valide';
 
+export type RefusalFenetre = {
+  debut: string;
+  fin: string;
+  semaines: number[];
+  origine: string;
+};
+
+/** Détails de la période à saisir joints au 422 `calendrier_incomplet` (backend ≥ 20/09/2026). */
+export type RefusalDetails = {
+  fenetre: RefusalFenetre | null;
+  joursManquants: string[];
+  joursInformatifs: string[];
+};
+
 export type GenerationRefusal = {
   code: GenerationRefusalCode;
   message: string;
+  details?: RefusalDetails;
 };
+
+const isoDates = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+
+function extractRefusalDetails(detail: Record<string, unknown>): RefusalDetails | undefined {
+  const brut = detail as {
+    fenetre?: unknown;
+    jours_manquants?: unknown;
+    jours_informatifs?: unknown;
+  };
+  if (!('jours_manquants' in brut) && !('fenetre' in brut)) return undefined;
+  let fenetre: RefusalFenetre | null = null;
+  if (brut.fenetre && typeof brut.fenetre === 'object') {
+    const f = brut.fenetre as Partial<RefusalFenetre>;
+    if (typeof f.debut === 'string' && typeof f.fin === 'string') {
+      fenetre = {
+        debut: f.debut,
+        fin: f.fin,
+        semaines: Array.isArray(f.semaines)
+          ? f.semaines.filter((s): s is number => typeof s === 'number')
+          : [],
+        origine: typeof f.origine === 'string' ? f.origine : 'regle',
+      };
+    }
+  }
+  return {
+    fenetre,
+    joursManquants: isoDates(brut.jours_manquants),
+    joursInformatifs: isoDates(brut.jours_informatifs),
+  };
+}
 
 /** Avertissement structuré renvoyé après un forçage explicite. */
 export type GenerationGuardWarning = {
@@ -77,7 +123,15 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
 
   const cleaned =
     typeof message === 'string' ? sanitizeBackendMessage(message) : null;
-  return { code: refusalCode, message: cleaned ?? REFUSAL_FALLBACK_MESSAGES[refusalCode] };
+  const refusal: GenerationRefusal = {
+    code: refusalCode,
+    message: cleaned ?? REFUSAL_FALLBACK_MESSAGES[refusalCode],
+  };
+  if (refusalCode === 'calendrier_incomplet') {
+    const details = extractRefusalDetails(detail as Record<string, unknown>);
+    if (details) refusal.details = details;
+  }
+  return refusal;
 }
 
 /**
