@@ -460,7 +460,9 @@ Pas 1 livré en local (non commité) :
   contrat par `hire_date` / `exit_last_working_day` / `contract_end_date`.
 - Trois consommateurs sur le même juge : garde-fou de génération (422 avec
   `fenetre`, `jours_manquants`, `jours_informatifs` ; forçage qui nomme les
-  jours ; avertissement `jours_hors_fenetre` sinon), revue pré-paie (anomalie
+  jours ; les jours du mois civil hors fenêtre ne bloquent pas et ne font pas
+  d'alerte — la fin du mois civil dépasse la fenêtre tous les mois, une alerte
+  permanente n'en est pas une, retour d'Alexandre du 21/09), revue pré-paie (anomalie
   datée), tableau de bord. `compute_row_status(..., a_saisir=)` garde les
   écarts d'heures. Au passage : `analytics_gestion` importait `is_forfait_jour`
   d'`ecart_rules` (un argument) et l'appelait avec deux — la vue « calendriers »

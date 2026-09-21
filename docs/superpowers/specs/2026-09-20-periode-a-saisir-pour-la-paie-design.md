@@ -103,8 +103,10 @@ Règles, dans l'ordre :
    ses jours ouvrés attendus sont « planning_absent », bloquants.
 4. **Bloquant / informatif** : un manquant dans la fenêtre des variables est
    bloquant ; un manquant du mois civil hors fenêtre (les 27–31/07 de Michel)
-   est informatif — il sera saisi pour le mois suivant, on le dit, on ne bloque
-   pas.
+   est informatif — il n'apparaît que dans le détail d'un refus (422) et dans
+   la revue pré-paie, jamais comme alerte d'une génération réussie : la fin du
+   mois civil dépasse la fenêtre tous les mois, une alerte permanente n'en est
+   pas une (retour d'Alexandre, 21/09).
 
 `compute_row_status` garde sa signature pour les écarts d'heures
 (`saisi_avec_ecart`), mais sa décision `a_saisir` vient désormais de
