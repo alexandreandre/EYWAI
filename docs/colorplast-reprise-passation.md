@@ -762,6 +762,73 @@ est historisé. Liste RH des saisies : la réponse construisait `employee_name`
 mais le schéma `SalarySeizure` ne le déclarait pas, FastAPI le retirait ; le
 front retombait sur l'identifiant. Champ ajouté, 2 tests.
 
+### 14. Rapprochement janvier→juillet avant la paie d'août par Gaëlle (21/09)
+
+Lancé `scripts.backtest.colorplast_lignes` sur les sept mois (JSON dans le
+scratchpad). Bilan :
+
+**Le socle est bon.** Les cumuls au 30/06 (brut, heures, heures sup) sont
+identiques à Quadra pour les sept salariés : août partira juste.
+
+**Juillet (calculé) est cohérent**, trois écarts connus et assumés : Demory
+indemnité de fin de contrat (766,39 contre 940,23, sa base était fausse,
+§9) ; Fuckar 12,65 (l'heure manquante du mois qu'elle retient et que l'option
+ne retient pas, question 4 bis) ; Gautheron 0,16 (elle tronque la réduction
+des HS structurelles à 2,61 h là où la règle arrondit à 2,62).
+
+**Janvier→juin : les bulletins importés ne sont pas des copies fidèles.**
+1. **Aucun ne porte ses cumuls** (`payslip_data.cumuls` absent sur les 39) :
+   la colonne de droite des PDF de janvier à juin est vide (heures période,
+   cumul heures, cumul h. sup, bruts, net imposable cumulé, PAS cumulé, net
+   HS exonérées cumulé). Gaëlle le verra au premier coup d'œil.
+2. **Des lignes d'heures sup fausses**, surtout mai et juin, avec les
+   cotisations qui en découlent : Bugny mai 4 h au lieu de 15 (brut de lignes
+   2 755,99 contre 2 952,34 affiché, cotisations calculées sur le mauvais
+   brut), Bugny juin 12 h au lieu de 14, Espinosa mai (25 % et 50 % inversés)
+   et juin, Fuckar mai et juin, Gautheron avril, Cotte mars (absence
+   événement familial). Le **brut affiché** et les **cumuls** restent ceux de
+   Quadra : seule la décomposition est fausse.
+3. **Des lignes de congés absentes** (Demory, Espinosa, Girerd en mai ;
+   Gautheron en juin) et **des lignes en trop** (Gautheron avril : absence,
+   complément de retenue, régularisation ; Cotte mai et juin : une ligne
+   d'heures sup).
+
+**Fait le 21/09 : l'import littéral copie plus que quatre champs.** Le script
+`scripts/reprise_colorplast_import_litteral.py` ne reprenait du PDF que
+`salaire_brut`, `net_a_payer`, `cumuls` et les compteurs CP ; le reste venait
+du rejeu. Et son bloc `cumuls` était écrit **à plat** alors que tout le code
+le lit imbriqué (`payslip_data["cumuls"]["cumuls"]`) : présent mais invisible.
+Corrections (9 tests, `tests/unit/scripts/test_reprise_import_lignes.py` et
+`…_cotisations.py`) :
+- `_cumuls_affiches` rend la forme imbriquée, avec `periode` et `reprise` ;
+- `_lignes_du_brut` construit `calcul_du_brut` depuis les lignes du PDF, avec
+  nos libellés d'heures sup (l'aval les reconnaît par le libellé : contingent,
+  repos compensateur, comparaison N/N-1) ; l'entête « Congés payés : … » est
+  écartée, Quadra réimprime le même montant en « ARBITRAGE DES CONGES PAYES » ;
+- `_asseoir_les_cotisations` / `_asseoir_la_structure` remettent la base des
+  cotisations au brut du PDF et refont **les seules lignes qui sont un produit
+  base × taux** — une ligne issue d'une formule (réduction générale) garde ses
+  valeurs, la recalculer au taux affiché la fausserait (essai du 21/09 :
+  584,81 au lieu de 552,97). Les totaux suivent par delta, pas par somme, pour
+  ne pas présumer de leur convention de signe ;
+- `_synthese_du_pdf` copie net imposable, net social, net des HS exonérées et
+  le prélèvement à la source depuis le PDF.
+
+**Résultat** (rapprochement rejoué) : écarts de montant janvier→juin de 662 à
+304. Les lignes du brut, les cumuls, les nets et la majorité des cotisations
+sont ceux de Quadra. **Ce qui reste** : les cotisations dont la base n'est pas
+le brut — CSG (base composite), réduction générale (formule), réduction
+salariale et déduction patronale sur heures sup (base = heures), mutuelle au
+forfait — et les totaux qui en découlent (total des retenues, allègement du
+mois, total versé employeur, net avant impôt). Les copier demanderait un
+appariement un à un des libellés Quadra, à faire si Alexandre le veut.
+
+**Rappel utile** : le PDF servi pour janvier→juin est la **copie du document
+Quadra** découpée par salarié. Ce que Gaëlle ouvre est donc exact ; les écarts
+ci-dessus ne concernent que les données internes, lues par le contingent
+d'heures sup, la provision comptable des CP et les comparaisons d'un mois à
+l'autre.
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
