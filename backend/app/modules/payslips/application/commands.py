@@ -117,8 +117,9 @@ def _check_calendar_guard(
     Juge l'union du mois civil et de la fenêtre des variables — ce que lit le
     moteur — via `charger_periode_a_saisir`. Refuse (422) si un jour de la
     fenêtre manque, sauf `force_calendrier_incomplet` explicite (tracé, warning
-    en réponse). Des jours manquants hors fenêtre ne bloquent pas : ils seront
-    saisis pour le mois suivant, on le dit.
+    en réponse). Des jours manquants hors fenêtre (fin du mois civil après la
+    fenêtre) ne bloquent pas et ne font pas d'alerte : c'est la règle de la
+    société, vraie tous les mois, pas un problème à signaler.
     """
     from app.modules.schedules.application.periode_a_saisir_service import resume_api
     from app.modules.schedules.domain.periode_a_saisir import libelle_plages
@@ -127,17 +128,7 @@ def _check_calendar_guard(
     details = resume_api(periode)
     debut, fin = periode.fenetre
     if periode.statut != "a_saisir":
-        if not periode.informatifs:
-            return None
-        return {
-            "code": "jours_hors_fenetre",
-            "message": (
-                f"{len(periode.informatifs)} jour(s) hors de la fenêtre des variables "
-                f"({libelle_plages(j.jour for j in periode.informatifs)}) : ils seront "
-                "saisis pour le mois suivant."
-            ),
-            **details,
-        }
+        return None
     bloquants = [j.jour for j in periode.bloquants]
     message = (
         f"{cmd.month:02d}/{cmd.year} — {len(bloquants)} jour(s) à saisir dans la fenêtre "

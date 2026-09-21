@@ -263,7 +263,9 @@ class TestGardeCalendrierIncomplet:
         ]
         assert exc.value.details["fenetre"]["semaines"] == [26, 27, 28, 29, 30]
 
-    def test_des_jours_hors_fenetre_seuls_ne_bloquent_pas_mais_se_disent(self):
+    def test_des_jours_hors_fenetre_seuls_ne_bloquent_pas_et_ne_font_pas_d_alerte(self):
+        """Le mois civil dépasse la fenêtre tous les mois : le dire à chaque
+        génération serait une alerte permanente, donc aucune (retour Alexandre 21/09)."""
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
         juillet = _schedule_semaine_ouvree(2026, 7, reel_jusqu_au=24)
         juin = _schedule_semaine_ouvree(2026, 6, reel_jusqu_au=30)
@@ -281,9 +283,7 @@ class TestGardeCalendrierIncomplet:
             result = generate_payslip(cmd)
 
         mock_provider.generate_heures.assert_called_once()
-        codes = [w["code"] for w in result.warnings]
-        assert codes == ["jours_hors_fenetre"]
-        assert "27/07–31/07" in result.warnings[0]["message"]
+        assert not [w for w in (result.warnings or []) if isinstance(w, dict)]
 
     def test_le_forcage_nomme_les_jours_forces(self):
         cmd = GeneratePayslipInput(
