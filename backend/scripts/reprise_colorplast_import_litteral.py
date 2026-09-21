@@ -533,6 +533,16 @@ def _synthese_du_pdf(existantes: dict, bulletin) -> dict:
     for chez_nous, chez_quadra in correspondances:
         if net.get(chez_quadra) is not None:
             synthese[chez_nous] = float(net[chez_quadra])
+    acompte = sum(
+        abs(float(lg.montant_sal))
+        for lg in bulletin.lignes
+        if _normaliser(lg.libelle).startswith("ACOMPTE") and lg.montant_sal is not None
+    )
+    if acompte:
+        # Janvier et mai portent des acomptes : sans eux, le net à payer du
+        # bulletin ne s'explique pas (Bugny janvier : 2 508,65 de net social
+        # pour 75,58 à payer).
+        synthese["acompte_verse"] = round(acompte, 2)
     if net.get("pas_montant") is not None:
         synthese["impot_prelevement_a_la_source"] = {
             "base": net.get("pas_base"),

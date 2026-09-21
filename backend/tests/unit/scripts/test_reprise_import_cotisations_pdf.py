@@ -121,3 +121,25 @@ class TestPiedDePage:
         assert _pied_de_page_du_pdf({"cout_total_employeur": 1.0}, b) == {
             "cout_total_employeur": 1.0
         }
+
+
+class TestAcompte:
+    """Janvier et mai portent des acomptes : sans eux, le net à payer du
+    bulletin ne s'explique pas (Bugny janvier : 2 508,65 net social, 75,58 net
+    à payer, un acompte de 2 369,63 entre les deux)."""
+
+    def test_l_acompte_du_pdf_entre_dans_la_synthese(self):
+        from scripts.backtest.colorplast_lignes_quadra import Ligne
+        from scripts.reprise_colorplast_import_litteral import _synthese_du_pdf
+
+        b = _bulletin()
+        b.lignes.append(Ligne(None, "Acompte", base=2369.63, montant_sal=2369.63))
+        b.net = {"mns": 2508.65, "net_a_payer": 75.58}
+        synthese = _synthese_du_pdf({"synthese_net": {"acompte_verse": 0.0}}, b)
+        assert synthese["acompte_verse"] == pytest.approx(2369.63)
+
+    def test_sans_acompte_la_valeur_existante_reste(self):
+        from scripts.reprise_colorplast_import_litteral import _synthese_du_pdf
+
+        synthese = _synthese_du_pdf({"synthese_net": {"acompte_verse": 0.0}}, _bulletin())
+        assert synthese["acompte_verse"] == 0.0

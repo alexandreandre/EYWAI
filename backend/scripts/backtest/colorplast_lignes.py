@@ -86,7 +86,15 @@ def aplatir(data: dict, data_precedent: dict | None) -> list[Entree]:
     pas = sn.get("impot_prelevement_a_la_source") or {}
     e.append(Entree("net", "net_imposable", "Net imposable", gain=_num(sn.get("net_imposable"))))
     e.append(Entree("net", "mns", "Montant net social", gain=_num(sn.get("montant_net_social"))))
-    e.append(Entree("net", "net_avant_impot", "Net à payer avant impôt", gain=_num(sn.get("net_social_avant_impot"))))
+    # Quadra imprime « NET A PAYER AVANT IMPOT SUR LE REVENU » APRÈS déduction
+    # de l'acompte (Bugny janvier : 2 508,65 de net social, 2 369,63 d'acompte,
+    # 139,02 imprimés). Notre `net_social_avant_impot` est le net avant
+    # acompte : comparer les deux tels quels inventait un écart par bulletin.
+    net_avant = _num(sn.get("net_social_avant_impot"))
+    acompte_verse = _num(sn.get("acompte_verse")) or 0.0
+    if net_avant is not None and acompte_verse:
+        net_avant = round(net_avant - acompte_verse, 2)
+    e.append(Entree("net", "net_avant_impot", "Net à payer avant impôt", gain=net_avant))
     e.append(Entree("net", "pas", "Impôt prélevé à la source", base=_num(pas.get("base")), taux=_num(pas.get("taux")), gain=_num(pas.get("montant"))))
     e.append(Entree("net", "net_hs_exo", "Net des heures sup exonérées", gain=_num(sn.get("montant_net_hs_exonerees"))))
     e.append(Entree("net", "net_a_payer", "Net à payer", gain=_num(data.get("net_a_payer"))))
