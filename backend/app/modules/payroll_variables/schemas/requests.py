@@ -75,6 +75,9 @@ class PeriodeVariablesSchema(BaseModel):
     semaines: list[int]
     mois_civil: list[str]
     report_debut: str
+    #: Bulletins du mois calculés sur une autre fenêtre (à régénérer).
+    bulletins_a_regenerer: int = 0
+    employes_a_regenerer: list[str] = Field(default_factory=list)
 
 
 class PeriodeVariablesUpdate(BaseModel):

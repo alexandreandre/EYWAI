@@ -23,6 +23,9 @@ def service(monkeypatch):
         svc, "get_variable_period", lambda cid, a, m: surcharges.get((cid, a, m))
     )
     monkeypatch.setattr(svc, "_charger_societe", lambda cid: societes[cid])
+    # L'aperçu compte aussi les bulletins calculés sur une autre fenêtre :
+    # aucun ici, et surtout pas de base.
+    monkeypatch.setattr(svc, "bulletins_sur_une_autre_fenetre", lambda *a, **k: [])
     svc._surcharges_de_test = surcharges
     return svc
 

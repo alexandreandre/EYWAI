@@ -117,10 +117,54 @@ def enregistrer_fenetre_variables(
     return FenetreVariables(debut=debut, fin=fin_normalisee, origine=ORIGINE_MANUEL)
 
 
+#: Colonnes du bulletin utiles ici : la fenêtre sur laquelle il a été calculé
+#: est dans son en-tête (`engine/bulletin.py`), en ISO.
+_SELECT_BULLETINS = (
+    "employee_id, status, origine, "
+    "debut:payslip_data->en_tete->>date_debut_variables, "
+    "fin:payslip_data->en_tete->>date_fin_variables"
+)
+
+
+def bulletin_hors_fenetre(ligne: dict[str, Any], fenetre: FenetreVariables) -> bool:
+    """Vrai si ce bulletin a été calculé sur une autre fenêtre que celle du mois.
+
+    Un bulletin importé (reprise de paie) ou sans fenêtre en en-tête (ancien
+    moteur) n'est pas concerné : il n'a pas été calculé par nous sur une fenêtre.
+    """
+    if (ligne.get("origine") or "calcule") == "importe":
+        return False
+    debut, fin = ligne.get("debut"), ligne.get("fin")
+    if not debut or not fin:
+        return False
+    return (str(debut)[:10], str(fin)[:10]) != (
+        fenetre.debut.isoformat(),
+        fenetre.fin.isoformat(),
+    )
+
+
+def bulletins_sur_une_autre_fenetre(
+    company_id: str, annee: int, mois: int, fenetre: FenetreVariables
+) -> list[dict[str, Any]]:
+    """Les bulletins du mois à régénérer parce que la fenêtre a changé depuis."""
+    resp = (
+        supabase.table("payslips")
+        .select(_SELECT_BULLETINS)
+        .match({"company_id": str(company_id), "year": int(annee), "month": int(mois)})
+        .execute()
+    )
+    return [
+        ligne
+        for ligne in (resp.data if resp else None) or []
+        if bulletin_hors_fenetre(ligne, fenetre)
+    ]
+
+
 def apercu_fenetre(company_id: str, annee: int, mois: int) -> dict[str, Any]:
     """Charge utile de l'API : la fenêtre plus de quoi l'afficher sans recalcul."""
     fenetre = resoudre_fenetre_variables(str(company_id), annee, mois)
     debut_mois, fin_mois = bornes_mois_civil(annee, mois)
+    a_regenerer = bulletins_sur_une_autre_fenetre(str(company_id), annee, mois, fenetre)
     return {
         "debut": fenetre.debut.isoformat(),
         "fin": fenetre.fin.isoformat(),
@@ -128,11 +172,16 @@ def apercu_fenetre(company_id: str, annee: int, mois: int) -> dict[str, Any]:
         "semaines": semaines_iso(fenetre.debut, fenetre.fin),
         "mois_civil": [debut_mois.isoformat(), fin_mois.isoformat()],
         "report_debut": (fenetre.fin + timedelta(days=1)).isoformat(),
+        # Bulletins du mois calculés sur une autre fenêtre : à régénérer.
+        "bulletins_a_regenerer": len(a_regenerer),
+        "employes_a_regenerer": [str(ligne["employee_id"]) for ligne in a_regenerer],
     }
 
 
 __all__ = [
     "apercu_fenetre",
+    "bulletin_hors_fenetre",
+    "bulletins_sur_une_autre_fenetre",
     "enregistrer_fenetre_variables",
     "resoudre_fenetre_variables",
 ]

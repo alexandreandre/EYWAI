@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
 from app.modules.badgeuse.application import punch_service as badgeuse_service
+from app.modules.payroll.application.periode_variables_service import (
+    bulletins_sur_une_autre_fenetre,
+    resoudre_fenetre_variables,
+)
 from app.modules.payroll.infrastructure import preflight_repository
 from app.modules.payroll.schemas.preflight_responses import (
     PreflightAnomaly,
@@ -32,6 +36,7 @@ from app.modules.schedules.domain.ecart_rules import (
 )
 from app.modules.schedules.domain.periode_a_saisir import libelle_plages
 from app.shared.domain.employment_rules import is_forfait_jour
+from app.shared.domain.periode_variables import semaines_iso
 
 OPEN_STATUSES = frozenset({"a_traiter"})
 
@@ -83,6 +88,8 @@ def _build_counts(anomalies: List[PreflightAnomaly]) -> PreflightAnomalyCounts:
             counts.hs_routing_pending += 1
         elif a.type == "hs_pointage_a_valider":
             counts.hs_pointage_a_valider += 1
+        elif a.type == "fenetre_modifiee":
+            counts.fenetre_modifiee += 1
         if a.severity == "bloquant":
             counts.bloquant += 1
         else:
@@ -378,6 +385,41 @@ def build_preflight_anomalies(
                 ),
             )
             anomalies.append(anomaly)
+
+    # Bulletins du mois calculés sur une fenêtre qui a changé depuis : la paie
+    # n'est plus celle que la gestionnaire croit avoir lancée.
+    fenetre = resoudre_fenetre_variables(company_id, year, month)
+    for ligne in bulletins_sur_une_autre_fenetre(company_id, year, month, fenetre):
+        eid = str(ligne.get("employee_id") or "")
+        emp = emp_by_id.get(eid)
+        if not emp:
+            continue
+        ancien_debut, ancienne_fin = str(ligne.get("debut") or ""), str(ligne.get("fin") or "")
+        ancienne = (
+            f"{ancien_debut[8:10]}/{ancien_debut[5:7]} → {ancienne_fin[8:10]}/{ancienne_fin[5:7]}"
+        )
+        anomalies.append(
+            PreflightAnomaly(
+                id=_anomaly_id(eid, "fenetre_modifiee"),
+                employee_id=eid,
+                employee_name=_employee_name(emp.get("first_name"), emp.get("last_name")),
+                team_id=str(emp["team_id"]) if emp.get("team_id") else None,
+                type="fenetre_modifiee",
+                severity="a_verifier",
+                status="a_traiter",
+                is_forfait_jour=is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour")),
+                fenetre={
+                    "debut": fenetre.debut.isoformat(),
+                    "fin": fenetre.fin.isoformat(),
+                    "semaines": semaines_iso(fenetre.debut, fenetre.fin),
+                    "origine": fenetre.origine,
+                },
+                message=(
+                    f"Bulletin calculé sur la fenêtre {ancienne} ; celle du mois est "
+                    f"{fenetre.debut:%d/%m} → {fenetre.fin:%d/%m} : à régénérer."
+                ),
+            )
+        )
 
     counts = _build_counts(anomalies)
     total_open = sum(1 for a in anomalies if a.status in OPEN_STATUSES)
