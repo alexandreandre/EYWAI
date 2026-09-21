@@ -54,13 +54,18 @@ SEAU = "payslips"
 DEBUT_PERIODE_CP = 6
 
 #: Ce que l'on copie du PDF dans `payslip_data`, à la place de notre rejeu.
-SECTIONS_COPIEES_DU_PDF = ("salaire_brut", "net_a_payer", "cumuls", "solde_conges")
+SECTIONS_COPIEES_DU_PDF = (
+    "salaire_brut",
+    "net_a_payer",
+    "cumuls",
+    "solde_conges",
+    "calcul_du_brut",
+    "synthese_net",
+    "cotisations (rassises sur le brut du PDF)",
+)
 
 #: Sections de `payslip_data` qui restent issues de notre rejeu, pas du PDF.
 SECTIONS_NON_REPRISES = (
-    "calcul_du_brut",
-    "cotisations_officielles",
-    "structure_cotisations",
     "details_absences",
     "details_conges",
     "details_maintien",
@@ -107,16 +112,95 @@ def _pages_du_salarie(pdf: Path, pages: list[int]) -> bytes:
     return tampon.getvalue()
 
 
-def _cumuls_affiches(bulletin) -> dict:
-    """Le bloc de cumuls tel que Quadra l'imprime, pour l'afficher sans le recalculer."""
+def _cumuls_affiches(bulletin, annee: int, mois: int) -> dict:
+    """Le bloc de cumuls tel que Quadra l'imprime, dans la forme du moteur.
+
+    Forme imbriquée `{"cumuls": {...}, "periode": {...}}` : c'est celle que la
+    vue du bulletin et tout l'aval lisent. Écrit à plat (jusqu'au 21/09/2026),
+    le bloc existait mais personne ne le voyait, et la colonne de droite des
+    bulletins repris restait vide.
+    """
     return {
-        "brut_total": bulletin.droite.get("cumul_bruts"),
-        "net_imposable": bulletin.net.get("net_imposable_cumul"),
-        "impot_preleve_a_la_source": bulletin.net.get("pas_cumul"),
-        "heures_remunerees": bulletin.droite.get("cumul_heures"),
-        "heures_supplementaires_remunerees": bulletin.droite.get("cumul_hs"),
-        "montant_net_hs_exonerees_cumul": bulletin.net.get("net_hs_exo_cumul"),
+        "cumuls": {
+            "brut_total": bulletin.droite.get("cumul_bruts"),
+            "net_imposable": bulletin.net.get("net_imposable_cumul"),
+            "impot_preleve_a_la_source": bulletin.net.get("pas_cumul"),
+            "heures_remunerees": bulletin.droite.get("cumul_heures"),
+            "heures_supplementaires_remunerees": bulletin.droite.get("cumul_hs"),
+            "montant_net_hs_exonerees_cumul": bulletin.net.get("net_hs_exo_cumul"),
+        },
+        "periode": {"annee_en_cours": annee, "dernier_mois_calcule": mois},
+        "reprise": {
+            "source": "bulletin PDF Quadra",
+            "fait_foi": True,
+            "logiciel_precedent": "Quadra",
+        },
     }
+
+
+#: Libellés Quadra rendus dans notre vocabulaire : l'aval reconnaît les heures
+#: sup par leur libellé (contingent, repos compensateur, comparaison N/N-1).
+_LIBELLES_GAIN = {
+    "SALAIRE DE BASE": "Salaire de base",
+    "H. SUPP MAJORÉES À 25 %": "Heures suppl. structurelles majorées à 25%",
+    "SOUS TOTAL SALAIRE DE BASE": "SOUS-TOTAL SALAIRE CONTRACTUEL",
+    "HEURES SUPPLÉMENTAIRES 25": "Heures suppl. majorées à 25%",
+    "HEURES SUPPLÉMENTAIRES 50": "Heures suppl. majorées à 50%",
+}
+#: Mêmes libellés en retenue : une « H. supp majorées à 25 % » qui retire du
+#: salaire est la réduction des heures structurelles des jours d'absence.
+_LIBELLES_PERTE = {
+    "H. SUPP MAJORÉES À 25 %": "Réduction HS structurelles (jours d'absence)",
+}
+
+
+def _normaliser(libelle: str) -> str:
+    return " ".join(str(libelle or "").split()).upper()
+
+
+def _lignes_du_brut(bulletin) -> list[dict]:
+    """Les lignes de la zone brut du PDF, dans la forme de `calcul_du_brut`.
+
+    S'arrête à « SALAIRE BRUT » : tout ce qui suit est cotisation ou net. Un
+    gain devient un gain, une retenue (colonne salariale dans cette zone)
+    devient une perte.
+    """
+    lignes: list[dict] = []
+    for lg in bulletin.lignes:
+        libelle_norme = _normaliser(lg.libelle)
+        if libelle_norme == "SALAIRE BRUT":
+            break
+        if lg.section:  # une cotisation d'une page suivante
+            continue
+        if lg.gain is None and lg.montant_sal is None:
+            continue  # ligne de mention (entrée, sortie, solde de tout compte)
+        if libelle_norme.startswith("CONGÉS PAYÉS :") or libelle_norme.startswith("CONGES PAYES :"):
+            # Entête du bloc « CP N-1 / CP N » : Quadra réimprime le même
+            # montant en ligne de paie « ARBITRAGE DES CONGES PAYES ».
+            continue
+        if lg.gain is not None:
+            libelle = _LIBELLES_GAIN.get(libelle_norme, str(lg.libelle).strip())
+            lignes.append(
+                {
+                    "libelle": libelle,
+                    "quantite": lg.base,
+                    "taux": lg.taux,
+                    "gain": round(float(lg.gain), 2),
+                    "perte": None,
+                    **({"is_sous_total": True} if "SOUS-TOTAL" in libelle.upper() else {}),
+                }
+            )
+            continue
+        lignes.append(
+            {
+                "libelle": _LIBELLES_PERTE.get(libelle_norme, str(lg.libelle).strip()),
+                "quantite": lg.base,
+                "taux": lg.taux,
+                "gain": None,
+                "perte": round(float(lg.montant_sal), 2),
+            }
+        )
+    return lignes
 
 
 def _brut_du_mois(bulletin) -> float:
@@ -160,12 +244,210 @@ def _compteurs_affiches(bulletin, annee: int, mois: int) -> dict | None:
     }
 
 
+def _base_dominante(groupes: list) -> float:
+    """La base sur laquelle les cotisations sont assises : la plus fréquente.
+
+    C'est le brut qui a servi au calcul. On la lit dans les cotisations plutôt
+    que dans `salaire_brut` : rejouer l'import ne doit pas dépendre de ce que
+    le passage précédent a déjà écrit.
+    """
+    compte: dict[float, int] = {}
+    for groupe in groupes:
+        for ligne in (groupe or {}).get("lignes") or []:
+            base = ligne.get("base") if isinstance(ligne, dict) else None
+            if isinstance(base, (int, float)) and base > 0:
+                arrondie = round(float(base), 2)
+                compte[arrondie] = compte.get(arrondie, 0) + 1
+    if not compte:
+        return 0.0
+    return max(compte.items(), key=lambda kv: (kv[1], kv[0]))[0]
+
+
+def _asseoir_les_cotisations(groupes: list | None, nouveau_brut: float) -> list:
+    """Rassoit les cotisations du rejeu sur le brut du PDF.
+
+    Nos taux et notre structure sont justes ; seule la base était celle du
+    rejeu. Remettre la base et recalculer redonne les montants de Quadra, y
+    compris là où il regroupe plusieurs de nos lignes en une seule (tranche 1
+    et CEG imprimées ensemble). Une ligne dont la base n'est pas le brut
+    (mutuelle au forfait) n'est pas touchée : elle ne suit pas le salaire.
+    """
+    if not isinstance(groupes, list) or nouveau_brut <= 0:
+        return groupes if isinstance(groupes, list) else []
+    ancien_brut = _base_dominante(groupes)
+    if ancien_brut <= 0 or abs(nouveau_brut - ancien_brut) < 0.005:
+        return groupes
+
+    sortie = []
+    for groupe in groupes:
+        if not isinstance(groupe, dict):
+            sortie.append(groupe)
+            continue
+        neuf = dict(groupe)
+        lignes = []
+        for ligne in groupe.get("lignes") or []:
+            if not isinstance(ligne, dict) or abs(
+                float(ligne.get("base") or 0.0) - ancien_brut
+            ) > 0.005:
+                lignes.append(ligne)
+                continue
+            assise = dict(ligne)
+            assise["base"] = nouveau_brut
+            for taux, montant in (
+                ("taux_patronal", "montant_patronal"),
+                ("taux_salarial", "montant_salarial"),
+            ):
+                if assise.get(taux) is not None:
+                    assise[montant] = round(nouveau_brut * float(assise[taux]), 2)
+            lignes.append(assise)
+        neuf["lignes"] = lignes
+        for champ, cle in (
+            ("total_patronal", "montant_patronal"),
+            ("total_salarial", "montant_salarial"),
+        ):
+            if champ in groupe:
+                neuf[champ] = round(
+                    float(groupe.get(champ) or 0.0)
+                    + _ecart_des_montants(groupe.get("lignes") or [], lignes, cle),
+                    2,
+                )
+        sortie.append(neuf)
+    return sortie
+
+
+def _rasseoir_ligne(ligne: dict, ancien_brut: float, nouveau_brut: float) -> dict:
+    """Une ligne assise sur le brut du rejeu : base et montants refaits.
+
+    Seules les lignes dont le montant est bien « base × taux » sont refaites.
+    Une ligne dont le montant sort d'une formule (réduction générale) ou d'un
+    autre calcul garde ses valeurs : la recalculer au taux affiché donnerait
+    un montant faux (Bugny juin : 584,81 au lieu de 552,97).
+    """
+    if not isinstance(ligne, dict) or abs(float(ligne.get("base") or 0.0) - ancien_brut) > 0.005:
+        return ligne
+    assise = dict(ligne)
+    refaite = False
+    for taux, montant in (
+        ("taux_patronal", "montant_patronal"),
+        ("taux_salarial", "montant_salarial"),
+    ):
+        valeur, courant = assise.get(taux), assise.get(montant)
+        if valeur is None or courant is None:
+            continue
+        if abs(float(courant) - ancien_brut * float(valeur)) > 0.011:
+            return ligne  # pas un produit : formule, plafond, barème
+        assise[montant] = round(nouveau_brut * float(valeur), 2)
+        refaite = True
+    if not refaite:
+        return ligne
+    assise["base"] = nouveau_brut
+    return assise
+
+
+def _ecart_des_montants(avant: list, apres: list, cle: str) -> float:
+    """Ce que le rassoiement a ajouté ou retiré, pour ajuster un total sans
+    présumer de la convention de signe de ce total."""
+    somme = 0.0
+    for ancienne, neuve in zip(avant, apres):
+        if isinstance(ancienne, dict) and isinstance(neuve, dict):
+            somme += float(neuve.get(cle) or 0.0) - float(ancienne.get(cle) or 0.0)
+    return round(somme, 2)
+
+
+def _asseoir_la_structure(structure: dict | None, nouveau_brut: float) -> dict:
+    """Rassoit les blocs imprimés (`structure_cotisations`) sur le brut du PDF.
+
+    Même règle que les cotisations : seules les lignes assises sur le brut du
+    rejeu sont refaites ; une base propre (CSG, allègements calculés sur les
+    heures sup) n'est pas touchée. Les totaux suivent les lignes.
+    """
+    if not isinstance(structure, dict) or nouveau_brut <= 0:
+        return structure if isinstance(structure, dict) else {}
+    lignes_plates = list(structure.get("bloc_principales") or [])
+    lignes_plates += list(structure.get("bloc_allegements") or [])
+    lignes_plates += list(structure.get("bloc_csg_non_deductible") or [])
+    lignes_plates += list((structure.get("bloc_autres_contributions") or {}).get("lignes") or [])
+    ancien_brut = _base_dominante([{"lignes": lignes_plates}])
+    if ancien_brut <= 0 or abs(nouveau_brut - ancien_brut) < 0.005:
+        return structure
+
+    neuve = dict(structure)
+    for bloc in ("bloc_principales", "bloc_allegements", "bloc_csg_non_deductible"):
+        if isinstance(structure.get(bloc), list):
+            neuve[bloc] = [
+                _rasseoir_ligne(x, ancien_brut, nouveau_brut) for x in structure[bloc]
+            ]
+    autres = structure.get("bloc_autres_contributions")
+    if isinstance(autres, dict):
+        lignes = [
+            _rasseoir_ligne(x, ancien_brut, nouveau_brut) for x in (autres.get("lignes") or [])
+        ]
+        neuf = dict(autres)
+        neuf["lignes"] = lignes
+        if "total" in autres:
+            neuf["total"] = round(
+                float(autres.get("total") or 0.0)
+                + _ecart_des_montants(autres.get("lignes") or [], lignes, "montant_patronal"),
+                2,
+            )
+        neuve["bloc_autres_contributions"] = neuf
+
+    for champ, cle in (
+        ("total_patronal", "montant_patronal"),
+        ("total_salarial", "montant_salarial"),
+    ):
+        if champ not in structure:
+            continue
+        delta = 0.0
+        for bloc in ("bloc_principales", "bloc_allegements", "bloc_csg_non_deductible"):
+            delta += _ecart_des_montants(
+                structure.get(bloc) or [], neuve.get(bloc) or [], cle
+            )
+        delta += _ecart_des_montants(
+            (structure.get("bloc_autres_contributions") or {}).get("lignes") or [],
+            (neuve.get("bloc_autres_contributions") or {}).get("lignes") or [],
+            cle,
+        )
+        neuve[champ] = round(float(structure.get(champ) or 0.0) + delta, 2)
+    return neuve
+
+
+def _synthese_du_pdf(existantes: dict, bulletin) -> dict:
+    """Les nets imprimés par Quadra, copiés dans la synthèse du bulletin."""
+    synthese = dict(existantes.get("synthese_net") or {})
+    net = getattr(bulletin, "net", None) or {}
+    correspondances = (
+        ("net_imposable", "net_imposable"),
+        ("montant_net_social", "mns"),
+        ("net_social_avant_impot", "mns"),
+        ("montant_net_hs_exonerees", "net_hs_exo"),
+    )
+    for chez_nous, chez_quadra in correspondances:
+        if net.get(chez_quadra) is not None:
+            synthese[chez_nous] = float(net[chez_quadra])
+    if net.get("pas_montant") is not None:
+        synthese["impot_prelevement_a_la_source"] = {
+            "base": net.get("pas_base"),
+            "taux": net.get("pas_taux"),
+            "montant": net.get("pas_montant"),
+        }
+    return synthese
+
+
 def _donnees_reprises(existantes: dict | None, bulletin, annee: int, mois: int) -> dict:
     """Le `payslip_data` du bulletin importé : notre rejeu, sauf ce qui vient du PDF."""
     donnees = dict(existantes or {})
     donnees["salaire_brut"] = _brut_du_mois(bulletin)
+    donnees["cotisations_officielles"] = _asseoir_les_cotisations(
+        donnees.get("cotisations_officielles"), donnees["salaire_brut"]
+    )
+    donnees["structure_cotisations"] = _asseoir_la_structure(
+        donnees.get("structure_cotisations"), donnees["salaire_brut"]
+    )
+    donnees["synthese_net"] = _synthese_du_pdf(donnees, bulletin)
     donnees["net_a_payer"] = float(bulletin.net.get("net_a_payer") or 0.0)
-    donnees["cumuls"] = _cumuls_affiches(bulletin)
+    donnees["cumuls"] = _cumuls_affiches(bulletin, annee, mois)
+    donnees["calcul_du_brut"] = _lignes_du_brut(bulletin)
     pied_de_page = dict(donnees.get("pied_de_page") or {})
     pied_de_page["solde_conges"] = _compteurs_affiches(bulletin, annee, mois)
     donnees["pied_de_page"] = pied_de_page
