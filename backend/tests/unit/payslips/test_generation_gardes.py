@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import calendar as _calendar
 import logging
+from contextlib import ExitStack, contextmanager
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,6 +24,40 @@ from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
 )
+from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir
+from app.shared.domain.periode_variables import FenetreVariables
+
+_SERVICE = "app.modules.schedules.application.periode_a_saisir_service"
+
+
+def _fenetre(debut: date, fin: date) -> FenetreVariables:
+    return FenetreVariables(debut=debut, fin=fin, origine="regle")
+
+
+@contextmanager
+def _doublure_plannings(schedule_row, fenetre: FenetreVariables | None = None):
+    """La période à saisir lit une fenêtre donnée (mois civil de mai 2026 par
+    défaut : les tests historiques gardent leur sens) et le dépôt des plannings
+    rend la même ligne pour tout mois demandé. Rend la doublure du dépôt."""
+    with ExitStack() as pile:
+        pile.enter_context(
+            patch(
+                f"{_SERVICE}.resoudre_fenetre_variables",
+                return_value=fenetre or _fenetre(date(2026, 5, 1), date(2026, 5, 31)),
+            )
+        )
+        mock_repo = pile.enter_context(patch(f"{_SERVICE}.schedule_repository"))
+        mock_repo.list_schedules_for_employees.return_value = (
+            {"emp-1": schedule_row} if schedule_row else {}
+        )
+        yield mock_repo
+
+
+def _periode_vide(year: int = 2026, month: int = 5) -> PeriodeASaisir:
+    """Une période sans rien à saisir, pour les gardes qui ne testent pas le calendrier."""
+    dernier = _calendar.monthrange(year, month)[1]
+    bornes = (date(year, month, 1), date(year, month, dernier))
+    return PeriodeASaisir(bornes[0], bornes[1], bornes, bornes, ())
 
 _COMPLETE_EMPLOYEE = {
     "id": "emp-1",
@@ -56,6 +92,23 @@ def _schedule_complet(year: int, month: int) -> dict:
     }
 
 
+def _schedule_semaine_ouvree(year: int, month: int, *, reel_jusqu_au: int | None) -> dict:
+    """Prévu : travail en semaine, repos le week-end ; réel saisi jusqu'au jour donné."""
+    days = _calendar.monthrange(year, month)[1]
+    prevu, reel = [], []
+    for d in range(1, days + 1):
+        if date(year, month, d).weekday() >= 5:
+            prevu.append({"jour": d, "type": "repos", "heures_prevues": 0.0})
+            continue
+        prevu.append({"jour": d, "type": "travail", "heures_prevues": 7.0})
+        if reel_jusqu_au is not None and d <= reel_jusqu_au:
+            reel.append({"jour": d, "heures_faites": 7.0})
+    return {
+        "planned_calendar": {"calendrier_prevu": prevu},
+        "actual_hours": {"calendrier_reel": reel},
+    }
+
+
 def _schedule_avec_ecart(year: int, month: int) -> dict:
     """Mois complet mais avec un écart significatif planifié/réel (10 h faites vs 7 h)."""
     row = _schedule_complet(year, month)
@@ -67,7 +120,7 @@ def _schedule_avec_ecart(year: int, month: int) -> dict:
 class TestGardeCalendrierIncomplet:
     """Task 1 : la génération refuse un calendrier manquant ou incomplet."""
 
-    def _patches(self, schedule_row):
+    def _patches(self, schedule_row, fenetre: FenetreVariables | None = None):
         return (
             patch(
                 "app.modules.payslips.application.commands._employee_repository"
@@ -78,10 +131,7 @@ class TestGardeCalendrierIncomplet:
             patch(
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ),
-            patch(
-                "app.modules.payslips.application.commands._fetch_month_schedule",
-                return_value=schedule_row,
-            ),
+            _doublure_plannings(schedule_row, fenetre),
             patch(
                 "app.modules.payslips.application.commands._fetch_existing_payslip",
                 return_value=None,
@@ -189,6 +239,74 @@ class TestGardeCalendrierIncomplet:
 
         mock_provider.generate_heures.assert_called_once()
 
+    def test_juillet_colorplast_bloque_sur_juin_pas_sur_la_fin_de_juillet(self):
+        """Fenêtre 22/06 → 26/07 : juin vide bloque, les 27–31/07 n'entrent pas en compte."""
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        row = _schedule_semaine_ouvree(2026, 7, reel_jusqu_au=24)
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
+            row, fenetre=_fenetre(date(2026, 6, 22), date(2026, 7, 26))
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider, p_sched as mock_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            # Juillet saisi jusqu'au 24 ; aucune ligne pour juin.
+            mock_sched.list_schedules_for_employees.side_effect = lambda ids, y, m: (
+                {"emp-1": row} if (y, m) == (2026, 7) else {}
+            )
+            with pytest.raises(PayslipCalendarIncompleteError) as exc:
+                generate_payslip(cmd)
+
+        assert "22/06–26/06, 29/06–30/06" in str(exc.value)
+        assert exc.value.details["jours_manquants"][0] == "2026-06-22"
+        assert exc.value.details["jours_informatifs"] == [
+            f"2026-07-{j}" for j in range(27, 32)
+        ]
+        assert exc.value.details["fenetre"]["semaines"] == [26, 27, 28, 29, 30]
+
+    def test_des_jours_hors_fenetre_seuls_ne_bloquent_pas_mais_se_disent(self):
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        juillet = _schedule_semaine_ouvree(2026, 7, reel_jusqu_au=24)
+        juin = _schedule_semaine_ouvree(2026, 6, reel_jusqu_au=30)
+        mock_result = {"status": "success", "message": "OK", "download_url": "u"}
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
+            juillet, fenetre=_fenetre(date(2026, 6, 22), date(2026, 7, 26))
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched as mock_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = mock_result
+            mock_sched.list_schedules_for_employees.side_effect = lambda ids, y, m: (
+                {"emp-1": juillet if m == 7 else juin}
+            )
+            result = generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_called_once()
+        codes = [w["code"] for w in result.warnings]
+        assert codes == ["jours_hors_fenetre"]
+        assert "27/07–31/07" in result.warnings[0]["message"]
+
+    def test_le_forcage_nomme_les_jours_forces(self):
+        cmd = GeneratePayslipInput(
+            employee_id="emp-1",
+            year=2026,
+            month=5,
+            force_calendrier_incomplet=True,
+            requested_by="user-rh-1",
+        )
+        row = _schedule_complet(2026, 5)
+        row["actual_hours"]["calendrier_reel"] = row["actual_hours"]["calendrier_reel"][:-1]
+        mock_result = {"status": "success", "message": "OK", "download_url": "u"}
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(row)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = mock_result
+            result = generate_payslip(cmd)
+
+        warning = next(w for w in result.warnings if w["code"] == "calendrier_incomplet_force")
+        assert warning["jours_manquants"] == ["2026-05-31"]
+        assert "31/05" in warning["message"]
+
 
 class TestRouteGenerate422CalendrierIncomplet:
     """Mapping HTTP : PayslipCalendarIncompleteError → 422 {code, message}."""
@@ -216,7 +334,8 @@ class TestRouteGenerate422CalendrierIncomplet:
         with patch(
             "app.modules.payslips.api.router.generate_payslip",
             side_effect=PayslipCalendarIncompleteError(
-                "Calendrier du mois incomplet — saisissez les heures avant de générer."
+                "Calendrier du mois incomplet — saisissez les heures avant de générer.",
+                {"jours_manquants": ["2026-05-31"], "fenetre": {"debut": "2026-05-01"}},
             ),
         ), patch(
             "app.modules.payslips.api.router.access_control_service."
@@ -235,6 +354,8 @@ class TestRouteGenerate422CalendrierIncomplet:
         detail = response.json()["detail"]
         assert detail["code"] == "calendrier_incomplet"
         assert "alendrier" in detail["message"]
+        assert detail["jours_manquants"] == ["2026-05-31"]
+        assert detail["fenetre"] == {"debut": "2026-05-01"}
 
     def test_route_transmet_force_et_auteur(self, client: TestClient):
         from app.core.security import get_current_user
@@ -284,8 +405,8 @@ class TestGardeBulletinValide:
             patch("app.modules.payslips.application.commands.employee_statut_reader"),
             patch("app.modules.payslips.application.commands.payslip_generator_provider"),
             patch(
-                "app.modules.payslips.application.commands._calendar_row_status",
-                return_value="saisi",
+                "app.modules.payslips.application.commands._periode_a_saisir",
+                return_value=_periode_vide(),
             ),
             patch(
                 "app.modules.payslips.application.commands._fetch_existing_payslip",
@@ -384,7 +505,7 @@ class TestNotificationALaValidation:
             patch.object(mod, "_employee_repository") as mock_repo,
             patch.object(mod, "employee_statut_reader") as mock_reader,
             patch.object(mod, "payslip_generator_provider") as mock_provider,
-            patch.object(mod, "_calendar_row_status", return_value="saisi"),
+            patch.object(mod, "_periode_a_saisir", return_value=_periode_vide()),
             patch.object(mod, "_fetch_existing_payslip", return_value=None),
             patch.object(mod, "_notify_payslip_available") as mock_notify,
         ):
@@ -616,7 +737,7 @@ def test_scenario_de_vie_generation_validation_regeneration():
             patch.object(cmd_mod, "_employee_repository") as m_repo,
             patch.object(cmd_mod, "employee_statut_reader") as m_reader,
             patch.object(cmd_mod, "payslip_generator_provider") as m_prov,
-            patch.object(cmd_mod, "_calendar_row_status", return_value="saisi"),
+            patch.object(cmd_mod, "_periode_a_saisir", return_value=_periode_vide()),
             patch.object(
                 cmd_mod, "_fetch_existing_payslip",
                 side_effect=lambda *a: dict(store) if store["status"] else None,
@@ -1084,10 +1205,7 @@ def _patches_generation(schedule_row):
         patch("app.modules.payslips.application.commands._employee_repository"),
         patch("app.modules.payslips.application.commands.employee_statut_reader"),
         patch("app.modules.payslips.application.commands.payslip_generator_provider"),
-        patch(
-            "app.modules.payslips.application.commands._fetch_month_schedule",
-            return_value=schedule_row,
-        ),
+        _doublure_plannings(schedule_row),
         patch(
             "app.modules.payslips.application.commands._fetch_existing_payslip",
             return_value=None,

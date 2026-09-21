@@ -222,3 +222,19 @@ class TestDayEcartsAndHeuresSup:
         planned = [_weekday_planned(5, 8)]
         actual = [_weekday_actual(5, 10)]
         assert compute_heures_supplementaires(planned, actual) == 2.0
+
+
+def test_compute_row_status_prend_la_decision_a_saisir_quand_on_la_lui_donne():
+    """La complétude vient désormais de la période à saisir (mois civil ∪ fenêtre) ;
+    la fonction garde les écarts d'heures."""
+    from app.modules.schedules.domain.ecart_rules import compute_row_status
+
+    planned = [{"jour": 1, "type": "travail", "heures_prevues": 7.0}]
+    actual = [{"jour": 1, "type": "travail", "heures_faites": 7.0}]
+
+    # Mois civil incomplet (30 autres jours sans planning) mais décision fournie : saisi.
+    assert compute_row_status(planned, actual, 2026, 7, False, a_saisir=False) == "saisi"
+    # Décision fournie : à saisir, même si le mois civil est plein.
+    assert compute_row_status(planned, actual, 2026, 7, False, a_saisir=True) == "a_saisir"
+    # Sans décision : règle historique sur le mois civil.
+    assert compute_row_status(planned, actual, 2026, 7, False) == "a_saisir"

@@ -38,9 +38,17 @@ class PayslipCriticalActiveError(Exception):
 
 
 class PayslipCalendarIncompleteError(Exception):
-    """Génération refusée : calendrier du mois manquant ou incomplet (→ 422)."""
+    """Génération refusée : des jours de la période à saisir manquent (→ 422).
+
+    `details` : `fenetre`, `jours_manquants`, `jours_informatifs` — repris tels
+    quels dans le `detail` HTTP, en plus de `code` et `message`.
+    """
 
     code = "calendrier_incomplet"
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.details: dict[str, Any] = dict(details or {})
 
 
 class PayslipValidatedError(Exception):

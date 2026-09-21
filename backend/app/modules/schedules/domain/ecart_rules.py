@@ -109,11 +109,21 @@ def compute_row_status(
     year: int,
     month: int,
     forfait: bool,
+    *,
+    a_saisir: bool | None = None,
 ) -> EmployeeRowStatus:
-    completion = compute_month_completion(
-        planned_days, actual_days, year, month, forfait=forfait
-    )
-    if completion == "a_saisir":
+    """Statut d'une ligne : `a_saisir` | `saisi` | `saisi_avec_ecart`.
+
+    `a_saisir` fourni : la décision de complétude vient de la période à saisir
+    (`domain.periode_a_saisir`, mois civil ∪ fenêtre des variables). Absent :
+    règle historique sur le mois civil seul.
+    """
+    if a_saisir is None:
+        a_saisir = (
+            compute_month_completion(planned_days, actual_days, year, month, forfait=forfait)
+            == "a_saisir"
+        )
+    if a_saisir:
         return "a_saisir"
     heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
     heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])

@@ -110,7 +110,11 @@ def _map_app_errors(exc: Exception) -> None:
     if isinstance(exc, PayslipCalendarIncompleteError):
         raise HTTPException(
             status_code=422,
-            detail={"code": PayslipCalendarIncompleteError.code, "message": str(exc)},
+            detail={
+                "code": PayslipCalendarIncompleteError.code,
+                "message": str(exc),
+                **getattr(exc, "details", {}),
+            },
         ) from exc
     if isinstance(exc, PayslipValidatedError):
         raise HTTPException(

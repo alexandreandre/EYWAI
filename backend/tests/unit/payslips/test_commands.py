@@ -39,21 +39,14 @@ class TestGeneratePayslipCommand:
         """La garde « calendrier incomplet » (lot 3) lit employee_schedules :
         sans ce mock, ces tests partiraient vers une vraie base. On simule un
         mois complet pour conserver leur comportement d'origine."""
+        from datetime import date
+
+        from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir
+
+        bornes = (date(2026, 5, 1), date(2026, 5, 31))
         with patch(
-            "app.modules.payslips.application.commands._fetch_month_schedule",
-            return_value={
-                "planned_calendar": {
-                    "calendrier_prevu": [
-                        {"jour": 1, "type": "travail", "heures_prevues": 7.0}
-                    ]
-                },
-                "actual_hours": {
-                    "calendrier_reel": [{"jour": 1, "heures_faites": 7.0}]
-                },
-            },
-        ), patch(
-            "app.modules.payslips.application.commands._calendar_row_status",
-            return_value="saisi",
+            "app.modules.payslips.application.commands._periode_a_saisir",
+            return_value=PeriodeASaisir(bornes[0], bornes[1], bornes, bornes, ()),
         ), patch(
             "app.modules.payslips.application.commands._fetch_existing_payslip",
             return_value=None,

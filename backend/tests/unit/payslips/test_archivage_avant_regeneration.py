@@ -35,6 +35,16 @@ EMPLOYEE = {
 }
 
 
+
+def _periode_vide():
+    """Rien à saisir : la garde calendrier n'est pas l'objet de ces tests."""
+    from datetime import date
+
+    from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir
+
+    bornes = (date(2026, 5, 1), date(2026, 5, 31))
+    return PeriodeASaisir(bornes[0], bornes[1], bornes, bornes, ())
+
 class TestArchivageAvantRegeneration:
     def _lancer(self, existant: dict | None):
         """Génère un bulletin en présence (ou non) d'un bulletin existant."""
@@ -50,8 +60,8 @@ class TestArchivageAvantRegeneration:
                 "app.modules.payslips.application.commands.payslip_generator_provider"
             ),
             patch(
-                "app.modules.payslips.application.commands._calendar_row_status",
-                return_value="saisi",
+                "app.modules.payslips.application.commands._periode_a_saisir",
+                return_value=_periode_vide(),
             ),
             patch(
                 "app.modules.payslips.application.commands._fetch_existing_payslip",

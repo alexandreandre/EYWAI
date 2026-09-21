@@ -98,86 +98,71 @@ def _notify_payslip_available(
         return False
 
 
-def _fetch_month_schedule(
-    company_id: str, employee_id: str, year: int, month: int
-) -> dict[str, Any] | None:
-    """Ligne employee_schedules (planned_calendar, actual_hours) du mois, ou None."""
-    from app.core.database import supabase
-
-    r = (
-        supabase.table("employee_schedules")
-        .select("planned_calendar, actual_hours")
-        .eq("company_id", company_id)
-        .eq("employee_id", employee_id)
-        .eq("year", year)
-        .eq("month", month)
-        .maybe_single()
-        .execute()
-    )
-    return r.data if r else None
-
-
-def _calendar_row_status(employee: dict[str, Any], year: int, month: int) -> str:
-    """Complétude du calendrier du mois — même règle que la revue pré-paie
-    (`compute_row_status`) : `a_saisir` | `saisi` | `saisi_avec_ecart`."""
-    from app.modules.schedules.domain.ecart_rules import compute_row_status
-    from app.shared.domain.employment_rules import (
-        is_forfait_jour as _is_forfait_jour_flag,
+def _periode_a_saisir(employee: dict[str, Any], year: int, month: int):
+    """La période à saisir du salarié pour ce mois — mois civil ∪ fenêtre des variables."""
+    from app.modules.schedules.application.periode_a_saisir_service import (
+        charger_periode_a_saisir,
     )
 
-    company_id = str(employee.get("company_id") or "").strip()
-    sched = (
-        _fetch_month_schedule(company_id, str(employee.get("id") or ""), year, month)
-        or {}
+    return charger_periode_a_saisir(
+        str(employee.get("company_id") or "").strip(), employee, year, month
     )
-    planned_raw = sched.get("planned_calendar") or {}
-    actual_raw = sched.get("actual_hours") or {}
-    planned_days = (
-        planned_raw.get("calendrier_prevu", []) if isinstance(planned_raw, dict) else []
-    )
-    actual_days = (
-        actual_raw.get("calendrier_reel", []) if isinstance(actual_raw, dict) else []
-    )
-    forfait = _is_forfait_jour_flag(
-        employee.get("statut"), employee.get("is_forfait_jour")
-    )
-    return compute_row_status(planned_days, actual_days, year, month, forfait)
 
 
 def _check_calendar_guard(
     employee: dict[str, Any], cmd: GeneratePayslipInput
 ) -> dict[str, Any] | None:
-    """Garde « calendrier manquant/incomplet ».
+    """Garde « période à saisir incomplète ».
 
-    Refuse (422) si le mois est `a_saisir`, sauf override explicite
-    `force_calendrier_incomplet` — alors trace l'auteur et retourne le
-    warning à joindre à la réponse. Retourne None si le mois est complet.
+    Juge l'union du mois civil et de la fenêtre des variables — ce que lit le
+    moteur — via `charger_periode_a_saisir`. Refuse (422) si un jour de la
+    fenêtre manque, sauf `force_calendrier_incomplet` explicite (tracé, warning
+    en réponse). Des jours manquants hors fenêtre ne bloquent pas : ils seront
+    saisis pour le mois suivant, on le dit.
     """
-    row_status = _calendar_row_status(employee, cmd.year, cmd.month)
-    if row_status != "a_saisir":
-        return None
+    from app.modules.schedules.application.periode_a_saisir_service import resume_api
+    from app.modules.schedules.domain.periode_a_saisir import libelle_plages
+
+    periode = _periode_a_saisir(employee, cmd.year, cmd.month)
+    details = resume_api(periode)
+    debut, fin = periode.fenetre
+    if periode.statut != "a_saisir":
+        if not periode.informatifs:
+            return None
+        return {
+            "code": "jours_hors_fenetre",
+            "message": (
+                f"{len(periode.informatifs)} jour(s) hors de la fenêtre des variables "
+                f"({libelle_plages(j.jour for j in periode.informatifs)}) : ils seront "
+                "saisis pour le mois suivant."
+            ),
+            **details,
+        }
+    bloquants = [j.jour for j in periode.bloquants]
     message = (
-        f"Calendrier {cmd.month:02d}/{cmd.year} incomplet pour cet employé : "
-        "des heures planifiées ou réelles manquent. Complétez le calendrier "
-        "avant de générer, ou forcez explicitement la génération."
+        f"{cmd.month:02d}/{cmd.year} — {len(bloquants)} jour(s) à saisir dans la fenêtre "
+        f"des variables ({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)}. "
+        "Complétez le planning avant de générer, ou forcez explicitement la génération."
     )
     if not cmd.force_calendrier_incomplet:
-        raise PayslipCalendarIncompleteError(message)
+        raise PayslipCalendarIncompleteError(message, details)
     logger.warning(
-        "[generation] Calendrier %02d/%d incomplet pour l'employé %s : "
+        "[generation] Calendrier %02d/%d incomplet pour l'employé %s (%s) : "
         "génération FORCÉE par %s (%s).",
         cmd.month,
         cmd.year,
         cmd.employee_id,
+        libelle_plages(bloquants),
         cmd.requested_by or "inconnu",
         cmd.requested_by_name or "nom inconnu",
     )
     return {
         "code": "calendrier_incomplet_force",
         "message": (
-            f"Généré malgré un calendrier {cmd.month:02d}/{cmd.year} incomplet "
-            "(forçage explicite)."
+            f"Généré malgré {len(bloquants)} jour(s) non saisis "
+            f"({libelle_plages(bloquants)}) — forçage explicite."
         ),
+        **details,
     }
 
 
