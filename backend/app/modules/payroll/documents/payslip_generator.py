@@ -1208,7 +1208,7 @@ def process_payslip_generation(
             # sont rendus à l'appelant, qui chaîne lui-même ses mois.
             files_to_cleanup.append(employee_path / "bulletins" / f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf")
             from app.modules.payroll.engine.controles_convention import (
-                extraire_messages_alertes_rh,
+                avertissements_de_generation,
             )
 
             return {
@@ -1218,7 +1218,7 @@ def process_payslip_generation(
                 "payslip_id": None,
                 "payslip_data": payslip_json_data,
                 "cumuls": new_cumuls_json,
-                "warnings": extraire_messages_alertes_rh(payslip_json_data),
+                "warnings": avertissements_de_generation(payslip_json_data),
             }
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
@@ -1352,10 +1352,10 @@ def process_payslip_generation(
             )
 
         from app.modules.payroll.engine.controles_convention import (
-            extraire_messages_alertes_rh,
+            avertissements_de_generation,
         )
 
-        rh_warnings = extraire_messages_alertes_rh(final_payslip_data)
+        rh_warnings = avertissements_de_generation(final_payslip_data)
 
         return {
             "status": "success",

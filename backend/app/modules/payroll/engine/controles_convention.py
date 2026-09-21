@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.modules.collective_agreements.application.idcc_resolution import (
     resolve_minimum_for_classification,
@@ -41,14 +41,20 @@ def _alert(
     message: str,
     critique: bool = False,
     donnee_non_officielle: bool = False,
+    a_arbitrer: bool = False,
 ) -> Dict[str, Any]:
-    return {
+    alerte = {
         "code": code,
         "critique": critique,
         "severity": "warning" if critique else "info",
         "message": message,
         "donnee_non_officielle": donnee_non_officielle,
     }
+    if a_arbitrer:
+        # Point à arbitrer par la RH, pas un défaut du bulletin : la génération
+        # le remonte discrètement (severity « info »), hors du compte des alertes.
+        alerte["a_arbitrer"] = True
+    return alerte
 
 
 def _minimum_conventionnel_ajuste(contexte, minimum: float) -> float:
@@ -395,13 +401,11 @@ def controle_plafond_transport(
         _alert(
             code="transport_plafond_annuel_depasse",
             critique=False,
+            a_arbitrer=True,
             message=(
-                f"Indemnité trajet domicile-travail : cumul {_eur(cumul_annuel)} € "
-                f"versé en {annee}, pour un plafond d'exonération de "
-                f"{_eur(plafond)} € — soit {_eur(exces)} € au-delà du plafond. "
-                "Cette part excédentaire est normalement soumise à cotisations "
-                "et imposable. Le bulletin n'a pas été modifié : à arbitrer "
-                "côté paie."
+                f"Indemnité de transport : {_eur(cumul_annuel)} € versés en {annee} "
+                f"pour {_eur(plafond)} € exonérables, excédent {_eur(exces)} € "
+                "à arbitrer (bulletin inchangé)."
             ),
         )
     ]
@@ -501,9 +505,11 @@ def _brut_reference_net_depuis_bulletin(payslip_data: Dict[str, Any]) -> Optiona
     return round(total, 2)
 
 
-def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
-    """Messages d'alerte RH pour listes / génération (persistés + détection legacy)."""
-    messages: List[str] = []
+def avertissements_de_generation(payslip_data: Dict[str, Any]) -> List[Any]:
+    """Ce que la génération renvoie : les alertes en chaînes, comme avant, et les
+    points à arbitrer (`a_arbitrer`) en `{code, severity: "info", message}` pour
+    que le front les montre sans orange ni compte d'alerte."""
+    sortie: List[Any] = []
     seen: set[str] = set()
     for raw in payslip_data.get("alertes_baremes") or []:
         if not isinstance(raw, dict):
@@ -511,9 +517,29 @@ def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
         if str(raw.get("code") or "") in _ALERT_CODES_NON_ACTIONNABLES_LISTE:
             continue
         msg = _rh_alert_message(raw)
-        if msg and msg not in seen:
-            messages.append(msg)
-            seen.add(msg)
+        if not msg or msg in seen:
+            continue
+        seen.add(msg)
+        if raw.get("a_arbitrer"):
+            sortie.append({"code": str(raw.get("code") or ""), "severity": "info", "message": msg})
+        else:
+            sortie.append(msg)
+    for msg in _messages_alertes_hors_baremes(payslip_data, seen):
+        sortie.append(msg)
+    return sortie
+
+
+def extraire_messages_alertes_rh(payslip_data: Dict[str, Any]) -> List[str]:
+    """Messages d'alerte RH pour listes / génération (persistés + détection legacy)."""
+    return [
+        a if isinstance(a, str) else str(a.get("message") or "")
+        for a in avertissements_de_generation(payslip_data)
+    ]
+
+
+def _messages_alertes_hors_baremes(payslip_data: Dict[str, Any], seen: set[str]) -> List[str]:
+    """Alertes détectées hors `alertes_baremes` (legacy, maintien, net > brut)."""
+    messages: List[str] = []
 
     for raw in extraire_alertes_rh_depuis_bulletin(payslip_data):
         code = str(raw.get("code") or "")

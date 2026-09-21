@@ -105,6 +105,7 @@ def test_alerte_ne_modifie_pas_le_bulletin():
         "severity",
         "message",
         "donnee_non_officielle",
+        "a_arbitrer",  # point à arbitrer : la génération le montre discrètement
     }
 
 

@@ -72,3 +72,25 @@ class TestPayslipListMeta:
             }
         )
         assert meta["warnings"] == ["Alerte test"]
+
+
+
+def test_les_points_a_arbitrer_sont_a_part_des_alertes():
+    """La liste ne doit pas compter un point à arbitrer comme une alerte orange."""
+    meta = payslip_list_meta(
+        {
+            "net_a_payer": 100.0,
+            "alertes_baremes": [
+                {"code": "cc_classification_manquante", "critique": False, "message": "Classif."},
+                {"code": "transport_plafond_annuel_depasse", "critique": False, "a_arbitrer": True,
+                 "message": "Transport : 700,00 € versés."},
+            ],
+        }
+    )
+    assert meta["warnings"] == ["Classif."]
+    assert meta["points_a_arbitrer"] == ["Transport : 700,00 € versés."]
+
+
+def test_sans_point_a_arbitrer_la_liste_est_vide():
+    assert payslip_list_meta({"net_a_payer": 1.0})["points_a_arbitrer"] == []
+    assert payslip_list_meta("rien")["points_a_arbitrer"] == []
