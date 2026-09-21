@@ -300,17 +300,8 @@ d'Alexandre : la page est partagée).
    (Bruts 9 707,67 moins l'ICCP = 8 767,44, la nôtre), ni le maintien sur ses
    compteurs (3,78 + 2,08 + juillet − 1 pris ≈ 7 jours × 98,48 ≈ 690 €). La
    précarité, elle, est identique (797,04), donc le brut du contrat aussi.
-   Décomposition exacte trouvée le 21/09 : sa base = 6 197,76 (cumul fin juin)
-   + 2 133,73 (juillet reconstitué en mois complet : 151,67 h + 17,33 h HS)
-   + 273,77 (solde CP N-1 de 2,78 j × 98,48, valorisé au maintien) + 797,04
-   (précarité) = 9 402,30 → 940,23 au centime. Soit +36,11 pour le mois complet
-   et +27,38 pour le solde N-1 compté dans l'assiette. Seule combinaison qui
-   tombe juste parmi dix variantes testées (mois réel, solde N, solde total,
-   N-1 avant le jour pris, jour de CP non déduit…). Lecture : paramétrage
-   Quadra du dixième sur « salaire rétabli » du mois de sortie, l'indemnité du
-   solde N-1 entrant dans la base N comme si elle avait été payée en salaire.
-   Unique fin de CDD de 2026 chez Colorplast, donc pas de second cas pour
-   confirmer : le lui faire dire. Nous restons au 1/10 du brut réellement versé.
+   Tranché le 21/09 avec son Excel : sa base mensuelle était fausse, le 940,23
+   aussi ; nous appliquons la règle légale par période (§9), 766,39. Lui dire.
 4 bis. **Semaine courte non compensée : retenue ou pas ?** Hugo Fuckar,
    juillet, données corrigées le 21/09 sur le test (10/07 journée travaillée
    de 7 h, 15/07 absence complète, 16/07 8,5 h comme Gaëlle l'a lu — Alexandre
@@ -329,6 +320,9 @@ d'Alexandre : la page est partagée).
    dessus si c'est le cas).
 
 ### 4. Défauts connus non traités
+
+- ~~Indemnité de CP de fin de CDD : retrancher les congés déjà payés~~ — fait
+  le 21/09, voir §9 (calcul par période sur les jours restants).
 
 - **Aucune cascade** après régénération d'un mois : le générateur n'écrit que le mois
   demandé. L'invariant de bascule protège le passé, pas les mois postérieurs.
@@ -666,34 +660,34 @@ ne sert qu'aux bulletins sans bloc cumuls (mois importés à la reprise) ;
 tests `tests/unit/payroll/test_payslip_editor_cumuls.py`. En attendant le
 déploiement, régénérer une seconde fois donne un PDF juste (la base a rattrapé).
 
-### 9. Indemnité de CP de fin de CDD : méthode au choix (21/09) — construite, non commitée
+### 9. Indemnité de CP de fin de contrat : la règle légale, par période (21/09)
 
-Décision d'Alexandre : régler côté moteur l'écart de Demory (§3 question 4)
-par un réglage société nommé, la règle par défaut restant la règle légale.
-Spec `docs/superpowers/specs/2026-09-21-indemnite-cp-fin-cdd-methode-design.md`,
-plan `docs/superpowers/plans/2026-09-21-indemnite-cp-fin-cdd-methode.md`.
+Le matin, une option société « salaire rétabli, congés N-1 inclus » avait été
+construite pour retomber sur les 940,23 de Demory ; sa décomposition tombait
+au centime par coïncidence. L'Excel de Gaëlle (reçu l'après-midi) a montré une
+base mensuelle fausse : le 940,23 est une erreur de sa part. L'option est
+retirée (code, réglage, carte, docs) et de Colorplast sur le test.
 
-- **Réglage** `companies.settings.indemnite_cp_fin_cdd` : `remuneration_versee`
-  (défaut) ou `salaire_retabli_solde_n1`. Carte « Indemnité de congés payés de
-  fin de CDD » dans Société → Paie → « Jours fériés & congés », deux méthodes
-  au choix : « Rémunération réellement versée » / « Salaire rétabli du mois de
-  sortie, congés N-1 inclus ». Une valeur inconnue est refusée par le PATCH.
-- **Moteur** : `engine/iccp_fin_cdd.py` (pur) ; `calcul_brut._calculer_iccp_cdd`
-  remplace le sous-total contractuel du dernier mois par celui du mois plein,
-  garde les autres éléments du mois, ajoute le solde N-1 × valeur du jour au
-  maintien ; `payslip_run_heures` lit ce solde (requête du pied de page)
-  seulement quand la méthode est active et que c'est le dernier mois d'un CDD ;
-  générateur : `parametres_paie.indemnite_cp_fin_cdd`. Intérim non concerné.
-- **Bulletin** : note avant le brut avec les briques et le résultat,
-  `payslip_data.indemnite_cp_fin_cdd` pour le rapprochement.
-- **Recette en bac à sable (rien d'écrit)** : Demory juillet, méthode forcée →
-  indemnité 940,23, brut 3 509,91, net imposable 2 679,30, net social 2 785,59,
-  Quadra au centime ; méthode par défaut → 876,74 inchangé. Un seul cas de
-  fin de CDD en 2026 : la mention sur le bulletin fait voir la formule.
-- **État** : commité le 21/09 (8ea71728 backend, 3a84da41 front, 1d062715
-  docs) et déployé sur le test ; la méthode « salaire rétabli, congés N-1
-  inclus » est posée pour Colorplast en base test, à la demande d'Alexandre.
-  Prod : ni code ni réglage.
+À la place, la règle légale, qui est aussi la deuxième formule de Gaëlle :
+pour chaque période de référence, le plus favorable du dixième (10 % de la
+rémunération brute de la période, précarité comprise, × restants/droits) et
+du maintien (restants × valeur du jour). Les jours déjà pris ne sont pas
+repayés. Spec `docs/superpowers/specs/2026-09-21-indemnite-cp-fin-de-contrat-legale-design.md`,
+plan `…/plans/2026-09-21-indemnite-cp-fin-de-contrat-legale.md`.
+
+- Pur : `engine/iccp_fin_contrat.py` (13 tests). Moteur :
+  `calcul_brut._calculer_iccp_cdd` calcule par période quand le run a posé
+  `contexte.cp_fin_de_contrat`, sinon repli sur le dixième global (détail
+  `methode: dixieme_global`). Run : `cp_fin_de_contrat` au dernier mois d'un
+  CDD ou d'une mission — compteurs du pied de page (droits = pris + solde, pas
+  `acquis`), rémunération de la période précédente lue dans les cumuls du
+  dernier mois de cette période (mai : 4 171,35), sinon somme des bulletins,
+  sinon maintien seul. Bulletin : note par période, `payslip_data.indemnite_cp_fin_contrat`.
+- Recette Demory : 2025-2026, 2,78 j sur 3,78 → dixième 306,78 (maintien
+  273,77) ; 2026-2027, 4,16 j → 459,61 (maintien 409,68) ; total 766,39 contre
+  876,74 (dixième de tout, le jour du 13/07 repayé) et 940,23 chez Gaëlle.
+- Reste : l'acquisition du mois de sortie (nos compteurs 4,16 j pour N, Gaëlle
+  1,66 pour juillet) est une question des compteurs, pas de l'indemnité.
 
 ### 10. Les points à arbitrer ne sont plus des alertes orange (21/09)
 
