@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
 import calendar
+import re
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
@@ -259,31 +260,129 @@ def _preparer_calendrier_enrichi(
 logger = logging.getLogger(__name__)
 
 
-def solde_cp_n_1_pour_l_indemnite_de_fin_de_cdd(
-    contexte, employee_id: str | None, year: int, month: int
-) -> float:
-    """Le solde de congés N-1 restant à la fin du mois, seulement quand il sert :
-    dernier mois d'un CDD d'une société qui a choisi la méthode « salaire
-    rétabli, congés N-1 inclus ». Sinon 0, et aucune requête."""
-    from app.modules.payroll.engine.iccp_fin_cdd import (
-        METHODE_SALAIRE_RETABLI,
-        methode_depuis_parametres,
-    )
+def _libelle_periode(periode: object) -> str | None:
+    """« 01/06/2026 – 31/05/2027 » → « 2026-2027 »."""
+    annees = re.findall(r"(\d{4})", str(periode or ""))
+    if len(annees) >= 2:
+        return f"{annees[0]}-{annees[1]}"
+    return annees[0] if annees else None
 
-    if not employee_id or methode_depuis_parametres(contexte.entreprise) != METHODE_SALAIRE_RETABLI:
-        return 0.0
-    dernier_jour = date(year, month, calendar.monthrange(year, month)[1])
-    if not (contexte.is_cdd and contexte.est_dernier_mois_cdd(date(year, month, 1), dernier_jour)):
-        return 0.0
+
+def periodes_depuis_compteurs(
+    compteurs: dict | None,
+    *,
+    brut_periode_precedente: float | None,
+    brut_en_cours_avant_mois: float,
+) -> dict | None:
+    """Met en forme, pour calcul_brut, les compteurs du pied de page et la
+    rémunération des périodes de référence.
+
+    Les droits d'une période sont « pris + solde » : le champ `acquis` ne suit
+    pas une reprise de compteurs (Demory : 7,0 pour un solde de 2,78)."""
+    if not isinstance(compteurs, dict) or not compteurs:
+        return None
+    sortie: dict = {}
+    precedente = compteurs.get("conges_payes_periode_precedente")
+    if isinstance(precedente, dict):
+        pris = float(precedente.get("pris") or 0.0)
+        solde = float(precedente.get("solde") or 0.0)
+        sortie["periode_precedente"] = {
+            "libelle": _libelle_periode(precedente.get("periode")) or "période précédente",
+            "brut": None if brut_periode_precedente is None else round(float(brut_periode_precedente), 2),
+            "droits": round(pris + solde, 2),
+            "restants": round(solde, 2),
+        }
+    en_cours = compteurs.get("conges_payes")
+    if isinstance(en_cours, dict):
+        pris = float(en_cours.get("pris") or 0.0)
+        solde = float(en_cours.get("solde") or 0.0)
+        sortie["periode_en_cours"] = {
+            "libelle": _libelle_periode(en_cours.get("periode")) or "période en cours",
+            "brut_avant_mois": round(float(brut_en_cours_avant_mois or 0.0), 2),
+            "droits": round(pris + solde, 2),
+            "restants": round(solde, 2),
+        }
+    return sortie or None
+
+
+def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> float | None:
+    """La rémunération brute de la période de référence précédente : le
+    `brut_reference_n_1` des cumuls du dernier mois de cette période ; à défaut
+    la somme des bruts des bulletins de la période ; sinon inconnue."""
+    from app.core.database import supabase
+
+    nested = (cumuls or {}).get("cumuls", cumuls) if isinstance(cumuls, dict) else {}
+    debut_txt = (nested or {}).get("brut_reference_period_start")
+    try:
+        debut = date.fromisoformat(str(debut_txt))
+    except (TypeError, ValueError):
+        return None
+    fin_precedente = debut - timedelta(days=1)
+    debut_precedente = date(debut.year - 1, debut.month, debut.day)
+    try:
+        rows = (
+            supabase.table("employee_schedules")
+            .select("cumuls")
+            .match({"employee_id": employee_id, "year": fin_precedente.year, "month": fin_precedente.month})
+            .execute()
+            .data
+        ) or []
+        if rows:
+            c = ((rows[0].get("cumuls") or {}).get("cumuls")) or {}
+            fin_txt = str(c.get("brut_reference_period_end") or "")
+            valeur = c.get("brut_reference_n_1")
+            if valeur is not None and fin_txt and date.fromisoformat(fin_txt) <= fin_precedente:
+                return round(float(valeur), 2)
+        bulletins = (
+            supabase.table("payslips")
+            .select("year, month, payslip_data")
+            .eq("employee_id", employee_id)
+            .gte("year", debut_precedente.year)
+            .lte("year", fin_precedente.year)
+            .execute()
+            .data
+        ) or []
+        total = 0.0
+        trouve = False
+        for b in bulletins:
+            mois = date(int(b["year"]), int(b["month"]), 1)
+            if debut_precedente.replace(day=1) <= mois <= fin_precedente.replace(day=1):
+                brut = (b.get("payslip_data") or {}).get("salaire_brut")
+                if isinstance(brut, (int, float)):
+                    total += float(brut)
+                    trouve = True
+        return round(total, 2) if trouve else None
+    except Exception as exc:  # noqa: BLE001 — la période se réglera au maintien seul
+        logger.warning("Rémunération de la période de congés précédente indisponible : %s", exc)
+        return None
+
+
+def cp_fin_de_contrat(contexte, employee_id: str | None, year: int, month: int) -> dict | None:
+    """Au dernier mois d'un CDD ou d'une mission : les compteurs de congés du
+    pied de page et la rémunération des périodes, pour l'indemnité de fin de
+    contrat (calcul_brut). Sinon None, et aucune requête."""
+    if not employee_id:
+        return None
+    premier = date(year, month, 1)
+    dernier = date(year, month, calendar.monthrange(year, month)[1])
+    fin_cdd = bool(contexte.is_cdd) and contexte.est_dernier_mois_cdd(premier, dernier)
+    fin_mission = bool(getattr(contexte, "is_interim", False)) and contexte.est_dernier_mois_mission(premier, dernier)
+    if not (fin_cdd or fin_mission):
+        return None
     try:
         from app.modules.absences.application.queries import get_absence_balances_for_payslip
 
-        soldes = get_absence_balances_for_payslip(employee_id, year, month) or {}
-        precedente = soldes.get("conges_payes_periode_precedente") or {}
-        return float(precedente.get("solde") or 0.0)
-    except Exception as exc:  # noqa: BLE001 — le bulletin sort, sans la brique N-1
-        logger.warning("Solde CP N-1 indisponible pour l'indemnité de fin de CDD : %s", exc)
-        return 0.0
+        compteurs = get_absence_balances_for_payslip(employee_id, year, month)
+    except Exception as exc:  # noqa: BLE001 — repli : dixième global, dit dans le détail
+        logger.warning("Compteurs de congés indisponibles pour l'indemnité de fin de contrat : %s", exc)
+        return None
+    from app.modules.payroll.engine.reference_remuneration import lire_brut_reference_depuis_cumuls
+
+    return periodes_depuis_compteurs(
+        compteurs,
+        brut_periode_precedente=_brut_de_la_periode_precedente(employee_id, contexte.cumuls),
+        brut_en_cours_avant_mois=lire_brut_reference_depuis_cumuls(contexte.cumuls),
+    )
 
 
 def run_payslip_generation_heures(
@@ -357,12 +456,9 @@ def run_payslip_generation_heures(
     # Résumé de la compensation entre semaines (option société), pour la
     # mention du bulletin et payslip_data.
     contexte.compensation_semaines = saisie_du_mois.get("compensation_semaines") or None
-    # Méthode société « salaire rétabli, congés N-1 inclus » : l'assiette de
-    # l'indemnité de CP de fin de CDD a besoin du solde N-1 à la fin du mois,
-    # celui du pied de page.
-    contexte.solde_cp_n_1_fin_de_mois = solde_cp_n_1_pour_l_indemnite_de_fin_de_cdd(
-        contexte, employee_id, year, month
-    )
+    # Indemnité de CP de fin de contrat : compteurs et rémunérations des
+    # périodes de référence, seulement au dernier mois d'un CDD ou d'une mission.
+    contexte.cp_fin_de_contrat = cp_fin_de_contrat(contexte, employee_id, year, month)
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
         # dernier jour travaillé en toute fin de M-1 appartient au bulletin

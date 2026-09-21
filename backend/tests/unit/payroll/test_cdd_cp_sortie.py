@@ -136,72 +136,58 @@ def test_indemnites_soumises_du_dossier_dans_le_brut_pour_un_cdi():
     assert res["salaire_brut_total"] == pytest.approx(2200.0 + 2200.0 + 640.5, abs=0.05)
 
 
-# --- Méthode société « salaire rétabli du mois de sortie, congés N-1 inclus » ---
-# Spec 2026-09-21-indemnite-cp-fin-cdd-methode-design.md. Recette : Demory, juillet 2026.
+# --- Règle légale par période (spec 2026-09-21-indemnite-cp-fin-de-contrat-legale) ---
 
 
 def _contexte_demory():
-    return build_test_contexte(
+    ctx = build_test_contexte(
         salaire_base=1867.06,  # 151,67 h × 12,31 ; les 17,33 h structurelles s'ajoutent à 39 h
         duree_hebdo=39.0,
         type_contrat="CDD",
         date_entree="2026-03-23",
         date_fin_contrat="2026-07-24",
-        cumuls={"brut_total": 6197.76},
+        cumuls={"brut_total": 6197.76, "brut_reference_n_1": 2026.41},
         specificites_extra={"salaire_hors_hs_structurelles": True},
     )
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2025-2026", "brut": 4171.35, "droits": 3.78, "restants": 2.78},
+        "periode_en_cours": {"libelle": "2026-2027", "brut_avant_mois": 2026.41, "droits": 4.16, "restants": 4.16},
+    }
+    return ctx
 
 
-def test_methode_salaire_retabli_redonne_quadra_sur_demory():
+def test_indemnite_par_periode_redonne_766_39_sur_demory():
     ctx = _contexte_demory()
-    ctx.entreprise.setdefault("parametres_paie", {})["indemnite_cp_fin_cdd"] = (
-        "salaire_retabli_solde_n1"
-    )
-    ctx.solde_cp_n_1_fin_de_mois = 2.78
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     gains = _lignes_gain(res)
     iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
-
-    # Le mois de sortie payé sur 18 jours ouvrés : 126 h + 14,4 h = 1 772,64 ;
-    # précarité 797,04 ; assiette 6 197,76 + 2 133,73 + 797,04 + 273,77 = 9 402,30.
+    # juillet payé sur 18 jours ouvrés : 1 772,64 ; précarité 797,04 ;
+    # période en cours = 2 026,41 + 1 772,64 + 797,04 = 4 596,09 → 459,61 ; précédente 306,78.
     assert gains["Prime de précarité (CDD)"] == pytest.approx(797.04, abs=0.01)
-    assert iccp == pytest.approx(940.23, abs=0.01)
-    detail = ctx.detail_iccp_fin_cdd
-    assert detail["methode"] == "salaire_retabli_solde_n1"
-    assert detail["salaire_retabli"] == pytest.approx(2133.73)
-    assert detail["solde_n1_valorise"] == pytest.approx(273.77)
-    assert detail["assiette"] == pytest.approx(9402.30)
-    assert "= 9 402,30 × 10 % = 940,23." in detail["mention"]
+    assert iccp == pytest.approx(766.39, abs=0.01)
+    detail = ctx.detail_iccp_fin_contrat
+    assert detail["methode"] == "par_periode"
+    assert [p["retenu"] for p in detail["periodes"]] == pytest.approx([306.78, 459.61], abs=0.01)
+    assert detail["periodes"][1]["brut"] == pytest.approx(4596.09, abs=0.01)
+    assert "Total 766,39." in detail["mention"]
 
 
-def test_methode_par_defaut_inchangee_et_sans_detail():
+def test_sans_compteurs_le_dixieme_global_reste_et_le_detail_le_dit():
     ctx = _contexte_demory()
-    ctx.solde_cp_n_1_fin_de_mois = 2.78  # ignoré : la méthode n'est pas choisie
+    del ctx.cp_fin_de_contrat
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     gains = _lignes_gain(res)
     iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
     assert iccp == pytest.approx(876.74, abs=0.01)
-    assert getattr(ctx, "detail_iccp_fin_cdd", None) is None
+    assert ctx.detail_iccp_fin_contrat["methode"] == "dixieme_global"
+    assert "mention" not in ctx.detail_iccp_fin_contrat
 
 
-def test_methode_choisie_sans_solde_n1_ni_retablissement_utile():
-    """Sortie le dernier jour du mois, pas de solde N-1 : l'assiette rétablie
-    vaut l'assiette réelle, le montant ne bouge pas, le détail dit pourquoi."""
-    ctx = build_test_contexte(
-        salaire_base=1867.06,
-        duree_hebdo=39.0,
-        type_contrat="CDD",
-        date_entree="2026-03-23",
-        date_fin_contrat="2026-07-31",
-        cumuls={"brut_total": 6197.76},
-        specificites_extra={"salaire_hors_hs_structurelles": True},
-    )
-    ctx.entreprise.setdefault("parametres_paie", {})["indemnite_cp_fin_cdd"] = (
-        "salaire_retabli_solde_n1"
-    )
+def test_sans_jour_restant_pas_de_ligne():
+    ctx = _contexte_demory()
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2025-2026", "brut": 4171.35, "droits": 3.78, "restants": 0.0},
+        "periode_en_cours": {"libelle": "2026-2027", "brut_avant_mois": 2026.41, "droits": 4.16, "restants": 0.0},
+    }
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
-    gains = _lignes_gain(res)
-    iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
-    precarite = gains["Prime de précarité (CDD)"]
-    assert iccp == pytest.approx(round(0.1 * (6197.76 + 2133.73 + precarite), 2), abs=0.01)
-    assert ctx.detail_iccp_fin_cdd["solde_n1_valorise"] == 0.0
+    assert not any("compensatrice de congés" in k for k in _lignes_gain(res))

@@ -434,9 +434,9 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     compensation = bulletin.get("compensation_semaines") or {}
     if isinstance(compensation, dict) and compensation.get("mention"):
         lignes.append(_ligne("note", str(compensation["mention"])))
-    fin_cdd = bulletin.get("indemnite_cp_fin_cdd") or {}
-    if isinstance(fin_cdd, dict) and fin_cdd.get("mention"):
-        lignes.append(_ligne("note", str(fin_cdd["mention"])))
+    fin_contrat = bulletin.get("indemnite_cp_fin_contrat") or {}
+    if isinstance(fin_contrat, dict) and fin_contrat.get("mention"):
+        lignes.append(_ligne("note", str(fin_contrat["mention"])))
 
     lignes.append(
         _ligne("total", "SALAIRE BRUT", montant_salarial=bulletin.get("salaire_brut"))

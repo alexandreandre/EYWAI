@@ -5,7 +5,7 @@ Définitions canoniques : settings, CRUD entreprise (create/update).
 Comportement identique aux anciennes définitions (api/routers/company, api/routers/super_admin).
 """
 
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -41,16 +41,6 @@ class CompanySettingsUpdate(BaseModel):
             "heures supplémentaires des autres semaines de la fenêtre de paie, sans retenue. "
             "Choix explicite de l'entreprise ; la règle légale reste hebdomadaire."
         ),
-    )
-    indemnite_cp_fin_cdd: Optional[Literal["remuneration_versee", "salaire_retabli_solde_n1"]] = (
-        Field(
-            None,
-            description=(
-                "Méthode de l'indemnité de congés payés de fin de CDD : dixième de la "
-                "rémunération réellement versée (défaut), ou salaire rétabli du mois de "
-                "sortie avec le solde de congés N-1 valorisé au maintien."
-            ),
-        )
     )
     model_config = {"extra": "allow"}
 
