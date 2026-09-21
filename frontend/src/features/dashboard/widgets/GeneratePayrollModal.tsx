@@ -173,8 +173,14 @@ export function GeneratePayrollModal({
   };
 
   const handleVerifyAnomaly = (path: string) => {
-    handleClose();
-    onNavigateTo?.(path);
+    // Quitter la route suffit : onClose() ferait « retour arrière » sur la
+    // page hôte et annulerait la navigation (bug du 21/09).
+    generation.dismiss();
+    if (onNavigateTo) {
+      onNavigateTo(path);
+      return;
+    }
+    onClose();
   };
 
   const startGeneration = () => {
@@ -219,8 +225,10 @@ export function GeneratePayrollModal({
   const handleTermineeSucces = () => {
     generation.dismiss();
     if (onNavigateTo && selectedMonth) {
+      // Pas de onClose() après la navigation : la page hôte le traduit en
+      // « retour arrière », ce qui ramenait sur la modale au lieu des
+      // bulletins (retour Alexandre 21/09).
       onNavigateTo(`/payroll?view=month&month=${selectedMonth}`);
-      onClose();
       return;
     }
     onClose();

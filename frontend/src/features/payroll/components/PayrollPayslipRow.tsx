@@ -215,6 +215,9 @@ export function PayrollPayslipRow({
           <span className="text-muted-foreground">{state.errorMessage}</span>
         ) : firstOtherWarning ? (
           <span className="text-amber-700 dark:text-amber-400">{firstOtherWarning}</span>
+        ) : state.status === 'success' && pointsAArbitrer.length > 0 ? (
+          // Point à arbitrer : lisible sans survol, en gris, une ligne.
+          <span className="text-muted-foreground">{pointsAArbitrer[0]}</span>
         ) : undefined
       }
       meta={meta}
