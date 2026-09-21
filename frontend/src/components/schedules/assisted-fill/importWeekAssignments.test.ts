@@ -32,3 +32,22 @@ describe('importWeekAssignments', () => {
     expect(duplicateWeekLabels(files, { 'a.pdf': '2026-07-06' }, options)).toEqual([]);
   });
 });
+
+describe('weeksOutsideWindow', () => {
+  it('rend, une fois chacune, les semaines choisies qui sortent de la fenêtre du mois', async () => {
+    const { weeksOutsideWindow } = await import('./importWeekAssignments');
+    const options = [
+      { value: '2026-07-20', week: 30, horsFenetre: false },
+      { value: '2026-07-27', week: 31, horsFenetre: true, paieDe: { year: 2026, month: 8 } },
+    ];
+    const files = [{ name: 'a.pdf' }, { name: 'b.pdf' }, { name: 'c.pdf' }];
+
+    const hors = weeksOutsideWindow(
+      files,
+      { 'a.pdf': '2026-07-20', 'b.pdf': '2026-07-27', 'c.pdf': '2026-07-27' },
+      options,
+    );
+
+    expect(hors.map((o) => o.week)).toEqual([31]);
+  });
+});

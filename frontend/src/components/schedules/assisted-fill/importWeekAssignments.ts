@@ -33,3 +33,11 @@ export function duplicateWeekLabels(
   }
   return options.filter((o) => (count.get(o.value) ?? 0) > 1).map((o) => `S${o.week}`);
 }
+
+/** Les semaines choisies qui appartiennent à la paie d'un autre mois, une fois chacune. */
+export function weeksOutsideWindow<
+  T extends { value: string; week: number; horsFenetre?: boolean },
+>(files: { name: string }[], weekByFile: WeekByFile, options: T[]): T[] {
+  const choisies = new Set(files.map((f) => weekByFile[f.name]).filter(Boolean));
+  return options.filter((o) => o.horsFenetre && choisies.has(o.value));
+}

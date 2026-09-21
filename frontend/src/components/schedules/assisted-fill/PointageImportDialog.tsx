@@ -40,9 +40,11 @@ import {
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
 import { aiFillErrorMessage } from './aiFillUtils';
-import { monthIsoWeekOptions } from './importWeekOptions';
+import { usePeriodeVariables } from '@/features/payroll/hooks/usePeriodeVariables';
+import { libellePaieDe, payrollWeekOptions } from './importWeekOptions';
 import {
   duplicateWeekLabels,
+  weeksOutsideWindow,
   filesMissingWeek,
   weeksAlignedWithFiles,
   type WeekByFile,
@@ -242,9 +244,19 @@ export function PointageImportDialog({
   );
 
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
-  const weekOptions = useMemo(() => monthIsoWeekOptions(year, month), [year, month]);
+  // La fenêtre des variables du mois cible : les semaines proposées la couvrent
+  // et celles qui en sortent sont nommées « → paie d'août ».
+  const { data: fenetre } = usePeriodeVariables(year, month, open);
+  const weekOptions = useMemo(
+    () => payrollWeekOptions(year, month, fenetre),
+    [year, month, fenetre],
+  );
   const duplicateWeeks = useMemo(
     () => duplicateWeekLabels(files, weekByFile, weekOptions),
+    [files, weekByFile, weekOptions],
+  );
+  const horsFenetre = useMemo(
+    () => weeksOutsideWindow(files, weekByFile, weekOptions),
     [files, weekByFile, weekOptions],
   );
   const targetName =
@@ -724,6 +736,14 @@ export function PointageImportDialog({
               <p className="text-[11px] text-amber-700">
                 {duplicateWeeks.join(', ')} attribuée{duplicateWeeks.length > 1 ? 's' : ''} à
                 plusieurs fichiers : le dernier écrasera le premier sur les jours communs.
+              </p>
+            )}
+            {horsFenetre.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                {horsFenetre
+                  .map((o) => `S${o.week} → paie ${o.paieDe ? libellePaieDe(o.paieDe.month) : 'd\'un autre mois'}`)
+                  .join(', ')}{' '}
+                : hors de la fenêtre de {periodLabel}, les jours seront enregistrés à leur date.
               </p>
             )}
 
