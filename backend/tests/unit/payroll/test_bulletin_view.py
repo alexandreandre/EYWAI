@@ -807,3 +807,27 @@ class TestNoteCompensationSemaines:
         bulletin["compensation_semaines"] = {"mention": "Heures compensées entre semaines."}
         lignes = construire_vue_bulletin(bulletin)["lignes"]
         assert len([l for l in lignes if l["type"] == "note"]) == 2
+
+
+class TestNoteIndemniteCpFinCdd:
+    """La méthode société de l'indemnité de CP de fin de CDD se lit sur le bulletin."""
+
+    def test_la_mention_apparait_en_ligne_de_note_avant_le_brut(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["indemnite_cp_fin_cdd"] = {
+            "methode": "salaire_retabli_solde_n1",
+            "assiette": 9402.30,
+            "montant": 940.23,
+            "mention": "Indemnité de congés payés de fin de CDD (méthode société : salaire "
+            "rétabli du mois de sortie, congés N-1 inclus) : … = 9 402,30 × 10 % = 940,23.",
+        }
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        note = next(l for l in lignes if l["type"] == "note")
+        assert "fin de CDD" in note["libelle"]
+        libelles = [l["libelle"] for l in lignes]
+        assert libelles.index(note["libelle"]) < libelles.index("SALAIRE BRUT")
+
+    def test_sans_mention_pas_de_note(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["indemnite_cp_fin_cdd"] = None
+        assert not [l for l in construire_vue_bulletin(bulletin)["lignes"] if l["type"] == "note"]

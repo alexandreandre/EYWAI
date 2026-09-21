@@ -291,6 +291,13 @@ def _compensation_semaines_du_bulletin(contexte: ContextePaie) -> Optional[Dict[
     )
 
 
+def detail_indemnite_cp_fin_cdd(contexte) -> Optional[Dict[str, Any]]:
+    """Le détail de l'indemnité de CP de fin de CDD quand la méthode société
+    « salaire rétabli, congés N-1 inclus » a joué (calcul_brut le dépose sur le contexte)."""
+    detail = getattr(contexte, "detail_iccp_fin_cdd", None)
+    return detail if isinstance(detail, dict) else None
+
+
 def creer_bulletin_final(
     contexte: ContextePaie,
     salaire_brut: float,
@@ -646,6 +653,8 @@ def creer_bulletin_final(
         # Option société « compensation des heures entre semaines » : détail
         # (semaines, écarts, nets) et mention, quand elle a joué.
         "compensation_semaines": _compensation_semaines_du_bulletin(contexte),
+        # Méthode société de l'indemnité de CP de fin de CDD : briques et mention.
+        "indemnite_cp_fin_cdd": detail_indemnite_cp_fin_cdd(contexte),
         "salaire_brut": salaire_brut,
         "parametres": {
             "smic_horaire": contexte.smic_horaire,

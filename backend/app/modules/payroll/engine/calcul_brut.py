@@ -5,6 +5,13 @@ from . import legal_constants as lc
 from datetime import date, timedelta
 from typing import Dict, Any, List, Optional
 from .calcul_conges import calculer_indemnite_conges
+from .iccp_fin_cdd import (
+    METHODE_SALAIRE_RETABLI,
+    assiette_salaire_retabli,
+    salaire_retabli_du_mois,
+    valeur_jour_maintien,
+)
+from .iccp_fin_cdd import methode_depuis_parametres as methode_iccp_fin_cdd
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
@@ -339,12 +346,28 @@ def _calculer_ifm_interim(
     }
 
 
+def _sous_total_contractuel_du_mois(lignes: List[Dict[str, Any]] | None) -> float:
+    """La part contractuelle réellement payée ce mois : la ligne de sous-total,
+    sinon la ligne de salaire de base (contrat sans HS structurelles)."""
+    for ligne in lignes or []:
+        if ligne.get("is_sous_total") and "CONTRACTUEL" in str(ligne.get("libelle", "")).upper():
+            return float(ligne.get("gain") or 0.0)
+    for ligne in lignes or []:
+        if str(ligne.get("libelle", "")).lower().startswith("salaire de base"):
+            return float(ligne.get("gain") or 0.0)
+    return 0.0
+
+
 def _calculer_iccp_cdd(
     contexte: ContextePaie,
     salaire_brut_hors_precarite: float,
     montant_precarite: float,
     date_debut_periode: date,
     date_fin_periode: date,
+    *,
+    lignes_brut: List[Dict[str, Any]] | None = None,
+    taux_horaire_base: float | None = None,
+    majoration_hs25: float | None = None,
 ) -> Dict[str, Any] | None:
     """Indemnité compensatrice de congés payés (dernier mois), méthode du 1/10e.
 
@@ -352,6 +375,13 @@ def _calculer_iccp_cdd(
     rémunération brute totale du contrat, prime de précarité / IFM comprise.
     Taux dans payroll_config.cdd.indemnite_conges (ou interim.indemnite_conges),
     défaut 0,10. Désactivable par flag specificites_paie.cdd_sans_iccp.
+
+    Méthode société « salaire rétabli du mois de sortie, congés N-1 inclus »
+    (`entreprise.parametres_paie.indemnite_cp_fin_cdd`, CDD seulement) : le
+    sous-total contractuel du dernier mois est remplacé par celui du mois
+    plein et le solde de congés N-1 (`contexte.solde_cp_n_1_fin_de_mois`) est
+    valorisé au maintien — cf. engine/iccp_fin_cdd. Le détail est déposé sur
+    `contexte.detail_iccp_fin_cdd` pour la mention du bulletin.
     """
     is_cdd_fin = contexte.is_cdd and contexte.est_dernier_mois_cdd(
         date_debut_periode, date_fin_periode
@@ -389,14 +419,34 @@ def _calculer_iccp_cdd(
         if isinstance(contexte.cumuls, dict)
         else {}
     )
-    base = (
-        float(cumuls.get("brut_total", 0.0))
-        + salaire_brut_hors_precarite
-        + max(montant_precarite, 0.0)
-    )
+    cumul_brut_contrat = float(cumuls.get("brut_total", 0.0))
+    base = cumul_brut_contrat + salaire_brut_hors_precarite + max(montant_precarite, 0.0)
+    assiette_retablie = None
+    if (
+        is_cdd_fin
+        and methode_iccp_fin_cdd(contexte.entreprise) == METHODE_SALAIRE_RETABLI
+        and taux_horaire_base
+    ):
+        majoration = float(majoration_hs25 or 0.0)
+        assiette_retablie = assiette_salaire_retabli(
+            cumul_brut_contrat=cumul_brut_contrat,
+            brut_du_mois=salaire_brut_hors_precarite,
+            sous_total_contractuel_reel=_sous_total_contractuel_du_mois(lignes_brut),
+            salaire_retabli=salaire_retabli_du_mois(
+                taux_horaire_base, contexte.duree_hebdo_contrat, majoration
+            ),
+            precarite=montant_precarite,
+            solde_n1_jours=float(getattr(contexte, "solde_cp_n_1_fin_de_mois", 0.0) or 0.0),
+            valeur_jour=valeur_jour_maintien(
+                taux_horaire_base, contexte.duree_hebdo_contrat, majoration
+            ),
+        )
+        base = assiette_retablie.total
     montant = round(base * taux, 2)
     if montant <= 0:
         return None
+    if assiette_retablie is not None:
+        contexte.detail_iccp_fin_cdd = assiette_retablie.resume(taux=taux, montant=montant)
 
     libelle_iccp = (
         "Indemnité compensatrice de congés payés (intérim)"
@@ -1605,6 +1655,9 @@ def calculer_salaire_brut(
         montant_indemnite_fin,
         date_debut_periode,
         date_fin_periode,
+        lignes_brut=lignes_composants_brut,
+        taux_horaire_base=taux_horaire_de_base,
+        majoration_hs25=majoration_hs25,
     )
     if ligne_iccp:
         lignes_composants_brut.append(ligne_iccp)

@@ -256,6 +256,35 @@ def _preparer_calendrier_enrichi(
         calendrier_final_mois.append(jour_final)
     return calendrier_final_mois
 
+logger = logging.getLogger(__name__)
+
+
+def solde_cp_n_1_pour_l_indemnite_de_fin_de_cdd(
+    contexte, employee_id: str | None, year: int, month: int
+) -> float:
+    """Le solde de congés N-1 restant à la fin du mois, seulement quand il sert :
+    dernier mois d'un CDD d'une société qui a choisi la méthode « salaire
+    rétabli, congés N-1 inclus ». Sinon 0, et aucune requête."""
+    from app.modules.payroll.engine.iccp_fin_cdd import (
+        METHODE_SALAIRE_RETABLI,
+        methode_depuis_parametres,
+    )
+
+    if not employee_id or methode_depuis_parametres(contexte.entreprise) != METHODE_SALAIRE_RETABLI:
+        return 0.0
+    dernier_jour = date(year, month, calendar.monthrange(year, month)[1])
+    if not (contexte.is_cdd and contexte.est_dernier_mois_cdd(date(year, month, 1), dernier_jour)):
+        return 0.0
+    try:
+        from app.modules.absences.application.queries import get_absence_balances_for_payslip
+
+        soldes = get_absence_balances_for_payslip(employee_id, year, month) or {}
+        precedente = soldes.get("conges_payes_periode_precedente") or {}
+        return float(precedente.get("solde") or 0.0)
+    except Exception as exc:  # noqa: BLE001 — le bulletin sort, sans la brique N-1
+        logger.warning("Solde CP N-1 indisponible pour l'indemnité de fin de CDD : %s", exc)
+        return 0.0
+
 
 def run_payslip_generation_heures(
     employee_path: Path,
@@ -328,6 +357,12 @@ def run_payslip_generation_heures(
     # Résumé de la compensation entre semaines (option société), pour la
     # mention du bulletin et payslip_data.
     contexte.compensation_semaines = saisie_du_mois.get("compensation_semaines") or None
+    # Méthode société « salaire rétabli, congés N-1 inclus » : l'assiette de
+    # l'indemnité de CP de fin de CDD a besoin du solde N-1 à la fin du mois,
+    # celui du pied de page.
+    contexte.solde_cp_n_1_fin_de_mois = solde_cp_n_1_pour_l_indemnite_de_fin_de_cdd(
+        contexte, employee_id, year, month
+    )
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
         # dernier jour travaillé en toute fin de M-1 appartient au bulletin

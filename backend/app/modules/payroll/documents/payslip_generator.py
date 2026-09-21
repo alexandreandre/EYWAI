@@ -1088,6 +1088,11 @@ def process_payslip_generation(
                 "parametres_paie": {
                     "idcc": company_data.get("idcc"),
                     "effectif": company_data.get("effectif"),
+                    # Méthode société de l'indemnité de CP de fin de CDD
+                    # (engine/iccp_fin_cdd) ; absente = dixième légal.
+                    "indemnite_cp_fin_cdd": (company_data.get("settings") or {}).get(
+                        "indemnite_cp_fin_cdd"
+                    ),
                     "periode_de_paie": {
                         "jour_de_fin": company_data.get("paie_jour_de_fin", 4),
                         "occurrence": (
