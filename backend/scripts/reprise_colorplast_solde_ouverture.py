@@ -1,12 +1,12 @@
-"""Reprise Colorplast : écrit le solde d'ouverture au 30 juin 2026 lu chez Quadra.
+"""Reprise Colorplast : écrit le solde d'ouverture au 31 juillet 2026 lu chez Quadra.
 
 Le passé appartient à Quadra. Ce script ne recalcule rien : il lit les bulletins
-PDF de Gaëlle ligne à ligne, agrège les six mois, contrôle l'agrégat contre le
+PDF de Gaëlle ligne à ligne, agrège les sept mois, contrôle l'agrégat contre le
 bloc de cumuls imprimé, puis écrit le résultat dans
 `employee_schedules.cumuls` du mois de bascule. Le bloc imprimé sert de somme de
 contrôle : une erreur de lecture se voit avant d'entrer en base.
 
-Le script n'écrit que le solde d'ouverture. Le verrou de janvier à juin vient de
+Le script n'écrit que le solde d'ouverture. Le verrou de janvier à juillet vient de
 la bascule de la société (cf. app/shared/reprise_paie.py) et non d'une marque sur
 les bulletins : cette marque dira « contenu repris de Quadra », ce qui ne sera
 vrai qu'après l'import littéral.
@@ -30,8 +30,8 @@ from scripts.backtest.colorplast_lignes_quadra import lire_bulletins  # noqa: E4
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6)
-BASCULE = (2026, 6)
+MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7)
+BASCULE = (2026, 7)
 
 #: Deux libellés chez Quadra pour les heures sup : les structurelles et les réelles.
 EST_HEURE_SUP = re.compile(r"H\.?\s*SUPP|HEURES\s+SUPPL", re.I)

@@ -1,4 +1,4 @@
-"""Reprise Colorplast : importe littéralement les bulletins de janvier à juin 2026.
+"""Reprise Colorplast : importe littéralement les bulletins de janvier à juillet 2026.
 
 Les mois payés dans Quadra ne se reconstruisent pas, ils se copient. L'interface
 affiche le PDF stocké à côté des cumuls, donc la copie la plus fidèle possible
@@ -48,7 +48,7 @@ from scripts.backtest.colorplast_lignes_quadra import (  # noqa: E402
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6)
+MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7)
 SEAU = "payslips"
 #: La période de congés ouvre le 1er juin chez Colorplast (company_leave_settings).
 DEBUT_PERIODE_CP = 6
