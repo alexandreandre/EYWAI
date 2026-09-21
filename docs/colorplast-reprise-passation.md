@@ -474,9 +474,30 @@ Pas 1 livré en local (non commité) :
   Gautheron porte en plus le **10/07** (réel à 0 h sur un jour prévu — la case
   barrée, à demander à Gaëlle). Exactement ce que le moteur lit.
 
-Restent les pas 2 (front : dialogue de refus daté, bloc fenêtre dans la
-régénération unitaire, « à régénérer » quand la fenêtre change) et 3 (mois de
-paie affiché par semaine à l'import).
+Pas 1 commité et déployé sur le test le 21/09 (`a553e25c`, `8dd11f32`,
+`cbc31a53`).
+
+Pas 2 livré en local (plan
+`docs/superpowers/plans/2026-09-20-periode-a-saisir-front.md`) :
+- backend : `bulletins_sur_une_autre_fenetre` (bulletins du mois calculés sur
+  une autre fenêtre que l'actuelle, lus dans `payslip_data.en_tete` ; importés
+  et anciens moteurs ignorés), exposés par `GET/PUT /payroll-variables/period`
+  (`bulletins_a_regenerer`, `employes_a_regenerer`) et comme anomalie pré-paie
+  `fenetre_modifiee` (à vérifier, message « calculé sur 22/06 → 19/07 ; celle du
+  mois est 22/06 → 26/07 : à régénérer ») ;
+- front : le 422 est lu avec ses détails (`RefusalDetails`), la lib
+  `joursASaisir` regroupe les dates par semaine (« S26 : 22/06–26/06 »), le
+  composant `JoursASaisirListe` (fenêtre, jours par semaine, jours hors fenêtre,
+  lien « Compléter le planning ») est dans les deux dialogues de refus ; la
+  régénération unitaire montre `BlocPeriodeVariables` en lecture avec « Modifier
+  la fenêtre de juillet 2026 (pour toute la société) » qui déplie le réglage
+  existant ; le bloc annonce « N bulletins déjà générés gardent l'ancienne
+  fenêtre » quand le serveur en compte ; libellés et types pré-paie complétés
+  (`fenetre_modifiee` → « Fenêtre modifiée », renvoi vers `/payroll`).
+- Tests : backend +6 (`test_bulletins_sur_une_autre_fenetre`, pré-paie +1),
+  front +5 (vitest 57 verts sur `features/payroll`), eslint et tsc propres.
+
+Reste le pas 3 (mois de paie affiché par semaine à l'import, note hors fenêtre).
 
 ## Le registre des variables dépendantes du passé
 
