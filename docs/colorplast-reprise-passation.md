@@ -814,14 +814,37 @@ Corrections (9 tests, `tests/unit/scripts/test_reprise_import_lignes.py` et
 - `_synthese_du_pdf` copie net imposable, net social, net des HS exonérées et
   le prélèvement à la source depuis le PDF.
 
-**Résultat** (rapprochement rejoué) : écarts de montant janvier→juin de 662 à
-304. Les lignes du brut, les cumuls, les nets et la majorité des cotisations
-sont ceux de Quadra. **Ce qui reste** : les cotisations dont la base n'est pas
-le brut — CSG (base composite), réduction générale (formule), réduction
-salariale et déduction patronale sur heures sup (base = heures), mutuelle au
-forfait — et les totaux qui en découlent (total des retenues, allègement du
-mois, total versé employeur, net avant impôt). Les copier demanderait un
-appariement un à un des libellés Quadra, à faire si Alexandre le veut.
+Puis, dans le même mouvement (Alexandre : « la santé doit être bonne ») :
+- `_copier_les_cotisations_du_pdf` : les cotisations dont le montant ne se
+  déduit pas du brut sont copiées une à une depuis le PDF, en gardant **notre**
+  signe — CSG déductible, les deux lignes de CSG/CRDS non déductible (appariées
+  dans l'ordre du document), réduction générale, réduction salariale et
+  déduction patronale sur heures sup ;
+- `_pied_de_page_du_pdf` : l'allègement du mois et le total versé employeur
+  viennent de la colonne de droite, ce sont des agrégats que nos lignes ne
+  recomposent pas au même périmètre ;
+- `details_absences` et `details_conges` sont **vidés** : leurs lignes sont
+  désormais dans `calcul_du_brut`, repris du PDF. Sans cela les absences
+  comptaient double (Gautheron avril : vingt lignes d'arrêt maladie du rejeu en
+  plus des deux lignes du PDF). À noter : `dsn_export/domain/remuneration_map`
+  lit ces deux sections ; les lignes restent disponibles dans `calcul_du_brut`.
+
+**Résultat** (rapprochement rejoué sur les six mois) : écarts de montant de
+**662 à 121**, dont **53 au centime près**. Quatre bulletins n'ont plus aucun
+écart. Plus aucun bulletin sans cumuls, ni dont les lignes ne font pas le brut.
+
+**Ce qui reste, et pourquoi ce ne sont pas des erreurs de nos données :**
+- `TOTAL DES RETENUES` (31 lignes) : Quadra imprime la mutuelle famille
+  **après** le net imposable, hors du total ; nous l'y comptons. Différence de
+  présentation, vérifiée sur Espinosa janvier (476,68 contre 574,81 = +98,13,
+  exactement la mutuelle).
+- `net_avant_impot` (20 lignes) : le PDF de janvier imprime « NET A PAYER
+  AVANT IMPOT SUR LE REVENU 139,02 » sous un « MONTANT NET SOCIAL 2 508,65 »
+  pour Bugny — la valeur lue n'est pas un net. Anomalie du document, pas de
+  nos données.
+- Restent 17 écarts réels et petits : quelques contributions patronales
+  regroupées par Quadra, la réduction des heures sup structurelles de
+  Gautheron, le plafond proratisé des mois partiels (défaut connu, §4).
 
 **Rappel utile** : le PDF servi pour janvier→juin est la **copie du document
 Quadra** découpée par salarié. Ce que Gaëlle ouvre est donc exact ; les écarts
