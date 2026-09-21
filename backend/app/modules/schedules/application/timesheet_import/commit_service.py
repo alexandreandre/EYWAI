@@ -660,6 +660,50 @@ def _commit_multi_month_batch(
     }
 
 
+def appliquer_revue_au_lot(
+    batch_id: str,
+    *,
+    company_id: str,
+    employees: List[PersistTimesheetEmployee],
+) -> None:
+    """Les jours relus à l'écran remplacent ceux du modèle dans l'aperçu du lot.
+
+    `persist-timesheet` avec un `batch_id` commitait l'aperçu tel quel : une
+    case corrigée à la relecture était perdue (constat du 21/09/2026). Chaque
+    salarié relu voit ses jours remplacés dans sa première entrée ; ses autres
+    entrées (même salarié sur plusieurs fichiers) sont vidées, le commit
+    fusionnant par salarié. Les salariés non relus ne bougent pas.
+    """
+    relus = {e.employee_id: e for e in employees if e.employee_id}
+    if not relus:
+        return
+    batch = timesheet_import_repository.get_batch(batch_id, company_id=company_id)
+    if not batch:
+        raise ScheduleAppError("validation", "Batch introuvable.", status_code=404)
+    preview = dict(batch.get("preview_json") or {})
+    entrees = [dict(e) for e in preview.get("employees") or []]
+    presents = {str(e.get("employee_id")) for e in entrees if e.get("employee_id")}
+    inconnus = sorted(set(relus) - presents)
+    if inconnus:
+        raise ScheduleAppError(
+            "validation",
+            f"Salarié(s) relu(s) absent(s) du lot : {', '.join(inconnus)}.",
+            status_code=400,
+        )
+    deja: Set[str] = set()
+    for entree in entrees:
+        eid = str(entree.get("employee_id") or "")
+        if eid not in relus:
+            continue
+        if eid in deja:
+            entree["days"] = []
+            continue
+        entree["days"] = [d.model_dump(mode="json") for d in relus[eid].days]
+        deja.add(eid)
+    preview["employees"] = entrees
+    timesheet_import_repository.update_batch(batch_id, {"preview_json": preview})
+
+
 def _employes_par_mois(
     employees: List[PersistTimesheetEmployee],
     year: int,

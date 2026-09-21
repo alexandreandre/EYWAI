@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from app.core.database import get_supabase_admin_client
@@ -50,6 +51,7 @@ def find_cached_preview(
     *,
     year: int,
     month: int,
+    week_anchor_date: Optional[date] = None,
 ) -> Optional[AiCalendarProposalResponse]:
     row = timesheet_import_repository.find_recent_preview_by_hash(
         company_id,
@@ -64,6 +66,10 @@ def find_cached_preview(
     # sous d'autres règles — paramétrage modifié, moteur corrigé — est réextrait
     # plutôt que resservi tel quel.
     if preview.calc_fingerprint != punch_calc_fingerprint(company_id):
+        return None
+    # Le même fichier ancré sur une autre semaine porte d'autres dates : réextrait
+    # (Colorplast 19/09 : `semaine-26.pdf` ancré S27 par erreur, puis S26).
+    if preview.week_anchor_date != week_anchor_date:
         return None
     return preview
 

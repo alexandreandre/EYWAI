@@ -6,6 +6,7 @@ import hashlib
 from typing import Any, Dict, List, Optional
 
 from app.modules.schedules.application.ai_fill import extract_timesheet
+from app.modules.schedules.application.employee_match import rematch_proposal_employees
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.roster_enrichment import enrich_roster_time_tracking_ids
 from app.modules.schedules.application.timesheet_import.batch_service import (
@@ -334,8 +335,14 @@ def parse_with_llm_fallback(
     import_job_id: str | None = None,
 ) -> tuple[AiCalendarProposalResponse, str]:
     file_hash = hashlib.sha256(content).hexdigest()
-    cached = find_cached_preview(company_id, file_hash, year=year, month=month)
+    roster = enrich_roster_time_tracking_ids(roster, company_id)
+    cached = find_cached_preview(
+        company_id, file_hash, year=year, month=month, week_anchor_date=week_anchor_date
+    )
     if cached:
+        # La lecture est resservie, pas le rapprochement : le roster du jour peut
+        # avoir changé (un sorti du mois, un embauché) — Demory, 21/09/2026.
+        cached = rematch_proposal_employees(cached, roster)
         batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=user_id,
@@ -349,7 +356,6 @@ def parse_with_llm_fallback(
         )
         return cached, str(batch["id"])
 
-    roster = enrich_roster_time_tracking_ids(roster, company_id)
     proposal = extract_timesheet(
         year=year,
         month=month,
@@ -364,6 +370,7 @@ def parse_with_llm_fallback(
         import_job_id=import_job_id,
         skip_audit=True,
     )
+    proposal = proposal.model_copy(update={"week_anchor_date": week_anchor_date})
     batch = create_batch_from_proposal(
         company_id=company_id,
         user_id=user_id,

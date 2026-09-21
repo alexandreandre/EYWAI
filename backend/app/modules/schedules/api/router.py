@@ -614,6 +614,7 @@ def assisted_fill_persist_timesheet(
         validate_persist_payload,
     )
     from app.modules.schedules.application.timesheet_import.commit_service import (
+        appliquer_revue_au_lot,
         begin_commit_batch,
         run_commit_batch,
     )
@@ -625,6 +626,11 @@ def assisted_fill_persist_timesheet(
     try:
         validate_persist_payload(payload)
         if payload.batch_id:
+            # Ce que la relecture affiche est ce qui s'enregistre : les jours
+            # relus remplacent ceux du modèle avant le commit du lot.
+            appliquer_revue_au_lot(
+                payload.batch_id, company_id=company_id, employees=payload.employees
+            )
             commit_req = TimesheetImportCommitRequest(
                 allow_partial=payload.allow_partial,
                 recalculate_payroll=payload.recalculate_payroll,

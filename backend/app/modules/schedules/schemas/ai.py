@@ -162,6 +162,10 @@ class AiCalendarProposalResponse(BaseModel):
     # Règles de comptabilisation ayant produit ces heures. Un aperçu mis en
     # cache sous d'autres règles ne doit jamais être resservi.
     calc_fingerprint: Optional[str] = None
+    #: Lundi de la semaine demandée à l'import (relevé hebdomadaire ancré) ; fait
+    #: partie de la clé du cache d'aperçu : le même fichier ancré sur une autre
+    #: semaine n'est pas le même aperçu.
+    week_anchor_date: Optional[date] = None
 
 
 class TimesheetExtractStartResponse(BaseModel):

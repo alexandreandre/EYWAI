@@ -11,7 +11,7 @@ import re
 import unicodedata
 from typing import Dict, List, Literal, Optional, Tuple
 
-from app.modules.schedules.schemas.ai import AiEmployeeProposal, RosterEmployee
+from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, AiEmployeeProposal, RosterEmployee
 from app.modules.schedules.application.handwritten_weekly import (
     is_handwritten_weekly_format,
 )
@@ -537,6 +537,60 @@ def resolve_employee_for_timesheet(
     proposal.match_method = "none"
     proposal.review_status = "error"
     return proposal
+
+
+def _est_avertissement_de_rapprochement(message: str, raw_name: str) -> bool:
+    """Les avertissements émis par `resolve_employee_for_timesheet` citent le nom brut."""
+    return (
+        f"« {raw_name} »" in message
+        or message.startswith("Matricule ")
+        or "rapproché de" in message
+        or "Ligne ignorée" in message
+    )
+
+
+def rematch_proposal_employees(
+    proposal: AiCalendarProposalResponse, roster: List[RosterEmployee]
+) -> AiCalendarProposalResponse:
+    """Refait le rapprochement d'un aperçu resservi depuis le cache avec le roster du jour.
+
+    La lecture (jours, heures, comptes, totaux) est conservée ; seuls l'identité du
+    salarié, sa confiance et ses avertissements de rapprochement sont recalculés.
+    Sans cela, un salarié absent du roster lors de la première extraction restait
+    « texte OCR non salarié » à chaque réimport du même fichier (Demory, 21/09/2026).
+    """
+    from app.modules.schedules.application.ai_fill import _compute_review_summary
+
+    employes: List[AiEmployeeProposal] = []
+    for ancien in proposal.employees:
+        nouveau = resolve_employee_for_timesheet(
+            raw_name=ancien.raw_name,
+            matricule=ancien.time_tracking_id or None,
+            roster=roster,
+            format_hint=proposal.detected_format,
+        )
+        conserves = [
+            w for w in ancien.warnings if not _est_avertissement_de_rapprochement(w, ancien.raw_name)
+        ]
+        nouveau = nouveau.model_copy(
+            update={
+                "days": list(ancien.days),
+                "days_expected_count": ancien.days_expected_count,
+                "days_imported_count": ancien.days_imported_count,
+                "coverage_ratio": ancien.coverage_ratio,
+                "weekly_total_pdf": ancien.weekly_total_pdf,
+                "weekly_total_imported": ancien.weekly_total_imported,
+                "weekly_total_gap": ancien.weekly_total_gap,
+                "quality_issue": ancien.quality_issue,
+                "warnings": list(nouveau.warnings) + conserves,
+            }
+        )
+        if ancien.review_status == "empty":
+            nouveau = nouveau.model_copy(update={"review_status": "empty"})
+        employes.append(nouveau)
+    return proposal.model_copy(
+        update={"employees": employes, "review_summary": _compute_review_summary(employes)}
+    )
 
 
 def resolve_employee_for_planning_sheet(
