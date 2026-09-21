@@ -6,6 +6,7 @@ from datetime import date
 import calendar
 
 from .cotisations_rubriques import construire_cotisations_officielles
+from app.modules.payroll.application.compensation_semaines import avec_saisie_manuelle
 
 
 logger = get_logger("modules.payroll.engine.bulletin")
@@ -276,6 +277,17 @@ def _calculer_cout_total_employeur(
         + primes_positives
         + indemnites_activite_partielle,
         2,
+    )
+
+
+def _compensation_semaines_du_bulletin(contexte: ContextePaie) -> Optional[Dict[str, Any]]:
+    """Le résumé de l'option société « compensation des heures entre semaines »,
+    complété des heures sup saisies à la main quand le moteur les a fait primer."""
+    resume = getattr(contexte, "compensation_semaines", None)
+    if not isinstance(resume, dict):
+        return None
+    return avec_saisie_manuelle(
+        resume, contexte.heures_sup_du_mois or 0.0, contexte.heures_sup_du_mois_50 or 0.0
     )
 
 
@@ -631,6 +643,9 @@ def creer_bulletin_final(
         "bloc_maintien": resultats_maintien or {},
         "calcul_du_brut": autres_lignes_brut,
         "arbitrage_conges": texte_arbitrage,
+        # Option société « compensation des heures entre semaines » : détail
+        # (semaines, écarts, nets) et mention, quand elle a joué.
+        "compensation_semaines": _compensation_semaines_du_bulletin(contexte),
         "salaire_brut": salaire_brut,
         "parametres": {
             "smic_horaire": contexte.smic_horaire,

@@ -431,6 +431,9 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     # de congés payés.
     if bulletin.get("arbitrage_conges"):
         lignes.append(_ligne("note", str(bulletin["arbitrage_conges"])))
+    compensation = bulletin.get("compensation_semaines") or {}
+    if isinstance(compensation, dict) and compensation.get("mention"):
+        lignes.append(_ligne("note", str(compensation["mention"])))
 
     lignes.append(
         _ligne("total", "SALAIRE BRUT", montant_salarial=bulletin.get("salaire_brut"))

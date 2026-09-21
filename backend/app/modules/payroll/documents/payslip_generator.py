@@ -18,6 +18,10 @@ from app.modules.collective_agreements.application.idcc_resolution import (
 from app.core.database import supabase
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.application.compensation_semaines import (
+    appliquer_aux_mois,
+    option_active,
+)
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
@@ -669,6 +673,27 @@ def process_payslip_generation(
         fenetre_variables = resoudre_fenetre_variables(
             str(company_id), year, month, societe=company_data
         )
+
+        # Option société : les heures se compensent entre semaines sur la
+        # fenêtre, comme Gaëlle le fait chez Colorplast — semaines négatives
+        # comprises, jamais de retenue. Choix explicite d'Alexandre (21/09/2026),
+        # spec 2026-09-21-compensation-heures-entre-semaines-design.md.
+        if option_active(company_data):
+            evenements_compenses, compensation_semaines = appliquer_aux_mois(
+                {
+                    (year, month): payroll_events_list,
+                    (prev_year, prev_month): payroll_events_prev_list,
+                },
+                planned_data_all_months,
+                actual_data_all_months,
+                duree_hebdo,
+                (fenetre_variables.debut, fenetre_variables.fin),
+            )
+            payroll_events_list = evenements_compenses[(year, month)]
+            payroll_events_prev_list = evenements_compenses[(prev_year, prev_month)]
+            payroll_events_json["calendrier_analyse"] = payroll_events_list
+            payroll_events_M_minus_1["calendrier_analyse"] = payroll_events_prev_list
+            saisies_data["compensation_semaines"] = compensation_semaines.resume()
 
         # Le cache posé à l'enregistrement du planning compte sur le mois
         # civil ; les paniers d'équipe suivent la fenêtre des variables. On

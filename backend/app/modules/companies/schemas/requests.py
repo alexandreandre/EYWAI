@@ -34,6 +34,14 @@ class CompanySettingsUpdate(BaseModel):
     public_holidays: Optional[PublicHolidaysSettingsUpdate] = Field(
         None, description="Jours fériés légaux observés au planning"
     )
+    compensation_heures_entre_semaines: Optional[bool] = Field(
+        None,
+        description=(
+            "Option société : les heures manquantes d'une semaine se compensent avec les "
+            "heures supplémentaires des autres semaines de la fenêtre de paie, sans retenue. "
+            "Choix explicite de l'entreprise ; la règle légale reste hebdomadaire."
+        ),
+    )
     model_config = {"extra": "allow"}
 
     @field_validator("public_holidays", mode="before")

@@ -776,3 +776,34 @@ class TestTotalAllegementsPatronaux:
         from app.modules.payroll.engine.bulletin import total_allegements_patronaux
 
         assert total_allegements_patronaux([{"code": "sante", "total_patronal": -5.0}]) == 0.0
+
+
+class TestNoteCompensationSemaines:
+    """L'option société « compensation des heures entre semaines » se lit sur le bulletin."""
+
+    def test_la_mention_apparait_en_ligne_de_note_avant_le_brut(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["compensation_semaines"] = {
+            "net25": 0.5,
+            "net50": 0.0,
+            "mention": "Heures compensées entre semaines (option société) : S27 +1,5 · S30 −1,0 "
+            "→ 0,5 h à 25 %, 0 h à 50 %.",
+        }
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        note = next(l for l in lignes if l["type"] == "note")
+        assert "compensées entre semaines" in note["libelle"]
+        libelles = [l["libelle"] for l in lignes]
+        assert libelles.index(note["libelle"]) < libelles.index("SALAIRE BRUT")
+
+    def test_un_detail_sans_mention_ne_produit_pas_de_note(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["compensation_semaines"] = {"net25": 0.0, "net50": 0.0}
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        assert not [l for l in lignes if l["type"] == "note"]
+
+    def test_arbitrage_et_compensation_font_deux_notes(self):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["arbitrage_conges"] = "Règle du 1/10ème."
+        bulletin["compensation_semaines"] = {"mention": "Heures compensées entre semaines."}
+        lignes = construire_vue_bulletin(bulletin)["lignes"]
+        assert len([l for l in lignes if l["type"] == "note"]) == 2

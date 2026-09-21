@@ -325,6 +325,9 @@ def run_payslip_generation_heures(
     contexte.date_fin_periode = date_fin_periode
     contexte.date_debut_variables = date_debut_variables
     contexte.date_fin_variables = date_fin_variables
+    # Résumé de la compensation entre semaines (option société), pour la
+    # mention du bulletin et payslip_data.
+    contexte.compensation_semaines = saisie_du_mois.get("compensation_semaines") or None
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
         # dernier jour travaillé en toute fin de M-1 appartient au bulletin
