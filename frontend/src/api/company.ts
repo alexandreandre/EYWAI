@@ -237,11 +237,7 @@ export interface CompanySettingsUpdate {
   periode_essai?: TrialPeriodSettingsUpdate;
   /** Option société : heures manquantes et heures sup se compensent entre semaines de la fenêtre de paie. */
   compensation_heures_entre_semaines?: boolean;
-  /** Méthode de l'indemnité de congés payés de fin de CDD. */
-  indemnite_cp_fin_cdd?: IndemniteCpFinCddMethode;
 }
-
-export type IndemniteCpFinCddMethode = 'remuneration_versee' | 'salaire_retabli_solde_n1';
 
 export async function getCompanySettings(): Promise<CompanySettingsResponse> {
   const { data } = await apiClient.get<CompanySettingsResponse>('/api/company/settings');
