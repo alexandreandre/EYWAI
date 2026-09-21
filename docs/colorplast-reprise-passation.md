@@ -748,6 +748,20 @@ contournement admin), et dans la liste un badge « Importé » avec les boutons
 Modifier et Supprimer grisés mais visibles, motif au survol — à sa demande,
 grisés plutôt que cachés.
 
+### 13. Saisies sur salaire : jamais sur le bulletin, nom absent de la liste (21/09)
+
+Marion Gautheron a une saisie-arrêt (SGC Oyonnax, 46,49 par mois, juillet)
+qui n'apparaissait pas sur son bulletin. Cause : dans l'enrichissement du
+bulletin, la garde de doublon `get_existing_deduction` lisait `.data` sur le
+retour de `maybe_single()`, qui vaut None quand aucune ligne n'existe — donc
+dès qu'une saisie était à appliquer pour la première fois, tout
+l'enrichissement explosait (exception avalée, `retenues_saisies` jamais posé).
+Même défaut sur `get_existing_repayment` (avances). Corrigé, 3 tests. Après
+régénération, la ligne « Retenues sur salaire 46,49 » sort et le prélèvement
+est historisé. Liste RH des saisies : la réponse construisait `employee_name`
+mais le schéma `SalarySeizure` ne le déclarait pas, FastAPI le retirait ; le
+front retombait sur l'identifiant. Champ ajouté, 2 tests.
+
 ## Le registre des variables dépendantes du passé
 
 Un recensement exhaustif a été fait sur `backend/app/` : chaque endroit qui lit un
