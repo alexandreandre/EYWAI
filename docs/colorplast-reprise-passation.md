@@ -612,7 +612,9 @@ Fuckar montre l'effet de bord attendu : l'écart journalier ignore les jours
 non travaillés prévus, là où le compteur hebdomadaire les compte à 0 h (le
 manque connu de [[defauts-moteur-paie-revus]]).
 
-**État** : non commité, non déployé — attend l'accord d'Alexandre. Suites :
+**État** : commité le 21/09 (a2c7e6ca backend, ed36a7be front, e7fa1cd0 docs)
+et déployé sur le test ; l'option reste décochée pour Colorplast, Alexandre la
+coche lui-même. Suites :
 backend 6141 verts (un rouge d'environnement), vitest 592 verts, eslint propre,
 tsc avec ses 3 erreurs préexistantes hors périmètre.
 

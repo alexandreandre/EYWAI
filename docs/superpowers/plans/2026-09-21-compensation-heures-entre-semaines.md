@@ -62,5 +62,5 @@ Spec : `docs/superpowers/specs/2026-09-21-compensation-heures-entre-semaines-des
 ### Task 5: Recette, docs
 
 - [x] Suite unitaire complète (6141 verts, un rouge d'environnement), vitest 592 verts, eslint, tsc (3 erreurs préexistantes hors périmètre).
-- [ ] Contrôle réel en bac à sable : générer Cotte, Demory, Bugny, Fuckar juillet, option OFF puis ON (sans persister, `option_active` remplacé dans le module du générateur), lire HS/retenues.
-- [ ] Passation §6, mémoire.
+- [x] Contrôle réel en bac à sable : générer Cotte, Demory, Bugny, Fuckar juillet, option OFF puis ON (sans persister, `option_active` remplacé dans le module du générateur), lire HS/retenues.
+- [x] Passation §7, mémoire.
