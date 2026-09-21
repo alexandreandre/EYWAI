@@ -119,6 +119,8 @@ export interface PayslipInfo {
   warnings?: string[];
   /** Points à arbitrer par la RH (plafond transport…) : pas des alertes, affichés discrètement. */
   points_a_arbitrer?: string[];
+  /** « importe » : bulletin repris de l'ancien logiciel à la bascule — intouchable. */
+  origine?: 'calcule' | 'importe' | string;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;

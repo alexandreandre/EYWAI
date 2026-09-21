@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import type { PayslipInfo } from '@/api/payslips';
+import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
 import {
   hasNetSuperieurBrutWarning,
   isNetSuperieurBrutWarning,
@@ -71,6 +72,9 @@ export function PayrollPayslipRow({
   // Points à arbitrer (plafond transport…) : le bulletin est bon, la RH a une
   // décision à prendre. Pas une alerte : un badge gris, le détail au survol.
   const pointsAArbitrer = payslip?.points_a_arbitrer ?? [];
+  // Bulletin repris de l'ancien logiciel : les actions restent visibles mais
+  // grisées, le motif au survol (demande d'Alexandre, 21/09).
+  const importe = estBulletinImporte(payslip);
 
   const statusBadge =
     state.status === 'success' ? (
@@ -105,6 +109,11 @@ export function PayrollPayslipRow({
   const meta = (
     <>
       {statusBadge}
+      {importe && (
+        <Badge variant="outline" className="text-muted-foreground" title={MOTIF_BULLETIN_IMPORTE}>
+          Importé
+        </Badge>
+      )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (
         <Badge
           variant="outline"
@@ -132,12 +141,19 @@ export function PayrollPayslipRow({
     actions = (
       <>
         <ViewLinkButton href={payslip.preview_url ?? payslip.url ?? ''} title="Visualiser le bulletin" downloadUrl={payslip.url} downloadName={payslip.name} />
-        <Button variant="outline" size="sm" asChild>
-          <Link to={`/payslips/${payslip.id}/edit`}>
+        {importe ? (
+          <Button variant="outline" size="sm" disabled title={MOTIF_BULLETIN_IMPORTE}>
             <Edit className="mr-2 h-4 w-4" />
             Modifier
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/payslips/${payslip.id}/edit`}>
+              <Edit className="mr-2 h-4 w-4" />
+              Modifier
+            </Link>
+          </Button>
+        )}
         <DownloadLinkButton href={payslip.url} download={payslip.name} label="Télécharger" />
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -145,7 +161,8 @@ export function PayrollPayslipRow({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-destructive hover:text-destructive"
-              disabled={deletingPayslipId === payslip.id}
+              disabled={deletingPayslipId === payslip.id || importe}
+              title={importe ? MOTIF_BULLETIN_IMPORTE : undefined}
             >
               {deletingPayslipId === payslip.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
