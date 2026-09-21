@@ -41,6 +41,13 @@ pour juillet Colorplast), après l'analyse hebdomadaire habituelle :
    sur les jours de travail prévus qui ont un pointage. Comme dans l'analyseur,
    un jour prévu sans pointage est neutre, un mois sans aucun pointage aussi ;
    un jour non prévu compte pour ses heures faites (écart = faites).
+   **Jour d'absence déclarée de X h** (type `absence_*`, `heures_prevues` = X) :
+   sans pointage ou à 0 h, neutre — l'absence est retenue par ailleurs ; si le
+   salarié a travaillé, il devait faire la journée normale moins X (journée
+   normale = heures les plus fréquentes des jours de travail prévus du même
+   jour de semaine dans le mois), et l'écart se mesure à ce reste. Marion
+   Gautheron, jeudi 09/07/2026 : absence de 7,5 h sur 8,5, 1 h faite → écart
+   0, pas 1 h de surplus (ajouté le 21/09 après la recette de juillet).
 2. **Majorations de la semaine** : `majo25 = min(TOTAL, seuil25)`,
    `majo50 = max(TOTAL − seuil25, 0)`.
 3. **Compensation** : `net25 = Σ majo25`, `net50 = Σ majo50`. Si `net25 < 0`,

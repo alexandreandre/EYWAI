@@ -311,6 +311,18 @@ d'Alexandre : la page est partagée).
    solde N-1 entrant dans la base N comme si elle avait été payée en salaire.
    Unique fin de CDD de 2026 chez Colorplast, donc pas de second cas pour
    confirmer : le lui faire dire. Nous restons au 1/10 du brut réellement versé.
+4 bis. **Semaine courte non compensée : retenue ou pas ?** Hugo Fuckar,
+   juillet, données corrigées le 21/09 sur le test (10/07 journée travaillée
+   de 7 h, 15/07 absence complète, 16/07 8,5 h comme Gaëlle l'a lu — Alexandre
+   a tranché) : S28 −2,5 h, S29 +1,5 h, net −1 h. Gaëlle retient cette heure
+   (portée en « absence » sur le 10/07) : brut 1 906,45. Notre option ne
+   retient pas le solde négatif, elle l'écrit (« Solde non payé : −1 h ») :
+   brut 1 919,10, écart 12,65 €. Aurélien Demory, S30 : 22/07 4,5 h et 24/07
+   4 h sur la feuille (vérifié), net −5 h, et Gaëlle n'a rien retenu. Question
+   pour elle : quand le mois finit en manque, retient-elle ou pas ? Si
+   « toujours », l'option passera le solde négatif en retenue (un événement
+   d'absence des heures nettes, comme les nets d'heures sup) — petit
+   changement, spec à amender.
 5. **Doublons d'août sur le test** (annulés le 18/09) : Bugny 10 j + 12 j sur les
    mêmes jours, Gautheron 4 j + 10 j, Espinosa 13/07 deux fois — s'assurer que la
    prod ne porte pas les mêmes (la reprise CP y est encore au 31/08, calibrée
@@ -706,6 +718,30 @@ qu'une fois par an, mais il sortait comme une alerte.
   grille vide…) restent en orange.
 - Question pour Gaëlle : cette indemnité est-elle un forfait (plafond) ou des
   kilomètres justifiés (pas de plafond) ?
+
+### 11. Gautheron et Girerd, juillet : calendriers complétés, recette (21/09)
+
+- **Girerd** : horaire fixe, pas de pointage ; le réel du 22 au 30/06 manquait
+  (fenêtre). Rempli au prévu sur le test. Généré : brut 3 855,98 = Quadra.
+- **Gautheron** : le 10/07 manquait (case barrée sur la feuille S28, 0 h).
+  Quadra ne retient rien ce jour-là : rempli à 5 h sur le test, **à confirmer
+  avec Gaëlle**. Généré : brut 2 203,63 contre 2 089,06, écart 114,57, tout
+  sur des absences déclarées que le moteur ignore quand la journée porte aussi
+  des heures faites : 09/07 (absence de 7,5 h, 1 h faite) 88,45 + sa part d'HS
+  structurelles ; 20/07 (0,26 h) et 23/07 (0,75 h), écritures de Gaëlle pour
+  des retards, 12 €. **Ce n'est pas un défaut du moteur** : il retient une
+  absence partielle quand le jour porte une quotité (`quotite_absence` < 1,
+  posée par le module des absences pour les demi-journées) ; les jours
+  importés de Quadra n'en avaient pas, le moteur lisait une absence de journée
+  contredite par des heures faites et gardait les heures. Quotités posées sur
+  les trois jours (7,5/8,5 ; 0,26/8,5 ; 0,75/8,5) : brut 2 088,90, Quadra
+  2 089,06 (16 centimes d'arrondi sur les HS structurelles). Régénéré.
+  Limite à noter : l'application ne sait saisir une absence non rémunérée
+  partielle qu'en demi-journée, pas en heures (`heures_par_jour` est réservé
+  aux repos).
+- L'option de compensation mesure désormais l'écart d'un jour d'absence
+  déclarée partielle à ce qui restait dû (spec amendée, 4 tests) ; sans cela
+  Marion aurait eu 16 h de surplus fantômes. Non commité.
 
 ## Le registre des variables dépendantes du passé
 
