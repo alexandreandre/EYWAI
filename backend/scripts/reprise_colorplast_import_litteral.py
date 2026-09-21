@@ -66,8 +66,6 @@ SECTIONS_COPIEES_DU_PDF = (
 
 #: Sections de `payslip_data` qui restent issues de notre rejeu, pas du PDF.
 SECTIONS_NON_REPRISES = (
-    "details_absences",
-    "details_conges",
     "details_maintien",
     "synthese_net",
 )
@@ -412,6 +410,116 @@ def _asseoir_la_structure(structure: dict | None, nouveau_brut: float) -> dict:
     return neuve
 
 
+#: Cotisations dont le montant ne se déduit pas du brut : elles se copient du
+#: PDF, une à une. Libellé Quadra (début, normalisé) → notre `coti_id`, et le
+#: champ de montant concerné.
+_COTISATIONS_DU_PDF = (
+    ("CSG DÉDUCTIBLE À L'IR", "csg_deductible", "montant_salarial"),
+    ("CSG/CRDS NON DÉDUCTIBLE À L'IR", "csg_non_deductible", "montant_salarial"),
+    ("EXO., ECRET. ET ALLEG. COTIS", "reduction_generale", "montant_patronal"),
+    ("REDUCTION SALARIALE HS/HC", "reduction_hs_salariale", "montant_salarial"),
+    ("REDUCT HEURES SUPPL.", "deduction_hs_patronale", "montant_patronal"),
+)
+
+
+def _lignes_de_cotisation_du_pdf(bulletin) -> dict[str, dict]:
+    """Les cotisations du PDF à copier, par `coti_id`, dans l'ordre du document.
+
+    Quadra imprime deux fois « CSG/CRDS non déductible à l'IR » (la part
+    normale et celle des heures sup) : les montants sont rendus dans l'ordre,
+    pour être appariés à nos deux lignes dans le même ordre.
+    """
+    trouvees: dict[str, dict] = {}
+    for lg in bulletin.lignes:
+        libelle = _normaliser(lg.libelle)
+        if libelle == "SALAIRE BRUT":
+            continue
+        for debut, coti_id, champ in _COTISATIONS_DU_PDF:
+            if not libelle.startswith(debut):
+                continue
+            montant = lg.montant_sal if champ == "montant_salarial" else lg.montant_pat
+            if montant is None:
+                continue
+            entree = trouvees.setdefault(coti_id, {"champ": champ, "bases": [], "montants": []})
+            entree["bases"].append(lg.base)
+            entree["montants"].append(abs(float(montant)))
+            break
+    return trouvees
+
+
+def _copier_une_cotisation(ligne: dict, lues: dict, rang: int) -> dict:
+    """Écrit la base et le montant du PDF dans une ligne, sans changer son signe."""
+    if rang >= len(lues["montants"]):
+        return ligne
+    champ = lues["champ"]
+    courant = float(ligne.get(champ) or 0.0)
+    signe = -1.0 if courant < 0 else 1.0
+    copie = dict(ligne)
+    copie[champ] = round(signe * lues["montants"][rang], 2)
+    base = lues["bases"][rang]
+    if base is not None:
+        copie["base"] = round(float(base), 2)
+    return copie
+
+
+def _copier_les_cotisations_du_pdf(structure: dict | None, bulletin) -> dict:
+    """Copie dans les blocs imprimés les cotisations que le brut ne donne pas.
+
+    CSG, réduction générale, allègements sur heures sup : leur montant sort
+    d'une base propre ou d'une formule. Le PDF les imprime, on les prend.
+    """
+    if not isinstance(structure, dict):
+        return structure if isinstance(structure, dict) else {}
+    lues = _lignes_de_cotisation_du_pdf(bulletin)
+    if not lues:
+        return structure
+
+    neuve = dict(structure)
+    rangs: dict[str, int] = {}
+    for bloc in ("bloc_principales", "bloc_allegements", "bloc_csg_non_deductible"):
+        if not isinstance(structure.get(bloc), list):
+            continue
+        lignes = []
+        for ligne in structure[bloc]:
+            coti_id = (ligne or {}).get("coti_id")
+            if coti_id in lues:
+                rang = rangs.get(coti_id, 0)
+                rangs[coti_id] = rang + 1
+                lignes.append(_copier_une_cotisation(ligne, lues[coti_id], rang))
+            else:
+                lignes.append(ligne)
+        neuve[bloc] = lignes
+
+    for champ, cle in (
+        ("total_patronal", "montant_patronal"),
+        ("total_salarial", "montant_salarial"),
+    ):
+        if champ not in structure:
+            continue
+        delta = 0.0
+        for bloc in ("bloc_principales", "bloc_allegements", "bloc_csg_non_deductible"):
+            delta += _ecart_des_montants(
+                structure.get(bloc) or [], neuve.get(bloc) or [], cle
+            )
+        neuve[champ] = round(float(structure.get(champ) or 0.0) + delta, 2)
+    return neuve
+
+
+def _pied_de_page_du_pdf(existant: dict, bulletin) -> dict:
+    """L'allègement du mois et le total versé employeur, imprimés par Quadra.
+
+    Ce sont des agrégats : les recomposer depuis nos lignes ne redonne pas son
+    périmètre. La colonne de droite du PDF les donne, on les prend.
+    """
+    pied = dict(existant or {})
+    droite = getattr(bulletin, "droite", None) or {}
+    if droite.get("allegement_mois") is not None:
+        pied["total_allegements_patronaux"] = round(abs(float(droite["allegement_mois"])), 2)
+    if droite.get("verse_employeur") is not None:
+        pied["cout_total_employeur"] = round(float(droite["verse_employeur"]), 2)
+    return pied
+
+
 def _synthese_du_pdf(existantes: dict, bulletin) -> dict:
     """Les nets imprimés par Quadra, copiés dans la synthèse du bulletin."""
     synthese = dict(existantes.get("synthese_net") or {})
@@ -441,14 +549,19 @@ def _donnees_reprises(existantes: dict | None, bulletin, annee: int, mois: int) 
     donnees["cotisations_officielles"] = _asseoir_les_cotisations(
         donnees.get("cotisations_officielles"), donnees["salaire_brut"]
     )
-    donnees["structure_cotisations"] = _asseoir_la_structure(
-        donnees.get("structure_cotisations"), donnees["salaire_brut"]
+    donnees["structure_cotisations"] = _copier_les_cotisations_du_pdf(
+        _asseoir_la_structure(donnees.get("structure_cotisations"), donnees["salaire_brut"]),
+        bulletin,
     )
     donnees["synthese_net"] = _synthese_du_pdf(donnees, bulletin)
     donnees["net_a_payer"] = float(bulletin.net.get("net_a_payer") or 0.0)
     donnees["cumuls"] = _cumuls_affiches(bulletin, annee, mois)
     donnees["calcul_du_brut"] = _lignes_du_brut(bulletin)
-    pied_de_page = dict(donnees.get("pied_de_page") or {})
+    # Les absences et congés du PDF sont dans les lignes ci-dessus : garder en
+    # plus celles du rejeu les compterait deux fois.
+    donnees["details_absences"] = []
+    donnees["details_conges"] = []
+    pied_de_page = _pied_de_page_du_pdf(donnees.get("pied_de_page") or {}, bulletin)
     pied_de_page["solde_conges"] = _compteurs_affiches(bulletin, annee, mois)
     donnees["pied_de_page"] = pied_de_page
     donnees["reprise"] = {

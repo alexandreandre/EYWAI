@@ -150,3 +150,26 @@ class TestCumuls:
         blocs = {b["titre"]: b for b in construire_lateral(donnees)}
         valeurs = {v["libelle"]: v["valeur"] for v in blocs["CUMULS"]["valeurs"]}
         assert valeurs["Bruts"].startswith("14 817")
+
+
+class TestPasDeDoublonDAbsence:
+    """Les absences du PDF sont dans `calcul_du_brut` : les garder aussi dans
+    `details_absences` (celles du rejeu) les compterait deux fois."""
+
+    def test_les_sections_du_rejeu_sont_vidées(self):
+        b = _bulletin_bugny_mai()
+        b.lignes.insert(
+            3, Ligne(None, "Abs. Abs aut nonpayé 100526", base=7.0, taux=12.31, montant_sal=86.17)
+        )
+        donnees = _donnees_reprises(
+            {
+                "details_absences": [{"libelle": "Absence arrêt maladie", "perte": 90.64}],
+                "details_conges": [{"libelle": "Absence congés payés", "perte": 12.0}],
+            },
+            b,
+            2026,
+            5,
+        )
+        assert donnees["details_absences"] == []
+        assert donnees["details_conges"] == []
+        assert any(l["libelle"].startswith("Abs.") for l in donnees["calcul_du_brut"])
