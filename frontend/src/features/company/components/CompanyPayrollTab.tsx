@@ -30,6 +30,7 @@ import PayrollVariableRulesCard from "@/features/company/components/PayrollVaria
 import PayrollSpecialDaysCard from "@/features/company/components/PayrollSpecialDaysCard";
 import PlanningSettingsCard from "@/features/company/components/PlanningSettingsCard";
 import PublicHolidaysSettingsCard from "@/features/company/components/PublicHolidaysSettingsCard";
+import CompensationSemainesSettingsCard from "@/features/company/components/CompensationSemainesSettingsCard";
 import TrialPeriodSettingsCard from "@/features/company/components/TrialPeriodSettingsCard";
 import InterviewCampaignSettingsCard from "@/features/company/components/InterviewCampaignSettingsCard";
 import NetEntreprisesConfigCard from "@/features/net-entreprises/components/NetEntreprisesConfigCard";
@@ -358,6 +359,7 @@ export function CompanyPayrollTab({
             <ModulationSettingsCard />
             <WorkTimePeriodsCard />
             <OvertimeContingentSettingsCard />
+            <CompensationSemainesSettingsCard />
             <CetSettingsCard />
           </PayrollSettingsSection>
 

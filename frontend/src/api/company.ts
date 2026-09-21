@@ -235,6 +235,8 @@ export interface CompanySettingsUpdate {
   medical_follow_up_enabled?: boolean;
   public_holidays?: PublicHolidaysSettingsUpdate;
   periode_essai?: TrialPeriodSettingsUpdate;
+  /** Option société : heures manquantes et heures sup se compensent entre semaines de la fenêtre de paie. */
+  compensation_heures_entre_semaines?: boolean;
 }
 
 export async function getCompanySettings(): Promise<CompanySettingsResponse> {
