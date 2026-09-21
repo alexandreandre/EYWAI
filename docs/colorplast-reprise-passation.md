@@ -497,7 +497,18 @@ Pas 2 livré en local (plan
 - Tests : backend +6 (`test_bulletins_sur_une_autre_fenetre`, pré-paie +1),
   front +5 (vitest 57 verts sur `features/payroll`), eslint et tsc propres.
 
-Reste le pas 3 (mois de paie affiché par semaine à l'import, note hors fenêtre).
+Pas 2 commité et déployé sur le test le 21/09 (`104b4d0e`, `9a3c6fb9`, `4894e780`).
+
+Pas 3 livré en local : dans l'import de pointages, le sélecteur « Semaine »
+propose les semaines de la **fenêtre du mois cible et du mois civil**
+(`payrollWeekOptions`, lue par `usePeriodeVariables`) — pour juillet
+Colorplast : S26 à S31 — et suffixe celles qui sortent de la fenêtre
+(« S31 · 27 juil. – 2 août → paie d'août ») ; une note rappelle que leurs jours
+seront enregistrés à leur date. Sans fenêtre ou en mois civil, rien ne change.
+Tests vitest +4 (`importWeekOptions`, `importWeekAssignments`).
+
+Les trois pas de la spec sont faits. Reste, côté données du test : saisir S26
+et S27 en juin pour que juillet passe sans forçage.
 
 ## Le registre des variables dépendantes du passé
 
