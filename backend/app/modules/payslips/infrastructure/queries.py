@@ -7,6 +7,7 @@ get_payslip_details, get_payslip_history). Utilise app.core.database.supabase.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.database import supabase
@@ -19,6 +20,8 @@ from app.modules.payslips.infrastructure.storage_urls import (
     create_payslip_url_maps,
     preview_url_with_download_fallback,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_employee_statut(employee_id: str) -> str | None:
@@ -102,18 +105,33 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
 
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins d'un employé (net, alertes RH, URLs signées)."""
-    r = (
-        supabase.table("payslips")
-        .select(
-            "id, month, year, pdf_storage_path, payslip_data, "
-            "manually_edited, edit_count, edited_at, edited_by"
-        )
-        .eq("employee_id", employee_id)
-        .order("year", desc=True)
-        .order("month", desc=True)
-        .execute()
+    base = (
+        "id, month, year, pdf_storage_path, payslip_data, "
+        "manually_edited, edit_count, edited_at, edited_by"
     )
-    payslips_db = (r.data or []) if r else []
+    # `origine` vient de la migration de reprise (20260917090000), pas encore
+    # appliquée partout : sans elle on lit la liste sans la colonne.
+    payslips_db: list[dict[str, Any]] = []
+    for colonnes in (base + ", origine", base):
+        try:
+            r = (
+                supabase.table("payslips")
+                .select(colonnes)
+                .eq("employee_id", employee_id)
+                .order("year", desc=True)
+                .order("month", desc=True)
+                .execute()
+            )
+        except Exception as exc:  # noqa: BLE001 — colonne absente : on réessaie sans
+            if "origine" not in colonnes:
+                raise
+            logger.warning(
+                "Colonne payslips.origine absente : liste des bulletins sans l'origine. %s",
+                exc,
+            )
+            continue
+        payslips_db = (r.data or []) if r else []
+        break
     if not payslips_db:
         return []
 
@@ -141,6 +159,8 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 ),
                 "net_a_payer": meta["net_a_payer"],
                 "warnings": meta["warnings"],
+                "points_a_arbitrer": meta.get("points_a_arbitrer") or [],
+                "origine": str(p.get("origine") or "calcule"),
                 "manually_edited": bool(p.get("manually_edited")),
                 "edit_count": int(p.get("edit_count") or 0),
                 "edited_at": p.get("edited_at"),

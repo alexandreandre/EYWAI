@@ -22,6 +22,10 @@ class PayslipInfo(BaseModel):
     preview_url: str = ""
     net_a_payer: float | None = None
     warnings: list[str] = []
+    #: Points à arbitrer par la RH (plafond transport…) : pas des alertes.
+    points_a_arbitrer: list[str] = []
+    #: « importe » : bulletin repris de l'ancien logiciel, intouchable.
+    origine: str = "calcule"
     manually_edited: bool = False
     edit_count: int = 0
     edited_at: datetime | None = None
