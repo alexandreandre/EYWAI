@@ -192,3 +192,127 @@ Sept bulletins, deux au centime (Aurélien, Fabrice). Anthony : 16 h à 25 % che
 - Q12 — Trois journées où bulletin, calendrier et feuille divergent : Aurélien 15/05, Marion 10/06, Anthony et Fabrice 25/05.
 - Q13 — Les fériés chômés comptent-ils dans le seuil des 39 h chez Colorplast, et au titre de quoi (usage, convention de la plasturgie) ?
 - Q5, reformulée — Michel : 1 277,50 € d'heures sup sur ses feuilles de février à avril, non payées.
+
+---
+
+# Rejeu du 22/09/2026 : ce que l'option de compensation a changé
+
+Même script, mêmes sources, avec les réglages d'aujourd'hui — option
+« compensation des heures entre semaines » **active** depuis le 21/09,
+règle légale de l'indemnité de fin de contrat, pointages de juillet corrigés.
+Base remise en état et chaîne de paie vérifiée intacte (44 bulletins,
+84 cumuls identiques).
+
+## Le solde : l'option éloigne de Quadra
+
+Les six mois ont été rejoués deux fois, avec et sans l'option, tout le reste
+égal (le réglage société est remis dans les deux cas).
+
+| | Bulletins au centime | Écart absolu cumulé |
+|---|---|---|
+| Sans l'option | **16 / 37** | 3 028,81 € |
+| Avec l'option | 13 / 37 | 3 677,40 € |
+
+**L'option éloigne de 648,59 € sur six mois et coûte trois bulletins exacts.**
+
+Elle rapproche là où Gaëlle compense vraiment : Bugny mai (−196,35 → +35,70),
+Espinosa juin (−76,40 → +1,88), Demory avril (−68,81 → 0,00), Espinosa avril
+(−179,40 → −121,84). Elle éloigne ailleurs, et plus fort : Espinosa mai
+(+7,82 → +281,80), Gautheron janvier (0,00 → +146,10), Cotte juin
+(+140,34 → +265,82), Demory juin (0,00 → +107,32), Cotte janvier
+(0,00 → +46,49).
+
+## Pourquoi : l'option fait deux choses, pas une
+
+`_TYPES_REMPLACES = ("travail_hs25", "travail_hs50", "absence_injustifiee")`.
+La compensation ne se contente pas de solder les heures supplémentaires entre
+semaines : elle **supprime aussi les absences injustifiées** de la fenêtre, et
+ne les remplace par rien quand le solde est négatif — « jamais de retenue ».
+
+C'est conforme à la règle décidée le 21/09, mais la mesure montre que Gaëlle,
+elle, retient. Janvier rejoué sans l'option le prouve, toutes choses égales :
+
+| Janvier | Quadra | avec l'option | sans l'option |
+|---|---|---|---|
+| Cotte | 2 351,89 | 2 398,38 (+46,49) | **2 351,89 (0,00)** |
+| Gautheron | 2 252,28 | 2 398,38 (+146,10) | **2 252,28 (0,00)** |
+
+Les retenues de Cotte le 21/01 et de Gautheron les 13 et 14/01 sont celles que
+Quadra applique ; l'option les efface. La partie « heures supplémentaires » de
+l'option tient ; la partie « absences » est à rouvrir.
+
+## Les écarts qui restent, classés
+
+**Vrais chantiers**
+
+1. **L'option de compensation** — 648,59 € et trois bulletins exacts perdus.
+   Décision à prendre avant août, puisque août sera calculé avec elle.
+2. **Les fériés chômés dans le seuil des 39 h** — Gaëlle les compte, pas nous.
+   ≈ 26 h à 25 % d'avril à juin, sur Bugny, Espinosa, Fuckar et Gautheron.
+   Cassation contre usage : à trancher, pas à corriger d'office. Question 13.
+3. **L'arrêt maladie long** — Gautheron avril : Quadra déduit 1 816,38 €,
+   nous 1 540,88 € (275,50 € de moins, environ trois jours), et le plafond
+   Sécu tombe à 267,00 € chez nous contre 4 005,00 € chez Quadra. Un seul
+   salarié-mois, mais le mécanisme de proratisation est à vérifier.
+
+**Le plus gros montant, qui n'est pas un défaut moteur**
+
+4. **Les heures supplémentaires de Bugny** — environ 1 600 € sur février à
+   juin (+742,00 en février seul, où Gaëlle n'a payé aucune heure sup alors que
+   ses feuilles portent 16 h à 25 % et 22 h à 50 %). Question 5, toujours sans
+   réponse.
+
+**Futilités récurrentes, à traiter pour le confort de lecture**
+
+5. La mutuelle famille (98,13 €) que Quadra place hors du total des retenues :
+   présente sur presque tous les bulletins.
+6. La prime d'ancienneté : 60 champs en écart pour **0,00 €** — base et taux
+   présentés autrement, montant identique.
+7. Girerd : +0,01 € tous les mois, arrondi.
+8. Le mois d'entrée proratisé aux jours ouvrés : moins de 15 € par salarié,
+   deux méthodes également admises.
+9. Les absences longues impriment **une ligne par jour** (17 lignes identiques
+   chez Gautheron en avril, 15 en août). Le calcul est juste, l'affichage est
+   illisible.
+
+**Questions de saisie pour Gaëlle** : inchangées — questions 10 à 13 ci-dessus.
+
+## Rejeu après correction du solde négatif (22/09, même journée)
+
+Correction appliquée : les heures supplémentaires de la fenêtre absorbent les
+absences injustifiées dans l'ordre des jours ; le manque qu'elles ne couvrent
+pas est retenu sur les derniers jours manqués, à leur vraie date
+(spec `2026-09-22-compensation-solde-negatif-retenu-design.md`).
+
+| | Bulletins au centime | Écart absolu cumulé |
+|---|---|---|
+| Sans l'option | **16 / 37** | **3 028,81 €** |
+| Avec l'option, non corrigée | 13 / 37 | 3 677,40 € |
+| Avec l'option, corrigée | 15 / 37 | 3 472,85 € |
+
+Les quatre bulletins de contrôle passent : Cotte janvier, Gautheron janvier et
+Demory juin reviennent **exactement** sur Quadra ; Bugny mai reste à +35,70,
+donc ce que l'option gagne n'a pas été défait.
+
+Deux bulletins se dégradent, et aucun des deux ne met en cause la correction :
+
+- **Demory, avril : 0,00 → −68,81.** L'option non corrigée effaçait ici une
+  retenue **erronée** — sa demi-journée du 25 mars, qui tombe dans la fenêtre
+  d'avril et que le moteur retient à tort. L'exactitude d'avant tenait à deux
+  fautes qui s'annulaient. Le défaut est celui du mois d'entrée, déjà décrit
+  plus haut, pas celui de la compensation.
+- **Gautheron, mars : −297,47 → −324,02.** Une retenue de plus chez quelqu'un
+  où nous retenons déjà trop ; son mois est dominé par le maintien de salaire
+  en arrêt, question 4, toujours en attente.
+
+**Conclusion.** La correction fait ce qu'elle promettait — deux bulletins
+exacts regagnés, 204,55 € d'écart en moins — mais **l'option reste moins bonne
+que son absence** : 3 472,85 € contre 3 028,81 €, 15 bulletins au centime
+contre 16. Le critère posé dans la spec est donc atteint dans le mauvais sens.
+
+Ce qui manque est identifié : le **compteur de récupération entre mois** de
+Gaëlle, hors périmètre depuis le 21/09. Sans lui, l'option reproduit la moitié
+de sa méthode — elle additionne les semaines comme son classeur, mais ignore
+les journées « en récup » qu'elle retire ensuite (Espinosa, mai : +281,80 €,
+12 h retirées les 15 et 25/05). C'est là que se loge l'essentiel de l'écart
+qui subsiste.

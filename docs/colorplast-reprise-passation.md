@@ -159,6 +159,84 @@ seulement aux cumuls (vérifié sur quatre salariés).
    `backend/tests/unit/payroll/test_arbitrage_conges_texte.py`. Un seul bulletin sur
    les huit portant la mention était faux ; régénéré, montants inchangés.
 
+### La semaine 31 saisie — 27 au 31 juillet 2026 (22/09)
+
+Cette semaine ouvre la fenêtre des variables d'août (27/07 → 23/08). Sans elle,
+la génération d'août était refusée pour cinq salariés sur six.
+
+Source : `data/colorplast/pointages/2026-08/semaine-31.jpeg`. La feuille est
+**couchée** dans la photo (rotation de 90°, l'EXIF ne suffit pas) ; elle a été
+redressée puis relue case par case. Les prénoms de la feuille valent
+HUGO = Fuckar, MICHEL = Bugny, ANTHONY = Espinosa, LEO = Cotte,
+AURELIEN = Demory, MARION = Gautheron. Marion n'a pas d'horaire dans les cases
+du lundi au jeudi : une **accolade** sous ces quatre colonnes porte « 6h - 15h ».
+
+`scripts/pointages_colorplast_semaine_31.py` (simulation par défaut, `--apply`
+écrit, rejouable) garde la transcription sous forme d'horaires DEBUT/FIN et
+applique `calculate_hours_from_range` avec les réglages de la société lus en
+base — Colorplast : **30 min de pause au-delà de 6 h de présence**. Les heures
+ne sont donc jamais en dur : le script produit exactement ce que produirait un
+import depuis l'écran.
+
+Écrit et relu le 22/09 :
+
+| Salarié | 27 | 28 | 29 | 30 | 31 | Total | Prévu |
+|---|---|---|---|---|---|---|---|
+| Fuckar | 8,5 | 8,5 | 7 | 12 | 5 | 41 | 39 |
+| Bugny | 9,5 | 9,5 | 9,5 | 9,5 | 5 | 43 | 39 |
+| Espinosa | 9,5 | 9,5 | 9,5 | 8,5 | **0** | 37 | 39 |
+| Cotte | 8,5 | 8,5 | 8,5 | 8,5 | 5 | 39 | 39 |
+| Gautheron | 8,5 | 8,5 | 8,5 | 8,5 | 4 | 38 | 39 |
+
+Girerd et Demory avaient déjà ces cinq jours (8,5 × 4 + 5, soit le planning
+recopié) ; ils n'ont pas été touchés. **Demory est sorti le 24/07 et porte
+pourtant des heures du 27 au 31** : sans effet sur la paie (il n'a pas de
+bulletin d'août), mais à nettoyer.
+
+**Le vendredi d'Espinosa est le seul arbitrage restant.** Sa case est vide ;
+comme à l'import, une case vide vaut 0 h. Or un jour prévu travaillé avec 0 h
+réel est jugé « pas encore saisi » par `is_day_ready_for_payroll` : août lui est
+refusé (422) tant que ce jour n'est pas qualifié. Mesuré en bac à sable :
+
+| Lecture du 31/07 | Brut d'août | Heures sup | Génération |
+|---|---|---|---|
+| 0 h (en base aujourd'hui) | 2 778,83 | aucune | refusée |
+| jour retiré | 2 837,54 | 3 h à 25 % | refusée aussi |
+| 5 h, comme prévu | 2 837,54 | 3 h à 25 % | autorisée |
+
+Retirer le jour ne débloque donc rien : il faut soit des heures, soit une
+absence posée (tout type ≠ travail rend le jour complet). L'enjeu est de
+**58,71 € de brut**. Question pour Gaëlle : qu'a fait Anthony ce jour-là ?
+
+Les cinq autres bulletins d'août se calculent en bac à sable, avec la
+compensation entre semaines qui absorbe les déficits : Bugny 6 h sup, Fuckar
+1 h, Cotte et Gautheron aucune, aucune retenue d'absence injustifiée.
+
+### Primes ajoutées depuis le bulletin (23/09)
+
+Retour de Gaëlle, paie d'août : une prime ajoutée dans « Modifier le bulletin »
+changeait le brut mais ni le cumul brut ni les bases de cotisations ; saisie
+dans l'onglet Primes, tout suivait. Cause structurelle : l'écran de
+modification ne relançait pas le moteur, il enregistrait le document retouché.
+
+Décision (spec `2026-09-23-primes-depuis-le-bulletin-design.md`, plan associé) :
+les variables du mois sont la seule vérité pour les primes. « Ajouter une ligne »
+devient « Ajouter une prime » (même sélecteur que l'onglet Primes) ; ajouter,
+corriger ou retirer une prime depuis le bulletin écrit la variable du mois, puis
+le moteur recalcule une seule fois (heures sup comprises). Chaque ligne de prime
+porte désormais `saisie_id`. L'avertissement rouge des autres retouches cite
+enfin les cumuls.
+
+État : code écrit et testé en local, **ni commité ni déployé**. Le contrôle de
+bout en bout (`scripts/verif_prime_depuis_le_bulletin.py`) régénère un bulletin :
+il ne se lance qu'avec l'accord d'Alexandre, jamais sur un brouillon de Gaëlle.
+
+Constat en lecture seule sur les brouillons d'août : **Cotte porte une « Prime
+exceptionnelle » de 100 € ajoutée à la main, sans variable du mois** — bases et
+cumuls ne l'ont pas prise. À retirer puis ressaisir (onglet Primes, ou le
+nouveau bouton une fois déployé). La prime de 150 € de Bugny vient bien de
+l'onglet Primes.
+
 ## Ce qui reste, dans l'ordre
 
 ### 1. Compteurs de congés — FAIT (mois importés figés, reprise au 30/06 appliquée)
