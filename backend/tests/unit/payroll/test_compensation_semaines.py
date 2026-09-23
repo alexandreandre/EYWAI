@@ -2,19 +2,24 @@
 
 Classeur `detail-heures-sup-06-2026-colorplast.xlsx` : écart journalier faites −
 prévues ; par semaine `Majo 25 % = min(total, 4)` (négatif compris), le reste à
-50 % ; somme sur la fenêtre, semaines négatives comprises ; jamais de retenue.
+50 % ; somme sur la fenêtre, semaines négatives comprises. Le manque que les
+heures sup ne couvrent pas est retenu sur les derniers jours manqués
+(spec 2026-09-22, qui corrige celle du 21/09 où rien n'était retenu).
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
 
 from app.modules.payroll.application.compensation_semaines import (
+    absences_a_conserver,
     avec_saisie_manuelle,
     option_active,
     appliquer,
+    appliquer_aux_mois,
     compenser,
     ecarts_par_semaine,
     majorations,
@@ -135,11 +140,30 @@ class TestApplicationAuCalendrier:
         assert resultat[1]["compensation_semaines"] is True
 
     def test_sans_net_positif_aucune_ligne_ajoutee(self):
+        """Aucune heure sup à poser ; l'absence de la fenêtre est retenue à sa date
+        dès lors que l'appelant la passe en absence gardée (spec 2026-09-22)."""
         c = compenser({(2026, 30): -1.0}, 39.0)
 
-        resultat = appliquer(self._evenements_juillet(), self.FENETRE, c, annee=2026, mois=7)
+        resultat = appliquer(
+            self._evenements_juillet(),
+            self.FENETRE,
+            c,
+            annee=2026,
+            mois=7,
+            absences_gardees=[
+                {"annee": 2026, "mois": 7, "jour": 24,
+                 "type": "absence_injustifiee_base", "heures": 0.9},
+                {"annee": 2026, "mois": 7, "jour": 24,
+                 "type": "absence_injustifiee_hs25", "heures": 0.1},
+            ],
+        )
 
-        assert [e["type"] for e in resultat] == ["conges_payes", "travail_hs25"]
+        assert [(e["jour"], e["type"]) for e in resultat] == [
+            (13, "conges_payes"),
+            (24, "absence_injustifiee_base"),
+            (24, "absence_injustifiee_hs25"),
+            (30, "travail_hs25"),
+        ]
 
     def test_les_nets_tombent_dans_le_mois_du_dernier_jour_de_la_fenetre(self):
         """Événements de juin : la fenêtre finit en juillet, les nets n'y sont pas."""
@@ -261,3 +285,168 @@ class TestAbsencePartielleDeclaree:
                     {"annee": 2026, "mois": 7, "jour": 21, "type": "travail", "heures_prevues": 8.5}]
         ecarts = ecarts_par_semaine(planning, self._reel(**{"21": 8.5}), (date(2026, 6, 22), date(2026, 7, 26)))
         assert ecarts.get((2026, 30), 0.0) == pytest.approx(0.0)
+
+
+class TestAbsencesAConserver:
+    """Les heures sup absorbent les manques ; ce qui reste est retenu sur les
+    derniers jours manqués (spec 2026-09-22)."""
+
+    @staticmethod
+    def _absence(jour: int, heures: float, *, type_: str = "absence_injustifiee_base", mois: int = 1):
+        return {"annee": 2026, "mois": mois, "jour": jour, "type": type_, "heures": heures}
+
+    def test_solde_nul_tout_est_absorbe(self):
+        """Une semaine négative couverte par les heures sup d'une autre : c'est
+        Bugny en mai, ce que l'option gagne et qu'il ne faut pas casser."""
+        gardees, reliquat = absences_a_conserver([self._absence(12, 5.0)], 0.0)
+
+        assert (gardees, reliquat) == ([], 0.0)
+
+    def test_sans_absence_le_solde_devient_un_reliquat(self):
+        gardees, reliquat = absences_a_conserver([], -4.0)
+
+        assert (gardees, reliquat) == ([], 4.0)
+
+    def test_un_seul_jour_est_reduit_au_solde(self):
+        gardees, reliquat = absences_a_conserver([self._absence(21, 5.0)], -4.0)
+
+        assert [(a["jour"], a["heures"]) for a in gardees] == [(21, 4.0)]
+        assert reliquat == 0.0
+
+    def test_les_jours_les_plus_tardifs_sont_retenus_les_premiers(self):
+        absences = [self._absence(10, 2.0), self._absence(20, 3.0)]
+
+        gardees, reliquat = absences_a_conserver(absences, -4.0)
+
+        assert [(a["jour"], a["heures"]) for a in gardees] == [(10, 1.0), (20, 3.0)]
+        assert reliquat == 0.0
+
+    def test_le_manque_au_dela_des_absences_est_un_reliquat(self):
+        gardees, reliquat = absences_a_conserver([self._absence(21, 5.0)], -10.0)
+
+        assert [(a["jour"], a["heures"]) for a in gardees] == [(21, 5.0)]
+        assert reliquat == 5.0
+
+    def test_deux_evenements_du_meme_type_le_meme_jour_sont_additionnes(self):
+        absences = [self._absence(21, 2.0), self._absence(21, 1.5)]
+
+        gardees, reliquat = absences_a_conserver(absences, -3.0)
+
+        assert [(a["jour"], a["heures"]) for a in gardees] == [(21, 3.0)]
+        assert reliquat == 0.0
+
+    def test_a_jour_egal_la_base_est_gardee_avant_les_hs(self):
+        absences = [
+            self._absence(21, 3.14),
+            self._absence(21, 0.36, type_="absence_injustifiee_hs25"),
+        ]
+
+        gardees, reliquat = absences_a_conserver(absences, -3.14)
+
+        assert [(a["type"], a["heures"]) for a in gardees] == [
+            ("absence_injustifiee_base", 3.14)
+        ]
+        assert reliquat == 0.0
+
+
+class TestRetenueDuSoldeNegatif:
+    FENETRE = (date(2026, 6, 22), date(2026, 7, 26))
+
+    @staticmethod
+    def _planning(mois: int, jours: list[int], heures: float = 7.8):
+        return [
+            {"annee": 2026, "mois": mois, "jour": j, "type": "travail", "heures_prevues": heures}
+            for j in jours
+        ]
+
+    def test_le_solde_negatif_garde_l_absence_a_sa_date(self):
+        """Cotte, janvier : 3,5 h manquées le 21, aucune heure sup pour les absorber."""
+        compensation = compenser({(2026, 27): -3.5}, 39.0)
+        evenements = [
+            {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.5},
+        ]
+
+        resultat = appliquer(
+            evenements,
+            self.FENETRE,
+            compensation,
+            annee=2026,
+            mois=7,
+            absences_gardees=[
+                {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.5}
+            ],
+        )
+
+        assert [(e["jour"], e["type"], e["heures"]) for e in resultat] == [
+            (1, "absence_injustifiee_base", 3.5)
+        ]
+
+    def test_sans_absence_gardee_l_absence_disparait_comme_avant(self):
+        compensation = compenser({(2026, 27): 2.0}, 39.0)
+        evenements = [
+            {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.5},
+        ]
+
+        resultat = appliquer(evenements, self.FENETRE, compensation, annee=2026, mois=7)
+
+        assert [e["type"] for e in resultat] == ["travail_hs25"]
+
+    def test_la_fenetre_a_cheval_decide_une_seule_fois(self):
+        """Une absence en juin, une en juillet, un solde qui n'en couvre qu'une :
+        c'est la plus tardive qui est retenue, dans son mois.
+
+        Trois semaines : S26 (24/06) à −3, S27 (01/07) à −3, S28 (08/07) à +3.
+        net25 = −3 − 3 + 3 = −3, donc 3 h à retenir sur 6 h d'absences.
+        """
+        planning = self._planning(6, [24]) + self._planning(7, [1, 8])
+        reel = [
+            {"annee": 2026, "mois": 6, "jour": 24, "heures_faites": 4.8},
+            {"annee": 2026, "mois": 7, "jour": 1, "heures_faites": 4.8},
+            {"annee": 2026, "mois": 7, "jour": 8, "heures_faites": 10.8},
+        ]
+        evenements = {
+            (2026, 7): [
+                {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.0}
+            ],
+            (2026, 6): [
+                {"annee": 2026, "mois": 6, "jour": 24, "type": "absence_injustifiee_base", "heures": 3.0}
+            ],
+        }
+
+        resultat, compensation = appliquer_aux_mois(
+            evenements, planning, reel, 39.0, self.FENETRE
+        )
+
+        assert compensation.solde_retenu == 3.0
+        assert [e["jour"] for e in resultat[(2026, 7)]] == [1]
+        assert resultat[(2026, 6)] == []
+
+    def test_le_reliquat_sans_jour_est_compte(self):
+        """Un manque que rien ne porte : aucun événement d'absence n'existe.
+
+        Attention : `mois_sans_pointage` neutralise un mois dont aucun jour n'a
+        d'heures faites. Il faut donc une vraie journée travaillée à côté du
+        jour manqué, sinon la semaine est ignorée et le solde vaut zéro.
+        """
+        planning = self._planning(7, [1, 2])
+        reel = [
+            {"annee": 2026, "mois": 7, "jour": 1, "heures_faites": 0.0},
+            {"annee": 2026, "mois": 7, "jour": 2, "heures_faites": 7.8},
+        ]
+
+        _, compensation = appliquer_aux_mois({(2026, 7): []}, planning, reel, 39.0, self.FENETRE)
+
+        assert compensation.reliquat_sans_jour == 7.8
+        assert compensation.solde_retenu == 0.0
+
+    def test_la_mention_dit_que_le_solde_est_retenu(self):
+        compensation = compenser({(2026, 27): 1.5, (2026, 30): -4.0}, 39.0)
+        retenue = replace(compensation, solde_retenu=2.5)
+
+        assert mention(retenue).endswith("Solde retenu : −2,5 h.")
+
+    def test_la_mention_signale_un_reliquat_sans_jour(self):
+        compensation = compenser({(2026, 30): -5.0}, 39.0)
+        retenue = replace(compensation, solde_retenu=2.0, reliquat_sans_jour=3.0)
+
+        assert "dont 3 h sans jour identifié" in mention(retenue)
