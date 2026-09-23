@@ -30,7 +30,15 @@ from app.modules.payslips.application.dto import (
 from app.modules.payslips.domain.heures_sup import (
     quantites_heures_sup_conjoncturelles,
 )
+from app.modules.payslips.domain.primes_editees import (
+    diff_primes,
+    sans_marques_de_saisie,
+)
 from app.modules.payslips.domain.rules import is_forfait_jour
+from app.modules.payslips.application.primes_editees import (
+    appliquer_primes_editees,
+    verifier_appartenance,
+)
 from app.modules.payslips.infrastructure.providers import (
     payslip_editor_provider,
     payslip_generator_provider,
@@ -544,12 +552,13 @@ def _remplacer_heures_sup_declarees(
     ).execute()
 
 
-def _recalculer_apres_correction_heures_sup(
+def _declarer_heures_sup_corrigees(
     cmd: EditPayslipInput, avant: dict[str, Any]
 ) -> bool:
-    """Redonne au moteur les heures supplémentaires corrigées, et régénère.
+    """Redéclare au moteur les heures supplémentaires corrigées sur le bulletin.
 
-    Rend True si le bulletin a été recalculé. Corriger la quantité d'heures
+    Rend True si une déclaration a été écrite ; la régénération est faite une
+    seule fois par `edit_payslip`, primes comprises. Corriger la quantité d'heures
     supplémentaires sur le bulletin ne changeait que le brut : cotisations et
     net restaient ceux du calcul d'origine, et le bulletin devenait incohérent
     sans que rien ne le signale. Le moteur sait reprendre ces heures depuis une
@@ -584,27 +593,40 @@ def _recalculer_apres_correction_heures_sup(
         heures_25=heures_apres[0],
         heures_50=heures_apres[1],
     )
-    generate_payslip(
-        GeneratePayslipInput(
-            employee_id=avant["employee_id"],
-            year=avant["year"],
-            month=avant["month"],
-            # Le bulletin existe déjà : ces deux gardes ont été franchies à sa
-            # première génération. Les réopposer bloquerait une correction.
-            force_calendrier_incomplet=True,
-            regenerer_bulletin_valide=True,
-            requested_by=cmd.current_user_id,
-            requested_by_name=cmd.current_user_name,
-        )
-    )
     logger.info(
-        "[edition] Heures supplémentaires corrigées au bulletin %s : %s -> %s, "
-        "bulletin recalculé par le moteur.",
+        "[edition] Heures supplémentaires corrigées au bulletin %s : %s -> %s.",
         cmd.payslip_id,
         heures_avant,
         heures_apres,
     )
     return True
+
+
+def _regenerer(cmd: EditPayslipInput, avant: dict[str, Any]) -> str | None:
+    """Recalcule le bulletin par le moteur ; rend le message d'erreur s'il échoue.
+
+    Les variables du mois sont déjà écrites : elles sont la vérité. Un échec
+    du moteur ne les défait pas, il est rendu pour que l'écran propose
+    « Régénérer ».
+    """
+    try:
+        generate_payslip(
+            GeneratePayslipInput(
+                employee_id=avant["employee_id"],
+                year=avant["year"],
+                month=avant["month"],
+                # Le bulletin existe déjà : ces deux gardes ont été franchies à sa
+                # première génération. Les réopposer bloquerait une correction.
+                force_calendrier_incomplet=True,
+                regenerer_bulletin_valide=True,
+                requested_by=cmd.current_user_id,
+                requested_by_name=cmd.current_user_name,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — l'erreur est rendue à l'écran
+        logger.exception("[edition] Recalcul du bulletin %s impossible", cmd.payslip_id)
+        return str(exc)
+    return None
 
 
 def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
@@ -614,16 +636,35 @@ def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
     ne doit jamais voir un contenu qui n'a pas été revalidé (l'éditeur
     conserve l'historique, le statut doit suivre le contenu).
 
-    Corriger les heures supplémentaires déclenche en plus un recalcul complet
-    par le moteur : sans lui, seul le brut suivait la correction et le bulletin
-    repartait avec les cotisations et le net d'avant.
+    Corriger les heures supplémentaires, ou ajouter, corriger, retirer une
+    prime saisie, déclenche en plus un recalcul complet par le moteur : sans
+    lui, seul le brut suivait la correction et le bulletin repartait avec les
+    bases, les cotisations, le net et les cumuls d'avant (spec 2026-09-23).
     """
     _refuser_si_importe(cmd.payslip_id)
     etait_valide = _etait_valide(cmd.payslip_id)
     avant = _fetch_payslip_for_recalc(cmd.payslip_id)
+    diff = diff_primes(avant.get("payslip_data") if avant else None, cmd.payslip_data)
+    periode = (
+        {
+            "employee_id": avant["employee_id"],
+            "company_id": avant["company_id"],
+            "year": avant["year"],
+            "month": avant["month"],
+        }
+        if avant
+        else None
+    )
+    # Avant d'enregistrer : une saisie d'une autre fiche ne doit laisser aucune trace.
+    if periode and not diff.vide:
+        verifier_appartenance(diff.ids_touches, **periode)
+
     result = payslip_editor_provider.save_edited(
         payslip_id=cmd.payslip_id,
-        new_payslip_data=cmd.payslip_data,
+        # Sans les marques « nouvelle saisie » : l'écart est déjà calculé, et un
+        # échec du moteur ne doit pas faire recréer la prime au prochain
+        # enregistrement.
+        new_payslip_data=sans_marques_de_saisie(cmd.payslip_data),
         changes_summary=cmd.changes_summary,
         current_user_id=cmd.current_user_id,
         current_user_name=cmd.current_user_name,
@@ -637,10 +678,19 @@ def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
             cmd.payslip_id,
             cmd.current_user_id,
         )
-    # Après l'enregistrement : l'historique garde ainsi trace de sa saisie
-    # avant que le moteur ne réécrive le bulletin.
-    if avant:
-        _recalculer_apres_correction_heures_sup(cmd, avant)
+    if not avant:
+        return result
+    # Après l'enregistrement : l'historique garde ainsi trace de la saisie
+    # avant que le moteur ne réécrive le bulletin. Une seule régénération,
+    # heures sup et primes comprises.
+    a_recalculer = _declarer_heures_sup_corrigees(cmd, avant)
+    if not diff.vide:
+        appliquer_primes_editees(diff, **periode)
+        a_recalculer = True
+    if a_recalculer:
+        erreur = _regenerer(cmd, avant)
+        if erreur:
+            result = {**result, "recalcul_erreur": erreur}
     return result
 
 

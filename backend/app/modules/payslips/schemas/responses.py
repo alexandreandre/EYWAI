@@ -154,6 +154,10 @@ class PayslipEditResponse(BaseModel):
     message: str
     payslip: PayslipDetail
     new_pdf_url: str
+    #: Présent si le moteur n'a pas pu recalculer après une prime ou des heures
+    #: sup éditées : les variables du mois sont écrites, le bulletin reste la
+    #: version saisie. Sans cette déclaration, FastAPI retirerait le champ.
+    recalcul_erreur: str | None = None
 
 
 class PayslipRestoreResponse(BaseModel):
