@@ -51,6 +51,7 @@ from .payslip_run_heures import (
     _appliquer_maintien_arret_maladie,
     _extraire_arret_pour_maintien,
 )
+from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
 def _preparer_calendrier_enrichi_forfait(
@@ -301,11 +302,14 @@ def run_payslip_generation_forfait(
                     "soumise_a_cotisations", saisie.get("soumise_a_csg", True)
                 )
                 soumise_impot_par_defaut = saisie.get("soumise_a_impot", True)
-            prime_calculee = {
-                "libelle": libelle,
-                "montant": montant,
-                "prime_id": prime_id,
-            }
+            prime_calculee = lier_a_la_saisie(
+                {
+                    "libelle": libelle,
+                    "montant": montant,
+                    "prime_id": prime_id,
+                },
+                saisie,
+            )
             if prime_id == "prime_partage_valeur":
                 if effectif_entreprise >= 50:
                     if soumise_cotis:

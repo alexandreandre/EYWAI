@@ -676,8 +676,9 @@ def process_payslip_generation(
 
         # Option société : les heures se compensent entre semaines sur la
         # fenêtre, comme Gaëlle le fait chez Colorplast — semaines négatives
-        # comprises, jamais de retenue. Choix explicite d'Alexandre (21/09/2026),
-        # spec 2026-09-21-compensation-heures-entre-semaines-design.md.
+        # comprises. Le manque que les heures sup ne couvrent pas est retenu
+        # sur les derniers jours manqués (spec 2026-09-22, qui corrige celle
+        # du 21/09 où rien n'était retenu).
         if option_active(company_data):
             evenements_compenses, compensation_semaines = appliquer_aux_mois(
                 {
@@ -795,6 +796,8 @@ def process_payslip_generation(
                 "soumise_a_cotisations": row.get("is_socially_taxed", True),
                 "soumise_a_impot": row.get("is_taxable", True),
             }
+            if row.get("id"):
+                prime_entry["saisie_id"] = str(row["id"])
             if row.get("export_code"):
                 prime_entry["export_code"] = row["export_code"]
                 ex = str(row["export_code"])

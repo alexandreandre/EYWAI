@@ -51,6 +51,7 @@ from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
 )
+from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
 def _construire_ligne_avantages_en_nature(
@@ -506,13 +507,16 @@ def calculer_salaire_brut_forfait(
     if primes_saisies:
         for prime in primes_saisies:
             lignes_composants_brut.append(
-                {
-                    "libelle": prime.get("libelle", "Prime"),
-                    "quantite": None,
-                    "taux": None,
-                    "gain": prime.get("montant", 0.0),
-                    "perte": None,
-                }
+                lier_a_la_saisie(
+                    {
+                        "libelle": prime.get("libelle", "Prime"),
+                        "quantite": None,
+                        "taux": None,
+                        "gain": prime.get("montant", 0.0),
+                        "perte": None,
+                    },
+                    prime,
+                )
             )
 
     ligne_aen = _construire_ligne_avantages_en_nature(contexte)

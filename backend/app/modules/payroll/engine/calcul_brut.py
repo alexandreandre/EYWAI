@@ -21,6 +21,7 @@ from .salaire_contractuel import (
     salaire_hors_hs_structurelles,
     taux_horaire_base_hors_hs_structurelles,
 )
+from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
 def _heures_journalieres_contrat(duree_hebdo: float) -> float:
@@ -1607,13 +1608,16 @@ def calculer_salaire_brut(
     if primes_saisies:
         for prime in primes_saisies:
             lignes_composants_brut.append(
-                {
-                    "libelle": prime.get("libelle", "Prime"),
-                    "quantite": None,
-                    "taux": None,
-                    "gain": prime.get("montant", 0.0),
-                    "perte": None,
-                }
+                lier_a_la_saisie(
+                    {
+                        "libelle": prime.get("libelle", "Prime"),
+                        "quantite": None,
+                        "taux": None,
+                        "gain": prime.get("montant", 0.0),
+                        "perte": None,
+                    },
+                    prime,
+                )
             )
     ligne_aen = _construire_ligne_avantages_en_nature(contexte)
     if ligne_aen:

@@ -281,6 +281,8 @@ def process_payslip_generation_forfait(
                 "soumise_a_cotisations": row.get("is_socially_taxed", True),
                 "soumise_a_impot": row.get("is_taxable", True),
             }
+            if row.get("id"):
+                prime_entry["saisie_id"] = str(row["id"])
             if row.get("payroll_quantity") is not None:
                 prime_entry["quantity"] = float(row["payroll_quantity"])
             if row.get("quantity_kind"):

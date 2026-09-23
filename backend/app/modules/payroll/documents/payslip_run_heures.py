@@ -56,6 +56,7 @@ from .payslip_run_common import (
     prefetch_jours_maintien_prime,
     resolve_exit_state_for_payslip,
 )
+from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
 def _appliquer_maintien_arret_maladie(
@@ -651,11 +652,14 @@ def run_payslip_generation_heures(
                 )
                 soumise_impot_par_defaut = saisie.get("soumise_a_impot", True)
 
-            prime_calculee = {
-                "libelle": libelle,
-                "montant": montant,
-                "prime_id": prime_id,
-            }
+            prime_calculee = lier_a_la_saisie(
+                {
+                    "libelle": libelle,
+                    "montant": montant,
+                    "prime_id": prime_id,
+                },
+                saisie,
+            )
             if prime_id == "prime_partage_valeur":
                 if effectif_entreprise >= 50:
                     if soumise_cotis:
