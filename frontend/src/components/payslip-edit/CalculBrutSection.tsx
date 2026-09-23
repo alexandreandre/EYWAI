@@ -4,24 +4,35 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, DollarSign, Calculator, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Trash2, DollarSign, Calculator, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   estLigneHeuresSupConjoncturelle,
   leMoteurRecalculera,
 } from '@/features/payroll/utils/payslipDerivedLines';
+import AjouterPrimeBouton from './AjouterPrimeBouton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface CalculBrutSectionProps {
   data: any[];
   salaireBrut: number;
   onChange: (data: any[], newBrut: number) => void;
+  /** Salarié et période du bulletin : la prime ajoutée devient une variable de ce mois. */
+  employeeId: string;
+  year: number;
+  month: number;
+  /** Une prime saisie a été ajoutée, corrigée ou retirée : le serveur recalculera. */
+  primesModifiees: boolean;
 }
 
 export default function CalculBrutSection({
   data,
   salaireBrut,
   onChange,
+  employeeId,
+  year,
+  month,
+  primesModifiees,
 }: CalculBrutSectionProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   // Deux comportements très différents selon la ligne touchée : corriger des
@@ -36,7 +47,11 @@ export default function CalculBrutSection({
   // section après chaque enregistrement, ce qui rafraîchit cette référence.
   const [lignesInitiales] = useState(data);
 
-  const marquerRetouche = (libelle: unknown) => {
+  const marquerRetouche = (ligne: { libelle?: unknown; saisie_id?: unknown } | undefined) => {
+    // Une prime saisie repasse par le moteur à l'enregistrement : ce n'est pas
+    // une retouche qui laisserait les cotisations en arrière (spec 2026-09-23).
+    if (ligne?.saisie_id) return;
+    const libelle = ligne?.libelle;
     if (estLigneHeuresSupConjoncturelle(typeof libelle === 'string' ? libelle : null)) {
       setHeuresSupCorrigees(true);
     } else {
@@ -63,27 +78,11 @@ export default function CalculBrutSection({
     return total;
   };
 
-  // Ajouter une nouvelle ligne
-  const handleAddLine = () => {
-    const newLine = {
-      libelle: 'Nouvelle ligne',
-      quantite: 0,
-      taux: 0,
-      gain: 0,
-      perte: 0,
-      is_sous_total: false,
-    };
-    const newData = [...data, newLine];
-    const newBrut = recalculateBrut(newData);
-    setAutreLigneRetouchee(true);
-    onChange(newData, newBrut);
-  };
-
   // Supprimer une ligne
   const handleDeleteLine = (index: number) => {
     const newData = data.filter((_, i) => i !== index);
     const newBrut = recalculateBrut(newData);
-    marquerRetouche(data[index]?.libelle);
+    marquerRetouche(data[index]);
     onChange(newData, newBrut);
   };
 
@@ -100,7 +99,7 @@ export default function CalculBrutSection({
     }
 
     const newBrut = recalculateBrut(newData);
-    marquerRetouche(newData[index]?.libelle);
+    marquerRetouche(newData[index]);
     onChange(newData, newBrut);
   };
 
@@ -127,15 +126,32 @@ export default function CalculBrutSection({
           </Alert>
         )}
 
+        {primesModifiees && (
+          <Alert data-testid="info-recalcul-primes">
+            <RefreshCw className="h-4 w-4" />
+            <AlertTitle>Le bulletin sera recalculé</AlertTitle>
+            <AlertDescription>
+              À l’enregistrement, la prime devient une variable du mois : bases, cotisations,
+              net et cumuls suivront. Elle apparaîtra aussi dans l’onglet Primes.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {avertissementAffiche && (
           <Alert variant="destructive" data-testid="avertissement-recalcul-brut">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Les cotisations et le net ne suivent pas cette correction</AlertTitle>
+            <AlertTitle>Les cotisations, le net et les cumuls ne suivent pas cette correction</AlertTitle>
             <AlertDescription>
-              Cet écran ne corrige alors que le brut. Les cotisations, le net imposable
-              et le net à payer restent ceux du calcul d’origine : reprenez-les à la
-              main, ou corrigez les heures dans le calendrier du mois puis utilisez{' '}
+              Cet écran ne corrige alors que le brut. Les cotisations, le net imposable,
+              le net à payer et les cumuls restent ceux du calcul d’origine : reprenez-les
+              à la main, ou corrigez les heures dans le calendrier du mois puis utilisez{' '}
               <strong>Régénérer</strong> en haut de la page.
+              {primesModifiees && (
+                <>
+                  {' '}Cette retouche sera remplacée par le recalcul déclenché par la prime :
+                  enregistrez-la séparément.
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -246,10 +262,15 @@ export default function CalculBrutSection({
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">
-          <Button onClick={handleAddLine} variant="outline">
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Ajouter une ligne
-          </Button>
+          <AjouterPrimeBouton
+            employeeId={employeeId}
+            year={year}
+            month={month}
+            onAjout={(nouvelles) => {
+              const newData = [...data, ...nouvelles];
+              onChange(newData, recalculateBrut(newData));
+            }}
+          />
 
           <div className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-muted-foreground" />

@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Gift, Plus, Trash2 } from 'lucide-react';
+import { Gift, Trash2 } from 'lucide-react';
 
 interface PrimesNonSoumisesSectionProps {
   data: any[];
@@ -20,14 +20,6 @@ export default function PrimesNonSoumisesSection({ data, onChange }: PrimesNonSo
     const newData = [...data];
     newData[index] = { ...newData[index], [field]: value };
     onChange(newData);
-  };
-
-  const addPrime = () => {
-    const newPrime = {
-      libelle: 'Nouvelle prime non soumise',
-      montant: 0
-    };
-    onChange([...data, newPrime]);
   };
 
   const removePrime = (index: number) => {
@@ -93,10 +85,13 @@ export default function PrimesNonSoumisesSection({ data, onChange }: PrimesNonSo
           )}
         </div>
 
-        <Button onClick={addPrime} variant="outline" className="w-full mt-3">
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter une prime non soumise
-        </Button>
+        {/* Plus d'ajout libre ici : une ligne tapée à la main ne bougeait ni les
+            bases ni les cumuls (spec 2026-09-23). Le sélecteur du brut crée une
+            vraie variable du mois, et le moteur la range dans cette section. */}
+        <p className="mt-3 text-sm text-muted-foreground" data-testid="aide-prime-non-soumise">
+          Pour ajouter une prime non soumise, utilisez « Ajouter une prime » dans le calcul
+          du brut et décochez « soumise à cotisations » : elle sera rangée ici au recalcul.
+        </p>
 
         {data && data.length > 0 && (
           <div className="mt-4 pt-4 border-t">

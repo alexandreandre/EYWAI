@@ -219,6 +219,8 @@ export interface PayslipEditResponse {
   message: string;
   payslip: PayslipDetail;
   new_pdf_url: string;
+  /** Présent si le moteur n'a pas pu recalculer après une prime ou des heures sup éditées. */
+  recalcul_erreur?: string | null;
 }
 
 export interface PayslipRestoreRequest {

@@ -42,6 +42,7 @@ import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { cn } from '@/lib/utils';
+import { primesEditees } from '@/features/payroll/utils/primesEditees';
 import {
   lienVariablesDuMois,
   nombreDeLignesModifiees,
@@ -224,6 +225,16 @@ export default function PayslipEdit() {
       };
 
       const response = await editPayslip(payslipId!, request);
+
+      // Les primes éditées sont devenues des variables du mois ; si le moteur n'a
+      // pas pu refaire le bulletin, le dire plutôt que d'afficher un succès nu.
+      if (response.recalcul_erreur) {
+        toast({
+          title: 'Primes enregistrées, recalcul impossible',
+          description: `Les variables du mois sont à jour mais le bulletin n’a pas pu être recalculé (${response.recalcul_erreur}). Utilisez « Régénérer ».`,
+          variant: 'destructive',
+        });
+      }
 
       toast({
         title: 'Succès',
@@ -443,6 +454,10 @@ export default function PayslipEdit() {
               updateEditedData(['calcul_du_brut'], data);
               updateEditedData(['salaire_brut'], newBrut);
             }}
+            employeeId={payslip.employee_id}
+            year={payslip.year}
+            month={payslip.month}
+            primesModifiees={primesEditees(payslip.payslip_data, editedData)}
           />
 
           {/* Section Cotisations */}
