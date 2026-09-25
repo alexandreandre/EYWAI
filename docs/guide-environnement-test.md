@@ -59,7 +59,11 @@ paie d'août en cours). Trois verrous :
   posé à la main, en connaissance de cause ;
 - la route `POST /api/test-env/refresh` est réservée aux super admins.
 
-Tant que Colorplast fait sa paie ici, **ne pas resynchroniser**. Il n'existe
+Tant que Colorplast fait sa paie ici, **ne pas resynchroniser**. Le workflow
+est d'ailleurs désactivé sur GitHub depuis le 24/09/2026 : les verrous vivent
+sur la branche de travail, et un workflow manuel tourne avec la version de
+`main`. Le réactiver (`gh workflow enable "Refresh test from prod"`) seulement
+une fois ces verrous arrivés sur `main`. Il n'existe
 aujourd'hui ni bandeau ni bouton de resynchro dans l'application.
 
 La base de test est sauvegardée chaque nuit par Supabase (7 jours de rétention,

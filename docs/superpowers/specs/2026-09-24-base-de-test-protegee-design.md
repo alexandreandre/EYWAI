@@ -38,6 +38,14 @@ jetable :
    et bandeau décrits mais absents du frontend (retirés du texte), commande
    avec confirmation, sauvegardes.
 
+## Tant que la branche n'est pas sur main
+
+GitHub exécute un `workflow_dispatch` (et tout `repository_dispatch`) avec le
+fichier de la branche par défaut, `main`, qui n'a pas ces verrous. Le workflow
+a donc été désactivé sur GitHub le 24/09 (`gh workflow disable "Refresh test
+from prod"`, état `disabled_manually`). Le réactiver seulement une fois ce
+chantier fusionné dans `main`.
+
 ## Sauvegardes (constat, rien à faire dans ce chantier)
 
 `supabase backups list` : sauvegarde physique quotidienne, 7 jours de
