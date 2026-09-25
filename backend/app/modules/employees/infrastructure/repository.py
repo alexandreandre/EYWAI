@@ -303,13 +303,17 @@ class EmployeeRepository(IEmployeeRepository):
         row = ins.data[0] if isinstance(ins.data, list) else ins.data
         return dict(row)
 
-    def sync_salaire_actif(
+    def salaire_de_base_a_date(
         self,
         employee_id: str,
         company_id: str,
         as_of: date,
     ) -> Optional[Dict[str, Any]]:
-        """Aligne employees.salaire_de_base sur le salaire actif à as_of (timeline)."""
+        """Le salaire_de_base que la synchronisation écrirait à as_of, sans l'écrire.
+
+        Sert au bac à sable de génération, qui doit calculer sur la fiche
+        synchronisée sans rien écrire (spec 2026-09-24).
+        """
         emp = self.get_by_id(employee_id, company_id)
         if emp is None:
             return None
@@ -322,6 +326,18 @@ class EmployeeRepository(IEmployeeRepository):
             new_sb["valeur"] = valeur
         else:
             new_sb = {"valeur": valeur}
+        return new_sb
+
+    def sync_salaire_actif(
+        self,
+        employee_id: str,
+        company_id: str,
+        as_of: date,
+    ) -> Optional[Dict[str, Any]]:
+        """Aligne employees.salaire_de_base sur le salaire actif à as_of (timeline)."""
+        new_sb = self.salaire_de_base_a_date(employee_id, company_id, as_of)
+        if new_sb is None:
+            return None
         return self.update(employee_id, {"salaire_de_base": new_sb})
 
     def update_salary(
