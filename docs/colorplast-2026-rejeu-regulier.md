@@ -316,3 +316,31 @@ de sa méthode — elle additionne les semaines comme son classeur, mais ignore
 les journées « en récup » qu'elle retire ensuite (Espinosa, mai : +281,80 €,
 12 h retirées les 15 et 25/05). C'est là que se loge l'essentiel de l'écart
 qui subsiste.
+
+## Décision pour août : l'option reste active (24/09)
+
+La règle posée le 22/09 voulait éteindre l'option si elle restait perdante sur
+les six mois. Avant d'appliquer la règle, on a mesuré ce qu'elle change sur août
+même : les six bulletins calculés en bac à sable, avec et sans l'option, sans
+toucher au réglage de la société et sans aucune écriture.
+
+| | Avec l'option | Sans l'option |
+|---|---|---|
+| Fuckar, brut | 2 149,12 | 2 151,89 (+2,77) |
+| Fuckar, lignes | 1 h sup à 25 % | 2 h sup à 25 %, 0,9 h d'absence retenue le 19/08 |
+| Les cinq autres | identiques | identiques |
+
+Fuckar a une semaine à +2 h (S31) et une à −1 h (S34). Le classeur de Gaëlle
+compense les deux : 1 h à 25 %. C'est ce que fait l'option ; sans elle, on
+paierait 2 h et on retiendrait 1 h. Sur août, l'option est donc la méthode de
+Gaëlle, au seul bulletin où elle joue.
+
+La perte mesurée sur janvier–juin ne vient pas de la règle de compensation
+elle-même : elle vient des journées « en récup » que l'option ne connaît pas
+(Espinosa, mai) et de défauts d'ailleurs qu'elle rencontre (mois d'entrée de
+Demory, maintien de Gautheron). Aucune journée en récup n'est connue sur août.
+
+**Décision : l'option reste active, rien n'est changé en base.** À réexaminer
+quand le compteur de récupération sera traité, ou dès qu'un mois porte des
+journées en récup. Question pour Gaëlle : y a-t-il des journées « en récup »
+dans la fenêtre d'août (27/07 → 23/08) ?

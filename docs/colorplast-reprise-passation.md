@@ -35,7 +35,9 @@ erreurs comprises.
 
 ## Environnement
 
-- Racine : `/Users/alex/Documents/Alexandre/01 Projets/EYWAI/EYWAI`
+- Racine : `/Users/alex/dev/EYWAI` depuis le 24/09 (l'ancien dossier sous
+  `~/Documents` est obsolète, à ne pas supprimer : il garde des fichiers de
+  `data/` encore bloqués dans iCloud)
 - Interpréteur : `backend/.venv/bin/python` (toujours celui-là)
 - Tests : `cd backend && .venv/bin/python -m pytest -q` — **7 538 passent** (le
   18/09 au soir), et **2 échouent pour l'environnement local, pas pour le code** :
@@ -227,15 +229,86 @@ le moteur recalcule une seule fois (heures sup comprises). Chaque ligne de prime
 porte désormais `saisie_id`. L'avertissement rouge des autres retouches cite
 enfin les cumuls.
 
-État : code écrit et testé en local, **ni commité ni déployé**. Le contrôle de
-bout en bout (`scripts/verif_prime_depuis_le_bulletin.py`) régénère un bulletin :
-il ne se lance qu'avec l'accord d'Alexandre, jamais sur un brouillon de Gaëlle.
+État : commité (`cb929236` à `c0b5f2f5`) et déployé sur le test le 23/09.
+Contrôle de bout en bout passé, avec l'accord d'Alexandre, sur PERRIER Raphaël
+(Zone 404 Mars, juin 2026, brouillon non travaillé) : la même prime de 100 €,
+saisie dans l'onglet Primes ou ajoutée depuis le bulletin, donne un bulletin
+identique au centime — brut 3 850,00, cotisations 832,71 / 1 597,68, net
+2 763,94, cumul brut 14 588,65 (contre 3 750,00 et 14 488,65 sans la prime).
+Le bulletin a été remis à l'identique ensuite (ligne entière, PDF, cumuls,
+variables, crédits de repos), vérifié champ par champ ; seule sa date de
+dernière modification a bougé. Le script (`scripts/verif_prime_depuis_le_bulletin.py`)
+photographie tout avant, et `--remettre-depuis` rejoue la remise en état.
 
 Constat en lecture seule sur les brouillons d'août : **Cotte porte une « Prime
 exceptionnelle » de 100 € ajoutée à la main, sans variable du mois** — bases et
 cumuls ne l'ont pas prise. À retirer puis ressaisir (onglet Primes, ou le
 nouveau bouton une fois déployé). La prime de 150 € de Bugny vient bien de
 l'onglet Primes.
+
+### Brouillons d'août recalculés en bac à sable (24/09)
+
+Les six brouillons d'août ont été générés le 23/09 entre 12 h 38 et 13 h 25 par
+le code `be36f19a` (déployé le 22/09), donc avant `cb929236` (solde négatif
+retenu) et `0b22083c` (`saisie_id` sur les primes) : ce sont les deux seuls
+changements moteur entre ce code et celui déployé le 23/09 au soir. Aucune
+donnée d'entrée n'a bougé depuis (variables du mois, plannings, historique de
+salaire), et aucun bulletin n'a été touché.
+
+Chacun a été recalculé en bac à sable depuis les cumuls de juillet, deux fois :
+avec le code actuel, et avec le code actuel sous l'ancienne règle
+(`absences_a_conserver` neutralisé). L'écart entre les deux calculs isole la
+règle ; l'écart entre l'ancienne règle et le brouillon isole les retouches.
+
+| Salarié | Brut du brouillon | Brut régénéré | Net | Cotis. sal. / pat. | Cause |
+|---|---|---|---|---|---|
+| Bugny | 2 755,99 | identique | identique | identiques | — ; la prime gagne son `saisie_id` |
+| Cotte | 2 444,33 | 2 344,33 (−100,00) | identique | identiques | prime ajoutée à la main |
+| Espinosa | 2 778,83 | 2 746,70 (−32,13) | −25,73 | −6,40 / −8,59 | règle : 2 h retenues le 31/07 |
+| Fuckar | 2 149,12 | identique | identique | identiques | solde positif, rien à retenir |
+| Gautheron | 755,64 | 742,16 (−13,48) | −10,64 | −2,68 / −1,62 | règle : 1 h retenue le 31/07 |
+| Girerd | 3 855,98 | identique | identique | identiques | — |
+
+Le cumul brut suit le brut à chaque fois. Hors ces écarts, les lignes du brut,
+des absences et des congés sont identiques en multiensemble.
+
+- **Espinosa** : « Absence injustifiée du 31/07/26 (base) » 1,79 h × 15,66 =
+  28,02 € et réduction des HS structurelles 0,21 h × 19,57 = 4,11 €. La
+  mention « Solde non payé : −2 h » devient « Solde retenu : −2 h ». Ce
+  bulletin dépend surtout de la question ouverte du 31/07 : avec 5 h ce jour-là,
+  le brut serait 2 837,54 quelle que soit la règle.
+- **Gautheron** : 0,90 h × 13,14 = 11,83 €, et la réduction des HS
+  structurelles passe de 12,0 à 12,1 h (+1,65 €).
+- **Cotte** : son brouillon est incohérent. Le brut affiche la prime de 100 €,
+  mais le net (1 840,96), les cotisations et le cumul brut (19 388,80) sont
+  ceux du bulletin sans prime : la prime est montrée et pas payée. Régénéré tel
+  quel, il la perd ; elle doit revenir comme variable du mois (onglet Primes ou
+  « Ajouter une prime »). Au 24/09, Gaëlle ne l'a pas refaite.
+- **Bugny** : 14 retouches, mais la dernière est une correction d'heures sup
+  (4 h), enregistrée en variable du mois et suivie d'une régénération ; le bac
+  à sable retrouve donc son brouillon au centime.
+
+**Le bac à sable n'était pas étanche — corrigé le 24/09.**
+`prepare_salary_evolution_for_payslip` appelait `sync_employee_salaire_actif`,
+qui réécrit `employees.salaire_de_base` avec le salaire actif du jour lu dans
+`salary_history`. Sur les six, la valeur réécrite était celle qui y était (seul
+`updated_at` a bougé). Correction (spec et plan
+`2026-09-24-bac-a-sable-sans-synchro-salaire`) : le calcul de la
+synchronisation est extrait dans `EmployeeRepository.salaire_de_base_a_date`,
+qui n'écrit rien ; en bac à sable (`persister=False`, passé par les deux
+générateurs), la fiche relue reçoit ce salaire en mémoire, si bien que le
+calcul reste celui d'une vraie génération. 7 tests. Vérifié sur le test avec
+toutes les écritures piégées (base et stockage) : **zéro écriture**, les six
+bulletins d'août identiques au centime au relevé ci-dessus, et le générateur
+forfait mené au bout sur Cogny (Cartol) sans écrire non plus.
+
+**L'option de compensation reste active pour août (décision du 24/09).**
+Mesurée en bac à sable sur les six bulletins, avec et sans : elle ne change
+que Fuckar (1 h sup au lieu de 2 h sup et 0,9 h d'absence le 19/08, −2,77 € de
+brut), et c'est là exactement le classeur de Gaëlle (S31 +2, S34 −1 → 1 h).
+La perte de janvier–juin vient des journées « en récup » et d'autres défauts,
+pas de la règle. Rien n'est changé en base. Détail et question pour Gaëlle
+dans `docs/colorplast-2026-rejeu-regulier.md`, dernière section.
 
 ## Ce qui reste, dans l'ordre
 
@@ -412,6 +485,13 @@ d'Alexandre : la page est partagée).
   un bulletin passé applique le reliquat d'avance d'aujourd'hui.
 - Proratisation du plafond de Sécurité sociale en cas d'absence : divergence avec
   Quadra non tranchée (Cotte et Gautheron).
+- **Le forfait jours est choisi sur le seul libellé du statut** (constat du
+  24/09). `generate_payslip` (`payslips/application/commands.py`) et
+  `generate_en_bac_a_sable` appellent `is_forfait_jour(statut)` sans le booléen
+  `employees.is_forfait_jour` ; seul le générateur forfait le lit. Sur le test,
+  les salariés au forfait de Cartol Industrie ne le sont que par le booléen
+  (statut « Cadre » / « Non-Cadre ») : ils partiraient dans le générateur des
+  heures. À corriger avant la première paie de Cartol.
 - **Double facturation des congés au changement de période (1er juin).** Défaut de
   modèle, pas de reprise : `compute_cp_period_balances` pose
   `N-1 = acquis de la période précédente − jours pris pendant cette période`, alors
