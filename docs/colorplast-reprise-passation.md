@@ -47,7 +47,12 @@ erreurs comprises.
   qu'on n'a pas touchés (`backtest/comparator.py`, `diagnosis.py`, `rubric_map.py`,
   `exports/dsn.py`, et une annotation `Optional` non importée dans
   `engine/controles_convention.py:446`, inoffensive car annotations différées).
-- Supabase : projet **TEST** via les outils MCP `supabase-eywai-test`.
+- Supabase : projet **TEST** via les outils MCP `supabase-eywai-test`. **Cette
+  base porte la vraie paie de Colorplast et pourra devenir la production**
+  (Alexandre, 24/09) : la resynchro depuis la prod y est verrouillée (confirmation
+  tapée, refus du script tant qu'une reprise de paie existe, route réservée aux
+  super admins) ; sauvegarde Supabase quotidienne, 7 jours, sans PITR. Spec
+  `2026-09-24-base-de-test-protegee-design.md`.
 - Colorplast `company_id` = `dbe2b9f5-44dd-41bc-a625-36ed33d160f7`
 - Les fichiers `backend/app/runtime/payroll/data/employes/TEST_MIG_*` apparaissent
   modifiés : c'est du bruit produit par la suite de tests, ne pas commiter.

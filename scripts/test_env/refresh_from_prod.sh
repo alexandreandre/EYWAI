@@ -43,6 +43,27 @@ if [[ "$SUPABASE_TEST_DB_URL" == *"$SUPABASE_PROD_REF"* ]]; then
   exit 1
 fi
 
+# --- Garde de paie réelle -----------------------------------------------------
+# Une société dont la paie a été reprise sur la base de test
+# (company_payroll_takeover) y fait sa vraie paie : Colorplast depuis le
+# 18/09/2026. La resynchro l'effacerait. On refuse, sauf levée explicite ; si la
+# base ne répond pas, on ne sait pas ce qu'elle porte et on refuse aussi.
+if [ "${REFRESH_ECRASER_PAIE_REELLE:-}" != "oui" ]; then
+  if ! PAIE_REELLE="$(psql "$SUPABASE_TEST_DB_URL" -tAc \
+    "select coalesce(string_agg(c.company_name, ', ' order by c.company_name), '')
+       from public.company_payroll_takeover t
+       join public.companies c on c.id = t.company_id")"; then
+    echo "ERREUR : impossible de vérifier si la base de test porte une vraie paie. Abandon." >&2
+    exit 1
+  fi
+  if [ -n "$PAIE_REELLE" ]; then
+    echo "ERREUR : la base de test porte la vraie paie de : $PAIE_REELLE." >&2
+    echo "La resynchro effacerait ses bulletins. Abandon." >&2
+    echo "Pour passer outre en connaissance de cause : REFRESH_ECRASER_PAIE_REELLE=oui." >&2
+    exit 1
+  fi
+fi
+
 echo "Gardes OK : $SUPABASE_PROD_REF (lecture) -> $SUPABASE_TEST_REF (écriture)"
 [ "$DRY_RUN" -eq 1 ] && exit 0
 

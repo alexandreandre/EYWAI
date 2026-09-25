@@ -43,16 +43,28 @@ test **refuse de démarrer** si la redirection des e-mails n'est pas configurée
 
 ## La resynchro
 
-Le bouton « Resynchroniser depuis la prod », dans le bandeau orange, remet le
-test à l'état exact de la production.
+La resynchro remet le test à l'état exact de la production.
 
 **Elle efface tout ce qui a été fait dans le test.** Une démission d'essai, un
 bulletin généré pour voir, une fiche modifiée : tout disparaît et est remplacé
 par les données réelles du moment.
 
-À lancer quand une nouveauté vient d'être livrée en production, ou quand le test
-a trop dérivé. Prévenir les personnes qui testent avant de le faire. La date de
-la dernière resynchro est affichée en permanence dans le bandeau.
+**Verrouillée depuis le 24/09/2026.** La base de test porte une vraie paie :
+Colorplast y fait la sienne depuis sa reprise (bulletins importés de Quadra,
+paie d'août en cours). Trois verrous :
+
+- le workflow exige de taper `EFFACER LA BASE DE TEST` ;
+- le script refuse d'écraser une base où une société a une reprise de paie
+  (table `company_payroll_takeover`), sauf `REFRESH_ECRASER_PAIE_REELLE=oui`
+  posé à la main, en connaissance de cause ;
+- la route `POST /api/test-env/refresh` est réservée aux super admins.
+
+Tant que Colorplast fait sa paie ici, **ne pas resynchroniser**. Il n'existe
+aujourd'hui ni bandeau ni bouton de resynchro dans l'application.
+
+La base de test est sauvegardée chaque nuit par Supabase (7 jours de rétention,
+sans restauration à la minute : une restauration peut perdre jusqu'à une
+journée de saisie). Vérifier : `supabase backups list --project-ref <ref du test>`.
 
 ## Bonnes pratiques
 
@@ -88,10 +100,11 @@ gh workflow run deploy-test-env.yml --ref <branche>
 
 Ne touche jamais la production : services, base et variables sont ceux du test.
 
-**Lancer une resynchro** depuis le bandeau, ou à la main :
+**Lancer une resynchro** (voir les verrous plus haut ; refusée tant qu'une
+société a une reprise de paie sur le test) :
 
 ```bash
-gh workflow run refresh-test-from-prod.yml
+gh workflow run refresh-test-from-prod.yml -f confirmation="EFFACER LA BASE DE TEST"
 ```
 
 **Ce que la resynchro copie** : le schéma `public` (schéma et données), les
@@ -126,7 +139,8 @@ dû être levés pour y arriver, à connaître si le sujet ressurgit :
 ## Points ouverts
 
 - Les e-mails du test partent tous vers `eywaitest@gmail.com`.
-- Le bouton de resynchro nécessite un jeton GitHub à portée restreinte
-  (`GITHUB_DISPATCH_TOKEN`) sur le service de test. Sans lui, la resynchro
-  reste lançable depuis GitHub.
+- La route `POST /api/test-env/refresh` (super admins) nécessite un jeton
+  GitHub à portée restreinte (`GITHUB_DISPATCH_TOKEN`) sur le service de test ;
+  il n'y est pas posé (vérifié le 24/09/2026). Sans confirmation dans
+  `client_payload`, le workflow ainsi déclenché refuse de toute façon.
 - ~~Migrations non automatisées~~ — **résolu le 2026-07-31.**

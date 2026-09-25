@@ -39,9 +39,9 @@ ROUTES_PUBLIQUES_ASSUMEES = {
     # unique, 7 jours, empreinte seule en base).
     ("POST", "/api/activation/verify"),
     ("POST", "/api/activation/complete"),
-    # Environnement de test : 403 en dehors de APP_ENV=test.
+    # Environnement de test : lecture seule, rend seulement is_test et la date
+    # de la dernière resynchro. La resynchro elle-même exige un super admin.
     ("GET", "/api/test-env/status"),
-    ("POST", "/api/test-env/refresh"),
 }
 
 

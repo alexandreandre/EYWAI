@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core import settings
+from app.modules.super_admin.api.router import verify_super_admin
 from app.modules.test_env.application.service import (
     declencher_workflow_resynchro,
     lire_derniere_resynchro,
@@ -26,12 +29,16 @@ def statut() -> dict:
 
 
 @router.post("/refresh")
-def resynchroniser() -> dict:
+def resynchroniser(
+    _super_admin: dict[str, Any] = Depends(verify_super_admin),
+) -> dict:
     """
     Déclenche une resynchro depuis la production.
 
-    Disponible uniquement dans l'environnement de test : en production, la
-    route existe mais refuse systématiquement.
+    Disponible uniquement dans l'environnement de test, et aux super admins :
+    la resynchro remplace toute la base de test, qui porte une vraie paie
+    depuis septembre 2026. Le workflow exige en plus une confirmation tapée et
+    refuse d'écraser une base porteuse d'une reprise de paie.
     """
     if not settings.is_test_environment():
         raise HTTPException(
