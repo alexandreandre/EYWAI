@@ -1034,7 +1034,8 @@ def process_payslip_generation(
 
         try:
             salary_evo = prepare_salary_evolution_for_payslip(
-                employee_id, str(company_id), year, month
+                employee_id, str(company_id), year, month,
+                persister=bac_a_sable is None,
             )
             if salary_evo:
                 remuneration = contrat_json_content.setdefault("remuneration", {})

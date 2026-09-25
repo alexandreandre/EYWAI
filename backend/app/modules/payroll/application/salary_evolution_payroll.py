@@ -90,16 +90,26 @@ def prepare_salary_evolution_for_payslip(
     company_id: str,
     year: int,
     month: int,
+    persister: bool = True,
 ) -> Dict[str, Any]:
     """
     Synchronise le salaire actif et construit evolution_salaire_mois pour contrat.json.
+
+    En bac à sable (`persister=False`), rien n'est écrit : la fiche relue reçoit
+    en mémoire le salaire que la synchronisation y aurait écrit, pour que le
+    calcul reste celui d'une vraie génération (spec 2026-09-24).
     """
     repo = EmployeeRepository()
-    sync_employee_salaire_actif(employee_id, company_id, date.today())
+    if persister:
+        sync_employee_salaire_actif(employee_id, company_id, date.today())
 
     emp = repo.get_by_id(employee_id, company_id)
     if emp is None:
         return {}
+    if not persister:
+        synchronise = repo.salaire_de_base_a_date(employee_id, company_id, date.today())
+        if synchronise is not None:
+            emp = {**emp, "salaire_de_base": synchronise}
 
     timeline = repo.get_salary_history(employee_id, company_id)
     fallback = _valeur_salaire(emp.get("salaire_de_base"))
