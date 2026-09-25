@@ -1,4 +1,9 @@
-# CI : sur chaque PR + push sur main.
+# CI : sur chaque push (toutes les branches) et sur chaque PR.
+#
+# Une branche de travail est contrôlée dès son premier push, pas seulement à
+# l'ouverture d'une PR. Seuls les tests d'intégration restent réservés aux PR et
+# à main : ils écrivent dans la base de TEST, où un client fait sa vraie paie.
+# Le déploiement (deploy.yml) ne suit que les CI réussies sur main.
 #
 # Philosophie : robuste, simple, pas rigide.
 # - Bloquant   : ce qui ne dépend que du code (lint, build, tests unit, scan secrets).
@@ -14,7 +19,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: ["**"]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -137,6 +142,8 @@ jobs:
   backend-integration:
     name: Backend integration
     needs: backend
+    # Jamais sur un simple push de branche : ces tests écrivent dans la base de TEST.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       # Base de TEST, jamais la production. Ces tests écrivent : les faire
