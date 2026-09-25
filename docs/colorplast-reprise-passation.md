@@ -302,6 +302,26 @@ toutes les écritures piégées (base et stockage) : **zéro écriture**, les si
 bulletins d'août identiques au centime au relevé ci-dessus, et le générateur
 forfait mené au bout sur Cogny (Cartol) sans écrire non plus.
 
+**Cotte et Gautheron régénérés le 24/09, avec l'accord d'Alexandre** (Gaëlle
+non prévenue, à sa demande). Brouillons vérifiés inchangés depuis le 23/09 puis
+photographiés avant le geste (`photo_aout_cotte.json`, `photo_aout_gautheron.json`
+dans le bloc-notes de la session, format de `verif_prime_depuis_le_bulletin.py
+--remettre-depuis`). Même chemin que l'écran, signé « Alexandre André » :
+
+| | Brut | Cotis. sal. / pat. | Net | Cumul brut |
+|---|---|---|---|---|
+| Cotte, avant | 2 444,33 | 468,17 / 590,58 | 1 840,96 | 19 388,80 |
+| Cotte, après | 2 444,33 | 489,52 / 674,97 | 1 917,90 | 19 488,80 |
+| Gautheron, avant | 755,64 | 307,97 / 714,14 | 826,12 | 13 942,59 |
+| Gautheron, après | 742,16 | 305,29 / 712,52 | 815,48 | 13 929,11 |
+
+Cotte : la prime de 100 € est désormais une variable du mois (catalogue
+`prime_exceptionnelle`, comme celle de Bugny) et sa ligne porte `saisie_id` ;
+elle est payée, cotisée et cumulée. Son drapeau `manually_edited` reste vrai
+(défaut connu : un brouillon régénéré le garde) alors que la retouche à la main
+a disparu. Gautheron : 1 h retenue le 31/07, identique au bac à sable. Espinosa
+attend la réponse de Gaëlle sur son 31/07.
+
 **L'option de compensation reste active pour août (décision du 24/09).**
 Mesurée en bac à sable sur les six bulletins, avec et sans : elle ne change
 que Fuckar (1 h sup au lieu de 2 h sup et 0,9 h d'absence le 19/08, −2,77 € de
