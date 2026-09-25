@@ -100,20 +100,18 @@ exception) et calcule en bac à sable :
   cotisations et cumul brut identiques au relevé du 24/09 ;
 - un salarié au forfait jours de Cartol Industrie, pour le second générateur,
   appelé directement (`process_payslip_generation_forfait(...,
-  bac_a_sable=BacASable())`, voir le constat ci-dessous) — **zéro écriture**.
-  Ces salariés n'ont encore aucun bulletin : si le calcul s'arrête faute de
-  données avant la préparation du salaire, on le dit, et le câblage du forfait
-  ne repose alors que sur la relecture du code.
+  bac_a_sable=BacASable())`) — **zéro écriture**. Ces salariés n'ont encore
+  aucun bulletin : si le calcul s'arrête faute de données avant la préparation
+  du salaire, on le dit, et le câblage du forfait ne repose alors que sur la
+  relecture du code.
 
-## Constat hors périmètre
+## Constat retiré
 
-Sur la base de test, les salariés au forfait (Cartol Industrie) ne le sont que
-par le booléen `is_forfait_jour` ; leur statut est « Cadre » ou « Non-Cadre ».
-Or la génération réelle (`payslips/application/commands.py`, `generate_payslip`)
-comme le bac à sable (`generate_en_bac_a_sable`) choisissent le générateur par
-`is_forfait_jour(statut)`, **sans le booléen** : ces salariés partiraient dans
-le générateur des heures. Seul le générateur forfait lit le booléen. À traiter
-dans un chantier à part, avant la première paie de Cartol.
+Une première version de cette spec affirmait que le générateur était choisi
+sur le seul libellé du statut, sans la case `is_forfait_jour`. C'est faux :
+`get_employee_statut` (`payslips/infrastructure/queries.py`) lit les deux et
+rend un statut « … au forfait jour » quand la case est cochée
+(`effective_statut_for_payroll`). Retiré le 24/09.
 
 ## Critère de réussite
 

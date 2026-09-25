@@ -335,15 +335,14 @@ git commit -m "fix(paie): le bac a sable ne reecrit plus le salaire de la fiche"
 Piéger `update/upsert/insert/delete` de `postgrest._sync.request_builder.SyncRequestBuilder` (journal de la pile, puis exception) **avant** tout import applicatif, puis :
 
 - pour les six salariés de Colorplast en août : `payslip_generator_provider.generate_en_bac_a_sable(emp, 2026, 8, cumuls_precedents=<cumuls de juillet>)` et comparer brut, net, `structure_cotisations.total_salarial/total_patronal`, cumul brut au relevé du 24/09 (`aout_bac_a_sable.json`, version « nouvelle ») ;
-- pour un salarié de Cartol Industrie avec `is_forfait_jour = true` : `process_payslip_generation_forfait(employee_id=..., year=2026, month=8, bac_a_sable=BacASable())`, appelé directement (le routage par statut l'enverrait aux heures).
+- pour un salarié de Cartol Industrie avec `is_forfait_jour = true` : `process_payslip_generation_forfait(employee_id=..., year=2026, month=8, bac_a_sable=BacASable())`, appelé directement.
 
 Expected : **0 écriture interceptée** ; montants Colorplast identiques au centime. Pour le forfait, si le calcul s'arrête avant `prepare_salary_evolution_for_payslip` faute de données, le noter.
 
 - [ ] **Step 2 : consigner**
 
-Passation : la fuite est corrigée (commit), le résultat de la vérification, et
-le constat hors périmètre de la spec (routage forfait par le seul libellé du
-statut) ajouté aux défauts connus. Mémoire `bac-a-sable-generation` : remplacer le paragraphe « Pas étanche » par « corrigé le 24/09, vérifié à zéro écriture ».
+Passation : la fuite est corrigée (commit) et le résultat de la vérification.
+Mémoire `bac-a-sable-generation` : remplacer le paragraphe « Pas étanche » par « corrigé le 24/09, vérifié à zéro écriture ».
 
 - [ ] **Step 3 : commit**
 

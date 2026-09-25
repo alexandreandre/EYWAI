@@ -505,13 +505,13 @@ d'Alexandre : la page est partagée).
   un bulletin passé applique le reliquat d'avance d'aujourd'hui.
 - Proratisation du plafond de Sécurité sociale en cas d'absence : divergence avec
   Quadra non tranchée (Cotte et Gautheron).
-- **Le forfait jours est choisi sur le seul libellé du statut** (constat du
-  24/09). `generate_payslip` (`payslips/application/commands.py`) et
-  `generate_en_bac_a_sable` appellent `is_forfait_jour(statut)` sans le booléen
-  `employees.is_forfait_jour` ; seul le générateur forfait le lit. Sur le test,
-  les salariés au forfait de Cartol Industrie ne le sont que par le booléen
-  (statut « Cadre » / « Non-Cadre ») : ils partiraient dans le générateur des
-  heures. À corriger avant la première paie de Cartol.
+- ~~Le forfait jours est choisi sur le seul libellé du statut~~ **FAUX, retiré
+  le 24/09.** Le choix passe par `get_employee_statut`
+  (`payslips/infrastructure/queries.py`), qui lit `statut` ET `is_forfait_jour`
+  et rend via `effective_statut_for_payroll` un statut « … au forfait jour »
+  quand la case est cochée. Les 38 bulletins de MAJI et 27 de Zone 404 Mars des
+  salariés cochés sont bien calculés au forfait. Le constat venait d'une lecture
+  de l'appelant seul.
 - **Double facturation des congés au changement de période (1er juin).** Défaut de
   modèle, pas de reprise : `compute_cp_period_balances` pose
   `N-1 = acquis de la période précédente − jours pris pendant cette période`, alors
