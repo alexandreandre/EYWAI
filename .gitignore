@@ -1,6 +1,5 @@
 HEAD
 
-__pycache__/
 *.pyc
 
 # ===================================
@@ -13,8 +12,6 @@ __pycache__/
 
 # C extensions
 *.so
-
-sa-key.json
 
 # Distribution / packaging
 .Python
@@ -66,7 +63,6 @@ coverage.xml
 *.pot
 
 # Django stuff:
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -108,7 +104,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
 .venv
 env/
 venv/
@@ -180,7 +175,6 @@ jspm_packages/
 /coverage
 
 # misc
-.DS_Store
 .env.local
 .env.development.local
 .env.test.local
@@ -206,7 +200,6 @@ yarn-error.log*
 .yarn-integrity
 
 # parcel-bundler cache
-.cache
 .parcel-cache
 
 # Next.js
@@ -218,7 +211,6 @@ out/
 dist
 
 # Gatsby files
-.cache/
 # Uniquement à la racine (évite d’ignorer frontend/public/ pour Vite)
 /public
 
@@ -268,7 +260,6 @@ dist
 *~
 
 # Emacs
-*~
 \#*\#
 /.emacs.desktop
 /.emacs.desktop.lock
@@ -312,7 +303,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # Linux
-*~
 .fuse_hidden*
 .directory
 .Trash-*
@@ -403,9 +393,6 @@ static/uploads/
 .cache/
 *.cache
 
-
-__pycache__/
-*.pyc
 
 # ===================================
 # Données de paie locales — racine unique, JAMAIS versionnée
