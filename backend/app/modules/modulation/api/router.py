@@ -67,6 +67,10 @@ def _require_rh_on_employee(user: User, company_id: str, employee_id: str) -> No
     404 pour un salarié d'une autre société, comme require_employee_access
     (l'existence n'est pas révélée). Seule la page RH « Temps de travail »
     appelle ces lectures ; l'espace salarié ne les utilise pas.
+
+    Les écritures manuelles (solde initial, ajustement) passent aussi par
+    ici : sans cela, une RH de la société A inscrivait un mouvement au
+    compteur d'un salarié de la société B.
     """
     _require_rh(user, company_id)
     if user.is_platform_admin:
@@ -223,7 +227,7 @@ def post_opening_balance(
     current_user: User = Depends(get_current_user),
 ):
     cid = _resolve_company_id(company_id, current_user)
-    _require_rh(current_user, cid)
+    _require_rh_on_employee(current_user, cid, employee_id)
     return hour_account_commands.create_opening_balance(
         str(cid),
         employee_id,
@@ -240,7 +244,7 @@ def post_adjustment(
     current_user: User = Depends(get_current_user),
 ):
     cid = _resolve_company_id(company_id, current_user)
-    _require_rh(current_user, cid)
+    _require_rh_on_employee(current_user, cid, body.employee_id)
     return hour_account_commands.create_manual_adjustment(
         str(cid),
         body.employee_id,
