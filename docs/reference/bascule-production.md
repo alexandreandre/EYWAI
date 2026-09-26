@@ -34,6 +34,16 @@ Elles reviennent à Alexandre. Sans elles, le jour J ne peut pas être écrit.
    autorisées, ou lever la redirection.
 6. **Qui approuve les déploiements, qui reçoit les alertes**, et Sentry ou non.
 
+## Migrations en attente sur la base de test
+
+Appliquées une par une, au déploiement, par
+`gh workflow run deploy-test-env.yml --ref <branche> -f migration=<fichier>`,
+qui les inscrit aussi au registre.
+
+- `20260926140000_verrou_generation_bulletin.sql` : additive (une table, deux
+  fonctions). Tant qu'elle n'est pas appliquée, le serveur génère sans verrou,
+  comme avant, et l'écrit dans ses journaux.
+
 ## À préparer avant
 
 - [x] Couper le job d'intégration de la CI, qui écrivait dans la base de test

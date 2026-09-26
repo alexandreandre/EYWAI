@@ -63,6 +63,7 @@ from app.modules.payslips.schemas import (
     PayslipRestoreResponse,
     TrendResponse,
 )
+from app.modules.payroll.documents.verrou_generation import GenerationDejaEnCours
 from app.modules.users.schemas.responses import User
 
 router = APIRouter(tags=["Payslips"])
@@ -75,6 +76,7 @@ _PAYSLIP_APP_ERRORS = (
     PayslipCriticalActiveError,
     PayslipCalendarIncompleteError,
     PayslipValidatedError,
+    GenerationDejaEnCours,
 )
 
 
@@ -121,6 +123,10 @@ def _map_app_errors(exc: Exception) -> None:
             status_code=409,
             detail={"code": PayslipValidatedError.code, "message": str(exc)},
         ) from exc
+    if isinstance(exc, GenerationDejaEnCours):
+        # Une phrase, pas un objet : l'écran de paie l'affiche telle quelle
+        # (un 409 structuré y est réservé au bulletin déjà validé).
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if isinstance(exc, PayslipBadRequestError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

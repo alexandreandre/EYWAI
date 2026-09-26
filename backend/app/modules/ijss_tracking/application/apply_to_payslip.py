@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from app.core.database import get_supabase_admin_client
 from app.core.logging import get_logger
 from app.modules.ijss_tracking.infrastructure import repository as repo
+from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 
 logger = get_logger("modules.ijss_tracking.apply")
 
@@ -120,97 +121,100 @@ def apply_validated_ijss_to_payslip(
     year = int(period["period_year"])
     month = int(period["period_month"])
 
-    # Lot 3 : ce chemin régénère le bulletin en direct (générateurs appelés
-    # sans passer par generate_payslip) — il suit donc le même protocole que
-    # la régénération forcée : bulletin validé → archive AVANT, retour en
-    # brouillon APRÈS (nouvelle validation exigée).
-    existing_payslip = _fetch_existing_payslip(employee_id, year, month)
-    was_validated = bool(
-        existing_payslip and existing_payslip.get("status") == "valide"
-    )
-    if was_validated:
-        _archive_before_regeneration(
-            existing_payslip,
-            GeneratePayslipInput(
-                employee_id=employee_id,
-                year=year,
-                month=month,
-                requested_by=user_id,
-                requested_by_name="rapprochement IJSS",
-            ),
+    # Une seule génération à la fois pour ce salarié et ce mois (voir
+    # verrou_generation.py) : ce chemin appelle les générateurs en direct.
+    with verrou_de_generation(employee_id, year, month):
+        # Lot 3 : ce chemin régénère le bulletin en direct (générateurs appelés
+        # sans passer par generate_payslip) — il suit donc le même protocole que
+        # la régénération forcée : bulletin validé → archive AVANT, retour en
+        # brouillon APRÈS (nouvelle validation exigée).
+        existing_payslip = _fetch_existing_payslip(employee_id, year, month)
+        was_validated = bool(
+            existing_payslip and existing_payslip.get("status") == "valide"
         )
+        if was_validated:
+            _archive_before_regeneration(
+                existing_payslip,
+                GeneratePayslipInput(
+                    employee_id=employee_id,
+                    year=year,
+                    month=month,
+                    requested_by=user_id,
+                    requested_by_name="rapprochement IJSS",
+                ),
+            )
 
-    emp_res = (
-        get_supabase_admin_client()
-        .table("employees")
-        .select("statut, is_forfait_jour")
-        .eq("id", employee_id)
-        .maybe_single()
-        .execute()
-    )
-    emp = emp_res.data or {}
-    statut = emp.get("statut") or ""
-    from app.shared.domain.employment_rules import is_forfait_jour
-
-    ijss_tracking_meta = {
-        "expected_line_id": expected_line_id,
-        "brut_validated": brut_f,
-        "brut_theorique": float(expected.get("ijss_theorique") or 0),
-        "source": expected.get("validation_source") or "manual",
-        "applied_at": datetime.now(timezone.utc).isoformat(),
-        "applied_by": user_id,
-    }
-
-    if is_forfait_jour(statut, emp.get("is_forfait_jour")):
-        from app.modules.payroll.documents.payslip_generator_forfait import (
-            process_payslip_generation_forfait,
+        emp_res = (
+            get_supabase_admin_client()
+            .table("employees")
+            .select("statut, is_forfait_jour")
+            .eq("id", employee_id)
+            .maybe_single()
+            .execute()
         )
+        emp = emp_res.data or {}
+        statut = emp.get("statut") or ""
+        from app.shared.domain.employment_rules import is_forfait_jour
 
-        result = process_payslip_generation_forfait(
-            employee_id,
-            year,
-            month,
-            ijss_brut_override=brut_f,
-            ijss_tracking_meta=ijss_tracking_meta,
-        )
-    else:
-        from app.modules.payroll.documents.payslip_generator import (
-            process_payslip_generation,
-        )
+        ijss_tracking_meta = {
+            "expected_line_id": expected_line_id,
+            "brut_validated": brut_f,
+            "brut_theorique": float(expected.get("ijss_theorique") or 0),
+            "source": expected.get("validation_source") or "manual",
+            "applied_at": datetime.now(timezone.utc).isoformat(),
+            "applied_by": user_id,
+        }
 
-        result = process_payslip_generation(
-            employee_id,
-            year,
-            month,
-            ijss_brut_override=brut_f,
-            ijss_tracking_meta=ijss_tracking_meta,
-        )
+        if is_forfait_jour(statut, emp.get("is_forfait_jour")):
+            from app.modules.payroll.documents.payslip_generator_forfait import (
+                process_payslip_generation_forfait,
+            )
 
-    payslip_id = result.get("payslip_id") if isinstance(result, dict) else None
-    if (
-        was_validated
-        and isinstance(result, dict)
-        and str(result.get("status") or "") == "success"
-    ):
-        _reset_payslip_flags_after_regeneration(str(existing_payslip["id"]))
-    now = datetime.now(timezone.utc).isoformat()
-    repo.update_expected_line(
-        expected_line_id,
-        {
-            "applied_to_payslip_at": now,
+            result = process_payslip_generation_forfait(
+                employee_id,
+                year,
+                month,
+                ijss_brut_override=brut_f,
+                ijss_tracking_meta=ijss_tracking_meta,
+            )
+        else:
+            from app.modules.payroll.documents.payslip_generator import (
+                process_payslip_generation,
+            )
+
+            result = process_payslip_generation(
+                employee_id,
+                year,
+                month,
+                ijss_brut_override=brut_f,
+                ijss_tracking_meta=ijss_tracking_meta,
+            )
+
+        payslip_id = result.get("payslip_id") if isinstance(result, dict) else None
+        if (
+            was_validated
+            and isinstance(result, dict)
+            and str(result.get("status") or "") == "success"
+        ):
+            _reset_payslip_flags_after_regeneration(str(existing_payslip["id"]))
+        now = datetime.now(timezone.utc).isoformat()
+        repo.update_expected_line(
+            expected_line_id,
+            {
+                "applied_to_payslip_at": now,
+                "applied_ijss_brut": brut_f,
+                "payslip_id": payslip_id or expected.get("payslip_id"),
+            },
+        )
+        from app.modules.ijss_tracking.application.service import _recompute_period
+
+        _recompute_period(period)
+        return {
+            "expected_line_id": expected_line_id,
             "applied_ijss_brut": brut_f,
-            "payslip_id": payslip_id or expected.get("payslip_id"),
-        },
-    )
-    from app.modules.ijss_tracking.application.service import _recompute_period
-
-    _recompute_period(period)
-    return {
-        "expected_line_id": expected_line_id,
-        "applied_ijss_brut": brut_f,
-        "payslip_id": payslip_id,
-        "employee_id": employee_id,
-    }
+            "payslip_id": payslip_id,
+            "employee_id": employee_id,
+        }
 
 
 def apply_all_validated_for_period(

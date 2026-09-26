@@ -44,6 +44,7 @@ from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
 )
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
+from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.notifications.application.employee_document_alerts import (
     NOTIFICATION_TYPE_PAYSLIP,
     notify_employee_new_document,
@@ -339,6 +340,16 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     if bascule_block_reason:
         raise PayslipBadRequestError(bascule_block_reason)
 
+    # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
+    # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.
+    with verrou_de_generation(cmd.employee_id, cmd.year, cmd.month):
+        return _generer_sous_verrou(cmd, employee)
+
+
+def _generer_sous_verrou(
+    cmd: GeneratePayslipInput, employee: dict[str, Any]
+) -> GeneratePayslipResult:
+    """Suite de `generate_payslip`, une fois les refus d'entrée passés et le verrou pris."""
     calendar_warning = _check_calendar_guard(employee, cmd)
     bulletin_existant = _check_validated_guard(cmd)
     if bulletin_existant:
