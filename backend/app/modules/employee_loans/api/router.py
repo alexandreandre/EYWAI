@@ -89,7 +89,7 @@ def get_employee_outstanding_route(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoanOutstanding:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_employee_in_company(current_user, employee_id)
     return queries.get_outstanding_for_employee(employee_id)
 
 
@@ -107,7 +107,7 @@ def update_loan_route(
     body: EmployeeLoanUpdate,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.update_loan(loan_id, body)
     except ValueError as exc:
@@ -119,7 +119,7 @@ def delete_loan_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ) -> None:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         commands.delete_loan(loan_id)
     except ValueError as exc:
@@ -131,7 +131,7 @@ def cancel_loan_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.cancel_loan(loan_id)
     except ValueError as exc:
@@ -143,7 +143,7 @@ def activate_loan_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.activate_loan(loan_id)
     except ValueError as exc:
@@ -155,7 +155,7 @@ def mark_defaulted_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.mark_loan_defaulted(loan_id)
     except ValueError as exc:
@@ -168,7 +168,7 @@ def early_repayment_route(
     body: EarlyRepaymentRequest,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.record_early_repayment(
             loan_id, body.amount, body.repayment_date
@@ -182,7 +182,7 @@ def mark_2062_route(
     loan_id: str,
     current_user: User = Depends(get_current_user),
 ) -> EmployeeLoan:
-    access.require_rh_or_admin(current_user)
+    access.require_rh_loan_access(current_user, loan_id)
     try:
         return commands.mark_declared_2062(loan_id)
     except ValueError as exc:

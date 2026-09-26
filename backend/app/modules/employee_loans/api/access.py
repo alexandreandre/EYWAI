@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from app.modules.access_control.application.service import access_control_service
 from app.modules.employee_loans.application import queries
 from app.modules.employee_loans.schemas.responses import EmployeeLoan
 from app.modules.users.schemas.responses import User
@@ -67,3 +68,28 @@ def require_loan_access(user: User, loan_id: str) -> EmployeeLoan:
     if not user_can_access_loan(user, loan):
         raise HTTPException(status_code=403, detail=_ERR_LOAN_ACCESS)
     return loan
+
+
+def require_rh_loan_access(user: User, loan_id: str) -> EmployeeLoan:
+    """Mutations d'un prêt : RH de la société active, prêt de cette société.
+
+    Le contrôle de rôle seul ne suffisait pas : le dépôt ne filtre que sur
+    l'identifiant du prêt, et une RH de la société A modifiait, annulait ou
+    soldait le prêt d'un salarié de la société B (audit du 25/09/2026, E1).
+    Même refus que la lecture : 404 si le prêt n'existe pas, 403 sinon.
+    """
+    require_rh_or_admin(user)
+    return require_loan_access(user, loan_id)
+
+
+def require_rh_employee_in_company(user: User, employee_id: str) -> str:
+    """Lecture RH par salarié : le salarié doit appartenir à la société active.
+
+    404 hors société, comme `require_employee_access` : on ne révèle pas
+    l'existence du salarié. L'administrateur plateforme garde son accès
+    transverse.
+    """
+    company_id = require_rh_or_admin(user)
+    if not user.is_platform_admin:
+        access_control_service.assert_employee_in_company(company_id, employee_id)
+    return company_id
