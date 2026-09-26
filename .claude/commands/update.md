@@ -38,7 +38,7 @@ Pour **chaque fichier** ci-dessous, compare son contenu actuel à la source de v
 
 | # | Fichier | Quoi vérifier |
 |---|---------|---------------|
-| 1 | `README.md` (racine) | Sections "Fonctionnalités principales", "Structure du projet", "Statut du projet", "Dernière mise à jour" (mettre la date du jour). Vérifier que chaque module backend et chaque feature front est mentionné. |
+| 1 | `README.md` (racine) | Rester court (80 lignes au plus) : vérifier les commandes de lancement et de test, le tableau « Où est quoi » et les liens. Le détail va dans `docs/reference/demarrage.md`, pas dans le README. |
 | 2 | `backend/README.md` | Sections "Fonctionnalités principales" (un § par module), "Arborescence du projet" (liste des modules), endpoints principaux. Vérifier que chaque module sous `backend/app/modules/` a sa section. "Dernière mise à jour" → date du jour. |
 | 3 | `backend/app/README.md` | Section "Structure des répertoires > modules/" — la liste doit correspondre à `ls backend/app/modules/`. |
 | 4 | `frontend/README.md` | Sections "Fonctionnalités", "Arborescence", "Routing". Vérifier cohérence avec `App.tsx` et les pages existantes. |
