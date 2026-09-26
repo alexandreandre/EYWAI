@@ -94,7 +94,7 @@ Sans make : `cd backend && .venv/bin/uvicorn app.main:app --reload` et
 
 ## 4. Tester
 
-Tests unitaires du backend (quelques minutes) :
+Tests unitaires du backend (une trentaine de secondes, plus de 6 000 tests) :
 
 ```bash
 cd backend && APP_ENV=prod SUPABASE_URL=https://ci-fake.supabase.co SUPABASE_KEY=ci-fake-anon-key .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider
