@@ -202,10 +202,10 @@ jobs:
         run: python -m pytest tests/integration -v --tb=short -p no:cacheprovider
 
   # ----------------------------------------------------------------------------
-  # 4) Frontend — bloquant : lint + build
+  # 4) Frontend — bloquant : lint + types + tests + build
   # ----------------------------------------------------------------------------
   frontend:
-    name: Frontend (lint + test + build)
+    name: Frontend (lint + types + test + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -221,6 +221,10 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      # Zéro erreur tsc sur tsconfig.app.json depuis le 26/09/2026 : toute
+      # erreur nouvelle bloque. Le build (vite) ne vérifie pas les types.
+      - name: Contrôle de types
+        run: npm run typecheck
       - run: npm run test
       - run: npm run build
       - name: Verify page import paths

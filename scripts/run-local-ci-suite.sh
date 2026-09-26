@@ -3,7 +3,7 @@
 #
 # Bloquant en local (comme en CI) :
 #   - Backend : ruff (info), smoke import, pytest tests/unit
-#   - Frontend : npm ci + lint + build
+#   - Frontend : npm ci + lint + types + tests + build
 #
 # Non lancé ici (info / best-effort en CI uniquement) : pytest tests/integration.
 # Pour les lancer manuellement : cd backend && python -m pytest tests/integration -v
@@ -55,9 +55,10 @@ if [ "${SKIP_GITLEAKS:-}" != "1" ] && command -v gitleaks >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "=== Frontend : npm ci + lint + test + build + verify imports ==="
+echo "=== Frontend : npm ci + lint + typecheck + test + build + verify imports ==="
 (cd "$REPO_ROOT/frontend" && npm ci)
 (cd "$REPO_ROOT/frontend" && npm run lint)
+(cd "$REPO_ROOT/frontend" && npm run typecheck)
 (cd "$REPO_ROOT/frontend" && npm run test)
 (cd "$REPO_ROOT/frontend" && VITE_API_URL="${VITE_API_URL:-https://example.com}" npm run build)
 (cd "$REPO_ROOT/frontend" && node scripts/verify-pages-imports.mjs)

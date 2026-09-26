@@ -106,12 +106,11 @@ deux échecs dus au shell quand celui-ci exporte `APP_ENV=test`.
 Frontend, dans `frontend/` :
 
 ```bash
-npm run test    # vitest
+npm run test       # vitest
 npm run lint
+npm run typecheck  # tsc, zéro erreur attendue, bloquant en CI
 npm run build
 ```
-
-`npm run typecheck` existe mais n'est pas encore propre, et ne tourne pas en CI.
 
 - **En une commande**, depuis la racine : `make verifier` (lint, types, tests
   backend et frontend), ou séparément `make test`, `make lint`,

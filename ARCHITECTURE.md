@@ -45,7 +45,7 @@ Source : [`.github/workflows/ci.yml`](.github/workflows/ci.yml), sur chaque push
 | Backend | ruff | Non : informatif (`continue-on-error`) |
 | Backend | import de l’app, `pytest tests/unit`, tests du scraping | Oui |
 | Frontend | lint, `npm run test`, build, vérification des imports de pages | Oui |
-| Frontend | contrôle de types (`npm run typecheck`) | Absent de la CI |
+| Frontend | contrôle de types (`npm run typecheck`, zéro erreur depuis le 26/09/2026) | Oui |
 | Backend integration | `pytest tests/integration` | Coupé depuis le 26/09/2026 : il écrivait dans la base de test |
 
 ## PR checklist
