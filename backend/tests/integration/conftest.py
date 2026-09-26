@@ -18,6 +18,10 @@ from typing import List, Set
 
 import pytest
 
+from tests._garde_base_reelle import refuser_une_vraie_base
+
+refuser_une_vraie_base("d'intégration")
+
 _LISTE = Path(__file__).parent / "known_failures.txt"
 
 

@@ -129,7 +129,7 @@ jobs:
           retention-days: 14
 
   # ----------------------------------------------------------------------------
-  # 3) Backend integration — best-effort (info, jamais bloquant)
+  # 3) Backend integration — COUPÉ depuis le 26/09/2026 (voir la condition du job)
   # Tourne sur la base de TEST. Skippe si ses secrets sont absents ; sinon lance pytest
   # tests/integration.
   #
@@ -142,8 +142,11 @@ jobs:
   backend-integration:
     name: Backend integration
     needs: backend
-    # Jamais sur un simple push de branche : ces tests écrivent dans la base de TEST.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    # COUPÉ depuis le 26/09/2026 : ces tests écrivent dans la base de test, qui
+    # porte la paie réelle d'un client. À rallumer seulement contre une base
+    # jetable créée pour eux (et avec EYWAI_TESTS_BASE_REELLE=oui, voir
+    # backend/tests/_garde_base_reelle.py, qui refuse sinon toute vraie base).
+    if: false
     runs-on: ubuntu-latest
     env:
       # Base de TEST, jamais la production. Ces tests écrivent : les faire
