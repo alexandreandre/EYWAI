@@ -78,3 +78,21 @@ def test_la_comparaison_tolere_moins_d_un_demi_centime():
 
 def test_les_champs_volatils_sont_ignores():
     assert comparer({"b": {"date_generation": "hier", "net": 1}}, {"b": {"date_generation": "aujourd'hui", "net": 1}}) == {}
+
+
+def test_une_ecriture_simulee_ne_part_jamais():
+    client, appels = _client_avec_compteur()
+    with Interception("photo", ecritures_simulees=True) as capture:
+        r = client.patch(f"{BASE}/rest/v1/employees?id=eq.1", json={"salaire": 1})
+    assert r.status_code == 204 and appels == []
+    assert capture.ecritures_evitees == ["PATCH /rest/v1/employees"]
+
+
+def test_le_rejeu_peut_completer_une_lecture_absente():
+    client, appels = _client_avec_compteur()
+    with Interception("rejeu", {}, completer=True) as rejeu:
+        assert client.get(f"{BASE}/rest/v1/salary_history?select=*").status_code == 200
+        with pytest.raises(EcritureInterdite):
+            client.delete(f"{BASE}/rest/v1/payslips?id=eq.1")
+    assert len(appels) == 1
+    assert rejeu.lectures_completees == ["GET /rest/v1/salary_history"]

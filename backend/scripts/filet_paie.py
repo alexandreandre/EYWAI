@@ -102,12 +102,27 @@ def _decoder(bloc: dict[str, str]) -> bytes:
 class Interception:
     """Remplace `httpx.Client.send` : enregistre (photo) ou rejoue (rejeu)."""
 
-    def __init__(self, mode: str, cassette: dict[str, list[dict]] | None = None):
+    def __init__(
+        self,
+        mode: str,
+        cassette: dict[str, list[dict]] | None = None,
+        *,
+        ecritures_simulees: bool = False,
+        completer: bool = False,
+    ):
         self.mode = mode
         self.cassette: dict[str, list[dict]] = cassette or {}
         self._rang: dict[str, int] = {}
         self._original = httpx.Client.send
         self.nombre = 0
+        # Une ancienne version du code peut tenter d'écrire (défaut corrigé
+        # depuis) : on lui répond « fait » sans rien envoyer, et on le note.
+        self.ecritures_simulees = ecritures_simulees
+        self.ecritures_evitees: list[str] = []
+        # Au rejeu, une lecture absente de la photo peut être faite en direct
+        # (toujours sans écriture) ; elle est notée dans le rapport.
+        self.completer = completer
+        self.lectures_completees: list[str] = []
 
     def __enter__(self) -> "Interception":
         interception = self
@@ -123,6 +138,9 @@ class Interception:
 
     def _send(self, client: httpx.Client, request: httpx.Request, *args: Any, **kwargs: Any):
         if not _est_une_lecture(request):
+            if self.ecritures_simulees:
+                self.ecritures_evitees.append(f"{request.method} {request.url.path}")
+                return httpx.Response(204, request=request)
             raise EcritureInterdite(
                 f"Écriture refusée par le filet : {request.method} {request.url.path}"
             )
@@ -144,6 +162,9 @@ class Interception:
             )
             return reponse
         enregistrees = self.cassette.get(cle)
+        if not enregistrees and self.completer:
+            self.lectures_completees.append(f"{request.method} {request.url.path}")
+            return self._original(client, request, *args, **kwargs)
         if not enregistrees:
             raise RequeteInconnue(
                 f"Lecture absente de la photo : {request.method} {request.url.path}"
@@ -315,6 +336,10 @@ def _rapport(dossier: Path, ecarts: dict[str, list[tuple]], nb: int, meta: dict)
         f"{datetime.now():%d/%m/%Y %H:%M} (code `{_commit()}`).",
         f"- Bulletins comparés : {nb}.",
         f"- Bulletins avec écart : {len(ecarts)}.",
+        f"- Écritures évitées (jamais envoyées) : photo {len(meta.get('ecritures_evitees', []))}, "
+        f"rejeu {len(meta.get('rejeu_ecritures_evitees', []))}.",
+        f"- Lectures absentes de la photo, faites en direct au rejeu : "
+        f"{len(meta.get('rejeu_lectures_completees', []))}.",
         "",
     ]
     if not ecarts:
@@ -355,7 +380,7 @@ def photo(args: argparse.Namespace) -> int:
     dossier = Path(args.dossier)
     dossier.mkdir(parents=True, exist_ok=True)
     debut = time.monotonic()
-    with Interception("photo") as capture:
+    with Interception("photo", ecritures_simulees=args.ecritures_simulees) as capture:
         bulletins = _bulletins_a_calculer(args.siren, _mois(args.de), _mois(args.a))
         print(f"{len(bulletins)} bulletin(s) à calculer.", flush=True)
         resultats = _calculer(bulletins)
@@ -367,6 +392,7 @@ def photo(args: argparse.Namespace) -> int:
         "a": args.a,
         "bulletins": bulletins,
         "lectures": capture.nombre,
+        "ecritures_evitees": capture.ecritures_evitees,
         "duree_s": round(time.monotonic() - debut, 1),
     }
     (dossier / "cassette.json").write_text(json.dumps(capture.cassette), encoding="utf-8")
@@ -388,11 +414,16 @@ def rejouer(args: argparse.Namespace) -> int:
     cassette = json.loads((dossier / "cassette.json").read_text(encoding="utf-8"))
     reference = json.loads((dossier / "reference.json").read_text(encoding="utf-8"))
     debut = time.monotonic()
-    with Interception("rejeu", cassette):
+    with Interception(
+        "rejeu", cassette, ecritures_simulees=args.ecritures_simulees, completer=args.completer
+    ) as rejeu:
         nouveau = _calculer(meta["bulletins"])
     nouveau = json.loads(json.dumps(nouveau, ensure_ascii=False, default=str))
     ecarts = comparer(reference, nouveau)
-    chemin = _rapport(dossier, ecarts, len(meta["bulletins"]), meta)
+    meta_rejeu = dict(meta)
+    meta_rejeu["rejeu_ecritures_evitees"] = rejeu.ecritures_evitees
+    meta_rejeu["rejeu_lectures_completees"] = rejeu.lectures_completees
+    chemin = _rapport(dossier, ecarts, len(meta["bulletins"]), meta_rejeu)
     duree = round(time.monotonic() - debut, 1)
     if ecarts:
         total = sum(len(v) for v in ecarts.values())
@@ -410,8 +441,19 @@ def main() -> int:
     p.add_argument("--de", required=True, help="premier mois, AAAA-MM")
     p.add_argument("--a", required=True, help="dernier mois, AAAA-MM")
     p.add_argument("--dossier", required=True, help="sous data/, jamais versionné")
+    p.add_argument(
+        "--ecritures-simulees",
+        action="store_true",
+        help="répondre « fait » aux écritures sans les envoyer (ancienne version du code)",
+    )
     r = sous.add_parser("rejouer", help="recalculer sur la photo et comparer")
     r.add_argument("--dossier", required=True)
+    r.add_argument("--ecritures-simulees", action="store_true")
+    r.add_argument(
+        "--completer",
+        action="store_true",
+        help="faire en direct les lectures absentes de la photo (sans écriture)",
+    )
     args = parser.parse_args()
     return photo(args) if args.commande == "photo" else rejouer(args)
 
