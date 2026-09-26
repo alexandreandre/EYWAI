@@ -23,7 +23,7 @@ import {
   getElectionCycles,
 } from "@/api/cse";
 import { getMonthPeriod } from "@/lib/csePeriod";
-import { downloadBlob, openBlobInNewTab, createBlobPreviewUrl } from '@/lib/downloadBlob';
+import { downloadBlob } from '@/lib/downloadBlob';
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i),
@@ -55,7 +55,6 @@ export default function ExportsTab() {
       setExporting(exportType);
       const blob = await exportFn();
       downloadBlob(blob, filename);
-      document.body.removeChild(a);
       toast({
         title: "Export réussi",
         description: `Le fichier ${filename} a été téléchargé.`,

@@ -45,7 +45,7 @@ import {
 } from "@/api/promotions";
 import { PromotionModal } from "@/components/PromotionModal";
 import apiClient from "@/api/apiClient";
-import { downloadBlob, openBlobInNewTab, createBlobPreviewUrl } from '@/lib/downloadBlob';
+import { downloadBlob } from '@/lib/downloadBlob';
 import {
   Loader2,
   ArrowLeft,
@@ -292,7 +292,6 @@ export default function PromotionDetail() {
     try {
       const blob = await downloadPromotionDocument(promotionId);
       downloadBlob(blob, `promotion_${promotionId}.pdf`);
-      document.body.removeChild(a);
     } catch (error: unknown) {
       const message =
         error && typeof error === "object" && "message" in error
