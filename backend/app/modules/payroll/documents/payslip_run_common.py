@@ -195,7 +195,10 @@ def mettre_a_jour_cumuls(
 
             start_month = get_leave_policy(str(company_id)).cp_reference_period_start_month
     except Exception:
-        pass
+        logger.warning("Réglages de congés non lus : période de référence en juin", exc_info=True)
+        from app.modules.payroll.engine.replis import CODE_REPLI_REGLAGES_CONGES, signaler_repli
+
+        signaler_repli(contexte, CODE_REPLI_REGLAGES_CONGES)
 
     annee = getattr(contexte, "year", None) or getattr(contexte, "annee_paie", None)
     if annee is None and isinstance(nouveaux_cumuls_data.get("periode"), dict):
@@ -495,4 +498,7 @@ def prefetch_jours_maintien_prime(
             company_id,
             exc,
         )
+        from app.modules.payroll.engine.replis import CODE_REPLI_PRORATA_ANCIENNETE, signaler_repli
+
+        signaler_repli(contexte, CODE_REPLI_PRORATA_ANCIENNETE)
         return set()

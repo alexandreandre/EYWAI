@@ -445,6 +445,9 @@ def _calculer_assiettes(
                             )
             except Exception as e:
                 logger.warning(f'WARN: Impossible de charger les mutuelles pour CSG: {e}')
+                from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
+
+                signaler_repli(contexte, CODE_REPLI_MUTUELLE)
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
         for ligne in mutuelle_spec.get("lignes_specifiques", []):
@@ -950,6 +953,9 @@ def calculer_cotisations(
                         )
             except Exception as e:
                 logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
+                from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
+
+                signaler_repli(contexte, CODE_REPLI_MUTUELLE)
                 # Fallback sur l'ancien format si erreur
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)

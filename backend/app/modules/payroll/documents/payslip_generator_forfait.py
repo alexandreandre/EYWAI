@@ -25,6 +25,11 @@ from typing import Any, Dict
 from fastapi import HTTPException
 
 from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.engine.replis import (
+    fermer_collecte,
+    fusionner_replis,
+    ouvrir_collecte,
+)
 from app.modules.payroll.documents.dossier_de_travail import (
     nouveau_dossier_de_travail,
     supprimer_dossier_de_travail,
@@ -95,6 +100,9 @@ def process_payslip_generation_forfait(
     files_to_cleanup = []
     dirs_to_cleanup = []
     dossier_de_travail: Path | None = None
+    # Replis de calcul notés pendant la génération (voir engine/replis.py).
+    alertes_de_repli_generateur: list = []
+    jeton_replis = ouvrir_collecte(alertes_de_repli_generateur)
     try:
         # --- ÉTAPE 1 : RÉCUPÉRER TOUTES LES DONNÉES DEPUIS SUPABASE ---
         employee_data = (
@@ -314,7 +322,6 @@ def process_payslip_generation_forfait(
                 }
                 saisies_data["primes"].append(expense_entry)
 
-        alertes_de_repli_generateur: list = []
         try:
             from app.modules.saisies_avances.infrastructure.queries import (
                 get_advances_to_repay,
@@ -450,6 +457,9 @@ def process_payslip_generation_forfait(
                     ]
         except Exception as evo_err:
             logger.warning(f"Erreur résolution évolution salaire (forfait): {evo_err}")
+            from app.modules.payroll.engine.replis import CODE_REPLI_EVOLUTION_SALAIRE, noter_repli
+
+            noter_repli(CODE_REPLI_EVOLUTION_SALAIRE)
 
         from app.modules.employee_loans.application.payroll_integration import (
             inject_loan_benefit_in_kind,
@@ -597,9 +607,9 @@ def process_payslip_generation_forfait(
 
         if alertes_de_repli_generateur and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
-            payslip_json_data["alertes_baremes"] = list(
-                payslip_json_data.get("alertes_baremes") or []
-            ) + alertes_de_repli_generateur
+            payslip_json_data["alertes_baremes"] = fusionner_replis(
+                payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
+            )
 
         # --- ÉTAPE 5 : SAUVEGARDER ---
 
@@ -729,3 +739,4 @@ def process_payslip_generation_forfait(
                 except Exception as e:
                     logging.warning(f"Impossible de supprimer le dossier {d}: {e}")
         supprimer_dossier_de_travail(dossier_de_travail)
+        fermer_collecte(jeton_replis)

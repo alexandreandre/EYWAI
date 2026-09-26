@@ -112,6 +112,9 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
             logger.warning(
                 f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
             )
+            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
+
+            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if ligne.get("part_patronale_soumise_a_csg", True):
@@ -177,6 +180,9 @@ def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float
             logger.warning(
                 f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
             )
+            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
+
+            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if not ligne.get("part_salariale_deductible_impot", True):
@@ -233,6 +239,9 @@ def _part_salariale_mutuelle_hors_net_social(contexte: ContextePaie) -> float:
             logger.warning(
                 f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
             )
+            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
+
+            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if not ligne.get("part_salariale_obligatoire", True):

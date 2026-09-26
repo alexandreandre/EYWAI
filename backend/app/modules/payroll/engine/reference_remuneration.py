@@ -91,7 +91,18 @@ def lire_bruts_periode_reference(
             )
             row = resp.data if resp and hasattr(resp, "data") else None
         except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Bulletin %02d/%s illisible pour le brut de référence des congés",
+                month,
+                year,
+                exc_info=True,
+            )
             row = None
+            from app.modules.payroll.engine.replis import CODE_REPLI_REFERENCE_CONGES, noter_repli
+
+            noter_repli(CODE_REPLI_REFERENCE_CONGES)
 
         if row and row.get("payslip_data"):
             brut = lire_brut_payslip(row["payslip_data"])
@@ -190,7 +201,18 @@ def lire_brut_total_contrat(
             )
             row = resp.data if resp and hasattr(resp, "data") else None
         except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Bulletin %02d/%s illisible pour le brut de référence des congés",
+                month,
+                year,
+                exc_info=True,
+            )
             row = None
+            from app.modules.payroll.engine.replis import CODE_REPLI_REFERENCE_CONGES, noter_repli
+
+            noter_repli(CODE_REPLI_REFERENCE_CONGES)
 
         if row and row.get("payslip_data"):
             brut = lire_brut_payslip(row["payslip_data"])

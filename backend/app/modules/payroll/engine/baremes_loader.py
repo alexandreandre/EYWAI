@@ -92,7 +92,14 @@ def charger_conventions_collectives(supabase) -> Dict[str, Any]:
                         rules, str(idcc)
                     )
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Règles de conventions collectives lues en partie seulement", exc_info=True
+        )
+        from app.modules.payroll.engine.replis import CODE_REPLI_CONVENTION, noter_repli
+
+        noter_repli(CODE_REPLI_CONVENTION)
     return conventions
 
 
@@ -149,6 +156,14 @@ def _enrich_cc_rules_with_seed(rules: dict[str, Any], idcc: str) -> dict[str, An
         merged["prime_anciennete"] = enriched_prime
         return merged
     except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Complément de convention (idcc %s) non appliqué", idcc, exc_info=True
+        )
+        from app.modules.payroll.engine.replis import CODE_REPLI_CONVENTION, noter_repli
+
+        noter_repli(CODE_REPLI_CONVENTION)
         return rules
 
 

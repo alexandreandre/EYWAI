@@ -150,6 +150,9 @@ def build_solde_conges_pied_de_page(
         balances = get_absence_balances_for_payslip(employee_id, annee, mois)
     except Exception as exc:
         logger.warning("Impossible de calculer le solde de congés pour le bulletin: %s", exc)
+        from app.modules.payroll.engine.replis import CODE_REPLI_SOLDES_CONGES, noter_repli
+
+        noter_repli(CODE_REPLI_SOLDES_CONGES)
         return None
     return balances or None
 

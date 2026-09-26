@@ -21,6 +21,11 @@ from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     option_active,
 )
+from app.modules.payroll.engine.replis import (
+    fermer_collecte,
+    fusionner_replis,
+    ouvrir_collecte,
+)
 from app.modules.payroll.documents.dossier_de_travail import (
     nouveau_dossier_de_travail,
     supprimer_dossier_de_travail,
@@ -344,6 +349,9 @@ def resolve_date_sortie(employee_data: dict) -> Any:
             )
     except Exception as exc:  # pragma: no cover - réseau best-effort
         logger.warning(f"[Generator] Lecture employee_exits échouée: {exc}")
+        from app.modules.payroll.engine.replis import CODE_REPLI_SORTIE, noter_repli
+
+        noter_repli(CODE_REPLI_SORTIE)
     return contract_end
 
 
@@ -450,6 +458,9 @@ def process_payslip_generation(
     files_to_cleanup = []
     dirs_to_cleanup = []
     dossier_de_travail: Path | None = None
+    # Replis de calcul notés pendant la génération (voir engine/replis.py).
+    alertes_de_repli_generateur: list = []
+    jeton_replis = ouvrir_collecte(alertes_de_repli_generateur)
     try:
         # --- ÉTAPE 1 : RÉCUPÉRER TOUTES LES DONNÉES DEPUIS SUPABASE ---
 
@@ -501,6 +512,9 @@ def process_payslip_generation(
             logger.warning(
                 "Génération auto variables paie ignorée: %s", auto_var_exc
             )
+            from app.modules.payroll.engine.replis import CODE_REPLI_VARIABLES_AUTO, noter_repli
+
+            noter_repli(CODE_REPLI_VARIABLES_AUTO)
 
         employee_folder_name = employee_data["employee_folder_name"]
 
@@ -610,7 +624,11 @@ def process_payslip_generation(
                     str(company_id), year, float(duree_hebdo)
                 )
             except Exception:
+                logger.warning("Durées hebdomadaires de modulation non lues", exc_info=True)
                 weekly_map = None
+                from app.modules.payroll.engine.replis import CODE_REPLI_MODULATION, noter_repli
+
+                noter_repli(CODE_REPLI_MODULATION)
 
         payroll_events_list = payroll_analyzer_analyser(
             planned_data_all_months,
@@ -717,6 +735,9 @@ def process_payslip_generation(
             )
         except Exception as agg_exc:  # le bulletin ne tombe pas pour un panier
             logger.warning("Agrégation postes indisponible : %s", agg_exc)
+            from app.modules.payroll.engine.replis import CODE_REPLI_PRIMES_POSTES, noter_repli
+
+            noter_repli(CODE_REPLI_PRIMES_POSTES)
             current_schedule = db_data_map.get((year, month)) or {}
             payroll_events_raw = current_schedule.get("payroll_events") or {}
             summary = (
@@ -838,7 +859,6 @@ def process_payslip_generation(
                 saisies_data["primes"].append(expense_entry)
                 log_payroll_debug(logger, f'DEBUG [Generator] - Note de frais ajoutée: {expense_entry}')
 
-        alertes_de_repli_generateur: list = []
         try:
             from app.modules.saisies_avances.infrastructure.queries import (
                 get_advances_to_repay,
@@ -1057,6 +1077,9 @@ def process_payslip_generation(
                     ]
         except Exception as evo_err:
             logger.warning(f"Erreur résolution évolution salaire: {evo_err}")
+            from app.modules.payroll.engine.replis import CODE_REPLI_EVOLUTION_SALAIRE, noter_repli
+
+            noter_repli(CODE_REPLI_EVOLUTION_SALAIRE)
 
         write_temp_json(employee_path / "contrat.json", contrat_json_content)
 
@@ -1205,9 +1228,9 @@ def process_payslip_generation(
 
         if alertes_de_repli_generateur and isinstance(payslip_json_data, dict):
             payslip_json_data = dict(payslip_json_data)
-            payslip_json_data["alertes_baremes"] = list(
-                payslip_json_data.get("alertes_baremes") or []
-            ) + alertes_de_repli_generateur
+            payslip_json_data["alertes_baremes"] = fusionner_replis(
+                payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
+            )
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (
@@ -1402,3 +1425,4 @@ def process_payslip_generation(
                 except Exception as e:
                     logger.warning(f'Erreur lors du nettoyage du dossier {d}: {e}')
         supprimer_dossier_de_travail(dossier_de_travail)
+        fermer_collecte(jeton_replis)

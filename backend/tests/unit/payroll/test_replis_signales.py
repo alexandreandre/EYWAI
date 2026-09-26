@@ -99,4 +99,5 @@ def test_les_avances_avalees_se_signalent_sans_perdre_les_acomptes():
     source_forfait = inspect.getsource(payslip_generator_forfait)
     assert "ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)" in source_forfait
     for s in (source, source_forfait):
-        assert '+ alertes_de_repli_generateur' in s
+        # Les replis du générateur rejoignent les alertes du bulletin, sans doublon.
+        assert 'fusionner_replis(\n                payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur\n            )' in s

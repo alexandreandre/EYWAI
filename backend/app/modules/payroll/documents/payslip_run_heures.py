@@ -355,6 +355,9 @@ def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> flo
         return round(total, 2) if trouve else None
     except Exception as exc:  # noqa: BLE001 — la période se réglera au maintien seul
         logger.warning("Rémunération de la période de congés précédente indisponible : %s", exc)
+        from app.modules.payroll.engine.replis import CODE_REPLI_CONGES_FIN_CONTRAT, noter_repli
+
+        noter_repli(CODE_REPLI_CONGES_FIN_CONTRAT)
         return None
 
 
@@ -376,6 +379,9 @@ def cp_fin_de_contrat(contexte, employee_id: str | None, year: int, month: int) 
         compteurs = get_absence_balances_for_payslip(employee_id, year, month)
     except Exception as exc:  # noqa: BLE001 — repli : dixième global, dit dans le détail
         logger.warning("Compteurs de congés indisponibles pour l'indemnité de fin de contrat : %s", exc)
+        from app.modules.payroll.engine.replis import CODE_REPLI_CONGES_FIN_CONTRAT, signaler_repli
+
+        signaler_repli(contexte, CODE_REPLI_CONGES_FIN_CONTRAT)
         return None
     from app.modules.payroll.engine.reference_remuneration import lire_brut_reference_depuis_cumuls
 

@@ -177,7 +177,12 @@ def run_payslip_generation_forfait(
                     employee_id,
                 )
         except Exception:
-            pass
+            logging.getLogger(__name__).warning(
+                "Forfait annuel non ajusté des congés d'ancienneté", exc_info=True
+            )
+            from app.modules.payroll.engine.replis import CODE_REPLI_FORFAIT_ANCIENNETE, signaler_repli
+
+            signaler_repli(contexte, CODE_REPLI_FORFAIT_ANCIENNETE)
 
     # (déplacé) Rattachement du STC à la PÉRIODE DE PAIE, cf. payslip_run_heures.
     date_debut_periode, date_fin_periode = definir_periode_de_paie(
