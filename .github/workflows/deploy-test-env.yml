@@ -42,6 +42,8 @@ jobs:
   # INSERT ... WHERE NOT EXISTS) : relancer le même fichier est sans effet.
   #
   # Bloquant : si la migration échoue, on ne déploie pas de code qui en dépend.
+  # Depuis le 26/09/2026, la migration est aussi inscrite au registre
+  # supabase_migrations, dans la même transaction.
   # ---------------------------------------------------------------------------
   migrate:
     name: Migration base de test
@@ -64,6 +66,11 @@ jobs:
           case "$MIGRATION" in
             */*) echo "::error::Donner le nom du fichier seul, sans chemin."; exit 1 ;;
           esac
+          # Format imposé : il sert aussi à inscrire la migration au registre.
+          if ! printf '%s' "$MIGRATION" | grep -Eq '^[0-9]{14}_[a-z0-9_]+\.sql$'; then
+            echo "::error::Nom attendu : AAAAMMJJHHMMSS_nom_en_minuscules.sql"
+            exit 1
+          fi
           if [ ! -f "supabase/migrations/$MIGRATION" ]; then
             echo "::error::supabase/migrations/$MIGRATION introuvable sur cette branche."
             exit 1
@@ -78,11 +85,20 @@ jobs:
           TEST_DB_URL: ${{ secrets.SUPABASE_TEST_DB_URL }}
           MIGRATION: ${{ inputs.migration }}
         run: |
+          # La migration est inscrite au registre supabase_migrations dans la
+          # même transaction : soit les deux passent, soit aucune. Sans cette
+          # inscription, le registre de la base de test divergeait à chaque
+          # migration appliquée ici (audit du 25/09/2026).
+          VERSION="${MIGRATION%%_*}"
+          NOM="${MIGRATION#*_}"; NOM="${NOM%.sql}"
+          printf "insert into supabase_migrations.schema_migrations (version, name, created_by) values ('%s', '%s', 'deploy-test-env') on conflict (version) do nothing;\n" \
+            "$VERSION" "$NOM" > /tmp/registre.sql
           psql "$TEST_DB_URL" \
             --set ON_ERROR_STOP=1 \
             --single-transaction \
-            -f "supabase/migrations/$MIGRATION"
-          echo "Migration appliquée."
+            -f "supabase/migrations/$MIGRATION" \
+            -f /tmp/registre.sql
+          echo "Migration appliquée et inscrite au registre ($VERSION, $NOM)."
 
   deploy:
     name: Build & deploy test env
