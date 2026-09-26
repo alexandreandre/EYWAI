@@ -11,6 +11,7 @@ import {
   leMoteurRecalculera,
 } from '@/features/payroll/utils/payslipDerivedLines';
 import AjouterPrimeBouton from './AjouterPrimeBouton';
+import { estPrimeSuivieParLeMoteur } from '@/features/payroll/utils/primesEditees';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface CalculBrutSectionProps {
@@ -47,10 +48,13 @@ export default function CalculBrutSection({
   // section après chaque enregistrement, ce qui rafraîchit cette référence.
   const [lignesInitiales] = useState(data);
 
-  const marquerRetouche = (ligne: { libelle?: unknown; saisie_id?: unknown } | undefined) => {
-    // Une prime saisie repasse par le moteur à l'enregistrement : ce n'est pas
-    // une retouche qui laisserait les cotisations en arrière (spec 2026-09-23).
-    if (ligne?.saisie_id) return;
+  const marquerRetouche = (
+    ligne: { libelle?: unknown; saisie_id?: unknown; nouvelle_saisie?: unknown } | undefined,
+  ) => {
+    // Une prime saisie, ou ajoutée depuis le bulletin, repasse par le moteur à
+    // l'enregistrement : ce n'est pas une retouche qui laisserait les
+    // cotisations en arrière (spec 2026-09-23).
+    if (estPrimeSuivieParLeMoteur(ligne)) return;
     const libelle = ligne?.libelle;
     if (estLigneHeuresSupConjoncturelle(typeof libelle === 'string' ? libelle : null)) {
       setHeuresSupCorrigees(true);

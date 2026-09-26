@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ligneDepuisSaisie, primesEditees } from './primesEditees';
+import { estPrimeSuivieParLeMoteur, ligneDepuisSaisie, primesEditees } from './primesEditees';
 
 const base = { libelle: 'Salaire de base', quantite: 151.67, taux: 14.28, gain: 2165.85 };
 const prime = { libelle: 'Prime exceptionnelle', gain: 100, saisie_id: 's-1' };
@@ -47,5 +47,29 @@ describe('primesEditees', () => {
     expect(
       primesEditees({ calcul_du_brut: [base] }, { calcul_du_brut: [{ ...base, gain: 2000 }] })
     ).toBe(false);
+  });
+});
+
+describe('estPrimeSuivieParLeMoteur', () => {
+  it("une prime saisie ou ajoutée depuis le bulletin est reprise par le moteur", () => {
+    expect(estPrimeSuivieParLeMoteur(prime)).toBe(true);
+    const ajoutee = ligneDepuisSaisie({
+      employee_id: 'emp-1',
+      year: 2026,
+      month: 8,
+      name: 'Prime libre',
+      amount: 10,
+      is_socially_taxed: true,
+      is_taxable: true,
+    });
+    expect(estPrimeSuivieParLeMoteur(ajoutee)).toBe(true);
+    // Son montant retouché reste suivi : pas d'avertissement rouge.
+    expect(estPrimeSuivieParLeMoteur({ ...ajoutee, gain: 25 })).toBe(true);
+  });
+
+  it("une autre ligne retouchée à la main n'est pas suivie", () => {
+    expect(estPrimeSuivieParLeMoteur(base)).toBe(false);
+    expect(estPrimeSuivieParLeMoteur({ libelle: 'x', nouvelle_saisie: 'texte' })).toBe(false);
+    expect(estPrimeSuivieParLeMoteur(undefined)).toBe(false);
   });
 });

@@ -71,6 +71,18 @@ function parSaisie(data: unknown): Map<string, number> {
   );
 }
 
+/**
+ * Une ligne que le serveur reprend comme variable du mois à l'enregistrement :
+ * prime imprimée depuis une saisie (`saisie_id`) ou ajoutée ici
+ * (`nouvelle_saisie`). La retoucher n'est pas une correction manuelle qui
+ * laisserait les cotisations en arrière : le bulletin est recalculé.
+ */
+export function estPrimeSuivieParLeMoteur(ligne: unknown): boolean {
+  if (!ligne || typeof ligne !== 'object') return false;
+  const l = ligne as { saisie_id?: unknown; nouvelle_saisie?: unknown };
+  return Boolean(l.saisie_id) || (!!l.nouvelle_saisie && typeof l.nouvelle_saisie === 'object');
+}
+
 export function primesEditees(avant: unknown, apres: unknown): boolean {
   if (lignes(apres).some((l) => l.nouvelle_saisie && typeof l.nouvelle_saisie === 'object')) return true;
   const a = parSaisie(avant);
