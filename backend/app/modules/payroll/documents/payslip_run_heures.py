@@ -1027,7 +1027,7 @@ def run_payslip_generation_heures(
     # Le SMIC de référence est proportionnel aux heures rémunérées : une heure
     # d'absence non payée doit en sortir, sinon la réduction est surévaluée
     # (Colorplast janvier 2026 : Cotte 643,01 au lieu de 609,61, Gautheron
-    # 689,65 au lieu de 582,21 — cf. `docs/colorplast-janvier-2026-ligne-a-ligne.md`).
+    # 689,65 au lieu de 582,21 — cf. `docs/comptes-rendus/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`).
     #
     # Sur un mois d'entrée ou de sortie, la base n'est pas celle d'un mois plein
     # mais les seules heures dues, que le calcul du brut expose (Demory, embauché

@@ -1256,7 +1256,7 @@ def calculer_salaire_brut(
             # et proratise le plafond, alors qu'il garde les heures d'un congé
             # payé — sans conséquence financière ici, le brut restant sous le
             # plafond dans les deux cas. Écarts documentés dans
-            # `docs/colorplast-mars-2026-ligne-a-ligne.md`.
+            # `docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md`.
             heures_abs = min(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
                 _heures_journalieres_contrat(duree_contrat_hebdo),

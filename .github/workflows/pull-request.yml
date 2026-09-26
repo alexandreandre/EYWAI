@@ -132,7 +132,7 @@ jobs:
               1. **Synthèse** — en 3 à 5 phrases : objectif fonctionnel, périmètre, verdict rapide.
               2. **Changements notables** — ce qui change côté produit ou flux (sans recopier le diff ligne par ligne).
               3. **Qualité et pertinence** — la solution est-elle cohérente avec l'intention ? points forts et faiblesses fonctionnelles.
-              4. **Conventions et cohérence** — nommage, structure des fichiers, style aligné avec le reste du dépôt ; tu peux ouvrir quelques fichiers du repo (ex. GUIDE-DEV.md, README, configs, fichiers voisins des changements) si ça aide à juger les conventions, sans tout scanner.
+              4. **Conventions et cohérence** — nommage, structure des fichiers, style aligné avec le reste du dépôt ; tu peux ouvrir quelques fichiers du repo (ex. docs/reference/demarrage.md, README, configs, fichiers voisins des changements) si ça aide à juger les conventions, sans tout scanner.
               5. **Risques et tests** — régressions possibles, cas à tester manuellement ou automatiquement.
               6. **Avant merge** — liste courte et actionnable de vérifications ou ajustements souhaitables.
 

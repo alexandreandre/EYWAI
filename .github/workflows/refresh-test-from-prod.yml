@@ -131,7 +131,7 @@ jobs:
           QA_PW: ${{ secrets.QA_E2E_PASSWORD }}
         run: |
           if [ -z "$QA_PW" ]; then
-            echo "::warning::Secret QA_E2E_PASSWORD absent : compte QA non recréé, la suite E2E échouera au login (voir docs/qa/strategie-qa.md)."
+            echo "::warning::Secret QA_E2E_PASSWORD absent : compte QA non recréé, la suite E2E échouera au login (voir docs/reference/strategie-qa.md)."
             exit 0
           fi
           psql "$TEST_DB_URL" -v ON_ERROR_STOP=1 \
