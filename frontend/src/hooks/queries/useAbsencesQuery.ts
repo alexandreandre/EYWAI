@@ -2,11 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/apiClient';
 import { queryKeys } from '@/lib/queryKeys';
 import { useActiveCompanyId } from './useCompanyId';
+import type { AbsenceRequestWithEmployee } from '@/api/absences';
 
-export type AbsenceRequest = {
-  id: string;
-  [key: string]: unknown;
-};
+/** Ligne de GET /api/absences/?status=… : la demande et son salarié. */
+export type AbsenceRequest = AbsenceRequestWithEmployee;
 
 async function fetchAbsencesByStatus(status: string) {
   const res = await apiClient.get<AbsenceRequest[]>(`/api/absences/?status=${status}`);

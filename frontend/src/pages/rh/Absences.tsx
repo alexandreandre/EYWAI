@@ -89,7 +89,7 @@ function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boole
   if (!user) return false;
   if (isPlatformAdmin(user)) return true;
   const r = user.role;
-  return r === "rh" || r === "admin" || r === "admin";
+  return r === "rh" || r === "admin";
 }
 
 export default function AbsencesPage() {
