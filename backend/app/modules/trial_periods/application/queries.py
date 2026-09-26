@@ -96,6 +96,11 @@ def fetch_employees(company_id: str) -> List[Dict[str, Any]]:
     return list(res.data or [])
 
 
+def get_trial_period(trial_period_id: str) -> dict[str, Any] | None:
+    """Une période d'essai par son identifiant (None si introuvable)."""
+    return repository.get_by_id(trial_period_id)
+
+
 def get_tracking_page(
     company_id: str,
     reference: Optional[date] = None,
@@ -126,6 +131,7 @@ __all__ = [
     "fetch_company_settings",
     "fetch_employees",
     "get_tracking_page",
+    "get_trial_period",
     "select_to_qualify",
     "split_sections",
 ]

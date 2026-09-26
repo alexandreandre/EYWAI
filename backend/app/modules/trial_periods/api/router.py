@@ -33,6 +33,7 @@ def create(
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     company_id = access.require_rh_or_admin(current_user)
+    access.require_employee_in_company(current_user, company_id, body.employee_id)
     try:
         return commands.create_trial_period(
             company_id=company_id,
@@ -53,7 +54,7 @@ def update(
     body: TrialPeriodUpdate,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    access.require_rh_or_admin(current_user)
+    access.require_trial_period_access(current_user, trial_period_id)
     try:
         return commands.update_trial_period(
             trial_period_id,
@@ -71,7 +72,7 @@ def confirm(
     trial_period_id: str,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    access.require_rh_or_admin(current_user)
+    access.require_trial_period_access(current_user, trial_period_id)
     return commands.confirm_trial_period(trial_period_id, str(current_user.id) or None)
 
 
@@ -81,7 +82,7 @@ def renew(
     body: TrialPeriodRenew,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    access.require_rh_or_admin(current_user)
+    access.require_trial_period_access(current_user, trial_period_id)
     try:
         return commands.renew_trial_period(
             trial_period_id,
