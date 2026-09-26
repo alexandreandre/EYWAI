@@ -113,6 +113,12 @@ npm run build
 
 `npm run typecheck` existe mais n'est pas encore propre, et ne tourne pas en CI.
 
+- **En une commande**, depuis la racine : `make verifier` (lint, types, tests
+  backend et frontend), ou séparément `make test`, `make lint`,
+  `make typecheck`. Après une modification du moteur de paie : `make filet`
+  (août Colorplast, quelques secondes) ; avant un déploiement :
+  `make filet-complet` (janvier à août). Le filet rejoue une photo des entrées
+  rangée dans `data/_filet/`, sans accès à la base : zéro écart attendu.
 - **Toute la CI en local** : `sh scripts/run-local-ci-suite.sh`. Le script
   réinstalle le frontend (`npm ci`) ; préfixer par `APP_ENV=prod` si le shell
   exporte `APP_ENV=test`.
@@ -127,15 +133,19 @@ npm run build
   paie vivent dans `data/`, ignoré par git : voir
   [donnees-locales.md](donnees-locales.md).
 - **Commits** au format Conventional Commits, en français :
-  `type(portée): résumé` (types dans `commitlint.config.cjs`). Aucun hook ne
-  les contrôle aujourd'hui.
+  `type(portée): résumé` (types dans `commitlint.config.cjs`).
+- **Contrôle avant commit** : `.husky/pre-commit` refuse un commit dont un
+  fichier Python porte une erreur grave (syntaxe, nom non défini). À activer
+  une fois par clone : `git config core.hooksPath .husky`. Le hook
+  `prepare-commit-msg` préfixe alors par `chore:` un message qui n'a pas de
+  type.
 - **Personne ne pousse sur `main` avant la bascule** : le workflow « Deploy »
   redéploierait le site de test avec le code de `main`. Pour déployer une
   branche sur le test : `gh workflow run deploy-test-env.yml --ref <branche>`.
   Voir [guide-environnement-test.md](guide-environnement-test.md) et
   [bascule-production.md](bascule-production.md).
-- **Migrations** : jamais `make prod-db-push` ni `supabase db push` depuis un
-  poste. Après `make prod-link` ou `make supabase-dump-prod-schema`, la CLI
+- **Migrations** : jamais `supabase db push` depuis un poste ; la cible
+  `make prod-db-push` a été retirée le 26/09/2026. Après `make prod-link` ou `make supabase-dump-prod-schema`, la CLI
   reste liée au projet visé.
 - **Outillage** : Claude Code. Commandes (`/commit`, `/debug-local`, `/update`…),
   règles et skills du dépôt sont dans `.claude/` : voir

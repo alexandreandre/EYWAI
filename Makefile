@@ -25,7 +25,14 @@ help:
 		"  make dev-backend                       Lance l'API FastAPI locale" \
 		"  make dev-frontend                      Lance le frontend Vite local" \
 		"  make prod-link                         Lie la CLI au projet Supabase prod" \
-		"  make prod-db-push                      Pousse les migrations vers Supabase prod"
+		"" \
+		"Verifier avant de commiter :" \
+		"  make verifier                          lint + types + tests (backend et frontend)" \
+		"  make test                              Tests unitaires backend (valeurs factices, comme la CI) et frontend" \
+		"  make lint                              Erreurs graves Python (ruff) + ESLint" \
+		"  make typecheck                         Controle de types du frontend" \
+		"  make filet                             Rejoue la photo d'aout Colorplast : zero ecart attendu" \
+		"  make filet-complet                     Rejoue janvier a aout : avant chaque deploiement"
 
 .PHONY: check-local-tools
 check-local-tools:
@@ -127,7 +134,35 @@ dev-backend:
 dev-frontend:
 	cd frontend && npm run dev
 
-.PHONY: prod-db-push
-prod-db-push:
-	@test -n "$(DB_PASSWORD)" || (echo "DB_PASSWORD requis: make prod-db-push DB_PASSWORD='...'" && exit 1)
-	supabase db push --linked --password "$(DB_PASSWORD)"
+# Plus de cible qui pousse des migrations vers une base depuis un poste (audit
+# du 25/09/2026, D14) : les migrations passent par « Deploy test env », une à une.
+
+# Valeurs factices, comme la CI : les tests unitaires n'atteignent aucune base.
+# APP_ENV=prod neutralise le APP_ENV=test du backend/.env local.
+CI_ENV := APP_ENV=prod SUPABASE_URL=https://ci-fake.supabase.co SUPABASE_KEY=ci-fake-anon-key SUPABASE_SERVICE_KEY= OPENROUTER_API_KEY=sk-or-ci-fake
+
+.PHONY: verifier test test-backend test-frontend lint typecheck filet filet-complet
+verifier: lint typecheck test
+
+test: test-backend test-frontend
+
+test-backend:
+	cd backend && $(CI_ENV) .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider
+
+test-frontend:
+	cd frontend && npm run test
+
+lint:
+	cd backend && .venv/bin/ruff check . --select E9,F63,F7,F82
+	cd frontend && npm run lint
+
+typecheck:
+	cd frontend && npm run typecheck
+
+# Filet avant/après : rejoue une photo des entrées (data/_filet/, hors git) avec
+# le code actuel, sans aucun accès à la base. Voir backend/scripts/filet_paie.py.
+filet:
+	cd backend && .venv/bin/python scripts/filet_paie.py rejouer --dossier ../data/_filet/colorplast-aout
+
+filet-complet:
+	cd backend && .venv/bin/python scripts/filet_paie.py rejouer --dossier ../data/_filet/colorplast-janvier-aout

@@ -1,1 +1,20 @@
 #!/usr/bin/env sh
+# Contrôle léger avant chaque commit, en quelques secondes : erreurs graves
+# (syntaxe, noms non définis, comparaisons invalides) dans les fichiers Python
+# du backend ajoutés au commit. Contournement exceptionnel : git commit --no-verify
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+FICHIERS=$(git diff --cached --name-only --diff-filter=ACMR -- 'backend/*.py')
+[ -z "$FICHIERS" ] && exit 0
+
+RUFF=backend/.venv/bin/ruff
+if [ ! -x "$RUFF" ]; then
+  echo "pre-commit : ruff introuvable (backend/.venv), contrôle sauté."
+  exit 0
+fi
+
+# shellcheck disable=SC2086
+"$RUFF" check --quiet --select E9,F63,F7,F82 --force-exclude $FICHIERS || {
+  echo "pre-commit : erreur grave dans un fichier Python ci-dessus. Commit refusé."
+  exit 1
+}
