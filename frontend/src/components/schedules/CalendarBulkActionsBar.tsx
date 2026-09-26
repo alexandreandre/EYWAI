@@ -49,7 +49,7 @@ export function CalendarBulkActionsBar({
 }: CalendarBulkActionsBarProps) {
   const { toast } = useToast();
   const { activeCompany } = useCompany();
-  const companyId = activeCompany?.id ?? '';
+  const companyId = activeCompany?.company_id ?? '';
   const [busy, setBusy] = useState<string | null>(null);
 
   const runUndo = async (restore: () => Promise<void>) => {

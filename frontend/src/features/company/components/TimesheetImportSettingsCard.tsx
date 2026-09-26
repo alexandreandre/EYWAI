@@ -17,7 +17,7 @@ export default function TimesheetImportSettingsCard() {
   const { activeCompany } = useCompany();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const activeCompanyId = activeCompany?.id;
+  const activeCompanyId = activeCompany?.company_id;
 
   const canEdit = useMemo(() => {
     const role = activeCompany?.role;
