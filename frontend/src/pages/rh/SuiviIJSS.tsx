@@ -487,7 +487,7 @@ export default function SuiviIJSSPage() {
         }}
       />
 
-      <PageFetchIndicator show={dashboardQuery.isFetching && !dashboardQuery.isLoading} />
+      <PageFetchIndicator isFetching={dashboardQuery.isFetching && !dashboardQuery.isLoading} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Kpi label="Arrêts OK" value={summary.ok} icon={CheckCircle2} tone="ok" />
