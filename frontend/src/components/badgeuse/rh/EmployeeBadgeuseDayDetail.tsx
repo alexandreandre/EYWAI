@@ -299,7 +299,7 @@ export function EmployeeBadgeuseDayDetail({
                       </span>
                       <div className="flex gap-1 shrink-0">
                         <Button
-                          size="xs"
+                          size={null}
                           variant="outline"
                           type="button"
                           onClick={() => {
@@ -315,7 +315,7 @@ export function EmployeeBadgeuseDayDetail({
                         </Button>
                         {e.id && (
                           <Button
-                            size="xs"
+                            size={null}
                             variant="ghost"
                             type="button"
                             className="text-red-600"
@@ -349,7 +349,7 @@ export function EmployeeBadgeuseDayDetail({
                       />
                       <div className="flex gap-1 ml-auto">
                         <Button
-                          size="xs"
+                          size={null}
                           variant="outline"
                           type="button"
                           onClick={() => updateEventMutation.mutate()}
@@ -358,7 +358,7 @@ export function EmployeeBadgeuseDayDetail({
                           Enregistrer
                         </Button>
                         <Button
-                          size="xs"
+                          size={null}
                           variant="ghost"
                           type="button"
                           onClick={() => setEditEventId(null)}
@@ -379,7 +379,7 @@ export function EmployeeBadgeuseDayDetail({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-medium">Ajouter un événement</span>
           <Button
-            size="xs"
+            size={null}
             variant="outline"
             type="button"
             onClick={() => validateDayMutation.mutate()}

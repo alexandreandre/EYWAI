@@ -646,7 +646,7 @@ export default function BadgeuseRhPage() {
                   </span>
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      size="xs"
+                      size={null}
                       variant="secondary"
                       onClick={() => void applyToCalendar()}
                       disabled={importingCalendar}
@@ -655,7 +655,7 @@ export default function BadgeuseRhPage() {
                       {importingCalendar ? "Import…" : "Appliquer au calendrier"}
                     </Button>
                     <Button
-                      size="xs"
+                      size={null}
                       variant="outline"
                       onClick={validateWeek}
                       disabled={validatingWeek}

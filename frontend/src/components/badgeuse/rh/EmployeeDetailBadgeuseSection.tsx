@@ -324,7 +324,7 @@ export function EmployeeDetailBadgeuseSection({
                     {formatBadgeuseDate(from)} — {formatBadgeuseDate(to)}
                   </span>
                   <Button
-                    size="xs"
+                    size={null}
                     variant="outline"
                     type="button"
                     onClick={() => void validatePeriod()}
