@@ -52,17 +52,16 @@ export function BDESUploadModal({ open, onOpenChange }: BDESUploadModalProps) {
       formData.append("file", file);
       
       // Générer une URL d'upload signée (à implémenter avec le backend)
-      const uploadResponse = await apiClient.post("/api/uploads/bdes", formData, {
+      // Le chemin renvoyé n'est pas réutilisé : uploadBDESDocument renvoie le
+      // fichier lui-même au serveur, qui ne lit pas de file_path.
+      await apiClient.post("/api/uploads/bdes", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      
-      const filePath = uploadResponse.data.path;
       
       // Ensuite créer le document BDES
       return uploadBDESDocument(file, {
         title,
         document_type: documentType,
-        file_path: filePath,
         year: parseInt(year) || null,
         is_visible_to_elected: isVisibleToElected,
         description: description || null,
