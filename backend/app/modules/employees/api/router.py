@@ -18,6 +18,7 @@ from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.employees.api.deps import (
     assert_can_read_employee_profile,
+    assert_can_update_employee,
     require_rh_access,
 )
 from app.modules.employees.api.router_me import me_router
@@ -512,6 +513,9 @@ def update_employee(
         company_id = current_user.active_company_id
         if not company_id:
             raise HTTPException(status_code=400, detail="Aucune entreprise active.")
+        # Avant toute écriture : RH de la société sur un de ses salariés, ou
+        # le salarié sur sa propre fiche.
+        assert_can_update_employee(current_user, employee_id, str(company_id))
         update_data = employee_data.model_dump(exclude_unset=True)
         commands.update_employee(employee_id, update_data)
         data = queries.get_employee_by_id(employee_id, company_id)

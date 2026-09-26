@@ -32,6 +32,31 @@ def assert_can_read_employee_profile(
         raise HTTPException(status_code=403, detail="Accès non autorisé.")
 
 
+def assert_can_update_employee(
+    current_user: User, employee_id: str, company_id: str
+) -> None:
+    """RH : une fiche de SA société ; collaborateur : uniquement la sienne.
+
+    La modification d'une fiche n'avait aucune garde : tout compte connecté
+    modifiait la fiche, RIB et e-mail de connexion compris, de n'importe quel
+    salarié de n'importe quelle société, et l'écriture précédait même le
+    contrôle de société (constat du 26/09/2026). Le salarié garde la main sur
+    sa propre fiche (accueil, `EmployeeProfileEditDialog`). Hors société :
+    404, l'existence du salarié n'est pas révélée.
+    """
+    assert_can_read_employee_profile(current_user, employee_id, company_id)
+    if is_platform_admin(current_user):
+        return
+    if current_user.has_rh_access_in_company(company_id):
+        from app.modules.access_control.application.service import (
+            access_control_service,
+        )
+
+        access_control_service.assert_employee_in_company(
+            str(company_id), str(employee_id)
+        )
+
+
 def resolve_my_employee_id(current_user: User) -> str:
     """employees.id pour les routes /me/* (compte auth ≠ fiche si user_id renseigné)."""
     company_id = current_user.active_company_id
