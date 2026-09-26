@@ -15,12 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { PlanningEmployee } from "@/api/planning";
+import type { EmployeeForPlanning } from "@/api/planning";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  employees: PlanningEmployee[];
+  employees: EmployeeForPlanning[];
   employeeId: string;
   onEmployeeIdChange: (id: string) => void;
   date: string;

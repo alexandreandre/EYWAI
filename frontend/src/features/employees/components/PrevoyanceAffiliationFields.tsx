@@ -1,5 +1,6 @@
 import { PlusCircle, Trash2 } from 'lucide-react';
 import {
+  type ArrayPath,
   type Control,
   type FieldValues,
   type Path,
@@ -38,7 +39,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: lignesPath,
+    name: lignesPath as ArrayPath<T>,
   });
 
   const categoryLabel = cadre ? 'cadre' : 'non-cadre';
