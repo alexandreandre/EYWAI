@@ -25,6 +25,10 @@ from typing import Any, Dict
 from fastapi import HTTPException
 
 from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.documents.dossier_de_travail import (
+    nouveau_dossier_de_travail,
+    supprimer_dossier_de_travail,
+)
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
 
 from app.core.database import supabase
@@ -40,7 +44,6 @@ from app.modules.collective_agreements.domain.classification import (
 )
 from app.core.paths import (
     payroll_engine_root,
-    payroll_engine_employee_folder,
 )
 
 
@@ -91,6 +94,7 @@ def process_payslip_generation_forfait(
     """
     files_to_cleanup = []
     dirs_to_cleanup = []
+    dossier_de_travail: Path | None = None
     try:
         # --- ÉTAPE 1 : RÉCUPÉRER TOUTES LES DONNÉES DEPUIS SUPABASE ---
         employee_data = (
@@ -349,8 +353,9 @@ def process_payslip_generation_forfait(
             saisies_data["acompte"] = net_a_payer_only_correction_total
 
         # --- ÉTAPE 3 : PRÉPARATION DES FICHIERS TEMPORAIRES ---
-        employee_path = payroll_engine_employee_folder(employee_folder_name)
-        employee_path.mkdir(parents=True, exist_ok=True)
+        # Un dossier propre à cette génération (voir dossier_de_travail.py).
+        employee_path = nouveau_dossier_de_travail(employee_folder_name)
+        dossier_de_travail = employee_path
         sub_dirs = [
             "calendriers",
             "horaires",
@@ -723,3 +728,4 @@ def process_payslip_generation_forfait(
                         d.rmdir()
                 except Exception as e:
                     logging.warning(f"Impossible de supprimer le dossier {d}: {e}")
+        supprimer_dossier_de_travail(dossier_de_travail)

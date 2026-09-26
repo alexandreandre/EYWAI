@@ -21,11 +21,14 @@ from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     option_active,
 )
+from app.modules.payroll.documents.dossier_de_travail import (
+    nouveau_dossier_de_travail,
+    supprimer_dossier_de_travail,
+)
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
-    payroll_engine_employee_folder,
 )
 from app.modules.jei_settings.application.queries import get_jei_settings_raw
 from app.modules.payroll.application.analyzer import (
@@ -446,6 +449,7 @@ def process_payslip_generation(
     """
     files_to_cleanup = []
     dirs_to_cleanup = []
+    dossier_de_travail: Path | None = None
     try:
         # --- ÉTAPE 1 : RÉCUPÉRER TOUTES LES DONNÉES DEPUIS SUPABASE ---
 
@@ -923,8 +927,9 @@ def process_payslip_generation(
 
         # --- ÉTAPE 3 : ÉCRIRE LES FICHIERS TEMPORAIRES ET EXÉCUTER ---
 
-        employee_path = payroll_engine_employee_folder(employee_folder_name)
-        employee_path.mkdir(parents=True, exist_ok=True)
+        # Un dossier propre à cette génération (voir dossier_de_travail.py).
+        employee_path = nouveau_dossier_de_travail(employee_folder_name)
+        dossier_de_travail = employee_path
         sub_dirs = [
             "evenements_paie",
             "saisies",
@@ -1396,3 +1401,4 @@ def process_payslip_generation(
                         d.rmdir()
                 except Exception as e:
                     logger.warning(f'Erreur lors du nettoyage du dossier {d}: {e}')
+        supprimer_dossier_de_travail(dossier_de_travail)
