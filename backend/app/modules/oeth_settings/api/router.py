@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.oeth_settings.application import commands, queries
 from app.modules.oeth_settings.schemas.requests import (
     AnnualReviewStatusUpdate,
@@ -40,6 +41,23 @@ def _company_id(user: User) -> str:
     cid = str(user.active_company_id)
     if not user.has_access_to_company(cid):
         raise HTTPException(status_code=403, detail="Accès non autorisé pour cette entreprise")
+    return cid
+
+
+def _require_rh_on_employee(user: User, employee_id: str) -> str:
+    """Donnée de santé d'un salarié : RH de la société active, salarié de cette société.
+
+    L'historique du statut BOETH était lisible par tout compte connecté, pour
+    n'importe quel salarié de n'importe quelle société (audit du 25/09/2026,
+    E6). 403 sans droit RH ; 404 pour un salarié d'une autre société, comme
+    require_employee_access (l'existence n'est pas révélée).
+    """
+    cid = _company_id(user)
+    if user.is_platform_admin:
+        return cid
+    if not user.has_rh_access_in_company(cid):
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs et RH")
+    access_control_service.assert_employee_in_company(cid, employee_id)
     return cid
 
 
@@ -109,7 +127,7 @@ def get_employee_boeth_history(
     employee_id: str,
     current_user: User = Depends(get_current_user),
 ) -> list[BoethStatusHistoryItem]:
-    _company_id(current_user)
+    _require_rh_on_employee(current_user, employee_id)
     return queries.get_employee_boeth_history(employee_id)
 
 
