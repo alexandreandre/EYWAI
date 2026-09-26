@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Briefcase, FileText, TrendingUp } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -190,7 +190,12 @@ export function CompanyPilotageSection({
               </CardHeader>
               <CardContent className="h-[320px]">
                 {contractData.length === 0 ? (
-                  <EmptyChartState message="Aucune donnée contrat" />
+                  <EmptyChartState
+                    icon={FileText}
+                    title="Aucune donnée contrat"
+                    description="Complétez le type de contrat sur les fiches salariés."
+                    heightClass="h-full"
+                  />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -242,7 +247,12 @@ export function CompanyPilotageSection({
               </CardHeader>
               <CardContent className="h-[320px]">
                 {jobData.length === 0 ? (
-                  <EmptyChartState message="Aucun poste renseigné" />
+                  <EmptyChartState
+                    icon={Briefcase}
+                    title="Aucun poste renseigné"
+                    description="Renseignez l'intitulé de poste sur les fiches salariés."
+                    heightClass="h-full"
+                  />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={jobData} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -299,7 +309,12 @@ export function CompanyPilotageSection({
             </CardHeader>
             <CardContent className="h-[360px]">
               {evolutionChart.length === 0 ? (
-                <EmptyChartState message="Aucune donnée de paie sur cette période" />
+                <EmptyChartState
+                  icon={TrendingUp}
+                  title="Aucune donnée de paie sur cette période"
+                  description="Élargissez la période ou générez les bulletins des mois concernés."
+                  heightClass="h-full"
+                />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={evolutionChart}>
