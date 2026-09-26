@@ -418,7 +418,7 @@ export function EmployeeDetailAnnualReviewsTab({
     e.stopPropagation();
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      openBlobInNewTab(blob, 100);
+      previewAnnualReviewPdf(blob, reviewId);
     } catch {
       toast({ title: "Erreur", description: "PDF inaccessible.", variant: "destructive" });
     }
@@ -429,7 +429,6 @@ export function EmployeeDetailAnnualReviewsTab({
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
       downloadAnnualReviewPdfFile(blob, reviewId);
-      document.body.removeChild(a);
       toast({ title: "PDF téléchargé" });
     } catch {
       toast({ title: "Erreur", description: "Téléchargement impossible.", variant: "destructive" });

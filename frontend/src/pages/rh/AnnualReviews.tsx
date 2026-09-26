@@ -470,7 +470,7 @@ export default function AnnualReviews({
     e.stopPropagation();
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      openBlobInNewTab(blob, 100);
+      previewAnnualReviewPdf(blob, reviewId);
     } catch (error: unknown) {
       const detail =
         error &&
@@ -490,7 +490,6 @@ export default function AnnualReviews({
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
       downloadAnnualReviewPdfFile(blob, reviewId);
-      document.body.removeChild(a);
       toast({
         title: "PDF téléchargé",
         description: "Le PDF de l'entretien a été téléchargé avec succès.",

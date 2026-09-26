@@ -72,7 +72,9 @@ import {
   getReviewDateDisplay,
 } from "@/lib/annualReviewLabels";
 import {
+  downloadAnnualReviewPdfFile,
   downloadConvocationPdfFile,
+  previewAnnualReviewPdf,
   previewConvocationPdf,
 } from "@/lib/annualReviewPdf";
 import { annualReviewFormCompletionPercent } from "@/lib/annualReviewFormUtils";
@@ -347,7 +349,7 @@ export default function AnnualReviewDetail() {
     if (!reviewId) return;
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      openBlobInNewTab(blob, 100);
+      previewAnnualReviewPdf(blob, reviewId);
     } catch (error: unknown) {
       const detail =
         error &&
@@ -366,7 +368,7 @@ export default function AnnualReviewDetail() {
     if (!reviewId) return;
     try {
       const blob = await downloadAnnualReviewPdf(reviewId);
-      downloadBlob(blob, `entretien_${reviewId}.pdf`);
+      downloadAnnualReviewPdfFile(blob, reviewId);
       toast({
         title: "PDF téléchargé",
         description: "Le PDF de l'entretien a été téléchargé avec succès.",
