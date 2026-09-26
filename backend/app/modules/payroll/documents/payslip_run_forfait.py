@@ -192,6 +192,7 @@ def run_payslip_generation_forfait(
             month,
             date_debut_periode=date_debut_periode,
             date_fin_periode=date_fin_periode,
+            alertes=contexte.alertes_baremes,
         )
         ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
     logging.info(
@@ -410,12 +411,16 @@ def run_payslip_generation_forfait(
                     date_debut_periode,
                     date_fin_periode,
                 )
-            except Exception as exc:
-                logging.warning(
-                    "Maintien de salaire non calculé (forfait, company_id=%s): %s",
-                    company_id,
-                    exc,
+            except Exception:
+                logging.exception(
+                    "Maintien de salaire non calculé (forfait, company_id=%s)", company_id
                 )
+                from app.modules.payroll.engine.replis import (
+                    CODE_REPLI_MAINTIEN,
+                    signaler_repli,
+                )
+
+                signaler_repli(contexte, CODE_REPLI_MAINTIEN)
                 resultats_maintien = None
 
     lignes_csg_ijss, ijss_imposables, brut_modifie = _appliquer_maintien_arret_maladie(

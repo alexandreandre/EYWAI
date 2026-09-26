@@ -380,13 +380,15 @@ def photo(args: argparse.Namespace) -> int:
     dossier = Path(args.dossier)
     dossier.mkdir(parents=True, exist_ok=True)
     debut = time.monotonic()
+    # Version du code relevée AVANT le calcul : c'est celle que Python charge.
+    commit = _commit()
     with Interception("photo", ecritures_simulees=args.ecritures_simulees) as capture:
         bulletins = _bulletins_a_calculer(args.siren, _mois(args.de), _mois(args.a))
         print(f"{len(bulletins)} bulletin(s) à calculer.", flush=True)
         resultats = _calculer(bulletins)
     meta = {
         "date": f"{datetime.now():%d/%m/%Y %H:%M}",
-        "commit": _commit(),
+        "commit": commit,
         "siren": args.siren,
         "de": args.de,
         "a": args.a,

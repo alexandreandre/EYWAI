@@ -310,6 +310,7 @@ def process_payslip_generation_forfait(
                 }
                 saisies_data["primes"].append(expense_entry)
 
+        alertes_de_repli_generateur: list = []
         try:
             from app.modules.saisies_avances.infrastructure.queries import (
                 get_advances_to_repay,
@@ -338,10 +339,11 @@ def process_payslip_generation_forfait(
                     "soumise_a_impot": False,
                 }
                 saisies_data["primes"].append(advance_entry)
-        except Exception as e:
-            logging.warning(
-                "Erreur lors du calcul des avances à rembourser (forfait): %s", e
-            )
+        except Exception:
+            logger.exception("Erreur lors du calcul des avances à rembourser (forfait)")
+            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, ajouter_repli
+
+            ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)
 
         if net_a_payer_only_correction_total:
             saisies_data["acompte"] = net_a_payer_only_correction_total
@@ -587,6 +589,12 @@ def process_payslip_generation_forfait(
         if ijss_tracking_meta:
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["ijss_tracking"] = ijss_tracking_meta
+
+        if alertes_de_repli_generateur and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = list(
+                payslip_json_data.get("alertes_baremes") or []
+            ) + alertes_de_repli_generateur
 
         # --- ÉTAPE 5 : SAUVEGARDER ---
 

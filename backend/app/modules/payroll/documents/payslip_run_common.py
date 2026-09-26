@@ -352,6 +352,7 @@ def resolve_exit_state_for_payslip(
     *,
     date_debut_periode: date | None = None,
     date_fin_periode: date | None = None,
+    alertes: list | None = None,
 ) -> tuple[dict | None, bool]:
     """
     Retourne (indemnités calculées, blocage ICCP auto).
@@ -387,11 +388,14 @@ def resolve_exit_state_for_payslip(
             .execute()
         )
         rows = resp.data or []
-    except Exception as exc:
-        log_payroll_debug(
-            logger,
-            f"Indemnités de sortie non résolues pour bulletin ({employee_id}): {exc}",
-        )
+    except Exception:
+        # Repli : le bulletin sort comme un mois ordinaire. Il doit se voir
+        # (`alertes`, la liste d'alertes du bulletin) et laisser une trace.
+        logger.exception("Indemnités de sortie non résolues pour bulletin (%s)", employee_id)
+        if alertes is not None:
+            from app.modules.payroll.engine.replis import CODE_REPLI_SORTIE, ajouter_repli
+
+            ajouter_repli(alertes, CODE_REPLI_SORTIE)
         return None, False
 
     for row in rows:

@@ -5,7 +5,6 @@
 
 import calendar
 import json
-import logging
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -835,6 +834,7 @@ def process_payslip_generation(
                 saisies_data["primes"].append(expense_entry)
                 log_payroll_debug(logger, f'DEBUG [Generator] - Note de frais ajoutée: {expense_entry}')
 
+        alertes_de_repli_generateur: list = []
         try:
             from app.modules.saisies_avances.infrastructure.queries import (
                 get_advances_to_repay,
@@ -891,10 +891,15 @@ def process_payslip_generation(
                 )
             saisies_data["acompte"] = net_a_payer_only_correction_total
             log_payroll_debug(logger, f"[DEBUG GENERATOR] Total des remboursements d'avances à déduire: {float(total_advances_repayment)}€")
-        except Exception as e:
-            logging.warning(f"Erreur lors du calcul des avances à rembourser: {e}")
-            logger.warning(f'[WARNING GENERATOR] Erreur calcul avances: {e}')
-            saisies_data["acompte"] = 0.0
+        except Exception:
+            # Repli : les acomptes et corrections nettes du mois restent au
+            # bulletin (ils ne dépendent pas des avances) ; seules les avances
+            # ne sont pas retenues, et le bulletin le dit.
+            logger.exception("Erreur lors du calcul des avances à rembourser")
+            saisies_data["acompte"] = net_a_payer_only_correction_total
+            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, ajouter_repli
+
+            ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)
 
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
@@ -1192,6 +1197,12 @@ def process_payslip_generation(
         if ijss_tracking_meta:
             payslip_json_data = dict(payslip_json_data)
             payslip_json_data["ijss_tracking"] = ijss_tracking_meta
+
+        if alertes_de_repli_generateur and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = list(
+                payslip_json_data.get("alertes_baremes") or []
+            ) + alertes_de_repli_generateur
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (
