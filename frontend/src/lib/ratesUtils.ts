@@ -148,7 +148,8 @@ export type Cotisation = {
   libelle: string;
   base: string;
   salarial?: null | number | Record<string, number>;
-  patronal?: null | number | Record<string, number>;
+  /** Chaîne « specifique_entreprise » quand le taux vient de la fiche entreprise. */
+  patronal?: null | number | string | Record<string, number>;
   patronal_plein?: number;
   patronal_reduit?: number;
   salarial_Alsace_Moselle?: number;

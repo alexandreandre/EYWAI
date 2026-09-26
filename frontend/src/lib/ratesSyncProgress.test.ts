@@ -54,6 +54,7 @@ describe('resolveJobDisplayLabel', () => {
     expect(
       resolveJobDisplayLabel({
         source_key: 'AGIRC-ARRCO',
+        job_id: null,
         source_name: 'Retraite complémentaire',
         status: 'pending',
         rate_keys: ['cotisations'],
@@ -62,6 +63,7 @@ describe('resolveJobDisplayLabel', () => {
     expect(
       resolveJobDisplayLabel({
         source_key: 'CSG',
+        job_id: null,
         source_name: 'CSG',
         status: 'pending',
         rate_keys: ['cotisations'],
@@ -88,18 +90,21 @@ describe('collectSyncRateTargets', () => {
         jobs: [
           {
             source_key: 'SMIC',
+            job_id: null,
             source_name: 'SMIC',
             status: 'running',
             rate_keys: ['smic'],
           },
           {
             source_key: 'AGIRC-ARRCO',
+            job_id: null,
             source_name: 'Retraite complémentaire',
             status: 'pending',
             rate_keys: ['cotisations'],
           },
           {
             source_key: 'CSG',
+            job_id: null,
             source_name: 'CSG',
             status: 'pending',
             rate_keys: ['cotisations'],
@@ -126,6 +131,7 @@ describe('partitionSyncRateTargets', () => {
         jobs: [
           {
             source_key: 'smic',
+            job_id: null,
             source_name: 'SMIC',
             status: 'completed',
             success: true,
@@ -133,6 +139,7 @@ describe('partitionSyncRateTargets', () => {
           },
           {
             source_key: 'pss',
+            job_id: null,
             source_name: 'PSS',
             status: 'failed',
             success: false,
@@ -140,6 +147,7 @@ describe('partitionSyncRateTargets', () => {
           },
           {
             source_key: 'ij',
+            job_id: null,
             source_name: 'IJ',
             status: 'running',
             rate_keys: ['ij_plafonds'],
@@ -175,12 +183,14 @@ describe('computeSyncProgressFromJobs', () => {
     const result = computeSyncProgressFromJobs([
       {
         source_key: 'fast',
+        job_id: null,
         source_name: 'Rapide',
         status: 'completed',
         progress_fraction: 1,
       },
       {
         source_key: 'slow',
+        job_id: null,
         source_name: 'Lent',
         status: 'running',
         progress_fraction: 0.5,
@@ -195,8 +205,8 @@ describe('computeSyncProgressFromJobs', () => {
 
   it('passe à 100 % quand tous les jobs sont terminés', () => {
     const result = computeSyncProgressFromJobs([
-      { source_key: 'a', source_name: 'A', status: 'completed' },
-      { source_key: 'b', source_name: 'B', status: 'failed' },
+      { source_key: 'a', job_id: null, source_name: 'A', status: 'completed' },
+      { source_key: 'b', job_id: null, source_name: 'B', status: 'failed' },
     ]);
     expect(result.percent).toBe(100);
     expect(result.allDone).toBe(true);
@@ -207,7 +217,7 @@ describe('formatSyncProgressEstimateFromJobs', () => {
   it('affiche uniquement le temps restant estimé', () => {
     const line = formatSyncProgressEstimateFromJobs(
       [
-        { source_key: 'smic', source_name: 'SMIC', status: 'running', progress_fraction: 0.5 },
+        { source_key: 'smic', job_id: null, source_name: 'SMIC', status: 'running', progress_fraction: 0.5 },
       ],
       30,
     );
@@ -232,8 +242,8 @@ describe('displaySyncProgressPercent', () => {
       displaySyncProgressPercent(agg, true, {
         elapsedSec: 10,
         jobs: [
-          { source_key: 'a', source_name: 'A', status: 'completed' },
-          { source_key: 'b', source_name: 'B', status: 'running', progress_fraction: 0.5 },
+          { source_key: 'a', job_id: null, source_name: 'A', status: 'completed' },
+          { source_key: 'b', job_id: null, source_name: 'B', status: 'running', progress_fraction: 0.5 },
         ],
       }),
     ).toBeGreaterThanOrEqual(50);
