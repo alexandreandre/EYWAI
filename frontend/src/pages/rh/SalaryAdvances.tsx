@@ -49,7 +49,7 @@ export default function SalaryAdvances() {
   const queryClient = useQueryClient();
   const advancesQuery = useQuery({
     queryKey: queryKeys.salaryAdvances(companyId),
-    queryFn: getSalaryAdvances,
+    queryFn: () => getSalaryAdvances(),
     enabled: Boolean(companyId),
   });
   const advances = advancesQuery.data ?? [];
