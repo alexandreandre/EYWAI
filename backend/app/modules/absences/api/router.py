@@ -8,7 +8,6 @@ Comportement HTTP identique à api/routers/absences.py.
 
 import io
 import logging
-import traceback
 from typing import List, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -85,6 +84,10 @@ from app.modules.absences.schemas.responses import (
     MonthlyCalendarResponse,
     SignedUploadURL,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/absences",
@@ -302,7 +305,7 @@ def get_upload_url(
         result = queries.get_upload_url_signed(str(current_user.id), filename)
         return SignedUploadURL(**result)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_upload_url")
         raise HTTPException(status_code=500, detail=f"Erreur de stockage Supabase: {e}")
 
 
@@ -395,7 +398,7 @@ def create_absence_request(
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_absence_request")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -475,7 +478,7 @@ def update_absence_request_status(
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_absence_request_status")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -509,7 +512,7 @@ def get_absence_requests(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_absence_requests")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -542,7 +545,7 @@ def list_pending_manager_approval(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_pending_manager_approval")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -616,7 +619,7 @@ def manager_approve_absence(
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de manager_approve_absence")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -641,7 +644,7 @@ def get_absences_for_employee(
     try:
         return queries.get_absences_for_employee(employee_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_absences_for_employee")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -667,7 +670,7 @@ def get_my_evenements_familiaux(
             events=[EvenementFamilialEvent(**e) for e in events]
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_evenements_familiaux")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -683,7 +686,7 @@ def get_my_absence_balances(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_absence_balances")
         raise HTTPException(status_code=500, detail="Erreur lors du calcul des soldes.")
 
 
@@ -699,7 +702,7 @@ def get_my_monthly_calendar(
         days = queries.get_my_monthly_calendar(employee_id, year, month)
         return MonthlyCalendarResponse(days=days)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_monthly_calendar")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de la récupération du calendrier.",
@@ -715,7 +718,7 @@ def get_my_absences_history(
         employee_id = _resolve_employee_id_for_current_user(current_user)
         return queries.get_my_absences_history(employee_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_absences_history")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne du serveur: {str(e)}",
@@ -736,7 +739,7 @@ def get_my_absences_page_data(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_absences_page_data")
         raise HTTPException(
             status_code=500, detail="Erreur de récupération des données."
         )
@@ -758,7 +761,7 @@ def get_employee_absence_balances_route(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_absence_balances_route")
         raise HTTPException(status_code=500, detail="Erreur lors du calcul des soldes.")
 
 
@@ -784,7 +787,7 @@ def get_absence_maintenance_preview(
     except (ValueError, LookupError, RuntimeError, PermissionError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_absence_maintenance_preview")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -801,7 +804,7 @@ def post_absence_regularisation_at(
     except (ValueError, LookupError, RuntimeError, PermissionError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de post_absence_regularisation_at")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -828,7 +831,7 @@ def generate_salary_certificate(
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_salary_certificate")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -855,7 +858,7 @@ def download_salary_certificate(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de download_salary_certificate")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -877,7 +880,7 @@ def get_salary_certificate(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_salary_certificate")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -901,7 +904,7 @@ def mark_salary_certificate_transmitted(
     except (ValueError, LookupError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de mark_salary_certificate_transmitted")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1377,5 +1380,5 @@ def get_absence_request_detail_for_user(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_absence_request_detail_for_user")
         raise HTTPException(status_code=500, detail=str(e))

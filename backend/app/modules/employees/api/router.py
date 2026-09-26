@@ -6,7 +6,6 @@ Comportement HTTP identique à api/routers/employees.py (legacy).
 """
 
 import json
-import traceback
 from io import BytesIO
 from typing import Any, Dict, List, Optional
 
@@ -72,7 +71,7 @@ def _handle_application_errors(e: Exception) -> None:
     """Erreurs applicatives → HTTP (pattern modules documents)."""
     if isinstance(e, ValueError):
         raise HTTPException(status_code=400, detail=str(e)) from e
-    traceback.print_exc()
+    logger.exception("Échec de _handle_application_errors")
     raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -157,7 +156,7 @@ def get_employees_summary(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employees_summary")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         ) from e
@@ -177,7 +176,7 @@ def get_employees(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employees")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -387,7 +386,7 @@ def get_employee_details(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_details")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -525,7 +524,7 @@ def update_employee(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_employee")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -548,7 +547,7 @@ def confirm_trial_period(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de confirm_trial_period")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -624,7 +623,7 @@ def get_employee_credentials_pdf_url(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_credentials_pdf_url")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -652,7 +651,7 @@ def stream_employee_credentials_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de stream_employee_credentials_pdf")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}") from e
 
 
@@ -692,7 +691,7 @@ def get_employee_identity_document_url(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_identity_document_url")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -713,7 +712,7 @@ def get_employee_contract_url(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_contract_url")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -761,7 +760,7 @@ async def upload_employee_contract(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de upload_employee_contract")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -788,7 +787,7 @@ def get_employee_promotions(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_promotions")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -816,7 +815,7 @@ def get_employee_rh_access_info(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_rh_access_info")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
