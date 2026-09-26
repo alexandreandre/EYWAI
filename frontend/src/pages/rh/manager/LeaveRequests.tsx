@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<AbsencePendingManagerItem['type'], string> = {
   jtc: 'JTC',
   sans_solde: 'Sans solde',
   repos_compensateur: 'Repos compensateur',
+  recuperation_modulation: 'Récupération modulation',
   evenement_familial: 'Événement familial',
   arret_maladie: 'Arrêt maladie',
   arret_at: 'Accident du travail',
