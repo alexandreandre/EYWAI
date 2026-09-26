@@ -293,7 +293,7 @@ function listSortKeyDate(item: AnnualReviewListLike): number {
 }
 
 /** Tri priorité RH pour la liste consolidée. */
-export function sortListItemsForDisplay(items: AnnualReviewListLike[]): AnnualReviewListLike[] {
+export function sortListItemsForDisplay<T extends AnnualReviewListLike>(items: T[]): T[] {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
