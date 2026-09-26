@@ -29,6 +29,8 @@ interface PromotionModalProps {
   onClose: () => void;
   promotion?: Promotion | null;
   initialEmployeeId?: string;
+  /** Entretien d'origine : rattache la promotion créée à cet entretien. */
+  initialPerformanceReviewId?: string;
   onSuccess: () => void;
 }
 
@@ -53,6 +55,7 @@ export function PromotionModal({
   onClose,
   promotion,
   initialEmployeeId,
+  initialPerformanceReviewId,
   onSuccess,
 }: PromotionModalProps) {
   const { toast } = useToast();
@@ -254,6 +257,7 @@ export function PromotionModal({
           effective_date: effectiveDate,
           reason: reason || null,
           justification: justification || null,
+          performance_review_id: initialPerformanceReviewId || null,
           status: initialStatus,
           grant_rh_access: grantRhAccess,
           new_rh_access: grantRhAccess ? newRhAccess : null,
