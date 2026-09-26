@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import type { GeneratedDocument } from '@/api/documents';
+import { DOCUMENT_TYPE_LABELS } from '@/api/documentLibrary';
 import { getGeneratedDocumentLabel } from '@/lib/generatedDocumentLabel';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
