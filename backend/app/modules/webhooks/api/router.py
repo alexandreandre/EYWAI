@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import traceback
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +16,10 @@ from app.modules.webhooks.schemas.responses import (
     WebhookTestResponse,
     WebhookUpdate,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
@@ -56,7 +59,7 @@ def list_webhooks(
         rows = webhook_service.list_webhooks(company_id)
         return [_row_to_config_out(r) for r in rows]
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_webhooks")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -80,7 +83,7 @@ def create_webhook(
         )
         return _row_to_config_out(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_webhook")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -101,7 +104,7 @@ def update_webhook(
     except LookupError:
         raise HTTPException(status_code=404, detail="Webhook introuvable.") from None
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_webhook")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -119,7 +122,7 @@ def delete_webhook(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_webhook")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -136,7 +139,7 @@ def test_webhook(
     except LookupError:
         raise HTTPException(status_code=404, detail="Webhook introuvable.") from None
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de test_webhook")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -153,5 +156,5 @@ def webhook_logs(
         rows = webhook_service.list_webhook_logs(webhook_id, company_id, limit=20)
         return [_row_to_log_out(r) for r in rows]
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de webhook_logs")
         raise HTTPException(status_code=500, detail=str(e)) from e

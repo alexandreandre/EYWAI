@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,6 +15,10 @@ from app.modules.teams.schemas.requests import (
     TeamUpdate,
 )
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/teams", tags=["Teams"])
 
@@ -57,7 +60,7 @@ def list_teams(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de list_teams")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -73,7 +76,7 @@ def create_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de create_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -93,7 +96,7 @@ def team_analytics_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de team_analytics_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -112,7 +115,7 @@ def check_team_name_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de check_team_name_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -131,7 +134,7 @@ def assign_employee_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de assign_employee_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -147,7 +150,7 @@ def get_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -164,7 +167,7 @@ def update_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de update_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -180,7 +183,7 @@ def archive_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de archive_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -196,7 +199,7 @@ def reactivate_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de reactivate_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")
 
 
@@ -213,5 +216,5 @@ def delete_team_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de delete_team_endpoint")
         raise HTTPException(status_code=500, detail="Erreur serveur.")

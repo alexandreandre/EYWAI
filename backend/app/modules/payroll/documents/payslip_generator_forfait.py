@@ -16,7 +16,6 @@ logger = get_logger("modules.payroll.documents.payslip_generator_forfait")
 
 import json
 import logging
-import traceback
 import calendar
 from datetime import date
 from pathlib import Path
@@ -721,7 +720,7 @@ def process_payslip_generation_forfait(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logging.error(f"Erreur lors de la génération de paie forfait jour: {e}")
-        traceback.print_exc()
+        logger.exception("Échec de process_payslip_generation_forfait")
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:

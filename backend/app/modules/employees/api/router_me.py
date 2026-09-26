@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -13,6 +12,10 @@ from app.modules.employees.api.deps import resolve_my_employee_id
 from app.modules.employees.application import queries
 from app.modules.employees.schemas.responses import ContractResponse, FullEmployee
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 me_router = APIRouter()
 
@@ -34,7 +37,7 @@ def get_my_employee_details(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_employee_details")
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
@@ -53,7 +56,7 @@ def get_my_contract(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_contract")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -70,7 +73,7 @@ def get_my_identity_document(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_identity_document")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -87,7 +90,7 @@ def get_my_credentials_pdf(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_credentials_pdf")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
@@ -109,7 +112,7 @@ def stream_my_credentials_pdf(current_user: User = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de stream_my_credentials_pdf")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}") from e
 
 
@@ -124,5 +127,5 @@ def get_my_published_exit_documents(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_published_exit_documents")
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")

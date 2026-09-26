@@ -6,7 +6,6 @@ Délègue au service (repository injecté) ; pas d’accès DB direct ici.
 
 from __future__ import annotations
 
-import traceback
 
 from fastapi import HTTPException
 
@@ -15,6 +14,10 @@ from app.modules.mutuelle_types.application.service import MutuelleTypesService
 from app.modules.mutuelle_types.infrastructure.repository import (
     SupabaseMutuelleTypeRepository,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def list_mutuelle_types(company_id: str) -> list[dict]:
@@ -29,7 +32,7 @@ def list_mutuelle_types(company_id: str) -> list[dict]:
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_mutuelle_types")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des mutuelles: {str(e)}",

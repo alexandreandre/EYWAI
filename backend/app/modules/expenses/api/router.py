@@ -5,7 +5,6 @@ Appelle uniquement la couche application (ExpenseApplicationService).
 Aucune logique métier ni accès DB/storage ici. Comportement HTTP identique au legacy.
 """
 
-import traceback
 from typing import Annotated, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -32,6 +31,10 @@ from app.modules.expenses.schemas.responses import (
     ExpenseWithEmployee,
     SignedUploadUrlResponse,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 
@@ -152,7 +155,7 @@ def get_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_upload_url")
         raise HTTPException(status_code=500, detail=f"Erreur de stockage Supabase: {e}")
 
 
@@ -196,7 +199,7 @@ def create_expense_report(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_expense_report")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -306,7 +309,7 @@ def update_expense(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_expense")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -323,7 +326,7 @@ def delete_expense(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_expense")
         raise HTTPException(status_code=500, detail=str(e))
 
 

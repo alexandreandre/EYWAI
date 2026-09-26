@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +23,10 @@ from app.modules.accounting_integration.schemas.responses import (
     TransmitComptaResult,
 )
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/accounting-integration", tags=["Intégration comptable"])
 router_admin = APIRouter(
@@ -70,7 +73,7 @@ def update_accounting_config(
     try:
         return service.update_config(company_id, body)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_accounting_config")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -141,7 +144,7 @@ def update_platform_provider(
     try:
         return service.update_platform_provider(provider_key, body)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_platform_provider")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -167,7 +170,7 @@ def admin_bulk_update_cegid_dossiers(
     try:
         return service.bulk_update_cegid_dossiers(body)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de admin_bulk_update_cegid_dossiers")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -224,7 +227,7 @@ def admin_update_company_accounting_config(
     try:
         return service.update_config(company_id, body)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de admin_update_company_accounting_config")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import traceback
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -723,7 +722,7 @@ def _transmit_to_payroll(
             week_start,
             e,
         )
-        traceback.print_exc()
+        logger.exception("Échec de _transmit_to_payroll")
 
 
 def update_company_settings(

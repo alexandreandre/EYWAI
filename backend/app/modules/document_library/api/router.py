@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -24,6 +23,10 @@ from app.modules.document_library.schemas.responses import (
 )
 from app.modules.users.schemas.responses import User
 from app.services.document_variables import list_document_variables
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/document-library", tags=["DocumentLibrary"])
 
@@ -206,7 +209,7 @@ def list_templates_route(
         rows = queries.get_templates(cid, status=status)
         return [_template_from_row(r) for r in rows]
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_templates_route")
         _handle_application_errors(e)
 
 
@@ -219,7 +222,7 @@ def missing_types_route(current_user: User = Depends(get_current_user)) -> List[
     try:
         return queries.get_missing_types(cid)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de missing_types_route")
         _handle_application_errors(e)
 
 
@@ -240,7 +243,7 @@ def get_template_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_template_route")
         _handle_application_errors(e)
 
 
@@ -257,7 +260,7 @@ def create_template_route(
         row = commands.create_template(cid, body, str(current_user.id))
         return _template_from_row(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_template_route")
         _handle_application_errors(e)
 
 
@@ -280,7 +283,7 @@ def update_template_route(
         row = commands.update_template(template_id, cid, body)
         return _template_from_row(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_template_route")
         _handle_application_errors(e)
 
 
@@ -300,7 +303,7 @@ def archive_template_route(
         row = commands.archive_template(template_id, cid)
         return _template_from_row(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de archive_template_route")
         _handle_application_errors(e)
 
 
@@ -317,7 +320,7 @@ def list_versions_route(
         rows = queries.get_versions(template_id, cid)
         return [_version_from_row(r) for r in rows]
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_versions_route")
         _handle_application_errors(e)
 
 
@@ -339,7 +342,7 @@ async def upload_template_route(
         )
         return _version_upload_from_row(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de upload_template_route")
         _handle_application_errors(e)
 
 
@@ -360,7 +363,7 @@ def version_download_url_route(
         url = queries.get_version_download_url(template_id, cid, version_id)
         return SignedVersionDownload(signed_url=url)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de version_download_url_route")
         _handle_application_errors(e)
 
 
@@ -386,5 +389,5 @@ def restore_version_route(
         )
         return _version_from_row(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de restore_version_route")
         _handle_application_errors(e)

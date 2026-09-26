@@ -8,7 +8,6 @@ Comportement HTTP identique au legacy.
 
 from __future__ import annotations
 
-import traceback
 from dataclasses import asdict
 from typing import List, Optional
 
@@ -58,6 +57,10 @@ from app.modules.participation.schemas.campaign_responses import (
     ParticipationCampaignListResponse,
 )
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/participation",
@@ -149,7 +152,7 @@ def get_employee_participation_data_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_participation_data_route")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors du calcul des données: {str(e)}",
@@ -198,7 +201,7 @@ def create_participation_simulation_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_participation_simulation_route")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la création de la simulation: {str(e)}",
@@ -223,7 +226,7 @@ def list_participation_simulations_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_participation_simulations_route")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des simulations: {str(e)}",
@@ -255,7 +258,7 @@ def get_participation_simulation_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_participation_simulation_route")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération de la simulation: {str(e)}",
@@ -282,7 +285,7 @@ def delete_participation_simulation_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_participation_simulation_route")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la suppression de la simulation: {str(e)}",
@@ -321,7 +324,7 @@ def create_campaign_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_campaign_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -356,7 +359,7 @@ def import_campaign_from_inputs_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de import_campaign_from_inputs_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -374,7 +377,7 @@ def list_campaigns_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_campaigns_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -393,7 +396,7 @@ def get_campaign_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_campaign_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -416,7 +419,7 @@ def list_campaign_bulletins_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_campaign_bulletins_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -445,7 +448,7 @@ def publish_campaign_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de publish_campaign_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -473,7 +476,7 @@ def remind_campaign_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de remind_campaign_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -502,7 +505,7 @@ def close_defaults_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de close_defaults_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -534,7 +537,7 @@ def generate_payroll_lines_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_payroll_lines_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -566,7 +569,7 @@ def generate_regularisation_payslip_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_regularisation_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -589,7 +592,7 @@ def list_my_bulletins_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_my_bulletins_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -616,7 +619,7 @@ def get_my_bulletin_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_bulletin_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -646,5 +649,5 @@ def respond_my_bulletin_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de respond_my_bulletin_route")
         raise HTTPException(status_code=500, detail=str(e))

@@ -6,7 +6,6 @@ Aucun secret n'est jamais renvoyé.
 
 from __future__ import annotations
 
-import traceback
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +27,10 @@ from app.modules.net_entreprises.schemas import (
     NetEntreprisesConfigUpdate,
 )
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/net-entreprises", tags=["Net-entreprises"])
 router_admin = APIRouter(
@@ -71,7 +74,7 @@ def get_net_entreprises_config(
     try:
         return service.get_config(company_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_net_entreprises_config")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -90,7 +93,7 @@ def update_net_entreprises_config(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_net_entreprises_config")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -115,7 +118,7 @@ def list_net_entreprises_transmissions(
     try:
         return service.list_transmissions(company_id, period)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_net_entreprises_transmissions")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -138,7 +141,7 @@ def mark_transmission_transmitted(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de mark_transmission_transmitted")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -155,7 +158,7 @@ def admin_list_transmissions(
     try:
         return service.list_all_transmissions_admin(status=status_filter, period=period)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de admin_list_transmissions")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -170,7 +173,7 @@ def admin_get_config(
     try:
         return service.get_config(target_company_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de admin_get_config")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -192,5 +195,5 @@ def admin_update_config(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de admin_update_config")
         raise HTTPException(status_code=500, detail=str(e))

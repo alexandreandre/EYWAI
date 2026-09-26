@@ -6,7 +6,6 @@ Convertit les exceptions applicatives en HTTPException.
 Comportement HTTP identique à api/routers/saisies_avances.py.
 """
 
-import traceback
 from decimal import Decimal
 from typing import List, Optional, Literal
 
@@ -37,6 +36,10 @@ from app.modules.saisies_avances.schemas import (
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 router = APIRouter(
@@ -177,7 +180,7 @@ def _handle_error(e: Exception) -> None:
         raise e
     if isinstance(e, SaisiesAvancesError):
         raise HTTPException(status_code=e.status_code, detail=e.message)
-    traceback.print_exc()
+    logger.exception("Échec de _handle_error")
     raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import traceback
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -28,11 +27,15 @@ from app.modules.competencies.schemas.responses import (
 )
 from app.modules.users.schemas.responses import User
 
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter(prefix="/api/competencies", tags=["Competencies"])
 
 
 def _handle_application_errors(e: Exception) -> None:
-    traceback.print_exc()
+    logger.exception("Échec de _handle_application_errors")
     if isinstance(e, PermissionError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     if isinstance(e, LookupError):
@@ -114,7 +117,7 @@ def route_create_ref(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de route_create_ref")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
@@ -333,7 +336,7 @@ def route_analyze_mobility(
             detail=f"Analyse IA : réponse JSON invalide ({e}).",
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de route_analyze_mobility")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),

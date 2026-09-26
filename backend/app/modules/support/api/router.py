@@ -6,7 +6,6 @@ Délègue toute la logique à la couche application (commands, queries).
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -17,6 +16,10 @@ from app.modules.support.application import commands, queries
 from app.modules.support.schemas.requests import TicketCreate, TicketStatusUpdate
 from app.modules.support.schemas.responses import TicketResponse
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/support",
@@ -82,7 +85,7 @@ def post_ticket(
     except (ValueError, LookupError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de post_ticket")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -136,7 +139,7 @@ def get_tickets(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_tickets")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -170,7 +173,7 @@ def get_ticket(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_ticket")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -198,5 +201,5 @@ def patch_ticket_status(
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de patch_ticket_status")
         raise HTTPException(status_code=500, detail=str(e))

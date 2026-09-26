@@ -9,7 +9,6 @@ Dépendances externes au module (toutes sous app/*) :
 - app.modules.users.schemas.responses : User (type du contexte auth, contrat inter-module).
 """
 
-import traceback
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
@@ -21,6 +20,10 @@ from app.modules.contract_parser.schemas.responses import (
     RIBExtractionResponse,
 )
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/contract-parser", tags=["Contract Parser"])
 
@@ -57,7 +60,7 @@ async def extract_contract_from_pdf_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_contract_from_pdf_endpoint")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de l'extraction : {str(e)}",
@@ -88,7 +91,7 @@ async def extract_rib_from_pdf_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_rib_from_pdf_endpoint")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de l'extraction du RIB : {str(e)}",
@@ -121,7 +124,7 @@ async def extract_questionnaire_from_pdf_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_questionnaire_from_pdf_endpoint")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de l'extraction du questionnaire : {str(e)}",

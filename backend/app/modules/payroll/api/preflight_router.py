@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -17,6 +16,10 @@ from app.modules.payroll.schemas.preflight_requests import (
 )
 from app.modules.payroll.schemas.preflight_responses import PreflightAnomaliesResponse
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/payroll", tags=["Revue pré-paie"])
 
@@ -54,7 +57,7 @@ def get_preflight_anomalies(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_preflight_anomalies")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors du chargement de la revue des anomalies.",
@@ -84,7 +87,7 @@ def justify_preflight_anomaly(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de justify_preflight_anomaly")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de l'enregistrement de la justification.",
@@ -109,7 +112,7 @@ def delete_preflight_anomaly_resolution(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de delete_preflight_anomaly_resolution")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de la suppression de la justification.",
@@ -136,7 +139,7 @@ def acknowledge_preflight_anomalies(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de acknowledge_preflight_anomalies")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de l'enregistrement de l'acquittement.",

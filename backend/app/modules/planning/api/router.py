@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from datetime import date as date_cls
 from typing import List, Optional
 
@@ -25,6 +24,10 @@ from app.modules.planning.schemas.requests import (
 )
 from app.modules.planning.schemas.responses import ShiftResponse, ShiftResponseRH
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/planning", tags=["Planning"])
 
@@ -132,7 +135,7 @@ def get_week_planning(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_week_planning")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -151,7 +154,7 @@ def get_month_planning(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_month_planning")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -173,7 +176,7 @@ def get_on_call_schedule(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_on_call_schedule")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -201,7 +204,7 @@ def create_on_call_shift(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_on_call_shift")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -223,7 +226,7 @@ def list_replacements(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_replacements")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -267,7 +270,7 @@ def create_replacement_shift(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_replacement_shift")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -286,7 +289,7 @@ def create_shift_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_shift_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -304,7 +307,7 @@ def update_shift_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_shift_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -322,7 +325,7 @@ def delete_shift_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_shift_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -338,7 +341,7 @@ def lock_week_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de lock_week_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -359,7 +362,7 @@ def unlock_week_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de unlock_week_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -375,7 +378,7 @@ def lock_day_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de lock_day_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -396,7 +399,7 @@ def unlock_day_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de unlock_day_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -412,7 +415,7 @@ def publish_week_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de publish_week_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -428,7 +431,7 @@ def duplicate_week_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de duplicate_week_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -441,7 +444,7 @@ def get_lock_history_endpoint(current_user: User = Depends(get_current_user)):
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_lock_history_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -458,7 +461,7 @@ def get_shift_detail_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_shift_detail_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -471,7 +474,7 @@ def get_shift_types_endpoint(current_user: User = Depends(get_current_user)):
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_shift_types_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -490,7 +493,7 @@ def create_shift_type_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_shift_type_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -512,7 +515,7 @@ def update_shift_type_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_shift_type_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -531,7 +534,7 @@ def delete_shift_type_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_shift_type_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -550,7 +553,7 @@ def apply_industrial_3x8_preset_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de apply_industrial_3x8_preset_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -563,7 +566,7 @@ def get_settings_endpoint(current_user: User = Depends(get_current_user)):
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_settings_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -579,7 +582,7 @@ def patch_settings_endpoint(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de patch_settings_endpoint")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -600,7 +603,7 @@ def get_my_planning_month(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_planning_month")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -619,7 +622,7 @@ def get_my_planning_week(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_planning_week")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -647,5 +650,5 @@ def export_my_planning_week_pdf(
     except (ValueError, LookupError, PermissionError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de export_my_planning_week_pdf")
         raise HTTPException(status_code=500, detail=str(e))

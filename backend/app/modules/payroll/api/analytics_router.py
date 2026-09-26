@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +20,10 @@ from app.modules.users.schemas.responses import User
 router = APIRouter(prefix="/api/payroll", tags=["Analytics Paie"])
 
 from app.modules.payroll.domain.permissions import PAYROLL_ANALYTICS_VIEW
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _require_payroll_analytics_access(current_user: User) -> str:
@@ -60,7 +63,7 @@ def payroll_analytics_summary(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de payroll_analytics_summary")
         raise HTTPException(
             status_code=500, detail="Erreur lors du chargement du résumé paie."
         ) from None
@@ -86,7 +89,7 @@ def payroll_analytics_trends(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de payroll_analytics_trends")
         raise HTTPException(
             status_code=500, detail="Erreur lors du chargement des tendances paie."
         ) from None
@@ -109,7 +112,7 @@ def payroll_analytics_breakdown(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de payroll_analytics_breakdown")
         raise HTTPException(
             status_code=500, detail="Erreur lors du chargement de la répartition paie."
         ) from None
@@ -126,7 +129,7 @@ def payroll_periods(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de payroll_periods")
         raise HTTPException(
             status_code=500, detail="Erreur lors du chargement des périodes de paie."
         ) from None

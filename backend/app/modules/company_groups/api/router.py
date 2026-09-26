@@ -8,7 +8,6 @@ Comportement HTTP identique à api/routers/company_groups.py.
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,6 +30,10 @@ from app.modules.company_groups.schemas.responses import (
     CompanyInGroup,
     GroupWithCompanies,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/company-groups", tags=["company-groups"])
 
@@ -71,7 +74,7 @@ def _handle_application_errors(e: Exception, default_message: str) -> None:
         raise HTTPException(status_code=400, detail=str(e))
     if isinstance(e, RuntimeError):
         raise HTTPException(status_code=500, detail=str(e))
-    traceback.print_exc()
+    logger.exception("Échec de _handle_application_errors")
     raise HTTPException(status_code=500, detail=default_message)
 
 

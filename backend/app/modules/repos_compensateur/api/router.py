@@ -6,7 +6,6 @@ Rôle strict : validation des entrées (query params), auth, appel de l'applicat
 
 from __future__ import annotations
 
-import traceback
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -37,6 +36,10 @@ from app.modules.repos_compensateur.schemas import (
     EmployeeAdjustmentUpdate,
 )
 from app.modules.repos_compensateur.schemas.responses import EmployeeAdjustmentResponse
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/repos-compensateur",
@@ -104,7 +107,7 @@ def get_contingent_overview_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_contingent_overview_endpoint")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -131,7 +134,7 @@ def get_contingent_employee_detail_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_contingent_employee_detail_endpoint")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -162,7 +165,7 @@ def update_employee_adjustment_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_employee_adjustment_endpoint")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -194,5 +197,5 @@ def calculer_credits_repos(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de calculer_credits_repos")
         raise HTTPException(status_code=500, detail=str(e)) from e

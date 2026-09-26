@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +15,10 @@ from app.modules.payroll.application.simulation_arret_maladie import (
 )
 from app.modules.payroll.schemas.requests import SimulationArretMaladieRequest
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/simulation", tags=["Simulation paie"])
 
@@ -72,7 +75,7 @@ def simulation_arret_maladie(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de simulation_arret_maladie")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la simulation arrêt maladie."
         ) from None
@@ -99,7 +102,7 @@ def reverse_calculation(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de reverse_calculation")
         raise HTTPException(
             status_code=500, detail="Erreur lors du calcul inverse."
         ) from None
@@ -131,7 +134,7 @@ def create_payslip_simulation(
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de create_payslip_simulation")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la création de la simulation."
         ) from None
@@ -152,7 +155,7 @@ def get_employee_simulations(
     except HTTPException:
         raise
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_simulations")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la récupération des simulations."
         ) from None
@@ -171,7 +174,7 @@ def get_simulation(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_simulation")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la récupération de la simulation."
         ) from None
@@ -193,7 +196,7 @@ def compare_simulation_with_real(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de compare_simulation_with_real")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la comparaison simulation/réel."
         ) from None
@@ -212,7 +215,7 @@ def delete_simulation(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de delete_simulation")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la suppression de la simulation."
         ) from None
@@ -231,7 +234,7 @@ def get_predefined_scenarios(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de get_predefined_scenarios")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la génération des scénarios."
         ) from None
@@ -257,7 +260,7 @@ def download_simulation_pdf(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de download_simulation_pdf")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la génération du PDF."
         ) from None
@@ -279,7 +282,7 @@ def preview_simulation_html(
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception:
-        traceback.print_exc()
+        logger.exception("Échec de preview_simulation_html")
         raise HTTPException(
             status_code=500, detail="Erreur lors de la génération de l'aperçu HTML."
         ) from None

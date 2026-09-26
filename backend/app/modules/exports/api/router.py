@@ -1,6 +1,5 @@
 # Router exports — délégation à la couche application uniquement.
 # Comportement HTTP identique à api/routers/exports.py (prefix=/api/exports).
-import traceback
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +45,10 @@ from app.modules.exports.schemas.dispatch import (
     MarkDispatchTransmittedRequest,
     MarkDispatchTransmittedResponse,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/exports",
@@ -108,7 +111,7 @@ def preview_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de preview_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -129,7 +132,7 @@ def generate_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -147,7 +150,7 @@ def get_export_history(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_export_history")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -173,7 +176,7 @@ def download_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de download_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -189,7 +192,7 @@ def list_scheduled_exports(
     try:
         return scheduled_export_service.list_scheduled(company_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_scheduled_exports")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -207,7 +210,7 @@ def create_scheduled_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_scheduled_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -226,7 +229,7 @@ def scheduled_export_history(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de scheduled_export_history")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -248,7 +251,7 @@ def run_scheduled_export_now(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de run_scheduled_export_now")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -265,7 +268,7 @@ def update_scheduled_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_scheduled_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -281,7 +284,7 @@ def delete_scheduled_export(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_scheduled_export")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -298,7 +301,7 @@ def get_dispatch_status(
     try:
         return dispatch_service.get_dispatch_status(company_id, period)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_dispatch_status")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -314,7 +317,7 @@ def dispatch_compta(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de dispatch_compta")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -331,7 +334,7 @@ def dispatch_banque(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de dispatch_banque")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -353,7 +356,7 @@ def mark_dispatch_transmitted(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de mark_dispatch_transmitted")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -368,7 +371,7 @@ def get_dispatch_history(
     try:
         return dispatch_service.get_dispatch_history(company_id, channel, limit)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_dispatch_history")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -381,7 +384,7 @@ def list_dispatch_schedules(
     try:
         return scheduled_export_service.list_channel_schedules(company_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_dispatch_schedules")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -400,7 +403,7 @@ def upsert_dispatch_schedule(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de upsert_dispatch_schedule")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -422,7 +425,7 @@ def run_dispatch_schedule_now(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de run_dispatch_schedule_now")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -435,7 +438,7 @@ def list_accounting_mappings(
     try:
         return accounting_mappings_service.list_accounting_mappings(company_id)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_accounting_mappings")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -451,7 +454,7 @@ def upsert_accounting_mapping(
     except ValueError as e:
         raise _value_error_to_http(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de upsert_accounting_mapping")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -466,5 +469,5 @@ def delete_accounting_mapping(
         accounting_mappings_service.delete_company_mapping(company_id, rubrique_code)
         return {"status": "deleted", "rubrique_code": rubrique_code}
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_accounting_mapping")
         raise HTTPException(status_code=500, detail=str(e))

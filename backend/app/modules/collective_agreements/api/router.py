@@ -8,7 +8,6 @@ Comportement HTTP identique au legacy (api/routers/collective_agreements*.py).
 
 from __future__ import annotations
 
-import traceback
 from io import BytesIO
 from typing import List
 
@@ -47,6 +46,10 @@ from app.modules.collective_agreements.schemas import (
     CcTrainingRecommendationUpdate,
 )
 
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # --- Router principal (catalogue + assignations) ---
 
 router = APIRouter(
@@ -82,7 +85,7 @@ def list_catalog(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_catalog")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -108,7 +111,7 @@ def suggest_catalog(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de suggest_catalog")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -128,7 +131,7 @@ def get_catalog_item(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_catalog_item")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -143,7 +146,7 @@ def get_agreement_classifications(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_agreement_classifications")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -159,7 +162,7 @@ def get_agreement_salary_minima(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_agreement_salary_minima")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -182,7 +185,7 @@ def get_catalog_upload_url(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_catalog_upload_url")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -209,7 +212,7 @@ def create_catalog_item(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_catalog_item")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -235,7 +238,7 @@ def update_catalog_item(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_catalog_item")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -253,7 +256,7 @@ def delete_catalog_item(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_catalog_item")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -275,7 +278,7 @@ def get_my_company_agreements(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_company_agreements")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -302,7 +305,7 @@ def assign_agreement_to_company(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de assign_agreement_to_company")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -323,7 +326,7 @@ def unassign_agreement_from_company(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de unassign_agreement_from_company")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -364,7 +367,7 @@ def get_convention_full_text_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_convention_full_text_pdf")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -379,7 +382,7 @@ def get_convention_synthesis_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_convention_synthesis_pdf")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -400,7 +403,7 @@ def get_all_company_assignments(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_all_company_assignments")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -426,7 +429,7 @@ def import_from_legifrance(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de import_from_legifrance")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -449,7 +452,7 @@ def import_from_legifrance_batch(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de import_from_legifrance_batch")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -470,7 +473,7 @@ def sync_catalog_from_legifrance(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de sync_catalog_from_legifrance")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -492,7 +495,7 @@ def cancel_kali_import(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de cancel_kali_import")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -518,7 +521,7 @@ def import_agreement_from_legifrance(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de import_agreement_from_legifrance")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -544,7 +547,7 @@ def extract_rules(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_rules")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -568,7 +571,7 @@ def extract_rules_batch(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_rules_batch")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -594,7 +597,7 @@ def extract_trainings(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de extract_trainings")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -615,7 +618,7 @@ def list_training_recommendations(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_training_recommendations")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -638,7 +641,7 @@ def patch_training_recommendation(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de patch_training_recommendation")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -665,7 +668,7 @@ def get_rules_status(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_rules_status")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -685,7 +688,7 @@ def rollback_rules(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de rollback_rules")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -717,7 +720,7 @@ def ask_question(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de ask_question")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -737,5 +740,5 @@ def refresh_cache(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de refresh_cache")
         raise HTTPException(status_code=500, detail=str(e))

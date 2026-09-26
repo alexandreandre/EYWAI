@@ -5,7 +5,6 @@ Délègue au domain (règles) et à l'infrastructure (repositories, providers).
 Comportement identique. Lève PermissionError (403), LookupError (404), ValueError (400).
 """
 
-import traceback
 from typing import Any, Optional
 
 from app.modules.users.application.dto import (
@@ -30,6 +29,10 @@ from app.modules.users.application.service import (
 )
 from app.modules.employees.infrastructure.providers import get_company_reader
 from app.modules.users.domain import rules as domain_rules
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def set_primary_company(
@@ -278,7 +281,7 @@ def create_user_with_permissions(data: Any, current_user: Any) -> CreateUserResu
                     str(primary_access.company_id), user_id, pdf_content
                 )
             except Exception:
-                traceback.print_exc()
+                logger.exception("Échec de create_user_with_permissions")
 
         return CreateUserResult(
             message="Utilisateur créé avec succès",

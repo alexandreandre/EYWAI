@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -18,6 +17,10 @@ from app.modules.documents.schemas.explorer import DocumentsExplorerResponse
 from app.modules.documents.schemas.responses import DownloadUrlResponse, GeneratedDocument
 from app.modules.users.schemas.responses import User
 from app.modules.webhooks.application.service import trigger_webhook_event
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
@@ -115,7 +118,7 @@ def list_documents_explorer_route(
             storage=payload["storage"],
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_documents_explorer_route")
         _handle_application_errors(e)
 
 
@@ -160,7 +163,7 @@ def list_documents_route(
             )
         return [_row_to_generated(r) for r in rows]
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de list_documents_route")
         _handle_application_errors(e)
 
 
@@ -189,7 +192,7 @@ async def transmit_document_route(
         )
         return _row_to_generated(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de transmit_document_route")
         _handle_application_errors(e)
 
 
@@ -204,7 +207,7 @@ def generate_document_route(
         row = commands.generate_document(cid, str(current_user.id), body)
         return _row_to_generated(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_document_route")
         _handle_application_errors(e)
 
 
@@ -236,7 +239,7 @@ def download_document_route(
         url = queries.get_download_url(document_id, cid, fmt=format)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de download_document_route")
         _handle_application_errors(e)
 
 
@@ -267,7 +270,7 @@ def preview_document_route(
         url = queries.get_preview_url(document_id, cid)
         return DownloadUrlResponse(signed_url=url)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de preview_document_route")
         _handle_application_errors(e)
 
 
@@ -297,7 +300,7 @@ def update_status_route(
             )
         return _row_to_generated(row)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_status_route")
         _handle_application_errors(e)
 
 
@@ -311,7 +314,7 @@ def delete_document_route(
     try:
         commands.delete_document(document_id, cid)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_document_route")
         _handle_application_errors(e)
 
 
@@ -330,5 +333,5 @@ def get_document_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_document_route")
         _handle_application_errors(e)

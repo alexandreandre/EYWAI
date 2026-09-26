@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import traceback
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +15,10 @@ from app.modules.platform_settings.schemas import (
     EmailTestResponse,
 )
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/super-admin/email-settings",
@@ -49,7 +52,7 @@ def get_email_settings(
     try:
         return service.get_email_settings()
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_email_settings")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -64,7 +67,7 @@ def update_email_settings(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_email_settings")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -76,5 +79,5 @@ def test_email_settings(
     try:
         return service.send_test_email(body.to_email)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de test_email_settings")
         raise HTTPException(status_code=500, detail=str(e)) from e

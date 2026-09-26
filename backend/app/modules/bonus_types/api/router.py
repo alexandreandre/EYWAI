@@ -7,7 +7,6 @@ Comportement HTTP identique au legacy. Contexte utilisateur via Protocol (aucune
 
 from __future__ import annotations
 
-import traceback
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +27,10 @@ from app.modules.bonus_types.application import (
 )
 from app.modules.bonus_types.schemas import BonusTypeCreate, BonusTypeUpdate
 
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter(tags=["Bonus Types"])
 
 
@@ -42,7 +45,7 @@ def get_bonus_types(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_bonus_types")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des primes: {str(e)}",
@@ -68,7 +71,7 @@ def create_bonus_type(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_bonus_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la création de la prime: {str(e)}",
@@ -99,7 +102,7 @@ def update_bonus_type(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_bonus_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la mise à jour: {str(e)}",
@@ -126,7 +129,7 @@ def delete_bonus_type(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_bonus_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la suppression: {str(e)}",
@@ -157,7 +160,7 @@ def calculate_bonus_amount(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de calculate_bonus_amount")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors du calcul: {str(e)}",

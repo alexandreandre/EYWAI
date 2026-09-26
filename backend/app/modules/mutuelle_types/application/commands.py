@@ -6,7 +6,6 @@ Délèguent au service (repository injecté) ; gèrent APIError 23505 (contraint
 
 from __future__ import annotations
 
-import traceback
 
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
@@ -21,6 +20,10 @@ from app.modules.mutuelle_types.schemas import (
     MutuelleTypeCreate,
     MutuelleTypeUpdate,
 )
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_mutuelle_type(
@@ -47,13 +50,13 @@ def create_mutuelle_type(
                     status_code=400,
                     detail=message_libelle_deja_existant(payload.libelle),
                 )
-        traceback.print_exc()
+        logger.exception("Échec de create_mutuelle_type")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de la création de la formule de mutuelle",
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de create_mutuelle_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la création de la formule de mutuelle: {str(e)}",
@@ -86,13 +89,13 @@ def update_mutuelle_type(
                     status_code=400,
                     detail=message_libelle_deja_existant(libelle),
                 )
-        traceback.print_exc()
+        logger.exception("Échec de update_mutuelle_type")
         raise HTTPException(
             status_code=500,
             detail="Erreur lors de la mise à jour",
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de update_mutuelle_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la mise à jour: {str(e)}",
@@ -111,7 +114,7 @@ def delete_mutuelle_type(mutuelle_type_id: str, company_id: str) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_mutuelle_type")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la suppression: {str(e)}",

@@ -14,7 +14,6 @@ collaborateur : la sienne).
 
 from __future__ import annotations
 
-import traceback
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -165,5 +164,5 @@ def get_primes_catalogue(current_user: User = Depends(get_current_user)):
     try:
         return queries.get_primes_catalogue()
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_primes_catalogue")
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")

@@ -8,7 +8,6 @@ appel du use case, mapping des exceptions applicatives vers HTTP.
 
 from __future__ import annotations
 
-import traceback
 from datetime import date
 from typing import List, Optional
 
@@ -65,6 +64,10 @@ from app.modules.payslips.schemas import (
 )
 from app.modules.payroll.documents.verrou_generation import GenerationDejaEnCours
 from app.modules.users.schemas.responses import User
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Payslips"])
 
@@ -181,7 +184,7 @@ def get_payslips_anomalies_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_payslips_anomalies_route")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -229,7 +232,7 @@ def generate_payslip_route(
     except _PAYSLIP_APP_ERRORS as exc:
         _handle_application_errors(exc)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de generate_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -242,7 +245,7 @@ def get_my_payslips_route(current_user: User = Depends(get_current_user)):
             str(current_user.id), current_user.active_company_id
         )
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_my_payslips_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -262,7 +265,7 @@ def get_employee_payslips_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_employee_payslips_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -287,7 +290,7 @@ def delete_payslip_route(
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de delete_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -310,7 +313,7 @@ def get_payslip_comparison_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_payslip_comparison_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -327,7 +330,7 @@ def get_payslip_trend_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_payslip_trend_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -352,7 +355,7 @@ def acquit_payslip_alert_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de acquit_payslip_alert_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -377,7 +380,7 @@ def ignore_payslip_alert_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de ignore_payslip_alert_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -421,7 +424,7 @@ def validate_payslip_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de validate_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -439,7 +442,7 @@ def get_payslip_details_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_payslip_details_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -471,7 +474,7 @@ def edit_payslip_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de edit_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -506,7 +509,7 @@ def preview_payslip_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de preview_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -524,7 +527,7 @@ def get_payslip_history_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de get_payslip_history_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -555,7 +558,7 @@ def restore_payslip_route(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de restore_payslip_route")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -576,5 +579,5 @@ def debug_storage_file(
     except HTTPException:
         raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Échec de debug_storage_file")
         raise HTTPException(status_code=500, detail=str(e))
