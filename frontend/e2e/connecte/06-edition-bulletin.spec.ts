@@ -72,6 +72,23 @@ async function preparerBulletin(page: Page, verrouille = false) {
   return sauvegardes;
 }
 
+/**
+ * « Ajouter une prime » ouvre le sélecteur des primes (le même que l'onglet
+ * Primes) ; on y saisit une prime libre, sans ouvrir la liste du catalogue.
+ * Rien n'est écrit en base ici : la ligne n'arrive au serveur qu'avec
+ * l'enregistrement du bulletin, intercepté par preparerBulletin.
+ */
+async function ajouterPrime(page: Page, libelle: string, montant: string) {
+  await page.getByRole('button', { name: 'Ajouter une prime', exact: true }).click();
+  const selecteur = page.getByRole('dialog', { name: 'Ajouter une Saisie du Mois' });
+  await expect(selecteur).toBeVisible();
+  await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').fill(libelle);
+  // Premier champ numérique : le montant (le second est le net cible du calcul inverse).
+  await selecteur.getByRole('spinbutton').first().fill(montant);
+  await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(selecteur).toBeHidden();
+}
+
 test.describe('Édition du bulletin (données fictives)', () => {
   test('les HS et le total restent cohérents après saisie, sauvegarde et réouverture', async ({ page }) => {
     const sauvegardes = await preparerBulletin(page);
@@ -100,16 +117,18 @@ test.describe('Édition du bulletin (données fictives)', () => {
     await expect(page.getByText('Total Brut: 1177.50 €', { exact: true })).toBeVisible();
   });
 
-  test('ajout, modification et suppression de ligne conservent les autres saisies', async ({ page }) => {
+  test('ajout, modification et suppression de prime conservent les autres saisies', async ({ page }) => {
     const sauvegardes = await preparerBulletin(page);
     const table = page.getByRole('table').filter({ hasText: 'Salaire de base QA' });
-    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
+    await ajouterPrime(page, 'Prime exceptionnelle QA', '10');
     const ajout = table.getByRole('row').last();
-    await ajout.getByText('Nouvelle ligne', { exact: true }).click();
-    await ajout.getByRole('spinbutton').nth(0).fill('0.5');
-    await ajout.getByRole('spinbutton').nth(1).fill('20');
-    await expect(ajout.getByRole('spinbutton').nth(2)).toHaveValue('10');
+    await expect(ajout).toContainText('Prime exceptionnelle QA');
     await expect(page.getByText('Total Brut: 1082.50 €', { exact: true })).toBeVisible();
+    // Une prime n'a ni quantité ni taux : son montant est dans la colonne des gains.
+    await ajout.getByText('Prime exceptionnelle QA', { exact: true }).click();
+    await expect(ajout.getByRole('spinbutton').nth(2)).toHaveValue('10');
+    await ajout.getByRole('spinbutton').nth(2).fill('25');
+    await expect(page.getByText('Total Brut: 1097.50 €', { exact: true })).toBeVisible();
     await ajout.getByRole('button').click();
     await expect(table.getByRole('row')).toHaveCount(4);
     await expect(page.getByText('Total Brut: 1072.50 €', { exact: true })).toBeVisible();
@@ -128,11 +147,30 @@ test.describe('Édition du bulletin (données fictives)', () => {
     expect(sauvegardes[0].payslip_data.net_a_payer).toBe(775);
   });
 
+  test('une prime ajoutée part comme variable du mois à l’enregistrement', async ({ page }) => {
+    const sauvegardes = await preparerBulletin(page);
+    await ajouterPrime(page, 'Prime exceptionnelle QA', '10');
+    await page.getByTestId('enregistrer-entete').click();
+    await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
+    expect(sauvegardes).toHaveLength(1);
+    // Le serveur en fait une saisie du mois et refait le bulletin (intercepté ici).
+    expect(sauvegardes[0].payslip_data.calcul_du_brut?.[3]).toMatchObject({
+      libelle: 'Prime exceptionnelle QA',
+      gain: 10,
+      nouvelle_saisie: {
+        name: 'Prime exceptionnelle QA',
+        amount: 10,
+        is_socially_taxed: true,
+        is_taxable: true,
+      },
+    });
+  });
+
   test('un bulletin verrouillé reste non modifiable', async ({ page }) => {
     const sauvegardes = await preparerBulletin(page, true);
     await expect(page.getByText('Période verrouillée pour ce test', { exact: true })).toBeVisible();
     await expect(page.getByTestId('enregistrer-entete')).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Ajouter une ligne', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Ajouter une prime', exact: true })).toBeDisabled();
     const ligne = page.getByRole('table').filter({ hasText: 'Salaire de base QA' }).getByRole('row').nth(2);
     await ligne.getByText('Heures suppl. majorées à 25%', { exact: true }).click();
     await expect(ligne.getByRole('spinbutton').nth(0)).toBeDisabled();
@@ -189,11 +227,16 @@ test.describe('Ce que l’écran annonce selon la ligne corrigée', () => {
     await expect(page.getByTestId('info-recalcul-heures-sup')).toBeHidden();
   });
 
-  test('ajouter une ligne prévient aussi', async ({ page }) => {
+  test('ajouter une prime annonce le recalcul du bulletin', async ({ page }) => {
+    // La prime devient une variable du mois : le serveur refait tout le
+    // bulletin, l'écran le dit au lieu de prévenir que le net ne suit pas.
     await preparerBulletin(page);
+    const info = page.getByTestId('info-recalcul-primes');
+    await expect(info).toBeHidden();
+    await ajouterPrime(page, 'Prime exceptionnelle QA', '10');
+    await expect(info).toBeVisible();
+    await expect(info).toContainText('Le bulletin sera recalculé');
     await expect(page.getByTestId('avertissement-recalcul-brut')).toBeHidden();
-    await page.getByRole('button', { name: 'Ajouter une ligne', exact: true }).click();
-    await expect(page.getByTestId('avertissement-recalcul-brut')).toBeVisible();
   });
 
   test('remettre les deux paliers à zéro ne promet aucun recalcul', async ({ page }) => {
