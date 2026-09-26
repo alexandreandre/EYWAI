@@ -80,6 +80,12 @@ export interface ExportPreviewResponse {
     }>;
     lines?: Array<Record<string, string | number>>;
     include_consolidated?: boolean;
+    /** Export notes de frais. */
+    lines_count?: number;
+    expenses_count?: number;
+    /** Export congés et absences. */
+    absences_count?: number;
+    total_days?: number;
   };
 }
 
