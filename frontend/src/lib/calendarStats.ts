@@ -1,4 +1,7 @@
-import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
+import type { ActualHoursData as ApiActualHoursData, PlannedEventData } from '@/api/calendar';
+
+/** Les calculs ne lisent que le jour et les heures faites du réel. */
+type ActualHoursData = Pick<ApiActualHoursData, 'jour' | 'heures_faites'>;
 
 export interface CalendarMonthStats {
   heuresPrevues: number;

@@ -17,8 +17,11 @@ import { PointageImportDialog } from "@/components/schedules/assisted-fill/Point
 import { PointageImportBanner } from "@/components/schedules/assisted-fill/PointageImportBanner";
 import { usePointageImportJobs, type PointageImportJob } from "@/hooks/usePointageImportJobs";
 import type { Employee } from "@/features/employee-detail/types";
-import { WeekTemplate } from "@/hooks/useCalendar";
+import type { WeekTemplate, useCalendar } from "@/hooks/useCalendar";
 import type { DayData } from "@/components/ScheduleModal";
+
+/** Valeurs fournies par useCalendar, relayées telles quelles par la fiche salarié. */
+type CalendarHook = ReturnType<typeof useCalendar>;
 
 interface CalendarTabProps {
   employee: Employee;
@@ -29,18 +32,18 @@ interface CalendarTabProps {
   setCalendarView: (v: "month" | "year") => void;
   selectedDate: { year: number; month: number };
   setSelectedDate: (d: { year: number; month: number }) => void;
-  plannedCalendar: DayData[];
-  actualHours: DayData[];
+  plannedCalendar: CalendarHook["plannedCalendar"];
+  actualHours: CalendarHook["actualHours"];
   isCalendarLoading: boolean;
   isSaving: boolean;
   saveAllCalendarData: () => void;
-  updateDayData: (day: number, data: Partial<Omit<DayData, "jour">>) => void;
+  updateDayData: CalendarHook["updateDayData"];
   weekTemplate: WeekTemplate;
   setWeekTemplate: React.Dispatch<React.SetStateAction<WeekTemplate>>;
   applyWeekTemplate: () => void;
   applyWeekTemplateAndSave: () => void;
   selectedDays: number[];
-  handleDaySelection: (day: number, multi: boolean) => void;
+  handleDaySelection: CalendarHook["handleDaySelection"];
   bulkUpdateDays: (data: Partial<Omit<DayData, "jour">>) => void;
   bulkUpdateDaysAndSave: (data: Partial<Omit<DayData, "jour">>) => void;
   updateSelection: (mode: "all" | "weekdays" | "none") => void;
