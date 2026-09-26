@@ -1,7 +1,11 @@
 // src/api/apiClient.ts
 
 import { log } from '@/lib/logger';
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, {
+  type AxiosError,
+  type AxiosRequestHeaders,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import {
   retryAxiosRequest,
   shouldRetryRequest,
@@ -146,7 +150,7 @@ apiClient.interceptors.response.use(
       authConfig._authRetry = true;
       const newToken = await refreshAccessToken();
       if (newToken) {
-        authConfig.headers = authConfig.headers ?? {};
+        authConfig.headers = authConfig.headers ?? ({} as AxiosRequestHeaders);
         authConfig.headers.Authorization = `Bearer ${newToken}`;
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
         return apiClient.request(authConfig);
