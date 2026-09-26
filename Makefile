@@ -121,7 +121,7 @@ supabase-local-reset: check-local-tools
 
 .PHONY: dev-backend
 dev-backend:
-	cd backend && venv/bin/uvicorn app.main:app --reload
+	cd backend && .venv/bin/uvicorn app.main:app --reload
 
 .PHONY: dev-frontend
 dev-frontend:
