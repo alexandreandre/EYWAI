@@ -28,6 +28,7 @@ export interface EmployeeProfileData {
   job_title?: string | null;
   duree_hebdomadaire?: number | null;
   is_temps_partiel?: boolean | null;
+  is_forfait_jour?: boolean | null;
   trial_period_applicable?: boolean | null;
   trial_period_status?:
     | "in_progress"
@@ -51,6 +52,8 @@ export interface EmployeeProfileData {
       adhesion?: boolean;
       lignes_specifiques?: EmployeeSocialLine[];
     };
+    personnel_rd_eligible_jei?: boolean;
+    mandataire_rd?: boolean;
   } | null;
 }
 
