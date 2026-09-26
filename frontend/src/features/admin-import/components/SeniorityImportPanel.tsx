@@ -416,7 +416,7 @@ export function SeniorityImportPanel({
                           <EmployeeAssociateCombobox
                             roster={roster}
                             value={row.employee_id ?? null}
-                            onChange={(id) => updateRowEmployee(row.row_index, id)}
+                            onSelect={(id) => updateRowEmployee(row.row_index, id)}
                           />
                         )}
                       </TableCell>
