@@ -30,7 +30,7 @@ type AnalyticsPeriodControlsProps = {
   className?: string;
 };
 
-const GRANULARITY_OPTIONS: { value: PeriodGranularity; label: string } = [
+const GRANULARITY_OPTIONS: { value: PeriodGranularity; label: string }[] = [
   { value: "weekly", label: "Semaine" },
   { value: "monthly", label: "Mois" },
   { value: "annual", label: "Année" },

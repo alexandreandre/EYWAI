@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Calculator, Database, History, Wallet, Scale, FileSpreadsheet, Landmark } from "lucide-react";
+import { FileText, Calculator, Database, History, Wallet, Scale, FileSpreadsheet, Landmark, type LucideIcon } from "lucide-react";
 import { ExportCommonModel } from "./ExportCommonModel";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExportHistoryModal } from "./ExportHistoryModal";
@@ -52,7 +52,14 @@ export function PaieComptabiliteTab({
     }
   }, []);
 
-  const exports = [
+  const exports: {
+    id: string;
+    name: string;
+    description: string;
+    icon: LucideIcon;
+    /** Carte grisée et bouton désactivé ; aucune carte ne l'est aujourd'hui. */
+    disabled?: boolean;
+  }[] = [
     {
       id: "journal_paie",
       name: "Journal de paie",

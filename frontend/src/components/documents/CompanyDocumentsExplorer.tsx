@@ -126,7 +126,9 @@ export function CompanyDocumentsExplorer({
     return map;
   }, [explorerQuery.data?.payslips]);
 
-  const folderData = useMemo(() => {
+  const folderData = useMemo<
+    Record<DocumentFolderId, { groups: EmployeeGroup[]; fileCount: number }>
+  >(() => {
     const contratGen = groupGeneratedByEmployee(generatedByFolder.contrat);
     const autresGen = groupGeneratedByEmployee(generatedByFolder.autres);
     const contracts = groupStorageByEmployee(storageByKind.contract);
@@ -142,7 +144,7 @@ export function CompanyDocumentsExplorer({
       identite: { groups: identities, fileCount: countFilesInEmployeeGroups(identities) },
       bulletins: { groups: payslips, fileCount: countFilesInEmployeeGroups(payslips) },
       autres: { groups: autresMerged, fileCount: countFilesInEmployeeGroups(autresMerged) },
-    } satisfies Record<DocumentFolderId, { groups: EmployeeGroup[]; fileCount: number }>;
+    };
   }, [generatedByFolder, storageByKind, payslipsAll, payslipsById]);
 
   const folderCounts = useMemo(
