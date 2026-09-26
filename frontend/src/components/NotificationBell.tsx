@@ -249,7 +249,7 @@ export function NotificationBell({
           </div>
         </div>
         <div className="max-h-[min(70vh,360px)] overflow-y-auto overscroll-contain p-2">
-            {listQuery.isLoading && !listQuery.data?.length ? (
+            {listQuery.isLoading ? (
               <div className="space-y-2 px-1 py-1">
                 <Skeleton className="h-16 w-full rounded-lg" />
                 <Skeleton className="h-16 w-full rounded-lg" />

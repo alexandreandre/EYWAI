@@ -111,7 +111,6 @@ function MatrixMonthCell({
         month.state === 'covered' && 'border-emerald-600 bg-emerald-500 text-white shadow-sm shadow-emerald-500/25',
         month.state === 'missing' && 'border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
         month.state === 'future' && 'border-border bg-muted/40 text-muted-foreground/60',
-        month.state === 'preview' && 'border-sky-500 bg-sky-500 text-white',
         clickable && 'cursor-pointer hover:scale-105 hover:ring-2 hover:ring-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/40',
       )}
       aria-label={`${MONTH_FULL[month.month - 1]} ${month.period} — ${STATE_LABELS[month.state] ?? month.state}`}

@@ -496,12 +496,15 @@ export function ApplyModelDialog({
               className="h-8 text-xs"
               disabled={!templateName.trim()}
               onClick={async () => {
+                // WeekTemplate stocke des chaînes ; saveWeekTemplate relit chaque
+                // valeur par parseFloat(String(...)), le total et les jours
+                // enregistrés sont donc identiques.
                 const template = {
-                  1: weekConfig.monday.hours,
-                  2: weekConfig.tuesday.hours,
-                  3: weekConfig.wednesday.hours,
-                  4: weekConfig.thursday.hours,
-                  5: weekConfig.friday.hours,
+                  1: String(weekConfig.monday.hours),
+                  2: String(weekConfig.tuesday.hours),
+                  3: String(weekConfig.wednesday.hours),
+                  4: String(weekConfig.thursday.hours),
+                  5: String(weekConfig.friday.hours),
                 };
                 const next = await saveWeekTemplate(companyId, templateName, template);
                 setSavedTemplates(
