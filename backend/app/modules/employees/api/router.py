@@ -670,8 +670,18 @@ def get_employee_identity_document_url(
                 detail="Accès non autorisé pour cette entreprise.",
             )
         is_rh = current_user.has_rh_access_in_company(company_id)
-        if not is_rh and str(current_user.id) != str(employee_id):
+        own_record = str(current_user.id) == str(employee_id)
+        if not is_rh and not own_record:
             raise HTTPException(status_code=403, detail="Accès non autorisé.")
+        if not own_record and not current_user.is_platform_admin:
+            # La RH ne signe l'URL que pour un salarié de SA société : la
+            # signature se fait dans la société du salarié, pas dans celle de
+            # l'appelant (audit du 25/09/2026, E4). 404 comme
+            # require_employee_access, sans exiger de permission fine : le
+            # critère RH de la route reste celui d'avant.
+            access_control_service.assert_employee_in_company(
+                str(company_id), employee_id
+            )
         url = queries.get_identity_document_url(employee_id)
         preview_url = queries.get_identity_document_preview_url(employee_id)
         return ContractResponse(url=url, preview_url=preview_url)
