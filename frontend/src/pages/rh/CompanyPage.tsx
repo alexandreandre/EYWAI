@@ -166,7 +166,7 @@ export default function CompanyPage() {
 
   const canEdit = useMemo(() => {
     const r = user?.role;
-    return r === "admin" || r === "rh" || r === "admin";
+    return r === "admin" || r === "rh";
   }, [user?.role]);
 
   const company = detailsQuery.data?.company_data;

@@ -60,7 +60,7 @@ export default function MaintenanceSettingsCard() {
 
   const canEdit = useMemo(() => {
     const r = user?.role;
-    return r === 'admin' || r === 'rh' || r === 'admin';
+    return r === 'admin' || r === 'rh';
   }, [user?.role]);
 
   const { data, isLoading, isError, error } = useQuery({
