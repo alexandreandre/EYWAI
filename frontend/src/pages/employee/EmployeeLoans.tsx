@@ -94,7 +94,7 @@ export default function EmployeeLoansPage() {
           </div>
 
           {loansQuery.isLoading ? (
-            <TableSkeleton rows={4} cols={5} />
+            <TableSkeleton rows={4} />
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Aucun prêt employeur enregistré pour votre compte.

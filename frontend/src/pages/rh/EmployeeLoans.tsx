@@ -121,7 +121,7 @@ export default function EmployeeLoans() {
       <Card>
         <CardContent className="pt-6">
           {loansQuery.isLoading ? (
-            <TableSkeleton rows={5} cols={7} />
+            <TableSkeleton rows={5} />
           ) : (
             <Table>
               <TableHeader>
