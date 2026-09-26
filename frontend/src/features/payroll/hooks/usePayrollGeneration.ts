@@ -19,6 +19,7 @@ import {
   extractGenerationRefusal,
   splitGenerationWarnings,
   type GenerationRefusalCode,
+  type RefusalDetails,
 } from '@/features/payroll/utils/generationGuards';
 
 export type PayrollGenerationJob = {
@@ -37,6 +38,8 @@ export type PayrollGenerationRefusal = {
   job: PayrollGenerationJob;
   code: GenerationRefusalCode;
   message: string;
+  /** Recopié du refus structuré (jours à saisir du 422 calendrier_incomplet). */
+  details?: RefusalDetails;
 };
 
 export type PayrollGenerationLogEntry = {
