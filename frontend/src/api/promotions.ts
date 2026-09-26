@@ -105,7 +105,8 @@ export interface PromotionCreate {
   reason?: string | null;
   justification?: string | null;
   performance_review_id?: string | null;
-  status?: "draft" | "pending_approval";
+  /** Le serveur n'accepte que ces deux statuts à la création (et recalcule selon la date d'effet). */
+  status?: "draft" | "effective";
   grant_rh_access?: boolean;
   new_rh_access?: RhAccessRole | null;
 }
