@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.security import get_current_user
+from app.modules.access_control.application.service import access_control_service
 from app.modules.modulation.application import commands, queries
 from app.modules.modulation.application import hour_account_commands, hour_account_queries
 from app.modules.modulation.schemas.requests import (
@@ -55,6 +56,22 @@ def _require_rh(user: User, company_id: str) -> None:
         return
     if not user.has_rh_access_in_company(str(company_id)):
         raise HTTPException(status_code=403, detail="Accès RH requis.")
+
+
+def _require_rh_on_employee(user: User, company_id: str, employee_id: str) -> None:
+    """Droit RH dans la société visée, sur un salarié de cette société.
+
+    Le compteur d'heures d'un salarié se lisait par tout compte connecté,
+    pour n'importe quel salarié : les mouvements sont filtrés sur le seul
+    identifiant du salarié (audit du 25/09/2026, E7). 403 sans droit RH ;
+    404 pour un salarié d'une autre société, comme require_employee_access
+    (l'existence n'est pas révélée). Seule la page RH « Temps de travail »
+    appelle ces lectures ; l'espace salarié ne les utilise pas.
+    """
+    _require_rh(user, company_id)
+    if user.is_platform_admin:
+        return
+    access_control_service.assert_employee_in_company(company_id, employee_id)
 
 
 @router.get("/settings", response_model=ModulationSettingsResponse)
@@ -171,6 +188,7 @@ def get_employee_balance(
     current_user: User = Depends(get_current_user),
 ):
     cid = _resolve_company_id(company_id, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
     return hour_account_queries.get_employee_account_balance(
         str(cid), employee_id, year, month=month
     )
@@ -187,6 +205,8 @@ def get_employee_movements(
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
 ):
+    cid = _resolve_company_id(None, current_user)
+    _require_rh_on_employee(current_user, cid, employee_id)
     return hour_account_queries.list_employee_movements(
         employee_id, year, limit=limit, offset=offset
     )
