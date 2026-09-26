@@ -8,10 +8,15 @@ import {
   PREFLIGHT_ANOMALY_TYPE_LABELS,
   verifyPathForAnomaly,
 } from '@/features/payroll/components/preflightLabels';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 
 interface PayrollPreflightAnomaliesSectionProps {
   anomalies: PreflightAnomaly[];
   isLoading?: boolean;
+  /** Le contrôle n'a pas répondu : zéro anomalie ne veut alors rien dire. */
+  isError?: boolean;
+  onRetry?: () => void;
+  isRetrying?: boolean;
   onVerify?: (path: string) => void;
   className?: string;
 }
@@ -19,6 +24,9 @@ interface PayrollPreflightAnomaliesSectionProps {
 export function PayrollPreflightAnomaliesSection({
   anomalies,
   isLoading = false,
+  isError = false,
+  onRetry,
+  isRetrying = false,
   onVerify,
   className,
 }: PayrollPreflightAnomaliesSectionProps) {
@@ -37,6 +45,18 @@ export function PayrollPreflightAnomaliesSection({
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
         Vérification des anomalies…
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <ControleIndisponible
+        titre="Contrôle avant paie indisponible."
+        description="Les anomalies n'ont pas pu être vérifiées."
+        onRetry={onRetry}
+        isRetrying={isRetrying}
+        className={className}
+      />
     );
   }
 

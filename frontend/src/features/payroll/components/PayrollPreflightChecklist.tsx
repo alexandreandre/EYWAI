@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 
 interface PreflightStep {
   url: string;
@@ -61,10 +62,30 @@ export function PayrollPreflightChecklist({
   className,
   onStepClick,
 }: PayrollPreflightChecklistProps) {
-  const { getCount, isLoading: badgesLoading } = useRhSidebarTaskBadges(true);
+  const {
+    getCount,
+    isLoading: badgesLoading,
+    isPayrollPipelineLoading,
+    isPayrollPipelineError,
+    retryFailed,
+  } = useRhSidebarTaskBadges(true);
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
   const isLoading = badgesLoading;
+
+  // Un compteur en erreur vaut 0 : sans ce cas, la liste annonçait
+  // « Processus de préparation validé » alors que rien n'avait été vérifié.
+  if (!isLoading && isPayrollPipelineError) {
+    return (
+      <ControleIndisponible
+        titre="Étapes de préparation non vérifiées."
+        description="Les calendriers, absences et notes de frais en attente n'ont pas pu être comptés."
+        onRetry={retryFailed}
+        isRetrying={isPayrollPipelineLoading}
+        className={className}
+      />
+    );
+  }
 
   const steps = PREFLIGHT_STEPS.map((step) => ({
     ...step,

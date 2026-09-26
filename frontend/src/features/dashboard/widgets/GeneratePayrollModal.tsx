@@ -16,7 +16,7 @@ import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/
 import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRoutingPanel';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
-import { countOpenBlockingAnomalies } from '@/features/payroll/components/preflightLabels';
+import { messageConfirmationGeneration } from '@/features/payroll/lib/controleAvantPaie';
 import { PayrollEmployeeEmptyState } from '@/features/payroll/components/PayrollEmployeeEmptyState';
 import { PayrollEmployeeReadinessAlert } from '@/features/payroll/components/PayrollEmployeeReadinessAlert';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
@@ -79,6 +79,9 @@ export function GeneratePayrollModal({
   const {
     data: preflightData,
     isLoading: preflightLoading,
+    isError: preflightError,
+    isFetching: preflightFetching,
+    refetch: refetchPreflight,
   } = usePreflightAnomalies(parsedMonth.year, parsedMonth.month, !!selectedMonth);
 
   const generateMonthOptions = () => {
@@ -184,13 +187,13 @@ export function GeneratePayrollModal({
   };
 
   const startGeneration = () => {
-    const blocking = countOpenBlockingAnomalies(preflightData?.anomalies ?? []);
-    if (blocking > 0) {
-      const confirmed = window.confirm(
-        `${blocking} anomalie(s) bloquante(s) ouverte(s). Générer quand même les bulletins ?`,
-      );
-      if (!confirmed) return;
-    }
+    // Un contrôle en panne ne compte pas pour « zéro anomalie » : on demande
+    // une confirmation explicite au lieu de générer sans rien dire.
+    const confirmation = messageConfirmationGeneration({
+      controleEnErreur: preflightError,
+      anomalies: preflightData?.anomalies ?? [],
+    });
+    if (confirmation && !window.confirm(confirmation)) return;
 
     const ids = Array.from(selectedEmployees);
     const [yearStr, monthStr] = selectedMonth.split('-');
@@ -272,6 +275,9 @@ export function GeneratePayrollModal({
               <PayrollPreflightAnomaliesSection
                 anomalies={preflightData?.anomalies ?? []}
                 isLoading={preflightLoading && !!selectedMonth}
+                isError={preflightError && !!selectedMonth}
+                onRetry={() => void refetchPreflight()}
+                isRetrying={preflightFetching}
                 onVerify={handleVerifyAnomaly}
               />
             </div>

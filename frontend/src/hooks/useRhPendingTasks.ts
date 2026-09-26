@@ -334,6 +334,39 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     companyEnabled &&
     (queryInFlight(dashboardQuery) || queryInFlight(schedulesBadgeQuery));
 
+  // Une requête en erreur ne vaut pas « 0 tâche en attente » : ses compteurs
+  // retombent à zéro (`?? 0`), il faut donc dire qu'elle a échoué (constat C1
+  // de l'audit du 25/09).
+  const failedQueries = companyEnabled
+    ? [
+        dashboardQuery,
+        residenceQuery,
+        medicalSettingsQuery,
+        medicalKpisQuery,
+        ribAlertsQuery,
+        annualReviewsQuery,
+        recruitmentSettingsQuery,
+        recruitmentCandidatesQuery,
+        schedulesBadgeQuery,
+        workMedalsQuery,
+        rttYearEndQuery,
+        modulationWorkflowQuery,
+        cetPendingQuery,
+        pendingSignaturesQuery,
+        onboardingQuery,
+      ].filter((q) => q.isError)
+    : [];
+
+  // Sources des trois étapes du verrou « Lancer la paie » : /schedules
+  // (plannings), /leaves (absences + clôtures RTT), /expenses (notes de frais).
+  const isPayrollPipelineError =
+    companyEnabled &&
+    (dashboardQuery.isError || schedulesBadgeQuery.isError || rttYearEndQuery.isError);
+
+  const retryFailed = () => {
+    for (const query of failedQueries) void query.refetch();
+  };
+
   return {
     items,
     totalActions,
@@ -342,6 +375,12 @@ export function useRhPendingTasks(enabled: boolean, companyIdOverride?: string |
     isLoading,
     isRefreshing,
     isPayrollPipelineLoading,
+    /** Au moins une source des compteurs n'a pas répondu. */
+    hasError: failedQueries.length > 0,
+    /** Une source du verrou « Lancer la paie » n'a pas répondu. */
+    isPayrollPipelineError,
+    /** Relance les seules requêtes en erreur. */
+    retryFailed,
     getCount: (url: string) => sidebarCounts[url] ?? 0,
   };
 }

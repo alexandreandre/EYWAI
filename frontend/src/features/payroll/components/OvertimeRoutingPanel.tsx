@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 
 interface OvertimeRoutingPanelProps {
   year: number;
@@ -29,7 +30,13 @@ export function OvertimeRoutingPanel({ year, month, className }: OvertimeRouting
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, { pay: string; account: string }>>({});
 
-  const { data: rows = [], isLoading } = useQuery({
+  const {
+    data: rows = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ['overtime-routing', year, month],
     queryFn: () => listOvertimeRouting(year, month),
     enabled: year > 0 && month > 0,
@@ -68,6 +75,20 @@ export function OvertimeRoutingPanel({ year, month, className }: OvertimeRouting
       <div className={className}>
         <Loader2 className="h-4 w-4 animate-spin" />
       </div>
+    );
+  }
+
+  // En erreur, `rows` vaut [] : sans ce cas, les décisions d'heures sup à
+  // prendre disparaissaient comme s'il n'y en avait aucune.
+  if (isError) {
+    return (
+      <ControleIndisponible
+        titre="Décisions d'heures supplémentaires indisponibles."
+        description="Les heures sup à payer ou à mettre au compteur n'ont pas pu être chargées."
+        onRetry={() => void refetch()}
+        isRetrying={isFetching}
+        className={className}
+      />
     );
   }
 

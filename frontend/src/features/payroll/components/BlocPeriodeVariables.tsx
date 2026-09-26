@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import {
   usePeriodeVariables,
 } from '@/features/payroll/hooks/usePeriodeVariables';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 
 interface Props {
   year: number;
@@ -31,12 +33,37 @@ interface Props {
  * voit en lecture, et la modifier est annoncé comme valant pour toute la société.
  */
 export function BlocPeriodeVariables({ year, month, lectureSeule = false }: Props) {
-  const { data: fenetre, isLoading } = usePeriodeVariables(year, month);
+  const { data: fenetre, isLoading, isError, isFetching, refetch } = usePeriodeVariables(
+    year,
+    month,
+  );
   const enregistrer = useEnregistrerPeriodeVariables(year, month);
   const [finSaisie, setFinSaisie] = useState<string>('');
   const [modification, setModification] = useState(false);
 
-  if (isLoading || !fenetre) return null;
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border p-3 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        Chargement de la période des variables…
+      </div>
+    );
+  }
+
+  // Une période qui n'a pas pu être lue se signale : le bloc disparaissait
+  // sans rien dire des semaines qui partent sur ce mois.
+  if (isError) {
+    return (
+      <ControleIndisponible
+        titre="Période des variables indisponible."
+        description="La période des heures sup et des paniers n'a pas pu être chargée."
+        onRetry={() => void refetch()}
+        isRetrying={isFetching}
+      />
+    );
+  }
+
+  if (!fenetre) return null;
 
   const aRegenerer = fenetre.bulletins_a_regenerer ?? 0;
   const mentionBulletins =

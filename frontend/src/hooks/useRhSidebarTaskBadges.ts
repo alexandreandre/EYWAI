@@ -12,8 +12,16 @@ import { sumRhPendingActions } from '@/lib/rhPendingTasks';
 export function useRhSidebarTaskBadges(enabled: boolean) {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const { items, sidebarCounts, isLoading, isPayrollPipelineLoading, getCount } =
-    useRhPendingTasks(enabled);
+  const {
+    items,
+    sidebarCounts,
+    isLoading,
+    isPayrollPipelineLoading,
+    hasError,
+    isPayrollPipelineError,
+    retryFailed,
+    getCount,
+  } = useRhPendingTasks(enabled);
 
   const prevPathRef = useRef<string | null>(null);
   useEffect(() => {
@@ -34,6 +42,9 @@ export function useRhSidebarTaskBadges(enabled: boolean) {
     counts: sidebarCounts,
     isLoading,
     isPayrollPipelineLoading,
+    hasError,
+    isPayrollPipelineError,
+    retryFailed,
     totalRhPending,
   };
 }
