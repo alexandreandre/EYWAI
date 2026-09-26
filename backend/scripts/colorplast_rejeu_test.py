@@ -20,7 +20,7 @@ Deux copies en double sont écartées avant de commencer, faute de quoi le moteu
 les additionne — voir `_nettoyer_les_doublons_du_cabinet`.
 
 Références : `data/colorplast/bulletins/2026-MM/` et `data/colorplast/dsn/`.
-Détail des écarts dans `docs/colorplast-{janvier,fevrier}-2026-ligne-a-ligne.md`.
+Détail des écarts dans `docs/comptes-rendus/*-colorplast-{janvier,fevrier}-2026-ligne-a-ligne.md`.
 
 Exécuté en CI via `script-env-test.yml`. Usage : [--apply] [--jusqu-a N]
 """
@@ -145,7 +145,7 @@ REFERENCES: dict[int, dict] = {
         # graverait une sous-paie possible dans les sept sociétés.
         "en_attente": {
             "GAUTHERON": "maintien de salaire de l'arrêt du 16 au 28/03 — "
-                         "question ouverte, voir docs/colorplast-mars-2026-ligne-a-ligne.md",
+                         "question ouverte, voir docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md",
         },
         # Écarts avec le cabinet que nous ne reproduisons pas, et pourquoi.
         #

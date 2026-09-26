@@ -814,7 +814,7 @@ CREATE POLICY trial_periods_select ON public.trial_periods
 
 - [ ] **Step 2 : appliquer sur l'environnement de test**
 
-Via le workflow dispatchable décrit dans `docs/guide-environnement-test.md` :
+Via le workflow dispatchable décrit dans `docs/reference/guide-environnement-test.md` :
 
 ```bash
 gh workflow run deploy-test-env.yml -f migration=20260806090000_trial_periods.sql
@@ -3424,10 +3424,10 @@ Exécutée avec la clé anon d'un utilisateur d'une seule société, la requête
 
 - [ ] **Step 6 : consigner la recette**
 
-Noter le résultat de chaque parcours dans `docs/afaire.md` sous le point #28, en français, avec ce qui a été vérifié et ce qui reste ouvert.
+Noter le résultat de chaque parcours dans `docs/archive/afaire.md` sous le point #28, en français, avec ce qui a été vérifié et ce qui reste ouvert.
 
 ```bash
-git add docs/afaire.md
+git add docs/archive/afaire.md
 git commit -m "docs(afaire): recette du suivi des périodes d'essai (#28)
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"

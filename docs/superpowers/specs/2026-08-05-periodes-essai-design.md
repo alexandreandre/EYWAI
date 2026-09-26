@@ -1,6 +1,6 @@
 # Suivi des périodes d'essai — design
 
-Point #28 de `docs/afaire.md` : « Suivi des périodes d'essais, pouvoir le cocher,
+Point #28 de `docs/archive/afaire.md` : « Suivi des périodes d'essais, pouvoir le cocher,
 quelque part, même après la création. Bien paramétrable. Pour l'instant, elsa ne
 l'a pas trouvé. »
 

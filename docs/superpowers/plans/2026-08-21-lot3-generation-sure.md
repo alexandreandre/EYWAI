@@ -23,7 +23,7 @@ données, le lot pose le contrat cible pour la vague 3.
   réseau depuis un test (Supabase toujours moqué). Baseline : 5229 verts.
 - Branche `dev-lot3-generation-sure` depuis `main` à jour, CI verte.
 - Commits par chemins explicites ; ne jamais toucher `backend/.env`,
-  `docs/afaire.md`, `landing/`, `AGENTS.md`.
+  `docs/archive/afaire.md`, `landing/`, `AGENTS.md`.
 - Gardes côté SERVEUR (leçon du lot 1 : un frontend ancien ne doit jamais
   pouvoir contourner) ; les overrides sont explicites, tracés, jamais le
   défaut.

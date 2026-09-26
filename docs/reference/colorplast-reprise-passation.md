@@ -337,7 +337,7 @@ que Fuckar (1 h sup au lieu de 2 h sup et 0,9 h d'absence le 19/08, −2,77 € 
 brut), et c'est là exactement le classeur de Gaëlle (S31 +2, S34 −1 → 1 h).
 La perte de janvier–juin vient des journées « en récup » et d'autres défauts,
 pas de la règle. Rien n'est changé en base. Détail et question pour Gaëlle
-dans `docs/colorplast-2026-rejeu-regulier.md`, dernière section.
+dans `docs/comptes-rendus/2026-09-18-colorplast-2026-rejeu-regulier.md`, dernière section.
 
 ## Ce qui reste, dans l'ordre
 
@@ -398,7 +398,7 @@ la doctrine validée ici.
 ### 2. Le rejeu d'audit a son espace — FAIT : le bac à sable de génération
 
 **Le mécanisme (18/09).** Le générateur accepte un `bac_a_sable`
-([bac_a_sable.py](../backend/app/modules/payroll/documents/bac_a_sable.py)) : les
+([bac_a_sable.py](../../backend/app/modules/payroll/documents/bac_a_sable.py)) : les
 cumuls du mois précédent viennent de l'appelant (`cumuls_de_depart`, zéro si rien
 n'est fourni, comme un premier bulletin), le calcul est strictement le même, et
 **rien n'est persisté** — ni storage, ni `payslips`, ni `employee_schedules.cumuls`,
@@ -424,7 +424,7 @@ rejoue la remise. Le rejeu « sur les entrées du cabinet »
 doit retourner.
 
 **Vérifié.** Janvier en bac à sable redonne les bruts documentés dans
-`docs/colorplast-2026-rejeu-regulier.md` (Espinosa −23,02, Girerd +0,01, les trois
+`docs/comptes-rendus/2026-09-18-colorplast-2026-rejeu-regulier.md` (Espinosa −23,02, Girerd +0,01, les trois
 autres au centime), les écarts de champs sont les natures connues, et la chaîne est
 intacte (50 bulletins, 84 cumuls). Les six mois, relancés en arrière-plan après
 l'incident ci-dessous : **16 bulletins sur 37 au centime et exactement les écarts

@@ -1,6 +1,6 @@
 # Taux de prélèvement à la source : suivi RH et récupération par fichier
 
-Point #31 de `docs/afaire.md` : « Taux PAS. Pouvoir voir facilement son taux.
+Point #31 de `docs/archive/afaire.md` : « Taux PAS. Pouvoir voir facilement son taux.
 Est-ce qu'il est bien récupéré ? Si on recrute un employé, comment récupérer son
 taux ? C'est pas l'interfaçage net-entreprise justement ??? »
 

@@ -8,7 +8,7 @@ alwaysApply: true
 Les données de paie réelles (bulletins, DSN, calendriers, pointages, compteurs)
 vivent sous **`data/`**, à la racine du dépôt. Ce dossier est **gitignoré**.
 
-Documentation complète : [`docs/donnees-locales.md`](../../docs/donnees-locales.md).
+Documentation complète : [`docs/reference/donnees-locales.md`](../../docs/reference/donnees-locales.md).
 
 ## Chercher avant de demander
 

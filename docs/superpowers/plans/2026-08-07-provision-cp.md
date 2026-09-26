@@ -1520,7 +1520,7 @@ git commit -m "chore(exports): script de comparaison de la provision CP au modè
 ### Task 7 : recette sur l'environnement de test
 
 **Files:**
-- Modify: `docs/afaire.md` (compte rendu du point #23)
+- Modify: `docs/archive/afaire.md` (compte rendu du point #23)
 
 **Interfaces:**
 - Consumes: toutes les tâches précédentes.
@@ -1553,7 +1553,7 @@ Même manipulation sur Zone 404 ou MAJI. Attendu : soit un export cohérent, soi
 l'anomalie bloquante « Aucun salarié avec un solde de congés à cette date ». Dans les
 deux cas, **jamais une erreur 500**.
 
-- [ ] **Step 4 : rédiger le compte rendu dans `docs/afaire.md`**
+- [ ] **Step 4 : rédiger le compte rendu dans `docs/archive/afaire.md`**
 
 Sous la ligne `#23. Pouvoir faire un export de calcul de provision des congés payés...`,
 en langage courant, sans jargon, dans le style des points MOI : le fichier exemple était
@@ -1564,7 +1564,7 @@ Elsa).
 - [ ] **Step 5 : commit**
 
 ```bash
-git add docs/afaire.md
+git add docs/archive/afaire.md
 git commit -m "docs(afaire): compte rendu du point #23, provision congés payés"
 ```
 

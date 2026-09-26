@@ -31,7 +31,7 @@ def charger(societe: str, nom: str) -> list[dict]:
         raise FileNotFoundError(
             f"Table nominative absente : {chemin}\n"
             f"Ces données sont personnelles et ne sont pas versionnées. "
-            f"Voir docs/donnees-locales.md."
+            f"Voir docs/reference/donnees-locales.md."
         )
     return json.loads(chemin.read_text(encoding="utf-8"))
 

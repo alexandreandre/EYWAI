@@ -12,7 +12,7 @@ import { BASE_URL, ETAT_AUTH, identifiantsPresents } from './e2e/helpers/env';
 if (!identifiantsPresents) {
   console.warn(
     '[e2e] E2E_QA_EMAIL / E2E_QA_PASSWORD absents : seuls les tests publics tourneront. ' +
-      'Renseigne frontend/.env.e2e (voir docs/qa/strategie-qa.md).',
+      'Renseigne frontend/.env.e2e (voir docs/reference/strategie-qa.md).',
   );
 }
 

@@ -3,7 +3,7 @@
 Issu du brainstorm avec Alexandre du 18-19/08/2026, sur les priorités
 d'Elsa (13/08 : « la paie c'est la priorité numéro 1 … le package paie =
 bulletin + DSN + provision + banque, tout le reste est secondaire »).
-Remplace `docs/strategie-integration-2026-08.md` (première version, avant
+Remplace `docs/comptes-rendus/2026-08-19-strategie-integration.md` (première version, avant
 brainstorm).
 
 ## Principe retenu : deux rails en parallèle

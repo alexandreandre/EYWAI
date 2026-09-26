@@ -1,7 +1,7 @@
 # Environnement de test avec les données réelles
 
 Date : 2026-07-28
-Sujet : `docs/afaire.md` #17
+Sujet : `docs/archive/afaire.md` #17
 Statut : conception validée, implémentation à planifier
 
 ## 1. Objectif

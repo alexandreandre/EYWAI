@@ -540,4 +540,4 @@ health, login, un bulletin, page Suivi des taux).
 - [ ] **7.5** Déployer **prod** ; vérifier : health, openapi, login, un bulletin, Suivi des taux ; contrôler le rôle effectif en décodant le claim des variables Cloud Run (`gcloud run services describe … | …` → décodage local, ne jamais afficher la clé).
 - [ ] **7.6** En dernier : échanger les valeurs dans `backend/.env` local (⚠ tout script `--apply` lit ce fichier — ne rien lancer pendant la fenêtre) et dans les `.env` de test locaux éventuels.
 - [ ] **7.7** Rollback si besoin : ré-échanger les env vars + `gcloud run services update-traffic` vers la révision précédente. Les changements de code (Tasks 1-6) n'ont jamais besoin de revert : ils sont corrects dans les deux états.
-- [ ] **7.8** Clore : mettre à jour la mémoire (clés à l'endroit, date), noter dans `docs/revue-chaine-paie-2026-08.md` que le point C-clés est soldé.
+- [ ] **7.8** Clore : mettre à jour la mémoire (clés à l'endroit, date), noter dans `docs/comptes-rendus/2026-08-20-revue-chaine-paie.md` que le point C-clés est soldé.

@@ -36,7 +36,7 @@ React (page publique + bouton RH), pytest.
 - Sécurité : jeton haché en base (sha256), comparaison en temps constant,
   messages d'erreur indifférenciés (pas d'énumération), aucune donnée
   sensible sur l'endpoint public de vérification.
-- Ne jamais toucher backend/.env, docs/afaire.md, landing/, AGENTS.md.
+- Ne jamais toucher backend/.env, docs/archive/afaire.md, landing/, AGENTS.md.
 
 ---
 

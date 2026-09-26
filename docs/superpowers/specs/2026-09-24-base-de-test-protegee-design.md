@@ -34,7 +34,7 @@ jetable :
    compte QA ne tourne plus si la confirmation est refusée.
 3. **Route** : `Depends(verify_super_admin)` ; retirée de
    `ROUTES_PUBLIQUES_ASSUMEES`.
-4. **Guide** `docs/guide-environnement-test.md` : resynchro verrouillée, bouton
+4. **Guide** `docs/reference/guide-environnement-test.md` : resynchro verrouillée, bouton
    et bandeau décrits mais absents du frontend (retirés du texte), commande
    avec confirmation, sauvegardes.
 

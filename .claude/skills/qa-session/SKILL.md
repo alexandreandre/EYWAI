@@ -40,7 +40,7 @@ description: Session QA exploratoire d'EYWAI pilotée par Playwright MCP sur l'e
 
 1. **Cadrage** : choisir 2-4 modules (avec l'utilisateur s'il a précisé, sinon
    prioriser : paie > absences > collaborateurs > exports > badgeuse), en
-   s'appuyant sur la carte des routes dans `docs/qa/strategie-qa.md`.
+   s'appuyant sur la carte des routes dans `docs/reference/strategie-qa.md`.
 2. **Exploration par module**, en incarnant le persona : dérouler ses vraies
    tâches dans son vrai ordre (côté RH : le cycle de paie de personas.md —
    pointages → calendriers → variables → anomalies → génération → bulletins

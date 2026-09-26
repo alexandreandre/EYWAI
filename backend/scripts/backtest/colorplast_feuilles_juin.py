@@ -24,7 +24,7 @@ Le classeur du cabinet (`data/colorplast/variables/2026-06/detail-heures-sup-
 de pause, à deux lectures près (Fuckar mardi 26/05 compté 1 h au lieu de 0,5 ;
 Cotte ses vendredis 7h–15h comptés 7 h au lieu de 7,5) — et ses colonnes S25
 sont vides. Voir `scripts/colorplast_feuilles_juin_test.py` pour la pose et le
-contrôle, et `docs/colorplast-juin-2026-ligne-a-ligne.md` pour le compte rendu.
+contrôle, et `docs/comptes-rendus/2026-09-16-colorplast-juin-2026-ligne-a-ligne.md` pour le compte rendu.
 """
 
 from __future__ import annotations

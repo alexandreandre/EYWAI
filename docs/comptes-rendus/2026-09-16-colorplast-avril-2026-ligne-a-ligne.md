@@ -83,7 +83,7 @@ lesquelles il calcule.
 
 23,40 h au compteur et 2,40 h au compteur d'heures sup, que le cabinet avait
 retirées en mars et que nous gardons. Le raisonnement est dans
-`docs/colorplast-mars-2026-ligne-a-ligne.md` : une absence payée ne réduit pas
+`docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md` : une absence payée ne réduit pas
 le compteur, et le cabinet n'est pas cohérent avec lui-même là-dessus.
 
 ### Deux petits restes d'allègement : 0,51 € et 0,42 €

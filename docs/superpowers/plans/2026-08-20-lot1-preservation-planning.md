@@ -31,7 +31,7 @@ données. Le schéma est ouvert en complément, pour que le GET cesse de mentir.
   une société (règle backtest du projet).
 - Commits par chemins explicites, branche `dev-lot1-preservation-planning`
   depuis `main` à jour et **CI verte**.
-- Aucune modification de `docs/afaire.md`, `landing/`, `AGENTS.md`.
+- Aucune modification de `docs/archive/afaire.md`, `landing/`, `AGENTS.md`.
 - Vocabulaire : ce lot **ne touche pas** au débat `conge` /
   `conges_payes` (c'est le lot 2). Il préserve ce qui existe, quel que soit
   le libellé.

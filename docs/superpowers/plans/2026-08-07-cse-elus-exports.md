@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Corriger les exports CSE (points #12/#13 de `docs/afaire.md`) et livrer le script
+**Goal:** Corriger les exports CSE (points #12/#13 de `docs/archive/afaire.md`) et livrer le script
 d'import des élus, de sorte que la réponse d'Elsa ne déclenche plus qu'un chargement de données.
 
 **Architecture:** Trois corrections indépendantes dans le module CSE backend
@@ -1010,7 +1010,7 @@ un test ultérieur.
 
 - [ ] **Step 5 : consigner le résultat**
 
-Renseigner le compte rendu du point #12 dans [docs/afaire.md](docs/afaire.md), sous la ligne du
+Renseigner le compte rendu du point #12 dans [docs/archive/afaire.md](docs/archive/afaire.md), sous la ligne du
 point, dans le style des points MOI.
 
 ---

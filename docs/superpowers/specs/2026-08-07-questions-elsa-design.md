@@ -56,7 +56,7 @@ Une occurrence de mot-clé sans valeur derrière tombe en `PISTE`, jamais en
 
 ## Sorties
 
-1. **Rapport** `docs/questions-elsa-<AAAA-MM-JJ>.md`, plus un résumé court à
+1. **Rapport** `docs/comptes-rendus/<AAAA-MM-JJ>-questions-elsa.md`, plus un résumé court à
    l'écran (Alexandre ne lit pas les textes longs).
 2. **Ingestion** des fichiers Drive rattachés à un `RÉPONDU` uniquement :
    téléchargement dans `data/_inbox/`, puis

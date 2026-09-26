@@ -1,7 +1,7 @@
 # Prime transport paramétrable et plafonds de frais professionnels
 
 Date : 2026-08-02
-Sujet : `docs/afaire.md` #15
+Sujet : `docs/archive/afaire.md` #15
 Statut : conception validée, implémentation à planifier
 
 ## 1. Objectif

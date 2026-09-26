@@ -84,7 +84,7 @@ Le portail garde trois choses qu'EYWAI n'a pas, et aucune ne concerne le PAS.
 télécharger (110 Mo, Java). Donc aucune donnée ne sort du poste, et l'agent
 navigateur n'a servi qu'à trouver le lien : la validation tourne ici.
 
-Résultat dans **`docs/dsn-val-diagnostic.md`**. En bref : les cinq fichiers du
+Résultat dans **`docs/comptes-rendus/2026-08-10-dsn-val-diagnostic.md`**. En bref : les cinq fichiers du
 cabinet passent à **0 anomalie**, les nôtres de 628 à 7 250 — mais pour
 seulement **34 règles distinctes**, les mêmes partout. La question #17 à Elsa
 (la nomenclature des codes de cotisation) devient inutile : le validateur donne
@@ -130,7 +130,7 @@ On sait produire le fichier : `build_parsed_dsn_from_payroll`
 ### ~~Mission B — Fiches de paramétrage des OC~~ ✅ faite le 10/08/2026
 
 **14 fiches récupérées**, rangées en `data/<societe>/referentiel/fpoc/`.
-Résultat dans **`docs/fiches-parametrage-oc.md`**. Les fiches portent les
+Résultat dans **`docs/reference/fiches-parametrage-oc.md`**. Les fiches portent les
 numéros de rubrique DSN en tête de colonne : la correspondance est donnée. Elles
 règlent aussi la question posée à Elsa le 05/08 sur les deux comptes de
 prévoyance de Colorplast — **Mutex pour les non-cadres, Alptis pour les cadres**.

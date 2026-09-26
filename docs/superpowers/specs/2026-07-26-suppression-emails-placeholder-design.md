@@ -95,7 +95,7 @@ Le code confond aujourd'hui deux objets. La conception les sépare.
 La connexion se fait par **identifiant `prenom.nom`**, pas par adresse. Le résolveur
 (`auth/infrastructure/providers.py:88-104`) part de `employees.username`, passe par `user_id`,
 puis lit l'adresse du compte Auth. **Vider `employees.email` ne casse donc aucune connexion** —
-l'avertissement porté au §3.1 de `docs/etat-des-lieux-si-rh-2026-07.md` sur l'accès de Vanessa
+l'avertissement porté au §3.1 de `docs/comptes-rendus/2026-07-26-etat-des-lieux-si-rh.md` sur l'accès de Vanessa
 est trop pessimiste : seules ses notifications sont en jeu, pas son accès.
 
 **Comportement retenu à la création d'un salarié :** fiche créée complètement, sans adresse ;

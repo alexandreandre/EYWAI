@@ -1,7 +1,7 @@
 # Export Excel des titres de séjour
 
 Date : 2026-07-31
-Sujet : `docs/afaire.md` #7
+Sujet : `docs/archive/afaire.md` #7
 Statut : conception validée, implémentation à planifier
 
 ## 1. Objectif

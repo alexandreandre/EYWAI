@@ -205,7 +205,7 @@ Exemples — chemin déductible sans chercher :
 
 ### Phase 6 — Documentation et mémoire
 
-12. `docs/donnees-locales.md` — versionné, aucune donnée personnelle : la
+12. `docs/reference/donnees-locales.md` — versionné, aucune donnée personnelle : la
     convention, la carte, le mode d'emploi de l'ingestion.
 13. Entrée de mémoire « où trouver quoi » + pointeur dans `MEMORY.md`.
 

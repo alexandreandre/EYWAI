@@ -1,6 +1,6 @@
 # Questions en suspens — 8 août 2026
 
-Balayage des 21 questions de `docs/afaire.md` contre quatre sources : export
+Balayage des 21 questions de `docs/archive/afaire.md` contre quatre sources : export
 WhatsApp Elsa (rafraîchi ce matin, 6 681 messages), `data/`, `docs/`, Google
 Drive.
 

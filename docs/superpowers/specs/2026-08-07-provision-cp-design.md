@@ -1,7 +1,7 @@
 # Export « État de provision des congés payés »
 
 **Date** : 2026-08-07
-**Point** : `docs/afaire.md` #23
+**Point** : `docs/archive/afaire.md` #23
 **Statut** : validé
 
 ## Constat

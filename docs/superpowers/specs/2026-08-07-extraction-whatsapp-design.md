@@ -111,7 +111,7 @@ volets, du plus actionnable au plus brut :
    les documents promis mais pas encore envoyés.
 
 Le volet 3 est destiné à être lu par Claude, qui en tire ce qui doit remonter dans
-`docs/afaire.md` ou dans une mémoire. Aucun tri automatique n'est tenté sur le
+`docs/archive/afaire.md` ou dans une mémoire. Aucun tri automatique n'est tenté sur le
 texte : la valeur est dans la lecture, pas dans une heuristique.
 
 ## Confidentialité

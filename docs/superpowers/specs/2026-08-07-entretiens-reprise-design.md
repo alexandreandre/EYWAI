@@ -1,7 +1,7 @@
 # Reprise des dates d'entretiens annuels
 
 **Date** : 2026-08-07
-**Point** : `docs/afaire.md` #25
+**Point** : `docs/archive/afaire.md` #25
 **Statut** : validé
 
 ## Constat

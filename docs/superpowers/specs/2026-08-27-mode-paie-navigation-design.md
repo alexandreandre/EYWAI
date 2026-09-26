@@ -1,7 +1,7 @@
 # Mode paie — navigation réduite pour le premier contact
 
 **Date** : 2026-08-27
-**Point** : préparation du point paye du 28/08/2026 (`docs/afaire.md` #18)
+**Point** : préparation du point paye du 28/08/2026 (`docs/archive/afaire.md` #18)
 **Statut** : validé
 
 ## Constat

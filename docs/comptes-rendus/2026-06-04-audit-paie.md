@@ -66,12 +66,12 @@
 
 ### Pipeline utilisé
 
-Réutilisation du pipeline de tests existant ([`backend/tests/unit/payroll/helpers.py`](backend/tests/unit/payroll/helpers.py)) étendu pour capturer les lignes de cotisation détaillées et assembler le bulletin via `creer_bulletin_final`.
+Réutilisation du pipeline de tests existant ([`backend/tests/unit/payroll/helpers.py`](../../backend/tests/unit/payroll/helpers.py)) étendu pour capturer les lignes de cotisation détaillées et assembler le bulletin via `creer_bulletin_final`.
 
 ### Barèmes
 
 - **Source principale** : Supabase (`load_baremes()` → `payroll_config` + `convention_collective_rules`).
-- **Complément** : clés `stage` et `cdd` depuis [`baremes_snapshot.py`](backend/tests/unit/payroll/fixtures/baremes_snapshot.py) si migration `20260604150000_stage_cdd_payroll_config.sql` non déployée.
+- **Complément** : clés `stage` et `cdd` depuis [`baremes_snapshot.py`](../../backend/tests/unit/payroll/fixtures/baremes_snapshot.py) si migration `20260604150000_stage_cdd_payroll_config.sql` non déployée.
 - **SMIC 2026** : 12,31 €/h → 1 867,02 €/mois (35 h).
 - **RGDU** : `tmin=0,02`, `tdelta` 0,3781 / 0,3821, `p=1,75`, `point_sortie_smic=3,0`.
 
@@ -131,30 +131,30 @@ Pour chaque cas : cohérence interne (somme lignes = totaux), absence de NaN, pr
 ### E2 — RGDU au plafond 3× SMIC ✅
 
 **Correctif** : `_calculer_smic_de_reference_cumule` aligné sur `smic_mensuel_brut` (prorata linéaire sur heures, sans arrondi intermédiaire).  
-**Fichier** : [`calcul_reduction_generale.py`](backend/app/modules/payroll/engine/calcul_reduction_generale.py).  
+**Fichier** : [`calcul_reduction_generale.py`](../../backend/app/modules/payroll/engine/calcul_reduction_generale.py).  
 **Validation S14** : coef RGDU = 0, patronal net positif sans réduction résiduelle.
 
 ### E3 — Absences sans retenue si heures = 0 ✅
 
 **Correctif** : `_heures_evenement_absence` impute `duree_hebdo / 5` (repli 7 h) si `heures` absentes ou nulles.  
-**Fichier** : [`calcul_brut.py`](backend/app/modules/payroll/engine/calcul_brut.py).  
+**Fichier** : [`calcul_brut.py`](../../backend/app/modules/payroll/engine/calcul_brut.py).  
 **Validation S19** : brut réduit à 2 384,62 €.
 
 ### E4 — Prorata entrée/sortie ✅
 
 **Correctif** : `_facteur_prorata_entree_sortie` (jours calendaires présents / jours du mois) appliqué au gain « Salaire de base » ; propriétés `date_entree`, `date_fin_contrat` / `date_sortie` sur `ContextePaie`.  
-**Fichiers** : [`calcul_brut.py`](backend/app/modules/payroll/engine/calcul_brut.py), [`contexte.py`](backend/app/modules/payroll/engine/contexte.py).  
+**Fichiers** : [`calcul_brut.py`](../../backend/app/modules/payroll/engine/calcul_brut.py), [`contexte.py`](../../backend/app/modules/payroll/engine/contexte.py).  
 **Validation S34** : entrée 15/04 → brut 1 333,33 €.
 
 ### E5 — Mutuelle forfaitaire inline ✅
 
 **Correctif** : fallback sur `montant_salarial` / `montant_patronal` directs ; part patronale intégrée à la base CSG.  
-**Fichier** : [`calcul_cotisations.py`](backend/app/modules/payroll/engine/calcul_cotisations.py).  
+**Fichier** : [`calcul_cotisations.py`](../../backend/app/modules/payroll/engine/calcul_cotisations.py).  
 **Validation S30** : ligne mutuelle présente (+30 € sal. / +45 € pat.).
 
 ### Stage / gratification ✅
 
-**Correctif** : module [`exoneration_stage.py`](backend/app/modules/payroll/engine/exoneration_stage.py), branchement dans `calcul_cotisations.py`, skip RGDU si `is_stagiaire`, config `payroll_config.stage`.  
+**Correctif** : module [`exoneration_stage.py`](../../backend/app/modules/payroll/engine/exoneration_stage.py), branchement dans `calcul_cotisations.py`, skip RGDU si `is_stagiaire`, config `payroll_config.stage`.  
 **Validation S11** : net = brut 600 €, 0 cotisation. **S35** : cotisations sur excédent à 1 200 €.
 
 ### CDD — prime de précarité ✅
@@ -202,11 +202,11 @@ Pour chaque cas : cohérence interne (somme lignes = totaux), absence de NaN, pr
 - **Golden RGDU** : valeurs patronales TP rafraîchies (impact E2 sur réduction).
 - **Harnais d'audit** : 38 scénarios, **0 ÉCART / 0 faux positif** (S12 vérifie la ligne RGDU négative, S19 sur jours ouvrés réels).
 - **Migrations** :
-  - [`20260604150000_stage_cdd_payroll_config.sql`](supabase/migrations/20260604150000_stage_cdd_payroll_config.sql) (stage + précarité + ICCP CDD),
-  - [`20260604160000_employees_contract_end_date.sql`](supabase/migrations/20260604160000_employees_contract_end_date.sql),
-  - [`20260604170000_interim_mandataire_payroll_config.sql`](supabase/migrations/20260604170000_interim_mandataire_payroll_config.sql),
-  - [`20260604180000_maladie_csg_ijss_payroll_config.sql`](supabase/migrations/20260604180000_maladie_csg_ijss_payroll_config.sql).
-- **CI** : job `migrate` (`supabase db push`) ajouté à [`deploy.yml`](.github/workflows/deploy.yml), bloquant avant le déploiement backend (secret `SUPABASE_DB_URL`).
+  - [`20260604150000_stage_cdd_payroll_config.sql`](../../supabase/migrations/20260604150000_stage_cdd_payroll_config.sql) (stage + précarité + ICCP CDD),
+  - [`20260604160000_employees_contract_end_date.sql`](../../supabase/migrations/20260604160000_employees_contract_end_date.sql),
+  - [`20260604170000_interim_mandataire_payroll_config.sql`](../../supabase/migrations/20260604170000_interim_mandataire_payroll_config.sql),
+  - [`20260604180000_maladie_csg_ijss_payroll_config.sql`](../../supabase/migrations/20260604180000_maladie_csg_ijss_payroll_config.sql).
+- **CI** : job `migrate` (`supabase db push`) ajouté à [`deploy.yml`](../../.github/workflows/deploy.yml), bloquant avant le déploiement backend (secret `SUPABASE_DB_URL`).
 
 ---
 

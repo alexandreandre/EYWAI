@@ -9,7 +9,7 @@ heures badgées calculées dans le bon fuseau, et la pause réellement
 badgée qui prime sur le forfait.
 
 **Architecture:** Cinq défauts confirmés par la revue vérifiée
-(`docs/revue-chaine-paie-2026-08.md` §A6, §A12-14) et leurs pièges de
+(`docs/comptes-rendus/2026-08-20-revue-chaine-paie.md` §A6, §A12-14) et leurs pièges de
 correction documentés par les relecteurs. Zéro dégât historique côté
 badgeuse (2 badges de test en prod) : on corrige avant l'usage réel.
 
@@ -23,7 +23,7 @@ badgeuse (2 badges de test en prod) : on corrige avant l'usage réel.
   moquer ensemble deux fonctions dont l'interaction est le sujet ; les
   tests existants qui se mettent à toucher le réseau après un ajout d'I/O
   révèlent l'I/O — les blinder explicitement.
-- Fixes généralistes ; jamais backend/.env, docs/afaire.md, landing/,
+- Fixes généralistes ; jamais backend/.env, docs/archive/afaire.md, landing/,
   AGENTS.md.
 
 ---

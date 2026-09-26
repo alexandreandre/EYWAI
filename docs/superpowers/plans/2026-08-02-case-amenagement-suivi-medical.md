@@ -997,7 +997,7 @@ L'environnement de test n'applique **aucune** migration à son déploiement. La 
 
 Se connecter au pooler du projet de test (`aws-0-…pooler.supabase.com:5432`, utilisateur `postgres.<project_ref>`, **pas** le port 6543) et exécuter le contenu de la migration de la tâche 1.
 
-Voir `docs/guide-environnement-test.md`.
+Voir `docs/reference/guide-environnement-test.md`.
 
 - [ ] **Step 3: Recette fonctionnelle sur le test**
 
@@ -1016,8 +1016,8 @@ La case restera vide partout au lendemain de la bascule : en production, les 27 
 
 - [ ] **Step 5: Signaler l'écart de couverture**
 
-Le suivi médical ne couvre que 23 salariés sur 240 actifs, avec uniquement des VIP (22) et des mi-carrière (5). C'est hors du périmètre de #10, mais cela limite la portée de la case. Proposer à Alexandre d'en faire une ligne distincte de `docs/afaire.md`.
+Le suivi médical ne couvre que 23 salariés sur 240 actifs, avec uniquement des VIP (22) et des mi-carrière (5). C'est hors du périmètre de #10, mais cela limite la portée de la case. Proposer à Alexandre d'en faire une ligne distincte de `docs/archive/afaire.md`.
 
 - [ ] **Step 6: Cocher #10 dans le backlog**
 
-Une fois la production vérifiée, mettre à jour `docs/afaire.md`. Ne stager que ce fichier : la branche est partagée avec d'autres sessions.
+Une fois la production vérifiée, mettre à jour `docs/archive/afaire.md`. Ne stager que ce fichier : la branche est partagée avec d'autres sessions.

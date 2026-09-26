@@ -1,7 +1,7 @@
 # Case « aménagement » sur le suivi médical
 
 Date : 2026-08-02
-Sujet : `docs/afaire.md` #10
+Sujet : `docs/archive/afaire.md` #10
 Statut : conception validée, implémentation à planifier
 
 ## 1. Objectif

@@ -145,7 +145,7 @@ supplémentaires — et il se déroule sans intervention manuelle.
 Seul reste de son mois d'entrée : le cabinet laisse à son compteur les 3,05 h
 structurelles rattachées aux heures qu'il n'a pas travaillées avant son arrivée,
 que nous en sortons. Le raisonnement est dans
-`docs/colorplast-avril-2026-ligne-a-ligne.md`.
+`docs/comptes-rendus/2026-09-16-colorplast-avril-2026-ligne-a-ligne.md`.
 
 ### Deux restes d'allègement : 0,09 € et 0,47 €
 
@@ -156,7 +156,7 @@ règle reproductible. **Question 1**.
 ### Cotte traîne toujours son congé pour événement familial de mars
 
 23,40 h au compteur et 2,40 h au compteur d'heures sup, plus 1,18 € d'allègement.
-Voir `docs/colorplast-mars-2026-ligne-a-ligne.md`.
+Voir `docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md`.
 
 ## Ce qui reste ouvert
 

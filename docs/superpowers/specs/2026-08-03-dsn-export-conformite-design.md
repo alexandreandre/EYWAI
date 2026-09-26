@@ -1,7 +1,7 @@
 # Conformité complète de la sortie DSN
 
 Date : 2026-08-03
-Sujet : `docs/afaire.md` #20
+Sujet : `docs/archive/afaire.md` #20
 Statut : lots 1 et 2 livrés, lots 3 à 6 à faire (voir §9)
 
 ## 1. Objectif

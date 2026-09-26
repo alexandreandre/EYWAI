@@ -1,7 +1,7 @@
 # Badgeuse QR chez Colorplast
 
 Date : 2026-08-04
-Sujet : `docs/afaire.md` #21 — « Badgeuse chez Colorplast. Stratégie d'intégration
+Sujet : `docs/archive/afaire.md` #21 — « Badgeuse chez Colorplast. Stratégie d'intégration
 intelligente à gamberge »
 Statut : conception validée ; bouton livré, paramétrage vérifié sur
 l'environnement de test et en attente d'application en production

@@ -231,7 +231,7 @@ def heures_sup_attendues(feuille: dict[tuple[int, int], float]) -> tuple[float, 
     Les fériés et les congés sont à 0 h prévue dans la base, donc jamais
     assimilés : le compteur d'une semaine est son seul total pointé. C'est ce
     que fait le moteur aujourd'hui ; ce qu'il devrait faire est une question
-    ouverte (voir docs/colorplast-juin-2026-ligne-a-ligne.md).
+    ouverte (voir docs/comptes-rendus/2026-09-16-colorplast-juin-2026-ligne-a-ligne.md).
     """
     hs25 = hs50 = 0.0
     for total in heures_par_semaine(feuille).values():

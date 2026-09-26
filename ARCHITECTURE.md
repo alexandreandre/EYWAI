@@ -33,7 +33,7 @@ Voir [backend/app/README.md](backend/app/README.md). Garde-fous : `tests/unit/ar
 
 ## Programme de refonte
 
-Phases 0–9 (garde-fous → resolve employee → HTTP deps → nettoyage front → features → god files → hubs → tests → gouvernance). ADRs : [`docs/adr/`](docs/adr/).
+Phases 0–9 (garde-fous → resolve employee → HTTP deps → nettoyage front → features → god files → hubs → tests → gouvernance). ADRs : [`docs/decisions/adr/`](docs/decisions/adr/).
 
 ## CI
 

@@ -74,7 +74,7 @@ existe déjà (`builder.py:561`) mais se nourrit de
    techniques d'affiliation.
 
 C'est ce qui lèvera les ~1 000 anomalies de la cascade prévoyance dans
-`docs/dsn-val-diagnostic.md`.
+`docs/comptes-rendus/2026-08-10-dsn-val-diagnostic.md`.
 
 ## Un défaut à signaler à l'organisme
 

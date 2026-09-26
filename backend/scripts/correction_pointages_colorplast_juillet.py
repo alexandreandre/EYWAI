@@ -1,7 +1,7 @@
 """Colorplast, juillet 2026 sur le test : remettre le réel d'aplomb après l'import S27–S30.
 
 Le 19/09/2026, quatre feuilles (S27 à S30) ont été importées en une fois sur le
-test. Relues case par case (voir docs/colorplast-reprise-passation.md) :
+test. Relues case par case (voir docs/reference/colorplast-reprise-passation.md) :
 
 - 24 cases ont été mal lues (glissement de colonne après le mardi 14 férié,
   « 16H » lu « 17H »), dont deux heures négatives chez Espinosa ; la

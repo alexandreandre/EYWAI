@@ -2,7 +2,7 @@
 
 Source : groupe WhatsApp « MARTINE - MISE EN PROD », 213 messages du 28/08 au
 09/09 (heure de Paris), extrait dans `data/_inbox/whatsapp-martine-mise-en-prod/`.
-Croisé avec `docs/afaire.md` et `docs/superpowers/plans/2026-09-08-periode-variables-paie.md`.
+Croisé avec `docs/archive/afaire.md` et `docs/superpowers/plans/2026-09-08-periode-variables-paie.md`.
 
 Le dépôt est public : ce rapport cite des lignes, jamais le contenu nominatif.
 Les noms de salariés sont dans `_chat.txt`, qui reste sous `data/`.

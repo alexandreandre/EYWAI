@@ -64,7 +64,7 @@ L'audit du moteur, c'est le backtest — pas la relecture.
    bulletins Cegid 2 pages).
 2. **Lot 2 (vocabulaire CP)** : `conge` vs `conges_payes` — LE chantier
    restant de la revue §G, à backtester avec juillet.
-3. **Lots 5-8** de la revue §G (revue-chaine-paie-2026-08.md).
+3. **Lots 5-8** de la revue §G (2026-08-20-revue-chaine-paie.md).
 4. **Invariants moteur** : petite suite de propriétés (net jamais > brut,
    cotisations bornées, prorata ∈ [0,1], totaux DSN = totaux bulletins)
    exécutée sur TOUS les bulletins prod à chaque génération.
@@ -74,7 +74,7 @@ généralistes uniquement (jamais de code spécifique à un salarié).
 
 ## Axe C — Chaîne RH → paie : re-vérifier la revue du 20/08
 
-Reprendre les 25 problèmes confirmés de `docs/revue-chaine-paie-2026-08.md`
+Reprendre les 25 problèmes confirmés de `docs/comptes-rendus/2026-08-20-revue-chaine-paie.md`
 et re-vérifier UN PAR UN, preuve exécutée à l'appui, ce qui est réellement
 soldé par les lots 0/1/3/4 et ce qui reste. Le document dit « corrigé » ;
 l'audit exige la preuve rejouée sur la prod actuelle (les 5 faux verts sont

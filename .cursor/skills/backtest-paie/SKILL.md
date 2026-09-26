@@ -212,4 +212,4 @@ Formats acceptés : texte collé, capture, export JSON, tableau Excel. Si une se
 
 - Checklist détaillée : [checklist-comparaison.md](checklist-comparaison.md)
 - Retours métier client (hors comparaison bulletin) : skill `/elsa`
-- Audit moteur : `AUDIT_PAIE.md`
+- Audit moteur : `docs/comptes-rendus/2026-06-04-audit-paie.md`

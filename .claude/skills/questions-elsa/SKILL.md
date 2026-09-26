@@ -48,7 +48,7 @@ référencée mais absente du dossier est une **piste**, pas un manque de répon
 
 ### Sens A — nous attendons quelque chose d'Elsa
 
-Lire `docs/afaire.md` **en entier** (~130 lignes). Relever les items portant un
+Lire `docs/archive/afaire.md` **en entier** (~130 lignes). Relever les items portant un
 marqueur d'attente ; les formulations varient (« attendre fichier ELSA »,
 « attendre récap ELSA », « Attendre compte rendu ELSA », « en attente du fichier
 d'Elsa »). Ne pas se fier à un seul motif : lire.
@@ -133,7 +133,7 @@ ne peut pas être citée à la ligne près ou par lien, ce n'est pas un `RÉPOND
 
 ## Étape 4 — Rapport
 
-Écrire `docs/questions-elsa-<AAAA-MM-JJ>.md` :
+Écrire `docs/comptes-rendus/<AAAA-MM-JJ>-questions-elsa.md` :
 
 ```markdown
 # Questions en suspens — <date>
@@ -193,7 +193,7 @@ rapport, il ne s'écrase pas.
 
 ## Interdits
 
-- **Ne pas toucher à `docs/afaire.md`** — Alexandre l'écrit à la main.
+- **Ne pas toucher à `docs/archive/afaire.md`** — Alexandre l'écrit à la main.
 - **Ne rien recopier de `_chat.txt` ni de `data/` dans un fichier versionné** :
   le dépôt est **public**. Le rapport cite des chemins et des lignes, jamais le
   contenu nominatif. Les identifiants vont dans `data/_acces/`, gitignoré.
