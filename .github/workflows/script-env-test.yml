@@ -4,6 +4,7 @@ name: Script sur l'env de test
 # doit tourner par environnement (il relit les données de la base visée) et
 # les identifiants de la base de test ne vivent que dans ces secrets.
 # Déclenchement manuel uniquement ; simulation par défaut (--apply explicite).
+# Seuls les scripts qui ont un mode simulation (option --apply) sont acceptés.
 
 on:
   workflow_dispatch:
@@ -34,6 +35,18 @@ jobs:
               echo "::error::Nom de script invalide."; exit 1;;
           esac
           test -f "scripts/${{ inputs.script }}" || { echo "::error::Script introuvable."; exit 1; }
+          # La base de test porte la paie réelle d'un client. Un script sans mode
+          # simulation écrirait même quand on demande « simuler » : refusé.
+          grep -q -- "--apply" "scripts/${{ inputs.script }}" || {
+            echo "::error::Ce script n'a pas de mode simulation (--apply) : il écrirait même en simulation. Refusé sur la base de test."
+            exit 1
+          }
+          {
+            echo "### Script sur la base de test"
+            echo "- Script : \`${{ inputs.script }}\`"
+            echo "- Mode : $([ '${{ inputs.apply }}' = 'true' ] && echo 'ÉCRITURE (--apply)' || echo 'simulation')"
+            echo "- Lancé par : ${{ github.actor }}, commit \`${{ github.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Paquets système (cairo / pango pour weasyprint à l'import)
         run: |
