@@ -8,7 +8,7 @@ Document de référence pour l’organisation du dépôt. Détails backend : [ba
 - **Frontend** : `pages/` = coques de routes ; UI métier dans `features/` ou `components/<domain>/`.
 - **DRY transverse** : `app/core/`, `app/shared/` (backend) ; `lib/queryKeys.ts` + `hooks/queries/` (frontend).
 - **Multi-tenant** : résolution employé unique avec `company_id` via [`app/shared/employee_resolution.py`](backend/app/shared/employee_resolution.py).
-- **Tests** : unit hermétiques (CI bloquante) ; intégration best-effort.
+- **Tests** : unit hermétiques (CI bloquante) ; intégration hors CI depuis le 26/09/2026.
 
 ## Frontend (`frontend/src/`)
 
@@ -37,11 +37,16 @@ Phases 0–9 (garde-fous → resolve employee → HTTP deps → nettoyage front 
 
 ## CI
 
-| Job | Bloquant |
-|-----|----------|
-| Backend lint + `pytest tests/unit` | Oui |
-| Frontend lint + test + build + verify imports | Oui |
-| Backend integration | Non (secrets requis) |
+Source : [`.github/workflows/ci.yml`](.github/workflows/ci.yml), sur chaque push et chaque PR.
+
+| Job | Étape | Bloquant |
+|-----|-------|----------|
+| Secrets | gitleaks | Oui |
+| Backend | ruff | Non : informatif (`continue-on-error`) |
+| Backend | import de l’app, `pytest tests/unit`, tests du scraping | Oui |
+| Frontend | lint, `npm run test`, build, vérification des imports de pages | Oui |
+| Frontend | contrôle de types (`npm run typecheck`) | Absent de la CI |
+| Backend integration | `pytest tests/integration` | Coupé depuis le 26/09/2026 : il écrivait dans la base de test |
 
 ## PR checklist
 
