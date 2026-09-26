@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import apiClient from '../api/apiClient';
 import { queryKeys } from '@/lib/queryKeys';
+import { purgePersistedQueryCache } from '@/lib/queryCachePersistence';
 import { isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
 import { hasTerminalToken } from '@/lib/badgeuseTerminalAuth';
 
@@ -170,6 +171,10 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
       setActiveCompanyState(company);
       localStorage.setItem('activeCompanyId', companyId);
       queryClient.clear();
+      // Purge synchrone : la sauvegarde du cache persisté est différée d'1 s,
+      // le rechargement partait avant et restaurait les données de l'ancienne
+      // société.
+      purgePersistedQueryCache({ beforeLeaving: true });
       window.location.reload();
     },
     [accessibleCompanies, queryClient],

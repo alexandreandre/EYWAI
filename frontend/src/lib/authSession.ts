@@ -64,18 +64,31 @@ export function shouldRefreshAccessToken(): boolean {
   return Date.now() >= expiresAt * 1000 - REFRESH_MARGIN_MS;
 }
 
-function decodeJwtExp(token: string | null): number | null {
+function decodeJwtPayload(token: string | null): Record<string, unknown> | null {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length < 2) return null;
   try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
-      exp?: unknown;
-    };
-    return typeof payload.exp === 'number' ? payload.exp : null;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as unknown;
+    return payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+}
+
+function decodeJwtExp(token: string | null): number | null {
+  const exp = decodeJwtPayload(token)?.exp;
+  return typeof exp === 'number' ? exp : null;
+}
+
+/**
+ * Identifiant de l'utilisateur porté par le jeton d'accès (`sub`), ou null.
+ * Lisible avant tout appel réseau : sert à dater le cache persisté par
+ * utilisateur dès le démarrage.
+ */
+export function getAccessTokenSubject(): string | null {
+  const sub = decodeJwtPayload(getAccessToken())?.sub;
+  return typeof sub === 'string' && sub ? sub : null;
 }
 
 export function hasRefreshToken(): boolean {

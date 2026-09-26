@@ -12,6 +12,7 @@ import {
   shouldRefreshAccessToken,
   type AuthSessionPayload,
 } from '@/lib/authSession';
+import { purgePersistedQueryCache } from '@/lib/queryCachePersistence';
 import { startSessionKeepAlive, isBadgeuseTerminalPath } from '@/lib/sessionKeepAlive';
 import { hasTerminalToken } from '@/lib/badgeuseTerminalAuth';
 import { CompanyAccess } from "./CompanyContext";
@@ -190,6 +191,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (session: AuthSessionPayload): Promise<User> => {
     boot?.resetBoot();
+    // Rien de ce qui précède la connexion ne doit suivre le nouvel
+    // utilisateur, ni en mémoire ni dans le cache persisté.
+    queryClient.clear();
+    purgePersistedQueryCache();
     persistAuthSession(session);
     applyAccessToken(session.access_token);
 
@@ -218,6 +223,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     clearAuthSession();
     delete apiClient.defaults.headers.common['Authorization'];
+    // Purge synchrone avant la redirection : la sauvegarde différée du cache
+    // n'avait pas le temps de passer et l'ancien cache était restauré.
+    purgePersistedQueryCache({ beforeLeaving: true });
     window.location.assign('/login');
   };
 
