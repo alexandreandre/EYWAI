@@ -482,7 +482,8 @@ export function GroupDashboard() {
     );
 
     if (evolutionView === "by_company") {
-      const byMonthCompany = new Map<string, Record<string, number>>();
+      // Une ligne par mois : le libellé du mois, puis une valeur par société.
+      const byMonthCompany = new Map<string, Record<string, string | number>>();
       const companyNames = new Map<string, string>();
 
       filteredEvolution.forEach((point) => {
