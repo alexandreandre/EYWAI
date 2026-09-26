@@ -1997,9 +1997,9 @@ export function DsnImportWizard({
                       type="button"
                       size="sm"
                       onClick={() => {
-                        const cid =
-                          commitReport.target_company_id ||
-                          Object.values(commitReport.companies)[0];
+                        // commitReportFromSummary ne recopie pas target_company_id :
+                        // seule la première société du rapport est disponible ici.
+                        const cid = Object.values(commitReport.companies)[0];
                         if (cid) onContinueOnboarding(String(cid));
                       }}
                     >
