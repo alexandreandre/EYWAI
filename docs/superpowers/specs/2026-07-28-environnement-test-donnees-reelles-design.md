@@ -27,7 +27,7 @@ bogué ou une erreur de manipulation ne peut pas écrire en production.
   besoin exprimé ; l'accès est limité aux mêmes personnes qu'en production, qui
   y ont déjà un accès légitime.
 - Bascule test → prod, sous quelque forme que ce soit.
-- Remplacement de l'environnement Supabase local (`docs/LOCAL_SUPABASE.md`), qui
+- Remplacement de l'environnement Supabase local (`docs/reference/demarrage.md`), qui
   reste l'outil de développement quotidien.
 
 ## 3. État des lieux
@@ -44,7 +44,7 @@ de test décrit ici.
 
 ### 3.2 Le dépôt n'a pas de migration initiale
 
-`docs/LOCAL_SUPABASE.md` le documente déjà : les tables historiques
+`docs/reference/demarrage.md` le documente déjà : les tables historiques
 (`companies`, `profiles`, `employees`, `user_company_accesses`) n'ont pas de
 migration de création. Les 159 migrations du dépôt ne peuvent donc pas
 reconstruire une base vide. La création initiale de la base de test passe

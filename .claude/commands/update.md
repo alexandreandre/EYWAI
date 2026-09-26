@@ -43,7 +43,7 @@ Pour **chaque fichier** ci-dessous, compare son contenu actuel à la source de v
 | 3 | `backend/app/README.md` | Section "Structure des répertoires > modules/" — la liste doit correspondre à `ls backend/app/modules/`. |
 | 4 | `frontend/README.md` | Sections "Fonctionnalités", "Arborescence", "Routing". Vérifier cohérence avec `App.tsx` et les pages existantes. |
 | 5 | `backend/tests/README.md` | Vérifier que l'arborescence documentée correspond à `ls -R backend/tests/`. |
-| 6 | `GUIDE-DEV.md` | Vérifier que les commandes et skills mentionnés existent toujours. |
+| 6 | `docs/reference/demarrage.md` | Vérifier que les commandes, cibles make et outils mentionnés existent toujours. |
 
 #### B. Interface Super-Admin
 

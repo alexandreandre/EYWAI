@@ -88,7 +88,7 @@ Auditer chaque fichier modifié sous ces angles :
 ### 7. Documentation & standards
 
 - **Commentaires** : présents seulement quand le code ne suffit pas (intention non évidente, contrainte métier, hack documenté). Pas de commentaire qui paraphrase la ligne suivante.
-- **Docs / changelog / `GUIDE-DEV.md` / README** mis à jour si la feature impacte l'usage public ou les conventions de dev.
+- **Docs / changelog / `docs/reference/demarrage.md` / README** mis à jour si la feature impacte l'usage public ou les conventions de dev.
 - **Messages de commit** clairs, format respecté (Conventional Commits si le repo l'utilise).
 - **Types publics** documentés (docstring courte, JSDoc) si exposés à un autre module / une autre équipe.
 - **i18n** : strings UI en français cohérent avec le reste du produit.
@@ -151,7 +151,7 @@ Structure recommandée pour la synthèse finale (en français) :
 ## Règles pour l'agent
 
 - **Ne pas réécrire** la feature : auditer et recommander. Proposer du code uniquement en illustration courte d'un correctif.
-- **Ne pas inventer** de standards : se référer à `AGENTS.md`, `.cursor/rules/`, `GUIDE-DEV.md`, conventions visibles dans le repo. Si un standard n'existe pas, le dire (« le repo n'impose pas X, suggestion uniquement »).
+- **Ne pas inventer** de standards : se référer à `AGENTS.md`, `.cursor/rules/`, `docs/reference/demarrage.md`, conventions visibles dans le repo. Si un standard n'existe pas, le dire (« le repo n'impose pas X, suggestion uniquement »).
 - **Ne pas multiplier** les findings mineurs au point de noyer les critiques.
 - **Ne pas traiter** une préférence stylistique personnelle comme un problème.
 - **Distinguer clairement** ce qui est *factuellement faux* de ce qui est *préférable selon une convention*.

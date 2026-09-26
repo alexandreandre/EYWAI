@@ -2,7 +2,7 @@
 
 Ce dossier contient la **configuration Claude Code** du dépôt : **commandes** (fichiers décrivant des workflows slash), **règles** (conventions `.mdc` alignées sur celles de Cursor pour le même code) et **skills** Claude spécifiques.
 
-Il complète [`AGENTS.md`](../AGENTS.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`GUIDE-DEV.md`](../GUIDE-DEV.md) et les README `backend/` / `frontend/`.
+Il complète le [`README.md`](../README.md), le guide de démarrage [`docs/reference/demarrage.md`](../docs/reference/demarrage.md) et les README `backend/` / `frontend/`.
 
 Pour l’équipe qui utilise **Cursor** en parallèle : règles équivalentes sous [`.cursor/rules/`](../.cursor/rules/) ; skills et commandes Cursor sous [`.cursor/skills/`](../.cursor/skills/) (voir [`.cursor/README.md`](../.cursor/README.md)).
 
