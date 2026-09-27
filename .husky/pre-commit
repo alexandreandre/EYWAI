@@ -1,8 +1,14 @@
 #!/usr/bin/env sh
-# Contrôle léger avant chaque commit, en quelques secondes : erreurs graves
+# Contrôle léger avant chaque commit, en quelques secondes : noms de salariés
+# réels (liste locale, hors git) et erreurs graves
 # (syntaxe, noms non définis, comparaisons invalides) dans les fichiers Python
 # du backend ajoutés au commit. Contournement exceptionnel : git commit --no-verify
 cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# Dépôt public : aucun nom de salarié réel dans les lignes ajoutées.
+PY=backend/.venv/bin/python
+[ -x "$PY" ] || PY=python3
+"$PY" scripts/verifier_noms_salaries.py || exit 1
 
 FICHIERS=$(git diff --cached --name-only --diff-filter=ACMR -- 'backend/*.py')
 [ -z "$FICHIERS" ] && exit 0

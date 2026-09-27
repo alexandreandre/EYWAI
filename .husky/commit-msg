@@ -1,1 +1,6 @@
 #!/usr/bin/env sh
+# Dépôt public : le message de commit ne nomme aucun salarié réel.
+cd "$(git rev-parse --show-toplevel)" || exit 0
+PY=backend/.venv/bin/python
+[ -x "$PY" ] || PY=python3
+"$PY" scripts/verifier_noms_salaries.py --message "$1"

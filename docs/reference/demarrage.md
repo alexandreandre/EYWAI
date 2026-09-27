@@ -134,8 +134,11 @@ npm run build
 - **Commits** au format Conventional Commits, en français :
   `type(portée): résumé` (types dans `commitlint.config.cjs`).
 - **Contrôle avant commit** : `.husky/pre-commit` refuse un commit dont un
-  fichier Python porte une erreur grave (syntaxe, nom non défini). À activer
-  une fois par clone : `git config core.hooksPath .husky`. Le hook
+  fichier Python porte une erreur grave (syntaxe, nom non défini), ou dont
+  une ligne ajoutée nomme un salarié réel ; `.husky/commit-msg` fait de même
+  pour le message. La liste des noms reste hors git
+  (`data/_outils/pseudonymes.json`) ; sans elle, ce contrôle ne fait rien. À
+  activer une fois par clone : `git config core.hooksPath .husky`. Le hook
   `prepare-commit-msg` préfixe alors par `chore:` un message qui n'a pas de
   type.
 - **Personne ne pousse sur `main` avant la bascule** : le workflow « Deploy »
