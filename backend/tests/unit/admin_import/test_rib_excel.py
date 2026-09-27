@@ -115,8 +115,8 @@ class TestIbanEclateSurDeuxColonnes:
     def test_le_prefixe_et_le_bban_sont_recolles(self):
         mapping = detect_rib_column_mapping(self.HEADERS)
         row = {
-            "Numero": "BUGNY",
-            "Nom": "BUGNY",
+            "Numero": "DUMAREL",
+            "Nom": "DUMAREL",
             "Bq iban": "FR76",
             "Bq rib": "13825002000494171238574",
             "Bq bic": "CEPAFRPP382",
@@ -137,7 +137,7 @@ class TestIbanEclateSurDeuxColonnes:
         """Format LEWIS : une colonne « RIB » portant le BBAN seul. Rien à recoller."""
         mapping = detect_rib_column_mapping(["Nom", "RIB"])
         assert "rib_complement" not in mapping
-        row = {"Nom": "BASTER", "RIB": "10278374050001248800154"}
+        row = {"Nom": "BARENAC", "RIB": "10278374050001248800154"}
         assert rib_cell_value(row, mapping) == "10278374050001248800154"
 
     def test_deux_colonnes_completes_ne_sont_pas_collees(self):

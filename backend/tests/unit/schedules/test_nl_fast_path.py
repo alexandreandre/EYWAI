@@ -12,8 +12,8 @@ ROSTER = [
     RosterEmployee(id="e2", first_name="Sophie", last_name="Durand"),
 ]
 
-BUGNY_ROSTER = ROSTER + [
-    RosterEmployee(id="e-bugny", first_name="Michel", last_name="BUGNY"),
+DUMAREL_ROSTER = ROSTER + [
+    RosterEmployee(id="e-dumarel", first_name="Michel", last_name="DUMAREL"),
 ]
 
 PLANNED_MAY = [
@@ -30,7 +30,7 @@ def _load_planned(_employee_id: str, _year: int, _month: int):
 class TestMirrorPlanningInstruction:
     def test_detects_exactly_as_planned_phrase(self):
         assert is_mirror_planning_instruction(
-            "Michel Bugny a fait exactement toutes les heures qui lui étaient prévues"
+            "Michel Dumarel a fait exactement toutes les heures qui lui étaient prévues"
         )
 
     def test_mirror_planned_hours_for_named_employee(self):
@@ -38,17 +38,17 @@ class TestMirrorPlanningInstruction:
             year=2026,
             month=5,
             instruction=(
-                "En mai, Michel Bugny a fait exactement toutes les heures "
+                "En mai, Michel Dumarel a fait exactement toutes les heures "
                 "qui lui étaient prévues, pas +, pas moins"
             ),
-            roster=BUGNY_ROSTER,
+            roster=DUMAREL_ROSTER,
             load_planned=_load_planned,
         )
         assert result is not None
         assert result.source == "texte (reprise planning)"
         assert len(result.employees) == 1
         emp = result.employees[0]
-        assert emp.employee_id == "e-bugny"
+        assert emp.employee_id == "e-dumarel"
         assert [d.jour for d in emp.days] == [2, 3, 5]
         assert all(d.nature == "reel" for d in emp.days)
         assert emp.days[0].heures == 7.0
@@ -59,12 +59,12 @@ class TestMirrorPlanningInstruction:
             year=2026,
             month=5,
             instruction="a fait exactement comme prévu, pas plus pas moins",
-            roster=[BUGNY_ROSTER[2]],
-            target=BUGNY_ROSTER[2],
+            roster=[DUMAREL_ROSTER[2]],
+            target=DUMAREL_ROSTER[2],
             load_planned=_load_planned,
         )
         assert result is not None
-        assert result.employees[0].employee_id == "e-bugny"
+        assert result.employees[0].employee_id == "e-dumarel"
         assert len(result.employees[0].days) == 3
 
     def test_mirror_broadcast_all_employees(self):
@@ -72,7 +72,7 @@ class TestMirrorPlanningInstruction:
             year=2026,
             month=5,
             instruction="tout le monde a fait exactement comme prévu",
-            roster=BUGNY_ROSTER,
+            roster=DUMAREL_ROSTER,
             force_broadcast=True,
             load_planned=_load_planned,
         )

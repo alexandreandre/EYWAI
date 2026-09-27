@@ -1,6 +1,6 @@
 """Tests unitaires — reconstruction des bulletins participation depuis les saisies.
 
-Fixtures calées sur des cas réels de la base (backtest 2025/2026) : GIRERD
+Fixtures calées sur des cas réels de la base (backtest 2025/2026) : MOROCHE
 (MBC, 100 % PEE), un cas numéraire+avance, un cas mixte numéraire+PEE+avance.
 """
 
@@ -59,8 +59,8 @@ class TestFullCash:
 
 
 class TestFullPee:
-    def test_pee_seul_girerd(self):
-        """Cas réel : Fabrice GIRERD, MBC mai 2026, participation 100 % PEE."""
+    def test_pee_seul_moroche(self):
+        """Cas réel : Fabrice MOROCHE, MBC mai 2026, participation 100 % PEE."""
         rows = [_row("e2", "Participation 2025 — PEE", 5331.56, "r1")]
 
         result = reconstruct_bulletins_from_inputs(rows)

@@ -37,7 +37,7 @@ RECETTE_RULE = {
 # Salariés exemples (employees.specificites_paie.deplacement_astreinte)
 RECETTE_EMPLOYEES = [
     {"name": "JOUBERT", "distance_km_one_way": 22.2, "vehicle_cv": 7, "expected_eur": 17.01},
-    {"name": "KOCIS", "distance_km_one_way": 15.4, "vehicle_cv": 4, "expected_eur": 6.55},
-    {"name": "HAUCHECORNE", "distance_km_one_way": 35.0, "vehicle_cv": 4, "expected_eur": 30.30},
+    {"name": "ROSAGUE", "distance_km_one_way": 15.4, "vehicle_cv": 4, "expected_eur": 6.55},
+    {"name": "PALOUIN", "distance_km_one_way": 35.0, "vehicle_cv": 4, "expected_eur": 30.30},
     {"name": "DUPONT", "distance_km_one_way": 1.0, "vehicle_cv": 4, "expected_skip": "below_threshold"},
 ]

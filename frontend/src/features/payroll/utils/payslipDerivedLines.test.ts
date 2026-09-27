@@ -8,7 +8,7 @@ import {
   totalHeuresSupConjoncturelles,
 } from './payslipDerivedLines';
 
-/** Bulletin calqué sur BUGNY juillet 2026. */
+/** Bulletin calqué sur DUMAREL juillet 2026. */
 const lignes = (h25: number, h50: number) => [
   { libelle: 'Salaire de base', quantite: 151.67 },
   { libelle: 'Heures suppl. structurelles majorées à 25%', quantite: 17.33 },
@@ -98,7 +98,7 @@ describe('lienVariablesDuMois', () => {
 
 describe('resumeAutomatique', () => {
   it('décrit la correction des heures supplémentaires quand la RH n’écrit rien', () => {
-    // Bugny, 12/09 : 12 h + 3,5 h corrigées en 19 h + 6,5 h, résumé laissé vide.
+    // Dumarel, 12/09 : 12 h + 3,5 h corrigées en 19 h + 6,5 h, résumé laissé vide.
     expect(resumeAutomatique(lignes(12, 3.5), lignes(19, 6.5))).toBe(
       'Correction des heures supplémentaires : 15,5 h → 25,5 h'
     );

@@ -67,13 +67,13 @@ describe('getPasswordChecks / isPasswordAcceptable', () => {
 
 describe('emailsMatch', () => {
   it('identifie la même adresse sans tenir compte de la casse ni des espaces', () => {
-    expect(emailsMatch('  GBouali@maji-invest.fr ', 'gbouali@maji-invest.fr')).toBe(
+    expect(emailsMatch('  GMartel@maji-invest.fr ', 'gmartel@maji-invest.fr')).toBe(
       true,
     );
-    expect(emailsMatch('vamate@maji-invest.fr', 'gbouali@maji-invest.fr')).toBe(
+    expect(emailsMatch('vdupont@maji-invest.fr', 'gmartel@maji-invest.fr')).toBe(
       false,
     );
-    expect(emailsMatch('', 'gbouali@maji-invest.fr')).toBe(false);
+    expect(emailsMatch('', 'gmartel@maji-invest.fr')).toBe(false);
   });
 });
 

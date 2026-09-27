@@ -37,19 +37,19 @@ describe('filterPresentEmployees', () => {
 });
 
 describe('isPresentDuringMonth', () => {
-  const demory = {
+  const feroral = {
     employment_status: 'parti',
     exit_last_working_day: '2026-07-24',
   };
 
-  it('garde un parti sur les mois où il était présent (Demory, sorti le 24/07)', () => {
-    expect(isPresentDuringMonth(demory, 2026, 7)).toBe(true);
-    expect(isPresentDuringMonth(demory, 2026, 6)).toBe(true);
+  it('garde un parti sur les mois où il était présent (Feroral, sorti le 24/07)', () => {
+    expect(isPresentDuringMonth(feroral, 2026, 7)).toBe(true);
+    expect(isPresentDuringMonth(feroral, 2026, 6)).toBe(true);
   });
 
   it('le retire des mois postérieurs à son départ', () => {
-    expect(isPresentDuringMonth(demory, 2026, 8)).toBe(false);
-    expect(isPresentDuringMonth(demory, 2027, 1)).toBe(false);
+    expect(isPresentDuringMonth(feroral, 2026, 8)).toBe(false);
+    expect(isPresentDuringMonth(feroral, 2027, 1)).toBe(false);
   });
 
   it('sans date de sortie connue, un parti reste exclu', () => {

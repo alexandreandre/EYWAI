@@ -129,7 +129,7 @@ class TestBuildReportIntegration:
                     "updated_at": "2026-07-01T10:00:00+00:00",
                     "employees": {
                         "first_name": "Vitor",
-                        "last_name": "Cardoso",
+                        "last_name": "Dumanot",
                         "employment_status": "parti",
                     },
                     "payslip_data": {

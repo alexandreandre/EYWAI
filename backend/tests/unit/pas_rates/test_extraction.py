@@ -63,7 +63,7 @@ def test_taux_bareme_est_lu_comme_tel():
 
 def test_taux_zero_est_conserve():
     """Un taux nul transmis par la DGFiP n'est pas une absence de taux."""
-    dsn = _lire(_individu("1690199404042", "GROSSET", "Julien", "0.00", "01"))
+    dsn = _lire(_individu("1690199404042", "MOROSSY", "Palossy", "0.00", "01"))
     ligne = extraire_taux(dsn)[0]
     assert ligne.taux == 0.0
     assert ligne.type_taux == "01"
@@ -105,7 +105,7 @@ def test_periode_et_siren_du_fichier():
 
 def test_plusieurs_individus_sont_tous_lus():
     corps = _individu("1690199404042", "NOBLE", "Eric", "26.80", "01") + _individu(
-        "2800199404042", "PANNETRAT", "Sophie", "0.60", "01"
+        "2800199404042", "BELAREL", "Sophie", "0.60", "01"
     )
     lignes = extraire_taux(_lire(corps))
-    assert {l.nom for l in lignes} == {"NOBLE", "PANNETRAT"}
+    assert {l.nom for l in lignes} == {"NOBLE", "BELAREL"}

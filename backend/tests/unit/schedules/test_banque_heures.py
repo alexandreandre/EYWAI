@@ -9,7 +9,7 @@ from app.modules.schedules.application.parsers.banque_heures import (
 
 CARTOL_SAMPLE = """
 BANQUE HEURES V1 25/05/2026
-000009 DE ABREU Jose Solde HS avant période : 14,00 J 24/11/2024
+000009 DE BARINET Palilly Solde HS avant période : 14,00 J 24/11/2024
 Date E 1 S 1 E 2 S 2 E 3 S 3 E 4 S 4
 Justifiées
 27/04/2026 07:00 10:00 10:10 12:00 __:__ __:__ __:__ __:__ 5,00 00:00 00:00 00:00 03:83 05:00 05:00 7,83 -2,83
@@ -37,7 +37,7 @@ class TestBanqueHeuresParse:
         assert len(result.employees) == 1
         emp = result.employees[0]
         assert emp.matricule == "000009"
-        assert emp.raw_name == "DE ABREU Jose"
+        assert emp.raw_name == "DE BARINET Palilly"
         assert len(emp.days) == 1
         assert emp.days[0].jour == 4
         assert emp.days[0].heures == 8.83

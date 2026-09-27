@@ -37,7 +37,7 @@ def bulletin_minimal() -> dict:
                 "nom_complet": "Lucas ALVES",
                 "sexe": "M",
                 "matricule": "ALVES",
-                "nir": "102098519123974",
+                "nir": "180017520045678",
                 "adresse": {
                     "rue": "32 rue de la Fabrique",
                     "code_postal": "79250",
@@ -67,7 +67,7 @@ def bulletin_minimal() -> dict:
 
 class TestHelpers:
     def test_nir_groupe_comme_cegid(self):
-        assert _formater_nir("102098519123974") == "1 02 09 85 191 239 74"
+        assert _formater_nir("180017520045678") == "1 80 01 75 200 456 78"
 
     def test_nir_non_standard_rendu_tel_quel(self):
         assert _formater_nir("12345") == "12345"
@@ -139,7 +139,7 @@ class TestSalarieEtIdentite:
     def test_identite_reprend_matricule_nir_et_emploi(self):
         identite = construire_vue_bulletin(bulletin_minimal())["identite"]
         assert identite["matricule"] == "ALVES"
-        assert identite["nir"] == "1 02 09 85 191 239 74"
+        assert identite["nir"] == "1 80 01 75 200 456 78"
         assert identite["emploi"] == "Opérateur polyvalent"
         assert identite["date_entree"] == "08/04/2026"
         assert identite["coefficient"] == "A"
@@ -399,7 +399,7 @@ class TestColonneLaterale:
             "total_exonerations": 544.13,
             # Allègements patronaux seuls : la réduction salariale sur heures
             # sup ne fait pas partie de l'« Allègement cotis. employeur »
-            # (Quadra, Girerd juillet 2026 : 256,05 = 230,05 + 26,00).
+            # (Quadra, Moroche juillet 2026 : 256,05 = 230,05 + 26,00).
             "total_allegements_patronaux": 493.29,
         }
         return construire_vue_bulletin(bulletin)["lateral"]
@@ -543,7 +543,7 @@ class TestRendu:
             "Société CARTOL",
             "ALVES Lucas",
             "Matricule",
-            "1 02 09 85 191 239 74",
+            "1 80 01 75 200 456 78",
             "Q100",
             "SANTÉ",
             "TOTAL DES RETENUES",
@@ -764,7 +764,7 @@ class TestTotalAllegementsPatronaux:
             {"code": "sante", "total_salarial": -100.0, "total_patronal": -200.0},
             {
                 "code": "exonerations",
-                # Girerd juillet 2026 : réduction salariale HS −50,84 (salarial),
+                # Moroche juillet 2026 : réduction salariale HS −50,84 (salarial),
                 # réduction générale −244,54 + déduction forfaitaire −25,99.
                 "total_salarial": -50.84,
                 "total_patronal": -270.53,

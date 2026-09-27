@@ -8,19 +8,19 @@ import {
 
 describe('employeeName', () => {
   it("préfère le nom d'usage quand il existe", () => {
-    const gaelle = { first_name: 'Gaëlle', last_name: 'KEWITZ', nom_usage: 'BOUALI' };
-    expect(displayLastName(gaelle)).toBe('BOUALI');
-    expect(displayNameNomPrenom(gaelle)).toBe('BOUALI Gaëlle');
+    const gaelle = { first_name: 'Gaëlle', last_name: 'ROSINET', nom_usage: 'CAVOTIN' };
+    expect(displayLastName(gaelle)).toBe('CAVOTIN');
+    expect(displayNameNomPrenom(gaelle)).toBe('CAVOTIN Gaëlle');
   });
 
   it('replie sur le nom de naissance sinon', () => {
-    expect(displayLastName({ last_name: 'AMATE', nom_usage: null })).toBe('AMATE');
-    expect(displayLastName({ last_name: 'AMATE', nom_usage: '  ' })).toBe('AMATE');
+    expect(displayLastName({ last_name: 'BARAGUE', nom_usage: null })).toBe('BARAGUE');
+    expect(displayLastName({ last_name: 'BARAGUE', nom_usage: '  ' })).toBe('BARAGUE');
   });
 
   it('la recherche couvre les deux noms', () => {
-    const s = searchableName({ first_name: 'Gaëlle', last_name: 'KEWITZ', nom_usage: 'BOUALI' });
-    expect(s).toContain('KEWITZ');
-    expect(s).toContain('BOUALI');
+    const s = searchableName({ first_name: 'Gaëlle', last_name: 'ROSINET', nom_usage: 'CAVOTIN' });
+    expect(s).toContain('ROSINET');
+    expect(s).toContain('CAVOTIN');
   });
 });

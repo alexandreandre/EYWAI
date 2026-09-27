@@ -14,7 +14,7 @@ les trois salariés qui paient le complément « GAN Famille », la relation
 
 se vérifie sur les 21 bulletins concernés, et vaut zéro pour les salariés sans
 complément. La retenue réduit donc le net à payer mais jamais le montant net
-social. EYWAI la déduisait des deux (Espinosa janvier : 2 440,05 € au lieu de
+social. EYWAI la déduisait des deux (Lanolet janvier : 2 440,05 € au lieu de
 2 538,18 €).
 
 Le montant net social est transmis aux organismes sociaux : c'est le seul écart
@@ -31,20 +31,20 @@ from app.modules.payroll.engine import calcul_net
 
 pytestmark = pytest.mark.unit
 
-# --- Espinosa, janvier 2026 : Isolé + complément Famille
-BRUT_ESPINOSA = 3046.68
+# --- Lanolet, janvier 2026 : Isolé + complément Famille
+BRUT_LANOLET = 3046.68
 #: Total des cotisations salariales, complément Famille et CSG/CRDS compris.
-COTISATIONS_ESPINOSA = 706.63
-TRANSPORT_ESPINOSA = [{"libelle": "Indemnite de transport", "montant": 100.0}]
-MNS_QUADRA_ESPINOSA = 2538.18
+COTISATIONS_LANOLET = 706.63
+TRANSPORT_LANOLET = [{"libelle": "Indemnite de transport", "montant": 100.0}]
+MNS_QUADRA_LANOLET = 2538.18
 #: Ce que nous produisions : le complément était retranché du net social.
 MNS_AVEC_FAMILLE_RETRANCHEE = 2440.05
 
-# --- Bugny, janvier 2026 : Isolé seul, témoin
-BRUT_BUGNY = 3023.40
-COTISATIONS_BUGNY = 599.34
-FRAIS_BUGNY = [{"libelle": "Remboursement de notes de frais", "montant": 84.59}]
-MNS_QUADRA_BUGNY = 2508.65
+# --- Dumarel, janvier 2026 : Isolé seul, témoin
+BRUT_DUMAREL = 3023.40
+COTISATIONS_DUMAREL = 599.34
+FRAIS_DUMAREL = [{"libelle": "Remboursement de notes de frais", "montant": 84.59}]
+MNS_QUADRA_DUMAREL = 2508.65
 
 ISOLE = {
     "id": "isole",
@@ -119,23 +119,23 @@ class TestMontantNetSocialEtMutuelleFacultative:
     def test_le_complement_famille_ne_reduit_pas_le_net_social(self, monkeypatch):
         famille = {**FAMILLE, "part_salariale_obligatoire": False}
         assert _mns(
-            monkeypatch, [ISOLE, famille], BRUT_ESPINOSA, COTISATIONS_ESPINOSA,
-            TRANSPORT_ESPINOSA,
-        ) == MNS_QUADRA_ESPINOSA
+            monkeypatch, [ISOLE, famille], BRUT_LANOLET, COTISATIONS_LANOLET,
+            TRANSPORT_LANOLET,
+        ) == MNS_QUADRA_LANOLET
 
     def test_sans_le_drapeau_rien_ne_bouge(self, monkeypatch):
         """Garde anti-régression : le défaut reste « obligatoire »."""
         assert _mns(
-            monkeypatch, [ISOLE, FAMILLE], BRUT_ESPINOSA, COTISATIONS_ESPINOSA,
-            TRANSPORT_ESPINOSA,
+            monkeypatch, [ISOLE, FAMILLE], BRUT_LANOLET, COTISATIONS_LANOLET,
+            TRANSPORT_LANOLET,
         ) == MNS_AVEC_FAMILLE_RETRANCHEE
 
     def test_la_mutuelle_isole_reste_retranchee(self, monkeypatch):
-        """Témoin : Bugny n'a que la formule Isolé, financée pour moitié par
+        """Témoin : Dumarel n'a que la formule Isolé, financée pour moitié par
         l'employeur. Elle est obligatoire et reste déduite du net social."""
         assert _mns(
-            monkeypatch, [ISOLE], BRUT_BUGNY, COTISATIONS_BUGNY, FRAIS_BUGNY
-        ) == MNS_QUADRA_BUGNY
+            monkeypatch, [ISOLE], BRUT_DUMAREL, COTISATIONS_DUMAREL, FRAIS_DUMAREL
+        ) == MNS_QUADRA_DUMAREL
 
     def test_le_drapeau_marche_aussi_sur_une_ligne_specifique(self, monkeypatch):
         """Même levier que pour le net imposable : les lignes saisies à la main
@@ -147,9 +147,9 @@ class TestMontantNetSocialEtMutuelleFacultative:
             ],
         )
         assert _mns(
-            monkeypatch, [ISOLE], BRUT_ESPINOSA, COTISATIONS_ESPINOSA,
-            TRANSPORT_ESPINOSA, contexte=contexte,
-        ) == MNS_QUADRA_ESPINOSA
+            monkeypatch, [ISOLE], BRUT_LANOLET, COTISATIONS_LANOLET,
+            TRANSPORT_LANOLET, contexte=contexte,
+        ) == MNS_QUADRA_LANOLET
 
     def test_sans_adhesion_mutuelle_aucun_effet(self, monkeypatch):
         contexte = SimpleNamespace(
@@ -157,6 +157,6 @@ class TestMontantNetSocialEtMutuelleFacultative:
             contrat={"specificites_paie": {"mutuelle": {"adhesion": False}}},
         )
         assert _mns(
-            monkeypatch, [], BRUT_BUGNY, COTISATIONS_BUGNY, FRAIS_BUGNY,
+            monkeypatch, [], BRUT_DUMAREL, COTISATIONS_DUMAREL, FRAIS_DUMAREL,
             contexte=contexte,
-        ) == MNS_QUADRA_BUGNY
+        ) == MNS_QUADRA_DUMAREL

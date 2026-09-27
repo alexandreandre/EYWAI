@@ -11,7 +11,7 @@ from app.modules.payslips.schemas.responses import PayslipInfo
 
 LIGNE = {
     "id": "ps-1",
-    "name": "Bulletin_COTTE_Leo_03-2026.pdf",
+    "name": "Bulletin_FERISSE_Leo_03-2026.pdf",
     "month": 3,
     "year": 2026,
     "url": "https://exemple/bulletin.pdf",

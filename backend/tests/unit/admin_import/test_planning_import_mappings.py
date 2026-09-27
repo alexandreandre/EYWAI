@@ -33,7 +33,7 @@ def test_apply_manual_mapping_updates_summary() -> None:
                     "month": 1,
                     "employees": [
                         {
-                            "raw_name": "EL IDRISSI",
+                            "raw_name": "EL PALOTIN",
                             "employee_id": None,
                             "review_status": "error",
                             "days": [{"jour": 1, "nature": "prevu", "type": "travail"}],
@@ -47,7 +47,7 @@ def test_apply_manual_mapping_updates_summary() -> None:
     employee = {
         "id": "emp-hafida",
         "first_name": "Hafida",
-        "last_name": "MARCHICH",
+        "last_name": "TALANOT",
     }
 
     with patch(
@@ -60,7 +60,7 @@ def test_apply_manual_mapping_updates_summary() -> None:
         result = apply_planning_manual_mappings(
             "batch-1",
             "co-1",
-            [{"raw_name": "EL IDRISSI", "employee_id": "emp-hafida"}],
+            [{"raw_name": "EL PALOTIN", "employee_id": "emp-hafida"}],
         )
 
     assert result["summary"]["employees_ok"] == 1
@@ -85,14 +85,14 @@ def test_apply_manual_mapping_rejects_duplicate_target_in_request() -> None:
                     "year": 2026,
                     "month": 1,
                     "employees": [
-                        {"raw_name": "COUTANT", "employee_id": None, "review_status": "error"},
-                        {"raw_name": "DIAS", "employee_id": None, "review_status": "error"},
+                        {"raw_name": "FERUBEL", "employee_id": None, "review_status": "error"},
+                        {"raw_name": "GALOLET", "employee_id": None, "review_status": "error"},
                     ],
                 }
             ],
         },
     }
-    employee = {"id": "emp-1", "first_name": "Denis", "last_name": "COUTANT"}
+    employee = {"id": "emp-1", "first_name": "Denis", "last_name": "FERUBEL"}
 
     with patch(
         "app.modules.admin_import.application.planning_import_mappings.timesheet_import_repository"
@@ -106,8 +106,8 @@ def test_apply_manual_mapping_rejects_duplicate_target_in_request() -> None:
                 "batch-1",
                 "co-1",
                 [
-                    {"raw_name": "COUTANT", "employee_id": "emp-1"},
-                    {"raw_name": "DIAS", "employee_id": "emp-1"},
+                    {"raw_name": "FERUBEL", "employee_id": "emp-1"},
+                    {"raw_name": "GALOLET", "employee_id": "emp-1"},
                 ],
             )
 
@@ -129,7 +129,7 @@ def test_apply_manual_mapping_rejects_already_assigned_employee() -> None:
                     "month": 1,
                     "employees": [
                         {"raw_name": "ALVES", "employee_id": "emp-1", "review_status": "ok"},
-                        {"raw_name": "DIAS", "employee_id": None, "review_status": "error"},
+                        {"raw_name": "GALOLET", "employee_id": None, "review_status": "error"},
                     ],
                 }
             ],
@@ -148,5 +148,5 @@ def test_apply_manual_mapping_rejects_already_assigned_employee() -> None:
             apply_planning_manual_mappings(
                 "batch-1",
                 "co-1",
-                [{"raw_name": "DIAS", "employee_id": "emp-1"}],
+                [{"raw_name": "GALOLET", "employee_id": "emp-1"}],
             )

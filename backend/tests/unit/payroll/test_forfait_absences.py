@@ -52,7 +52,7 @@ def test_diviseur_societe_pour_les_absences_mais_pas_les_conges():
 
 
 def test_ferie_non_paye_retenu_sous_trois_mois_d_anciennete():
-    # BARAN Zone 404, entré le 05/03/2026 : lundi de Pâques 06/04 non payé → 5 000 / 22.
+    # BARIEUX Zone 404, entré le 05/03/2026 : lundi de Pâques 06/04 non payé → 5 000 / 22.
     ctx = _ctx(salaire=5000.0, date_entree="2026-03-05", prior_service_months=0)
     ctx.entreprise.setdefault("parametres_paie", {})["forfait_jours_ouvres_mois"] = 22
     cal = [_ev("2026-04-06", "ferie", 0.0)]

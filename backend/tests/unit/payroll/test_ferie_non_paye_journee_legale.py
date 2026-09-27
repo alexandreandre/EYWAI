@@ -9,7 +9,7 @@ ce qui retirait deux fois la part structurelle. C'était la seule branche
 d'absence à ne pas passer par la référence légale ; l'arrêt maladie et le congé
 pour événement familial le faisaient déjà.
 
-Référence : Demory et Fuckar (Colorplast, mai 2026), fériés du 8 et du 14 mai.
+Référence : Feroral et Lanumet (Colorplast, mai 2026), fériés du 8 et du 14 mai.
 Le cabinet déduit 7,00 h à 12,20 € (85,40 €) par férié, et 1,60 h structurelles
 pour les deux jours réunis.
 """

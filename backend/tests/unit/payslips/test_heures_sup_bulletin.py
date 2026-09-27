@@ -17,7 +17,7 @@ def _bulletin(lignes):
 
 
 class TestQuantitesHeuresSupConjoncturelles:
-    def test_bulletin_reel_bugny_les_deux_paliers(self):
+    def test_bulletin_reel_dumarel_les_deux_paliers(self):
         """Cas réel : 17,33 h structurelles ignorées, 12 h et 3,5 h retenues."""
         bulletin = _bulletin(
             [

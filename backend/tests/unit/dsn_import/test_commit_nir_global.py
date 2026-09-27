@@ -56,12 +56,12 @@ def test_commit_cumul_calls_rebuild_on_disk():
         {
             "id": "item-c",
             "item_type": "cumul",
-            "source_ref": "cumul:80248516900022:1770373054016:2026-05",
+            "source_ref": "cumul:80248516900022:1800175206456:2026-05",
             "action": "create",
             "mapped_payload": {
                 "siret": "80248516900022",
-                "nir": "1770373054016",
-                "employee_key": "1770373054016",
+                "nir": "1800175206456",
+                "employee_key": "1800175206456",
                 "month": 5,
                 "period": "2026-05",
                 "month_totals": {"brut": 2000.0},

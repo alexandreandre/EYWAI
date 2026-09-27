@@ -69,14 +69,14 @@ def test_french_date():
 
 def test_handicap_boeth():
     mapping = {"handicap": "Handicapé", "first_name": "Prénom", "last_name": "Nom"}
-    row = {"Handicapé": "Oui", "Prénom": "Théo", "Nom": "LEBRUN"}
+    row = {"Handicapé": "Oui", "Prénom": "Théo", "Nom": "ROSURAT"}
     parsed = parse_payroll_export_row(row, mapping)
     assert parsed["boeth"] == {"boeth_code": "01"}
 
 
 def test_phone_in_email_column_moved_to_phone():
     mapping = {"first_name": "Prénom", "last_name": "Nom", "email": "e-mail", "phone": "Tél"}
-    row = {"Prénom": "Lahouari", "Nom": "BOUDJEMAA", "e-mail": "0782385396", "Tél": ""}
+    row = {"Prénom": "Lahouari", "Nom": "CAVUBEL", "e-mail": "0782385396", "Tél": ""}
     parsed = parse_payroll_export_row(row, mapping)
     assert parsed["preview"]["email"] is None
     assert parsed["preview"]["phone"] == "0782385396"
@@ -110,7 +110,7 @@ def test_parse_row_prior_service_months():
     }
     row = {
         "Prénom": "Michel",
-        "Nom": "BOUVEYRON",
+        "Nom": "CAVORAL",
         "Date entrée": "01/10/1996",
         "Nb jour anc.": "10860",
     }

@@ -546,7 +546,7 @@ def test_reprojection_rafraichit_les_jours_deja_en_arret(monkeypatch):
 def test_annulation_restaure_les_jours_du_calendrier(monkeypatch):
     """Annulation d'une absence validée : ses jours redeviennent travail
     (heures du profil) ou weekend, clés serveur purgées — sans quoi ils
-    restaient gelés en absence à vie (retour Gaëlle 03/09, RC de Bugny)."""
+    restaient gelés en absence à vie (retour Gaëlle 03/09, RC de Dumarel)."""
     from datetime import date
 
     existant = [

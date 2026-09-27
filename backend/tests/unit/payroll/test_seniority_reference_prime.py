@@ -104,7 +104,7 @@ class TestSeniorityReferencePrime:
         capped = cap_anciennete_annees(raw_years, prime)
         assert capped == 15.0
 
-    def test_bourmault_golden_mai_2026(self):
+    def test_cavurat_golden_mai_2026(self):
         employee = {
             "date_entree": "2020-01-01",
             "seniority_reference_date": "1988-09-01",

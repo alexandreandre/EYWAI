@@ -60,8 +60,8 @@ class TestApplyTargetCompanyScope:
             parse_format="cegid_clarifie",
             siret="95147478200020",
             company_name="CARTOL",
-            matricule="DIGUET",
-            raw_name="DIGUET PASCAL",
+            matricule="GALAREL",
+            raw_name="GALAREL PASCAL",
             year=2026,
             month=5,
             period_label="Mai 2026",
@@ -75,7 +75,7 @@ class TestApplyTargetCompanyScope:
                 "last_name": "GONCALVES DE PINHO",
                 "email": "",
                 "employee_folder_name": "GONCALVES_Miguel",
-                "time_tracking_id": "DIGUET",
+                "time_tracking_id": "GALAREL",
             },
         ]
 

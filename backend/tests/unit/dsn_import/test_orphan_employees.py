@@ -12,7 +12,7 @@ def test_compute_reimport_orphans_detects_placeholder_not_in_dsn():
     items = [
         {
             "item_type": "employee",
-            "mapped_payload": {"nir": "1770373054016"},
+            "mapped_payload": {"nir": "1800175206456"},
         }
     ]
     with patch("app.modules.dsn_import.application.orphan_employees.repo") as repo:
@@ -29,7 +29,7 @@ def test_compute_reimport_orphans_detects_placeholder_not_in_dsn():
                 "id": "keep-1",
                 "first_name": "Alex",
                 "last_name": "Jolly",
-                "nir": "1770373054016",
+                "nir": "1800175206456",
                 "user_id": None,
                 "email": "import.alex.jolly@802485169.dsn-import.local",
             },

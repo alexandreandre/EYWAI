@@ -8,7 +8,7 @@ périodes plus tard, la reprise ne dit plus rien.
 Le roulement se déclenchait sur « écart N non nul et bulletin après le 1er
 juin », sans regarder la date de la reprise : une reprise datée d'août, donc
 déjà dans la nouvelle période, était rejouée comme si elle venait de mai
-(Fuckar, Colorplast : N à 3,24 au lieu de −0,43). Les reprises sans date
+(Lanumet, Colorplast : N à 3,24 au lieu de −0,43). Les reprises sans date
 gardent l'ancien comportement.
 """
 
@@ -81,7 +81,7 @@ def test_une_reprise_sans_date_garde_l_ancien_comportement():
 
 
 def test_une_reprise_datee_apres_le_1er_juin_n_est_pas_rejouee_comme_venant_de_mai():
-    """Fuckar : reprise au 31/08 avec un écart N ; le bulletin de septembre est
+    """Lanumet : reprise au 31/08 avec un écart N ; le bulletin de septembre est
     dans la même période, l'écart N s'applique tel quel."""
     reprise_aout = EmployeeLeaveAdjustment(
         cp_n1_opening_balance=-2.0,

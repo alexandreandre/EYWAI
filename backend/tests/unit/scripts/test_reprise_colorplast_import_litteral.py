@@ -23,7 +23,7 @@ BLOC_JUIN = {"Acquis": (40.0, 2.08), "Total pris": (0.0, 0.0), "Solde": (40.0, 2
 
 
 def _bulletin(cp: dict) -> Bulletin:
-    return Bulletin(matricule="BUGNY", cp=cp, pages=[1, 2])
+    return Bulletin(matricule="DUMAREL", cp=cp, pages=[1, 2])
 
 
 def test_les_deux_colonnes_du_pdf_deviennent_les_deux_periodes_du_bulletin():

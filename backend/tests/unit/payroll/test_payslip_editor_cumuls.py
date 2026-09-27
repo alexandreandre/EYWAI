@@ -1,6 +1,6 @@
 """Le PDF rendu après génération doit porter les cumuls du bulletin qu'il imprime.
 
-Constat du 21/09/2026 (Cotte, juillet) : le rendu « enrichi » remplaçait les
+Constat du 21/09/2026 (Ferisse, juillet) : le rendu « enrichi » remplaçait les
 cumuls du bulletin par ceux lus dans employee_schedules, encore ceux de la
 génération précédente — le corps était à jour, les cumuls avaient une
 génération de retard.

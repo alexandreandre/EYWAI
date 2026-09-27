@@ -29,11 +29,11 @@ def test_allocate_replaces_import_style_existing(mock_fetch):
     mock_fetch.return_value = set()
     username = allocate_collaborator_username(
         "Samir",
-        "Boufrida",
+        "Cavanot",
         exclude_employee_id="emp-1",
-        existing="import.samir.boufrida.353238",
+        existing="import.samir.cavanot.353238",
     )
-    assert username == "samir.boufrida"
+    assert username == "samir.cavanot"
 
 
 @patch("app.modules.employees.infrastructure.queries.fetch_taken_usernames")

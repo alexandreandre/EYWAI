@@ -6,7 +6,7 @@ from app.modules.admin_import.application.cp_payslip_parser import (
     parse_pdf_file,
 )
 
-BOUFRIDA_PAGE = """
+CAVANOT_PAGE = """
    COMITECH                                                                            BULLETIN DE SALAIRE
    Z.A.la Pelissière
                                                                                          Période : Mai 2026
@@ -14,24 +14,24 @@ BOUFRIDA_PAGE = """
    Siret : 49861035100013         Code NAF: 2229A                                        Du :   01/05/2026         Au :    31/05/2026
 
                   CP N-1         CP N
-                                                                                  Mr BOUFRIDA Samir
+                                                                                  Mr CAVANOT Samir
   Acquis :         25.00 /      24.96 /
   Total pris :     25.00 /      13.00 /                                           108 Impasse Brillat Savarin
   Solde :           0.00 /      11.96 /
                                                                                   01300 BELLEY
-   Matricule : BOUFRIDA              NoSécu.: 166109935323859
+   Matricule : CAVANOT              NoSécu.: 180017520345685
 """
 
-BOUVEYRON_PAGE = """
+CAVORAL_PAGE = """
    COMITECH                                                                            BULLETIN DE SALAIRE
    Siret : 49861035100013         Code NAF: 2229A
    Période : Mai 2026
                   CP N-1         CP N
-                                                                                  Mr BOUVEYRON Michel
+                                                                                  Mr CAVORAL Michel
   Acquis :        32.50 /      26.96 /
   Total pris :    24.00 /       0.00 /
   Solde :          8.50 /      26.96 /
-   Matricule : BOUVEYRON             NoSécu.: 173040103403808
+   Matricule : CAVORAL             NoSécu.: 180017520445655
         Solde repos Cadre =13j
 """
 
@@ -41,14 +41,14 @@ MBC_PAGE = """
    Période : Mai 2026
    Siret : 75116833700028          Code NAF: 2229A
                  CP N-1         CP N
-                                                                                        M. IBRAHIMA NDAO NGOM
+                                                                                        M. PALISSE VERANOT VERIEUX
   Acquis :        16.00 /      24.96 /
   Total pris :    16.00 /      13.00 /
   Solde :          0.00 /      11.96 /
-   Matricule : IBRAHIMA N              NoSécu.: 173049934124273
+   Matricule : PALISSE N              NoSécu.: 180017520545625
 """
 
-GROS_PRONIER_PAGE = """
+GROS_BELILLY_PAGE = """
    COMITECH                                                                            BULLETIN DE SALAIRE
    Période : Mai 2026
    Siret : 49861035100013         Code NAF: 2229A
@@ -57,8 +57,8 @@ GROS_PRONIER_PAGE = """
   Acquis :        31.00 /      26.96 /
   Total pris :    25.00 /       0.00 /
   Solde :          6.00 /      26.96 /
-   Matricule : GROS              NoSécu.: 263098021224031
-   Nom Patronymique : PRONIER
+   Matricule : GROS              NoSécu.: 280017520945649
+   Nom Patronymique : BELILLY
 """
 
 EYWAI_PAGE = """
@@ -85,20 +85,20 @@ class TestParseFrenchPeriod:
 
 
 class TestParseCegidClarifie:
-    def test_boufrida(self):
-        parsed = parse_payslip_page_text(BOUFRIDA_PAGE)
+    def test_cavanot(self):
+        parsed = parse_payslip_page_text(CAVANOT_PAGE)
         assert parsed.parse_format == "cegid_clarifie"
         assert parsed.siret == "49861035100013"
         assert parsed.company_name == "COMITECH"
         assert parsed.cp_n1_solde == 0.0
         assert parsed.cp_n_solde == 11.96
-        assert parsed.matricule == "BOUFRIDA"
-        assert parsed.raw_name == "BOUFRIDA Samir"
+        assert parsed.matricule == "CAVANOT"
+        assert parsed.raw_name == "CAVANOT Samir"
         assert parsed.year == 2026
         assert parsed.month == 5
 
-    def test_bouveyron_repos_cadre(self):
-        parsed = parse_payslip_page_text(BOUVEYRON_PAGE)
+    def test_cavoral_repos_cadre(self):
+        parsed = parse_payslip_page_text(CAVORAL_PAGE)
         assert parsed.cp_n1_solde == 8.5
         assert parsed.cp_n_solde == 26.96
         assert parsed.repos_cadre_days == 13
@@ -107,8 +107,8 @@ class TestParseCegidClarifie:
         parsed = parse_payslip_page_text(MBC_PAGE)
         assert parsed.siret == "75116833700028"
         assert parsed.company_name == "MONT BLANC COMPOSITE"
-        assert parsed.matricule == "IBRAHIMA N"
-        assert parsed.raw_name == "IBRAHIMA NDAO NGOM"
+        assert parsed.matricule == "PALISSE N"
+        assert parsed.raw_name == "PALISSE VERANOT VERIEUX"
         assert parsed.year == 2026
         assert parsed.month == 5
         assert parsed.period_label == "Mai 2026"
@@ -125,7 +125,7 @@ MBC_JUNK_NAME_PAGE = """
   Acquis :        30.00 /      25.96 /
   Total pris :    30.00 /      13.00 /
   Solde :          0.00 /      12.96 /
-   Matricule : BOUSSANOR              NoSécu.: 166109935323859
+   Matricule : BOUSSANOR              NoSécu.: 180017520345685
 """
 
 MBC_PANIER_JUNK_PAGE = """
@@ -137,7 +137,7 @@ MBC_PANIER_JUNK_PAGE = """
   Acquis :         0.00 /      16.96 /
   Total pris :     0.00 /       0.00 /
   Solde :          0.00 /      16.96 /
-   Matricule : ZZSORTI113             NoSécu.: 166109935323859
+   Matricule : ZZSORTI113             NoSécu.: 180017520345685
 """
 
 
@@ -151,10 +151,10 @@ class TestMbcJunkNameExtraction:
         parsed = parse_payslip_page_text(MBC_PANIER_JUNK_PAGE)
         assert parsed.matricule == "ZZSORTI113"
         assert parsed.raw_name is None
-    def test_gros_patronymic_pronier(self):
-        parsed = parse_payslip_page_text(GROS_PRONIER_PAGE)
+    def test_gros_patronymic_belilly(self):
+        parsed = parse_payslip_page_text(GROS_BELILLY_PAGE)
         assert parsed.matricule == "GROS"
-        assert parsed.patronymic_name == "PRONIER"
+        assert parsed.patronymic_name == "BELILLY"
         assert parsed.raw_name == "GROS Nadine"
         assert parsed.cp_n1_solde == 6.0
         assert parsed.cp_n_solde == 26.96

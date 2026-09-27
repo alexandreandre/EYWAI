@@ -15,7 +15,7 @@ class TestXlsxSafe:
         wb = Workbook()
         ws = wb.active
         ws.append(["Matricule", "Jour", "Nom", "Tot H Poin"])
-        ws.append(["000005", "08/06/2026", "Francine BOURMAULT", "7,05"])
+        ws.append(["000005", "08/06/2026", "Francine CAVURAT", "7,05"])
         buf = BytesIO()
         wb.save(buf)
 

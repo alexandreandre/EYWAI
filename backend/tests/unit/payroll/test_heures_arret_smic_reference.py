@@ -5,7 +5,7 @@ travail, la rémunération peut être maintenue en entier, en partie, ou pas du
 tout : le SMIC de référence suit la part restée à la charge de l'employeur.
 
 Le moteur gardait les heures d'arrêt en bloc, en supposant le maintien acquis.
-Demory et Fuckar (Colorplast, mai 2026) n'en reçoivent aucun : nous réclamions
+Feroral et Lanumet (Colorplast, mai 2026) n'en reçoivent aucun : nous réclamions
 347 € d'allègement sur des heures que personne n'avait payées — un allègement
 de trop, donc un risque en cas de contrôle.
 
@@ -29,7 +29,7 @@ def _heures_qui_sortent(heures_arret: float, deduction: float, maintien: float) 
 
 
 def test_sans_aucun_maintien_toutes_les_heures_sortent():
-    """Demory, mai : 28,00 h d'accident du travail, pas un euro de maintien."""
+    """Feroral, mai : 28,00 h d'accident du travail, pas un euro de maintien."""
     assert _heures_qui_sortent(28.0, 341.60, 0.0) == 28.0
 
 

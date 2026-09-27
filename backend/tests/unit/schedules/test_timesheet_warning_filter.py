@@ -7,12 +7,12 @@ from app.modules.schedules.application.timesheet_warning_filter import (
 
 
 def test_filters_single_channel():
-    assert is_timesheet_noise_warning("BOUSSANOUNE Rachid : single_channel_extraction (vision).")
+    assert is_timesheet_noise_warning("CAVENAC Rachid : single_channel_extraction (vision).")
 
 
 def test_filters_llm_english_commentary():
     msg = (
-        "For MOUSSAFIR Abdelkerim, the note 'erreur sur demande CP?' suggests "
+        "For VERANDE Abdelkerim, the note 'erreur sur demande CP?' suggests "
         "a potential issue with the leave request."
     )
     assert is_timesheet_noise_warning(msg)

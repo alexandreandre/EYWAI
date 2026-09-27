@@ -8,10 +8,10 @@ pytestmark = pytest.mark.unit
 
 
 class TestCalculerLigne:
-    def test_bertaud_ligne_reelle_du_modele_cegid(self):
+    def test_barumet_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="BERTAUD",
-            nom="SYLVAIN BERTAUD",
+            matricule="BARUMET",
+            nom="DALANDE BARUMET",
             date_entree="2010-03-01",
             solde_n1=28.00,
             solde_n=4.16,
@@ -26,8 +26,8 @@ class TestCalculerLigne:
 
     def test_blin_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="BLIN",
-            nom="Fabien BLIN",
+            matricule="CAVOUIN",
+            nom="Fabien CAVOUIN",
             date_entree="2022-09-05",
             solde_n1=3.00,
             solde_n=4.16,
@@ -40,10 +40,10 @@ class TestCalculerLigne:
         assert ligne.montant_charges == 352.16
         assert ligne.total == 1321.49
 
-    def test_faucher_ligne_reelle_du_modele_cegid(self):
+    def test_lanival_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="FAUCHER",
-            nom="DAMIEN FAUCHER",
+            matricule="LANIVAL",
+            nom="FERURAT LANIVAL",
             date_entree="2015-01-05",
             solde_n1=27.00,
             solde_n=4.16,

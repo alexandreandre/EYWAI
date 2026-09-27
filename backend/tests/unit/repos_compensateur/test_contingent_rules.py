@@ -48,7 +48,7 @@ def _employee_with_paid_hours(paid_total: float) -> ContingentEmployeeInput:
     return ContingentEmployeeInput(
         employee_id="emp-1",
         first_name="Michel",
-        last_name="BUGNY",
+        last_name="DUMAREL",
         hire_date=date(1997, 4, 7),
         duree_hebdomadaire=39.0,
         opening_balance_hours=0.0,
@@ -70,7 +70,7 @@ class TestExtractionHsConjoncturelles:
 
 
 class TestExcelScenarios:
-    def test_cotte_low_paid_hours(self):
+    def test_ferisse_low_paid_hours(self):
         settings = _settings_client_excel()
         emp = _employee_with_paid_hours(3.0)
         ref = date(2025, 12, 31)

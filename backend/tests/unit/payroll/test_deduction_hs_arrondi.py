@@ -23,15 +23,15 @@ pytestmark = pytest.mark.unit
 
 MONTANT_PAR_HEURE = 1.50
 
-#: (heures sup du mois, déduction imprimée par Quadra). Bugny, Cotte et Girerd
-#: n'ont que leurs 17,33 h structurelles ; Gautheron y ajoute 3,5 h payées,
-#: Espinosa 19 h.
+#: (heures sup du mois, déduction imprimée par Quadra). Dumarel, Ferisse et Moroche
+#: n'ont que leurs 17,33 h structurelles ; Morande y ajoute 3,5 h payées,
+#: Lanolet 19 h.
 BULLETINS_FEVRIER = [
-    ("BUGNY", 17.33, 26.00),
-    ("COTTE", 17.33, 26.00),
-    ("ESPINOSA", 36.33, 54.50),
-    ("GAUTHERON", 20.83, 31.25),
-    ("GIRERD", 17.33, 26.00),
+    ("DUMAREL", 17.33, 26.00),
+    ("FERISSE", 17.33, 26.00),
+    ("LANOLET", 36.33, 54.50),
+    ("MORANDE", 20.83, 31.25),
+    ("MOROCHE", 17.33, 26.00),
 ]
 
 

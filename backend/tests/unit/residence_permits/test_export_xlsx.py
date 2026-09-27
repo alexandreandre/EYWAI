@@ -28,7 +28,7 @@ def _row(**kwargs):
     base = {
         "id": "emp-1",
         "first_name": "Dieu Merci",
-        "last_name": "LANKOKO MVUKI",
+        "last_name": "ROSIEUX VEROTIN",
         "matricule": "000123",
         "job_title": "Opérateur",
         "hire_date": "2023-04-03",
@@ -64,7 +64,7 @@ def test_ligne_complete():
     seulement des cellules vides. C'est le cas nominal ici (NULL pour les 43)."""
     ws = _sheet([_row()])
     assert _values(ws, 2) == [
-        "LANKOKO MVUKI",
+        "ROSIEUX VEROTIN",
         "Dieu Merci",
         "000123",
         "Mont Blanc Composite",

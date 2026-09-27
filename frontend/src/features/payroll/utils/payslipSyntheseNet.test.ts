@@ -6,7 +6,7 @@ import {
 } from './payslipSyntheseNet';
 
 describe('netAPayerApresModification', () => {
-  // BUGNY juillet 2026 : net social 2973,61, impôt 65,66, net à payer 2907,95.
+  // DUMAREL juillet 2026 : net social 2973,61, impôt 65,66, net à payer 2907,95.
   it('suit une correction du net social avant impôt, au centime', () => {
     expect(netAPayerApresModification(2907.95, 'net_social_avant_impot', 2973.61, 2980)).toBe(
       2914.34

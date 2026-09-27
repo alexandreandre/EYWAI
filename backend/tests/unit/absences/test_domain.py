@@ -503,7 +503,7 @@ class TestRttPolicy:
 class TestAcquisitionJoursOuvres:
     """Jours ouvrés : 25 j/an, soit 2,083 j/mois, cumulés sans arrondi au mois.
 
-    Référence : bulletins Quadra Colorplast (Girerd, juillet 2026) — période
+    Référence : bulletins Quadra Colorplast (Moroche, juillet 2026) — période
     ouverte le 1er juin, 2 mois acquis = 4,16 ; 3 mois = 6,24. L'arrondi à
     l'entier supérieur (art. L3141-7) ne joue qu'à la clôture de la période.
     """

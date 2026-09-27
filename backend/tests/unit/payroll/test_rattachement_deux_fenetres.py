@@ -31,7 +31,7 @@ def test_un_conge_du_30_juillet_bascule_sur_aout():
     """Hors fenêtre (qui s'arrête au 26) : il sera payé sur le mois suivant.
 
     Relevé sur les treize congés datés des bulletins Colorplast de janvier à
-    juillet 2026 : un seul change de mois, celui de Gautheron du 23 février,
+    juillet 2026 : un seul change de mois, celui de Morande du 23 février,
     payé sur le bulletin de mars — le 23 est le premier jour après la clôture
     de février. Les douze autres tombent dans la fenêtre de leur propre mois.
     """
@@ -83,7 +83,7 @@ def test_le_catalogue_des_types_variables():
 
 def test_un_evenement_familial_du_27_juillet_bascule_sur_aout():
     """Colorplast, mars 2026 : le cabinet paie sur le bulletin de mars le congé
-    du 25 au 27 février de Cotte, la fenêtre de février s'arrêtant au 22."""
+    du 25 au 27 février de Ferisse, la fenêtre de février s'arrêtant au 22."""
     assert evenements_de_la_periode(
         [_ev("2026-07-27", "evenement_familial", 7.0)], MOIS, VARIABLES
     ) == []
@@ -91,7 +91,7 @@ def test_un_evenement_familial_du_27_juillet_bascule_sur_aout():
 
 def test_un_arret_maladie_reste_au_mois_du_bulletin():
     """Il porte ses propres dates, pour les IJSS comme pour la DSN : le cabinet
-    déduit tout l'arrêt de Gautheron (16 au 28/03) sur mars, alors que la
+    déduit tout l'arrêt de Morande (16 au 28/03) sur mars, alors que la
     semaine du 23 appartient à la fenêtre d'avril."""
     evenement = _ev("2026-07-30", "arret_maladie", 7.0)
     assert evenements_de_la_periode([evenement], MOIS, VARIABLES) == [evenement]
@@ -99,7 +99,7 @@ def test_un_arret_maladie_reste_au_mois_du_bulletin():
 
 def test_une_absence_du_29_juillet_bascule_sur_aout():
     """Retour Gaëlle du 14/09 : fenêtre arrêtée au 26, la semaine du 27 au 31
-    est celle de la paie d'août (Espinosa, Fuckar, Marion)."""
+    est celle de la paie d'août (Lanolet, Lanumet, Marion)."""
     evenements = [
         _ev("2026-07-29", "absence_injustifiee_base", 1.5),
         _ev("2026-07-31", "absence_injustifiee_hs25", 2.0),

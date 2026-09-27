@@ -16,7 +16,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def _employee_payload(**overrides):
     base = {
-        "nir": "180032710123448",
+        "nir": "180017510112383",
         "salaire_de_base": {"valeur": 2200.0, "type": "mensuel", "a_verifier": False},
     }
     base.update(overrides)
@@ -47,7 +47,7 @@ def test_compute_review_skip_existing_no_brut_flag():
 def test_compute_review_nir_incomplet_matricule():
     reasons = compute_review_reasons_from_payload(
         {
-            "matricule": "1970879049270",
+            "matricule": "1800175100123",
             "salaire_de_base": {"valeur": 2000.0, "type": "mensuel"},
         }
     )
@@ -109,7 +109,7 @@ def test_revalidate_preview_recomputes_review(monkeypatch):
             "items": [
                 {
                     "item_type": "employee",
-                    "source_ref": "emp:95147478200020:BERTAUD",
+                    "source_ref": "emp:95147478200020:BARUMET",
                     "action": "create",
                     "mapped_payload": _employee_payload(
                         salaire_de_base={"valeur": 0, "type": "mensuel"}
@@ -133,7 +133,7 @@ def test_revalidate_preview_recomputes_review(monkeypatch):
 
     result = revalidate_preview(
         "batch-review",
-        payload_edits={"emp:95147478200020:BERTAUD": {"salaire_brut": "2800"}},
+        payload_edits={"emp:95147478200020:BARUMET": {"salaire_brut": "2800"}},
     )
     emp = next(i for i in result["items"] if i["item_type"] == "employee")
     assert emp["needs_review"] is False

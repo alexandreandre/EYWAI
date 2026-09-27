@@ -1,6 +1,6 @@
 """Liste paie (status=payroll) : un salarié parti y figure s'il a une sortie datée.
 
-Demory (Colorplast) est sorti le 24/07/2026 : il doit apparaître sur juin
+Feroral (Colorplast) est sorti le 24/07/2026 : il doit apparaître sur juin
 (bulletin existant) et juillet (solde de tout compte). La liste porte donc
 `exit_last_working_day`, et l'écran filtre mois par mois.
 """
@@ -19,7 +19,7 @@ _Q = "app.modules.employees.application.queries"
 def _rows():
     return [
         {"id": "actif", "employment_status": "actif"},
-        {"id": "demory", "employment_status": "parti"},
+        {"id": "feroral", "employment_status": "parti"},
         {"id": "cdd-au-terme", "employment_status": "parti", "contract_end_date": "2026-09-15"},
         {"id": "sans-sortie", "employment_status": "parti"},
     ]
@@ -29,13 +29,13 @@ def _rows():
 @patch(f"{_Q}._employee_repository")
 def test_liste_paie_garde_les_sortis_dates_et_porte_leur_dernier_jour(repo, bulk):
     repo.get_summary_by_company.return_value = _rows()
-    bulk.return_value = {"demory": "2026-07-24"}
+    bulk.return_value = {"feroral": "2026-07-24"}
 
     rows = queries.get_employees_summary("co-1", payroll_ready_only=True)
 
     by_id = {r["id"]: r for r in rows}
-    assert set(by_id) == {"actif", "demory", "cdd-au-terme"}
-    assert by_id["demory"]["exit_last_working_day"] == "2026-07-24"
+    assert set(by_id) == {"actif", "feroral", "cdd-au-terme"}
+    assert by_id["feroral"]["exit_last_working_day"] == "2026-07-24"
     # Sans dossier de départ, la fin de contrat de la fiche date la sortie.
     assert by_id["cdd-au-terme"]["exit_last_working_day"] == "2026-09-15"
     assert by_id["actif"]["exit_last_working_day"] is None
@@ -48,5 +48,5 @@ def test_liste_simple_sans_filtre_paie_inchangee(repo, bulk):
 
     rows = queries.get_employees_summary("co-1")
 
-    assert [r["id"] for r in rows] == ["actif", "demory", "cdd-au-terme", "sans-sortie"]
+    assert [r["id"] for r in rows] == ["actif", "feroral", "cdd-au-terme", "sans-sortie"]
     bulk.assert_not_called()

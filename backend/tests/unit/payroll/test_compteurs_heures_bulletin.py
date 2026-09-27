@@ -3,19 +3,19 @@
 Retour de Gaëlle : le cumul d'heures imprimé est faux. Il l'est de deux façons,
 relevées sur les bulletins du cabinet de Colorplast de janvier 2026 :
 
-* **les heures sup conjoncturelles n'y sont pas.** Bugny 169,00 chez nous contre
+* **les heures sup conjoncturelles n'y sont pas.** Dumarel 169,00 chez nous contre
   189,50 chez le cabinet — exactement les 12 h à 25 % et 8,5 h à 50 % du mois.
-  Espinosa 169,00 contre 185,00. Les trois salariés sans heures sup
+  Lanolet 169,00 contre 185,00. Les trois salariés sans heures sup
   conjoncturelles tombaient juste, ce qui masquait le défaut ;
 * **les heures sup perdues par une absence ne sont pas retranchées du compteur
-  d'heures sup.** Cotte 17,33 chez nous contre 16,97, Gautheron 17,33 contre
+  d'heures sup.** Ferisse 17,33 chez nous contre 16,97, Morande 17,33 contre
   16,20 : la part « heures sup structurelles » de leur absence.
 
 Le premier défaut ne touche pas que l'impression. Le cumul d'heures rémunérées
 sert de point de départ au SMIC de référence de la réduction générale du mois
 suivant (`_lire_cumuls_precedents`). Le moteur calculait la réduction de janvier
 sur 189,50 h mais n'en mémorisait que 169,00 : dès février, le SMIC de référence
-cumulé repartait 20,50 h trop bas pour Bugny, et la réduction avec lui. Les deux
+cumulé repartait 20,50 h trop bas pour Dumarel, et la réduction avec lui. Les deux
 figures sont désormais la même.
 
 La déduction forfaitaire patronale sur les heures sup (1,50 €/h sous 20
@@ -79,7 +79,7 @@ def _compteurs(res):
 
 
 class TestCumulHeures:
-    def test_bugny_les_heures_sup_conjoncturelles_comptent(self):
+    def test_dumarel_les_heures_sup_conjoncturelles_comptent(self):
         ctx = build_test_contexte(salaire_base=2123.38, duree_hebdo=39.0)
         cal = _calendrier(hs={
             "2026-01-15": ("travail_hs25", 12.0),
@@ -89,7 +89,7 @@ class TestCumulHeures:
         assert heures == pytest.approx(189.50, abs=0.01)
         assert hs == pytest.approx(37.83, abs=0.01)
 
-    def test_espinosa(self):
+    def test_lanolet(self):
         ctx = build_test_contexte(salaire_base=2328.0, duree_hebdo=39.0)
         cal = _calendrier(hs={
             "2026-01-15": ("travail_hs25", 12.0),
@@ -99,7 +99,7 @@ class TestCumulHeures:
         assert heures == pytest.approx(185.00, abs=0.01)
         assert hs == pytest.approx(33.33, abs=0.01)
 
-    def test_girerd_sans_heures_sup_conjoncturelles_rien_ne_bouge(self):
+    def test_moroche_sans_heures_sup_conjoncturelles_rien_ne_bouge(self):
         ctx = build_test_contexte(salaire_base=3101.0, duree_hebdo=39.0)
         heures, hs = _compteurs(calculer_salaire_brut(ctx, _calendrier(), *JANVIER, []))
         assert heures == pytest.approx(169.00, abs=0.01)
@@ -107,7 +107,7 @@ class TestCumulHeures:
 
 
 class TestCumulHeuresSupEtAbsences:
-    def test_cotte_une_absence_de_3h30(self):
+    def test_ferisse_une_absence_de_3h30(self):
         ctx = build_test_contexte(salaire_base=1964.0, duree_hebdo=39.0)
         cal = _calendrier(absences={"2026-01-21": 3.5})
         res = calculer_salaire_brut(ctx, cal, *JANVIER, [])
@@ -117,7 +117,7 @@ class TestCumulHeuresSupEtAbsences:
         assert heures == pytest.approx(165.50, abs=0.01)
         assert hs == pytest.approx(16.97, abs=0.01)
 
-    def test_gautheron_deux_absences(self):
+    def test_morande_deux_absences(self):
         ctx = build_test_contexte(salaire_base=1964.0, duree_hebdo=39.0)
         cal = _calendrier(absences={"2026-01-13": 2.5, "2026-01-14": 8.5})
         res = calculer_salaire_brut(ctx, cal, *JANVIER, [])
@@ -157,7 +157,7 @@ def _deduction(ctx, heures_sup):
 class TestDeductionForfaitairePatronale:
     """Le cabinet pose la déduction sur les heures sup restantes après absence."""
 
-    def test_cotte_sur_les_heures_restantes(self):
+    def test_ferisse_sur_les_heures_restantes(self):
         ctx = build_test_contexte(
             salaire_base=1964.0, duree_hebdo=39.0, effectif=9,
             baremes=_baremes_avec_deduction(),
@@ -175,7 +175,7 @@ class TestDeductionForfaitairePatronale:
         # propre compteur d'heures sup (16,99 imprimé contre 16,97 calculé).
         assert ligne["montant_patronal"] == pytest.approx(-25.46, abs=0.01)
 
-    def test_gautheron(self):
+    def test_morande(self):
         ctx = build_test_contexte(
             salaire_base=1964.0, duree_hebdo=39.0, effectif=9,
             baremes=_baremes_avec_deduction(),

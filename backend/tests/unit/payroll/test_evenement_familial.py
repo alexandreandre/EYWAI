@@ -6,7 +6,7 @@ que le moteur de paie ne lit nulle part : il n'était ni travaillé ni en congé
 n'apparaissait pas au bulletin, et minorait les heures supplémentaires de sa
 semaine (371 jours dans ce cas sur le groupe au 26/08/2026).
 
-Référence : bulletin Quadra de mars 2026 de Cotte (Colorplast), congé du 25 au
+Référence : bulletin Quadra de mars 2026 de Ferisse (Colorplast), congé du 25 au
 27 février — 21,00 h de base retirées pour 271,93 €, 2,40 h structurelles pour
 38,85 €, puis 310,78 € de maintien. Brut identique à celui d'un mois sans
 absence : 2 398,38 €.

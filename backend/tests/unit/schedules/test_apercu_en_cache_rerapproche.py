@@ -1,8 +1,8 @@
 """Un aperçu resservi depuis le cache est re-rapproché avec le roster du jour.
 
 Constat du 21/09/2026 : la première extraction de S26/S27 avait un roster sans
-Demory (sorti le 24/07) ; la seconde, roster complet, a resservi l'aperçu en
-cache — rapprochement figé compris — et Demory restait « texte OCR non salarié ».
+Feroral (sorti le 24/07) ; la seconde, roster complet, a resservi l'aperçu en
+cache — rapprochement figé compris — et Feroral restait « texte OCR non salarié ».
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ from app.modules.schedules.schemas.ai import (
 pytestmark = pytest.mark.unit
 
 ROSTER = [
-    RosterEmployee(id="e-hugo", first_name="Hugo", last_name="FUCKAR"),
-    RosterEmployee(id="e-demory", first_name="Aurélien", last_name="DEMORY"),
+    RosterEmployee(id="e-hugo", first_name="Hugo", last_name="LANUMET"),
+    RosterEmployee(id="e-feroral", first_name="Aurélien", last_name="FERORAL"),
 ]
 
 
@@ -37,11 +37,11 @@ def _apercu_fige() -> AiCalendarProposalResponse:
             AiEmployeeProposal(
                 raw_name="HUGO",
                 employee_id="e-hugo",
-                matched_name="Hugo FUCKAR",
+                matched_name="Hugo LANUMET",
                 match_method="name_exact",
                 match_confidence="medium",
                 review_status="warning",
-                warnings=["Prénom seul « HUGO » rapproché de Hugo FUCKAR."],
+                warnings=["Prénom seul « HUGO » rapproché de Hugo LANUMET."],
                 days=[AiDayEntry(jour=29, heures=8.5, type="travail", nature="reel", year=2026, month=6)],
                 days_expected_count=5,
                 days_imported_count=1,
@@ -70,7 +70,7 @@ def test_le_rerapprochement_retrouve_un_salarie_ajoute_au_roster():
     apercu = rematch_proposal_employees(_apercu_fige(), ROSTER)
 
     aurelien = next(e for e in apercu.employees if e.raw_name == "AURELIEN")
-    assert aurelien.employee_id == "e-demory"
+    assert aurelien.employee_id == "e-feroral"
     assert aurelien.review_status == "warning"
     assert aurelien.days[0].heures == 8.5 and aurelien.days[0].month == 6
     assert not any("Ligne ignorée" in w for w in aurelien.warnings)
@@ -103,6 +103,6 @@ def test_le_chemin_en_cache_rerapproche_avec_le_roster_du_jour(mock_cache, _enri
     )
 
     assert batch_id == "b-cache"
-    assert next(e for e in proposal.employees if e.raw_name == "AURELIEN").employee_id == "e-demory"
+    assert next(e for e in proposal.employees if e.raw_name == "AURELIEN").employee_id == "e-feroral"
     assert mock_cache.call_args.kwargs["week_anchor_date"] == date(2026, 6, 29)
     assert mock_batch.call_args.kwargs["proposal"] is proposal

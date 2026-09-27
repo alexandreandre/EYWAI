@@ -14,8 +14,8 @@ from app.modules.dsn_export.application.builder import build_individu_from_payro
 SALARIE = {
     "id": "1",
     "first_name": "Michel",
-    "last_name": "BUGNY",
-    "nir": "177037305401687",
+    "last_name": "DUMAREL",
+    "nir": "180017520645692",
     "sexe": "M",
     "date_naissance": "1977-03-08",
     "lieu_naissance": "BOURG SAINT MAURICE (73)",
@@ -70,9 +70,10 @@ def test_le_lieu_de_naissance_perd_le_departement_qui_part_dans_sa_rubrique():
 
 
 def test_le_departement_de_naissance_se_deduit_du_nir_a_defaut():
-    salarie = {**SALARIE, "lieu_naissance": "BOURG SAINT MAURICE"}
+    salarie = {**SALARIE, "lieu_naissance": "PARIS"}
     individu, _contrat, _ = construire(salarie)
-    assert individu["S21.G00.30.014"] == "73"
+    # Le NIR fictif du jeu d'essai porte le département 75.
+    assert individu["S21.G00.30.014"] == "75"
 
 
 def test_naissance_a_l_etranger_ne_declare_pas_la_france():
@@ -87,9 +88,9 @@ def test_naissance_a_l_etranger_ne_declare_pas_la_france():
 
 
 def test_le_nom_d_usage_est_declare_quand_il_existe():
-    salarie = {**SALARIE, "nom_usage": "DEPLANNE"}
+    salarie = {**SALARIE, "nom_usage": "FEROSSY"}
     individu, _contrat, _ = construire(salarie)
-    assert individu["S21.G00.30.003"] == "DEPLANNE"
+    assert individu["S21.G00.30.003"] == "FEROSSY"
 
 
 def test_le_sexe_suit_le_nir_quand_la_fiche_le_contredit():

@@ -18,11 +18,11 @@ EXTRAIT = """
     Numéro             Nom de l'employé                                                                            Provision          Total
                                                 jrs N-1 jrs N jours     référence      Ch. soc. Charges sociales
 
-   BERTAUD        SYLVAIN BERTAUD                28.00   4.16   32.16       2 640.86     25.74           993.68       3 860.46             4 854.14
-   COUTANT D      DENIS COUTANT                  28.00   4.16   32.16       4 097.55     45.83         2 745.16       5 989.87             8 735.03
+   BARUMET        DALANDE BARUMET                28.00   4.16   32.16       2 640.86     25.74           993.68       3 860.46             4 854.14
+   FERUBEL D      DENIS FERUBEL                  28.00   4.16   32.16       4 097.55     45.83         2 745.16       5 989.87             8 735.03
    LEMAIRE JN     Jean-Noël LEMAIRE              21.00   4.16   25.16       1 357.34     35.45           550.29       1 552.30             2 102.59
-   LEMAIRE L      LAURETTE LEMAIRE               54.00   4.16   58.16       1 355.98     20.25           725.91       3 584.72             4 310.63
-   DEPLANNE       MARIE-NOELLE DEPLANNE          30.00   4.16   34.16       2 149.50     30.22         1 008.62       3 337.59             4 346.21
+   LEMAIRE L      ROSOCHE LEMAIRE               54.00   4.16   58.16       1 355.98     20.25           725.91       3 584.72             4 310.63
+   FEROSSY       MARIE-VERURAT FEROSSY          30.00   4.16   34.16       2 149.50     30.22         1 008.62       3 337.59             4 346.21
    Total                                       1956.50295.36 2251.86     210 447.53     32.32       102 087.17     292 034.05           394 121.22
 """
 
@@ -33,15 +33,15 @@ class TestParserReports:
 
     def test_numero_et_nom_ne_se_melangent_pas(self):
         par_numero = {r["numero"]: r["nom"] for r in parser_reports(EXTRAIT)}
-        # « D » appartient au numéro « COUTANT D », pas au prénom
-        assert par_numero["COUTANT D"] == "DENIS COUTANT"
+        # « D » appartient au numéro « FERUBEL D », pas au prénom
+        assert par_numero["FERUBEL D"] == "DENIS FERUBEL"
         assert par_numero["LEMAIRE JN"] == "Jean-Noël LEMAIRE"
-        assert par_numero["LEMAIRE L"] == "LAURETTE LEMAIRE"
-        assert par_numero["BERTAUD"] == "SYLVAIN BERTAUD"
+        assert par_numero["LEMAIRE L"] == "ROSOCHE LEMAIRE"
+        assert par_numero["BARUMET"] == "DALANDE BARUMET"
 
     def test_solde_n1_lu_et_non_le_solde_total(self):
         par_numero = {r["numero"]: r["solde_n1_ouvres"] for r in parser_reports(EXTRAIT)}
-        assert par_numero["BERTAUD"] == 28.00
+        assert par_numero["BARUMET"] == 28.00
         assert par_numero["LEMAIRE L"] == 54.00
 
     def test_ligne_total_ecartee(self):

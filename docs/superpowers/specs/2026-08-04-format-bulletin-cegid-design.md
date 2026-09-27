@@ -53,14 +53,14 @@ Les mentions annexes du bloc actuel (fractionnement, CP ancienneté conventionne
 ### 4. Ligne d'identité et bloc contrat
 
 ```
-Matricule : salarié 004              NoSécu. : 1 02 09 85 191 239 74
+Matricule : salarié 004              NoSécu. : 1 80 01 75 200 456 78
 Entré(e) le : 08/04/2026
 Emploi : Opérateur polyvalent          Ancienneté : 08/04/2026
 Qualif :               Classif :              Coeff : A
 ```
 
 - Matricule : `employees.matricule` (241/241 renseignés en production).
-- NIR groupé par blocs comme Cegid : `1 02 09 85 191 239 74`.
+- NIR groupé par blocs comme Cegid : `1 80 01 75 200 456 78`.
 - Ancienneté : `contrat.seniority_reference_date`, **repli sur `date_entree`** quand elle est absente (81 actifs sur 241).
 - Qualif / Classif / Coeff : éclatés depuis `classification_conventionnelle`, là où le template actuel affichait une chaîne unique via `_formater_classification`.
 

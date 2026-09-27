@@ -249,7 +249,7 @@ class TestComputeObligationsHistoricalRegistry:
     )
     def test_sir_veteran_no_aptitude_sir(self, mock_get_supabase, _mock_idcc):
         company_id = "co-test"
-        employee_id = "emp-bouveyron"
+        employee_id = "emp-cavoral"
         employee = {
             "id": employee_id,
             "company_id": company_id,
@@ -371,9 +371,9 @@ class TestComputeObligationsHistoricalRegistry:
     @patch(
         "app.modules.medical_follow_up.infrastructure.obligation_engine.get_supabase"
     )
-    def test_vallat_overdue_sir_preserved(self, mock_get_supabase, _mock_idcc):
+    def test_daloral_overdue_sir_preserved(self, mock_get_supabase, _mock_idcc):
         company_id = "co-test"
-        employee_id = "emp-vallat"
+        employee_id = "emp-daloral"
         employee = {
             "id": employee_id,
             "company_id": company_id,

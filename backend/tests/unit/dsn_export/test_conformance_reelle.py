@@ -138,7 +138,7 @@ ECARTS_ATTENDUS: List[EcartAttendu] = [
     ),
     EcartAttendu(
         rubrique="S21.G00.30.002",
-        motif="nom de famille en majuscules ; le cabinet écrit « De CARVALHO »",
+        motif="nom de famille en majuscules ; le cabinet écrit « De DUMIEUX »",
         depuis="2026-08-03",
     ),
     # Écarts de données entre notre fiche et celle du cabinet, relevés le

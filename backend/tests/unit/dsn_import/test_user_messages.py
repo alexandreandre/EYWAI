@@ -13,7 +13,7 @@ from app.modules.dsn_import.domain.user_messages import (
 def test_employee_other_company_anomaly_message():
     anomaly = employee_other_company_anomaly(
         source_ref="emp:80248516900022:1630899139837",
-        employee_name="Vitor DA SILVA CARDOSO",
+        employee_name="Vitor DA SILVA DUMANOT",
         nir="1630899139837",
         target_company_name="Colorplast",
         existing_company_name="Comitech Composite",
@@ -41,7 +41,7 @@ def test_humanize_commit_error_duplicate_nir():
     issue = humanize_commit_error(
         exc,
         source_ref="emp:80248516900022:1630899139837",
-        item_label="Vitor DA SILVA CARDOSO",
+        item_label="Vitor DA SILVA DUMANOT",
     )
     assert issue["code"] == "duplicate_nir"
     assert "9837" in issue["message"]

@@ -1,7 +1,7 @@
 """Un bulletin repris de Quadra porte les valeurs du PDF, pas celles de notre rejeu.
 
 Constat du 21/09/2026 : les bulletins de janvier à juin portaient les lignes
-de brut du rejeu (Bugny mai : 4 h d'heures sup au lieu de 15) et un bloc de
+de brut du rejeu (Dumarel mai : 4 h d'heures sup au lieu de 15) et un bloc de
 cumuls à plat que la vue ne sait pas lire. Le contingent d'heures sup et la
 comparaison d'un mois à l'autre lisent ces lignes.
 """
@@ -23,9 +23,9 @@ from scripts.reprise_colorplast_import_litteral import (
 pytestmark = pytest.mark.unit
 
 
-def _bulletin_bugny_mai() -> Bulletin:
-    """Les lignes du PDF de mai 2026, Bugny, dans l'ordre du document."""
-    b = Bulletin(matricule="BUGNY", pages=[1, 2])
+def _bulletin_dumarel_mai() -> Bulletin:
+    """Les lignes du PDF de mai 2026, Dumarel, dans l'ordre du document."""
+    b = Bulletin(matricule="DUMAREL", pages=[1, 2])
     b.lignes = [
         Ligne(None, "SALAIRE DE BASE", base=151.67, taux=14.28, gain=2165.85),
         Ligne(None, "H. supp majorées à 25 %", base=17.33, taux=17.85, gain=309.34),
@@ -49,7 +49,7 @@ def _bulletin_bugny_mai() -> Bulletin:
 
 class TestLignesDuBrut:
     def test_les_lignes_du_pdf_deviennent_le_calcul_du_brut(self):
-        lignes = _lignes_du_brut(_bulletin_bugny_mai())
+        lignes = _lignes_du_brut(_bulletin_dumarel_mai())
         libelles = [l["libelle"] for l in lignes]
         assert libelles == [
             "Salaire de base",
@@ -61,26 +61,26 @@ class TestLignesDuBrut:
         ]
 
     def test_les_quantites_et_montants_viennent_du_pdf(self):
-        lignes = {l["libelle"]: l for l in _lignes_du_brut(_bulletin_bugny_mai())}
+        lignes = {l["libelle"]: l for l in _lignes_du_brut(_bulletin_dumarel_mai())}
         hs = lignes["Heures suppl. majorées à 25%"]
         assert hs["quantite"] == 15.0 and hs["taux"] == 17.85 and hs["gain"] == 267.75
 
     def test_le_sous_total_est_marque_comme_tel(self):
-        lignes = {l["libelle"]: l for l in _lignes_du_brut(_bulletin_bugny_mai())}
+        lignes = {l["libelle"]: l for l in _lignes_du_brut(_bulletin_dumarel_mai())}
         assert lignes["SOUS-TOTAL SALAIRE CONTRACTUEL"]["is_sous_total"] is True
 
     def test_les_cotisations_ne_sont_pas_des_lignes_de_brut(self):
         assert not any(
-            "Sécu" in l["libelle"] for l in _lignes_du_brut(_bulletin_bugny_mai())
+            "Sécu" in l["libelle"] for l in _lignes_du_brut(_bulletin_dumarel_mai())
         )
 
     def test_le_contingent_d_heures_sup_lit_les_heures_du_pdf(self):
         """17,33 structurelles + 15 conjoncturelles, comme Quadra."""
-        donnees = _donnees_reprises(None, _bulletin_bugny_mai(), 2026, 5)
+        donnees = _donnees_reprises(None, _bulletin_dumarel_mai(), 2026, 5)
         assert extraire_heures_hs_du_bulletin(donnees) == pytest.approx(32.33)
 
     def test_une_retenue_du_pdf_devient_une_perte(self):
-        b = _bulletin_bugny_mai()
+        b = _bulletin_dumarel_mai()
         b.lignes.insert(
             4, Ligne(None, "Abs. Abs aut nonpayé 100526", base=7.0, taux=12.31, montant_sal=86.17)
         )
@@ -91,7 +91,7 @@ class TestLignesDuBrut:
 
     def test_la_reduction_des_hs_pour_absence_n_est_pas_une_heure_sup_de_plus(self):
         """« H. supp majorées à 25 % » en retenue après le brut : une réduction."""
-        b = _bulletin_bugny_mai()
+        b = _bulletin_dumarel_mai()
         b.lignes.insert(
             4, Ligne(None, "H. supp majorées à 25 %", base=1.6, taux=17.85, montant_sal=28.56)
         )
@@ -107,7 +107,7 @@ class TestEnteteDesConges:
     PAYES ». Le compter deux fois gonflait le brut reconstitué de l'indemnité."""
 
     def _bulletin_avec_conges(self) -> Bulletin:
-        b = _bulletin_bugny_mai()
+        b = _bulletin_dumarel_mai()
         b.lignes = [
             Ligne(None, "Congés payés : 020126", base=1.0, taux=112.0, gain=112.0),
             Ligne(None, "H.Absence Congés Payés", base=7.0, taux=14.0, montant_sal=98.0),
@@ -137,7 +137,7 @@ class TestEnteteDesConges:
 
 class TestCumuls:
     def test_le_bloc_a_la_forme_que_la_vue_sait_lire(self):
-        cumuls = _cumuls_affiches(_bulletin_bugny_mai(), 2026, 5)
+        cumuls = _cumuls_affiches(_bulletin_dumarel_mai(), 2026, 5)
         assert cumuls["cumuls"]["brut_total"] == 14817.53
         assert cumuls["cumuls"]["heures_remunerees"] == 924.5
         assert cumuls["cumuls"]["heures_supplementaires_remunerees"] == 190.48
@@ -146,7 +146,7 @@ class TestCumuls:
     def test_la_vue_du_bulletin_affiche_les_cumuls_repris(self):
         from app.modules.payroll.documents.bulletin_view import construire_lateral
 
-        donnees = _donnees_reprises(None, _bulletin_bugny_mai(), 2026, 5)
+        donnees = _donnees_reprises(None, _bulletin_dumarel_mai(), 2026, 5)
         blocs = {b["titre"]: b for b in construire_lateral(donnees)}
         valeurs = {v["libelle"]: v["valeur"] for v in blocs["CUMULS"]["valeurs"]}
         assert valeurs["Bruts"].startswith("14 817")
@@ -157,7 +157,7 @@ class TestPasDeDoublonDAbsence:
     `details_absences` (celles du rejeu) les compterait deux fois."""
 
     def test_les_sections_du_rejeu_sont_vidées(self):
-        b = _bulletin_bugny_mai()
+        b = _bulletin_dumarel_mai()
         b.lignes.insert(
             3, Ligne(None, "Abs. Abs aut nonpayé 100526", base=7.0, taux=12.31, montant_sal=86.17)
         )

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
 
-# Découpage du NIR tel que Cegid l'imprime : 1 02 09 85 191 239 74
+# Découpage du NIR tel que Cegid l'imprime : 1 80 01 75 200 456 78
 GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
 
 # Codes de rubriques du bulletin Cegid. Vérifiés sur les bulletins de juin 2026

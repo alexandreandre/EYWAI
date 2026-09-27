@@ -19,7 +19,7 @@ pytestmark = pytest.mark.unit
 
 
 def _bulletin() -> Bulletin:
-    b = Bulletin(matricule="BUGNY", pages=[1])
+    b = Bulletin(matricule="DUMAREL", pages=[1])
     b.lignes = [
         Ligne(None, "SALAIRE BRUT", gain=3084.43),
         Ligne(None, "CSG déductible à l'IR", base=2404.85, taux=6.8, montant_sal=163.53, section="Q800"),
@@ -125,7 +125,7 @@ class TestPiedDePage:
 
 class TestAcompte:
     """Janvier et mai portent des acomptes : sans eux, le net à payer du
-    bulletin ne s'explique pas (Bugny janvier : 2 508,65 net social, 75,58 net
+    bulletin ne s'explique pas (Dumarel janvier : 2 508,65 net social, 75,58 net
     à payer, un acompte de 2 369,63 entre les deux)."""
 
     def test_l_acompte_du_pdf_entre_dans_la_synthese(self):

@@ -22,7 +22,7 @@ def _ind_with_boeth(code: str) -> IndividuBlock:
     return IndividuBlock(
         nom="MARTIN",
         prenom="Jean",
-        nir="180032710123448",
+        nir="180017510112383",
         contrats=[contrat],
     )
 
@@ -139,7 +139,7 @@ def test_commit_batch_applies_boeth_on_create():
             "source_ref": "emp:44306184100047:001",
             "action": "create",
             "mapped_payload": {
-                "nir": "180032710123448",
+                "nir": "180017510112383",
                 "first_name": "Jean",
                 "last_name": "MARTIN",
                 "_boeth": {

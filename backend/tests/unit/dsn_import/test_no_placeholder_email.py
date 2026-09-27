@@ -24,7 +24,7 @@ SIRET = "53438649500053"
 
 def _individu() -> IndividuBlock:
     return IndividuBlock(
-        nom="AMATE",
+        nom="BARAGUE",
         prenom="Vanessa",
         nir="283127512345678",
         date_naissance="01011983",
@@ -54,7 +54,7 @@ def test_le_reste_du_payload_est_intact() -> None:
     payload = map_employee_payload(_individu(), EtablissementBlock(siret=SIRET), SIRET)
 
     assert payload["first_name"] == "Vanessa"
-    assert payload["last_name"] == "AMATE"
+    assert payload["last_name"] == "BARAGUE"
     assert payload["nir"] == "283127512345678"
     assert payload["hire_date"] == "2024-01-01"
 
@@ -62,10 +62,10 @@ def test_le_reste_du_payload_est_intact() -> None:
 def test_les_anciennes_adresses_restent_reconnues() -> None:
     """Les 183 fiches déjà en base gardent leur adresse : la détection doit survivre."""
     assert is_dsn_import_placeholder_email(
-        "import.vanessa.amate.383122@534386495.dsn-import.local"
+        "import.vanessa.barague.383122@534386495.dsn-import.local"
     )
     assert is_dsn_import_placeholder_email("import.abc123@dsn-import.eywai.fr")
-    assert is_dsn_import_placeholder_email("gaelle.bouali@eywai.access.local")
-    assert is_dsn_import_placeholder_email("vanessa.amate@users.eywai")
-    assert not is_dsn_import_placeholder_email("amatevanessa@yahoo.fr")
+    assert is_dsn_import_placeholder_email("gaelle.cavotin@eywai.access.local")
+    assert is_dsn_import_placeholder_email("vanessa.barague@users.eywai")
+    assert not is_dsn_import_placeholder_email("dupontvanessa@yahoo.fr")
     assert not is_dsn_import_placeholder_email(None)

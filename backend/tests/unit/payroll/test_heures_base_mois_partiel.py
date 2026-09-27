@@ -1,6 +1,6 @@
 """Compteur d'heures d'un mois d'entrée : les heures dues, pas le mois plein.
 
-Demory est embauché le 23/03/2026 chez Colorplast. Son bulletin Quadra porte
+Feroral est embauché le 23/03/2026 chez Colorplast. Son bulletin Quadra porte
 47,50 h de base et 3,00 h structurelles, soit 50,50 h de période. Nous
 comptions 154,67 h — les 151,67 h d'un mois plein plus ses 3 h — parce que le
 compteur partait de la durée contractuelle mensuelle sans regarder ce qui avait
@@ -29,14 +29,14 @@ def _heures_comptees(resultat_brut: dict, heures_contractuelles: float,
 
 
 def test_mois_d_entree_compte_les_heures_dues():
-    """Demory, embauché le 23/03 : 47,50 h de base + 3,00 h structurelles."""
+    """Feroral, embauché le 23/03 : 47,50 h de base + 3,00 h structurelles."""
     assert _heures_comptees(
         {"heures_base_remunerees": 47.50}, 169.0, 151.67, 3.0
     ) == 50.50
 
 
 def test_mois_plein_inchange():
-    """Bugny en mars : 151,67 h de base + 43,33 h sup = 195,00 h."""
+    """Dumarel en mars : 151,67 h de base + 43,33 h sup = 195,00 h."""
     assert _heures_comptees(
         {"heures_base_remunerees": 151.67}, 169.0, 151.67, 43.33
     ) == 195.00

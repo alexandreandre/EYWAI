@@ -27,7 +27,7 @@ Total pour la semaine 22/2026: 37:29
 def test_banque_heures_ocr_is_reliable():
     text = """
 BANQUE HEURES V1 25/05/2026
-000009 DE ABREU Jose Solde HS avant période
+000009 DE BARINET Palilly Solde HS avant période
 27/04/2026 07:00 10:00 10:10 12:00 __:__ __:__ __:__ __:__ 8,83
 """ * 5
     assert is_ocr_text_reliable(text)

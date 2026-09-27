@@ -1,6 +1,6 @@
 """La réponse « salarié seul » ne perd aucune colonne de la table employees.
 
-Fuckar (Colorplast, 12/09/2026) : la fin de contrat de son CDD s'enregistrait
+Lanumet (Colorplast, 12/09/2026) : la fin de contrat de son CDD s'enregistrait
 mais ne se relisait jamais — `FullEmployee` ne déclarait pas
 `contract_end_date`, et Pydantic ignore les champs inconnus. La fiche, en
 lecture comme après enregistrement, affichait un champ vide.
@@ -29,20 +29,20 @@ COLONNES_EMPLOYEES = (
 ).split()
 
 
-def _fuckar(**extra):
+def _lanumet(**extra):
     return FullEmployee(
-        id="e-fuckar",
-        employee_folder_name="FUCKAR_Hugo",
+        id="e-lanumet",
+        employee_folder_name="LANUMET_Hugo",
         username="hfuckar",
         first_name="Hugo",
-        last_name="FUCKAR",
+        last_name="LANUMET",
         contract_type="CDD",
         **extra,
     )
 
 
 def test_la_fin_de_contrat_est_relue():
-    reponse = _fuckar(contract_end_date="2026-09-15").model_dump(mode="json")
+    reponse = _lanumet(contract_end_date="2026-09-15").model_dump(mode="json")
     assert reponse["contract_end_date"] == "2026-09-15"
 
 
@@ -52,13 +52,13 @@ def test_chaque_colonne_de_la_table_a_son_champ():
 
 
 def test_les_dates_de_contrat_et_le_matricule_sont_relus():
-    reponse = _fuckar(
+    reponse = _lanumet(
         date_conclusion_contrat="2026-04-01",
         date_debut_execution="2026-04-07",
-        matricule="FUCKAR",
+        matricule="LANUMET",
         sexe="M",
     ).model_dump(mode="json")
     assert reponse["date_debut_execution"] == "2026-04-07"
     assert reponse["date_conclusion_contrat"] == "2026-04-01"
-    assert reponse["matricule"] == "FUCKAR"
+    assert reponse["matricule"] == "LANUMET"
     assert reponse["sexe"] == "M"

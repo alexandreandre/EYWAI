@@ -37,13 +37,13 @@ def test_bareme_absent_donne_none():
     assert plafond_annuel_transport({"FRAIS_PRO": [{"sections": {}}]}) is None
 
 
-def test_depassement_girerd_3000_euros_par_an():
-    """GIRERD Fabrice, Colorplast : 250 €/mois soit 3 000 €/an."""
+def test_depassement_moroche_3000_euros_par_an():
+    """MOROCHE Fabrice, Colorplast : 250 €/mois soit 3 000 €/an."""
     assert depassement_annuel(3000.0, 600.0) == 2400.0
 
 
-def test_depassement_espinosa_1200_euros_par_an():
-    """ESPINOSA Anthony, Colorplast : 100 €/mois soit 1 200 €/an."""
+def test_depassement_lanolet_1200_euros_par_an():
+    """LANOLET Anthony, Colorplast : 100 €/mois soit 1 200 €/an."""
     assert depassement_annuel(1200.0, 600.0) == 600.0
 
 
@@ -116,7 +116,7 @@ def test_silencieux_si_le_plafond_etait_deja_franchi():
     """Le plafond est annuel : une fois franchi il le reste jusqu'en décembre.
 
     Le signaler sur chaque bulletin suivant n'apprend rien et apprend surtout à
-    ne plus regarder. Girerd (Colorplast) touche 250 €/mois : le plafond tombe
+    ne plus regarder. Moroche (Colorplast) touche 250 €/mois : le plafond tombe
     en mars, et c'est en mars seulement qu'on en parle.
     """
     assert controle_plafond_transport(

@@ -1,6 +1,6 @@
 """Les montants des saisies et avances sortent en nombre dans le JSON.
 
-Gautheron (Colorplast, 12/09/2026) : `amount` arrivait en chaîne « "46.49" »,
+Morande (Colorplast, 12/09/2026) : `amount` arrivait en chaîne « "46.49" »,
 le frontend appelait `toFixed` dessus et la page tombait en écran blanc.
 """
 

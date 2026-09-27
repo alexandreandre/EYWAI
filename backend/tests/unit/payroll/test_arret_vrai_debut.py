@@ -2,7 +2,7 @@
 de l'arrêt (déclaré), pas depuis le 1er jour d'arrêt du mois courant — sinon un
 arrêt long (maintien épuisé) se voit appliquer un maintien à tort.
 
-Cf. LEWIS BASTER : arrêt depuis le 23/09/2025 ; en janvier 2026 le maintien
+Cf. LEWIS BARENAC : arrêt depuis le 23/09/2025 ; en janvier 2026 le maintien
 (100 j pour ~15 ans d'ancienneté) est épuisé → déduction pleine, pas de maintien.
 """
 

@@ -6,7 +6,7 @@ Participation aux bénéfices (Code du travail art. L3325-1, BOSS) :
 - part numéraire imposable IR (net imposable = brut − CSG déductible),
   part PEE exonérée IR.
 
-Référence chiffrée : bulletin Cegid de M. BUGNY (participation Colorplast 2025).
+Référence chiffrée : bulletin Cegid de M. DUMAREL (participation Colorplast 2025).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def _run_net(participations: list[dict] | None, *, taux_pas: float = 0.0) -> dic
 
 
 class TestParticipationNumeraire:
-    def test_csg_97_pourcent_et_net_bugny(self):
+    def test_csg_97_pourcent_et_net_dumarel(self):
         # Brut 3 936,59 € → CSG 6,8 % = 267,69 ; CSG 2,9 % = 114,16 ; total 381,85.
         result = _run_net(
             [

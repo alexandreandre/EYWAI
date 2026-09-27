@@ -2,7 +2,7 @@
 
 Avant : modifier la quantité ne changeait que le brut. Les cotisations et le
 net restaient ceux du calcul d'origine, et le bulletin partait faux sans que
-rien ne le signale (retour Gaëlle du 08/09/2026 sur BUGNY).
+rien ne le signale (retour Gaëlle du 08/09/2026 sur DUMAREL).
 
 Depuis : les deux paliers sont redéclarés au moteur, qui régénère tout.
 """
@@ -20,7 +20,7 @@ from app.modules.payslips.application.dto import EditPayslipInput
 
 
 def _bulletin(hs_25: float | None, hs_50: float | None) -> dict:
-    """Bulletin calqué sur BUGNY juillet 2026 : structurelles + conjoncturelles."""
+    """Bulletin calqué sur DUMAREL juillet 2026 : structurelles + conjoncturelles."""
     lignes = [
         {"libelle": "Salaire de base", "quantite": 151.67, "taux": 14.28},
         {
@@ -41,8 +41,8 @@ def _bulletin(hs_25: float | None, hs_50: float | None) -> dict:
 
 
 AVANT = {
-    "id": "ps-bugny",
-    "employee_id": "emp-bugny",
+    "id": "ps-dumarel",
+    "employee_id": "emp-dumarel",
     "company_id": "comp-1",
     "year": 2026,
     "month": 7,
@@ -52,7 +52,7 @@ AVANT = {
 
 def _commande(payslip_data: dict) -> EditPayslipInput:
     return EditPayslipInput(
-        payslip_id="ps-bugny",
+        payslip_id="ps-dumarel",
         payslip_data=payslip_data,
         changes_summary="Correction des heures supplémentaires",
         current_user_id="user-gaelle",
@@ -64,14 +64,14 @@ def _commande(payslip_data: dict) -> EditPayslipInput:
 def _contexte():
     with patch(
         "app.modules.payslips.application.commands._fetch_payslip_status",
-        return_value={"id": "ps-bugny", "status": "brouillon"},
+        return_value={"id": "ps-dumarel", "status": "brouillon"},
     ), patch(
         "app.modules.payslips.application.commands._fetch_payslip_for_recalc",
         return_value=AVANT,
     ), patch(
         "app.modules.payslips.application.commands.payslip_editor_provider"
     ) as editeur:
-        editeur.save_edited.return_value = {"payslip": {"id": "ps-bugny"}}
+        editeur.save_edited.return_value = {"payslip": {"id": "ps-dumarel"}}
         yield
 
 
@@ -89,13 +89,13 @@ class TestCorrectionDesHeuresSup:
         # Le palier non touché est redéclaré tel quel : ne pas l'envoyer le
         # remettrait à zéro et ferait disparaître 3,5 h du bulletin.
         assert declarer.call_args.kwargs["heures_50"] == 3.5
-        assert declarer.call_args.kwargs["employee_id"] == "emp-bugny"
+        assert declarer.call_args.kwargs["employee_id"] == "emp-dumarel"
         assert declarer.call_args.kwargs["year"] == 2026
         assert declarer.call_args.kwargs["month"] == 7
 
         regenerer.assert_called_once()
         entree = regenerer.call_args.args[0]
-        assert entree.employee_id == "emp-bugny"
+        assert entree.employee_id == "emp-dumarel"
         assert entree.year == 2026
         assert entree.month == 7
 

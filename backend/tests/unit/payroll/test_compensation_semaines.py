@@ -44,14 +44,14 @@ class TestMajorations:
 
 
 class TestCompensationJuin2026:
-    def test_bugny_retrouve_14_et_7(self):
+    def test_dumarel_retrouve_14_et_7(self):
         ecarts = {(2026, 22): 2.0, (2026, 23): 4.0, (2026, 24): 7.5, (2026, 25): 7.5}
 
         c = compenser(ecarts, 39.0)
 
         assert (c.net25, c.net50, c.solde_negatif) == (14.0, 7.0, 0.0)
 
-    def test_fuckar_retrouve_4_et_3_avec_une_semaine_negative(self):
+    def test_lanumet_retrouve_4_et_3_avec_une_semaine_negative(self):
         ecarts = {(2026, 22): -5.0, (2026, 23): 7.0, (2026, 24): 1.0, (2026, 25): 4.0}
 
         c = compenser(ecarts, 39.0)
@@ -88,7 +88,7 @@ def _semaine(lundi: int, prevus: list[float], faits: list[float | None], *, mois
 class TestEcartsParSemaine:
     HORAIRE = [8.5, 8.5, 8.5, 8.5, 5.0]
 
-    def test_fuckar_semaine_28_vaut_moins_2_5(self):
+    def test_lanumet_semaine_28_vaut_moins_2_5(self):
         planned, actual = _semaine(6, self.HORAIRE, [8.5, 7.0, 4.5, 9.5, 7.0])
 
         assert ecarts_par_semaine(planned, actual, (date(2026, 6, 22), date(2026, 7, 26))) == {(2026, 28): -2.5}
@@ -245,7 +245,7 @@ class TestAvecSaisieManuelle:
 
 class TestAbsencePartielleDeclaree:
     """Un jour prévu en absence déclarée de X h, où le salarié a quand même
-    travaillé : il devait faire la journée moins X. Marion Gautheron, juillet
+    travaillé : il devait faire la journée moins X. Marion Morande, juillet
     2026 : jeudi 09/07 absence de 7,5 h sur une journée de 8,5, 1 h faite →
     écart 0, pas 1 h de surplus."""
 
@@ -276,7 +276,7 @@ class TestAbsencePartielleDeclaree:
         assert ecarts[(2026, 30)] == pytest.approx(0.01)
 
     def test_travailler_plus_que_le_reste_attendu_est_du_surplus(self):
-        """Hugo Fuckar, 10/07 : absence de 2,5 h sur un vendredi de 5 h, 7 h faites → +4,5."""
+        """Hugo Lanumet, 10/07 : absence de 2,5 h sur un vendredi de 5 h, 7 h faites → +4,5."""
         ecarts = ecarts_par_semaine(self._planning(), self._reel(**{"6": 8.5, "7": 8.5, "8": 8.5, "9": 1.0, "10": 7.0}), (date(2026, 6, 22), date(2026, 7, 26)))
         assert ecarts[(2026, 28)] == pytest.approx(4.5)
 
@@ -297,7 +297,7 @@ class TestAbsencesAConserver:
 
     def test_solde_nul_tout_est_absorbe(self):
         """Une semaine négative couverte par les heures sup d'une autre : c'est
-        Bugny en mai, ce que l'option gagne et qu'il ne faut pas casser."""
+        Dumarel en mai, ce que l'option gagne et qu'il ne faut pas casser."""
         gardees, reliquat = absences_a_conserver([self._absence(12, 5.0)], 0.0)
 
         assert (gardees, reliquat) == ([], 0.0)
@@ -360,7 +360,7 @@ class TestRetenueDuSoldeNegatif:
         ]
 
     def test_le_solde_negatif_garde_l_absence_a_sa_date(self):
-        """Cotte, janvier : 3,5 h manquées le 21, aucune heure sup pour les absorber."""
+        """Ferisse, janvier : 3,5 h manquées le 21, aucune heure sup pour les absorber."""
         compensation = compenser({(2026, 27): -3.5}, 39.0)
         evenements = [
             {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.5},

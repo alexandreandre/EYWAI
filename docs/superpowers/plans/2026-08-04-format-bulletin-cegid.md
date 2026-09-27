@@ -262,7 +262,7 @@ def bulletin_minimal() -> dict:
                 "nom_complet": "salarié 004",
                 "sexe": "M",
                 "matricule": "salarié 004",
-                "nir": "102098519123974",
+                "nir": "180017520045678",
                 "adresse": {
                     "rue": "32 rue de la Fabrique",
                     "code_postal": "79250",
@@ -292,7 +292,7 @@ def bulletin_minimal() -> dict:
 
 class TestHelpers:
     def test_nir_groupe_comme_cegid(self):
-        assert _formater_nir("102098519123974") == "1 02 09 85 191 239 74"
+        assert _formater_nir("180017520045678") == "1 80 01 75 200 456 78"
 
     def test_nir_non_standard_rendu_tel_quel(self):
         assert _formater_nir("12345") == "12345"
@@ -357,7 +357,7 @@ class TestSalarieEtIdentite:
     def test_identite_reprend_matricule_nir_et_emploi(self):
         identite = construire_vue_bulletin(bulletin_minimal())["identite"]
         assert identite["matricule"] == "salarié 004"
-        assert identite["nir"] == "1 02 09 85 191 239 74"
+        assert identite["nir"] == "1 80 01 75 200 456 78"
         assert identite["emploi"] == "Opérateur polyvalent"
         assert identite["date_entree"] == "08/04/2026"
         assert identite["coefficient"] == "A"
@@ -395,7 +395,7 @@ from typing import Any, Dict, List, Optional
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
 
-# Découpage du NIR tel que Cegid l'imprime : 1 02 09 85 191 239 74
+# Découpage du NIR tel que Cegid l'imprime : 1 80 01 75 200 456 78
 GROUPES_NIR = (1, 2, 2, 2, 3, 3, 2)
 
 
@@ -1532,7 +1532,7 @@ class TestRendu:
             "Société CARTOL",
             "salarié 004 Lucas",
             "Matricule",
-            "1 02 09 85 191 239 74",
+            "1 80 01 75 200 456 78",
             "Q100",
             "SANTÉ",
             "TOTAL DES RETENUES",

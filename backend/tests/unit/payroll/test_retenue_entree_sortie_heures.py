@@ -10,7 +10,7 @@ Sans cela on réclame un allègement sur des heures qu'on n'a pas payées — le
 défaut corrigé en janvier 2026 pour les absences non rémunérées, qui se
 reproduisait ici sous un autre nom.
 
-Relevé sur Fuckar (Colorplast, avril 2026), embauché le 07/04 : 30,50 h
+Relevé sur Lanumet (Colorplast, avril 2026), embauché le 07/04 : 30,50 h
 retirées de sa paie pour 372,10 €, mais laissées dans son compteur. Quadra
 imprime 143,50 h de période, nous 170,95 — et 82,02 € d'allègement de trop.
 """
@@ -29,7 +29,7 @@ def _heures_comptees(heures_base: float, heures_supp: float,
 
 
 def test_la_retenue_d_entree_sort_du_compteur():
-    """Fuckar : 151,67 h de base + 19,28 h sup − 30,50 h non payées."""
+    """Lanumet : 151,67 h de base + 19,28 h sup − 30,50 h non payées."""
     assert _heures_comptees(151.67, 19.28, 30.50) == 140.45
 
 

@@ -34,32 +34,32 @@ describe('employeeProfileUtils', () => {
 
   it('isDsnImportPlaceholderEmail detects import suffix', () => {
     expect(
-      isDsnImportPlaceholderEmail('import.samir.boufrida.353238@498610351.dsn-import.local'),
+      isDsnImportPlaceholderEmail('import.samir.cavanot.353238@498610351.dsn-import.local'),
     ).toBe(true);
-    expect(isDsnImportPlaceholderEmail('samir@cartol.fr')).toBe(false);
+    expect(isDsnImportPlaceholderEmail('prenom@cartol.fr')).toBe(false);
   });
 
   it('isDsnImportPlaceholderEmail detects every fabricated domain', () => {
     expect(isDsnImportPlaceholderEmail('import.abc123@dsn-import.eywai.fr')).toBe(true);
-    expect(isDsnImportPlaceholderEmail('gaelle.bouali@eywai.access.local')).toBe(true);
-    expect(isDsnImportPlaceholderEmail('vanessa.amate@users.eywai')).toBe(true);
-    expect(isDsnImportPlaceholderEmail('amatevanessa@yahoo.fr')).toBe(false);
+    expect(isDsnImportPlaceholderEmail('gaelle.cavotin@eywai.access.local')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('vanessa.barague@users.eywai')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('dupontvanessa@yahoo.fr')).toBe(false);
     expect(isDsnImportPlaceholderEmail('')).toBe(false);
     expect(isDsnImportPlaceholderEmail(null)).toBe(false);
   });
 
   it('getDisplayEmployeeEmail hides placeholder', () => {
     expect(getDisplayEmployeeEmail('import.x@498610351.dsn-import.local')).toBeNull();
-    expect(getDisplayEmployeeEmail('samir@cartol.fr')).toBe('samir@cartol.fr');
+    expect(getDisplayEmployeeEmail('prenom@cartol.fr')).toBe('prenom@cartol.fr');
   });
 
   it('getDisplayEmployeeUsername hides login before activation', () => {
     expect(
       getDisplayEmployeeUsername(
-        'import.samir.boufrida.353238@498610351.dsn-import.local',
-        'import.samir.boufrida.353238',
+        'import.samir.cavanot.353238@498610351.dsn-import.local',
+        'import.samir.cavanot.353238',
       ),
     ).toBeNull();
-    expect(getDisplayEmployeeUsername('samir@cartol.fr', 'samir.boufrida')).toBe('samir.boufrida');
+    expect(getDisplayEmployeeUsername('prenom@cartol.fr', 'samir.cavanot')).toBe('samir.cavanot');
   });
 });

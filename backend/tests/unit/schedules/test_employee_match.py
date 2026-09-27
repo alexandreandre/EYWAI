@@ -19,19 +19,19 @@ ROSTER = [
         last_name="Durand",
         time_tracking_id="270",
     ),
-    RosterEmployee(id="e3", first_name="Rina", last_name="XHAFERI"),
+    RosterEmployee(id="e3", first_name="Rina", last_name="FONISSE"),
     RosterEmployee(id="e4", first_name="Gérald", last_name="LIKA"),
     RosterEmployee(id="e5", first_name="Marie", last_name="Martin"),
-    RosterEmployee(id="e6", first_name="Mir Naqibullah", last_name="MIRZADA"),
-    RosterEmployee(id="e7", first_name="Mir Said Jan", last_name="MIRZADA"),
+    RosterEmployee(id="e6", first_name="Mir Naqibullah", last_name="VERAGUE"),
+    RosterEmployee(id="e7", first_name="Mir Said Jan", last_name="VERAGUE"),
     RosterEmployee(
         id="e8",
         first_name="Mohamed",
         last_name="YOUSSEF",
         time_tracking_id="139",
     ),
-    RosterEmployee(id="e9", first_name="Abderraouf", last_name="SPIGA"),
-    RosterEmployee(id="e10", first_name="Kheireddine", last_name="SPIGA"),
+    RosterEmployee(id="e9", first_name="Abderraouf", last_name="DALERON"),
+    RosterEmployee(id="e10", first_name="Kheireddine", last_name="DALERON"),
 ]
 
 
@@ -88,15 +88,15 @@ class TestEmployeeMatch:
         assert p.matched_name == "Gérald LIKA"
         assert any("Matricule 95" in w for w in p.warnings)
 
-    def test_mirzada_disambiguated_by_first_name(self):
+    def test_verague_disambiguated_by_first_name(self):
         p = resolve_employee_for_timesheet(
-            raw_name="Mirzada Mir Nagibullah", matricule="243", roster=ROSTER
+            raw_name="Verague Mir Nagibullah", matricule="243", roster=ROSTER
         )
         assert p.employee_id == "e6"
 
-    def test_mirzada_said_jan(self):
+    def test_verague_said_jan(self):
         p = resolve_employee_for_timesheet(
-            raw_name="MIRZADA Mir Said", matricule="150", roster=ROSTER
+            raw_name="VERAGUE Mir Said", matricule="150", roster=ROSTER
         )
         assert p.employee_id == "e7"
 
@@ -106,9 +106,9 @@ class TestEmployeeMatch:
         )
         assert p.employee_id == "e8"
 
-    def test_spiga_typo_first_name(self):
+    def test_daleron_typo_first_name(self):
         p = resolve_employee_for_timesheet(
-            raw_name="SPIGA Abdelraouf", matricule="244", roster=ROSTER
+            raw_name="DALERON Abdelraouf", matricule="244", roster=ROSTER
         )
         assert p.employee_id == "e9"
 

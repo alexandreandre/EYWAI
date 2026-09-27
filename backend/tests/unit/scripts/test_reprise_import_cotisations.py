@@ -1,7 +1,7 @@
 """Les cotisations d'un bulletin repris s'assoient sur le brut du PDF.
 
 Constat du 21/09/2026 : les lignes de brut venaient du PDF mais les
-cotisations restaient celles du rejeu, assises sur un brut différent (Bugny
+cotisations restaient celles du rejeu, assises sur un brut différent (Dumarel
 juin : base 3 048,73 au lieu de 3 084,43, et neuf euros d'écart sur le total
 patronal, lu par la provision comptable des congés).
 """
@@ -219,7 +219,7 @@ class TestSyntheseDuPdf:
     def test_les_nets_viennent_du_pdf(self):
         from scripts.backtest.colorplast_lignes_quadra import Bulletin
 
-        b = Bulletin(matricule="BUGNY", pages=[1])
+        b = Bulletin(matricule="DUMAREL", pages=[1])
         b.net = {
             "net_imposable": 1930.60, "mns": 2889.30, "net_a_payer": 2823.66,
             "net_hs_exo": 661.80, "pas_base": 1930.60, "pas_taux": 3.4, "pas_montant": 65.64,

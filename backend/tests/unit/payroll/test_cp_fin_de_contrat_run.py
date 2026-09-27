@@ -9,14 +9,14 @@ COMPTEURS = {
 }
 
 
-def test_demory():
+def test_feroral():
     p = periodes_depuis_compteurs(COMPTEURS, brut_periode_precedente=4171.35, brut_en_cours_avant_mois=2026.41)
     assert p["periode_precedente"] == {"libelle": "2025-2026", "brut": 4171.35, "droits": 3.78, "restants": 2.78}
     assert p["periode_en_cours"] == {"libelle": "2026-2027", "brut_avant_mois": 2026.41, "droits": 4.16, "restants": 4.16}
 
 
 def test_les_droits_sont_pris_plus_solde_pas_le_champ_acquis():
-    """`acquis` (7,0 chez Demory) ne suit pas la reprise ; pris + solde, oui."""
+    """`acquis` (7,0 chez Feroral) ne suit pas la reprise ; pris + solde, oui."""
     p = periodes_depuis_compteurs(COMPTEURS, brut_periode_precedente=None, brut_en_cours_avant_mois=0.0)
     assert p["periode_precedente"]["droits"] == 3.78 and p["periode_precedente"]["brut"] is None
 

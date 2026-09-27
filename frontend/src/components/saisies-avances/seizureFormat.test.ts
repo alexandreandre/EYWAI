@@ -4,7 +4,7 @@ import { libelleMontantSaisie } from './seizureFormat';
 
 describe('libelleMontantSaisie', () => {
   it('formate un montant fixe reçu en texte (les décimaux arrivent en chaîne de Supabase)', () => {
-    // Gautheron, 12/09 : la page plantait en écran blanc sur "46.49".toFixed.
+    // Morande, 12/09 : la page plantait en écran blanc sur "46.49".toFixed.
     expect(
       libelleMontantSaisie({ calculation_mode: 'fixe', amount: '46.49' as unknown as number })
     ).toBe('46.49€');

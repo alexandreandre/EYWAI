@@ -13,7 +13,7 @@ Le repli existant (`planning_repli`) ne couvrait que les mois **entièrement**
 sans pointage. Or les calendriers de Colorplast sont partiels : 322 heures
 réelles pour 1 113 prévues en janvier. Chaque jour manquant était donc retenu.
 
-Vécu le 27/08/2026 : remettre le 30/06 de DEMORY en « travail » l'a
+Vécu le 27/08/2026 : remettre le 30/06 de FERORAL en « travail » l'a
 immédiatement fait requalifier en absence injustifiée de 93,93 € — la même
 retenue que celle, réelle, du 8 juin. Il était déduit deux fois.
 """

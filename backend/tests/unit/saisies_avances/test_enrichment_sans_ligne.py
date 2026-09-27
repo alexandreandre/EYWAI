@@ -2,7 +2,7 @@
 
 `maybe_single().execute()` renvoie None quand aucune ligne n'existe : lire
 `.data` dessus faisait exploser tout l'enrichissement, et une saisie sur
-salaire n'atteignait jamais le bulletin (Marion Gautheron, juillet 2026).
+salaire n'atteignait jamais le bulletin (Marion Morande, juillet 2026).
 """
 
 from types import SimpleNamespace

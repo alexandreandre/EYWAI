@@ -32,18 +32,18 @@ class TestShouldSkipSeniorityRow:
     def test_keeps_real_employee(self):
         assert not should_skip_seniority_row(
             first_name="Francine",
-            last_name="BOURMAULT",
+            last_name="CAVURAT",
             full_name="",
-            identity="Francine BOURMAULT",
+            identity="Francine CAVURAT",
             matricule="",
         )
 
     def test_keeps_compound_last_name(self):
         assert not should_skip_seniority_row(
             first_name="Serge",
-            last_name="BUZISA LUSELA",
+            last_name="DUMAGUE TALOUIN",
             full_name="",
-            identity="Serge BUZISA LUSELA",
+            identity="Serge DUMAGUE TALOUIN",
             matricule="",
         )
 
@@ -60,12 +60,12 @@ class TestShouldSkipSeniorityRow:
         """Commentaire salarié « Reprise ancienneté… » ne doit pas filtrer la ligne."""
         assert not should_skip_seniority_row(
             first_name="Francisco",
-            last_name="MIRANDA",
+            last_name="VEROUIN",
             full_name="",
-            identity="Francisco MIRANDA",
+            identity="Francisco VEROUIN",
             matricule="",
             row={
-                "NOM": "MIRANDA",
+                "NOM": "VEROUIN",
                 "PRENOM": "Francisco",
                 "Date ancienneté": "1/1/2009",
                 "Commentaire": "Reprise ancienneté dernier contrat (autre société)",

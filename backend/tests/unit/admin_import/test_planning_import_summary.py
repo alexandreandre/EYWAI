@@ -12,9 +12,9 @@ def test_summary_counts_unique_sheets_not_month_rows() -> None:
             "month": m,
             "employees": [
                 {
-                    "raw_name": "BOUFRIDA",
+                    "raw_name": "CAVANOT",
                     "employee_id": "e1",
-                    "matched_name": "Samir BOUFRIDA",
+                    "matched_name": "Samir CAVANOT",
                     "review_status": "ok",
                     "days": [{"jour": 1, "nature": "prevu"}],
                 },

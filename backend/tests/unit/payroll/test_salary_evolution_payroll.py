@@ -124,7 +124,7 @@ def test_prepare_employe_introuvable(mock_repo_cls, mock_sync, mock_lire):
 @patch("app.modules.payroll.application.salary_evolution_payroll.sync_employee_salaire_actif")
 @patch("app.modules.payroll.application.salary_evolution_payroll.EmployeeRepository")
 def test_pas_de_rappel_pour_un_mois_deja_paye_au_nouveau_taux(mock_repo_cls, mock_sync, mock_lire):
-    """Demory (Colorplast) : SMIC revalorisé au 01/06 enregistré après coup,
+    """Feroral (Colorplast) : SMIC revalorisé au 01/06 enregistré après coup,
     juin déjà payé 1 867,06. Le bulletin de juillet ne rappelle rien."""
     mock_repo = MagicMock()
     mock_repo_cls.return_value = mock_repo

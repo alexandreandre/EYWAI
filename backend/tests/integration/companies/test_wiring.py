@@ -142,7 +142,7 @@ class TestCompaniesWiringDetailsPatch:
         updated_row = {
             "id": TEST_COMPANY_ID,
             "company_name": "Wiring Co",
-            "nom_signataire_rh": "Gerault Verny",
+            "nom_signataire_rh": "Gerault Foninet",
             "qualite_signataire_rh": "Gérant",
         }
         mock_repo.update_company.return_value = updated_row
@@ -151,7 +151,7 @@ class TestCompaniesWiringDetailsPatch:
             "adresse_code_postal": "13100",
             "adresse_ville": "Aix en Provence",
             "phone": "0778193162",
-            "nom_signataire_rh": "Gerault Verny",
+            "nom_signataire_rh": "Gerault Foninet",
             "qualite_signataire_rh": "Gérant",
         }
         with patch(
@@ -177,6 +177,6 @@ class TestCompaniesWiringDetailsPatch:
         assert response.status_code == 200
         mock_repo.update_company.assert_called_once()
         update_data = mock_repo.update_company.call_args[0][1]
-        assert update_data["nom_signataire_rh"] == "Gerault Verny"
+        assert update_data["nom_signataire_rh"] == "Gerault Foninet"
         assert update_data["qualite_signataire_rh"] == "Gérant"
-        assert response.json()["company_data"]["nom_signataire_rh"] == "Gerault Verny"
+        assert response.json()["company_data"]["nom_signataire_rh"] == "Gerault Foninet"

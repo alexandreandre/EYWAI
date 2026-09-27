@@ -249,8 +249,8 @@ class TestComplete:
 
 
 SHARED_TOKEN = "lien-partage-demo-call-2026"
-GAELLE_EMAIL = "gbouali@maji-invest.fr"
-VANESSA_EMAIL = "vamate@maji-invest.fr"
+GAELLE_EMAIL = "gmartel@maji-invest.fr"
+VANESSA_EMAIL = "vdupont@maji-invest.fr"
 GAELLE_EMP = "11111111-1111-1111-1111-111111111111"
 VANESSA_EMP = "22222222-2222-2222-2222-222222222222"
 
@@ -303,7 +303,7 @@ class TestLienPartage:
             prov.get_company_name.return_value = "Colorplast"
             response = client.post(
                 "/api/activation/verify",
-                json={"token": SHARED_TOKEN, "email": "  GBouali@maji-invest.fr "},
+                json={"token": SHARED_TOKEN, "email": "  GMartel@maji-invest.fr "},
             )
         assert response.status_code == 200, response.text
         assert response.json()["prenom"] == "Gaëlle"

@@ -56,7 +56,7 @@ def _base_gateway(**kwargs) -> InMemoryProvisioningGateway:
 
 
 def test_normalize_identity_unicode():
-    assert normalize_identity("Gaëlle  BOUALI") == "gaelle bouali"
+    assert normalize_identity("Gaëlle  CAVOTIN") == "gaelle cavotin"
 
 
 def test_dorothee_is_noop():
@@ -87,8 +87,8 @@ def test_technical_account_create_then_second_run_noop(tmp_path: Path):
             {
                 "key": "gaelle",
                 "identity": {
-                    "name": "Gaëlle Bouali",
-                    "email": "gaelle.bouali@eywai.access.local",
+                    "name": "Gaëlle Cavotin",
+                    "email": "gaelle.cavotin@eywai.access.local",
                 },
                 "account": "technical_login",
                 "accesses": [{"company": "mbc", "role": "rh", "scope_mode": "company"}],
@@ -108,7 +108,7 @@ def test_technical_account_create_then_second_run_noop(tmp_path: Path):
     assert all(i.decision == "no-op" for i in plan2.items)
 
     out = tmp_path / "out.xlsx"
-    write_access_workbook(plan1, out, passwords=passwords, usernames={"gaelle": "gaelle.bouali"})
+    write_access_workbook(plan1, out, passwords=passwords, usernames={"gaelle": "gaelle.cavotin"})
     assert out.exists()
     assert oct(out.stat().st_mode)[-3:] == "600"
 
@@ -121,7 +121,7 @@ def test_vanessa_deactivate_duplicate_not_delete():
         "people": [
             {
                 "key": "vanessa",
-                "identity": {"name": "Vanessa Amate"},
+                "identity": {"name": "Vanessa Barague"},
                 "account": "existing_only",
                 "canonical_employee_account": True,
                 "prefer_role": "collaborateur",
@@ -142,14 +142,14 @@ def test_vanessa_deactivate_duplicate_not_delete():
             {
                 "id": "u-van-collab",
                 "first_name": "Vanessa",
-                "last_name": "Amate",
+                "last_name": "Barague",
                 "role": "collaborateur",
                 "email": "van@emp.test",
             },
             {
                 "id": "u-van-admin",
                 "first_name": "Vanessa",
-                "last_name": "Amate",
+                "last_name": "Barague",
                 "role": "admin",
                 "email": "van@admin.test",
             },
@@ -204,9 +204,9 @@ def test_sync_accesses_deactivates_stale():
             {
                 "key": "gaelle",
                 "identity": {
-                    "name": "Gaëlle Bouali",
-                    "email": "gaelle.bouali@eywai.access.local",
-                    "username": "gaelle.bouali",
+                    "name": "Gaëlle Cavotin",
+                    "email": "gaelle.cavotin@eywai.access.local",
+                    "username": "gaelle.cavotin",
                 },
                 "account": "technical_login",
                 "sync_accesses": True,
@@ -232,8 +232,8 @@ def test_sync_accesses_deactivates_stale():
             {
                 "id": "u-g",
                 "first_name": "Gaëlle",
-                "last_name": "Bouali",
-                "email": "gaelle.bouali@eywai.access.local",
+                "last_name": "Cavotin",
+                "email": "gaelle.cavotin@eywai.access.local",
                 "role": "rh",
             }
         ],
@@ -274,7 +274,7 @@ def test_baptiste_mod_scope_and_self_deny():
         "people": [
             {
                 "key": "baptiste",
-                "identity": {"name": "Baptiste Droz-Vincent"},
+                "identity": {"name": "Baptiste Galande-Foneron"},
                 "account": "existing_only",
                 "accesses": [
                     {
@@ -301,7 +301,7 @@ def test_baptiste_mod_scope_and_self_deny():
             {
                 "id": "u-bap",
                 "first_name": "Baptiste",
-                "last_name": "Droz-Vincent",
+                "last_name": "Galande-Foneron",
                 "email": "b@x.test",
             }
         ],
@@ -319,7 +319,7 @@ def test_baptiste_mod_scope_and_self_deny():
                 "id": "e-bap",
                 "user_id": "u-bap",
                 "first_name": "Baptiste",
-                "last_name": "Droz-Vincent",
+                "last_name": "Galande-Foneron",
                 "company_id": "c-mbc",
             }
         ],

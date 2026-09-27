@@ -6,16 +6,16 @@ from app.modules.payroll.backtest.comparator import compare_bulletins, detect_sy
 from app.modules.payroll.backtest.models import ReferenceBulletin, Verdict
 from app.modules.payroll.backtest.reference_parser import parse_cegid_block
 from app.modules.payroll.backtest.thresholds import default_thresholds
-from tests.unit.payroll.backtest.fixtures import BUGNY_PAGE1, BUGNY_PAGE2
+from tests.unit.payroll.backtest.fixtures import DUMAREL_PAGE1, DUMAREL_PAGE2
 
 pytestmark = pytest.mark.unit
 
 
-def _bugny_ref() -> ReferenceBulletin:
-    return parse_cegid_block("BUGNY", BUGNY_PAGE1 + BUGNY_PAGE2)
+def _dumarel_ref() -> ReferenceBulletin:
+    return parse_cegid_block("DUMAREL", DUMAREL_PAGE1 + DUMAREL_PAGE2)
 
 
-def _bugny_payslip() -> dict:
+def _dumarel_payslip() -> dict:
     return {
         "salaire_brut": 2952.34,
         "net_a_payer": 5289.12,
@@ -42,14 +42,14 @@ def _bugny_payslip() -> dict:
 
 class TestComparator:
     def test_perfect_match(self):
-        report = compare_bulletins(_bugny_payslip(), _bugny_ref())
+        report = compare_bulletins(_dumarel_payslip(), _dumarel_ref())
         assert report.overall_verdict in (Verdict.PARFAIT, Verdict.OK)
         assert not report.has_tier_s_anomaly
 
     def test_brut_anomaly_detected(self):
-        payslip = _bugny_payslip()
+        payslip = _dumarel_payslip()
         payslip["salaire_brut"] = 2500.0
-        report = compare_bulletins(payslip, _bugny_ref())
+        report = compare_bulletins(payslip, _dumarel_ref())
         assert report.has_tier_s_anomaly
 
     def test_systemic_detection(self):

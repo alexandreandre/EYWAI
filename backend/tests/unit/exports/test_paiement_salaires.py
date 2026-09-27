@@ -67,7 +67,7 @@ class TestPaiementSalairesIban:
         row = _payslip_row(
             "emp-1",
             "Lahouari",
-            "BOUDJEMAA",
+            "CAVUBEL",
             coords,
             salary_payment_method="cheque",
         )

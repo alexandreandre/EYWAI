@@ -378,7 +378,7 @@ class TestPerimetreOutilsNominatifs:
     def test_sans_grant_un_role_custom_ne_voit_personne(self):
         """Un rôle custom ne tient ses droits QUE de ses grants.
 
-        Cas réel : DROZ-VINCENT (Mont Blanc Composite) a quinze permissions en
+        Cas réel : GALANDE-FONERON (Mont Blanc Composite) a quinze permissions en
         périmètre « équipes », mais pas `employees.view_all`. Le repli des rôles
         nommés lui ouvrait les 89 salariés de l'entreprise — l'inverse exact de
         son paramétrage.

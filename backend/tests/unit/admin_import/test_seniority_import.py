@@ -22,10 +22,10 @@ EMPLOYEES = [
     {
         "id": "emp-1",
         "first_name": "Francine",
-        "last_name": "BOURMAULT",
+        "last_name": "CAVURAT",
         "email": "f@example.com",
         "time_tracking_id": None,
-        "employee_folder_name": "BOURMAULT_Francine",
+        "employee_folder_name": "CAVURAT_Francine",
         "employment_status": "actif",
         "hire_date": "2020-01-01",
         "seniority_reference_date": None,
@@ -35,10 +35,10 @@ EMPLOYEES = [
     {
         "id": "emp-2",
         "first_name": "Marc",
-        "last_name": "CLEMENT",
+        "last_name": "DUMUMET",
         "email": "m@example.com",
         "time_tracking_id": None,
-        "employee_folder_name": "CLEMENT_Marc",
+        "employee_folder_name": "DUMUMET_Marc",
         "employment_status": "actif",
         "hire_date": "2013-06-03",
         "seniority_reference_date": "2013-06-03",
@@ -89,7 +89,7 @@ class TestParseSeniorityImport:
     def test_matches_by_name(self, mock_repo, mock_list_extra):
         csv = (
             "NOM;PRENOM;Statut;Date ancienneté\n"
-            "BOURMAULT;Francine;Non cadre;1/9/1988\n"
+            "CAVURAT;Francine;Non cadre;1/9/1988\n"
         ).encode("utf-8")
         result = parse_seniority_import_file(csv, "prime.csv", "co-1")
         assert result["summary"]["total"] == 1
@@ -106,7 +106,7 @@ class TestParseSeniorityImport:
     def test_skips_instruction_rows(self, mock_repo, mock_list_extra):
         csv = (
             "NOM;PRENOM;Date ancienneté\n"
-            "BOURMAULT;Francine;1/9/1988\n"
+            "CAVURAT;Francine;1/9/1988\n"
             "les cadres n'ont pas de prime d'ancienneté;;\n"
             "Pour les personnes en arrêt;;\n"
         ).encode("utf-8")
@@ -118,12 +118,12 @@ class TestParseSeniorityImport:
     def test_reports_missing_active_employees(self, mock_repo, mock_list_extra):
         csv = (
             "NOM;PRENOM;Date ancienneté\n"
-            "BOURMAULT;Francine;1/9/1988\n"
+            "CAVURAT;Francine;1/9/1988\n"
         ).encode("utf-8")
         result = parse_seniority_import_file(csv, "prime.csv", "co-1")
         assert result["summary"]["matched_employees"] == 1
         assert result["summary"]["missing_employees"] == 1
-        missing = next(m for m in result["missing_employees"] if m["last_name"] == "CLEMENT")
+        missing = next(m for m in result["missing_employees"] if m["last_name"] == "DUMUMET")
         assert missing["employee_id"] == "emp-2"
         assert missing["current_hire_date"] == "2013-06-03"
         assert missing["current_seniority_date"] == "2013-06-03"
@@ -133,10 +133,10 @@ class TestParseSeniorityImport:
             {
                 "id": "emp-m",
                 "first_name": "Francisco",
-                "last_name": "MIRANDA",
+                "last_name": "VEROUIN",
                 "email": "",
                 "time_tracking_id": None,
-                "employee_folder_name": "MIRANDA_Francisco",
+                "employee_folder_name": "VEROUIN_Francisco",
                 "employment_status": "actif",
                 "hire_date": "2025-09-23",
                 "seniority_reference_date": None,
@@ -150,7 +150,7 @@ class TestParseSeniorityImport:
         ):
             csv = (
                 "NOM;PRENOM;Statut;Date ancienneté;Commentaire\n"
-                "MIRANDA;Francisco;Non cadre;1/1/2009;"
+                "VEROUIN;Francisco;Non cadre;1/1/2009;"
                 "Reprise ancienneté dernier contrat (autre société)\n"
             ).encode("utf-8")
             result = parse_seniority_import_file(csv, "prime.csv", "co-1")
@@ -168,7 +168,7 @@ class TestCommitSeniorityImport:
         ) as update:
             update.return_value = {
                 "first_name": "Francine",
-                "last_name": "BOURMAULT",
+                "last_name": "CAVURAT",
             }
             body = SeniorityImportCommitBody(
                 company_id="co-1",

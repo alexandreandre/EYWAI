@@ -121,8 +121,8 @@ def test_rapprochement_par_nom_quand_le_nir_manque():
 
 
 def test_rapprochement_tolere_accents_et_second_prenom():
-    salarie = _salarie(last_name="LEITES", first_name="Maria Héléna", nir="")
-    ligne = _ligne(nir="", nom="LEITES", prenom="MARIA HELENA")
+    salarie = _salarie(last_name="ROSORAL", first_name="Maria Héléna", nir="")
+    ligne = _ligne(nir="", nom="ROSORAL", prenom="MARIA HELENA")
     apercu = _apercu([ligne], [salarie])
     assert apercu.lignes[0].employee_id == "emp-1"
 

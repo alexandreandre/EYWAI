@@ -7,8 +7,8 @@ import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
 
 const baseEmployee: EmployeeListItem = {
   id: 'emp-1',
-  first_name: 'Damien',
-  last_name: 'BASTER',
+  first_name: 'Ferurat',
+  last_name: 'BARENAC',
 };
 
 describe('getEmployeeListDateDisplay', () => {

@@ -1,6 +1,6 @@
 """Indemnité de congés payés de fin de contrat : la règle légale, par période.
 
-Recette : Aurélien Demory, juillet 2026 (spec
+Recette : Aurélien Feroral, juillet 2026 (spec
 2026-09-21-indemnite-cp-fin-de-contrat-legale-design.md) — 306,78 + 459,61 = 766,39.
 """
 
@@ -28,13 +28,13 @@ class TestValeurJourMaintien:
 
 
 class TestParPeriode:
-    def test_periode_precedente_de_demory_au_dixieme(self):
+    def test_periode_precedente_de_feroral_au_dixieme(self):
         d = indemnite_par_periode(N_1, taux=0.10, valeur_jour=98.48)
         assert d.dixieme == pytest.approx(306.78)  # 417,14 × 2,78 / 3,78
         assert d.maintien == pytest.approx(273.77)  # 2,78 × 98,48
         assert d.retenu == pytest.approx(306.78) and d.methode == "dixieme"
 
-    def test_periode_en_cours_de_demory(self):
+    def test_periode_en_cours_de_feroral(self):
         d = indemnite_par_periode(N, taux=0.10, valeur_jour=98.48)
         assert d.dixieme == pytest.approx(459.61)
         assert d.maintien == pytest.approx(409.68)
@@ -58,7 +58,7 @@ class TestParPeriode:
 
 
 class TestFinDeContrat:
-    def test_demory_au_centime(self):
+    def test_feroral_au_centime(self):
         r = indemnite_fin_de_contrat([N_1, N], taux=0.10, valeur_jour=98.48)
         assert r.total == pytest.approx(766.39)
         assert [p.retenu for p in r.periodes] == pytest.approx([306.78, 459.61])

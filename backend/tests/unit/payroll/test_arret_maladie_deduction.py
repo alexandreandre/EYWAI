@@ -1,7 +1,7 @@
 """Retenue d'un jour d'arrêt maladie : toujours valorisée sur la référence
 journalière LÉGALE (7 h temps plein), jamais sur les heures planifiées du jour
 (7,5 h contractuelles d'un template), sinon sur-déduction — la quote-part d'HS
-structurelle est déjà retirée séparément (cf. OSMANI2 MBC mai 2026)."""
+structurelle est déjà retirée séparément (cf. VERORAL2 MBC mai 2026)."""
 
 from datetime import date
 

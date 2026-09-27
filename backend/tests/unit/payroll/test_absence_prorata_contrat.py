@@ -2,7 +2,7 @@
 
 Le cabinet (Quadra) retire chaque heure d'absence 35/39 au taux de base et
 4/39 sur les heures sup structurelles mensualisées, sur les heures
-planifiées du jour : Marion Gautheron (Colorplast, juillet 2026), journées
+planifiées du jour : Marion Morande (Colorplast, juillet 2026), journées
 de 8,5 h et 7,5 h → 7,63 + 0,87 et 6,73 + 0,77 ; MBC, journées de 7,8 h →
 7,00 + 0,80. La position de l'absence dans la semaine n'entre pas en jeu.
 EYWAI retenait 7 h + 0,8 h par jour quelle que soit la journée.
@@ -82,7 +82,7 @@ def test_contrat_35h_inchange():
 
 
 def test_absence_non_remuneree_meme_prorata():
-    # Demory, juin 2026 : 8,5 h → 7,63 + 0,87, identique à Quadra.
+    # Feroral, juin 2026 : 8,5 h → 7,63 + 0,87, identique à Quadra.
     ctx = build_test_contexte(salaire_base=2278.11, duree_hebdo=39.0)
     cal = [
         {"date_complete": "2026-07-07", "type": "absence_non_remuneree", "heures": 8.5},

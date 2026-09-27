@@ -109,10 +109,10 @@ class TestDeriveCollaboratorUsername:
     def test_replaces_import_style_existing_username(self):
         username = derive_collaborator_username(
             "Samir",
-            "Boufrida",
-            existing="import.samir.boufrida.353238",
+            "Cavanot",
+            existing="import.samir.cavanot.353238",
         )
-        assert username == "samir.boufrida"
+        assert username == "samir.cavanot"
 
     def test_normalizes_accents_and_hyphens(self):
         username = derive_collaborator_username("François", "Dupont-Martin")
@@ -144,16 +144,16 @@ class TestResolveUniqueCollaboratorUsername:
 
 class TestIsImportStyleUsername:
     def test_detects_import_prefix(self):
-        assert is_import_style_username("import.samir.boufrida.353238")
-        assert not is_import_style_username("samir.boufrida")
+        assert is_import_style_username("import.samir.cavanot.353238")
+        assert not is_import_style_username("samir.cavanot")
 
 
 class TestIsDsnImportPlaceholderEmail:
     def test_detects_placeholder_suffix(self):
         assert is_dsn_import_placeholder_email(
-            "import.samir.boufrida.353238@498610351.dsn-import.local"
+            "import.samir.cavanot.353238@498610351.dsn-import.local"
         )
-        assert not is_dsn_import_placeholder_email("samir.boufrida@cartol.fr")
+        assert not is_dsn_import_placeholder_email("samir.cavanot@cartol.fr")
         assert not is_dsn_import_placeholder_email(None)
 
 

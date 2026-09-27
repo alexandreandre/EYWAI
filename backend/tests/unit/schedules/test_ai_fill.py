@@ -350,16 +350,16 @@ class TestParseInstruction:
                 year=2026,
                 month=5,
                 instruction=(
-                    "Michel Bugny a fait exactement toutes les heures "
+                    "Michel Dumarel a fait exactement toutes les heures "
                     "qui lui étaient prévues"
                 ),
                 roster=ROSTER + [
-                    RosterEmployee(id="e-bugny", first_name="Michel", last_name="BUGNY"),
+                    RosterEmployee(id="e-dumarel", first_name="Michel", last_name="DUMAREL"),
                 ],
             )
         mock_llm.assert_not_called()
         assert proposal.source == "texte (reprise planning)"
-        assert proposal.employees[0].employee_id == "e-bugny"
+        assert proposal.employees[0].employee_id == "e-dumarel"
         assert len(proposal.employees[0].days) == 2
 
 

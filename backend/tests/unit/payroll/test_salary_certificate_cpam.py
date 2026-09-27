@@ -70,7 +70,7 @@ def _reference(kind: str) -> dict:
 
 _EMPLOYEE = {
     "first_name": "Marion",
-    "last_name": "Gautheron",
+    "last_name": "Morande",
     "date_naissance": "1990-04-12",
     "nir": "2900475123456",
     "hire_date": "2020-01-06",

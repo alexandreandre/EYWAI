@@ -20,10 +20,10 @@ def test_parse_modern_dsn_nic_and_individu():
     assert dsn.entreprise.nic_siege == "00001"
 
     ind = dsn.etablissement.individus[0]
-    assert ind.nom == "BERTAUD"
+    assert ind.nom == "BARUMET"
     assert ind.prenom == "Jean"
-    assert ind.nir == "180032710123439"
-    assert ind.matricule == "1970879049270"
+    assert ind.nir == "180017510112383"
+    assert ind.matricule == "1800175100123"
 
     parsed = parse_dsn_files([("sample_dsn_modern.txt", content)])
     assert parsed.siren == "951474782"

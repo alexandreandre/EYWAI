@@ -7,7 +7,7 @@ convergence de mai 2026 avec les bulletins du cabinet l'a validée au centime
 sur les 7 salariés.
 
 Ça ne l'est pas pour un complément entièrement à la charge du salarié. Cas
-constaté sur GIRERD, juillet 2026 : le complément « GAN Famille » (98,13 €,
+constaté sur MOROCHE, juillet 2026 : le complément « GAN Famille » (98,13 €,
 aucune part patronale) était déduit de l'imposable chez nous et pas chez le
 cabinet — 2 570,73 € contre 2 668,88 €, et un PAS inférieur de 4,22 €. Le
 cabinet le retient APRÈS l'imposable, ce qui est le traitement des cotisations
@@ -18,7 +18,7 @@ Ces tests posent le levier : un type de mutuelle peut déclarer sa part
 salariale non déductible, et le net imposable la réintègre. Le défaut reste
 « déductible », donc aucun bulletin existant ne bouge.
 
-Chiffres repris du bulletin réel de GIRERD, juillet 2026 (env de test).
+Chiffres repris du bulletin réel de MOROCHE, juillet 2026 (env de test).
 """
 
 from types import SimpleNamespace
@@ -52,7 +52,7 @@ FAMILLE = {
     "part_patronale_soumise_a_csg": True,
 }
 
-#: Imposable actuel de GIRERD : la part salariale Famille est déduite.
+#: Imposable actuel de MOROCHE : la part salariale Famille est déduite.
 IMPOSABLE_AVEC_FAMILLE_DEDUITE = 2570.73
 #: Imposable du cabinet, à 2 centimes près (écart de base CSG, hors sujet ici).
 IMPOSABLE_ATTENDU = 2668.86

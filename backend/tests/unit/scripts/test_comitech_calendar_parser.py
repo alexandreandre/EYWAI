@@ -52,6 +52,6 @@ def test_parse_employee_sheet_has_twelve_months():
     if not path.is_file():
         return
     wb = openpyxl.load_workbook(path, data_only=True)
-    parsed = parse_employee_sheet(wb["BOUFRIDA"])
+    parsed = parse_employee_sheet(wb["CAVANOT"])
     assert len(parsed) == 12
     assert len(parsed[1]) >= 28

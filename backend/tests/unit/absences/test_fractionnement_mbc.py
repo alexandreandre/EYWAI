@@ -9,13 +9,13 @@ from app.modules.absences.domain.fractionnement import (
 
 # Données Excel MBC (solde N-1, report juin, attendu plafonné)
 MBC_CASES = [
-    ("BOUSSANOUNE", 36, 28, 1),
-    ("CVITKOVIC", 29, 19, 2),
-    ("FANOVO", 23.5, 6.5, 2),
-    ("GAUDEY", 17.5, 6.5, 2),
+    ("CAVENAC", 36, 28, 1),
+    ("FERIEUX", 29, 19, 2),
+    ("LANERON", 23.5, 6.5, 2),
+    ("MORIVAL", 17.5, 6.5, 2),
     ("MOHAMED", 12, 0, 2),
-    ("PORRAL", 16, 5, 2),
-    ("SCHARFF", 14, 0, 2),
+    ("BELURAT", 16, 5, 2),
+    ("CORORAL", 14, 0, 2),
     ("SERE", 7.5, 0, 1),
 ]
 

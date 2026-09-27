@@ -19,8 +19,8 @@ class TestComputeParticipationCsg:
         assert ded == Decimal("0")
         assert total == Decimal("0")
 
-    def test_cotte_example_approx(self):
-        """Calage bulletin client COTTE : brut 3225.33."""
+    def test_ferisse_example_approx(self):
+        """Calage bulletin client FERISSE : brut 3225.33."""
         non_ded, ded, total = compute_participation_csg(3225.33)
         assert non_ded == Decimal("93.53")
         assert ded == Decimal("219.32")

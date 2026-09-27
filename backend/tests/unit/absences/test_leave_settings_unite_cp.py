@@ -158,12 +158,12 @@ class TestUpdateLeaveSettingsUnite:
 
 
 class TestRebaserReprisesCp:
-    """Girerd (Colorplast) : reprise à fin août 2026 — N-1 = 12, N = 6,24."""
+    """Moroche (Colorplast) : reprise à fin août 2026 — N-1 = 12, N = 6,24."""
 
-    def _ligne_girerd(self):
+    def _ligne_moroche(self):
         # Écarts posés sous 2,5 ouvrables : N-1 = 12 − (30 − 15) ; N = 6,24 − 8.
         return {
-            "employee_id": "girerd",
+            "employee_id": "moroche",
             "year": 2026,
             "cp_n1_opening_balance": "-3.00",
             "cp_n_opening_balance": "-1.76",
@@ -176,7 +176,7 @@ class TestRebaserReprisesCp:
     @patch(f"{_QUERIES}.get_employee_hire_date")
     @patch(f"{_CMD}.list_company_adjustments_avec_reference")
     def test_le_solde_repris_ne_bouge_pas(self, lister, hire, repo, upsert):
-        lister.return_value = [self._ligne_girerd()]
+        lister.return_value = [self._ligne_moroche()]
         hire.return_value = "2014-09-01"
         repo.list_validated_for_employees.return_value = [
             {
@@ -193,14 +193,14 @@ class TestRebaserReprisesCp:
         # N = 6,24 (3 mois), cible 6,24 → écart 0.
         assert payload["cp_n1_opening_balance"] == 2.0
         assert payload["cp_n_opening_balance"] == 0.0
-        assert upsert.call_args.args[:3] == ("co-1", "girerd", 2026)
+        assert upsert.call_args.args[:3] == ("co-1", "moroche", 2026)
 
     @patch(f"{_CMD}.upsert_employee_adjustment")
     @patch(f"{_CMD}.absence_repository")
     @patch(f"{_QUERIES}.get_employee_hire_date")
     @patch(f"{_CMD}.list_company_adjustments_avec_reference")
     def test_sans_date_d_embauche_la_ligne_est_ignoree(self, lister, hire, repo, upsert):
-        lister.return_value = [self._ligne_girerd()]
+        lister.return_value = [self._ligne_moroche()]
         hire.return_value = None
 
         assert rebaser_reprises_cp("co-1", OUVRABLE, OUVRE) == 0
@@ -211,7 +211,7 @@ class TestRebaserReprisesCp:
     @patch(f"{_QUERIES}.get_employee_hire_date")
     @patch(f"{_CMD}.list_company_adjustments_avec_reference")
     def test_un_ecart_inchange_n_est_pas_reecrit(self, lister, hire, repo, upsert):
-        lister.return_value = [self._ligne_girerd()]
+        lister.return_value = [self._ligne_moroche()]
         hire.return_value = "2014-09-01"
         repo.list_validated_for_employees.return_value = []
 

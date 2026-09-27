@@ -12,12 +12,12 @@ def test_commit_update_employee_does_not_overwrite_employment_status():
         {
             "id": "item-emp",
             "item_type": "employee",
-            "source_ref": "emp:80248516900022:1770373054016",
+            "source_ref": "emp:80248516900022:1800175206456",
             "action": "update",
             "mapped_payload": {
                 "first_name": "Alex",
                 "last_name": "Jolly",
-                "nir": "1770373054016",
+                "nir": "1800175206456",
                 "employment_status": "actif",
                 "salaire_brut": 2500.0,
             },
@@ -26,7 +26,7 @@ def test_commit_update_employee_does_not_overwrite_employment_status():
     existing = {
         "id": "emp-1",
         "company_id": "co-1",
-        "nir": "1770373054016",
+        "nir": "1800175206456",
         "employment_status": "en_sortie",
         "employee_folder_name": "JOLLY_Alex",
     }
@@ -60,12 +60,12 @@ def test_commit_cumul_overwrites_on_reimport():
         {
             "id": "item-c",
             "item_type": "cumul",
-            "source_ref": "cumul:80248516900022:1770373054016:2026-03",
+            "source_ref": "cumul:80248516900022:1800175206456:2026-03",
             "action": "update",
             "mapped_payload": {
                 "siret": "80248516900022",
-                "nir": "1770373054016",
-                "employee_key": "1770373054016",
+                "nir": "1800175206456",
+                "employee_key": "1800175206456",
                 "month": 3,
                 "period": "2026-03",
                 "month_totals": {"brut": 3100.0},

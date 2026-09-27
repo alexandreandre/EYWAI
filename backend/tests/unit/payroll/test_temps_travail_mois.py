@@ -51,7 +51,7 @@ class TestTempsTravailMois:
         assert result.ratio == pytest.approx(1.0, abs=0.01)
 
     def test_heures_contrat_avec_hs(self):
-        """153,77 h sur 151,67 h de référence (cas BONNET Excel)."""
+        """153,77 h sur 151,67 h de référence (cas CAVANDE Excel)."""
         heures_jour = 153.77 / 22
         cal = [_cal_travail(heures_jour, jour=d) for d in range(1, 23)]
         result = compute_temps_retenu_mois(

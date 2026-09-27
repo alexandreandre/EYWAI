@@ -14,9 +14,9 @@ from app.modules.dsn_import.infrastructure import repository as repo
 pytestmark = pytest.mark.unit
 
 # Salarié stocké en base avec un NIR à 15 chiffres (13 + clé).
-DB_EMPLOYEE = {"id": "emp-osmani2", "company_id": "mbc", "nir": "187059935222362"}
-NIR_13 = "1870599352223"   # forme DSN (sans clé)
-NIR_15 = "187059935222362"  # forme base
+DB_EMPLOYEE = {"id": "emp-veroral2", "company_id": "mbc", "nir": "180017520745662"}
+NIR_13 = "1800175207456"   # forme DSN (sans clé)
+NIR_15 = "180017520745662"  # forme base
 
 
 class _FakeTable:
@@ -100,19 +100,19 @@ def test_find_by_nir_matches_dsn_13_to_db_15():
     with _patch_client([DB_EMPLOYEE]):
         found = repo.find_employee_by_nir("mbc", NIR_13)
     assert found is not None
-    assert found["id"] == "emp-osmani2"
+    assert found["id"] == "emp-veroral2"
 
 
 def test_find_by_nir_exact_15_still_works():
     with _patch_client([DB_EMPLOYEE]):
         found = repo.find_employee_by_nir("mbc", NIR_15)
-    assert found is not None and found["id"] == "emp-osmani2"
+    assert found is not None and found["id"] == "emp-veroral2"
 
 
 def test_find_by_nir_global_matches_dsn_13_to_db_15():
     with _patch_client([DB_EMPLOYEE]):
         found = repo.find_employee_by_nir_global(NIR_13)
-    assert found is not None and found["id"] == "emp-osmani2"
+    assert found is not None and found["id"] == "emp-veroral2"
 
 
 def test_find_by_nir_respects_company_scope():
@@ -154,5 +154,5 @@ def test_dsn_absence_item_resolves_to_15_digit_employee():
             company_by_siret={"75116833700028": "mbc"},
             employee_by_ref={},
         )
-    assert employee_id == "emp-osmani2"
+    assert employee_id == "emp-veroral2"
     assert company_id == "mbc"

@@ -161,7 +161,7 @@ class TestPlusieursChangementsMemeMois:
 class TestRappelSelonBulletinsPayes:
     """Ne rappeler que les mois réellement payés à l'ancien taux.
 
-    Demory (Colorplast) : SMIC revalorisé au 01/06, juin déjà payé au nouveau
+    Feroral (Colorplast) : SMIC revalorisé au 01/06, juin déjà payé au nouveau
     taux, et le bulletin de juillet rappelait 16,69 € — comme l'aurait fait
     chaque bulletin suivant. `bases_des_bulletins` dit sur quel salaire
     mensuel chaque bulletin antérieur a été établi.

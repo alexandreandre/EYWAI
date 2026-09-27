@@ -1,12 +1,12 @@
 """Fixtures texte Cegid pour tests backtest."""
 
-BUGNY_PAGE1 = """
+DUMAREL_PAGE1 = """
    COLORPLAST                                                                          BULLETIN DE SALAIRE
    01300 MAGNIEU                                                                         Paiement le : 31/05/26
                  CP N-1          CP N
-                                                                                  MR BUGNY Michel
+                                                                                  MR DUMAREL Michel
   Solde :         15.00 /       24.96 /
-   Matricule : BUGNY                 NoSécu.: 177037305401687
+   Matricule : DUMAREL                 NoSécu.: 180017520645692
    Emploi :      Logisticien Polyvalent                      Coeff: 720
                   Rubriques                         Base        Taux salarial         Montant salarial
         SALAIRE DE BASE                                151.67           14.2800                     2165.85
@@ -20,8 +20,8 @@ BUGNY_PAGE1 = """
   NET A PAYER AVANT IMPOT SUR LE REVENU
 """
 
-BUGNY_PAGE2 = """
-   Matricule : BUGNY                   NoSécu.: 177037305401687
+DUMAREL_PAGE2 = """
+   Matricule : DUMAREL                   NoSécu.: 180017520645692
    SINT Acompte sur participation 2025                   -1000.00                                         -1000.00
    SNDF Rbst note de frais                                 569.59                                           569.59
   MONTANT NET SOCIAL                                                                                                                   5479.53

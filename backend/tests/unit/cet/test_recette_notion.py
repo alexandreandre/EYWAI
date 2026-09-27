@@ -7,7 +7,7 @@ from app.modules.cet.domain.rules import (
     HOURS_PER_REST_DAY_DEFAULT,
 )
 
-# Données anonymisées inspirées du tableau Notion (Faucher, Kocis, etc.)
+# Données anonymisées inspirées du tableau Notion (Lanival, Rosague, etc.)
 NOTION_SAMPLE = [
     ("2025-03-01", "deposit_cp", 10.0, "validated"),
     ("2026-06-04", "deposit_cp", 15.0, "validated"),
@@ -27,7 +27,7 @@ def _rows(sample: list[tuple]) -> list[CetMovementRow]:
     ]
 
 
-def test_notion_faucher_like_balance():
+def test_notion_lanival_like_balance():
     rows = _rows(NOTION_SAMPLE)
     balances = compute_running_balance_days(
         rows, hours_per_rest_day=HOURS_PER_REST_DAY_DEFAULT
@@ -36,6 +36,6 @@ def test_notion_faucher_like_balance():
     assert compute_cet_balance_days(rows) == 25.0
 
 
-def test_notion_kocis_partial():
+def test_notion_rosague_partial():
     rows = _rows([("2025-03-01", "deposit_cp", 5.0, "validated")])
     assert compute_cet_balance_days(rows) == 5.0

@@ -10,12 +10,12 @@ forte.
 Colorplast, janvier 2026, contrats 39 h (audit du 14/09,
 `data/colorplast/rapprochements/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`) :
 
-* Léo Cotte, absence de 3,5 h le 21/01 → 169,00 h utilisées au lieu de
+* Léo Ferisse, absence de 3,5 h le 21/01 → 169,00 h utilisées au lieu de
   165,50 ; réduction 643,01 au lieu des 609,61 de Quadra ;
-* Marion Gautheron, absences de 2,5 h le 13/01 et 8,5 h le 14/01 → 169,00 h
+* Marion Morande, absences de 2,5 h le 13/01 et 8,5 h le 14/01 → 169,00 h
   au lieu de 158,00 ; réduction 689,65 au lieu des 582,21 de Quadra.
 
-Les trois salariés sans absence (Bugny, Espinosa, Girerd) tombent déjà au
+Les trois salariés sans absence (Dumarel, Lanolet, Moroche) tombent déjà au
 centime : la correction ne doit pas les bouger.
 
 L'arrêt maladie est hors périmètre : la rémunération y est maintenue en tout
@@ -76,14 +76,14 @@ class TestHeuresAbsenceExposees:
         assert res["heures_absence_non_payees"] == 0.0
         assert _heures_smic_reference(res) == HEURES_CONTRAT_39H
 
-    def test_cotte_une_absence_de_3h30(self):
+    def test_ferisse_une_absence_de_3h30(self):
         # 3,5 h réparties 35/39 : 3,14 en base + 0,36 sur les HS structurelles.
         ctx = build_test_contexte(salaire_base=1964.0, duree_hebdo=39.0)
         res = calculer_salaire_brut(ctx, _calendrier({"2026-01-21": 3.5}), *JANVIER, [])
         assert res["heures_absence_non_payees"] == pytest.approx(3.50, abs=0.005)
         assert _heures_smic_reference(res) == pytest.approx(165.50, abs=0.005)
 
-    def test_gautheron_deux_absences(self):
+    def test_morande_deux_absences(self):
         # 2,5 h → 2,24 + 0,26 ; 8,5 h → 7,63 + 0,87. Total 11,00 h.
         ctx = build_test_contexte(salaire_base=1964.0, duree_hebdo=39.0)
         cal = _calendrier({"2026-01-13": 2.5, "2026-01-14": 8.5})
@@ -105,7 +105,7 @@ class TestHeuresAbsenceExposees:
         assert res["heures_absence_non_payees"] == 0.0
 
     def test_les_heures_sup_conjoncturelles_s_ajoutent(self):
-        # Bugny : 12 h à 25 % et 8,5 h à 50 % → 189,50 h, inchangé.
+        # Dumarel : 12 h à 25 % et 8,5 h à 50 % → 189,50 h, inchangé.
         ctx = build_test_contexte(salaire_base=2123.38, duree_hebdo=39.0)
         cal = _calendrier({})
         cal.append({"date_complete": "2026-01-15", "type": "travail_hs25", "heures": 12.0})

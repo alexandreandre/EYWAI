@@ -14,7 +14,7 @@ def employee_payload():
         "first_name": "Jean",
         "last_name": "MARTIN",
         "email": "jean.martin@test.local",
-        "nir": "180032710123448",
+        "nir": "180017510112383",
         "date_naissance": "1990-01-01",
         "lieu_naissance": "Paris",
         "nationalite": "Française",

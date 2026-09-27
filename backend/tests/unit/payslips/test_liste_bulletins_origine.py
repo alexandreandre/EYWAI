@@ -13,7 +13,7 @@ LIGNE = {
     "id": "ps-1",
     "month": 3,
     "year": 2026,
-    "pdf_storage_path": "c/e/bulletins/Bulletin_COTTE_Leo_03-2026.pdf",
+    "pdf_storage_path": "c/e/bulletins/Bulletin_FERISSE_Leo_03-2026.pdf",
     "payslip_data": {
         "net_a_payer": 1917.90,
         "alertes_baremes": [

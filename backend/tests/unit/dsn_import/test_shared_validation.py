@@ -15,5 +15,5 @@ def test_validate_siren_ok():
 
 
 def test_validate_nir_ok():
-    ok, err = validate_nir("180032710123439")
+    ok, err = validate_nir("180017510112383")
     assert ok is True

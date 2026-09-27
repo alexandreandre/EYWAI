@@ -51,26 +51,26 @@ class TestFuckarJuillet2026:
     def test_semaine_28_le_surplus_de_fin_de_semaine_compense_les_manques(self):
         # −1,5 mardi, −4 mercredi, +1 jeudi, +2 vendredi : 36,5 h sur 39.
         prevu, reel = _semaine(6, [8.5, 7.0, 4.5, 9.5, 7.0])
-        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "FUCKAR")
+        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "LANUMET")
         assert _absences(ev) == {8: 2.5}
         assert _heures_sup(ev) == 0
 
     def test_semaine_29_avec_ferie_le_vendredi_compense_le_mercredi(self):
         # Mardi 14 férié (0 h prévue). Mercredi 0 h, vendredi 6,5 h pour 5.
         prevu, reel = _semaine(13, [8.5, None, 0.0, 8.5, 6.5], feries={14})
-        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "FUCKAR")
+        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "LANUMET")
         assert _absences(ev) == {15: 7.0}
         assert _heures_sup(ev) == 0
 
     def test_semaine_30_une_journee_entiere_sans_compensation(self):
         prevu, reel = _semaine(20, [0.0, 8.5, 8.5, 8.5, 5.0])
-        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "FUCKAR")
+        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "LANUMET")
         assert _absences(ev) == {20: 8.5}
 
     def test_semaine_31_le_surplus_efface_le_manque_et_le_reste_est_heures_sup(self):
         # −1,5 mercredi, +3,5 jeudi : 41 h. Jamais absence ET heures sup.
         prevu, reel = _semaine(27, [8.5, 8.5, 7.0, 12.0, 5.0])
-        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "FUCKAR")
+        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "LANUMET")
         assert _absences(ev) == {}
         assert _heures_sup(ev) == pytest.approx(2.0)
 
@@ -79,7 +79,7 @@ class TestEspinosaJuillet2026:
     def test_le_surplus_d_avant_l_absence_compense_aussi(self):
         # +1 lundi à mercredi, 0 h vendredi pour 5 : 37 h sur 39.
         prevu, reel = _semaine(27, [9.5, 9.5, 9.5, 8.5, 0.0])
-        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "ESPINOSA")
+        ev = analyser_horaires_du_mois(prevu, reel, CONTRAT_39H, 2026, 7, "LANOLET")
         assert _absences(ev) == {31: 2.0}
         assert _heures_sup(ev) == 0
 

@@ -3,7 +3,7 @@
 Une reprise de soldes est datée (`cp_opening_reference_date`) et calibre les
 deux périodes de congés qu'elle touche — pas une année civile. Lue par la seule
 ligne de l'année, elle disparaissait au 1er janvier au milieu de la période :
-Bugny (Colorplast) passait de 28 à 3 jours de N-1 entre le 31/12/2026 et le
+Dumarel (Colorplast) passait de 28 à 3 jours de N-1 entre le 31/12/2026 et le
 31/01/2027. Les écarts CP d'une reprise datée suivent donc les années
 suivantes ; les compteurs annuels (RTT, JTC) restent ceux de l'année.
 """

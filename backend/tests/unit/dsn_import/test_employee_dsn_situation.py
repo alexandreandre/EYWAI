@@ -51,7 +51,7 @@ def test_partial_absence_stays_active_normal():
 
 
 def test_full_month_arret_zero_pay_is_prolonged_absence():
-    # Profil OSMANI mars : arrêt ~tout le mois, brut ≈ 0, pas de fin de contrat.
+    # Profil VERORAL mars : arrêt ~tout le mois, brut ≈ 0, pas de fin de contrat.
     res = classify_dsn_situation(
         _signals(absence_days_in_period=20, period_brut=0.0, period_net=-234.59)
     )
@@ -61,7 +61,7 @@ def test_full_month_arret_zero_pay_is_prolonged_absence():
 
 
 def test_full_month_arret_with_partial_maintien_is_prolonged_absence():
-    # Profil OSMANI avril : arrêt tout le mois mais maintien partiel (brut > 0).
+    # Profil VERORAL avril : arrêt tout le mois mais maintien partiel (brut > 0).
     # La couverture d'arrêt suffit — indépendante du brut.
     res = classify_dsn_situation(
         _signals(absence_days_in_period=22, period_brut=900.0, period_net=766.45)

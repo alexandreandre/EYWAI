@@ -69,7 +69,7 @@ def test_map_sexe():
 
 def test_payload_extrait_pas_sexe_et_classification():
     lines = (
-        "S21.G00.30.001,'180032710123448'\n"
+        "S21.G00.30.001,'180017510112383'\n"
         "S21.G00.30.002,'LEMAIRE'\n"
         "S21.G00.30.004,'Sophie'\n"
         "S21.G00.30.005,'02'\n"
@@ -122,7 +122,7 @@ def test_payload_extrait_pas_sexe_et_classification():
 
 def test_payload_sans_pas_reste_vide():
     lines = (
-        "S21.G00.30.001,'180032710123448'\n"
+        "S21.G00.30.001,'180017510112383'\n"
         "S21.G00.30.002,'DURAND'\n"
         "S21.G00.30.004,'Marc'\n"
         "S21.G00.30.005,'01'\n"
@@ -145,7 +145,7 @@ def test_pas_taux_zero_personnalise_est_enregistre():
     (le merge conserverait l'ancien taux). Régression corrigée sur le PAS.
     """
     lines = (
-        "S21.G00.30.001,'180032710123448'\n"
+        "S21.G00.30.001,'180017510112383'\n"
         "S21.G00.30.002,'MARTIN'\n"
         "S21.G00.30.004,'Jean'\n"
         "S21.G00.30.005,'01'\n"
@@ -170,8 +170,8 @@ def test_pas_taux_zero_personnalise_est_enregistre():
 
 def test_payload_plasturgie_mappe_niveau_dsn_en_coefficient():
     lines = (
-        "S21.G00.30.001,'180032710123448'\n"
-        "S21.G00.30.002,'ARAB'\n"
+        "S21.G00.30.001,'180017510112383'\n"
+        "S21.G00.30.002,'BARIVAL'\n"
         "S21.G00.30.004,'Sadiqullah'\n"
         "S21.G00.40.001,'20012025'\n"
         "S21.G00.40.002,'01'\n"

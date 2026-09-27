@@ -37,7 +37,7 @@ def _lot_de_juillet(days: list[AiDayEntry]) -> dict:
             source="test",
             employees=[
                 AiEmployeeProposal(
-                    raw_name="BUGNY",
+                    raw_name="DUMAREL",
                     employee_id="e1",
                     days=days,
                     review_status="ok",
@@ -142,7 +142,7 @@ def test_une_heure_negative_est_refusee_avant_toute_ecriture(
         _commit("b-s27")
 
     assert exc.value.status_code == 422
-    assert "BUGNY" in str(exc.value)
+    assert "DUMAREL" in str(exc.value)
     assert "16/07/2026" in str(exc.value)
     assert "-10.5" in str(exc.value) or "−10,5" in str(exc.value)
     mock_sched.bulk_upsert_schedules.assert_not_called()

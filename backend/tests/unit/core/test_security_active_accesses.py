@@ -68,7 +68,7 @@ def _build_client(access_filters):
     def table(name):
         if name == "profiles":
             return _QueryRecorder(
-                [{"first_name": "Gaëlle", "last_name": "Bouali",
+                [{"first_name": "Gaëlle", "last_name": "Cavotin",
                   "must_change_password": False}],
                 [],
             )

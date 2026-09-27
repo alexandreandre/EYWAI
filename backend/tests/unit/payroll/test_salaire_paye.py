@@ -29,7 +29,7 @@ class TestBaseMensuelleDuBulletin:
         assert base_mensuelle_du_bulletin(data, 151.67) == 1867.06
 
     def test_bulletin_ancien_reconstruit_depuis_le_taux(self):
-        # Demory, juin 2026 : 151,67 h × 12,31 = 1 867,06, le SMIC revalorisé.
+        # Feroral, juin 2026 : 151,67 h × 12,31 = 1 867,06, le SMIC revalorisé.
         data = {
             "parametres": {"smic_horaire": 12.31},
             "calcul_du_brut": [
@@ -40,7 +40,7 @@ class TestBaseMensuelleDuBulletin:
         assert base_mensuelle_du_bulletin(data, 151.67) == 1867.06
 
     def test_mois_de_sortie_ne_lit_pas_le_montant_proratise(self):
-        # Demory, juillet 2026 : 126 h payées, mais le mensuel reste 1 867,06.
+        # Feroral, juillet 2026 : 126 h payées, mais le mensuel reste 1 867,06.
         data = {"calcul_du_brut": [{"libelle": "Salaire de base", "quantite": 126.0, "taux": 12.31, "gain": 1551.06}]}
         assert base_mensuelle_du_bulletin(data, 151.67) == 1867.06
 

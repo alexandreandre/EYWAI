@@ -119,7 +119,7 @@ def test_iccp_du_dossier_de_depart_prime_et_entre_dans_le_brut():
 def test_indemnites_soumises_du_dossier_dans_le_brut_pour_un_cdi():
     """Préavis et congés payés sont des salaires : dans le brut, avant
     cotisations. L'indemnité de licenciement, exonérée, reste hors brut
-    (Demory, juillet 2026 : net supérieur au brut quand elles étaient
+    (Feroral, juillet 2026 : net supérieur au brut quand elles étaient
     ajoutées après les cotisations)."""
     ctx = build_test_contexte(salaire_base=2200.0, type_contrat="CDI", date_entree="2020-01-01")
     ctx.exit_indemnities = {
@@ -139,7 +139,7 @@ def test_indemnites_soumises_du_dossier_dans_le_brut_pour_un_cdi():
 # --- Règle légale par période (spec 2026-09-21-indemnite-cp-fin-de-contrat-legale) ---
 
 
-def _contexte_demory():
+def _contexte_feroral():
     ctx = build_test_contexte(
         salaire_base=1867.06,  # 151,67 h × 12,31 ; les 17,33 h structurelles s'ajoutent à 39 h
         duree_hebdo=39.0,
@@ -156,8 +156,8 @@ def _contexte_demory():
     return ctx
 
 
-def test_indemnite_par_periode_redonne_766_39_sur_demory():
-    ctx = _contexte_demory()
+def test_indemnite_par_periode_redonne_766_39_sur_feroral():
+    ctx = _contexte_feroral()
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     gains = _lignes_gain(res)
     iccp = next(v for k, v in gains.items() if "compensatrice de congés" in k)
@@ -173,7 +173,7 @@ def test_indemnite_par_periode_redonne_766_39_sur_demory():
 
 
 def test_sans_compteurs_le_dixieme_global_reste_et_le_detail_le_dit():
-    ctx = _contexte_demory()
+    ctx = _contexte_feroral()
     del ctx.cp_fin_de_contrat
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     gains = _lignes_gain(res)
@@ -184,7 +184,7 @@ def test_sans_compteurs_le_dixieme_global_reste_et_le_detail_le_dit():
 
 
 def test_sans_jour_restant_pas_de_ligne():
-    ctx = _contexte_demory()
+    ctx = _contexte_feroral()
     ctx.cp_fin_de_contrat = {
         "periode_precedente": {"libelle": "2025-2026", "brut": 4171.35, "droits": 3.78, "restants": 0.0},
         "periode_en_cours": {"libelle": "2026-2027", "brut_avant_mois": 2026.41, "droits": 4.16, "restants": 0.0},

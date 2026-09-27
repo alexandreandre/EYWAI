@@ -74,7 +74,7 @@ DATE_FIN = date(2026, 4, 30)
 
 
 class TestPrimeAncienneteMetallurgieGolden:
-    def test_bertaud_plein_mois(self):
+    def test_barumet_plein_mois(self):
         ctx = _contexte(date_entree="2018-09-03", classe=4)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
@@ -98,7 +98,7 @@ class TestPrimeAncienneteMetallurgieGolden:
         assert ligne["meta"]["plein_mois"] == pytest.approx(112.86, abs=0.02)
         assert ligne["gain"] == pytest.approx(114.42, abs=0.05)
 
-    def test_boissinot_temps_zero(self):
+    def test_cavival_temps_zero(self):
         ctx = _contexte(date_entree="2018-09-03", classe=4)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
@@ -120,7 +120,7 @@ class TestPrimeAncienneteMetallurgieGolden:
         assert ligne["meta"]["plein_mois"] == pytest.approx(37.62, abs=0.02)
         assert ligne["gain"] == pytest.approx(41.19, abs=0.05)
 
-    def test_cadre_coutant_exclu(self):
+    def test_cadre_ferubel_exclu(self):
         ctx = _contexte(date_entree="2014-12-15", statut="Cadre", classe=11)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
@@ -130,7 +130,7 @@ class TestPrimeAncienneteMetallurgieGolden:
         )
         assert ligne is None
 
-    def test_frouin_moins_trois_ans(self):
+    def test_lanossy_moins_trois_ans(self):
         ctx = _contexte(date_entree="2023-07-10", classe=8)
         ligne = calculer_ligne_prime_anciennete(
             ctx,
@@ -140,7 +140,7 @@ class TestPrimeAncienneteMetallurgieGolden:
         )
         assert ligne is None
 
-    def test_de_carvalho_niveau_trois_onze_ans(self):
+    def test_de_dumieux_niveau_trois_onze_ans(self):
         ctx = _contexte(date_entree="2014-06-26", classe=3)
         ligne = calculer_ligne_prime_anciennete(
             ctx,

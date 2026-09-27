@@ -7,12 +7,12 @@ empl. », avec une ligne par assiette. Sur les 43 bulletins de janvier à juille
 * **1,646 % du brut** pour les sept salariés en CDI — soit formation
   professionnelle 0,55 %, CSA 0,30 %, taxe d'apprentissage 0,59 % + 0,09 % de
   solde, FNAL 0,10 % et dialogue social 0,016 % ;
-* **2,646 %** pour Demory et Fuckar, les deux seuls CDD : un point de plus, la
+* **2,646 %** pour Feroral et Lanumet, les deux seuls CDD : un point de plus, la
   contribution au financement du compte personnel de formation des titulaires
   de CDD (art. L6331-6 du code du travail) ;
 * **8 %** sur la somme des parts patronales de prévoyance et de mutuelle ;
 * **20 %** sur la part patronale de retraite supplémentaire, pour le seul cadre
-  (Girerd : 19,00 € sur 94,98 €).
+  (Moroche : 19,00 € sur 94,98 €).
 
 EYWAI ne produisait aucune de ces trois dernières lignes pour Colorplast. Le
 forfait social existait déjà, mais seulement quand une ligne de prévoyance de la
@@ -36,9 +36,9 @@ from .helpers import build_test_contexte
 
 pytestmark = pytest.mark.unit
 
-BRUT_BUGNY = 3023.40
-BRUT_GIRERD = 3799.07
-BRUT_FUCKAR = 1818.80
+BRUT_DUMAREL = 3023.40
+BRUT_MOROCHE = 3799.07
+BRUT_LANUMET = 1818.80
 
 CPF_CDD = {
     "id": "cpf_cdd",
@@ -83,19 +83,19 @@ def _ligne(lignes, motif):
 class TestContributionCpfCdd:
     def test_un_cdd_paie_un_point_de_plus(self):
         ctx = build_test_contexte(
-            salaire_base=BRUT_FUCKAR, duree_hebdo=39.0, effectif=9,
+            salaire_base=BRUT_LANUMET, duree_hebdo=39.0, effectif=9,
             type_contrat="CDD", baremes=_baremes(CPF_CDD),
         )
-        ligne = _ligne(_lignes(ctx, BRUT_FUCKAR), "CPF des titulaires de CDD")
+        ligne = _ligne(_lignes(ctx, BRUT_LANUMET), "CPF des titulaires de CDD")
         assert ligne is not None
         assert ligne["montant_patronal"] == pytest.approx(18.19, abs=0.01)
 
     def test_un_cdi_ne_la_paie_pas(self):
         ctx = build_test_contexte(
-            salaire_base=BRUT_BUGNY, duree_hebdo=39.0, effectif=9,
+            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=9,
             type_contrat="CDI", baremes=_baremes(CPF_CDD),
         )
-        assert _ligne(_lignes(ctx, BRUT_BUGNY), "CPF des titulaires de CDD") is None
+        assert _ligne(_lignes(ctx, BRUT_DUMAREL), "CPF des titulaires de CDD") is None
 
 
 class TestForfaitSocialBaremeGlobal:
@@ -104,14 +104,14 @@ class TestForfaitSocialBaremeGlobal:
 
     def test_huit_pourcent_sur_prevoyance_et_mutuelle(self):
         ctx = build_test_contexte(
-            salaire_base=BRUT_BUGNY, duree_hebdo=39.0, effectif=9,
+            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=9,
             baremes=_baremes(PREVOYANCE_GLOBALE),
             specificites_extra={
                 "prevoyance": {"adhesion": True, "lignes_specifiques": []},
                 "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
             },
         )
-        lignes = _lignes(ctx, BRUT_BUGNY)
+        lignes = _lignes(ctx, BRUT_DUMAREL)
         prevoyance = _ligne(lignes, "Prévoyance Non-Cadre")
         assert prevoyance["montant_patronal"] == pytest.approx(14.06, abs=0.01)
         forfait = _ligne(lignes, "Forfait social")
@@ -124,20 +124,20 @@ class TestForfaitSocialBaremeGlobal:
         """Garde anti-régression : sans taux configuré, rien n'apparaît."""
         sans_taux = {k: v for k, v in PREVOYANCE_GLOBALE.items() if k != "forfait_social"}
         ctx = build_test_contexte(
-            salaire_base=BRUT_BUGNY, duree_hebdo=39.0, effectif=9,
+            salaire_base=BRUT_DUMAREL, duree_hebdo=39.0, effectif=9,
             baremes=_baremes(sans_taux),
             specificites_extra={
                 "prevoyance": {"adhesion": True, "lignes_specifiques": []},
                 "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
             },
         )
-        assert _ligne(_lignes(ctx, BRUT_BUGNY), "Forfait social") is None
+        assert _ligne(_lignes(ctx, BRUT_DUMAREL), "Forfait social") is None
 
 
 class TestForfaitSocialRetraiteSupplementaire:
     def test_vingt_pourcent_sur_la_part_patronale(self):
         ctx = build_test_contexte(
-            statut="Cadre", salaire_base=BRUT_GIRERD, duree_hebdo=39.0, effectif=9,
+            statut="Cadre", salaire_base=BRUT_MOROCHE, duree_hebdo=39.0, effectif=9,
             specificites_extra={
                 "retraite_sup": {
                     "adhesion": True,
@@ -152,7 +152,7 @@ class TestForfaitSocialRetraiteSupplementaire:
                 },
             },
         )
-        lignes = _lignes(ctx, BRUT_GIRERD)
+        lignes = _lignes(ctx, BRUT_MOROCHE)
         retraite = _ligne(lignes, "Retraite supplémentaire cadre")
         assert retraite["montant_patronal"] == pytest.approx(94.98, abs=0.01)
         forfait = _ligne(lignes, "Forfait social")
@@ -162,7 +162,7 @@ class TestForfaitSocialRetraiteSupplementaire:
 
     def test_sans_taux_sur_la_ligne_aucun_forfait(self):
         ctx = build_test_contexte(
-            statut="Cadre", salaire_base=BRUT_GIRERD, duree_hebdo=39.0, effectif=9,
+            statut="Cadre", salaire_base=BRUT_MOROCHE, duree_hebdo=39.0, effectif=9,
             specificites_extra={
                 "retraite_sup": {
                     "adhesion": True,
@@ -176,7 +176,7 @@ class TestForfaitSocialRetraiteSupplementaire:
                 },
             },
         )
-        assert _ligne(_lignes(ctx, BRUT_GIRERD), "Forfait social") is None
+        assert _ligne(_lignes(ctx, BRUT_MOROCHE), "Forfait social") is None
 
 
 class TestDeclarationDsn:
@@ -238,7 +238,7 @@ class TestForfaitSocialCadre:
     """Le cadre porte souvent deux tranches de prévoyance : une seule ligne de
     forfait social doit en sortir, sur l'ensemble des contributions patronales
     de protection sociale — prévoyance et mutuelle, comme chez les deux
-    cabinets (Girerd chez Quadra : 98,56 = 69,33 + 29,23)."""
+    cabinets (Moroche chez Quadra : 98,56 = 69,33 + 29,23)."""
 
     def _contexte(self, deux_tranches=True):
         lignes = [{
@@ -251,7 +251,7 @@ class TestForfaitSocialCadre:
                 "patronal": 0.0171, "salarial": 0.0114, "forfait_social": 0.08,
             })
         return build_test_contexte(
-            statut="Cadre", salaire_base=BRUT_GIRERD, duree_hebdo=39.0, effectif=9,
+            statut="Cadre", salaire_base=BRUT_MOROCHE, duree_hebdo=39.0, effectif=9,
             specificites_extra={
                 "prevoyance": {"adhesion": True, "lignes_specifiques": lignes},
                 "mutuelle": {"adhesion": True, "lignes_specifiques": [MUTUELLE_ISOLE]},
@@ -259,12 +259,12 @@ class TestForfaitSocialCadre:
         )
 
     def test_une_seule_ligne_meme_avec_deux_tranches(self):
-        lignes = _lignes(self._contexte(), BRUT_GIRERD)
+        lignes = _lignes(self._contexte(), BRUT_MOROCHE)
         forfaits = [l for l in lignes if "Forfait social" in str(l.get("libelle"))]
         assert len(forfaits) == 1
 
     def test_l_assiette_comprend_la_mutuelle(self):
-        lignes = _lignes(self._contexte(deux_tranches=False), BRUT_GIRERD)
+        lignes = _lignes(self._contexte(deux_tranches=False), BRUT_MOROCHE)
         forfait = _ligne(lignes, "Forfait social")
         # 69,33 de prévoyance TA + 29,23 de mutuelle = 98,56 ; 8 % = 7,88.
         assert forfait["base"] == pytest.approx(98.56, abs=0.02)

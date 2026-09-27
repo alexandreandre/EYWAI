@@ -23,7 +23,7 @@ def _employee_item(nir: str, *, is_existing: bool = True):
         "mapped_payload": {
             "nir": nir,
             "first_name": "Mohamed",
-            "last_name": "Osmani",
+            "last_name": "Veroral",
             "contract_end_date": None,
         },
     }
@@ -57,9 +57,9 @@ def _march_business_days():
 
 def _active(nir: str, **overrides):
     base = {
-        "id": "emp-osmani",
+        "id": "emp-veroral",
         "first_name": "Mohamed",
-        "last_name": "Osmani",
+        "last_name": "Veroral",
         "nir": nir,
         "employment_status": "actif",
         "hire_date": "2024-01-08",
@@ -72,12 +72,12 @@ def _active(nir: str, **overrides):
 class TestNirMatchingAndSituations:
     def test_nir_15_in_db_matches_dsn_13_no_phantom_missing(self, mock_repo):
         # Base : NIR 15 chiffres ; DSN : même NIR à 13 (sans clé). Doit se rapprocher.
-        mock_repo.list_active_employees_with_nir.return_value = [_active("187059935222362")]
+        mock_repo.list_active_employees_with_nir.return_value = [_active("180017520745662")]
         mock_repo.list_active_employees_without_nir.return_value = []
         mock_repo.find_company_by_id.return_value = {"company_name": "MBC"}
 
         summary, anomalies = compute_workforce_gaps(
-            [_employee_item("1870599352223")],
+            [_employee_item("1800175207456")],
             target_company_id=COMPANY_ID,
             import_mode=MONTHLY,
             summary=MARCH,
@@ -86,14 +86,14 @@ class TestNirMatchingAndSituations:
         assert missing == []
 
     def test_full_month_arret_zero_pay_emits_prolonged_absence_advisory(self, mock_repo):
-        mock_repo.list_active_employees_with_nir.return_value = [_active("187059935222362")]
+        mock_repo.list_active_employees_with_nir.return_value = [_active("180017520745662")]
         mock_repo.list_active_employees_without_nir.return_value = []
         mock_repo.find_company_by_id.return_value = {"company_name": "MBC"}
 
         items = [
-            _employee_item("1870599352223"),
-            _absence_item("1870599352223", _march_business_days()),
-            _cumul_item("1870599352223", brut=0.0, net=-234.59),
+            _employee_item("1800175207456"),
+            _absence_item("1800175207456", _march_business_days()),
+            _cumul_item("1800175207456", brut=0.0, net=-234.59),
         ]
         summary, anomalies = compute_workforce_gaps(
             items,
@@ -104,18 +104,18 @@ class TestNirMatchingAndSituations:
         advisories = summary.get("advisories") or []
         assert len(advisories) == 1
         assert advisories[0]["situation"] == "prolonged_absence"
-        assert advisories[0]["employee_id"] == "emp-osmani"
+        assert advisories[0]["employee_id"] == "emp-veroral"
         assert advisories[0]["recommendation"]
         assert any(a.get("code") == "employee_dsn_situation_advisory" for a in anomalies)
 
     def test_active_normal_emits_no_advisory(self, mock_repo):
-        mock_repo.list_active_employees_with_nir.return_value = [_active("187059935222362")]
+        mock_repo.list_active_employees_with_nir.return_value = [_active("180017520745662")]
         mock_repo.list_active_employees_without_nir.return_value = []
         mock_repo.find_company_by_id.return_value = {"company_name": "MBC"}
 
         items = [
-            _employee_item("1870599352223"),
-            _cumul_item("1870599352223", brut=2000.0, net=1550.0),
+            _employee_item("1800175207456"),
+            _cumul_item("1800175207456", brut=2000.0, net=1550.0),
         ]
         summary, anomalies = compute_workforce_gaps(
             items,
@@ -127,14 +127,14 @@ class TestNirMatchingAndSituations:
 
     def test_advisories_do_not_block_commit(self, mock_repo):
         # Une advisory (absence prolongée) ne doit pas ajouter d'écart bloquant.
-        mock_repo.list_active_employees_with_nir.return_value = [_active("187059935222362")]
+        mock_repo.list_active_employees_with_nir.return_value = [_active("180017520745662")]
         mock_repo.list_active_employees_without_nir.return_value = []
         mock_repo.find_company_by_id.return_value = {"company_name": "MBC"}
 
         items = [
-            _employee_item("1870599352223"),
-            _absence_item("1870599352223", _march_business_days()),
-            _cumul_item("1870599352223", brut=0.0, net=-234.59),
+            _employee_item("1800175207456"),
+            _absence_item("1800175207456", _march_business_days()),
+            _cumul_item("1800175207456", brut=0.0, net=-234.59),
         ]
         summary, _ = compute_workforce_gaps(
             items,

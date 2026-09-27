@@ -2,9 +2,9 @@
 
 Le plafond mensuel est réduit prorata temporis en jours calendaires quand le
 contrat est suspendu sans rémunération (BOSS, assiette générale). Le cabinet
-l'applique bien : Colorplast janvier 2026, Cotte 3 875,81 € (30/31, son absence
-du 21) et Gautheron 3 746,61 € (29/31, ses absences des 13 et 14) ; juin,
-Gautheron 3 871,50 € (29/30).
+l'applique bien : Colorplast janvier 2026, Ferisse 3 875,81 € (30/31, son absence
+du 21) et Morande 3 746,61 € (29/31, ses absences des 13 et 14) ; juin,
+Morande 3 871,50 € (29/30).
 
 Deux défauts se compensaient chez nous :
 
@@ -13,7 +13,7 @@ Deux défauts se compensaient chez nous :
   `absence_injustifiee_hs25`. Aucune absence issue d'un pointage ne réduisait
   donc le plafond ;
 * le ratio se calculait sur tout le calendrier étendu, y compris les jours de
-  la semaine rattachée au mois suivant. Gautheron tombait sur 29/31 en janvier,
+  la semaine rattachée au mois suivant. Morande tombait sur 29/31 en janvier,
   mais à cause de deux jours du 29 et 30 janvier — qui appartiennent aux
   variables de février — et non de ses vraies absences.
 
@@ -62,10 +62,10 @@ def _pss(calendrier, contexte=None):
 
 
 class TestTypesDAbsence:
-    def test_cotte_une_journee_entamee_retire_un_jour(self):
+    def test_ferisse_une_journee_entamee_retire_un_jour(self):
         assert _pss(_calendrier({"2026-01-21": 3.5})) == pytest.approx(3875.81, abs=0.01)
 
-    def test_gautheron_deux_journees(self):
+    def test_morande_deux_journees(self):
         cal = _calendrier({"2026-01-13": 2.5, "2026-01-14": 8.5})
         assert _pss(cal) == pytest.approx(3746.61, abs=0.01)
 
@@ -107,14 +107,14 @@ class TestFenetreDesVariables:
 class TestDureeDeclareeDeLArret:
     """Un arrêt suspend le contrat du premier au dernier jour déclaré.
 
-    Colorplast, mai 2026, Demory : accident du travail déclaré du 23 au 29/05.
+    Colorplast, mai 2026, Feroral : accident du travail déclaré du 23 au 29/05.
     Seuls les 26, 27, 28 et 29 sont inscrits comme arrêt au calendrier — le 23
     et le 24 tombent un week-end et le 25 est le lundi de Pentecôte, journée de
     solidarité. Le cabinet retire les sept jours calendaires et imprime
     2 842,26 € ; nous n'en retirions que quatre, soit 3 229,84 €. L'écart,
     387,58 €, vaut très exactement trois jours de plafond (4 005 / 31 = 129,19).
 
-    Demory a moins de trois mois d'ancienneté : ses fériés du 8 et du 14 ne sont
+    Feroral a moins de trois mois d'ancienneté : ses fériés du 8 et du 14 ne sont
     pas payés et retirent déjà deux jours (le 1er mai est payé sans condition,
     et la journée de solidarité est neutre).
     """
@@ -153,7 +153,7 @@ class TestDureeDeclareeDeLArret:
         ctx = contexte or self._contexte()
         return round(PSS * ratio_plafond_periode(calendrier, *self.MAI, ctx), 2)
 
-    def test_demory_le_week_end_et_le_ferie_enjambes_comptent(self):
+    def test_feroral_le_week_end_et_le_ferie_enjambes_comptent(self):
         cal = self._calendrier((26, 27, 28, 29), "2026-05-23", "2026-05-29")
         assert self._pss_mai(cal) == pytest.approx(2842.26, abs=0.01)
 
@@ -163,7 +163,7 @@ class TestDureeDeclareeDeLArret:
         assert self._pss_mai(cal) == pytest.approx(3229.84, abs=0.01)
 
     def test_un_arret_en_pleine_semaine_ne_change_rien(self):
-        """Fuckar, 5 au 8 mai : aucun jour non ouvré enjambé."""
+        """Lanumet, 5 au 8 mai : aucun jour non ouvré enjambé."""
         cal = self._calendrier((5, 6, 7, 8), "2026-05-05", "2026-05-08", feries=False)
         ctx = self._contexte(date_entree="2020-01-01")
         assert self._pss_mai(cal, ctx) == pytest.approx(round(PSS * 27 / 31, 2), abs=0.01)

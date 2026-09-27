@@ -6,15 +6,15 @@ describe('serializeRowsForRefinement', () => {
   it("privilégie le nom rapproché, sinon le nom lu, et conserve les jours dans l'ordre", () => {
     const payload = serializeRowsForRefinement([
       {
-        rawName: 'BUGNY',
-        matchedName: 'Michel Bugny',
+        rawName: 'DUMAREL',
+        matchedName: 'Michel Dumarel',
         days: [
           { jour: 1, heures: 8, type: 'travail', nature: 'reel' },
           { jour: 2, heures: null, type: 'weekend', nature: 'reel' },
         ],
       },
       {
-        rawName: 'COTTE Léo',
+        rawName: 'FERISSE Léo',
         matchedName: null,
         days: [{ jour: 3, heures: 7.5, type: 'travail', nature: 'prevu' }],
       },
@@ -22,14 +22,14 @@ describe('serializeRowsForRefinement', () => {
 
     expect(payload.employees).toEqual([
       {
-        name: 'Michel Bugny',
+        name: 'Michel Dumarel',
         days: [
           { jour: 1, heures: 8, type: 'travail', nature: 'reel' },
           { jour: 2, heures: null, type: 'weekend', nature: 'reel' },
         ],
       },
       {
-        name: 'COTTE Léo',
+        name: 'FERISSE Léo',
         days: [{ jour: 3, heures: 7.5, type: 'travail', nature: 'prevu' }],
       },
     ]);

@@ -74,7 +74,7 @@ class TestCoutTotalEmployeur:
         assert cout == pytest.approx(2912.35, abs=0.01)
 
     def test_avec_participation_et_acompte_non_retenu_sur_masse(self):
-        """Référence Cegid COTTE mai 2026 : brut + pat + participation − acompte."""
+        """Référence Cegid FERISSE mai 2026 : brut + pat + participation − acompte."""
         brut_lines = [
             {
                 "libelle": "Participation 2025 — numéraire (brut, exonéré de cotisations)",
@@ -550,7 +550,7 @@ class TestDonneesEnTeteGabarit:
 
 class TestBulletinSortie:
     """Les indemnités soumises sont déjà dans le brut ; seules les exonérées
-    s'ajoutent après cotisations (Demory, juillet 2026 : net > brut)."""
+    s'ajoutent après cotisations (Feroral, juillet 2026 : net > brut)."""
 
     def _nets(self, net: float) -> dict:
         return {

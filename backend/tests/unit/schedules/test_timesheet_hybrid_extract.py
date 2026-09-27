@@ -202,7 +202,7 @@ def test_hybrid_extract_handwritten_weekly_mock(
 
 
 def test_une_heure_negative_lue_est_signalee_des_l_extraction():
-    """Import S29 Colorplast : −10,5 h lues pour Espinosa le 16/07 (plages
+    """Import S29 Colorplast : −10,5 h lues pour Lanolet le 16/07 (plages
     DÉBUT/FIN inversées). La valeur reste visible à la relecture, mais le
     salarié porte un avertissement qui nomme le jour."""
     from app.modules.schedules.application.timesheet_hybrid_extract import (
@@ -216,7 +216,7 @@ def test_une_heure_negative_lue_est_signalee_des_l_extraction():
     merged = MergedExtractionResult(
         employees=[
             MergedEmployee(
-                raw_name="ESPINOSA",
+                raw_name="LANOLET",
                 days=[
                     {"jour": 16, "heures": -10.5, "type": "travail"},
                     {"jour": 17, "heures": 8.0, "type": "travail"},

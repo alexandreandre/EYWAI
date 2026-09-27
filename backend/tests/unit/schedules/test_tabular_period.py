@@ -20,7 +20,7 @@ def _sample_proposal() -> AiCalendarProposalResponse:
         source="relevé tabulaire (fichier)",
         employees=[
             AiEmployeeProposal(
-                raw_name="Francine BOURMAULT",
+                raw_name="Francine CAVURAT",
                 time_tracking_id="000005",
                 days=[
                     AiDayEntry(jour=8, heures=7.05, type="travail", nature="reel"),

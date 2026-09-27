@@ -6,22 +6,22 @@ from app.modules.payroll.backtest.comparator import compare_bulletins
 from app.modules.payroll.backtest.diagnosis import diagnose_reports
 from app.modules.payroll.backtest.models import Verdict
 from app.modules.payroll.backtest.reference_parser import parse_cegid_block
-from tests.unit.payroll.backtest.fixtures import BUGNY_PAGE1, BUGNY_PAGE2
+from tests.unit.payroll.backtest.fixtures import DUMAREL_PAGE1, DUMAREL_PAGE2
 
 pytestmark = pytest.mark.unit
 
 
 class TestDiagnosis:
     def test_participation_missing_proposed(self):
-        ref = parse_cegid_block("BUGNY", BUGNY_PAGE1 + BUGNY_PAGE2)
+        ref = parse_cegid_block("DUMAREL", DUMAREL_PAGE1 + DUMAREL_PAGE2)
         payslip = {"salaire_brut": 2952.34, "net_a_payer": 1000.0, "synthese_net": {}}
-        report = compare_bulletins(payslip, ref, employee_name="Michel BUGNY")
-        proposals = diagnose_reports([report], {"BUGNY": ref})
+        report = compare_bulletins(payslip, ref, employee_name="Michel DUMAREL")
+        proposals = diagnose_reports([report], {"DUMAREL": ref})
         ids = [p.pattern_id for p in proposals]
         assert "participation_missing" in ids or "brut_absences_fictives" in ids
 
     def test_only_anomaly_reports_diagnosed(self):
-        ref = parse_cegid_block("BUGNY", BUGNY_PAGE1 + BUGNY_PAGE2)
+        ref = parse_cegid_block("DUMAREL", DUMAREL_PAGE1 + DUMAREL_PAGE2)
         payslip = {
             "salaire_brut": 2952.34,
             "net_a_payer": 5289.12,
@@ -43,5 +43,5 @@ class TestDiagnosis:
         }
         report = compare_bulletins(payslip, ref)
         assert report.overall_verdict in (Verdict.PARFAIT, Verdict.OK, Verdict.TOLERE)
-        proposals = diagnose_reports([report], {"BUGNY": ref})
+        proposals = diagnose_reports([report], {"DUMAREL": ref})
         assert len(proposals) == 0

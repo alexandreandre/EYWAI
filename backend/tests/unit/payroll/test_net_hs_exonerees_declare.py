@@ -35,15 +35,15 @@ from app.modules.payroll.engine import calcul_net
 
 pytestmark = pytest.mark.unit
 
-#: Bugny, janvier : 691,78 € d'heures sup, base CSG 679,67.
-BRUT_HS_BUGNY = 691.78
-BASE_CSG_HS_BUGNY = 679.67
-ATTENDU_BUGNY = 645.56
+#: Dumarel, janvier : 691,78 € d'heures sup, base CSG 679,67.
+BRUT_HS_DUMAREL = 691.78
+BASE_CSG_HS_DUMAREL = 679.67
+ATTENDU_DUMAREL = 645.56
 
-#: Girerd, janvier : 442,90 / 435,15 → 413,31.
-BRUT_HS_GIRERD = 442.91
-BASE_CSG_HS_GIRERD = 435.16
-ATTENDU_GIRERD = 413.32
+#: Moroche, janvier : 442,90 / 435,15 → 413,31.
+BRUT_HS_MOROCHE = 442.91
+BASE_CSG_HS_MOROCHE = 435.16
+ATTENDU_MOROCHE = 413.32
 
 
 #: Forme réelle du catalogue 2026 : une entrée `csg` unique dont la part
@@ -88,17 +88,17 @@ def _lignes(base_csg_hs, taux=0.097, taux_csg_deductible=0.068):
 
 
 class TestMontantNetHeuresSupExonerees:
-    def test_bugny(self):
+    def test_dumarel(self):
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(), _lignes(BASE_CSG_HS_BUGNY), BRUT_HS_BUGNY
+            _contexte(), _lignes(BASE_CSG_HS_DUMAREL), BRUT_HS_DUMAREL
         )
-        assert montant == pytest.approx(ATTENDU_BUGNY, abs=0.01)
+        assert montant == pytest.approx(ATTENDU_DUMAREL, abs=0.01)
 
-    def test_girerd(self):
+    def test_moroche(self):
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(), _lignes(BASE_CSG_HS_GIRERD), BRUT_HS_GIRERD
+            _contexte(), _lignes(BASE_CSG_HS_MOROCHE), BRUT_HS_MOROCHE
         )
-        assert montant == pytest.approx(ATTENDU_GIRERD, abs=0.01)
+        assert montant == pytest.approx(ATTENDU_MOROCHE, abs=0.01)
 
     def test_sans_heures_sup_le_montant_est_nul(self):
         assert calcul_net.montant_net_hs_exonerees(_contexte(), _lignes(0.0), 0.0) == 0.0
@@ -108,42 +108,42 @@ class TestMontantNetHeuresSupExonerees:
         le taux à la rémunération des HS abattue, plutôt que de rendre le brut."""
         lignes = [l for l in _lignes(0.0) if "sur HS" not in l["libelle"]]
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(), lignes, BRUT_HS_BUGNY
+            _contexte(), lignes, BRUT_HS_DUMAREL
         )
-        assert montant < BRUT_HS_BUGNY
-        assert montant == pytest.approx(BRUT_HS_BUGNY * (1 - 0.068 * 0.9825), abs=0.5)
+        assert montant < BRUT_HS_DUMAREL
+        assert montant == pytest.approx(BRUT_HS_DUMAREL * (1 - 0.068 * 0.9825), abs=0.5)
 
     def test_le_taux_vient_de_la_ligne_du_bulletin(self):
         """Le taux appliqué est celui que le bulletin a réellement utilisé."""
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(), _lignes(BASE_CSG_HS_BUGNY, taux_csg_deductible=0.05),
-            BRUT_HS_BUGNY,
+            _contexte(), _lignes(BASE_CSG_HS_DUMAREL, taux_csg_deductible=0.05),
+            BRUT_HS_DUMAREL,
         )
-        assert montant == pytest.approx(BRUT_HS_BUGNY - 0.05 * BASE_CSG_HS_BUGNY, abs=0.01)
+        assert montant == pytest.approx(BRUT_HS_DUMAREL - 0.05 * BASE_CSG_HS_DUMAREL, abs=0.01)
 
     def test_repli_sur_le_catalogue_forme_2026(self):
         """Sans taux sur la ligne, le catalogue prend le relais — forme réelle,
         une entrée `csg` dont la part salariale se décompose."""
-        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes = _lignes(BASE_CSG_HS_DUMAREL)
         lignes[0].pop("taux_salarial")
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(CATALOGUE_2026), lignes, BRUT_HS_BUGNY
+            _contexte(CATALOGUE_2026), lignes, BRUT_HS_DUMAREL
         )
-        assert montant == pytest.approx(ATTENDU_BUGNY, abs=0.01)
+        assert montant == pytest.approx(ATTENDU_DUMAREL, abs=0.01)
 
     def test_repli_sur_le_catalogue_forme_historique(self):
-        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes = _lignes(BASE_CSG_HS_DUMAREL)
         lignes[0].pop("taux_salarial")
         montant = calcul_net.montant_net_hs_exonerees(
-            _contexte(CATALOGUE_HISTORIQUE), lignes, BRUT_HS_BUGNY
+            _contexte(CATALOGUE_HISTORIQUE), lignes, BRUT_HS_DUMAREL
         )
-        assert montant == pytest.approx(ATTENDU_BUGNY, abs=0.01)
+        assert montant == pytest.approx(ATTENDU_DUMAREL, abs=0.01)
 
     def test_sans_aucun_taux_connu_on_ne_declare_rien(self):
         """Plutôt rendre zéro que le brut : un montant faux au revenu fiscal de
         référence est pire qu'une ligne absente."""
-        lignes = _lignes(BASE_CSG_HS_BUGNY)
+        lignes = _lignes(BASE_CSG_HS_DUMAREL)
         lignes[0].pop("taux_salarial")
         assert calcul_net.montant_net_hs_exonerees(
-            _contexte({}), lignes, BRUT_HS_BUGNY
+            _contexte({}), lignes, BRUT_HS_DUMAREL
         ) == 0.0

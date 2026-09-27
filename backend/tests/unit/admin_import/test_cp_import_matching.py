@@ -5,16 +5,16 @@ from app.modules.admin_import.application.cp_payslip_parser import parse_payslip
 from app.modules.admin_import.application.rib_matching import resolve_rib_row_match
 from app.modules.schedules.schemas.ai import RosterEmployee
 
-BUSIZA_PAGE = """
+DUMOUIN_PAGE = """
    COMITECH                                                                            BULLETIN DE SALAIRE
    Période : Mai 2026
    Siret : 49861035100013         Code NAF: 2229A
                   CP N-1         CP N
-                                                                                  Mr BUSIZA LUSELA Serge
+                                                                                  Mr DUMOUIN TALOUIN Serge
   Acquis :        24.00 /      24.96 /
   Total pris :    24.00 /      13.00 /
   Solde :          0.00 /      11.96 /
-   Matricule : BUSIZA LUS              NoSécu.: 166109935323859
+   Matricule : DUMOUIN LUS              NoSécu.: 180017520345685
 """
 
 JUNK_NAME_PAGE = """
@@ -26,37 +26,37 @@ JUNK_NAME_PAGE = """
   Acquis :        18.00 /      24.96 /
   Total pris :    18.00 /      13.00 /
   Solde :          0.00 /      11.96 /
-   Matricule : GUENAI              NoSécu.: 166109935323859
+   Matricule : GUENAI              NoSécu.: 180017520345685
 """
 
 EMPLOYEES = [
     {
-        "id": "e-busiza",
+        "id": "e-dumouin",
         "first_name": "Serge",
-        "last_name": "BUSIZA LUSELA",
+        "last_name": "DUMOUIN TALOUIN",
         "email": "",
         "employee_folder_name": "BUSIZALUSELA_Serge",
     },
     {
         "id": "e-debarros",
         "first_name": "Grégory",
-        "last_name": "DE BARROS",
+        "last_name": "DE BAROCHE",
         "email": "",
         "employee_folder_name": "DEBARROS_Gregory",
     },
 ]
 
 ROSTER = [
-    RosterEmployee(id="e-busiza", first_name="Serge", last_name="BUSIZA LUSELA"),
-    RosterEmployee(id="e-debarros", first_name="Grégory", last_name="DE BARROS"),
+    RosterEmployee(id="e-dumouin", first_name="Serge", last_name="DUMOUIN TALOUIN"),
+    RosterEmployee(id="e-debarros", first_name="Grégory", last_name="DE BAROCHE"),
 ]
 
 
 class TestCpPayslipNameExtraction:
     def test_prefers_name_aligned_with_matricule(self):
-        parsed = parse_payslip_page_text(BUSIZA_PAGE)
-        assert parsed.matricule == "BUSIZA LUS"
-        assert parsed.raw_name == "BUSIZA LUSELA Serge"
+        parsed = parse_payslip_page_text(DUMOUIN_PAGE)
+        assert parsed.matricule == "DUMOUIN LUS"
+        assert parsed.raw_name == "DUMOUIN TALOUIN Serge"
 
     def test_rejects_junk_presence_name(self):
         parsed = parse_payslip_page_text(JUNK_NAME_PAGE)
@@ -65,19 +65,19 @@ class TestCpPayslipNameExtraction:
 
 
 class TestCpImportMatching:
-    def test_busiza_lus_matches_compound_last_name(self):
-        parsed = parse_payslip_page_text(BUSIZA_PAGE)
+    def test_dumouin_lus_matches_compound_last_name(self):
+        parsed = parse_payslip_page_text(DUMOUIN_PAGE)
         result = resolve_rib_row_match(
             roster=ROSTER,
             employees=EMPLOYEES,
             matricule=parsed.matricule or "",
             email="",
             first_name="Serge",
-            last_name="BUSIZA LUSELA",
+            last_name="DUMOUIN TALOUIN",
             full_name=parsed.raw_name or "",
             strict_matricule_fallback=True,
         )
-        assert result["employee_id"] == "e-busiza"
+        assert result["employee_id"] == "e-dumouin"
         assert result["review_status"] == "ok"
 
     def test_unknown_matricule_does_not_fuzzy_match_de(self):
@@ -99,31 +99,31 @@ class TestCpImportMatching:
     def test_time_tracking_id_matricule_matches(self):
         employees = [
             {
-                "id": "e-mirzada",
+                "id": "e-verague",
                 "first_name": "Mir Said Jan",
-                "last_name": "MIRZADA",
-                "time_tracking_id": "MIRZADA2",
+                "last_name": "VERAGUE",
+                "time_tracking_id": "VERAGUE2",
             }
         ]
         roster = [
             RosterEmployee(
-                id="e-mirzada",
+                id="e-verague",
                 first_name="Mir Said Jan",
-                last_name="MIRZADA",
-                time_tracking_id="MIRZADA2",
+                last_name="VERAGUE",
+                time_tracking_id="VERAGUE2",
             )
         ]
         result = resolve_rib_row_match(
             roster=roster,
             employees=employees,
-            matricule="MIRZADA2",
+            matricule="VERAGUE2",
             email="",
             first_name="",
             last_name="",
             full_name="panier soumises 2.50 15.0000",
             strict_matricule_fallback=True,
         )
-        assert result["employee_id"] == "e-mirzada"
+        assert result["employee_id"] == "e-verague"
         assert result["review_status"] == "ok"
         assert result["match_method"] == "matricule"
 
@@ -137,7 +137,7 @@ class TestCpImportMatching:
                                                      M. Assiduité Atelier 50.00
   Acquis :        30.00 /      25.96 /
   Solde :          0.00 /      12.96 /
-   Matricule : BOUSSANOR              NoSécu.: 166109935323859
+   Matricule : BOUSSANOR              NoSécu.: 180017520345685
 """
         )
         employees = [

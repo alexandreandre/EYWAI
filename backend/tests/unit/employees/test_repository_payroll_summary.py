@@ -56,7 +56,7 @@ def test_payroll_summary_returns_active_with_eligibility_flags(mock_supabase):
     rows = repo.get_summary_by_company("company-1", payroll_ready_only=True)
 
     # Un parti reste dans la liste paie : il a des bulletins à voir et un
-    # dernier mois à payer (Demory, sorti le 24/07, absent de juin et juillet —
+    # dernier mois à payer (Feroral, sorti le 24/07, absent de juin et juillet —
     # retour Gaëlle 12/09). La couche application ne garde que ceux dont la
     # sortie est datée ; l'écran décide ensuite mois par mois.
     assert len(rows) == 3

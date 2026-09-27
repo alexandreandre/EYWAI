@@ -9,32 +9,32 @@ from app.modules.schedules.schemas.ai import RosterEmployee
 EMPLOYEES = [
     {
         "id": "e1",
-        "first_name": "Damien",
-        "last_name": "BASTER",
+        "first_name": "Ferurat",
+        "last_name": "BARENAC",
         "email": "",
-        "employee_folder_name": "BASTER_Damien",
+        "employee_folder_name": "BARENAC_Ferurat",
     },
     {
         "id": "e2",
         "first_name": "Quentin",
-        "last_name": "BRISMONTIER",
+        "last_name": "DUMINET",
         "email": "",
-        "employee_folder_name": "BRISMONTIER_Quentin",
+        "employee_folder_name": "DUMINET_Quentin",
     },
 ]
 
 ROSTER = [
-    RosterEmployee(id="e1", first_name="Damien", last_name="BASTER"),
-    RosterEmployee(id="e2", first_name="Quentin", last_name="BRISMONTIER"),
+    RosterEmployee(id="e1", first_name="Ferurat", last_name="BARENAC"),
+    RosterEmployee(id="e2", first_name="Quentin", last_name="DUMINET"),
 ]
 
 
 class TestPayrollMatriculeMatch:
     def test_exact_last_name(self):
-        assert _match_by_payroll_matricule("BASTER", EMPLOYEES)["id"] == "e1"
+        assert _match_by_payroll_matricule("BARENAC", EMPLOYEES)["id"] == "e1"
 
     def test_truncated_last_name(self):
-        assert _match_by_payroll_matricule("BRISMONTIE", EMPLOYEES)["id"] == "e2"
+        assert _match_by_payroll_matricule("DUMINE", EMPLOYEES)["id"] == "e2"
 
 
 class TestResolveRibRowMatch:
@@ -42,10 +42,10 @@ class TestResolveRibRowMatch:
         result = resolve_rib_row_match(
             roster=ROSTER,
             employees=EMPLOYEES,
-            matricule="BASTER",
+            matricule="BARENAC",
             email="",
-            first_name="Damien",
-            last_name="BASTER",
+            first_name="Ferurat",
+            last_name="BARENAC",
             full_name="",
         )
         assert result["employee_id"] == "e1"
@@ -59,7 +59,7 @@ class TestResolveRibRowMatch:
             email="",
             first_name="",
             last_name="",
-            full_name="Damien BASTER",
+            full_name="Ferurat BARENAC",
         )
         assert result["employee_id"] == "e1"
 
@@ -91,12 +91,12 @@ class TestResolveRibRowMatch:
             {
                 "id": "e-gros",
                 "first_name": "Nadine",
-                "last_name": "PRONIER",
+                "last_name": "BELILLY",
                 "email": "",
-                "employee_folder_name": "PRONIER_Nadine",
+                "employee_folder_name": "BELILLY_Nadine",
             },
         ]
-        roster = [RosterEmployee(id="e-gros", first_name="Nadine", last_name="PRONIER")]
+        roster = [RosterEmployee(id="e-gros", first_name="Nadine", last_name="BELILLY")]
         result = resolve_rib_row_match(
             roster=roster,
             employees=employees,
@@ -105,7 +105,7 @@ class TestResolveRibRowMatch:
             first_name="Nadine",
             last_name="GROS",
             full_name="GROS Nadine",
-            patronymic_name="PRONIER",
+            patronymic_name="BELILLY",
         )
         assert result["employee_id"] == "e-gros"
         assert result["match_method"] == "patronymic"
@@ -115,7 +115,7 @@ class TestResolveRibRowMatch:
         result = resolve_rib_row_match(
             roster=ROSTER,
             employees=EMPLOYEES,
-            matricule="BASTER",
+            matricule="BARENAC",
             email="",
             first_name="Jean",
             last_name="DUPONT",
@@ -124,25 +124,25 @@ class TestResolveRibRowMatch:
         assert result["employee_id"] == "e1"
         assert result["review_status"] == "warning"
 
-    def test_compound_matricule_busiza_lus(self):
+    def test_compound_matricule_dumouin_lus(self):
         employees = [
             {
-                "id": "e-busiza",
+                "id": "e-dumouin",
                 "first_name": "Serge",
-                "last_name": "BUSIZA LUSELA",
+                "last_name": "DUMOUIN TALOUIN",
                 "email": "",
                 "employee_folder_name": "BUSIZALUSELA_Serge",
             },
         ]
-        roster = [RosterEmployee(id="e-busiza", first_name="Serge", last_name="BUSIZA LUSELA")]
+        roster = [RosterEmployee(id="e-dumouin", first_name="Serge", last_name="DUMOUIN TALOUIN")]
         result = resolve_rib_row_match(
             roster=roster,
             employees=employees,
-            matricule="BUSIZA LUS",
+            matricule="DUMOUIN LUS",
             email="",
             first_name="Serge",
-            last_name="BUSIZA LUSELA",
-            full_name="BUSIZA LUSELA Serge",
+            last_name="DUMOUIN TALOUIN",
+            full_name="DUMOUIN TALOUIN Serge",
         )
-        assert result["employee_id"] == "e-busiza"
+        assert result["employee_id"] == "e-dumouin"
         assert result["review_status"] == "ok"

@@ -25,14 +25,14 @@ XLSX = Path(
 )
 
 ROSTER = [
-    RosterEmployee(id="1", first_name="Samir", last_name="BOUFRIDA"),
-    RosterEmployee(id="2", first_name="Michel", last_name="BOUVEYRON"),
+    RosterEmployee(id="1", first_name="Samir", last_name="CAVANOT"),
+    RosterEmployee(id="2", first_name="Michel", last_name="CAVORAL"),
     RosterEmployee(
         id="3",
         first_name="Vitor Manuel",
-        last_name="CASANOVA DA SILVA",
+        last_name="DUMOCHE DA SILVA",
     ),
-    RosterEmployee(id="4", first_name="Lucas", last_name="CHAMBERT"),
+    RosterEmployee(id="4", first_name="Lucas", last_name="DUMILLY"),
 ]
 
 
@@ -63,29 +63,29 @@ def test_parse_quadra_year_mode() -> None:
 
 
 def test_resolve_sheet_last_name_only() -> None:
-    match = resolve_employee_for_planning_sheet("BOUFRIDA", ROSTER)
+    match = resolve_employee_for_planning_sheet("CAVANOT", ROSTER)
     assert match.employee_id == "1"
     assert match.review_status == "ok"
 
 
 def test_resolve_sheet_with_sommaire_hint_disambiguates() -> None:
     roster = [
-        RosterEmployee(id="3", first_name="Vitor Manuel", last_name="CASANOVA DA SILVA"),
-        RosterEmployee(id="5", first_name="Vitor Manuel", last_name="DA SILVA CARDOSO"),
-        RosterEmployee(id="2", first_name="Michel", last_name="BOUVEYRON"),
+        RosterEmployee(id="3", first_name="Vitor Manuel", last_name="DUMOCHE DA SILVA"),
+        RosterEmployee(id="5", first_name="Vitor Manuel", last_name="DA SILVA DUMANOT"),
+        RosterEmployee(id="2", first_name="Michel", last_name="CAVORAL"),
     ]
     match = resolve_employee_for_planning_sheet(
-        "CASANOVA",
+        "DUMOCHE",
         roster,
-        hint_name="CASANOVA DA SILVA Vitor Manuel",
+        hint_name="DUMOCHE DA SILVA Vitor Manuel",
     )
     assert match.employee_id == "3"
     assert match.review_status in ("ok", "warning")
 
     match_b = resolve_employee_for_planning_sheet(
-        "BOUVEYRON",
+        "CAVORAL",
         roster,
-        hint_name="BOUVEYRON Michel",
+        hint_name="CAVORAL Michel",
     )
     assert match_b.employee_id == "2"
     assert match_b.review_status in ("ok", "warning")
@@ -93,20 +93,20 @@ def test_resolve_sheet_with_sommaire_hint_disambiguates() -> None:
 
 def test_resolve_cartol_sheet_with_first_name_initials() -> None:
     roster = [
-        RosterEmployee(id="jm", first_name="Jean-Michel", last_name="BONNET"),
-        RosterEmployee(id="m", first_name="Mathieu", last_name="BONNET"),
+        RosterEmployee(id="jm", first_name="Jean-Michel", last_name="CAVANDE"),
+        RosterEmployee(id="m", first_name="Mathieu", last_name="CAVANDE"),
         RosterEmployee(id="jn", first_name="Jean-Noël", last_name="LEMAIRE"),
         RosterEmployee(id="jo", first_name="Jordan", last_name="LEMAIRE"),
-        RosterEmployee(id="gm", first_name="Guy-Marie", last_name="RAINGEAUD"),
-        RosterEmployee(id="gio", first_name="Giovanni", last_name="RAINGEAUD"),
+        RosterEmployee(id="gm", first_name="Guy-Marie", last_name="COROLET"),
+        RosterEmployee(id="gio", first_name="Giorgio", last_name="COROLET"),
     ]
 
     for raw, expected in (
-        ("BONNET JM", "jm"),
+        ("CAVANDE JM", "jm"),
         ("LEMAIRE JN", "jn"),
         ("LEMAIRE JO", "jo"),
-        ("RAINGEAUD G-M", "gm"),
-        ("RAINGEAUD Gio", "gio"),
+        ("COROLET G-M", "gm"),
+        ("COROLET Gio", "gio"),
     ):
         match = resolve_employee_for_planning_sheet(raw, roster)
         assert match.employee_id == expected
@@ -115,33 +115,33 @@ def test_resolve_cartol_sheet_with_first_name_initials() -> None:
 
 def test_resolve_cartol_sheet_with_sommaire_initial_hint() -> None:
     roster = [
-        RosterEmployee(id="s", first_name="Sulivan", last_name="CAILLEAU"),
-        RosterEmployee(id="g", first_name="Gwendoline", last_name="CAILLEAUX"),
-        RosterEmployee(id="o", first_name="Oleksandr", last_name="DOVHOPOL"),
-        RosterEmployee(id="t", first_name="Tetiana", last_name="DOVHOPOL"),
+        RosterEmployee(id="s", first_name="Sulivan", last_name="DUMERON"),
+        RosterEmployee(id="g", first_name="Gwendoline", last_name="DUMIVAL"),
+        RosterEmployee(id="o", first_name="Oleksandr", last_name="GALIVAL"),
+        RosterEmployee(id="t", first_name="Tetiana", last_name="GALIVAL"),
     ]
 
     assert (
         resolve_employee_for_planning_sheet(
-            "CAILLEAU",
+            "DUMERON",
             roster,
-            hint_name="CAILLEAU S",
+            hint_name="DUMERON S",
         ).employee_id
         == "s"
     )
     assert (
         resolve_employee_for_planning_sheet(
-            "CAILLEAUX",
+            "DUMIVAL",
             roster,
-            hint_name="CAILLEAUX G",
+            hint_name="DUMIVAL G",
         ).employee_id
         == "g"
     )
     assert (
         resolve_employee_for_planning_sheet(
-            "DOVHOPOL",
+            "GALIVAL",
             roster,
-            hint_name="DOVHOPOL T",
+            hint_name="GALIVAL T",
         ).employee_id
         == "t"
     )
@@ -150,9 +150,9 @@ def test_resolve_cartol_sheet_with_sommaire_initial_hint() -> None:
 def test_resolve_cartol_particle_last_names_are_not_first_name_hints() -> None:
     roster = [
         RosterEmployee(id="de-sa", first_name="Anthony", last_name="DE SA"),
-        RosterEmployee(id="de-abreu", first_name="Jose", last_name="DE ABREU"),
-        RosterEmployee(id="de-carvalho", first_name="Roberto", last_name="DE CARVALHO"),
-        RosterEmployee(id="dovhopol", first_name="Oleksandr", last_name="DOVHOPOL"),
+        RosterEmployee(id="de-barinet", first_name="Palilly", last_name="DE BARINET"),
+        RosterEmployee(id="de-dumieux", first_name="Corande", last_name="DE DUMIEUX"),
+        RosterEmployee(id="galival", first_name="Oleksandr", last_name="GALIVAL"),
     ]
 
     match = resolve_employee_for_planning_sheet(
@@ -164,19 +164,19 @@ def test_resolve_cartol_particle_last_names_are_not_first_name_hints() -> None:
     assert match.review_status == "ok"
 
     match = resolve_employee_for_planning_sheet(
-        "DE ABREU",
+        "DE BARINET",
         roster,
-        hint_name="DE ABREU",
+        hint_name="DE BARINET",
     )
-    assert match.employee_id == "de-abreu"
+    assert match.employee_id == "de-barinet"
     assert match.review_status == "ok"
 
     match = resolve_employee_for_planning_sheet(
-        "DE CARVALHO",
+        "DE DUMIEUX",
         roster,
-        hint_name="De CARVALHO",
+        hint_name="De DUMIEUX",
     )
-    assert match.employee_id == "de-carvalho"
+    assert match.employee_id == "de-dumieux"
     assert match.review_status == "ok"
 
 
@@ -191,9 +191,9 @@ def test_classify_cp_day() -> None:
 def test_parse_sheet_with_employee_metadata_row() -> None:
     wb = Workbook()
     ws = wb.active
-    ws.title = "BASTER"
+    ws.title = "BARENAC"
     ws.cell(1, 1).value = "Date d'ancienneté:"
-    ws.cell(1, 8).value = "BASTER Damien"
+    ws.cell(1, 8).value = "BARENAC Ferurat"
     ws.cell(2, 1).value = "JANVIER"
     ws.cell(2, 3).value = "H.Abs"
     ws.cell(2, 4).value = "CP"
@@ -209,7 +209,7 @@ def test_parse_sheet_with_employee_metadata_row() -> None:
         "calendrier 2026 LEWIS.xlsx",
         year=2026,
         period_config=ImportPeriodConfig(mode="month", year=2026, month=1),
-        roster=[RosterEmployee(id="1", first_name="Damien", last_name="BASTER")],
+        roster=[RosterEmployee(id="1", first_name="Ferurat", last_name="BARENAC")],
     )
 
     assert parsed.sheets_parsed == 1
@@ -222,9 +222,9 @@ def test_parse_sheet_with_employee_metadata_row() -> None:
 def test_parse_cartol_sheet_uses_employee_header_to_disambiguate() -> None:
     wb = Workbook()
     ws = wb.active
-    ws.title = "COUTANT"
+    ws.title = "FERUBEL"
     ws.cell(1, 1).value = "Date d'ancienneté: 15/12/2014"
-    ws.cell(1, 10).value = "COUTANT Denis"
+    ws.cell(1, 10).value = "FERUBEL Denis"
     ws.cell(2, 1).value = "JANVIER"
     ws.cell(2, 3).value = "H.Abs"
     ws.cell(2, 4).value = "CP"
@@ -238,22 +238,22 @@ def test_parse_cartol_sheet_uses_employee_header_to_disambiguate() -> None:
         year=2026,
         period_config=ImportPeriodConfig(mode="month", year=2026, month=1),
         roster=[
-            RosterEmployee(id="denis", first_name="Denis", last_name="COUTANT"),
-            RosterEmployee(id="guillaume", first_name="Guillaume", last_name="COUTANT"),
+            RosterEmployee(id="denis", first_name="Denis", last_name="FERUBEL"),
+            RosterEmployee(id="guillaume", first_name="Guillaume", last_name="FERUBEL"),
         ],
     )
 
     employee = parsed.month_groups[0]["employees"][0]
     assert employee["employee_id"] == "denis"
     assert employee["review_status"] == "ok"
-    assert employee["sommaire_hint"] == "COUTANT Denis"
+    assert employee["sommaire_hint"] == "FERUBEL Denis"
 
 
 def test_resolve_planning_hint_does_not_match_first_name_only() -> None:
     match = resolve_employee_for_planning_sheet(
-        "PEROT",
-        [RosterEmployee(id="veillat", first_name="Sébastien", last_name="VEILLAT")],
-        hint_name="PEROT Sébastien",
+        "BELERON",
+        [RosterEmployee(id="dalossy", first_name="Sébastien", last_name="DALOSSY")],
+        hint_name="BELERON Sébastien",
     )
 
     assert match.employee_id is None
@@ -262,9 +262,9 @@ def test_resolve_planning_hint_does_not_match_first_name_only() -> None:
 
 def test_resolve_planning_old_compound_last_name_by_unique_first_name() -> None:
     match = resolve_employee_for_planning_sheet(
-        "ESPIRITO SANTO",
-        [RosterEmployee(id="dias", first_name="Tania", last_name="DIAS")],
-        hint_name="ESPIRITO SANTO Tania",
+        "LANINET SANTO",
+        [RosterEmployee(id="dias", first_name="Tania", last_name="GALOLET")],
+        hint_name="LANINET SANTO Tania",
     )
 
     assert match.employee_id == "dias"
@@ -273,26 +273,26 @@ def test_resolve_planning_old_compound_last_name_by_unique_first_name() -> None:
 
 def test_resolve_planning_partial_compound_last_name_with_first_hint_is_ok() -> None:
     match = resolve_employee_for_planning_sheet(
-        "ZAROUALI",
+        "FONUBEL",
         [
             RosterEmployee(
-                id="zarouali",
+                id="fonubel",
                 first_name="EL HOUSINE",
-                last_name="ZAROUALI BOUTABAA",
+                last_name="FONUBEL CAVILLY",
             )
         ],
-        hint_name="ZAROUALI El Houcine",
+        hint_name="FONUBEL El Houcine",
     )
 
-    assert match.employee_id == "zarouali"
+    assert match.employee_id == "fonubel"
     assert match.review_status == "ok"
 
 
 def test_resolve_planning_simple_last_name_does_not_match_first_name_only() -> None:
     match = resolve_employee_for_planning_sheet(
-        "DEPLANNE",
-        [RosterEmployee(id="enond", first_name="Marie-Noëlle", last_name="ENOND")],
-        hint_name="DEPLANNE Marie-Noëlle",
+        "FEROSSY",
+        [RosterEmployee(id="galossy", first_name="Marie-Noëlle", last_name="GALOSSY")],
+        hint_name="FEROSSY Marie-Noëlle",
     )
 
     assert match.employee_id is None
@@ -301,9 +301,9 @@ def test_resolve_planning_simple_last_name_does_not_match_first_name_only() -> N
 
 def test_resolve_planning_sheet_matches_hyphenated_last_name() -> None:
     match = resolve_employee_for_planning_sheet(
-        "SELLY-PAJADON",
-        [RosterEmployee(id="selly", first_name="Sandy", last_name="SELLY PAJADON")],
-        hint_name="SELLY-PAJADON Sandy",
+        "DALOLET-BELINET",
+        [RosterEmployee(id="selly", first_name="Sandy", last_name="DALOLET BELINET")],
+        hint_name="DALOLET-BELINET Sandy",
     )
 
     assert match.employee_id == "selly"

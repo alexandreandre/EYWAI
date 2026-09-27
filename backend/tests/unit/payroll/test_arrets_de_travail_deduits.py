@@ -8,7 +8,7 @@ maintien de salaire, qui se joue ailleurs à partir de `arret_type`.
 Le moteur ne reconnaissait que `arret_maladie` : un accident du travail, un
 congé maternité ou paternité passaient à travers sans aucune retenue.
 
-Référence : Demory (Colorplast, mai 2026), accident du travail du 23 au 29 mai.
+Référence : Feroral (Colorplast, mai 2026), accident du travail du 23 au 29 mai.
 Le cabinet déduit 28,00 h à 12,20 € (341,60 €) et 3,20 h structurelles
 (48,80 €) — 390,40 € que nous laissions au brut.
 """

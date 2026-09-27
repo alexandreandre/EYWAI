@@ -25,9 +25,9 @@ from scripts.import_elus_cse import (
 
 
 def test_cle_nom_ignore_accents_tirets_espaces_et_casse():
-    assert cle_nom("De Barros") == cle_nom("DE BARROS")
+    assert cle_nom("De Baroche") == cle_nom("DE BAROCHE")
     assert cle_nom("Hervé") == cle_nom("HERVE")
-    assert cle_nom("Marie-Noelle") == cle_nom("MARIE NOELLE")
+    assert cle_nom("Marie-Verurat") == cle_nom("MARIE VERURAT")
 
 
 def test_roles_connus():

@@ -14,7 +14,7 @@ class TestCommitCpImport:
             "app.modules.admin_import.application.cp_import.apply_cp_solde_import"
         ) as mock_apply:
             mock_repo.list_company_employees.return_value = [
-                {"id": "emp-1", "first_name": "Samir", "last_name": "BOUFRIDA"}
+                {"id": "emp-1", "first_name": "Samir", "last_name": "CAVANOT"}
             ]
             body = CpImportCommitBody(
                 rows=[
@@ -64,7 +64,7 @@ class TestCommitCpImport:
             "app.modules.admin_import.application.cp_import.apply_cp_solde_import"
         ) as mock_apply:
             mock_repo.list_company_employees.return_value = [
-                {"id": "emp-1", "first_name": "Samir", "last_name": "BOUFRIDA"}
+                {"id": "emp-1", "first_name": "Samir", "last_name": "CAVANOT"}
             ]
             body = CpImportCommitBody(
                 rows=[

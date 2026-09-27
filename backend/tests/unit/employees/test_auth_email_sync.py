@@ -18,8 +18,8 @@ from app.modules.employees.application.auth_email_sync import (
 
 pytestmark = pytest.mark.unit
 
-PLACEHOLDER = "import.vanessa.amate.383122@534386495.dsn-import.local"
-REELLE = "amatevanessa@yahoo.fr"
+PLACEHOLDER = "import.vanessa.barague.383122@534386495.dsn-import.local"
+REELLE = "dupontvanessa@yahoo.fr"
 
 
 def _auth(current_email: str | None):
@@ -41,7 +41,7 @@ def test_login_fabrique_realigne_sur_l_adresse_reelle() -> None:
 
 def test_login_deja_reel_jamais_ecrase() -> None:
     """Une adresse de connexion choisie par la personne ne doit pas être écrasée."""
-    auth = _auth("vamate@maji-invest.fr")
+    auth = _auth("vdupont@maji-invest.fr")
 
     outcome = sync_auth_email_for_employee(
         {"id": "emp-1", "user_id": "user-1", "email": REELLE}, auth=auth

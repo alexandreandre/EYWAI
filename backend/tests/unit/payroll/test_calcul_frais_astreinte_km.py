@@ -49,7 +49,7 @@ def test_dupont_below_threshold(baremes_km):
     assert details["skip_reason"] == "below_threshold"
 
 
-def test_hauchecorne_excel(baremes_km):
+def test_palouin_excel(baremes_km):
     amount, _ = indemnite_km_astreinte(
         baremes_km,
         35.0,
@@ -59,7 +59,7 @@ def test_hauchecorne_excel(baremes_km):
     assert amount == pytest.approx(30.30, abs=0.01)
 
 
-def test_kocis_excel(baremes_km):
+def test_rosague_excel(baremes_km):
     amount, _ = indemnite_km_astreinte(
         baremes_km,
         15.4,

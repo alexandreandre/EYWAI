@@ -4,7 +4,7 @@ Le bulletin annonce laquelle des deux règles a été retenue, maintien de salai
 ou dixième. C'est une mention lue par le salarié et opposable, donc elle ne doit
 pas comparer deux grandeurs sans rapport.
 
-Deux pièges, tous deux constatés sur le bulletin de juillet 2026 de Cédric Demory :
+Deux pièges, tous deux constatés sur le bulletin de juillet 2026 de Cédric Feroral :
 l'indemnité du mois arrive en deux lignes qu'il faut additionner, et l'indemnité
 compensatrice de fin de contrat se cumule avec elle au lieu de s'y substituer,
 donc n'entre pas dans l'arbitrage.

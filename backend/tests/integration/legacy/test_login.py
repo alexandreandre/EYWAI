@@ -9,11 +9,11 @@ BASE_URL = "http://localhost:8000"
 
 # 1. Test avec email
 print("1. Test connexion avec EMAIL:")
-print("   Credentials: anthony.espinosa6@gmail.com / (mot de passe réel)")
+print("   Credentials: anthony.lanolet6@gmail.com / (mot de passe réel)")
 
 email_data = {
-    "username": "anthony.espinosa6@gmail.com",
-    "password": input("   Entrez le mot de passe pour anthony.espinosa6@gmail.com: "),
+    "username": "anthony.lanolet6@gmail.com",
+    "password": input("   Entrez le mot de passe pour anthony.lanolet6@gmail.com: "),
 }
 
 try:
@@ -31,10 +31,10 @@ print()
 
 # 2. Test avec username
 print("2. Test connexion avec USERNAME:")
-print("   Credentials: anthony.espinosa / (même mot de passe)")
+print("   Credentials: anthony.lanolet / (même mot de passe)")
 
 username_data = {
-    "username": "anthony.espinosa",
+    "username": "anthony.lanolet",
     "password": email_data["password"],  # Même mot de passe
 }
 

@@ -1216,7 +1216,7 @@ def _patches_generation(schedule_row):
 class TestPartiDernierMois:
     """Un parti garde le droit à son dernier bulletin.
 
-    Demory (Colorplast), sorti le 24/07/2026 : « Ce collaborateur n'est pas
+    Feroral (Colorplast), sorti le 24/07/2026 : « Ce collaborateur n'est pas
     actif » lui refusait le bulletin de juillet, donc le solde de tout compte
     (retour Gaëlle 12/09). La sortie datée dans le mois ou après lève le
     refus de statut ; la garde de période refuse toujours les mois suivants.

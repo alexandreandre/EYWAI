@@ -145,7 +145,7 @@ class _ContexteFinCdd:
 
 
 def test_fin_cdd_retire_l_iccp_du_dossier_et_leve_le_blocage():
-    """Demory, Colorplast, juillet 2026 : l'ICCP du dossier arrivait après
+    """Feroral, Colorplast, juillet 2026 : l'ICCP du dossier arrivait après
     les cotisations (net > brut) ; celle du brut, cotisée, doit prendre."""
     from app.modules.payroll.documents.payslip_run_common import (
         ecarter_iccp_du_dossier_pour_fin_cdd,

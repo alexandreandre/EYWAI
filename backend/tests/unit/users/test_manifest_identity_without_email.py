@@ -24,7 +24,7 @@ MANIFEST = {
     "people": [
         {
             "key": "vanessa",
-            "identity": {"name": "Vanessa Amate"},
+            "identity": {"name": "Vanessa Barague"},
             "account": "existing_only",
             "canonical_employee_account": True,
             "accesses": [
@@ -43,16 +43,16 @@ PROFILS_HOMONYMES = [
     {
         "id": "u-fiche",
         "first_name": "Vanessa",
-        "last_name": "Amate",
+        "last_name": "Barague",
         "role": "admin",
-        "email": "amatevanessa@yahoo.fr",
+        "email": "dupontvanessa@yahoo.fr",
     },
     {
         "id": "u-doublon",
         "first_name": "Vanessa",
-        "last_name": "Amate",
+        "last_name": "Barague",
         "role": "admin",
-        "email": "vamate@maji-invest.fr",
+        "email": "vdupont@maji-invest.fr",
     },
 ]
 
@@ -74,9 +74,9 @@ def test_la_fiche_salarie_departage_deux_homonymes() -> None:
                 "id": "emp-van",
                 "user_id": "u-fiche",
                 "first_name": "Vanessa",
-                "last_name": "AMATE",
+                "last_name": "BARAGUE",
                 "company_id": "c-maji",
-                "email": "amatevanessa@yahoo.fr",
+                "email": "dupontvanessa@yahoo.fr",
             }
         ],
     )

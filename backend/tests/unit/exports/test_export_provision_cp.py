@@ -11,9 +11,9 @@ pytestmark = pytest.mark.unit
 SALARIES = [
     {
         "id": "emp-1",
-        "matricule": "BERTAUD",
-        "first_name": "Sylvain",
-        "last_name": "BERTAUD",
+        "matricule": "BARUMET",
+        "first_name": "Dalande",
+        "last_name": "BARUMET",
         "hire_date": "2010-03-01",
         "employment_status": "actif",
         "salaire_de_base": {"type": "mensuel", "valeur": 2600.0},
@@ -54,19 +54,19 @@ class TestCollecterLignes:
         with p1, p2, p3:
             lignes, avertissements = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD", "NEUF"]
+        assert [l.matricule for l in lignes] == ["BARUMET", "NEUF"]
 
     def test_salarie_avec_bulletins_calcule_sur_ses_bulletins(self):
         p1, p2, p3 = _patch_all()
         with p1, p2, p3:
             lignes, _ = module.collecter_lignes("company-1", "2026-07")
 
-        bertaud = lignes[0]
-        assert bertaud.solde_jours == 32.16
-        assert bertaud.salaire_reference == 2640.86
-        assert bertaud.mois_retenus == "7/12"
-        assert bertaud.anomalie == ""
-        assert bertaud.provision == 3860.46
+        barumet = lignes[0]
+        assert barumet.solde_jours == 32.16
+        assert barumet.salaire_reference == 2640.86
+        assert barumet.mois_retenus == "7/12"
+        assert barumet.anomalie == ""
+        assert barumet.provision == 3860.46
 
     def test_salarie_sans_bulletin_replie_et_signale(self):
         p1, p2, p3 = _patch_all()
@@ -107,7 +107,7 @@ class TestCollecterLignes:
                           side_effect=lambda eid, *a, **k: (0.0, 0.0) if eid == "emp-2" else SOLDES[eid]):
             lignes, _ = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD"]
+        assert [l.matricule for l in lignes] == ["BARUMET"]
 
     def test_salarie_sans_date_d_embauche_exclu_et_signale(self):
         sans_date = [dict(SALARIES[0]), {**SALARIES[1], "hire_date": None}]
@@ -116,7 +116,7 @@ class TestCollecterLignes:
              patch.object(module, "_lire_soldes_ouvres", side_effect=lambda eid, *a, **k: SOLDES[eid]):
             lignes, avertissements = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD"]
+        assert [l.matricule for l in lignes] == ["BARUMET"]
         assert any("date d'entrée" in a for a in avertissements)
 
 
@@ -186,7 +186,7 @@ class TestGenerate:
 
         texte = contenu.decode("utf-8-sig")
         assert "Total" in texte
-        assert "BERTAUD" in texte
+        assert "BARUMET" in texte
 
 
 class TestCablage:

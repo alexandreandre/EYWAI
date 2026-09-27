@@ -5,7 +5,7 @@ des seules cotisations sociales obligatoires : les retenues sur salaire —
 acomptes, saisies, reprises d'un trop-versé — en sont exclues. Elles ne touchent
 que le net à payer.
 
-Référence : bulletin d'avril 2026 de Girerd (Colorplast). Une ligne « trop
+Référence : bulletin d'avril 2026 de Moroche (Colorplast). Une ligne « trop
 perçu mars 2026 » de 1,25 € : le montant net social reste à 3 150,85 et le net
 à payer descend à 3 051,48, soit 3 150,85 − 98,12 de mutuelle famille − 1,25.
 

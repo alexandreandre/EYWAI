@@ -61,7 +61,7 @@ def test_ratio_mois_entier_absent_vaut_zero():
 
 
 def test_ratio_ferie_non_paye_compte_comme_absence():
-    # BARAN Zone 404, entré le 05/03 : lundi de Pâques 06/04 non payé → 29/30.
+    # BARIEUX Zone 404, entré le 05/03 : lundi de Pâques 06/04 non payé → 29/30.
     ctx = build_test_contexte(date_entree="2026-03-05", prior_service_months=0)
     cal = [{"date_complete": "2026-04-06", "type": "ferie", "heures": 0.0}]
     ratio = ratio_plafond_periode(cal, date(2026, 4, 1), date(2026, 4, 30), ctx)

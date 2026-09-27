@@ -72,4 +72,4 @@ def test_detect_quadra_headers():
 
 
 def test_normalize_nir():
-    assert normalize_nir("161 099 935 230 854") == "161099935230854"
+    assert normalize_nir("180 017 520 245 618") == "180017520245618"
