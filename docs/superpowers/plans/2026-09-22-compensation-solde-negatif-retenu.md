@@ -559,7 +559,7 @@ git commit -m "fix(paie): la compensation retient le solde negatif au lieu d'eff
 
 **Files:**
 - Create: `backend/scripts/verif_compensation_janvier.py`
-- Modify: `docs/comptes-rendus/2026-09-18-colorplast-2026-rejeu-regulier.md`
+- Modify: `data/colorplast/rapprochements/2026-09-18-colorplast-2026-rejeu-regulier.md`
 - Modify: `/Users/alex/.claude/projects/-Users-alex-Documents-Alexandre-01-Projets-EYWAI-EYWAI/memory/compensation-heures-entre-semaines-option.md`
 
 **Interfaces:**
@@ -672,13 +672,13 @@ Dans les deux cas, ne rien changer en base sans son accord explicite.
 
 - [ ] **Step 4 : consigner le résultat**
 
-Ajouter à `docs/comptes-rendus/2026-09-18-colorplast-2026-rejeu-regulier.md` une section « Rejeu après correction du solde négatif (22/09) » portant le tableau des trois mesures (sans option, avec option, avec option corrigée) et la décision prise.
+Ajouter à `data/colorplast/rapprochements/2026-09-18-colorplast-2026-rejeu-regulier.md` une section « Rejeu après correction du solde négatif (22/09) » portant le tableau des trois mesures (sans option, avec option, avec option corrigée) et la décision prise.
 
 Mettre à jour la mémoire `compensation-heures-entre-semaines-option.md` : remplacer la phrase « la partie absences est à rouvrir » par le résultat mesuré.
 
 - [ ] **Step 5 : proposer le commit (ne pas commiter sans accord)**
 
 ```bash
-git add backend/scripts/verif_compensation_janvier.py docs/comptes-rendus/2026-09-18-colorplast-2026-rejeu-regulier.md
+git add backend/scripts/verif_compensation_janvier.py data/colorplast/rapprochements/2026-09-18-colorplast-2026-rejeu-regulier.md
 git commit -m "chore(backtest): mesure de la compensation corrigee sur six mois"
 ```

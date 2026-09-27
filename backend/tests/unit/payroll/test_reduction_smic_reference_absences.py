@@ -8,7 +8,7 @@ rémunérée : le SMIC de référence était trop élevé, donc la réduction tr
 forte.
 
 Colorplast, janvier 2026, contrats 39 h (audit du 14/09,
-`docs/comptes-rendus/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`) :
+`data/colorplast/rapprochements/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`) :
 
 * Léo Cotte, absence de 3,5 h le 21/01 → 169,00 h utilisées au lieu de
   165,50 ; réduction 643,01 au lieu des 609,61 de Quadra ;

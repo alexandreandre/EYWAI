@@ -1172,7 +1172,7 @@ Expected: verts.
 ### Task 7: Suite complète, contrôle sur le test, documentation
 
 **Files:**
-- Modify: `docs/reference/colorplast-reprise-passation.md` (§5, un paragraphe « garde-fou et fenêtre »)
+- Modify: `data/colorplast/referentiel/colorplast-reprise-passation.md` (§5, un paragraphe « garde-fou et fenêtre »)
 - Modify: mémoire `lecture-pointages-orientation-et-semaines.md` ou nouvelle mémoire `periode-a-saisir-fenetre.md` (projet : « le contrôle amont juge l'union mois civil ∪ fenêtre, comme le moteur »)
 
 - [ ] **Step 1: Suite unitaire complète**

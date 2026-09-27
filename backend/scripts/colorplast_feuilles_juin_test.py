@@ -16,7 +16,7 @@ remises : la base est rendue telle que le rejeu l'a laissée.
 Chaque bulletin est comparé à deux choses : ce que la règle hebdomadaire donne
 sur les feuilles (le contrôle qui fait échouer le script — c'est le moteur
 qu'on juge), et ce que le cabinet a payé (imprimé, pas jugé : ses écarts sont
-expliqués dans `docs/comptes-rendus/2026-09-16-colorplast-juin-2026-ligne-a-ligne.md`).
+expliqués dans `data/colorplast/rapprochements/2026-09-16-colorplast-juin-2026-ligne-a-ligne.md`).
 
 Exécuté en CI via `script-env-test.yml`. Usage : [--apply]
 """

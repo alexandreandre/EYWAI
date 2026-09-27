@@ -145,7 +145,7 @@ REFERENCES: dict[int, dict] = {
         # graverait une sous-paie possible dans les sept sociétés.
         "en_attente": {
             "GAUTHERON": "maintien de salaire de l'arrêt du 16 au 28/03 — "
-                         "question ouverte, voir docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md",
+                         "question ouverte, voir data/colorplast/rapprochements/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md",
         },
         # Écarts avec le cabinet que nous ne reproduisons pas, et pourquoi.
         #

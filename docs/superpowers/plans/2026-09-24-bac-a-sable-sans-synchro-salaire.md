@@ -327,7 +327,7 @@ git commit -m "fix(paie): le bac a sable ne reecrit plus le salaire de la fiche"
 
 **Files:**
 - Create (bloc-notes, hors dépôt) : `verif_bac_a_sable_etanche.py`
-- Modify: `docs/reference/colorplast-reprise-passation.md` (section « Brouillons d'août recalculés en bac à sable (24/09) »)
+- Modify: `data/colorplast/referentiel/colorplast-reprise-passation.md` (section « Brouillons d'août recalculés en bac à sable (24/09) »)
 - Modify: mémoire `bac-a-sable-generation.md`
 
 - [ ] **Step 1 : le script piège toutes les écritures**
@@ -347,6 +347,6 @@ Mémoire `bac-a-sable-generation` : remplacer le paragraphe « Pas étanche » p
 - [ ] **Step 3 : commit**
 
 ```bash
-git add docs/reference/colorplast-reprise-passation.md docs/superpowers/specs/2026-09-24-bac-a-sable-sans-synchro-salaire-design.md docs/superpowers/plans/2026-09-24-bac-a-sable-sans-synchro-salaire.md
+git add data/colorplast/referentiel/colorplast-reprise-passation.md docs/superpowers/specs/2026-09-24-bac-a-sable-sans-synchro-salaire-design.md docs/superpowers/plans/2026-09-24-bac-a-sable-sans-synchro-salaire.md
 git commit -m "docs(paie): bac a sable etanche, spec, plan et verification"
 ```

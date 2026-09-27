@@ -19,7 +19,9 @@ Architecture du code : [../ARCHITECTURE.md](../ARCHITECTURE.md).
 - [demarrage.md](reference/demarrage.md) : installer, lancer, tester, règles du dépôt.
 - [guide-environnement-test.md](reference/guide-environnement-test.md) : le site de test, la resynchro, les migrations.
 - [bascule-production.md](reference/bascule-production.md) : faire de la base de test la production.
-- [colorplast-reprise-passation.md](reference/colorplast-reprise-passation.md) : la reprise de paie Colorplast, état et règles.
+- La reprise de paie Colorplast (état et règles) et les rapprochements ligne à
+  ligne nomment des salariés : ils vivent hors git, sous
+  `data/colorplast/referentiel/` et `data/colorplast/rapprochements/`.
 - [donnees-locales.md](reference/donnees-locales.md) : où ranger les données de paie, sous `data/`.
 - [strategie-qa.md](reference/strategie-qa.md) : QA exploratoire, tests Playwright, smoke.
 - [net-entreprises-missions.md](reference/net-entreprises-missions.md) : net-entreprises et dépôt des DSN.
