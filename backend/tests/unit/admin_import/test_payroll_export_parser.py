@@ -24,7 +24,7 @@ def test_parse_temps_partiel_and_payment():
     }
     row = {
         "Prénom": "Vitor",
-        "Nom": "DA SILVA",
+        "Nom": "DA SELVA",
         "% activité": "40,00",
         "NbHeureMois": "60,67",
         "Paiement": "Virement",

@@ -12,9 +12,9 @@ from app.modules.pas_rates.domain.rapprochement import (
 def _salarie(**kw):
     base = {
         "id": "emp-1",
-        "last_name": "NOBLE",
+        "last_name": "NOBLAT",
         "first_name": "Eric",
-        "nir": "1690199404042",
+        "nir": "1800175305789",
         "employment_status": "actif",
         "specificites_paie": {"prelevement_a_la_source": {"taux": 3.5, "type_taux": "13"}},
     }
@@ -24,8 +24,8 @@ def _salarie(**kw):
 
 def _ligne(**kw):
     base = {
-        "nir": "1690199404042",
-        "nom": "NOBLE",
+        "nir": "1800175305789",
+        "nom": "NOBLAT",
         "prenom": "Eric",
         "matricule": "0001",
         "taux": 26.8,
@@ -108,7 +108,7 @@ def test_salarie_en_sortie_reste_dans_l_effectif():
 
 
 def test_avertissement_ignore_les_partis_absents_du_fichier():
-    parti = _salarie(id="emp-2", last_name="PARTI", first_name="Paul", nir="2800199404042")
+    parti = _salarie(id="emp-2", last_name="PARTI", first_name="Paul", nir="2800175306789")
     parti["employment_status"] = "parti"
     apercu = _apercu([_ligne()], [_salarie(), parti])
     assert apercu.avertissements == []
@@ -129,12 +129,12 @@ def test_rapprochement_tolere_accents_et_second_prenom():
 
 def test_nir_rapproche_sur_treize_chiffres():
     """La base garde treize chiffres, un export peut en porter quinze."""
-    assert cle_nir("169019940404212") == "1690199404042"
-    assert cle_nir("1 69 01 99 404 042") == "1690199404042"
+    assert cle_nir("180017530578912") == "1800175305789"
+    assert cle_nir("1 80 01 75 305 789") == "1800175305789"
 
 
 def test_cle_nom_ignore_la_casse_et_la_ponctuation():
-    assert cle_nom("de Sá", "Anthony") == cle_nom("DE SA", "ANTHONY")
+    assert cle_nom("de Sól", "Anthony") == cle_nom("DE SOL", "ANTHONY")
 
 
 def test_second_contrat_du_meme_salarie_est_ignore():
@@ -145,14 +145,14 @@ def test_second_contrat_du_meme_salarie_est_ignore():
 
 
 def test_salaries_absents_du_fichier_sont_signales():
-    autre = _salarie(id="emp-2", last_name="ABSENT", first_name="Paul", nir="2800199404042")
+    autre = _salarie(id="emp-2", last_name="ABSENT", first_name="Paul", nir="2800175306789")
     apercu = _apercu([_ligne()], [_salarie(), autre])
     assert apercu.avertissements
     assert "1 salarié(s)" in apercu.avertissements[0]
 
 
 def test_compteurs_resument_l_apercu():
-    autre = _salarie(id="emp-2", last_name="AUTRE", first_name="Paul", nir="2800199404042")
+    autre = _salarie(id="emp-2", last_name="AUTRE", first_name="Paul", nir="2800175306789")
     apercu = _apercu(
         [_ligne(), _ligne(nir="9999999999999", nom="INCONNU", prenom="Jean")],
         [_salarie(), autre],

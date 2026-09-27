@@ -123,7 +123,7 @@ def test_find_by_nir_respects_company_scope():
 
 def test_find_by_nir_no_false_match_on_different_person():
     with _patch_client([DB_EMPLOYEE]):
-        found = repo.find_employee_by_nir("mbc", "2990599352223")
+        found = repo.find_employee_by_nir("mbc", "2800175303789")
     assert found is None
 
 

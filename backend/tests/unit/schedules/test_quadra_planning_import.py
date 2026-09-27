@@ -30,7 +30,7 @@ ROSTER = [
     RosterEmployee(
         id="3",
         first_name="Vitor Manuel",
-        last_name="DUMOCHE DA SILVA",
+        last_name="DUMOCHE DA SELVA",
     ),
     RosterEmployee(id="4", first_name="Lucas", last_name="DUMILLY"),
 ]
@@ -70,14 +70,14 @@ def test_resolve_sheet_last_name_only() -> None:
 
 def test_resolve_sheet_with_sommaire_hint_disambiguates() -> None:
     roster = [
-        RosterEmployee(id="3", first_name="Vitor Manuel", last_name="DUMOCHE DA SILVA"),
-        RosterEmployee(id="5", first_name="Vitor Manuel", last_name="DA SILVA DUMANOT"),
+        RosterEmployee(id="3", first_name="Vitor Manuel", last_name="DUMOCHE DA SELVA"),
+        RosterEmployee(id="5", first_name="Vitor Manuel", last_name="DA SELVA DUMANOT"),
         RosterEmployee(id="2", first_name="Michel", last_name="CAVORAL"),
     ]
     match = resolve_employee_for_planning_sheet(
         "DUMOCHE",
         roster,
-        hint_name="DUMOCHE DA SILVA Vitor Manuel",
+        hint_name="DUMOCHE DA SELVA Vitor Manuel",
     )
     assert match.employee_id == "3"
     assert match.review_status in ("ok", "warning")
@@ -95,16 +95,16 @@ def test_resolve_cartol_sheet_with_first_name_initials() -> None:
     roster = [
         RosterEmployee(id="jm", first_name="Jean-Michel", last_name="CAVANDE"),
         RosterEmployee(id="m", first_name="Mathieu", last_name="CAVANDE"),
-        RosterEmployee(id="jn", first_name="Jean-Noël", last_name="LEMAIRE"),
-        RosterEmployee(id="jo", first_name="Jordan", last_name="LEMAIRE"),
+        RosterEmployee(id="jn", first_name="Jean-Noël", last_name="LEMOREL"),
+        RosterEmployee(id="jo", first_name="Jordan", last_name="LEMOREL"),
         RosterEmployee(id="gm", first_name="Guy-Marie", last_name="COROLET"),
         RosterEmployee(id="gio", first_name="Giorgio", last_name="COROLET"),
     ]
 
     for raw, expected in (
         ("CAVANDE JM", "jm"),
-        ("LEMAIRE JN", "jn"),
-        ("LEMAIRE JO", "jo"),
+        ("LEMOREL JN", "jn"),
+        ("LEMOREL JO", "jo"),
         ("COROLET G-M", "gm"),
         ("COROLET Gio", "gio"),
     ):
@@ -149,16 +149,16 @@ def test_resolve_cartol_sheet_with_sommaire_initial_hint() -> None:
 
 def test_resolve_cartol_particle_last_names_are_not_first_name_hints() -> None:
     roster = [
-        RosterEmployee(id="de-sa", first_name="Anthony", last_name="DE SA"),
+        RosterEmployee(id="de-sa", first_name="Anthony", last_name="DE SOL"),
         RosterEmployee(id="de-barinet", first_name="Palilly", last_name="DE BARINET"),
         RosterEmployee(id="de-dumieux", first_name="Corande", last_name="DE DUMIEUX"),
         RosterEmployee(id="galival", first_name="Oleksandr", last_name="GALIVAL"),
     ]
 
     match = resolve_employee_for_planning_sheet(
-        "DE SA",
+        "DE SOL",
         roster,
-        hint_name="DE SA",
+        hint_name="DE SOL",
     )
     assert match.employee_id == "de-sa"
     assert match.review_status == "ok"

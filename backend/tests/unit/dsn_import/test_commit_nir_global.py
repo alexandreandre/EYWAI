@@ -12,19 +12,19 @@ def test_commit_employee_blocks_when_nir_exists_in_other_company():
         {
             "id": "item-emp",
             "item_type": "employee",
-            "source_ref": "emp:80248516900022:1630899139837",
+            "source_ref": "emp:80248516900022:1800175300789",
             "action": "create",
             "mapped_payload": {
                 "first_name": "Jean",
                 "last_name": "Dupont",
-                "nir": "1630899139837",
+                "nir": "1800175300789",
             },
         }
     ]
     existing = {
         "id": "emp-existing",
         "company_id": "old-co",
-        "nir": "1630899139837",
+        "nir": "1800175300789",
         "employee_folder_name": "DUPONT_Jean",
     }
     with patch("app.modules.dsn_import.application.commit.repo") as repo, patch(

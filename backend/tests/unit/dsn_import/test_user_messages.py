@@ -12,9 +12,9 @@ from app.modules.dsn_import.domain.user_messages import (
 
 def test_employee_other_company_anomaly_message():
     anomaly = employee_other_company_anomaly(
-        source_ref="emp:80248516900022:1630899139837",
-        employee_name="Vitor DA SILVA DUMANOT",
-        nir="1630899139837",
+        source_ref="emp:80248516900022:1800175300789",
+        employee_name="Vitor DA SELVA DUMANOT",
+        nir="1800175300789",
         target_company_name="Colorplast",
         existing_company_name="Comitech Composite",
     )
@@ -36,25 +36,25 @@ def test_target_siret_missing_anomaly():
 def test_humanize_commit_error_duplicate_nir():
     exc = Exception(
         'duplicate key value violates unique constraint "employees_nir_key" '
-        'Key (nir)=(1630899139837) already exists.'
+        'Key (nir)=(1800175300789) already exists.'
     )
     issue = humanize_commit_error(
         exc,
-        source_ref="emp:80248516900022:1630899139837",
-        item_label="Vitor DA SILVA DUMANOT",
+        source_ref="emp:80248516900022:1800175300789",
+        item_label="Vitor DA SELVA DUMANOT",
     )
     assert issue["code"] == "duplicate_nir"
-    assert "9837" in issue["message"]
+    assert "0789" in issue["message"]
     assert issue["hint"]
 
 
 def test_humanize_commit_error_runtime_cross_company():
     issue = humanize_commit_error(
         RuntimeError(
-            "NIR 1630899139837 déjà enregistré chez Comitech Composite — "
+            "NIR 1800175300789 déjà enregistré chez Comitech Composite — "
             "ignorez ce salarié à l'import ou corrigez la fiche manuellement."
         ),
-        source_ref="emp:80248516900022:1630899139837",
+        source_ref="emp:80248516900022:1800175300789",
     )
     assert issue["code"] == "employee_cross_company"
     assert "Comitech Composite" in issue["message"]

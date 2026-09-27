@@ -13,7 +13,7 @@ ENTETE = (
 )
 
 INDIVIDU = (
-    "S21.G00.30.001,'1660606088067'\n"
+    "S21.G00.30.001,'1800175301789'\n"
     "S21.G00.30.002,'NOBLE'\n"
     "S21.G00.30.004,'Eric'\n"
     "S21.G00.40.001,'01012024'\n"
@@ -34,7 +34,7 @@ def base(monkeypatch):
                 "id": "emp-1",
                 "last_name": "NOBLE",
                 "first_name": "Eric",
-                "nir": "1660606088067",
+                "nir": "1800175301789",
                 "employment_status": "actif",
                 "company_id": "cid",
                 "specificites_paie": {
@@ -117,7 +117,7 @@ def test_fichier_d_un_autre_siren_est_refuse(base, monkeypatch):
 def test_fichier_sans_taux_est_refuse(base):
     sans_pas = (
         ENTETE
-        + "S21.G00.30.001,'1660606088067'\n"
+        + "S21.G00.30.001,'1800175301789'\n"
         "S21.G00.30.002,'NOBLE'\n"
         "S21.G00.30.004,'Eric'\n"
         "S21.G00.40.001,'01012024'\n"
@@ -131,7 +131,7 @@ def test_fichier_non_datable_est_refuse(base):
         "S10.G00.00.006,'P26V01'\n"
         "S21.G00.06.001,'991177304'\n"
         "S21.G00.11.001,'00029'\n"
-        "S21.G00.30.001,'1660606088067'\n"
+        "S21.G00.30.001,'1800175301789'\n"
         "S21.G00.30.002,'NOBLE'\n"
         "S21.G00.30.004,'Eric'\n"
         "S21.G00.40.001,'01012024'\n"

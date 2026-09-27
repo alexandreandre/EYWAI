@@ -199,11 +199,11 @@ def test_commit_batch_skips_absence_when_employee_in_exit():
         {
             "id": "item-abs",
             "item_type": "absence",
-            "source_ref": "abs:95147478200020:1880879329011:2026-01-05:2026-01-31:sans_solde:suspension",
+            "source_ref": "abs:95147478200020:1800175302789:2026-01-05:2026-01-31:sans_solde:suspension",
             "action": "create",
             "mapped_payload": {
                 "siret": "95147478200020",
-                "nir": "1880879329011",
+                "nir": "1800175302789",
                 "absence_type": "sans_solde",
                 "selected_days": ["2026-01-05", "2026-01-31"],
             },
