@@ -153,7 +153,7 @@ Règles :
 
 ### 3.5 Manifeste d'accès
 
-`users/data/access_manifest.json:239` fige l'adresse fabriquée de Vanessa. Ce champ
+le manifeste d'accès (`data/_acces/access_manifest.json`, hors git depuis le 27/09) figeait l'adresse fabriquée de Vanessa. Ce champ
 `identity.email` est un **clé de recherche du compte Auth**
 (`access_provisioning.py:663-668`), pas une adresse de contact — il doit donc suivre
 l'adresse Auth réelle après réalignement, sinon la résolution échoue.

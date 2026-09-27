@@ -297,7 +297,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=ROOT / "app/modules/users/data/access_manifest.json",
+        # Le manifeste nomme des personnes : il vit hors git (dépôt public).
+        default=ROOT.parent / "data/_acces/access_manifest.json",
     )
     parser.add_argument(
         "--excel-out",

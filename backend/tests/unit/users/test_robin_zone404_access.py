@@ -1,14 +1,13 @@
-"""Robin Baran — collaborateur RH sur Zone 404 avec les droits d'un directeur de site.
+"""Un collaborateur RH de Zone 404 avec les droits d'un directeur de site.
 
 « Directeur » n'est pas un rôle dans cette plateforme : c'est un jeu de permissions posé
-sur un rôle. Robin garde donc son espace salarié (vue collaborateur), gagne la vue RH via
+sur un rôle. Il garde donc son espace salarié (vue collaborateur), gagne la vue RH via
 `collaborateur_rh`, et les validations via `director_mod_validations` — qui ne sont jamais
 implicites, même pour un rôle de niveau RH.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 
@@ -18,10 +17,12 @@ from app.modules.users.application.access_provisioning import (
     build_access_summaries,
     load_manifest,
 )
+from tests.unit.users._manifeste_reel import MANIFESTE_REEL, exige_manifeste_reel, identite
 
-pytestmark = pytest.mark.unit
+# Le manifeste réel vit hors git : ces tests ne tournent que sur le poste.
+pytestmark = [pytest.mark.unit, exige_manifeste_reel]
 
-MANIFEST_PATH = Path("app/modules/users/data/access_manifest.json")
+MANIFEST_PATH = MANIFESTE_REEL
 ROBIN_USER = "u-robin"
 ZONE = "c-z404"
 
@@ -43,16 +44,17 @@ def _robin(manifest: dict) -> dict:
 
 
 def _gateway(role_actuel: str) -> InMemoryProvisioningGateway:
+    ident = identite(_manifest(), "robin")
     return InMemoryProvisioningGateway(
         companies=[{"id": ZONE, "company_name": "Zone 404 Mars"}],
         profiles=[
             {
                 "id": ROBIN_USER,
-                "first_name": "Robin",
-                "last_name": "Baran",
+                "first_name": ident["prenom"],
+                "last_name": ident["nom"],
                 "role": role_actuel,
-                "username": "robin.baran",
-                "email": "robin.baran@zone404.fr",
+                "username": ident["username"],
+                "email": ident["email"],
             }
         ],
         accesses=[
@@ -68,10 +70,10 @@ def _gateway(role_actuel: str) -> InMemoryProvisioningGateway:
             {
                 "id": "e-robin",
                 "user_id": ROBIN_USER,
-                "first_name": "Robin",
-                "last_name": "BARAN",
+                "first_name": ident["prenom"],
+                "last_name": ident["nom"].upper(),
                 "company_id": ZONE,
-                "email": "robin.baran@zone404.fr",
+                "email": ident["email"],
             }
         ],
         permissions={

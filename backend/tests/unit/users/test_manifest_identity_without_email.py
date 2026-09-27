@@ -14,6 +14,7 @@ from app.modules.users.application.access_provisioning import (
     AccessProvisioner,
     InMemoryProvisioningGateway,
 )
+from tests.unit.users._manifeste_reel import MANIFESTE_REEL, exige_manifeste_reel
 
 pytestmark = pytest.mark.unit
 
@@ -97,13 +98,12 @@ def test_sans_fiche_l_ambiguite_reste_signalee() -> None:
     assert plan.has_conflicts
 
 
+@exige_manifeste_reel
 def test_le_manifeste_ne_contient_plus_aucune_adresse_fabriquee() -> None:
-    from pathlib import Path
-
     from app.modules.employees.domain.rules import is_dsn_import_placeholder_email
     from app.modules.users.application.access_provisioning import load_manifest
 
-    manifest = load_manifest(Path("app/modules/users/data/access_manifest.json"))
+    manifest = load_manifest(MANIFESTE_REEL)
     for person in manifest.get("people") or []:
         email = (person.get("identity") or {}).get("email")
         assert not is_dsn_import_placeholder_email(email), (

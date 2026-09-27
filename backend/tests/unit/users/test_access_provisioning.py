@@ -12,6 +12,7 @@ from app.modules.users.application.access_provisioning import (
     normalize_identity,
     write_access_workbook,
 )
+from tests.unit.users._manifeste_reel import MANIFESTE_REEL, exige_manifeste_reel, identite
 
 
 def _base_gateway(**kwargs) -> InMemoryProvisioningGateway:
@@ -59,16 +60,16 @@ def test_normalize_identity_unicode():
     assert normalize_identity("Gaëlle  CAVOTIN") == "gaelle cavotin"
 
 
+@exige_manifeste_reel
 def test_dorothee_is_noop():
-    manifest = load_manifest(
-        Path("app/modules/users/data/access_manifest.json")
-    )
+    manifest = load_manifest(MANIFESTE_REEL)
+    doro_id = identite(manifest, "dorothee")
     gw = _base_gateway(
         profiles=[
             {
                 "id": "u-doro",
-                "first_name": "Dorothée",
-                "last_name": "Boulay",
+                "first_name": doro_id["prenom"],
+                "last_name": doro_id["nom"],
                 "email": "doro@x.test",
             }
         ]
