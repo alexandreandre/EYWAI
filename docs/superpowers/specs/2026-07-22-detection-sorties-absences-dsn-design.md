@@ -5,7 +5,7 @@ Statut : approuvé (design), lecture seule
 
 ## Contexte / cause racine
 
-Cas déclencheur : Mohamed Imad OSMANI (matricule `OSMANI2`, MBC), supposé « sorti »
+Cas déclencheur : salarié 222 (matricule au format NOM2, MBC), supposé « sorti »
 depuis février 2026, mais EYWAI génère encore des bulletins (net ≈ −80 € en avril/juin,
 ≈ 3 016 € en mai = participation).
 
@@ -113,7 +113,7 @@ régression paie).
 ## Tests
 
 - `nir_match_key` : 13 / 15 / espaces / NTT / vide.
-- `classify` : les 4 situations + limites (profil OSMANI = absence prolongée ; départ G62 ;
+- `classify` : les 4 situations + limites (profil salarié 222 = absence prolongée ; départ G62 ;
   disparu ; participation post-départ ; actif normal ; arrêt partiel = actif normal).
 - Intégration réconciliation : items « présent + arrêts couvrant le mois + cumul brut≈0 »
   → advisory `prolonged_absence` ; NIR 13/15 rapproché (plus de faux manquants).

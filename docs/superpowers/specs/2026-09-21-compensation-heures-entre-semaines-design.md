@@ -21,7 +21,7 @@ onglet « DETAIL HEURES SUP » : « les 8 premières heures = 25 %, les suivante
   **semaines négatives comprises**, pour chaque taux.
 
 Vérifié sur juin 2026 (le classeur prolongé à S25 redonne les bulletins) :
-Bugny semaines +2, +4, +7,5, +7,5 → 14 h à 25 % et 7 h à 50 % ; Fuckar −5, +7,
+salarié 044 semaines +2, +4, +7,5, +7,5 → 14 h à 25 % et 7 h à 50 % ; salarié 130 −5, +7,
 +1, +4 → 4 h à 25 % et 3 h à 50 %. Une semaine négative ne retire jamais de
 salaire : elle mange des heures sup.
 
@@ -45,8 +45,7 @@ pour juillet Colorplast), après l'analyse hebdomadaire habituelle :
    sans pointage ou à 0 h, neutre — l'absence est retenue par ailleurs ; si le
    salarié a travaillé, il devait faire la journée normale moins X (journée
    normale = heures les plus fréquentes des jours de travail prévus du même
-   jour de semaine dans le mois), et l'écart se mesure à ce reste. Marion
-   Gautheron, jeudi 09/07/2026 : absence de 7,5 h sur 8,5, 1 h faite → écart
+   jour de semaine dans le mois), et l'écart se mesure à ce reste. salarié 140, jeudi 09/07/2026 : absence de 7,5 h sur 8,5, 1 h faite → écart
    0, pas 1 h de surplus (ajouté le 21/09 après la recette de juillet).
 2. **Majorations de la semaine** : `majo25 = min(TOTAL, seuil25)`,
    `majo50 = max(TOTAL − seuil25, 0)`.
@@ -115,16 +114,16 @@ d'heures et la base de l'allègement suivent (rien de retenu = tout rémunéré)
 Purs, sur des semaines et des jours :
 - majorations : 7,5 → (4 ; 3,5) ; 2 → (2 ; 0) ; −5 → (−5 ; 0) ; à 35 h,
   10 → (8 ; 2) ;
-- compensation juin 2026 : Bugny [+2, +4, +7,5, +7,5] → (14 ; 7) ; Fuckar
-  [−5, +7, +1, +4] → (4 ; 3) ; Espinosa [+4, +4, +8, +8] → (16 ; 7)* ;
+- compensation juin 2026 : salarié 044 [+2, +4, +7,5, +7,5] → (14 ; 7) ; salarié 130
+  [−5, +7, +1, +4] → (4 ; 3) ; salarié 108 [+4, +4, +8, +8] → (16 ; 7)* ;
   un net25 négatif mange le net50 : [−6, +10] → (0 ; 4, solde 0) ; [−8, +2] →
   (0 ; 0, solde −6) ;
-- écarts journaliers : Fuckar S28 (−1,5, −4, +1, +2) → −2,5 ; un jour sans
+- écarts journaliers : salarié 130 S28 (−1,5, −4, +1, +2) → −2,5 ; un jour sans
   pointage neutre ; un mois sans pointage neutre ; un jour non prévu compte ;
 - application au calendrier : les HS et absences de la fenêtre disparaissent,
   les nets apparaissent au dernier jour de la fenêtre, un congé de la fenêtre
   et une HS hors fenêtre restent ; option désactivée → calendrier identique ;
 - réglage : le PATCH accepte le booléen et le rend au GET.
 
-\* semaines d'Espinosa reconstruites depuis le total 16/7 du classeur ; la
-recette qui compte est Bugny et Fuckar, dont les semaines sont écrites.
+\* semaines d'salarié 108 reconstruites depuis le total 16/7 du classeur ; la
+recette qui compte est salarié 044 et salarié 130, dont les semaines sont écrites.

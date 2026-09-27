@@ -1,7 +1,7 @@
 # La période à saisir pour la paie d'un mois — conception
 
 Date : 20 septembre 2026. Décidé avec Alexandre le 20/09 au matin, à partir du
-cas Michel BUGNY, juillet 2026, sur le test.
+cas salarié 044, juillet 2026, sur le test.
 
 ## Le constat
 

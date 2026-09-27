@@ -107,8 +107,8 @@ describe('isPayrollFocusAllowed', () => {
 
 describe('isPayrollFocusActive', () => {
   it('est actif pour un compte client', () => {
-    expect(isPayrollFocusActive({ role: 'rh', email: 'gaelle.bouali@maji-invest.fr' })).toBe(true);
-    expect(isPayrollFocusActive({ role: 'admin', email: 'vanessa.amate@maji-invest.fr' })).toBe(true);
+    expect(isPayrollFocusActive({ role: 'rh', email: 'prenom.nom@exemple.fr' })).toBe(true);
+    expect(isPayrollFocusActive({ role: 'admin', email: 'prenom.nom@exemple.fr' })).toBe(true);
   });
 
   it('est inactif pour un administrateur plateforme', () => {
@@ -702,4 +702,4 @@ Sur l'environnement de test, après déploiement :
 - [ ] `useCanLaunchPayroll` : le lancement reste bloqué tant que Calendrier, Congés ou Notes de frais ont des éléments en attente, et se débloque une fois les trois à zéro.
 - [ ] Espace salarié et espace manager : inchangés.
 
-**Prérequis non technique, bloquant :** Gaëlle Bouali est RH sur MAJI et Zone 404 uniquement. Sans Colorplast ajoutée à son compte de test, la séquence de vendredi ne peut pas se jouer, quel que soit le menu.
+**Prérequis non technique, bloquant :** salarié 030 est RH sur MAJI et Zone 404 uniquement. Sans Colorplast ajoutée à son compte de test, la séquence de vendredi ne peut pas se jouer, quel que soit le menu.

@@ -142,7 +142,7 @@ nom, on risquerait d'envoyer un bulletin à un inconnu.
 Robin est collaborateur RH sur Zone 404, avec les droits d'un directeur.
 
 « Directeur » n'est pas un rôle chez nous, mais un ensemble de droits, celui
-d'Eric Noble, Damien Faucher et Lucas Chambert.
+d'salarié 218, salarié 114 et salarié 057.
 
 Robin garde son espace salarié. Il gagne la vue RH et les validations : valider
 un bulletin, approuver une note de frais ou une avance.
@@ -484,8 +484,8 @@ précédente n'avait jamais été repris. Chez nous il valait 25 jours pour tout
 monde, alors qu'en réalité il va de 3 à 88 jours.
 
 Ces soldes étaient **dans votre fichier**, une colonne du même document. On les
-a remis dans EYWAI. Vérifié nom par nom : BOISSINOT 88 jours, QUERAT 81,
-BERTAUD 28. L'écart est passé de 6, 2 jours à un centième de jour, et de 31 % à
+a remis dans EYWAI. Vérifié nom par nom : salarié 026 88 jours, salarié 242 81,
+salarié 019 28. L'écart est passé de 6, 2 jours à un centième de jour, et de 31 % à
 12 % en euros.
 
 **Les 12 % restants ne peuvent pas être réglés.** Le salaire de référence se

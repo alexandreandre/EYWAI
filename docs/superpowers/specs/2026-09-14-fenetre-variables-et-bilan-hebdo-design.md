@@ -6,8 +6,8 @@ d'absence sont identiques. Tout l'écart de brut vient de deux règles.
 
 | Salarié | Quadra | EYWAI | Cause |
 |---|---|---|---|
-| Espinosa | 3 191,76 | 3 159,63 | absence du 31/07 comptée dans juillet (fenêtre) |
-| Fuckar | 1 906,45 | 1 830,74 | 6 h d'absence en trop (bilan par semaine) + 29/07 (fenêtre) |
+| salarié 108 | 3 191,76 | 3 159,63 | absence du 31/07 comptée dans juillet (fenêtre) |
+| salarié 130 | 1 906,45 | 1 830,74 | 6 h d'absence en trop (bilan par semaine) + 29/07 (fenêtre) |
 | Marion | 2 089,06 | 2 072,17 | 31/07 (fenêtre) + 15 min le 17/07 (donnée de feuille, hors sujet) |
 
 Les heures de juillet des deux côtés viennent des mêmes feuilles de pointage
@@ -61,7 +61,7 @@ heures sup d'aujourd'hui, inchangées. Jamais les deux dans la même semaine.
 
 L'absence de la semaine se pose sur les jours manqués, dans l'ordre : le
 surplus compense d'abord les premiers jours manqués, le reste porte sur les
-derniers. Fuckar, semaine du 6 juillet (−1,5 mardi, −4 mercredi, +1 jeudi,
+derniers. salarié 130, semaine du 6 juillet (−1,5 mardi, −4 mercredi, +1 jeudi,
 +2 vendredi) donne une seule ligne « Absence du 08/07 : 2,5 h ». Le typage
 base / hs25 par position dans la semaine est conservé (il n'a plus d'effet sur
 un contrat de plus de 35 h, la répartition 35/39 s'applique après).
@@ -75,16 +75,16 @@ posée), heures assimilées pour le seuil d'heures sup.
 
 | Cas | Semaine | Prévu / fait | Attendu |
 |---|---|---|---|
-| Fuckar | 6–10/07 | 39 / 36,5 | absence 2,5 h le 08/07 |
-| Fuckar | 13–17/07 | 30,5 / 23,5 (férié le 14) | absence 7 h le 15/07 |
-| Fuckar | 20–24/07 | 39 / 30,5 | absence 8,5 h le 20/07 |
-| Fuckar | 27–31/07 | 39 / 41 | 2 h HS, aucune absence ; hors fenêtre de juillet |
-| Espinosa | 27–31/07 | 39 / 37 | absence 2 h, hors fenêtre de juillet |
+| salarié 130 | 6–10/07 | 39 / 36,5 | absence 2,5 h le 08/07 |
+| salarié 130 | 13–17/07 | 30,5 / 23,5 (férié le 14) | absence 7 h le 15/07 |
+| salarié 130 | 20–24/07 | 39 / 30,5 | absence 8,5 h le 20/07 |
+| salarié 130 | 27–31/07 | 39 / 41 | 2 h HS, aucune absence ; hors fenêtre de juillet |
+| salarié 108 | 27–31/07 | 39 / 37 | absence 2 h, hors fenêtre de juillet |
 | Marion | 13–17/07 | 22 / 21,75 | absence 0,25 h le 17/07 (donnée, attendu tel quel) |
 
 Bulletins de juillet regénérés sur le test, fenêtre 22/06–26/07 :
-Fuckar 1 906,45 et Espinosa 3 191,76 au centime ; Marion 2 085,64 (l'écart
-restant de 3,42 est le 17/07). Bugny, Cotte, Girerd, Demory inchangés.
+salarié 130 1 906,45 et salarié 108 3 191,76 au centime ; Marion 2 085,64 (l'écart
+restant de 3,42 est le 17/07). salarié 044, salarié 068, salarié 146, salarié 086 inchangés.
 
 ## Non-régression
 
@@ -96,8 +96,8 @@ restant de 3,42 est le 17/07). Bugny, Cotte, Girerd, Demory inchangés.
 
 ## Hors périmètre, à traiter ensuite
 
-- Reconstruction de la chaîne des cumuls (Girerd, net imposable, cumul heures).
-- Compteurs CP N-1 (Bugny, Marion).
+- Reconstruction de la chaîne des cumuls (salarié 146, net imposable, cumul heures).
+- Compteurs CP N-1 (salarié 044, Marion).
 - Déclaration DSN d'une absence datée du mois précédent portée par la
   fenêtre : vérifier que le module DSN lit bien la date réelle de l'événement.
 - Congés et arrêts dans la fenêtre : question à Gaëlle le 15/09.

@@ -61,7 +61,7 @@ class TestDonneesEnTeteGabarit:
     def _bulletin(self):
         ctx = build_test_contexte(salaire_base=2000.0)
         ctx.year = 2026
-        ctx.contrat["salarie"]["matricule"] = "ALVES"
+        ctx.contrat["salarie"]["matricule"] = "salarié 004"
         ctx.contrat["salarie"]["sexe"] = "M"
         ctx.contrat["salarie"]["mode_paiement"] = "virement"
         ctx.contrat["salarie"]["adresse"] = {
@@ -80,7 +80,7 @@ class TestDonneesEnTeteGabarit:
 
     def test_en_tete_porte_les_donnees_salarie_du_gabarit(self):
         salarie = self._bulletin()["en_tete"]["salarie"]
-        assert salarie["matricule"] == "ALVES"
+        assert salarie["matricule"] == "salarié 004"
         assert salarie["sexe"] == "M"
         assert salarie["mode_paiement"] == "virement"
         assert salarie["adresse"]["ville"] == "NUEIL LES AUBIERS"
@@ -257,11 +257,11 @@ def bulletin_minimal() -> dict:
                 },
             },
             "salarie": {
-                "nom": "ALVES",
+                "nom": "salarié 004",
                 "prenom": "Lucas",
-                "nom_complet": "Lucas ALVES",
+                "nom_complet": "salarié 004",
                 "sexe": "M",
-                "matricule": "ALVES",
+                "matricule": "salarié 004",
                 "nir": "102098519123974",
                 "adresse": {
                     "rue": "32 rue de la Fabrique",
@@ -348,7 +348,7 @@ class TestSalarieEtIdentite:
     def test_nom_precede_de_la_civilite_nom_en_premier(self):
         salarie = construire_vue_bulletin(bulletin_minimal())["salarie"]
         assert salarie["civilite"] == "MR"
-        assert salarie["nom_ligne"] == "ALVES Lucas"
+        assert salarie["nom_ligne"] == "salarié 004 Lucas"
 
     def test_adresse_postale_sur_deux_lignes(self):
         salarie = construire_vue_bulletin(bulletin_minimal())["salarie"]
@@ -356,7 +356,7 @@ class TestSalarieEtIdentite:
 
     def test_identite_reprend_matricule_nir_et_emploi(self):
         identite = construire_vue_bulletin(bulletin_minimal())["identite"]
-        assert identite["matricule"] == "ALVES"
+        assert identite["matricule"] == "salarié 004"
         assert identite["nir"] == "1 02 09 85 191 239 74"
         assert identite["emploi"] == "Opérateur polyvalent"
         assert identite["date_entree"] == "08/04/2026"
@@ -694,7 +694,7 @@ Le tableau central, à plat : brut, rubriques de cotisations préfixées des cod
 
 Deux points de vigilance, tous deux vérifiés sur le bulletin CARTOL de juin 2026 :
 
-1. **`TOTAL DES RETENUES` exclut la CSG/CRDS non déductible.** Sur ALVES : salarial `99,10 + 5,74 + 57,59 + 99,12 + 16,95 + 29,64 = 308,14` — la CSG non déductible (42,27) n'y est pas. Ne pas réutiliser `structure_cotisations.total_salarial`, qui inclut tout, ni `total_avant_csg_crds`, qui exclut aussi les autres contributions employeur alors que Cegid les compte (le patronal `193,77` les inclut). Le total se calcule dans la vue, en sommant toutes les rubriques sauf `csg_non_deductible`.
+1. **`TOTAL DES RETENUES` exclut la CSG/CRDS non déductible.** Sur salarié 004 : salarial `99,10 + 5,74 + 57,59 + 99,12 + 16,95 + 29,64 = 308,14` — la CSG non déductible (42,27) n'y est pas. Ne pas réutiliser `structure_cotisations.total_salarial`, qui inclut tout, ni `total_avant_csg_crds`, qui exclut aussi les autres contributions employeur alors que Cegid les compte (le patronal `193,77` les inclut). Le total se calcule dans la vue, en sommant toutes les rubriques sauf `csg_non_deductible`.
 2. **La rubrique `Q801` s'affiche après le net imposable**, pas dans le bloc principal.
 
 **Files:**
@@ -1530,7 +1530,7 @@ class TestRendu:
         for attendu in (
             "BULLETIN DE SALAIRE",
             "Société CARTOL",
-            "ALVES Lucas",
+            "salarié 004 Lucas",
             "Matricule",
             "1 02 09 85 191 239 74",
             "Q100",
@@ -1963,7 +1963,7 @@ class TestPayslipPreview:
                                 "annee": 2026,
                                 "mois": 6,
                                 "entreprise": {"raison_sociale": "Société CARTOL"},
-                                "salarie": {"nom": "ALVES", "prenom": "Lucas"},
+                                "salarie": {"nom": "salarié 004", "prenom": "Lucas"},
                             },
                             "salaire_brut": 1436.21,
                             "net_a_payer": 910.64,
@@ -1974,7 +1974,7 @@ class TestPayslipPreview:
             assert response.status_code == 200
             html = response.json()["html"]
             assert "BULLETIN DE SALAIRE" in html
-            assert "ALVES Lucas" in html
+            assert "salarié 004 Lucas" in html
         finally:
             app.dependency_overrides.clear()
 

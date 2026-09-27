@@ -1,6 +1,6 @@
 # Période des variables de paie — design
 
-Date : 2026-09-08 · Source : échanges WhatsApp Gaëlle Bouali / Vanessa du 08/09/2026
+Date : 2026-09-08 · Source : échanges WhatsApp salarié 030 / Vanessa du 08/09/2026
 
 ## Le besoin
 
@@ -177,7 +177,7 @@ Décisions de rattachement, à figer dans le code et vérifiées par les tests :
 ### 4. L'en-tête du bulletin
 
 `bulletin_view.py:120-134` imprime aujourd'hui les bornes de la fenêtre
-glissante — d'où le « Du 22/06/2026 Au 26/07/2026 » du bulletin de GIRERD.
+glissante — d'où le « Du 22/06/2026 Au 26/07/2026 » du bulletin de salarié 146.
 Cible : `Du 01/07/2026 Au 31/07/2026`, plus une ligne
 `Variables du 22/06/2026 au 25/07/2026` quand la fenêtre diffère du mois. C'est
 exactement ce que Quadra imprime, donc ce que Gaëlle lit déjà.

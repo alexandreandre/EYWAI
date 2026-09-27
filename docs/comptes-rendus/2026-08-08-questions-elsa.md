@@ -161,8 +161,8 @@ Réglés en fin de journée par le dossier « MBC 2 » déposé dans `data/` :
 
 ### #8 — Secrétaire du CSE MBC *(point #11)*
 
-- **Trouvé** : le Drive porte deux sous-dossiers **vides**, `BOUSSANOUNE
-  secretaire` et `PFISTER secretaire`, plus `GOISSAUD référent securité +
+- **Trouvé** : le Drive porte deux sous-dossiers **vides**, `salarié 037
+  secretaire` et `salarié 231 secretaire`, plus `salarié 147 référent securité +
   delegue syndical` — **manque** : lequel des deux est secrétaire aujourd'hui.
 - **À demander** : « Sur le Drive MBC, deux personnes sont notées "secrétaire".
   L'un est secrétaire adjoint, ou c'est un changement en cours de mandat ? »

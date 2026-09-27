@@ -203,7 +203,7 @@ fenêtre des variables (`shared.domain.periode_variables`). Le moteur lit
 l'union des deux (`payslip_run_heures.creer_calendrier_etendu`). Le contrôle
 amont doit juger la même union : sinon il bloque des jours que le moteur ne
 lit pas (27–31/07 chez Colorplast, juillet 2026) et se tait sur ceux qu'il lit
-(22–30/06). Constat du 20/09/2026, dossier Michel BUGNY.
+(22–30/06). Constat du 20/09/2026, dossier salarié 044.
 
 Module pur : l'appelant fournit la fenêtre, les calendriers et le contrat.
 """
@@ -1182,7 +1182,7 @@ Expected: seuls `test_app_env_defaut_est_prod` et `test_api_failure_manual_fallb
 
 - [ ] **Step 2: Contrôle réel, en lecture, sur la base test**
 
-Script jetable dans le scratchpad (pas dans le dépôt) : pour les sept salariés Colorplast, `charger_periodes_a_saisir(SOCIETE, employes, 2026, 7)` et afficher statut, bloquants, informatifs. Attendu au 20/09 (avant saisie de juin) : les cinq (Bugny, Cotte, Espinosa, Fuckar, Gautheron) `a_saisir` avec bloquants 22/06–26/06 et 29/06–30/06 et informatifs 27/07–31/07 ; Demory et Girerd `a_saisir` sur juin seulement (leur juillet est complet). Si le résultat diffère, c'est la règle ou le chargement qu'il faut regarder, pas la base.
+Script jetable dans le scratchpad (pas dans le dépôt) : pour les sept salariés Colorplast, `charger_periodes_a_saisir(SOCIETE, employes, 2026, 7)` et afficher statut, bloquants, informatifs. Attendu au 20/09 (avant saisie de juin) : les cinq (salarié 044, salarié 068, salarié 108, salarié 130, salarié 140) `a_saisir` avec bloquants 22/06–26/06 et 29/06–30/06 et informatifs 27/07–31/07 ; salarié 086 et salarié 146 `a_saisir` sur juin seulement (leur juillet est complet). Si le résultat diffère, c'est la règle ou le chargement qu'il faut regarder, pas la base.
 
 - [ ] **Step 3: Documenter**
 

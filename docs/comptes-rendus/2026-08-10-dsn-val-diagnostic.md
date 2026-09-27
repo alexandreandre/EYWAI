@@ -183,7 +183,7 @@ demandé n'était que de la plomberie de données :
 - Le cliquet couvre désormais dix instantanés : plafonds recalés sur la
   mesure mai + juin (174 / 17 / 1031 / 23), part de juin documentée.
 - Écarts de données relevés : VUILLERMET (Comitech) payé par le cabinet en
-  juin sans bulletin chez nous ; le PCS de NGOM (MBC) dégradé en '9999' par
+  juin sans bulletin chez nous ; le PCS de salarié 217 (MBC) dégradé en '9999' par
   le cabinet quand notre fiche garde le '625h' de mai.
 
 ### Notes de chantier (résolu le 10/08 au soir)

@@ -44,8 +44,8 @@ démarre au 1er juin.
 **Taux de charges sociales — confirmé.** `cotisations patronales ÷ brut` par salarié,
 calculé sur nos bulletins 2026 (`payslip_data.cotisations_officielles[].total_patronal`
 sur `payslip_data.salaire_brut`), tombe à 0,1–0,25 point du PDF pour les salariés dont
-la paie est stable : De Carvalho 32,14 % / 32,12 %, Vignaud 38,38 % / 38,50 %, Veillat
-24,70 % / 24,57 %, Tamime 22,48 % / 22,68 %, Picard 33,32 % / 33,53 %. Écart médian sur
+la paie est stable : salarié 082 32,14 % / 32,12 %, salarié 296 38,38 % / 38,50 %, salarié 289
+24,70 % / 24,57 %, salarié 279 22,48 % / 22,68 %, salarié 232 33,32 % / 33,53 %. Écart médian sur
 les 61 salariés stables : 1,13 point, entièrement imputable à la période de référence
 tronquée (voir ci-dessous).
 
@@ -56,10 +56,10 @@ d'absence longue, et ils vont dans les deux sens :
 
 | Salarié | Solde N-1 | Notre moyenne 2026 | PDF | Lecture |
 |---|---|---|---|---|
-| BOISSINOT | 88,00 j | 2 045 € | 385 € | Absent en 2025, revenu en 2026 |
-| QUERAT | 81,00 j | 1 996 € | 1 141 € | Idem |
-| LEMAIRE L | 54,00 j | 2 065 € | 1 356 € | Idem |
-| DIGUET | 28,00 j | 522 € | 2 915 € | Présent en 2025, absent en 2026 |
+| salarié 026 | 88,00 j | 2 045 € | 385 € | Absent en 2025, revenu en 2026 |
+| salarié 242 | 81,00 j | 1 996 € | 1 141 € | Idem |
+| salarié 188 L | 54,00 j | 2 065 € | 1 356 € | Idem |
+| salarié 092 | 28,00 j | 522 € | 2 915 € | Présent en 2025, absent en 2026 |
 
 C'est la signature d'une période de référence couvrant juin 2025 → mai 2026, dont EYWAI
 ne détient que les 5 derniers mois. **La preuve au centime ne sera possible qu'à partir
@@ -69,8 +69,8 @@ de juin 2027**, quand EYWAI aura douze mois d'historique de paie.
 
 71 lignes au PDF contre 86 bulletins Cartol en juin 2026 (108 salariés en base). Les
 absents du PDF sont tous des salariés **actifs embauchés après le début de la période
-d'acquisition** (RENAUD 09/2025, SICAUD 11/2025, BREMENT 12/2025, SEGUIN 04/2026,
-ALVES 04/2026, LEGRIP 05/2026…). Cegid les exclut ; nous ne les exclurons pas — ils ont
+d'acquisition** (salarié 250 09/2025, salarié 273 11/2025, salarié 042 12/2025, salarié 269 04/2026,
+salarié 004 04/2026, salarié 185 05/2026…). Cegid les exclut ; nous ne les exclurons pas — ils ont
 des droits acquis, donc une dette. Point à signaler à Elsa, pas à reproduire.
 
 ## Objet
@@ -175,8 +175,8 @@ depuis janvier 2026. »
 
 ## Tests
 
-- Les quatre formules, sur les valeurs réelles de trois lignes du PDF (BERTAUD, BLIN,
-  FAUCHER), au centime.
+- Les quatre formules, sur les valeurs réelles de trois lignes du PDF (salarié 019, salarié 023,
+  salarié 114), au centime.
 - Conversion ouvrables → ouvrés avec un ratio non standard.
 - Salarié sans bulletin : repli contractuel + Anomalie.
 - Salarié embauché en cours de période : « 3/12 » en Mois retenus.
@@ -252,17 +252,17 @@ le fichier qu'elle a déjà envoyé.
    fois. Le script écrit `report réel − théorique`, le théorique étant recalculé
    ajustement neutralisé — donc **relancer le script ne cumule rien**.
 2. **Lecture en colonnes fixes.** Le numéro de collaborateur occupe les 18 premières
-   colonnes et porte parfois une lettre de désambiguïsation (« COUTANT D »,
-   « LEMAIRE JN », « LEMAIRE L »). Un découpage par espaces la prend pour un prénom et
+   colonnes et porte parfois une lettre de désambiguïsation (« salarié 070 D »,
+   « salarié 188 JN », « salarié 188 L »). Un découpage par espaces la prend pour un prénom et
    casse le rapprochement : c'est ce qui laissait 7 lignes sur 71 non rapprochées.
    Couvert par `backend/tests/unit/exports/test_reprise_soldes_cp.py`.
 3. **Tout ou rien.** Le script refuse d'écrire si une seule ligne n'est pas rapprochée.
    Simulation par défaut, `--apply` pour écrire.
 
 Simulation du 07/08/2026 sur Cartol : **71 lignes sur 71 rapprochées, aucun refus**, y
-compris Marie-Noëlle ENOND retrouvée par son nom d'usage DEPLANNE. Le théorique vaut
+compris salarié 105 retrouvée par son nom d'usage salarié 087. Le théorique vaut
 25,00 j ouvrables pour les 71, ce qui confirme le diagnostic. Écarts extrêmes :
-BOISSINOT +75,60 j, QUERAT +67,20 j, PENAUD −12,00 j.
+salarié 026 +75,60 j, salarié 242 +67,20 j, salarié 227 −12,00 j.
 
 ### Effet mesuré, à vide
 
@@ -303,7 +303,7 @@ reprise bulletin, il ne s'y ajoute pas. `payload_reprise()` est couvert par troi
 | Après | **0,01 j** | **318 099,26 €** | −43 981,63 € (−12,1 %) |
 
 Le 0,01 j résiduel est l'arrondi de conversion ouvrables → ouvrés. Contrôle nominatif :
-BOISSINOT 88,00, QUERAT 81,00, BERTAUD 28,00, PENAUD 15,00 — identiques au cabinet.
+salarié 026 88,00, salarié 242 81,00, salarié 019 28,00, salarié 227 15,00 — identiques au cabinet.
 
 L'export Cartol sort désormais 90 lignes pour 371 831,94 €, contre 87 avant : trois
 salariés avaient un solde nul faute de report et entrent maintenant dans le périmètre.

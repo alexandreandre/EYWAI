@@ -40,8 +40,8 @@ Par salarié × mois :
 |---|---|---|
 | Quotité contrat (169 h = 39 h/sem) | `S21.G00.40.013` | 169.00 |
 | HS structurelles (17,33 h) | rému `S21.G00.51.011=018` | 17,33 h (tous) |
-| **HS conjoncturelles** | rému `011=017`, heures `.012`, montant `.013` | ESPINOSA 9,50 h / 211,36 € |
-| **Absences / arrêts** | bloc `S21.G00.60` (motif `.001`, dates début/fin) + activité `S21.G00.53` nat 02 | FUCKAR maladie dès 08/05 |
+| **HS conjoncturelles** | rému `011=017`, heures `.012`, montant `.013` | salarié 108 9,50 h / 211,36 € |
+| **Absences / arrêts** | bloc `S21.G00.60` (motif `.001`, dates début/fin) + activité `S21.G00.53` nat 02 | salarié 130 maladie dès 08/05 |
 | Base mensualisée | rému `011=002` | (déjà dans `salaire_de_base`) |
 
 - **HS structurelles (17,33 h)** : gérées par le contrat 39 h dans EYWAI → **ne pas
@@ -99,5 +99,5 @@ sorties. Validation renforcée contre le bulletin (seule ancre pour juin).
 
 - Cartographie complète des motifs d'arrêt DSN `60.001`.
 - Cas où une ligne HS `017` mélange 25 % et 50 % (split via montant/heures + pointage).
-- Traitement maintien/IJSS des arrêts maladie de mai (FUCKAR, DASILVA).
+- Traitement maintien/IJSS des arrêts maladie de mai (salarié 130, DASILVA).
 - Semaines à cheval sur deux mois (S05, S09, S13…) : rattachement au bon mois.

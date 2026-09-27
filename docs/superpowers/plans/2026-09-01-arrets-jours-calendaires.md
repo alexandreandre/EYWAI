@@ -1054,7 +1054,7 @@ Expected: PASS
 - [ ] **Step 5: Dry-run local (lecture seule, base prod — AUCUN --apply)**
 
 Run: `cd /Users/alex/Desktop/EYWAI/EYWAI/backend && ./venv/bin/python -m scripts.reparer_arrets_calendaires`
-Expected: rapport listant au moins l'arrêt de Marion GAUTHERON (17/08→18/09/2026) avec ses week-ends à combler. **Ne pas lancer `--apply`** : l'exécution réelle (test puis prod) est validée par Alexandre après revue.
+Expected: rapport listant au moins l'arrêt de salarié 140 (17/08→18/09/2026) avec ses week-ends à combler. **Ne pas lancer `--apply`** : l'exécution réelle (test puis prod) est validée par Alexandre après revue.
 
 - [ ] **Step 6: Commit**
 

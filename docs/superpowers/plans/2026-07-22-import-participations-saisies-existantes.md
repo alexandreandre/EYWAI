@@ -35,7 +35,7 @@ Créer `backend/tests/unit/participation/test_import_reconstruction.py` :
 ```python
 """Tests unitaires — reconstruction des bulletins participation depuis les saisies.
 
-Fixtures calées sur des cas réels de la base (backtest 2025/2026) : GIRERD
+Fixtures calées sur des cas réels de la base (backtest 2025/2026) : salarié 146
 (MBC, 100 % PEE), un cas numéraire+avance, un cas mixte numéraire+PEE+avance.
 """
 
@@ -95,7 +95,7 @@ class TestFullCash:
 
 class TestFullPee:
     def test_pee_seul_girerd(self):
-        """Cas réel : Fabrice GIRERD, MBC mai 2026, participation 100 % PEE."""
+        """Cas réel : salarié 146, MBC mai 2026, participation 100 % PEE."""
         rows = [_row("e2", "Participation 2025 — PEE", 5331.56, "r1")]
 
         result = reconstruct_bulletins_from_inputs(rows)
@@ -189,7 +189,7 @@ salarié, le bulletin d'option qu'aurait produit le workflow normal
 Voir docs/superpowers/specs/2026-07-22-import-participations-saisies-existantes-design.md
 pour la dérivation complète de la formule (en particulier : le montant d'une
 ligne PEE est déjà un brut, pas un net à regonfler — vérifié sur le moteur
-réel et sur le cas GIRERD/MBC).
+réel et sur le cas salarié 146/MBC).
 """
 
 from __future__ import annotations
@@ -1432,14 +1432,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Produces: 5 campagnes `closed` + 186 bulletins `responded` + 360 saisies rattachées, en base réelle. Aucune interface consommée par du code ultérieur (opération terminale).
 
 > **Exécuté et vérifié le 2026-07-22.** Résultat réel : 186 bulletins (pas 188 —
-> écart expliqué : 2 salariés Cartol, FAUCHER et SEGUIN, ont leur ligne
+> écart expliqué : 2 salariés Cartol, salarié 114 et salarié 269, ont leur ligne
 > « Participation 2025 » datée février/juin 2026, pas mai — absente des
 > bulletins de mai, donc correctement exclus par le filtre `payroll_month`. Le
 > chiffre 188 de l'estimation initiale (brainstorming) ne filtrait pas par
 > mois.) Répartition réelle par société : MBC 72, Cartol 63, LEWIS 28, Comitech
 > 18, Colorplast 5. Vérification post-import : `verify_participation_import_2025.py`
 > confirme 5 campagnes closed, 186 bulletins responded, 360 saisies rattachées,
-> montant GIRERD intact. Idempotence confirmée (dry-run ultérieur → 5×
+> montant salarié 146 intact. Idempotence confirmée (dry-run ultérieur → 5×
 > `skipped=True`).
 
 - [ ] **Step 1: Créer le script d'import**
@@ -1627,7 +1627,7 @@ def main() -> None:
     )
     print(f"Saisies rattachées : {linked.count} (attendu 360)")
 
-    # Vérification ciblée : le montant GIRERD (PEE) doit être strictement
+    # Vérification ciblée : le montant salarié 146 (PEE) doit être strictement
     # inchangé après l'import (aucune régénération de paie).
     girerd = (
         supabase.table("monthly_inputs")
@@ -1639,7 +1639,7 @@ def main() -> None:
         .data
         or []
     )
-    print(f"Ligne GIRERD PEE 5331.56 toujours intacte : {'OUI' if girerd else 'NON — ALERTE'}")
+    print(f"Ligne salarié 146 PEE 5331.56 toujours intacte : {'OUI' if girerd else 'NON — ALERTE'}")
 
 
 if __name__ == "__main__":
@@ -1652,7 +1652,7 @@ Run:
 ```bash
 DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/python scripts/verify_participation_import_2025.py
 ```
-Expected : `Campagnes 2025 : 5`, toutes `status=closed`, `Total bulletins : 186`, `Saisies rattachées : 360`, `Ligne GIRERD PEE 5331.56 toujours intacte : OUI`, aucune ligne `ANOMALIE`.
+Expected : `Campagnes 2025 : 5`, toutes `status=closed`, `Total bulletins : 186`, `Saisies rattachées : 360`, `Ligne salarié 146 PEE 5331.56 toujours intacte : OUI`, aucune ligne `ANOMALIE`.
 
 - [ ] **Step 6: Relancer le dry-run pour confirmer l'idempotence**
 
@@ -1681,4 +1681,4 @@ Une fois les 6 tâches terminées :
   ```bash
   DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib" .venv-ci/bin/pytest -q
   ```
-- Confirmer visuellement (capture ou lecture directe) qu'un bulletin de mai 2026 déjà généré (ex. GIRERD, MBC) affiche toujours le même montant de participation qu'avant l'import.
+- Confirmer visuellement (capture ou lecture directe) qu'un bulletin de mai 2026 déjà généré (ex. salarié 146, MBC) affiche toujours le même montant de participation qu'avant l'import.

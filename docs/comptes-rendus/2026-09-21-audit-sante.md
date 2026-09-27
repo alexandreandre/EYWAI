@@ -89,9 +89,9 @@ Rapportés. Le remède existe déjà dans le code : le patron `_require_payslip_
 
 | # | Portée | Constat |
 |---|---|---|
-| F1 | production, 1 379 bulletins | 6 bruts négatifs (Mont Blanc Composite : Baba, Osmani, Remini) |
+| F1 | production, 1 379 bulletins | 6 bruts négatifs (Mont Blanc Composite : Baba, salarié 222, salarié 249) |
 | F2 | production | 4 bulletins à brut nul avec un net supérieur à 100 € (Maji : André, 3 800 € et 3 213 €) |
-| F3 | production | 16 nets négatifs (Lewis : Baster, Sanchez, quatre mois chacun) |
+| F3 | production | 16 nets négatifs (Lewis : salarié 014, salarié 262, quatre mois chacun) |
 | F4 | production | 151 bulletins avec un net supérieur au brut — souvent normal (frais, indemnités non soumises), déjà signalé par le moteur, mais à trier |
 | F5 | test, 127 bulletins 2026 | 2 sans cumuls, 4 à brut nul, **aucune incohérence** entre la somme des lignes et le brut |
 | F6 | test | aucun bulletin rattaché à une société différente de celle du salarié |

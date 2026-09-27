@@ -16,17 +16,17 @@ production le 6 août 2026 :
 - dernier import DSN : période **2026-05**, effectué le 29 juin, pour les 7 sociétés ;
 - comparaison base ↔ DSN de mai : **39 écarts sur 241 salariés actifs**, dont
   **7 taux réellement faux** (ANDRE Elsa 10,5 % contre 13,3 % ; PERRIER Raphaël
-  1,0 contre 8,1 ; BARAN Robin 9,9 contre 13,8 ; FERCHAUT Louise 3,5 contre 1,5 ;
-  MIRZADA Mir Said Jan 1,4 contre 0,8 ; FILLINGER Mathys et DIGUET Pascal sans
+  1,0 contre 8,1 ; salarié 012 Robin 9,9 contre 13,8 ; FERCHAUT Louise 3,5 contre 1,5 ;
+  salarié 211 Mir Said Jan 1,4 contre 0,8 ; FILLINGER Mathys et salarié 092 Pascal sans
   aucun taux contre 5,3 % et 4,2 %) ;
 - le bloc JSON ne porte **aucune date de validité** : impossible de savoir de quel
   mois vient un taux, et certains salariés mélangent des champs de mois différents
-  (NOBLE Eric : `type_taux` de janvier, `taux` de mai) ;
+  (salarié 218 Eric : `type_taux` de janvier, `taux` de mai) ;
 - `dsn_transmissions` est vide et `NetEntreprisesApiConnector` est un stub déclaré :
   EYWAI n'a jamais déposé de DSN et ne récupère donc **aucun compte rendu métier**.
 
-Le mécanisme réel est confirmé par les DSN de LEWIS : NOBLE Eric déclaré à 3,50 %
-en type 13 en janvier, puis 26,80 % en type 01 dès février ; HIRARD Yannick 2,90/13
+Le mécanisme réel est confirmé par les DSN de LEWIS : salarié 218 Eric déclaré à 3,50 %
+en type 13 en janvier, puis 26,80 % en type 01 dès février ; salarié 162 Yannick 2,90/13
 puis 5,70/01. Le **type 13 est le taux barème** appliqué faute de mieux, le **type 01
 le taux personnalisé** que la DGFiP renvoie dans le compte rendu métier après dépôt
 de la DSN.
@@ -154,7 +154,7 @@ non rapprochés sont listés, jamais créés.
 
 - Domaine : calcul de statut sur chaque cas, y compris la frontière de deux mois.
 - Ingestion : sur les DSN réelles présentes dans `data/*/dsn/` — sept sociétés,
-  cinq mois — la transition de NOBLE Eric 3,50/13 → 26,80/01 sert de cas témoin.
+  cinq mois — la transition de salarié 218 Eric 3,50/13 → 26,80/01 sert de cas témoin.
 - Idempotence : deux applications successives du même fichier ne produisent qu'une
   entrée d'historique.
 - API : accès refusé hors profil RH, cloisonnement par société.

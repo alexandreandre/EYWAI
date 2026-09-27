@@ -78,8 +78,7 @@ l'hypothèse initiale, le montant d'une ligne PEE (`Participation … — PEE`) 
 un **brut**, pas un net à regonfler. Preuve structurelle : `payslip_generator.py`
 construit chaque ligne PEE comme `{"brut": amount, "part_pee": amount}` — le
 moteur traite donc le montant saisi comme le brut d'une participation 100 % PEE.
-Vérifié sur le cas réel `Participation 2025 — PEE 5331,56` (salarié **Fabrice
-GIRERD**, MBC, mai 2026 — le même que cite le commentaire de
+Vérifié sur le cas réel `Participation 2025 — PEE 5331,56` (salarié **salarié 146**, MBC, mai 2026 — le même que cite le commentaire de
 `calcul_net.py::_participation_aggregats`) : `compute_participation_csg(5331.56)`
 (la fonction réellement appelée par le moteur) donne CSG non déductible 154,62 +
 déductible 362,55 = **517,17 €**. La DSN réelle de ce cas déclare 517,16 € — écart

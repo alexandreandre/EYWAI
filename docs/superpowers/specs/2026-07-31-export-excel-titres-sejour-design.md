@@ -68,7 +68,7 @@ Deux points d'attention :
 - `time_tracking_id` est vide partout : le matricule vient de `matricule` seul,
   sans repli.
 
-Les deux dates d'expiration manquantes sont ASKARI (Mont Blanc Composite) et
+Les deux dates d'expiration manquantes sont salarié 008 (Mont Blanc Composite) et
 BLA (MAJI), déjà identifiées lors du traitement de `#6`.
 
 ### 3.3 Le type de titre n'est renseigné pour personne
@@ -108,13 +108,13 @@ Au 2026-07-31, sept salariés de Mont Blanc Composite ont un titre **expiré** :
 
 | Salarié | Expiré depuis | Nationalité |
 |---|---|---|
-| LANKOKO MVUKI Dieu Merci | 184 jours | Congolaise |
-| AVAHOUIN William | 170 jours | Béninoise |
-| NUHU ALI Abdala | 156 jours | Ghanéenne |
-| BEHIRY Mohamed | 149 jours | Égyptienne |
-| SHAHABI Zabi | 121 jours | Afghane |
-| CHAABANE Sihem | 110 jours | Tunisienne |
-| ARAB Sadiqullah | 102 jours | Afghane |
+| salarié 181 Dieu Merci | 184 jours | Congolaise |
+| salarié 009 William | 170 jours | Béninoise |
+| salarié 221 Abdala | 156 jours | Ghanéenne |
+| salarié 017 Mohamed | 149 jours | Égyptienne |
+| salarié 272 Zabi | 121 jours | Afghane |
+| salarié 056 Sihem | 110 jours | Tunisienne |
+| salarié 007 Sadiqullah | 102 jours | Afghane |
 
 Ces situations exposent l'employeur pénalement. Elles relèvent d'une remontée à
 Elsa, indépendante de ce chantier — l'export en est le support naturel.
@@ -145,7 +145,7 @@ SQL. C'est ce constat qui écarte l'idée d'un endpoint d'export qui refiltrerai
 lui-même (§ 4.2).
 
 `residence_permit_days_remaining` est **négatif** pour un titre expiré : −184
-pour LANKOKO MVUKI. L'export restitue cette valeur telle quelle.
+pour salarié 181. L'export restitue cette valeur telle quelle.
 
 ## 4. Conception
 

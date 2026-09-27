@@ -32,7 +32,7 @@ Spec : `docs/superpowers/specs/2026-09-21-compensation-heures-entre-semaines-des
 - `appliquer(evenements: list[dict], fenetre, compensation) -> list[dict]` (événements d'UN mois, avec `annee`/`mois`/`jour`)
 - `mention(compensation) -> str`
 
-- [x] **Step 1: Tests rouges** (fichier complet écrit à l'exécution : majorations, compensation juin, écarts journaliers Fuckar S28, application au calendrier, mention).
+- [x] **Step 1: Tests rouges** (fichier complet écrit à l'exécution : majorations, compensation juin, écarts journaliers salarié 130 S28, application au calendrier, mention).
 - [x] **Step 2: Vérifier le rouge** — `ModuleNotFoundError`.
 - [x] **Step 3: Écrire le module.**
 - [x] **Step 4: Vert + ruff.**
@@ -62,5 +62,5 @@ Spec : `docs/superpowers/specs/2026-09-21-compensation-heures-entre-semaines-des
 ### Task 5: Recette, docs
 
 - [x] Suite unitaire complète (6141 verts, un rouge d'environnement), vitest 592 verts, eslint, tsc (3 erreurs préexistantes hors périmètre).
-- [x] Contrôle réel en bac à sable : générer Cotte, Demory, Bugny, Fuckar juillet, option OFF puis ON (sans persister, `option_active` remplacé dans le module du générateur), lire HS/retenues.
+- [x] Contrôle réel en bac à sable : générer salarié 068, salarié 086, salarié 044, salarié 130 juillet, option OFF puis ON (sans persister, `option_active` remplacé dans le module du générateur), lire HS/retenues.
 - [x] Passation §7, mémoire.

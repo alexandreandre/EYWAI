@@ -22,7 +22,7 @@ indemnité) : ils ne sont pas repayés, puisque seuls les jours restants compten
 C'est la deuxième formule que Gaëlle a montrée (1 862,90 pour 25 jours →
 74,52 par jour, 0,24 jour → 17,88), et celle du chantier noté le même jour.
 
-## Recette : Aurélien Demory, juillet 2026
+## Recette : salarié 086, juillet 2026
 
 | Période | Brut de la période | Droits | Restants | Dixième | Maintien | Retenu |
 |---|---|---|---|---|---|---|
@@ -39,18 +39,18 @@ Contre 876,74 aujourd'hui (dixième de tout, le jour pris le 13/07 repayé) et
   mois précédent (la somme des bruts depuis `brut_reference_period_start`) +
   le brut du mois hors indemnité de congés + la prime de précarité (ou l'IFM).
 - **Rémunération de la période précédente** : `brut_reference_n_1` des cumuls
-  du dernier mois de cette période (mai : 4 171,35 pour Demory, période
+  du dernier mois de cette période (mai : 4 171,35 pour salarié 086, période
   2025-06-01 → 2026-05-31) ; à défaut, la somme des `salaire_brut` des
   bulletins de la période ; à défaut, inconnue → la période se règle au
   maintien seul, et le bulletin le dit.
 - **Jours** : les compteurs du pied de page
   (`get_absence_balances_for_payslip`) : `conges_payes` (période en cours) et
   `conges_payes_periode_precedente` — `solde` = restants, `pris + solde` =
-  droits de la période. On n'utilise pas `acquis` tel quel (7,0 chez Demory
+  droits de la période. On n'utilise pas `acquis` tel quel (7,0 chez salarié 086
   pour un solde de 2,78 : il ne suit pas la reprise, cf.
   cp-double-compte-changement-de-periode).
 - **Valeur d'un jour au maintien** : la règle de `calcul_conges` (à 39 h :
-  7 h de base + 0,8 h structurelle majorée = 98,48 pour Demory).
+  7 h de base + 0,8 h structurelle majorée = 98,48 pour salarié 086).
 - **Taux** : `cdd.indemnite_conges.taux` / `interim.indemnite_conges.taux`,
   défaut 0,10 ; `cdd_sans_iccp` et `block_iccp_cdd` inchangés.
 

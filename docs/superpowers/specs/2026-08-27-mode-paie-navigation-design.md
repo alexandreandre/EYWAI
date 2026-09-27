@@ -13,7 +13,7 @@ production contient pourtant 246 salariés, des bulletins, 182 taux PAS et sept 
 paramétrées : les données sont là, les utilisateurs ne sont jamais venus.
 
 Le premier contact est le **vendredi 28/08/2026** : faire tourner une paie de bout en bout
-sur Colorplast (7 salariés) devant Gaëlle Bouali, sur l'environnement de test.
+sur Colorplast (7 salariés) devant salarié 030, sur l'environnement de test.
 
 La sidebar RH expose aujourd'hui **48 entrées** réparties en trois sections repliables
 (`RH_TEAM_GROUPS`, `RH_GESTION_GROUPS`, `RH_PAIE_GROUPS` dans
@@ -43,8 +43,7 @@ habituel — « on a acheté un SIRH complet, où est le reste ? » — ne s'app
 peut pas regretter ce qu'on n'a jamais vu. La feuille de route des modules à venir part
 dans le document de suivi, pas dans l'interface.
 
-**Le mode s'applique à tous les comptes client**, administrateurs Vanessa Amate et Gérault
-Verny compris. Seuls les comptes EYWAI conservent la navigation complète, pour paramétrer
+**Le mode s'applique à tous les comptes client**, administrateurs salarié 005 et salarié 304 compris. Seuls les comptes EYWAI conservent la navigation complète, pour paramétrer
 et vérifier.
 
 ## Périmètre : 19 entrées sur 48
@@ -102,8 +101,8 @@ vivent dans `menuItems.manager`, que le filtre par section ne touche pas. Mais l
 **routes** restent ouvertes, car elles sont le transport d'actions qui sont, elles, dans le
 périmètre : valider un bulletin, approuver une note de frais ou une avance.
 
-C'est le seul rôle des cinq directeurs (Eric Noble, Damien Faucher, Lucas Chambert, Michael
-Francony, Baptiste Droz-Vincent), dont le rôle de base est `custom`. Les couper reviendrait
+C'est le seul rôle des cinq directeurs (salarié 218, salarié 114, salarié 057, Michael
+Francony, salarié 095), dont le rôle de base est `custom`. Les couper reviendrait
 à les priver de leur seule fonction dans l'outil.
 
 La limite est nette : on ouvre le **transport** d'une action du périmètre, pas un module.
@@ -196,7 +195,7 @@ Le bloc `employeeCollaboratorRoutes` et les routes manager et admin ne sont pas 
 
 ### Prérequis non technique, bloquant
 
-Gaëlle Bouali est RH sur **MAJI et Zone 404 uniquement**. Sans Colorplast ajoutée à son
+salarié 030 est RH sur **MAJI et Zone 404 uniquement**. Sans Colorplast ajoutée à son
 compte de test, elle ne peut pas exécuter la séquence, quel que soit le menu. À faire avant
 le call.
 

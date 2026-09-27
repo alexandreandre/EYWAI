@@ -177,7 +177,7 @@ chaque requête authentifiée. Un drapeau non résolu vaut refus, et le refus es
 
 **Un défaut trouvé en rouvrant l'assistant.** Le lot 3 de #30 appliquait la règle
 « aucun grant → périmètre entreprise ». Juste pour un admin, faux pour un
-`custom`, dont les droits ne viennent QUE de ses grants. DROZ-VINCENT, quinze
+`custom`, dont les droits ne viennent QUE de ses grants. salarié 095, quinze
 permissions en périmètre « équipes » mais pas `employees.view_all`, se voyait
 ouvrir les 89 salariés de Mont Blanc Composite. Corrigé : 0 sur cette
 permission, 58 sur `schedules.view_all` qu'il détient.

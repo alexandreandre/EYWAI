@@ -97,7 +97,7 @@ def _row(**kwargs):
     base = {
         "id": "emp-1",
         "first_name": "Dieu Merci",
-        "last_name": "LANKOKO MVUKI",
+        "last_name": "salarié 181",
         "matricule": "000123",
         "job_title": "Opérateur",
         "hire_date": "2023-04-03",
@@ -131,7 +131,7 @@ def test_entetes_dans_l_ordre():
 def test_ligne_complete():
     ws = _sheet([_row()])
     assert _values(ws, 2) == [
-        "LANKOKO MVUKI",
+        "salarié 181",
         "Dieu Merci",
         "000123",
         "Mont Blanc Composite",
@@ -1481,7 +1481,7 @@ git commit -m "feat(titres-sejour): bouton d'export Excel sur la page RH"
 > inventoriés dans `docs/archive/tests-integration-etat.md`, aucun dans
 > `residence_permits` (17/17). Frontend : 362 tests + `tsc --noEmit` verts.
 > Données réelles Mont Blanc Composite : 34 lignes, ordre alphabétique conservé,
-> 7 titres « Expiré » à jours négatifs, « Type de titre » vide partout, ASKARI
+> 7 titres « Expiré » à jours négatifs, « Type de titre » vide partout, salarié 008
 > « À compléter » sans date ni jours. Aucun correctif nécessaire (step 4 sans objet).
 
 - [ ] **Step 1: Suite backend complète**
@@ -1505,7 +1505,7 @@ Vérifier sur le fichier produit :
 - 34 lignes de données pour Mont Blanc Composite ;
 - les 7 titres expirés portent « Expiré » et un nombre de jours négatif ;
 - la colonne « Type de titre » est vide partout (attendu, cf. spec § 3.3) ;
-- ASKARI n'a ni date d'expiration ni jours restants, et porte « À compléter ».
+- salarié 008 n'a ni date d'expiration ni jours restants, et porte « À compléter ».
 
 - [ ] **Step 4: Commit final éventuel**
 

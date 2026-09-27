@@ -28,8 +28,8 @@ Spec complète : [2026-08-07-provision-cp-design.md](../specs/2026-08-07-provisi
    `charges = provision × taux ÷ 100` · `total = provision + charges`.
    Diviseur médian mesuré : 22,0000.
 3. Le taux de charges est `cotisations patronales ÷ brut` par salarié. Recalculé sur nos
-   bulletins il tombe à 0,1–0,25 pt du modèle pour les paies stables (De Carvalho 32,14 /
-   32,12 · Vignaud 38,38 / 38,50 · Veillat 24,70 / 24,57).
+   bulletins il tombe à 0,1–0,25 pt du modèle pour les paies stables (salarié 082 32,14 /
+   32,12 · salarié 296 38,38 / 38,50 · salarié 289 24,70 / 24,57).
 4. Le salaire de référence est le brut mensuel moyen sur la période d'acquisition. Il ne
    sera **pas** reproductible au centime avant juin 2027 : EYWAI n'a pas de paie avant
    janvier 2026, et tous les écarts constatés sont des cas d'absence longue en 2025.
@@ -104,8 +104,8 @@ pytestmark = pytest.mark.unit
 class TestCalculerLigne:
     def test_bertaud_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="BERTAUD",
-            nom="SYLVAIN BERTAUD",
+            matricule="salarié 019",
+            nom="salarié 019",
             date_entree="2010-03-01",
             solde_n1=28.00,
             solde_n=4.16,
@@ -120,8 +120,8 @@ class TestCalculerLigne:
 
     def test_blin_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="BLIN",
-            nom="Fabien BLIN",
+            matricule="salarié 023",
+            nom="salarié 023",
             date_entree="2022-09-05",
             solde_n1=3.00,
             solde_n=4.16,
@@ -136,8 +136,8 @@ class TestCalculerLigne:
 
     def test_faucher_ligne_reelle_du_modele_cegid(self):
         ligne = module.calculer_ligne(
-            matricule="FAUCHER",
-            nom="DAMIEN FAUCHER",
+            matricule="salarié 114",
+            nom="salarié 114",
             date_entree="2015-01-05",
             solde_n1=27.00,
             solde_n=4.16,
@@ -572,9 +572,9 @@ pytestmark = pytest.mark.unit
 SALARIES = [
     {
         "id": "emp-1",
-        "matricule": "BERTAUD",
+        "matricule": "salarié 019",
         "first_name": "Sylvain",
-        "last_name": "BERTAUD",
+        "last_name": "salarié 019",
         "hire_date": "2010-03-01",
         "employment_status": "actif",
         "salaire_de_base": {"montant": 2600.0},
@@ -583,7 +583,7 @@ SALARIES = [
         "id": "emp-2",
         "matricule": "NEUF",
         "first_name": "Maëlle",
-        "last_name": "SEGUIN",
+        "last_name": "salarié 269",
         "hire_date": "2026-05-01",
         "employment_status": "actif",
         "salaire_de_base": {"montant": 1900.0},
@@ -615,7 +615,7 @@ class TestCollecterLignes:
         with p1, p2, p3:
             lignes, avertissements = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD", "NEUF"]
+        assert [l.matricule for l in lignes] == ["salarié 019", "NEUF"]
 
     def test_salarie_avec_bulletins_calcule_sur_ses_bulletins(self):
         p1, p2, p3 = _patch_all()
@@ -653,7 +653,7 @@ class TestCollecterLignes:
                           side_effect=lambda eid, *a, **k: (0.0, 0.0) if eid == "emp-2" else SOLDES[eid]):
             lignes, _ = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD"]
+        assert [l.matricule for l in lignes] == ["salarié 019"]
 
     def test_salarie_sans_date_d_embauche_exclu_et_signale(self):
         sans_date = [dict(SALARIES[0]), {**SALARIES[1], "hire_date": None}]
@@ -662,7 +662,7 @@ class TestCollecterLignes:
              patch.object(module, "_lire_soldes_ouvres", side_effect=lambda eid, *a, **k: SOLDES[eid]):
             lignes, avertissements = module.collecter_lignes("company-1", "2026-07")
 
-        assert [l.matricule for l in lignes] == ["BERTAUD"]
+        assert [l.matricule for l in lignes] == ["salarié 019"]
         assert any("date d'entrée" in a for a in avertissements)
 
 
@@ -706,7 +706,7 @@ class TestGenerate:
 
         texte = contenu.decode("utf-8-sig")
         assert "Total" in texte
-        assert "BERTAUD" in texte
+        assert "salarié 019" in texte
 ```
 
 - [ ] **Step 2 : lancer le test, vérifier qu'il échoue**
@@ -1575,8 +1575,8 @@ git commit -m "docs(afaire): compte rendu du point #23, provision congés payés
 Une seule, à envoyer telle quelle une fois l'export vu à l'écran :
 
 > Ton état de provision CP du 27/07 sort 71 salariés pour Cartol, alors que 86 ont été
-> payés en juin. Les absents sont tous des embauches récentes (Lucas RENAUD, Pierre-Jean
-> SICAUD, Annaëlle BREMENT, Maëlle SEGUIN, Lucas ALVES, Florence LEGRIP…). Est-ce que le
+> payés en juin. Les absents sont tous des embauches récentes (salarié 250, Pierre-Jean
+> salarié 273, salarié 042, salarié 269, salarié 004, salarié 185…). Est-ce que le
 > cabinet les exclut volontairement de la provision, ou est-ce que l'état est arrêté à
 > une date antérieure à leur arrivée ? De notre côté on les inclut, puisqu'ils ont des
 > droits acquis donc une dette.

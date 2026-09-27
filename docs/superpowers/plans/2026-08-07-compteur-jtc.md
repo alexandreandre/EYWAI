@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-Source de vérité : `data/_inbox/whatsapp-elsa-2026-08-02/00005441-Note JTC.docx` (Elsa André, 28/07/2026, « règles validées par la RH »).
+Source de vérité : `data/_inbox/whatsapp-elsa-2026-08-02/00005441-Note JTC.docx` (salarié 303, 28/07/2026, « règles validées par la RH »).
 
 - **Périmètre** : MBC (Mont Blanc Composite) uniquement. Le paramètre `jtc_enabled` est à `false` par défaut ; aucune autre société ne doit voir apparaître de compteur JTC.
 - **Droit maximum** : 3 JTC par an pour une année complète de travail effectif.
@@ -99,7 +99,7 @@ Ils ne bloquent aucune tâche ci-dessous, mais ils fixent des valeurs par défau
 Créer `backend/tests/unit/absences/test_jtc.py` :
 
 ```python
-"""Calcul du droit JTC — note de paramétrage Elsa André du 28/07/2026 (MBC)."""
+"""Calcul du droit JTC — note de paramétrage salarié 303 du 28/07/2026 (MBC)."""
 
 from datetime import date
 
@@ -290,7 +290,7 @@ Créer `backend/app/modules/absences/domain/jtc.py` :
 """
 JTC (Jour de Temps de Change) — droit annuel issu d'un accord d'entreprise.
 
-Note de paramétrage Elsa André du 28/07/2026 : 3 jours par an au maximum pour
+Note de paramétrage salarié 303 du 28/07/2026 : 3 jours par an au maximum pour
 une année complète de travail effectif, proratisés sur l'année civile N-1,
 arrondis à l'entier inférieur. Le dispositif n'est prévu par aucune convention
 de branche : il n'existe que pour les sociétés qui l'ont activé.

@@ -32,7 +32,7 @@ Trois écarts au plan, assumés :
 3. **La cible du backtest n'est plus 7/7.** Mesure de référence relevée en
    lecture seule (`--dry-run`) sur la production : Colorplast mai 2026 converge
    à **6/7**, avec un écart systémique `smu2_gan_mutuelle_famille` de 98,12 € —
-   le sujet GIRERD traité par ailleurs. Le critère devient donc : toujours 6/7,
+   le sujet salarié 146 traité par ailleurs. Le critère devient donc : toujours 6/7,
    le même écart, rien de neuf.
 
 Deux décisions attendues :

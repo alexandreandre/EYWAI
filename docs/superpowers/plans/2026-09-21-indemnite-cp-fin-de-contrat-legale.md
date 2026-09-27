@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Retirer l'option « salaire rétabli » et calculer l'indemnité de CP de fin de CDD/mission par période de référence, sur les jours restants, dixième contre maintien ; Demory juillet → 766,39.
+**Goal:** Retirer l'option « salaire rétabli » et calculer l'indemnité de CP de fin de CDD/mission par période de référence, sur les jours restants, dixième contre maintien ; salarié 086 juillet → 766,39.
 
 **Architecture:** Module pur `engine/iccp_fin_contrat.py` ; `_calculer_iccp_cdd` l'appelle quand le run a posé `contexte.cp_fin_de_contrat`, repli sur le dixième global sinon ; mention sur le bulletin.
 
@@ -23,7 +23,7 @@ Spec : `docs/superpowers/specs/2026-09-21-indemnite-cp-fin-de-contrat-legale-des
 - [x] Suites vertes.
 
 ### Task 2: Module pur `iccp_fin_contrat`
-- [x] Tests rouges : Demory par période (306,78 / 459,61 / 766,39), maintien plus favorable, période sans restants, brut inconnu → maintien seul, mention.
+- [x] Tests rouges : salarié 086 par période (306,78 / 459,61 / 766,39), maintien plus favorable, période sans restants, brut inconnu → maintien seul, mention.
 - [x] Module, vert, ruff.
 
 ### Task 3: Moteur et run
@@ -32,5 +32,5 @@ Spec : `docs/superpowers/specs/2026-09-21-indemnite-cp-fin-de-contrat-legale-des
 - [x] Bulletin : `indemnite_cp_fin_contrat`, note (tests).
 
 ### Task 4: Recette, docs
-- [x] Bac à sable Demory → 766,39 (brut 3 336,07) ; suites vertes (backend 6180+, vitest 596) ; génération réelle de Demory sur le test après déploiement.
+- [x] Bac à sable salarié 086 → 766,39 (brut 3 336,07) ; suites vertes (backend 6180+, vitest 596) ; génération réelle de salarié 086 sur le test après déploiement.
 - [x] Passation (§9 réécrit, chantier §4 clos), mémoire.

@@ -35,7 +35,7 @@ résout).
     consulter dès qu'un écart touche une absence, des heures sup. conjoncturelles, ou un
     brut qui ne colle pas alors que rien dans la config employé ne l'explique** — un
     pointage réel mal repris (ex. jour marqué travaillé à tort, ou l'inverse) est une
-    cause fréquente d'absences fictives (déjà vécu sur GAUTHERON avril 2026 : jours
+    cause fréquente d'absences fictives (déjà vécu sur salarié 140 avril 2026 : jours
     27-28-29 à `heures_faites=0` en base alors que réellement travaillés, visible en
     recoupant avec le pointage réel). Extraire en texte (`pdftotext -layout`) et
     comparer semaine par semaine aux `employee_schedules.actual_hours` en base.
@@ -198,7 +198,7 @@ reviennent souvent) — la vraie correction se fait en Phase 2, salarié par sal
 vérification individuelle à chaque fois (voir Principe directeur n°2 ci-dessus).
 
 **Note généralisation** : `REGRESSION_MATRICULES` dans ce script est actuellement
-hardcodé à `{"COTTE", "BUGNY"}` (spécifique Colorplast) — de toute façon insuffisant
+hardcodé à `{"salarié 068", "salarié 044"}` (spécifique Colorplast) — de toute façon insuffisant
 pour la Phase 2 (qui vérifie TOUS les salariés déjà validés, pas une liste fixe).
 
 ## Phase 2 — Boucle salarié par salarié (le cœur de la méthode)
@@ -398,7 +398,7 @@ dossier existe) :
     (`saisies_data["acompte"]`, désormais bidirectionnel signé — négatif = ajout net,
     positif = retenue nette, cf. `calcul_net._calculer_net_a_payer`). **Ne PAS y
     inclure "remboursement de notes de frais"** (dépenses réelles justifiées) : celui-ci
-    reste dans le net social normal (vérifié régressif sur BUGNY sinon — testé et
+    reste dans le net social normal (vérifié régressif sur salarié 044 sinon — testé et
     reverté une fois). Si un nouveau type de libellé "non soumis" apparaît et qu'il
     crée un écart MNS-vs-net-à-payer inexpliqué, vérifier d'abord s'il s'agit d'un frais
     professionnel (exclu du MNS) ou d'une vraie rémunération non soumise (incluse).
@@ -417,7 +417,7 @@ dossier existe) :
   ont sur-corrigé avant de trouver la bonne (`net_participation + csg_total_pee`).
 - **Exclure du MNS tout libellé contenant "frais"** (élargissement trop large de
   `_is_frais_pro_non_soumis_input` pour capter une "Indemnité forfaitaire dep.") : a
-  cassé BUGNY (Colorplast, déjà à 0,00 €) dont le "Remboursement de notes de frais"
+  cassé salarié 044 (Colorplast, déjà à 0,00 €) dont le "Remboursement de notes de frais"
   DOIT rester dans le MNS. Corrigé en excluant explicitement "note de frais" et en ne
   matchant que "panier"/"indemnité forfaitaire"/"déplacement". Confirme la règle
   générale : élargir un pattern de détection par mot-clé sans re-tester TOUS les

@@ -10,7 +10,7 @@ sans aucune écriture (`app/modules/payroll/documents/bac_a_sable.py`). Le
 fait une : chaque calcul réécrit `employees.salaire_de_base`.
 
 Toutes les écritures Supabase ont ensuite été piégées pendant un calcul en bac
-à sable (Girerd, août) : il n'y en a qu'une, et sa pile est
+à sable (salarié 146, août) : il n'y en a qu'une, et sa pile est
 
 ```
 generate_en_bac_a_sable

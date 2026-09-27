@@ -53,7 +53,7 @@ Les demandes non couvertes doivent être refusées proprement, sans basculer ver
 - Utiliser les comptes existants sans créer de doublons.
 - Accorder les rôles par entreprise via `user_company_accesses`.
 - Ajouter les permissions par action et le périmètre MOI/MOD avant de promouvoir les profils « RH personnalisé ».
-- Ne jamais coder une personne par son nom : l'envoi banque devient une permission attribuée à Vanessa Amate.
+- Ne jamais coder une personne par son nom : l'envoi banque devient une permission attribuée à salarié 005.
 - Interdire la suppression d'un salarié dès qu'un bulletin existe.
 - Réserver la vision consolidée et les données financières de participation aux administrateurs.
 - Gérer les exceptions d'approbation des directeurs par configuration.
@@ -72,4 +72,4 @@ Les demandes non couvertes doivent être refusées proprement, sans basculer ver
 - Portée de validation de Michael Francony sur les bulletins MBC.
 - Consultation seule ou action de validation sur les contrats.
 - Périmètre de Dorothée Boulay.
-- Périmètre administrateur de Vanessa Amate et Gérault Verny.
+- Périmètre administrateur de salarié 005 et salarié 304.

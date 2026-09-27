@@ -80,9 +80,9 @@ comportement sans aucun risque de régression en production.
 
 | Société | Libellé | Salariés | Montant | Rythme |
 |---|---|---|---|---|
-| Colorplast | `Indemnite de transport` / `Indemnité de transport` | ESPINOSA Anthony, GIRERD Fabrice | 100 € / 250 € | Tous les mois, jan→juin |
-| Mont Blanc Composite | `Indemnité forfaitaire dep.` | MEUNIER Cyril, SALAUN Ronan, CHAABANE Sihem, GUELAI Mackael | 100 € / 150 € | Intermittent |
-| Comitech Composite | `Indemnité de transport` | GARCIA Mickael (parti) | 125 € | Février seulement |
+| Colorplast | `Indemnite de transport` / `Indemnité de transport` | salarié 108 Anthony, salarié 146 Fabrice | 100 € / 250 € | Tous les mois, jan→juin |
+| Mont Blanc Composite | `Indemnité forfaitaire dep.` | salarié 208 Cyril, salarié 261 Ronan, salarié 056 Sihem, salarié 153 Mackael | 100 € / 150 € | Intermittent |
+| Comitech Composite | `Indemnité de transport` | salarié 138 Mickael (parti) | 125 € | Février seulement |
 
 Trois défauts se cumulent :
 
@@ -207,9 +207,9 @@ Montants annuels constatés, à rapprocher d'un plafond de 600 à 900 € :
 
 | Salarié | Société | Mensuel | Annualisé |
 |---|---|---|---|
-| GIRERD Fabrice | Colorplast | 250 € | 3 000 € |
-| ESPINOSA Anthony | Colorplast | 100 € | 1 200 € |
-| MEUNIER Cyril | Mont Blanc Composite | 100 € | 1 200 € |
+| salarié 146 Fabrice | Colorplast | 250 € | 3 000 € |
+| salarié 108 Anthony | Colorplast | 100 € | 1 200 € |
+| salarié 208 Cyril | Mont Blanc Composite | 100 € | 1 200 € |
 
 ## 4. Bloc 1 — Le montant contractuel
 
@@ -340,7 +340,7 @@ modèle des advisories déjà en place.
 ### 8.1 Complétude de la liste Colorplast
 
 Elsa a répondu « la liste est complète pour mbc ». Elle n'a rien dit de
-Colorplast, où seuls ESPINOSA et GIRERD sont servis. À reposer.
+Colorplast, où seuls salarié 108 et salarié 146 sont servis. À reposer.
 
 L'enjeu n'est pas théorique : la saisie manuelle mensuelle est pénible, et
 c'est exactement le type de tâche où des oublis s'accumulent. Le croisement du

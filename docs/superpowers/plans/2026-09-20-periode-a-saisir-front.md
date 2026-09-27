@@ -717,7 +717,7 @@ import {
 const anomalie = (type: PreflightAnomaly['type']): PreflightAnomaly => ({
   id: 'e1:' + type,
   employee_id: 'e1',
-  employee_name: 'Michel BUGNY',
+  employee_name: 'salarié 044',
   type,
   severity: 'a_verifier',
   status: 'a_traiter',

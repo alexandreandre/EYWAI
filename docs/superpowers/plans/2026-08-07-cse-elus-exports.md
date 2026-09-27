@@ -35,8 +35,8 @@ valeurs corrigées.
    jours ») et `ElectedMembersTab.tsx:67` a un repli local. Rendre `days_remaining` négatif ne
    casse rien et **répare l'affichage**.
 6. Fichier d'Elsa `data/_inbox/whatsapp-elsa-2026-08-02/00005436-Membres_CSE.xlsx` : 8 titulaires
-   (Cartol 2, LEWIS 2, MBC 4), tous rapprochés en base — dont Marie-Noëlle **ENOND**, `nom_usage`
-   **DEPLANNE**. La colonne « Date d'entrée » du fichier est la date d'embauche, pas le mandat.
+   (Cartol 2, LEWIS 2, MBC 4), tous rapprochés en base — dont Marie-Noëlle **salarié 105**, `nom_usage`
+   **salarié 087**. La colonne « Date d'entrée » du fichier est la date d'embauche, pas le mandat.
 7. `ElectedMemberCreate` ([requests.py:28](backend/app/modules/cse/schemas/requests.py#L28)) exige
    `start_date` **et** `end_date` : sans dates de mandat, aucun élu ne peut être créé.
 
@@ -584,8 +584,8 @@ Créer `backend/tests/unit/scripts/test_import_elus_cse.py` :
 ```python
 """Rapprochement des élus du classeur d'Elsa avec les salariés en base.
 
-Cas réel à couvrir : Marie-Noëlle figure au classeur sous « DEPLANNE », qui est son
-nom d'usage ; en base son last_name est « ENOND ».
+Cas réel à couvrir : Marie-Noëlle figure au classeur sous « salarié 087 », qui est son
+nom d'usage ; en base son last_name est « salarié 105 ».
 """
 
 from datetime import date
@@ -600,7 +600,7 @@ from scripts.import_elus_cse import (
 
 
 def test_cle_nom_ignore_accents_tirets_espaces_et_casse():
-    assert cle_nom("De Barros") == cle_nom("DE BARROS")
+    assert cle_nom("salarié 081") == cle_nom("salarié 081")
     assert cle_nom("Hervé") == cle_nom("HERVE")
     assert cle_nom("Marie-Noelle") == cle_nom("MARIE NOELLE")
 
@@ -612,9 +612,9 @@ def test_roles_connus():
 
 def test_rapprochement_sur_le_nom_de_naissance():
     salaries = [
-        {"id": "emp-1", "last_name": "BREGEON", "nom_usage": None, "first_name": "EMILE"}
+        {"id": "emp-1", "last_name": "salarié 040", "nom_usage": None, "first_name": "EMILE"}
     ]
-    ligne = LigneElu("CARTOL", "BREGEON", "Emile", "Membre titulaire", None, None, None)
+    ligne = LigneElu("CARTOL", "salarié 040", "Emile", "Membre titulaire", None, None, None)
     assert rapprocher(ligne, salaries) == salaries[0]
 
 
@@ -622,12 +622,12 @@ def test_rapprochement_sur_le_nom_dusage():
     salaries = [
         {
             "id": "emp-2",
-            "last_name": "ENOND",
-            "nom_usage": "DEPLANNE",
+            "last_name": "salarié 105",
+            "nom_usage": "salarié 087",
             "first_name": "MARIE-NOELLE",
         }
     ]
-    ligne = LigneElu("CARTOL", "DEPLANNE", "Marie-Noelle", "Membre titulaire", None, None, None)
+    ligne = LigneElu("CARTOL", "salarié 087", "Marie-Noelle", "Membre titulaire", None, None, None)
     assert rapprocher(ligne, salaries) == salaries[0]
 
 
@@ -942,7 +942,7 @@ cd backend && .venv/bin/python scripts/import_elus_cse.py \
 
 Attendu, tant qu'Elsa n'a pas répondu : les 8 lignes ressortent **BLOQUÉ … dates de mandat
 manquantes**, aucune en « société inconnue » ni « aucun salarié rapproché ». C'est le résultat
-qui prouve que le rapprochement fonctionne sur les 8, ENOND/DEPLANNE comprise.
+qui prouve que le rapprochement fonctionne sur les 8, salarié 105/salarié 087 comprise.
 
 - [ ] **Step 6 : commit**
 

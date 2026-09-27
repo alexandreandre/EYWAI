@@ -1131,7 +1131,7 @@ git commit -m "feat(frontend): ajouter une prime depuis le bulletin avec le sele
 
 - [ ] **Step 1 : écrire le contrôle**
 
-`backend/scripts/verif_prime_depuis_le_bulletin.py` — sur un bulletin d'août Colorplast en **brouillon** (Cotte), le script :
+`backend/scripts/verif_prime_depuis_le_bulletin.py` — sur un bulletin d'août Colorplast en **brouillon** (salarié 068), le script :
 
 1. sauvegarde `payslip_data` et les `monthly_inputs` d'août du salarié ;
 2. **chemin A** : insère une saisie « Prime contrôle » de 100 € soumise et imposable, régénère par `generate_payslip`, relève brut, bases (`structure_cotisations`), total des cotisations, net à payer, `cumuls` ;
@@ -1145,7 +1145,7 @@ git commit -m "feat(frontend): ajouter une prime depuis le bulletin avec le sele
 au centime, le même bulletin que la même prime saisie dans l'onglet Primes.
 
 Sur le TEST, un bulletin d'août Colorplast en brouillon ; tout est restauré.
-Usage : python -m scripts.verif_prime_depuis_le_bulletin [--salarie COTTE]
+Usage : python -m scripts.verif_prime_depuis_le_bulletin [--salarie salarié 068]
 """
 
 from __future__ import annotations
@@ -1184,7 +1184,7 @@ def main() -> int:
     from app.modules.payslips.application.commands import edit_payslip, generate_payslip
     from app.modules.payslips.application.dto import EditPayslipInput, GeneratePayslipInput
 
-    nom = sys.argv[sys.argv.index("--salarie") + 1] if "--salarie" in sys.argv else "COTTE"
+    nom = sys.argv[sys.argv.index("--salarie") + 1] if "--salarie" in sys.argv else "salarié 068"
     emp = next(e for e in supabase.table("employees").select("id, last_name")
                .eq("company_id", SOCIETE).execute().data if e["last_name"] == nom)
     eid = str(emp["id"])
@@ -1245,7 +1245,7 @@ Remarque : vérifier sur un vrai bulletin les clés exactes du cumul brut et des
 - [ ] **Step 2 : lancer en arrière-plan**
 
 Run: `cd backend && APP_ENV=test .venv/bin/python -m scripts.verif_prime_depuis_le_bulletin` (arrière-plan)
-Expected: `IDENTIQUES au centime`, et un bulletin de Cotte restauré à l'identique.
+Expected: `IDENTIQUES au centime`, et un bulletin de salarié 068 restauré à l'identique.
 
 - [ ] **Step 3 : proposer le commit**
 

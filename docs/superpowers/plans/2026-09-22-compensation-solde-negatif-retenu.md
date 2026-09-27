@@ -47,7 +47,7 @@ class TestAbsencesAConserver:
 
     def test_solde_nul_tout_est_absorbe(self):
         """Une semaine négative couverte par les heures sup d'une autre : c'est
-        Bugny en mai, ce que l'option gagne et qu'il ne faut pas casser."""
+        salarié 044 en mai, ce que l'option gagne et qu'il ne faut pas casser."""
         gardees, reliquat = absences_a_conserver([self._absence(12, 5.0)], 0.0)
 
         assert (gardees, reliquat) == ([], 0.0)
@@ -220,7 +220,7 @@ class TestRetenueDuSoldeNegatif:
         ]
 
     def test_le_solde_negatif_garde_l_absence_a_sa_date(self):
-        """Cotte, janvier : 3,5 h manquées le 21, aucune heure sup pour les absorber."""
+        """salarié 068, janvier : 3,5 h manquées le 21, aucune heure sup pour les absorber."""
         compensation = compenser({(2026, 27): -3.5}, 39.0)
         evenements = [
             {"annee": 2026, "mois": 7, "jour": 1, "type": "absence_injustifiee_base", "heures": 3.5},
@@ -571,7 +571,7 @@ git commit -m "fix(paie): la compensation retient le solde negatif au lieu d'eff
 Écrire `backend/scripts/verif_compensation_janvier.py` :
 
 ```python
-"""Contrôle ciblé : Cotte et Gautheron, janvier 2026, doivent retrouver Quadra.
+"""Contrôle ciblé : salarié 068 et salarié 140, janvier 2026, doivent retrouver Quadra.
 
 Lit les bulletins en bac à sable (aucune écriture) et compare le brut aux
 valeurs imprimées par Quadra. Sert de garde avant le rejeu complet.
@@ -587,7 +587,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 SOCIETE = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
-ATTENDU = {"COTTE": 2351.89, "GAUTHERON": 2252.28}
+ATTENDU = {"salarié 068": 2351.89, "salarié 140": 2252.28}
 
 
 def main() -> int:
@@ -624,7 +624,7 @@ Lancer :
 cd backend && APP_ENV=test .venv/bin/python -m scripts.verif_compensation_janvier
 ```
 
-Attendu : deux lignes `OK`, écart `+0.00` pour Cotte et Gautheron.
+Attendu : deux lignes `OK`, écart `+0.00` pour salarié 068 et salarié 140.
 
 Si l'écart n'est pas nul, ne pas continuer : reprendre la tâche 2.
 
@@ -651,7 +651,7 @@ for mois in apres.values():
 print(f'{n} bulletins au centime, {tot:.2f} EUR d écart cumulé')
 print('références : 16 et 3028.81 sans option, 13 et 3677.40 avec option non corrigée')
 # les trois bulletins à regagner, et celui qu il ne faut pas casser
-for mois, nom, attendu in ((1,'COTTE',0.0), (1,'GAUTHERON',0.0), (6,'DEMORY',0.0), (5,'BUGNY',35.70)):
+for mois, nom, attendu in ((1,'salarié 068',0.0), (1,'salarié 140',0.0), (6,'salarié 086',0.0), (5,'salarié 044',35.70)):
     d = apres[str(mois)][nom]
     e = round(d['brut'] - d['brut_quadra'], 2)
     etat = 'OK ' if abs(e - attendu) < 0.02 else '!! '
@@ -659,11 +659,11 @@ for mois, nom, attendu in ((1,'COTTE',0.0), (1,'GAUTHERON',0.0), (6,'DEMORY',0.0
 "
 ```
 
-Les quatre lignes de contrôle doivent toutes être `OK` : Cotte, Gautheron et Demory reviennent au centime, et Bugny de mai reste à **+35,70** — c'est ce que l'option gagne, la correction ne doit pas le défaire.
+Les quatre lignes de contrôle doivent toutes être `OK` : salarié 068, salarié 140 et salarié 086 reviennent au centime, et salarié 044 de mai reste à **+35,70** — c'est ce que l'option gagne, la correction ne doit pas le défaire.
 
 - [ ] **Step 3 : trancher le sort de l'option et le dire**
 
-Critère de la spec : Cotte janvier, Gautheron janvier et Demory juin reviennent au centime ; aucun bulletin aujourd'hui exact ne se dégrade.
+Critère de la spec : salarié 068 janvier, salarié 140 janvier et salarié 086 juin reviennent au centime ; aucun bulletin aujourd'hui exact ne se dégrade.
 
 - Si l'option corrigée fait mieux que 3 028,81 € : elle reste allumée pour août.
 - Sinon : l'éteindre pour les cinq sociétés du test le temps de traiter le compteur de récupération, et le dire à Alexandre avec les chiffres.

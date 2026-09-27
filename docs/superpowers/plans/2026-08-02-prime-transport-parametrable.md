@@ -1750,12 +1750,12 @@ def test_bareme_absent_donne_none():
 
 
 def test_depassement_girerd_3000_euros_par_an():
-    """GIRERD Fabrice, Colorplast : 250 €/mois soit 3 000 €/an."""
+    """salarié 146 Fabrice, Colorplast : 250 €/mois soit 3 000 €/an."""
     assert depassement_annuel(3000.0, 600.0) == 2400.0
 
 
 def test_depassement_espinosa_1200_euros_par_an():
-    """ESPINOSA Anthony, Colorplast : 100 €/mois soit 1 200 €/an."""
+    """salarié 108 Anthony, Colorplast : 100 €/mois soit 1 200 €/an."""
     assert depassement_annuel(1200.0, 600.0) == 600.0
 
 

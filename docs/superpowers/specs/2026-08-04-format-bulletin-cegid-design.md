@@ -44,7 +44,7 @@ Les mentions annexes du bloc actuel (fractionnement, CP ancienneté conventionne
 
 ### 3. Bloc salarié (haut droite)
 
-`MR ALVES Lucas` puis l'adresse postale sur deux lignes.
+`MR salarié 004 Lucas` puis l'adresse postale sur deux lignes.
 
 - Civilité : `employees.sexe` → `MR` / `MME`. Absente : rien, on démarre au nom.
 - Nom : `NOM Prénom`, nom en majuscules (Cegid met le nom en premier).
@@ -53,7 +53,7 @@ Les mentions annexes du bloc actuel (fractionnement, CP ancienneté conventionne
 ### 4. Ligne d'identité et bloc contrat
 
 ```
-Matricule : ALVES              NoSécu. : 1 02 09 85 191 239 74
+Matricule : salarié 004              NoSécu. : 1 02 09 85 191 239 74
 Entré(e) le : 08/04/2026
 Emploi : Opérateur polyvalent          Ancienneté : 08/04/2026
 Qualif :               Classif :              Coeff : A

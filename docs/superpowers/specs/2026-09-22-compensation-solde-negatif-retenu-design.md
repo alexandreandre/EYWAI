@@ -23,8 +23,8 @@ l'option le prouve, toutes choses égales par ailleurs :
 
 | Janvier | Quadra | avec l'option | sans l'option |
 |---|---|---|---|
-| Cotte | 2 351,89 | 2 398,38 (+46,49) | 2 351,89 (0,00) |
-| Gautheron | 2 252,28 | 2 398,38 (+146,10) | 2 252,28 (0,00) |
+| salarié 068 | 2 351,89 | 2 398,38 (+46,49) | 2 351,89 (0,00) |
+| salarié 140 | 2 252,28 | 2 398,38 (+146,10) | 2 252,28 (0,00) |
 
 Sans l'option, le moteur produit déjà les lignes de Quadra au centime et à la
 date : « Absence injustifiée du 21/01/26 (base) », 3,14 h × 12,9492 = 40,66 €,
@@ -46,8 +46,8 @@ jours ; ce qui reste est retenu sur les derniers jours manqués »). On l'étend
 est, au signe près, le nombre d'heures à retenir.
 
 - `solde_negatif == 0` : toutes les absences de la fenêtre sont absorbées.
-  C'est le comportement actuel, celui qui rapproche de Quadra (Bugny mai
-  −196,35 → +35,70 ; Espinosa juin −76,40 → +1,88 ; Demory avril −68,81 → 0).
+  C'est le comportement actuel, celui qui rapproche de Quadra (salarié 044 mai
+  −196,35 → +35,70 ; salarié 108 juin −76,40 → +1,88 ; salarié 086 avril −68,81 → 0).
 - `solde_negatif < 0` : on conserve `−solde_negatif` heures d'absence, prises
   sur les jours les plus tardifs ; les plus anciennes sont absorbées.
 
@@ -67,7 +67,7 @@ Vérification arithmétique sur les deux bords :
   jamais remplacées.
 - Le compteur de récupération entre mois de Gaëlle reste **hors périmètre**.
   C'est un manque connu et assumé : il explique l'essentiel de l'écart qui
-  subsistera (Espinosa mai, +281,80 €, à qui Gaëlle retire 12 h de journées
+  subsistera (salarié 108 mai, +281,80 €, à qui Gaëlle retire 12 h de journées
   « en récup » les 15 et 25/05). Ce chantier-ci ne le traite pas.
 
 ## Architecture
@@ -138,7 +138,7 @@ passer en silence s'il arrive.
 
 1. Solde nul et absences présentes → liste vide, tout est absorbé (le cas
    d'une semaine négative couverte par les heures sup d'une autre : c'est
-   Bugny en mai, le comportement que l'option gagne et qu'on préserve).
+   salarié 044 en mai, le comportement que l'option gagne et qu'on préserve).
 2. Aucune absence et solde négatif → liste vide et `reliquat_sans_jour`
    égal au solde (voir « Garde-fou »).
 3. Solde de −4 h, absences de 5 h en un jour → 4 h gardées ce jour-là.
@@ -156,19 +156,19 @@ passer en silence s'il arrive.
 **De bout en bout, contre Quadra** (bac à sable, données réelles de la base de
 test) :
 
-9. Cotte, janvier 2026 : solde de −3,5 h, une ligne retenue le 21/01,
+9. salarié 068, janvier 2026 : solde de −3,5 h, une ligne retenue le 21/01,
    3,14 h × 12,9492 = 40,66 € en base et 0,36 h × 16,1865 = 5,83 € en
    réduction de HS structurelles ; brut 2 351,89 €.
-10. Gautheron, janvier 2026 : deux lignes, 2,24 h le 13/01 (29,01 €) et
+10. salarié 140, janvier 2026 : deux lignes, 2,24 h le 13/01 (29,01 €) et
     7,63 h le 14/01 (98,80 €) ; brut 2 252,28 €.
-11. Bugny, mai 2026 : solde positif, aucune retenue, brut inchangé à
+11. salarié 044, mai 2026 : solde positif, aucune retenue, brut inchangé à
     2 988,04 € — la correction ne doit pas défaire ce que l'option gagne.
 
 ## Critère de réussite
 
 Les six mois rejoués à la régulière avec l'option corrigée :
 
-- Cotte janvier, Gautheron janvier et Demory juin reviennent au centime ;
+- salarié 068 janvier, salarié 140 janvier et salarié 086 juin reviennent au centime ;
 - aucun bulletin aujourd'hui exact ne se dégrade ;
 - l'écart absolu cumulé descend d'environ 300 €.
 

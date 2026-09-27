@@ -58,7 +58,7 @@ et écrase un placeholder par une vraie adresse sans jamais faire l'inverse
 (`payroll_export_import.py:229-233`).
 
 **Ce gisement est épuisé.** Sur 285 lignes salarié, 108 portent une adresse et **107 sont déjà
-en base**. Il reste exactement un cas exploitable (Lucas CHAMBERT, fiche MBC en placeholder
+en base**. Il reste exactement un cas exploitable (salarié 057, fiche MBC en placeholder
 alors que son adresse est connue sur sa fiche Comitech) et une adresse orpheline
 (Rafiullah AMARKHILL, MBC, aucune fiche en base).
 
@@ -79,7 +79,7 @@ Croisement des 289 fiches avec les 302 comptes Auth :
 
 Ces 85 personnes ont déjà leur adresse réelle en base et se connectent toujours avec
 `import.…@…dsn-import.local`, parce **qu'aucun code du dépôt ne met à jour l'adresse d'un
-compte Auth existant**. Vanessa Amate et Elsa André en font partie.
+compte Auth existant**. salarié 005 et salarié 303 en font partie.
 
 ---
 
@@ -95,7 +95,7 @@ Le code confond aujourd'hui deux objets. La conception les sépare.
 La connexion se fait par **identifiant `prenom.nom`**, pas par adresse. Le résolveur
 (`auth/infrastructure/providers.py:88-104`) part de `employees.username`, passe par `user_id`,
 puis lit l'adresse du compte Auth. **Vider `employees.email` ne casse donc aucune connexion** —
-l'avertissement porté au §3.1 de `docs/comptes-rendus/2026-07-26-etat-des-lieux-si-rh.md` sur l'accès de Vanessa
+l'avertissement porté au §3.1 de `data/_rapports/comptes-rendus/2026-07-26-etat-des-lieux-si-rh.md` sur l'accès de Vanessa
 est trop pessimiste : seules ses notifications sont en jeu, pas son accès.
 
 **Comportement retenu à la création d'un salarié :** fiche créée complètement, sans adresse ;
@@ -180,35 +180,35 @@ Deux opérations, activables séparément (`--clear-fiches`, `--realign-logins`)
 Le plan liste nommément chaque salarié touché et sauvegarde l'état avant modification. Les deux
 opérations sont idempotentes : un second passage produit un plan vide.
 
-L'unique adresse récupérable des fichiers d'enrichissement (Lucas CHAMBERT, fiche MBC —
-`lucas.chambert@gmail.com`, déjà connue sur sa fiche Comitech) **n'est pas traitée par le
+L'unique adresse récupérable des fichiers d'enrichissement (salarié 057, fiche MBC —
+`prenom.nom@exemple.fr`, déjà connue sur sa fiche Comitech) **n'est pas traitée par le
 script** : un cas isolé ne justifie pas d'y brancher la lecture des classeurs `Config/`. À
 saisir à la main ou à faire passer par l'import d'enrichissement, avant le vidage des fiches
 — sinon l'adresse est simplement à ressaisir ensuite.
 
 ### 3.7 Cas particuliers documentés, non traités par le script
 
-**Elsa André — identité dédoublée.** Elle utilise quotidiennement `eandre@maji-invest.fr`
-(profil « Eandre André », admin sur Cartol/MBC/Comitech, dernière connexion 24/07), tandis que
+**salarié 303 — identité dédoublée.** Elle utilise quotidiennement `prenom.nom@exemple.fr`
+(profil « salarié 303 », admin sur Cartol/MBC/Comitech, dernière connexion 24/07), tandis que
 sa fiche salarié MAJI pointe vers un compte jamais utilisé (collaborateur MAJI seul). Un
-troisième compte orphelin occupe `andre.elsa@hotmail.com`.
+troisième compte orphelin occupe `prenom.nom@exemple.fr`.
 
 L'objectif retenu est qu'elle puisse **basculer d'une société à l'autre comme un collaborateur
 RH** — mécanisme qui existe déjà (Vanessa bascule entre 7 sociétés). Cela suppose une identité
-unique portant plusieurs accès : rattacher `eandre@maji-invest.fr` à sa fiche salarié, y
+unique portant plusieurs accès : rattacher `prenom.nom@exemple.fr` à sa fiche salarié, y
 ajouter l'accès MAJI, supprimer le compte inutilisé, corriger le prénom `Eandre` → `Elsa`.
 Fusionner deux identités revient à décider quels droits survivent : opération exclue du
 traitement de masse, à appliquer explicitement après validation.
 
-**Vanessa Amate.** Son adresse réelle `amatevanessa@yahoo.fr` est déjà sur sa fiche. Elle se
+**salarié 005.** Son adresse réelle `prenom.nom@exemple.fr` est déjà sur sa fiche. Elle se
 connecte par son identifiant `vanessa.amate`. Un doublon jamais utilisé, sans fiche et à
-l'accès MAJI révoqué, occupe l'adresse `vamate@maji-invest.fr` ; sa suppression n'est pas
+l'accès MAJI révoqué, occupe l'adresse `prenom.nom@exemple.fr` ; sa suppression n'est pas
 nécessaire au réalignement et n'est pas incluse.
 
 **Deux anomalies de données** relevées et non corrigées, faute de savoir laquelle des deux
 valeurs est juste :
-- `malopoulain@orange.fr` est porté à la fois par Quentin MATHIEU et Malo POULAIN (MBC) ;
-- `athoumanimohamed@29gmail.com` (Athoumani MOHAMED, MBC) a un domaine invalide.
+- `prenom.nom@exemple.fr` est porté à la fois par salarié 305 et salarié 239 (MBC) ;
+- `prenom.nom@exemple.fr` (salarié 306, MBC) a un domaine invalide.
 
 ---
 

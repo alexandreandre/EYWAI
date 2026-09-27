@@ -43,7 +43,7 @@ immédiat. Dépôt GitHub PUBLIC (choix assumé) : la surface est mondiale.
    les 181 permissions sur les routes sensibles (paie, salaires,
    documents).
 4. **Comptes auth** : recenser les comptes orphelins (cas Elsa — combien
-   d'autres ?), les doubles fiches (cas Gaëlle Bouali/KEWITZ), les 227
+   d'autres ?), les doubles fiches (cas salarié 030/KEWITZ), les 227
    placeholders DSN ; politique de mot de passe identique sur TOUS les
    chemins (activation ✔, reset ?, création admin ?, provisionnement ?).
 5. **Secrets et données personnelles** : gitleaks sur l'historique
