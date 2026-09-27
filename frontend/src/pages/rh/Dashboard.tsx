@@ -169,6 +169,8 @@ export default function Dashboard() {
           sidebarTotal={pendingTasks.sidebarTotal}
           loading={pendingTasks.isLoading}
           refreshing={pendingTasks.isRefreshing}
+          enErreur={pendingTasks.hasError}
+          onRetry={pendingTasks.retryFailed}
         />
 
         <section className="space-y-4 rounded-xl border bg-background p-4 md:p-5">

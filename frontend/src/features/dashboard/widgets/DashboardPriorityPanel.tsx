@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, PartyPopper } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -76,6 +77,9 @@ export interface DashboardPriorityPanelProps {
   sidebarTotal: number;
   loading?: boolean;
   refreshing?: boolean;
+  /** Au moins une source des compteurs n'a pas répondu : la liste peut être incomplète. */
+  enErreur?: boolean;
+  onRetry?: () => void;
 }
 
 export function DashboardPriorityPanel({
@@ -83,6 +87,8 @@ export function DashboardPriorityPanel({
   sidebarTotal,
   loading = false,
   refreshing = false,
+  enErreur = false,
+  onRetry,
 }: DashboardPriorityPanelProps) {
   const [validatedByCount, setValidatedByCount] = useState<ValidatedByCount>(readValidated);
   const [selectedId, setSelectedId] = useState<RhPendingTaskId | null>(null);
@@ -146,6 +152,21 @@ export function DashboardPriorityPanel({
     );
   }
 
+  // Des compteurs qui n'ont pas répondu ne valent pas « rien à traiter » : le
+  // tableau de bord le dit au lieu de féliciter (constat C1 de l'audit du 25/09).
+  const alerteCompteurs = enErreur ? (
+    <ControleIndisponible
+      titre="Certains compteurs n'ont pas pu être chargés."
+      description="La liste des actions à traiter peut être incomplète."
+      onRetry={onRetry}
+      isRetrying={refreshing}
+    />
+  ) : null;
+
+  if (items.length === 0 && enErreur) {
+    return alerteCompteurs;
+  }
+
   if (items.length === 0) {
     return (
       <Card className="border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/30">
@@ -173,6 +194,8 @@ export function DashboardPriorityPanel({
   const FocusIcon: LucideIcon | null = selectedTask?.icon ?? null;
 
   return (
+    <div className="space-y-3">
+      {alerteCompteurs}
     <Card className="border-l-4 border-l-primary shadow-sm overflow-hidden">
       <CardContent className="p-0">
         <div className="flex flex-col gap-4 p-5 border-b bg-muted/20">
@@ -295,5 +318,6 @@ export function DashboardPriorityPanel({
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }
