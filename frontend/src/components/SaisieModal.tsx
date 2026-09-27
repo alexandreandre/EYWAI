@@ -44,6 +44,7 @@ import * as bonusTypesApi from "@/api/bonusTypes";
 import * as calendarApi from "@/api/calendar";
 import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
+import { estRoleRh } from '@/lib/rolesRh';
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -104,7 +105,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [employeePopoverOpen, setEmployeePopoverOpen] = useState(false);
 
-  const canSaveToCatalogue = user?.role === 'admin' || user?.role === 'rh';
+  const canSaveToCatalogue = estRoleRh(user?.role);
 
   useEffect(() => {
     // Charger les primes depuis le catalogue (ancien système)

@@ -48,6 +48,7 @@ import {
   tabFromSearchParam,
   type CompanyPageTab,
 } from "@/features/company/lib/companyPageTabs";
+import { estRoleRh } from '@/lib/rolesRh';
 
 function trimOrNull(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
@@ -164,10 +165,7 @@ export default function CompanyPage() {
     enabled: Boolean(companyId),
   });
 
-  const canEdit = useMemo(() => {
-    const r = user?.role;
-    return r === "admin" || r === "rh";
-  }, [user?.role]);
+  const canEdit = useMemo(() => estRoleRh(user?.role), [user?.role]);
 
   const company = detailsQuery.data?.company_data;
   const kpis = detailsQuery.data?.kpis;

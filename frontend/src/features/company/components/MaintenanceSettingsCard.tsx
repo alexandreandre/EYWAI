@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { Wallet } from 'lucide-react';
+import { estRoleRh } from '@/lib/rolesRh';
 
 function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
   return {
@@ -58,10 +59,7 @@ export default function MaintenanceSettingsCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const canEdit = useMemo(() => {
-    const r = user?.role;
-    return r === 'admin' || r === 'rh';
-  }, [user?.role]);
+  const canEdit = useMemo(() => estRoleRh(user?.role), [user?.role]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['maintenance-settings', activeCompanyId],

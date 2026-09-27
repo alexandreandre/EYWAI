@@ -53,6 +53,7 @@ import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
+import { estRoleRh } from '@/lib/rolesRh';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
 type AbsenceType = AbsenceRequest['type'];
@@ -88,8 +89,7 @@ const groupConsecutiveDates = (dates: Date[]): { start: Date, end: Date }[] => {
 function canShowRhNewAbsenceButton(user: { role?: string; is_super_admin?: boolean } | null): boolean {
   if (!user) return false;
   if (isPlatformAdmin(user)) return true;
-  const r = user.role;
-  return r === "rh" || r === "admin";
+  return estRoleRh(user.role);
 }
 
 export default function AbsencesPage() {

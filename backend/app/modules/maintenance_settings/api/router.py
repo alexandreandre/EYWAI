@@ -22,7 +22,8 @@ def _can_write_maintenance_settings(user: User, company_id: str) -> bool:
     if user.is_platform_admin:
         return True
     role = user.get_role_in_company(company_id)
-    return role in ("admin", "rh")
+    # Le collaborateur RH modifie ce qu'un RH modifie, comme partout ailleurs.
+    return role in ("admin", "rh", "collaborateur_rh")
 
 
 @router.get("/", response_model=MaintenanceSettings)
