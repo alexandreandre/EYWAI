@@ -138,7 +138,7 @@ export default function Payroll() {
     return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1;
   });
   // Un parti reste visible sur les mois où il était présent : toute l'année
-  // en vue salarié, le mois choisi en vue mois (Demory, sorti le 24/07 :
+  // en vue salarié, le mois choisi en vue mois (salarié 086, sorti le 24/07 :
   // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
   const employees = useMemo(
     () =>

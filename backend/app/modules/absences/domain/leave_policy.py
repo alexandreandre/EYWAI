@@ -67,7 +67,7 @@ class LeavePolicySettings:
         Les soldes, les jours posés et l'acquisition parlent la même unité :
         une semaine posée en jours ouvrés retire 5 jours d'un droit acquis à
         2,083 j/mois (25 j/an). Forcer 2,5 en interne quand l'unité est
-        « ouvré » donnait 30 jours pour 25 (retour Gaëlle 12/09, Girerd).
+        « ouvré » donnait 30 jours pour 25 (retour Gaëlle 12/09, salarié 146).
         """
         return self.cp_acquisition_days_per_month
 

@@ -185,7 +185,7 @@ def construire_identite(bulletin: Dict[str, Any]) -> Dict[str, Any]:
         # d'ancienneté, leur ancienneté part de la date d'entrée.
         "anciennete": _date_fr(salarie.get("date_anciennete")) or date_entree,
         # Volontairement pas de repli sur `statut_categoriel` : il contredit
-        # `employees.statut` sur une partie des fiches (ALVES, opérateur
+        # `employees.statut` sur une partie des fiches (salarié 004, opérateur
         # polyvalent, y est « Cadre » alors que la paie le traite en non-cadre).
         # Cegid laisse d'ailleurs la case vide. Mieux vaut rien qu'un faux.
         "qualification": classification.get("qualification") or "",

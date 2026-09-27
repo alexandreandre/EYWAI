@@ -185,7 +185,7 @@ class FullEmployee(BaseModel):
 
     # Colonnes de la table `employees` qui manquaient à la réponse : Pydantic
     # ignore les champs inconnus, la fiche ne pouvait donc jamais relire la
-    # fin de contrat d'un CDD qu'elle venait d'enregistrer (Fuckar, 12/09/2026).
+    # fin de contrat d'un CDD qu'elle venait d'enregistrer (salarié 130, 12/09/2026).
     # Toute colonne lue par l'écran doit avoir son champ ici (test dédié).
     contract_end_date: date | None = None
     date_conclusion_contrat: date | None = None

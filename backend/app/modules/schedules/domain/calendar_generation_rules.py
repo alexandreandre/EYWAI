@@ -6,7 +6,7 @@ Un « modèle horaire » est une semaine type : une liste de configurations jour
 type, heures prévues paie, horaires indicatifs, pause et pause payée/non payée.
 
 Un « cycle » est une liste ordonnée de modèles (semaine A, B, … N) permettant
-l'alternance de semaines (ex. Lewis, Emilie Vignaud). Le modèle appliqué à une
+l'alternance de semaines (ex. Lewis, salarié 296). Le modèle appliqué à une
 semaine donnée dépend de la position de son lundi par rapport à une date
 d'ancrage (`cycle_anchor`).
 

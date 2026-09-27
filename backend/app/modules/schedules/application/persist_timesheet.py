@@ -175,7 +175,7 @@ def jours_a_heures_negatives(
     *,
     libelles: dict[str, str] | None = None,
 ) -> List[str]:
-    """Liste « BUGNY 16/07/2026 (-10.5 h) » pour chaque jour à heures négatives.
+    """Liste « salarié 044 16/07/2026 (-10.5 h) » pour chaque jour à heures négatives.
 
     Une heure négative n'est jamais une donnée de pointage : c'est une lecture
     ratée (plages DÉBUT/FIN inversées) à corriger à l'écran, pas à écrire dans

@@ -293,7 +293,7 @@ def _raison_de_blocage_du_salarie(
     """Un parti garde le droit à son dernier bulletin.
 
     « Ce collaborateur n'est pas actif » refusait le solde de tout compte de
-    Demory, sorti le 24/07 (retour Gaëlle 12/09). Si la sortie est datée dans
+    salarié 086, sorti le 24/07 (retour Gaëlle 12/09). Si la sortie est datée dans
     le mois demandé ou après, seule la complétude de la fiche compte ; la
     garde de période, juste derrière, refuse toujours les mois postérieurs à
     la sortie. Sans date de sortie, le refus de statut reste entier.

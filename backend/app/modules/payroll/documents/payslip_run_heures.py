@@ -279,7 +279,7 @@ def periodes_depuis_compteurs(
     rémunération des périodes de référence.
 
     Les droits d'une période sont « pris + solde » : le champ `acquis` ne suit
-    pas une reprise de compteurs (Demory : 7,0 pour un solde de 2,78)."""
+    pas une reprise de compteurs (salarié 086 : 7,0 pour un solde de 2,78)."""
     if not isinstance(compteurs, dict) or not compteurs:
         return None
     sortie: dict = {}
@@ -754,13 +754,13 @@ def run_payslip_generation_heures(
     # l'intégralité du mois calendaire (cf. docstring `calculer_salaire_brut`)
     # — ne PAS remplacer par les accumulateurs d'heures travaillées du calcul
     # lui-même, qui sont toujours à 0 pour un salarié "heures" (régression
-    # FUCKAR déjà rencontrée). Les congés payés DOIVENT aussi compter comme
+    # salarié 130 déjà rencontrée). Les congés payés DOIVENT aussi compter comme
     # "couvert" (≠ absence intégrale) : un salarié entièrement en CP ce mois
     # a également 0 jour "travail" au planning mais est rémunéré normalement
     # via l'indemnité de CP — sans cette exclusion, le complément "absence
     # intégrale" se déclenchait à tort et écrasait son brut (régression
-    # CHEVALLIER, Mont Blanc Composite, détectée à la vérification anti-
-    # régression après le fix FUCKAR).
+    # salarié 059, Mont Blanc Composite, détectée à la vérification anti-
+    # régression après le fix salarié 130).
     nb_jours_travail_planifies = None
     chemin_calendrier_prevu_mois = employee_path / "calendriers" / f"{month:02d}.json"
     if chemin_calendrier_prevu_mois.exists():
@@ -906,7 +906,7 @@ def run_payslip_generation_heures(
     # cotisations, imposable. Ajoutées comme les IJSS via `ijss_imposables` (→
     # net imposable + net à payer + MNS) ; la CSG/CRDS des revenus de remplacement
     # est déjà appliquée en aval sur ces montants, il ne faut PAS l'ajouter ici
-    # (double compte, vérifié CLEMENT/MANDANGUY Lewis juin 2026).
+    # (double compte, vérifié salarié 061/salarié 199 Lewis juin 2026).
     if indemnites_remplacement:
         ijss_imposables = list(ijss_imposables) + list(indemnites_remplacement)
     if brut_modifie:
@@ -925,7 +925,7 @@ def run_payslip_generation_heures(
     # Sur les événements retenus par la fenêtre des variables, pas sur tout le
     # calendrier étendu : une absence de la semaine rattachée au mois suivant
     # n'a pas réduit la paie de ce mois-ci, elle ne doit pas en réduire le
-    # plafond. Sans ce filtre, Gautheron tombait juste en janvier — 29/31 — mais
+    # plafond. Sans ce filtre, salarié 140 tombait juste en janvier — 29/31 — mais
     # à cause de deux jours du 29 et 30 janvier, qui relèvent de février, et non
     # de ses vraies absences des 13 et 14.
     contexte.ratio_plafond_ss = ratio_plafond_periode(
@@ -942,7 +942,7 @@ def run_payslip_generation_heures(
     # porte la déduction forfaitaire patronale (1,50 €/h sous 20 salariés), seul
     # usage de ce paramètre. Le cabinet la pose sur les heures restantes ; nous
     # la posions sur le total d'avant l'absence, et réclamions donc un peu trop
-    # (Colorplast janvier : Cotte 25,99 au lieu de 25,49, Gautheron 25,99 au
+    # (Colorplast janvier : salarié 068 25,99 au lieu de 25,49, salarié 140 25,99 au
     # lieu de 24,38). Le SMIC de référence de la réduction générale ne passe pas
     # par ici : il retranche les absences séparément, sans double compte.
     heures_supp_nettes = round(
@@ -1032,11 +1032,11 @@ def run_payslip_generation_heures(
     #
     # Le SMIC de référence est proportionnel aux heures rémunérées : une heure
     # d'absence non payée doit en sortir, sinon la réduction est surévaluée
-    # (Colorplast janvier 2026 : Cotte 643,01 au lieu de 609,61, Gautheron
-    # 689,65 au lieu de 582,21 — cf. `docs/comptes-rendus/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`).
+    # (Colorplast janvier 2026 : salarié 068 643,01 au lieu de 609,61, salarié 140
+    # 689,65 au lieu de 582,21 — cf. `data/colorplast/rapprochements/2026-09-14-colorplast-janvier-2026-ligne-a-ligne.md`).
     #
     # Sur un mois d'entrée ou de sortie, la base n'est pas celle d'un mois plein
-    # mais les seules heures dues, que le calcul du brut expose (Demory, embauché
+    # mais les seules heures dues, que le calcul du brut expose (salarié 086, embauché
     # le 23/03/2026 : 47,50 h et non 151,67, pour 50,50 h de période chez Quadra).
     heures_legales_mois = (lc.DUREE_LEGALE_HEBDO * 52) / 12
     heures_base_mois = float(
@@ -1047,7 +1047,7 @@ def run_payslip_generation_heures(
     # l'employeur NE maintient PAS : rémunération maintenue en entier, les heures
     # restent ; maintien partiel, elles sortent d'autant ; aucun maintien, elles
     # sortent toutes. Le moteur les gardait en bloc, en supposant le maintien
-    # acquis. Demory et Fuckar (Colorplast, mai 2026) ne reçoivent aucun maintien
+    # acquis. salarié 086 et salarié 130 (Colorplast, mai 2026) ne reçoivent aucun maintien
     # pendant leur arrêt : nous réclamions 347 € d'allègement sur des heures que
     # personne n'a payées.
     heures_arret = float(resultat_brut.get("heures_arret_deduites") or 0.0)
@@ -1163,13 +1163,13 @@ def run_payslip_generation_heures(
         pss_du_mois,
         employee_path,
         # Heures sup du mois, nettes de la part perdue par une absence : c'est
-        # le « Cumul h. sup » imprimé (Cotte 16,97 et non 17,33 en janvier), et
+        # le « Cumul h. sup » imprimé (salarié 068 16,97 et non 17,33 en janvier), et
         # la même valeur que celle qui porte la déduction forfaitaire patronale.
         heures_supplementaires_mois=heures_supp_nettes,
         # Exactement les heures qui ont servi au SMIC de référence de la
         # réduction générale ci-dessus. Le compteur partait des seules heures
         # contractuelles, sans les heures sup conjoncturelles : le « Cumul
-        # heures » imprimé était faux (Bugny 169,00 au lieu de 189,50, retour
+        # heures » imprimé était faux (salarié 044 169,00 au lieu de 189,50, retour
         # de Gaëlle), et surtout le cumul repris le mois suivant par la
         # régularisation progressive de la réduction repartait trop bas.
         # Les deux figures doivent être la même.

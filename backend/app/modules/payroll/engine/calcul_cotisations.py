@@ -42,7 +42,7 @@ def _assiette_forfait_social(lignes: List[Dict[str, Any]]) -> float:
     """Assiette du forfait social : toutes les contributions patronales de
     protection sociale complémentaire déjà calculées, frais de santé compris.
 
-    Vérifié sur deux cabinets : Colorplast chez Quadra (Bugny janvier 2026,
+    Vérifié sur deux cabinets : Colorplast chez Quadra (salarié 044 janvier 2026,
     43,29 = 14,06 de prévoyance + 29,23 de mutuelle) et Mont Blanc Composite
     chez Cegid, cadres comme non-cadres.
     """
@@ -124,7 +124,7 @@ def _cumul_agirc_arrco_debut_mois(
     appliqué les mois précédents. Un pic de rémunération suivi d'un mois plus
     bas peut donc légitimement produire une assiette tranche 2 NÉGATIVE un
     mois donné (régularisation à la baisse) — comportement confirmé sur les
-    bulletins réels HIRARD/NOBLE (Lewis mai 2026 : ligne « E_V7 PREVOYANCE NON
+    bulletins réels salarié 162/salarié 218 (Lewis mai 2026 : ligne « E_V7 PREVOYANCE NON
     CADRE TU2 META » à base négative -220,31 €, et « Complémentaire Tranche 2 »
     à base négative -220,31 € également, cohérent avec un même mécanisme
     appliqué uniformément à toutes les cotisations assises sur la tranche 2).
@@ -176,7 +176,7 @@ def _cumul_tranche_1_appliquee_debut_mois(
 # maintien intégral, en jours calendaires).
 #: Un arrêt de travail suspend le contrat quelle que soit sa nature — maladie,
 #: accident du travail, maternité, paternité : tous réduisent le plafond au
-#: prorata. Seul `arret_maladie` y figurait, et l'accident du travail de Demory
+#: prorata. Seul `arret_maladie` y figurait, et l'accident du travail de salarié 086
 #: (Colorplast, 23 au 29/05/2026) laissait son plafond entier.
 _TYPES_ABSENCE_REDUISANT_PLAFOND = frozenset(
     {"arret_maladie", "arret_at", "arret_maternite", "arret_paternite",
@@ -191,7 +191,7 @@ def _reduit_le_plafond(type_evenement: str) -> bool:
     `absence_injustifiee` mais `absence_injustifiee_base` et
     `absence_injustifiee_hs25`, selon la position de l'absence dans la semaine.
     L'égalité stricte les laissait passer, et aucune absence issue d'un pointage
-    ne réduisait le plafond (Colorplast janvier 2026 : Cotte 4 005,00 € au lieu
+    ne réduisait le plafond (Colorplast janvier 2026 : salarié 068 4 005,00 € au lieu
     des 3 875,81 € du cabinet).
     """
     type_evenement = str(type_evenement or "")
@@ -254,7 +254,7 @@ def ratio_plafond_periode(
     # Un arrêt de travail suspend le contrat sur toute sa durée déclarée, pas
     # seulement sur les jours ouvrés inscrits au calendrier : le week-end et les
     # jours fériés qu'il enjambe en font partie. Sans cela, un arrêt qui commence
-    # un samedi ne réduit le plafond qu'à partir du lundi. Demory (Colorplast,
+    # un samedi ne réduit le plafond qu'à partir du lundi. salarié 086 (Colorplast,
     # mai 2026), accident du travail du 23 au 29/05 : le cabinet retire 7 jours,
     # nous n'en retirions que 4 — les 23, 24 et 25 manquaient.
     for ev in calendrier or []:
@@ -554,7 +554,7 @@ def _calculer_une_ligne(
     # SAUF quand l'appelant signale explicitement (via `autoriser_assiette_negative`)
     # qu'une assiette négative est légitime — cas de la régularisation progressive
     # Agirc-Arrco tranche 2 (le cumul annuel peut requalifier T1/T2 à la baisse
-    # un mois donné, cf. HIRARD/NOBLE Lewis mai 2026). Généraliste : ne dépend
+    # un mois donné, cf. salarié 162/salarié 218 Lewis mai 2026). Généraliste : ne dépend
     # d'aucun salarié particulier, uniquement de la base de cotisation utilisée.
     if taux_salarial is None and taux_patronal is None:
         pass
@@ -651,7 +651,7 @@ def calculer_cotisations(
         if coti_id == "apec":
             # APEC réservée aux cadres au sens AGIRC (statut catégoriel DSN) : un
             # salarié « Cadre » en paie mais déclaré « Non-Cadre » en DSN (forfait-
-            # jour non-cadre CCN plasturgie, cf. GAILLET/BLONDEAU/GILLET/DROZ MBC
+            # jour non-cadre CCN plasturgie, cf. salarié 132/salarié 024/salarié 145/salarié 095 MBC
             # mai 2026) n'y est pas assujetti, même si son statut de paie sert de
             # base au calcul du brut forfait.
             cat_dsn = (contexte.statut_categoriel_dsn or "").strip().lower()
@@ -715,7 +715,7 @@ def calculer_cotisations(
         # Contribution au financement du compte personnel de formation des
         # titulaires de CDD (art. L6331-6 du code du travail) : 1 % de leur
         # rémunération, et d'eux seuls. Le cabinet la facture bien ainsi sur
-        # Colorplast — Demory et Fuckar, les deux seuls CDD, portent un point de
+        # Colorplast — salarié 086 et salarié 130, les deux seuls CDD, portent un point de
         # plus que les sept autres (2,646 % contre 1,646 % du brut, constant sur
         # les 43 bulletins de janvier à juillet 2026).
         if coti_id == "cpf_cdd" and not est_cdd(contexte):
@@ -1045,7 +1045,7 @@ def calculer_cotisations(
         # des contributions patronales de protection sociale complémentaire,
         # frais de santé compris. Il ne portait que sur la ligne de prévoyance
         # en cours, ce qui sous-évaluait l'assiette dès qu'une mutuelle existait
-        # (Girerd, Colorplast janvier 2026 : 69,33 au lieu des 98,56 du cabinet ;
+        # (salarié 146, Colorplast janvier 2026 : 69,33 au lieu des 98,56 du cabinet ;
         # même constat sur les cadres de Mont Blanc Composite chez Cegid).
         if taux_forfait_social_cadre > 0:
             ligne_fs = _calculer_une_ligne(
@@ -1164,7 +1164,7 @@ def calculer_cotisations(
                 bulletin_cotisations.append(ligne_calculee)
                 # Forfait social sur la retraite supplémentaire : 20 %, sans
                 # l'exonération des moins de 11 salariés qui vaut pour les 8 %
-                # de la prévoyance. Relevé sur Girerd (Colorplast) tous les mois
+                # de la prévoyance. Relevé sur salarié 146 (Colorplast) tous les mois
                 # de 2026 : 19,00 € sur 94,98 € de part patronale.
                 taux_fs = float(ligne.get("forfait_social") or 0.0)
                 if taux_fs > 0 and ligne_calculee.get("montant_patronal", 0) > 0:

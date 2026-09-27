@@ -3,7 +3,7 @@
 Le dossier de départ (module Départs) calcule le préavis et l'indemnité
 compensatrice de congés payés. Ce sont des salaires : elles se cotisent et
 s'imposent comme le reste du brut. Le bulletin de sortie les ajoutait après
-les cotisations, ce qui donnait un net supérieur au brut (Demory,
+les cotisations, ce qui donnait un net supérieur au brut (salarié 086,
 Colorplast, juillet 2026). Elles entrent donc dans le brut, ici, avant les
 cotisations ; `creer_bulletin_sortie` ne les ajoute plus une seconde fois.
 

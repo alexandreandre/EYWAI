@@ -7,7 +7,7 @@ comprise, ramené aux jours restants) et du maintien (les jours restants × la
 valeur d'un jour). Les jours déjà pris ont été payés à leur date : seuls les
 jours restants comptent.
 
-Recette : Aurélien Demory, juillet 2026 — période 2025-2026 : 10 % de 4 171,35
+Recette : salarié 086, juillet 2026 — période 2025-2026 : 10 % de 4 171,35
 × 2,78/3,78 = 306,78 (maintien 273,77) ; période 2026-2027 : 10 % de 4 596,09
 = 459,61 (maintien 409,68) ; total 766,39. Spec
 2026-09-21-indemnite-cp-fin-de-contrat-legale-design.md. Module pur.

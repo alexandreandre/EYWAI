@@ -162,7 +162,7 @@ function ProtectedRoutes() {
             <BackgroundDataIndicator />
             {/* Une page qui plante ne doit jamais laisser un écran blanc : la
                 limite d'erreur montre un message et un bouton pour recharger,
-                et se réarme à chaque changement d'écran (Gautheron, 12/09). */}
+                et se réarme à chaque changement d'écran (salarié 140, 12/09). */}
             <ErrorBoundaryClass key={location.pathname}>
             <Routes>
               {isCollaborateurRhView ? (

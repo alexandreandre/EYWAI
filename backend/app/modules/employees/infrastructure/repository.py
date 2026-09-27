@@ -193,7 +193,7 @@ class EmployeeRepository(IEmployeeRepository):
             )
 
             # Les partis restent dans la liste paie : ils ont des bulletins à
-            # consulter et un dernier mois à payer (Demory, sorti le 24/07,
+            # consulter et un dernier mois à payer (salarié 086, sorti le 24/07,
             # invisible sur juin et juillet — retour Gaëlle 12/09). La couche
             # application ne garde que ceux dont la sortie est datée, et
             # l'écran filtre ensuite mois par mois.

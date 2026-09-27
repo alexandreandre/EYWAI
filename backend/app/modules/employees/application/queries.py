@@ -150,7 +150,7 @@ def _bulk_exit_last_working_days(company_id: str) -> Dict[str, str]:
 
     Indépendant de current_exit_id, effacé à l'archivage : c'est ce qui permet
     d'afficher un salarié parti sur les mois où il était encore présent
-    (calendrier et paie de son dernier mois — retour Gaëlle 07/09, Demory).
+    (calendrier et paie de son dernier mois — retour Gaëlle 07/09, salarié 086).
     """
     try:
         r = (

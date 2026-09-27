@@ -8,7 +8,7 @@
  * par le même chemin qu'une saisie de la RH, avec deux effets :
  * - le bruit flottant (2973,61 − 65,66 = 2907,9500000000003 en JavaScript)
  *   marquait le bulletin « modifié » dès l'ouverture, barre d'enregistrement
- *   comprise (audit du 13/09/2026, Bugny juillet) ;
+ *   comprise (audit du 13/09/2026, salarié 044 juillet) ;
  * - la formule de l'écran ignore ce que le moteur retire ou ajoute au net
  *   (titres-restaurant, acompte, primes non soumises, participation) : sur les
  *   bulletins Zone 404 avec abonnement transport, ouvrir l'éditeur réécrivait

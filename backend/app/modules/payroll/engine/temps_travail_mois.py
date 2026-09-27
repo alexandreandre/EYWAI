@@ -168,7 +168,7 @@ def compute_temps_retenu_mois(
     # NE s'applique PAS si le mois contient un arrêt (maladie/AT) : le salarié est
     # alors absent, pas « présent supposé » — le temps retenu doit refléter l'arrêt
     # (seuls les jours maintenus comptent), sinon la prime d'ancienneté (proratisée
-    # sur la présence) reste pleine à tort. Cf. LEWIS BASTER (arrêt plein mois,
+    # sur la présence) reste pleine à tort. Cf. LEWIS salarié 014 (arrêt plein mois,
     # maintien épuisé → présence 0 → prime 0).
     arret_present = any(
         ev.get("type") in ("arret_maladie", "arret_travail")

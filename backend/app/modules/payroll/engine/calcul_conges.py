@@ -53,7 +53,7 @@ def calculer_indemnite_conges(
     # PRORATÉE pour un temps partiel — sinon l'indemnité de CP d'un salarié à
     # temps partiel est calculée sur une journée légale (7 h) au lieu de sa
     # journée contractuelle réelle, la sur-évaluant fortement (cf. Cegid MBC
-    # mai 2026 LIKA, temps partiel 20,08 h/sem ≈ 4 h/j : indemnité EYWAI sur 7
+    # mai 2026 salarié 190, temps partiel 20,08 h/sem ≈ 4 h/j : indemnité EYWAI sur 7
     # h/j au lieu de ~4,02 h/j, écart net +197,31 € alors que Cegid neutralise
     # exactement la retenue par l'indemnité). Même pattern que le repli
     # journalier d'absence (`_heures_journalieres_contrat`, `min(contrat,35)/5`).
@@ -66,7 +66,7 @@ def calculer_indemnite_conges(
     # calcule ensuite `part_normale = total - part_hs`) déduit un `part_hs`
     # négatif, ce qui GONFLE artificiellement `part_normale` (la ligne
     # réellement ajoutée au brut) bien au-dessus du total réel de l'indemnité
-    # — même cas LIKA que ci-dessus, bug distinct découvert en creusant le
+    # — même cas salarié 190 que ci-dessus, bug distinct découvert en creusant le
     # premier fix (le total `maintien.total` était déjà correct, seul le
     # découpage part_normale/part_hs affichée-et-utilisée-pour-le-brut était
     # faux).

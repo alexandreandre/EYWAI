@@ -207,7 +207,7 @@ export default function PayslipEdit() {
   const handleSave = async () => {
     // Le résumé est facultatif : l'exiger refusait l'enregistrement d'un
     // simple toast, et la RH restait sur l'aperçu en croyant son bulletin
-    // corrigé (Bugny, Cotte, Espinosa le 12/09 : rien n'était en base).
+    // corrigé (salarié 044, salarié 068, salarié 108 le 12/09 : rien n'était en base).
     const resume =
       changesSummary.trim() ||
       resumeAutomatique(

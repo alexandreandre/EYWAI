@@ -264,7 +264,7 @@ def creer_calendrier_etendu(
 # que ceux déjà interprétés par `calcul_brut.calculer_salaire_brut` pour un
 # événement du mois courant (cf. boucle `for evenement in jours_dans_periode`).
 # Volontairement restreint aux absences/arrêts (le cas d'usage identifié —
-# OZEN/KIRMIZI mai 2026 MBC — est une absence dont la retenue n'a été
+# salarié 225/salarié 170 mai 2026 MBC — est une absence dont la retenue n'a été
 # rattachée qu'au bulletin du mois suivant) ; un futur besoin d'un autre type
 # (ex. heures sup. oubliées) devra être évalué au cas par cas avant extension.
 REGULARISATION_TYPES_ACCEPTES = frozenset(
@@ -432,7 +432,7 @@ def ecarter_iccp_du_dossier_pour_fin_cdd(
     le BRUT du bulletin (1/10, cotisée), comme la prime de précarité.
 
     Le dossier de départ, lui, l'ajoutait après les cotisations — net
-    supérieur au brut — et son absence bloquait celle du moteur (Demory,
+    supérieur au brut — et son absence bloquait celle du moteur (salarié 086,
     Colorplast, juillet 2026 : Quadra porte « Ind. de CP des CDD » 940,23
     dans le brut). Sur le dernier mois d'un CDD, on retire donc l'ICCP du
     dossier et on lève le blocage ; les autres indemnités du dossier

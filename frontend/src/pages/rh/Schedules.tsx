@@ -70,7 +70,7 @@ export default function Schedules() {
   const employeesQuery = useEmployeesQuery();
   const employees = useMemo(
     // Un salarié parti reste visible sur les mois où il était présent
-    // (calendrier + paie de son dernier mois — ex. Demory, sorti le 24/07).
+    // (calendrier + paie de son dernier mois — ex. salarié 086, sorti le 24/07).
     () =>
       filterEmployeesForMonth(
         (employeesQuery.data ?? []) as Employee[],

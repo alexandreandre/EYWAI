@@ -6,7 +6,7 @@ bulletin porte cette information dans `parametres.salaire_base_mensuel`
 depuis le 13/09/2026 ; pour les bulletins antérieurs, on relit la ligne
 « Salaire de base » (taux horaire × heures mensuelles de base).
 
-Sans cette lecture, Demory (Colorplast) se voyait rappeler 16,69 € en
+Sans cette lecture, salarié 086 (Colorplast) se voyait rappeler 16,69 € en
 juillet pour un juin déjà payé au SMIC revalorisé — et chaque bulletin
 suivant l'aurait rappelé à nouveau.
 """

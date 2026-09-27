@@ -167,8 +167,8 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     Colorplast 05/2026), donc purement des ajustements de trésorerie du
     cabinet, hors assiette sociale/fiscale déclarée :
     - « Report NAP négatif » (régularisation d'un trop-versé antérieur,
-      cf. Cegid GAUTHERON mai 2026 : -115,11 €).
-    - « SMU2 GAN MUTUELLE FAMILLE » (cf. Cegid ESPINOSA/GAUTHERON/GIRERD
+      cf. Cegid salarié 140 mai 2026 : -115,11 €).
+    - « SMU2 GAN MUTUELLE FAMILLE » (cf. Cegid salarié 108/salarié 140/salarié 146
       mai 2026 : -98,12 € identique sur les 3, donc indépendant du salaire —
       probablement une régularisation de cotisation mutuelle famille).
     """
@@ -189,7 +189,7 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     if "mutuelle" in label and "famille" in label:
         return True
     # « Acompte MM/AAAA » (avance sur salaire versée en cours de mois, cf. Cegid
-    # MBC mai 2026 : AWAD 300 €, GOISSAUD 500 €, etc.) : réduit uniquement le net
+    # MBC mai 2026 : AWAD 300 €, salarié 147 500 €, etc.) : réduit uniquement le net
     # à payer, hors assiette sociale/fiscale. On exclut « acompte sur/de
     # participation » (SINT), qui lui réduit aussi le montant net social et suit
     # le mécanisme dédié de la participation.
@@ -198,13 +198,13 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     # « Saisie » (saisie-arrêt sur salaire, ordonnée par tribunal/trésor
     # public) et « Virement salaire du DD/MM » (régularisation d'un virement
     # déjà effectué sur une période antérieure) : purs ajustements de
-    # trésorerie, hors assiette sociale/fiscale (cf. Cegid OVIE mai 2026).
+    # trésorerie, hors assiette sociale/fiscale (cf. Cegid salarié 224 mai 2026).
     if "saisie" in label:
         return True
     # « Trop-perçu MM/AAAA » : reprise d'une somme versée en trop sur un mois
     # antérieur. Comme l'acompte, c'est de la trésorerie — elle ne change ni
     # l'assiette sociale, ni l'assiette fiscale, ni le montant net social, qui
-    # se définit hors retenues sur salaire. Cf. Cegid GIRERD Colorplast avril
+    # se définit hors retenues sur salaire. Cf. Cegid salarié 146 Colorplast avril
     # 2026 : 1,25 € repris au titre de mars, le montant net social reste à
     # 3 150,85 et seul le net à payer descend à 3 051,48.
     if "trop" in label and ("perçu" in label or "percu" in label):
@@ -216,7 +216,7 @@ def _is_cantine_input(row: dict) -> bool:
     """True si la saisie est une retenue « Cantine » (participation salariale aux
     repas). N'entre pas dans l'assiette brute (le brut reste la base sans cantine)
     ni au net imposable, MAIS réduit le montant net social ET le net à payer
-    (cf. Cegid GILLET/PORRAL/BOUVIER Mont Blanc Composite mai 2026 : la retenue
+    (cf. Cegid salarié 145/salarié 238/salarié 039 Mont Blanc Composite mai 2026 : la retenue
     apparaît juste avant la ligne MONTANT NET SOCIAL, qui l'inclut). On la route
     donc comme une prime NON soumise (montant négatif) plutôt qu'un acompte pur
     (net à payer seulement), pour que le MNS la reflète comme chez Cegid."""
@@ -232,9 +232,9 @@ def _is_frais_pro_non_soumis_input(row: dict) -> bool:
     payer, mais exclu du montant net social et du net imposable (frais pro, pas de
     la rémunération).
 
-    Cf. Cegid ASKARI Mont Blanc Composite mai 2026 : « Paniers Jours non soumis »
+    Cf. Cegid salarié 008 Mont Blanc Composite mai 2026 : « Paniers Jours non soumis »
     120 € présent au net à payer (1781,38 €) mais absent du montant net social
-    (1661,38 €) — écart de 120 € exactement. Même constat sur MEUNIER pour une
+    (1661,38 €) — écart de 120 € exactement. Même constat sur salarié 208 pour une
     « Indemnité forfaitaire dep. » (déplacement) de 100 €.
     """
     if float(row.get("amount") or 0) <= 0:
@@ -245,11 +245,11 @@ def _is_frais_pro_non_soumis_input(row: dict) -> bool:
         str(row.get(key) or "") for key in ("name", "description")
     ).lower()
     # "Remboursement de notes de frais" (dépenses réelles avec justificatif) reste
-    # dans le net social normal (cf. Cegid BUGNY mai 2026 : inclus dans le MNS) —
+    # dans le net social normal (cf. Cegid salarié 044 mai 2026 : inclus dans le MNS) —
     # seules les indemnités forfaitaires (panier, déplacement forfaitaire) en sont
     # exclues. Exclusion explicite pour ne pas les confondre.
-    # « Remboursement de notes de frais » (BUGNY Colorplast) reste dans le MNS ;
-    # « Rbst note de frais » (SNDF, LABBE/BORDELIER MBC) est un frais pro hors MNS.
+    # « Remboursement de notes de frais » (salarié 044 Colorplast) reste dans le MNS ;
+    # « Rbst note de frais » (SNDF, salarié 174/salarié 029 MBC) est un frais pro hors MNS.
     if "remboursement de note" in label:
         return False
     return any(
@@ -274,7 +274,7 @@ def _is_ijss_override_input(row: dict) -> bool:
     - base de maintien calculée sur les jours ouvrés au salaire réel
       (`maintien_base_ouvree`), conforme au décompte Cegid.
 
-    Cf. SERE/OZEN Mont Blanc Composite mai 2026 : IJSS = absence 100 % − maintien
+    Cf. salarié 271/salarié 225 Mont Blanc Composite mai 2026 : IJSS = absence 100 % − maintien
     du bulletin (non dérivable des seules données CPAM). N'entre ni au brut ni aux
     primes : purement un paramètre du calcul de maintien."""
     label = " ".join(
@@ -900,8 +900,8 @@ def process_payslip_generation(
             # tous deux `primes_non_soumises`), contrairement à l'ancien canal
             # "acompte" qui ne touchait que le net à payer — comportement
             # volontairement conservé tel quel pour les acomptes/saisies
-            # monthly_inputs (vérifié correct sur 5 cas convergés : FEDRIGONI/
-            # DICK/MENIN/LACROSSE/BUSIZA, Lewis mai 2026 — ceux-ci ne doivent
+            # monthly_inputs (vérifié correct sur 5 cas convergés : salarié 118/
+            # salarié 091/salarié 207/salarié 176/salarié 302, Lewis mai 2026 — ceux-ci ne doivent
             # JAMAIS toucher le MNS, distinction gardée nette).
             if total_advances_repayment > 0:
                 saisies_data.setdefault("primes", []).append(
@@ -1354,7 +1354,7 @@ def process_payslip_generation(
 
             # Le cumul s'arrête au mois du bulletin. Sans cette borne, un mois
             # déjà saisi mais pas encore payé était compté comme versé : sur le
-            # bulletin de juillet de Girerd (Colorplast), l'août saisi d'avance
+            # bulletin de juillet de salarié 146 (Colorplast), l'août saisi d'avance
             # faisait annoncer 2 000 € versés au lieu de 1 750 €.
             def _cumul_transport(jusqu_au_mois: int) -> float:
                 return sum(

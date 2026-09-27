@@ -17,7 +17,7 @@ export function filterPresentEmployees<T extends { employment_status?: string | 
  * Salarié à afficher pour un MOIS donné : encore en poste, ou parti mais
  * présent sur ce mois (dernier jour travaillé dans ou après le mois affiché).
  * Sert au calendrier et à la paie du dernier mois d'un sorti (ex. un départ
- * au 24/07 doit rester visible sur juillet — retour Gaëlle 07/09, Demory).
+ * au 24/07 doit rester visible sur juillet — retour Gaëlle 07/09, salarié 086).
  */
 export function isPresentDuringMonth(
   employee: {

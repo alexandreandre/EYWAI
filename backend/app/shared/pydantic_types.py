@@ -4,7 +4,7 @@
 rendu en NOMBRE dans le JSON. Par défaut Pydantic sérialise un `Decimal` en
 chaîne (« "46.49" ») ; le frontend, qui déclare ces champs `number`,
 appelait `toFixed` sur une chaîne et la page Saisies sur salaire tombait en
-écran blanc (Gautheron, 12/09/2026).
+écran blanc (salarié 140, 12/09/2026).
 """
 
 from __future__ import annotations

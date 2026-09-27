@@ -28,7 +28,7 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/payroll',
   // Les départs font partie du parcours paie (STC, bulletin du dernier
   // mois) : sans cette entrée, un salarié sorti était introuvable
-  // (retour Gaëlle 04/09, dossier Demory).
+  // (retour Gaëlle 04/09, dossier salarié 086).
   '/employee-exits',
   // La page Entreprise porte les réglages qui produisent la paie : arrêté de
   // la période de paie, fenêtre des variables corrigée à la main, barèmes de

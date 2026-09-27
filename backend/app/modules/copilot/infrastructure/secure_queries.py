@@ -416,7 +416,7 @@ def _employes_autorises(
        ses droits que de ses grants : l'absence de grant pour cette permission
        est un refus, pas un silence à combler.
 
-    La distinction entre 2 et 3 n'est pas théorique. DROZ-VINCENT (Mont Blanc
+    La distinction entre 2 et 3 n'est pas théorique. salarié 095 (Mont Blanc
     Composite) a quinze permissions en périmètre « équipes », mais pas
     ``employees.view_all`` : le repli de la branche 2 lui ouvrait les 89
     salariés de l'entreprise, soit exactement l'inverse de son paramétrage.

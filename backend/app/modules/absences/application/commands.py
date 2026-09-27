@@ -353,7 +353,7 @@ def update_absence_request_status(
             )
         # Restauration AVANT l'écriture du statut : si elle échoue, la demande
         # reste validée et l'annulation peut être rejouée — l'inverse laisse
-        # des jours gelés sans recours (retour Gaëlle 03/09, RC de Bugny).
+        # des jours gelés sans recours (retour Gaëlle 03/09, RC de salarié 044).
         employee_id = str(req_before["employee_id"])
         type_projete = type_calendrier_projete(str(req_before.get("type") or ""))
         couverts: set[str] = set()

@@ -5,7 +5,7 @@ fenêtre des variables (`shared.domain.periode_variables`). Le moteur lit
 l'union des deux (`payslip_run_heures.creer_calendrier_etendu`). Le contrôle
 amont doit juger la même union : sinon il bloque des jours que le moteur ne
 lit pas (27–31/07 chez Colorplast, juillet 2026) et se tait sur ceux qu'il lit
-(22–30/06). Constat du 20/09/2026, dossier Michel BUGNY.
+(22–30/06). Constat du 20/09/2026, dossier salarié 044.
 
 Module pur : l'appelant fournit la fenêtre, les calendriers et le contrat.
 """

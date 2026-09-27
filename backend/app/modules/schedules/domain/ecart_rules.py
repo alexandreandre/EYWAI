@@ -155,7 +155,7 @@ _TYPES_DEMANDE_SANS_CALENDRIER = frozenset({"jtc", "sans_solde"})
 # + ferie (un férié couvert par une demande n'est jamais retypé). Miroir de
 # la détection frontend (src/lib/schedulesAbsenceConflict.ts) — l'ancienne
 # liste locale ("arret_maladie", "conge") déclarait en conflit chaque CP ou
-# RTT correctement projeté (retour Gaëlle 07/09, dossier GIRERD).
+# RTT correctement projeté (retour Gaëlle 07/09, dossier salarié 146).
 _TYPES_JOUR_SANS_CONFLIT = frozenset(ABSENCE_CALENDAR_TYPES | {"ferie"})
 
 

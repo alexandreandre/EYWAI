@@ -234,7 +234,7 @@ def total_allegements_patronaux(cotisations_officielles: list) -> float:
     Réduction générale, déduction forfaitaire sur heures sup… La réduction
     SALARIALE sur heures sup est une exonération aussi, mais elle ne diminue
     pas la charge de l'employeur : les cabinets ne la comptent pas dans ce
-    bloc (Quadra, Girerd juillet 2026 : 256,05 = 230,05 + 26,00). L'afficher
+    bloc (Quadra, salarié 146 juillet 2026 : 256,05 = 230,05 + 26,00). L'afficher
     dedans faisait lire « 321,37 contre 256,05 » là où l'écart réel est de
     14,49 (retour Gaëlle 12/09).
     """
@@ -340,7 +340,7 @@ def creer_bulletin_final(
             # Et l'indemnité COMPENSATRICE de fin de contrat n'entre pas dans
             # l'arbitrage : elle se cumule avec l'indemnité du mois, elle ne s'y
             # substitue pas. La laisser passer ici faisait annoncer la règle du
-            # dixième avec son montant (876,74 € pour Cédric Demory en 07/2026)
+            # dixième avec son montant (876,74 € pour salarié 086 en 07/2026)
             # face au maintien du mois (98,48 €), deux grandeurs sans rapport.
             if "indemnité" in libelle and "compensatrice" not in libelle:
                 indemnite_conges += ligne.get("gain", 0.0) or 0.0
@@ -460,7 +460,7 @@ def creer_bulletin_final(
     # celui-ci peut différer du net réellement dû ce mois-ci quand une partie de
     # la rémunération est différée/non cash, ex. participation placée en PEE, ou
     # qu'une régularisation de net à payer négatif ne doit pas impacter le net
-    # social — cf. Cegid GAUTHERON/GIRERD mai 2026).
+    # social — cf. Cegid salarié 140/salarié 146 mai 2026).
     net_avant_impot = resultats_nets.get("net_a_payer")
     if net_avant_impot is not None and resultats_nets.get("montant_impot_pas") is not None:
         net_avant_impot = round(net_avant_impot + resultats_nets["montant_impot_pas"], 2)
@@ -663,7 +663,7 @@ def creer_bulletin_final(
             "smic_horaire": contexte.smic_horaire,
             # Plafond de la période, proratisé comme le calcul l'a fait : le
             # bulletin affichait le plafond plein même quand une absence non
-            # rémunérée l'avait réduit (Cotte janvier 2026 : 4 005,00 imprimé
+            # rémunérée l'avait réduit (salarié 068 janvier 2026 : 4 005,00 imprimé
             # pour 3 875,81 appliqués, là où le cabinet imprime le proratisé).
             "pss_mensuel": _pss_de_la_periode(contexte),
             # Salaire de base mensuel en vigueur à la fin du mois : le rappel
@@ -847,7 +847,7 @@ def creer_bulletin_sortie(
     # Les indemnités soumises (préavis, congés payés) sont DÉJÀ dans le brut :
     # le moteur les y porte pour qu'elles soient cotisées et imposées (cf.
     # engine.indemnites_sortie_brut). Les ajouter ici une seconde fois, après
-    # les cotisations, donnait un net supérieur au brut (Demory, juillet 2026).
+    # les cotisations, donnait un net supérieur au brut (salarié 086, juillet 2026).
     for ligne in lignes_indemnites_soumises:
         ligne["integree_au_brut"] = True
     brut_total_avec_indemnites = salaire_brut

@@ -681,7 +681,7 @@ def _prime_anciennete_deja_saisie(
 #: civil : ce que la gestionnaire de paie arrête à une date qu'elle choisit,
 #: les heures supplémentaires et les absences non rémunérées (retour Gaëlle,
 #: Colorplast, 14/09/2026 : fenêtre arrêtée au 26/07, la semaine du 27 au 31
-#: est celle de la paie d'août — Espinosa, Fuckar, Marion). Le salaire de base
+#: est celle de la paie d'août — salarié 108, salarié 130, Marion). Le salaire de base
 #: est mensualisé ; congés, arrêts et fériés appartiennent au mois du bulletin
 #: (IJSS, DSN). Les fenêtres sont des semaines entières contiguës
 #: (`shared.domain.periode_variables`) : un jour n'appartient qu'à une seule.
@@ -693,16 +693,16 @@ TYPES_RATTACHES_AUX_VARIABLES = frozenset(
         "absence_injustifiee_hs25",
         "absence_non_remuneree",
         # Congé pour événement familial : le cabinet paie sur le bulletin de
-        # mars celui de Cotte du 25 au 27 février, la fenêtre de février
+        # mars celui de salarié 068 du 25 au 27 février, la fenêtre de février
         # s'arrêtant au 22. Comme les heures sup et les absences non payées,
         # c'est un élément variable que la gestionnaire arrête à sa date.
         # L'arrêt maladie, lui, reste au mois civil : le cabinet déduit
-        # l'intégralité de celui de Gautheron (16 au 28/03) sur mars, alors
+        # l'intégralité de celui de salarié 140 (16 au 28/03) sur mars, alors
         # que la semaine du 23 appartient à la fenêtre d'avril — il porte ses
         # propres dates, pour les IJSS comme pour la DSN.
         "evenement_familial",
         # Congé payé : même chose, le cabinet paie sur le bulletin de mars
-        # celui de Gautheron du 23 février. L'indemnité et le décompte du solde
+        # celui de salarié 140 du 23 février. L'indemnité et le décompte du solde
         # suivent donc la fenêtre, pas le mois civil.
         "conges_payes",
     }
@@ -765,13 +765,13 @@ def calculer_salaire_brut(
     absence intégrale non rémunérée). Sert UNIQUEMENT à détecter une absence
     couvrant l'intégralité du mois calendaire (aucun jour de travail NI de CP
     planifié nulle part), afin de compléter la retenue jusqu'au montant
-    mensualisé total (fériés/repos inclus, cf. Cegid MBC mai 2026 SAFI2/BABA).
+    mensualisé total (fériés/repos inclus, cf. Cegid MBC mai 2026 salarié 258/salarié 011).
     ⚠️ Ne PAS utiliser les accumulateurs d'heures travaillées
     du présent calcul pour cette détection : `heures_travail_base_total` est
     TOUJOURS à 0 pour un salarié "heures" (le type d'événement "travail_base"
     n'est émis que par le chemin forfait-jour, jamais par
     `analyser_horaires_du_mois`) — l'utiliser comme signal a provoqué une
-    régression sur FUCKAR (Colorplast, mois normal sans pointage soumis) lors
+    régression sur salarié 130 (Colorplast, mois normal sans pointage soumis) lors
     d'une première tentative. Le signal fiable est le calendrier BRUT, pas les
     événements analysés. Si `None` (valeur par défaut, tous les appelants
     existants sauf `payslip_run_heures.py`), le complément ne se déclenche
@@ -1051,7 +1051,7 @@ def calculer_salaire_brut(
     # antérieure à l'embauche (ou postérieure à la sortie) est retirée, donc
     # elles doivent sortir des heures rémunérées et du SMIC de référence —
     # sinon on réclame un allègement sur des heures qu'on n'a pas payées, le
-    # défaut corrigé en janvier pour les absences non rémunérées. Fuckar
+    # défaut corrigé en janvier pour les absences non rémunérées. salarié 130
     # (Colorplast, avril 2026) : 30,50 h retirées de sa paie mais laissées dans
     # son compteur, 82,02 € d'allègement de trop.
     heures_absence_non_payees = float(retenue_entree_sortie_heures or 0.0)
@@ -1164,13 +1164,13 @@ def calculer_salaire_brut(
                 heures_absence_non_payees += heures_abs
             else:
                 # Même règle que l'arrêt maladie (cf. bloc arret_maladie plus
-                # bas, cas OSMANI2) : la retenue « base » d'une journée
+                # bas, cas salarié 222) : la retenue « base » d'une journée
                 # d'absence se plafonne à la référence journalière LÉGALE
                 # (min(contrat, 35)/5). Un contrat 39 h planifié 8,5 h/j
                 # retenait 8,5 h au taux de base — les heures structurelles
                 # du jour, payées majorées, étaient retenues au taux normal —
                 # et la quote-part d'HS structurelles n'était jamais réduite
-                # (retour Gaëlle 07/09, GAUTHERON juillet : sur-retenue base
+                # (retour Gaëlle 07/09, salarié 140 juillet : sur-retenue base
                 # +19,72 € et réduction HS absente). Le `min` préserve les
                 # absences fractionnaires (0,25 h reste 0,25 h).
                 heures_abs = min(
@@ -1204,7 +1204,7 @@ def calculer_salaire_brut(
             part_hs = 0.0
             if duree_contrat_hebdo > lc.DUREE_LEGALE_HEBDO:
                 # Même prorata du contrat que l'absence injustifiée ci-dessus
-                # (Demory, Colorplast juin 2026 : 8,5 h → 7,63 + 0,87).
+                # (salarié 086, Colorplast juin 2026 : 8,5 h → 7,63 + 0,87).
                 heures_abs, part_hs = _repartir_absence_au_prorata_du_contrat(
                     heures_abs, duree_contrat_hebdo
                 )
@@ -1214,7 +1214,7 @@ def calculer_salaire_brut(
             # mensualisées DU MOIS COURANT (cette quote-part concerne le mois
             # d'origine, déjà clos — Cegid ne réduit pas les HS structurelles
             # de mai pour une absence d'avril rattachée au bulletin de mai,
-            # cf. KIRMIZI mai 2026 MBC : sans cette exclusion, la retenue est
+            # cf. salarié 170 mai 2026 MBC : sans cette exclusion, la retenue est
             # sur-évaluée d'une réduction HS structurelles fantôme).
             heures_absence_non_payees += heures_abs
             if not evenement.get("is_regularisation_anterieure"):
@@ -1256,7 +1256,7 @@ def calculer_salaire_brut(
             # et proratise le plafond, alors qu'il garde les heures d'un congé
             # payé — sans conséquence financière ici, le brut restant sous le
             # plafond dans les deux cas. Écarts documentés dans
-            # `docs/comptes-rendus/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md`.
+            # `data/colorplast/rapprochements/2026-09-15-colorplast-mars-2026-ligne-a-ligne.md`.
             heures_abs = min(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
                 _heures_journalieres_contrat(duree_contrat_hebdo),
@@ -1285,7 +1285,7 @@ def calculer_salaire_brut(
             # légale : 7 h de base, la quote-part d'heures sup structurelles
             # étant retirée séparément juste après. Déduire les heures planifiées
             # (7,80 sur un contrat de 39 h) retirerait deux fois la part
-            # structurelle. Demory et Fuckar, Colorplast mai 2026 : le cabinet
+            # structurelle. salarié 086 et salarié 130, Colorplast mai 2026 : le cabinet
             # déduit 7,00 h à 12,20 (85,40) et 0,80 h structurelles.
             heures_abs = min(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
@@ -1315,7 +1315,7 @@ def calculer_salaire_brut(
             # maladie, accident du travail, maternité, paternité. Seul le
             # maintien de salaire les distingue, et il se joue ailleurs (à
             # partir de `arret_type`). La branche ne reconnaissait que
-            # `arret_maladie` : l'accident du travail de Demory (Colorplast,
+            # `arret_maladie` : l'accident du travail de salarié 086 (Colorplast,
             # 23 au 29/05/2026) passait à travers, 390,40 € de trop au brut.
             #
             # La retenue d'un jour d'arrêt se valorise sur la référence
@@ -1325,7 +1325,7 @@ def calculer_salaire_brut(
             # et la quote-part d'HS structurelle est déjà retirée séparément par
             # la ligne « Réduction HS structurelles ». Déduire 7,5 h au taux de
             # base retirerait deux fois la part structurelle (sur-déduction, cf.
-            # OSMANI2 MBC mai 2026 : 7,5 h vs 7 h → −0,5 h/jour de trop). Le
+            # salarié 222 MBC mai 2026 : 7,5 h vs 7 h → −0,5 h/jour de trop). Le
             # `min` préserve les arrêts fractionnaires (demi-journée < réf.
             # légale, ex. 3,5 h), imputés à leur valeur réelle.
             heures_abs = min(
@@ -1375,7 +1375,7 @@ def calculer_salaire_brut(
         # compteur d'heures et le SMIC de référence ne voyaient que la base —
         # la part structurelle des jours fériés non payés et des jours d'arrêt
         # y revenait comme si elle avait été payée. Colorplast mai 2026 :
-        # Demory 338,70 h au compteur au lieu des 333,90 du cabinet, soit
+        # salarié 086 338,70 h au compteur au lieu des 333,90 du cabinet, soit
         # 6 jours × 0,80. On la rattache à l'absence dont elle vient, pour que
         # le maintien d'un arrêt la restitue comme il restitue la base.
         heures_absence_non_payees += (
@@ -1406,7 +1406,7 @@ def calculer_salaire_brut(
     # est retirée comme pour toute journée d'absence, puis l'ensemble — base et
     # heures sup — est remis par une ligne de maintien. Le calcul de la
     # quote-part est celui des autres absences, appliqué aux seules journées
-    # d'événement familial (Cotte, mars 2026 : 3 jours, 21,00 h de base pour
+    # d'événement familial (salarié 068, mars 2026 : 3 jours, 21,00 h de base pour
     # 271,93 € et 2,40 h structurelles pour 38,85 €, maintien de 310,78 €).
     if jours_legaux_evenement_familial > 0:
         if heures_sup_structurelles_mensuelles > 0:
@@ -1448,7 +1448,7 @@ def calculer_salaire_brut(
             )
 
     # Absence couvrant l'INTÉGRALITÉ du mois calendaire (cf. Cegid MBC mai 2026
-    # SAFI2/BABA — arrêt maladie/prolongation de rechute, AUCUN jour "travail"
+    # salarié 258/salarié 011 — arrêt maladie/prolongation de rechute, AUCUN jour "travail"
     # planifié nulle part dans le calendrier BRUT du mois, pas seulement "zéro
     # heure travaillée" au sens des accumulateurs ci-dessus qui sont TOUJOURS à
     # 0 pour un salarié "heures", cf. docstring). La retenue jour-ouvré-par-
@@ -1739,7 +1739,7 @@ def calculer_salaire_brut(
         "heures_sup_conjoncturelles": round(heures_sup_conjoncturelles, 2),
         # Heures de base effectivement payées — mois plein, ou les seules heures
         # dues sur un mois d'entrée ou de sortie. Le compteur d'heures et le
-        # SMIC de référence en partent : Demory, embauché le 23/03/2026, a
+        # SMIC de référence en partent : salarié 086, embauché le 23/03/2026, a
         # 47,50 h de base et non 151,67 (Quadra imprime 50,50 h de période).
         "heures_base_remunerees": round(heures_base_remunerees, 2),
         # Heures retirées de la paie par une absence non rémunérée : à sortir du
@@ -1747,7 +1747,7 @@ def calculer_salaire_brut(
         "heures_absence_non_payees": round(heures_absence_non_payees, 2),
         # Part « heures sup structurelles » de ces absences, déjà retirée du brut
         # par la ligne « Réduction HS structurelles ». Le compteur d'heures sup
-        # imprimé la retranche aussi (Cotte 16,97 et non 17,33 ; Gautheron
+        # imprimé la retranche aussi (salarié 068 16,97 et non 17,33 ; salarié 140
         # 16,20). Ne pas la soustraire une seconde fois du SMIC de référence :
         # `heures_absence_non_payees` la contient déjà.
         "heures_sup_perdues_absence": round(heures_hs_perdues, 2),

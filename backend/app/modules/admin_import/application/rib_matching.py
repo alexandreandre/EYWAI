@@ -142,7 +142,7 @@ def _match_by_time_tracking_id(
     matricule: str,
     employees: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
-    """Matricule paie exact (ex. MIRZADA2, ZZSORTI113) → time_tracking_id salarié."""
+    """Matricule paie exact (ex. DUPONT2, ZZSORTI113) → time_tracking_id salarié."""
     from app.modules.schedules.application.employee_match import _normalize_matricule
 
     norm_mat = _normalize_matricule(matricule)
@@ -163,8 +163,8 @@ def _match_by_payroll_matricule(
     employees: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
     """
-    Matricule paie type Sage/Cegid : nom de famille tronqué (ex. BRISMONTIE → BRISMONTIER,
-    BUSIZA LUS → BUSIZA LUSELA).
+    Matricule paie type Sage/Cegid : nom de famille tronqué (ex. DURANDEA → DURANDEAU,
+    DUPONT EXE → DUPONT EXEMPLE).
     """
     key = _normalize_token(matricule)
     if not key or key.isdigit():

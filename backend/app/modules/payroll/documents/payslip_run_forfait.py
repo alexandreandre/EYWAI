@@ -341,7 +341,7 @@ def run_payslip_generation_forfait(
     # primes (pas de cotisations classiques) et injecté dans le calcul des nets —
     # miroir de la logique payslip_run_heures.py (absente ici jusqu'alors, ce qui
     # cassait montant_net_social et/ou net_imposable pour les forfait-jour ayant
-    # une participation, cf. GAUDEY/DEPONGE/BORDELIER/BLONDEAU/GILLET/DROZ/LABBE).
+    # une participation, cf. salarié 139/salarié 088/salarié 029/salarié 024/salarié 145/salarié 095/salarié 174).
     from app.modules.participation.domain.bulletin_rules import (
         compute_participation_csg,
     )

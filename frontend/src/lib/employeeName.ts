@@ -3,7 +3,7 @@
  *
  * Règle française : le nom d'USAGE (marital…) prime à l'affichage quand il
  * existe (employees.nom_usage, source DSN S21.G00.30.003) ; sinon le nom de
- * naissance (last_name). Ex. Gaëlle KEWITZ, usage BOUALI → « BOUALI Gaëlle ».
+ * naissance (last_name). Ex. Marie DUPONT, usage MARTIN → « MARTIN Marie ».
  *
  * Ne JAMAIS utiliser pour : la DSN (nom de naissance obligatoire en 30.002),
  * les rapprochements d'imports, les identifiants ou chemins de stockage.

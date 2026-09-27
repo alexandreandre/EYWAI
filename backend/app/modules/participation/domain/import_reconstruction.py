@@ -8,7 +8,7 @@ salarié, le bulletin d'option qu'aurait produit le workflow normal
 Voir docs/superpowers/specs/2026-07-22-import-participations-saisies-existantes-design.md
 pour la dérivation complète de la formule (en particulier : le montant d'une
 ligne PEE est déjà un brut, pas un net à regonfler — vérifié sur le moteur
-réel et sur le cas GIRERD/MBC).
+réel et sur le cas salarié 146/MBC).
 """
 
 from __future__ import annotations

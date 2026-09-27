@@ -115,7 +115,7 @@ def _calculer_prime_anciennete(
     # La prime d'ancienneté de la CCN plasturgie (IDCC 292) est réservée aux
     # non-cadres (ouvriers/employés/techniciens). Les salariés en forfait jour
     # cadres n'y ont pas droit — les bulletins Cegid ne la portent pas
-    # (cf. LABBE/DROZ/GILLET/BORDELIER/BLONDEAU mai 2026 : base = brut exact,
+    # (cf. salarié 174/salarié 095/salarié 145/salarié 029/salarié 024 mai 2026 : base = brut exact,
     # sans ligne prime d'ancienneté).
     if is_cadre(contexte.statut_salarie):
         return None

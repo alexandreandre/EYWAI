@@ -157,7 +157,7 @@ def calculer_rappel_mois_anterieurs(
     ce qui manque ; un mois sans bulletin n'est pas rappelé (payé hors EYWAI,
     rien ne prouve un dû — il se saisit à la main). Sans lui, tous les mois
     depuis la prise d'effet sont rappelés : c'est ce qui faisait rappeler
-    16,69 € à Demory chaque mois pour un juin déjà payé au SMIC revalorisé.
+    16,69 € à salarié 086 chaque mois pour un juin déjà payé au SMIC revalorisé.
     """
     debut_bulletin = date(year, month, 1)
     entries = [

@@ -353,7 +353,7 @@ def analyser_horaires_du_mois(
         # Une heure manquée un jour est compensée par une heure faite en plus
         # un autre jour de la même semaine, quel que soit l'ordre des jours.
         # C'est ce que retient le cabinet (Quadra, Colorplast juillet 2026 :
-        # Fuckar, semaine du 6 juillet, −1,5 −4 +1 +2 → 2,5 h retenues). Retenir
+        # salarié 130, semaine du 6 juillet, −1,5 −4 +1 +2 → 2,5 h retenues). Retenir
         # jour par jour laissait les heures faites APRÈS un jour manqué sans
         # effet : ni payées, ni compensées, ni heures sup (semaine sous le
         # contrat). Retour Gaëlle du 14/09/2026.

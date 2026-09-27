@@ -25,7 +25,7 @@ def cumuls_pour_le_rendu(
 
     Le générateur appelle ce rendu juste après l'insertion du bulletin et
     avant d'écrire les cumuls du mois dans employee_schedules : la base porte
-    alors encore ceux de la génération précédente (Cotte, juillet 2026 : corps
+    alors encore ceux de la génération précédente (salarié 068, juillet 2026 : corps
     à jour, cumuls d'une génération en retard). Seuls les bulletins sans bloc
     cumuls — les mois importés à la reprise — se lisent en base.
     """

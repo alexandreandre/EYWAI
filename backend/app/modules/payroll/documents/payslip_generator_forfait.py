@@ -561,7 +561,7 @@ def process_payslip_generation_forfait(
         # "heures" équivalent dans `payslip_generator.py` qui l'écrit tel
         # quel) — l'envelopper une seconde fois ici cassait tout mécanisme
         # lisant `contexte.cumuls.cumuls.X` (ex. `brut_reference_n_1` pour
-        # l'arbitrage CP 1/10e, cf. NOBLE Lewis mai 2026 : le 1/10e était
+        # l'arbitrage CP 1/10e, cf. salarié 218 Lewis mai 2026 : le 1/10e était
         # toujours à 0 malgré la donnée correctement injectée en base, faute
         # de ce double-enveloppage). Fix : ne plus ré-envelopper, comme le
         # chemin heures.

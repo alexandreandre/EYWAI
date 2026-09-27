@@ -39,7 +39,7 @@ ORIGINE_ABSENCE = "absence"
 #: à trancher contre un bulletin réel avant de le basculer, son traitement en
 #: paie n'étant pas celui d'un congé payé.
 #: `evenement_familial` a été tranché le 15/09/2026 sur le bulletin de mars de
-#: Cotte (Colorplast) : absence déduite sur la référence journalière légale
+#: salarié 068 (Colorplast) : absence déduite sur la référence journalière légale
 #: puis maintien intégral du salaire, brut inchangé. Il écrit désormais son
 #: propre type, que le moteur lit.
 ABSENCE_TYPE_TO_CALENDAR_TYPE: dict[str, str] = {

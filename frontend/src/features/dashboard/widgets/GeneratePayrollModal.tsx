@@ -64,7 +64,7 @@ export function GeneratePayrollModal({
     : { year: 0, month: 0 };
 
   // Un parti n'apparaît que sur les mois où il était présent : son dernier
-  // mois se paie (solde de tout compte), les suivants non (Demory, sorti le
+  // mois se paie (solde de tout compte), les suivants non (salarié 086, sorti le
   // 24/07 — retour Gaëlle 12/09).
   const employees = useMemo(
     () =>

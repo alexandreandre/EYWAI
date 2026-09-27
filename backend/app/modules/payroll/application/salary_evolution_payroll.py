@@ -42,7 +42,7 @@ def _bases_des_bulletins(
     """Salaire de base mensuel sur lequel chaque bulletin ANTÉRIEUR a été établi.
 
     Sert au rappel de salaire : un mois déjà payé au nouveau taux n'est pas
-    rappelé (Demory, juillet 2026 : 16,69 € rappelés pour un juin déjà payé
+    rappelé (salarié 086, juillet 2026 : 16,69 € rappelés pour un juin déjà payé
     au SMIC revalorisé, et à nouveau chaque mois suivant). En cas d'échec de
     lecture, None : le calcul retombe sur le comportement historique, signalé.
     """

@@ -576,7 +576,7 @@ def _calculer_maintien_employeur(
         # Une journée maintenue restitue ce que l'absence a retiré : la base
         # légale ET la quote-part d'heures sup structurelles de la journée. Sans
         # elle, un salarié à 39 h perd ses heures structurelles sur un jour
-        # pourtant maintenu. Gautheron (Colorplast, mars 2026) : le cabinet
+        # pourtant maintenu. salarié 140 (Colorplast, mars 2026) : le cabinet
         # maintient 103,59 € par jour, soit 7 h à 12,9492 (90,64) plus 0,80 h à
         # 16,1865 (12,95) — la valeur exacte d'une de ses journées de congé payé.
         brut_journalier = taux_horaire_base * (lc.DUREE_LEGALE_HEBDO / 5.0)

@@ -303,8 +303,8 @@ def _compact_fuzzy_match(
     raw_name: str, roster: List[RosterEmployee]
 ) -> List[RosterEmployee]:
     """Rattrape les noms dont l'OCR a inséré des espaces au mauvais endroit
-    (ex: « F RERE G UV » pour « FRERE Guy », « DOVH OPOL OI » pour
-    « DOVHOPOL Oleksandr »). Compare les noms compactés (sans espaces) par
+    (ex: « D UPON T JE AN » pour « DUPONT Jean », « LEFE BVRE MA RC » pour
+    « LEFEBVRE Marc »). Compare les noms compactés (sans espaces) par
     distance d'édition relative, insensible à la découpe en tokens."""
     compact_raw = _compact_name(raw_name)
     if len(compact_raw) < 6:
@@ -557,7 +557,7 @@ def rematch_proposal_employees(
     La lecture (jours, heures, comptes, totaux) est conservée ; seuls l'identité du
     salarié, sa confiance et ses avertissements de rapprochement sont recalculés.
     Sans cela, un salarié absent du roster lors de la première extraction restait
-    « texte OCR non salarié » à chaque réimport du même fichier (Demory, 21/09/2026).
+    « texte OCR non salarié » à chaque réimport du même fichier (salarié 086, 21/09/2026).
     """
     from app.modules.schedules.application.ai_fill import _compute_review_summary
 

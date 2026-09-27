@@ -54,7 +54,7 @@ def _participation_aggregats(
         # CSG/CRDS totale attribuable à la part PEE. La part PEE elle-même
         # (placée, non perçue ce mois-ci) ne contribue pas en brut au net
         # social, mais la CSG qui la grève reste une charge sociale déclarée
-        # au titre du mois (cf. DSN GIRERD mai 2026, S21.G00.58 type 03 :
+        # au titre du mois (cf. DSN salarié 146 mai 2026, S21.G00.58 type 03 :
         # participation 100 % PEE, CSG totale 517,16 €, contribution MNS
         # exactement 517,16 €, pas 0 € ni le brut intégral).
         csg_total_pee = csg_total - csg_total_numeraire
@@ -74,12 +74,12 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
 
     Cas particulier `part_patronale_reintegree_impot=False` : certaines
     contributions patronales complémentaires (options « famille » Salarié+
-    conjoint+enfants chez GAN, cf. Cegid MBC mai 2026 MOUSSAFIR/MARZOUG/SPIGA)
+    conjoint+enfants chez GAN, cf. Cegid MBC mai 2026 salarié 216/salarié 203/salarié 277)
     sont bien soumises à CSG (donc restent dans le calcul des cotisations et du
     MNS) mais ne sont PAS réintégrées au net imposable par le cabinet. Le flag,
     posé au niveau de `specificites_paie.mutuelle`, permet de neutraliser cette
     réintégration sans toucher à la CSG. Défaut = True (comportement historique,
-    Colorplast/BUGNY inchangés)."""
+    Colorplast/salarié 044 inchangés)."""
     mutuelle_spec = contexte.contrat.get("specificites_paie", {}).get("mutuelle", {})
     part_patronale_mutuelle = 0.0
     if not mutuelle_spec.get("adhesion"):
@@ -144,7 +144,7 @@ def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float
     donc aucun bulletin existant ne bouge). Il n'est posé aujourd'hui que sur
     les compléments « Famille » intégralement à la charge du salarié, seul cas
     où l'écart avec un bulletin réel du cabinet a été constaté et chiffré
-    (GIRERD, juillet 2026 : imposable 2 570,73 € au lieu de 2 668,88 €, PAS
+    (salarié 146, juillet 2026 : imposable 2 570,73 € au lieu de 2 668,88 €, PAS
     inférieur de 4,22 €). Le sort des autres mutuelles sans part patronale
     (une centaine de salariés sur le groupe) reste un arbitrage ouvert : ne
     pas l'étendre sans bulletins de référence.
@@ -281,7 +281,7 @@ def calculer_montant_net_social(
     ajoutée au net imposable et au net à payer mais omise du MNS, ce qui
     laissait le MNS inférieur au net à payer avant impôt dès qu'un tel élément
     existait (ex. « NPRV Remboursement prévoyance » net-only imposable, IJSS
-    subrogées imposables). Vérifié sur BASTER (Lewis, mai 2026) : le MNS réel
+    subrogées imposables). Vérifié sur salarié 014 (Lewis, mai 2026) : le MNS réel
     Cegid inclut bien le remboursement de prévoyance imposable net-only.
 
     La part patronale de la complémentaire santé n'est PAS ajoutée au MNS
@@ -758,7 +758,7 @@ def _calculer_net_a_payer(
     if montant_acompte:
         # Signe positif : acompte déjà versé (retenue). Signe négatif : régularisation
         # nette à ajouter (ex. remboursement panier/frais pro hors assiette sociale,
-        # cf. ASKARI Mont Blanc Composite mai 2026) — dans les deux cas, un ajustement
+        # cf. salarié 008 Mont Blanc Composite mai 2026) — dans les deux cas, un ajustement
         # qui ne doit toucher QUE le net à payer, jamais le net imposable ni le MNS.
         log_payroll_debug(logger, f'\t- Acompte/régularisation nette      : {montant_acompte:10.2f} €')
         net_a_payer -= montant_acompte

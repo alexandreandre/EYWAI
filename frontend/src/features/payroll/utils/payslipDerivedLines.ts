@@ -72,8 +72,8 @@ const formatHeures = (heures: number): string =>
  * Résumé d'historique quand la RH n'en écrit pas.
  *
  * Exiger un résumé bloquait l'enregistrement d'un simple toast, et la RH
- * restait sur l'aperçu en croyant son bulletin corrigé (Bugny, Cotte,
- * Espinosa le 12/09 : aucune correction d'heures sup n'était en base). Le
+ * restait sur l'aperçu en croyant son bulletin corrigé (salarié 044, salarié 068,
+ * salarié 108 le 12/09 : aucune correction d'heures sup n'était en base). Le
  * résumé dit alors ce qui a changé sur les heures sup, sinon reste générique.
  */
 export function resumeAutomatique(lignesInitiales: unknown, lignesModifiees: unknown): string {

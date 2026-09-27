@@ -341,7 +341,7 @@ def parse_with_llm_fallback(
     )
     if cached:
         # La lecture est resservie, pas le rapprochement : le roster du jour peut
-        # avoir changé (un sorti du mois, un embauché) — Demory, 21/09/2026.
+        # avoir changé (un sorti du mois, un embauché) — salarié 086, 21/09/2026.
         cached = rematch_proposal_employees(cached, roster)
         batch = create_batch_from_proposal(
             company_id=company_id,

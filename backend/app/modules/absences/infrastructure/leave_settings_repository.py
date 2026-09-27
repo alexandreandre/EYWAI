@@ -105,7 +105,7 @@ def resoudre_ajustement_applicable(
     datée et calibre les deux périodes de congés qu'elle touche, qui chevauchent
     deux années civiles : ses écarts CP suivent donc les années suivantes tant
     qu'aucune reprise plus récente ne les remplace — sinon ils disparaissaient au
-    1er janvier au milieu de la période (Bugny, Colorplast : 28 → 3 jours de N-1
+    1er janvier au milieu de la période (salarié 044, Colorplast : 28 → 3 jours de N-1
     entre décembre 2026 et janvier 2027). Les compteurs annuels (RTT, JTC) et la
     note, qui pilote le mode « fidèle au bulletin », restent ceux de l'année.
     """

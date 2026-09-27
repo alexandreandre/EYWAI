@@ -134,7 +134,7 @@ export function EmployeeProfileEditDialog({
         queryClient.invalidateQueries({ queryKey: queryKeys.employees(companyId) });
         // La fiche est d'abord remplacée par la réponse de l'enregistrement,
         // puis relue : si un champ manquait à cette réponse, l'écran ne
-        // resterait pas faux (Fuckar, 12/09 : fin de contrat enregistrée
+        // resterait pas faux (salarié 130, 12/09 : fin de contrat enregistrée
         // mais jamais affichée).
         queryClient.invalidateQueries({ queryKey: queryKeys.employee(companyId, employeeId) });
       }
