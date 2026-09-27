@@ -13,7 +13,7 @@
 --     montant net social − net à payer avant impôt − acompte = 98,13
 --
 -- se vérifie sur les 21 bulletins concernés, et vaut zéro pour les salariés
--- sans complément. EYWAI retranchait la retenue des deux : Espinosa janvier
+-- sans complément. EYWAI retranchait la retenue des deux : salarié 108 janvier
 -- 2026, montant net social 2 440,05 € au lieu de 2 538,18 €.
 --
 -- C'est la seule donnée du rapprochement de janvier qui sorte de l'entreprise :

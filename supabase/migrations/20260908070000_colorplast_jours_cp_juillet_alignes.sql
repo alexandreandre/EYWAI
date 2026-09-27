@@ -1,6 +1,6 @@
 -- Colorplast, juillet 2026 : garantir que les jours couverts par une demande
--- de CP VALIDÉE sont bien typés « conges_payes » au calendrier (GAUTHERON
--- 13 et 21/07, ESPINOSA 13/07 — retours service paie 07/09). Sans ce type,
+-- de CP VALIDÉE sont bien typés « conges_payes » au calendrier (salarié 140
+-- 13 et 21/07, salarié 108 13/07 — retours service paie 07/09). Sans ce type,
 -- le bulletin régénéré n'affiche pas la ligne CP datée : la projection a eu
 -- lieu à la validation, mais des retouches (imports de pointages, éditions)
 -- ont pu retyper les jours depuis.
@@ -46,7 +46,7 @@ SET planned_calendar = jsonb_set(
 )
 WHERE es.year = 2026 AND es.month = 7
   AND es.employee_id IN (
-    '1c4cc8b6-5f55-4d71-bba5-5acb8fa3efd2',  -- GAUTHERON Marion
-    '53c92e83-4a1a-4214-b30d-577cd1ab9d2d'   -- ESPINOSA Anthony
+    '1c4cc8b6-5f55-4d71-bba5-5acb8fa3efd2',  -- salarié 140
+    '53c92e83-4a1a-4214-b30d-577cd1ab9d2d'   -- salarié 108
   )
   AND jsonb_typeof(es.planned_calendar->'calendrier_prevu') = 'array';

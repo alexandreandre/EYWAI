@@ -1,5 +1,5 @@
 -- Colorplast : affectation de la formule « GAN Famille 2026 (EMU3+SMU2) »
--- à GIRERD, ESPINOSA et GAUTHERON (retour service paie 07/09/2026). La
+-- à salarié 146, salarié 108 et salarié 140 (retour service paie 07/09/2026). La
 -- formule S'AJOUTE à l'Isolé que chacun conserve (empilement Quadra :
 -- Isolé 29,24/29,23 + Famille 98,13/0 = 156,60 €).
 --
@@ -20,9 +20,9 @@ SET specificites_paie = jsonb_set(
     )
 )
 WHERE id IN (
-  'bceb467d-d0ac-454a-9084-4b20d3cd0e9e',  -- GIRERD
-  '53c92e83-4a1a-4214-b30d-577cd1ab9d2d',  -- ESPINOSA
-  '1c4cc8b6-5f55-4d71-bba5-5acb8fa3efd2'   -- GAUTHERON
+  'bceb467d-d0ac-454a-9084-4b20d3cd0e9e',  -- salarié 146
+  '53c92e83-4a1a-4214-b30d-577cd1ab9d2d',  -- salarié 108
+  '1c4cc8b6-5f55-4d71-bba5-5acb8fa3efd2'   -- salarié 140
 )
   AND NOT COALESCE(specificites_paie->'mutuelle'->'mutuelle_type_ids', '[]'::jsonb)
       @> (

@@ -2,9 +2,9 @@
 --
 -- employees.nir portait une unicité globale : un même NIR ne pouvait apparaître
 -- qu'une fois, toutes sociétés confondues. Or le groupe compte sept sociétés et
--- une même personne peut y tenir deux contrats — CHAMBERT Lucas est salarié de
+-- une même personne peut y tenir deux contrats — salarié 057 est salarié de
 -- Comitech et a fait un CDD chez Mont Blanc, BARBERET Théo est passé de MAJI à
--- Zone 404, DA SILVA CARDOSO de Colorplast à Comitech. La contrainte interdisait
+-- Zone 404, salarié 076 de Colorplast à Comitech. La contrainte interdisait
 -- leur seconde fiche.
 --
 -- Elle a été contournée en amputant le NIR de sa clé de contrôle : cinq fiches

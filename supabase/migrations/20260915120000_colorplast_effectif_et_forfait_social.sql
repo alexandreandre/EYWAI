@@ -11,7 +11,7 @@
 -- La correction fait passer la contribution formation de 1 % à 0,55 %, le taux
 -- des employeurs de moins de 11 salariés. C'est bien ce que le cabinet déclare
 -- à l'URSSAF : DSN de janvier 2026, cotisation individuelle code 128, base
--- 3 023,40, montant 16,63, taux 0,550 pour Bugny.
+-- 3 023,40, montant 16,63, taux 0,550 pour salarié 044.
 --
 -- Seul le seuil de 11 est franchi : 17 comme 9 sont déjà sous 20 (déduction
 -- forfaitaire heures sup) et sous 50 (aide au logement, réduction générale).
@@ -19,7 +19,7 @@
 --
 -- FORFAIT SOCIAL. Le cabinet facture 8 % sur les contributions patronales de
 -- prévoyance et de mutuelle (DSN code 071, taux 8,000, base 43,29 = 14,06 +
--- 29,23 pour Bugny). Nous ne le produisions pas : les quatre non-cadres
+-- 29,23 pour salarié 044). Nous ne le produisions pas : les quatre non-cadres
 -- passaient par le barème global, sans ligne de prévoyance sur leur fiche.
 --
 -- RÉSERVE. Les employeurs de moins de onze salariés sont en principe dispensés

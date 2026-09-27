@@ -2,7 +2,7 @@
 -- Ciblage par id (identiques prod/test : la base de test est une copie).
 -- Chaque bloc est idempotent (gardes sur l'état à corriger).
 
--- 1) GAUTHERON Marion, 30/06/2026 : la reprise DSN avait posé un jour
+-- 1) salarié 140, 30/06/2026 : la reprise DSN avait posé un jour
 --    « absence non rémunérée » artificiel (net-neutre pour juin, mois miroir),
 --    mais la fenêtre de paie de JUILLET (22/06→26/07) le ramasse et crée une
 --    retenue fictive. Un mardi normal pour elle = travail 8,5 h.
@@ -59,7 +59,7 @@ SET montant_salarial = 98.13
 WHERE id = 'e9e8980a-b283-4b4a-b892-77c53b1d45a5'
   AND montant_salarial = 98.12;
 
--- 3) BUGNY Michel : compteur repos compensateur à ZÉRO (demande Gaëlle
+-- 3) salarié 044 : compteur repos compensateur à ZÉRO (demande Gaëlle
 --    07/09). En prod les crédits sont déjà tous à 0 (no-op) ; la base de
 --    test porte encore d'anciens crédits COR — cette remise à zéro les
 --    efface sans toucher aux autres salariés.
@@ -67,7 +67,7 @@ UPDATE repos_compensateur_credits
 SET heures = 0.0, jours = 0.0
 WHERE employee_id = 'f8e431a3-350b-471e-9b78-9bc9fd1ce8b9';
 
--- 4) GIRERD Fabrice (Cadre, Colorplast) : l'import DSN lui avait posé la
+-- 4) salarié 146 (Cadre, Colorplast) : l'import DSN lui avait posé la
 --    ligne de prévoyance NON-CADRE (0,465/0,465). Barème GAN cadre (feuille
 --    de répartition 2026) : TA 2,19 % = 1,825 pat + 0,365 sal ;
 --    TB 2,85 % = 1,710 pat + 1,140 sal — même modèle que les cadres Comitech.

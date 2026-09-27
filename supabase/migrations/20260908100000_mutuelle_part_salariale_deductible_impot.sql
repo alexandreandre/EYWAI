@@ -1,6 +1,6 @@
 -- Part salariale de mutuelle : déductible ou non du net imposable.
 --
--- Constat sur GIRERD (Colorplast, juillet 2026), bulletin EYWAI comparé à celui
+-- Constat sur salarié 146 (Colorplast, juillet 2026), bulletin EYWAI comparé à celui
 -- du cabinet : net imposable 2 570,73 € chez nous contre 2 668,88 € chez eux,
 -- soit exactement le complément « GAN Famille » (98,13 €). Les deux prélèvent
 -- la même somme au salarié — le net à payer avant impôt est identique à 4

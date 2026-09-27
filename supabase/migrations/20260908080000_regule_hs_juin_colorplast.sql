@@ -1,4 +1,4 @@
--- COTTE Léo (Colorplast) : régularisation de +4 h supplémentaires de JUIN,
+-- salarié 068 (Colorplast) : régularisation de +4 h supplémentaires de JUIN,
 -- payées sur le mois de paie JUILLET (feuille « DETAIL HEURES SUP 07-2026 »
 -- du service paie : « + 4H EN JUIN FAIRE REGUL »).
 --
@@ -15,7 +15,7 @@ INSERT INTO monthly_inputs (
   is_socially_taxed, is_taxable, payroll_quantity
 )
 SELECT
-  'e6d1588d-6b4a-4ff4-992f-279cdadd3c46',  -- COTTE Léo
+  'e6d1588d-6b4a-4ff4-992f-279cdadd3c46',  -- salarié 068
   'dbe2b9f5-44dd-41bc-a625-36ed33d160f7',  -- Colorplast
   2026, 7,
   'Heures sup 25 % — régularisation juin',
