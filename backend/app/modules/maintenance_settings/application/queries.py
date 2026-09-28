@@ -28,6 +28,9 @@ def _defaults(company_id: str) -> MaintenanceSettings:
         provident_relay_days=None,
         provident_maintenance_rate=None,
         provident_cadre_only=True,
+        paid_waiting_days_per_year=None,
+        paid_waiting_min_seniority_months=12,
+        maintain_working_days=False,
         created_at=None,
         updated_at=None,
     )

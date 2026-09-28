@@ -295,7 +295,8 @@ export type MaintenanceSubrogationMode =
   | 'when_maintien'
   | 'automatic'
   | 'at_mp_only'
-  | 'per_case';
+  | 'per_case'
+  | 'never';
 
 export interface MaintenancePreview {
   qualification: {

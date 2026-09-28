@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case"]
+SubrogationModeLiteral = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
 
 
 class MaintenanceSettingsUpdate(BaseModel):
@@ -28,6 +28,9 @@ class MaintenanceSettingsUpdate(BaseModel):
     provident_relay_days: Optional[int] = None
     provident_maintenance_rate: Optional[float] = None
     provident_cadre_only: Optional[bool] = None
+    paid_waiting_days_per_year: Optional[int] = None
+    paid_waiting_min_seniority_months: Optional[int] = None
+    maintain_working_days: Optional[bool] = None
 
     @field_validator("provident_maintenance_rate")
     @classmethod
@@ -47,7 +50,18 @@ class MaintenanceSettingsUpdate(BaseModel):
             raise ValueError("employer_waiting_days doit être entre 0 et 30")
         return v
 
-    @field_validator("min_seniority_months", "min_seniority_months_at_mp")
+    @field_validator("paid_waiting_days_per_year")
+    @classmethod
+    def _paid_waiting_bounds(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 0 or v > 30:
+            raise ValueError("paid_waiting_days_per_year doit être entre 0 et 30")
+        return v
+
+    @field_validator(
+        "min_seniority_months", "min_seniority_months_at_mp", "paid_waiting_min_seniority_months"
+    )
     @classmethod
     def _seniority_bounds(cls, v: Optional[int]) -> Optional[int]:
         if v is None:

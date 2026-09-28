@@ -203,6 +203,39 @@ def _extraire_arret_pour_maintien(
     }
 
 
+def arrets_de_l_annee(employee_id: str, year: int, month: int) -> list[dict[str, str]]:
+    """Les arrêts de l'année jusqu'au mois du bulletin, lus dans les calendriers.
+
+    Sert au crédit de carence payée : ceux de janvier à juillet de Colorplast
+    viennent des calendriers repris, pas de l'écran des absences. Chaque jour
+    d'arrêt porte ses dates réelles (`date_debut_arret_reel`, `…fin…`).
+    """
+    from app.core.database import supabase
+
+    lignes = (
+        supabase.table("employee_schedules")
+        .select("month, planned_calendar")
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .lte("month", month)
+        .execute()
+        .data
+    ) or []
+    arrets: dict[tuple[str, str], str] = {}
+    for ligne in lignes:
+        calendrier = (ligne.get("planned_calendar") or {}).get("calendrier_prevu") or []
+        for jour in calendrier if isinstance(calendrier, list) else []:
+            debut = (jour or {}).get("date_debut_arret_reel")
+            if not debut:
+                continue
+            fin = jour.get("date_fin_arret_reel") or debut
+            arrets.setdefault((str(debut)[:10], str(fin)[:10]), str(jour.get("arret_type") or "maladie"))
+    return [
+        {"debut": debut, "fin": fin, "type": type_arret}
+        for (debut, fin), type_arret in sorted(arrets.items())
+    ]
+
+
 def jour_du_calendrier_final(
     jour_prevu: Dict[str, Any],
     jour_reel: Dict[str, Any] | None,
@@ -883,6 +916,10 @@ def run_payslip_generation_heures(
 
                 settings_maintien = get_maintenance_settings(company_id)
                 settings_dict = settings_maintien.model_dump(mode="json")
+                if settings_dict.get("paid_waiting_days_per_year") and employee_id:
+                    arret_data["arrets_annee"] = arrets_de_l_annee(
+                        str(employee_id), year, month
+                    )
                 resultats_maintien = calculer_maintien(
                     arret_data,
                     contexte,

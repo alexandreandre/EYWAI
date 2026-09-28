@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
-SubrogationMode = Literal["when_maintien", "automatic", "at_mp_only", "per_case"]
+SubrogationMode = Literal["when_maintien", "automatic", "at_mp_only", "per_case", "never"]
 
 
 class MaintenanceSettings(BaseModel):
@@ -32,5 +32,11 @@ class MaintenanceSettings(BaseModel):
     provident_relay_days: Optional[int] = None
     provident_maintenance_rate: Optional[float] = Field(default=None, ge=0, le=1)
     provident_cadre_only: bool = True
+    #: Jours de carence payés par l'employeur par année civile (plasturgie : 3).
+    paid_waiting_days_per_year: Optional[int] = Field(default=None, ge=0, le=30)
+    paid_waiting_min_seniority_months: int = Field(default=12, ge=0, le=120)
+    #: Maintien en jours ouvrés : 7 h + quote-part d'heures sup structurelles,
+    #: week-ends non maintenus, IJSS hors bulletin.
+    maintain_working_days: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

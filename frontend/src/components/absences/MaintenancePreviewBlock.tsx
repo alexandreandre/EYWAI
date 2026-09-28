@@ -155,7 +155,10 @@ function MaintenancePreviewBody({
     ? "oui"
     : "non";
   const subrogationReadOnly =
-    mode === "when_maintien" || mode === "automatic" || mode === "at_mp_only";
+    mode === "when_maintien" ||
+    mode === "automatic" ||
+    mode === "at_mp_only" ||
+    mode === "never";
 
   return (
     <>

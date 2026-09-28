@@ -29,6 +29,9 @@ _DB_WRITABLE_KEYS = frozenset(
         "provident_relay_days",
         "provident_maintenance_rate",
         "provident_cadre_only",
+        "paid_waiting_days_per_year",
+        "paid_waiting_min_seniority_months",
+        "maintain_working_days",
     }
 )
 

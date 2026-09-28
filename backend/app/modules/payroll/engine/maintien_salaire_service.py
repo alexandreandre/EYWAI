@@ -516,6 +516,7 @@ def _calculer_maintien_employeur(
     anciennete_mois: int,
     date_debut_periode: date,
     date_fin_periode: date,
+    jours_carence_payes: frozenset[date] = frozenset(),
 ) -> Dict[str, Any]:
     motif_non_maintien: Optional[str] = None
     conflit_convention = False
@@ -653,8 +654,14 @@ def _calculer_maintien_employeur(
 
     maintien_total_legal = 0.0
     maintien_total_conv = 0.0
+    #: Jours de carence payés par l'employeur (crédit annuel), à 100 %.
+    nb_jours_carence_payes = 0
     nb_jours_maintien = 0
     for k in range(jours_intersection):
+        if (inter_d + timedelta(days=k)) in jours_carence_payes:
+            nb_jours_carence_payes += 1
+            nb_jours_maintien += 1
+            continue
         if maintien_base_ouvree and (inter_d + timedelta(days=k)).weekday() >= 5:
             continue  # mode jours ouvrés : week-ends non maintenus
         jour_arret = offset + k + 1  # rang calendaire dans l'arrêt
@@ -690,6 +697,17 @@ def _calculer_maintien_employeur(
         maintien_cible = maintien_total_conv
     else:
         maintien_cible = maintien_total_legal
+    if nb_jours_carence_payes:
+        maintien_cible += (
+            _valeur_de_jours_ouvres(
+                contexte,
+                float(contexte.duree_hebdo_contrat or 0.0),
+                taux_horaire_base,
+                nb_jours_carence_payes,
+            )
+            if maintien_base_ouvree
+            else brut_journalier * nb_jours_carence_payes
+        )
 
     prorat_tp = False
     if bool(arret.get("is_temps_partiel")):
@@ -907,6 +925,47 @@ _AT_MP_TYPES = frozenset(
 )
 
 
+def _jours_de_carence_payes_de_l_arret(
+    arret: Dict[str, Any],
+    settings: Dict[str, Any],
+    *,
+    date_entree: Optional[date],
+    date_debut_arret: date,
+    date_fin_arret: date,
+    arret_type: str,
+    est_cadre: bool,
+) -> frozenset[date]:
+    """Les jours de carence de cet arrêt que l'employeur paie (crédit annuel).
+
+    Le crédit se lit sur les arrêts de l'année (`arrets_annee`, reconstitués
+    depuis les calendriers), dans l'ordre. Les cadres en sont exclus : chez
+    Gaëlle, « les cadres n'ont pas de carence », règle encore à préciser.
+    """
+    from app.modules.payroll.engine.carence_payee import (
+        ArretDeLAnnee,
+        jours_de_carence_payes,
+    )
+
+    jours_par_an = int(settings.get("paid_waiting_days_per_year") or 0)
+    if jours_par_an <= 0 or est_cadre:
+        return frozenset()
+    courant = ArretDeLAnnee(date_debut_arret, date_fin_arret, arret_type)
+    arrets = [courant]
+    for autre in arret.get("arrets_annee") or []:
+        debut = _parse_date((autre or {}).get("debut"))
+        fin = _parse_date((autre or {}).get("fin")) or debut
+        if debut is None or (debut, fin) == (courant.debut, courant.fin):
+            continue
+        arrets.append(ArretDeLAnnee(debut, fin, str(autre.get("type") or "maladie")))
+    plan = jours_de_carence_payes(
+        arrets,
+        jours_par_an=jours_par_an,
+        date_entree=date_entree,
+        anciennete_min_mois=int(settings.get("paid_waiting_min_seniority_months") or 12),
+    )
+    return frozenset(plan.get(courant, []))
+
+
 def resolve_subrogation_active(
     settings: Dict[str, Any],
     arret_type: str,
@@ -921,6 +980,8 @@ def resolve_subrogation_active(
     if override is not None:
         return bool(override)
     mode = settings.get("subrogation_mode") or "when_maintien"
+    if mode == "never":
+        return False
     if mode == "automatic":
         mode = "when_maintien"
     t = (arret_type or "maladie_simple").strip()
@@ -940,8 +1001,16 @@ def _quote_part_hs_structurelles_journaliere(
     ouvrés légaux du mois (151,67 / 7 = 21,67) : 0,80 h par journée.
     Vaut zéro à 35 h ou moins.
     """
+    heures_jour, majoration = _heures_sup_structurelles_par_jour(contexte, duree_hebdo)
+    return heures_jour * taux_horaire_base * (1 + majoration)
+
+
+def _heures_sup_structurelles_par_jour(
+    contexte: ContextePaie, duree_hebdo: float
+) -> tuple[float, float]:
+    """(heures sup structurelles d'une journée, majoration) ; (0, 0) à 35 h."""
     if not duree_hebdo or duree_hebdo <= lc.DUREE_LEGALE_HEBDO:
-        return 0.0
+        return 0.0, 0.0
     try:
         from .calcul_brut import (
             _taux_majoration_hs,
@@ -952,11 +1021,29 @@ def _quote_part_hs_structurelles_journaliere(
         heures_mois = compute_hs_structurelles_mensuelles(duree_hebdo)
         jours_legaux = heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5.0)
         if not jours_legaux:
-            return 0.0
+            return 0.0, 0.0
         majoration = _taux_majoration_hs(contexte, 0) or 0.0
     except Exception:
-        return 0.0
-    return (heures_mois / jours_legaux) * taux_horaire_base * (1 + majoration)
+        return 0.0, 0.0
+    return heures_mois / jours_legaux, majoration
+
+
+def _valeur_de_jours_ouvres(
+    contexte: ContextePaie, duree_hebdo: float, taux_horaire_base: float, nb_jours: int
+) -> float:
+    """La valeur de journées maintenues, comptée comme le cabinet : les heures de
+    base puis les heures sup structurelles, chacune arrondie une fois.
+
+    Colorplast, mars 2026 : 3 jours = 21,00 h à 12,9492 (271,93) + 2,40 h à
+    16,1865 (38,85) = 310,78 ; la somme de trois journées non arrondies donnait
+    310,77.
+    """
+    heures_jour, majoration = _heures_sup_structurelles_par_jour(contexte, duree_hebdo)
+    heures_base = nb_jours * (lc.DUREE_LEGALE_HEBDO / 5.0)
+    heures_sup = round(nb_jours * heures_jour, 2)
+    return round(heures_base * taux_horaire_base, 2) + round(
+        heures_sup * taux_horaire_base * (1 + majoration), 2
+    )
 
 
 # --- Point d'entrée ---
@@ -1049,8 +1136,17 @@ def calculer_maintien(
     :param arret: clés attendues dont arret_type, date_debut, date_fin,
         subrogation_active, date_dernier_arret, nombre_enfants, is_temps_partiel,
         quotite_temps_partiel, historique_arrets_annee (liste optionnelle),
-        salaire_periode_reelle (optionnel).
+        salaire_periode_reelle (optionnel), arrets_annee (liste optionnelle des
+        arrêts de l'année {debut, fin, type}, pour la carence payée).
     """
+    # Réglages société qui s'imposent à chaque arrêt, quelle que soit sa
+    # saisie : subrogation « jamais » (IJSS versées au salarié, hors bulletin)
+    # et maintien en jours ouvrés (7 h + quote-part d'heures sup structurelles).
+    if settings.get("subrogation_mode") == "never" and arret.get("subrogation_active"):
+        arret = {**arret, "subrogation_active": False}
+    if settings.get("maintain_working_days") and not arret.get("maintien_base_ouvree"):
+        arret = {**arret, "maintien_base_ouvree": True}
+
     arret_type = str(arret.get("arret_type") or "maladie_simple")
     qualification = _qualifier_arret(arret_type)
 
@@ -1094,6 +1190,33 @@ def calculer_maintien(
     )
     anciennete_mois = _mois_anciennete(date_entree, date_debut_arret)
 
+    statut = ""
+    try:
+        statut = str(contexte.statut_salarie or "")
+    except Exception:
+        statut = ""
+    est_cadre = _statut_est_cadre(statut)
+
+    jours_carence_payes = _jours_de_carence_payes_de_l_arret(
+        arret,
+        settings,
+        date_entree=_parse_date(date_entree_raw),
+        date_debut_arret=date_debut_arret,
+        date_fin_arret=date_fin_arret or date_debut_arret,
+        arret_type=arret_type,
+        est_cadre=est_cadre,
+    )
+    if jours_carence_payes:
+        carence = {
+            **carence,
+            "carence_payee_jours": len(jours_carence_payes),
+            "carence_payee_dates": sorted(d.isoformat() for d in jours_carence_payes),
+            "motif_carence": (
+                f"{carence.get('motif_carence', '')} Carence payée par l'employeur : "
+                f"{len(jours_carence_payes)} jour(s) sur le crédit de l'année."
+            ).strip(),
+        }
+
     maintien = _calculer_maintien_employeur(
         arret,
         qualification,
@@ -1105,6 +1228,7 @@ def calculer_maintien(
         anciennete_mois,
         date_debut_periode,
         date_fin_periode,
+        jours_carence_payes=jours_carence_payes,
     )
 
     # Sans maintien de salaire sur la période, l'employeur n'a rien à avancer
@@ -1131,18 +1255,12 @@ def calculer_maintien(
             anciennete_mois,
             date_debut_periode,
             date_fin_periode,
+            jours_carence_payes=jours_carence_payes,
         )
 
     nb_jours_arret_total = _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
     )
-
-    statut = ""
-    try:
-        statut = str(contexte.statut_salarie or "")
-    except Exception:
-        statut = ""
-    est_cadre = _statut_est_cadre(statut)
 
     prevoyance = _calculer_prevoyance_complement(
         arret,

@@ -49,6 +49,9 @@ function toUpdatePayload(form: MaintenanceSettings): MaintenanceSettingsUpdate {
     provident_relay_days: form.provident_relay_days,
     provident_maintenance_rate: form.provident_maintenance_rate,
     provident_cadre_only: form.provident_cadre_only,
+    paid_waiting_days_per_year: form.paid_waiting_days_per_year,
+    paid_waiting_min_seniority_months: form.paid_waiting_min_seniority_months,
+    maintain_working_days: form.maintain_working_days,
   };
 }
 
@@ -287,6 +290,60 @@ export default function MaintenanceSettingsCard() {
               />
               </div>
             ))}
+            <div className="rounded-lg border p-4 space-y-3">
+              <div>
+                <Label htmlFor="paid_waiting_days_per_year">Carence payée par an (jours)</Label>
+                <p className="text-sm text-muted-foreground">
+                  L’employeur paie les jours de carence d’un arrêt maladie dans cette limite par année
+                  civile ; le crédit se consomme jour par jour et repart à zéro en janvier (plasturgie : 3).
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <Input
+                  id="paid_waiting_days_per_year"
+                  className="max-w-[8rem]"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={form.paid_waiting_days_per_year ?? ''}
+                  onChange={(e) => setNum('paid_waiting_days_per_year', e.target.value, true)}
+                  disabled={readOnly}
+                  placeholder="—"
+                />
+                <div className="grid gap-1">
+                  <Label htmlFor="paid_waiting_min_seniority_months" className="text-sm">
+                    Ancienneté minimale (mois)
+                  </Label>
+                  <Input
+                    id="paid_waiting_min_seniority_months"
+                    className="max-w-[8rem]"
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={form.paid_waiting_min_seniority_months}
+                    onChange={(e) => setNum('paid_waiting_min_seniority_months', e.target.value)}
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <Label htmlFor="maintain_working_days">Maintien en jours ouvrés</Label>
+                <p className="text-sm text-muted-foreground">
+                  Une journée maintenue vaut 7 h plus sa part d’heures sup structurelles ; les
+                  week-ends ne sont pas maintenus et les IJSS restent hors du bulletin.
+                </p>
+              </div>
+              <Switch
+                id="maintain_working_days"
+                checked={form.maintain_working_days}
+                onCheckedChange={(v) =>
+                  setForm((p) => (p ? { ...p, maintain_working_days: v } : p))
+                }
+                disabled={readOnly}
+              />
+            </div>
             <div className="grid gap-2 max-w-xs">
               <Label htmlFor="custom_duration_days">Durée personnalisée (jours, optionnel)</Label>
               <Input
@@ -319,6 +376,7 @@ export default function MaintenanceSettingsCard() {
                   <SelectItem value="per_case">Au cas par cas</SelectItem>
                   <SelectItem value="at_mp_only">Avancé — AT/MP uniquement</SelectItem>
                   <SelectItem value="automatic">Legacy — toujours oui</SelectItem>
+                  <SelectItem value="never">Jamais — IJSS versées au salarié</SelectItem>
                 </SelectContent>
               </Select>
             </div>

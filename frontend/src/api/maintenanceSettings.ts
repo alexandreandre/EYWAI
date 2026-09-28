@@ -1,6 +1,6 @@
 import apiClient from '@/api/apiClient';
 
-export type SubrogationMode = 'when_maintien' | 'automatic' | 'at_mp_only' | 'per_case';
+export type SubrogationMode = 'when_maintien' | 'automatic' | 'at_mp_only' | 'per_case' | 'never';
 
 export interface MaintenanceSettings {
   id: string | null;
@@ -21,6 +21,11 @@ export interface MaintenanceSettings {
   provident_relay_days: number | null;
   provident_maintenance_rate: number | null;
   provident_cadre_only: boolean;
+  /** Jours de carence payés par l'employeur par année civile (plasturgie : 3). */
+  paid_waiting_days_per_year: number | null;
+  paid_waiting_min_seniority_months: number;
+  /** Maintien en jours ouvrés : 7 h + heures sup structurelles, IJSS hors bulletin. */
+  maintain_working_days: boolean;
   created_at: string | null;
   updated_at: string | null;
 }
