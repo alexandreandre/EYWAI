@@ -836,6 +836,35 @@ def create_exit_document(
     return doc_repo.create(doc_record)
 
 
+def _remplacer_les_versions_precedentes(
+    doc_repo: Any,
+    storage: Any,
+    exit_id: str,
+    company_id: str,
+    document_type: str,
+    garder: str,
+) -> None:
+    """Regénérer un document remplace la version précédente, au lieu de l'empiler.
+
+    Seules les versions générées et jamais envoyées au salarié sont retirées :
+    celle qu'il a reçue reste, trace de ce qui lui a été remis. Appelé après
+    l'enregistrement de la nouvelle version, pour ne rien perdre en cas d'échec.
+    """
+    for doc in doc_repo.list_by_exit(exit_id, company_id) or []:
+        if (
+            str(doc.get("id")) == str(garder)
+            or doc.get("document_type") != document_type
+            or doc.get("document_category") != "generated"
+            or doc.get("published_to_employee")
+        ):
+            continue
+        try:
+            storage.remove([doc["storage_path"]])
+        except Exception:
+            logger.warning("Fichier %s non supprimé", doc.get("storage_path"))
+        doc_repo.delete(doc["id"], exit_id, company_id)
+
+
 def generate_exit_document(
     exit_id: str,
     company_id: str,
@@ -925,6 +954,9 @@ def generate_exit_document(
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "uploaded_by": current_user_id,
         }
+    )
+    _remplacer_les_versions_precedentes(
+        doc_repo, storage, exit_id, company_id, document_type, garder=created["id"]
     )
     return {
         "success": True,

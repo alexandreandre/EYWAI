@@ -675,6 +675,37 @@ class TestGenerateExitDocument:
                 )
                 assert resultat["document_id"] == "doc-stc"
 
+    def test_regenerer_remplace_la_version_non_envoyee(
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
+    ):
+        """La gestionnaire peut refaire un document par-dessus : l'ancienne
+        version non envoyée part, celle reçue par le salarié reste."""
+        exit_data = _make_exit_record(exit_type="fin_cdd")
+        exit_data["employees"] = {"id": "emp-1", "first_name": "Jean", "last_name": "Dupont"}
+        mock_exit_repo_class.return_value.get_with_employee.return_value = exit_data
+        mock_company.return_value = {"name": "Test Co", "siret": "123"}
+        mock_generator.return_value.generate_certificat_travail.return_value = b"pdf"
+        doc_repo = mock_doc_repo_class.return_value
+        doc_repo.create.return_value = {"id": "nouveau"}
+        doc_repo.list_by_exit.return_value = [
+            {"id": "nouveau", "document_type": "certificat_travail", "document_category": "generated", "storage_path": "n"},
+            {"id": "ancien", "document_type": "certificat_travail", "document_category": "generated", "storage_path": "a"},
+            {"id": "envoye", "document_type": "certificat_travail", "document_category": "generated",
+             "storage_path": "e", "published_to_employee": True},
+            {"id": "televerse", "document_type": "certificat_travail", "document_category": "uploaded", "storage_path": "t"},
+            {"id": "autre", "document_type": "solde_tout_compte", "document_category": "generated", "storage_path": "s"},
+        ]
+
+        generate_exit_document(EXIT_ID, COMPANY_ID, "certificat_travail", USER_ID, supabase_client=MagicMock())
+
+        assert [c.args[0] for c in doc_repo.delete.call_args_list] == ["ancien"]
+        mock_storage.return_value.remove.assert_called_once_with(["a"])
+
     def test_generates_certificat_travail(
         self,
         mock_exit_repo_class,
