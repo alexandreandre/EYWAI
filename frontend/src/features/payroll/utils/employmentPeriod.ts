@@ -4,6 +4,13 @@ type EmploymentPeriod = {
   contract_end_date?: string | null;
 };
 
+type PayrollFiche = EmploymentPeriod & {
+  employment_status?: string | null;
+  missing_payroll_fields?: string[] | null;
+};
+
+const STATUTS_DE_DEPART = ['parti', 'sorti', 'inactif'];
+
 function parseDate(value?: string | null): Date | null {
   if (!value) return null;
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
@@ -39,4 +46,25 @@ export function isEmployeePresentForPayrollMonth(
   month: number
 ): boolean {
   return payrollEmploymentBlockReason(employee, year, month) === null;
+}
+
+/**
+ * Pourquoi le bulletin du mois ne peut pas être généré : hors de la période
+ * d'emploi, ou fiche incomplète (nouveau salarié créé sans son numéro de
+ * sécurité sociale, sa date de naissance, son adresse ou son RIB). Même règle
+ * que le serveur, dite avant de lancer la génération plutôt qu'après son échec.
+ */
+export function payrollGenerationBlockReason(
+  employee: PayrollFiche,
+  year: number,
+  month: number
+): string | null {
+  const periode = payrollEmploymentBlockReason(employee, year, month);
+  if (periode) return periode;
+  const statut = (employee.employment_status || 'actif').toLowerCase();
+  const manque = employee.missing_payroll_fields ?? [];
+  if (manque.length > 0 && !STATUTS_DE_DEPART.includes(statut)) {
+    return `Fiche à compléter : ${manque.join(', ')}`;
+  }
+  return null;
 }

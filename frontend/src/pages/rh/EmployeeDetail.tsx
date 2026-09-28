@@ -595,7 +595,8 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {!payrollFocus && employeeId && employee && employee.employment_status !== 'en_sortie' && (
+      {/* Aussi en mode paie : une fiche créée sans NIR ni RIB bloque la paie. */}
+      {employeeId && employee && employee.employment_status !== 'en_sortie' && (
         <EmployeeOnboardingCompletion
           employeeId={employeeId}
           employee={employee}

@@ -47,8 +47,8 @@ export function EmployeeOnboardingCompletion({
             <div>
               <p className="font-medium leading-snug">Fiche à compléter — onboarding en cours</p>
               <p className="mt-1 text-sm text-amber-900/90">
-                {fullName} a été embauché(e) avec une fiche minimale. Complétez les informations
-                en une seule fois pour finaliser l&apos;intégration.
+                La fiche de {fullName} a été créée avec le minimum. Sa paie ne peut pas être
+                générée tant que ces informations manquent.
               </p>
             </div>
           </div>

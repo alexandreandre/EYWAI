@@ -1,5 +1,6 @@
 import { log } from '@/lib/logger';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
@@ -16,6 +17,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
+import { getValeursEmbauche, type NouveauSalarieCree } from "@/api/employees";
+import { NouveauSalarieRecap } from "@/features/employees/components/NouveauSalarieRecap";
+import {
+  avecValeursDeLaSociete,
+  champsFacultatifsPourEnvoi,
+  cleClassification,
+  erreursAPlat,
+  erreursDansLOrdre,
+  grilleAvecClassificationHabituelle,
+  libelleDErreur,
+  mutuellesPourStatut,
+  ongletDuChamp,
+} from "@/features/employees/utils/valeursEmbauche";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
 import { getPscSettings } from "@/api/pscSettings";
 import { MutuelleSelectionField } from "@/components/mutuelle/MutuelleSelectionField";
@@ -28,6 +42,9 @@ import {
   translateFieldName,
   type CreateEmployeeFormValues,
 } from "@/features/employees/components/createEmployeeFormSchema";
+
+/** Les champs sans lesquels la fiche ne se crée pas. */
+const Requis = () => <span className="text-red-500" aria-hidden> *</span>;
 import { EmployeeContractConfigFormFields } from "@/features/employees/components/EmployeeContractConfigFields";
 import { isAlternanceContract, isStageContract } from "@/constants/contracts";
 import {
@@ -59,6 +76,9 @@ function defaultTrialSettings(contractType: string) {
 export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const companyId = useActiveCompanyId();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [onglet, setOnglet] = useState("collaborateur");
+  const [cree, setCree] = useState<NouveauSalarieCree | null>(null);
+  const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null); // Pour les erreurs du backend
   const [validationErrorSummary, setValidationErrorSummary] = useState<string[] | null>(null); // Pour le résumé des erreurs de validation
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string> | null>(null); // Pour les erreurs de champs du serveur
@@ -120,7 +140,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       residence_permit_expiry_date: "",
       residence_permit_type: "",
       residence_permit_number: "",
-      hire_date: new Date().toISOString().split('T')[0],
+      // Pas de date par défaut : une date d'entrée fausse fausse le prorata.
+      hire_date: "",
       contract_type: "CDI", statut: "Non-Cadre", is_forfait_jour: false, job_title: "",
       date_conclusion_contrat: "",
       date_debut_execution: "",
@@ -134,8 +155,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       },
       is_temps_partiel: false,
       duree_hebdomadaire: 39, 
+      // Jamais de salaire proposé : il est propre à chaque embauche.
       salaire_de_base: {
-        valeur: 2365.66
+        valeur: "" as unknown as number
       },
       classification_conventionnelle: {
         groupe_emploi: "C",
@@ -178,6 +200,38 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     },
   });
 
+  // Les valeurs de la société (durée, convention, classification, mutuelle,
+  // prévoyance, titres-restaurant) remplacent les valeurs génériques, une fois
+  // par ouverture, sans écraser ce que l'utilisateur a déjà saisi.
+  const valeursQuery = useQuery({
+    queryKey: [...queryKeys.employees(companyId), "valeurs-embauche"],
+    queryFn: getValeursEmbauche,
+    enabled: isDialogOpen && !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const valeurs = valeursQuery.data ?? null;
+  const valeursAppliquees = useRef(false);
+  useEffect(() => {
+    if (!isDialogOpen) {
+      valeursAppliquees.current = false;
+      return;
+    }
+    if (!valeurs || valeursAppliquees.current) return;
+    valeursAppliquees.current = true;
+    const courantes = form.getValues();
+    const proposees = avecValeursDeLaSociete(courantes, valeurs);
+    if (!form.formState.isDirty) {
+      form.reset(proposees);
+      return;
+    }
+    const { dirtyFields } = form.formState;
+    const touche = (racine: keyof typeof dirtyFields) => !!dirtyFields[racine];
+    if (!touche("duree_hebdomadaire")) form.setValue("duree_hebdomadaire", proposees.duree_hebdomadaire);
+    if (!touche("collective_agreement_id")) form.setValue("collective_agreement_id", proposees.collective_agreement_id);
+    if (!touche("classification_conventionnelle")) form.setValue("classification_conventionnelle", proposees.classification_conventionnelle);
+    if (!touche("specificites_paie")) form.setValue("specificites_paie", proposees.specificites_paie);
+  }, [isDialogOpen, valeurs, form]);
+
   // Charger les conventions collectives de l'entreprise à l'ouverture du dialog
   useEffect(() => {
     if (isDialogOpen) {
@@ -204,11 +258,13 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
         .then((res) => {
           const list = res.data || [];
           setClassificationsCc(list);
-          // Pré-sélectionner la première classification si la valeur actuelle n'est pas dans la grille
+          // Pré-sélectionner la première classification si la valeur actuelle
+          // n'est ni dans la grille ni celle des salariés de la société.
           if (list.length > 0) {
             const current = form.getValues("classification_conventionnelle");
-            const currentKey = current ? `${current.groupe_emploi}-${current.classe_emploi}-${current.coefficient}` : "";
-            const exists = list.some((c) => `${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}` === currentKey);
+            const currentKey = current ? cleClassification(current) : "";
+            const exists = grilleAvecClassificationHabituelle(list, valeurs?.classification_conventionnelle as never)
+              .some((c) => cleClassification(c) === currentKey);
             if (!exists) {
               form.setValue("classification_conventionnelle", { groupe_emploi: list[0].groupe_emploi, classe_emploi: list[0].classe_emploi, coefficient: list[0].coefficient });
             }
@@ -218,7 +274,11 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     } else {
       setClassificationsCc([]);
     }
-  }, [selectedCcId]);
+  }, [selectedCcId, valeurs, form]);
+  const grilleClassifications = grilleAvecClassificationHabituelle(
+    classificationsCc,
+    valeurs?.classification_conventionnelle as never
+  );
 
   const watchedContractType = form.watch("contract_type");
   useEffect(() => {
@@ -265,6 +325,20 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
   const employeeStatut = form.watch("statut");
   const filteredMutuelles = filterMutuellesForEmployee(availableMutuelles, employeeStatut);
+
+  // La mutuelle obligatoire suit la catégorie (cadre / non-cadre), tant que
+  // l'utilisateur n'a pas choisi lui-même une autre formule.
+  const statutPrecedent = useRef(employeeStatut);
+  useEffect(() => {
+    const avant = statutPrecedent.current;
+    statutPrecedent.current = employeeStatut;
+    if (!valeurs || avant === employeeStatut) return;
+    const actuelles = [...(form.getValues("specificites_paie.mutuelle.mutuelle_type_ids") ?? [])].sort();
+    const proposeesAvant = mutuellesPourStatut(valeurs, avant).sort();
+    if (actuelles.join() === proposeesAvant.join()) {
+      form.setValue("specificites_paie.mutuelle.mutuelle_type_ids", mutuellesPourStatut(valeurs, employeeStatut));
+    }
+  }, [employeeStatut, valeurs, form]);
 
   useEffect(() => {
     if (isEmployeeCadre(employeeStatut) && !form.getValues("is_forfait_jour")) {
@@ -666,7 +740,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   
   // On prépare le payload final pour le backend
   const payload = {
-    ...values,
+    ...champsFacultatifsPourEnvoi(values),
     team_id: values.team_id?.trim() ? values.team_id.trim() : null,
     // La période d'essai est créée côté serveur, à partir du barème société
     // que cette saisie surcharge éventuellement.
@@ -727,24 +801,13 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     });
     setIsDialogOpen(false);
     form.reset();
+    setOnglet("collaborateur");
     setGeneratePdfContract(false);
     setIdentityDocumentType("identity"); // Réinitialiser le type de document
     setUploadedIdFile(null); // Réinitialiser le fichier uploadé
     await fetchEmployees();
-
-    // Affiche le mot de passe à l'utilisateur (et avertissements RIB si doublon)
-    const newEmployeeData = response.data;
-    if (newEmployeeData && newEmployeeData.generated_password) {
-      // Message différent si génération auto de PDF
-      const pdfMessage = generatePdfContract
-        ? '\n\nContrat disponible dans la section "Contrat"'
-        : '\n\nUn PDF avec ces informations a été généré et est disponible dans la fiche de l\'employé.\nVeuillez le télécharger et le transmettre à l\'employé.';
-      const warningsMessage = (newEmployeeData as { warnings?: string[] }).warnings?.length
-        ? '\n\nAttention : ' + (newEmployeeData as { warnings?: string[] }).warnings!.join('\n')
-        : '';
-
-      alert(`Employé créé avec succès !\n\nNom d'utilisateur: ${newEmployeeData.username}\nEmail: ${newEmployeeData.email}\nMot de passe temporaire: ${newEmployeeData.generated_password}${pdfMessage}${warningsMessage}`);
-    }
+    // Ce qui a été posé et ce qui reste à faire, plutôt qu'une alerte à fermer.
+    setCree(response.data as NouveauSalarieCree);
 
   } catch (error: any) { 
     log.error("Erreur lors de l'envoi au backend :", error.response?.data || error.message);
@@ -779,33 +842,23 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
 
   // Cette fonction est appelée UNIQUEMENT si la validation Zod échoue
   const onValidationErrors = (errors: any) => {
-    // Fonction récursive pour extraire tous les messages d'erreur avec les chemins
-    const extractErrorMessages = (obj: any, path: string = ""): string[] => {
-      if (!obj) return [];
-      return Object.keys(obj).reduce<string[]>((acc, key) => {
-        const value = obj[key];
-        const currentPath = path ? `${path}.${key}` : key;
-
-        if (value && typeof value === 'object') {
-          if (value.message) {
-            return [...acc, `${currentPath}: ${value.message}`];
-          }
-          return [...acc, ...extractErrorMessages(value, currentPath)];
-        }
-        return acc;
-      }, []);
-    };
-
-    const messages = extractErrorMessages(errors);
-    setValidationErrorSummary(messages);
+    const aPlat = erreursDansLOrdre(erreursAPlat(errors));
+    setValidationErrorSummary(aPlat.map(libelleDErreur));
     setServerError(null); // On s'assure de ne pas afficher une ancienne erreur serveur
+    // Conduire à l'onglet du premier champ à corriger.
+    if (aPlat.length > 0) setOnglet(ongletDuChamp(aPlat[0].chemin));
   };
 
   return (
+    <>
     <Dialog open={isDialogOpen} onOpenChange={(open) => {
       setIsDialogOpen(open);
       if (!open) {
         form.reset();
+        setOnglet("collaborateur");
+        setValidationErrorSummary(null);
+        setServerError(null);
+        setServerFieldErrors(null);
         setUploadedFile(null);
         setExtractionError(null);
         setExtractionSuccess(false);
@@ -830,12 +883,15 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
             <DialogHeader>
               <DialogTitle>Nouveau Collaborateur</DialogTitle>
               <DialogDescription>
-                Créez un nouveau collaborateur avec ses informations personnelles, contrat et rémunération.
+                Seuls le nom, le prénom, le poste, la date d&apos;entrée et le salaire sont obligatoires
+                <Requis />. Le reste peut attendre : la fiche sera « à compléter » et sa paie bloquée tant
+                que manquent n° de sécurité sociale, date de naissance, adresse et RIB.
+                {valeurs ? " Durée, convention, mutuelle et prévoyance reprennent celles de vos salariés." : ""}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form id="collab-form" onSubmit={form.handleSubmit(onSubmit, onValidationErrors)} className="flex flex-col min-h-0">
-                <Tabs defaultValue="collaborateur" className="w-full flex-1 flex flex-col min-h-0">
+                <Tabs value={onglet} onValueChange={setOnglet} className="w-full flex-1 flex flex-col min-h-0">
                   <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="collaborateur">Collaborateur</TabsTrigger>
                     <TabsTrigger value="contrat">Contrat</TabsTrigger>
@@ -1137,9 +1193,9 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           </div>
                         </div>
                       )}
-                      <FormField control={form.control} name="first_name" render={({ field }) => (<FormItem><FormLabel>Prénom</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name="last_name" render={({ field }) => (<FormItem><FormLabel>Nom</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="email@exemple.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="first_name" render={({ field }) => (<FormItem><FormLabel>Prénom<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="last_name" render={({ field }) => (<FormItem><FormLabel>Nom<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>E-mail <span className="font-normal text-muted-foreground">(facultatif)</span></FormLabel><FormControl><Input type="email" placeholder="email@exemple.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="nir" render={({ field }) => (<FormItem><FormLabel>N° de Sécurité Sociale</FormLabel><FormControl><Input placeholder="ex: 1850701123456" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="date_naissance" render={({ field }) => (<FormItem><FormLabel>Date de naissance</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="lieu_naissance" render={({ field }) => (<FormItem><FormLabel>Lieu de naissance</FormLabel><FormControl><Input placeholder="ex: 75001 Paris" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -1192,8 +1248,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                     </TabsContent>
                     <TabsContent value="contrat">
                       <div className="space-y-4">
-                        <FormField control={form.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="hire_date" render={({ field }) => (<FormItem><FormLabel>Date d'entrée<Requis /></FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="job_title" render={({ field }) => (<FormItem><FormLabel>Intitulé du poste<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <EmployeeContractConfigFormFields control={form.control} />
                         <div className="space-y-4 rounded-md border border-dashed p-4">
                           <FormField
@@ -1291,7 +1347,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           name="salaire_de_base.valeur" 
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Salaire de base mensuel (€)</FormLabel>
+                              <FormLabel>Salaire de base mensuel (€)<Requis /></FormLabel>
                               <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                               <FormMessage />
                             </FormItem>
@@ -1334,7 +1390,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                         {selectedCcId && selectedCcId !== "__aucune__" && (
                           <>
                             <h3 className="font-semibold pt-4">Classification Conventionnelle</h3>
-                            {classificationsCc.length > 0 ? (
+                            {grilleClassifications.length > 0 ? (
                               <FormField
                                 control={form.control}
                                 name="classification_conventionnelle"
@@ -1344,7 +1400,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                     <Select
                                       value={[field.value?.groupe_emploi, field.value?.classe_emploi, field.value?.coefficient].join("-")}
                                       onValueChange={(val) => {
-                                        const c = classificationsCc.find(
+                                        const c = grilleClassifications.find(
                                           (x) => `${x.groupe_emploi}-${x.classe_emploi}-${x.coefficient}` === val
                                         );
                                         if (c) field.onChange({ groupe_emploi: c.groupe_emploi, classe_emploi: c.classe_emploi, coefficient: c.coefficient });
@@ -1356,7 +1412,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent>
-                                        {classificationsCc.map((c) => (
+                                        {grilleClassifications.map((c) => (
                                           <SelectItem
                                             key={`${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`}
                                             value={`${c.groupe_emploi}-${c.classe_emploi}-${c.coefficient}`}
@@ -1680,5 +1736,14 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
           </DialogContent>
 
     </Dialog>
+    <NouveauSalarieRecap
+      salarie={cree}
+      onClose={() => setCree(null)}
+      onOuvrirFiche={(id) => {
+        setCree(null);
+        navigate(`/employees/${id}`);
+      }}
+    />
+    </>
   );
 }

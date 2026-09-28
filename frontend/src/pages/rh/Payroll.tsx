@@ -30,7 +30,8 @@ import {
   buildYearOptions,
   PAYROLL_MONTHS,
 } from '@/features/payroll/utils/payrollMonth';
-import { payrollEmploymentBlockReason } from '@/features/payroll/utils/employmentPeriod';
+import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
+import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 
 type PayrollView = 'employee' | 'month';
 
@@ -99,7 +100,7 @@ function buildMonthStatuses(
   for (const month of PAYROLL_MONTHS) {
     const payslip = payslipsForYear.find((p) => p.month === month);
     const state = buildRowState(payslip, employee.id, year, month, generation);
-    const unavailableReason = payrollEmploymentBlockReason(employee, year, month);
+    const unavailableReason = payrollGenerationBlockReason(employee, year, month);
     map[month] =
       unavailableReason && state.status !== 'success' && state.status !== 'loading'
         ? { status: 'unavailable', errorMessage: unavailableReason }
@@ -290,7 +291,7 @@ export default function Payroll() {
         selectedMonth,
         generationState
       );
-      const unavailableReason = payrollEmploymentBlockReason(
+      const unavailableReason = payrollGenerationBlockReason(
         emp,
         selectedYear,
         selectedMonth
@@ -338,7 +339,7 @@ export default function Payroll() {
     (employeeId: string) => {
       const emp = employees.find((e) => e.id === employeeId);
       if (!emp) return;
-      if (payrollEmploymentBlockReason(emp, selectedYear, selectedMonth)) return;
+      if (payrollGenerationBlockReason(emp, selectedYear, selectedMonth)) return;
       generation.generateJobs([
         {
           employeeId: emp.id,
@@ -438,6 +439,7 @@ export default function Payroll() {
       <RhPageHeader
         title="Gestion de la Paie"
         description="Générez et consultez les bulletins par collaborateur ou par mois."
+        actions={<CreateEmployeeForm />}
       />
 
       {error && (

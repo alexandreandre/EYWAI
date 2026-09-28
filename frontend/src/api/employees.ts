@@ -180,3 +180,40 @@ export async function getEmployeesForFormationSelect(): Promise<EmployeeFormatio
     email: e.email ?? null,
   }));
 }
+
+/** Valeurs de la société proposées à la création d'un salarié. */
+export interface ValeursEmbauche {
+  statut: string;
+  contract_type: string;
+  duree_hebdomadaire: number | null;
+  collective_agreement_id: string | null;
+  classification_conventionnelle: {
+    groupe_emploi: string;
+    classe_emploi: number | null;
+    coefficient: number;
+  } | null;
+  mutuelle_type_ids_par_statut: Record<string, string[]>;
+  prevoyance_adhesion: boolean;
+  titres_restaurant_beneficie: boolean;
+}
+
+export async function getValeursEmbauche(): Promise<ValeursEmbauche> {
+  const { data } = await apiClient.get<ValeursEmbauche>('/api/employees/valeurs-embauche');
+  return data;
+}
+
+/** Réponse de la création : ce qui a été posé et ce qui reste à faire. */
+export interface NouveauSalarieCree {
+  id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  email?: string | null;
+  employment_status?: string | null;
+  generated_password: string;
+  warnings?: string[] | null;
+  a_completer?: string[];
+  planning_mois?: string[];
+  planning_plans?: string[];
+  acces_application?: boolean;
+}

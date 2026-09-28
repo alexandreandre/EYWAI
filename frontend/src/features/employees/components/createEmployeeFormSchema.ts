@@ -3,24 +3,47 @@ import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 
 export const createEmployeeFormSchema = z.object({
-  // --- SECTION SALARIÉ (COMPLÉTÉE) ---
-  first_name: z.string().min(2, { message: "Prénom requis." }),
-  last_name: z.string().min(2, { message: "Nom requis." }),
-  email: z.string().email({ message: "Adresse e-mail invalide." }),
-  nir: z.string().length(15, { message: "Le NIR doit faire 15 chiffres." }),
-  date_naissance: z.string().refine((d) => d, { message: "Date requise." }),
-  lieu_naissance: z.string().min(2, { message: "Lieu de naissance requis." }),
-  nationalite: z.string().min(2, { message: "Nationalité requise." }),
+  // --- SECTION SALARIÉ ---
+  // Le jour de l'embauche, seuls nom, prénom, poste, date d'entrée et salaire
+  // sont connus à coup sûr. Le reste peut attendre : la fiche est créée « à
+  // compléter » et sa paie reste bloquée tant que manquent NIR, naissance,
+  // adresse et RIB. Un champ rempli doit en revanche être juste.
+  first_name: z.string().trim().min(2, { message: "Prénom requis." }),
+  last_name: z.string().trim().min(2, { message: "Nom requis." }),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .default("")
+    .refine((v) => !v || z.string().email().safeParse(v).success, { message: "Adresse e-mail invalide." }),
+  nir: z
+    .string()
+    .optional()
+    .default("")
+    .refine((v) => !v.replace(/\s/g, "") || /^[0-9]{13}[0-9]{2}$|^[12][0-9]{4}2[AB][0-9]{8}$/i.test(v.replace(/\s/g, "")), {
+      message: "Le numéro de sécurité sociale fait 15 caractères.",
+    }),
+  date_naissance: z.string().optional().default(""),
+  lieu_naissance: z.string().optional().default(""),
+  nationalite: z.string().optional().default(""),
   adresse: z.object({
-    rue: z.string().min(2, { message: "Rue requise." }),
-    code_postal: z.string().min(5, { message: "Code postal requis." }),
-    ville: z.string().min(2, { message: "Ville requise." }),
+    rue: z.string().optional().default(""),
+    code_postal: z
+      .string()
+      .optional()
+      .default("")
+      .refine((v) => !v.trim() || /^[0-9]{5}$/.test(v.trim()), { message: "Code postal à 5 chiffres." }),
+    ville: z.string().optional().default(""),
   }),
   coordonnees_bancaires: z.object({
-    iban: ibanFieldSchema,
+    iban: z
+      .string()
+      .optional()
+      .default("")
+      .refine((v) => !v.replace(/\s/g, "") || ibanFieldSchema.safeParse(v).success, { message: "IBAN invalide." }),
     bic: bicFieldSchema,
   }),
-  
+
   // --- SECTION TITRE DE SÉJOUR (OPTIONNEL) ---
   is_subject_to_residence_permit: z.boolean().optional(),
   residence_permit_expiry_date: z.string().optional(),
@@ -28,7 +51,7 @@ export const createEmployeeFormSchema = z.object({
   residence_permit_number: z.string().optional(),
 
   // --- SECTION CONTRAT (COMPLÉTÉE) ---
-  hire_date: z.string().refine((d) => !isNaN(Date.parse(d)), { message: "Date invalide." }),
+  hire_date: z.string().refine((d) => !!d && !isNaN(Date.parse(d)), { message: "Date d'entrée requise." }),
   contract_type: z.string().min(2),
   // Dates spécifiques alternance (optionnelles)
   date_conclusion_contrat: z.string().optional(),
@@ -37,7 +60,7 @@ export const createEmployeeFormSchema = z.object({
   contract_end_date: z.string().optional(),
   statut: z.string().min(2),
   is_forfait_jour: z.boolean().default(false),
-  job_title: z.string().min(2),
+  job_title: z.string().trim().min(2, { message: "Poste requis." }),
   /** Équipe (optionnel, vide = aucune) — affecté à la création si supporté par l’API */
   team_id: z.string().optional(),
   has_periode_essai: z.boolean(),
@@ -53,7 +76,7 @@ export const createEmployeeFormSchema = z.object({
   
   // --- SECTION RÉMUNÉRATION (COMPLÉTÉE) ---
   salaire_de_base: z.object({
-    valeur: z.coerce.number().positive({ message: "Le salaire doit être positif." })
+    valeur: z.coerce.number({ invalid_type_error: "Salaire requis." }).positive({ message: "Salaire requis." })
   }),
   classification_conventionnelle: z.object({
     groupe_emploi: z.string().min(1, { message: "Groupe requis." }),
@@ -122,6 +145,15 @@ export const createEmployeeFormSchema = z.object({
     }),
   }),
 }).superRefine((data, ctx) => {
+  const { rue, code_postal, ville } = data.adresse;
+  const remplis = [rue, code_postal, ville].filter((v) => v?.trim()).length;
+  if (remplis > 0 && remplis < 3) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Adresse incomplète : rue, code postal et ville, ou rien.",
+      path: ["adresse", !rue?.trim() ? "rue" : !code_postal?.trim() ? "code_postal" : "ville"],
+    });
+  }
   if (data.has_periode_essai && !data.periode_essai) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
