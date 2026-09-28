@@ -673,9 +673,9 @@ class TestPayslipPreview:
                 "app.modules.payslips.api.router.access_control_service.require_employee_access",
                 return_value=None,
             ):
-                response = client.post(
-                    "/api/payslips/ps-1/preview",
-                    json={
+                with patch(
+                    "app.modules.payslips.application.queries.get_payslip_details",
+                    return_value={
                         "payslip_data": {
                             "en_tete": {
                                 "periode": "Juin 2026",
@@ -687,9 +687,13 @@ class TestPayslipPreview:
                             "salaire_brut": 1436.21,
                             "net_a_payer": 910.64,
                         },
-                        "pdf_notes": None,
+                        "cumuls": None,
                     },
-                )
+                ):
+                    response = client.post(
+                        "/api/payslips/ps-1/preview",
+                        json={"pdf_notes": "Note de test"},
+                    )
             assert response.status_code == 200
             html = response.json()["html"]
             assert "BULLETIN DE SALAIRE" in html
@@ -711,7 +715,7 @@ class TestPayslipPreview:
             ):
                 response = client.post(
                     "/api/payslips/ps-1/preview",
-                    json={"payslip_data": {}, "pdf_notes": None},
+                    json={"pdf_notes": None},
                 )
             assert response.status_code == 404
         finally:

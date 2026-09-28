@@ -511,8 +511,18 @@ def preview_payslip_route(
         from app.core.paths import payroll_engine_templates
         from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
 
-        donnees = dict(preview_request.payslip_data or {})
-        donnees["pdf_notes"] = preview_request.pdf_notes
+        from app.modules.payroll.documents.payslip_editor import cumuls_pour_le_rendu
+        from app.modules.payslips.application.queries import get_payslip_details
+
+        detail = get_payslip_details(payslip_id)
+        if not detail:
+            raise HTTPException(status_code=404, detail="Bulletin introuvable")
+        enregistre = detail.get("payslip_data") or {}
+        donnees = {
+            **enregistre,
+            "cumuls": cumuls_pour_le_rendu(enregistre, detail.get("cumuls")),
+            "pdf_notes": preview_request.pdf_notes,
+        }
 
         env = Environment(loader=FileSystemLoader(str(payroll_engine_templates())))
         template = env.get_template("template_bulletin.html")

@@ -142,3 +142,31 @@ def test_restaurer_rend_l_etat_du_recalcul():
     assert reponse.status_code == 200
     assert corps["recalcule"] is True
     assert corps["message"] == "Bulletin revenu à la version 3 et recalculé."
+
+
+def test_l_apercu_ne_rend_que_le_bulletin_enregistre():
+    """L'aperçu rendait n'importe quelles données envoyées par l'écran."""
+    app.dependency_overrides[get_current_user] = _rh
+    try:
+        with (
+            patch("app.modules.payslips.api.router.get_payslip_meta_for_access") as meta,
+            patch("app.modules.payslips.api.router.access_control_service") as acces,
+            patch("app.modules.payslips.api.router.resolve_employee_id_for_user_account", return_value=None),
+            patch(
+                "app.modules.payslips.application.queries.get_payslip_details",
+                return_value={"payslip_data": {"net_a_payer": 1800.0}, "cumuls": None},
+            ),
+        ):
+            meta.return_value = {"company_id": MA_SOCIETE, "employee_id": SALARIE}
+            acces.require_employee_access.return_value = None
+            client = TestClient(app)
+            refuse = client.post(
+                f"/api/payslips/{BULLETIN}/preview",
+                json={"payslip_data": {"net_a_payer": 999999}},
+            )
+            rendu = client.post(f"/api/payslips/{BULLETIN}/preview", json={"pdf_notes": "Note"})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+    assert refuse.status_code == 422
+    assert rendu.status_code == 200
+    assert "999999" not in rendu.json()["html"]

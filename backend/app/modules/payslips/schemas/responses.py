@@ -90,6 +90,9 @@ class PayslipDetail(BaseModel):
     status: str = "brouillon"
     validated_at: datetime | None = None
     validated_by: str | None = None
+    #: Dernière mise à jour : l'écran la renvoie avec une correction, qui est
+    #: refusée si le bulletin a changé entre-temps.
+    updated_at: datetime | None = None
     period_edit_locked: bool = False
     manual_edit_locked: bool = False
     manual_edit_lock_reason: str | None = None

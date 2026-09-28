@@ -150,9 +150,14 @@ class AcquitAlertRequest(BaseModel):
 
 
 class PayslipPreviewRequest(BaseModel):
-    """Rendu d'aperçu d'un bulletin à partir de données éditées, sans persistance."""
+    """Aperçu du bulletin enregistré, avec la note du PDF en cours de saisie.
 
-    payslip_data: dict[str, Any]
+    Le bulletin n'est plus envoyé par l'écran : l'aperçu montre ce qui est
+    enregistré, seule la note peut différer.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     pdf_notes: str | None = Field(
-        None, max_length=2000, description="Notes visibles sur le bulletin"
+        None, max_length=2000, description="Note visible sur le bulletin"
     )
