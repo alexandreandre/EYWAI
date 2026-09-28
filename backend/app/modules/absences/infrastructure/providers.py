@@ -11,7 +11,7 @@ from app.core.logging import get_logger
 logger = get_logger("modules.absences.infrastructure.providers")
 
 import calendar as cal_module
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
@@ -157,10 +157,10 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
             selected_days = absence_data.get("selected_days", [])
             if not selected_days:
                 return None
-            first_date_str = (
-                selected_days[0]
-                if isinstance(selected_days[0], str)
-                else selected_days[0].isoformat()
+            # Le premier jour de l'arrêt, pas le premier de la liste : elle
+            # n'est pas forcément triée, et les mois de référence en dépendent.
+            first_date_str = min(
+                d if isinstance(d, str) else d.isoformat() for d in selected_days
             )
             absence_start_date = (
                 date.fromisoformat(first_date_str)
@@ -193,6 +193,9 @@ class SalaryCertificateProvider(ISalaryCertificateProvider):
             }
             if existing_row:
                 old_path = existing_row.get("storage_path")
+                # La date affichée doit être celle de la nouvelle version :
+                # sinon « générée le 03/09 » laisse croire que rien n'a changé.
+                certificate_data["generated_at"] = datetime.now(timezone.utc).isoformat()
                 cert_resp = (
                     supabase.table("salary_certificates")
                     .update(certificate_data)
