@@ -66,7 +66,14 @@ def _render_amounts_section(section: Dict[str, Any], index: int) -> str:
         montant = row.get("montant")
         # montant None => ligne informative (cellule vide) ; un nombre (même 0)
         # => formaté, « Néant » si <= 0.
-        montant_cell = "" if montant is None else format_amount_cell(montant)
+        if montant is None:
+            montant_cell = ""
+        elif montant < 0:
+            # Retenue du bulletin (absence…) : montrée, pour que la section
+            # somme au brut sous les yeux du salarié.
+            montant_cell = f"− {format_currency(-montant)}"
+        else:
+            montant_cell = format_amount_cell(montant)
         detail = row.get("detail") or ""
         body_rows.append(
             f"""
@@ -131,6 +138,7 @@ def render_solde_tout_compte_html(
     total_net: float,
     specific_mention: Optional[str] = None,
     articles: str = "Articles D1234-7 et L1234-20 du Code du travail",
+    sommes_apres_cotisations: Optional[float] = None,
 ) -> bytes:
     """
     Génère le reçu pour solde de tout compte en PDF (format avocat).
@@ -140,6 +148,9 @@ def render_solde_tout_compte_html(
         sections: liste de sections construites via ``amounts_section`` /
             ``info_section``.
         total_brut / total_cotisations / total_net: récapitulatif chiffré.
+        sommes_apres_cotisations: sommes non soumises versées en plus du brut
+            (indemnité de rupture exonérée…), pour que brut − cotisations +
+            ces sommes redonne le net.
         specific_mention: mention juridique propre au type de rupture.
         articles: articles du Code du travail rappelés en pied de page.
     """
@@ -175,6 +186,13 @@ def render_solde_tout_compte_html(
         specific_mention_html = f'<p class="mention">{_e(specific_mention)}</p>'
 
     net_str = format_currency(total_net)
+    ligne_apres_cotisations = ""
+    if sommes_apres_cotisations:
+        ligne_apres_cotisations = f"""
+            <tr>
+                <td class="k">Sommes versées après cotisations</td>
+                <td class="v">{_e(format_currency(sommes_apres_cotisations))}</td>
+            </tr>"""
 
     html_content = f"""
     <!DOCTYPE html>
@@ -345,7 +363,7 @@ def render_solde_tout_compte_html(
             <tr>
                 <td class="k">Total des cotisations et retenues salariales</td>
                 <td class="v">{_e(format_currency(total_cotisations))}</td>
-            </tr>
+            </tr>{ligne_apres_cotisations}
             <tr class="net">
                 <td class="k">Net à payer pour solde de tout compte</td>
                 <td class="v">{_e(format_currency(total_net))}</td>

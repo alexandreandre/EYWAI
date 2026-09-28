@@ -887,8 +887,17 @@ def generate_exit_document(
             supabase_client=sb,
         )
     elif document_type == "solde_tout_compte":
-        indemnities = exit_data.get("calculated_indemnities")
-        if not indemnities or indemnities == {}:
+        indemnities = exit_data.get("calculated_indemnities") or {}
+        # Avec le bulletin du mois de sortie, le reçu en reprend les sommes : les
+        # indemnités du dossier ne servent qu'à l'estimation, faute de bulletin
+        # (départs clos par la réconciliation DSN, qui ne les calcule pas).
+        from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+            bulletin_du_mois_de_sortie,
+        )
+
+        if not indemnities and bulletin_du_mois_de_sortie(
+            employee_data.get("id"), exit_data, sb
+        ) is None:
             raise EmployeeExitApplicationError(
                 400,
                 "Les indemnités doivent être calculées avant de générer le solde de tout compte. Veuillez d'abord calculer les indemnités dans l'onglet 'Indemnités'.",

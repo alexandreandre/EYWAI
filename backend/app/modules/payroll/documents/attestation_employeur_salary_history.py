@@ -10,6 +10,9 @@ from calendar import monthrange
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+    sommes_de_rupture_du_bulletin,
+)
 from app.shared.infrastructure.pdf.helpers import safe_float
 
 _MONTH_NAMES = [
@@ -109,13 +112,20 @@ def _extract_working_time(
         n = safe_float(heures)
         return f"{n:.2f} h"
 
+    # Heures du salaire de base plus heures supplémentaires ou complémentaires.
+    # On ne comptait que les lignes « heure… » : les seules heures sup (17,33 h
+    # pour un mois plein à 39 h).
     calcul = payslip_data.get("calcul_du_brut") or []
     heures_calc = 0.0
     for line in calcul:
-        if not isinstance(line, dict):
+        if not isinstance(line, dict) or line.get("is_sous_total") or not line.get("quantite"):
             continue
-        libelle = str(line.get("libelle", "")).lower()
-        if "heure" in libelle and line.get("quantite"):
+        libelle = " ".join(str(line.get("libelle", "")).lower().split())
+        if "absence" in libelle or "réduction" in libelle or "reduction" in libelle:
+            continue
+        if libelle.startswith("salaire de base") or (
+            "heure" in libelle and ("sup" in libelle or "compl" in libelle)
+        ):
             heures_calc += safe_float(line.get("quantite"))
     if heures_calc > 0:
         return f"{heures_calc:.2f} h"
@@ -231,12 +241,25 @@ def get_salary_history(
     else:
         payslip_map = _fetch_payslip_map(employee_id, supabase_client)
         fallback_salary = _fallback_base_salary(employee_data)
+        # Aucun mois avant l'embauche : on inventait un salaire contractuel pour
+        # les 20 mois précédant un CDD de quatre mois.
+        embauche = _parse_date(
+            employee_data.get("date_debut_execution") or employee_data.get("hire_date")
+        )
         months = []
         for year, month in _iter_months(ed, count):
+            if embauche and (year, month) < (embauche.year, embauche.month):
+                continue
             row_data = payslip_map.get((year, month))
             if row_data:
                 pdata = row_data.get("payslip_data") or {}
                 brut = safe_float(pdata.get("salaire_brut"), 0.0)
+                # Précarité, indemnité de congés, préavis : déclarés à part, en
+                # sommes versées à l'occasion de la rupture, pas en salaire.
+                brut -= sum(
+                    s["montant"] for s in sommes_de_rupture_du_bulletin(pdata) if s["dans_le_brut"]
+                )
+                brut = round(brut, 2)
                 if brut <= 0:
                     brut = fallback_salary
                 months.append(
@@ -267,6 +290,19 @@ def get_salary_history(
                     }
                 )
 
+        if months and embauche and embauche.day > 1:
+            first = months[0]
+            if (first["year"], first["month"]) == (embauche.year, embauche.month):
+                fin = (
+                    ed
+                    if (ed.year, ed.month) == (embauche.year, embauche.month)
+                    else date(embauche.year, embauche.month, monthrange(embauche.year, embauche.month)[1])
+                )
+                first["period_label"] = (
+                    f"{_month_label(embauche.year, embauche.month)} "
+                    f"(du {embauche.strftime('%d/%m/%Y')} au {fin.strftime('%d/%m/%Y')})"
+                )
+
         if ed.day < monthrange(ed.year, ed.month)[1]:
             last = months[-1] if months else None
             if last and last["year"] == ed.year and last["month"] == ed.month:
@@ -287,6 +323,11 @@ def get_salary_history(
                 }
             )
 
+    sortie = payslip_map.get((ed.year, ed.month)) if not custom_rows else None
+    sommes_de_rupture = (
+        sommes_de_rupture_du_bulletin(sortie.get("payslip_data") or {}) if sortie else None
+    )
+
     period_start = date(months[0]["year"], months[0]["month"], 1) if months else ed
     last_m = months[-1] if months else {"year": ed.year, "month": ed.month}
     last_day = monthrange(last_m["year"], last_m["month"])[1]
@@ -297,6 +338,8 @@ def get_salary_history(
         "months": months,
         "total_brut": round(total_brut, 2),
         "primes_lines": primes_lines,
+        # Sommes de rupture du bulletin du mois de sortie ; None sans bulletin.
+        "sommes_de_rupture": sommes_de_rupture,
         "period_start": period_start,
         "period_end": period_end,
     }

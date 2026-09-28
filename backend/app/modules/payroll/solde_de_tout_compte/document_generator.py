@@ -203,6 +203,26 @@ class EmployeeExitDocumentGenerator:
                 self.styles["CorpsTexte"],
             )
         )
+
+        # Portabilité : l'employeur doit la signaler dans le certificat de
+        # travail (art. L911-8 du Code de la sécurité sociale).
+        from app.modules.payroll.documents.attestation_employeur_generator import (
+            ELIGIBLE_PORTABILITY_MOTIFS,
+        )
+
+        if exit_data.get("exit_type") in ELIGIBLE_PORTABILITY_MOTIFS:
+            story.append(Spacer(1, 0.3 * cm))
+            story.append(
+                Paragraph(
+                    "<b>Portabilité des garanties :</b> le salarié bénéficie du "
+                    "maintien à titre gratuit de ses garanties de complémentaire "
+                    "santé et de prévoyance, pour une durée égale à celle de son "
+                    "dernier contrat dans la limite de douze mois, sous réserve "
+                    "d'être pris en charge par l'assurance chômage (article L911-8 "
+                    "du Code de la sécurité sociale).",
+                    self.styles["CorpsTexte"],
+                )
+            )
         story.append(Spacer(1, 0.6 * cm))
 
         texte_mention = """
@@ -289,6 +309,20 @@ class EmployeeExitDocumentGenerator:
         TOUTES les lignes sont affichées, même si les données sont manquantes
         """
         exit_type = exit_data.get("exit_type", "demission")
+
+        # Le bulletin du mois de sortie fait foi : le reçu en reprend les sommes.
+        from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+            bulletin_du_mois_de_sortie,
+            generate_solde_depuis_bulletin,
+        )
+
+        bulletin = bulletin_du_mois_de_sortie(
+            employee_data.get("id"), exit_data, supabase_client
+        )
+        if bulletin is not None:
+            return generate_solde_depuis_bulletin(
+                employee_data, company_data, exit_data, bulletin
+            )
 
         # Dispatch to case-specific modules
         if exit_type == "demission":

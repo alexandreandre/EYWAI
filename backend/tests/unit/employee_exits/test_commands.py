@@ -638,6 +638,43 @@ class TestGenerateExitDocument:
             assert exc_info.value.status_code == 400
             assert "transfert" in exc_info.value.detail.lower()
 
+    @pytest.mark.parametrize("bulletin, attendu", [({"salaire_brut": 1.0}, "genere"), (None, 400)])
+    def test_stc_sans_indemnites_calculees_passe_par_le_bulletin_de_sortie(
+        self,
+        mock_exit_repo_class,
+        mock_doc_repo_class,
+        mock_company,
+        mock_storage,
+        mock_generator,
+        bulletin,
+        attendu,
+    ):
+        """Départ clos par la réconciliation DSN : pas d'indemnités calculées ;
+        avec le bulletin du mois de sortie, le reçu se génère quand même."""
+        exit_data = _make_exit_record(exit_type="fin_cdd")
+        exit_data["calculated_indemnities"] = None
+        exit_data["employees"] = {"id": "emp-1", "first_name": "Jean", "last_name": "Dupont"}
+        mock_exit_repo_class.return_value.get_with_employee.return_value = exit_data
+        mock_company.return_value = {"name": "Test Co", "siret": "123"}
+        mock_generator.return_value.generate_solde_tout_compte.return_value = b"pdf"
+        mock_doc_repo_class.return_value.create.return_value = {"id": "doc-stc"}
+
+        with patch(
+            "app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie.bulletin_du_mois_de_sortie",
+            return_value=bulletin,
+        ):
+            if attendu == 400:
+                with pytest.raises(EmployeeExitApplicationError) as exc_info:
+                    generate_exit_document(
+                        EXIT_ID, COMPANY_ID, "solde_tout_compte", USER_ID, supabase_client=MagicMock()
+                    )
+                assert exc_info.value.status_code == 400
+            else:
+                resultat = generate_exit_document(
+                    EXIT_ID, COMPANY_ID, "solde_tout_compte", USER_ID, supabase_client=MagicMock()
+                )
+                assert resultat["document_id"] == "doc-stc"
+
     def test_generates_certificat_travail(
         self,
         mock_exit_repo_class,

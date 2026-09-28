@@ -432,7 +432,15 @@ def build_attestation_employeur_pdf(
         _section_title("7. SOMMES VERSÉES À L'OCCASION DE LA RUPTURE", styles)
     )
     story.append(Spacer(1, 0.15 * cm))
-    indemnity_rows = _collect_indemnity_lines(effective_indemnities)
+    # Le bulletin du mois de sortie fait foi ; à défaut, les indemnités du dossier.
+    sommes_du_bulletin = salary_history.get("sommes_de_rupture")
+    if sommes_du_bulletin is not None:
+        indemnity_rows = [
+            [safe_str(somme["libelle"]), format_currency(somme["montant"])]
+            for somme in sommes_du_bulletin
+        ] or [[_NEANT, _NEANT]]
+    else:
+        indemnity_rows = _collect_indemnity_lines(effective_indemnities)
     indemnity_table = Table(
         [["Nature", "Montant"]] + indemnity_rows,
         colWidths=[11 * cm, 5 * cm],
