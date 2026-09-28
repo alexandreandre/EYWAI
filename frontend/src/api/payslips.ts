@@ -74,6 +74,10 @@ export interface PayslipBulletinData {
   notes_de_frais?: unknown[];
   arbitrage_conges?: string | null;
   pied_de_page?: Record<string, unknown>;
+  /** Heures sup déclarées depuis le bulletin, et celles que donnait le planning. */
+  heures_sup_declarees?: { hs25: number; hs50: number; planning: number } | null;
+  /** Le recalcul a échoué après la dernière correction : à régénérer avant validation. */
+  recalcul_en_attente?: { depuis: string; erreur: string } | null;
   [key: string]: unknown;
 }
 
@@ -105,7 +109,9 @@ export interface HistoryEntry {
   edited_by_name: string | null;
   changes_summary: string;
   previous_payslip_data: any;
-  previous_pdf_url?: string;
+  /** Lien vers le PDF de cette version (signé à la lecture). */
+  previous_pdf_url?: string | null;
+  pdf_storage_path?: string | null;
 }
 
 export interface PayslipInfo {
@@ -205,21 +211,54 @@ export interface PayslipDetail {
   manual_edit_locked?: boolean;
   manual_edit_lock_reason?: string | null;
   manual_edit_lock_until?: string | null;
+  /** Dernière mise à jour, renvoyée avec une correction (refusée si elle a changé). */
+  updated_at?: string | null;
+  /** Le mois précédent a changé depuis le calcul : phrase à afficher, sinon null. */
+  a_regenerer?: string | null;
+  /** Exports déjà faits pour le mois (vide pour le salarié). */
+  exports_du_mois?: ExportDuMois[];
+}
+
+export interface ExportDuMois {
+  type: string;
+  libelle: string;
+  date: string;
+}
+
+export interface PrimeAjoutee {
+  name: string;
+  amount: number;
+  is_socially_taxed: boolean;
+  is_taxable: boolean;
+  catalog_prime_id: string | null;
+}
+
+/** Ce qui se corrige depuis le bulletin : ses variables du mois. */
+export interface CorrectionsBulletin {
+  heures_sup?: { hs25: number; hs50: number };
+  revenir_au_planning?: boolean;
+  primes_ajoutees?: PrimeAjoutee[];
+  primes_corrigees?: Array<{ saisie_id: string; amount: number }>;
+  primes_retirees?: string[];
 }
 
 export interface PayslipEditRequest {
-  payslip_data: PayslipBulletinData;
-  changes_summary: string;
+  corrections: CorrectionsBulletin;
+  changes_summary?: string;
+  /** Absente : note inchangée ; chaîne vide : note effacée. */
   pdf_notes?: string;
   internal_note?: string;
+  base_updated_at?: string;
 }
 
 export interface PayslipEditResponse {
   status: string;
   message: string;
   payslip: PayslipDetail;
-  new_pdf_url: string;
-  /** Présent si le moteur n'a pas pu recalculer après une prime ou des heures sup éditées. */
+  new_pdf_url?: string | null;
+  /** Le moteur a recalculé le bulletin après les corrections. */
+  recalcule: boolean;
+  /** Présent si le moteur n'a pas pu recalculer : variables écrites, bulletin à régénérer. */
   recalcul_erreur?: string | null;
 }
 
@@ -232,6 +271,8 @@ export interface PayslipRestoreResponse {
   message: string;
   payslip: PayslipDetail;
   restored_version: number;
+  recalcule: boolean;
+  recalcul_erreur?: string | null;
 }
 
 // =====================================================
@@ -261,17 +302,13 @@ export const editPayslip = async (
 };
 
 /**
- * Rend un bulletin à partir des données éditées, sans rien enregistrer.
- * Le HTML retourné est exactement celui du PDF qui sera généré.
+ * Rend le bulletin enregistré, avec la note du PDF en cours de saisie.
+ * Le HTML retourné est celui du PDF.
  */
-export const previewPayslip = async (
-  payslipId: string,
-  payslipData: unknown,
-  pdfNotes?: string
-): Promise<string> => {
+export const previewPayslip = async (payslipId: string, pdfNotes?: string): Promise<string> => {
   const response = await apiClient.post<{ html: string }>(
     `/api/payslips/${payslipId}/preview`,
-    { payslip_data: payslipData, pdf_notes: pdfNotes ?? null }
+    { pdf_notes: pdfNotes ?? null }
   );
   return response.data.html;
 };

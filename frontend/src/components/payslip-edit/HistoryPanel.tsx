@@ -13,12 +13,15 @@ interface HistoryPanelProps {
   payslipId: string;
   onRestore?: () => void;
   canRestore?: boolean;
+  /** Garde des corrections non enregistrées : faux si la RH préfère les garder. */
+  avantRestauration?: () => boolean;
 }
 
 export default function HistoryPanel({
   payslipId,
   onRestore,
   canRestore = true,
+  avantRestauration,
 }: HistoryPanelProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,17 +49,27 @@ export default function HistoryPanel({
   }, [payslipId, toast]);
 
   const handleRestore = async (version: number) => {
-    if (!confirm(`Êtes-vous sûr de vouloir restaurer la version ${version} ?`)) {
+    if (avantRestauration && !avantRestauration()) return;
+    if (
+      !confirm(
+        `Revenir aux heures sup et aux primes de la version ${version} ? Le bulletin sera recalculé.`
+      )
+    ) {
       return;
     }
 
     setIsRestoring(version);
     try {
-      await restorePayslipVersion(payslipId, version);
-      toast({
-        title: 'Succès',
-        description: `Version ${version} restaurée avec succès`,
-      });
+      const reponse = await restorePayslipVersion(payslipId, version);
+      if (reponse.recalcul_erreur) {
+        toast({
+          title: 'Variables rétablies, bulletin non recalculé',
+          description: `${reponse.recalcul_erreur} — utilisez « Régénérer ».`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({ title: 'Version rétablie', description: reponse.message });
+      }
       onRestore?.();
     } catch (error: any) {
       toast({
@@ -91,7 +104,7 @@ export default function HistoryPanel({
       <Alert>
         <AlertDescription>
           {canRestore
-            ? 'Vous pouvez restaurer une version précédente du bulletin. Une nouvelle entrée d\'historique sera créée.'
+            ? 'Restaurer une version revient à ses heures sup et à ses primes saisies, puis recalcule le bulletin. La version actuelle reste dans l\'historique.'
             : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour l\'édition manuelle.'}
         </AlertDescription>
       </Alert>
@@ -100,7 +113,7 @@ export default function HistoryPanel({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Historique des modifications
+            Versions précédentes
           </CardTitle>
           <CardDescription>
             {history.length} version{history.length > 1 ? 's' : ''} enregistrée{history.length > 1 ? 's' : ''}

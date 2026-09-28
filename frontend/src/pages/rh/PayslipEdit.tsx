@@ -1,53 +1,71 @@
-// frontend/src/pages/PayslipEdit.tsx
+// frontend/src/pages/rh/PayslipEdit.tsx
+
+/**
+ * Corriger un bulletin par ses variables du mois (audit du 28/09).
+ *
+ * L'écran ne retouche plus les lignes du bulletin : un montant retouché laissait
+ * cotisations, net et cumuls de l'ancien calcul. On y corrige les heures sup et
+ * les primes du mois, et les notes ; à l'enregistrement, le serveur écrit ces
+ * variables puis recalcule tout le bulletin. Le reste se corrige à sa source
+ * (planning, fiche, saisies), puis « Régénérer ».
+ */
 
 import { pageTitleClassName } from '@/components/layout';
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Save, Eye, History, Loader2, SlidersHorizontal, Undo2 } from 'lucide-react';
-import { SharkFinLoader } from '@/components/SharkFinLoader';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Eye, History, Loader2, Save, Undo2 } from 'lucide-react';
+
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/components/ui/use-toast';
+import { SharkFinLoader } from '@/components/SharkFinLoader';
 
 import {
-  getPayslipDetails,
   editPayslip,
-  validatePayslip,
-  PayslipDetail,
-  PayslipEditRequest,
+  getPayslipDetails,
   isPayslipBlocMaintienPresent,
-  type PayslipBulletinData,
+  validatePayslip,
+  type PayslipDetail,
 } from '@/api/payslips';
-import { useAuth, hasRhAccess } from '@/contexts/AuthContext';
+import { hasRhAccess, useAuth } from '@/contexts/AuthContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
-// Import des composants d'édition (à créer)
-import PayslipHeaderSection from '@/components/payslip-edit/PayslipHeaderSection';
-import CongesAbsencesSection from '@/components/payslip-edit/CongesAbsencesSection';
-import CalculBrutSection from '@/components/payslip-edit/CalculBrutSection';
-import CotisationsSection from '@/components/payslip-edit/CotisationsSection';
-import SyntheseNetSection from '@/components/payslip-edit/SyntheseNetSection';
-import PrimesNonSoumisesSection from '@/components/payslip-edit/PrimesNonSoumisesSection';
-import NotesDeFraisSection from '@/components/payslip-edit/NotesDeFraisSection';
-import NotesSection from '@/components/payslip-edit/NotesSection';
+import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
-import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
+import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
+import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
+import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
-import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
-import { cn } from '@/lib/utils';
-import { primesEditees } from '@/features/payroll/utils/primesEditees';
 import {
-  lienVariablesDuMois,
-  nombreDeLignesModifiees,
-  resumeAutomatique,
-} from '@/features/payroll/utils/payslipDerivedLines';
+  aDesModifications,
+  etatInitial,
+  recalculAttendu,
+  requeteDeCorrection,
+  type EtatCorrections,
+} from '@/features/payroll/utils/correctionsBulletin';
+import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
+
+const QUESTION_ABANDON = 'Vos corrections ne sont pas enregistrées. Les abandonner ?';
 
 function isCriticalValidationBlock(err: unknown): boolean {
   const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
@@ -61,89 +79,80 @@ function isCriticalValidationBlock(err: unknown): boolean {
   );
 }
 
+function messageDErreur(error: unknown, parDefaut: string): string {
+  const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return 'Correction refusée : une valeur saisie est invalide.';
+  return parDefaut;
+}
+
+function statutHttp(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } }).response?.status;
+}
+
+function dateCourte(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('fr-FR');
+}
+
 export default function PayslipEdit() {
   const { payslipId } = useParams<{ payslipId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
 
   const [payslip, setPayslip] = useState<PayslipDetail | null>(null);
-  const [editedData, setEditedData] = useState<PayslipBulletinData | null>(null);
-  const [showMaintienModal, setShowMaintienModal] = useState(false);
-  const [cumuls, setCumuls] = useState<any>(null);
+  const [initial, setInitial] = useState<EtatCorrections | null>(null);
+  const [etat, setEtat] = useState<EtatCorrections | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [changesSummary, setChangesSummary] = useState('');
-  const [pdfNotes, setPdfNotes] = useState('');
-  const [internalNote, setInternalNote] = useState('');
-  const [activeTab, setActiveTab] = useState('edit');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [activeTab, setActiveTab] = useState('corriger');
+  const [confirmationValide, setConfirmationValide] = useState(false);
   const [validateModalOpen, setValidateModalOpen] = useState(false);
   const [validateBusy, setValidateBusy] = useState(false);
+  const [showMaintienModal, setShowMaintienModal] = useState(false);
 
-  // Corriger une heure supplémentaire ou un panier se fait à la source, dans
-  // les variables du mois — puis on régénère. Le lien arrive sur le bon mois
-  // et le bon salarié pour lui éviter de les rechercher.
-  const lienVariables = payslip
-    ? lienVariablesDuMois({
-        employeeId: payslip.employee_id,
-        year: payslip.year,
-        month: payslip.month,
-      })
-    : null;
-
-  const isRH = payslip ? hasRhAccess(user, payslip.company_id) : false;
-  const isAdminPlatform = isPlatformAdmin(user);
-  const isEditLocked = Boolean(payslip?.manual_edit_locked);
-  const showAdminOverride =
-    Boolean(payslip?.period_edit_locked) && isAdminPlatform && !isEditLocked;
-  const payslipStatus = payslip?.status ?? 'brouillon';
-
-  const refreshPayslipFromServer = useCallback(async () => {
-    if (!payslipId) return;
-    const data = await getPayslipDetails(payslipId);
+  const appliquer = useCallback((data: PayslipDetail) => {
+    const depart = etatInitial(data.payslip_data, data.pdf_notes);
     setPayslip(data);
-    setEditedData(JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData);
-    setPdfNotes(data.pdf_notes || '');
-    setCumuls(data.cumuls || null);
-    setHasUnsavedChanges(false);
-    setChangesSummary('');
-    setInternalNote('');
-  }, [payslipId]);
+    setInitial(depart);
+    setEtat(depart);
+  }, []);
 
-  // Revenir au bulletin tel qu'il est enregistré, sans appel serveur.
-  const annulerModifications = useCallback(() => {
+  const recharger = useCallback(async () => {
+    if (!payslipId) return;
+    appliquer(await getPayslipDetails(payslipId));
+  }, [payslipId, appliquer]);
+
+  // Les listes de bulletins (paie, fiche salarié) sont en cache : sans cela,
+  // elles montraient l'ancien net après une correction.
+  const invaliderListes = useCallback(() => {
     if (!payslip) return;
-    setEditedData(JSON.parse(JSON.stringify(payslip.payslip_data)) as PayslipBulletinData);
-    setHasUnsavedChanges(false);
-    setChangesSummary('');
-  }, [payslip]);
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.employeePayslips(companyId, payslip.employee_id),
+    });
+  }, [queryClient, companyId, payslip]);
 
-  const lignesModifiees = hasUnsavedChanges
-    ? nombreDeLignesModifiees(payslip?.payslip_data, editedData)
-    : 0;
+  const apresChangement = useCallback(async () => {
+    await recharger();
+    invaliderListes();
+  }, [recharger, invaliderListes]);
 
-  // Charger les détails du bulletin
   useEffect(() => {
     if (!payslipId) {
       navigate('/');
       return;
     }
-
-    const fetchPayslip = async () => {
+    const charger = async () => {
       setIsLoading(true);
       try {
-        const data = await getPayslipDetails(payslipId);
-        setPayslip(data);
-        setEditedData(
-          JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData
-        ); // Deep clone
-        setPdfNotes(data.pdf_notes || '');
-        setCumuls(data.cumuls || null);
-      } catch (error: any) {
+        appliquer(await getPayslipDetails(payslipId));
+      } catch (error) {
         toast({
           title: 'Erreur',
-          description: error.response?.data?.detail || 'Impossible de charger le bulletin',
+          description: messageDErreur(error, 'Impossible de charger le bulletin'),
           variant: 'destructive',
         });
         navigate('/payroll');
@@ -151,30 +160,96 @@ export default function PayslipEdit() {
         setIsLoading(false);
       }
     };
+    void charger();
+  }, [payslipId, navigate, toast, appliquer]);
 
-    fetchPayslip();
-  }, [payslipId, navigate, toast]);
+  const modifie = initial && etat ? aDesModifications(initial, etat) : false;
+  const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
 
-  const handleValidatePayslip = async () => {
-    if (!payslipId) return;
+  useEffect(() => {
+    const avantDeQuitter = (e: BeforeUnloadEvent) => {
+      if (modifie) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', avantDeQuitter);
+    return () => window.removeEventListener('beforeunload', avantDeQuitter);
+  }, [modifie]);
+
+  /** Faux si la RH préfère garder ses corrections en cours. */
+  const abandonnerSiBesoin = useCallback(
+    () => !modifie || window.confirm(QUESTION_ABANDON),
+    [modifie]
+  );
+
+  const aller = (lien: string) => {
+    if (abandonnerSiBesoin()) navigate(lien);
+  };
+
+  const enregistrer = async () => {
+    if (!payslipId || !payslip || !initial || !etat) return;
+    setConfirmationValide(false);
+    setIsSaving(true);
+    try {
+      const reponse = await editPayslip(
+        payslipId,
+        requeteDeCorrection(initial, etat, payslip.updated_at)
+      );
+      if (reponse.recalcul_erreur) {
+        toast({
+          title: 'Corrections enregistrées, bulletin non recalculé',
+          description: `${reponse.recalcul_erreur} — utilisez « Régénérer ».`,
+          variant: 'destructive',
+        });
+      } else if (reponse.recalcule) {
+        toast({
+          title: 'Bulletin corrigé et recalculé',
+          description: 'Brut, cotisations, net et cumuls ont suivi la correction.',
+        });
+      } else {
+        toast({ title: 'Notes enregistrées' });
+      }
+      await apresChangement();
+    } catch (error) {
+      if (statutHttp(error) === 409) {
+        toast({
+          title: 'Le bulletin a changé depuis son ouverture',
+          description: 'Il a été rechargé : refaites vos corrections sur la version à jour.',
+          variant: 'destructive',
+        });
+        await recharger();
+      } else {
+        toast({
+          title: 'Correction impossible',
+          description: messageDErreur(error, 'Impossible d’enregistrer les corrections'),
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const demanderEnregistrement = () => {
+    if (payslip?.status === 'valide') setConfirmationValide(true);
+    else void enregistrer();
+  };
+
+  const valider = async () => {
+    if (!payslipId || !abandonnerSiBesoin()) return;
     setValidateBusy(true);
     try {
-      const updated = await validatePayslip(payslipId);
-      setPayslip(updated);
-      setEditedData(JSON.parse(JSON.stringify(updated.payslip_data)) as PayslipBulletinData);
-      setHasUnsavedChanges(false);
+      appliquer(await validatePayslip(payslipId));
+      invaliderListes();
       toast({ title: 'Bulletin validé', description: 'Le statut du bulletin a été mis à jour.' });
-    } catch (error: unknown) {
+    } catch (error) {
       if (isCriticalValidationBlock(error)) {
         setValidateModalOpen(true);
       } else {
-        const ax = error as { response?: { data?: { detail?: string } } };
         toast({
-          title: 'Erreur',
-          description:
-            typeof ax.response?.data?.detail === 'string'
-              ? ax.response.data.detail
-              : 'Impossible de valider le bulletin',
+          title: 'Validation impossible',
+          description: messageDErreur(error, 'Impossible de valider le bulletin'),
           variant: 'destructive',
         });
       }
@@ -183,114 +258,61 @@ export default function PayslipEdit() {
     }
   };
 
-  // Fonction pour mettre à jour les données éditées
-  const updateEditedData = (path: string[], value: any) => {
-    if (isEditLocked) return;
-    // Plusieurs mises à jour peuvent se suivre dans le même événement
-    // (ligne de brut puis total). Toujours repartir du dernier état en attente.
-    setEditedData((previousData) => {
-      if (!previousData) return previousData;
-      const newData = JSON.parse(JSON.stringify(previousData));
-      let current = newData;
-
-      for (let i = 0; i < path.length - 1; i++) {
-        current = current[path[i]];
-      }
-
-      current[path[path.length - 1]] = value;
-      return newData;
-    });
-    setHasUnsavedChanges(true);
-  };
-
-  // Fonction de sauvegarde
-  const handleSave = async () => {
-    // Le résumé est facultatif : l'exiger refusait l'enregistrement d'un
-    // simple toast, et la RH restait sur l'aperçu en croyant son bulletin
-    // corrigé (salarié 044, salarié 068, salarié 108 le 12/09 : rien n'était en base).
-    const resume =
-      changesSummary.trim() ||
-      resumeAutomatique(
-        (payslip?.payslip_data as { calcul_du_brut?: unknown } | undefined)?.calcul_du_brut,
-        editedData?.calcul_du_brut
-      );
-
-    setIsSaving(true);
-    try {
-      const request: PayslipEditRequest = {
-        payslip_data: editedData,
-        changes_summary: resume,
-        pdf_notes: pdfNotes || undefined,
-        internal_note: internalNote || undefined,
-      };
-
-      const response = await editPayslip(payslipId!, request);
-
-      // Les primes éditées sont devenues des variables du mois ; si le moteur n'a
-      // pas pu refaire le bulletin, le dire plutôt que d'afficher un succès nu.
-      if (response.recalcul_erreur) {
-        toast({
-          title: 'Primes enregistrées, recalcul impossible',
-          description: `Les variables du mois sont à jour mais le bulletin n’a pas pu être recalculé (${response.recalcul_erreur}). Utilisez « Régénérer ».`,
-          variant: 'destructive',
-        });
-      }
-
-      toast({
-        title: 'Succès',
-        description: 'Le bulletin a été modifié avec succès',
-      });
-
-      setHasUnsavedChanges(false);
-      setChangesSummary('');
-      setInternalNote('');
-
-      // Recharger les données
-      const updatedPayslip = await getPayslipDetails(payslipId!);
-      setPayslip(updatedPayslip);
-      setEditedData(
-        JSON.parse(JSON.stringify(updatedPayslip.payslip_data)) as PayslipBulletinData
-      );
-      setCumuls(updatedPayslip.cumuls || null);
-    } catch (error: any) {
-      toast({
-        title: 'Erreur',
-        description: error.response?.data?.detail || 'Impossible de sauvegarder les modifications',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Avertissement avant de quitter si modifications non sauvegardées
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
-
   if (isLoading) {
     return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
   }
-
-  if (!payslip || !editedData) {
+  if (!payslip || !initial || !etat) {
     return null;
   }
 
+  const isRH = hasRhAccess(user, payslip.company_id);
+  const isEditLocked = Boolean(payslip.manual_edit_locked);
+  const showAdminOverride =
+    Boolean(payslip.period_edit_locked) && isPlatformAdmin(user) && !isEditLocked;
+  const statut = payslip.status ?? 'brouillon';
+  const recalculEnAttente = payslip.payslip_data?.recalcul_en_attente ?? null;
+  const exportsDuMois = payslip.exports_du_mois ?? [];
+  const validationBloquee = Boolean(recalculEnAttente || payslip.a_regenerer);
+  const lienSaisies = lienVariablesDuMois({
+    employeeId: payslip.employee_id,
+    year: payslip.year,
+    month: payslip.month,
+  });
+
   return (
     <div className="container mx-auto space-y-6">
-      <PayslipAlertsBanner data={editedData} />
+      <PayslipAlertsBanner data={payslip.payslip_data} />
+
+      {recalculEnAttente ? (
+        <Alert variant="destructive" data-testid="recalcul-en-attente">
+          <AlertTitle>Bulletin non recalculé</AlertTitle>
+          <AlertDescription>
+            Les dernières corrections sont enregistrées, mais le recalcul a échoué (
+            {recalculEnAttente.erreur}). Régénérez le bulletin avant de le valider.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {payslip.a_regenerer ? (
+        <Alert data-testid="a-regenerer">
+          <AlertTitle>À régénérer</AlertTitle>
+          <AlertDescription>{payslip.a_regenerer}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {exportsDuMois.length > 0 ? (
+        <Alert data-testid="exports-du-mois">
+          <AlertTitle>Déjà exporté pour ce mois</AlertTitle>
+          <AlertDescription>
+            {exportsDuMois.map((e) => `${e.libelle} (${dateCourte(e.date)})`).join(' · ')}. Après une
+            correction, refaites ces exports.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {isEditLocked && payslip.manual_edit_lock_reason ? (
         <Alert variant="destructive">
-          <AlertTitle>Édition verrouillée</AlertTitle>
+          <AlertTitle>Correction verrouillée</AlertTitle>
           <AlertDescription>{payslip.manual_edit_lock_reason}</AlertDescription>
         </Alert>
       ) : null}
@@ -299,8 +321,8 @@ export default function PayslipEdit() {
         <Alert>
           <AlertTitle>Override administrateur</AlertTitle>
           <AlertDescription>
-            La période est normalement verrouillée pour les RH, mais vous pouvez
-            encore modifier ce bulletin en tant qu&apos;administrateur plateforme.
+            La période est normalement verrouillée pour les RH, mais vous pouvez encore corriger ce
+            bulletin en tant qu&apos;administrateur plateforme.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -308,31 +330,33 @@ export default function PayslipEdit() {
       {!isEditLocked && payslip.manual_edit_lock_until ? (
         <Alert>
           <AlertDescription>
-            Édition manuelle autorisée jusqu&apos;au{' '}
+            Correction autorisée jusqu&apos;au{' '}
             {new Date(payslip.manual_edit_lock_until).toLocaleDateString('fr-FR')}.
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {/* Header avec navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => navigate(-1)}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (abandonnerSiBesoin()) navigate(-1);
+            }}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Retour
           </Button>
           <div>
-            <h1 className={pageTitleClassName}>
-              Édition du bulletin - {payslip.name}
-            </h1>
+            <h1 className={pageTitleClassName}>Corriger le bulletin - {payslip.name}</h1>
             <p className="text-muted-foreground">
-              {payslip.manually_edited && `Modifié ${payslip.edit_count} fois`}
+              Les corrections deviennent des variables du mois ; le bulletin est recalculé en entier.
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {payslipStatus === 'valide' ? (
+          {statut === 'valide' ? (
             <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
               Bulletin validé
               {payslip.validated_at
@@ -343,23 +367,12 @@ export default function PayslipEdit() {
             <Button
               type="button"
               className="bg-sky-600 text-white hover:bg-sky-700"
-              onClick={handleValidatePayslip}
-              disabled={validateBusy}
+              onClick={() => void valider()}
+              disabled={validateBusy || validationBloquee}
+              title={validationBloquee ? 'Régénérez le bulletin avant de le valider' : undefined}
             >
-              {validateBusy ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
+              {validateBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Valider le bulletin
-            </Button>
-          ) : null}
-          {lienVariables ? (
-            <Button
-              variant="outline"
-              data-testid="corriger-les-variables"
-              onClick={() => navigate(lienVariables)}
-            >
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Corriger les variables
             </Button>
           ) : null}
           <RegeneratePayslipButton
@@ -367,20 +380,21 @@ export default function PayslipEdit() {
             year={payslip.year}
             month={payslip.month}
             manuallyEdited={payslip.manually_edited}
+            modificationsNonEnregistrees={modifie}
             disabled={isEditLocked}
-            onRegenerated={refreshPayslipFromServer}
+            onRegenerated={apresChangement}
           />
-          <Button variant="outline" onClick={() => setActiveTab('preview')}>
+          <Button variant="outline" onClick={() => setActiveTab('bulletin')}>
             <Eye className="h-4 w-4 mr-2" />
-            Aperçu
+            Bulletin
           </Button>
-          <Button variant="outline" onClick={() => setActiveTab('history')}>
+          <Button variant="outline" onClick={() => setActiveTab('historique')}>
             <History className="h-4 w-4 mr-2" />
             Historique
           </Button>
           <Button
-            onClick={handleSave}
-            disabled={isSaving || !hasUnsavedChanges || isEditLocked}
+            onClick={demanderEnregistrement}
+            disabled={isSaving || !modifie || isEditLocked}
             data-testid="enregistrer-entete"
           >
             {isSaving ? (
@@ -388,186 +402,136 @@ export default function PayslipEdit() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Enregistrer et recalculer
+            {recalculPrevu || !modifie ? 'Enregistrer et recalculer' : 'Enregistrer les notes'}
           </Button>
         </div>
       </div>
 
-      {/* Indicateur de modifications non sauvegardées */}
-      {hasUnsavedChanges && (
-        <Card className="border-orange-500 bg-orange-50">
-          <CardContent className="py-3">
-            <p className="text-sm text-orange-800">
-              ⚠️ Vos modifications ne sont pas enregistrées. Cet aperçu ne recalcule que le
-              brut : les cotisations et le net affichés sont ceux du bulletin d’origine tant
-              que vous n’avez pas cliqué sur « Enregistrer ».
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Onglets */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList
-          className={cn(
-            'grid h-auto w-full gap-1 p-1',
-            'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
-          )}
-        >
-          <TabsTrigger value="edit">Édition</TabsTrigger>
-          <TabsTrigger value="preview">Aperçu</TabsTrigger>
-          <TabsTrigger value="history">Historique</TabsTrigger>
-          <TabsTrigger value="comparison">Comparaison N-1</TabsTrigger>
-          <TabsTrigger value="trend">Tendance</TabsTrigger>
+        <TabsList className={cn('grid h-auto w-full gap-1 p-1', 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5')}>
+          <TabsTrigger value="corriger">Corriger</TabsTrigger>
+          <TabsTrigger value="bulletin">Bulletin</TabsTrigger>
+          <TabsTrigger value="historique">Historique</TabsTrigger>
+          <TabsTrigger value="comparaison">Comparaison N-1</TabsTrigger>
+          <TabsTrigger value="tendance">Tendance</TabsTrigger>
         </TabsList>
 
-        {/* Onglet Édition */}
-        <TabsContent value="edit" className="space-y-6 mt-6">
+        <TabsContent value="corriger" className="space-y-6 mt-6">
           <fieldset disabled={isEditLocked} className="space-y-6 border-0 p-0 m-0 min-w-0">
-          {/* Section En-tête */}
-          <PayslipHeaderSection
-            data={editedData.en_tete}
-            onChange={(newData) => updateEditedData(['en_tete'], newData)}
-          />
-
-          {/* Section Congés et Absences */}
-          <CongesAbsencesSection
-            congesData={editedData.details_conges || []}
-            absencesData={editedData.details_absences || []}
-            onCongesChange={(data) => updateEditedData(['details_conges'], data)}
-            onAbsencesChange={(data) => updateEditedData(['details_absences'], data)}
-            detailsMaintien={editedData.details_maintien}
-            blocMaintien={editedData.bloc_maintien}
-            syntheseNet={editedData.synthese_net}
-            onOpenMaintienModal={() => setShowMaintienModal(true)}
-          />
-
-          {/* Section Calcul du Brut.
-              La clé la remonte après chaque enregistrement : elle compare les
-              heures corrigées à celles d'ouverture pour annoncer — ou non — le
-              recalcul, et cette référence doit repartir du bulletin rechargé. */}
-          <CalculBrutSection
-            key={`brut-${payslip.edit_count}-${payslip.edited_at ?? ''}`}
-            data={editedData.calcul_du_brut || []}
-            salaireBrut={editedData.salaire_brut}
-            onChange={(data, newBrut) => {
-              updateEditedData(['calcul_du_brut'], data);
-              updateEditedData(['salaire_brut'], newBrut);
-            }}
-            employeeId={payslip.employee_id}
-            year={payslip.year}
-            month={payslip.month}
-            primesModifiees={primesEditees(payslip.payslip_data, editedData)}
-          />
-
-          {/* Section Cotisations */}
-          <CotisationsSection
-            data={editedData.structure_cotisations}
-            onChange={(data) => updateEditedData(['structure_cotisations'], data)}
-          />
-
-          {/* Section Synthèse Net */}
-          <SyntheseNetSection
-            data={editedData.synthese_net}
-            netAPayer={editedData.net_a_payer}
-            totalExonerations={editedData.total_exonerations}
-            onChange={(data, newNetAPayer) => {
-              updateEditedData(['synthese_net'], data);
-              updateEditedData(['net_a_payer'], newNetAPayer);
-            }}
-          />
-
-          {/* Section Primes non soumises */}
-          <PrimesNonSoumisesSection
-            data={editedData.primes_non_soumises || []}
-            onChange={(data) => updateEditedData(['primes_non_soumises'], data)}
-          />
-
-          {/* Section Notes de Frais */}
-          <NotesDeFraisSection
-            data={editedData.notes_de_frais || []}
-            onChange={(data) => updateEditedData(['notes_de_frais'], data)}
-          />
-
-          {/* Section Notes */}
-          <NotesSection
-            pdfNotes={pdfNotes}
-            internalNote={internalNote}
-            internalNotes={payslip.internal_notes}
-            changesSummary={changesSummary}
-            onPdfNotesChange={setPdfNotes}
-            onInternalNoteChange={setInternalNote}
-            onChangesSummaryChange={setChangesSummary}
-          />
+            <CorrectionsBulletinPanel
+              payslipData={payslip.payslip_data}
+              etat={etat}
+              onChange={setEtat}
+              disabled={isEditLocked}
+              employeeId={payslip.employee_id}
+              year={payslip.year}
+              month={payslip.month}
+              lienPlanning={`/schedules?employee=${encodeURIComponent(payslip.employee_id)}`}
+              lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
+              lienSaisies={lienSaisies}
+              onAller={aller}
+            />
+            <NotesSection
+              pdfNotes={etat.pdfNotes}
+              internalNote={etat.noteInterne}
+              internalNotes={payslip.internal_notes ?? []}
+              changesSummary={etat.resume}
+              onPdfNotesChange={(pdfNotes) => setEtat({ ...etat, pdfNotes })}
+              onInternalNoteChange={(noteInterne) => setEtat({ ...etat, noteInterne })}
+              onChangesSummaryChange={(resume) => setEtat({ ...etat, resume })}
+            />
           </fieldset>
         </TabsContent>
 
-        {/* Onglet Aperçu */}
-        <TabsContent value="preview" className="mt-6">
+        <TabsContent value="bulletin" className="mt-6 space-y-4">
+          {isPayslipBlocMaintienPresent(payslip.payslip_data?.bloc_maintien) ? (
+            <Button variant="outline" size="sm" onClick={() => setShowMaintienModal(true)}>
+              Détail du maintien de salaire
+            </Button>
+          ) : null}
+          {/* Clé : l'aperçu se refait après chaque rechargement du bulletin. */}
           <PayslipPreviewFrame
-            payslipId={payslipId!}
-            data={{ ...editedData, cumuls }}
-            pdfNotes={pdfNotes}
+            key={payslip.updated_at ?? payslip.id}
+            payslipId={payslip.id}
+            pdfNotes={etat.pdfNotes}
           />
         </TabsContent>
 
-        {/* Onglet Historique */}
-        <TabsContent value="history" className="mt-6">
+        <TabsContent value="historique" className="mt-6">
           <HistoryPanel
-            payslipId={payslipId!}
+            key={payslip.updated_at ?? payslip.id}
+            payslipId={payslip.id}
             canRestore={!isEditLocked}
+            avantRestauration={abandonnerSiBesoin}
             onRestore={() => {
-              // Recharger après restauration
-              getPayslipDetails(payslipId!).then((data) => {
-                setPayslip(data);
-                setEditedData(
-                  JSON.parse(JSON.stringify(data.payslip_data)) as PayslipBulletinData
-                );
-                setCumuls(data.cumuls || null);
-                setActiveTab('edit');
-              });
+              void apresChangement();
+              setActiveTab('corriger');
             }}
           />
         </TabsContent>
 
-        <TabsContent value="comparison" className="mt-0">
+        <TabsContent value="comparaison" className="mt-0">
           <PayslipComparisonTab
-            payslipId={payslipId!}
+            payslipId={payslip.id}
             isRH={isRH}
-            onShowTrend={() => setActiveTab('trend')}
-            onPayslipRefresh={refreshPayslipFromServer}
+            onShowTrend={() => setActiveTab('tendance')}
+            onPayslipRefresh={apresChangement}
           />
         </TabsContent>
 
-        <TabsContent value="trend" className="mt-0">
+        <TabsContent value="tendance" className="mt-0">
           <PayslipTrendTab
-            payslipId={payslipId!}
+            payslipId={payslip.id}
             referenceYear={payslip.year}
             referenceMonth={payslip.month}
           />
         </TabsContent>
       </Tabs>
 
+      <AlertDialog open={confirmationValide} onOpenChange={setConfirmationValide}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Corriger un bulletin validé ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il repassera en brouillon : le salarié ne le verra plus tant qu’il n’aura pas été
+              revalidé.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSaving}
+              onClick={(e) => {
+                e.preventDefault();
+                void enregistrer();
+              }}
+            >
+              Corriger et repasser en brouillon
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <PayslipValidateBlockedModal
         open={validateModalOpen}
         onOpenChange={setValidateModalOpen}
-        payslipId={payslipId!}
+        payslipId={payslip.id}
         isRH={isRH}
-        onValidated={refreshPayslipFromServer}
+        onValidated={apresChangement}
       />
 
-      {editedData && isPayslipBlocMaintienPresent(editedData.bloc_maintien) ? (
+      {isPayslipBlocMaintienPresent(payslip.payslip_data?.bloc_maintien) ? (
         <MaintenanceDetailModal
           open={showMaintienModal}
           onClose={() => setShowMaintienModal(false)}
-          maintien={editedData.bloc_maintien}
+          maintien={payslip.payslip_data.bloc_maintien}
         />
       ) : null}
-      {/* Barre d'enregistrement, fixe en bas : dès qu'une ligne change, la RH
-          voit qu'il reste à enregistrer, où qu'elle soit dans la page. Le
-          12/09, Gaëlle a corrigé des heures sup sur l'aperçu sans jamais
-          enregistrer, le bouton du haut étant hors de vue. */}
-      {hasUnsavedChanges && !isEditLocked && (
+
+      {/* Barre fixe : où qu'elle soit dans la page, la RH voit qu'il reste à
+          enregistrer (le 12/09, des heures corrigées n'avaient jamais été
+          enregistrées, le bouton du haut étant hors de vue). */}
+      {modifie && !isEditLocked ? (
         <>
           <div className="h-24" aria-hidden="true" />
           <div
@@ -576,33 +540,31 @@ export default function PayslipEdit() {
           >
             <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-orange-900">
-                <p className="font-semibold">
-                  {lignesModifiees > 1
-                    ? `${lignesModifiees} lignes modifiées, non enregistrées`
-                    : 'Modification non enregistrée'}
-                </p>
+                <p className="font-semibold">Corrections non enregistrées</p>
                 <p className="text-orange-800">
-                  Cliquez sur Enregistrer pour que le bulletin soit recalculé, cotisations et net compris.
+                  {recalculPrevu
+                    ? 'À l’enregistrement, le bulletin est recalculé en entier : brut, cotisations, net et cumuls.'
+                    : 'Seules les notes changent : le bulletin n’est pas recalculé.'}
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={annulerModifications} disabled={isSaving}>
+                <Button variant="outline" onClick={() => setEtat(initial)} disabled={isSaving}>
                   <Undo2 className="h-4 w-4 mr-2" />
-                  Annuler les modifications
+                  Annuler les corrections
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving} data-testid="enregistrer-barre">
+                <Button onClick={demanderEnregistrement} disabled={isSaving} data-testid="enregistrer-barre">
                   {isSaving ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
-                  Enregistrer et recalculer
+                  {recalculPrevu ? 'Enregistrer et recalculer' : 'Enregistrer les notes'}
                 </Button>
               </div>
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

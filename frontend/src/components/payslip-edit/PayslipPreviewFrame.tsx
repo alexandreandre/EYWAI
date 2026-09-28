@@ -9,15 +9,11 @@ import { previewPayslip } from '@/api/payslips';
 
 interface PayslipPreviewFrameProps {
   payslipId: string;
-  data: unknown;
+  /** Note du PDF en cours de saisie : seul écart possible avec le bulletin enregistré. */
   pdfNotes?: string;
 }
 
-export default function PayslipPreviewFrame({
-  payslipId,
-  data,
-  pdfNotes,
-}: PayslipPreviewFrameProps) {
+export default function PayslipPreviewFrame({ payslipId, pdfNotes }: PayslipPreviewFrameProps) {
   const [html, setHtml] = useState<string>('');
   const [erreur, setErreur] = useState<string>('');
   const [chargement, setChargement] = useState<boolean>(false);
@@ -26,13 +22,13 @@ export default function PayslipPreviewFrame({
     setChargement(true);
     setErreur('');
     try {
-      setHtml(await previewPayslip(payslipId, data, pdfNotes));
+      setHtml(await previewPayslip(payslipId, pdfNotes));
     } catch {
       setErreur('Aperçu indisponible pour le moment.');
     } finally {
       setChargement(false);
     }
-  }, [payslipId, data, pdfNotes]);
+  }, [payslipId, pdfNotes]);
 
   useEffect(() => {
     void rafraichir();
@@ -45,7 +41,7 @@ export default function PayslipPreviewFrame({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Aperçu du bulletin tel qu'il sera généré.
+          Le bulletin enregistré, avec la note en cours de saisie.
         </p>
         <Button variant="outline" size="sm" onClick={rafraichir} disabled={chargement}>
           <RefreshCw className="mr-2 h-4 w-4" />

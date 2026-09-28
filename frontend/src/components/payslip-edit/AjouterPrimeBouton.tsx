@@ -3,13 +3,14 @@ import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SaisieModal } from '@/components/SaisieModal';
 import type { MonthlyInputCreate } from '@/api/saisies';
-import { ligneDepuisSaisie, type LignePrime } from '@/features/payroll/utils/primesEditees';
+import type { PrimeAjoutee } from '@/api/payslips';
+import { primeDepuisSaisie } from '@/features/payroll/utils/correctionsBulletin';
 
 interface Props {
   employeeId: string;
   year: number;
   month: number;
-  onAjout: (lignes: LignePrime[]) => void;
+  onAjout: (primes: PrimeAjoutee[]) => void;
 }
 
 /**
@@ -30,7 +31,7 @@ export default function AjouterPrimeBouton({ employeeId, year, month, onAjout }:
         isOpen={ouvert}
         onClose={() => setOuvert(false)}
         onSave={(saisies: MonthlyInputCreate[]) => {
-          onAjout(saisies.map(ligneDepuisSaisie));
+          onAjout(saisies.map(primeDepuisSaisie));
           setOuvert(false);
         }}
         employees={[{ id: employeeId, first_name: '', last_name: '', job_title: '' }]}

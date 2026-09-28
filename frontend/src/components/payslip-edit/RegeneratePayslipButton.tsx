@@ -50,6 +50,8 @@ interface RegeneratePayslipButtonProps {
   month: number;
   /** Le bulletin porte des retouches manuelles : la régénération les écrase. */
   manuallyEdited: boolean;
+  /** Des corrections sont en cours sur l'écran : la régénération les abandonne. */
+  modificationsNonEnregistrees?: boolean;
   disabled?: boolean;
   /** Recharge le bulletin depuis le serveur après une régénération réussie. */
   onRegenerated: () => Promise<void> | void;
@@ -60,6 +62,7 @@ export default function RegeneratePayslipButton({
   year,
   month,
   manuallyEdited,
+  modificationsNonEnregistrees = false,
   disabled,
   onRegenerated,
 }: RegeneratePayslipButtonProps) {
@@ -140,6 +143,9 @@ export default function RegeneratePayslipButton({
               cohérents.
               {manuallyEdited
                 ? ' Ce bulletin porte des modifications manuelles : elles seront remplacées par le calcul.'
+                : ''}
+              {modificationsNonEnregistrees
+                ? ' Vos corrections non enregistrées seront abandonnées.'
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
