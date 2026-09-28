@@ -1087,7 +1087,9 @@ def edit_exit_document(
             400, "Seuls les documents générés automatiquement peuvent être édités"
         )
     document_type = doc["document_type"]
-    current_version = doc.get("version", 1)
+    # La version se lit dans l'historique des modifications, gardé avec les
+    # données du document (la table n'a pas de colonnes dédiées).
+    current_version = len(_stored_edit_history(doc)) + 1
     exit_data = exit_repo.get_by_id(exit_id, company_id)
     if not exit_data:
         raise EmployeeExitApplicationError(404, "Départ non trouvé")
@@ -1103,8 +1105,8 @@ def edit_exit_document(
         if k != EDIT_HISTORY_META_KEY
     }
     merged_data = {
-        **doc.get("generation_data", {}),
-        **user_doc_data,
+        **(doc.get("generation_data") or {}),
+        **{k: v for k, v in user_doc_data.items() if not str(k).startswith("_")},
     }
     gen_employee = {**employee_data, **merged_data.get("employee", {})}
     gen_company = {**company_data, **merged_data.get("company", {})}
@@ -1134,7 +1136,7 @@ def edit_exit_document(
         raise EmployeeExitApplicationError(
             400, f"Type de document non supporté pour l'édition: {document_type}"
         )
-    storage.upload(doc["storage_path"], pdf_bytes, "application/pdf")
+    storage.upload(doc["storage_path"], pdf_bytes, "application/pdf", remplacer=True)
     new_version = current_version + 1
     edited_at = datetime.now(timezone.utc).isoformat()
     changes_summary = (edit_request.get("changes_summary") or "").strip() or "Modification"
@@ -1150,18 +1152,14 @@ def edit_exit_document(
     edit_history = _stored_edit_history(doc)
     edit_history.append(history_entry)
     merged_data[EDIT_HISTORY_META_KEY] = edit_history
+    # Données éditées et historique dans generation_data : les colonnes
+    # document_data, version, manually_edited, last_edited_* n'existent pas en
+    # base, et l'enregistrement échouait après avoir tenté de réécrire le PDF.
     doc_repo.update(
         document_id,
         exit_id,
         company_id,
-        {
-            "document_data": merged_data,
-            "version": new_version,
-            "manually_edited": True,
-            "last_edited_by": current_user_id,
-            "last_edited_at": edited_at,
-            "updated_at": edited_at,
-        },
+        {"generation_data": merged_data, "updated_at": edited_at},
     )
     return {
         "success": True,

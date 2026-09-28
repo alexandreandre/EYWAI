@@ -107,6 +107,8 @@ class EmployeeExitWithDetails(EmployeeExit):
     checklist_items: List[Dict[str, Any]] = []
     checklist_completion_rate: float = 0.0
     outstanding_loans: Optional[Dict[str, Any]] = None
+    # Sommes du bulletin du mois de sortie, quand il existe (celles des documents).
+    bulletin_de_sortie: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================

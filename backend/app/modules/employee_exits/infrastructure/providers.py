@@ -73,8 +73,15 @@ class _SupabaseExitStorageProvider(IExitStorageProvider):
     def _bucket(self):
         return self._sb.storage.from_(BUCKET_EXIT_DOCUMENTS)
 
-    def upload(self, path: str, content: bytes, content_type: str) -> None:
-        self._bucket().upload(path, content, {"content-type": content_type})
+    def upload(
+        self, path: str, content: bytes, content_type: str, *, remplacer: bool = False
+    ) -> None:
+        options = {"content-type": content_type}
+        if remplacer:
+            # Réécrire un document existant (édition) : sans upsert, le stockage
+            # refuse un chemin déjà pris.
+            options["x-upsert"] = "true"
+        self._bucket().upload(path, content, options)
 
     def create_signed_upload_url(self, path: str) -> str:
         resp = self._bucket().create_signed_upload_url(path)

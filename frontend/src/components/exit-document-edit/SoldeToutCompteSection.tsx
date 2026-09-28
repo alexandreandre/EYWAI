@@ -39,6 +39,9 @@ export default function SoldeToutCompteSection({ data, onChange }: SoldeToutComp
   const company = data.company || {};
   const exit = data.exit || {};
   const indemnities = data.indemnities || {};
+  // Posé par le serveur quand le bulletin du mois de sortie existe : le reçu en
+  // reprend alors les sommes, et des montants saisis ici seraient ignorés.
+  const bulletin = data._bulletin_de_sortie as { mois?: string; net_a_payer?: number } | undefined;
 
   return (
     <div className="space-y-6">
@@ -136,237 +139,252 @@ export default function SoldeToutCompteSection({ data, onChange }: SoldeToutComp
         </CardContent>
       </Card>
 
-      {/* Section Indemnités */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Indemnités et sommes dues</CardTitle>
-          <CardDescription>
-            Montants en euros (€)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Indemnité de préavis */}
-          {indemnities.indemnite_preavis && (
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">Indemnité de préavis</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="preavis-montant">Montant (€)</Label>
-                  <Input
-                    id="preavis-montant"
-                    type="number"
-                    step="0.01"
-                    value={indemnities.indemnite_preavis.montant || 0}
-                    onChange={(e) => updateIndemnityField('indemnite_preavis', 'montant', parseFloat(e.target.value))}
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="preavis-description">Description</Label>
-                  <Input
-                    id="preavis-description"
-                    value={indemnities.indemnite_preavis.description || ''}
-                    onChange={(e) => updateField('indemnities', 'indemnite_preavis', { ...indemnities.indemnite_preavis, description: e.target.value })}
-                    className="mt-2"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Indemnité de congés */}
-          {indemnities.indemnite_conges && (
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">Indemnité compensatrice de congés payés</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="conges-montant">Montant (€)</Label>
-                  <Input
-                    id="conges-montant"
-                    type="number"
-                    step="0.01"
-                    value={indemnities.indemnite_conges.montant || 0}
-                    onChange={(e) => updateIndemnityField('indemnite_conges', 'montant', parseFloat(e.target.value))}
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="conges-description">Description</Label>
-                  <Input
-                    id="conges-description"
-                    value={indemnities.indemnite_conges.description || ''}
-                    onChange={(e) => updateField('indemnities', 'indemnite_conges', { ...indemnities.indemnite_conges, description: e.target.value })}
-                    className="mt-2"
-                  />
+      {/* Section Indemnités : sans objet quand le reçu reprend le bulletin de sortie */}
+      {bulletin ? (
+        <Card className="border-amber-200 bg-amber-50" data-testid="stc-depuis-bulletin">
+          <CardHeader>
+            <CardTitle>Sommes versées</CardTitle>
+            <CardDescription className="text-amber-900">
+              Les montants de ce reçu sont ceux du bulletin de paie de {bulletin.mois}
+              {typeof bulletin.net_a_payer === 'number'
+                ? ` (net à payer ${bulletin.net_a_payer.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €)`
+                : ''}
+              . Pour les changer, corrigez le bulletin, puis régénérez le reçu depuis le dossier de départ.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Indemnités et sommes dues</CardTitle>
+            <CardDescription>
+              Montants en euros (€)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Indemnité de préavis */}
+            {indemnities.indemnite_preavis && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Indemnité de préavis</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="preavis-montant">Montant (€)</Label>
+                    <Input
+                      id="preavis-montant"
+                      type="number"
+                      step="0.01"
+                      value={indemnities.indemnite_preavis.montant || 0}
+                      onChange={(e) => updateIndemnityField('indemnite_preavis', 'montant', parseFloat(e.target.value))}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="preavis-description">Description</Label>
+                    <Input
+                      id="preavis-description"
+                      value={indemnities.indemnite_preavis.description || ''}
+                      onChange={(e) => updateField('indemnities', 'indemnite_preavis', { ...indemnities.indemnite_preavis, description: e.target.value })}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
               </div>
-              <IccpArbitrageDetail
-                montant={indemnities.indemnite_conges.montant}
-                joursRestants={indemnities.indemnite_conges.jours_restants}
-                calcul={indemnities.indemnite_conges.calcul}
-                details={indemnities.indemnite_conges.details}
-                compact
-              />
-            </div>
-          )}
+            )}
 
-          <Separator />
+            <Separator />
 
-          {/* Indemnité de licenciement */}
-          {indemnities.indemnite_licenciement && (
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">Indemnité légale de licenciement</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="licenciement-montant">Montant (€)</Label>
-                  <Input
-                    id="licenciement-montant"
-                    type="number"
-                    step="0.01"
-                    value={indemnities.indemnite_licenciement.montant || 0}
-                    onChange={(e) => updateIndemnityField('indemnite_licenciement', 'montant', parseFloat(e.target.value))}
-                    className="mt-2"
-                  />
+            {/* Indemnité de congés */}
+            {indemnities.indemnite_conges && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Indemnité compensatrice de congés payés</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="conges-montant">Montant (€)</Label>
+                    <Input
+                      id="conges-montant"
+                      type="number"
+                      step="0.01"
+                      value={indemnities.indemnite_conges.montant || 0}
+                      onChange={(e) => updateIndemnityField('indemnite_conges', 'montant', parseFloat(e.target.value))}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="conges-description">Description</Label>
+                    <Input
+                      id="conges-description"
+                      value={indemnities.indemnite_conges.description || ''}
+                      onChange={(e) => updateField('indemnities', 'indemnite_conges', { ...indemnities.indemnite_conges, description: e.target.value })}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="licenciement-description">Description</Label>
-                  <Input
-                    id="licenciement-description"
-                    value={indemnities.indemnite_licenciement.description || ''}
-                    onChange={(e) => updateField('indemnities', 'indemnite_licenciement', { ...indemnities.indemnite_licenciement, description: e.target.value })}
-                    className="mt-2"
-                  />
+                <IccpArbitrageDetail
+                  montant={indemnities.indemnite_conges.montant}
+                  joursRestants={indemnities.indemnite_conges.jours_restants}
+                  calcul={indemnities.indemnite_conges.calcul}
+                  details={indemnities.indemnite_conges.details}
+                  compact
+                />
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Indemnité de licenciement */}
+            {indemnities.indemnite_licenciement && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Indemnité légale de licenciement</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="licenciement-montant">Montant (€)</Label>
+                    <Input
+                      id="licenciement-montant"
+                      type="number"
+                      step="0.01"
+                      value={indemnities.indemnite_licenciement.montant || 0}
+                      onChange={(e) => updateIndemnityField('indemnite_licenciement', 'montant', parseFloat(e.target.value))}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="licenciement-description">Description</Label>
+                    <Input
+                      id="licenciement-description"
+                      value={indemnities.indemnite_licenciement.description || ''}
+                      onChange={(e) => updateField('indemnities', 'indemnite_licenciement', { ...indemnities.indemnite_licenciement, description: e.target.value })}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Indemnité de rupture conventionnelle */}
-          {indemnities.indemnite_rupture_conventionnelle && (
-            <div className="space-y-2">
-              <h4 className="font-medium text-sm">Indemnité de rupture conventionnelle</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="rupture-montant">Montant négocié (€)</Label>
-                  <Input
-                    id="rupture-montant"
-                    type="number"
-                    step="0.01"
-                    value={indemnities.indemnite_rupture_conventionnelle.montant_negocie || 0}
-                    onChange={(e) => updateIndemnityField('indemnite_rupture_conventionnelle', 'montant_negocie', parseFloat(e.target.value))}
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="rupture-description">Description</Label>
-                  <Input
-                    id="rupture-description"
-                    value={indemnities.indemnite_rupture_conventionnelle.description || ''}
-                    onChange={(e) => updateField('indemnities', 'indemnite_rupture_conventionnelle', { ...indemnities.indemnite_rupture_conventionnelle, description: e.target.value })}
-                    className="mt-2"
-                  />
+            {/* Indemnité de rupture conventionnelle */}
+            {indemnities.indemnite_rupture_conventionnelle && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-sm">Indemnité de rupture conventionnelle</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="rupture-montant">Montant négocié (€)</Label>
+                    <Input
+                      id="rupture-montant"
+                      type="number"
+                      step="0.01"
+                      value={indemnities.indemnite_rupture_conventionnelle.montant_negocie || 0}
+                      onChange={(e) => updateIndemnityField('indemnite_rupture_conventionnelle', 'montant_negocie', parseFloat(e.target.value))}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="rupture-description">Description</Label>
+                    <Input
+                      id="rupture-description"
+                      value={indemnities.indemnite_rupture_conventionnelle.description || ''}
+                      onChange={(e) => updateField('indemnities', 'indemnite_rupture_conventionnelle', { ...indemnities.indemnite_rupture_conventionnelle, description: e.target.value })}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
               </div>
+            )}
+
+            <Separator />
+
+            {/* Lignes personnalisées d'indemnités */}
+            <DynamicLineList
+              title="Indemnités et sommes personnalisées"
+              description="Ajoutez des lignes supplémentaires d'indemnités ou de sommes dues"
+              category="indemnities.custom_lines"
+              fields={[
+                {
+                  key: 'label',
+                  label: 'Libellé',
+                  type: 'text',
+                  placeholder: 'Ex: Prime exceptionnelle, Remboursement frais...',
+                  required: true,
+                },
+                {
+                  key: 'amount',
+                  label: 'Montant (€)',
+                  type: 'number',
+                  placeholder: '0.00',
+                  required: true,
+                },
+                {
+                  key: 'description',
+                  label: 'Description',
+                  type: 'textarea',
+                  placeholder: 'Description détaillée (optionnel)',
+                },
+              ]}
+              data={data}
+              onChange={onChange}
+              emptyMessage="Aucune indemnité personnalisée ajoutée"
+            />
+
+            <Separator />
+
+            {/* Cotisations et prélèvements personnalisés */}
+            <DynamicLineList
+              title="Cotisations et prélèvements personnalisés"
+              description="Ajoutez des lignes de cotisations ou prélèvements supplémentaires"
+              category="deductions.custom_lines"
+              fields={[
+                {
+                  key: 'label',
+                  label: 'Libellé',
+                  type: 'text',
+                  placeholder: 'Ex: Cotisation mutuelle, Prélèvement à la source...',
+                  required: true,
+                },
+                {
+                  key: 'amount',
+                  label: 'Montant (€)',
+                  type: 'number',
+                  placeholder: '0.00',
+                  required: true,
+                },
+                {
+                  key: 'description',
+                  label: 'Description',
+                  type: 'textarea',
+                  placeholder: 'Description détaillée (optionnel)',
+                },
+              ]}
+              data={data}
+              onChange={onChange}
+              emptyMessage="Aucune cotisation ou prélèvement personnalisé ajouté"
+            />
+
+            <Separator />
+
+            {/* Totaux */}
+            <div className="bg-slate-50 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Total brut des indemnités</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={indemnities.total_gross_indemnities || 0}
+                  onChange={(e) => updateField('indemnities', 'total_gross_indemnities', parseFloat(e.target.value))}
+                  className="w-40 text-right font-bold"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-green-600">Total net estimé</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={indemnities.total_net_indemnities || 0}
+                  onChange={(e) => updateField('indemnities', 'total_net_indemnities', parseFloat(e.target.value))}
+                  className="w-40 text-right font-bold text-green-600"
+                />
+              </div>
             </div>
-          )}
-
-          <Separator />
-
-          {/* Lignes personnalisées d'indemnités */}
-          <DynamicLineList
-            title="Indemnités et sommes personnalisées"
-            description="Ajoutez des lignes supplémentaires d'indemnités ou de sommes dues"
-            category="indemnities.custom_lines"
-            fields={[
-              {
-                key: 'label',
-                label: 'Libellé',
-                type: 'text',
-                placeholder: 'Ex: Prime exceptionnelle, Remboursement frais...',
-                required: true,
-              },
-              {
-                key: 'amount',
-                label: 'Montant (€)',
-                type: 'number',
-                placeholder: '0.00',
-                required: true,
-              },
-              {
-                key: 'description',
-                label: 'Description',
-                type: 'textarea',
-                placeholder: 'Description détaillée (optionnel)',
-              },
-            ]}
-            data={data}
-            onChange={onChange}
-            emptyMessage="Aucune indemnité personnalisée ajoutée"
-          />
-
-          <Separator />
-
-          {/* Cotisations et prélèvements personnalisés */}
-          <DynamicLineList
-            title="Cotisations et prélèvements personnalisés"
-            description="Ajoutez des lignes de cotisations ou prélèvements supplémentaires"
-            category="deductions.custom_lines"
-            fields={[
-              {
-                key: 'label',
-                label: 'Libellé',
-                type: 'text',
-                placeholder: 'Ex: Cotisation mutuelle, Prélèvement à la source...',
-                required: true,
-              },
-              {
-                key: 'amount',
-                label: 'Montant (€)',
-                type: 'number',
-                placeholder: '0.00',
-                required: true,
-              },
-              {
-                key: 'description',
-                label: 'Description',
-                type: 'textarea',
-                placeholder: 'Description détaillée (optionnel)',
-              },
-            ]}
-            data={data}
-            onChange={onChange}
-            emptyMessage="Aucune cotisation ou prélèvement personnalisé ajouté"
-          />
-
-          <Separator />
-
-          {/* Totaux */}
-          <div className="bg-slate-50 p-4 rounded-lg space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="font-medium">Total brut des indemnités</span>
-              <Input
-                type="number"
-                step="0.01"
-                value={indemnities.total_gross_indemnities || 0}
-                onChange={(e) => updateField('indemnities', 'total_gross_indemnities', parseFloat(e.target.value))}
-                className="w-40 text-right font-bold"
-              />
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-green-600">Total net estimé</span>
-              <Input
-                type="number"
-                step="0.01"
-                value={indemnities.total_net_indemnities || 0}
-                onChange={(e) => updateField('indemnities', 'total_net_indemnities', parseFloat(e.target.value))}
-                className="w-40 text-right font-bold text-green-600"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Informations d'aide */}
       <Card className="bg-blue-50 border-blue-200">

@@ -1131,6 +1131,32 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
           {/* Onglet Indemnités */}
           <TabsContent value="indemnities" className="space-y-4">
+            {exitDetails.bulletin_de_sortie && (
+              <Card className="border-amber-200 bg-amber-50" data-testid="sommes-du-bulletin-de-sortie">
+                <CardHeader>
+                  <CardTitle>Versé au bulletin de {exitDetails.bulletin_de_sortie.mois}</CardTitle>
+                  <CardDescription className="text-amber-900">
+                    Ce sont ces sommes que reprennent le solde de tout compte et l&apos;attestation
+                    France Travail. Le calcul ci-dessous est l&apos;estimation faite à l&apos;ouverture du
+                    dossier.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  {exitDetails.bulletin_de_sortie.sommes_de_rupture.map((somme) => (
+                    <div key={somme.libelle} className="flex justify-between">
+                      <span>{somme.libelle}</span>
+                      <span className="font-medium">{formatCurrency(somme.montant)}</span>
+                    </div>
+                  ))}
+                  {typeof exitDetails.bulletin_de_sortie.net_a_payer === 'number' && (
+                    <div className="flex justify-between border-t pt-1 font-semibold">
+                      <span>Net à payer du bulletin</span>
+                      <span>{formatCurrency(exitDetails.bulletin_de_sortie.net_a_payer)}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>Calcul des indemnités</CardTitle>

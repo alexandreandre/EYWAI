@@ -240,7 +240,41 @@ def get_employee_exit(
             )
     except Exception as exc:
         log_app_debug(logger, f"Prêts employeur non chargés pour sortie: {exc}")
+    exit_record["bulletin_de_sortie"] = _ce_que_le_bulletin_de_sortie_a_verse(exit_record, sb)
     return exit_record
+
+
+def _ce_que_le_bulletin_de_sortie_a_verse(
+    exit_record: Dict[str, Any], sb: Any
+) -> Optional[Dict[str, Any]]:
+    """Les sommes du bulletin du mois de sortie, celles que reprennent les documents.
+
+    Le calcul d'indemnités du dossier est une estimation faite à l'ouverture ;
+    quand le bulletin existe (calculé ou repris d'un autre logiciel), c'est lui
+    qui a été payé, et l'onglet Indemnités doit le dire.
+    """
+    from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+        bulletin_du_mois_de_sortie,
+        sommes_de_rupture_du_bulletin,
+    )
+
+    try:
+        bulletin = bulletin_du_mois_de_sortie(exit_record.get("employee_id"), exit_record, sb)
+    except Exception as exc:
+        log_app_debug(logger, f"Bulletin de sortie non lu: {exc}")
+        return None
+    if bulletin is None:
+        return None
+    fin = str(exit_record.get("last_working_day") or "")[:10]
+    return {
+        "mois": f"{fin[5:7]}/{fin[:4]}" if len(fin) == 10 else "",
+        "salaire_brut": bulletin.get("salaire_brut"),
+        "net_a_payer": bulletin.get("net_a_payer"),
+        "sommes_de_rupture": [
+            {"libelle": s["libelle"], "montant": s["montant"]}
+            for s in sommes_de_rupture_du_bulletin(bulletin)
+        ],
+    }
 
 
 def calculate_exit_indemnities(
@@ -346,13 +380,15 @@ def _coerce_edit_history(raw: Any) -> List[Dict[str, Any]]:
 
 
 def _stored_edit_history(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Lit l'historique depuis la colonne dédiée ou document_data._edit_history."""
+    """Lit l'historique : colonne dédiée si elle existe, sinon les données du
+    document (generation_data, où l'édition l'enregistre)."""
     history = _coerce_edit_history(doc.get("edit_history"))
     if history:
         return history
-    document_data = doc.get("document_data")
-    if isinstance(document_data, dict):
-        return _coerce_edit_history(document_data.get(EDIT_HISTORY_META_KEY))
+    for cle in ("document_data", "generation_data"):
+        donnees = doc.get(cle)
+        if isinstance(donnees, dict) and donnees.get(EDIT_HISTORY_META_KEY):
+            return _coerce_edit_history(donnees.get(EDIT_HISTORY_META_KEY))
     return []
 
 
@@ -458,13 +494,38 @@ def get_exit_document_details(
             logger.warning(f'⚠ Erreur génération URL signée: {e}')
     result = dict(doc)
     result["document_data"] = _strip_edit_history_meta(document_data)
+    if doc.get("document_type") == "solde_tout_compte":
+        _signaler_le_bulletin_de_sortie(result, exit_id, company_id, exit_repo, sb)
     result["edit_history"] = edit_history if edit_history else None
     result["download_url"] = download_url
-    result.setdefault("version", 1)
-    result.setdefault("manually_edited", False)
-    result.setdefault("last_edited_by", None)
-    result.setdefault("last_edited_at", None)
+    dernier = edit_history[-1] if edit_history else {}
+    result.setdefault("version", len(edit_history) + 1)
+    result.setdefault("manually_edited", bool(edit_history))
+    result.setdefault("last_edited_by", dernier.get("edited_by"))
+    result.setdefault("last_edited_at", dernier.get("edited_at"))
     return result
+
+
+def _signaler_le_bulletin_de_sortie(
+    result: Dict[str, Any], exit_id: str, company_id: str, exit_repo: Any, sb: Any
+) -> None:
+    """Le reçu reprend le bulletin du mois de sortie : l'écran d'édition le dit,
+    au lieu d'offrir des montants que la régénération ignorerait."""
+    from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+        bulletin_du_mois_de_sortie,
+    )
+
+    exit_data = exit_repo.get_by_id(exit_id, company_id) or {}
+    bulletin = bulletin_du_mois_de_sortie(exit_data.get("employee_id"), exit_data, sb)
+    if bulletin is None:
+        return
+    fin = str(exit_data.get("last_working_day") or "")[:10]
+    donnees = dict(result.get("document_data") or {})
+    donnees["_bulletin_de_sortie"] = {
+        "mois": f"{fin[5:7]}/{fin[:4]}" if len(fin) == 10 else "",
+        "net_a_payer": bulletin.get("net_a_payer"),
+    }
+    result["document_data"] = donnees
 
 
 def get_document_edit_history(

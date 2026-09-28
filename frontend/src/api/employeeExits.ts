@@ -116,6 +116,13 @@ export interface EmployeeExit {
 
 export interface EmployeeExitWithDetails extends EmployeeExit {
   employee?: any;
+  /** Sommes du bulletin du mois de sortie, reprises par les documents. */
+  bulletin_de_sortie?: {
+    mois: string;
+    salaire_brut?: number | null;
+    net_a_payer?: number | null;
+    sommes_de_rupture: { libelle: string; montant: number }[];
+  } | null;
   documents?: ExitDocument[];
   checklist_items?: ChecklistItem[];
   checklist_completion_rate?: number;
