@@ -15,7 +15,9 @@ from app.modules.payslips.application.dto import (
     PayslipNotFoundError,
     UserContext,
 )
+from app.modules.payslips.application.coherence import signal_a_regenerer
 from app.modules.payslips.application.queries import get_payslip_details
+from app.modules.payslips.domain.coherence import raisons_de_ne_pas_valider
 from app.modules.payslips.domain.comparison_engine import (
     _extract_values,
     compute_comparison,
@@ -232,6 +234,13 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     pd = detail.get("payslip_data") or {}
     if not isinstance(pd, dict):
         pd = {}
+
+    raisons = raisons_de_ne_pas_valider(pd)
+    signal = signal_a_regenerer(detail)
+    if signal:
+        raisons.append(signal)
+    if raisons:
+        raise PayslipBadRequestError(" ".join(raisons))
 
     prev = fetch_previous_validated_payslip(emp_id, comp_id, year, month)
     prev_data = None

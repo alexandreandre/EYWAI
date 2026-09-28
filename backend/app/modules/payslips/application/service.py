@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.payslips.application.coherence import signal_a_regenerer
 from app.modules.payslips.application.commands import (
     delete_payslip as cmd_delete_payslip,
     generate_payslip,
@@ -103,9 +104,10 @@ def get_payslip_details_for_user(
         raise PayslipForbiddenError(
             "Accès refusé: vous n'avez pas les permissions pour consulter ce bulletin"
         )
-    return enrich_payslip_detail_with_edit_lock(
+    detail = enrich_payslip_detail_with_edit_lock(
         detail, bypass_lock=ctx.is_platform_admin
     )
+    return {**detail, "a_regenerer": signal_a_regenerer(detail)}
 
 
 def get_payslip_history_for_user(

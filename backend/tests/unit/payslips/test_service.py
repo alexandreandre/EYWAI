@@ -136,6 +136,15 @@ class TestGetDebugStorageInfo:
 class TestGetPayslipDetailsForUser:
     """Tests de get_payslip_details_for_user (avec autorisation)."""
 
+    @pytest.fixture(autouse=True)
+    def _pas_de_mois_precedent(self):
+        """Le signal « à régénérer » lit le mois précédent : ici, il n'y en a pas."""
+        with patch(
+            "app.modules.payslips.application.service.signal_a_regenerer",
+            return_value=None,
+        ):
+            yield
+
     def test_returns_detail_when_employee_views_own(self):
         """L'employé peut voir son propre bulletin."""
         detail = {
@@ -159,7 +168,7 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == detail
+        assert result == {**detail, "a_regenerer": None}
 
     def test_raises_not_found_when_detail_is_none(self):
         """Lève PayslipNotFoundError si le bulletin n'existe pas."""
@@ -197,7 +206,7 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == detail
+        assert result == {**detail, "a_regenerer": None}
 
     def test_super_admin_can_view_any(self):
         """Un super admin peut consulter n'importe quel bulletin."""
@@ -214,7 +223,7 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == detail
+        assert result == {**detail, "a_regenerer": None}
 
 
 class TestGetPayslipHistoryForUser:
