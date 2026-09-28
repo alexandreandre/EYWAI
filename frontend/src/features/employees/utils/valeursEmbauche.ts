@@ -115,6 +115,7 @@ const NOMS_DES_CHAMPS: Record<string, string> = {
   'coordonnees_bancaires.bic': 'BIC',
   hire_date: "Date d'entrée",
   job_title: 'Intitulé du poste',
+  contract_end_date: 'Date de fin de contrat',
   duree_hebdomadaire: 'Durée hebdomadaire',
   'salaire_de_base.valeur': 'Salaire de base',
   'classification_conventionnelle.coefficient': 'Coefficient',

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
+import { needsContractEndDate } from "@/constants/contracts";
 
 export const createEmployeeFormSchema = z.object({
   // --- SECTION SALARIÉ ---
@@ -152,6 +153,15 @@ export const createEmployeeFormSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: "Adresse incomplète : rue, code postal et ville, ou rien.",
       path: ["adresse", !rue?.trim() ? "rue" : !code_postal?.trim() ? "code_postal" : "ville"],
+    });
+  }
+  // Même règle que la fiche : sans date de fin, la précarité d'un CDD ne se
+  // calcule pas, et compléter la fiche bloquait ensuite sur cette date.
+  if (needsContractEndDate(data.contract_type) && !data.contract_end_date?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Date de fin de contrat requise pour un CDD ou un stage.",
+      path: ["contract_end_date"],
     });
   }
   if (data.has_periode_essai && !data.periode_essai) {

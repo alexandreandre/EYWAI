@@ -67,6 +67,13 @@ describe('création : le minimum suffit', () => {
     expect(erreurs({ adresse: { rue: '1 rue de l’Essai', code_postal: '01300', ville: 'Belley' } })).toEqual([]);
   });
 
+  it('un CDD demande sa date de fin', () => {
+    expect(erreurs({ contract_type: 'CDD' })).toEqual([
+      'contract_end_date: Date de fin de contrat requise pour un CDD ou un stage.',
+    ]);
+    expect(erreurs({ contract_type: 'CDD', contract_end_date: '2027-03-31' })).toEqual([]);
+  });
+
   it('un numéro de sécurité sociale corse ou avec espaces passe', () => {
     expect(erreurs({ nir: '1 85 07 2A 004 123 45' })).toEqual([]);
     expect(erreurs({ nir: '290057300800001' })).toEqual([]);
