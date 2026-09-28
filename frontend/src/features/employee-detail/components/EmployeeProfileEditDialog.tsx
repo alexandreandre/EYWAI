@@ -30,6 +30,7 @@ import {
   type EmployeeProfileEditFormValues,
 } from '@/features/employee-detail/components/employeeProfileEditSchema';
 import type { Employee } from '@/features/employee-detail/types';
+import { champsRefuses } from '@/features/employee-detail/components/champsRefuses';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
 import {
@@ -192,7 +193,17 @@ export function EmployeeProfileEditDialog({
         <Form {...form}>
           <form
             className="space-y-6"
-            onSubmit={form.handleSubmit((values) => saveMutation.mutate(values))}
+            onSubmit={form.handleSubmit(
+              (values) => saveMutation.mutate(values),
+              // Un champ refusé peut ne pas être affiché (sections masquées en
+              // mode paie) : l'enregistrement ne doit jamais échouer en silence.
+              (erreurs) =>
+                toast({
+                  title: 'Enregistrement impossible',
+                  description: champsRefuses(erreurs).join(' · ') || 'Vérifiez les champs saisis.',
+                  variant: 'destructive',
+                }),
+            )}
           >
             <EmployeeProfileEditForm
               control={form.control}

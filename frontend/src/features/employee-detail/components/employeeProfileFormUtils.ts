@@ -141,7 +141,15 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       prevoyance: {
         adhesion: prevoyance?.adhesion ?? false,
-        lignes_specifiques: prevoyance?.lignes_specifiques ?? [],
+        // Un montant absent de la fiche vaut 0 : laissé vide, il devenait un
+        // nombre invalide sur un champ que le formulaire n'affiche pas, et
+        // l'enregistrement échouait sans un mot (7 fiches sur 8 d'une société).
+        lignes_specifiques: (prevoyance?.lignes_specifiques ?? []).map((ligne) => ({
+          ...ligne,
+          salarial: ligne.salarial ?? 0,
+          patronal: ligne.patronal ?? 0,
+          forfait_social: ligne.forfait_social ?? 0,
+        })),
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
@@ -169,7 +177,8 @@ export function buildUpdatePayload(
   const payload: UpdateEmployeePayload = {
     first_name: values.first_name.trim(),
     last_name: values.last_name.trim(),
-    email: values.email.trim(),
+    // Vide : non envoyé, l'e-mail (ou l'adresse technique du compte) reste tel quel.
+    email: values.email.trim() || undefined,
     phone_number: values.phone_number?.trim() || null,
     salary_payment_method: values.salary_payment_method ?? 'virement',
     nir: normalizeNir(values.nir),

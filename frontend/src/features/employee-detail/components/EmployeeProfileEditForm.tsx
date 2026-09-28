@@ -766,7 +766,9 @@ export function EmployeeProfileEditForm({
         </div>
       </section>
 
-      {!payrollFocus && (
+      {/* En mode paie, montré quand le salarié y est soumis : sa date
+          d'expiration est exigée, et un champ masqué bloquait l'enregistrement. */}
+      {(!payrollFocus || isResidencePermit) && (
       <section className="space-y-3">
         <SectionTitle>Titre de séjour</SectionTitle>
         <FormField

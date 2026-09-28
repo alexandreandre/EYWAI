@@ -7,7 +7,12 @@ export const employeeProfileEditSchema = z
   .object({
     first_name: z.string().min(2, { message: 'Prénom requis.' }),
     last_name: z.string().min(2, { message: 'Nom requis.' }),
-    email: z.string().email({ message: 'Adresse e-mail invalide.' }),
+    // Facultatif : un salarié créé sans e-mail (ou repris de la DSN sans e-mail)
+    // doit pouvoir voir sa fiche complétée ; un e-mail saisi doit être juste.
+    email: z
+      .string()
+      .trim()
+      .refine((v) => !v || z.string().email().safeParse(v).success, { message: 'Adresse e-mail invalide.' }),
     phone_number: z.string().optional(),
     salary_payment_method: z.enum(['virement', 'cheque', 'especes']).optional(),
     nir: z.string().length(15, { message: 'Le NIR doit faire 15 chiffres.' }),
