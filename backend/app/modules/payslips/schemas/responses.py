@@ -58,6 +58,14 @@ class HistoryEntry(BaseModel):
     pdf_storage_path: str | None = None
 
 
+class ExportDuMois(BaseModel):
+    """Un export déjà fait pour le mois du bulletin."""
+
+    type: str
+    libelle: str
+    date: str
+
+
 class PayslipDetail(BaseModel):
     """Détail complet d'un bulletin (dont payslip_data, cumuls, historique)."""
 
@@ -89,6 +97,9 @@ class PayslipDetail(BaseModel):
     #: Phrase à afficher quand le mois précédent a changé depuis le calcul de
     #: ce bulletin (cumuls qui ne se suivent plus) ; None sinon.
     a_regenerer: str | None = None
+    #: Exports déjà faits pour le mois (type, libellé, date) : à refaire après
+    #: une correction. Vide pour le salarié.
+    exports_du_mois: list[ExportDuMois] = []
 
 
 AlertLevelResponse = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]

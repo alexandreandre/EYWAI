@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.modules.payslips.application.coherence import signal_a_regenerer
+from app.modules.payslips.application.exports_du_mois import exports_du_mois
 from app.modules.payslips.application.commands import (
     delete_payslip as cmd_delete_payslip,
     generate_payslip,
@@ -107,7 +108,25 @@ def get_payslip_details_for_user(
     detail = enrich_payslip_detail_with_edit_lock(
         detail, bypass_lock=ctx.is_platform_admin
     )
-    return {**detail, "a_regenerer": signal_a_regenerer(detail)}
+    if not _voit_comme_rh(detail, ctx):
+        return {**detail, "a_regenerer": None, "exports_du_mois": []}
+    return {
+        **detail,
+        "a_regenerer": signal_a_regenerer(detail),
+        "exports_du_mois": exports_du_mois(
+            detail["company_id"], detail["year"], detail["month"]
+        ),
+    }
+
+
+def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:
+    """La RH (ou l'admin) qui peut corriger ce bulletin, pas le salarié."""
+    return can_edit_or_restore_payslip(
+        detail,
+        ctx.is_platform_admin,
+        ctx.has_rh_access_in_company,
+        ctx.active_company_id,
+    )
 
 
 def get_payslip_history_for_user(
