@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from app.modules.payslips.domain.corrections import CorrectionsBulletin
+
 
 # --- Exceptions applicatives (le router mappe vers 403/404) ---
 class PayslipNotFoundError(Exception):
@@ -49,6 +51,10 @@ class PayslipCalendarIncompleteError(Exception):
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(message)
         self.details: dict[str, Any] = dict(details or {})
+
+
+class PayslipConflictError(Exception):
+    """Le bulletin a changé depuis que l'écran l'a lu (→ 409)."""
 
 
 class PayslipValidatedError(Exception):
@@ -94,6 +100,9 @@ class GeneratePayslipInput:
     regenerer_bulletin_valide: bool = False
     requested_by: str | None = None
     requested_by_name: str | None = None
+    #: Ce qui a été changé avant cette régénération (correction au bulletin,
+    #: restauration) : écrit dans l'historique à la place du motif générique.
+    motif: str | None = None
 
 
 @dataclass
@@ -112,16 +121,22 @@ class GeneratePayslipResult:
 
 
 @dataclass
-class EditPayslipInput:
-    """Entrée pour l'édition d'un bulletin."""
+class CorrigerBulletinInput:
+    """Entrée pour la correction d'un bulletin par ses variables du mois.
+
+    `pdf_notes` à None laisse la note du bulletin telle quelle ; une chaîne vide
+    l'efface. `base_updated_at` est la date de mise à jour du bulletin lu par
+    l'écran : s'il a changé depuis, la correction est refusée.
+    """
 
     payslip_id: str
-    payslip_data: dict[str, Any]
-    changes_summary: str
+    corrections: CorrectionsBulletin
     current_user_id: str
     current_user_name: str
+    changes_summary: str | None = None
     pdf_notes: str | None = None
     internal_note: str | None = None
+    base_updated_at: str | None = None
 
 
 @dataclass

@@ -18,7 +18,6 @@ from app.modules.onboarding.domain.profile import (
     payroll_block_reason,
 )
 from app.modules.payslips.application.dto import (
-    EditPayslipInput,
     GeneratePayslipInput,
     GeneratePayslipResult,
     PayslipBadRequestError,
@@ -27,25 +26,12 @@ from app.modules.payslips.application.dto import (
     PayslipNotFoundError,
     RestorePayslipInput,
 )
-from app.modules.payslips.domain.heures_sup import (
-    LIBELLE_HS_DECLAREES,
-    LIBELLE_HS_DECLAREES_50,
-    quantites_heures_sup_conjoncturelles,
-)
 from app.modules.payslips.domain.historique import (
     AUTEUR_SYSTEME,
     plafonner,
     prochaine_version,
 )
-from app.modules.payslips.domain.primes_editees import (
-    diff_primes,
-    sans_marques_de_saisie,
-)
 from app.modules.payslips.domain.rules import is_forfait_jour
-from app.modules.payslips.application.primes_editees import (
-    appliquer_primes_editees,
-    verifier_appartenance,
-)
 from app.modules.payslips.infrastructure.providers import (
     payslip_editor_provider,
     payslip_generator_provider,
@@ -179,7 +165,7 @@ def _fetch_existing_payslip(
     """Bulletin existant de la période (statut + contenu), None sinon."""
     r = (
         supabase.table("payslips")
-        .select("id, status, payslip_data, url, edit_history")
+        .select("id, status, payslip_data, url, edit_history, pdf_notes, manually_edited")
         .match({"employee_id": employee_id, "year": year, "month": month})
         .maybe_single()
         .execute()
@@ -204,7 +190,7 @@ def _archive_before_regeneration(
         derniere = history[-1]
         if (
             isinstance(derniere, dict)
-            and derniere.get("action") == "regeneration"
+            and derniere.get("action") in ("regeneration", "correction")
             and derniere.get("previous_payslip_data") == existing.get("payslip_data")
             and derniere.get("previous_pdf_url") == existing.get("url")
         ):
@@ -215,12 +201,13 @@ def _archive_before_regeneration(
             "edited_at": datetime.now().isoformat(),
             "edited_by": cmd.requested_by,
             "edited_by_name": cmd.requested_by_name or AUTEUR_SYSTEME,
-            "changes_summary": (
+            "changes_summary": cmd.motif
+            or (
                 "Régénération d'un bulletin validé (forçage explicite)"
                 if existing.get("status") == "valide"
                 else "Régénération d'un brouillon — version précédente conservée"
             ),
-            "action": "regeneration",
+            "action": "correction" if cmd.motif else "regeneration",
             "previous_payslip_data": existing.get("payslip_data", {}),
             "previous_pdf_url": existing.get("url"),
         }
@@ -231,6 +218,34 @@ def _archive_before_regeneration(
     supabase.table("payslips").update(
         {"edit_history": plafonner(history)}
     ).eq("id", existing["id"]).execute()
+
+
+def _apres_regeneration(existant: dict[str, Any]) -> None:
+    """Ce que la régénération ne sait pas garder d'elle-même.
+
+    - La note du PDF vit dans sa colonne, mais le générateur imprime le bulletin
+      du moteur, qui ne la connaît pas : on réimprime le PDF avec elle.
+    - Les retouches manuelles ont été archivées, pas conservées : le bulletin
+      n'est plus « modifié à la main ».
+
+    Jamais bloquant : le bulletin est déjà recalculé et enregistré.
+    """
+    payslip_id = str(existant["id"])
+    try:
+        if existant.get("manually_edited"):
+            supabase.table("payslips").update({"manually_edited": False}).eq(
+                "id", payslip_id
+            ).execute()
+        if existant.get("pdf_notes"):
+            from app.modules.payslips.application.impression import reimprimer_bulletin
+
+            reimprimer_bulletin(payslip_id)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Après régénération du bulletin %s : note ou marque non reprise.",
+            payslip_id,
+            exc_info=True,
+        )
 
 
 def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
@@ -380,6 +395,9 @@ def _generer_sous_verrou(
     # Lot 3 : plus AUCUNE notification à la génération — le salarié n'est
     # prévenu qu'à la VALIDATION du bulletin (comparison_service), une fois.
 
+    if bulletin_existant and str(result.get("status") or "") == "success":
+        _apres_regeneration(bulletin_existant)
+
     warnings: list[Any] = list(result.get("warnings") or [])
     if calendar_warning:
         warnings.append(calendar_warning)
@@ -481,221 +499,6 @@ def _set_payslip_status_brouillon(payslip_id: str) -> None:
 def _etait_valide(payslip_id: str) -> bool:
     existing = _fetch_payslip_status(payslip_id)
     return bool(existing and existing.get("status") == "valide")
-
-
-def _fetch_payslip_for_recalc(payslip_id: str) -> dict[str, Any] | None:
-    """Bulletin complet nécessaire au recalcul (données, salarié, période)."""
-    r = (
-        supabase.table("payslips")
-        .select("id, employee_id, company_id, year, month, payslip_data")
-        .eq("id", payslip_id)
-        .maybe_single()
-        .execute()
-    )
-    return r.data if r and r.data else None
-
-
-def _remplacer_heures_sup_declarees(
-    *,
-    employee_id: str,
-    company_id: str,
-    year: int,
-    month: int,
-    heures_25: float,
-    heures_50: float,
-) -> None:
-    """Pose les deux paliers d'heures supplémentaires comme saisies du mois.
-
-    Les déclarations précédentes du même mois sont retirées d'abord : le moteur
-    additionne toutes les lignes reconnues, en laisser une ancienne doublerait
-    les heures. Les deux paliers sont toujours écrits ensemble, faute de quoi le
-    palier omis retomberait à zéro (cf. `domain.heures_sup`).
-    """
-    from app.modules.payroll.documents.payslip_generator import (
-        _is_heures_sup_conjoncturelle_input,
-    )
-
-    existantes = (
-        supabase.table("monthly_inputs")
-        .select("*")
-        .match(
-            {
-                "employee_id": employee_id,
-                "year": year,
-                "month": month,
-                "company_id": str(company_id),
-            }
-        )
-        .execute()
-    )
-    for row in existantes.data or []:
-        if _is_heures_sup_conjoncturelle_input(row):
-            supabase.table("monthly_inputs").delete().eq("id", row["id"]).execute()
-            logger.info(
-                "[edition] HS déclarée remplacée (%s, %s/%s) : %s",
-                employee_id,
-                month,
-                year,
-                row.get("name"),
-            )
-
-    base = {
-        "employee_id": employee_id,
-        "company_id": str(company_id),
-        "year": year,
-        "month": month,
-        "amount": 0,
-        "is_socially_taxed": True,
-        "is_taxable": True,
-    }
-    supabase.table("monthly_inputs").insert(
-        [
-            {**base, "name": LIBELLE_HS_DECLAREES, "payroll_quantity": heures_25},
-            {**base, "name": LIBELLE_HS_DECLAREES_50, "payroll_quantity": heures_50},
-        ]
-    ).execute()
-
-
-def _declarer_heures_sup_corrigees(
-    cmd: EditPayslipInput, avant: dict[str, Any]
-) -> bool:
-    """Redéclare au moteur les heures supplémentaires corrigées sur le bulletin.
-
-    Rend True si une déclaration a été écrite ; la régénération est faite une
-    seule fois par `edit_payslip`, primes comprises. Corriger la quantité d'heures
-    supplémentaires sur le bulletin ne changeait que le brut : cotisations et
-    net restaient ceux du calcul d'origine, et le bulletin devenait incohérent
-    sans que rien ne le signale. Le moteur sait reprendre ces heures depuis une
-    saisie déclarée — c'est ce chemin qu'on emprunte, plutôt que de recalculer
-    une seconde fois dans l'éditeur.
-
-    Deux cas restent au simple enregistrement, parce que le moteur ne les
-    appliquerait pas — écrire une déclaration qu'il ignore laisserait des
-    saisies fantômes, en désaccord visible avec le bulletin :
-
-    - **remise à zéro des deux paliers** : il n'y voit pas une déclaration et
-      repasse au calendrier ;
-    - **total inchangé** : il compare le total déclaré à celui du calendrier et
-      ne bouge que s'ils diffèrent. Déplacer une heure d'un palier à l'autre
-      (12 h + 3,5 h corrigé en 13 h + 2,5 h) le laisse donc immobile, alors que
-      les taux diffèrent. L'écran ne l'annonce pas non plus.
-
-    Ce second cas se corrige dans le calendrier du mois, pas ici.
-    """
-    heures_avant = quantites_heures_sup_conjoncturelles(avant.get("payslip_data"))
-    heures_apres = quantites_heures_sup_conjoncturelles(cmd.payslip_data)
-    if heures_apres == (0.0, 0.0):
-        return False
-    if abs(sum(heures_apres) - sum(heures_avant)) <= 0.001:
-        return False
-
-    _remplacer_heures_sup_declarees(
-        employee_id=avant["employee_id"],
-        company_id=avant["company_id"],
-        year=avant["year"],
-        month=avant["month"],
-        heures_25=heures_apres[0],
-        heures_50=heures_apres[1],
-    )
-    logger.info(
-        "[edition] Heures supplémentaires corrigées au bulletin %s : %s -> %s.",
-        cmd.payslip_id,
-        heures_avant,
-        heures_apres,
-    )
-    return True
-
-
-def _regenerer(cmd: EditPayslipInput, avant: dict[str, Any]) -> str | None:
-    """Recalcule le bulletin par le moteur ; rend le message d'erreur s'il échoue.
-
-    Les variables du mois sont déjà écrites : elles sont la vérité. Un échec
-    du moteur ne les défait pas, il est rendu pour que l'écran propose
-    « Régénérer ».
-    """
-    try:
-        generate_payslip(
-            GeneratePayslipInput(
-                employee_id=avant["employee_id"],
-                year=avant["year"],
-                month=avant["month"],
-                # Le bulletin existe déjà : ces deux gardes ont été franchies à sa
-                # première génération. Les réopposer bloquerait une correction.
-                force_calendrier_incomplet=True,
-                regenerer_bulletin_valide=True,
-                requested_by=cmd.current_user_id,
-                requested_by_name=cmd.current_user_name,
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 — l'erreur est rendue à l'écran
-        logger.exception("[edition] Recalcul du bulletin %s impossible", cmd.payslip_id)
-        return str(exc)
-    return None
-
-
-def edit_payslip(cmd: EditPayslipInput) -> dict[str, Any]:
-    """Sauvegarde les modifications d'un bulletin. Délègue au provider legacy.
-
-    Lot 3 : éditer un bulletin VALIDÉ le repasse en brouillon — le salarié
-    ne doit jamais voir un contenu qui n'a pas été revalidé (l'éditeur
-    conserve l'historique, le statut doit suivre le contenu).
-
-    Corriger les heures supplémentaires, ou ajouter, corriger, retirer une
-    prime saisie, déclenche en plus un recalcul complet par le moteur : sans
-    lui, seul le brut suivait la correction et le bulletin repartait avec les
-    bases, les cotisations, le net et les cumuls d'avant (spec 2026-09-23).
-    """
-    _refuser_si_importe(cmd.payslip_id)
-    etait_valide = _etait_valide(cmd.payslip_id)
-    avant = _fetch_payslip_for_recalc(cmd.payslip_id)
-    diff = diff_primes(avant.get("payslip_data") if avant else None, cmd.payslip_data)
-    periode = (
-        {
-            "employee_id": avant["employee_id"],
-            "company_id": avant["company_id"],
-            "year": avant["year"],
-            "month": avant["month"],
-        }
-        if avant
-        else None
-    )
-    # Avant d'enregistrer : une saisie d'une autre fiche ne doit laisser aucune trace.
-    if periode and not diff.vide:
-        verifier_appartenance(diff.ids_touches, **periode)
-
-    result = payslip_editor_provider.save_edited(
-        payslip_id=cmd.payslip_id,
-        # Sans les marques « nouvelle saisie » : l'écart est déjà calculé, et un
-        # échec du moteur ne doit pas faire recréer la prime au prochain
-        # enregistrement.
-        new_payslip_data=sans_marques_de_saisie(cmd.payslip_data),
-        changes_summary=cmd.changes_summary,
-        current_user_id=cmd.current_user_id,
-        current_user_name=cmd.current_user_name,
-        pdf_notes=cmd.pdf_notes,
-        internal_note=cmd.internal_note,
-    )
-    if etait_valide:
-        _set_payslip_status_brouillon(cmd.payslip_id)
-        logger.warning(
-            "[edition] Bulletin validé %s modifié par %s : repassé en brouillon.",
-            cmd.payslip_id,
-            cmd.current_user_id,
-        )
-    if not avant:
-        return result
-    # Après l'enregistrement : l'historique garde ainsi trace de la saisie
-    # avant que le moteur ne réécrive le bulletin. Une seule régénération,
-    # heures sup et primes comprises.
-    a_recalculer = _declarer_heures_sup_corrigees(cmd, avant)
-    if not diff.vide:
-        appliquer_primes_editees(diff, **periode)
-        a_recalculer = True
-    if a_recalculer:
-        erreur = _regenerer(cmd, avant)
-        if erreur:
-            result = {**result, "recalcul_erreur": erreur}
-    return result
 
 
 def restore_payslip_version(cmd: RestorePayslipInput) -> dict[str, Any]:

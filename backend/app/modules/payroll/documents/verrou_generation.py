@@ -10,12 +10,17 @@ la durée maximale d'une requête.
 Le verrou ne doit jamais empêcher la paie : si la base ne répond pas ou que la
 migration n'est pas appliquée, la génération continue sans verrou, comme avant,
 et un avertissement part dans les journaux.
+
+Il est réentrant dans une même requête : corriger un bulletin prend le verrou,
+écrit les variables du mois, puis régénère — et la régénération le redemande.
+Une autre requête a son propre contexte et reste refusée.
 """
 
 from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Iterator
 
 from app.core.logging import get_logger
@@ -38,6 +43,12 @@ class GenerationDejaEnCours(ValueError):
         )
 
 
+#: Verrous tenus par la requête en cours (salarié, année, mois).
+_TENUS: ContextVar[frozenset[tuple[str, int, int]]] = ContextVar(
+    "verrous_de_generation_tenus", default=frozenset()
+)
+
+
 def _rpc(nom: str, params: dict[str, Any]) -> Any:
     from app.core.database import get_supabase_admin_client
 
@@ -50,6 +61,11 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
 
     Lève `GenerationDejaEnCours` si une autre génération le tient déjà.
     """
+    cle = (str(employee_id), int(year), int(month))
+    tenus = _TENUS.get()
+    if cle in tenus:
+        yield
+        return
     params = {
         "p_employee_id": str(employee_id),
         "p_year": int(year),
@@ -75,9 +91,11 @@ def verrou_de_generation(employee_id: str, year: int, month: int) -> Iterator[No
         pris = None
     if pris is False:
         raise GenerationDejaEnCours()
+    jeton_contexte = _TENUS.set(tenus | {cle})
     try:
         yield
     finally:
+        _TENUS.reset(jeton_contexte)
         if pris:
             try:
                 _rpc("rendre_verrou_generation_bulletin", params)

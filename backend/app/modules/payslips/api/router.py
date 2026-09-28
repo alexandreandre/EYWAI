@@ -45,6 +45,7 @@ from app.modules.payslips.application import (
     validate_payslip_for_user,
     GeneratePayslipInput,
 )
+from app.modules.payslips.application.dto import PayslipConflictError
 from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
 from app.modules.payslips.schemas import (
@@ -79,6 +80,7 @@ _PAYSLIP_APP_ERRORS = (
     PayslipCriticalActiveError,
     PayslipCalendarIncompleteError,
     PayslipValidatedError,
+    PayslipConflictError,
     GenerationDejaEnCours,
 )
 
@@ -126,6 +128,8 @@ def _map_app_errors(exc: Exception) -> None:
             status_code=409,
             detail={"code": PayslipValidatedError.code, "message": str(exc)},
         ) from exc
+    if isinstance(exc, PayslipConflictError):
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if isinstance(exc, GenerationDejaEnCours):
         # Une phrase, pas un objet : l'écran de paie l'affiche telle quelle
         # (un 409 structuré y est réservé au bulletin déjà validé).
@@ -453,21 +457,32 @@ def edit_payslip_route(
     edit_request: PayslipEditRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Modifie un bulletin (RH/Admin/Super Admin)."""
+    """Corrige un bulletin par ses variables du mois, puis le recalcule (RH)."""
     try:
+        _require_payslip_scope(current_user, payslip_id, "payslips.edit")
         result = edit_payslip_for_user(
             payslip_id,
-            edit_request.payslip_data,
-            edit_request.changes_summary,
+            edit_request.corrections.vers_domaine(),
             _to_user_context(current_user),
+            changes_summary=edit_request.changes_summary,
             pdf_notes=edit_request.pdf_notes,
             internal_note=edit_request.internal_note,
+            base_updated_at=edit_request.base_updated_at,
         )
+        erreur = result.get("recalcul_erreur")
         return PayslipEditResponse(
             status="success",
-            message="Bulletin modifié avec succès",
+            message=(
+                "Corrections enregistrées, mais le bulletin n'a pas pu être recalculé."
+                if erreur
+                else "Bulletin corrigé et recalculé."
+                if result.get("recalcule")
+                else "Notes du bulletin enregistrées."
+            ),
             payslip=result["payslip"],
-            new_pdf_url=result["new_pdf_url"],
+            new_pdf_url=result.get("new_pdf_url"),
+            recalcule=bool(result.get("recalcule")),
+            recalcul_erreur=erreur,
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)

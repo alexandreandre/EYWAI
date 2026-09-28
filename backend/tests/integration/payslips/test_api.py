@@ -450,7 +450,7 @@ class TestPayslipsEditRoute:
         """Sans auth → 401."""
         response = client.post(
             "/api/payslips/ps-1/edit",
-            json={"payslip_data": {"brut": 3000}, "changes_summary": "Modif"},
+            json={"corrections": {"heures_sup": {"hs25": 4, "hs50": 0}}},
         )
         assert response.status_code == 401
 
@@ -461,10 +461,14 @@ class TestPayslipsEditRoute:
         result = {
             "payslip": _make_payslip_detail_mock("ps-1"),
             "new_pdf_url": "https://new.pdf",
+            "recalcule": True,
+            "recalcul_erreur": None,
         }
         with patch(
             "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
             return_value=None,
+        ), patch(
+            "app.modules.payslips.api.router._require_payslip_scope",
         ), patch(
             "app.modules.payslips.api.router.edit_payslip_for_user",
             return_value=result,
@@ -474,8 +478,8 @@ class TestPayslipsEditRoute:
                 response = client.post(
                     "/api/payslips/ps-1/edit",
                     json={
-                        "payslip_data": {"salaire_brut": 3000},
-                        "changes_summary": "Augmentation brut",
+                        "corrections": {"heures_sup": {"hs25": 4, "hs50": 0}},
+                        "changes_summary": "Heures du 12 non faites",
                         "pdf_notes": None,
                         "internal_note": None,
                     },
@@ -495,6 +499,8 @@ class TestPayslipsEditRoute:
             "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
             return_value=None,
         ), patch(
+            "app.modules.payslips.api.router._require_payslip_scope",
+        ), patch(
             "app.modules.payslips.api.router.edit_payslip_for_user"
         ) as mock_edit:
             from app.modules.payslips.application.dto import PayslipNotFoundError
@@ -504,7 +510,7 @@ class TestPayslipsEditRoute:
             try:
                 response = client.post(
                     "/api/payslips/ps-unknown/edit",
-                    json={"payslip_data": {}, "changes_summary": "Résumé"},
+                    json={"corrections": {"revenir_au_planning": True}},
                 )
             finally:
                 app.dependency_overrides.pop(get_current_user, None)

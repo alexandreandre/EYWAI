@@ -12,16 +12,16 @@ from typing import Any
 
 from app.modules.payslips.application.commands import (
     delete_payslip as cmd_delete_payslip,
-    edit_payslip,
     generate_payslip,
     restore_payslip_version,
 )
+from app.modules.payslips.application.corrections import corriger_bulletin
 from app.modules.payslips.application.period_edit_lock import (
     assert_payslip_manual_edit_allowed,
     enrich_payslip_detail_with_edit_lock,
 )
 from app.modules.payslips.application.dto import (
-    EditPayslipInput,
+    CorrigerBulletinInput,
     GeneratePayslipInput,
     PayslipBadRequestError,
     PayslipForbiddenError,
@@ -33,6 +33,7 @@ from app.modules.payslips.application.queries import (
     get_payslip_details,
     get_payslip_history,
 )
+from app.modules.payslips.domain.corrections import CorrectionsBulletin
 from app.modules.payslips.domain.rules import (
     can_edit_or_restore_payslip,
     can_view_payslip,
@@ -132,14 +133,17 @@ def get_payslip_history_for_user(
 
 def edit_payslip_for_user(
     payslip_id: str,
-    payslip_data: dict[str, Any],
-    changes_summary: str,
+    corrections: CorrectionsBulletin,
     ctx: UserContext,
+    *,
+    changes_summary: str | None = None,
     pdf_notes: str | None = None,
     internal_note: str | None = None,
+    base_updated_at: str | None = None,
 ) -> dict[str, Any]:
     """
-    Édition d'un bulletin après vérification des droits (RH/Admin/Super Admin).
+    Correction d'un bulletin par ses variables du mois, après vérification des
+    droits (RH/Admin/Super Admin).
     Lève PayslipNotFoundError, PayslipForbiddenError si pas le droit.
     """
     meta = payslip_meta_reader.get_payslip_meta(payslip_id)
@@ -161,15 +165,16 @@ def edit_payslip_for_user(
         assert_payslip_manual_edit_allowed(meta, bypass_lock=ctx.is_platform_admin)
     except ValueError as exc:
         raise PayslipBadRequestError(str(exc)) from exc
-    return edit_payslip(
-        EditPayslipInput(
+    return corriger_bulletin(
+        CorrigerBulletinInput(
             payslip_id=payslip_id,
-            payslip_data=payslip_data,
-            changes_summary=changes_summary,
+            corrections=corrections,
             current_user_id=ctx.user_id,
             current_user_name=ctx.display_name(),
+            changes_summary=changes_summary,
             pdf_notes=pdf_notes,
             internal_note=internal_note,
+            base_updated_at=base_updated_at,
         )
     )
 
@@ -213,29 +218,6 @@ def restore_payslip_for_user(
 
 
 # --- Ré-exports pour compatibilité : signature (user_id, user_name) au lieu de UserContext ---
-
-
-def edit_payslip_use_case(
-    payslip_id: str,
-    payslip_data: dict[str, Any],
-    changes_summary: str,
-    current_user_id: str,
-    current_user_name: str,
-    pdf_notes: str | None = None,
-    internal_note: str | None = None,
-) -> dict[str, Any]:
-    """Édition d'un bulletin (signature legacy : user_id, user_name)."""
-    return edit_payslip(
-        EditPayslipInput(
-            payslip_id=payslip_id,
-            payslip_data=payslip_data,
-            changes_summary=changes_summary,
-            current_user_id=current_user_id,
-            current_user_name=current_user_name,
-            pdf_notes=pdf_notes,
-            internal_note=internal_note,
-        )
-    )
 
 
 def restore_payslip_use_case(

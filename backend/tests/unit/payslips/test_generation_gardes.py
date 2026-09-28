@@ -984,49 +984,9 @@ def test_supprimer_un_brouillon_reste_permis():
 
 
 class TestEditionDUnBulletinValide:
-    """T1 — éditer ou restaurer un bulletin validé le repasse en brouillon :
-    le salarié ne doit jamais voir un contenu qui n'a pas été revalidé."""
-
-    def _editer(self, statut):
-        from unittest.mock import MagicMock, patch as p_
-
-        from app.modules.payslips.application import commands as mod
-        from app.modules.payslips.application.dto import EditPayslipInput
-
-        fake_provider = MagicMock()
-        fake_provider.save_edited.return_value = {"success": True}
-        with (
-            p_.object(mod, "payslip_editor_provider", fake_provider),
-            p_.object(
-                mod,
-                "_fetch_payslip_status",
-                return_value={"id": "p-1", "status": statut},
-            ),
-            # L'édition relit le bulletin d'avant pour décider d'un recalcul des
-            # heures supplémentaires : ici aucun bulletin, donc rien à recalculer.
-            p_.object(mod, "_fetch_payslip_for_recalc", return_value=None),
-            p_.object(mod, "_set_payslip_status_brouillon") as mock_reset,
-        ):
-            mod.edit_payslip(
-                EditPayslipInput(
-                    payslip_id="p-1",
-                    payslip_data={"net_a_payer": 1},
-                    changes_summary="x",
-                    current_user_id="rh-1",
-                    current_user_name="RH",
-                )
-            )
-        return fake_provider, mock_reset
-
-    def test_editer_un_valide_le_repasse_en_brouillon(self):
-        provider, mock_reset = self._editer("valide")
-        provider.save_edited.assert_called_once()
-        mock_reset.assert_called_once_with("p-1")
-
-    def test_editer_un_brouillon_ne_touche_pas_le_statut(self):
-        provider, mock_reset = self._editer("brouillon")
-        provider.save_edited.assert_called_once()
-        mock_reset.assert_not_called()
+    """T1 — restaurer un bulletin validé le repasse en brouillon : le salarié ne
+    doit jamais voir un contenu qui n'a pas été revalidé. La correction est
+    couverte par `test_corrections.py`."""
 
     def test_restaurer_un_valide_le_repasse_en_brouillon(self):
         from unittest.mock import MagicMock, patch as p_

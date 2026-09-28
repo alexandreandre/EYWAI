@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.modules.payslips.domain.corrections import CorrectionsBulletin
 from app.modules.payslips.application.dto import (
     UserContext,
     PayslipNotFoundError,
@@ -22,7 +23,6 @@ from app.modules.payslips.application.service import (
     get_payslip_history_for_user,
     edit_payslip_for_user,
     restore_payslip_for_user,
-    edit_payslip_use_case,
     restore_payslip_use_case,
 )
 
@@ -261,6 +261,9 @@ class TestGetPayslipHistoryForUser:
                 get_payslip_history_for_user("ps-1", ctx)
 
 
+CORRECTIONS = CorrectionsBulletin(heures_sup=(4.0, 0.0))
+
+
 class TestEditPayslipForUser:
     """Tests de edit_payslip_for_user."""
 
@@ -274,7 +277,7 @@ class TestEditPayslipForUser:
                 "app.modules.payslips.application.service.payslip_meta_reader"
             ) as mock_reader,
             patch(
-                "app.modules.payslips.application.service.edit_payslip",
+                "app.modules.payslips.application.service.corriger_bulletin",
                 return_value=expected,
             ),
             patch(
@@ -282,9 +285,7 @@ class TestEditPayslipForUser:
             ) as mock_assert,
         ):
             mock_reader.get_payslip_meta.return_value = meta
-            result = edit_payslip_for_user(
-                "ps-1", {"salaire_brut": 3000}, "Modif brut", ctx
-            )
+            result = edit_payslip_for_user("ps-1", CORRECTIONS, ctx)
         mock_assert.assert_called_once_with(meta, bypass_lock=False)
         assert result == expected
 
@@ -296,7 +297,7 @@ class TestEditPayslipForUser:
         ) as mock_reader:
             mock_reader.get_payslip_meta.return_value = None
             with pytest.raises(PayslipNotFoundError):
-                edit_payslip_for_user("ps-unknown", {}, "Résumé", ctx)
+                edit_payslip_for_user("ps-unknown", CORRECTIONS, ctx)
 
     def test_raises_bad_request_when_no_company_id(self):
         """Lève PayslipBadRequestError si le bulletin n'a pas de company_id."""
@@ -307,7 +308,7 @@ class TestEditPayslipForUser:
         ) as mock_reader:
             mock_reader.get_payslip_meta.return_value = meta
             with pytest.raises(PayslipBadRequestError):
-                edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+                edit_payslip_for_user("ps-1", CORRECTIONS, ctx)
 
     def test_raises_forbidden_when_user_cannot_edit(self):
         """Lève PayslipForbiddenError si l'utilisateur n'a pas le droit d'éditer."""
@@ -318,7 +319,7 @@ class TestEditPayslipForUser:
         ) as mock_reader:
             mock_reader.get_payslip_meta.return_value = meta
             with pytest.raises(PayslipForbiddenError):
-                edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+                edit_payslip_for_user("ps-1", CORRECTIONS, ctx)
 
     def test_raises_bad_request_when_period_locked_for_rh(self):
         """Lève PayslipBadRequestError si la période est verrouillée pour un RH."""
@@ -335,7 +336,7 @@ class TestEditPayslipForUser:
         ):
             mock_reader.get_payslip_meta.return_value = meta
             with pytest.raises(PayslipBadRequestError) as exc_info:
-                edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+                edit_payslip_for_user("ps-1", CORRECTIONS, ctx)
             assert "verrouillée" in str(exc_info.value).lower()
 
     def test_platform_admin_bypasses_period_lock(self):
@@ -348,7 +349,7 @@ class TestEditPayslipForUser:
                 "app.modules.payslips.application.service.payslip_meta_reader"
             ) as mock_reader,
             patch(
-                "app.modules.payslips.application.service.edit_payslip",
+                "app.modules.payslips.application.service.corriger_bulletin",
                 return_value=expected,
             ) as mock_edit,
             patch(
@@ -356,7 +357,7 @@ class TestEditPayslipForUser:
             ) as mock_assert,
         ):
             mock_reader.get_payslip_meta.return_value = meta
-            result = edit_payslip_for_user("ps-1", {}, "Résumé", ctx)
+            result = edit_payslip_for_user("ps-1", CORRECTIONS, ctx)
         mock_assert.assert_called_once()
         assert mock_assert.call_args.kwargs["bypass_lock"] is True
         assert result == expected
@@ -408,34 +409,6 @@ class TestRestorePayslipForUser:
             mock_reader.get_payslip_meta.return_value = meta
             with pytest.raises(PayslipForbiddenError):
                 restore_payslip_for_user("ps-1", 1, ctx)
-
-
-class TestEditPayslipUseCaseLegacy:
-    """Tests de edit_payslip_use_case (signature legacy user_id, user_name)."""
-
-    def test_calls_edit_payslip_with_correct_input(self):
-        """edit_payslip_use_case construit EditPayslipInput et appelle edit_payslip."""
-        with patch(
-            "app.modules.payslips.application.service.edit_payslip"
-        ) as mock_edit:
-            mock_edit.return_value = {"payslip": {}, "new_pdf_url": ""}
-            edit_payslip_use_case(
-                "ps-1",
-                {"brut": 3000},
-                "Résumé",
-                "user-1",
-                "Jean Dupont",
-                pdf_notes="Note",
-                internal_note="Interne",
-            )
-        call_arg = mock_edit.call_args[0][0]
-        assert call_arg.payslip_id == "ps-1"
-        assert call_arg.payslip_data == {"brut": 3000}
-        assert call_arg.changes_summary == "Résumé"
-        assert call_arg.current_user_id == "user-1"
-        assert call_arg.current_user_name == "Jean Dupont"
-        assert call_arg.pdf_notes == "Note"
-        assert call_arg.internal_note == "Interne"
 
 
 class TestRestorePayslipUseCaseLegacy:

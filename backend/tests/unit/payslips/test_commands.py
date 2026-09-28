@@ -11,12 +11,10 @@ import pytest
 from app.modules.payslips.application.commands import (
     generate_payslip,
     delete_payslip,
-    edit_payslip,
     restore_payslip_version,
 )
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
-    EditPayslipInput,
     RestorePayslipInput,
     PayslipBadRequestError,
 )
@@ -334,81 +332,6 @@ class TestDeletePayslipCommand:
             mock_repo.delete.assert_called_once_with("ps-123")
 
 
-class TestEditPayslipCommand:
-    @pytest.fixture(autouse=True)
-    def _statut_brouillon(self):
-        """Lot 3 : edit/restore lisent le statut — brouillon par défaut ici."""
-        with patch(
-            "app.modules.payslips.application.commands._fetch_payslip_status",
-            return_value={"id": "ps-1", "status": "brouillon"},
-        ):
-            yield
-
-    @pytest.fixture(autouse=True)
-    def _pas_de_recalcul(self):
-        """Corriger les heures supplémentaires relit le bulletin d'avant pour
-        décider d'un recalcul : sans ce mock, ces tests partiraient vers une
-        vraie base. Ici, pas de bulletin d'origine, donc aucun recalcul."""
-        with patch(
-            "app.modules.payslips.application.commands._fetch_payslip_for_recalc",
-            return_value=None,
-        ):
-            yield
-
-    """Tests de la commande edit_payslip."""
-
-    def test_delegates_to_editor_provider_save_edited(self):
-        """edit_payslip délègue au provider save_edited avec les bons paramètres."""
-        cmd = EditPayslipInput(
-            payslip_id="ps-1",
-            payslip_data={"salaire_brut": 3000},
-            changes_summary="Modif brut",
-            current_user_id="user-1",
-            current_user_name="Jean Dupont",
-            pdf_notes="Note PDF",
-            internal_note="Note interne",
-        )
-        expected = {
-            "payslip": {"id": "ps-1"},
-            "new_pdf_url": "https://example.com/new.pdf",
-        }
-
-        with patch(
-            "app.modules.payslips.application.commands.payslip_editor_provider"
-        ) as mock_editor:
-            mock_editor.save_edited.return_value = expected
-            result = edit_payslip(cmd)
-
-        mock_editor.save_edited.assert_called_once_with(
-            payslip_id="ps-1",
-            new_payslip_data={"salaire_brut": 3000},
-            changes_summary="Modif brut",
-            current_user_id="user-1",
-            current_user_name="Jean Dupont",
-            pdf_notes="Note PDF",
-            internal_note="Note interne",
-        )
-        assert result == expected
-
-    def test_edit_without_optional_notes(self):
-        """edit_payslip peut être appelé sans pdf_notes ni internal_note."""
-        cmd = EditPayslipInput(
-            payslip_id="ps-2",
-            payslip_data={},
-            changes_summary="Résumé",
-            current_user_id="user-2",
-            current_user_name="Marie",
-        )
-        with patch(
-            "app.modules.payslips.application.commands.payslip_editor_provider"
-        ) as mock_editor:
-            mock_editor.save_edited.return_value = {}
-            edit_payslip(cmd)
-        call_kw = mock_editor.save_edited.call_args[1]
-        assert call_kw["pdf_notes"] is None
-        assert call_kw["internal_note"] is None
-
-
 class TestRestorePayslipVersionCommand:
     @pytest.fixture(autouse=True)
     def _statut_brouillon(self):
@@ -462,27 +385,6 @@ class TestBulletinImporteIntouchable:
                 delete_payslip("ps-imp")
             assert "repris" in str(exc.value).lower()
             mock_repo.delete.assert_not_called()
-
-    def test_l_edition_est_refusee(self):
-        with (
-            patch(
-                "app.modules.payslips.application.commands._fetch_payslip_status",
-                return_value={"id": "ps-imp", "status": "brouillon", "origine": "importe"},
-            ),
-            patch("app.modules.payslips.application.commands.payslip_editor_provider") as mock_editor,
-            patch("app.modules.payslips.application.commands._fetch_payslip_for_recalc", return_value=None),
-        ):
-            with pytest.raises(PayslipBadRequestError):
-                edit_payslip(
-                    EditPayslipInput(
-                        payslip_id="ps-imp",
-                        payslip_data={},
-                        changes_summary="x",
-                        current_user_id="u",
-                        current_user_name="n",
-                    )
-                )
-            mock_editor.save_edited.assert_not_called()
 
     def test_un_bulletin_calcule_reste_supprimable(self):
         with (

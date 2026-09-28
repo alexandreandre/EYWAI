@@ -17,11 +17,21 @@ RACINE = Path(__file__).resolve().parents[4]
 MIGRATION = RACINE / "supabase/migrations/20260926140000_verrou_generation_bulletin.sql"
 
 
+def _autre_requete(fonction):
+    """Une autre requête HTTP a son propre contexte (Starlette le copie)."""
+    import contextvars
+
+    return contextvars.Context().run(fonction)
+
+
 def test_une_seconde_generation_du_meme_bulletin_est_refusee(verrous_de_generation):
+    def seconde():
+        with verrou_de_generation("e1", 2026, 8):
+            pass
+
     with verrou_de_generation("e1", 2026, 8):
         with pytest.raises(GenerationDejaEnCours):
-            with verrou_de_generation("e1", 2026, 8):
-                pass
+            _autre_requete(seconde)
     # Rendu à la sortie : on peut régénérer ensuite.
     with verrou_de_generation("e1", 2026, 8):
         pass
@@ -94,7 +104,7 @@ def test_generate_payslip_prend_le_verrou(monkeypatch, verrous_de_generation):
 
     with verrou_de_generation("e1", 2026, 8):
         with pytest.raises(GenerationDejaEnCours):
-            commands.generate_payslip(cmd)
+            _autre_requete(lambda: commands.generate_payslip(cmd))
 
 
 def test_la_regeneration_ijss_passe_par_le_meme_verrou():
@@ -115,3 +125,43 @@ def test_la_migration_ferme_la_table_et_les_fonctions_au_public():
         assert sql.count(f"grant execute on function public.{fonction}(") == 1
     assert "to service_role" in sql
     assert " to anon" not in sql and " to authenticated" not in sql
+
+
+# --- Réentrant dans la même requête (correction puis régénération) ---
+
+
+def test_le_meme_contexte_reprend_le_verrou_qu_il_tient_deja(verrous_de_generation):
+    from app.modules.payroll.documents.verrou_generation import verrou_de_generation
+
+    with verrou_de_generation("e1", 2026, 8):
+        with verrou_de_generation("e1", 2026, 8):
+            assert ("e1", 2026, 8) in verrous_de_generation.tenus
+        # Le bloc intérieur ne rend pas le verrou de l'extérieur.
+        assert ("e1", 2026, 8) in verrous_de_generation.tenus
+    assert not verrous_de_generation.tenus
+    assert verrous_de_generation.appels.count("prendre_verrou_generation_bulletin") == 1
+
+
+def test_un_autre_contexte_reste_refuse(verrous_de_generation):
+    import contextvars
+
+    from app.modules.payroll.documents.verrou_generation import (
+        GenerationDejaEnCours,
+        verrou_de_generation,
+    )
+
+    def autre_requete():
+        with verrou_de_generation("e1", 2026, 8):
+            pass
+
+    with verrou_de_generation("e1", 2026, 8):
+        with pytest.raises(GenerationDejaEnCours):
+            contextvars.Context().run(autre_requete)
+
+
+def test_un_autre_mois_se_prend_normalement(verrous_de_generation):
+    from app.modules.payroll.documents.verrou_generation import verrou_de_generation
+
+    with verrou_de_generation("e1", 2026, 8):
+        with verrou_de_generation("e1", 2026, 9):
+            assert len(verrous_de_generation.tenus) == 2

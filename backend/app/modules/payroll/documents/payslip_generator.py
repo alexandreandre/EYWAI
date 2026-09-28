@@ -839,14 +839,19 @@ def process_payslip_generation(
                 prime_entry["type"] = "panier"
             saisies_data["primes"].append(prime_entry)
 
+        # Déclarées depuis le bulletin, les heures sup font foi : elles seules
+        # comptent, une autre saisie d'heures du mois ne s'y ajoute pas.
+        declarations_bulletin = [
+            r for r in saisies_res.data or [] if est_declaration_bulletin(r)
+        ]
         hs_conj_25, hs_conj_50 = _heures_sup_conjoncturelles_from_monthly_inputs(
-            saisies_res.data or []
+            declarations_bulletin or saisies_res.data or []
         )
         if hs_conj_25 is not None:
             saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj_25
         if hs_conj_50 is not None:
             saisies_data["heures_supplementaires_conjoncturelles_50"] = hs_conj_50
-        if any(est_declaration_bulletin(r) for r in saisies_res.data or []):
+        if declarations_bulletin:
             saisies_data["heures_sup_declarees_au_bulletin"] = True
 
         if expense_reports_res.data:
