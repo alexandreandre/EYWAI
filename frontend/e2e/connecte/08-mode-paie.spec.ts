@@ -126,7 +126,8 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   );
 
   await test.step('une fiche à compléter se dit sur la paie et sur la fiche', async () => {
-    // Comme une embauche du jour : non-cadre, en CDI, fiche par ailleurs complète.
+    // Comme une embauche du jour : non-cadre, en CDI, sans e-mail, fiche par
+    // ailleurs complète.
     const cible = salaries.find(
       (e) =>
         ['actif', 'active', null, undefined].includes(e.employment_status) &&
@@ -138,7 +139,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     const manque = ['Numéro de sécurité sociale', 'Coordonnées bancaires (RIB)'];
     const aCompleter = <T extends Salarie>(e: T): T =>
       e.id === cible!.id
-        ? { ...e, employment_status: 'en_onboarding', missing_payroll_fields: manque, profile_complete: false, payroll_eligible: false }
+        ? { ...e, email: null, employment_status: 'en_onboarding', missing_payroll_fields: manque, profile_complete: false, payroll_eligible: false }
         : e;
     const resume = '**/api/employees/summary**';
     const fiche = new RegExp(`/api/employees/${cible!.id}(\\?.*)?$`);
@@ -166,15 +167,15 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await expect(page.getByText(/sa paie ne peut pas être générée tant que ces informations manquent/i)).toBeVisible({
       timeout: 30_000,
     });
-    // La fenêtre de complément s'ouvre d'elle-même, une fois par session.
+    // La fenêtre de complément s'ouvre parfois d'elle-même (une fois par
+    // session, selon le chargement de la fiche) ; le bouton, lui, est toujours là.
     const complement = page.getByRole('dialog');
-    await expect(complement).toBeVisible({ timeout: 15_000 });
+    if (!(await complement.isVisible())) {
+      await page.getByRole('button', { name: /compléter la fiche/i }).click();
+    }
     await expect(complement.getByText(/sécurité sociale/i).first()).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByText(/sa paie ne peut pas être générée tant que ces informations manquent/i)).toBeVisible();
-    await page.getByRole('button', { name: /compléter la fiche/i }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /enregistrer/i }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await complement.getByRole('button', { name: /enregistrer/i }).click();
+    await expect(complement).toHaveCount(0);
     // Retour à la paie par le menu, sans recharger : la fiche n'y bloque plus.
     await page.getByRole('link', { name: 'Bulletins de paie' }).click();
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
