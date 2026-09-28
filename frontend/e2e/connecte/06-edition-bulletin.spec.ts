@@ -136,12 +136,17 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await page.locator('#montant-saisie-qa-1').fill('150');
     await page.getByRole('button', { name: 'Retirer Panier QA' }).click();
 
+    // Prime libre par « Créer une prime… », sans l'enregistrer au catalogue
+    // (case décochée par défaut) : rien n'est écrit en base.
     await page.getByRole('button', { name: 'Ajouter une prime', exact: true }).click();
     const selecteur = page.getByRole('dialog', { name: 'Ajouter une Saisie du Mois' });
     await expect(selecteur).toBeVisible();
-    await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').fill('Prime QA ajoutée');
-    // Premier champ numérique : le montant (le second est le net cible du calcul inverse).
-    await selecteur.getByRole('spinbutton').first().fill('80');
+    await selecteur.getByPlaceholder('Sélectionnez ou saisissez un nom...').click();
+    await page.getByRole('option', { name: 'Créer une prime...' }).click();
+    await selecteur.getByPlaceholder("Ex: Prime d'assiduité").fill('Prime QA ajoutée');
+    await selecteur.getByPlaceholder('0.00').fill('80');
+    const caseCatalogue = selecteur.locator('#save_to_catalogue');
+    if (await caseCatalogue.count()) await expect(caseCatalogue).not.toBeChecked();
     await selecteur.getByRole('button', { name: 'Enregistrer', exact: true }).click();
     await expect(selecteur).toBeHidden();
 
@@ -179,7 +184,8 @@ test.describe('Corriger un bulletin par ses variables du mois (données fictives
     await page.getByTestId('enregistrer-entete').click();
     await expect(page.getByText('Corrections enregistrées, bulletin non recalculé', { exact: true }))
       .toBeVisible();
-    await expect(page.getByText('Barème introuvable — utilisez « Régénérer ».')).toBeVisible();
+    await expect(page.getByText('Barème introuvable — utilisez « Régénérer ».', { exact: true }))
+      .toBeVisible();
   });
 
   test('un bulletin modifié entre-temps est rechargé', async ({ page }) => {
