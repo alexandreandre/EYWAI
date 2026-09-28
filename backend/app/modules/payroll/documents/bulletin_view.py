@@ -446,11 +446,13 @@ def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
 def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     lignes: List[Dict[str, Any]] = []
 
+    # `details_maintien` n'est pas imprimé : ce sont les retenues d'arrêt, déjà
+    # dans `details_absences`. Les deux blocs imprimaient chaque ligne d'arrêt
+    # deux fois (Colorplast, août 2026 : 30 lignes pour 15 jours).
     for source in (
         "calcul_du_brut",
         "details_conges",
         "details_absences",
-        "details_maintien",
     ):
         for detail in bulletin.get(source) or []:
             if isinstance(detail, dict):

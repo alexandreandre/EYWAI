@@ -55,6 +55,51 @@ def _heures_evenement_absence(evenement: Dict[str, Any], duree_hebdo: float) -> 
     return float(heures)
 
 
+def _periodes_d_arret(
+    jours: list[tuple[date, str, float, bool]],
+) -> list[Dict[str, Any]]:
+    """Regroupe les jours d'arrêt retenus en périodes continues.
+
+    Deux jours appartiennent à la même période s'ils sont de même nature et
+    qu'aucun jour ouvré (lundi à vendredi) hors arrêt ne les sépare : un
+    week-end ne coupe pas un arrêt, un jour travaillé si.
+    """
+    periodes: list[Dict[str, Any]] = []
+    for jour, type_ev, heures, regularisation in sorted(jours, key=lambda j: j[0]):
+        courante = periodes[-1] if periodes else None
+        continue_la_periode = (
+            courante is not None
+            and courante["type"] == type_ev
+            and courante["regularisation"] == regularisation
+            and not any(
+                (courante["fin"] + timedelta(days=k)).weekday() < 5
+                for k in range(1, (jour - courante["fin"]).days)
+            )
+        )
+        if continue_la_periode:
+            courante["fin"] = jour
+            courante["heures"] += heures
+        else:
+            periodes.append(
+                {
+                    "type": type_ev,
+                    "debut": jour,
+                    "fin": jour,
+                    "heures": heures,
+                    "regularisation": regularisation,
+                }
+            )
+    return periodes
+
+
+def _libelle_periode_d_arret(periode: Dict[str, Any]) -> str:
+    nature = LIBELLES_ARRET.get(periode["type"], "arrêt de travail")
+    debut, fin = periode["debut"], periode["fin"]
+    if debut == fin:
+        return f"Absence {nature} du {debut:%d/%m}"
+    return f"Absence {nature} du {debut:%d/%m} au {fin:%d/%m}"
+
+
 def _repartir_absence_au_prorata_du_contrat(
     heures: float, duree_hebdo: float
 ) -> tuple[float, float]:
@@ -1107,6 +1152,8 @@ def calculer_salaire_brut(
     # mensualisé total (ci-dessus) UNIQUEMENT si `nb_jours_travail_planifies==0`
     # (aucun jour "travail" dans le calendrier BRUT du mois, cf. docstring).
     montant_absence_pleine_total = 0.0
+    #: Jours d'arrêt retenus : (date, type, heures, régularisation antérieure).
+    jours_d_arret_a_retenir: list[tuple[date, str, float, bool]] = []
     for evenement in jours_dans_periode:
         type_ev = evenement.get("type", "")
         heures = evenement.get("heures", 0.0)
@@ -1328,29 +1375,50 @@ def calculer_salaire_brut(
             # salarié 222 MBC mai 2026 : 7,5 h vs 7 h → −0,5 h/jour de trop). Le
             # `min` préserve les arrêts fractionnaires (demi-journée < réf.
             # légale, ex. 3,5 h), imputés à leur valeur réelle.
+            #
+            # Un arrêt ne se retient que sur les jours ouvrés : le samedi et le
+            # dimanche n'y sont pas, sauf s'ils portent des heures prévues. Un
+            # arrêt saisi à l'écran type aussi les week-ends au calendrier
+            # (Colorplast, août 2026 : 15 jours retenus au lieu des 11 jours
+            # ouvrés du cabinet).
+            jour_arret = date.fromisoformat(evenement["date_complete"])
+            if jour_arret.weekday() >= 5 and not float(evenement.get("heures") or 0):
+                continue
             heures_abs = min(
                 _heures_evenement_absence(evenement, duree_contrat_hebdo),
                 _heures_journalieres_contrat(duree_contrat_hebdo),
             )
-            montant_deduction = round(heures_abs * taux_horaire_de_base, 2)
-            deduction_arret_maladie_total += montant_deduction
             heures_arret_deduites += heures_abs
-            if not evenement.get("is_regularisation_anterieure"):
+            regularisation = bool(evenement.get("is_regularisation_anterieure"))
+            if not regularisation:
                 jours_absence_legale_equivalents += (
                     heures_abs / lc.DUREE_LEGALE_HEBDO * 5
                 )
                 jours_absence_legale_arret += heures_abs / lc.DUREE_LEGALE_HEBDO * 5
-                montant_absence_pleine_total += montant_deduction
-            lignes_composants_brut.append(
-                {
-                    "libelle": f"Absence {LIBELLES_ARRET.get(type_ev, 'arrêt de travail')} (jours déduction)",
-                    "quantite": heures_abs,
-                    "taux": round(taux_horaire_de_base, 4),
-                    "gain": None,
-                    "perte": montant_deduction,
-                    "is_arret_maladie": True,
-                }
+            # La retenue s'écrit par période, après la boucle.
+            jours_d_arret_a_retenir.append(
+                (jour_arret, type_ev, heures_abs, regularisation)
             )
+
+    # Une ligne par période d'arrêt, comme le cabinet (« Absence maladie
+    # 170826-310826 ») : les heures de la période au taux de base, arrondies une
+    # seule fois. Une ligne par jour arrondissait chaque jour (7 h à 13,1430 =
+    # 92,00) et perdait un centime sur 11 jours.
+    for periode in _periodes_d_arret(jours_d_arret_a_retenir):
+        montant_deduction = round(periode["heures"] * taux_horaire_de_base, 2)
+        deduction_arret_maladie_total += montant_deduction
+        if not periode["regularisation"]:
+            montant_absence_pleine_total += montant_deduction
+        lignes_composants_brut.append(
+            {
+                "libelle": _libelle_periode_d_arret(periode),
+                "quantite": round(periode["heures"], 2),
+                "taux": round(taux_horaire_de_base, 4),
+                "gain": None,
+                "perte": montant_deduction,
+                "is_arret_maladie": True,
+            }
+        )
 
     # Réduction proportionnelle des HS structurelles mensualisées (salaire_hors_hs_structurelles)
     # pour les journées d'absence déduites sur la référence légale : le salarié absent un

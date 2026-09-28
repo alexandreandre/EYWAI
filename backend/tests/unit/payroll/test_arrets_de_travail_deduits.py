@@ -46,16 +46,15 @@ def _pertes(type_arret):
 
 
 @pytest.mark.parametrize("type_arret, libelle", [
-    ("arret_maladie", "Absence arrêt maladie (jours déduction)"),
-    ("arret_at", "Absence accident du travail (jours déduction)"),
-    ("arret_maternite", "Absence congé maternité (jours déduction)"),
-    ("arret_paternite", "Absence congé paternité (jours déduction)"),
+    ("arret_maladie", "Absence arrêt maladie du 26/05 au 29/05"),
+    ("arret_at", "Absence accident du travail du 26/05 au 29/05"),
+    ("arret_maternite", "Absence congé maternité du 26/05 au 29/05"),
+    ("arret_paternite", "Absence congé paternité du 26/05 au 29/05"),
 ])
 def test_chaque_nature_d_arret_est_deduite(type_arret, libelle):
+    """Une ligne pour la période : 4 jours × 7 h = 28,00 h à 12,20 (341,60 €)."""
     pertes = _pertes(type_arret)
-    jours = [p for p in pertes if "jours déduction" in p[0]]
-    assert len(jours) == len(JOURS_OUVRES)
-    assert all(p[0] == libelle and p[1] == 7.0 and p[2] == 85.40 for p in jours)
+    assert (libelle, 28.0, 341.60) in pertes
 
 
 def test_la_quote_part_structurelle_est_retiree_une_fois():

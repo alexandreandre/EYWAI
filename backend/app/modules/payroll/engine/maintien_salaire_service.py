@@ -1107,6 +1107,32 @@ def calculer_maintien(
         date_fin_periode,
     )
 
+    # Sans maintien de salaire sur la période, l'employeur n'a rien à avancer
+    # pour la caisse : pas de subrogation, les IJSS sont versées directement au
+    # salarié et restent hors du bulletin. Colorplast, août 2026 : subrogation
+    # réglée « quand il y a maintien », aucun maintien, et pourtant 393,18 €
+    # d'IJSS au net et un complément employeur négatif. La maternité garde son
+    # régime (maintien à 100 %, calculé à part).
+    subrogation_demandee = bool(arret.get("subrogation_active"))
+    if (
+        subrogation_demandee
+        and not qualification.get("est_maternite")
+        and float(maintien.get("maintien_cible") or 0.0) <= 0.0
+    ):
+        arret = {**arret, "subrogation_active": False}
+        maintien = _calculer_maintien_employeur(
+            arret,
+            qualification,
+            carence,
+            ijss,
+            contexte,
+            settings,
+            date_debut_arret,
+            anciennete_mois,
+            date_debut_periode,
+            date_fin_periode,
+        )
+
     nb_jours_arret_total = _compter_jours_calendaires(
         date_debut_arret, date_fin_arret or date_debut_arret
     )
@@ -1172,7 +1198,7 @@ def calculer_maintien(
         alertes.append(
             "Subrogation demandée sans maintien applicable — vérifier la cohérence"
         )
-    if arret.get("subrogation_active") and float(ijss.get("ijss_theorique") or 0) == 0:
+    if subrogation_demandee and float(ijss.get("ijss_theorique") or 0) == 0:
         sjb = float(ijss.get("salaire_journalier_base") or 0)
         bp = float(ijss.get("base_plafonnee") or 0)
         if sjb <= 0:
