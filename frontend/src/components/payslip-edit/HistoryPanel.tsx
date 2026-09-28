@@ -143,7 +143,7 @@ export default function HistoryPanel({
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3" />
-                    {entry.edited_by_name}
+                    {entry.edited_by_name ?? 'Système'}
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />

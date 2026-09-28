@@ -47,8 +47,10 @@ class HistoryEntry(BaseModel):
 
     version: int
     edited_at: datetime
-    edited_by: str
-    edited_by_name: str
+    # Absents quand la version a été archivée par une régénération sans
+    # utilisateur connu (script, backtest) : l'écran affiche « Système ».
+    edited_by: str | None = None
+    edited_by_name: str | None = None
     changes_summary: str
     previous_payslip_data: dict[str, Any]
     previous_pdf_url: str | None = None

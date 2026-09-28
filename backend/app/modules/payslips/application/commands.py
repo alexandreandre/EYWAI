@@ -30,6 +30,11 @@ from app.modules.payslips.application.dto import (
 from app.modules.payslips.domain.heures_sup import (
     quantites_heures_sup_conjoncturelles,
 )
+from app.modules.payslips.domain.historique import (
+    AUTEUR_SYSTEME,
+    plafonner,
+    prochaine_version,
+)
 from app.modules.payslips.domain.primes_editees import (
     diff_primes,
     sans_marques_de_saisie,
@@ -180,10 +185,6 @@ def _fetch_existing_payslip(
     return r.data if r and r.data else None
 
 
-#: Versions antérieures gardées dans `edit_history` avant écrasement.
-VERSIONS_CONSERVEES = 10
-
-
 def _archive_before_regeneration(
     existing: dict[str, Any], cmd: GeneratePayslipInput
 ) -> None:
@@ -208,10 +209,10 @@ def _archive_before_regeneration(
             return
     history.append(
         {
-            "version": len(history) + 1,
+            "version": prochaine_version(history),
             "edited_at": datetime.now().isoformat(),
             "edited_by": cmd.requested_by,
-            "edited_by_name": cmd.requested_by_name,
+            "edited_by_name": cmd.requested_by_name or AUTEUR_SYSTEME,
             "changes_summary": (
                 "Régénération d'un bulletin validé (forçage explicite)"
                 if existing.get("status") == "valide"
@@ -226,7 +227,7 @@ def _archive_before_regeneration(
     # sans plafond, `edit_history` enflerait indéfiniment. On garde les versions
     # les plus récentes, seules utiles pour revenir en arrière.
     supabase.table("payslips").update(
-        {"edit_history": history[-VERSIONS_CONSERVEES:]}
+        {"edit_history": plafonner(history)}
     ).eq("id", existing["id"]).execute()
 
 

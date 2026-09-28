@@ -14,6 +14,11 @@ from weasyprint import HTML
 
 from app.core.database import supabase
 from app.core.paths import payroll_engine_templates, payroll_engine_employee_bulletins
+from app.modules.payslips.domain.historique import (
+    entree_de_version,
+    plafonner,
+    prochaine_version,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +182,7 @@ def save_edited_payslip(
         if not isinstance(edit_history, list):
             edit_history = []
 
-        new_version = len(edit_history) + 1
+        new_version = prochaine_version(edit_history)
 
         history_entry = {
             "version": new_version,
@@ -190,6 +195,7 @@ def save_edited_payslip(
         }
 
         edit_history.append(history_entry)
+        edit_history = plafonner(edit_history)
 
         internal_notes = payslip.get("internal_notes") or []
         if not isinstance(internal_notes, list):
@@ -328,14 +334,13 @@ def restore_payslip_version(
             raise HTTPException(status_code=404, detail="Bulletin non trouvé")
 
         edit_history = payslip.get("edit_history") or []
+        if not isinstance(edit_history, list):
+            edit_history = []
 
-        if version < 1 or version > len(edit_history):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Version invalide. Versions disponibles: 1-{len(edit_history)}",
-            )
-
-        history_entry = edit_history[version - 1]
+        # Par numéro, pas par position : le plafond décale les positions.
+        history_entry = entree_de_version(edit_history, version)
+        if history_entry is None:
+            raise HTTPException(status_code=404, detail="Version introuvable")
         previous_data = history_entry.get("previous_payslip_data")
 
         if not previous_data:

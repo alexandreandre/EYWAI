@@ -101,8 +101,8 @@ export interface InternalNote {
 export interface HistoryEntry {
   version: number;
   edited_at: string;
-  edited_by: string;
-  edited_by_name: string;
+  edited_by: string | null;
+  edited_by_name: string | null;
   changes_summary: string;
   previous_payslip_data: any;
   previous_pdf_url?: string;
