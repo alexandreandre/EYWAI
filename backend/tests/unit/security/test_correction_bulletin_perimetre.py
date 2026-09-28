@@ -111,3 +111,34 @@ def test_un_bulletin_envoye_tel_quel_est_refuse():
     reponse, corriger, _ = _corriger(corps={"payslip_data": {"net_a_payer": 1}, "changes_summary": "x"})
     assert reponse.status_code == 422
     corriger.assert_not_called()
+
+
+def _restaurer(societe_du_bulletin=MA_SOCIETE, **restauration):
+    app.dependency_overrides[get_current_user] = _rh
+    try:
+        with (
+            patch("app.modules.payslips.api.router.get_payslip_meta_for_access") as meta,
+            patch("app.modules.payslips.api.router.access_control_service") as acces,
+            patch("app.modules.payslips.api.router.resolve_employee_id_for_user_account", return_value=None),
+            patch("app.modules.payslips.api.router.restore_payslip_for_user", **restauration) as restaurer,
+        ):
+            meta.return_value = {"company_id": societe_du_bulletin, "employee_id": SALARIE}
+            acces.require_employee_access.return_value = None
+            reponse = TestClient(app).post(f"/api/payslips/{BULLETIN}/restore", json={"version": 3})
+        return reponse, restaurer
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_restaurer_le_bulletin_d_une_autre_societe_est_introuvable():
+    reponse, restaurer = _restaurer(AUTRE_SOCIETE)
+    assert reponse.status_code == 404
+    restaurer.assert_not_called()
+
+
+def test_restaurer_rend_l_etat_du_recalcul():
+    reponse, _ = _restaurer(return_value={"payslip": LIGNE, "recalcule": True, "recalcul_erreur": None})
+    corps = reponse.json()
+    assert reponse.status_code == 200
+    assert corps["recalcule"] is True
+    assert corps["message"] == "Bulletin revenu à la version 3 et recalculé."

@@ -2,7 +2,6 @@
 from app.modules.payslips.application.commands import (
     delete_payslip,
     generate_payslip,
-    restore_payslip_version,
 )
 from app.modules.payslips.application.comparison_service import (
     acquit_payslip_alert_for_user,
@@ -36,13 +35,11 @@ from app.modules.payslips.application.service import (
     get_payslip_details_for_user,
     get_payslip_history_for_user,
     restore_payslip_for_user,
-    restore_payslip_use_case,
 )
 
 __all__ = [
     "generate_payslip",
     "delete_payslip",
-    "restore_payslip_version",
     "get_my_payslips",
     "get_my_payslips_for_user_account",
     "get_employee_payslips",
@@ -50,7 +47,6 @@ __all__ = [
     "get_payslip_history",
     "generate_payslip_use_case",
     "delete_payslip_use_case",
-    "restore_payslip_use_case",
     "get_payslip_details_for_user",
     "get_payslip_history_for_user",
     "edit_payslip_for_user",

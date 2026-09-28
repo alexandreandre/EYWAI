@@ -13,9 +13,11 @@ from typing import Any
 from app.modules.payslips.application.commands import (
     delete_payslip as cmd_delete_payslip,
     generate_payslip,
-    restore_payslip_version,
 )
-from app.modules.payslips.application.corrections import corriger_bulletin
+from app.modules.payslips.application.corrections import (
+    corriger_bulletin,
+    restaurer_version,
+)
 from app.modules.payslips.application.period_edit_lock import (
     assert_payslip_manual_edit_allowed,
     enrich_payslip_detail_with_edit_lock,
@@ -207,31 +209,11 @@ def restore_payslip_for_user(
         assert_payslip_manual_edit_allowed(meta, bypass_lock=ctx.is_platform_admin)
     except ValueError as exc:
         raise PayslipBadRequestError(str(exc)) from exc
-    return restore_payslip_version(
+    return restaurer_version(
         RestorePayslipInput(
             payslip_id=payslip_id,
             version=version,
             current_user_id=ctx.user_id,
             current_user_name=ctx.display_name(),
-        )
-    )
-
-
-# --- Ré-exports pour compatibilité : signature (user_id, user_name) au lieu de UserContext ---
-
-
-def restore_payslip_use_case(
-    payslip_id: str,
-    version: int,
-    current_user_id: str,
-    current_user_name: str,
-) -> dict[str, Any]:
-    """Restauration d'une version (signature legacy : user_id, user_name)."""
-    return restore_payslip_version(
-        RestorePayslipInput(
-            payslip_id=payslip_id,
-            version=version,
-            current_user_id=current_user_id,
-            current_user_name=current_user_name,
         )
     )

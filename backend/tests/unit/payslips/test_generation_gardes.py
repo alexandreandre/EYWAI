@@ -983,39 +983,6 @@ def test_supprimer_un_brouillon_reste_permis():
     fake_repo.delete.assert_called_once_with("p-1")
 
 
-class TestEditionDUnBulletinValide:
-    """T1 — restaurer un bulletin validé le repasse en brouillon : le salarié ne
-    doit jamais voir un contenu qui n'a pas été revalidé. La correction est
-    couverte par `test_corrections.py`."""
-
-    def test_restaurer_un_valide_le_repasse_en_brouillon(self):
-        from unittest.mock import MagicMock, patch as p_
-
-        from app.modules.payslips.application import commands as mod
-        from app.modules.payslips.application.dto import RestorePayslipInput
-
-        fake_provider = MagicMock()
-        fake_provider.restore_version.return_value = {"success": True}
-        with (
-            p_.object(mod, "payslip_editor_provider", fake_provider),
-            p_.object(
-                mod,
-                "_fetch_payslip_status",
-                return_value={"id": "p-1", "status": "valide"},
-            ),
-            p_.object(mod, "_set_payslip_status_brouillon") as mock_reset,
-        ):
-            mod.restore_payslip_version(
-                RestorePayslipInput(
-                    payslip_id="p-1",
-                    version=1,
-                    current_user_id="rh-1",
-                    current_user_name="RH",
-                )
-            )
-        mock_reset.assert_called_once_with("p-1")
-
-
 class TestVisibiliteSalarieAuDetail:
     """F5 — le salarié ne lit que du VALIDÉ, même au détail (la liste était
     filtrée mais GET /payslips/{id} servait les brouillons)."""

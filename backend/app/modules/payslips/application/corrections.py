@@ -32,6 +32,7 @@ from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
     PayslipConflictError,
     PayslipNotFoundError,
+    RestorePayslipInput,
 )
 from app.modules.payslips.application.impression import reimprimer_bulletin
 from app.modules.payslips.application.primes_editees import (
@@ -40,6 +41,7 @@ from app.modules.payslips.application.primes_editees import (
 )
 from app.modules.payslips.domain.corrections import (
     CorrectionsBulletin,
+    corrections_pour_revenir,
     resume_des_corrections,
 )
 from app.modules.payslips.domain.heures_sup import (
@@ -49,9 +51,11 @@ from app.modules.payslips.domain.heures_sup import (
 )
 from app.modules.payslips.domain.historique import (
     AUTEUR_SYSTEME,
+    entree_de_version,
     plafonner,
     prochaine_version,
 )
+from app.modules.payslips.domain.primes_editees import primes_saisies_du_bulletin
 
 logger = logging.getLogger(__name__)
 
@@ -319,3 +323,63 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         "recalcule": recalcule,
         "recalcul_erreur": erreur,
     }
+
+
+# --- Restauration ---
+
+MESSAGE_RIEN_A_RESTAURER = (
+    "Cette version a déjà les mêmes heures sup et les mêmes primes que le "
+    "bulletin : rien à restaurer. Le reste (planning, absences, salaire) se "
+    "corrige à sa source."
+)
+
+
+def _saisies_existantes(ids: set[str], periode: dict[str, Any]) -> set[str]:
+    if not ids:
+        return set()
+    r = (
+        supabase.table("monthly_inputs")
+        .select("id")
+        .in_("id", sorted(ids))
+        .match(periode)
+        .execute()
+    )
+    return {str(row["id"]) for row in r.data or []}
+
+
+def restaurer_version(cmd: RestorePayslipInput) -> dict[str, Any]:
+    """Revient aux heures sup et aux primes d'une version, puis recalcule.
+
+    La restauration recopiait l'ancien bulletin sans revenir sur les variables
+    du mois : le prochain recalcul l'effaçait, et le PDF gardait les cotisations
+    et le net de la version courante (audit du 28/09).
+    """
+    bulletin = _lire_bulletin(cmd.payslip_id)
+    if not bulletin:
+        raise PayslipNotFoundError("Bulletin non trouvé")
+    _refuser_si_importe(cmd.payslip_id)
+    historique = bulletin.get("edit_history")
+    entree = entree_de_version(historique if isinstance(historique, list) else [], cmd.version)
+    if entree is None:
+        raise PayslipNotFoundError("Version introuvable")
+    cible = entree.get("previous_payslip_data")
+    if not isinstance(cible, dict) or not cible:
+        raise PayslipBadRequestError("Les données de cette version sont introuvables.")
+
+    periode = _periode(bulletin)
+    corrections = corrections_pour_revenir(
+        bulletin.get("payslip_data"),
+        cible,
+        saisies_existantes=_saisies_existantes(set(primes_saisies_du_bulletin(cible)), periode),
+    )
+    if not corrections.change_des_variables:
+        raise PayslipBadRequestError(MESSAGE_RIEN_A_RESTAURER)
+    return corriger_bulletin(
+        CorrigerBulletinInput(
+            payslip_id=cmd.payslip_id,
+            corrections=corrections,
+            current_user_id=cmd.current_user_id,
+            current_user_name=cmd.current_user_name,
+            changes_summary=f"Retour à la version {cmd.version}",
+        )
+    )

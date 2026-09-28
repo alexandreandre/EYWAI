@@ -171,6 +171,8 @@ class PayslipRestoreResponse(BaseModel):
     message: str
     payslip: PayslipDetail
     restored_version: int
+    recalcule: bool = False
+    recalcul_erreur: str | None = None
 
 
 class PayslipPreviewResponse(BaseModel):

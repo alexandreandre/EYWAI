@@ -35,50 +35,6 @@ def process_payslip_generation_forfait(
     return _impl(employee_id=employee_id, year=year, month=month, **extra)
 
 
-def save_edited_payslip(
-    payslip_id: str,
-    new_payslip_data: dict[str, Any],
-    changes_summary: str,
-    current_user_id: str,
-    current_user_name: str,
-    pdf_notes: str | None = None,
-    internal_note: str | None = None,
-) -> dict[str, Any]:
-    """Délègue à app.modules.payroll.documents.payslip_editor (comportement identique)."""
-    from app.modules.payroll.documents.payslip_editor import (
-        save_edited_payslip as _impl,
-    )
-
-    return _impl(
-        payslip_id=payslip_id,
-        new_payslip_data=new_payslip_data,
-        changes_summary=changes_summary,
-        current_user_id=current_user_id,
-        current_user_name=current_user_name,
-        pdf_notes=pdf_notes,
-        internal_note=internal_note,
-    )
-
-
-def restore_payslip_version(
-    payslip_id: str,
-    version: int,
-    current_user_id: str,
-    current_user_name: str,
-) -> dict[str, Any]:
-    """Délègue à app.modules.payroll.documents.payslip_editor (comportement identique)."""
-    from app.modules.payroll.documents.payslip_editor import (
-        restore_payslip_version as _impl,
-    )
-
-    return _impl(
-        payslip_id=payslip_id,
-        version=version,
-        current_user_id=current_user_id,
-        current_user_name=current_user_name,
-    )
-
-
 def recalculer_credits_repos_employe(
     employee_id: str, company_id: str, year: int
 ) -> int:

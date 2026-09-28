@@ -39,33 +39,6 @@ class IPayslipGenerator(Protocol):
         ...
 
 
-class IPayslipEditor(Protocol):
-    """Édition et restauration d'un bulletin existant."""
-
-    def save_edited(
-        self,
-        payslip_id: str,
-        new_payslip_data: dict[str, Any],
-        changes_summary: str,
-        current_user_id: str,
-        current_user_name: str,
-        pdf_notes: str | None = None,
-        internal_note: str | None = None,
-    ) -> dict[str, Any]:
-        """Sauvegarde les modifications ; retourne {payslip, new_pdf_url}."""
-        ...
-
-    def restore_version(
-        self,
-        payslip_id: str,
-        version: int,
-        current_user_id: str,
-        current_user_name: str,
-    ) -> dict[str, Any]:
-        """Restaure une version ; retourne {payslip, new_pdf_url}."""
-        ...
-
-
 class IPayslipRepository(Protocol):
     """Accès lecture/écriture aux bulletins (table payslips + storage)."""
 

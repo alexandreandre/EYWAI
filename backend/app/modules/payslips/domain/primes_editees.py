@@ -75,6 +75,28 @@ def _par_saisie(payslip_data: dict[str, Any] | None) -> dict[str, float]:
     }
 
 
+@dataclass(frozen=True)
+class PrimeDuBulletin:
+    libelle: str
+    montant: float
+    #: Imprimée dans le brut (soumise) ou parmi les primes non soumises.
+    soumise: bool
+
+
+def primes_saisies_du_bulletin(payslip_data: dict[str, Any] | None) -> dict[str, PrimeDuBulletin]:
+    """Les primes imprimées depuis une saisie du mois, par identifiant de saisie."""
+    primes: dict[str, PrimeDuBulletin] = {}
+    for section in _SECTIONS:
+        for ligne in (payslip_data or {}).get(section) or []:
+            if isinstance(ligne, dict) and not ligne.get("is_sous_total") and ligne.get("saisie_id"):
+                primes[str(ligne["saisie_id"])] = PrimeDuBulletin(
+                    libelle=str(ligne.get("libelle") or "Prime"),
+                    montant=_montant(ligne),
+                    soumise=section == "calcul_du_brut",
+                )
+    return primes
+
+
 def diff_primes(avant: dict[str, Any] | None, apres: dict[str, Any] | None) -> DiffPrimes:
     """Ajoutées, montants corrigés et retirées, d'`avant` à `apres`."""
     ids_avant = _par_saisie(avant)

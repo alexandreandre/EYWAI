@@ -555,18 +555,27 @@ def restore_payslip_route(
     restore_request: PayslipRestoreRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Restaure une version précédente (RH/Admin/Super Admin)."""
+    """Revient aux heures sup et aux primes d'une version, puis recalcule (RH)."""
     try:
+        _require_payslip_scope(current_user, payslip_id, "payslips.edit")
         result = restore_payslip_for_user(
             payslip_id,
             restore_request.version,
             _to_user_context(current_user),
         )
+        erreur = result.get("recalcul_erreur")
         return PayslipRestoreResponse(
             status="success",
-            message=f"Version {restore_request.version} restaurée avec succès",
+            message=(
+                f"Version {restore_request.version} : variables rétablies, mais "
+                "le bulletin n'a pas pu être recalculé."
+                if erreur
+                else f"Bulletin revenu à la version {restore_request.version} et recalculé."
+            ),
             payslip=result["payslip"],
             restored_version=restore_request.version,
+            recalcule=bool(result.get("recalcule")),
+            recalcul_erreur=erreur,
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)

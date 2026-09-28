@@ -23,7 +23,6 @@ from app.modules.payslips.application.service import (
     get_payslip_history_for_user,
     edit_payslip_for_user,
     restore_payslip_for_user,
-    restore_payslip_use_case,
 )
 
 
@@ -377,7 +376,7 @@ class TestRestorePayslipForUser:
                 "app.modules.payslips.application.service.payslip_meta_reader"
             ) as mock_reader,
             patch(
-                "app.modules.payslips.application.service.restore_payslip_version",
+                "app.modules.payslips.application.service.restaurer_version",
                 return_value=expected,
             ),
             patch(
@@ -411,18 +410,3 @@ class TestRestorePayslipForUser:
                 restore_payslip_for_user("ps-1", 1, ctx)
 
 
-class TestRestorePayslipUseCaseLegacy:
-    """Tests de restore_payslip_use_case (signature legacy)."""
-
-    def test_calls_restore_payslip_version_with_correct_input(self):
-        """restore_payslip_use_case construit RestorePayslipInput et appelle restore_payslip_version."""
-        with patch(
-            "app.modules.payslips.application.service.restore_payslip_version"
-        ) as mock_restore:
-            mock_restore.return_value = {}
-            restore_payslip_use_case("ps-1", 2, "user-1", "Admin")
-        call_arg = mock_restore.call_args[0][0]
-        assert call_arg.payslip_id == "ps-1"
-        assert call_arg.version == 2
-        assert call_arg.current_user_id == "user-1"
-        assert call_arg.current_user_name == "Admin"

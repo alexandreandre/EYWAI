@@ -1,6 +1,5 @@
 # Infrastructure layer for payslips.
 from app.modules.payslips.infrastructure.providers import (
-    payslip_editor_provider,
     payslip_generator_provider,
 )
 from app.modules.payslips.infrastructure.readers import (
@@ -15,7 +14,6 @@ from app.modules.payslips.infrastructure.repository import (
 
 __all__ = [
     "payslip_generator_provider",
-    "payslip_editor_provider",
     "PayslipRepository",
     "payslip_repository",
     "employee_statut_reader",

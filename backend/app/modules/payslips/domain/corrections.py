@@ -10,8 +10,15 @@ primes fixes) se corrige à sa source, sur son propre écran.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
-from app.modules.payslips.domain.primes_editees import DiffPrimes
+from app.modules.payslips.domain.heures_sup import quantites_heures_sup_conjoncturelles
+from app.modules.payslips.domain.primes_editees import (
+    DiffPrimes,
+    primes_saisies_du_bulletin,
+)
+
+_TOLERANCE = 0.005
 
 
 @dataclass(frozen=True)
@@ -61,3 +68,82 @@ def resume_des_corrections(corrections: CorrectionsBulletin) -> str:
         return "Notes modifiées"
     texte = ", ".join(parties)
     return texte[0].upper() + texte[1:]
+
+
+def _declarees(payslip_data: dict[str, Any] | None) -> tuple[float, float] | None:
+    declarees = (payslip_data or {}).get("heures_sup_declarees")
+    if not isinstance(declarees, dict):
+        return None
+    return (
+        round(float(declarees.get("hs25") or 0.0), 2),
+        round(float(declarees.get("hs50") or 0.0), 2),
+    )
+
+
+def _proches(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    return all(abs(x - y) <= _TOLERANCE for x, y in zip(a, b))
+
+
+def _heures_pour_revenir(
+    courant: dict[str, Any] | None, cible: dict[str, Any] | None
+) -> tuple[float, float] | None:
+    """Les heures sup à déclarer pour retrouver celles de la version cible.
+
+    Une version récente dit si ses heures ont été déclarées au bulletin ; une
+    plus ancienne ne le dit pas, et on reprend alors les quantités qu'elle
+    imprimait. Rien à déclarer quand elles sont déjà celles du bulletin.
+    """
+    cible_declarees = _declarees(cible)
+    if cible_declarees is not None:
+        courant_declarees = _declarees(courant)
+        if courant_declarees is not None and _proches(cible_declarees, courant_declarees):
+            return None
+        return cible_declarees
+    heures_cible = quantites_heures_sup_conjoncturelles(cible)
+    heures_courant = quantites_heures_sup_conjoncturelles(courant)
+    if _proches(heures_cible, heures_courant):
+        return None
+    return (round(heures_cible[0], 2), round(heures_cible[1], 2))
+
+
+def corrections_pour_revenir(
+    courant: dict[str, Any] | None,
+    cible: dict[str, Any] | None,
+    *,
+    saisies_existantes: set[str] | frozenset[str] = frozenset(),
+) -> CorrectionsBulletin:
+    """Ce qu'il faut corriger pour que le bulletin retrouve les heures sup et
+    les primes saisies d'une version antérieure.
+
+    Restaurer ne recopie plus l'ancien bulletin (ses cotisations et son net
+    n'auraient pas suivi) : on revient à ses variables, et le moteur recalcule.
+    Une prime de la version dont la saisie a disparu est recréée, avec le régime
+    de la section où elle était imprimée ; `saisies_existantes` évite de recréer
+    une saisie encore présente dans le mois.
+    """
+    primes_courant = primes_saisies_du_bulletin(courant)
+    primes_cible = primes_saisies_du_bulletin(cible)
+
+    retirees = tuple(sid for sid in primes_courant if sid not in primes_cible)
+    modifiees: list[tuple[str, float]] = []
+    ajoutees: list[dict[str, Any]] = []
+    for sid, prime in primes_cible.items():
+        if sid in primes_courant:
+            if abs(prime.montant - primes_courant[sid].montant) > _TOLERANCE:
+                modifiees.append((sid, prime.montant))
+        elif sid in saisies_existantes:
+            modifiees.append((sid, prime.montant))
+        else:
+            ajoutees.append(
+                {
+                    "name": prime.libelle,
+                    "amount": prime.montant,
+                    "is_socially_taxed": prime.soumise,
+                    "is_taxable": prime.soumise,
+                    "catalog_prime_id": None,
+                }
+            )
+    return CorrectionsBulletin(
+        heures_sup=_heures_pour_revenir(courant, cible),
+        primes=DiffPrimes(tuple(ajoutees), tuple(modifiees), retirees),
+    )

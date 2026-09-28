@@ -11,11 +11,9 @@ import pytest
 from app.modules.payslips.application.commands import (
     generate_payslip,
     delete_payslip,
-    restore_payslip_version,
 )
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
-    RestorePayslipInput,
     PayslipBadRequestError,
 )
 
@@ -330,43 +328,6 @@ class TestDeletePayslipCommand:
         ):
             delete_payslip("ps-123")
             mock_repo.delete.assert_called_once_with("ps-123")
-
-
-class TestRestorePayslipVersionCommand:
-    @pytest.fixture(autouse=True)
-    def _statut_brouillon(self):
-        """Lot 3 : edit/restore lisent le statut — brouillon par défaut ici."""
-        with patch(
-            "app.modules.payslips.application.commands._fetch_payslip_status",
-            return_value={"id": "ps-1", "status": "brouillon"},
-        ):
-            yield
-
-    """Tests de la commande restore_payslip_version."""
-
-    def test_delegates_to_editor_provider_restore_version(self):
-        """restore_payslip_version délègue au provider restore_version."""
-        cmd = RestorePayslipInput(
-            payslip_id="ps-1",
-            version=2,
-            current_user_id="user-1",
-            current_user_name="Admin",
-        )
-        expected = {"payslip": {"id": "ps-1"}, "restored_version": 2}
-
-        with patch(
-            "app.modules.payslips.application.commands.payslip_editor_provider"
-        ) as mock_editor:
-            mock_editor.restore_version.return_value = expected
-            result = restore_payslip_version(cmd)
-
-        mock_editor.restore_version.assert_called_once_with(
-            payslip_id="ps-1",
-            version=2,
-            current_user_id="user-1",
-            current_user_name="Admin",
-        )
-        assert result == expected
 
 
 class TestBulletinImporteIntouchable:

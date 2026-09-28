@@ -14,8 +14,6 @@ from app.modules.payroll.application.payslip_commands import (
     is_forfait_jour,
     process_payslip_generation,
     process_payslip_generation_forfait,
-    save_edited_payslip,
-    restore_payslip_version,
 )
 from app.modules.payroll.application.forfait_commands import (
     definir_periode_de_paie_forfait,
@@ -79,45 +77,6 @@ class TestPayslipCommandsProcessGeneration:
         result = process_payslip_generation_forfait("emp-2", 2025, 4)
         mock_impl.assert_called_once_with(employee_id="emp-2", year=2025, month=4)
         assert result["status"] == "ok"
-
-
-class TestPayslipCommandsSaveAndRestore:
-    """save_edited_payslip et restore_payslip_version avec mocks (délégation vers documents.payslip_editor)."""
-
-    @patch("app.modules.payroll.documents.payslip_editor.save_edited_payslip")
-    def test_save_edited_payslip_delegates(self, mock_impl):
-        mock_impl.return_value = {"payslip_id": "p1", "version": 2}
-        result = save_edited_payslip(
-            payslip_id="p1",
-            new_payslip_data={"brut": 3000},
-            changes_summary="Modif",
-            current_user_id="u1",
-            current_user_name="User",
-            pdf_notes="Note",
-            internal_note="Int",
-        )
-        mock_impl.assert_called_once()
-        assert result["payslip_id"] == "p1"
-
-    @patch("app.modules.payroll.documents.payslip_editor.restore_payslip_version")
-    def test_restore_payslip_version_delegates(self, mock_impl):
-        mock_impl.return_value = {"payslip_id": "p1", "restored_version": 1}
-        result = restore_payslip_version(
-            payslip_id="p1",
-            version=1,
-            current_user_id="u1",
-            current_user_name="User",
-        )
-        mock_impl.assert_called_once_with(
-            payslip_id="p1",
-            version=1,
-            current_user_id="u1",
-            current_user_name="User",
-        )
-        assert result["restored_version"] == 1
-
-
-# --- Forfait commands ---
 
 
 class TestForfaitCommandsDefinirPeriode:

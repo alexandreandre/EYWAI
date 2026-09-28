@@ -24,7 +24,6 @@ from app.modules.payslips.application.dto import (
     PayslipCalendarIncompleteError,
     PayslipValidatedError,
     PayslipNotFoundError,
-    RestorePayslipInput,
 )
 from app.modules.payslips.domain.historique import (
     AUTEUR_SYSTEME,
@@ -33,7 +32,6 @@ from app.modules.payslips.domain.historique import (
 )
 from app.modules.payslips.domain.rules import is_forfait_jour
 from app.modules.payslips.infrastructure.providers import (
-    payslip_editor_provider,
     payslip_generator_provider,
 )
 from app.modules.payslips.infrastructure.readers import employee_statut_reader
@@ -494,26 +492,3 @@ def _set_payslip_status_brouillon(payslip_id: str) -> None:
     supabase.table("payslips").update({"status": "brouillon"}).eq(
         "id", payslip_id
     ).execute()
-
-
-def _etait_valide(payslip_id: str) -> bool:
-    existing = _fetch_payslip_status(payslip_id)
-    return bool(existing and existing.get("status") == "valide")
-
-
-def restore_payslip_version(cmd: RestorePayslipInput) -> dict[str, Any]:
-    """Restaure une version d'un bulletin. Délègue au provider legacy.
-
-    Même règle que l'édition : restaurer sur un bulletin validé le repasse
-    en brouillon.
-    """
-    etait_valide = _etait_valide(cmd.payslip_id)
-    result = payslip_editor_provider.restore_version(
-        payslip_id=cmd.payslip_id,
-        version=cmd.version,
-        current_user_id=cmd.current_user_id,
-        current_user_name=cmd.current_user_name,
-    )
-    if etait_valide:
-        _set_payslip_status_brouillon(cmd.payslip_id)
-    return result

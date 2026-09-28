@@ -14,8 +14,6 @@ from app.modules.payslips.infrastructure.readers import employee_statut_reader
 from app.shared.infrastructure.payslip_services import (
     process_payslip_generation,
     process_payslip_generation_forfait,
-    restore_payslip_version as _restore_payslip_version,
-    save_edited_payslip as _save_edited_payslip,
 )
 
 
@@ -70,43 +68,4 @@ class PayslipGeneratorProvider:
         )
 
 
-class PayslipEditorProvider:
-    """Implémentation de IPayslipEditor (délègue à app.shared.infrastructure.payslip_services)."""
-
-    def save_edited(
-        self,
-        payslip_id: str,
-        new_payslip_data: dict[str, Any],
-        changes_summary: str,
-        current_user_id: str,
-        current_user_name: str,
-        pdf_notes: str | None = None,
-        internal_note: str | None = None,
-    ) -> dict[str, Any]:
-        return _save_edited_payslip(
-            payslip_id=payslip_id,
-            new_payslip_data=new_payslip_data,
-            changes_summary=changes_summary,
-            current_user_id=current_user_id,
-            current_user_name=current_user_name,
-            pdf_notes=pdf_notes,
-            internal_note=internal_note,
-        )
-
-    def restore_version(
-        self,
-        payslip_id: str,
-        version: int,
-        current_user_id: str,
-        current_user_name: str,
-    ) -> dict[str, Any]:
-        return _restore_payslip_version(
-            payslip_id=payslip_id,
-            version=version,
-            current_user_id=current_user_id,
-            current_user_name=current_user_name,
-        )
-
-
 payslip_generator_provider = PayslipGeneratorProvider()
-payslip_editor_provider = PayslipEditorProvider()
