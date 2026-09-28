@@ -31,6 +31,7 @@ from app.modules.payroll.documents.dossier_de_travail import (
     supprimer_dossier_de_travail,
 )
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
+from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -845,6 +846,8 @@ def process_payslip_generation(
             saisies_data["heures_supplementaires_conjoncturelles"] = hs_conj_25
         if hs_conj_50 is not None:
             saisies_data["heures_supplementaires_conjoncturelles_50"] = hs_conj_50
+        if any(est_declaration_bulletin(r) for r in saisies_res.data or []):
+            saisies_data["heures_sup_declarees_au_bulletin"] = True
 
         if expense_reports_res.data:
             log_payroll_debug(logger, f'DEBUG [Generator] - Ajout de {len(expense_reports_res.data)} note(s) de frais aux saisies.')

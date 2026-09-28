@@ -28,6 +28,8 @@ from app.modules.payslips.application.dto import (
     RestorePayslipInput,
 )
 from app.modules.payslips.domain.heures_sup import (
+    LIBELLE_HS_DECLAREES,
+    LIBELLE_HS_DECLAREES_50,
     quantites_heures_sup_conjoncturelles,
 )
 from app.modules.payslips.domain.historique import (
@@ -479,16 +481,6 @@ def _set_payslip_status_brouillon(payslip_id: str) -> None:
 def _etait_valide(payslip_id: str) -> bool:
     existing = _fetch_payslip_status(payslip_id)
     return bool(existing and existing.get("status") == "valide")
-
-
-# Libellés des saisies posées quand une RH corrige les heures supplémentaires
-# depuis le bulletin. Ils doivent rester reconnaissables par le générateur :
-# « heures » + « sup », jamais « struct », et « 50 » uniquement sur le second
-# palier (cf. `payslip_generator._is_heures_sup_conjoncturelle_input`).
-LIBELLE_HS_DECLAREES = "Heures supplémentaires (corrigées au bulletin)"
-LIBELLE_HS_DECLAREES_50 = (
-    "Heures supplémentaires majorées à 50 % (corrigées au bulletin)"
-)
 
 
 def _fetch_payslip_for_recalc(payslip_id: str) -> dict[str, Any] | None:

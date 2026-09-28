@@ -738,10 +738,15 @@ def run_payslip_generation_heures(
 
     hs_conj_decl = saisie_du_mois.get("heures_supplementaires_conjoncturelles")
     hs_conj_decl_50 = saisie_du_mois.get("heures_supplementaires_conjoncturelles_50")
-    if (hs_conj_decl is not None and float(hs_conj_decl or 0) > 0) or (
+    # Déclarées depuis le bulletin : transmises même nulles, le moteur les fait
+    # primer sans condition (cf. `calcul_brut`).
+    declaration_bulletin = bool(saisie_du_mois.get("heures_sup_declarees_au_bulletin"))
+    if declaration_bulletin or (hs_conj_decl is not None and float(hs_conj_decl or 0) > 0) or (
         hs_conj_decl_50 is not None and float(hs_conj_decl_50 or 0) > 0
     ):
         saisie_mois_contexte = contexte.contrat.setdefault("saisie_du_mois", {})
+        if declaration_bulletin:
+            saisie_mois_contexte["heures_sup_declarees_au_bulletin"] = True
         saisie_mois_contexte["heures_supplementaires_conjoncturelles"] = float(
             hs_conj_decl or 0
         )

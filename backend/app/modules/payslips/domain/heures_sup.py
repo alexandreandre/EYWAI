@@ -29,6 +29,20 @@ from __future__ import annotations
 
 from typing import Any
 
+#: Libellés des saisies posées quand une RH corrige les heures supplémentaires
+#: depuis le bulletin. Le générateur les reconnaît comme heures sup (« heures » +
+#: « sup », jamais « struct », « 50 » sur le seul second palier) et le moteur
+#: les fait primer sur le planning sans condition, même nulles.
+LIBELLE_HS_DECLAREES = "Heures supplémentaires (corrigées au bulletin)"
+LIBELLE_HS_DECLAREES_50 = "Heures supplémentaires majorées à 50 % (corrigées au bulletin)"
+LIBELLES_HS_DECLAREES = (LIBELLE_HS_DECLAREES, LIBELLE_HS_DECLAREES_50)
+
+
+def est_declaration_bulletin(saisie: Any) -> bool:
+    """Vrai pour une saisie du mois posée depuis le bulletin (libellé exact)."""
+    return isinstance(saisie, dict) and saisie.get("name") in LIBELLES_HS_DECLAREES
+
+
 _MOT_HEURES_SUP = "heures suppl"
 _MOT_STRUCTURELLES = "structurelle"
 

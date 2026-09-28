@@ -1481,7 +1481,18 @@ def calculer_salaire_brut(
     # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées sans badgeage.
     declared_conj = float(contexte.heures_sup_du_mois or 0)
     declared_conj_50 = float(contexte.heures_sup_du_mois_50 or 0)
-    if declared_conj > 0 or declared_conj_50 > 0:
+    if contexte.heures_sup_declaration_bulletin:
+        # Déclarées depuis le bulletin : elles font foi, même nulles, même quand
+        # leur total égale celui du planning (audit du 28/09). Le bulletin garde
+        # la trace de ce que le planning donnait.
+        contexte.heures_sup_declarees = {
+            "hs25": round(declared_conj, 2),
+            "hs50": round(declared_conj_50, 2),
+            "planning": round(heures_travail_hs25_total + heures_travail_hs50_total, 2),
+        }
+        heures_travail_hs25_total = round(declared_conj, 2)
+        heures_travail_hs50_total = round(declared_conj_50, 2)
+    elif declared_conj > 0 or declared_conj_50 > 0:
         calendar_conj = heures_travail_hs25_total + heures_travail_hs50_total
         if abs((declared_conj + declared_conj_50) - calendar_conj) > 0.001:
             heures_travail_hs25_total = round(declared_conj, 2)

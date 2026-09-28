@@ -720,6 +720,11 @@ def creer_bulletin_final(
         "alertes_baremes": alertes_baremes,
         "donnees_non_officielles": donnees_non_officielles,
     }
+    # Heures sup déclarées depuis le bulletin : posée seulement quand il y en a,
+    # pour que les autres bulletins restent identiques au centime et à la clé.
+    declarees = getattr(contexte, "heures_sup_declarees", None)
+    if isinstance(declarees, dict):
+        bulletin["heures_sup_declarees"] = dict(declarees)
     log_payroll_debug(logger, 'INFO: Bulletin de paie final assemblé.')
     return bulletin
 

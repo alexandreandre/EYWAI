@@ -599,6 +599,12 @@ class ContextePaie:
         return self.saisie_du_mois.get("heures_supplementaires_conjoncturelles_50", 0.0)
 
     @property
+    def heures_sup_declaration_bulletin(self) -> bool:
+        """Vrai quand les heures sup du mois ont été déclarées depuis le bulletin :
+        elles priment alors sur le planning sans condition (même nulles)."""
+        return bool(self.saisie_du_mois.get("heures_sup_declarees_au_bulletin"))
+
+    @property
     def heures_absence_du_mois(self) -> float:
         """Retourne les heures d'absence non maintenues du mois."""
         return self.saisie_du_mois.get("heures_absence_non_maintenues", 0.0)

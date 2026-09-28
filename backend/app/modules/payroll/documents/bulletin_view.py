@@ -413,6 +413,36 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     return lignes
 
 
+def _heures_fr(valeur: Any) -> str:
+    try:
+        nombre = round(float(valeur or 0), 2)
+    except (TypeError, ValueError):
+        nombre = 0.0
+    texte = f"{nombre:.2f}".rstrip("0").rstrip(".")
+    return texte.replace(".", ",")
+
+
+def mention_heures_sup_declarees(bulletin: Dict[str, Any]) -> Optional[str]:
+    """Une ligne de note quand les heures sup ont été déclarées au bulletin.
+
+    Sans elle, rien ne distinguait sur le bulletin des heures corrigées à la
+    main de celles du planning (audit du 28/09). La mention de la compensation
+    entre semaines, quand elle dit déjà les heures saisies, suffit.
+    """
+    declarees = bulletin.get("heures_sup_declarees")
+    if not isinstance(declarees, dict):
+        return None
+    compensation = bulletin.get("compensation_semaines") or {}
+    if isinstance(compensation, dict) and compensation.get("heures_saisies"):
+        return None
+    return (
+        f"Heures supplémentaires déclarées au bulletin : "
+        f"{_heures_fr(declarees.get('hs25'))} h à 25 %, "
+        f"{_heures_fr(declarees.get('hs50'))} h à 50 % "
+        f"(le planning en donnait {_heures_fr(declarees.get('planning'))} h)."
+    )
+
+
 def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     lignes: List[Dict[str, Any]] = []
 
@@ -434,6 +464,9 @@ def construire_lignes(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
     compensation = bulletin.get("compensation_semaines") or {}
     if isinstance(compensation, dict) and compensation.get("mention"):
         lignes.append(_ligne("note", str(compensation["mention"])))
+    mention_hs = mention_heures_sup_declarees(bulletin)
+    if mention_hs:
+        lignes.append(_ligne("note", mention_hs))
     fin_contrat = bulletin.get("indemnite_cp_fin_contrat") or {}
     if isinstance(fin_contrat, dict) and fin_contrat.get("mention"):
         lignes.append(_ligne("note", str(fin_contrat["mention"])))
