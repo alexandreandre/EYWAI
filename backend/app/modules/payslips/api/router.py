@@ -604,9 +604,14 @@ def debug_storage_file(
     month: int,
     current_user: User = Depends(get_current_user),
 ):
-    """Métadonnées Storage pour diagnostic (RH uniquement)."""
+    """Métadonnées Storage pour diagnostic (administrateur plateforme uniquement).
+
+    Ouverte à toute RH, elle laissait lire les métadonnées de stockage du
+    bulletin de n'importe quel salarié, d'une autre société comprise.
+    """
     try:
-        _require_rh_company_context(current_user)
+        if not current_user.is_platform_admin:
+            raise HTTPException(status_code=403, detail="Accès réservé à l'administration")
         return get_debug_storage_info(employee_id, year, month)
     except PayslipNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

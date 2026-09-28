@@ -68,6 +68,11 @@ def _make_rh_user():
     )
 
 
+def _make_platform_admin():
+    """Administrateur plateforme (seul admis sur la route de diagnostic)."""
+    return _make_rh_user().model_copy(update={"is_platform_admin": True})
+
+
 def _make_employee_user(employee_id: str = TEST_EMPLOYEE_ID):
     """Utilisateur employé (son id = employee_id pour mes bulletins)."""
     access = CompanyAccess(
@@ -573,11 +578,14 @@ class TestPayslipsRestoreRoute:
 
         result = {
             "payslip": _make_payslip_detail_mock("ps-1"),
-            "restored_version": 2,
+            "recalcule": True,
+            "recalcul_erreur": None,
         }
         with patch(
             "app.modules.payslips.api.router.resolve_employee_id_for_user_account",
             return_value=None,
+        ), patch(
+            "app.modules.payslips.api.router._require_payslip_scope",
         ), patch(
             "app.modules.payslips.api.router.restore_payslip_for_user",
             return_value=result,
@@ -615,6 +623,19 @@ class TestPayslipsDebugStorageRoute:
             app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 403
 
+    def test_debug_storage_refuse_une_rh(self, client: TestClient):
+        """Une RH n'y a pas accès : elle lisait le stockage de toute société."""
+        from app.core.security import get_current_user
+
+        with patch("app.modules.payslips.api.router.get_debug_storage_info") as lire:
+            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            try:
+                response = client.get("/api/debug-storage/emp-1/2024/3")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+        assert response.status_code == 403
+        lire.assert_not_called()
+
     def test_debug_storage_returns_200_with_mock(self, client: TestClient):
         """Métadonnées storage (mock) → 200."""
         from app.core.security import get_current_user
@@ -626,7 +647,7 @@ class TestPayslipsDebugStorageRoute:
                 "size": 12345,
             },
         ):
-            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            app.dependency_overrides[get_current_user] = lambda: _make_platform_admin()
             try:
                 response = client.get("/api/debug-storage/emp-1/2024/3")
             finally:
@@ -647,7 +668,7 @@ class TestPayslipsDebugStorageRoute:
             from app.modules.payslips.application.dto import PayslipNotFoundError
 
             mock_get.side_effect = PayslipNotFoundError("Employé non trouvé")
-            app.dependency_overrides[get_current_user] = lambda: _make_rh_user()
+            app.dependency_overrides[get_current_user] = lambda: _make_platform_admin()
             try:
                 response = client.get("/api/debug-storage/emp-unknown/2024/1")
             finally:

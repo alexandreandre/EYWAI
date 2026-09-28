@@ -202,11 +202,12 @@ def avec_liens_des_versions(historique: Any) -> list[dict[str, Any]]:
 
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     """Détail complet d'un bulletin (dont cumuls, url signée). Utilise le mapper pour la structure."""
+    # `maybe_single` : un bulletin inconnu rend None (404), pas une erreur 500.
     r = (
         supabase.table("payslips")
         .select("*")
         .eq("id", payslip_id)
-        .single()
+        .maybe_single()
         .execute()
     )
     row = r.data if r else None
@@ -247,7 +248,7 @@ def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
         supabase.table("payslips")
         .select("edit_history")
         .eq("id", payslip_id)
-        .single()
+        .maybe_single()
         .execute()
     )
     payslip = r.data if r else None
