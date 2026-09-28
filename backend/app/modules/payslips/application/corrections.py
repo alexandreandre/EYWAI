@@ -23,6 +23,7 @@ from app.core.database import supabase
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.payslips.application.commands import (
     _refuser_si_importe,
+    archiver_version,
     _set_payslip_status_brouillon,
     generate_payslip,
 )
@@ -49,12 +50,7 @@ from app.modules.payslips.domain.heures_sup import (
     LIBELLE_HS_DECLAREES_50,
     LIBELLES_HS_DECLAREES,
 )
-from app.modules.payslips.domain.historique import (
-    AUTEUR_SYSTEME,
-    entree_de_version,
-    plafonner,
-    prochaine_version,
-)
+from app.modules.payslips.domain.historique import entree_de_version
 from app.modules.payslips.domain.primes_editees import primes_saisies_du_bulletin
 
 logger = logging.getLogger(__name__)
@@ -66,7 +62,7 @@ MESSAGE_RIEN_A_ENREGISTRER = "Aucune modification à enregistrer."
 
 _COLONNES = (
     "id, employee_id, company_id, year, month, status, updated_at, url, "
-    "payslip_data, pdf_notes, internal_notes, edit_history"
+    "payslip_data, pdf_notes, internal_notes, edit_history, pdf_storage_path"
 )
 
 
@@ -202,23 +198,13 @@ def _enregistrer_notes(
 
 def _archiver_avant_reimpression(bulletin: dict[str, Any], cmd: CorrigerBulletinInput, motif: str) -> None:
     """Seule la note change : on garde quand même la version d'avant."""
-    historique = bulletin.get("edit_history")
-    historique = list(historique) if isinstance(historique, list) else []
-    historique.append(
-        {
-            "version": prochaine_version(historique),
-            "edited_at": datetime.now().isoformat(),
-            "edited_by": cmd.current_user_id,
-            "edited_by_name": cmd.current_user_name or AUTEUR_SYSTEME,
-            "changes_summary": motif,
-            "action": "notes",
-            "previous_payslip_data": bulletin.get("payslip_data") or {},
-            "previous_pdf_url": bulletin.get("url"),
-        }
+    archiver_version(
+        bulletin,
+        edited_by=cmd.current_user_id,
+        edited_by_name=cmd.current_user_name,
+        changes_summary=motif,
+        action="notes",
     )
-    supabase.table("payslips").update({"edit_history": plafonner(historique)}).eq(
-        "id", bulletin["id"]
-    ).execute()
 
 
 # --- Recalcul ---

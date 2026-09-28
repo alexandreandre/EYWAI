@@ -170,6 +170,36 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     return result
 
 
+def avec_liens_des_versions(historique: Any) -> list[dict[str, Any]]:
+    """L'historique, avec un lien frais vers le PDF de chaque version gardée.
+
+    Le lien enregistré à l'archivage expire au bout d'une heure ; le PDF de la
+    version, lui, reste dans le stockage (`pdf_storage_path`).
+    """
+    if not isinstance(historique, list):
+        return []
+    chemins = [
+        str(e["pdf_storage_path"])
+        for e in historique
+        if isinstance(e, dict) and e.get("pdf_storage_path")
+    ]
+    liens: dict[str, str] = {}
+    if chemins:
+        try:
+            liens, _ = create_payslip_url_maps(chemins, 3600)
+        except Exception:  # noqa: BLE001 — l'historique s'affiche sans lien frais
+            logger.warning("Liens des PDF de versions non signés", exc_info=True)
+    servi = []
+    for entree in historique:
+        if not isinstance(entree, dict):
+            continue
+        chemin = entree.get("pdf_storage_path")
+        if chemin and liens.get(str(chemin)):
+            entree = {**entree, "previous_pdf_url": liens[str(chemin)]}
+        servi.append(entree)
+    return servi
+
+
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     """Détail complet d'un bulletin (dont cumuls, url signée). Utilise le mapper pour la structure."""
     r = (
@@ -207,6 +237,7 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
             else None
         )
 
+    row = {**row, "edit_history": avec_liens_des_versions(row.get("edit_history"))}
     return build_payslip_detail(row, signed_url, cumuls, preview_url)
 
 
@@ -222,5 +253,4 @@ def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
     payslip = r.data if r else None
     if not payslip:
         return []
-    history = payslip.get("edit_history")
-    return history if isinstance(history, list) else []
+    return avec_liens_des_versions(payslip.get("edit_history"))

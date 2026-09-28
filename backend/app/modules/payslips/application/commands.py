@@ -27,6 +27,8 @@ from app.modules.payslips.application.dto import (
 )
 from app.modules.payslips.domain.historique import (
     AUTEUR_SYSTEME,
+    chemin_pdf_de_version,
+    pdfs_sortis,
     plafonner,
     prochaine_version,
 )
@@ -163,7 +165,10 @@ def _fetch_existing_payslip(
     """Bulletin existant de la période (statut + contenu), None sinon."""
     r = (
         supabase.table("payslips")
-        .select("id, status, payslip_data, url, edit_history, pdf_notes, manually_edited")
+        .select(
+            "id, status, payslip_data, url, edit_history, pdf_notes, "
+            "manually_edited, pdf_storage_path"
+        )
         .match({"employee_id": employee_id, "year": year, "month": month})
         .maybe_single()
         .execute()
@@ -171,13 +176,61 @@ def _fetch_existing_payslip(
     return r.data if r and r.data else None
 
 
+def archiver_version(
+    existing: dict[str, Any],
+    *,
+    edited_by: str | None,
+    edited_by_name: str | None,
+    changes_summary: str,
+    action: str,
+) -> None:
+    """Garde la version courante du bulletin (données et PDF) dans l'historique.
+
+    Le PDF est copié sous le numéro de la version : le lien signé seul
+    expirait au bout d'une heure. Au-delà du plafond, les versions les plus
+    anciennes sortent de l'historique, et leurs PDF du stockage.
+    """
+    from app.modules.payslips.application.impression import archiver_pdf, supprimer_pdfs
+
+    history = existing.get("edit_history") or []
+    if not isinstance(history, list):
+        history = []
+    version = prochaine_version(history)
+    chemin_pdf = (
+        archiver_pdf(
+            existing.get("pdf_storage_path"),
+            chemin_pdf_de_version(str(existing["pdf_storage_path"]), version),
+        )
+        if existing.get("pdf_storage_path")
+        else None
+    )
+    avant = [*history, {
+        "version": version,
+        "edited_at": datetime.now().isoformat(),
+        "edited_by": edited_by,
+        "edited_by_name": edited_by_name or AUTEUR_SYSTEME,
+        "changes_summary": changes_summary,
+        "action": action,
+        "previous_payslip_data": existing.get("payslip_data") or {},
+        "previous_pdf_url": existing.get("url"),
+        "pdf_storage_path": chemin_pdf,
+    }]
+    # Une campagne de backtest régénère le même bulletin des dizaines de fois :
+    # sans plafond, `edit_history` enflerait indéfiniment. On garde les versions
+    # les plus récentes, seules utiles pour revenir en arrière.
+    garde = plafonner(avant)
+    supabase.table("payslips").update({"edit_history": garde}).eq(
+        "id", existing["id"]
+    ).execute()
+    supprimer_pdfs(pdfs_sortis(avant, garde))
+
+
 def _archive_before_regeneration(
     existing: dict[str, Any], cmd: GeneratePayslipInput
 ) -> None:
-    """Archive le bulletin validé AVANT que le générateur ne l'écrase.
+    """Archive le bulletin AVANT que le générateur ne l'écrase.
 
-    Même format que l'historique d'édition manuelle (payslip_editor) : la
-    version précédente reste consultable et restaurable.
+    La version précédente reste consultable (données et PDF) et restaurable.
     """
     history = existing.get("edit_history") or []
     if not isinstance(history, list):
@@ -193,29 +246,18 @@ def _archive_before_regeneration(
             and derniere.get("previous_pdf_url") == existing.get("url")
         ):
             return
-    history.append(
-        {
-            "version": prochaine_version(history),
-            "edited_at": datetime.now().isoformat(),
-            "edited_by": cmd.requested_by,
-            "edited_by_name": cmd.requested_by_name or AUTEUR_SYSTEME,
-            "changes_summary": cmd.motif
-            or (
-                "Régénération d'un bulletin validé (forçage explicite)"
-                if existing.get("status") == "valide"
-                else "Régénération d'un brouillon — version précédente conservée"
-            ),
-            "action": "correction" if cmd.motif else "regeneration",
-            "previous_payslip_data": existing.get("payslip_data", {}),
-            "previous_pdf_url": existing.get("url"),
-        }
+    archiver_version(
+        existing,
+        edited_by=cmd.requested_by,
+        edited_by_name=cmd.requested_by_name,
+        changes_summary=cmd.motif
+        or (
+            "Régénération d'un bulletin validé (forçage explicite)"
+            if existing.get("status") == "valide"
+            else "Régénération d'un brouillon — version précédente conservée"
+        ),
+        action="correction" if cmd.motif else "regeneration",
     )
-    # Une campagne de backtest régénère le même bulletin des dizaines de fois :
-    # sans plafond, `edit_history` enflerait indéfiniment. On garde les versions
-    # les plus récentes, seules utiles pour revenir en arrière.
-    supabase.table("payslips").update(
-        {"edit_history": plafonner(history)}
-    ).eq("id", existing["id"]).execute()
 
 
 def _apres_regeneration(existant: dict[str, Any]) -> None:

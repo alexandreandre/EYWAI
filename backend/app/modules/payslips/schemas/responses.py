@@ -53,7 +53,9 @@ class HistoryEntry(BaseModel):
     edited_by_name: str | None = None
     changes_summary: str
     previous_payslip_data: dict[str, Any]
+    #: Lien vers le PDF de cette version (signé à la lecture quand le PDF est gardé).
     previous_pdf_url: str | None = None
+    pdf_storage_path: str | None = None
 
 
 class PayslipDetail(BaseModel):

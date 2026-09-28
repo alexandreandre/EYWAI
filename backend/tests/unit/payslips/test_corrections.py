@@ -302,16 +302,22 @@ def test_un_resultat_en_erreur_compte_comme_un_echec(base):
 
 
 def test_seule_la_note_change_le_pdf_est_reimprime_sans_recalcul(base):
-    resultat = _corriger(pdf_notes="Prime versée en septembre")
+    ordre = []
+    base.reimprimer.side_effect = lambda _id: ordre.append("reimprime")
+    with patch.object(mod, "archiver_version", side_effect=lambda *a, **k: ordre.append("archive")) as archiver:
+        resultat = _corriger(pdf_notes="Prime versée en septembre")
 
     base.generer.assert_not_called()
     base.reimprimer.assert_called_once_with("ps-1")
+    assert ordre == ["archive", "reimprime"]
+    assert archiver.call_args.kwargs == {
+        "edited_by": "rh-1",
+        "edited_by_name": "RH",
+        "changes_summary": "Notes modifiées",
+        "action": "notes",
+    }
     mises_a_jour = [e[2] for e in base.de("payslips", "update")]
     assert {"pdf_notes": "Prime versée en septembre"} in mises_a_jour
-    (historique,) = [m["edit_history"] for m in mises_a_jour if "edit_history" in m]
-    assert historique[-1]["version"] == 4
-    assert historique[-1]["action"] == "notes"
-    assert historique[-1]["changes_summary"] == "Notes modifiées"
     assert resultat["recalcule"] is False and resultat["recalcul_erreur"] is None
 
 

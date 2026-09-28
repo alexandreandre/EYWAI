@@ -81,3 +81,35 @@ def reimprimer_bulletin(payslip_id: str) -> str | None:
             logger.warning("PDF temporaire non supprimé : %s", chemin)
     supabase.table("payslips").update({"url": lien}).eq("id", payslip_id).execute()
     return lien
+
+
+def archiver_pdf(pdf_storage_path: str | None, destination: str) -> str | None:
+    """Copie le PDF courant sous le chemin de sa version ; None si impossible.
+
+    Le PDF d'un bulletin est écrasé à chaque régénération, et l'historique ne
+    gardait qu'un lien signé d'une heure : passé ce délai, l'ancienne version
+    n'avait plus de PDF (audit du 28/09). Jamais bloquant.
+    """
+    if not pdf_storage_path:
+        return None
+    stockage = supabase.storage.from_("payslips")
+    try:
+        try:
+            stockage.remove([destination])
+        except Exception:  # noqa: BLE001 — rien à retirer
+            pass
+        stockage.copy(pdf_storage_path, destination)
+    except Exception:  # noqa: BLE001
+        logger.warning("PDF de version non archivé : %s", destination, exc_info=True)
+        return None
+    return destination
+
+
+def supprimer_pdfs(chemins: list[str]) -> None:
+    """Retire les PDF des versions sorties de l'historique. Jamais bloquant."""
+    if not chemins:
+        return
+    try:
+        supabase.storage.from_("payslips").remove(chemins)
+    except Exception:  # noqa: BLE001
+        logger.warning("PDF de versions anciennes non retirés : %s", chemins, exc_info=True)
