@@ -109,7 +109,15 @@ def get_payslip_details_for_user(
         detail, bypass_lock=ctx.is_platform_admin
     )
     if not _voit_comme_rh(detail, ctx):
-        return {**detail, "a_regenerer": None, "exports_du_mois": []}
+        # Le salarié voit son bulletin, pas les versions de travail ni les notes
+        # internes de la RH (audit du 28/09).
+        return {
+            **detail,
+            "edit_history": [],
+            "internal_notes": [],
+            "a_regenerer": None,
+            "exports_du_mois": [],
+        }
     return {
         **detail,
         "a_regenerer": signal_a_regenerer(detail),
@@ -151,6 +159,10 @@ def get_payslip_history_for_user(
         ctx.resolved_employee_id,
     ):
         raise PayslipForbiddenError("Accès refusé")
+    if not _voit_comme_rh(meta, ctx):
+        raise PayslipForbiddenError(
+            "L'historique d'un bulletin est réservé aux RH de l'entreprise."
+        )
     return get_payslip_history(payslip_id)
 
 

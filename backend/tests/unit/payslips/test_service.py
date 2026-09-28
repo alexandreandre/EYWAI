@@ -172,7 +172,32 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == {**detail, "a_regenerer": None, "exports_du_mois": []}
+        assert result == {
+            **detail,
+            "edit_history": [],
+            "internal_notes": [],
+            "a_regenerer": None,
+            "exports_du_mois": [],
+        }
+
+    def test_le_salarie_ne_voit_ni_versions_ni_notes_internes(self):
+        detail = {
+            "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
+            "month": 6, "status": "valide",
+            "edit_history": [{"version": 1}], "internal_notes": [{"content": "interne"}],
+        }
+        with (
+            patch("app.modules.payslips.application.service.get_payslip_details", return_value=detail),
+            patch(
+                "app.modules.payslips.application.service.enrich_payslip_detail_with_edit_lock",
+                side_effect=lambda d, **_: d,
+            ),
+        ):
+            vu_salarie = get_payslip_details_for_user("ps-1", _ctx_employee("emp-1"))
+            vu_rh = get_payslip_details_for_user("ps-1", _ctx_rh("co-1"))
+        assert vu_salarie["edit_history"] == [] and vu_salarie["internal_notes"] == []
+        assert vu_rh["edit_history"] == [{"version": 1}]
+        assert vu_rh["internal_notes"] == [{"content": "interne"}]
 
     def test_raises_not_found_when_detail_is_none(self):
         """Lève PayslipNotFoundError si le bulletin n'existe pas."""
@@ -233,11 +258,22 @@ class TestGetPayslipDetailsForUser:
 class TestGetPayslipHistoryForUser:
     """Tests de get_payslip_history_for_user."""
 
+    def test_le_salarie_ne_lit_pas_l_historique_de_son_bulletin(self):
+        meta = {"employee_id": "emp-1", "company_id": "co-1", "status": "valide"}
+        with (
+            patch("app.modules.payslips.application.service.payslip_meta_reader") as mock_reader,
+            patch("app.modules.payslips.application.service.get_payslip_history") as lire,
+        ):
+            mock_reader.get_payslip_meta.return_value = meta
+            with pytest.raises(PayslipForbiddenError):
+                get_payslip_history_for_user("ps-1", _ctx_employee("emp-1"))
+        lire.assert_not_called()
+
     def test_returns_history_when_meta_found_and_user_can_view(self):
-        """Retourne l'historique si la meta existe et l'utilisateur a le droit."""
+        """Retourne l'historique à la RH de l'entreprise du bulletin."""
         meta = {"employee_id": "emp-1", "company_id": "co-1", "status": "valide"}
         history = [{"version": 1, "edited_by": "user-1"}]
-        ctx = _ctx_employee("emp-1")
+        ctx = _ctx_rh("co-1")
         with (
             patch(
                 "app.modules.payslips.application.service.payslip_meta_reader"
