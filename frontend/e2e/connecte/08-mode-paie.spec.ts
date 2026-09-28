@@ -139,7 +139,15 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     const manque = ['Numéro de sécurité sociale', 'Coordonnées bancaires (RIB)'];
     const aCompleter = <T extends Salarie>(e: T): T =>
       e.id === cible!.id
-        ? { ...e, email: null, employment_status: 'en_onboarding', missing_payroll_fields: manque, profile_complete: false, payroll_eligible: false }
+        ? {
+            ...e,
+            email: null,
+            is_subject_to_residence_permit: false,
+            employment_status: 'en_onboarding',
+            missing_payroll_fields: manque,
+            profile_complete: false,
+            payroll_eligible: false,
+          }
         : e;
     const resume = '**/api/employees/summary**';
     const fiche = new RegExp(`/api/employees/${cible!.id}(\\?.*)?$`);
@@ -177,7 +185,9 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await complement.getByRole('button', { name: /enregistrer/i }).click();
     await expect(complement).toHaveCount(0);
     // Retour à la paie par le menu, sans recharger : la fiche n'y bloque plus.
-    await page.getByRole('link', { name: 'Bulletins de paie' }).click();
+    const lienPaie = page.getByRole('link', { name: 'Bulletins de paie' });
+    if (!(await lienPaie.isVisible())) await page.getByRole('button', { name: /EYWAI Paie/ }).click();
+    await lienPaie.click();
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Fiche à compléter/)).toHaveCount(0, { timeout: 30_000 });
     await page.unroute(resume);
