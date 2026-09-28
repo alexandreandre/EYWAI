@@ -97,3 +97,78 @@ def test_sans_marques_retire_nouvelle_saisie_sans_toucher_au_reste():
     assert "nouvelle_saisie" in avant["calcul_du_brut"][2]  # l'original n'est pas modifié
     assert "nouvelle_saisie" not in propre["calcul_du_brut"][2]
     assert propre["calcul_du_brut"][1]["saisie_id"] == "s-1"
+
+
+# --- Une prime ajoutée ne porte que ses propres champs (audit du 28/09, K1) ---
+
+def test_une_prime_ajoutee_ne_garde_que_ses_champs():
+    forgee = {
+        **NOUVELLE["nouvelle_saisie"],
+        "employee_id": "autre-salarie",
+        "company_id": "autre-societe",
+        "year": 2025,
+        "month": 1,
+        "manual_override": False,
+        "payroll_quantity": 12,
+    }
+    diff = diff_primes(_bulletin(), _bulletin({**NOUVELLE, "nouvelle_saisie": forgee}))
+
+    assert diff.ajoutees == (
+        {
+            "name": "Prime de fin de chantier",
+            "is_socially_taxed": True,
+            "is_taxable": True,
+            "catalog_prime_id": None,
+            "amount": 100.0,
+        },
+    )
+
+
+def test_prime_ajoutee_propre_retire_tout_champ_inconnu():
+    from app.modules.payslips.domain.primes_editees import prime_ajoutee_propre
+
+    assert prime_ajoutee_propre({"name": "X", "employee_id": "e", "month": 3}) == {"name": "X"}
+
+
+def test_l_insertion_impose_le_salarie_la_societe_et_la_periode_du_bulletin():
+    from unittest.mock import MagicMock, patch
+
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.domain.primes_editees import DiffPrimes
+
+    client = MagicMock()
+    diff = DiffPrimes(ajoutees=({"name": "Prime", "amount": 10.0, "employee_id": "autre"},))
+    with patch.object(app_primes, "supabase", client):
+        app_primes.appliquer_primes_editees(
+            diff, employee_id="e1", company_id="c1", year=2026, month=9
+        )
+
+    assert client.table.return_value.insert.call_args.args[0] == [
+        {
+            "name": "Prime",
+            "amount": 10.0,
+            "employee_id": "e1",
+            "company_id": "c1",
+            "year": 2026,
+            "month": 9,
+            "manual_override": True,
+        }
+    ]
+
+
+def test_un_montant_corrige_au_bulletin_n_est_plus_ecrase_par_la_generation():
+    from unittest.mock import MagicMock, patch
+
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.domain.primes_editees import DiffPrimes
+
+    client = MagicMock()
+    with patch.object(app_primes, "supabase", client):
+        app_primes.appliquer_primes_editees(
+            DiffPrimes(modifiees=(("s-1", 150.0),)),
+            employee_id="e1", company_id="c1", year=2026, month=9,
+        )
+
+    client.table.return_value.update.assert_called_once_with(
+        {"amount": 150.0, "manual_override": True}
+    )

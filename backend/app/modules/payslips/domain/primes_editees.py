@@ -26,6 +26,15 @@ from typing import Any, Iterator
 _SECTIONS = ("calcul_du_brut", "primes_non_soumises")
 _TOLERANCE = 0.005
 
+#: Seuls champs qu'une prime ajoutée depuis le bulletin peut porter. Le salarié,
+#: la société et la période sont toujours ceux du bulletin, jamais ceux envoyés
+#: par l'écran (audit du 28/09).
+CHAMPS_PRIME_AJOUTEE = ("name", "is_socially_taxed", "is_taxable", "catalog_prime_id")
+
+
+def prime_ajoutee_propre(brute: dict[str, Any]) -> dict[str, Any]:
+    return {cle: brute[cle] for cle in CHAMPS_PRIME_AJOUTEE if cle in brute}
+
 
 @dataclass(frozen=True)
 class DiffPrimes:
@@ -72,7 +81,7 @@ def diff_primes(avant: dict[str, Any] | None, apres: dict[str, Any] | None) -> D
     ids_apres = _par_saisie(apres)
 
     ajoutees = tuple(
-        {**ligne["nouvelle_saisie"], "amount": _montant(ligne)}
+        {**prime_ajoutee_propre(ligne["nouvelle_saisie"]), "amount": _montant(ligne)}
         for ligne in _lignes(apres)
         if isinstance(ligne.get("nouvelle_saisie"), dict)
     )

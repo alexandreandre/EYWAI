@@ -12,7 +12,7 @@ import logging
 
 from app.core.database import supabase
 from app.modules.payslips.application.dto import PayslipBadRequestError
-from app.modules.payslips.domain.primes_editees import DiffPrimes
+from app.modules.payslips.domain.primes_editees import DiffPrimes, prime_ajoutee_propre
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,19 @@ def appliquer_primes_editees(
         "year": year,
         "month": month,
     }
+    # `manual_override` : la génération automatique des variables ne repasse pas
+    # derrière une prime posée ou corrigée depuis le bulletin.
     if diff.ajoutees:
-        supabase.table("monthly_inputs").insert([{**base, **p} for p in diff.ajoutees]).execute()
+        supabase.table("monthly_inputs").insert(
+            [
+                {**prime_ajoutee_propre(p), "amount": p["amount"], **base, "manual_override": True}
+                for p in diff.ajoutees
+            ]
+        ).execute()
     for saisie_id, montant in diff.modifiees:
-        supabase.table("monthly_inputs").update({"amount": montant}).eq("id", saisie_id).execute()
+        supabase.table("monthly_inputs").update(
+            {"amount": montant, "manual_override": True}
+        ).eq("id", saisie_id).execute()
     for saisie_id in diff.retirees:
         supabase.table("monthly_inputs").delete().eq("id", saisie_id).execute()
     logger.info(
