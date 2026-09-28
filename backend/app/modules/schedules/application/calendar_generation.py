@@ -333,3 +333,61 @@ __all__ = [
     "generate_all_active_plans",
     "spec_from_plan",
 ]
+
+
+def _plan_couvre(plan: Dict[str, Any], salarie: Dict[str, Any]) -> bool:
+    portee = plan.get("scope_type") or "company"
+    ref = plan.get("scope_ref") or {}
+    if portee == "company":
+        return True
+    if portee == "team":
+        return bool(ref.get("team_id")) and str(ref.get("team_id")) == str(salarie.get("team_id") or "")
+    if portee == "service":
+        return bool(ref.get("service_id")) and str(ref.get("service_id")) == str(salarie.get("service_id") or "")
+    if portee == "employees":
+        return str(salarie.get("id")) in {str(x) for x in (ref.get("employee_ids") or [])}
+    return False
+
+
+def appliquer_les_plans_a_un_salarie(
+    company_id: str, employee_id: str, depuis: date
+) -> Dict[str, Any]:
+    """Pose le planning d'un nouveau salarié depuis sa date d'embauche.
+
+    Les plans actifs de la société qui le couvrent sont générés pour lui seul, dans
+    l'ordre de précédence (société, équipe, service, salarié), à partir de
+    `depuis` : le calendrier des autres salariés n'est pas touché. Sans cela, un
+    nouvel entrant restait sans planning jusqu'à ce qu'on relance le plan, et la
+    génération de son bulletin s'arrêtait sur « calendrier incomplet ».
+
+    Rend `{"mois": ["AAAA-MM", …], "plans": [noms]}` ; vide si aucun plan ne le couvre.
+    """
+    salaries = plans_repo.resolve_scope_employees(
+        company_id, "employees", {"employee_ids": [employee_id]}
+    )
+    if not salaries:
+        return {"mois": [], "plans": []}
+    salarie = salaries[0]
+    plans = [
+        p
+        for p in plans_repo.list_plans(company_id, active_only=True)
+        if p.get("template_cycle") and _plan_couvre(p, salarie)
+    ]
+    plans.sort(
+        key=lambda p: (_SCOPE_ORDER.get(p.get("scope_type") or "company", 0), p.get("start_date") or "")
+    )
+    mois: set[str] = set()
+    noms: List[str] = []
+    for plan in plans:
+        spec = spec_from_plan(plan)
+        debut = max(spec.start_date, depuis)
+        if debut > spec.end_date:
+            continue
+        spec.start_date = debut
+        spec.employee_ids = [str(employee_id)]
+        resultat = generate(spec)
+        for emp in resultat.get("employees") or []:
+            for m in emp.get("months") or []:
+                mois.add(f"{int(m['year']):04d}-{int(m['month']):02d}")
+        noms.append(str(plan.get("name") or "Plan"))
+    return {"mois": sorted(mois), "plans": noms}

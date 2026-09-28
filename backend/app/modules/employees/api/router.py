@@ -162,6 +162,18 @@ def get_employees_summary(
         ) from e
 
 
+@router.get("/valeurs-embauche")
+def get_valeurs_embauche(current_user: User = Depends(get_current_user)):
+    """Valeurs proposées à la création d'un salarié : celles de la société active
+    (durée, convention, classification courante, mutuelle obligatoire, prévoyance)."""
+    company_id = require_rh_access(current_user.active_company_id, current_user)
+    try:
+        return queries.get_valeurs_embauche(company_id)
+    except Exception as e:
+        logger.exception("Échec de get_valeurs_embauche")
+        raise HTTPException(status_code=500, detail=f"Erreur interne du serveur: {str(e)}") from e
+
+
 @router.get("", response_model=List[FullEmployee])
 def get_employees(current_user: User = Depends(get_current_user)):
     """Récupère la liste de tous les salariés de l'entreprise active."""
@@ -404,13 +416,13 @@ async def create_employee(
     generate_pdf_contract: str = Form("false"),
     current_user: User = Depends(get_current_user),
 ):
-    """Crée un nouvel employé (Auth + profil + employees + storage + PDF + RIB)."""
-    company_id = queries.get_company_id_for_creator(str(current_user.id))
-    if not company_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Impossible de déterminer l'entreprise de l'utilisateur connecté.",
-        )
+    """Crée un nouvel employé (Auth + profil + employees + storage + PDF + RIB).
+
+    Dans la société ACTIVE, par une RH de cette société : la route prenait la
+    société principale du profil, sans contrôle RH — une RH de trois sociétés
+    créait le salarié dans la mauvaise.
+    """
+    company_id = require_rh_access(current_user.active_company_id, current_user)
 
     data_dict = json.loads(data)
     for key in (
@@ -420,8 +432,15 @@ async def create_employee(
         "date_conclusion_contrat",
         "date_debut_execution",
         "contract_end_date",
+        # Facultatifs à l'embauche : vide = inconnu, jamais une chaîne vide
+        # (le numéro de sécurité sociale est unique en base).
+        "email",
+        "nir",
+        "date_naissance",
+        "lieu_naissance",
+        "nationalite",
     ):
-        if key in data_dict and data_dict[key] == "":
+        if key in data_dict and (data_dict[key] == "" or data_dict[key] is None):
             data_dict[key] = None
     cleaned_data = json.dumps(data_dict)
 

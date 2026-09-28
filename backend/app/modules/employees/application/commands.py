@@ -34,6 +34,7 @@ from app.modules.employees.domain.salary_timeline import est_augmentation_planif
 from app.modules.onboarding.domain.profile import (
     enrich_employee_profile_completeness,
     is_profile_complete,
+    missing_payroll_fields,
 )
 from app.modules.employees.infrastructure.mappers import prepare_employee_insert_data
 from app.modules.employees.infrastructure.providers import (
@@ -147,6 +148,27 @@ def _create_user_with_technical_fallback(
         return auth.create_user(email=fallback_email, password=password), fallback_email
 
 
+def _planning_du_nouveau_salarie(
+    company_id: str, employee_id: str, employee_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Pose le planning du nouveau salarié depuis son embauche ; jamais bloquant."""
+    from app.modules.schedules.application.calendar_generation import (
+        appliquer_les_plans_a_un_salarie,
+    )
+
+    embauche = employee_data.get("hire_date")
+    if isinstance(embauche, str):
+        embauche = _date.fromisoformat(embauche[:10])
+    if not isinstance(embauche, _date):
+        return {"planning_mois": [], "planning_plans": []}
+    try:
+        resultat = appliquer_les_plans_a_un_salarie(str(company_id), employee_id, embauche)
+    except Exception:
+        logger.exception("Planning du nouveau salarié %s non posé", employee_id)
+        return {"planning_mois": [], "planning_plans": []}
+    return {"planning_mois": resultat["mois"], "planning_plans": resultat["plans"]}
+
+
 async def create_employee(
     employee_data: Dict[str, Any],
     company_id: str,
@@ -171,7 +193,7 @@ async def create_employee(
     try:
         first_name = employee_data["first_name"]
         last_name = employee_data["last_name"]
-        email = employee_data["email"]
+        email = (employee_data.get("email") or "").strip() or None
         job_title = employee_data.get("job_title") or ""
 
         # La période d'essai vit dans sa propre table : on la sort du dict
@@ -186,8 +208,11 @@ async def create_employee(
 
         username = allocate_collaborator_username(first_name, last_name)
 
+        # Sans e-mail, le compte ne sert qu'à rattacher la fiche : une adresse
+        # technique, jamais routable, comme pour un salarié repris de la DSN.
+        auth_email = email or build_dsn_import_auth_email(uuid.uuid4().hex)
         try:
-            new_user_id = auth.create_user(email=email, password=password)
+            new_user_id = auth.create_user(email=auth_email, password=password)
         except RuntimeError as auth_err:
             raise HTTPException(
                 status_code=400,
@@ -226,6 +251,12 @@ async def create_employee(
             username=username,
             folder_name=folder_name,
         )
+        if not email:
+            db_insert_data.pop("email", None)
+        # Fiche incomplète : « en onboarding », la paie la refuse avec la liste de
+        # ce qui manque ; elle passe active d'elle-même une fois complétée.
+        a_completer = missing_payroll_fields(db_insert_data)
+        db_insert_data["employment_status"] = "en_onboarding" if a_completer else "actif"
 
         try:
             new_employee_db = _employee_repository.create(db_insert_data)
@@ -373,6 +404,9 @@ async def create_employee(
 
         response_data = dict(new_employee_db)
         response_data["generated_password"] = password
+        response_data["a_completer"] = a_completer
+        response_data["acces_application"] = bool(email)
+        response_data.update(_planning_du_nouveau_salarie(company_id, employee_id, employee_data))
 
         try:
             coord = employee_data.get("coordonnees_bancaires") or {}

@@ -208,6 +208,13 @@ class NewEmployeeResponse(FullEmployee):
     generated_password: str
     username: str  # Renvoyer aussi le username pour l'afficher à l'utilisateur
     warnings: List[str] | None = None  # Ex: "RIB en doublon avec ..."
+    #: Ce qui manque encore pour payer ce salarié (fiche « en onboarding »).
+    a_completer: List[str] = Field(default_factory=list)
+    #: Mois de planning posés à la création (« AAAA-MM ») et plans appliqués.
+    planning_mois: List[str] = Field(default_factory=list)
+    planning_plans: List[str] = Field(default_factory=list)
+    #: Faux quand aucun e-mail n'a été donné : pas d'accès à l'application.
+    acces_application: bool = True
 
 
 class EmployeeDeletionImpact(BaseModel):

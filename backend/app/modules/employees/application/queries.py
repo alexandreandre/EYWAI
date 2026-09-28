@@ -391,3 +391,28 @@ def get_salary_history_rows(
 ) -> List[Dict[str, Any]]:
     """Historique des salaires (table salary_history)."""
     return _employee_repository.get_salary_history(employee_id, company_id)
+
+
+def get_valeurs_embauche(company_id: str) -> Dict[str, Any]:
+    """Les valeurs que la fenêtre de création propose pour cette société."""
+    from app.modules.employees.domain.valeurs_embauche import valeurs_d_embauche
+
+    employes = (
+        supabase.table("employees")
+        .select(
+            "statut, employment_status, duree_hebdomadaire, collective_agreement_id, "
+            "classification_conventionnelle, specificites_paie"
+        )
+        .eq("company_id", str(company_id))
+        .execute()
+        .data
+    ) or []
+    mutuelles = (
+        supabase.table("company_mutuelle_types")
+        .select("id, statut_categoriel, part_salariale_obligatoire, is_active")
+        .eq("company_id", str(company_id))
+        .execute()
+        .data
+    ) or []
+    return valeurs_d_embauche(employes, mutuelles)
+

@@ -14,16 +14,18 @@ from pydantic import BaseModel, EmailStr
 class NewFullEmployee(BaseModel):
     """Données requises pour la création d'un employé."""
 
-    # Salarié
+    # Salarié. L'état civil complet, le numéro de sécurité sociale et le RIB
+    # manquent souvent le jour de l'embauche : ils se complètent ensuite, la
+    # fiche reste « en onboarding » et la paie bloquée tant qu'ils manquent.
     first_name: str
     last_name: str
-    email: EmailStr
-    nir: str
-    date_naissance: date
-    lieu_naissance: str
-    nationalite: str
-    adresse: Dict[str, Any]
-    coordonnees_bancaires: Dict[str, Any]
+    email: EmailStr | None = None
+    nir: str | None = None
+    date_naissance: date | None = None
+    lieu_naissance: str | None = None
+    nationalite: str | None = None
+    adresse: Dict[str, Any] | None = None
+    coordonnees_bancaires: Dict[str, Any] | None = None
     # Titre de séjour (optionnel)
     is_subject_to_residence_permit: bool | None = None
     residence_permit_expiry_date: date | None = None
