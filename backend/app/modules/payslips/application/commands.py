@@ -368,6 +368,32 @@ def _raison_de_blocage_du_salarie(
     return payroll_block_reason(employee)
 
 
+def salarie_generable(employee_id: str, year: int, month: int) -> dict[str, Any]:
+    """Le salarié, si son bulletin du mois peut être (re)calculé ; lève sinon.
+
+    Ces refus d'entrée valent aussi pour une correction : elle les oppose avant
+    d'écrire la moindre variable du mois.
+    """
+    employee = _employee_repository.get_by_id_only(employee_id)
+    if not employee:
+        raise PayslipNotFoundError("Employé non trouvé.")
+    employee = enrich_employee_with_exit_context(employee)
+    block_reason = _raison_de_blocage_du_salarie(employee, year, month)
+    if block_reason:
+        raise PayslipBadRequestError(block_reason)
+    period_block_reason = payslip_employment_period_block_reason(employee, year, month)
+    if period_block_reason:
+        raise PayslipBadRequestError(period_block_reason)
+    # Reprise de paie : un mois payé par le logiciel précédent est importé, pas
+    # recalculé. Le refus est ici, côté serveur, jamais dans les générateurs.
+    bascule_block_reason = raison_de_blocage_avant_bascule(
+        employee.get("company_id"), year, month
+    )
+    if bascule_block_reason:
+        raise PayslipBadRequestError(bascule_block_reason)
+    return employee
+
+
 def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     """
     Génère un bulletin pour un employé / période.
@@ -378,25 +404,7 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
       sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
     """
-    employee = _employee_repository.get_by_id_only(cmd.employee_id)
-    if not employee:
-        raise PayslipNotFoundError("Employé non trouvé.")
-    employee = enrich_employee_with_exit_context(employee)
-    block_reason = _raison_de_blocage_du_salarie(employee, cmd.year, cmd.month)
-    if block_reason:
-        raise PayslipBadRequestError(block_reason)
-    period_block_reason = payslip_employment_period_block_reason(
-        employee, cmd.year, cmd.month
-    )
-    if period_block_reason:
-        raise PayslipBadRequestError(period_block_reason)
-    # Reprise de paie : un mois payé par le logiciel précédent est importé, pas
-    # recalculé. Le refus est ici, côté serveur, jamais dans les générateurs.
-    bascule_block_reason = raison_de_blocage_avant_bascule(
-        employee.get("company_id"), cmd.year, cmd.month
-    )
-    if bascule_block_reason:
-        raise PayslipBadRequestError(bascule_block_reason)
+    employee = salarie_generable(cmd.employee_id, cmd.year, cmd.month)
 
     # Une seule génération à la fois pour ce salarié et ce mois : tout ce qui
     # écrit (archive, calcul, bulletin, cumuls) se fait sous le verrou.

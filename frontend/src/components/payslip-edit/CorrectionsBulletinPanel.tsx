@@ -8,7 +8,7 @@
  * corrige à sa source ; l'encart du bas y mène.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Clock, Coins, ExternalLink, Trash2, Undo2, UserRound, SlidersHorizontal } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -32,7 +32,12 @@ function lire(texte: string): number {
   return Number.isFinite(valeur) && valeur >= 0 ? valeur : 0;
 }
 
-/** Champ numérique qui laisse effacer et retaper sans sauter à zéro. */
+function lireSigne(texte: string): number {
+  const valeur = Number.parseFloat(texte.replace(',', '.'));
+  return Number.isFinite(valeur) ? valeur : 0;
+}
+
+/** Champ numérique qui laisse effacer et retaper (« 3, », « - ») sans sauter à zéro. */
 function ChampNombre({
   id,
   valeur,
@@ -51,11 +56,14 @@ function ChampNombre({
   negatifPermis?: boolean;
 }) {
   const [texte, setTexte] = useState(texteDe(valeur));
+  const dernierEmis = useRef(valeur);
   useEffect(() => {
-    const lu = negatifPermis ? Number.parseFloat(texte.replace(',', '.')) : lire(texte);
-    if (!Number.isFinite(lu) || Math.abs(lu - valeur) > 0.0001) setTexte(texteDe(valeur));
-    // On ne resynchronise que sur un changement venu d'ailleurs (rechargement).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Ne resynchronise que sur une valeur venue d'ailleurs (rechargement,
+    // annulation) : pas sur celle que la frappe vient d'émettre.
+    if (Math.abs(valeur - dernierEmis.current) > 0.0001) {
+      dernierEmis.current = valeur;
+      setTexte(texteDe(valeur));
+    }
   }, [valeur]);
   return (
     <div className="flex items-center gap-2">
@@ -68,9 +76,9 @@ function ChampNombre({
         disabled={disabled}
         onChange={(e) => {
           setTexte(e.target.value);
-          const brut = Number.parseFloat(e.target.value.replace(',', '.'));
-          if (negatifPermis) onValeur(Number.isFinite(brut) ? brut : 0);
-          else onValeur(lire(e.target.value));
+          const lu = negatifPermis ? lireSigne(e.target.value) : lire(e.target.value);
+          dernierEmis.current = lu;
+          onValeur(lu);
         }}
       />
       <span className="text-sm text-muted-foreground">{suffixe}</span>

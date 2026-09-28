@@ -101,6 +101,7 @@ def base():
         patch.object(mod, "_relire_en_entier", side_effect=lambda _id: dict(etat["bulletin"])),
         patch.object(mod, "_refuser_si_importe"),
         patch.object(mod, "verifier_appartenance"),
+        patch.object(mod, "salarie_generable"),
         patch.object(mod, "reimprimer_bulletin") as reimprimer,
         patch.object(mod, "generate_payslip") as generer,
     ):
@@ -333,3 +334,18 @@ def test_une_note_interne_seule_ne_touche_pas_au_pdf(base):
 def test_le_resume_ecrit_par_la_rh_part_dans_l_historique(base):
     _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)), changes_summary="Heures du 12 non faites")
     assert base.generer.call_args.args[0].motif == "Heures du 12 non faites"
+
+
+def test_un_bulletin_qu_on_ne_pourrait_pas_recalculer_n_ecrit_aucune_variable(base):
+    mod.salarie_generable.side_effect = PayslipBadRequestError("Salarié sorti avant ce mois.")
+    with pytest.raises(PayslipBadRequestError, match="sorti"):
+        _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)))
+    assert base.ecritures == []
+    base.generer.assert_not_called()
+
+
+def test_une_note_seule_ne_demande_pas_que_le_bulletin_soit_recalculable(base):
+    mod.salarie_generable.side_effect = PayslipBadRequestError("Salarié sorti avant ce mois.")
+    with patch.object(mod, "archiver_version"):
+        _corriger(pdf_notes="Note")
+    base.reimprimer.assert_called_once_with("ps-1")

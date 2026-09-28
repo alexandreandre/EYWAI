@@ -23,9 +23,10 @@ from app.core.database import supabase
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
 from app.modules.payslips.application.commands import (
     _refuser_si_importe,
-    archiver_version,
     _set_payslip_status_brouillon,
+    archiver_version,
     generate_payslip,
+    salarie_generable,
 )
 from app.modules.payslips.application.dto import (
     CorrigerBulletinInput,
@@ -278,8 +279,12 @@ def corriger_bulletin(cmd: CorrigerBulletinInput) -> dict[str, Any]:
         raise PayslipBadRequestError(MESSAGE_RIEN_A_ENREGISTRER)
 
     periode = _periode(bulletin)
-    # Avant toute écriture : une saisie d'une autre fiche ne laisse aucune trace.
+    # Avant toute écriture : une saisie d'une autre fiche ne laisse aucune trace,
+    # et des variables ne s'écrivent pas pour un bulletin qu'on ne pourrait pas
+    # recalculer (salarié sorti, mois repris de l'ancien logiciel…).
     verifier_appartenance(corrections.primes.ids_touches, **periode)
+    if corrections.change_des_variables:
+        salarie_generable(periode["employee_id"], periode["year"], periode["month"])
     motif = (cmd.changes_summary or "").strip() or resume_des_corrections(corrections)
 
     recalcule, erreur = False, None
