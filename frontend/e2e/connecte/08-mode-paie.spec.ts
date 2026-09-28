@@ -66,12 +66,26 @@ async function lireApi<T>(page: Page, chemin: string): Promise<T> {
   return (await reponse.json()) as T;
 }
 
+// Sa propre session, ouverte par la page de connexion comme le ferait Gaëlle :
+// la session partagée par les autres tests peut avoir été renouvelée (donc
+// invalidée) par eux avant ce parcours.
+test.use({ storageState: { cookies: [], origins: [] } });
+
+async function seConnecter(page: Page) {
+  await page.goto('/login');
+  await page.locator('#login-username').fill(process.env.E2E_QA_EMAIL!);
+  await page.locator('#login-password').fill(process.env.E2E_QA_PASSWORD!);
+  await page.getByRole('button', { name: /se connecter/i }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30_000 });
+}
+
 test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   test.setTimeout(240_000);
   await commeUneGestionnaireDePaie(page);
   // Chaque chargement repart sans le cache de requêtes que l'application garde
   // 24 h dans le navigateur : les réponses simulées sont bien celles affichées.
   await page.addInitScript(() => localStorage.removeItem('eywai-rq-cache-v1'));
+  await seConnecter(page);
   const s = surveiller(page);
   const ecritures = surveillerLesEcritures(page);
 
