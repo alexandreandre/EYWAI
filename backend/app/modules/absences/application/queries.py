@@ -493,10 +493,42 @@ def _reprise_posterieure_au_bulletin(employee_id: str, ref_date: date) -> bool:
     return bool(reprise) and ref_date < reprise
 
 
+def _jour_iso(valeur: object) -> date | None:
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except ValueError:
+        return None
+
+
+def conges_jusqu_a(absences: list[dict], date_limite: date | None) -> list[dict]:
+    """Les congés payés posés jusqu'à `date_limite` seulement.
+
+    Un congé posé après l'arrêté des variables est payé sur le bulletin du mois
+    suivant : il ne sort du solde imprimé qu'avec lui (décision du 28/09/2026,
+    « congés dans la fenêtre des variables uniquement, pas d'exception »).
+    """
+    if date_limite is None:
+        return absences
+    retenues: list[dict] = []
+    for absence in absences:
+        if absence.get("type") != "conge_paye":
+            retenues.append(absence)
+            continue
+        jours = [
+            jour
+            for jour in absence.get("selected_days") or []
+            if (_jour_iso(jour) or date.max) <= date_limite
+        ]
+        if jours:
+            retenues.append({**absence, "selected_days": jours})
+    return retenues
+
+
 def get_absence_balances_for_payslip(
-    employee_id: str, year: int, month: int
+    employee_id: str, year: int, month: int, date_fin_prises: date | None = None
 ) -> dict[str, object] | None:
-    """Soldes affichés sur le bulletin : calcul à la fin du mois de paie."""
+    """Soldes affichés sur le bulletin : acquis à la fin du mois de paie, congés
+    pris jusqu'à la fin de la fenêtre des variables (`date_fin_prises`)."""
     hire_date = _parse_hire_date(employee_id)
     if not hire_date:
         return None
@@ -514,7 +546,9 @@ def get_absence_balances_for_payslip(
     if _reprise_posterieure_au_bulletin(employee_id, ref_date):
         return None
 
-    validated_list = absence_repository.list_validated_for_employees([employee_id])
+    validated_list = conges_jusqu_a(
+        absence_repository.list_validated_for_employees([employee_id]), date_fin_prises
+    )
     repos_credits = get_repos_credits_by_employee_year([employee_id], ref_date.year)
     repos_acquis = repos_credits.get(employee_id, 0.0)
     policy, adjustment, rtt_base, cp_seniority = _leave_context(employee_id, ref_date.year)

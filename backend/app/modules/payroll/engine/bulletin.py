@@ -138,16 +138,30 @@ def _pss_de_la_periode(contexte) -> float:
 
 
 def build_solde_conges_pied_de_page(
-    employee_id: Optional[str], annee: int, mois: int
+    employee_id: Optional[str], annee: int, mois: int, date_fin_variables: Any = None
 ) -> Optional[Dict[str, Any]]:
+    """Le solde de congés imprimé : les congés pris ne comptent que jusqu'à la
+    fin de la fenêtre des variables, comme leur paiement."""
     if not employee_id:
         return None
+    fin_fenetre: Optional[date] = None
+    if date_fin_variables:
+        try:
+            fin_fenetre = (
+                date_fin_variables
+                if isinstance(date_fin_variables, date)
+                else date.fromisoformat(str(date_fin_variables)[:10])
+            )
+        except ValueError:
+            fin_fenetre = None
     try:
         from app.modules.absences.application.queries import (
             get_absence_balances_for_payslip,
         )
 
-        balances = get_absence_balances_for_payslip(employee_id, annee, mois)
+        balances = get_absence_balances_for_payslip(
+            employee_id, annee, mois, date_fin_prises=fin_fenetre
+        )
     except Exception as exc:
         logger.warning("Impossible de calculer le solde de congés pour le bulletin: %s", exc)
         from app.modules.payroll.engine.replis import CODE_REPLI_SOLDES_CONGES, noter_repli
@@ -704,7 +718,7 @@ def creer_bulletin_final(
             "total_exonerations": total_exonerations,
             "total_allegements_patronaux": allegements_patronaux,
             "solde_conges": build_solde_conges_pied_de_page(
-                _extraire_employee_id(contexte), annee, mois
+                _extraire_employee_id(contexte), annee, mois, date_fin_variables
             ),
             "mentions_legales": {
                 "conservation": "Ce bulletin de paie doit être conservé sans limitation de durée.",

@@ -86,7 +86,12 @@ def regenerate_pdf_from_data(
         from app.modules.payroll.engine.bulletin import build_solde_conges_pied_de_page
 
         pied_de_page = dict(payslip_data.get("pied_de_page") or {})
-        solde_conges = build_solde_conges_pied_de_page(employee_id, year, month)
+        solde_conges = build_solde_conges_pied_de_page(
+            employee_id,
+            year,
+            month,
+            (payslip_data.get("en_tete") or {}).get("date_fin_variables"),
+        )
         if solde_conges:
             pied_de_page["solde_conges"] = solde_conges
 
