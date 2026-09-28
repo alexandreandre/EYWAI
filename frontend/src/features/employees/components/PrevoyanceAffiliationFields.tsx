@@ -128,7 +128,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Taux salarial (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.0001" {...salarialField} />
+                        <Input type="number" step="any" {...salarialField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -141,7 +141,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Taux patronal (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.0001" {...patronalField} />
+                        <Input type="number" step="any" {...patronalField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -154,7 +154,7 @@ export function PrevoyanceAffiliationFields<T extends FieldValues>({
                     <FormItem>
                       <FormLabel>Forfait social (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...fsField} />
+                        <Input type="number" step="any" {...fsField} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

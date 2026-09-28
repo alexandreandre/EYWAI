@@ -315,7 +315,9 @@ export function EmployeeProfileEditForm({
                     {...field}
                     type="number"
                     min={0}
-                    step="0.5"
+                    // Au centième : un temps partiel à 8,08 h ou 24,25 h était
+                    // refusé par le navigateur, qui bloquait l'enregistrement.
+                    step="0.01"
                     onChange={(e) => field.onChange(e.target.valueAsNumber || '')}
                   />
                 </FormControl>
