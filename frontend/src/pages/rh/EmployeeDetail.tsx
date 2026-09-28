@@ -63,6 +63,7 @@ import { EmployeeDetailSaisiesTab } from "@/features/employee-detail/components/
 import { WorkMedalEmployeeSection } from "@/features/work-medals/components/WorkMedalEmployeeSection";
 import { EmployeeLoansCard } from "@/features/employee-detail/components/EmployeeLoansCard";
 import { EmployeeInvitationCard } from "@/features/employee-detail/components/EmployeeInvitationCard";
+import { EmployeeExitDossierBanner } from "@/features/employee-detail/components/EmployeeExitDossierBanner";
 import { ContractualChangeDialog } from "@/features/employee-detail/components/ContractualChangeDialog";
 import {
   employeePlaceholderFromList,
@@ -558,6 +559,12 @@ export default function EmployeeDetail() {
         />
       ) : null}
 
+      {employeeId &&
+      (['parti', 'sorti', 'inactif'].includes(employee.employment_status ?? '') ||
+        (payrollFocus && employee.employment_status === 'en_sortie')) ? (
+        <EmployeeExitDossierBanner employeeId={employeeId} />
+      ) : null}
+
       {!payrollFocus && employeeId && employee && (employeeBoethQuery.data || canEditEmployeePaySettings) ? (
         <EmployeeBoethCard
           employeeId={employeeId}
@@ -595,8 +602,12 @@ export default function EmployeeDetail() {
         />
       )}
 
-      {/* Aussi en mode paie : une fiche créée sans NIR ni RIB bloque la paie. */}
-      {employeeId && employee && employee.employment_status !== 'en_sortie' && (
+      {/* Aussi en mode paie : une fiche créée sans NIR ni RIB bloque la paie.
+          Jamais pour un départ : on ne « finalise pas l'intégration » d'un
+          salarié parti, et la paie ne bloque pas sa fiche. */}
+      {employeeId &&
+        employee &&
+        !['en_sortie', 'parti', 'sorti', 'inactif'].includes(employee.employment_status ?? '') && (
         <EmployeeOnboardingCompletion
           employeeId={employeeId}
           employee={employee}
