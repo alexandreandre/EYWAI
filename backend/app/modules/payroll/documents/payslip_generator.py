@@ -501,7 +501,9 @@ def process_payslip_generation(
             planning_settings = planning_repository.get_company_planning_settings(
                 str(company_id)
             )
-            if planning_settings and planning_settings.get(
+            # Jamais en bac à sable : la génération des variables écrit les
+            # saisies du mois, et le bac à sable ne doit rien écrire.
+            if bac_a_sable is None and planning_settings and planning_settings.get(
                 "auto_generate_payroll_variables_before_payslip"
             ):
                 from app.modules.payroll_variables.application.generate_monthly import (

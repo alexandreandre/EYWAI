@@ -507,6 +507,20 @@ def _calculer_iccp_cdd(
     }
 
 
+def taux_majore(taux_horaire: float, majoration: float) -> float:
+    """Taux horaire majoré, arrondi à 4 décimales au pair le plus proche.
+
+    C'est l'arrondi de Quadra : 12,689 × 1,25 = 15,86125 s'imprime 15,8612, et
+    17,33 h × 15,8612 = 274,87 (274,88 sans l'arrondi du taux). Vérifié sur
+    toutes les heures sup de 2026 : 159 lignes sur 163 chez Comitech, 83 sur 83
+    chez Colorplast, contre 146 et 81 sans.
+    """
+    from decimal import ROUND_HALF_EVEN, Decimal
+
+    exact = Decimal(str(taux_horaire)) * (Decimal(1) + Decimal(str(majoration)))
+    return float(exact.quantize(Decimal("0.0001"), rounding=ROUND_HALF_EVEN))
+
+
 def _taux_majoration_hs(contexte: ContextePaie, index: int = 0) -> Optional[float]:
     """Lit le taux de majoration HS depuis heures_supp (None si absent)."""
     if hasattr(contexte, "get_bareme_value"):
@@ -976,7 +990,7 @@ def calculer_salaire_brut(
                     compute_hs_structurelles_mensuelles(duree_contrat_hebdo)
                 )
             if hors_hs:
-                taux_horaire_majore = taux_horaire_de_base * (1 + majoration_hs25)
+                taux_horaire_majore = taux_majore(taux_horaire_de_base, majoration_hs25)
                 remuneration_hs_structurelles = round(
                     heures_sup_structurelles_mensuelles * taux_horaire_majore, 2
                 )
@@ -984,7 +998,7 @@ def calculer_salaire_brut(
                     salaire_base_35h + remuneration_hs_structurelles, 2
                 )
             elif facteur_prorata < 1.0:
-                taux_horaire_majore = taux_horaire_de_base * (1 + majoration_hs25)
+                taux_horaire_majore = taux_majore(taux_horaire_de_base, majoration_hs25)
                 remuneration_hs_structurelles = round(
                     heures_sup_structurelles_mensuelles * taux_horaire_majore, 2
                 )
@@ -1051,8 +1065,8 @@ def calculer_salaire_brut(
     )
 
     # 2. Préparation des taux et des accumulateurs
-    taux_hs25 = taux_horaire_de_base * (1 + majoration_hs25)
-    taux_hs50 = taux_horaire_de_base * (1 + majoration_hs50)
+    taux_hs25 = taux_majore(taux_horaire_de_base, majoration_hs25)
+    taux_hs50 = taux_majore(taux_horaire_de_base, majoration_hs50)
 
     # Heures complémentaires (temps partiel) : majorations dédiées (10 % puis 25 %).
     majoration_hc1 = _taux_majoration_hc(contexte, 0)
@@ -1061,8 +1075,8 @@ def calculer_salaire_brut(
         majoration_hc1 = 0.10
     if majoration_hc2 is None:
         majoration_hc2 = 0.25
-    taux_hc1 = taux_horaire_de_base * (1 + majoration_hc1)
-    taux_hc2 = taux_horaire_de_base * (1 + majoration_hc2)
+    taux_hc1 = taux_majore(taux_horaire_de_base, majoration_hc1)
+    taux_hc2 = taux_majore(taux_horaire_de_base, majoration_hc2)
 
     smoothing_gain = float(getattr(contexte, "modulation_smoothing_gain", 0) or 0)
     if smoothing_gain > 0:
