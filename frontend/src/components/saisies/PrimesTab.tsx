@@ -327,8 +327,8 @@ export function PrimesTab({
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={input.is_socially_taxed ? "default" : "secondary"}>
-                            {input.is_socially_taxed ? 'Oui' : 'Non'}
+                          <Badge variant={input.sur_le_net ? "outline" : input.is_socially_taxed ? "default" : "secondary"}>
+                            {input.sur_le_net ? 'Sur le net' : input.is_socially_taxed ? 'Oui' : 'Non'}
                           </Badge>
                         </TableCell>
                         <TableCell>

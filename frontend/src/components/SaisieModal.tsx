@@ -45,6 +45,8 @@ import * as calendarApi from "@/api/calendar";
 import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
+import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -94,6 +96,8 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
   const [primesCatalogue, setPrimesCatalogue] = useState<PrimeFromCatalogue[]>([]);
   const [bonusTypes, setBonusTypes] = useState<BonusType[]>([]);
   const [isCustomPrime, setIsCustomPrime] = useState(true);
+  // Où va le montant : prime (brut), retenue ou versement sur le net.
+  const [sens, setSens] = useState<SensSaisie>('prime');
   const [selectedBonusTypeId, setSelectedBonusTypeId] = useState<string | null>(null);
   // Id de la prime du CATALOGUE national sélectionnée (null = prime maison).
   const [catalogPrimeId, setCatalogPrimeId] = useState<string | null>(null);
@@ -131,6 +135,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       setFormData(initialState);
       setPrimeForm(initialPrimeForm);
       setIsCustomPrime(true);
+      setSens('prime');
       setSelectedBonusTypeId(null);
       setCatalogPrimeId(null);
       setShowCreatePrimeForm(false);
@@ -277,9 +282,11 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
       employee_id: empId,
       name: formData.name,
       description: formData.description || undefined,
-      amount: amountsByEmployee[empId] !== undefined ? amountsByEmployee[empId] : Number(formData.amount),
-      is_socially_taxed: formData.is_socially_taxed,
-      is_taxable: formData.is_taxable,
+      ...champsDeLaSaisie(
+        isCustomPrime ? sens : 'prime',
+        amountsByEmployee[empId] !== undefined ? amountsByEmployee[empId] : Number(formData.amount),
+        { is_socially_taxed: formData.is_socially_taxed, is_taxable: formData.is_taxable },
+      ),
       catalog_prime_id: isCustomPrime ? undefined : catalogPrimeId ?? undefined,
       year: currentYear,
       month: currentMonth,
@@ -721,6 +728,30 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                 )}
               </div>
               
+              {isCustomPrime && (
+                <div className="grid gap-2 pt-2">
+                  <Label>Où va ce montant ?</Label>
+                  <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    value={sens}
+                    onValueChange={(v) => v && setSens(v as SensSaisie)}
+                    className="flex flex-wrap justify-start"
+                  >
+                    {SENS_SAISIE.map((option) => (
+                      <ToggleGroupItem key={option.value} value={option.value} aria-label={option.libelle}>
+                        {option.libelle}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                  <p className="text-xs text-muted-foreground">
+                    {SENS_SAISIE.find((option) => option.value === sens)?.aide}
+                    {sens !== 'prime' ? ' Tapez le montant en positif.' : ''}
+                  </p>
+                </div>
+              )}
+
+              {(!isCustomPrime || sens === 'prime') && (
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox id="is_socially_taxed" checked={formData.is_socially_taxed} disabled={!isCustomPrime} onCheckedChange={(c) => setFormData(p => ({ ...p, is_socially_taxed: !!c }))}/>
@@ -731,6 +762,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
                   <Label htmlFor="is_taxable" className={cn("cursor-pointer", !isCustomPrime && "text-muted-foreground")}>Soumise à impôt</Label>
                 </div>
               </div>
+              )}
             </>
           )}
           

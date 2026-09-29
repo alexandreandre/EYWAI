@@ -46,3 +46,31 @@ def test_prime_non_soumise_ordinaire_n_est_ni_nette_ni_frais_pro():
     row = {"name": "Remboursement transport", "amount": 11.25, "is_socially_taxed": False}
     assert not _is_net_a_payer_only_correction_input(row)
     assert not _is_frais_pro_non_soumis_input(row)
+
+
+class TestSaisieMarqueeSurLeNet:
+    """La case « sur le net » de la saisie décide, pas son libellé (29/09/2026)."""
+
+    def test_une_retenue_marquee_sur_le_net_ne_touche_que_le_net(self):
+        from app.modules.payroll.documents.payslip_generator import (
+            _is_net_a_payer_only_correction_input,
+        )
+
+        ligne = {"name": "Net négatif de juillet", "amount": -419.75, "sur_le_net": True}
+        assert _is_net_a_payer_only_correction_input(ligne) is True
+
+    def test_un_versement_marque_sur_le_net_aussi(self):
+        from app.modules.payroll.documents.payslip_generator import (
+            _is_net_a_payer_only_correction_input,
+        )
+
+        assert _is_net_a_payer_only_correction_input({"name": "Avance", "amount": 300.0, "sur_le_net": True})
+
+    def test_sans_la_case_une_prime_reste_une_prime(self):
+        from app.modules.payroll.documents.payslip_generator import (
+            _is_net_a_payer_only_correction_input,
+        )
+
+        assert not _is_net_a_payer_only_correction_input({"name": "Net négatif de juillet", "amount": -419.75})
+        # Les anciens libellés restent reconnus.
+        assert _is_net_a_payer_only_correction_input({"name": "Report NAP négatif", "amount": -419.75})

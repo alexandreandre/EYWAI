@@ -30,6 +30,8 @@ class MonthlyInput(BaseModel):
     # déclenche les traitements dédiés du moteur (exonération PPV…). Sans lui,
     # le bulletin retombe sur les seuls flags de la saisie.
     catalog_prime_id: Optional[str] = None
+    # Vrai : seul le net à payer bouge (retenue si négatif, versement si positif).
+    sur_le_net: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -47,6 +49,7 @@ class MonthlyInputCreate(BaseModel):
     is_socially_taxed: bool = True
     is_taxable: bool = True
     catalog_prime_id: Optional[str] = None
+    sur_le_net: bool = False
 
 
 class MonthlyInputUpdate(BaseModel):
@@ -57,6 +60,7 @@ class MonthlyInputUpdate(BaseModel):
     description: Optional[str] = None
     is_socially_taxed: Optional[bool] = None
     is_taxable: Optional[bool] = None
+    sur_le_net: Optional[bool] = None
     payroll_quantity: Optional[float] = None
 
 

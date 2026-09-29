@@ -173,6 +173,11 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
       mai 2026 : -98,12 € identique sur les 3, donc indépendant du salaire —
       probablement une régularisation de cotisation mutuelle famille).
     """
+    # Choisi à la saisie (« Retenue sur le net », « Versement sur le net ») : la
+    # case décide, pas le libellé. Les libellés ci-dessous restent reconnus pour
+    # les saisies d'avant la case (29/09/2026).
+    if row.get("sur_le_net"):
+        return True
     label = " ".join(
         str(row.get(key) or "") for key in ("name", "description")
     ).lower()
