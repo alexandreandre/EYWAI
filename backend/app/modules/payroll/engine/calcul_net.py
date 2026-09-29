@@ -5,6 +5,7 @@ from .contexte import ContextePaie
 from .exoneration_alternance import contexte_exoneration_apprenti
 from . import legal_constants as lc
 from typing import Dict, Any, List
+from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 
 
 logger = get_logger("modules.payroll.engine.calcul_net")
@@ -89,32 +90,9 @@ def _get_part_patronale_mutuelle(contexte: ContextePaie) -> float:
 
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
     if mutuelle_type_ids:
-        try:
-            # Client admin (service_role) : contourne la RLS pour lire les types de
-            # mutuelle d'entreprise (le client par défaut peut être bloqué).
-            from app.core.database import get_supabase_admin_client
-
-            supabase_client = get_supabase_admin_client()
-            mutuelles_response = (
-                supabase_client.table("company_mutuelle_types")
-                .select("*")
-                .in_("id", mutuelle_type_ids)
-                .eq("is_active", True)
-                .execute()
-            )
-            if mutuelles_response.data:
-                for mutuelle in mutuelles_response.data:
-                    if mutuelle.get("part_patronale_soumise_a_csg", True):
-                        part_patronale_mutuelle += _get_safe_float(
-                            mutuelle.get("montant_patronal")
-                        )
-        except Exception as e:
-            logger.warning(
-                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
-            )
-            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
-
-            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
+        for mutuelle in mutuelles_du_salarie(contexte, mutuelle_type_ids):
+            if mutuelle.get("part_patronale_soumise_a_csg", True):
+                part_patronale_mutuelle += _get_safe_float(mutuelle.get("montant_patronal"))
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if ligne.get("part_patronale_soumise_a_csg", True):
@@ -160,29 +138,9 @@ def _get_part_salariale_mutuelle_non_deductible(contexte: ContextePaie) -> float
     part_non_deductible = 0.0
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
     if mutuelle_type_ids:
-        try:
-            from app.core.database import get_supabase_admin_client
-
-            reponse = (
-                get_supabase_admin_client()
-                .table("company_mutuelle_types")
-                .select("*")
-                .in_("id", mutuelle_type_ids)
-                .eq("is_active", True)
-                .execute()
-            )
-            for mutuelle in reponse.data or []:
-                if not mutuelle.get("part_salariale_deductible_impot", True):
-                    part_non_deductible += _get_safe_float(
-                        mutuelle.get("montant_salarial")
-                    )
-        except Exception as e:
-            logger.warning(
-                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
-            )
-            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
-
-            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
+        for mutuelle in mutuelles_du_salarie(contexte, mutuelle_type_ids):
+            if not mutuelle.get("part_salariale_deductible_impot", True):
+                part_non_deductible += _get_safe_float(mutuelle.get("montant_salarial"))
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if not ligne.get("part_salariale_deductible_impot", True):
@@ -221,27 +179,9 @@ def _part_salariale_mutuelle_hors_net_social(contexte: ContextePaie) -> float:
     hors_mns = 0.0
     mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
     if mutuelle_type_ids:
-        try:
-            from app.core.database import get_supabase_admin_client
-
-            reponse = (
-                get_supabase_admin_client()
-                .table("company_mutuelle_types")
-                .select("*")
-                .in_("id", mutuelle_type_ids)
-                .eq("is_active", True)
-                .execute()
-            )
-            for mutuelle in reponse.data or []:
-                if not mutuelle.get("part_salariale_obligatoire", True):
-                    hors_mns += _get_safe_float(mutuelle.get("montant_salarial"))
-        except Exception as e:
-            logger.warning(
-                f"ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}"
-            )
-            from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
-
-            signaler_repli(contexte, CODE_REPLI_MUTUELLE)
+        for mutuelle in mutuelles_du_salarie(contexte, mutuelle_type_ids):
+            if not mutuelle.get("part_salariale_obligatoire", True):
+                hors_mns += _get_safe_float(mutuelle.get("montant_salarial"))
 
     for ligne in mutuelle_spec.get("lignes_specifiques", []):
         if not ligne.get("part_salariale_obligatoire", True):

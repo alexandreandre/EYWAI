@@ -17,6 +17,9 @@ règles, lectures de bulletins passés, pied de page) notent leur repli avec
 génération et reporte ce qui a été noté dans les alertes du bulletin. Hors
 génération (écrans, simulations, scripts), `noter_repli` ne fait rien de plus
 que le log déjà écrit par l'appelant.
+
+La mutuelle n'est pas un repli : un bulletin ne sort jamais sans elle, sa
+lecture impossible arrête le calcul (engine/mutuelles.py, 29/09/2026).
 """
 
 from __future__ import annotations
@@ -27,7 +30,6 @@ from typing import Any, Dict, List, Optional
 CODE_REPLI_MAINTIEN = "repli_maintien_salaire"
 CODE_REPLI_AVANCES = "repli_avances"
 CODE_REPLI_SORTIE = "repli_indemnites_sortie"
-CODE_REPLI_MUTUELLE = "repli_mutuelle"
 CODE_REPLI_CONVENTION = "repli_convention_collective"
 CODE_REPLI_EVOLUTION_SALAIRE = "repli_evolution_salaire"
 CODE_REPLI_MODULATION = "repli_modulation"
@@ -55,11 +57,6 @@ _MESSAGES: Dict[str, str] = {
         "Dossier de sortie non lu : une erreur a empêché sa lecture. "
         "Le bulletin est calculé comme un mois ordinaire, sans indemnités de sortie. "
         "À vérifier avant de le valider."
-    ),
-    CODE_REPLI_MUTUELLE: (
-        "Mutuelle non lue : une erreur a empêché de lire les garanties du salarié. "
-        "Les parts de mutuelle, et leur effet sur la CSG et le net imposable, "
-        "peuvent manquer. À vérifier avant de valider ce bulletin."
     ),
     CODE_REPLI_CONVENTION: (
         "Règles de la convention collective lues en partie seulement : prime "

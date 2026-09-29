@@ -15,7 +15,7 @@ import pytest
 from app.modules.payroll.engine import replis
 from app.modules.payroll.engine.replis import (
     CODE_REPLI_CONVENTION,
-    CODE_REPLI_MUTUELLE,
+    CODE_REPLI_AVANCES,
     CODE_REPLI_SOLDES_CONGES,
     fermer_collecte,
     fusionner_replis,
@@ -42,7 +42,7 @@ def test_pendant_une_generation_le_repli_est_collecte_une_fois():
     assert [a["code"] for a in alertes] == [CODE_REPLI_SOLDES_CONGES, CODE_REPLI_CONVENTION]
     assert all(a["repli"] is True for a in alertes)
     # Collecte fermée : plus rien n'arrive dans la liste.
-    noter_repli(CODE_REPLI_MUTUELLE)
+    noter_repli(CODE_REPLI_AVANCES)
     assert len(alertes) == 2
 
 
@@ -50,28 +50,30 @@ def test_la_fusion_garde_les_alertes_du_bulletin_sans_doublon():
     existantes = [{"code": "autre", "message": "x"}, replis.alerte_de_repli(CODE_REPLI_CONVENTION)]
     fusion = fusionner_replis(
         existantes,
-        [replis.alerte_de_repli(CODE_REPLI_CONVENTION), replis.alerte_de_repli(CODE_REPLI_MUTUELLE)],
+        [replis.alerte_de_repli(CODE_REPLI_CONVENTION), replis.alerte_de_repli(CODE_REPLI_AVANCES)],
     )
-    assert [a["code"] for a in fusion] == ["autre", CODE_REPLI_CONVENTION, CODE_REPLI_MUTUELLE]
+    assert [a["code"] for a in fusion] == ["autre", CODE_REPLI_CONVENTION, CODE_REPLI_AVANCES]
     assert fusionner_replis(None, []) == []
 
 
 def test_chaque_code_a_son_message():
     codes = [v for k, v in vars(replis).items() if k.startswith("CODE_REPLI_")]
-    assert len(codes) == 15
+    assert len(codes) == 14
     for code in codes:
         message = replis.alerte_de_repli(code)["message"]
         assert "À vérifier avant de" in message
 
 
-def test_une_mutuelle_illisible_se_voit_sur_le_bulletin(monkeypatch):
+def test_une_mutuelle_illisible_arrete_le_calcul(monkeypatch):
+    """Plus de repli pour la mutuelle : le bulletin n'est pas calculé sans elle."""
     from app.core import database
-    from app.modules.payroll.engine import calcul_net
+    from app.modules.payroll.engine import calcul_net, mutuelles
 
     def base_en_panne():
         raise ConnectionError("base injoignable")
 
     monkeypatch.setattr(database, "get_supabase_admin_client", base_en_panne)
+    monkeypatch.setattr(mutuelles.time, "sleep", lambda _s: None)
     contexte = SimpleNamespace(
         contrat={
             "specificites_paie": {
@@ -80,8 +82,9 @@ def test_une_mutuelle_illisible_se_voit_sur_le_bulletin(monkeypatch):
         },
         alertes_baremes=[],
     )
-    assert calcul_net._get_part_patronale_mutuelle(contexte) == 0.0
-    assert [a["code"] for a in contexte.alertes_baremes] == [CODE_REPLI_MUTUELLE]
+    with pytest.raises(mutuelles.MutuelleIllisible):
+        calcul_net._get_part_patronale_mutuelle(contexte)
+    assert contexte.alertes_baremes == []
 
 
 def test_des_conventions_illisibles_sont_notees():
@@ -120,8 +123,6 @@ def test_des_soldes_de_conges_illisibles_sont_notes(monkeypatch):
 # Les autres replis sont au cœur des générateurs et des runs, que les tests
 # unitaires n'exécutent pas en entier : une garde lit leur code source.
 SITES = [
-    ("engine/calcul_cotisations.py", "CODE_REPLI_MUTUELLE", 2),
-    ("engine/calcul_net.py", "CODE_REPLI_MUTUELLE", 3),
     ("engine/baremes_loader.py", "CODE_REPLI_CONVENTION", 2),
     ("engine/reference_remuneration.py", "CODE_REPLI_REFERENCE_CONGES", 2),
     ("engine/bulletin.py", "CODE_REPLI_SOLDES_CONGES", 1),

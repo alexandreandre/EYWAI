@@ -22,6 +22,7 @@ import json
 from .cotisations_rubriques import enrichir_ligne_cotisation
 from .baremes_loader import resoudre_taux_vm_pour_paie
 from app.shared.domain.employment_rules import is_cadre
+from app.modules.payroll.engine.mutuelles import mutuelles_du_salarie
 
 # Fichier : moteur_paie/calcul_cotisations.py
 
@@ -426,28 +427,9 @@ def _calculer_assiettes(
         # Nouveau format : charger depuis company_mutuelle_types si mutuelle_type_ids présent
         mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
         if mutuelle_type_ids:
-            try:
-                from app.core.database import supabase as supabase_client
-
-                mutuelles_response = (
-                    supabase_client.table("company_mutuelle_types")
-                    .select("*")
-                    .in_("id", mutuelle_type_ids)
-                    .eq("is_active", True)
-                    .execute()
-                )
-
-                if mutuelles_response.data:
-                    for mutuelle in mutuelles_response.data:
-                        if mutuelle.get("part_patronale_soumise_a_csg", True):
-                            part_patronale_frais_sante += float(
-                                mutuelle.get("montant_patronal", 0.0)
-                            )
-            except Exception as e:
-                logger.warning(f'WARN: Impossible de charger les mutuelles pour CSG: {e}')
-                from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
-
-                signaler_repli(contexte, CODE_REPLI_MUTUELLE)
+            for mutuelle in mutuelles_du_salarie(contexte, mutuelle_type_ids):
+                if mutuelle.get("part_patronale_soumise_a_csg", True):
+                    part_patronale_frais_sante += float(mutuelle.get("montant_patronal", 0.0))
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
         for ligne in mutuelle_spec.get("lignes_specifiques", []):
@@ -918,45 +900,21 @@ def calculer_cotisations(
         # Nouveau format : charger depuis company_mutuelle_types si mutuelle_type_ids présent
         mutuelle_type_ids = mutuelle_spec.get("mutuelle_type_ids", [])
         if mutuelle_type_ids:
-            # Charger les formules depuis la base de données
-            try:
-                from app.core.database import supabase as supabase_client
-
-                mutuelles_response = (
-                    supabase_client.table("company_mutuelle_types")
-                    .select("*")
-                    .in_("id", mutuelle_type_ids)
-                    .eq("is_active", True)
-                    .execute()
+            # Jamais sautées : une lecture impossible arrête le calcul (engine/mutuelles.py).
+            for mutuelle in mutuelles_du_salarie(contexte, mutuelle_type_ids):
+                bulletin_cotisations.append(
+                    enrichir_ligne_cotisation(
+                        {
+                            "libelle": mutuelle.get("libelle", "Mutuelle Frais de Santé"),
+                            "base": None,
+                            "taux_salarial": None,
+                            "montant_salarial": float(mutuelle.get("montant_salarial", 0.0)),
+                            "taux_patronal": None,
+                            "montant_patronal": float(mutuelle.get("montant_patronal", 0.0)),
+                        },
+                        coti_id="mutuelle",
+                    )
                 )
-
-                if mutuelles_response.data:
-                    for mutuelle in mutuelles_response.data:
-                        bulletin_cotisations.append(
-                            enrichir_ligne_cotisation(
-                                {
-                                    "libelle": mutuelle.get(
-                                        "libelle", "Mutuelle Frais de Santé"
-                                    ),
-                                    "base": None,
-                                    "taux_salarial": None,
-                                    "montant_salarial": float(
-                                        mutuelle.get("montant_salarial", 0.0)
-                                    ),
-                                    "taux_patronal": None,
-                                    "montant_patronal": float(
-                                        mutuelle.get("montant_patronal", 0.0)
-                                    ),
-                                },
-                                coti_id="mutuelle",
-                            )
-                        )
-            except Exception as e:
-                logger.warning(f'ERREUR: Impossible de charger les mutuelles depuis la BDD: {e}')
-                from app.modules.payroll.engine.replis import CODE_REPLI_MUTUELLE, signaler_repli
-
-                signaler_repli(contexte, CODE_REPLI_MUTUELLE)
-                # Fallback sur l'ancien format si erreur
 
         # Ancien format : lignes_specifiques (rétrocompatibilité)
         lignes_specifiques = mutuelle_spec.get("lignes_specifiques", [])
