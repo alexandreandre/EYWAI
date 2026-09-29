@@ -150,24 +150,13 @@ def test_un_mois_d_arret_complet_a_un_brut_nul_et_reporte_le_net_negatif():
     assert equilibre(b, s, versees, retenues) == 0.0
 
 
-def test_deux_bulletins_du_meme_mois_font_un_seul_solde_d_ouverture():
+def test_deux_contrats_le_meme_mois_l_ouverture_est_celle_du_contrat_qui_continue():
     """Fin de CDD le 30/08 puis apprentissage le 31/08 : Quadra ouvre un second
-    matricule, la fiche est la même (un numéro de sécurité sociale par société)."""
-    from scripts.reprise_comitech import fusionner_les_soldes
+    matricule dont les cumuls repartent de zéro. Additionner les deux faisait
+    rattraper en septembre la réduction générale de tout le CDD."""
+    from scripts.reprise_comitech import solde_du_contrat_qui_continue
 
-    cdd = {"controle_somme_des_bruts": 4230.51,
-           "cumuls": {"brut_total": 4230.51, "net_imposable": 2861.98, "heures_remunerees": 321.3,
-                      "brut_reference_n_1": 1110.45, "brut_reference_period_start": "2026-06-01"},
-           "periode": {"annee_en_cours": 2026, "dernier_mois_calcule": 8},
-           "reprise": {"mois_repris": [6, 7, 8]}}
-    apprenti = {"controle_somme_des_bruts": 53.18,
-                "cumuls": {"brut_total": 53.18, "net_imposable": 42.77, "heures_remunerees": 7.8,
-                           "brut_reference_n_1": 53.18, "brut_reference_period_start": "2026-06-01"},
-                "periode": {"annee_en_cours": 2026, "dernier_mois_calcule": 8},
-                "reprise": {"mois_repris": [8]}}
-    fusion = fusionner_les_soldes([cdd, apprenti])
-    assert fusion["cumuls"]["brut_total"] == 4283.69
-    assert fusion["cumuls"]["net_imposable"] == 2904.75
-    assert fusion["cumuls"]["brut_reference_period_start"] == "2026-06-01"
-    assert fusion["controle_somme_des_bruts"] == 4283.69
-    assert fusion["reprise"]["mois_repris"] == [6, 7, 8]
+    cdd = {"cumuls": {"brut_total": 4230.51, "reduction_generale_patronale": -1332.19}}
+    apprenti = {"cumuls": {"brut_total": 53.18, "reduction_generale_patronale": -21.17}}
+    assert solde_du_contrat_qui_continue([("31/08/2026", apprenti), ("22/06/2026", cdd)]) is apprenti
+    assert solde_du_contrat_qui_continue([("22/06/2026", cdd)]) is cdd

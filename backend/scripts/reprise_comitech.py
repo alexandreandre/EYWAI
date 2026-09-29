@@ -446,30 +446,18 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
     }
 
 
-def fusionner_les_soldes(soldes: list[dict]) -> dict:
-    """Un solde d'ouverture pour une fiche qui a eu plusieurs matricules Quadra.
+def solde_du_contrat_qui_continue(soldes: list[tuple[str, dict]]) -> dict:
+    """Le solde d'ouverture d'une fiche qui a eu plusieurs matricules Quadra :
+    celui du dernier contrat, `soldes` étant des paires (date d'entrée, solde).
 
     Fin de CDD le 30/08 puis contrat d'apprentissage le 31/08 : Quadra ouvre un
-    second matricule, chacun avec ses cumuls ; la base n'a qu'une fiche par numéro
-    de sécurité sociale. Les montants s'additionnent, les dates restent.
+    second matricule dont les cumuls repartent de zéro, et la base n'a qu'une fiche
+    par numéro de sécurité sociale. La réduction générale, les tranches et le
+    plafond se calculent par contrat : additionner les deux faisait rattraper en
+    septembre la réduction de toute l'année du CDD (−810,65 € au lieu d'environ
+    −458,67 €, 29/09/2026). Le contrat terminé est clos, comme à une sortie.
     """
-    if len(soldes) == 1:
-        return soldes[0]
-    fusion = {
-        "controle_somme_des_bruts": round(sum(x["controle_somme_des_bruts"] for x in soldes), 2),
-        "cumuls": {},
-        "periode": dict(soldes[0]["periode"]),
-        "reprise": dict(soldes[0].get("reprise") or {}),
-    }
-    for cle, valeur in soldes[0]["cumuls"].items():
-        if isinstance(valeur, (int, float)):
-            fusion["cumuls"][cle] = round(sum(float(x["cumuls"].get(cle) or 0.0) for x in soldes), 2)
-        else:
-            fusion["cumuls"][cle] = valeur
-    fusion["reprise"]["mois_repris"] = sorted(
-        {m for x in soldes for m in (x.get("reprise") or {}).get("mois_repris") or []}
-    )
-    return fusion
+    return sorted(soldes, key=lambda x: _date_fr(x[0]))[-1][1]
 
 
 def _date_fr(texte: Any) -> str:
@@ -575,13 +563,13 @@ def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
         par_fiche.setdefault(fiche["id"], []).append((mat, b, solde, fiche))
     soldes: dict[str, dict] = {}
     for lignes in par_fiche.values():
-        # Les congés et compteurs sont ceux du contrat qui continue : le dernier entré.
+        # Cumuls, congés et compteurs sont ceux du contrat qui continue : le dernier entré.
         lignes.sort(key=lambda x: _date_fr(x[1].infos.get("entree")))
         mat, b, _, fiche = lignes[-1]
-        solde = fusionner_les_soldes([x[2] for x in lignes])
+        solde = solde_du_contrat_qui_continue([(x[1].infos.get("entree"), x[2]) for x in lignes])
         if len(lignes) > 1:
-            print(f"  {mat:11s} solde fusionné de " + " + ".join(x[0] for x in lignes)
-                  + f" ; congés et compteurs du dernier contrat ({b.infos.get('entree')})")
+            print(f"  {mat:11s} contrat en cours depuis le {b.infos.get('entree')} : ses cumuls seuls "
+                  f"(contrat{'s' if len(lignes) > 2 else ''} clos : " + ", ".join(x[0] for x in lignes[:-1]) + ")")
         soldes[mat] = {"fiche": fiche, "solde": solde, "bulletin": b}
         c = solde["cumuls"]
         print(f"  {mat:11s} brut {c['brut_total']:10.2f} heures {c['heures_remunerees']:8.2f} "
