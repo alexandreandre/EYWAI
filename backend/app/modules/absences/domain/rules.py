@@ -77,7 +77,7 @@ def _months_worked_in_period(
 
 
 def _acquired_cp_from_months(
-    months_worked: int,
+    months_worked: float,
     days_per_month: float = 2.5,
     *,
     arrondi_superieur: bool = True,
@@ -97,18 +97,48 @@ def _acquired_cp_from_months(
     return math.floor(brut * 100 + 1e-6) / 100
 
 
+def _fraction_du_mois_de_sortie(
+    debut: date, sortie: date, policy: LeavePolicySettings
+) -> float:
+    """Part du mois de sortie qui ouvre droit à congés.
+
+    Un mois de travail effectif vaut quatre semaines (C. trav. L3141-3 et
+    L3141-4) : 24 jours ouvrables, ou 20 jours ouvrés quand la société décompte
+    en ouvrés. En deçà, au prorata des jours du début du mois (ou de l'embauche)
+    à la sortie ; au-delà, le mois compte entier.
+    """
+    premier = max(debut, sortie.replace(day=1))
+    en_ouvres = policy.cp_counting_unit == "ouvre"
+    dernier_jour_ouvrant = 4 if en_ouvres else 5
+    jours = sum(
+        1
+        for n in range((sortie - premier).days + 1)
+        if (premier + timedelta(days=n)).weekday() <= dernier_jour_ouvrant
+    )
+    return min(1.0, jours / (20 if en_ouvres else 24))
+
+
 def calculate_acquired_cp(
     hire_date: date,
     ref_date: date,
     *,
     policy: LeavePolicySettings | None = None,
+    date_de_sortie: date | None = None,
 ) -> float:
     policy = policy or DEFAULT_LEAVE_POLICY
     period_start, period_end = get_cp_reference_period(
         ref_date, start_month=policy.cp_reference_period_start_month
     )
     acquisition_end = min(ref_date, period_end)
-    months_worked = _months_worked_in_period(hire_date, period_start, acquisition_end)
+    months_worked: float = _months_worked_in_period(
+        hire_date, period_start, acquisition_end
+    )
+    # Le mois de sortie n'acquiert que sa part travaillée : une fin de CDD le
+    # 15/09 comptait tout septembre dans l'indemnité de congés.
+    if date_de_sortie is not None and acquisition_end == date_de_sortie and months_worked > 0:
+        months_worked = months_worked - 1 + _fraction_du_mois_de_sortie(
+            max(hire_date, period_start), date_de_sortie, policy
+        )
     periode_close = acquisition_end >= period_end
     return _acquired_cp_from_months(
         months_worked,
@@ -599,8 +629,12 @@ def compute_cp_period_balances(
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
     _skip_adjustment_roll: bool = False,
+    date_de_sortie: date | None = None,
 ) -> dict[str, dict[str, float]]:
-    """Soldes CP période N-1 et N avec report optionnel."""
+    """Soldes CP période N-1 et N avec report optionnel.
+
+    `date_de_sortie` : le salarié part ce jour-là (`ref_date`) ; le dernier mois
+    n'acquiert que sa part travaillée."""
     policy = policy or DEFAULT_LEAVE_POLICY
     adjustment = adjustment or EmployeeLeaveAdjustment.empty()
     if not _skip_adjustment_roll:
@@ -642,7 +676,9 @@ def compute_cp_period_balances(
     n1_raw = prev_acquis - prev_pris + adjustment.cp_n1_opening_balance
     n1_available = _apply_cp_carryover_cap(max(0.0, n1_raw), policy)
 
-    current_acquis = calculate_acquired_cp(hire_date, ref_date, policy=policy)
+    current_acquis = calculate_acquired_cp(
+        hire_date, ref_date, policy=policy, date_de_sortie=date_de_sortie
+    )
     current_supp = _supplemental_cp_for_period_end(
         current_end,
         cp_seniority=cp_seniority,
@@ -705,6 +741,7 @@ def compute_cp_balances_for_bulletin(
     adjustment: EmployeeLeaveAdjustment | None = None,
     cp_seniority: CpSenioritySettings | None = None,
     employee_ctx: EmployeeCpSeniorityContext | None = None,
+    date_de_sortie: date | None = None,
 ) -> dict[str, dict[str, float | str]]:
     policy = policy or DEFAULT_LEAVE_POLICY
     start_month = policy.cp_reference_period_start_month
@@ -723,6 +760,7 @@ def compute_cp_balances_for_bulletin(
         adjustment=adjustment,
         cp_seniority=cp_seniority,
         employee_ctx=employee_ctx,
+        date_de_sortie=date_de_sortie,
     )
 
     current = dict(periods["periode_courante"])

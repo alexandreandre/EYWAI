@@ -23,7 +23,9 @@ l'appelant qui choisit son exception.
 
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass
+from datetime import date
 
 from app.core.database import supabase
 from app.core.logging import get_logger
@@ -105,6 +107,24 @@ def lire_bascule(company_id: str | None) -> Bascule | None:
     except (KeyError, TypeError, ValueError):
         logger.warning("Bascule de reprise mal formée pour la société %s.", company_id)
         return None
+
+
+def fin_de_la_reprise_au_premier_mois(
+    company_id: str | None, annee: int, mois: int, bascule: Bascule | None = None
+) -> date | None:
+    """Dernier jour payé par l'ancien logiciel, si `annee/mois` est le premier mois
+    calculé après lui ; sinon None.
+
+    La fenêtre des variables du premier mois déborde sur la fin du dernier mois
+    repris (septembre Colorplast : 24/08 → 20/09). L'ancien logiciel a déjà
+    traité les absences de son mois civil (congés sans solde du 24 et du 28/08
+    sur le bulletin Quadra d'août) ; les heures sup de ces jours-là, elles, sont
+    payées le mois suivant.
+    """
+    bascule = bascule if bascule is not None else lire_bascule(company_id)
+    if bascule is None or rang_du_mois(annee, mois) != bascule.rang + 1:
+        return None
+    return date(bascule.annee, bascule.mois, monthrange(bascule.annee, bascule.mois)[1])
 
 
 def raison_de_blocage_avant_bascule(

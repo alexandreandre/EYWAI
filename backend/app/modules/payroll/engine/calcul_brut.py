@@ -768,6 +768,15 @@ TYPES_RATTACHES_AUX_VARIABLES = frozenset(
 )
 
 
+def _est_une_absence(type_ev: str) -> bool:
+    """Une journée non travaillée : congé, absence, arrêt — pas une heure faite."""
+    return (
+        type_ev in ("conges_payes", "absence_non_remuneree", "evenement_familial")
+        or "absence_injustifiee" in type_ev
+        or type_ev.startswith("arret")
+    )
+
+
 def evenements_de_la_periode(
     calendrier_saisie: List[Dict[str, Any]],
     bornes_mois: tuple[date, date],
@@ -1120,6 +1129,7 @@ def calculer_salaire_brut(
     date_sortie_contrat = _parse_date_contrat(
         contrat_dates.get("date_sortie") or contrat_dates.get("date_fin_contrat")
     )
+    fin_de_la_reprise = getattr(contexte, "fin_de_la_reprise", None)
     jours_dans_periode = []
     bornes_variables = (
         (date_debut_variables, date_fin_variables)
@@ -1146,6 +1156,16 @@ def calculer_salaire_brut(
             date_sortie_contrat
             and date_evenement > date_sortie_contrat
             and not evenement.get("compensation_semaines")
+        ):
+            continue
+        # Premier mois après une reprise : une absence datée jusqu'à la bascule a
+        # été traitée par l'ancien logiciel sur son dernier bulletin (Quadra, août :
+        # congés sans solde du 24 et du 28/08). Les heures de ces jours restent.
+        if (
+            fin_de_la_reprise
+            and date_evenement <= fin_de_la_reprise
+            and _est_une_absence(evenement.get("type", ""))
+            and not evenement.get("is_regularisation_anterieure")
         ):
             continue
         jours_dans_periode.append(evenement)

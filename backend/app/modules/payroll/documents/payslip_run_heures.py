@@ -499,6 +499,11 @@ def run_payslip_generation_heures(
     # Indemnité de CP de fin de contrat : compteurs et rémunérations des
     # périodes de référence, seulement au dernier mois d'un CDD ou d'une mission.
     contexte.cp_fin_de_contrat = cp_fin_de_contrat(contexte, employee_id, year, month)
+    # Premier mois après une reprise : les absences datées jusqu'à la bascule ont
+    # été traitées par l'ancien logiciel (cf. fin_de_la_reprise_au_premier_mois).
+    from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
+
+    contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
     if employee_id:
         # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
         # dernier jour travaillé en toute fin de M-1 appartient au bulletin

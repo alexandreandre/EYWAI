@@ -119,3 +119,26 @@ class TestLectureDeLaBascule:
             }
             bascule = lire_bascule("soc")
             assert bascule == Bascule(2026, 6, "dsn", "Quadra", "reprise Colorplast")
+
+
+class TestFinDeLaRepriseAuPremierMois:
+    def test_le_premier_mois_calcule_connait_le_dernier_jour_paye_par_l_ancien_logiciel(self):
+        from datetime import date
+
+        from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
+
+        assert fin_de_la_reprise_au_premier_mois(None, 2026, 7, bascule=BASCULE_JUIN) == date(2026, 6, 30)
+
+    def test_ni_les_mois_repris_ni_les_suivants(self):
+        from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
+
+        assert fin_de_la_reprise_au_premier_mois(None, 2026, 6, bascule=BASCULE_JUIN) is None
+        assert fin_de_la_reprise_au_premier_mois(None, 2026, 8, bascule=BASCULE_JUIN) is None
+
+    def test_la_bascule_de_decembre_ouvre_janvier(self):
+        from datetime import date
+
+        from app.shared.reprise_paie import Bascule, fin_de_la_reprise_au_premier_mois
+
+        decembre = Bascule(annee=2025, mois=12)
+        assert fin_de_la_reprise_au_premier_mois(None, 2026, 1, bascule=decembre) == date(2025, 12, 31)

@@ -573,8 +573,10 @@ def get_absence_balances_for_payslip(
     # jusqu'au 30/09 (8,33 jours au lieu de ce qui est dû au 15/09), et faussait
     # l'indemnité de congés du solde de tout compte.
     sortie = _date_de_sortie(employee_id)
+    sortie_dans_le_mois: date | None = None
     if sortie is not None and sortie < ref_date:
         ref_date = sortie
+        sortie_dans_le_mois = sortie
         if date_fin_prises is not None and date_fin_prises > sortie:
             date_fin_prises = sortie
 
@@ -602,6 +604,7 @@ def get_absence_balances_for_payslip(
         ref_date,
         policy=policy,
         adjustment=adjustment,
+        date_de_sortie=sortie_dans_le_mois,
         **extras,
     )
     autres = compute_absence_balances(
