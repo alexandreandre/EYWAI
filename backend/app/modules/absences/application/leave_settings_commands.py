@@ -433,6 +433,41 @@ def apply_cp_solde_import(
     if note:
         payload["note"] = note
     upsert_employee_adjustment(company_id, employee_id, year, payload)
+    _recaler_sur_le_solde_affiche(
+        company_id, employee_id, year, month, payload, cp_n1_solde, cp_n_solde
+    )
+
+
+def _recaler_sur_le_solde_affiche(
+    company_id: str,
+    employee_id: str,
+    year: int,
+    month: int | None,
+    payload: dict,
+    cp_n1_solde: float,
+    cp_n_solde: float,
+) -> None:
+    """Le solde affiché doit égaler le solde importé, au centième.
+
+    Le calcul ci-dessus ignore ce que l'affichage ajoute ensuite : congés
+    d'ancienneté de la convention, jours de fractionnement. Le solde repris de
+    l'ancien logiciel les comprend déjà ; sans ce recalage ils comptaient deux
+    fois (reprise Comitech, 28/09/2026 : +1 à +3 jours sur 10 salariés sur 17).
+    L'ouverture est donc corrigée de l'écart entre l'affiché et l'importé.
+    """
+    from app.modules.absences.application.queries import get_absence_balances_for_payslip
+
+    affiche = get_absence_balances_for_payslip(employee_id, year, month or 12)
+    ecart_n1 = cp_n1_solde - float(
+        (affiche.get("conges_payes_periode_precedente") or {}).get("solde") or 0.0
+    )
+    ecart_n = cp_n_solde - float((affiche.get("conges_payes") or {}).get("solde") or 0.0)
+    if abs(ecart_n1) < 0.005 and abs(ecart_n) < 0.005:
+        return
+    recale = dict(payload)
+    recale["cp_n1_opening_balance"] = round(payload["cp_n1_opening_balance"] + ecart_n1, 2)
+    recale["cp_n_opening_balance"] = round(payload["cp_n_opening_balance"] + ecart_n, 2)
+    upsert_employee_adjustment(company_id, employee_id, year, recale)
 
 
 def import_leave_adjustments(

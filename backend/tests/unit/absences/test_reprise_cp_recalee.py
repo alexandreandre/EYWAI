@@ -1,0 +1,57 @@
+"""Un solde de congés repris s'affiche tel qu'il a été importé.
+
+L'affichage ajoute les congés d'ancienneté et le fractionnement, que le solde de
+l'ancien logiciel comprend déjà : l'ouverture est recalée sur l'affiché.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from unittest.mock import patch
+
+import pytest
+
+from app.modules.absences.application import leave_settings_commands as cmd
+
+pytestmark = pytest.mark.unit
+
+
+def test_l_ouverture_est_recalee_sur_le_solde_affiche():
+    ecrits = []
+    theorique = {"n1_remaining": 20.0, "n_remaining": 2.08}
+    affiche = {"conges_payes_periode_precedente": {"solde": 38.5}, "conges_payes": {"solde": 7.16}}
+    with (
+        patch("app.modules.absences.infrastructure.queries.get_employee_hire_date", return_value="1996-10-01"),
+        patch.object(cmd, "get_leave_policy", return_value=None),
+        patch.object(cmd, "absence_repository"),
+        patch("app.modules.absences.domain.rules.compute_cp_period_balances", return_value=theorique),
+        patch("app.modules.absences.domain.rules.compute_rtt_balance", return_value={"solde": 0.0}),
+        patch.object(cmd, "bulletin_reference_date", return_value=date(2026, 7, 31)),
+        patch.object(cmd, "upsert_employee_adjustment", side_effect=lambda c, e, y, p: ecrits.append(dict(p))),
+        patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=affiche),
+    ):
+        cmd.apply_cp_solde_import("co", "e1", 2026, cp_n1_solde=35.5, cp_n_solde=4.16, month=7)
+
+    premier, recale = ecrits
+    assert premier["cp_n1_opening_balance"] == 15.5 and premier["cp_n_opening_balance"] == 2.08
+    # L'affiché dépassait de 3 jours (ancienneté) : l'ouverture en retire 3.
+    assert recale["cp_n1_opening_balance"] == 12.5
+    assert recale["cp_n_opening_balance"] == -0.92
+
+
+def test_rien_n_est_reecrit_quand_l_affiche_est_deja_juste():
+    ecrits = []
+    with (
+        patch("app.modules.absences.infrastructure.queries.get_employee_hire_date", return_value="2019-10-01"),
+        patch.object(cmd, "get_leave_policy", return_value=None),
+        patch.object(cmd, "absence_repository"),
+        patch("app.modules.absences.domain.rules.compute_cp_period_balances",
+              return_value={"n1_remaining": 10.0, "n_remaining": 2.08}),
+        patch("app.modules.absences.domain.rules.compute_rtt_balance", return_value={"solde": 0.0}),
+        patch.object(cmd, "bulletin_reference_date", return_value=date(2026, 7, 31)),
+        patch.object(cmd, "upsert_employee_adjustment", side_effect=lambda c, e, y, p: ecrits.append(p)),
+        patch("app.modules.absences.application.queries.get_absence_balances_for_payslip",
+              return_value={"conges_payes_periode_precedente": {"solde": 12.0}, "conges_payes": {"solde": 4.16}}),
+    ):
+        cmd.apply_cp_solde_import("co", "e1", 2026, cp_n1_solde=12.0, cp_n_solde=4.16, month=7)
+    assert len(ecrits) == 1
