@@ -1,15 +1,20 @@
-"""Reprise Colorplast : écrit le solde d'ouverture au 31 juillet 2026 lu chez Quadra.
+"""Reprise Colorplast : écrit le solde d'ouverture au 31 août 2026 lu chez Quadra.
 
 Le passé appartient à Quadra. Ce script ne recalcule rien : il lit les bulletins
-PDF de Gaëlle ligne à ligne, agrège les sept mois, contrôle l'agrégat contre le
+PDF de Gaëlle ligne à ligne, agrège les mois repris, contrôle l'agrégat contre le
 bloc de cumuls imprimé, puis écrit le résultat dans
 `employee_schedules.cumuls` du mois de bascule. Le bloc imprimé sert de somme de
 contrôle : une erreur de lecture se voit avant d'entrer en base.
 
-Le script n'écrit que le solde d'ouverture. Le verrou de janvier à juillet vient de
-la bascule de la société (cf. app/shared/reprise_paie.py) et non d'une marque sur
-les bulletins : cette marque dira « contenu repris de Quadra », ce qui ne sera
-vrai qu'après l'import littéral.
+Le même `--apply` reprend les compteurs de congés imprimés sur le bulletin du mois
+de bascule (`apply_cp_solde_import`, reprise datée du dernier jour du mois) et
+pose la bascule de la société (`company_payroll_takeover`), qui verrouille les
+mois repris (cf. app/shared/reprise_paie.py). L'écart de congés figé à la reprise
+absorbe les absences validées jusqu'à cette date : ranger des doublons d'avant
+la bascule se fait donc avant ce script, jamais après.
+
+Bascule au 31/07 le 21/09/2026, puis au 31/08 le 29/09/2026 : août est payé par
+Quadra comme les mois précédents, septembre est le premier mois EYWAI.
 
 Usage :
     python -m scripts.reprise_colorplast_solde_ouverture            # simulation
@@ -20,18 +25,23 @@ from __future__ import annotations
 
 import re
 import sys
+from calendar import monthrange
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.database import get_supabase_admin_client  # noqa: E402
+from app.modules.absences.application.leave_settings_commands import (  # noqa: E402
+    apply_cp_solde_import,
+)
 from scripts.backtest.colorplast_lignes_quadra import lire_bulletins  # noqa: E402
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7)
-BASCULE = (2026, 7)
+MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7, 8)
+BASCULE = (2026, 8)
 
 #: Deux libellés chez Quadra pour les heures sup : les structurelles et les réelles.
 EST_HEURE_SUP = re.compile(r"H\.?\s*SUPP|HEURES\s+SUPPL", re.I)
@@ -130,6 +140,7 @@ def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
                 "brut_reference_period_start": f"{ANNEE:04d}-06-01",
                 "brut_reference_period_end": f"{ANNEE + 1:04d}-05-31",
             },
+            "conges": dict(zip(("cp_n1", "cp_n"), (float(v) for v in dernier.cp.get("Solde", (0.0, 0.0))))),
             "periode": {"annee_en_cours": ANNEE, "dernier_mois_calcule": mois_bascule},
             "reprise": {
                 "logiciel_precedent": "Quadra",
@@ -198,8 +209,11 @@ def main(appliquer: bool) -> int:
         print(f"\n{anomalies} anomalie(s) : rien n'est écrit.")
         return 1
     if not appliquer:
-        print("\nSimulation. Relancer avec --apply pour écrire le solde et verrouiller "
-              "janvier à juin.")
+        print("\nCongés imprimés au mois de bascule (N-1 / N) :")
+        for nom, solde in soldes.items():
+            print(f"  {nom:11s} {solde['conges']['cp_n1']:6.2f} / {solde['conges']['cp_n']:6.2f}")
+        print(f"\nSimulation. Relancer avec --apply pour écrire le solde, reprendre les "
+              f"congés et poser la bascule au {BASCULE[1]:02d}/{BASCULE[0]}.")
         return 0
 
     for nom, solde in soldes.items():
@@ -216,11 +230,26 @@ def main(appliquer: bool) -> int:
             admin.table("employee_schedules").insert(
                 {"employee_id": eid, "year": BASCULE[0], "month": BASCULE[1], "cumuls": charge}
             ).execute()
-        print(f"  {nom:11s} solde d'ouverture écrit")
+        apply_cp_solde_import(
+            COMPANY_ID, eid, BASCULE[0],
+            cp_n1_solde=solde["conges"]["cp_n1"], cp_n_solde=solde["conges"]["cp_n"],
+            rtt_solde=0.0, month=BASCULE[1],
+            note=f"Reprise Quadra au {date(BASCULE[0], BASCULE[1], monthrange(*BASCULE)[1]):%d/%m/%Y} "
+                 f"(bascule de la société) : soldes du bulletin de {BASCULE[1]:02d}/{BASCULE[0]}, "
+                 f"N-1 {solde['conges']['cp_n1']:.2f} / N {solde['conges']['cp_n']:.2f}",
+        )
+        print(f"  {nom:11s} solde d'ouverture et congés écrits")
 
-    print("\nSolde d'ouverture en place. Janvier à juin sont déjà verrouillés par la "
-          "bascule de la société ; leur marque `origine = importe` sera posée par "
-          "l'import littéral des bulletins, quand leur contenu viendra bien de Quadra.")
+    ligne = {"company_id": COMPANY_ID, "cutoff_year": BASCULE[0], "cutoff_month": BASCULE[1],
+             "source": "bulletins", "previous_software": "Quadra",
+             "note": f"Reprise Colorplast : Gaëlle a payé janvier à {BASCULE[1]:02d}/{BASCULE[0]} dans "
+                     f"Quadra. Bulletins et compteurs repris littéralement des PDF ; la paie EYWAI "
+                     f"commence le mois suivant (bascule posée le {date.today():%d/%m/%Y})."}
+    if admin.table("company_payroll_takeover").select("id").eq("company_id", COMPANY_ID).execute().data:
+        admin.table("company_payroll_takeover").update(ligne).eq("company_id", COMPANY_ID).execute()
+    else:
+        admin.table("company_payroll_takeover").insert(ligne).execute()
+    print(f"\nBascule de la société posée au {BASCULE[1]:02d}/{BASCULE[0]}.")
     return 0
 
 

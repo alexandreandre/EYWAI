@@ -1,4 +1,4 @@
-"""Reprise Colorplast : importe littéralement les bulletins de janvier à juillet 2026.
+"""Reprise Colorplast : importe littéralement les bulletins de janvier à août 2026.
 
 Les mois payés dans Quadra ne se reconstruisent pas, ils se copient. L'interface
 affiche le PDF stocké à côté des cumuls, donc la copie la plus fidèle possible
@@ -20,8 +20,13 @@ Chaque bulletin importé porte `origine = 'importe'`. Le verrou de génération,
 vient de la bascule de la société (cf. app/shared/reprise_paie.py).
 
 Usage :
-    python -m scripts.reprise_colorplast_import_litteral            # simulation
-    python -m scripts.reprise_colorplast_import_litteral --apply    # écrit
+    python -m scripts.reprise_colorplast_import_litteral                    # simulation
+    python -m scripts.reprise_colorplast_import_litteral --apply            # écrit
+    python -m scripts.reprise_colorplast_import_litteral --mois 8 --apply   # un seul mois
+
+Août a d'abord été calculé par EYWAI (premier mois en parallèle), puis repris de
+Quadra le 29/09/2026 comme les sept mois précédents : le bulletin calculé sert de
+base aux sections non reprises, comme le rejeu pour janvier à juillet.
 """
 
 from __future__ import annotations
@@ -48,7 +53,7 @@ from scripts.backtest.colorplast_lignes_quadra import (  # noqa: E402
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 ANNEE = 2026
-MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7)
+MOIS_REPRIS = (1, 2, 3, 4, 5, 6, 7, 8)
 SEAU = "payslips"
 #: La période de congés ouvre le 1er juin chez Colorplast (company_leave_settings).
 DEBUT_PERIODE_CP = 6
@@ -588,12 +593,12 @@ def _donnees_reprises(existantes: dict | None, bulletin, annee: int, mois: int) 
     return donnees
 
 
-def main(appliquer: bool) -> int:
+def main(appliquer: bool, mois_choisis: tuple[int, ...] = MOIS_REPRIS) -> int:
     admin = get_supabase_admin_client()
     fiches = _fiches(admin)
     total, crees, manquants = 0, 0, []
 
-    for mois in MOIS_REPRIS:
+    for mois in mois_choisis:
         pdf = pdf_du_mois(ANNEE, mois)
         bulletins = lire_bulletins(ANNEE, mois)
         print(f"\n=== {mois:02d}/{ANNEE} — {pdf.name} — {len(bulletins)} bulletins")
@@ -669,4 +674,9 @@ def main(appliquer: bool) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main("--apply" in sys.argv))
+    choisis = MOIS_REPRIS
+    if "--mois" in sys.argv:
+        choisis = tuple(int(m) for m in sys.argv[sys.argv.index("--mois") + 1].split(","))
+        if not set(choisis) <= set(MOIS_REPRIS):
+            raise SystemExit(f"Mois hors reprise : {choisis}")
+    raise SystemExit(main("--apply" in sys.argv, choisis))

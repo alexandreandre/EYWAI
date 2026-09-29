@@ -151,7 +151,8 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
         if "Rubriques" in brut and "Mt patronal" in brut:
             col = _colonnes(brut)
             continue
-        m = re.match(r"\s*(Acquis|Total pris|Solde)\s*:\s*([\d.]+)\s*/\s*([\d.]+)\s*/", brut)
+        # Un solde peut être négatif (congés pris par anticipation) : « Solde : 0.00 / -0.43 / ».
+        m = re.match(r"\s*(Acquis|Total pris|Solde)\s*:\s*(-?[\d.]+)\s*/\s*(-?[\d.]+)\s*/", brut)
         if m:
             bulletin.cp[m.group(1)] = (_f(m.group(2)), _f(m.group(3)))
             continue
