@@ -98,10 +98,16 @@ def zones(bulletin) -> dict[str, list]:
     rangees: dict[str, list] = {"brut": [], "cotisations": [], "avant_net": [], "apres_net": []}
     # Un bulletin sans salaire (participation versée à un ancien salarié) n'a pas
     # de ligne « SALAIRE BRUT » : tout y est cotisation ou somme versée.
-    a_un_brut = any(_norme(lg.libelle) == "SALAIRE BRUT" for lg in bulletin.lignes)
+    # Un mois entièrement absent a un brut nul : Quadra n'imprime alors pas de
+    # « SALAIRE BRUT », mais ses lignes de salaire et d'absence sont bien du brut.
+    a_un_brut = any(_norme(lg.libelle) in ("SALAIRE BRUT", "SALAIRE DE BASE") for lg in bulletin.lignes)
     zone = "brut" if a_un_brut else "cotisations"
     for lg in bulletin.lignes:
         lib = _norme(lg.libelle)
+        # Le net négatif d'un mois précédent, reporté : une retenue sur le net.
+        if lib.startswith("REPORT NAP"):
+            rangees["apres_net"].append(lg)
+            continue
         if lib == "SALAIRE BRUT":
             zone = "cotisations"
             continue
@@ -440,12 +446,44 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
     }
 
 
+def fusionner_les_soldes(soldes: list[dict]) -> dict:
+    """Un solde d'ouverture pour une fiche qui a eu plusieurs matricules Quadra.
+
+    Fin de CDD le 30/08 puis contrat d'apprentissage le 31/08 : Quadra ouvre un
+    second matricule, chacun avec ses cumuls ; la base n'a qu'une fiche par numéro
+    de sécurité sociale. Les montants s'additionnent, les dates restent.
+    """
+    if len(soldes) == 1:
+        return soldes[0]
+    fusion = {
+        "controle_somme_des_bruts": round(sum(x["controle_somme_des_bruts"] for x in soldes), 2),
+        "cumuls": {},
+        "periode": dict(soldes[0]["periode"]),
+        "reprise": dict(soldes[0].get("reprise") or {}),
+    }
+    for cle, valeur in soldes[0]["cumuls"].items():
+        if isinstance(valeur, (int, float)):
+            fusion["cumuls"][cle] = round(sum(float(x["cumuls"].get(cle) or 0.0) for x in soldes), 2)
+        else:
+            fusion["cumuls"][cle] = valeur
+    fusion["reprise"]["mois_repris"] = sorted(
+        {m for x in soldes for m in (x.get("reprise") or {}).get("mois_repris") or []}
+    )
+    return fusion
+
+
+def _date_fr(texte: Any) -> str:
+    """« 31/08/2026 » → « 2026-08-31 », pour trier des dates d'entrée."""
+    j, m, a = (str(texte or "01/01/1900").split("/") + ["", "", ""])[:3]
+    return f"{a}-{m}-{j}"
+
+
 # ---------------------------------------------------------------------------
 # Programme
 # ---------------------------------------------------------------------------
 
 
-def main(appliquer: bool, jusqu_a: int) -> int:
+def main(appliquer: bool, jusqu_a: int, sans: tuple[str, ...] = ()) -> int:
     admin = get_supabase_admin_client()
     fiches = admin.table("employees").select(
         "id, last_name, first_name, nir, statut, job_title, employee_folder_name, employment_status, is_forfait_jour"
@@ -461,6 +499,9 @@ def main(appliquer: bool, jusqu_a: int) -> int:
     for mois in mois_repris:
         print(f"\n=== {mois:02d}/{ANNEE} — {len(lus[mois])} bulletins")
         for mat, b in sorted(lus[mois].items()):
+            if mat in sans:
+                print(f"  {mat:11s} écarté (--sans)")
+                continue
             fiche = par_nir.get(_nir(b.infos.get("nir")))
             if not fiche:
                 anomalies.append(f"{mois:02d} {mat} : aucune fiche pour ce numéro de sécurité sociale")
@@ -491,10 +532,38 @@ def main(appliquer: bool, jusqu_a: int) -> int:
                   f"CP {cp[0]:5.2f}/{cp[1]:5.2f} {cpt if cpt else ''} [{etat}]")
             a_ecrire.append((mois, mat, b, {"fiche": fiche, "donnees": donnees}))
 
+    # Plusieurs bulletins du même mois pour une même fiche (fin de CDD puis
+    # apprentissage) : un seul bulletin en base, celui au brut le plus élevé, avec les pages des
+    # autres jointes à son PDF et leur résumé dans la reprise.
+    groupes: dict[tuple[int, str], list] = {}
+    for ligne in a_ecrire:
+        groupes.setdefault((ligne[0], ligne[3]["fiche"]["id"]), []).append(ligne)
+    a_ecrire = []
+    for (mois, _), lignes in sorted(groupes.items()):
+        lignes.sort(key=lambda x: -x[3]["donnees"]["salaire_brut"])
+        principal = lignes[0]
+        principal[3]["pages"] = list(principal[2].pages)
+        if len(lignes) > 1:
+            autres = [{"matricule": m, "pages": list(b.pages), "brut": v["donnees"]["salaire_brut"],
+                       "net_a_payer": v["donnees"]["net_a_payer"], "entree": b.infos.get("entree"),
+                       "sortie": b.infos.get("sortie"), "emploi": b.infos.get("emploi")}
+                      for _, m, b, v in lignes[1:]]
+            principal[3]["donnees"]["reprise"]["autres_bulletins_du_mois"] = autres
+            principal[3]["donnees"]["reprise"]["document"] = (
+                "PDF d'origine : " + " puis ".join(f"{m} pages {','.join(str(p) for p in b.pages)}" for _, m, b, _ in lignes)
+            )
+            for _, m, b, _ in lignes[1:]:
+                principal[3]["pages"] += list(b.pages)
+            print(f"  {mois:02d} {principal[1]} : bulletin gardé, joint à ses pages "
+                  + ", ".join(f"{a['matricule']} ({a['brut']:.2f} brut, entrée {a['entree']})" for a in autres))
+        a_ecrire.append(principal)
+
     bascule = mois_repris[-1]
     print(f"\n=== Solde d'ouverture au {bascule:02d}/{ANNEE}")
-    soldes: dict[str, dict] = {}
+    par_fiche: dict[str, list] = {}
     for mat, b in sorted(lus[bascule].items()):
+        if mat in sans:
+            continue
         fiche = par_nir.get(_nir(b.infos.get("nir")))
         if not fiche:
             continue
@@ -503,11 +572,22 @@ def main(appliquer: bool, jusqu_a: int) -> int:
         if abs(ecart) > TOLERANCE:
             anomalies.append(f"{mat} : somme des bruts {solde['controle_somme_des_bruts']:.2f} contre cumul imprimé "
                              f"{solde['cumuls']['brut_total']:.2f}")
+        par_fiche.setdefault(fiche["id"], []).append((mat, b, solde, fiche))
+    soldes: dict[str, dict] = {}
+    for lignes in par_fiche.values():
+        # Les congés et compteurs sont ceux du contrat qui continue : le dernier entré.
+        lignes.sort(key=lambda x: _date_fr(x[1].infos.get("entree")))
+        mat, b, _, fiche = lignes[-1]
+        solde = fusionner_les_soldes([x[2] for x in lignes])
+        if len(lignes) > 1:
+            print(f"  {mat:11s} solde fusionné de " + " + ".join(x[0] for x in lignes)
+                  + f" ; congés et compteurs du dernier contrat ({b.infos.get('entree')})")
         soldes[mat] = {"fiche": fiche, "solde": solde, "bulletin": b}
         c = solde["cumuls"]
         print(f"  {mat:11s} brut {c['brut_total']:10.2f} heures {c['heures_remunerees']:8.2f} "
               f"HS {c['heures_supplementaires_remunerees']:7.2f} net imp. {c['net_imposable']:10.2f} "
-              f"réd. gén. {c['reduction_generale_patronale']:9.2f} (écart {ecart:+.2f})")
+              f"réd. gén. {c['reduction_generale_patronale']:9.2f} "
+              f"(écart {round(solde['controle_somme_des_bruts'] - c['brut_total'], 2):+.2f})")
 
     presents = {_nir(v["fiche"]["nir"]) for v in soldes.values()}
     actifs_sans_bulletin = [f"{f['last_name']} ({f['employment_status']})" for f in fiches
@@ -537,7 +617,7 @@ def main(appliquer: bool, jusqu_a: int) -> int:
         chemin = f"{COMPANY_ID}/{fiche['id']}/bulletins/{nom_pdf}"
         supabase.storage.from_(SEAU).upload(
             path=chemin,
-            file=_pages_du_salarie(pdf_du_mois(ANNEE, mois, SOCIETE), b.pages),
+            file=_pages_du_salarie(pdf_du_mois(ANNEE, mois, SOCIETE), v.get("pages") or b.pages),
             file_options={"x-upsert": "true", "content-type": "application/pdf"},
         )
         url = supabase.storage.from_(SEAU).create_signed_url(chemin, 3600, options={"download": True})["signedURL"]
@@ -599,4 +679,9 @@ if __name__ == "__main__":
     jusqu_a = 7
     if "--jusqu-a" in sys.argv:
         jusqu_a = int(sys.argv[sys.argv.index("--jusqu-a") + 1])
-    raise SystemExit(main("--apply" in sys.argv, jusqu_a))
+    # --sans MAT1,MAT2 : écarte des bulletins sans fiche en base (embauche à créer
+    # d'abord), repris plus tard par une nouvelle exécution.
+    sans = ()
+    if "--sans" in sys.argv:
+        sans = tuple(m.strip().upper() for m in sys.argv[sys.argv.index("--sans") + 1].split(",") if m.strip())
+    raise SystemExit(main("--apply" in sys.argv, jusqu_a, sans))

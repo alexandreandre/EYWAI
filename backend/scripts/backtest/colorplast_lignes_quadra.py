@@ -142,6 +142,7 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
     section = None
     attente_droite: str | None = None
     zone_net = False
+    col_cumul_annuel: int | None = None
     for brut in lignes:
         if col is None:
             for cle, motif in _ENTETE:
@@ -170,6 +171,8 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
             zone_net = True
         if zone_net:
             nombres = [_f(x.group(0)) for x in NOMBRE.finditer(brut)]
+            if "Cumul annuel" in brut:
+                col_cumul_annuel = brut.index("Cumul annuel")
             if texte_gauche.startswith("MONTANT NET SOCIAL") and nombres:
                 bulletin.net["mns"] = nombres[-1]
             elif texte_gauche.startswith("NET A PAYER AVANT IMPOT") and nombres:
@@ -177,9 +180,15 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
             elif texte_gauche.startswith("dont évolution") and nombres:
                 bulletin.net["evolution_remuneration"] = nombres[-1]
             elif texte_gauche.startswith("Montant net imposable") and nombres:
-                bulletin.net["net_imposable"] = nombres[0]
-                if len(nombres) > 1:
-                    bulletin.net["net_imposable_cumul"] = nombres[1]
+                # Un mois sans salaire n'imprime que le cumul annuel, à sa colonne.
+                seul = list(NOMBRE.finditer(brut))
+                if len(nombres) == 1 and col_cumul_annuel is not None and seul[0].end() > col_cumul_annuel:
+                    bulletin.net["net_imposable"] = 0.0
+                    bulletin.net["net_imposable_cumul"] = nombres[0]
+                else:
+                    bulletin.net["net_imposable"] = nombres[0]
+                    if len(nombres) > 1:
+                        bulletin.net["net_imposable_cumul"] = nombres[1]
             elif texte_gauche.startswith("Impôt sur le revenu prélevé") and nombres:
                 cles = ["pas_base", "pas_taux", "pas_montant", "pas_cumul"]
                 for cle, v in zip(cles, nombres):

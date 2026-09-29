@@ -79,3 +79,34 @@ def test_un_solde_repris_negatif_n_est_ni_rabote_ni_corrige_deux_fois():
     assert len(ecrits) == 1
     assert ecrits[0]["cp_n1_opening_balance"] == 0.0
     assert ecrits[0]["cp_n_opening_balance"] == 0.33
+
+
+def _importer(theorique, affiche, cible_n):
+    ecrits = []
+    with (
+        patch("app.modules.absences.infrastructure.queries.get_employee_hire_date", return_value="2026-01-05"),
+        patch.object(cmd, "get_leave_policy", return_value=None),
+        patch.object(cmd, "absence_repository"),
+        patch("app.modules.absences.domain.rules.compute_cp_period_balances", return_value=theorique),
+        patch("app.modules.absences.domain.rules.compute_rtt_balance", return_value={"solde": 0.0}),
+        patch.object(cmd, "bulletin_reference_date", return_value=date(2026, 8, 31)),
+        patch.object(cmd, "upsert_employee_adjustment", side_effect=lambda c, e, y, p: ecrits.append(dict(p))),
+        patch("app.modules.absences.application.queries.get_absence_balances_for_payslip", return_value=affiche),
+    ):
+        cmd.apply_cp_solde_import("co", "e1", 2026, cp_n1_solde=0.0, cp_n_solde=cible_n, month=8)
+    return ecrits
+
+
+def test_un_solde_repris_negatif_mais_affiche_positif_est_recale():
+    """−0,76 chez Quadra ; l'affichage ajoute un jour (ancienneté) et montre 0,24 :
+    il se lit, l'ouverture en retire 1."""
+    ecrits = _importer({"n1_remaining": 0.0, "n_remaining": 0.0, "n_remaining_brut": -1.2},
+                       {"conges_payes_periode_precedente": {"solde": 0.0}, "conges_payes": {"solde": 0.24}},
+                       -0.76)
+    assert [e["cp_n_opening_balance"] for e in ecrits] == [0.44, -0.56]
+
+
+def test_sans_compteur_a_la_date_de_reprise_l_ouverture_reste():
+    """Fiche arrêtée avant la reprise : aucun compteur à comparer, pas d'erreur."""
+    ecrits = _importer({"n1_remaining": 0.0, "n_remaining": 0.0, "n_remaining_brut": 0.0}, None, 0.07)
+    assert len(ecrits) == 1 and ecrits[0]["cp_n_opening_balance"] == 0.07

@@ -128,3 +128,46 @@ def test_le_bulletin_complet_porte_la_reprise_et_les_compteurs():
     assert donnees["en_tete"]["date_fin_periode"] == "2026-07-31"
     assert donnees["pied_de_page"]["compteurs_quadra"] == {"solde_heures_recup": -0.5}
     assert donnees["reprise"]["logiciel_precedent"] == "Quadra"
+
+
+def test_un_mois_d_arret_complet_a_un_brut_nul_et_reporte_le_net_negatif():
+    """Août : tout le mois en maladie, brut nul (Quadra n'imprime pas « SALAIRE BRUT »),
+    et le net négatif de juillet reporté en retenue."""
+    b = _bulletin(
+        [
+            Ligne(None, "SALAIRE DE BASE", base=151.67, taux=12.954, gain=1964.73),
+            Ligne(None, "H. supp majorées à 25 %", base=17.33, taux=16.1925, gain=280.62),
+            Ligne(None, "Absence maladie 010826-310826", base=151.67, taux=12.954, montant_sal=1964.73),
+            Ligne(None, "H. supp majorées à 25 %", base=17.33, taux=16.1925, montant_sal=280.62),
+            Ligne(None, "Report NAP négatif", base=419.75, montant_sal=419.75),
+        ],
+        net={"net_a_payer": -419.75, "pas_montant": 0.0},
+    )
+    assert lignes_du_brut(b)[1]["ecart_brut"] == 0.0
+    s = structure_des_cotisations(b)
+    versees, retenues = apres_le_net(b)
+    assert [r["libelle"] for r in retenues] == ["Report NAP négatif"]
+    assert equilibre(b, s, versees, retenues) == 0.0
+
+
+def test_deux_bulletins_du_meme_mois_font_un_seul_solde_d_ouverture():
+    """Fin de CDD le 30/08 puis apprentissage le 31/08 : Quadra ouvre un second
+    matricule, la fiche est la même (un numéro de sécurité sociale par société)."""
+    from scripts.reprise_comitech import fusionner_les_soldes
+
+    cdd = {"controle_somme_des_bruts": 4230.51,
+           "cumuls": {"brut_total": 4230.51, "net_imposable": 2861.98, "heures_remunerees": 321.3,
+                      "brut_reference_n_1": 1110.45, "brut_reference_period_start": "2026-06-01"},
+           "periode": {"annee_en_cours": 2026, "dernier_mois_calcule": 8},
+           "reprise": {"mois_repris": [6, 7, 8]}}
+    apprenti = {"controle_somme_des_bruts": 53.18,
+                "cumuls": {"brut_total": 53.18, "net_imposable": 42.77, "heures_remunerees": 7.8,
+                           "brut_reference_n_1": 53.18, "brut_reference_period_start": "2026-06-01"},
+                "periode": {"annee_en_cours": 2026, "dernier_mois_calcule": 8},
+                "reprise": {"mois_repris": [8]}}
+    fusion = fusionner_les_soldes([cdd, apprenti])
+    assert fusion["cumuls"]["brut_total"] == 4283.69
+    assert fusion["cumuls"]["net_imposable"] == 2904.75
+    assert fusion["cumuls"]["brut_reference_period_start"] == "2026-06-01"
+    assert fusion["controle_somme_des_bruts"] == 4283.69
+    assert fusion["reprise"]["mois_repris"] == [6, 7, 8]

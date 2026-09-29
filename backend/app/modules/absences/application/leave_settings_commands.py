@@ -460,15 +460,23 @@ def _recaler_sur_le_solde_affiche(
     from app.modules.absences.application.queries import get_absence_balances_for_payslip
 
     affiche = get_absence_balances_for_payslip(employee_id, year, month or 12)
+    # Pas de compteur à cette date (fiche sortie avant la reprise, par exemple) :
+    # rien à comparer, l'ouverture calculée plus haut reste.
+    if not affiche:
+        return
     ecart_n1 = cp_n1_solde - float(
         (affiche.get("conges_payes_periode_precedente") or {}).get("solde") or 0.0
     )
     ecart_n = cp_n_solde - float((affiche.get("conges_payes") or {}).get("solde") or 0.0)
     # L'affichage met un plancher à zéro : face à un solde repris négatif, un 0
-    # affiché ne dit rien du solde réel, l'ouverture calculée plus haut fait foi.
-    if cp_n1_solde < 0:
+    # affiché ne dit rien du solde réel (l'ouverture calculée plus haut fait foi) ;
+    # un affiché positif, lui, se lit et se corrige (un jour d'ancienneté ajouté
+    # à l'affichage : −0,76 attendu, 0,24 affiché).
+    solde_n1_affiche = float((affiche.get("conges_payes_periode_precedente") or {}).get("solde") or 0.0)
+    solde_n_affiche = float((affiche.get("conges_payes") or {}).get("solde") or 0.0)
+    if cp_n1_solde < 0 and solde_n1_affiche <= 0:
         ecart_n1 = 0.0
-    if cp_n_solde < 0:
+    if cp_n_solde < 0 and solde_n_affiche <= 0:
         ecart_n = 0.0
     if abs(ecart_n1) < 0.005 and abs(ecart_n) < 0.005:
         return
