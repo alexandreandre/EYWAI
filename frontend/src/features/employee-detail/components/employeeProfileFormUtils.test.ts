@@ -221,3 +221,42 @@ describe('employeeProfileFormUtils temps partiel', () => {
     expect(payload.duree_hebdomadaire).toBe(21);
   });
 });
+
+describe('classification conventionnelle à l’enregistrement (29/09/2026)', () => {
+  const classificationDsn = {
+    pcs: '674a',
+    idcc: '0292',
+    coefficient: 700,
+    niveau_dsn: '700',
+    code_statut_dsn: '06',
+    statut_categoriel: 'Non cadre',
+    numero_contrat_dsn: '00004',
+    taux_at_individuel_dsn: '3.15',
+  };
+  const fiche = {
+    id: 'e1',
+    first_name: 'Essai',
+    last_name: 'Fiche',
+    collective_agreement_id: 'cc-plasturgie',
+    classification_conventionnelle: classificationDsn,
+  } as unknown as Parameters<typeof buildDefaultValues>[0];
+
+  it('garde les champs de la DSN et n’invente ni groupe ni classe', () => {
+    const payload = buildUpdatePayload(buildDefaultValues(fiche), fiche);
+    expect(payload.classification_conventionnelle).toEqual(classificationDsn);
+  });
+
+  it('écrit le groupe que la gestionnaire a choisi, sans rien perdre', () => {
+    const valeurs = buildDefaultValues(fiche);
+    valeurs.classification_conventionnelle.groupe_emploi = 'D';
+    const payload = buildUpdatePayload(valeurs, fiche);
+    expect(payload.classification_conventionnelle).toEqual({ ...classificationDsn, groupe_emploi: 'D' });
+  });
+
+  it('met à jour un coefficient déjà présent', () => {
+    const valeurs = buildDefaultValues(fiche);
+    valeurs.classification_conventionnelle.coefficient = 710;
+    const payload = buildUpdatePayload(valeurs, fiche);
+    expect(payload.classification_conventionnelle).toMatchObject({ coefficient: 710, taux_at_individuel_dsn: '3.15' });
+  });
+});

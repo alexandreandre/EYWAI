@@ -165,6 +165,19 @@ def _un_bulletin_existe_avant(employee_id: str, annee: int, mois: int) -> bool:
     return False
 
 
+def _date_entree(employee_id: str) -> date | None:
+    """Date d'embauche de la fiche, ou None si elle ne se lit pas."""
+    try:
+        res = (
+            supabase.table("employees").select("hire_date").eq("id", str(employee_id))
+            .limit(1).execute()
+        )
+        brut = ((res.data or [{}])[0] or {}).get("hire_date")
+        return date.fromisoformat(str(brut)[:10]) if brut else None
+    except Exception:  # noqa: BLE001 - sans date d'entrée, la garde reste entière
+        return None
+
+
 def raison_de_cumul_manquant(
     company_id: str | None,
     employee_id: str,
@@ -172,6 +185,7 @@ def raison_de_cumul_manquant(
     mois: int,
     cumul_trouve: bool,
     bascule: Bascule | None = None,
+    date_entree: date | None = None,
 ) -> str | None:
     """Erreur dure quand le cumul du mois précédent manque alors qu'il devrait exister.
 
@@ -185,6 +199,12 @@ def raison_de_cumul_manquant(
     if cumul_trouve:
         return None
     prec_annee, prec_mois = mois_precedent(annee, mois)
+    # Embauché après le mois précédent : c'est son premier bulletin, rien à
+    # chaîner — même juste après une bascule (une embauche de septembre n'a pas
+    # de solde d'ouverture de fin août). Présent au mois précédent, il en faut un.
+    entree = date_entree if date_entree is not None else _date_entree(employee_id)
+    if entree is not None and entree > date(prec_annee, prec_mois, monthrange(prec_annee, prec_mois)[1]):
+        return None
     precedent = f"{prec_mois:02d}/{prec_annee:04d}"
     bascule = bascule if bascule is not None else lire_bascule(company_id)
 

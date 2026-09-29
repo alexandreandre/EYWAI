@@ -2,6 +2,16 @@
 
 from unittest.mock import patch
 
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True)
+def _sans_date_d_entree(monkeypatch):
+    """Pas de base en test unitaire : la date d'entrée se passe en paramètre."""
+    from app.shared import reprise_paie
+
+    monkeypatch.setattr(reprise_paie, "_date_entree", lambda _e: None)
+
 from app.shared.reprise_paie import (
     Bascule,
     lire_bascule,
@@ -142,3 +152,34 @@ class TestFinDeLaRepriseAuPremierMois:
 
         decembre = Bascule(annee=2025, mois=12)
         assert fin_de_la_reprise_au_premier_mois(None, 2026, 1, bascule=decembre) == date(2025, 12, 31)
+
+
+class TestPremierBulletinApresLaBascule:
+    """Une embauche postérieure au mois précédent n'a rien à chaîner (29/09/2026) :
+    une embauche de septembre, après une bascule au 31/08, était refusée faute de
+    « solde d'ouverture » que l'ancien logiciel n'a jamais eu à produire."""
+
+    def test_une_embauche_de_septembre_n_est_pas_bloquee(self):
+        from datetime import date
+
+        bascule = Bascule(annee=2026, mois=8)
+        assert raison_de_cumul_manquant(
+            None, "emp", 2026, 9, False, bascule=bascule, date_entree=date(2026, 9, 15)
+        ) is None
+
+    def test_un_salarie_present_a_la_bascule_reste_bloque_sans_son_solde(self):
+        from datetime import date
+
+        bascule = Bascule(annee=2026, mois=8)
+        raison = raison_de_cumul_manquant(
+            None, "emp", 2026, 9, False, bascule=bascule, date_entree=date(2026, 8, 24)
+        )
+        assert raison is not None and "solde d'ouverture" in raison
+
+    def test_une_embauche_d_octobre_n_a_pas_de_chaine_rompue(self):
+        from datetime import date
+
+        bascule = Bascule(annee=2026, mois=8)
+        assert raison_de_cumul_manquant(
+            None, "emp", 2026, 10, False, bascule=bascule, date_entree=date(2026, 10, 1)
+        ) is None

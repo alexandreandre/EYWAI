@@ -167,6 +167,30 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   };
 }
 
+/**
+ * La classification enregistrée part de celle de la fiche : les champs venus de la
+ * DSN (statut catégoriel, qui décide de l'APEC ; numéro de contrat ; taux AT…)
+ * restent. Un groupe, une classe ou un coefficient n'y sont écrits que s'ils y
+ * étaient déjà ou si la gestionnaire les a changés : les valeurs par défaut du
+ * formulaire (« C », 6, 240) ne deviennent plus une classification inventée.
+ * Constaté le 29/09/2026 : deux fiches Colorplast réduites à
+ * { coefficient, classe_emploi, groupe_emploi } après un simple enregistrement.
+ */
+export function fusionnerClassification<T extends Record<string, unknown>>(
+  origine: Record<string, unknown> | null | undefined,
+  saisie: T,
+  defauts: T,
+): Record<string, unknown> {
+  const fusion: Record<string, unknown> = { ...(origine ?? {}) };
+  for (const [cle, valeur] of Object.entries(saisie)) {
+    const dejaLa = origine != null && origine[cle] !== undefined && origine[cle] !== null;
+    if (dejaLa || valeur !== defauts[cle]) {
+      fusion[cle] = valeur;
+    }
+  }
+  return fusion;
+}
+
 export function buildUpdatePayload(
   values: EmployeeProfileEditFormValues,
   employee: Employee,
@@ -260,7 +284,12 @@ export function buildUpdatePayload(
   }
 
   if (values.collective_agreement_id) {
-    payload.classification_conventionnelle = values.classification_conventionnelle;
+    payload.classification_conventionnelle = fusionnerClassification(
+      (employee as Employee & { classification_conventionnelle?: Record<string, unknown> | null })
+        .classification_conventionnelle,
+      values.classification_conventionnelle,
+      buildDefaultValues(employee).classification_conventionnelle,
+    );
   }
 
   return payload;
