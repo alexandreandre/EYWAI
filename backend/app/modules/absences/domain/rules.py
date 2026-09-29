@@ -685,6 +685,9 @@ def compute_cp_period_balances(
         ),
         "n1_remaining": n1_remaining,
         "n_remaining": n_remaining_capped,
+        # Le même solde sans plancher : un solde repris négatif (congés pris par
+        # anticipation) se convertit en ouverture à partir de lui, pas de zéro.
+        "n_remaining_brut": n_remaining,
         "total_remaining": max(
             0.0, round(n1_remaining + n_remaining_capped, 2)
         ),

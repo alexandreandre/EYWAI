@@ -419,7 +419,9 @@ def apply_cp_solde_import(
         adjustment=EmployeeLeaveAdjustment.empty(),
     )
     cp_n1_opening = cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
-    cp_n_opening = cp_n_solde - max(0.0, float(periods["n_remaining"]))
+    # Sans plancher : pour un solde repris de −0,43 j face à un décompte théorique
+    # de −0,76 j, l'ouverture vaut +0,33 (et non −0,43 en partant de zéro).
+    cp_n_opening = cp_n_solde - float(periods.get("n_remaining_brut", periods["n_remaining"]))
     rtt_opening = rtt_solde - max(0.0, float(rtt["solde"]))
 
     payload: dict = {
@@ -462,6 +464,12 @@ def _recaler_sur_le_solde_affiche(
         (affiche.get("conges_payes_periode_precedente") or {}).get("solde") or 0.0
     )
     ecart_n = cp_n_solde - float((affiche.get("conges_payes") or {}).get("solde") or 0.0)
+    # L'affichage met un plancher à zéro : face à un solde repris négatif, un 0
+    # affiché ne dit rien du solde réel, l'ouverture calculée plus haut fait foi.
+    if cp_n1_solde < 0:
+        ecart_n1 = 0.0
+    if cp_n_solde < 0:
+        ecart_n = 0.0
     if abs(ecart_n1) < 0.005 and abs(ecart_n) < 0.005:
         return
     recale = dict(payload)
