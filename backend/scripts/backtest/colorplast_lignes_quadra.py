@@ -60,14 +60,26 @@ class Bulletin:
     net: dict = field(default_factory=dict)
     cp: dict = field(default_factory=dict)
     pages: list = field(default_factory=list)
+    #: En-tête : numéro de sécurité sociale, dates d'entrée et de sortie, emploi.
+    infos: dict = field(default_factory=dict)
+
+
+#: En-tête du bulletin (avant les rubriques).
+_ENTETE = (
+    ("nir", re.compile(r"NoS[ée]cu\.\s*:\s*([0-9AB]{13,15})")),
+    ("entree", re.compile(r"Entr[ée]\(e\) le\s*:\s*(\d{2}/\d{2}/\d{4})")),
+    ("sortie", re.compile(r"Sorti\(e\) le\s*:\s*(\d{2}/\d{2}/\d{4})")),
+    ("emploi", re.compile(r"Emploi\s*:\s*(.+?)\s{2,}")),
+    ("coefficient", re.compile(r"Coeff\s*:\s*(\d+)")),
+)
 
 
 def _f(s: str) -> float:
     return round(float(s.replace(" ", "")), 4)
 
 
-def pdf_du_mois(annee: int, mois: int) -> Path:
-    dossier = RACINE_DATA / "colorplast" / "bulletins" / f"{annee:04d}-{mois:02d}"
+def pdf_du_mois(annee: int, mois: int, societe: str = "colorplast") -> Path:
+    dossier = RACINE_DATA / societe / "bulletins" / f"{annee:04d}-{mois:02d}"
     pdfs = sorted(dossier.glob("*.pdf"))
     if not pdfs:
         raise FileNotFoundError(dossier)
@@ -131,6 +143,11 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
     attente_droite: str | None = None
     zone_net = False
     for brut in lignes:
+        if col is None:
+            for cle, motif in _ENTETE:
+                trouve = motif.search(brut)
+                if trouve and cle not in bulletin.infos:
+                    bulletin.infos[cle] = trouve.group(1).strip()
         if "Rubriques" in brut and "Mt patronal" in brut:
             col = _colonnes(brut)
             continue
@@ -202,8 +219,8 @@ def lire_page(texte: str, numero: int, bulletin: Bulletin) -> None:
         bulletin.lignes.append(Ligne(code=code, libelle=libelle, section=section, page=numero, **valeurs))
 
 
-def lire_bulletins(annee: int, mois: int) -> dict[str, Bulletin]:
-    pages = pages_texte(pdf_du_mois(annee, mois))
+def lire_bulletins(annee: int, mois: int, societe: str = "colorplast") -> dict[str, Bulletin]:
+    pages = pages_texte(pdf_du_mois(annee, mois, societe))
     bulletins: dict[str, Bulletin] = {}
     for numero, texte in enumerate(pages, 1):
         m = MATRICULE.search(texte)
