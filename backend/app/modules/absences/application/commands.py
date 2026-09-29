@@ -557,11 +557,13 @@ def create_reconciliation_absence(
     supabase_client: Any = None,
 ) -> dict:
     """
-    Crée une absence historique depuis l'import DSN (bypass workflow / soldes CP).
+    Crée une absence historique (bypass workflow / soldes CP).
 
-    Réservé au flux import DSN (``source='dsn_import'``).
+    Réservé aux reprises : import DSN (``source='dsn_import'``) et arrêts lus sur
+    les bulletins de l'ancien logiciel (``source='reprise_quadra'``, cf.
+    scripts/reprise_arrets_quadra.py).
     """
-    if source != "dsn_import":
+    if source not in ("dsn_import", "reprise_quadra"):
         raise ValueError("Source de création non autorisée.")
 
     if not selected_days:
