@@ -1121,10 +1121,18 @@ def calculer_salaire_brut(
             date_evenement = date.fromisoformat(evenement["date_complete"])
         except (KeyError, TypeError, ValueError):
             continue
-        # Aucun événement ne peut produire de paie hors contrat.
+        # Aucun événement ne peut produire de paie hors contrat. Sauf le solde
+        # des heures sup compensées entre semaines : il est posé au dernier jour
+        # de la fenêtre des variables, mais ses heures ont été faites avant la
+        # sortie (fin de CDD au 15/09, fenêtre au 20/09 : 12,5 h calculées,
+        # aucune payée).
         if date_entree_contrat and date_evenement < date_entree_contrat:
             continue
-        if date_sortie_contrat and date_evenement > date_sortie_contrat:
+        if (
+            date_sortie_contrat
+            and date_evenement > date_sortie_contrat
+            and not evenement.get("compensation_semaines")
+        ):
             continue
         jours_dans_periode.append(evenement)
 

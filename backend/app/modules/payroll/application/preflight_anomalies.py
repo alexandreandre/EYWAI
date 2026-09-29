@@ -102,7 +102,12 @@ def build_preflight_anomalies(
 ) -> PreflightAnomaliesResponse:
     emp_res = (
         supabase.table("employees")
-        .select("id, first_name, last_name, statut, is_forfait_jour, team_id")
+        # Entrée et fin de contrat : la période à saisir s'arrête à la sortie,
+        # comme au garde-fou de génération.
+        .select(
+            "id, first_name, last_name, statut, is_forfait_jour, team_id, "
+            "hire_date, contract_end_date"
+        )
         .eq("company_id", company_id)
         .eq("employment_status", "actif")
         .execute()
@@ -135,6 +140,12 @@ def build_preflight_anomalies(
     # Un seul juge de « ce qui manque » : mois civil ∪ fenêtre des variables,
     # comme le moteur et le garde-fou de génération.
     periodes = charger_periodes_a_saisir(company_id, employees, year, month)
+    # L'écart d'heures se juge lui aussi sur la fenêtre des variables, pas sur
+    # le mois civil : les jours d'après l'arrêté relèvent du mois suivant (une
+    # salariée pointée à 0 h du 21 au 25/09 était marquée bloquante en septembre).
+    jours_de_la_fenetre = _jours_de_la_fenetre(
+        company_id, employee_ids, periodes, year, month, schedule_by_emp
+    )
 
     absences: List[Dict[str, Any]] = []
     try:
@@ -179,19 +190,11 @@ def build_preflight_anomalies(
         team_id = str(emp["team_id"]) if emp.get("team_id") else None
         forfait = is_forfait_jour(emp.get("statut"), emp.get("is_forfait_jour"))
 
-        sched = schedule_by_emp.get(eid) or {}
-        planned_raw = sched.get("planned_calendar") or {}
-        actual_raw = sched.get("actual_hours") or {}
-        planned_days = (
-            planned_raw.get("calendrier_prevu", [])
-            if isinstance(planned_raw, dict)
-            else []
-        )
-        actual_days = (
-            actual_raw.get("calendrier_reel", [])
-            if isinstance(actual_raw, dict)
-            else []
-        )
+        par_mois = jours_de_la_fenetre.get(eid)
+        if par_mois is None:
+            par_mois = [_jours_du_calendrier(schedule_by_emp.get(eid))]
+        planned_days = [d for prevus, _ in par_mois for d in prevus]
+        actual_days = [d for _, reels in par_mois for d in reels]
 
         heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
         heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])
@@ -241,10 +244,16 @@ def build_preflight_anomalies(
             )
 
         if row_status == "saisi_avec_ecart":
-            day_details = compute_day_ecarts(
-                planned_days, actual_days, forfait=forfait
+            # Jour par jour, mois par mois : les numéros de jour se répètent
+            # d'un mois à l'autre dans une fenêtre à cheval.
+            day_details = [
+                d
+                for prevus, reels in par_mois
+                for d in compute_day_ecarts(prevus, reels, forfait=forfait)
+            ]
+            heures_sup = sum(
+                compute_heures_supplementaires(prevus, reels) for prevus, reels in par_mois
             )
-            heures_sup = compute_heures_supplementaires(planned_days, actual_days)
             sub_type = "heures_sup" if heures_sup > 0 else None
             unit = "j" if forfait else "h"
             message = (
@@ -498,3 +507,71 @@ def acknowledge_preflight_launch(
         commentaire=commentaire,
         acknowledged_by=acknowledged_by,
     )
+
+
+def _jours_du_calendrier(ligne: Optional[Dict[str, Any]]) -> tuple[list, list]:
+    """(jours prévus, jours réels) d'une ligne employee_schedules."""
+    ligne = ligne or {}
+    prevu = ligne.get("planned_calendar") or {}
+    reel = ligne.get("actual_hours") or {}
+    return (
+        list(prevu.get("calendrier_prevu", []) if isinstance(prevu, dict) else []),
+        list(reel.get("calendrier_reel", []) if isinstance(reel, dict) else []),
+    )
+
+
+def _jours_de_la_fenetre(
+    company_id: str,
+    employee_ids: List[str],
+    periodes: Dict[str, Any],
+    year: int,
+    month: int,
+    schedule_by_emp: Dict[str, Dict[str, Any]],
+) -> Dict[str, List[tuple[list, list]]]:
+    """Par salarié, les (prévus, réels) de chaque mois, bornés à la fenêtre des variables."""
+    from datetime import date
+
+    fenetre = next((p.fenetre for p in periodes.values() if p is not None), None)
+    if fenetre is None:
+        return {}
+    debut, fin = fenetre
+    mois_couverts: List[tuple[int, int]] = []
+    a, m = debut.year, debut.month
+    while (a, m) <= (fin.year, fin.month):
+        mois_couverts.append((a, m))
+        a, m = (a + 1, 1) if m == 12 else (a, m + 1)
+
+    lignes: Dict[tuple[int, int], Dict[str, Dict[str, Any]]] = {(year, month): schedule_by_emp}
+    for cle in mois_couverts:
+        if cle in lignes:
+            continue
+        res = (
+            supabase.table("employee_schedules")
+            .select("employee_id, planned_calendar, actual_hours")
+            .eq("company_id", company_id)
+            .eq("year", cle[0])
+            .eq("month", cle[1])
+            .in_("employee_id", employee_ids)
+            .execute()
+        )
+        lignes[cle] = {str(r["employee_id"]): r for r in (res.data or [])}
+
+    def dans_la_fenetre(cle: tuple[int, int], jour: Dict[str, Any]) -> bool:
+        try:
+            return debut <= date(cle[0], cle[1], int(jour.get("jour") or 0)) <= fin
+        except (TypeError, ValueError):
+            return False
+
+    resultat: Dict[str, List[tuple[list, list]]] = {}
+    for eid in employee_ids:
+        par_mois = []
+        for cle in mois_couverts:
+            prevus, reels = _jours_du_calendrier(lignes.get(cle, {}).get(eid))
+            par_mois.append(
+                (
+                    [j for j in prevus if dans_la_fenetre(cle, j)],
+                    [j for j in reels if dans_la_fenetre(cle, j)],
+                )
+            )
+        resultat[eid] = par_mois
+    return resultat

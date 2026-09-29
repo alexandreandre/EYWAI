@@ -524,6 +524,41 @@ def conges_jusqu_a(absences: list[dict], date_limite: date | None) -> list[dict]
     return retenues
 
 
+def _date_de_sortie(employee_id: str) -> date | None:
+    """Dernier jour travaillé du départ en cours, sinon fin de contrat prévue."""
+    from app.core.database import supabase
+
+    try:
+        fiche = (
+            supabase.table("employees")
+            .select("contract_end_date, current_exit_id")
+            .eq("id", employee_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        return None
+    if not fiche:
+        return None
+    brut = fiche[0].get("contract_end_date")
+    if fiche[0].get("current_exit_id"):
+        try:
+            depart = (
+                supabase.table("employee_exits")
+                .select("last_working_day, status")
+                .eq("id", fiche[0]["current_exit_id"])
+                .limit(1)
+                .execute()
+                .data
+            )
+            if depart and str(depart[0].get("status") or "") not in ("annulee", "cancelled"):
+                brut = depart[0].get("last_working_day") or brut
+        except Exception:
+            pass
+    return _jour_iso(brut)
+
+
 def get_absence_balances_for_payslip(
     employee_id: str, year: int, month: int, date_fin_prises: date | None = None
 ) -> dict[str, object] | None:
@@ -534,6 +569,14 @@ def get_absence_balances_for_payslip(
         return None
     _, last_day = calendar.monthrange(year, month)
     ref_date = date(year, month, last_day)
+    # Rien ne s'acquiert après la sortie : une fin de CDD au 15/09 acquérait
+    # jusqu'au 30/09 (8,33 jours au lieu de ce qui est dû au 15/09), et faussait
+    # l'indemnité de congés du solde de tout compte.
+    sortie = _date_de_sortie(employee_id)
+    if sortie is not None and sortie < ref_date:
+        ref_date = sortie
+        if date_fin_prises is not None and date_fin_prises > sortie:
+            date_fin_prises = sortie
 
     # Les compteurs partent d'un solde repris à une date donnée ; les congés
     # antérieurs y sont réputés absorbés et ne sont plus décomptés. Demander
