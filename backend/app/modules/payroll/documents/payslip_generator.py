@@ -21,6 +21,7 @@ from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     option_active,
 )
+from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.replis import (
     fermer_collecte,
     fusionner_replis,
@@ -1090,6 +1091,10 @@ def process_payslip_generation(
                     remuneration["evolution_salaire_mois"] = salary_evo[
                         "evolution_salaire_mois"
                     ]
+        except LectureIndispensable:
+            # Salaire ou historique illisible : le bulletin n'est pas calculé,
+            # plutôt que payé au salaire de la fiche sans prorata ni rappel.
+            raise
         except Exception as evo_err:
             logger.warning(f"Erreur résolution évolution salaire: {evo_err}")
             from app.modules.payroll.engine.replis import CODE_REPLI_EVOLUTION_SALAIRE, noter_repli
@@ -1420,6 +1425,10 @@ def process_payslip_generation(
 
     except HTTPException:
         raise
+    except LectureIndispensable as e:
+        # Une donnée du bulletin n'a pas été lue : rien n'est calculé, la phrase
+        # dit de réessayer (503, pas une erreur du logiciel).
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

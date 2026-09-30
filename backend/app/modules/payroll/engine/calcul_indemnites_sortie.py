@@ -375,10 +375,9 @@ def calculer_indemnite_conges_restants(
 
     baremes = employee_data.get("baremes") or {}
     if not baremes and supabase_client:
-        try:
-            baremes = _charger_baremes_paie(supabase_client)
-        except Exception:
-            baremes = {}
+        # Sans barèmes, l'indemnité sortait au légal seul, sans rien dire : une
+        # lecture ratée arrête le calcul (LectureIndispensable).
+        baremes = _charger_baremes_paie(supabase_client)
 
     is_cdd = _est_cdd(employee_data)
     is_interim = _est_interim(employee_data)

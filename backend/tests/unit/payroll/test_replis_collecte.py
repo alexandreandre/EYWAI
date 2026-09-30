@@ -87,20 +87,24 @@ def test_une_mutuelle_illisible_arrete_le_calcul(monkeypatch):
     assert contexte.alertes_baremes == []
 
 
-def test_des_conventions_illisibles_sont_notees():
+def test_des_conventions_illisibles_arretent_le_calcul():
+    """Plus de repli pour la convention : sans ses règles, la prime d'ancienneté
+    disparaissait du bulletin (revue du 29/09/2026)."""
     class BaseEnPanne:
         def table(self, _nom):
             raise ConnectionError("base injoignable")
 
     from app.modules.payroll.engine.baremes_loader import charger_conventions_collectives
+    from app.modules.payroll.engine.lectures import LectureIndispensable
 
     alertes: list = []
     jeton = ouvrir_collecte(alertes)
     try:
-        assert charger_conventions_collectives(BaseEnPanne()) == {}
+        with pytest.raises(LectureIndispensable, match="convention collective"):
+            charger_conventions_collectives(BaseEnPanne())
     finally:
         fermer_collecte(jeton)
-    assert [a["code"] for a in alertes] == [CODE_REPLI_CONVENTION]
+    assert alertes == []
 
 
 def test_des_soldes_de_conges_illisibles_sont_notes(monkeypatch):
@@ -123,7 +127,8 @@ def test_des_soldes_de_conges_illisibles_sont_notes(monkeypatch):
 # Les autres replis sont au cœur des générateurs et des runs, que les tests
 # unitaires n'exécutent pas en entier : une garde lit leur code source.
 SITES = [
-    ("engine/baremes_loader.py", "CODE_REPLI_CONVENTION", 2),
+    # Le complément du seed (du code, pas une lecture) ; la lecture, elle, arrête le calcul.
+    ("engine/baremes_loader.py", "CODE_REPLI_CONVENTION", 1),
     ("engine/reference_remuneration.py", "CODE_REPLI_REFERENCE_CONGES", 2),
     ("engine/bulletin.py", "CODE_REPLI_SOLDES_CONGES", 1),
     ("documents/payslip_generator.py", "CODE_REPLI_SORTIE", 1),

@@ -67,7 +67,7 @@ from app.modules.payroll.documents.verrou_generation import GenerationDejaEnCour
 from app.modules.users.schemas.responses import User
 
 from app.core.logging import get_logger
-from app.modules.payroll.engine.mutuelles import MutuelleIllisible
+from app.modules.payroll.engine.lectures import LectureIndispensable
 
 logger = get_logger(__name__)
 
@@ -236,9 +236,10 @@ def generate_payslip_route(
         raise
     except _PAYSLIP_APP_ERRORS as exc:
         _handle_application_errors(exc)
-    except MutuelleIllisible as exc:
-        # Le bulletin n'est pas calculé plutôt que calculé sans mutuelle : la
-        # phrase dit quoi faire (réessayer, ou corriger la fiche).
+    except LectureIndispensable as exc:
+        # Le bulletin n'est pas calculé plutôt que calculé sans une donnée
+        # (mutuelle, convention, évolution de salaire) : la phrase dit quoi faire
+        # (réessayer, ou corriger la fiche).
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as e:
         logger.exception("Échec de generate_payslip_route")

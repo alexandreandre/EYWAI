@@ -75,31 +75,25 @@ def charger_db_baremes(supabase) -> Dict[str, Any]:
 
 
 def charger_conventions_collectives(supabase) -> Dict[str, Any]:
-    """Charge convention_collective_rules indexées par idcc_{idcc}."""
+    """Charge convention_collective_rules indexées par idcc_{idcc}.
+
+    Une lecture ratée arrête le calcul (`LectureIndispensable`) : sans ses règles,
+    la prime d'ancienneté disparaissait du bulletin avec un simple avertissement.
+    """
+    from app.modules.payroll.engine.lectures import lire_ou_arreter
+
+    cc_rules_resp = lire_ou_arreter(
+        lambda: supabase.table("convention_collective_rules")
+        .select("idcc, rules")
+        .execute(),
+        "Les règles de la convention collective n'ont pas pu être lues",
+    )
     conventions: Dict[str, Any] = {}
-    try:
-        cc_rules_resp = (
-            supabase.table("convention_collective_rules")
-            .select("idcc, rules")
-            .execute()
-        )
-        if cc_rules_resp.data:
-            for row in cc_rules_resp.data:
-                idcc = row.get("idcc")
-                rules = ensure_dict(row.get("rules"))
-                if idcc:
-                    conventions[f"idcc_{idcc}"] = _enrich_cc_rules_with_seed(
-                        rules, str(idcc)
-                    )
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "Règles de conventions collectives lues en partie seulement", exc_info=True
-        )
-        from app.modules.payroll.engine.replis import CODE_REPLI_CONVENTION, noter_repli
-
-        noter_repli(CODE_REPLI_CONVENTION)
+    for row in cc_rules_resp.data or []:
+        idcc = row.get("idcc")
+        rules = ensure_dict(row.get("rules"))
+        if idcc:
+            conventions[f"idcc_{idcc}"] = _enrich_cc_rules_with_seed(rules, str(idcc))
     return conventions
 
 

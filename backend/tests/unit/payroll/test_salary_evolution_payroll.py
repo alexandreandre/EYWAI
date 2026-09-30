@@ -158,18 +158,21 @@ def test_pas_de_rappel_pour_un_mois_deja_paye_au_nouveau_taux(mock_repo_cls, moc
 @patch("app.modules.payroll.application.salary_evolution_payroll._lire_bulletins_anterieurs")
 @patch("app.modules.payroll.application.salary_evolution_payroll.sync_employee_salaire_actif")
 @patch("app.modules.payroll.application.salary_evolution_payroll.EmployeeRepository")
-def test_lecture_des_bulletins_en_echec_garde_le_comportement_historique(
+def test_lecture_des_bulletins_en_echec_arrete_le_calcul(
     mock_repo_cls, mock_sync, mock_lire
 ):
+    """Sans les bulletins précédents, le rappel repayait des mois déjà payés : le
+    bulletin n'est pas calculé (revue du 29/09/2026)."""
+    from app.modules.payroll.engine.lectures import LectureIndispensable
+
     mock_repo = MagicMock()
     mock_repo_cls.return_value = mock_repo
     mock_repo.get_by_id.return_value = {"id": EMPLOYEE_ID, "salaire_de_base": {"valeur": 2200}}
     mock_repo.get_salary_history.return_value = [_timeline_entry("2026-03-01", 2000, 2200)]
     mock_lire.side_effect = RuntimeError("base injoignable")
 
-    result = prepare_salary_evolution_for_payslip(EMPLOYEE_ID, COMPANY_ID, 2026, 6)
-
-    assert result["evolution_salaire_mois"]["rappel"]["montant"] == pytest.approx(600.0, abs=0.02)
+    with pytest.raises(LectureIndispensable, match="bulletins précédents"):
+        prepare_salary_evolution_for_payslip(EMPLOYEE_ID, COMPANY_ID, 2026, 6)
 
 
 @patch("app.modules.payroll.application.salary_evolution_payroll._lire_bulletins_anterieurs", return_value=[])

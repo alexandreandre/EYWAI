@@ -18,6 +18,7 @@ from typing import Any
 
 from app.core import database
 from app.core.logging import get_logger
+from app.modules.payroll.engine.lectures import LectureIndispensable
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,7 @@ RELECTURES = 2
 PAUSE = 1.0
 
 
-class MutuelleIllisible(RuntimeError):
+class MutuelleIllisible(LectureIndispensable):
     """La mutuelle du salarié n'a pas pu être lue : le bulletin n'est pas calculé."""
 
 

@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.modules.employees.application.commands import sync_employee_salaire_actif
 from app.modules.employees.domain.salary_timeline import construire_evolution_salaire_mois
 from app.modules.employees.infrastructure.repository import EmployeeRepository
+from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.salaire_paye import (
     base_mensuelle_du_bulletin,
     heures_base_mensuelles,
@@ -43,18 +44,13 @@ def _bases_des_bulletins(
 
     Sert au rappel de salaire : un mois déjà payé au nouveau taux n'est pas
     rappelé (salarié 086, juillet 2026 : 16,69 € rappelés pour un juin déjà payé
-    au SMIC revalorisé, et à nouveau chaque mois suivant). En cas d'échec de
-    lecture, None : le calcul retombe sur le comportement historique, signalé.
+    au SMIC revalorisé, et à nouveau chaque mois suivant). Une lecture ratée
+    arrête le calcul : sans elle, le rappel repayait des mois déjà payés.
     """
-    try:
-        rows = _lire_bulletins_anterieurs(employee_id, company_id)
-    except Exception as exc:  # noqa: BLE001 — la génération ne doit pas tomber
-        logger.warning(
-            "Bulletins antérieurs illisibles pour le rappel de salaire (%s) : %s",
-            employee_id,
-            exc,
-        )
-        return None
+    rows = lire_ou_arreter(
+        lambda: _lire_bulletins_anterieurs(employee_id, company_id),
+        "Les bulletins précédents du salarié n'ont pas pu être lus",
+    )
     heures = heures_base_mensuelles(duree_hebdo)
     bases: Dict[tuple[int, int], float] = {}
     for row in rows:
@@ -100,18 +96,23 @@ def prepare_salary_evolution_for_payslip(
     calcul reste celui d'une vraie génération (spec 2026-09-24).
     """
     repo = EmployeeRepository()
+    illisible = "Le salaire du salarié et son historique n'ont pas pu être lus"
     if persister:
-        sync_employee_salaire_actif(employee_id, company_id, date.today())
+        lire_ou_arreter(
+            lambda: sync_employee_salaire_actif(employee_id, company_id, date.today()), illisible
+        )
 
-    emp = repo.get_by_id(employee_id, company_id)
+    emp = lire_ou_arreter(lambda: repo.get_by_id(employee_id, company_id), illisible)
     if emp is None:
         return {}
     if not persister:
-        synchronise = repo.salaire_de_base_a_date(employee_id, company_id, date.today())
+        synchronise = lire_ou_arreter(
+            lambda: repo.salaire_de_base_a_date(employee_id, company_id, date.today()), illisible
+        )
         if synchronise is not None:
             emp = {**emp, "salaire_de_base": synchronise}
 
-    timeline = repo.get_salary_history(employee_id, company_id)
+    timeline = lire_ou_arreter(lambda: repo.get_salary_history(employee_id, company_id), illisible)
     fallback = _valeur_salaire(emp.get("salaire_de_base"))
     bases = _bases_des_bulletins(
         employee_id, company_id, year, month, emp.get("duree_hebdomadaire")
