@@ -303,6 +303,22 @@ class TestEcarterHeuresEnConflit:
         assert reel_filtre == reel
         assert jours == []
 
+    def test_une_absence_non_remuneree_fractionnaire_garde_ses_heures(self):
+        """Forme réelle de Colorplast : quelques minutes d'absence non rémunérée
+        (quotité 0,0306 ; 0,26 h) sur une journée travaillée 8,25 h. Ce n'est pas
+        un jour d'absence : ses heures restent au calcul."""
+        prevu = [
+            _prevu(
+                20, "absence_non_remuneree", 0.26, annee=2026, mois=7, quotite_absence=0.0306
+            )
+        ]
+        reel = [_reel(20, 8.25, annee=2026, mois=7)]
+
+        reel_filtre, jours = ecarter_heures_en_conflit(prevu, reel)
+
+        assert reel_filtre == reel
+        assert jours == []
+
     def test_sans_conflit_le_reel_est_rendu_a_l_identique(self):
         prevu = [_prevu(7, "travail", 7.0), _prevu(8, "arret_maladie")]
         reel = [_reel(7, 9.0), _reel(8, 0.0)]

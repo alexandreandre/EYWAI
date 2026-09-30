@@ -1218,6 +1218,10 @@ def process_payslip_generation(
             employee_path / "calendriers" / f"{month:02d}.json",
             (db_data_map.get((year, month)) or {}).get("planned_calendar") or {},
         )
+        # Réel BRUT, sans le filet des heures sur arrêt. `payslip_run_heures`
+        # ne le relit que sous la clé `calendrier`, qu'aucune ligne n'a en base
+        # (toutes ont `calendrier_reel`) : chemin mort aujourd'hui. S'il revivait,
+        # il contournerait le filet : il faudrait alors lui passer le réel filtré.
         write_temp_json(
             employee_path / "horaires" / f"{month:02d}.json",
             (db_data_map.get((year, month)) or {}).get("actual_hours") or {},
