@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   Check,
@@ -33,6 +34,11 @@ import {
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  fusionnerJoursEnConflitImport,
+  libelleDesJours,
+  type ConflitsImportSalarie,
+} from '@/features/payroll/utils/heuresSurArret';
 import { downloadBlob } from '@/lib/downloadBlob';
 import { showReviewSummaryBanner, removeReviewRow } from './assistedFillReviewLayout';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
@@ -359,6 +365,9 @@ export function AssistedFillReview({
   // Jours refusés à l'écriture (absence validée préservée) : récapitulatif
   // affiché après enregistrement, avant fermeture de la revue.
   const [preservedAbsenceDays, setPreservedAbsenceDays] = useState<PreservedAbsenceDay[]>([]);
+  // Jours du relevé enregistrés alors que le planning les marque en arrêt ou en
+  // absence : listés au récapitulatif, avec le chemin pour les corriger.
+  const [conflitsArret, setConflitsArret] = useState<ConflitsImportSalarie[]>([]);
   const [pendingApplyMeta, setPendingApplyMeta] = useState<AssistedFillApplyMeta | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>(() =>
     defaultReviewFilter(
@@ -655,9 +664,24 @@ export function AssistedFillReview({
   /** Toast final + soit fermeture immédiate, soit récapitulatif des refus. */
   const finishSave = (
     preserved: PreservedAbsenceDay[],
+    conflits: ConflitsImportSalarie[],
     successDescription: string,
     meta: AssistedFillApplyMeta,
   ) => {
+    if (conflits.length > 0) {
+      const nbJours = conflits.reduce((n, c) => n + c.jours.length, 0);
+      toast({
+        title: 'Heures enregistrées — jours en conflit avec un arrêt',
+        description:
+          `${nbJours} jour(s) portent des heures alors que le planning les marque en arrêt ou en absence : `
+          + 'le bulletin sera refusé tant que ce n’est pas corrigé (voir détail).',
+        variant: 'warning',
+      });
+      setConflitsArret(conflits);
+      setPreservedAbsenceDays(preserved);
+      setPendingApplyMeta(meta);
+      return;
+    }
     if (preserved.length > 0) {
       toast({
         title: 'Heures enregistrées — jours préservés',
@@ -726,14 +750,22 @@ export function AssistedFillReview({
             ? result.warnings
             : committed.summary?.commit_warnings,
         );
+        // Import par lot : la réponse immédiate a `jours_en_conflit: []`, la liste
+        // est dans le résumé du lot ; le chemin direct la porte dans la réponse.
+        const conflits = fusionnerJoursEnConflitImport(
+          result.jours_en_conflit,
+          committed.summary?.commit_jours_en_conflit,
+        );
         finishSave(
           preserved,
+          conflits,
           `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
           applyMeta,
         );
         return;
       }
       const preserved = toPreservedAbsenceDays(result.warnings);
+      const conflits = fusionnerJoursEnConflitImport(result.jours_en_conflit, undefined);
       const failed = result.results.filter((r) => !r.success);
       if (failed.length > 0) {
         toast({
@@ -741,8 +773,9 @@ export function AssistedFillReview({
           description: `${result.total_days_written} jour(s) · ${failed.length} échec(s).`,
           variant: 'destructive',
         });
-        if (preserved.length > 0) {
+        if (preserved.length > 0 || conflits.length > 0) {
           setPreservedAbsenceDays(preserved);
+          setConflitsArret(conflits);
           setPendingApplyMeta(applyMeta);
           return;
         }
@@ -751,6 +784,7 @@ export function AssistedFillReview({
       }
       finishSave(
         preserved,
+        conflits,
         `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.`,
         applyMeta,
       );
@@ -796,10 +830,44 @@ export function AssistedFillReview({
                 ? 'Consigne texte'
                 : proposal.source;
 
-  if (preservedAbsenceDays.length > 0) {
-    // Récapitulatif post-enregistrement : jours refusés car absence validée.
+  if (preservedAbsenceDays.length > 0 || conflitsArret.length > 0) {
+    // Récapitulatif post-enregistrement : jours refusés car absence validée, et
+    // jours enregistrés malgré un arrêt ou une absence au planning.
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+        {conflitsArret.length > 0 && (
+          <div
+            className="shrink-0 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900"
+            data-testid="recap-conflits-arret"
+          >
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Heures sur un jour d&apos;arrêt ou d&apos;absence
+            </p>
+            <p className="mt-1 text-xs">
+              Ces jours portent des heures alors que le planning les marque en
+              arrêt ou en absence. Elles sont enregistrées, mais le bulletin sera
+              refusé tant qu&apos;elles ne sont pas effacées ou que l&apos;arrêt
+              n&apos;est pas corrigé. Ouvrez le calendrier du salarié pour choisir.
+            </p>
+            <ul className="mt-2 space-y-1 text-xs">
+              {conflitsArret.map((c) => (
+                <li key={c.employee_id} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">{employeeWarningLabel(c.employee_id)}</span>
+                  <span className="tabular-nums">{libelleDesJours(c.jours)}</span>
+                  <Link
+                    to={`/schedules?employee=${encodeURIComponent(c.employee_id)}`}
+                    className="underline underline-offset-2"
+                  >
+                    Ouvrir le calendrier
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {preservedAbsenceDays.length > 0 && (
+          <>
         <div className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -826,6 +894,8 @@ export function AssistedFillReview({
             ))}
           </div>
         </div>
+          </>
+        )}
         <div className="flex shrink-0 justify-end border-t pt-2">
           <Button
             type="button"
