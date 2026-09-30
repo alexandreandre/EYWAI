@@ -49,6 +49,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
 import {
   choixApresCorrection,
+  prenomDuBulletin,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
@@ -397,6 +398,7 @@ export default function PayslipEdit() {
             month={payslip.month}
             manuallyEdited={payslip.manually_edited}
             modificationsNonEnregistrees={modifie}
+            employeeName={prenomDuBulletin(payslip.payslip_data)}
             refusInitial={refusApresCorrection}
             onRefusInitialFerme={() => setRefusApresCorrection(null)}
             disabled={isEditLocked}

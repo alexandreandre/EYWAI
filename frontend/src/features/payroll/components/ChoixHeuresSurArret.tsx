@@ -25,8 +25,6 @@ type Props = {
   employeeId: string;
   /** Nom complet du salarié, s'il est connu : sert au prénom des boutons. */
   employeeName?: string | null;
-  /** Message du refus (la phrase du backend, qui dit quels jours). */
-  message: string;
   jours: JourEnConflit[];
   /**
    * Appelé une fois les heures effacées : relance la génération du même bulletin.
@@ -45,7 +43,6 @@ type Props = {
 export function ChoixHeuresSurArret({
   employeeId,
   employeeName,
-  message,
   jours,
   onEffacees,
   onModifier,
@@ -57,7 +54,7 @@ export function ChoixHeuresSurArret({
   const [enCours, setEnCours] = useState(false);
   const [echec, setEchec] = useState<string | null>(null);
 
-  const textes = textesDuChoix(natureDuConflit(message), prenomDe(employeeName));
+  const textes = textesDuChoix(natureDuConflit(jours), prenomDe(employeeName));
 
   const effacer = async () => {
     setEnCours(true);

@@ -213,7 +213,6 @@ export default function RegeneratePayslipButton({
             <ChoixHeuresSurArret
               employeeId={employeeId}
               employeeName={employeeName}
-              message={refus.message}
               jours={refus.jours}
               onEffacees={async () => {
                 // Les heures sont effacées : on relance la génération de CE bulletin.

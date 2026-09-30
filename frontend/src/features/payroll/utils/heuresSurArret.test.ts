@@ -13,6 +13,7 @@ import {
   messageHeuresEffacees,
   natureDuConflit,
   prenomDe,
+  prenomDuBulletin,
   estJourEnConflit,
   textesDuChoix,
 } from './heuresSurArret';
@@ -25,6 +26,11 @@ const jour = (j: number, mois = 9, annee = 2026, heures = 9) => ({
 });
 
 describe('lireJoursEnConflit', () => {
+  it('garde type_prevu quand le backend le donne', () => {
+    expect(
+      lireJoursEnConflit([{ annee: 2026, mois: 9, jour: 12, heures: 4, type_prevu: 'arret_maladie' }])
+    ).toEqual([{ ...jour(12, 9, 2026, 4), type_prevu: 'arret_maladie' }]);
+  });
   it('lit la liste du backend et ignore les entrées invalides', () => {
     expect(
       lireJoursEnConflit([
@@ -79,27 +85,20 @@ describe('groupesParMois', () => {
 });
 
 describe('natureDuConflit', () => {
-  it('arrêt', () => {
-    expect(
-      natureDuConflit('Octavie est en arrêt, mais des heures sont saisies les 7, 8 et 9 septembre.')
-    ).toBe('arret');
+  const avecType = (type_prevu?: string) => ({ ...jour(7), type_prevu });
+  it('arrêt : tous les jours ont un type arret_*, même un samedi d’arrêt', () => {
+    expect(natureDuConflit([avecType('arret_maladie'), avecType('arret_at')])).toBe('arret');
   });
   it('autre absence', () => {
-    expect(
-      natureDuConflit(
-        'Octavie a une absence (congés payés), mais des heures sont saisies le 21 septembre.'
-      )
-    ).toBe('absence');
+    expect(natureDuConflit([avecType('conges_payes')])).toBe('absence');
   });
-  it('mélange : les deux phrases, traité comme une absence', () => {
-    expect(
-      natureDuConflit(
-        'Octavie est en arrêt, mais des heures sont saisies le 7 septembre. Octavie a une absence (RTT), mais des heures sont saisies le 9 septembre.'
-      )
-    ).toBe('mixte');
+  it('mélange arrêt et absence', () => {
+    expect(natureDuConflit([avecType('arret_maladie'), avecType('rtt')])).toBe('mixte');
   });
-  it('message inconnu : absence, le plus neutre', () => {
-    expect(natureDuConflit('autre chose')).toBe('absence');
+  it('type manquant : repli neutre (texte « absence »), jamais lu dans le message', () => {
+    expect(natureDuConflit([jour(7)])).toBe('absence');
+    expect(natureDuConflit([avecType('arret_maladie'), jour(8)])).toBe('absence');
+    expect(natureDuConflit([])).toBe('absence');
   });
 });
 
@@ -301,5 +300,19 @@ describe('messageEchecEffacement', () => {
     expect(messageEchecEffacement([jour(31, 8)], 'Réessayez.')).toBe(
       'Heures effacées seulement le 31 août. Le reste n’a pas pu l’être : Réessayez. La génération n’a pas été relancée.'
     );
+  });
+});
+
+describe('prenomDuBulletin', () => {
+  it('lit le prénom de l’en-tête du bulletin', () => {
+    expect(prenomDuBulletin({ en_tete: { salarie: { prenom: ' Octavie ', nom: 'X' } } })).toBe('Octavie');
+  });
+  it('sinon le premier mot du nom complet', () => {
+    expect(prenomDuBulletin({ en_tete: { salarie: { nom_complet: 'Octavie Martin' } } })).toBe('Octavie');
+  });
+  it('rien si le bulletin ne porte pas l’identité', () => {
+    expect(prenomDuBulletin({})).toBeNull();
+    expect(prenomDuBulletin(undefined)).toBeNull();
+    expect(prenomDuBulletin({ en_tete: { salarie: 'x' } })).toBeNull();
   });
 });

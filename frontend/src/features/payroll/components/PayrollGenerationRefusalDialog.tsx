@@ -128,7 +128,6 @@ export function PayrollGenerationRefusalDialog({
           <ChoixHeuresSurArret
             employeeId={single.job.employeeId}
             employeeName={single.job.employeeName}
-            message={single.message}
             jours={single.jours}
             onEffacees={() => {
               onRetry(single.job);
@@ -174,7 +173,6 @@ export function PayrollGenerationRefusalDialog({
                 <ChoixHeuresSurArret
                   employeeId={refusal.job.employeeId}
                   employeeName={refusal.job.employeeName}
-                  message={refusal.message}
                   jours={refusal.jours ?? []}
                   onEffacees={() => {
                     onRetry(refusal.job);

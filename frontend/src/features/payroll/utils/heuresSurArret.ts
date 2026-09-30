@@ -10,6 +10,8 @@ export type JourEnConflit = {
   mois: number;
   jour: number;
   heures: number;
+  /** Type en cause au planning (week-end d'arrêt : celui de l'arrêt). Absent d'un backend ancien. */
+  type_prevu?: string;
 };
 
 /** Jours en conflit d'un salarié à l'import des pointages. */
@@ -18,7 +20,7 @@ export type ConflitsImportSalarie = {
   jours: JourEnConflit[];
 };
 
-/** Nature du conflit, lue dans la phrase du backend (« est en arrêt » / « a une absence »). */
+/** Nature du conflit, décidée d'après `type_prevu` des jours (préfixe `arret`). */
 export type NatureConflit = 'arret' | 'absence' | 'mixte';
 
 /** Info-bulle d'un jour du calendrier qui porte des heures alors que le prévu est un arrêt. */
@@ -46,9 +48,11 @@ export function lireJoursEnConflit(brut: unknown): JourEnConflit[] {
   const jours: JourEnConflit[] = [];
   for (const item of brut) {
     if (!item || typeof item !== 'object') continue;
-    const { annee, mois, jour, heures } = item as Record<string, unknown>;
+    const { annee, mois, jour, heures, type_prevu } = item as Record<string, unknown>;
     if (!estNombre(annee) || !estNombre(mois) || !estNombre(jour)) continue;
-    jours.push({ annee, mois, jour, heures: estNombre(heures) ? heures : 0 });
+    const lu: JourEnConflit = { annee, mois, jour, heures: estNombre(heures) ? heures : 0 };
+    if (typeof type_prevu === 'string' && type_prevu) lu.type_prevu = type_prevu;
+    jours.push(lu);
   }
   return jours;
 }
@@ -92,12 +96,13 @@ export function messageHeuresEffacees(jours: JourEnConflit[]): string {
   return `Heures effacées : ${libelleDesJours(jours)}.`;
 }
 
-export function natureDuConflit(message: string): NatureConflit {
-  const arret = /\best en arrêt\b/.test(message);
-  const absence = /\ba une absence\b/.test(message);
-  if (arret && absence) return 'mixte';
-  if (arret) return 'arret';
-  return 'absence';
+export function natureDuConflit(jours: JourEnConflit[]): NatureConflit {
+  // Jamais lu dans le message : une reformulation le casserait. Sans type pour
+  // tous les jours, repli neutre (« absence »).
+  if (jours.length === 0 || jours.some((j) => !j.type_prevu)) return 'absence';
+  const arrets = jours.filter((j) => j.type_prevu!.startsWith('arret')).length;
+  if (arrets === jours.length) return 'arret';
+  return arrets === 0 ? 'absence' : 'mixte';
 }
 
 /** Premier mot du nom complet ; rien s'il manque ou ressemble à un identifiant. */
@@ -106,6 +111,16 @@ export function prenomDe(nomComplet: string | null | undefined): string | null {
   if (!mot) return null;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(mot)) return null;
   return mot;
+}
+
+/** Prénom porté par le bulletin chargé (`payslip_data.en_tete.salarie`), s'il y est. */
+export function prenomDuBulletin(payslipData: unknown): string | null {
+  const enTete = (payslipData as { en_tete?: { salarie?: unknown } } | null | undefined)?.en_tete;
+  const salarie = enTete?.salarie;
+  if (!salarie || typeof salarie !== 'object') return null;
+  const { prenom, nom_complet } = salarie as Record<string, unknown>;
+  if (typeof prenom === 'string' && prenom.trim()) return prenom.trim();
+  return typeof nom_complet === 'string' ? prenomDe(nom_complet) : null;
 }
 
 /** Textes des deux boutons, sans genrer : le prénom, sinon « Le salarié ». */
