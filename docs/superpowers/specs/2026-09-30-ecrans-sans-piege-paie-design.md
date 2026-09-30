@@ -26,7 +26,9 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
    - le salarié apparaît en tête de la liste, avec un badge « Nouveau ».
 5. **Échec visible** : si le serveur refuse, un bandeau rouge « Salarié NON enregistré » donne la raison. La saisie est conservée et le bouton reste disponible.
 6. **Journal des erreurs de l'écran** : toute erreur inattendue du formulaire (exception, refus du navigateur, requête sans réponse) est envoyée au serveur avec le contexte, sans données personnelles, pour qu'on voie désormais ce que la gestionnaire a vu.
-7. **Test de bout en bout**, dans le parcours de la gestionnaire (mode paie) :
+7. **RIB facultatif à la création** : une fiche s'enregistre sans RIB. Elle porte alors « RIB à compléter », visible dans la liste et rappelé avant la validation de la paie. Il en va de même pour les autres pièces qu'on n'a pas le jour de l'embauche.
+8. **Entrée après la clôture des variables** (exemple réel : entrée le 21/09, fenêtre des variables close le 20/09). Le bulletin de septembre paie le salaire au prorata du 21 au 30, sans variables ; ses variables du 21 au 30 partent dans la fenêtre d'octobre. La génération n'exige pas de pointage pour des jours hors fenêtre. À vérifier par un test, et à corriger si le garde-fou « calendrier incomplet » bloque.
+9. **Test de bout en bout**, dans le parcours de la gestionnaire (mode paie) :
    - une valeur piège (taux de 1,15 %, salaire au millième) produit une erreur visible et ne bloque pas en silence ;
    - fermer la fenêtre avec une saisie en cours demande confirmation ;
    - une création réussie affiche la confirmation.
@@ -67,6 +69,10 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
    - Rien ne se corrige sans ce clic. Une fois la correction faite, le bulletin concerné passe « à recalculer » (point 2).
 3. **Filet dans le moteur** : même forcée, une heure saisie un jour d'arrêt ne crée jamais d'heure sup, ni dans le calcul normal ni dans la compensation. Elle est écartée, avec une alerte sur le bulletin.
 4. **Import des pointages** : une ligne de pointage qui tombe sur un jour d'arrêt est signalée dans le récapitulatif de l'import au lieu d'être écrite en silence.
+5. **Mois entier d'arrêt : bulletin négatif possible.** Pour une salariée arrêtée tout le mois sans maintien, avec les IJSS versées directement, la gestionnaire attend un net négatif (cotisations restantes, mutuelle). Une fois les heures en conflit retirées, vérifier trois choses :
+   - le brut est ramené à la retenue d'arrêt sur tout le mois ;
+   - le net négatif est affiché comme tel, sans être ramené à 0 ;
+   - il est reporté en retenue le mois suivant (« Report NAP négatif », comme dans Quadra).
 
 ## 4. Sortie d'un salarié en cours de mois
 
@@ -79,6 +85,7 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
 2. **Bandeau sur la page de paie du mois** : « X quitte l'entreprise le 15/09 : créez son départ avant de générer », avec le bouton « Créer le départ ».
 3. Une fois le départ créé, le logiciel propose tout de suite de générer le bulletin de sortie, avec l'indemnité de congés.
 4. Les documents de sortie (solde de tout compte, attestation France Travail, certificat) restent grisés tant que le bulletin du mois de sortie n'existe pas, avec la mention « générez d'abord le bulletin de sortie ». Constat de la revue du 29/09.
+5. **Contrôle des documents de sortie** : une fois le bulletin de sortie généré, les montants des documents (indemnité de congés, précarité, dernier salaire) sont repris du bulletin. Un test couvre une fin de CDD en cours de mois.
 
 ## 5. Heures sup comparées à son tableau
 
@@ -98,13 +105,28 @@ Proposé par la personne qui accompagne la gestionnaire. La gestionnaire suit un
 2. **Manuel opérateur** : une page simple, avec la paie du mois étape par étape (pointages, calendrier, absences, générer, vérifier, valider), les pièges connus et quoi faire. Accessible depuis le mode paie.
 3. **Liste de contrôle du mois** : sur la page de paie, les étapes cochées automatiquement (calendriers complets, absences saisies, bulletins générés et à jour, sorties créées), avec ce qui reste à faire.
 
+## 7. Consignes qu'elle comprend
+
+**Fait.** La gestionnaire n'a pas fait les trois actions demandées pour une autre société (créer une fiche, renseigner un RIB, prolonger deux arrêts) : elle pensait devoir envoyer des bulletins.
+
+**Règle** : ce que l'équipe peut faire sans elle, elle le fait, avec l'accord d'Alexandre pour toute écriture en base. Ce qui dépend d'elle tient en une action par ligne : quoi, où cliquer, ce qu'elle doit voir ensuite. Chaque consigne est vérifiée de bout en bout avant d'être envoyée. La liste de contrôle du mois (point 6.3) affiche aussi ces actions en attente.
+
+## 8. Recette
+
+Après les deux lots, une recette complète du mode paie sur le site de test est menée par Alexandre avec Claude dans Chrome. Un plan de recette écrit (parcours, données de test, résultats attendus, captures) couvre chaque point de ce document. Il utilise une société de démonstration, jamais Colorplast ni Comitech, pour ne toucher à aucune paie réelle.
+
 ## Ordre de réalisation
 
-1. **Départ possible pour un salarié repris** (point 4.1) et **heures sur un jour d'arrêt** (point 3) : ils bloquent deux bulletins de septembre.
-2. **Écran à jour, suppression idempotente et « à recalculer »** (point 2).
-3. **Création de salarié** (point 1) : reproduire d'abord l'erreur, puis le parcours guidé et le journal des erreurs de l'écran.
-4. **Sortie guidée** (points 4.2 à 4.4).
-5. **Aide à la compréhension** (point 6) : manuel, aide sur le bulletin, liste de contrôle.
+**Lot A, ce qui bloque la paie :**
+1. **Départ possible pour un salarié repris** (point 4.1) et **heures sur un jour d'arrêt** (point 3), y compris le bulletin négatif. Ils bloquent deux bulletins de septembre.
+2. **Écran à jour, suppression idempotente, « à recalculer » et PDF à jour** (point 2).
+3. **Création de salarié** (point 1) : reproduire d'abord l'erreur, puis corriger la cause. Ensuite : RIB facultatif, entrée après la clôture, parcours guidé et journal des erreurs de l'écran.
+
+**Lot B, guider et expliquer :**
+4. **Sortie guidée** et documents de sortie (points 4.2 à 4.5).
+5. **Aide à la compréhension** (point 6) : aide sur le bulletin, manuel opérateur, liste de contrôle du mois, avec les actions en attente (point 7).
+
+**Puis :** plan de recette pour Claude dans Chrome (point 8), et déploiement sur le site de test après les tests, le filet de paie et le test de bout en bout.
 
 Pour chaque point : tests unitaires, test de bout en bout du parcours de la gestionnaire (mode paie), filet de paie à zéro écart, puis déploiement sur le site de test avec l'accord d'Alexandre.
 
