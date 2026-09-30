@@ -262,6 +262,7 @@ def run_persist_timesheet_batch(
             ],
             errors=result.get("errors", []),
             warnings=result.get("warnings", []),
+            jours_en_conflit=result.get("jours_en_conflit", []),
         )
 
     from app.modules.schedules.application import commands, queries
@@ -334,6 +335,7 @@ def run_persist_with_bulk_commit(
         results=[],
         errors=result.get("errors", []),
         warnings=result.get("warnings", []),
+        jours_en_conflit=result.get("jours_en_conflit", []),
     )
 
 

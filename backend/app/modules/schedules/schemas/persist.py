@@ -38,6 +38,10 @@ class PersistTimesheetResponse(BaseModel):
     # Ce qui n'a délibérément PAS été appliqué (ex. jour d'absence validée
     # qu'un relevé d'heures voulait requalifier) — à afficher au RH.
     warnings: List[dict] = Field(default_factory=list)
+    # Jours importés avec des heures un jour d'arrêt ou d'absence non
+    # travaillée : écrits, mais signalés (la génération les refusera).
+    # `[{employee_id, jours: [{annee, mois, jour, heures}]}]`.
+    jours_en_conflit: List[dict] = Field(default_factory=list)
 
 
 __all__ = [

@@ -46,6 +46,44 @@ def _default_type_for_day(year: int, month: int, jour: int) -> str:
     return "weekend" if wd >= 5 else "travail"
 
 
+def _jours_importes_en_conflit(
+    year: int,
+    month: int,
+    calendrier_prevu: list,
+    reel_days: List[AiDayEntry],
+) -> List[Dict[str, Any]]:
+    """Les jours de CET import qui portent des heures un jour d'arrêt ou d'absence
+    non travaillée au prévu (après fusion) : signalés, pas refusés."""
+    from app.modules.schedules.domain.conflits_arret import jours_en_conflit
+
+    conflits = jours_en_conflit(
+        [e for e in calendrier_prevu or [] if isinstance(e, dict)],
+        [{"jour": d.jour, "heures_faites": d.heures} for d in reel_days],
+    )
+    return [
+        {"annee": year, "mois": month, "jour": c.jour, "heures": c.heures_saisies}
+        for c in conflits
+    ]
+
+
+def _par_salarie(
+    conflits: List[tuple[str, List[Dict[str, Any]]]],
+) -> List[Dict[str, Any]]:
+    """`[{employee_id, jours: [{annee, mois, jour, heures}]}]`, un salarié une fois,
+    ses jours de tous les mois triés par date."""
+    jours_par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    for employee_id, jours in conflits:
+        if jours:
+            jours_par_salarie.setdefault(employee_id, []).extend(jours)
+    return [
+        {
+            "employee_id": employee_id,
+            "jours": sorted(jours, key=lambda j: (j["annee"], j["mois"], j["jour"])),
+        }
+        for employee_id, jours in jours_par_salarie.items()
+    ]
+
+
 def begin_commit_batch(
     batch_id: str,
     *,
@@ -128,10 +166,17 @@ def _upsert_employees_for_month(
     month: int,
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
-) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]], List[Dict[str, Any]]]:
+) -> tuple[
+    List[Dict[str, Any]],
+    int,
+    List[Dict[str, str]],
+    List[Dict[str, Any]],
+    List[tuple[str, List[Dict[str, Any]]]],
+]:
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
     warnings: List[Dict[str, Any]] = []
+    conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     total_days = 0
     days_in_month = cal_mod.monthrange(year, month)[1]
 
@@ -176,6 +221,12 @@ def _upsert_employees_for_month(
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
+                conflits.append(
+                    (
+                        emp.employee_id,
+                        _jours_importes_en_conflit(year, month, merged_planned, reel_days),
+                    )
+                )
 
             payload: Dict[str, Any] = {
                 "employee_id": emp.employee_id,
@@ -211,7 +262,7 @@ def _upsert_employees_for_month(
         except Exception as exc:
             errors.append({"employee_id": emp.employee_id, "message": str(exc)})
 
-    return upsert_payloads, total_days, errors, warnings
+    return upsert_payloads, total_days, errors, warnings, conflits
 
 
 def _upsert_employees_for_month_fast(
@@ -222,10 +273,17 @@ def _upsert_employees_for_month_fast(
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
     employee_company_ids: Dict[str, str],
-) -> tuple[List[Dict[str, Any]], int, List[Dict[str, str]], List[Dict[str, Any]]]:
+) -> tuple[
+    List[Dict[str, Any]],
+    int,
+    List[Dict[str, str]],
+    List[Dict[str, Any]],
+    List[tuple[str, List[Dict[str, Any]]]],
+]:
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
     warnings: List[Dict[str, Any]] = []
+    conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     total_days = 0
     days_in_month = cal_mod.monthrange(year, month)[1]
 
@@ -270,6 +328,12 @@ def _upsert_employees_for_month_fast(
             if reel_days:
                 merged_actual = _merge_days(actual_existing, reel_days, "reel")
                 days_written += len(reel_days)
+                conflits.append(
+                    (
+                        emp.employee_id,
+                        _jours_importes_en_conflit(year, month, merged_planned, reel_days),
+                    )
+                )
 
             payload: Dict[str, Any] = {
                 "employee_id": emp.employee_id,
@@ -305,7 +369,7 @@ def _upsert_employees_for_month_fast(
         except Exception as exc:
             errors.append({"employee_id": emp.employee_id, "message": str(exc)})
 
-    return upsert_payloads, total_days, errors, warnings
+    return upsert_payloads, total_days, errors, warnings, conflits
 
 
 def _employees_from_month_group(group: Dict[str, Any]) -> List[PersistTimesheetEmployee]:
@@ -461,6 +525,7 @@ def _commit_multi_month_batch(
     upsert_payloads: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
     warnings: List[Dict[str, Any]] = []
+    conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     total_days = 0
     recalc_targets: List[tuple[str, int, int]] = []
 
@@ -540,6 +605,7 @@ def _commit_multi_month_batch(
             days_written,
             group_errors,
             group_warnings,
+            group_conflits,
         ) = _upsert_employees_for_month_fast(
             company_id=company_id,
             year=year,
@@ -554,6 +620,7 @@ def _commit_multi_month_batch(
         errors.extend(group_errors)
         warnings.extend(group_warnings)
         if payloads:
+            conflits.extend(group_conflits)
             schedule_repository.bulk_upsert_schedules(payloads)
             upsert_payloads.extend(payloads)
             recalc_targets.extend(
@@ -609,6 +676,8 @@ def _commit_multi_month_batch(
             status_code=400,
         )
 
+    jours_en_conflit = _par_salarie(conflits)
+
     if request.recalculate_payroll:
         from app.modules.schedules.application.commands import calculate_payroll_events
 
@@ -629,6 +698,7 @@ def _commit_multi_month_batch(
             "months_committed": len(month_groups),
             "commit_errors": errors,
             "commit_warnings": warnings,
+            "commit_jours_en_conflit": jours_en_conflit,
             "commit_progress": {
                 "phase": "completed",
                 "employees_done": len({p["employee_id"] for p in upsert_payloads}),
@@ -657,6 +727,7 @@ def _commit_multi_month_batch(
         "total_days_written": total_days,
         "errors": errors,
         "warnings": warnings,
+        "jours_en_conflit": jours_en_conflit,
     }
 
 
@@ -790,13 +861,20 @@ def commit_batch_bulk(
     total_days = 0
     errors: List[Dict[str, str]] = []
     warnings: List[Dict[str, Any]] = []
+    conflits: List[tuple[str, List[Dict[str, Any]]]] = []
     for (annee, mois), employes_du_mois in sorted(
         _employes_par_mois(employees, year, month).items()
     ):
         existing_rows = schedule_repository.list_schedules_for_employees(
             [e.employee_id for e in employes_du_mois], annee, mois
         )
-        payloads, jours_ecrits, erreurs, avertissements = _upsert_employees_for_month(
+        (
+            payloads,
+            jours_ecrits,
+            erreurs,
+            avertissements,
+            conflits_du_mois,
+        ) = _upsert_employees_for_month(
             company_id=company_id,
             year=annee,
             month=mois,
@@ -809,6 +887,8 @@ def commit_batch_bulk(
         total_days += jours_ecrits
         errors.extend(erreurs)
         warnings.extend(avertissements)
+        conflits.extend(conflits_du_mois)
+    jours_en_conflit = _par_salarie(conflits)
 
     if request.recalculate_payroll:
         from app.modules.schedules.application.commands import calculate_payroll_events
@@ -832,6 +912,7 @@ def commit_batch_bulk(
             "employees_processed": len({p["employee_id"] for p in upsert_payloads}),
             "commit_errors": errors,
             "commit_warnings": warnings,
+            "commit_jours_en_conflit": jours_en_conflit,
             "commit_progress": {
                 "phase": "completed",
                 "employees_done": len(upsert_payloads),
@@ -860,6 +941,7 @@ def commit_batch_bulk(
         "total_days_written": total_days,
         "errors": errors,
         "warnings": warnings,
+        "jours_en_conflit": jours_en_conflit,
     }
 
 

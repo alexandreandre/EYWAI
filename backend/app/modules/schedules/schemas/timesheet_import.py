@@ -55,6 +55,9 @@ class TimesheetImportBatchSummary(BaseModel):
     # Refus de commit (ex. absence validée préservée) : sans ce champ,
     # Pydantic strippe la liste et la RH ne voit jamais les jours refusés.
     commit_warnings: Optional[List[Dict[str, Any]]] = None
+    # Jours importés sur un arrêt ou une absence non travaillée (écrits,
+    # signalés) : `[{employee_id, jours: [{annee, mois, jour, heures}]}]`.
+    commit_jours_en_conflit: Optional[List[Dict[str, Any]]] = None
 
 
 class TimesheetImportParseResponse(BaseModel):
