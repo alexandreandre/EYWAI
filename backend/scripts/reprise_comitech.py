@@ -66,6 +66,7 @@ from scripts.reprise_colorplast_solde_ouverture import (  # noqa: E402
     RATIO_HS_DEFISCALISEES,
     _heures_sup_brut,
     _somme_des_lignes,
+    base_du_dixieme,
 )
 
 SOCIETE = "comitech"
@@ -414,6 +415,7 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
     brut = float(dernier.droite.get("cumul_bruts") or 0.0)
     net_hs_exo = float(dernier.net.get("net_hs_exo_cumul") or 0.0)
     tranche_2 = round(max(0.0, brut - plafonds), 2)
+    base_cp, debut_cp, fin_cp = base_du_dixieme(lus, ANNEE, bascule, matricule, _brut_du_mois)
     return {
         "controle_somme_des_bruts": round(bruts, 2),
         "cumuls": {
@@ -431,9 +433,9 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "cumul_pss_agirc_arrco": round(plafonds, 2),
             "cumul_tranche_2_appliquee": tranche_2,
             "cumul_tranche_1_appliquee": round(brut - tranche_2, 2),
-            "brut_reference_n_1": _brut_du_mois(dernier),
-            "brut_reference_period_start": f"{ANNEE:04d}-06-01",
-            "brut_reference_period_end": f"{ANNEE + 1:04d}-05-31",
+            "brut_reference_n_1": base_cp,
+            "brut_reference_period_start": debut_cp.isoformat(),
+            "brut_reference_period_end": fin_cp.isoformat(),
         },
         "periode": {"annee_en_cours": ANNEE, "dernier_mois_calcule": bascule},
         "reprise": {

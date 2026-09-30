@@ -36,6 +36,9 @@ from app.core.database import get_supabase_admin_client  # noqa: E402
 from app.modules.absences.application.leave_settings_commands import (  # noqa: E402
     apply_cp_solde_import,
 )
+from app.modules.payroll.engine.reference_remuneration import (  # noqa: E402
+    get_cp_reference_period_bounds,
+)
 from scripts.backtest.colorplast_lignes_quadra import lire_bulletins  # noqa: E402
 
 COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
@@ -99,6 +102,20 @@ def _salaire_brut(bulletin) -> float:
     return 0.0
 
 
+def base_du_dixieme(lus: dict[int, dict], annee: int, bascule: int, cle: str, brut_du_mois,
+                    *, start_month: int = 6) -> tuple[float, date, date]:
+    """La rémunération de la période de congés en cours au dernier jour de la bascule :
+    la somme des bruts repris depuis son début, pour ce matricule (donc ce contrat).
+    Le moteur la prolonge ensuite mois après mois (`mettre_a_jour_brut_reference_cumul`) ;
+    le seul brut du dernier mois n'était juste qu'avec une bascule au 30 juin."""
+    debut, fin = get_cp_reference_period_bounds(
+        date(annee, bascule, monthrange(annee, bascule)[1]), start_month=start_month)
+    if debut.year < annee:
+        raise SystemExit(f"Période de congés {debut} → {fin} : il faut aussi les bulletins de {debut.year}.")
+    mois = [m for m in sorted(lus) if m <= bascule and cle in lus[m] and date(annee, m, 1) >= debut]
+    return round(sum(brut_du_mois(lus[m][cle]) for m in mois), 2), debut, fin
+
+
 def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
     """Un solde d'ouverture par salarié présent au mois de bascule."""
     soldes: dict[str, dict[str, Any]] = {}
@@ -118,6 +135,7 @@ def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
         brut = float(dernier.droite.get("cumul_bruts") or 0.0)
         net_hs_exo = float(dernier.net.get("net_hs_exo_cumul") or 0.0)
         tranche_2 = round(max(0.0, brut - plafonds), 2)
+        base_cp, debut_cp, fin_cp = base_du_dixieme(lus, ANNEE, mois_bascule, nom, _salaire_brut)
         soldes[nom] = {
             "mois_presents": mois_presents,
             "controle_somme_des_bruts": round(bruts_mensuels, 2),
@@ -136,9 +154,9 @@ def construire_le_solde(lus: dict[int, dict]) -> dict[str, dict[str, Any]]:
                 "cumul_pss_agirc_arrco": round(plafonds, 2),
                 "cumul_tranche_2_appliquee": tranche_2,
                 "cumul_tranche_1_appliquee": round(brut - tranche_2, 2),
-                "brut_reference_n_1": _salaire_brut(dernier),
-                "brut_reference_period_start": f"{ANNEE:04d}-06-01",
-                "brut_reference_period_end": f"{ANNEE + 1:04d}-05-31",
+                "brut_reference_n_1": base_cp,
+                "brut_reference_period_start": debut_cp.isoformat(),
+                "brut_reference_period_end": fin_cp.isoformat(),
             },
             "conges": dict(zip(("cp_n1", "cp_n"), (float(v) for v in dernier.cp.get("Solde", (0.0, 0.0))))),
             "periode": {"annee_en_cours": ANNEE, "dernier_mois_calcule": mois_bascule},
