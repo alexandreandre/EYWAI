@@ -69,3 +69,15 @@ def test_eywai_ne_suit_aucune_lecture_reste_erreur_eywai():
     silencieusement « erreur_eywai » dans ce cas."""
     l = _lv(2283.0, 2000.0, 1700.0, 2283.0)
     assert preclasser(l, P) == "erreur_eywai"
+
+
+def test_quadra_ne_suit_aucune_lecture_reste_classement_ordinaire():
+    """Miroir de la garde ci-dessus : Quadra est hors tolérance quelle que soit la
+    lecture retenue (ni la principale, ni la variante). Trancher le point légal ne
+    le rapprocherait pas de la loi : la ligne ne doit jamais devenir
+    « point_non_tranche » dans ce cas, même si EYWAI suit l'une des deux lectures —
+    elle retombe sur le classement ordinaire contre smic_loi, identique à ce que
+    donnerait l'absence de variante."""
+    l = _lv(2150.0, 2000.0, 2000.0, 2283.0)
+    assert preclasser(l, P) == "a_juger_quadra"
+    assert preclasser(_l(2150.0, 2000.0, 2000.0), P) == "a_juger_quadra"
