@@ -39,31 +39,26 @@ def reduction_du_mois(brut_prec: float, smic_prec: float, deja_appliquee: float,
 
 
 def smic_pour_reduction(brut_cumule: float, reduction_voulue: float, prm: Parametres) -> float:
-    """Le SMIC cumulé qui redonne `reduction_voulue` (positive) sur ce brut : dichotomie.
+    """Le SMIC cumulé (arrondi au centime) dont la réduction est la plus proche de
+    `reduction_voulue`, sur ce brut cumulé.
 
-    Le coefficient plafonne à `Tmax` dès que le SMIC cumulé atteint le brut cumulé
-    (au-delà, rien ne change) : la borne haute de la recherche est donc `brut_cumule`,
-    et le maximum atteignable est `reduction_cumulee(brut_cumule, brut_cumule, prm)`.
-    La dichotomie compare des réductions arrondies au centime (comme le fait
-    `reduction_cumulee`), pas des produits bruts non arrondis : comparer du non
-    arrondi à une cible arrondie peut ne jamais satisfaire l'égalité même à la borne
-    haute, et faisait dériver la recherche en silence vers une valeur arbitraire.
+    Le coefficient légal est arrondi à 4 décimales (D241-7, II) : la réduction
+    n'évolue donc que par paliers en fonction du SMIC cumulé, de l'ordre de
+    `brut_cumule × 0,0001` par palier (environ 2 € pour 20 000 € de brut cumulé). Une
+    cible réelle — une réduction déclarée par Quadra sur un cumul qui n'est pas
+    exactement celui que donnerait notre formule — tombe donc presque toujours entre
+    deux paliers : ce n'est pas une erreur, c'est le constat que mesure
+    `ecart_au_palier` (tâches 6 et 10). Cette fonction ne cherche donc pas une égalité
+    exacte : elle retrouve par dichotomie le palier qui encadre la cible (le
+    coefficient plafonne dès que le SMIC cumulé atteint le brut cumulé, d'où la borne
+    haute de la recherche), puis renvoie, parmi la borne basse et la borne haute de ce
+    palier et leurs centimes voisins, celui dont la réduction est la plus proche de la
+    cible.
 
-    Le coefficient légal étant arrondi à 4 décimales (D241-7, II), la réduction
-    n'évolue que par paliers en fonction du SMIC cumulé — de l'ordre de quelques
-    dizaines de centimes pour un brut cumulé de quelques milliers d'euros, pas d'un
-    centime. Arrondir naïvement le milieu de la dichotomie au centime peut donc
-    retomber du mauvais côté d'un palier et perdre une solution pourtant trouvée :
-    on essaie les deux centimes voisins de la borne haute retrouvée, en plus de son
-    arrondi naturel, et on garde celui qui redonne le mieux la cible.
-
-    Lève `ValueError` si `reduction_voulue` est nulle, négative, dépasse de plus de
-    0,005 € le maximum atteignable, ou si — malgré tout — aucun des candidats ne
-    redonne la cible à 0,01 € près : c'est justement le cas que le chantier doit
-    détecter, celui d'une réduction déclarée au-delà de ce que la loi permet. Aucune
-    valeur ne doit sortir en silence si elle ne redonne pas la réduction demandée.
-    L'appelant (tâche 6, `implicite.py`) intercepte cette erreur et marque le mois
-    « non calculable ».
+    Lève `ValueError` si `reduction_voulue` est nulle, négative, ou dépasse de plus de
+    0,005 € le maximum atteignable (`reduction_cumulee(brut_cumule, brut_cumule, prm)`) :
+    ce sont les deux seuls cas hors de portée. L'appelant (tâche 6, `implicite.py`)
+    intercepte cette erreur et marque le mois « non calculable ».
     """
     maximum = reduction_cumulee(brut_cumule, brut_cumule, prm)
     if reduction_voulue <= 0 or reduction_voulue > maximum + 0.005:
@@ -78,14 +73,24 @@ def smic_pour_reduction(brut_cumule: float, reduction_voulue: float, prm: Parame
             lo = mid
         else:
             hi = mid
-    candidats = {round(hi, 2), floor(hi * 100) / 100, ceil(hi * 100) / 100}
-    resultat = min(
+    candidats = {
+        floor(lo * 100) / 100, ceil(lo * 100) / 100,
+        floor(hi * 100) / 100, ceil(hi * 100) / 100,
+    }
+    return min(
         candidats,
         key=lambda c: abs(reduction_cumulee(brut_cumule, c, prm) - reduction_voulue),
     )
-    if abs(reduction_cumulee(brut_cumule, resultat, prm) - reduction_voulue) > 0.01:
-        raise ValueError(
-            f"le SMIC cumulé retrouvé ({resultat:.2f} €) ne redonne pas la réduction "
-            f"voulue ({reduction_voulue:.2f} €) à 0,01 € près"
-        )
-    return resultat
+
+
+def ecart_au_palier(brut_cumule: float, smic_cumule: float, reduction_voulue: float,
+                     prm: Parametres) -> float:
+    """Écart, en euros, entre la réduction obtenue pour `smic_cumule` et `reduction_voulue`.
+
+    Positif si `reduction_cumulee(...)` dépasse la cible, négatif sinon. Ce n'est pas
+    une erreur : le coefficient légal étant arrondi à 4 décimales (D241-7, II), la
+    réduction n'évolue que par paliers, et une cible réelle tombe presque toujours
+    entre deux paliers. Cet écart est lui-même le constat que publient les tâches 6
+    et 10.
+    """
+    return round(reduction_cumulee(brut_cumule, smic_cumule, prm) - reduction_voulue, 2)

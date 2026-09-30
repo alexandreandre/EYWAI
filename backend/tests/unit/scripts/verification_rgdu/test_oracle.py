@@ -2,7 +2,8 @@
 import pytest
 
 from scripts.verification_rgdu.oracle import (
-    Parametres, coefficient, reduction_cumulee, reduction_du_mois, smic_pour_reduction,
+    Parametres, coefficient, ecart_au_palier, reduction_cumulee, reduction_du_mois,
+    smic_pour_reduction,
 )
 
 pytestmark = pytest.mark.unit
@@ -66,20 +67,27 @@ def test_une_cible_qui_expose_l_arrondi_du_maximum_est_quand_meme_retrouvee():
     assert abs(reduction_cumulee(brut, smic, P) - cible) <= 0.01
 
 
-def test_deux_cents_bruts_realistes_retrouvent_leur_cible_sans_deriver():
+def test_une_cible_hors_palier_ne_leve_pas_et_l_ecart_reste_borne():
+    """Une vraie cible Quadra (cumul et réduction réels) ne tombe presque jamais
+    pile sur un palier de la formule : ce n'est pas une erreur, `smic_pour_reduction`
+    renvoie le palier le plus proche et `ecart_au_palier` mesure l'écart, borné par
+    un demi-palier (brut × 0,0001 / 2) plus un centime d'arrondi."""
+    brut, cible = 23688.83, 4408.07
+    smic = smic_pour_reduction(brut, cible, P)
+    tolerance = brut * 0.0001 / 2 + 0.01
+    assert abs(ecart_au_palier(brut, smic, cible, P)) <= tolerance
+
+
+def test_deux_cents_bruts_realistes_retrouvent_leur_palier_sans_deriver():
     """Le coefficient légal est arrondi à 4 décimales (D241-7, II) : la réduction
-    n'évolue donc que par paliers d'une dizaine à quelques dizaines de centimes,
-    jamais au centime près, sur un brut cumulé de plusieurs milliers d'euros. Une
-    cible prise à une fraction arbitraire du maximum en euros (ex. 60 % de 398,10 =
-    238,86) peut tomber entre deux paliers et n'être atteignable par aucun SMIC — ce
-    n'est pas une dérive de la dichotomie, c'est la formule elle-même. La cible à 60 %
-    est donc construite avec la formule (comme le serait une vraie réduction déclarée
-    par Quadra), pas comme une fraction arbitraire du montant maximal."""
+    n'évolue donc que par paliers de l'ordre de `brut_cumule × 0,0001`, jamais au
+    centime près. Une cible à 60 % du maximum (arrondie au centime) tombe presque
+    toujours entre deux paliers : `smic_pour_reduction` ne doit pas lever d'erreur,
+    et l'écart au palier retenu doit rester borné par un demi-palier plus un centime."""
     for i in range(200):
         brut = round(1000.0 + 37.13 * i, 2)
         maximum = reduction_cumulee(brut, brut, P)
-        cible_60 = reduction_cumulee(brut, round(0.6 * brut, 2), P)
-        for cible in (maximum, cible_60):
+        tolerance = brut * 0.0001 / 2 + 0.01
+        for cible in (maximum, round(maximum * 0.6, 2)):
             smic = smic_pour_reduction(brut, cible, P)
-            assert smic <= brut, (brut, cible, smic)
-            assert abs(reduction_cumulee(brut, smic, P) - cible) <= 0.01, (brut, cible, smic)
+            assert abs(ecart_au_palier(brut, smic, cible, P)) <= tolerance, (brut, cible, smic)
