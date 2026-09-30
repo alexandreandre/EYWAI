@@ -5,6 +5,7 @@ Indépendante du moteur : ne rien importer de app/.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil, floor
 
 
 @dataclass(frozen=True)
@@ -40,25 +41,51 @@ def reduction_du_mois(brut_prec: float, smic_prec: float, deja_appliquee: float,
 def smic_pour_reduction(brut_cumule: float, reduction_voulue: float, prm: Parametres) -> float:
     """Le SMIC cumulé qui redonne `reduction_voulue` (positive) sur ce brut : dichotomie.
 
-    Lève `ValueError` si `reduction_voulue` est nulle, négative, ou dépasse le
-    maximum atteignable (`brut_cumule * prm.tmax`) : c'est justement le cas que le
-    chantier doit détecter, celui d'une réduction déclarée au-delà de ce que la loi
-    permet. Sans cette garde, la dichotomie convergerait en silence vers une borne
-    haute arbitraire (environ deux fois le brut cumulé) au lieu de signaler
-    l'anomalie. L'appelant (tâche 6, `implicite.py`) intercepte cette erreur et
-    marque le mois « non calculable ».
+    Le coefficient plafonne à `Tmax` dès que le SMIC cumulé atteint le brut cumulé
+    (au-delà, rien ne change) : la borne haute de la recherche est donc `brut_cumule`,
+    et le maximum atteignable est `reduction_cumulee(brut_cumule, brut_cumule, prm)`.
+    La dichotomie compare des réductions arrondies au centime (comme le fait
+    `reduction_cumulee`), pas des produits bruts non arrondis : comparer du non
+    arrondi à une cible arrondie peut ne jamais satisfaire l'égalité même à la borne
+    haute, et faisait dériver la recherche en silence vers une valeur arbitraire.
+
+    Le coefficient légal étant arrondi à 4 décimales (D241-7, II), la réduction
+    n'évolue que par paliers en fonction du SMIC cumulé — de l'ordre de quelques
+    dizaines de centimes pour un brut cumulé de quelques milliers d'euros, pas d'un
+    centime. Arrondir naïvement le milieu de la dichotomie au centime peut donc
+    retomber du mauvais côté d'un palier et perdre une solution pourtant trouvée :
+    on essaie les deux centimes voisins de la borne haute retrouvée, en plus de son
+    arrondi naturel, et on garde celui qui redonne le mieux la cible.
+
+    Lève `ValueError` si `reduction_voulue` est nulle, négative, dépasse de plus de
+    0,005 € le maximum atteignable, ou si — malgré tout — aucun des candidats ne
+    redonne la cible à 0,01 € près : c'est justement le cas que le chantier doit
+    détecter, celui d'une réduction déclarée au-delà de ce que la loi permet. Aucune
+    valeur ne doit sortir en silence si elle ne redonne pas la réduction demandée.
+    L'appelant (tâche 6, `implicite.py`) intercepte cette erreur et marque le mois
+    « non calculable ».
     """
-    maximum = round(brut_cumule * prm.tmax, 2)
+    maximum = reduction_cumulee(brut_cumule, brut_cumule, prm)
     if reduction_voulue <= 0 or reduction_voulue > maximum + 0.005:
         raise ValueError(
             f"réduction voulue {reduction_voulue:.2f} € hors de portée : "
             f"maximum atteignable {maximum:.2f} € pour un brut cumulé de {brut_cumule:.2f} €"
         )
-    lo, hi = 0.0, brut_cumule * 2
+    lo, hi = 0.0, brut_cumule
     for _ in range(100):
         mid = (lo + hi) / 2
-        if brut_cumule * coefficient(brut_cumule, mid, prm) < reduction_voulue:
+        if reduction_cumulee(brut_cumule, mid, prm) < reduction_voulue:
             lo = mid
         else:
             hi = mid
-    return round((lo + hi) / 2, 2)
+    candidats = {round(hi, 2), floor(hi * 100) / 100, ceil(hi * 100) / 100}
+    resultat = min(
+        candidats,
+        key=lambda c: abs(reduction_cumulee(brut_cumule, c, prm) - reduction_voulue),
+    )
+    if abs(reduction_cumulee(brut_cumule, resultat, prm) - reduction_voulue) > 0.01:
+        raise ValueError(
+            f"le SMIC cumulé retrouvé ({resultat:.2f} €) ne redonne pas la réduction "
+            f"voulue ({reduction_voulue:.2f} €) à 0,01 € près"
+        )
+    return resultat

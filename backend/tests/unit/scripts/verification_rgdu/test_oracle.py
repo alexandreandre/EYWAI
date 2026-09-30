@@ -53,3 +53,33 @@ def test_une_cible_nulle_ou_negative_leve_une_erreur():
         smic_pour_reduction(1000.0, 0.0, P)
     with pytest.raises(ValueError):
         smic_pour_reduction(1000.0, -10.0, P)
+
+
+def test_une_cible_qui_expose_l_arrondi_du_maximum_est_quand_meme_retrouvee():
+    """Sur ce brut, le maximum non arrondi (1203,61554) et son arrondi au centime
+    (1203,62, la cible demandée ici) diffèrent : une comparaison non arrondie dans
+    la dichotomie ne rencontre jamais 1203,62 et dérive vers 2 × brut en silence."""
+    brut = 3023.40
+    cible = 1203.62
+    smic = smic_pour_reduction(brut, cible, P)
+    assert smic <= brut
+    assert abs(reduction_cumulee(brut, smic, P) - cible) <= 0.01
+
+
+def test_deux_cents_bruts_realistes_retrouvent_leur_cible_sans_deriver():
+    """Le coefficient légal est arrondi à 4 décimales (D241-7, II) : la réduction
+    n'évolue donc que par paliers d'une dizaine à quelques dizaines de centimes,
+    jamais au centime près, sur un brut cumulé de plusieurs milliers d'euros. Une
+    cible prise à une fraction arbitraire du maximum en euros (ex. 60 % de 398,10 =
+    238,86) peut tomber entre deux paliers et n'être atteignable par aucun SMIC — ce
+    n'est pas une dérive de la dichotomie, c'est la formule elle-même. La cible à 60 %
+    est donc construite avec la formule (comme le serait une vraie réduction déclarée
+    par Quadra), pas comme une fraction arbitraire du montant maximal."""
+    for i in range(200):
+        brut = round(1000.0 + 37.13 * i, 2)
+        maximum = reduction_cumulee(brut, brut, P)
+        cible_60 = reduction_cumulee(brut, round(0.6 * brut, 2), P)
+        for cible in (maximum, cible_60):
+            smic = smic_pour_reduction(brut, cible, P)
+            assert smic <= brut, (brut, cible, smic)
+            assert abs(reduction_cumulee(brut, smic, P) - cible) <= 0.01, (brut, cible, smic)
