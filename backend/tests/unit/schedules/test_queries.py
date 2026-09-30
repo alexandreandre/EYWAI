@@ -132,6 +132,62 @@ class TestGetActualHours:
         assert result["calendrier_reel"] == []
 
 
+class TestLectureDeLImportSansConflits:
+    """L'import des pointages lit le réel une fois par salarié et par mois : cette
+    lecture ne calcule pas les jours en conflit (ni prévu, ni arrêts lus)."""
+
+    # 5 septembre 2026 : samedi. Des heures un week-end obligeraient à lire les arrêts.
+    REEL_WEEKEND = [{"jour": 5, "type": "weekend", "heures_faites": 4.0}]
+
+    def test_get_actual_hours_ne_lit_ni_le_prevu_ni_les_arrets(self):
+        with (
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.arrets_valides_reader",
+            ) as lecteur,
+        ):
+            repo.get_actual_hours.return_value = {"calendrier_reel": self.REEL_WEEKEND}
+            resultat = queries.get_actual_hours("emp-1", 2026, 9)
+
+        assert resultat == {
+            "year": 2026,
+            "month": 9,
+            "calendrier_reel": self.REEL_WEEKEND,
+        }
+        repo.get_planned_calendar.assert_not_called()
+        lecteur.par_salarie.assert_not_called()
+
+    def test_la_persistance_des_pointages_ne_lit_pas_les_arrets(self):
+        from types import SimpleNamespace
+
+        from app.modules.schedules.application import persist_timesheet
+
+        lu = {}
+
+        def faux_batch(payload, *, get_planned, get_actual, update_planned, update_actual):
+            lu["reel"] = get_actual("emp-1", 2026, 9)
+            return "fait"
+
+        with (
+            patch.object(persist_timesheet, "persist_timesheet_batch", faux_batch),
+            patch.object(persist_timesheet, "validate_persist_payload"),
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.arrets_valides_reader",
+            ) as lecteur,
+        ):
+            repo.get_actual_hours.return_value = {"calendrier_reel": self.REEL_WEEKEND}
+            persist_timesheet.run_persist_timesheet_batch(SimpleNamespace(batch_id=None))
+
+        assert lu["reel"] == self.REEL_WEEKEND
+        repo.get_planned_calendar.assert_not_called()
+        lecteur.par_salarie.assert_not_called()
+
+
 # --- get_my_current_cumuls ---
 
 
@@ -202,12 +258,12 @@ class TestGetMyCurrentCumuls:
         assert result.cumuls is None
 
 
-# --- get_actual_hours : jours_en_conflit (heures saisies un jour d'arrêt) ---
+# --- get_actual_hours_du_calendrier : jours_en_conflit (heures saisies un jour d'arrêt) ---
 
 
 class TestGetActualHoursJoursEnConflit:
-    """La lecture des heures réelles dit quels jours portent des heures alors que
-    le prévu est un arrêt ou une absence : la règle vit dans `conflits_arret`."""
+    """La lecture des heures réelles du calendrier dit quels jours portent des heures
+    alors que le prévu est un arrêt ou une absence : la règle vit dans `conflits_arret`."""
 
     @staticmethod
     def _lire(prevu, reel, arrets=None, arrets_en_panne=False):
@@ -225,7 +281,7 @@ class TestGetActualHoursJoursEnConflit:
                 lecteur.par_salarie.side_effect = RuntimeError("réseau")
             else:
                 lecteur.par_salarie.return_value = {"emp-1": arrets or []}
-            return queries.get_actual_hours("emp-1", 2026, 9), lecteur
+            return queries.get_actual_hours_du_calendrier("emp-1", 2026, 9), lecteur
 
     def test_heures_un_jour_d_arret_sont_signalees(self):
         prevu = [
@@ -285,9 +341,12 @@ class TestGetActualHoursJoursEnConflit:
 
 
 class TestRouteActualHoursExposeLesConflits:
-    """Le champ traverse le modèle de réponse de la route : l'écran le reçoit."""
+    """La route du calendrier calcule le champ et le fait traverser son modèle de
+    réponse ; elle garde son contrôle d'accès."""
 
-    def test_get_actual_hours_rend_jours_en_conflit(self):
+    @staticmethod
+    def _appeler(prevu, reel, *, arrets_en_panne=False, acces_refuse=False):
+        from fastapi import HTTPException
         from fastapi.testclient import TestClient
 
         from app.core.security import get_current_user
@@ -311,21 +370,56 @@ class TestRouteActualHoursExposeLesConflits:
             with (
                 patch(
                     "app.modules.schedules.api.router.access_control_service.require_employee_access"
-                ),
+                ) as acces,
                 patch(
-                    "app.modules.schedules.api.router.queries.get_actual_hours",
-                    return_value={
-                        "year": 2026,
-                        "month": 9,
-                        "calendrier_reel": [{"jour": 7, "heures_faites": 9.0, "type": "travail"}],
-                        "jours_en_conflit": [7],
-                    },
-                ),
+                    "app.modules.schedules.application.queries.schedule_repository",
+                ) as repo,
+                patch(
+                    "app.modules.schedules.application.queries.arrets_valides_reader",
+                ) as lecteur,
             ):
+                if acces_refuse:
+                    acces.side_effect = HTTPException(status_code=403, detail="Accès refusé.")
+                repo.get_actual_hours.return_value = {"calendrier_reel": reel}
+                repo.get_planned_calendar.return_value = {"calendrier_prevu": prevu}
+                if arrets_en_panne:
+                    lecteur.par_salarie.side_effect = RuntimeError("réseau")
+                else:
+                    lecteur.par_salarie.return_value = {"emp-1": []}
                 reponse = TestClient(app).get(
                     "/api/employees/emp-1/actual-hours", params={"year": 2026, "month": 9}
                 )
         finally:
             app.dependency_overrides.pop(get_current_user, None)
+        return reponse, acces, repo
+
+    def test_get_actual_hours_rend_jours_en_conflit(self):
+        reponse, acces, _ = self._appeler(
+            [{"jour": 7, "type": "arret_maladie", "heures_prevues": 0}],
+            [{"jour": 7, "type": "travail", "heures_faites": 9.0}],
+        )
         assert reponse.status_code == 200
         assert reponse.json()["jours_en_conflit"] == [7]
+        acces.assert_called_once()
+        assert acces.call_args.args[1:] == ("co-1", "schedules.view_all", "emp-1")
+
+    def test_arrets_illisibles_la_route_repond_avec_la_regle_du_type(self):
+        reponse, _, _ = self._appeler(
+            [
+                {"jour": 5, "type": "weekend", "heures_prevues": 0},
+                {"jour": 7, "type": "conges_payes", "heures_prevues": 0},
+            ],
+            [
+                {"jour": 5, "type": "weekend", "heures_faites": 4.0},
+                {"jour": 7, "type": "conges_payes", "heures_faites": 8.0},
+            ],
+            arrets_en_panne=True,
+        )
+        assert reponse.status_code == 200
+        assert reponse.json()["jours_en_conflit"] == [7]
+
+    def test_acces_refuse_rien_n_est_lu(self):
+        reponse, _, repo = self._appeler([], [], acces_refuse=True)
+        assert reponse.status_code == 403
+        repo.get_actual_hours.assert_not_called()
+        repo.get_planned_calendar.assert_not_called()

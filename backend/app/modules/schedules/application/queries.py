@@ -126,19 +126,28 @@ def get_actual_hours(employee_id: str, year: int, month: int) -> Dict[str, Any]:
         calendrier_reel = extract_calendrier_reel_from_actual_hours(actual_hours)
         if actual_hours is None:
             log_app_debug(logger, 'Calendrier réel absent en base — retour vide.')
-        return {
-            "year": year,
-            "month": month,
-            "calendrier_reel": calendrier_reel,
-            "jours_en_conflit": _jours_en_conflit_du_mois(
-                employee_id, year, month, calendrier_reel
-            ),
-        }
+        return {"year": year, "month": month, "calendrier_reel": calendrier_reel}
     except Exception as e:
         logger.exception("Exception")
         raise ScheduleAppError(
             "error", f"Erreur interne: {str(e)}", status_code=500
         ) from e
+
+
+def get_actual_hours_du_calendrier(
+    employee_id: str, year: int, month: int
+) -> Dict[str, Any]:
+    """Heures réelles lues par le calendrier (GET `/actual-hours`), avec
+    `jours_en_conflit`. Le prévu et les arrêts ne sont lus que pour cet écran :
+    l'import des pointages appelle `get_actual_hours` sans ce coût.
+    """
+    lecture = get_actual_hours(employee_id, year, month)
+    return {
+        **lecture,
+        "jours_en_conflit": _jours_en_conflit_du_mois(
+            employee_id, year, month, lecture["calendrier_reel"]
+        ),
+    }
 
 
 def get_my_current_cumuls(employee_id: str) -> CumulsResponse:

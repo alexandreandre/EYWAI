@@ -172,7 +172,7 @@ class TestGetActualHours:
     def test_get_actual_hours_returns_200_with_mock(self, client: TestClient):
         """Avec query mockée → 200, year, month, calendrier_reel."""
         with patch(
-            "app.modules.schedules.api.router.queries.get_actual_hours",
+            "app.modules.schedules.api.router.queries.get_actual_hours_du_calendrier",
             return_value={
                 "year": 2025,
                 "month": 3,

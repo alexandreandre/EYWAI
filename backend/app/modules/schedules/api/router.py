@@ -133,7 +133,7 @@ def get_actual_hours(
     """Récupère les heures réelles depuis la table employee_schedules."""
     try:
         _require_employee_schedule_access(current_user, employee_id, "schedules.view_all")
-        return queries.get_actual_hours(employee_id, year, month)
+        return queries.get_actual_hours_du_calendrier(employee_id, year, month)
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
