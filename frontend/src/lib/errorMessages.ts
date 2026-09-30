@@ -88,7 +88,7 @@ export function getApiErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function extractDetail(error: unknown): string | null {
+export function extractDetail(error: unknown): string | null {
   let data: unknown;
   if (axios.isAxiosError(error)) {
     data = error.response?.data;

@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import {
   fusionnerJoursEnConflitImport,
   libelleDesJours,
+  lienCalendrierDuSalarie,
   type ConflitsImportSalarie,
 } from '@/features/payroll/utils/heuresSurArret';
 import { downloadBlob } from '@/lib/downloadBlob';
@@ -856,7 +857,7 @@ export function AssistedFillReview({
                   <span className="font-medium">{employeeWarningLabel(c.employee_id)}</span>
                   <span className="tabular-nums">{libelleDesJours(c.jours)}</span>
                   <Link
-                    to={`/schedules?employee=${encodeURIComponent(c.employee_id)}`}
+                    to={lienCalendrierDuSalarie(c.employee_id)}
                     className="underline underline-offset-2"
                   >
                     Ouvrir le calendrier

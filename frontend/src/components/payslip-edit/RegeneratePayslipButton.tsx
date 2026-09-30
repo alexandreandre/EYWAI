@@ -32,8 +32,16 @@ import { generatePayslip } from '@/api/payslips';
 import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
 import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
-import { ChoixHeuresSurArret } from '@/features/payroll/components/ChoixHeuresSurArret';
-import type { RefusApresCorrection } from '@/features/payroll/utils/heuresSurArret';
+import {
+  ChoixHeuresSurArret,
+  HeuresSurArretSansJours,
+} from '@/features/payroll/components/ChoixHeuresSurArret';
+import {
+  etatDialogueHeuresSurArret,
+  type JourEnConflit,
+  type RefusApresCorrection,
+  type SuiteEffacement,
+} from '@/features/payroll/utils/heuresSurArret';
 import {
   estForcable,
   extractGenerationRefusal,
@@ -93,13 +101,21 @@ export default function RegeneratePayslipButton({
           jours: refusInitial.jours,
         }
       : null);
+  // Heures effacées mais régénération en échec : le dialogue le dit et propose de relancer.
+  const [suiteEffacement, setSuiteEffacement] = useState<SuiteEffacement | null>(null);
+  const etatHeures =
+    refus?.code === 'heures_sur_jour_d_arret'
+      ? etatDialogueHeuresSurArret(refus.jours, suiteEffacement)
+      : null;
   const fermerRefus = () => {
     setRefus(null);
+    setSuiteEffacement(null);
     onRefusInitialFerme?.();
   };
   const [enCours, setEnCours] = useState(false);
 
-  const lancer = async (forcage: ForcageGeneration = {}) => {
+  /** `effaces` : relance après un effacement ; un échec reste alors dans le dialogue. */
+  const lancer = async (forcage: ForcageGeneration = {}, effaces: JourEnConflit[] = []) => {
     setEnCours(true);
     try {
       const reponse = await generatePayslip({
@@ -126,7 +142,15 @@ export default function RegeneratePayslipButton({
       if (refusStructure) {
         // Le backend refuse et dit pourquoi : on demande confirmation avant de forcer.
         setConfirmationOuverte(false);
+        setSuiteEffacement(null);
         setRefus(refusStructure);
+        return;
+      }
+      if (effaces.length > 0) {
+        setSuiteEffacement({
+          effaces,
+          echecGeneration: getPayrollGenerationErrorMessage(error),
+        });
         return;
       }
       toast({
@@ -199,9 +223,17 @@ export default function RegeneratePayslipButton({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {refus ? REFUSAL_DIALOG_LABELS[refus.code].title : ''}
+              {etatHeures?.kind === 'generation_en_echec'
+                ? etatHeures.titre
+                : refus
+                  ? REFUSAL_DIALOG_LABELS[refus.code].title
+                  : ''}
             </AlertDialogTitle>
-            <AlertDialogDescription>{refus?.message}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {etatHeures?.kind === 'generation_en_echec'
+                ? etatHeures.confirmation
+                : refus?.message}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           {refus?.code === 'calendrier_incomplet' && refus.details && (
             <JoursASaisirListe
@@ -209,22 +241,42 @@ export default function RegeneratePayslipButton({
               lienPlanning={`/schedules?employee=${encodeURIComponent(employeeId)}`}
             />
           )}
-          {refus?.code === 'heures_sur_jour_d_arret' && refus.jours && (
+          {etatHeures?.kind === 'choix' && (
             <ChoixHeuresSurArret
               employeeId={employeeId}
               employeeName={employeeName}
-              jours={refus.jours}
-              onEffacees={async () => {
+              jours={etatHeures.jours}
+              onEffacees={async (effaces) => {
                 // Les heures sont effacées : on relance la génération de CE bulletin.
-                await lancer();
+                await lancer({}, effaces);
               }}
               onModifier={fermerRefus}
             />
+          )}
+          {etatHeures?.kind === 'sans_jours' && (
+            <HeuresSurArretSansJours employeeId={employeeId} onOuvrir={fermerRefus} />
+          )}
+          {etatHeures?.kind === 'generation_en_echec' && (
+            <p role="alert" className="text-sm text-destructive" data-testid="echec-regeneration">
+              {etatHeures.echec}
+            </p>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={enCours}>
               {refus?.code === 'heures_sur_jour_d_arret' ? 'Fermer' : 'Annuler'}
             </AlertDialogCancel>
+            {etatHeures?.kind === 'generation_en_echec' && suiteEffacement && (
+              <AlertDialogAction
+                disabled={enCours}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void lancer({}, suiteEffacement.effaces);
+                }}
+              >
+                {enCours ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {etatHeures.actionRelancer}
+              </AlertDialogAction>
+            )}
             {refus && refus.code !== 'heures_sur_jour_d_arret' && (
               <AlertDialogAction
                 disabled={enCours}

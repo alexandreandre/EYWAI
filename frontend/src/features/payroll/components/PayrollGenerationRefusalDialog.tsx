@@ -10,7 +10,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
-import { ChoixHeuresSurArret } from '@/features/payroll/components/ChoixHeuresSurArret';
+import {
+  ChoixHeuresSurArret,
+  HeuresSurArretSansJours,
+} from '@/features/payroll/components/ChoixHeuresSurArret';
 import type {
   PayrollGenerationJob,
   PayrollGenerationRefusal,
@@ -19,6 +22,7 @@ import {
   REFUSAL_DIALOG_LABELS,
   estForcable,
 } from '@/features/payroll/utils/generationGuards';
+import { aDesJoursAEffacer } from '@/features/payroll/utils/heuresSurArret';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollGenerationRefusalDialogProps = {
@@ -124,17 +128,20 @@ export function PayrollGenerationRefusalDialog({
           <JoursASaisirListe details={single.details} />
         )}
 
-        {single?.code === 'heures_sur_jour_d_arret' && single.jours && (
-          <ChoixHeuresSurArret
-            employeeId={single.job.employeeId}
-            employeeName={single.job.employeeName}
-            jours={single.jours}
-            onEffacees={() => {
-              onRetry(single.job);
-            }}
-            onModifier={onDismiss}
-          />
-        )}
+        {single?.code === 'heures_sur_jour_d_arret' &&
+          (aDesJoursAEffacer(single.jours) ? (
+            <ChoixHeuresSurArret
+              employeeId={single.job.employeeId}
+              employeeName={single.job.employeeName}
+              jours={single.jours}
+              onEffacees={() => {
+                onRetry(single.job);
+              }}
+              onModifier={onDismiss}
+            />
+          ) : (
+            <HeuresSurArretSansJours employeeId={single.job.employeeId} onOuvrir={onDismiss} />
+          ))}
 
         {!single && (
           <div className="max-h-[220px] space-y-1 overflow-y-auto rounded-md border border-border/60 bg-muted/20 p-3 text-sm">
@@ -159,7 +166,7 @@ export function PayrollGenerationRefusalDialog({
 
         {!single &&
           refusals
-            .filter((r) => r.code === 'heures_sur_jour_d_arret' && r.jours)
+            .filter((r) => r.code === 'heures_sur_jour_d_arret')
             .map((refusal) => (
               <div
                 key={`choix-${refusal.job.employeeId}-${refusal.job.year}-${refusal.job.month}`}
@@ -170,15 +177,22 @@ export function PayrollGenerationRefusalDialog({
                   {monthYearLabel(refusal.job.month, refusal.job.year)}
                 </p>
                 <p className="text-sm text-muted-foreground">{refusal.message}</p>
-                <ChoixHeuresSurArret
-                  employeeId={refusal.job.employeeId}
-                  employeeName={refusal.job.employeeName}
-                  jours={refusal.jours ?? []}
-                  onEffacees={() => {
-                    onRetry(refusal.job);
-                  }}
-                  onModifier={onDismiss}
-                />
+                {aDesJoursAEffacer(refusal.jours) ? (
+                  <ChoixHeuresSurArret
+                    employeeId={refusal.job.employeeId}
+                    employeeName={refusal.job.employeeName}
+                    jours={refusal.jours}
+                    onEffacees={() => {
+                      onRetry(refusal.job);
+                    }}
+                    onModifier={onDismiss}
+                  />
+                ) : (
+                  <HeuresSurArretSansJours
+                    employeeId={refusal.job.employeeId}
+                    onOuvrir={onDismiss}
+                  />
+                )}
               </div>
             ))}
 

@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { effacerHeuresDesJours } from '@/api/calendar';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
-import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
-import { queryKeys } from '@/lib/queryKeys';
 import {
+  TEXTE_HEURES_SANS_JOURS,
+  clesAInvaliderApresEffacement,
   effacerLesJours,
   libelleDesJours,
+  lienCalendrierDuSalarie,
   lienModifierAbsence,
   messageEchecEffacement,
   messageHeuresEffacees,
@@ -27,10 +28,10 @@ type Props = {
   employeeName?: string | null;
   jours: JourEnConflit[];
   /**
-   * Appelé une fois les heures effacées : relance la génération du même bulletin.
-   * Jamais appelé si l'effacement échoue.
+   * Appelé une fois les heures effacées, avec les jours effacés : relance la
+   * génération du même bulletin. Jamais appelé si l'effacement échoue.
    */
-  onEffacees: () => Promise<void> | void;
+  onEffacees: (effaces: JourEnConflit[]) => Promise<void> | void;
   /** Appelé quand on quitte pour l'écran des absences. */
   onModifier?: () => void;
 };
@@ -54,7 +55,8 @@ export function ChoixHeuresSurArret({
   const [enCours, setEnCours] = useState(false);
   const [echec, setEchec] = useState<string | null>(null);
 
-  const textes = textesDuChoix(natureDuConflit(jours), prenomDe(employeeName));
+  const nature = natureDuConflit(jours);
+  const textes = textesDuChoix(nature, prenomDe(employeeName));
 
   const effacer = async () => {
     setEnCours(true);
@@ -64,22 +66,18 @@ export function ChoixHeuresSurArret({
     );
     // Le calendrier du salarié a pu changer, même si l'effacement n'est que partiel.
     if (resultat.effaces.length > 0) {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.schedules(companyId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.planning(companyId) });
+      for (const queryKey of clesAInvaliderApresEffacement(companyId, employeeId)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     }
     if ('erreur' in resultat) {
-      setEchec(
-        messageEchecEffacement(
-          resultat.effaces,
-          getPayrollGenerationErrorMessage(resultat.erreur)
-        )
-      );
+      setEchec(messageEchecEffacement(resultat.effaces, resultat.erreur));
       setEnCours(false);
       return;
     }
     toast({ title: messageHeuresEffacees(resultat.effaces) });
     try {
-      await onEffacees();
+      await onEffacees(resultat.effaces);
     } finally {
       setEnCours(false);
     }
@@ -113,7 +111,7 @@ export function ChoixHeuresSurArret({
           data-testid="modifier-arret"
           onClick={() => {
             onModifier?.();
-            navigate(lienModifierAbsence(employeeId));
+            navigate(lienModifierAbsence(employeeId, nature));
           }}
         >
           {textes.modifier}
@@ -125,5 +123,28 @@ export function ChoixHeuresSurArret({
         </p>
       )}
     </div>
+  );
+}
+
+/** Refus d'heures sur un arrêt sans jour lisible : pas d'« effacer », le calendrier. */
+export function HeuresSurArretSansJours({
+  employeeId,
+  onOuvrir,
+}: {
+  employeeId: string;
+  /** Appelé quand on quitte pour le calendrier (fermer le dialogue). */
+  onOuvrir?: () => void;
+}) {
+  return (
+    <p className="text-sm" data-testid="heures-sur-arret-sans-jours">
+      {TEXTE_HEURES_SANS_JOURS}{' '}
+      <Link
+        to={lienCalendrierDuSalarie(employeeId)}
+        onClick={onOuvrir}
+        className="font-medium text-primary underline underline-offset-2"
+      >
+        Ouvrir le calendrier du salarié
+      </Link>
+    </p>
   );
 }

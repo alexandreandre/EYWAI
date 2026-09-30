@@ -42,12 +42,15 @@ export function useAbsencesQueries(enabled = true) {
   const isFetching =
     pending.isFetching || validated.isFetching || rejected.isFetching;
 
+  const isError = pending.isError || validated.isError || rejected.isError;
+
   return {
     pending: pending.data ?? [],
     validated: validated.data ?? [],
     rejected: rejected.data ?? [],
     isLoading,
     isFetching,
+    isError,
     refetch: async () => {
       await Promise.all([pending.refetch(), validated.refetch(), rejected.refetch()]);
     },

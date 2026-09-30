@@ -1,19 +1,29 @@
 import { describe, expect, it } from 'vitest';
+import { AxiosError } from 'axios';
+import { QueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   TITRE_INFO_BULLE_CONFLIT,
+  aDesJoursAEffacer,
+  bandeauAbsencesDuSalarie,
   choixApresCorrection,
+  clesAInvaliderApresEffacement,
   effacerLesJours,
+  etatDialogueHeuresSurArret,
   messageEchecEffacement,
   fusionnerJoursEnConflitImport,
   groupesParMois,
+  lienCalendrierDuSalarie,
   lienModifierAbsence,
   lireJoursEnConflit,
+  lireNatureDuLien,
   lireRefusApresCorrection,
   libelleDesJours,
   messageHeuresEffacees,
   natureDuConflit,
   prenomDe,
   prenomDuBulletin,
+  raisonEchecEffacement,
   estJourEnConflit,
   textesDuChoix,
 } from './heuresSurArret';
@@ -145,8 +155,242 @@ describe('textesDuChoix', () => {
 });
 
 describe('lienModifierAbsence', () => {
-  it('ouvre l’écran des absences filtré sur le salarié', () => {
-    expect(lienModifierAbsence('emp 1/é')).toBe('/leaves?employee=emp%201%2F%C3%A9');
+  it('ouvre l’écran des absences filtré sur le salarié, avec la nature du conflit', () => {
+    expect(lienModifierAbsence('emp 1/é', 'arret')).toBe(
+      '/leaves?employee=emp%201%2F%C3%A9&nature=arret'
+    );
+    expect(lienModifierAbsence('e1', 'absence')).toBe('/leaves?employee=e1&nature=absence');
+  });
+});
+
+describe('lireNatureDuLien', () => {
+  it('lit la nature posée par le lien', () => {
+    expect(lireNatureDuLien('arret')).toBe('arret');
+    expect(lireNatureDuLien('absence')).toBe('absence');
+    expect(lireNatureDuLien('mixte')).toBe('mixte');
+  });
+  it('rien pour une valeur absente ou inconnue', () => {
+    expect(lireNatureDuLien(null)).toBeNull();
+    expect(lireNatureDuLien('conges')).toBeNull();
+  });
+});
+
+describe('lienCalendrierDuSalarie', () => {
+  it('ouvre l’onglet Calendrier de la fiche du salarié', () => {
+    expect(lienCalendrierDuSalarie('emp 1/é')).toBe('/employees/emp%201%2F%C3%A9?tab=calendrier');
+  });
+});
+
+describe('bandeauAbsencesDuSalarie', () => {
+  const base = { employeeId: 'e1', chargement: false, erreur: false };
+
+  it('aucune demande : le dit franchement et renvoie au calendrier', () => {
+    const b = bandeauAbsencesDuSalarie({ ...base, nature: 'arret', nombreDeDemandes: 0 });
+    expect(b.texte).toBe(
+      'Aucune demande d’absence enregistrée pour ce salarié : l’arrêt a été saisi au planning. Corrigez-le dans le calendrier du salarié.'
+    );
+    expect(b.lien).toEqual({
+      href: '/employees/e1?tab=calendrier',
+      libelle: 'Ouvrir le calendrier du salarié',
+    });
+  });
+
+  it('aucune demande, absence : accord au féminin', () => {
+    expect(
+      bandeauAbsencesDuSalarie({ ...base, nature: 'absence', nombreDeDemandes: 0 }).texte
+    ).toBe(
+      'Aucune demande d’absence enregistrée pour ce salarié : l’absence a été saisie au planning. Corrigez-la dans le calendrier du salarié.'
+    );
+  });
+
+  it('des demandes : ne promet pas que l’arrêt y est', () => {
+    const b = bandeauAbsencesDuSalarie({ ...base, nature: 'arret', nombreDeDemandes: 2 });
+    expect(b.texte).toBe(
+      'Demandes d’absence de ce salarié. Si l’arrêt à corriger n’apparaît pas ici, il a été saisi au planning : corrigez-le dans le calendrier du salarié.'
+    );
+    expect(b.texte).not.toMatch(/retrouvez/);
+    expect(b.lien.href).toBe('/employees/e1?tab=calendrier');
+  });
+
+  it('des demandes, absence : elle a été saisie', () => {
+    expect(
+      bandeauAbsencesDuSalarie({ ...base, nature: 'absence', nombreDeDemandes: 1 }).texte
+    ).toBe(
+      'Demandes d’absence de ce salarié. Si l’absence à corriger n’apparaît pas ici, elle a été saisie au planning : corrigez-la dans le calendrier du salarié.'
+    );
+  });
+
+  it('nature inconnue ou mixte : « l’arrêt ou l’absence »', () => {
+    for (const nature of [null, 'mixte'] as const) {
+      expect(bandeauAbsencesDuSalarie({ ...base, nature, nombreDeDemandes: 0 }).texte).toBe(
+        'Aucune demande d’absence enregistrée pour ce salarié : l’arrêt ou l’absence a été saisi au planning. Corrigez-le dans le calendrier du salarié.'
+      );
+    }
+  });
+
+  it('pendant le chargement : n’affirme pas qu’il n’y a rien', () => {
+    const b = bandeauAbsencesDuSalarie({
+      ...base,
+      chargement: true,
+      nature: 'arret',
+      nombreDeDemandes: 0,
+    });
+    expect(b.texte).not.toMatch(/Aucune demande/);
+    expect(b.texte).toBe('Recherche des demandes d’absence de ce salarié…');
+  });
+
+  it('demandes illisibles : n’affirme pas qu’il n’y a rien, dit quoi faire', () => {
+    const b = bandeauAbsencesDuSalarie({
+      ...base,
+      erreur: true,
+      nature: 'arret',
+      nombreDeDemandes: 0,
+    });
+    expect(b.texte).toBe(
+      'Les demandes d’absence de ce salarié n’ont pas pu être chargées : rechargez la page. Si l’arrêt a été saisi au planning, corrigez-le dans le calendrier du salarié.'
+    );
+  });
+});
+
+describe('clesAInvaliderApresEffacement', () => {
+  it('invalide les vraies requêtes : heures de la semaine et préflight de la paie', async () => {
+    const client = new QueryClient();
+    const semaine = ['employee-week-payroll', 'e1', '2026-09-07', false, ''];
+    const autreSalarie = ['employee-week-payroll', 'e2', '2026-09-07', false, ''];
+    const preflight = queryKeys.payrollPreflight('co-1', 2026, 9);
+    const autreSociete = queryKeys.payrollPreflight('co-2', 2026, 9);
+    for (const key of [semaine, autreSalarie, preflight, autreSociete]) {
+      client.setQueryData(key, 'donnée');
+    }
+
+    for (const queryKey of clesAInvaliderApresEffacement('co-1', 'e1')) {
+      await client.invalidateQueries({ queryKey });
+    }
+
+    expect(client.getQueryState(semaine)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(preflight)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(autreSalarie)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(autreSociete)?.isInvalidated).toBe(false);
+  });
+
+  it('plus de clé morte `schedules`', () => {
+    expect(clesAInvaliderApresEffacement('co-1', 'e1')).not.toContainEqual(
+      queryKeys.schedules('co-1')
+    );
+  });
+});
+
+describe('aDesJoursAEffacer', () => {
+  it('vrai seulement pour une liste non vide', () => {
+    expect(aDesJoursAEffacer([jour(7)])).toBe(true);
+    expect(aDesJoursAEffacer([])).toBe(false);
+    expect(aDesJoursAEffacer(undefined)).toBe(false);
+    expect(aDesJoursAEffacer(null)).toBe(false);
+  });
+});
+
+describe('etatDialogueHeuresSurArret', () => {
+  it('des jours lisibles : le choix', () => {
+    expect(etatDialogueHeuresSurArret([jour(7)], null)).toEqual({
+      kind: 'choix',
+      jours: [jour(7)],
+    });
+  });
+  it('aucun jour lisible : pas d’effacement proposé', () => {
+    expect(etatDialogueHeuresSurArret([], null)).toEqual({ kind: 'sans_jours' });
+    expect(etatDialogueHeuresSurArret(undefined, null)).toEqual({ kind: 'sans_jours' });
+  });
+  it('heures effacées puis génération en échec : ne dit plus « en conflit », propose de relancer', () => {
+    const etat = etatDialogueHeuresSurArret([jour(7), jour(8)], {
+      effaces: [jour(7), jour(8)],
+      echecGeneration: 'La génération a été interrompue. Réessayez dans quelques instants.',
+    });
+    expect(etat).toEqual({
+      kind: 'generation_en_echec',
+      titre: 'Heures effacées, bulletin non régénéré',
+      confirmation: 'Heures effacées : 7 et 8 septembre.',
+      echec:
+        'Le bulletin n’a pas été régénéré. La génération a été interrompue. Réessayez dans quelques instants.',
+      actionRelancer: 'Relancer la génération',
+    });
+  });
+  it('rien d’effacé : on reste sur le choix', () => {
+    expect(
+      etatDialogueHeuresSurArret([jour(7)], { effaces: [], echecGeneration: 'x' }).kind
+    ).toBe('choix');
+  });
+});
+
+const erreurHttp = (status: number, detail?: unknown) =>
+  Object.assign(new AxiosError(`Request failed with status code ${status}`), {
+    response: { status, data: detail === undefined ? {} : { detail } },
+  });
+const coupureReseau = () => new AxiosError('Network Error', 'ERR_NETWORK');
+
+describe('raisonEchecEffacement', () => {
+  it('coupure réseau : vérifier la connexion puis réessayer', () => {
+    expect(raisonEchecEffacement(coupureReseau())).toBe(
+      'La connexion au serveur a été coupée. Vérifiez votre connexion internet, puis réessayez.'
+    );
+  });
+  it('403 : pas le droit de modifier ce calendrier', () => {
+    expect(raisonEchecEffacement(erreurHttp(403, 'Forbidden'))).toBe(
+      'Vous n’avez pas le droit de modifier le calendrier de ce salarié.'
+    );
+  });
+  it('404 : salarié introuvable', () => {
+    expect(raisonEchecEffacement(erreurHttp(404))).toBe(
+      'Salarié introuvable. Rechargez la page, puis réessayez.'
+    );
+  });
+  it('401 : session expirée', () => {
+    expect(raisonEchecEffacement(erreurHttp(401))).toBe(
+      'Votre session a expiré. Reconnectez-vous, puis réessayez.'
+    );
+  });
+  it('4xx avec un motif lisible du backend : on le reprend', () => {
+    const motif =
+      'Le 9 septembre n’est ni un jour d’arrêt ni une absence au planning : ses heures ne sont pas effacées. Rien n’a été modifié.';
+    expect(raisonEchecEffacement(erreurHttp(422, motif))).toBe(motif);
+  });
+  it('4xx sans motif lisible : renvoie au calendrier', () => {
+    expect(raisonEchecEffacement(erreurHttp(422, [{ loc: ['body'] }]))).toBe(
+      'La demande a été refusée. Effacez ces heures à la main dans le calendrier du salarié.'
+    );
+  });
+  it('5xx : le serveur n’a pas répondu, réessayer, sinon à la main', () => {
+    const attendu =
+      'Le serveur n’a pas répondu. Réessayez dans un instant ; si le problème persiste, effacez les heures à la main dans le calendrier du salarié.';
+    expect(raisonEchecEffacement(erreurHttp(500, 'Erreur interne: NoneType'))).toBe(attendu);
+    expect(raisonEchecEffacement(erreurHttp(502))).toBe(attendu);
+  });
+  it('503 avec le motif du backend (arrêts illisibles) : le motif, puis la sortie à la main', () => {
+    expect(
+      raisonEchecEffacement(
+        erreurHttp(
+          503,
+          'Les arrêts n’ont pas pu être lus : impossible de savoir quels jours effacer. Réessayez dans un instant. Rien n’a été modifié.'
+        )
+      )
+    ).toBe(
+      'Les arrêts n’ont pas pu être lus : impossible de savoir quels jours effacer. Réessayez dans un instant. Rien n’a été modifié. Si le problème persiste, effacez les heures à la main dans le calendrier du salarié.'
+    );
+  });
+  it('jamais « Une erreur est survenue », jamais la génération', () => {
+    for (const erreur of [
+      coupureReseau(),
+      erreurHttp(403),
+      erreurHttp(404),
+      erreurHttp(422),
+      erreurHttp(500),
+      new Error('x'),
+      undefined,
+    ]) {
+      const raison = raisonEchecEffacement(erreur);
+      expect(raison).not.toMatch(/Une erreur est survenue/);
+      expect(raison).not.toMatch(/génér/i);
+      expect(raison.length).toBeGreaterThan(20);
+    }
   });
 });
 
@@ -287,18 +531,32 @@ describe('effacerLesJours', () => {
 
 describe('messageEchecEffacement', () => {
   it('pluriel : « les 7 et 8 septembre »', () => {
-    expect(messageEchecEffacement([jour(7), jour(8)], 'Réessayez.')).toContain(
+    expect(messageEchecEffacement([jour(7), jour(8)], erreurHttp(500))).toContain(
       'seulement les 7 et 8 septembre.'
     );
   });
-  it('dit la raison et que la génération n’a pas été relancée', () => {
-    expect(messageEchecEffacement([], 'Le 9 septembre n’est ni un jour d’arrêt.')).toBe(
-      'Les heures n’ont pas été effacées : Le 9 septembre n’est ni un jour d’arrêt. La génération n’a pas été relancée.'
+  it('refus du backend : son motif, et la génération n’a pas été relancée', () => {
+    expect(
+      messageEchecEffacement([], erreurHttp(422, 'Le 9 septembre n’est ni un jour d’arrêt.'))
+    ).toBe(
+      'Les heures n’ont pas été effacées. Le 9 septembre n’est ni un jour d’arrêt. La génération n’a pas été relancée.'
     );
   });
+  it('coupure réseau : l’effacement n’est pas confirmé, sans reprendre les textes de la génération', () => {
+    const message = messageEchecEffacement([], coupureReseau());
+    expect(message).toBe(
+      'L’effacement n’a pas pu être confirmé. La connexion au serveur a été coupée. Vérifiez votre connexion internet, puis réessayez. La génération n’a pas été relancée.'
+    );
+    expect(message).not.toMatch(/génération a été interrompue/);
+  });
   it('dit ce qui a été effacé avant le refus', () => {
-    expect(messageEchecEffacement([jour(31, 8)], 'Réessayez.')).toBe(
-      'Heures effacées seulement le 31 août. Le reste n’a pas pu l’être : Réessayez. La génération n’a pas été relancée.'
+    expect(messageEchecEffacement([jour(31, 8)], erreurHttp(403))).toBe(
+      'Heures effacées seulement le 31 août. Le reste n’a pas pu l’être. Vous n’avez pas le droit de modifier le calendrier de ce salarié. La génération n’a pas été relancée.'
+    );
+  });
+  it('partiel puis coupure : le reste n’est pas confirmé', () => {
+    expect(messageEchecEffacement([jour(31, 8)], coupureReseau())).toContain(
+      'Heures effacées seulement le 31 août. Le reste n’a pas pu être confirmé.'
     );
   });
 });

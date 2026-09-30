@@ -53,6 +53,10 @@ import { requiresSalaryCertificate } from '@/lib/employeeAbsencesUtils';
 import { LeaveCampaignSection } from '@/features/absences/components/LeaveCampaignSection';
 import { LeaveNotificationSettingsPanel } from '@/features/absences/components/LeaveNotificationSettingsPanel';
 import { RttYearEndRhSection } from '@/features/absences/components/RttYearEndRhSection';
+import {
+  bandeauAbsencesDuSalarie,
+  lireNatureDuLien,
+} from '@/features/payroll/utils/heuresSurArret';
 import { estRoleRh } from '@/lib/rolesRh';
 
 type AbsenceRequest = absencesApi.AbsenceRequestWithEmployee;
@@ -116,6 +120,17 @@ export default function AbsencesPage() {
   // demandes d'un seul salarié, par son id, sur l'onglet Historique.
   const [searchParams, setSearchParams] = useSearchParams();
   const salarieFiltre = searchParams.get('employee');
+  const bandeauSalarie = salarieFiltre
+    ? bandeauAbsencesDuSalarie({
+        employeeId: salarieFiltre,
+        nature: lireNatureDuLien(searchParams.get('nature')),
+        chargement: isLoading,
+        erreur: absencesQuery.isError,
+        nombreDeDemandes: [...pending, ...processed].filter(
+          (req) => req.employee_id === salarieFiltre,
+        ).length,
+      })
+    : null;
   const normaliser = (v: string) =>
     v
       .toLowerCase()
@@ -700,11 +715,19 @@ export default function AbsencesPage() {
           {' '}— Entreprise, onglet Paie, section Congés &amp; RTT.
         </p>
       </div>
-      {salarieFiltre && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+      {bandeauSalarie && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
+          data-testid="bandeau-absences-salarie"
+        >
           <span>
-            Demandes d’un seul salarié : retrouvez l’arrêt à corriger dans
-            l’historique.
+            {bandeauSalarie.texte}{' '}
+            <Link
+              to={bandeauSalarie.lien.href}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {bandeauSalarie.lien.libelle}
+            </Link>
           </span>
           <Button
             type="button"

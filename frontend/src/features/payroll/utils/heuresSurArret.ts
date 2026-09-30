@@ -5,6 +5,13 @@
  * ici on ne fait que lire ce qu'il renvoie et écrire les textes de l'écran.
  */
 
+import axios from 'axios';
+import type { QueryKey } from '@tanstack/react-query';
+
+import { TAB_CALENDRIER } from '@/features/employee-detail/utils/tabs';
+import { extractDetail, getApiErrorStatus, sanitizeBackendMessage } from '@/lib/errorMessages';
+import { queryKeys } from '@/lib/queryKeys';
+
 export type JourEnConflit = {
   annee: number;
   mois: number;
@@ -143,11 +150,144 @@ export function textesDuChoix(
 
 /**
  * Aucun lien ne cible un arrêt précis : l'écran des absences (`/leaves`) s'ouvre
- * sur les demandes du seul salarié concerné (paramètre `employee`, son id), où
- * l'arrêt se trouve et se corrige.
+ * sur les demandes du seul salarié (`employee`, son id). `nature` sert au texte
+ * du bandeau : un arrêt saisi au planning n'y figure pas, il se corrige au calendrier.
  */
-export function lienModifierAbsence(employeeId: string): string {
-  return `/leaves?employee=${encodeURIComponent(employeeId)}`;
+export function lienModifierAbsence(employeeId: string, nature: NatureConflit): string {
+  return `/leaves?employee=${encodeURIComponent(employeeId)}&nature=${nature}`;
+}
+
+export function lireNatureDuLien(valeur: string | null | undefined): NatureConflit | null {
+  return valeur === 'arret' || valeur === 'absence' || valeur === 'mixte' ? valeur : null;
+}
+
+/** Onglet Calendrier de la fiche du salarié : là où se corrige ce qui a été saisi au planning. */
+export function lienCalendrierDuSalarie(employeeId: string): string {
+  return `/employees/${encodeURIComponent(employeeId)}?tab=${TAB_CALENDRIER}`;
+}
+
+const MOTS_DE_LA_NATURE: Record<
+  NatureConflit,
+  { objet: string; saisi: string; pronom: string; sujet: string }
+> = {
+  arret: { objet: 'l’arrêt', saisi: 'saisi', pronom: 'le', sujet: 'il' },
+  absence: { objet: 'l’absence', saisi: 'saisie', pronom: 'la', sujet: 'elle' },
+  mixte: { objet: 'l’arrêt ou l’absence', saisi: 'saisi', pronom: 'le', sujet: 'il' },
+};
+
+export type BandeauAbsencesDuSalarie = {
+  texte: string;
+  lien: { href: string; libelle: string };
+};
+
+/**
+ * Bandeau de l'écran des absences ouvert sur un seul salarié. Seuls les congés
+ * payés et RTT posés au planning créent une demande : un arrêt maladie ou une
+ * absence non rémunérée saisi au planning n'apparaît pas ici. Le bandeau ne
+ * promet donc jamais que l'arrêt y est, et renvoie au calendrier.
+ */
+export function bandeauAbsencesDuSalarie({
+  employeeId,
+  nature,
+  chargement,
+  erreur,
+  nombreDeDemandes,
+}: {
+  employeeId: string;
+  nature: NatureConflit | null;
+  chargement: boolean;
+  erreur: boolean;
+  nombreDeDemandes: number;
+}): BandeauAbsencesDuSalarie {
+  const { objet, saisi, pronom, sujet } = MOTS_DE_LA_NATURE[nature ?? 'mixte'];
+  const lien = {
+    href: lienCalendrierDuSalarie(employeeId),
+    libelle: 'Ouvrir le calendrier du salarié',
+  };
+  const auCalendrier = `-${pronom} dans le calendrier du salarié.`;
+  if (erreur) {
+    return {
+      texte: `Les demandes d’absence de ce salarié n’ont pas pu être chargées : rechargez la page. Si ${objet} a été ${saisi} au planning, corrigez${auCalendrier}`,
+      lien,
+    };
+  }
+  if (chargement) {
+    return { texte: 'Recherche des demandes d’absence de ce salarié…', lien };
+  }
+  if (nombreDeDemandes === 0) {
+    return {
+      texte: `Aucune demande d’absence enregistrée pour ce salarié : ${objet} a été ${saisi} au planning. Corrigez${auCalendrier}`,
+      lien,
+    };
+  }
+  return {
+    texte: `Demandes d’absence de ce salarié. Si ${objet} à corriger n’apparaît pas ici, ${sujet} a été ${saisi} au planning : corrigez${auCalendrier}`,
+    lien,
+  };
+}
+
+/**
+ * Requêtes TanStack à invalider après un effacement : les heures réelles de la
+ * semaine (`useEmployeeWeekPayrollCalendar`), le planning et le préflight de la
+ * paie, tous mois. Le calendrier mensuel (`useCalendar`) n'est pas une requête
+ * TanStack : il relit le backend à son prochain chargement.
+ */
+export function clesAInvaliderApresEffacement(
+  companyId: string | undefined,
+  employeeId: string
+): QueryKey[] {
+  return [
+    ['employee-week-payroll', employeeId],
+    queryKeys.planning(companyId),
+    queryKeys.payrollPreflightTousMois(companyId),
+  ];
+}
+
+/** Des jours lisibles à effacer ? Sans jour, « effacer » n'est pas proposé. */
+export function aDesJoursAEffacer(
+  jours: readonly JourEnConflit[] | null | undefined
+): jours is JourEnConflit[] {
+  return Array.isArray(jours) && jours.length > 0;
+}
+
+/** Refus d'heures sur un arrêt dont les jours n'ont pas pu être lus. */
+export const TEXTE_HEURES_SANS_JOURS =
+  'Les jours en cause n’ont pas pu être lus. Ouvrez le calendrier du salarié : effacez-y ces heures, ou corrigez l’arrêt ou l’absence.';
+
+/** Effacement réussi, régénération du bulletin en échec (écran de correction). */
+export type SuiteEffacement = { effaces: JourEnConflit[]; echecGeneration: string };
+
+export type EtatDialogueHeures =
+  | { kind: 'choix'; jours: JourEnConflit[] }
+  | { kind: 'sans_jours' }
+  | {
+      kind: 'generation_en_echec';
+      titre: string;
+      confirmation: string;
+      echec: string;
+      actionRelancer: string;
+    };
+
+/**
+ * Ce que montre le dialogue d'un refus d'heures sur un arrêt. Une fois les
+ * heures effacées, il ne les présente plus comme en conflit, même si le refus
+ * affiché (venu d'une correction de bulletin) les porte encore.
+ */
+export function etatDialogueHeuresSurArret(
+  jours: readonly JourEnConflit[] | null | undefined,
+  suite: SuiteEffacement | null
+): EtatDialogueHeures {
+  if (suite && suite.effaces.length > 0) {
+    return {
+      kind: 'generation_en_echec',
+      titre: 'Heures effacées, bulletin non régénéré',
+      confirmation: messageHeuresEffacees(suite.effaces),
+      echec: `Le bulletin n’a pas été régénéré. ${suite.echecGeneration}`,
+      actionRelancer: 'Relancer la génération',
+    };
+  }
+  if (aDesJoursAEffacer(jours)) return { kind: 'choix', jours: [...jours] };
+  return { kind: 'sans_jours' };
 }
 
 /** Refus structuré `recalcul_refus` des réponses de correction et de restauration. */
@@ -260,11 +400,54 @@ export async function effacerLesJours(
   return { ok: true, effaces };
 }
 
-export function messageEchecEffacement(effaces: JourEnConflit[], raison: string): string {
+const A_LA_MAIN = 'effacez les heures à la main dans le calendrier du salarié.';
+
+const estCoupureReseau = (erreur: unknown) => axios.isAxiosError(erreur) && !erreur.response;
+
+const finDePhrase = (texte: string) => (/[.!?…]$/.test(texte) ? texte : `${texte}.`);
+
+/**
+ * Pourquoi l'appel d'effacement a échoué, et quoi faire. Propre à l'effacement :
+ * jamais les replis de la génération (le bulletin n'est pas en cause ici).
+ */
+export function raisonEchecEffacement(erreur: unknown): string {
+  if (estCoupureReseau(erreur)) {
+    return 'La connexion au serveur a été coupée. Vérifiez votre connexion internet, puis réessayez.';
+  }
+  const statut = getApiErrorStatus(erreur);
+  const motif = sanitizeBackendMessage(extractDetail(erreur));
+  if (statut === 401) return 'Votre session a expiré. Reconnectez-vous, puis réessayez.';
+  if (statut === 403) return 'Vous n’avez pas le droit de modifier le calendrier de ce salarié.';
+  if (statut === 404) return 'Salarié introuvable. Rechargez la page, puis réessayez.';
+  if (statut !== undefined && statut >= 500) {
+    // 503 : le backend dit pourquoi (arrêts illisibles) ; une 500 peut porter un texte technique.
+    if (statut === 503 && motif) return `${finDePhrase(motif)} Si le problème persiste, ${A_LA_MAIN}`;
+    return `Le serveur n’a pas répondu. Réessayez dans un instant ; si le problème persiste, ${A_LA_MAIN}`;
+  }
+  if (statut !== undefined && statut >= 400) {
+    return motif
+      ? finDePhrase(motif)
+      : 'La demande a été refusée. Effacez ces heures à la main dans le calendrier du salarié.';
+  }
+  return `L’effacement n’a pas abouti. Réessayez ; si le problème persiste, ${A_LA_MAIN}`;
+}
+
+/**
+ * Message d'échec de l'effacement. Sur une coupure réseau, on ne sait pas si le
+ * serveur a écrit : « pas confirmé », pas « pas effacé » (réessayer est sans risque,
+ * l'effacement d'un jour déjà à 0 h ne change rien).
+ */
+export function messageEchecEffacement(effaces: JourEnConflit[], erreur: unknown): string {
+  const incertain = estCoupureReseau(erreur);
+  const raison = raisonEchecEffacement(erreur);
   const fin = 'La génération n’a pas été relancée.';
   if (effaces.length === 0) {
-    return `Les heures n’ont pas été effacées : ${raison} ${fin}`;
+    const tete = incertain
+      ? 'L’effacement n’a pas pu être confirmé.'
+      : 'Les heures n’ont pas été effacées.';
+    return `${tete} ${raison} ${fin}`;
   }
   const article = effaces.length === 1 ? 'le' : 'les';
-  return `Heures effacées seulement ${article} ${libelleDesJours(effaces)}. Le reste n’a pas pu l’être : ${raison} ${fin}`;
+  const reste = incertain ? 'Le reste n’a pas pu être confirmé.' : 'Le reste n’a pas pu l’être.';
+  return `Heures effacées seulement ${article} ${libelleDesJours(effaces)}. ${reste} ${raison} ${fin}`;
 }
