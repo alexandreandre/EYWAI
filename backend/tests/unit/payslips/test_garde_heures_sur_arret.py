@@ -72,7 +72,13 @@ def _arret_de_septembre(heures_sur: dict[int, float]) -> dict:
 
 
 @contextmanager
-def _generation(schedule_row: dict, *, statut: str = "Non-Cadre", employee: dict | None = None):
+def _generation(
+    schedule_row: dict,
+    *,
+    statut: str = "Non-Cadre",
+    employee: dict | None = None,
+    arrets: list[dict] | None = None,
+):
     """Tout ce que la génération lit, moqué ; rend la doublure du générateur."""
     with ExitStack() as pile:
         mock_repo = pile.enter_context(patch(f"{_COMMANDS}._employee_repository"))
@@ -99,6 +105,8 @@ def _generation(schedule_row: dict, *, statut: str = "Non-Cadre", employee: dict
         mock_sched.list_schedules_for_employees.side_effect = lambda ids, y, m: (
             {"emp-1": schedule_row} if (y, m) == (2026, 9) else {}
         )
+        mock_arrets = pile.enter_context(patch(f"{_SERVICE}.arrets_valides_reader"))
+        mock_arrets.par_salarie.return_value = {"emp-1": arrets or []}
         yield mock_provider
 
 
@@ -163,6 +171,41 @@ class TestGardeHeuresSurJourDArret:
             "Octavie a une absence (congés payés), mais des heures sont saisies "
             "le 21 septembre."
         )
+
+    def test_des_heures_un_samedi_d_arret_valide_refusent_aussi(self):
+        """La validation d'un arrêt ne retype pas ses week-ends : l'arrêt validé
+        dit que le samedi 12 est couvert."""
+        row = _arret_de_septembre({})
+        row["actual_hours"]["calendrier_reel"].append(
+            {"jour": 12, "type": "travail", "heures_faites": 5.0}
+        )
+        arret = {
+            "type": "arret_maladie",
+            "status": "validated",
+            "selected_days": [f"2026-09-{j:02d}" for j in range(1, 31)],
+        }
+        with _generation(row, arrets=[arret]) as generateur:
+            with pytest.raises(PayslipHeuresSurArretError) as exc:
+                generate_payslip(GeneratePayslipInput(employee_id="emp-1", year=2026, month=9))
+
+        generateur.generate_heures.assert_not_called()
+        assert str(exc.value) == (
+            "Octavie est en arrêt, mais des heures sont saisies le 12 septembre."
+        )
+        assert exc.value.details["jours"] == [
+            {"annee": 2026, "mois": 9, "jour": 12, "heures": 5.0}
+        ]
+
+    def test_un_samedi_travaille_hors_arret_se_genere(self):
+        row = _arret_de_septembre({})
+        row["actual_hours"]["calendrier_reel"].append(
+            {"jour": 12, "type": "travail", "heures_faites": 5.0}
+        )
+        arret = {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-11"]}
+        with _generation(row, arrets=[arret]) as generateur:
+            generate_payslip(GeneratePayslipInput(employee_id="emp-1", year=2026, month=9))
+
+        generateur.generate_heures.assert_called_once()
 
     def test_un_arret_sans_heures_se_genere(self):
         with _generation(_arret_de_septembre({})) as generateur:

@@ -107,3 +107,29 @@ def test_resume_api_expose_fenetre_et_dates(mock_fenetre, mock_repo):
         "2026-07-30",
         "2026-07-31",
     ]
+
+
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.resoudre_fenetre_variables", return_value=FENETRE_JUILLET)
+def test_les_arrets_valides_sont_lus_une_fois_sur_l_union(mock_fenetre, mock_repo, mock_arrets):
+    """Un samedi d'arrêt garde son type « week-end » au planning : seul l'arrêt
+    validé dit qu'il est couvert."""
+    from app.modules.schedules.application.periode_a_saisir_service import (
+        charger_periodes_a_saisir,
+    )
+
+    ligne = _juillet_saisi_jusqu_au_24()
+    ligne["actual_hours"]["calendrier_reel"].append({"jour": 4, "heures_faites": 6.0})  # samedi
+    mock_repo.list_schedules_for_employees.side_effect = lambda ids, y, m: (
+        {"e1": ligne} if (y, m) == (2026, 7) else {}
+    )
+    mock_arrets.par_salarie.return_value = {
+        "e1": [{"type": "arret_maladie", "status": "validated", "selected_days": ["2026-07-04"]}]
+    }
+    employes = [{"id": "e1", "statut": "Non-Cadre", "hire_date": "2020-01-15"}]
+
+    periodes = charger_periodes_a_saisir("c1", employes, 2026, 7)
+
+    mock_arrets.par_salarie.assert_called_once_with(["e1"], date(2026, 6, 22), date(2026, 7, 31))
+    assert [(c.mois, c.jour, c.heures_saisies) for c in periodes["e1"].conflits] == [(7, 4, 6.0)]

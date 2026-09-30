@@ -16,6 +16,7 @@ from app.modules.payroll.application.periode_variables_service import (
 )
 from app.modules.schedules.domain.ecart_rules import parse_iso_date
 from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir, periode_a_saisir
+from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.shared.domain.periode_variables import bornes_mois_civil, semaines_iso
@@ -60,10 +61,14 @@ def charger_periodes_a_saisir(
     fenetre = resoudre_fenetre_variables(str(company_id), annee, mois)
     debut_mois, fin_mois = bornes_mois_civil(annee, mois)
     ids = [str(e["id"]) for e in employees if e.get("id")]
+    debut_union, fin_union = min(debut_mois, fenetre.debut), max(fin_mois, fenetre.fin)
     lignes = {
         cle: schedule_repository.list_schedules_for_employees(ids, cle[0], cle[1])
-        for cle in _mois_couverts(min(debut_mois, fenetre.debut), max(fin_mois, fenetre.fin))
+        for cle in _mois_couverts(debut_union, fin_union)
     }
+    # Les week-ends d'un arrêt gardent leur type au planning : seul l'arrêt
+    # validé dit qu'ils sont couverts (heures saisies = conflit).
+    arrets = arrets_valides_reader.par_salarie(ids, debut_union, fin_union)
     resultat: dict[str, PeriodeASaisir] = {}
     for employee in employees:
         eid = str(employee.get("id") or "")
@@ -84,6 +89,7 @@ def charger_periodes_a_saisir(
             date_sortie=sortie,
             forfait=is_forfait_jour(employee.get("statut"), employee.get("is_forfait_jour")),
             origine=fenetre.origine,
+            absences_validees=arrets.get(eid, []),
         )
     return resultat
 

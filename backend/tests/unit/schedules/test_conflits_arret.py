@@ -13,6 +13,7 @@ import pytest
 from app.modules.schedules.domain.conflits_arret import (
     JourEnConflit,
     jours_en_conflit,
+    jours_sans_heures,
     message_de_refus,
 )
 
@@ -141,6 +142,50 @@ class TestJoursEnConflit:
         assert jours_en_conflit(prevu, reel, absences) == [
             JourEnConflit(12, "arret_maladie", 5.0, annee=2026, mois=9)
         ]
+
+    def test_un_ferie_et_un_repos_couverts_par_un_arret_valide_sont_des_conflits(self):
+        prevu = [
+            _prevu(14, "ferie", annee=2026, mois=7),
+            _prevu(15, "repos", annee=2026, mois=7),
+        ]
+        reel = [_reel(14, 7.0, annee=2026, mois=7), _reel(15, 6.0, annee=2026, mois=7)]
+        absences = [
+            {"type": "arret_at", "status": "validated", "selected_days": ["2026-07-14", "2026-07-15"]}
+        ]
+
+        assert jours_en_conflit(prevu, reel, absences) == [
+            JourEnConflit(14, "arret_at", 7.0, annee=2026, mois=7),
+            JourEnConflit(15, "arret_at", 6.0, annee=2026, mois=7),
+        ]
+
+    def test_un_jour_travaille_couvert_par_un_arret_valide_garde_la_regle_du_type_prevu(self):
+        """L'arrêt validé ne rattache que les jours que sa validation ne retype pas
+        (week-end, repos, férié) ; un jour prévu travaillé reste jugé sur son type."""
+        prevu = [_prevu(14, "travail", 7.0, annee=2026, mois=9)]
+        reel = [_reel(14, 7.0, annee=2026, mois=9)]
+        absences = [
+            {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-14"]}
+        ]
+
+        assert jours_en_conflit(prevu, reel, absences) == []
+
+    def test_jours_sans_heures_liste_les_jours_qui_ne_peuvent_porter_aucune_heure(self):
+        """La même règle, sans le réel : l'effacement accepte exactement ces jours."""
+        prevu = [
+            _prevu(11, "arret_maladie", annee=2026, mois=9),
+            _prevu(12, "weekend", annee=2026, mois=9),
+            _prevu(13, "weekend", annee=2026, mois=9),
+            _prevu(14, "travail", 7.0, annee=2026, mois=9),
+            _prevu(15, "conges_payes", annee=2026, mois=9, quotite_absence=0.5),
+        ]
+        absences = [
+            {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-12"]}
+        ]
+
+        assert jours_sans_heures(prevu, absences) == {
+            (2026, 9, 11): "arret_maladie",
+            (2026, 9, 12): "arret_maladie",
+        }
 
     def test_une_absence_non_validee_ne_compte_pas(self):
         prevu = [_prevu(12, "weekend", annee=2026, mois=9)]

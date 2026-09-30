@@ -246,3 +246,26 @@ def test_une_periode_sans_conflit_a_une_liste_vide():
     )
 
     assert periode.conflits == ()
+
+
+def test_un_samedi_couvert_par_un_arret_valide_compte_dans_la_periode():
+    prevu, reel = _arret_septembre({})
+    reel.append({"jour": 12, "type": "travail", "heures_faites": 5.0})  # samedi
+
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 9, 1), date(2026, 9, 30)),
+        calendriers={(2026, 9): (prevu, reel)},
+        absences_validees=[
+            {
+                "type": "arret_maladie",
+                "status": "validated",
+                "selected_days": [f"2026-09-{j:02d}" for j in range(1, 31)],
+            }
+        ],
+    )
+
+    assert [(c.jour, c.type_prevu, c.heures_saisies) for c in periode.conflits] == [
+        (12, "arret_maladie", 5.0)
+    ]

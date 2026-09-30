@@ -31,6 +31,7 @@ from app.modules.schedules.infrastructure.providers import (
     payroll_analyzer_provider,
 )
 from app.modules.schedules.infrastructure.queries import employee_company_reader
+from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
 
@@ -309,12 +310,16 @@ def effacer_heures_des_jours(
     """Efface les heures saisies sur des jours d'arrêt ou d'absence non travaillée.
 
     Chaque jour du réel repasse au type du prévu, à 0 h : c'est la correction
-    que propose le refus de génération `heures_sur_jour_d_arret`. Un jour qui
-    n'est ni un arrêt ni une absence au prévu (jour travaillé, demi-journée de
-    congé) est refusé, et rien n'est écrit. Journalisé avec les heures d'avant.
+    que propose le refus de génération `heures_sur_jour_d_arret`. Sont acceptés
+    exactement les jours que ce refus peut signaler (`jours_sans_heures`, même
+    source : le prévu et les arrêts validés), week-ends d'arrêt compris. Tout
+    autre jour (travaillé, demi-journée de congé, samedi hors arrêt) est
+    refusé, et rien n'est écrit. Journalisé avec les heures d'avant.
     """
+    from datetime import date as _date
+
     from app.modules.schedules.domain.conflits_arret import (
-        jour_prevu_sans_heures,
+        jours_sans_heures,
         libelle_des_dates,
     )
 
@@ -337,7 +342,17 @@ def effacer_heures_des_jours(
         )
         if isinstance(e, dict)
     }
-    refuses = [j for j in demandes if not jour_prevu_sans_heures(prevu_par_jour.get(j))]
+    arrets = arrets_valides_reader.par_salarie(
+        [employee_id], _date(year, month, 1), _date(year, month, dernier)
+    ).get(str(employee_id), [])
+    effacables = {
+        cle[2]
+        for cle in jours_sans_heures(
+            [{**e, "annee": year, "mois": month} for e in prevu_par_jour.values()],
+            arrets,
+        )
+    }
+    refuses = [j for j in demandes if j not in effacables]
     if refuses:
         quels = libelle_des_dates((year, month, j) for j in refuses)
         constat = (

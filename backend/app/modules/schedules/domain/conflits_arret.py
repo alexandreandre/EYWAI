@@ -34,6 +34,9 @@ TYPES_ABSENCE_NON_TRAVAILLEE: frozenset[str] = frozenset(
     | {"absence_non_remuneree", "sans_solde", "conge_sans_solde"}
 )
 _PREFIXES_NON_TRAVAILLES = ("arret", "absence_injustifiee")
+#: Jours qu'un arrêt couvre sans que sa validation les retype
+#: (`absences.infrastructure.providers.CalendarUpdateProvider`).
+TYPES_NON_OUVRES_D_UN_ARRET: frozenset[str] = frozenset({"weekend", "repos", "ferie"})
 
 #: Statut d'une demande d'absence validée (`absences.domain.enums.AbsenceStatus`).
 _STATUT_VALIDE = "validated"
@@ -102,11 +105,9 @@ def _demi_journee(entree: Mapping[str, Any]) -> bool:
     return 0.0 < quotite < 1.0
 
 
-def jour_prevu_sans_heures(entree: Mapping[str, Any] | None) -> bool:
-    """Le jour prévu ne peut porter aucune heure réelle : arrêt ou absence
-    non travaillée, pas une demi-journée."""
-    if not entree:
-        return False
+def _jour_prevu_sans_heures(entree: Mapping[str, Any]) -> bool:
+    """Le type prévu interdit toute heure : arrêt ou absence non travaillée,
+    pas une demi-journée."""
     return est_absence_non_travaillee(entree.get("type")) and not _demi_journee(entree)
 
 
@@ -151,24 +152,52 @@ def _jours_d_arret_valides(
     return jours
 
 
+def jours_sans_heures(
+    calendrier_prevu: list[dict],
+    absences_validees: list[dict] | None = None,
+) -> dict[tuple[int | None, int | None, int], str]:
+    """Les jours prévus qui ne peuvent porter aucune heure réelle :
+    `(annee, mois, jour)` → type d'absence en cause.
+
+    - Le prévu est un arrêt ou une absence non travaillée (hors demi-journée) :
+      son type.
+    - Le prévu est un week-end, un repos ou un férié couvert par un **arrêt**
+      validé de `absences_validees` (demandes `{type, status, selected_days}`) :
+      le type de l'arrêt. La validation d'un arrêt ne retype pas ces jours, et
+      les métadonnées qu'elle y pose ne survivent pas à une sauvegarde du
+      planning : seule la demande validée dit qu'ils sont couverts. Il faut
+      des entrées datées (`annee`, `mois`) pour les rapprocher.
+    Les congés payés et les autres absences suivent le seul type prévu.
+    """
+    arrets = _jours_d_arret_valides(absences_validees)
+    interdits: dict[tuple[int | None, int | None, int], str] = {}
+    for entree in calendrier_prevu or []:
+        cle = _cle(entree)
+        if cle is None:
+            continue
+        if _jour_prevu_sans_heures(entree):
+            interdits[cle] = str(entree["type"])
+            continue
+        annee, mois, jour = cle
+        if (
+            str(entree.get("type") or "") in TYPES_NON_OUVRES_D_UN_ARRET
+            and annee is not None
+            and mois is not None
+            and (annee, mois, jour) in arrets
+        ):
+            interdits[cle] = arrets[(annee, mois, jour)]
+    return interdits
+
+
 def jours_en_conflit(
     calendrier_prevu: list[dict],
     calendrier_reel: list[dict],
     absences_validees: list[dict] | None = None,
 ) -> list[JourEnConflit]:
-    """Les jours dont le prévu est un arrêt ou une absence non travaillée et
-    dont le réel porte des heures (> 0), triés par date.
-
-    `absences_validees` (demandes `{type, status, selected_days}`) rattache à
-    l'arrêt les jours qu'il couvre sans que le prévu le dise : la validation
-    d'un arrêt ne retype pas ses week-ends, fériés et jours de repos. Seules
-    les entrées réelles datées (`annee`, `mois`) s'y rapprochent.
-    """
-    prevu_par_cle: dict[tuple[int | None, int | None, int], Mapping[str, Any]] = {}
-    for entree in calendrier_prevu or []:
-        cle = _cle(entree)
-        if cle is not None:
-            prevu_par_cle[cle] = entree
+    """Les jours de `jours_sans_heures` dont le réel porte des heures (> 0),
+    triés par date. `type_prevu` est le type d'absence en cause : pour un
+    week-end d'arrêt, le type de l'arrêt validé."""
+    interdits = jours_sans_heures(calendrier_prevu, absences_validees)
 
     heures_par_cle: dict[tuple[int | None, int | None, int], float] = {}
     for entree in calendrier_reel or []:
@@ -178,22 +207,11 @@ def jours_en_conflit(
                 heures_par_cle.get(cle, 0.0) + _heures(entree.get("heures_faites")), 2
             )
 
-    arrets_valides = _jours_d_arret_valides(absences_validees)
-    conflits: list[JourEnConflit] = []
-    for cle, heures in heures_par_cle.items():
-        if heures <= 0:
-            continue
-        annee, mois, jour = cle
-        prevu = prevu_par_cle.get(cle)
-        if jour_prevu_sans_heures(prevu):
-            type_prevu = str(prevu["type"])  # type: ignore[index]
-        elif annee is not None and mois is not None and (annee, mois, jour) in arrets_valides:
-            if prevu is not None and _demi_journee(prevu):
-                continue
-            type_prevu = arrets_valides[(annee, mois, jour)]
-        else:
-            continue
-        conflits.append(JourEnConflit(jour, type_prevu, heures, annee=annee, mois=mois))
+    conflits = [
+        JourEnConflit(cle[2], interdits[cle], heures, annee=cle[0], mois=cle[1])
+        for cle, heures in heures_par_cle.items()
+        if heures > 0 and cle in interdits
+    ]
     return sorted(conflits, key=lambda c: (c.annee or 0, c.mois or 0, c.jour))
 
 
@@ -255,10 +273,11 @@ def message_de_refus(prenom: str, conflits: Sequence[JourEnConflit]) -> str:
 __all__ = [
     "JourEnConflit",
     "TYPES_ABSENCE_NON_TRAVAILLEE",
+    "TYPES_NON_OUVRES_D_UN_ARRET",
     "est_absence_non_travaillee",
     "est_un_arret",
-    "jour_prevu_sans_heures",
     "jours_en_conflit",
+    "jours_sans_heures",
     "libelle_absence",
     "libelle_des_dates",
     "libelle_des_jours",

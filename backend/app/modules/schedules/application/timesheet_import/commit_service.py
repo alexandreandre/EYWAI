@@ -17,6 +17,7 @@ from app.modules.schedules.application.schedule_import_audit import (
 )
 from app.modules.schedules.application.service import get_employee_company_and_statut
 from app.modules.admin_import.infrastructure import repository as admin_repo
+from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
@@ -51,19 +52,45 @@ def _jours_importes_en_conflit(
     month: int,
     calendrier_prevu: list,
     reel_days: List[AiDayEntry],
+    arrets_valides: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """Les jours de CET import qui portent des heures un jour d'arrêt ou d'absence
-    non travaillée au prévu (après fusion) : signalés, pas refusés."""
+    non travaillée au prévu (après fusion), week-ends d'arrêt validé compris :
+    signalés, pas refusés."""
     from app.modules.schedules.domain.conflits_arret import jours_en_conflit
 
     conflits = jours_en_conflit(
-        [e for e in calendrier_prevu or [] if isinstance(e, dict)],
-        [{"jour": d.jour, "heures_faites": d.heures} for d in reel_days],
+        [
+            {**e, "annee": year, "mois": month}
+            for e in calendrier_prevu or []
+            if isinstance(e, dict)
+        ],
+        [
+            {"annee": year, "mois": month, "jour": d.jour, "heures_faites": d.heures}
+            for d in reel_days
+        ],
+        arrets_valides,
     )
     return [
         {"annee": year, "mois": month, "jour": c.jour, "heures": c.heures_saisies}
         for c in conflits
     ]
+
+
+def _arrets_des_mois(
+    employee_ids: List[str], mois: List[tuple[int, int]]
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Les arrêts validés des salariés sur les mois écrits, en une lecture."""
+    from datetime import date
+
+    if not employee_ids or not mois:
+        return {}
+    premier, dernier = min(mois), max(mois)
+    return arrets_valides_reader.par_salarie(
+        employee_ids,
+        date(premier[0], premier[1], 1),
+        date(dernier[0], dernier[1], cal_mod.monthrange(dernier[0], dernier[1])[1]),
+    )
 
 
 def _par_salarie(
@@ -166,6 +193,7 @@ def _upsert_employees_for_month(
     month: int,
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
+    arrets_valides: Dict[str, List[Dict[str, Any]]] | None = None,
 ) -> tuple[
     List[Dict[str, Any]],
     int,
@@ -224,7 +252,13 @@ def _upsert_employees_for_month(
                 conflits.append(
                     (
                         emp.employee_id,
-                        _jours_importes_en_conflit(year, month, merged_planned, reel_days),
+                        _jours_importes_en_conflit(
+                            year,
+                            month,
+                            merged_planned,
+                            reel_days,
+                            (arrets_valides or {}).get(emp.employee_id),
+                        ),
                     )
                 )
 
@@ -273,6 +307,7 @@ def _upsert_employees_for_month_fast(
     employees: List[PersistTimesheetEmployee],
     existing_rows: Dict[str, Dict[str, Any]],
     employee_company_ids: Dict[str, str],
+    arrets_valides: Dict[str, List[Dict[str, Any]]] | None = None,
 ) -> tuple[
     List[Dict[str, Any]],
     int,
@@ -331,7 +366,13 @@ def _upsert_employees_for_month_fast(
                 conflits.append(
                     (
                         emp.employee_id,
-                        _jours_importes_en_conflit(year, month, merged_planned, reel_days),
+                        _jours_importes_en_conflit(
+                            year,
+                            month,
+                            merged_planned,
+                            reel_days,
+                            (arrets_valides or {}).get(emp.employee_id),
+                        ),
                     )
                 )
 
@@ -567,6 +608,9 @@ def _commit_multi_month_batch(
 
     month_keys = sorted(by_month)
     month_queue = [f"{month:02d}/{year}" for year, month in month_keys]
+    arrets_valides = _arrets_des_mois(
+        sorted({e.employee_id for emps in by_month.values() for e in emps}), month_keys
+    )
     summary = _emit_planning_commit_progress(
         batch_id,
         summary,
@@ -616,6 +660,7 @@ def _commit_multi_month_batch(
                 emp_id: str(meta.get("company_id") or "")
                 for emp_id, meta in employee_meta.items()
             },
+            arrets_valides=arrets_valides,
         )
         errors.extend(group_errors)
         warnings.extend(group_warnings)
@@ -862,9 +907,11 @@ def commit_batch_bulk(
     errors: List[Dict[str, str]] = []
     warnings: List[Dict[str, Any]] = []
     conflits: List[tuple[str, List[Dict[str, Any]]]] = []
-    for (annee, mois), employes_du_mois in sorted(
-        _employes_par_mois(employees, year, month).items()
-    ):
+    par_mois = _employes_par_mois(employees, year, month)
+    arrets_valides = _arrets_des_mois(
+        sorted({e.employee_id for e in employees}), sorted(par_mois)
+    )
+    for (annee, mois), employes_du_mois in sorted(par_mois.items()):
         existing_rows = schedule_repository.list_schedules_for_employees(
             [e.employee_id for e in employes_du_mois], annee, mois
         )
@@ -880,6 +927,7 @@ def commit_batch_bulk(
             month=mois,
             employees=employes_du_mois,
             existing_rows=existing_rows,
+            arrets_valides=arrets_valides,
         )
         if payloads:
             schedule_repository.bulk_upsert_schedules(payloads)

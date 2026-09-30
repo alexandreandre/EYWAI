@@ -9,6 +9,7 @@ aussi, pour que le récapitulatif les montre. Supabase est moqué.
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -221,6 +222,35 @@ def test_le_lot_multi_mois_signale_aussi(mock_repo, mock_sched, mock_admin, _aud
     ]
     assert result["jours_en_conflit"] == attendu
     assert _resume_final(mock_repo)["commit_jours_en_conflit"] == attendu
+
+
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.record_schedule_import_run")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.timesheet_import_repository")
+@patch(f"{SERVICE}.get_employee_company_and_statut")
+def test_un_samedi_d_arret_valide_importe_est_signale(
+    mock_statut, mock_repo, mock_sched, _audit, mock_arrets
+):
+    ligne = _septembre()
+    ligne["planned_calendar"]["calendrier_prevu"].append(
+        {"jour": 12, "type": "weekend", "heures_prevues": 0}
+    )
+    mock_repo.get_batch.return_value = _lot(
+        [AiDayEntry(jour=12, heures=5.0, type="travail", nature="reel")]
+    )
+    mock_statut.return_value = ("c1", "CDI")
+    mock_sched.list_schedules_for_employees.return_value = {"e1": ligne}
+    mock_arrets.par_salarie.return_value = {
+        "e1": [{"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-12"]}]
+    }
+
+    result = _commit()
+
+    mock_arrets.par_salarie.assert_called_once_with(["e1"], date(2026, 9, 1), date(2026, 9, 30))
+    assert result["jours_en_conflit"] == [
+        {"employee_id": "e1", "jours": [{"annee": 2026, "mois": 9, "jour": 12, "heures": 5.0}]}
+    ]
 
 
 def test_la_reponse_de_persist_timesheet_porte_les_jours_en_conflit():

@@ -8,6 +8,7 @@ Réservé aux RH de la société du salarié, journalisé. Supabase est moqué.
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -29,6 +30,7 @@ def _prevu_septembre() -> dict:
             {"jour": 8, "type": "arret_maladie", "heures_prevues": 0, "origine": "absence"},
             {"jour": 9, "type": "travail", "heures_prevues": 7.0},
             {"jour": 10, "type": "conges_payes", "heures_prevues": 0, "quotite_absence": 0.5},
+            {"jour": 12, "type": "weekend", "heures_prevues": 0},
         ]
     }
 
@@ -41,19 +43,22 @@ def _reel_septembre() -> dict:
             {"jour": 8, "type": "travail", "heures_faites": 8.0},
             {"jour": 9, "type": "travail", "heures_faites": 7.0},
             {"jour": 10, "type": "travail", "heures_faites": 4.0},
+            {"jour": 12, "type": "travail", "heures_faites": 5.0},
         ],
     }
 
 
-def _effacer(jours: list[int], *, reel: dict | None = None):
+def _effacer(jours: list[int], *, reel: dict | None = None, arrets: list[dict] | None = None):
     with (
         patch(
             f"{_COMMANDS}.get_employee_company_and_statut",
             return_value=("co-1", "Non-Cadre"),
         ),
         patch(f"{_COMMANDS}.schedule_repository") as repo,
+        patch(f"{_COMMANDS}.arrets_valides_reader") as lecteur,
         patch(f"{_COMMANDS}.logger") as log,
     ):
+        lecteur.par_salarie.return_value = {"emp-1": arrets or []}
         repo.get_planned_calendar.return_value = _prevu_septembre()
         repo.get_actual_hours.return_value = reel if reel is not None else _reel_septembre()
         try:
@@ -77,6 +82,7 @@ class TestEffacerHeuresDesJours:
             {"jour": 8, "type": "arret_maladie", "heures_faites": 0},
             {"jour": 9, "type": "travail", "heures_faites": 7.0},
             {"jour": 10, "type": "travail", "heures_faites": 4.0},
+            {"jour": 12, "type": "travail", "heures_faites": 5.0},
         ]
         assert kwargs["actual_hours"]["periode"] == {"annee": 2026, "mois": 9}
         assert "planned_calendar" not in kwargs
@@ -98,6 +104,39 @@ class TestEffacerHeuresDesJours:
             "ses heures ne sont pas effacées. Rien n'a été modifié."
         )
         repo.upsert_schedule.assert_not_called()
+
+    def test_un_samedi_couvert_par_un_arret_valide_s_efface(self):
+        """Exactement les jours que la garde signale : un samedi d'arrêt compris.
+        Le réel repasse au type du prévu (« weekend »), à 0 h."""
+        arret = {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-12"]}
+        resultat, repo, _ = _effacer([12], arrets=[arret])
+
+        assert resultat["jours"] == [12]
+        calendrier = repo.upsert_schedule.call_args.kwargs["actual_hours"]["calendrier_reel"]
+        assert calendrier[-1] == {"jour": 12, "type": "weekend", "heures_faites": 0}
+
+    def test_un_samedi_hors_arret_ne_s_efface_pas(self):
+        erreur, repo, _ = _effacer([12])
+
+        assert isinstance(erreur, ScheduleAppError)
+        assert erreur.status_code == 422
+        repo.upsert_schedule.assert_not_called()
+
+    def test_les_arrets_valides_du_mois_sont_lus(self):
+        with (
+            patch(
+                f"{_COMMANDS}.get_employee_company_and_statut",
+                return_value=("co-1", "Non-Cadre"),
+            ),
+            patch(f"{_COMMANDS}.schedule_repository") as repo,
+            patch(f"{_COMMANDS}.arrets_valides_reader") as lecteur,
+        ):
+            lecteur.par_salarie.return_value = {}
+            repo.get_planned_calendar.return_value = _prevu_septembre()
+            repo.get_actual_hours.return_value = _reel_septembre()
+            commands.effacer_heures_des_jours("emp-1", 2026, 9, [7])
+
+        lecteur.par_salarie.assert_called_once_with(["emp-1"], date(2026, 9, 1), date(2026, 9, 30))
 
     def test_une_demi_journee_de_conge_ne_s_efface_pas(self):
         """L'autre demi-journée a été travaillée : ses heures sont vraies."""

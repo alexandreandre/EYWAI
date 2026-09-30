@@ -35,3 +35,12 @@ def verrous_de_generation(monkeypatch) -> VerrousEnMemoire:
     faux = VerrousEnMemoire()
     monkeypatch.setattr(verrou_generation, "_rpc", faux)
     return faux
+
+
+@pytest.fixture(autouse=True)
+def aucun_arret_valide_lu_en_base(monkeypatch) -> None:
+    """Les arrêts validés se lisent en base (`absence_requests`) : en test, aucun,
+    sauf doublure explicite (`patch(...arrets_valides_reader)`)."""
+    from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
+
+    monkeypatch.setattr(arrets_valides_reader, "par_salarie", lambda *a, **k: {})

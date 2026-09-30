@@ -15,7 +15,7 @@ from __future__ import annotations
 import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Iterable, Literal, Mapping
+from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from app.modules.schedules.domain.conflits_arret import JourEnConflit, jours_en_conflit
 from app.modules.schedules.domain.ecart_rules import is_day_ready_for_payroll
@@ -92,6 +92,7 @@ def periode_a_saisir(
     date_sortie: date | None = None,
     forfait: bool = False,
     origine: str = "regle",
+    absences_validees: Sequence[Mapping[str, Any]] | None = None,
 ) -> PeriodeASaisir:
     """Les jours manquants sur l'union du mois civil et de la fenêtre des variables.
 
@@ -102,7 +103,9 @@ def periode_a_saisir(
     - Un mois sans ligne de planning attend ses jours ouvrés (lundi à vendredi),
       pas le week-end.
     - Les heures saisies un jour d'arrêt ou d'absence non travaillée sont
-      relevées sur la même union et dans les mêmes bornes (`conflits`).
+      relevées sur la même union et dans les mêmes bornes (`conflits`) ; les
+      arrêts validés (`absences_validees`) y ajoutent leurs week-ends, repos et
+      fériés, que le planning ne retype pas.
     """
     mois_civil = (date(annee, mois, 1), date(annee, mois, calendar.monthrange(annee, mois)[1]))
     if forfait:
@@ -145,6 +148,7 @@ def periode_a_saisir(
         for c in jours_en_conflit(
             [{**e, "annee": a, "mois": m} for e in prevu if isinstance(e, dict)],
             [{**e, "annee": a, "mois": m} for e in reel if isinstance(e, dict)],
+            [dict(x) for x in absences_validees or []],
         )
         if dans_la_periode(c)
     ]
