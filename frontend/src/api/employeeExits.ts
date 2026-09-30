@@ -51,6 +51,8 @@ export interface SimpleEmployee {
   last_name: string;
   email?: string;
   job_title?: string;
+  /** Vrai si aucun contrat n'a été généré dans EYWAI (salarié repris de l'ancien logiciel). */
+  contrat_absent?: boolean;
 }
 
 export type NoticePeriodSource = 'legal' | 'convention' | 'none' | 'not_applicable';
@@ -364,7 +366,7 @@ export interface UpdateChecklistItemRequest {
 // ============================================================================
 
 /**
- * Liste les collaborateurs éligibles à un nouveau départ (actifs + contrat généré).
+ * Liste les collaborateurs éligibles à un nouveau départ (actifs, avec ou sans contrat généré par EYWAI).
  */
 export async function getExitEligibleEmployees(): Promise<SimpleEmployee[]> {
   const response = await apiClient.get('/api/employee-exits/eligible-employees');

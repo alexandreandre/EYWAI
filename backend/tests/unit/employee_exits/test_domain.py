@@ -288,24 +288,24 @@ class TestReconciliationArchiveChain:
 
 
 class TestExitBlockReason:
-    def test_actif_with_contract_is_eligible(self):
+    def test_actif_is_eligible(self):
         employee = {"employment_status": "actif", "first_name": "Terence"}
-        assert exit_block_reason(employee, has_work_contract=True) is None
+        assert exit_block_reason(employee) is None
 
     def test_en_onboarding_is_blocked(self):
         employee = {"employment_status": "en_onboarding", "first_name": "Terence"}
-        reason = exit_block_reason(employee, has_work_contract=False)
+        reason = exit_block_reason(employee)
         assert reason is not None
         assert "onboarding" in reason.lower()
 
-    def test_actif_without_contract_is_blocked(self):
-        employee = {"employment_status": "actif", "first_name": "Terence"}
-        reason = exit_block_reason(employee, has_work_contract=False)
+    @pytest.mark.parametrize("statut", ["en_sortie", "parti"])
+    def test_salarie_deja_en_sortie_ou_parti_est_bloque(self, statut):
+        reason = exit_block_reason({"employment_status": statut})
         assert reason is not None
-        assert "contrat de travail" in reason.lower()
+        assert "éligible" in reason.lower()
 
     def test_ineligible_status_is_blocked(self):
         employee = {"employment_status": "inactif"}
-        reason = exit_block_reason(employee, has_work_contract=True)
+        reason = exit_block_reason(employee)
         assert reason is not None
         assert "éligible" in reason.lower()

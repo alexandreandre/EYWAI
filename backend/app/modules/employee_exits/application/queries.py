@@ -56,21 +56,26 @@ def list_exit_eligible_employees(
     company_id: str,
     supabase_client: Any = None,
 ) -> List[Dict[str, Any]]:
-    """Salariés actifs avec contrat de travail, éligibles à un nouveau départ."""
+    """Salariés actifs éligibles à un nouveau départ.
+
+    ``contrat_absent`` signale un salarié sans contrat généré par EYWAI (repris de
+    l'ancien logiciel) : information seulement, le départ reste possible.
+    """
     _ = supabase_client  # réservé pour tests / injection future
     repo = EmployeeRepository()
     rows = repo.get_summary_by_company(company_id, active_only=True)
     eligible: List[Dict[str, Any]] = []
     for employee in rows:
-        has_contract = employee_has_work_contract(str(employee["id"]), company_id)
-        if exit_block_reason(employee, has_work_contract=has_contract) is not None:
+        if exit_block_reason(employee) is not None:
             continue
+        has_contract = employee_has_work_contract(str(employee["id"]), company_id)
         eligible.append(
             {
                 "id": str(employee["id"]),
                 "first_name": employee.get("first_name") or "",
                 "last_name": employee.get("last_name") or "",
                 "job_title": employee.get("job_title"),
+                "contrat_absent": not has_contract,
             }
         )
     return eligible

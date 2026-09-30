@@ -395,3 +395,44 @@ class TestGetExitChecklist:
         assert len(result) == 2
         assert result[0]["item_code"] == "badge_return"
         mock_repo.list_by_exit.assert_called_once_with(EXIT_ID, COMPANY_ID)
+
+
+class TestListExitEligibleEmployees:
+    """Éligibilité à un départ : l'absence de contrat EYWAI n'est qu'une information."""
+
+    @staticmethod
+    def _row(emp_id, status="actif"):
+        return {
+            "id": emp_id,
+            "first_name": "Prenom",
+            "last_name": f"Nom-{emp_id}",
+            "job_title": "Opérateur",
+            "employment_status": status,
+        }
+
+    def _run(self, rows, contracts):
+        with patch.object(queries, "EmployeeRepository") as repo_cls, patch.object(
+            queries,
+            "employee_has_work_contract",
+            side_effect=lambda emp_id, _company: contracts[emp_id],
+        ):
+            repo_cls.return_value.get_summary_by_company.return_value = rows
+            return queries.list_exit_eligible_employees(COMPANY_ID)
+
+    def test_salarie_actif_sans_contrat_est_eligible_avec_contrat_absent(self):
+        result = self._run([self._row("e1")], {"e1": False})
+        assert [e["id"] for e in result] == ["e1"]
+        assert result[0]["contrat_absent"] is True
+
+    def test_salarie_actif_avec_contrat_est_eligible_sans_contrat_absent(self):
+        result = self._run([self._row("e1")], {"e1": True})
+        assert [e["id"] for e in result] == ["e1"]
+        assert result[0]["contrat_absent"] is False
+
+    @pytest.mark.parametrize("statut", ["parti", "en_sortie", "en_onboarding"])
+    def test_salarie_parti_ou_en_sortie_ou_onboarding_nest_pas_eligible(self, statut):
+        result = self._run(
+            [self._row("e1", status=statut), self._row("e2")],
+            {"e1": True, "e2": True},
+        )
+        assert [e["id"] for e in result] == ["e2"]

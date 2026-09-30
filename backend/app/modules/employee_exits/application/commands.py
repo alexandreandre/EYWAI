@@ -20,7 +20,6 @@ from app.modules.employee_exits.application.dto import (
     GENERATABLE_DOCUMENT_TYPES,
 )
 from app.modules.employee_exits.application.service import create_default_checklist_sync
-from app.modules.employees.application.queries import employee_has_work_contract
 from app.modules.employee_exits.domain.rules import (
     exit_block_reason,
     get_initial_status,
@@ -97,10 +96,7 @@ def create_employee_exit(
             f"L'employé a déjà un processus de départ actif (statut: {employee['employment_status']})",
         )
 
-    block_reason = exit_block_reason(
-        employee,
-        has_work_contract=employee_has_work_contract(employee_id, company_id),
-    )
+    block_reason = exit_block_reason(employee)
     if block_reason:
         raise EmployeeExitApplicationError(400, block_reason)
 

@@ -152,23 +152,20 @@ def resolve_archive_path(exit_type: str, current_status: str) -> List[str]:
     return path
 
 
-def exit_block_reason(
-    employee: Dict[str, Any], *, has_work_contract: bool
-) -> Optional[str]:
-    """Message d'erreur si le salarié ne peut pas faire l'objet d'un départ, sinon None."""
+def exit_block_reason(employee: Dict[str, Any]) -> Optional[str]:
+    """Message d'erreur si le salarié ne peut pas faire l'objet d'un départ, sinon None.
+
+    L'absence de contrat généré par EYWAI n'est pas un motif de blocage : un salarié
+    repris de l'ancien logiciel n'en a pas et doit pouvoir partir.
+    """
     status = str(
         employee.get("employment_status") or DEFAULT_EMPLOYMENT_STATUS
     ).lower()
     if status == "en_onboarding":
         return (
             "Impossible d'initier un départ : ce collaborateur est encore en onboarding. "
-            "Finalisez son intégration et générez son contrat de travail depuis sa fiche."
+            "Finalisez son intégration depuis sa fiche."
         )
     if status not in EXIT_ELIGIBLE_STATUSES:
         return f"Ce collaborateur n'est pas éligible à un départ (statut : {status})."
-    if not has_work_contract:
-        return (
-            "Impossible d'initier un départ : le contrat de travail n'a pas encore été "
-            "généré pour ce collaborateur. Générez-le depuis sa fiche employé."
-        )
     return None

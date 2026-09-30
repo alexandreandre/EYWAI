@@ -35,6 +35,9 @@ interface CreateExitDialogProps {
   initialExitType?: ExitType;
 }
 
+export const CONTRAT_ABSENT_MESSAGE =
+  "Contrat non présent dans EYWAI (repris de l'ancien logiciel) : le départ se crée quand même";
+
 function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
   switch (source) {
     case 'convention':
@@ -77,6 +80,8 @@ export function CreateExitDialog({
   const [isGrossMisconduct, setIsGrossMisconduct] = useState(false);
   const [noticeIndemnityType, setNoticeIndemnityType] = useState<'paid' | 'waived' | 'not_applicable'>('paid');
   const [exitReason, setExitReason] = useState<string>('');
+
+  const selectedEmployee = employees.find((emp) => emp.id === employeeId);
 
   const resetForm = () => {
     setEmployeeId('');
@@ -327,8 +332,13 @@ export function CreateExitDialog({
             </Select>
             {!loadingEmployees && employees.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Seuls les collaborateurs actifs disposant d&apos;un contrat de travail généré peuvent
-                faire l&apos;objet d&apos;un départ.
+                Seuls les collaborateurs actifs peuvent faire l&apos;objet d&apos;un départ. Un
+                collaborateur déjà parti, ou dont un départ est déjà en cours, n&apos;apparaît pas ici.
+              </p>
+            )}
+            {selectedEmployee?.contrat_absent && (
+              <p className="text-sm text-muted-foreground" data-testid="contrat-absent-info">
+                {CONTRAT_ABSENT_MESSAGE}
               </p>
             )}
           </div>
