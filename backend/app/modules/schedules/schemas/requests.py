@@ -7,7 +7,7 @@ Comportement identique à l’ancien schemas/schedule.py et api/routers/schedule
 
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ----- Calendrier prévu (GET/POST /planned-calendar) -----
@@ -82,6 +82,22 @@ class ActualHoursRequest(BaseModel):
     year: int
     month: int
     calendrier_reel: List[ActualHoursEntry]
+
+
+class EffacerJoursRequest(BaseModel):
+    """Corps de POST /actual-hours/effacer-jours : les jours du mois dont les
+    heures, saisies sur un arrêt ou une absence, sont à effacer."""
+
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    jours: List[int] = Field(min_length=1, max_length=31)
+
+    @field_validator("jours")
+    @classmethod
+    def _jours_du_mois(cls, jours: List[int]) -> List[int]:
+        if any(j < 1 or j > 31 for j in jours):
+            raise ValueError("Chaque jour doit être compris entre 1 et 31.")
+        return jours
 
 
 class ImportBadgeuseEmployeeRequest(BaseModel):

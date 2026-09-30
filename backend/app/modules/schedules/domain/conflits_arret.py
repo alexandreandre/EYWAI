@@ -210,13 +210,11 @@ def _enumerer(elements: Sequence[str]) -> str:
     return f"{', '.join(elements[:-1])} et {elements[-1]}"
 
 
-def libelle_des_jours(conflits: Sequence[JourEnConflit]) -> str:
-    """« le 31 août et les 1er et 2 septembre » — chaque mois nommé."""
+def libelle_des_dates(dates: Iterable[tuple[int, int, int]]) -> str:
+    """« le 31 août et les 1er et 2 septembre » pour des (année, mois, jour)."""
     par_mois: dict[tuple[int, int], list[int]] = {}
-    for c in sorted(conflits, key=lambda c: (c.annee or 0, c.mois or 0, c.jour)):
-        jours = par_mois.setdefault((c.annee or 0, c.mois or 0), [])
-        if c.jour not in jours:
-            jours.append(c.jour)
+    for annee, mois, jour in sorted(set(dates)):
+        par_mois.setdefault((annee, mois), []).append(jour)
     groupes = []
     for (_, mois), jours in par_mois.items():
         nom_mois = _MOIS[mois - 1] if 1 <= mois <= 12 else ""
@@ -224,6 +222,11 @@ def libelle_des_jours(conflits: Sequence[JourEnConflit]) -> str:
         texte = f"{article} {_enumerer([_libelle_jour(j) for j in jours])} {nom_mois}"
         groupes.append(texte.strip())
     return _enumerer(groupes)
+
+
+def libelle_des_jours(conflits: Sequence[JourEnConflit]) -> str:
+    """Les jours en conflit, chaque mois nommé."""
+    return libelle_des_dates((c.annee or 0, c.mois or 0, c.jour) for c in conflits)
 
 
 def libelle_absence(type_jour: str) -> str:
@@ -257,6 +260,7 @@ __all__ = [
     "jour_prevu_sans_heures",
     "jours_en_conflit",
     "libelle_absence",
+    "libelle_des_dates",
     "libelle_des_jours",
     "message_de_refus",
 ]

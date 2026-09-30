@@ -298,6 +298,106 @@ def update_actual_hours(employee_id: str, payload: Any) -> Dict[str, str]:
         raise ScheduleAppError("error", str(e), status_code=500) from e
 
 
+def effacer_heures_des_jours(
+    employee_id: str,
+    year: int,
+    month: int,
+    jours: List[int],
+    *,
+    auteur: str | None = None,
+) -> Dict[str, Any]:
+    """Efface les heures saisies sur des jours d'arrêt ou d'absence non travaillée.
+
+    Chaque jour du réel repasse au type du prévu, à 0 h : c'est la correction
+    que propose le refus de génération `heures_sur_jour_d_arret`. Un jour qui
+    n'est ni un arrêt ni une absence au prévu (jour travaillé, demi-journée de
+    congé) est refusé, et rien n'est écrit. Journalisé avec les heures d'avant.
+    """
+    from app.modules.schedules.domain.conflits_arret import (
+        jour_prevu_sans_heures,
+        libelle_des_dates,
+    )
+
+    demandes = sorted(set(int(j) for j in jours))
+    dernier = cal_mod.monthrange(year, month)[1]
+    hors_mois = [j for j in demandes if not 1 <= j <= dernier]
+    if hors_mois:
+        raise ScheduleAppError(
+            "validation",
+            f"Jour(s) {', '.join(map(str, hors_mois))} hors du mois {month:02d}/{year}. "
+            "Rien n'a été modifié.",
+            status_code=422,
+        )
+
+    company_id, _ = get_employee_company_and_statut(employee_id)
+    prevu_par_jour = {
+        domain_rules.coerce_jour(e.get("jour")): e
+        for e in extract_calendrier_prevu_from_planned_calendar(
+            schedule_repository.get_planned_calendar(employee_id, year, month)
+        )
+        if isinstance(e, dict)
+    }
+    refuses = [j for j in demandes if not jour_prevu_sans_heures(prevu_par_jour.get(j))]
+    if refuses:
+        quels = libelle_des_dates((year, month, j) for j in refuses)
+        constat = (
+            "n'est ni un jour d'arrêt ni une absence au planning : ses heures"
+            if len(refuses) == 1
+            else "ne sont ni des jours d'arrêt ni des absences au planning : leurs heures"
+        )
+        raise ScheduleAppError(
+            "validation",
+            f"{quels[:1].upper()}{quels[1:]} {constat} ne sont pas effacées. "
+            "Rien n'a été modifié.",
+            status_code=422,
+        )
+
+    actual_hours = dict(schedule_repository.get_actual_hours(employee_id, year, month) or {})
+    avant: List[Dict[str, Any]] = []
+    calendrier_reel: List[Dict[str, Any]] = []
+    for entree in extract_calendrier_reel_from_actual_hours(actual_hours):
+        jour = domain_rules.coerce_jour(entree.get("jour")) if isinstance(entree, dict) else None
+        if jour in demandes:
+            avant.append(
+                {
+                    "jour": jour,
+                    "type_avant": entree.get("type"),
+                    "heures_avant": entree.get("heures_faites"),
+                }
+            )
+            entree = {**entree, "type": prevu_par_jour[jour].get("type"), "heures_faites": 0}
+        calendrier_reel.append(entree)
+
+    schedule_repository.upsert_schedule(
+        employee_id,
+        company_id,
+        year,
+        month,
+        actual_hours={
+            **actual_hours,
+            "periode": {"annee": year, "mois": month},
+            "calendrier_reel": calendrier_reel,
+        },
+    )
+    logger.info(
+        "[calendrier] Heures effacées sur jours d'arrêt : employé %s, %02d/%d, par %s — %s",
+        employee_id,
+        month,
+        year,
+        auteur or "inconnu",
+        avant,
+    )
+    return {
+        "status": "success",
+        "year": year,
+        "month": month,
+        "jours": demandes,
+        "message": (
+            f"Heures effacées {libelle_des_dates((year, month, j) for j in demandes)}."
+        ),
+    }
+
+
 def _dates_to_process(year: int, month: int) -> List[Dict[str, int]]:
     """Retourne [M-1, M, M+1] en (year, month)."""
     dates_to_process = []

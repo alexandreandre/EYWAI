@@ -24,6 +24,7 @@ from app.modules.schedules.schemas import (
     ApplyPresetRequest,
     CalendarResponse,
     CumulsResponse,
+    EffacerJoursRequest,
     GenerateCalendarRequest,
     SchedulePlanUpsert,
     ImportBadgeuseBulkRequest,
@@ -146,6 +147,29 @@ def update_actual_hours(
     try:
         _require_employee_schedule_access(current_user, employee_id, "schedules.update")
         return commands.update_actual_hours(employee_id, payload)
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
+
+
+@router.post("/actual-hours/effacer-jours", status_code=200)
+def effacer_heures_des_jours(
+    employee_id: str,
+    payload: EffacerJoursRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Efface les heures saisies sur des jours d'arrêt ou d'absence (0 h, type du prévu).
+
+    La correction en un clic du refus de génération `heures_sur_jour_d_arret`.
+    """
+    try:
+        _require_employee_schedule_access(current_user, employee_id, "schedules.update")
+        return commands.effacer_heures_des_jours(
+            employee_id,
+            payload.year,
+            payload.month,
+            payload.jours,
+            auteur=str(current_user.id),
+        )
     except ScheduleAppError as e:
         _handle_schedule_error(e)
 
