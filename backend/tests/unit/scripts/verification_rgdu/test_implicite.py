@@ -94,6 +94,69 @@ def test_un_premier_mois_sans_entree_ni_janvier_reste_calculable_sans_smic_du_mo
     assert smic[4].raison
 
 
+def test_un_smic_du_mois_negatif_est_un_mois_de_regularisation_quadra():
+    """Corrigé après revue : un SMIC du mois négatif n'est pas un vrai recul du SMIC
+    cumulé, c'est un mois de régularisation Quadra (brut ou réduction du mois
+    négatifs). Vu sur données réelles (Colorplast, Comitech) : `smic_mois` doit
+    rester `None`, `calculable=False`, mais `smic_cumule` reste connu."""
+    r1 = reduction_cumulee(3000.0, 2300.0, P)
+    r2_cumule_cible = reduction_cumulee(3020.0, 2000.0, P)  # SMIC cumulé plus bas que r1
+    smic = smic_quadra_par_mois(
+        [_m(1, 3000.0, 3000.0, r1), _m(2, 20.0, 3020.0, r2_cumule_cible - r1)], P,
+    )
+    assert smic[1].calculable is True
+    assert smic[2].calculable is False
+    assert smic[2].smic_mois is None
+    assert smic[2].smic_cumule is not None
+    assert "négatif" in smic[2].raison
+    assert "régularisation" in smic[2].raison
+
+
+def test_la_chaine_se_reamorce_apres_un_mois_de_regularisation_quadra():
+    """Le mois qui suit un SMIC du mois négatif redevient calculable normalement :
+    le SMIC cumulé du mois « négatif » est mémorisé en interne comme point de
+    départ, même s'il n'a pas de SMIC du mois propre."""
+    r1 = reduction_cumulee(3000.0, 2300.0, P)
+    r2_cumule_cible = reduction_cumulee(3020.0, 2000.0, P)
+    r3 = reduction_cumulee(4000.0, 2600.0, P) - r2_cumule_cible
+    mois = [
+        _m(1, 3000.0, 3000.0, r1),
+        _m(2, 20.0, 3020.0, r2_cumule_cible - r1),   # SMIC du mois négatif
+        _m(3, 980.0, 4000.0, r3),
+    ]
+    smic = smic_quadra_par_mois(mois, P)
+    assert smic[2].calculable is False
+    assert smic[3].calculable is True
+    assert smic[3].smic_mois is not None
+
+
+def test_un_mois_manquant_dans_la_chaine_rend_la_difference_non_calculable():
+    """Corrigé après revue : salarié présent en février (premier mois des données
+    fournies — cas limite existant, calculable mais sans SMIC du mois propre) puis
+    directement en avril, sans mars dans les données. La différence entre les deux
+    SMIC cumulés couvrirait deux mois, pas un seul : non calculable, mais le SMIC
+    cumulé d'avril reste connu."""
+    smic = smic_quadra_par_mois([_m(2, 2000.0, 2000.0, 400.0), _m(4, 2000.0, 4000.0, 400.0)], P)
+    assert smic[2].calculable is True
+    assert smic[2].smic_mois is None  # cas limite existant (premier mois, ni janvier ni entrée)
+    assert smic[4].calculable is False
+    assert smic[4].smic_mois is None
+    assert smic[4].smic_cumule is not None
+    assert "mois précédent absent" in smic[4].raison
+
+
+def test_la_chaine_se_reamorce_apres_un_mois_manquant():
+    """Le mois qui suit directement un mois « manquant dans la chaîne » (mars
+    absent, avril non calculable) redevient calculable normalement en mai : le
+    SMIC cumulé d'avril est mémorisé en interne comme point de départ."""
+    smic = smic_quadra_par_mois(
+        [_m(2, 2000.0, 2000.0, 400.0), _m(4, 2000.0, 4000.0, 400.0), _m(5, 1000.0, 5000.0, 200.0)], P,
+    )
+    assert smic[4].calculable is False
+    assert smic[5].calculable is True
+    assert smic[5].smic_mois is not None
+
+
 def test_la_chaine_se_reamorce_apres_un_mois_non_calculable_par_cascade():
     """Un troisième mois, après le mois « non calculable par cascade » du test
     précédent, redevient calculable normalement : il dispose du SMIC cumulé du
