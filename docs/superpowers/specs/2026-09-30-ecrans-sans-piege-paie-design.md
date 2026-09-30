@@ -10,12 +10,9 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
 
 ## 1. Un salarié « enregistré » qui n'existe pas
 
-**Fait.** Aucun salarié créé en base depuis trois jours. Aucune requête de création (`POST /api/employees`) n'a atteint le serveur de test ni la production depuis le 29/09 à 20 h UTC. Le formulaire s'est donc arrêté avant l'envoi, sans que la gestionnaire le comprenne.
+**Fait.** Aucun salarié créé en base depuis trois jours. Aucune requête de création (`POST /api/employees`, ni sa requête préalable `OPTIONS`) n'est partie du navigateur : rien sur le serveur de test ni en production depuis le 29/09 20 h UTC. Refaite pas à pas avec une deuxième personne à 19 h 30, la saisie s'arrête sur « Une erreur est survenue », avec une erreur sur le nom, alors que tous les champs obligatoires étaient remplis. L'échec se produit donc dans le formulaire lui-même, avant tout envoi.
 
-**Causes possibles**, sans trancher ; les solutions couvrent les trois :
-- Le formulaire laisse le navigateur valider les champs (pas de `noValidate`). Les champs numériques ont un pas imposé : taux personnalisé au pas de 0,1, montants au pas de 0,01. Une valeur hors pas bloque l'envoi, avec au mieux une petite bulle du navigateur.
-- Une erreur de saisie est affichée en haut du formulaire, mais la fenêtre est fermée sans que la gestionnaire l'ait vue. La fenêtre se ferme sans avertir que rien n'est enregistré.
-- La saisie est incomplète dans un autre onglet.
+**Cause exacte** : non établie, faute de capture et de journal côté écran. Le nom n'exige que deux caractères (`createEmployeeFormSchema.ts:13`). Pistes : une exception dans la préparation de l'envoi (données extraites du contrat PDF, fichier joint), ou une validation du navigateur (formulaire sans `noValidate`, champs numériques à pas imposé). Première étape obligatoire : reproduire avec les données réelles de la fiche (entrée le 21/09, contrat PDF joint, RIB absent) et lire l'erreur exacte.
 
 **Solutions**, dans `frontend/src/features/employees/components/CreateEmployeeForm.tsx` :
 1. `noValidate` sur le formulaire, et pas de pas imposé sur les champs numériques. Toute erreur passe par la validation du formulaire, qui l'affiche.
@@ -28,7 +25,8 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
    - un écran de confirmation « Salarié X enregistré », qui existe déjà (`NouveauSalarieRecap`), avec ce qu'il reste à faire ;
    - le salarié apparaît en tête de la liste, avec un badge « Nouveau ».
 5. **Échec visible** : si le serveur refuse, un bandeau rouge « Salarié NON enregistré » donne la raison. La saisie est conservée et le bouton reste disponible.
-6. **Test de bout en bout**, dans le parcours de la gestionnaire (mode paie) :
+6. **Journal des erreurs de l'écran** : toute erreur inattendue du formulaire (exception, refus du navigateur, requête sans réponse) est envoyée au serveur avec le contexte, sans données personnelles, pour qu'on voie désormais ce que la gestionnaire a vu.
+7. **Test de bout en bout**, dans le parcours de la gestionnaire (mode paie) :
    - une valeur piège (taux de 1,15 %, salaire au millième) produit une erreur visible et ne bloque pas en silence ;
    - fermer la fenêtre avec une saisie en cours demande confirmation ;
    - une création réussie affiche la confirmation.
@@ -72,12 +70,15 @@ Tous les faits ci-dessous ont été vérifiés en base de test et dans les journ
 
 ## 4. Sortie d'un salarié en cours de mois
 
-**Fait.** Un CDD finit le 15/09 sans dossier de départ. La gestionnaire ne savait pas qu'il fallait « sortir » le salarié pour obtenir son bulletin de sortie.
+**Faits :**
+- Un CDD finit le 15/09 sans dossier de départ. La gestionnaire ne savait pas qu'il fallait créer le départ pour obtenir le bulletin de sortie.
+- Et elle ne le peut pas : la fenêtre « Nouveau départ » affiche « Aucun collaborateur éligible ». Un salarié n'y est éligible que s'il a un contrat de travail **généré par EYWAI** (`employee_exits/application/queries.py:55-76`, `exit_block_reason(..., has_work_contract=...)`). Les salariés repris de Quadra n'en ont aucun, donc aucun salarié de Colorplast ne peut sortir.
 
 **Solutions :**
-1. Un bandeau sur la page de paie du mois : « X quitte l'entreprise le 15/09 : créez son départ avant de générer », avec le bouton « Créer le départ ».
-2. Une fois le départ créé, le logiciel propose tout de suite de générer le bulletin de sortie.
-3. Les documents de sortie (solde de tout compte, attestation France Travail, certificat) restent grisés tant que le bulletin du mois de sortie n'existe pas, avec la mention « générez d'abord le bulletin de sortie ». Constat de la revue du 29/09.
+1. **Un contrat généré n'est plus une condition pour créer un départ.** Tout salarié actif est éligible. S'il n'a pas de contrat dans EYWAI, le départ affiche simplement « contrat non présent dans EYWAI (repris de Quadra) ». Test : un salarié repris sans contrat apparaît dans la liste.
+2. **Bandeau sur la page de paie du mois** : « X quitte l'entreprise le 15/09 : créez son départ avant de générer », avec le bouton « Créer le départ ».
+3. Une fois le départ créé, le logiciel propose tout de suite de générer le bulletin de sortie, avec l'indemnité de congés.
+4. Les documents de sortie (solde de tout compte, attestation France Travail, certificat) restent grisés tant que le bulletin du mois de sortie n'existe pas, avec la mention « générez d'abord le bulletin de sortie ». Constat de la revue du 29/09.
 
 ## 5. Heures sup comparées à son tableau
 
@@ -85,12 +86,25 @@ Après les points 2 et 3, les heures sup des bulletins sont celles des calendrie
 
 Rappel : l'option « compensation entre semaines » est active chez Colorplast. Elle a été mesurée comme perdante sur six mois à cause des journées en récupération (voir la mémoire du projet).
 
+## 6. Aide à la compréhension
+
+Proposé par la personne qui accompagne la gestionnaire. La gestionnaire suit une méthode apprise sur son ancien logiciel, sans les réflexes de paie pour repérer une anomalie. Le logiciel doit donc expliquer ce qu'il fait.
+
+1. **Aide sur le bulletin** : un astérisque ou une info-bulle sur les lignes qui surprennent. Exemples :
+   - « 16 h à 25 % : 4 h par semaine au-delà de 39 h, semaines 35 à 38 » ;
+   - « Absence : arrêt du 1er au 30/09 » ;
+   - « Réduction générale : régularisation depuis janvier ».
+   Chaque bulletin porte aussi une courte section « Ce qui a changé par rapport au mois dernier ».
+2. **Manuel opérateur** : une page simple, avec la paie du mois étape par étape (pointages, calendrier, absences, générer, vérifier, valider), les pièges connus et quoi faire. Accessible depuis le mode paie.
+3. **Liste de contrôle du mois** : sur la page de paie, les étapes cochées automatiquement (calendriers complets, absences saisies, bulletins générés et à jour, sorties créées), avec ce qui reste à faire.
+
 ## Ordre de réalisation
 
-1. **Heures sur un jour d'arrêt** (point 3) : c'est ce qui bloque un bulletin de septembre.
-2. **Écran à jour et « à recalculer »** (point 2).
-3. **Création de salarié guidée** (point 1).
-4. **Sortie guidée** (point 4).
+1. **Départ possible pour un salarié repris** (point 4.1) et **heures sur un jour d'arrêt** (point 3) : ils bloquent deux bulletins de septembre.
+2. **Écran à jour, suppression idempotente et « à recalculer »** (point 2).
+3. **Création de salarié** (point 1) : reproduire d'abord l'erreur, puis le parcours guidé et le journal des erreurs de l'écran.
+4. **Sortie guidée** (points 4.2 à 4.4).
+5. **Aide à la compréhension** (point 6) : manuel, aide sur le bulletin, liste de contrôle.
 
 Pour chaque point : tests unitaires, test de bout en bout du parcours de la gestionnaire (mode paie), filet de paie à zéro écart, puis déploiement sur le site de test avec l'accord d'Alexandre.
 
