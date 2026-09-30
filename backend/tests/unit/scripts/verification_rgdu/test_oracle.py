@@ -3,7 +3,7 @@ import pytest
 
 from scripts.verification_rgdu.oracle import (
     Parametres, coefficient, ecart_au_palier, reduction_cumulee, reduction_du_mois,
-    smic_pour_reduction,
+    smic_pour_reduction, sous_le_plancher,
 )
 
 pytestmark = pytest.mark.unit
@@ -76,6 +76,27 @@ def test_une_cible_hors_palier_ne_leve_pas_et_l_ecart_reste_borne():
     smic = smic_pour_reduction(brut, cible, P)
     tolerance = brut * 0.0001 / 2 + 0.01
     assert abs(ecart_au_palier(brut, smic, cible, P)) <= tolerance
+
+
+def test_une_cible_sous_le_plancher_de_tmin_est_detectee_sans_erreur():
+    """Juste avant la sortie à 3 SMIC, le coefficient saute de 0 à Tmin : aucune
+    réduction n'est légalement possible strictement entre 0 et Tmin × brut cumulé
+    (20,0 € ici). 10,0 € y tombe : ce n'est pas un simple écart de palier, c'est un
+    trou prévu par la loi, plus large qu'un palier — `sous_le_plancher` le signale ;
+    `smic_pour_reduction` continue de renvoyer le plus proche sans lever d'erreur."""
+    brut = 1000.0
+    assert sous_le_plancher(brut, 10.0, P) is True
+    smic = smic_pour_reduction(brut, 10.0, P)
+    assert ecart_au_palier(brut, smic, 10.0, P) == 10.0
+
+
+def test_une_cible_au_dessus_du_plancher_n_est_pas_signalee():
+    assert sous_le_plancher(1000.0, 20.0, P) is False
+
+
+def test_une_cible_nulle_sous_le_plancher_leve_toujours_une_erreur():
+    with pytest.raises(ValueError):
+        smic_pour_reduction(1000.0, 0.0, P)
 
 
 def test_deux_cents_bruts_realistes_retrouvent_leur_palier_sans_deriver():

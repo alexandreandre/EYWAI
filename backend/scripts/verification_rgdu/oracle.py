@@ -48,7 +48,9 @@ def smic_pour_reduction(brut_cumule: float, reduction_voulue: float, prm: Parame
     cible réelle — une réduction déclarée par Quadra sur un cumul qui n'est pas
     exactement celui que donnerait notre formule — tombe donc presque toujours entre
     deux paliers : ce n'est pas une erreur, c'est le constat que mesure
-    `ecart_au_palier` (tâches 6 et 10). Cette fonction ne cherche donc pas une égalité
+    `ecart_au_palier` (tâches 6 et 10). Voir aussi `sous_le_plancher` : entre 0 et
+    Tmin × brut cumulé, ce n'est pas un simple écart de palier mais un trou prévu par
+    la loi, bien plus large. Cette fonction ne cherche donc pas une égalité
     exacte : elle retrouve par dichotomie le palier qui encadre la cible (le
     coefficient plafonne dès que le SMIC cumulé atteint le brut cumulé, d'où la borne
     haute de la recherche), puis renvoie, parmi la borne basse et la borne haute de ce
@@ -91,6 +93,24 @@ def ecart_au_palier(brut_cumule: float, smic_cumule: float, reduction_voulue: fl
     une erreur : le coefficient légal étant arrondi à 4 décimales (D241-7, II), la
     réduction n'évolue que par paliers, et une cible réelle tombe presque toujours
     entre deux paliers. Cet écart est lui-même le constat que publient les tâches 6
-    et 10.
+    et 10. Exception : quand `sous_le_plancher(brut_cumule, reduction_voulue, prm)`
+    est vrai, l'écart ici renvoyé n'est pas un bruit d'arrondi de palier mais la
+    mesure d'un cumul tombé dans le trou légal entre 0 et Tmin × brut cumulé.
     """
     return round(reduction_cumulee(brut_cumule, smic_cumule, prm) - reduction_voulue, 2)
+
+
+def sous_le_plancher(brut_cumule: float, reduction_voulue: float, prm: Parametres) -> bool:
+    """True si `reduction_voulue` tombe dans le trou légal entre 0 et Tmin × brut cumulé.
+
+    Juste avant la sortie à 3 SMIC, le coefficient vaut Tmin (crochet proche de 0,
+    `Tmin + Tdelta × crochet^P ≈ Tmin`) ; à 3 SMIC et au-delà, le test de sortie le
+    fait sauter à 0 (D241-7, III : « devient nulle » ; regles.md, R-F1 : « à
+    exactement 3 SMIC, la formule seule donnerait Tmin »). La loi ne permet donc
+    aucune réduction strictement comprise entre 0 et `round(brut_cumule * prm.tmin, 2)` :
+    un cumul Quadra qui y tombe est un constat à part, pas un écart de palier
+    ordinaire (le trou va jusqu'à Tmin × brut cumulé, bien plus large qu'un palier de
+    `brut_cumule × 0,0001`).
+    """
+    plancher = round(brut_cumule * prm.tmin, 2)
+    return 0 < reduction_voulue < plancher - 0.005
