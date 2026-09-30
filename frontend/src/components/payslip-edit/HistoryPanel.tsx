@@ -8,10 +8,16 @@ import { History, RotateCcw, Loader2, User, Clock } from 'lucide-react';
 import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getPayslipHistory, restorePayslipVersion, HistoryEntry } from '@/api/payslips';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  choixApresCorrection,
+  type RefusApresCorrection,
+} from '@/features/payroll/utils/heuresSurArret';
 
 interface HistoryPanelProps {
   payslipId: string;
   onRestore?: () => void;
+  /** Le recalcul d'après la restauration a été refusé pour des heures sur un arrêt : l'écran propose le choix. */
+  onRecalculRefuse?: (refus: RefusApresCorrection) => void;
   canRestore?: boolean;
   /** Garde des corrections non enregistrées : faux si la RH préfère les garder. */
   avantRestauration?: () => boolean;
@@ -20,6 +26,7 @@ interface HistoryPanelProps {
 export default function HistoryPanel({
   payslipId,
   onRestore,
+  onRecalculRefuse,
   canRestore = true,
   avantRestauration,
 }: HistoryPanelProps) {
@@ -61,10 +68,18 @@ export default function HistoryPanel({
     setIsRestoring(version);
     try {
       const reponse = await restorePayslipVersion(payslipId, version);
-      if (reponse.recalcul_erreur) {
+      const suite = choixApresCorrection(reponse);
+      if (suite.kind === 'choix') {
         toast({
           title: 'Variables rétablies, bulletin non recalculé',
-          description: `${reponse.recalcul_erreur} — utilisez « Régénérer ».`,
+          description: `${suite.refus.message} Choisissez quoi faire de ces heures.`,
+          variant: 'destructive',
+        });
+        onRecalculRefuse?.(suite.refus);
+      } else if (suite.kind === 'regenerer') {
+        toast({
+          title: 'Variables rétablies, bulletin non recalculé',
+          description: `${suite.message} — utilisez « Régénérer ».`,
           variant: 'destructive',
         });
       } else {

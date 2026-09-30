@@ -47,6 +47,10 @@ import { cn } from '@/lib/utils';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
 import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
+import {
+  choixApresCorrection,
+  type RefusApresCorrection,
+} from '@/features/payroll/utils/heuresSurArret';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
@@ -112,6 +116,10 @@ export default function PayslipEdit() {
   const [confirmationValide, setConfirmationValide] = useState(false);
   const [validateModalOpen, setValidateModalOpen] = useState(false);
   const [validateBusy, setValidateBusy] = useState(false);
+  // Refus « heures sur un jour d'arrêt » du recalcul d'après une correction :
+  // le dialogue du choix s'ouvre au lieu de proposer « Régénérer » (refusé de nouveau).
+  const [refusApresCorrection, setRefusApresCorrection] =
+    useState<RefusApresCorrection | null>(null);
   const [showMaintienModal, setShowMaintienModal] = useState(false);
 
   const appliquer = useCallback((data: PayslipDetail) => {
@@ -196,10 +204,18 @@ export default function PayslipEdit() {
         payslipId,
         requeteDeCorrection(initial, etat, payslip.updated_at)
       );
-      if (reponse.recalcul_erreur) {
+      const suite = choixApresCorrection(reponse);
+      if (suite.kind === 'choix') {
         toast({
           title: 'Corrections enregistrées, bulletin non recalculé',
-          description: `${reponse.recalcul_erreur} — utilisez « Régénérer ».`,
+          description: `${suite.refus.message} Choisissez quoi faire de ces heures.`,
+          variant: 'destructive',
+        });
+        setRefusApresCorrection(suite.refus);
+      } else if (suite.kind === 'regenerer') {
+        toast({
+          title: 'Corrections enregistrées, bulletin non recalculé',
+          description: `${suite.message} — utilisez « Régénérer ».`,
           variant: 'destructive',
         });
       } else if (reponse.recalcule) {
@@ -381,6 +397,8 @@ export default function PayslipEdit() {
             month={payslip.month}
             manuallyEdited={payslip.manually_edited}
             modificationsNonEnregistrees={modifie}
+            refusInitial={refusApresCorrection}
+            onRefusInitialFerme={() => setRefusApresCorrection(null)}
             disabled={isEditLocked}
             onRegenerated={apresChangement}
           />
@@ -462,6 +480,7 @@ export default function PayslipEdit() {
             key={payslip.updated_at ?? payslip.id}
             payslipId={payslip.id}
             canRestore={!isEditLocked}
+            onRecalculRefuse={setRefusApresCorrection}
             avantRestauration={abandonnerSiBesoin}
             onRestore={() => {
               void apresChangement();

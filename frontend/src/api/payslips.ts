@@ -242,6 +242,13 @@ export interface CorrectionsBulletin {
   primes_retirees?: string[];
 }
 
+/** Refus structuré du recalcul d'après une correction (même forme que le 422 de génération). */
+export interface RecalculRefus {
+  code: string;
+  message: string;
+  jours: Array<{ annee: number; mois: number; jour: number; heures: number }>;
+}
+
 export interface PayslipEditRequest {
   corrections: CorrectionsBulletin;
   changes_summary?: string;
@@ -260,6 +267,8 @@ export interface PayslipEditResponse {
   recalcule: boolean;
   /** Présent si le moteur n'a pas pu recalculer : variables écrites, bulletin à régénérer. */
   recalcul_erreur?: string | null;
+  /** Le refus complet quand le recalcul a été refusé par une garde ; `null` sinon. */
+  recalcul_refus?: RecalculRefus | null;
 }
 
 export interface PayslipRestoreRequest {
@@ -273,6 +282,7 @@ export interface PayslipRestoreResponse {
   restored_version: number;
   recalcule: boolean;
   recalcul_erreur?: string | null;
+  recalcul_refus?: RecalculRefus | null;
 }
 
 // =====================================================
