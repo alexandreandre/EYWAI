@@ -34,6 +34,7 @@ interface CalendarTabProps {
   setSelectedDate: (d: { year: number; month: number }) => void;
   plannedCalendar: CalendarHook["plannedCalendar"];
   actualHours: CalendarHook["actualHours"];
+  joursEnConflit: CalendarHook["joursEnConflit"];
   isCalendarLoading: boolean;
   isSaving: boolean;
   saveAllCalendarData: () => void;
@@ -68,6 +69,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     setSelectedDate,
     plannedCalendar,
     actualHours,
+    joursEnConflit,
     isCalendarLoading,
     isSaving,
     saveAllCalendarData,
@@ -345,6 +347,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 arg={arg}
                                 plannedCalendar={plannedCalendar}
                                 actualHours={actualHours}
+                                joursEnConflit={joursEnConflit}
                                 updateDayData={updateDayData}
                                 selectedDays={selectedDays}
                                 onDaySelect={handleDaySelection}

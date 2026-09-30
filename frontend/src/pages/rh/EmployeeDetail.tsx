@@ -127,6 +127,7 @@ export default function EmployeeDetail() {
     setSelectedDate,
     plannedCalendar,
     actualHours,
+    joursEnConflit,
     isLoading: isCalendarLoading,
     isSaving,
     saveAllCalendarData,
@@ -797,6 +798,7 @@ export default function EmployeeDetail() {
               setSelectedDate={setSelectedDate}
               plannedCalendar={plannedCalendar}
               actualHours={actualHours}
+              joursEnConflit={joursEnConflit}
               isCalendarLoading={isCalendarLoading}
               isSaving={isSaving}
               saveAllCalendarData={saveAllCalendarData}

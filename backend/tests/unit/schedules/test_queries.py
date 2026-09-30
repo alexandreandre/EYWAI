@@ -200,3 +200,132 @@ class TestGetMyCurrentCumuls:
 
         assert result.periode is None
         assert result.cumuls is None
+
+
+# --- get_actual_hours : jours_en_conflit (heures saisies un jour d'arrêt) ---
+
+
+class TestGetActualHoursJoursEnConflit:
+    """La lecture des heures réelles dit quels jours portent des heures alors que
+    le prévu est un arrêt ou une absence : la règle vit dans `conflits_arret`."""
+
+    @staticmethod
+    def _lire(prevu, reel, arrets=None, arrets_en_panne=False):
+        with (
+            patch(
+                "app.modules.schedules.application.queries.schedule_repository",
+            ) as repo,
+            patch(
+                "app.modules.schedules.application.queries.arrets_valides_reader",
+            ) as lecteur,
+        ):
+            repo.get_actual_hours.return_value = {"calendrier_reel": reel}
+            repo.get_planned_calendar.return_value = {"calendrier_prevu": prevu}
+            if arrets_en_panne:
+                lecteur.par_salarie.side_effect = RuntimeError("réseau")
+            else:
+                lecteur.par_salarie.return_value = {"emp-1": arrets or []}
+            return queries.get_actual_hours("emp-1", 2026, 9), lecteur
+
+    def test_heures_un_jour_d_arret_sont_signalees(self):
+        prevu = [
+            {"jour": 7, "type": "arret_maladie", "heures_prevues": 0},
+            {"jour": 8, "type": "travail", "heures_prevues": 8},
+        ]
+        reel = [
+            {"jour": 7, "type": "travail", "heures_faites": 9.0},
+            {"jour": 8, "type": "travail", "heures_faites": 8.0},
+        ]
+        resultat, _ = self._lire(prevu, reel)
+        assert resultat["jours_en_conflit"] == [7]
+
+    def test_heures_nulles_sur_un_arret_ne_sont_pas_un_conflit(self):
+        prevu = [{"jour": 7, "type": "arret_maladie", "heures_prevues": 0}]
+        reel = [{"jour": 7, "type": "arret_maladie", "heures_faites": 0}]
+        resultat, _ = self._lire(prevu, reel)
+        assert resultat["jours_en_conflit"] == []
+
+    def test_weekend_couvert_par_un_arret_valide(self):
+        # 5 septembre 2026 : samedi, couvert par un arrêt validé.
+        prevu = [{"jour": 5, "type": "weekend", "heures_prevues": 0}]
+        reel = [{"jour": 5, "type": "weekend", "heures_faites": 4.0}]
+        arrets = [
+            {
+                "type": "arret_maladie",
+                "status": "validated",
+                "selected_days": ["2026-09-04", "2026-09-05", "2026-09-07"],
+            }
+        ]
+        resultat, _ = self._lire(prevu, reel, arrets)
+        assert resultat["jours_en_conflit"] == [5]
+
+    def test_arrets_illisibles_en_lecture_ecran_la_regle_du_type_seule_s_applique(self):
+        prevu = [
+            {"jour": 5, "type": "weekend", "heures_prevues": 0},
+            {"jour": 7, "type": "conges_payes", "heures_prevues": 0},
+        ]
+        reel = [
+            {"jour": 5, "type": "weekend", "heures_faites": 4.0},
+            {"jour": 7, "type": "conges_payes", "heures_faites": 8.0},
+        ]
+        resultat, _ = self._lire(prevu, reel, arrets_en_panne=True)
+        assert resultat["jours_en_conflit"] == [7]
+
+    def test_sans_heures_sur_weekend_les_arrets_ne_sont_pas_lus(self):
+        prevu = [{"jour": 7, "type": "arret_maladie", "heures_prevues": 0}]
+        reel = [{"jour": 7, "type": "arret_maladie", "heures_faites": 9.0}]
+        _, lecteur = self._lire(prevu, reel)
+        lecteur.par_salarie.assert_not_called()
+
+    def test_les_autres_champs_sont_inchanges(self):
+        resultat, _ = self._lire([], [{"jour": 1, "heures_faites": 7.5}])
+        assert resultat["year"] == 2026 and resultat["month"] == 9
+        assert resultat["calendrier_reel"] == [{"jour": 1, "heures_faites": 7.5}]
+        assert resultat["jours_en_conflit"] == []
+
+
+class TestRouteActualHoursExposeLesConflits:
+    """Le champ traverse le modèle de réponse de la route : l'écran le reçoit."""
+
+    def test_get_actual_hours_rend_jours_en_conflit(self):
+        from fastapi.testclient import TestClient
+
+        from app.core.security import get_current_user
+        from app.main import app
+        from app.modules.users.schemas.responses import CompanyAccess, User
+
+        user = User(
+            id="user-rh-1",
+            email="rh@test.co",
+            first_name="R",
+            last_name="H",
+            is_platform_admin=False,
+            is_group_admin=False,
+            accessible_companies=[
+                CompanyAccess(company_id="co-1", company_name="Co", role="rh", is_primary=True)
+            ],
+            active_company_id="co-1",
+        )
+        app.dependency_overrides[get_current_user] = lambda: user
+        try:
+            with (
+                patch(
+                    "app.modules.schedules.api.router.access_control_service.require_employee_access"
+                ),
+                patch(
+                    "app.modules.schedules.api.router.queries.get_actual_hours",
+                    return_value={
+                        "year": 2026,
+                        "month": 9,
+                        "calendrier_reel": [{"jour": 7, "heures_faites": 9.0, "type": "travail"}],
+                        "jours_en_conflit": [7],
+                    },
+                ),
+            ):
+                reponse = TestClient(app).get(
+                    "/api/employees/emp-1/actual-hours", params={"year": 2026, "month": 9}
+                )
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+        assert reponse.status_code == 200
+        assert reponse.json()["jours_en_conflit"] == [7]

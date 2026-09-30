@@ -19,6 +19,7 @@ from app.modules.schedules.application.badgeuse_import import (
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.schemas import (
     ActualHoursRequest,
+    ActualHoursResponse,
     AiCalendarProposalResponse,
     ApplyModelRequest,
     ApplyPresetRequest,
@@ -122,7 +123,7 @@ def update_planned_calendar(
         _handle_schedule_error(e)
 
 
-@router.get("/actual-hours", response_model=ActualHoursRequest)
+@router.get("/actual-hours", response_model=ActualHoursResponse)
 def get_actual_hours(
     employee_id: str,
     year: int,

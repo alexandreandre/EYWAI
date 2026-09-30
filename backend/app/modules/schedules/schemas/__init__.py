@@ -12,6 +12,7 @@ from .ai import (
 from .requests import (
     ActualHoursEntry,
     ActualHoursRequest,
+    ActualHoursResponse,
     ApplyModelRequest,
     ApplyPresetRequest,
     DayConfigModel,
@@ -36,6 +37,7 @@ from .responses import (
 __all__ = [
     "ActualHoursEntry",
     "ActualHoursRequest",
+    "ActualHoursResponse",
     "AiCalendarProposalResponse",
     "AiDayEntry",
     "AiEmployeeProposal",

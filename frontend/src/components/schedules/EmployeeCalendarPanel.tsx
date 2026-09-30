@@ -46,6 +46,7 @@ export function EmployeeCalendarPanel({
     setSelectedDate,
     plannedCalendar,
     actualHours,
+    joursEnConflit,
     isLoading: isCalendarLoading,
     isSaving,
     saveAllCalendarData,
@@ -232,6 +233,7 @@ export function EmployeeCalendarPanel({
                           arg={arg}
                           plannedCalendar={plannedCalendar}
                           actualHours={actualHours}
+                          joursEnConflit={joursEnConflit}
                           updateDayData={updateDayData}
                           selectedDays={selectedDays}
                           onDaySelect={handleDaySelection}

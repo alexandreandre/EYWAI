@@ -23,6 +23,10 @@ import {
   getCalendarTypeLabel,
 } from '@/lib/calendarTypes';
 import { isDayReadyForPayroll } from '@/lib/calendarStats';
+import {
+  TITRE_INFO_BULLE_CONFLIT,
+  estJourEnConflit,
+} from '@/features/payroll/utils/heuresSurArret';
 
 interface CalendarDayCellProps {
   arg: DayCellContentArg;
@@ -34,6 +38,8 @@ interface CalendarDayCellProps {
   selectedDate: { month: number; year: number };
   isForfaitJour?: boolean;
   onCopyPlannedToActual?: (dayNumber: number) => void;
+  /** Jours en conflit dits par le backend (heures saisies pendant un arrêt ou une absence). */
+  joursEnConflit?: number[];
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -195,6 +201,7 @@ export function CalendarDayCell({
   selectedDate,
   isForfaitJour = false,
   onCopyPlannedToActual,
+  joursEnConflit,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const dayNumber = arg.date.getDate();
@@ -305,13 +312,16 @@ export function CalendarDayCell({
   // Fond teinté par type : mêmes couleurs que la vue semaine équipe
   // (congé vert, arrêt rouge…) pour vérifier d'un coup d'œil.
   const bgColor = CALENDAR_TYPE_BG_COLORS[plannedDay.type] ?? 'bg-card';
+  const enConflit = estJourEnConflit(dayNumber, joursEnConflit);
 
   return (
     <div
       ref={cellRef}
+      title={enConflit ? TITRE_INFO_BULLE_CONFLIT : undefined}
+      data-conflit-arret={enConflit ? 'true' : undefined}
       className={cn(
         'group relative flex h-full min-h-[7.5rem] w-full flex-col rounded-2xl border transition-all duration-200',
-        bgColor,
+        enConflit ? 'bg-rose-100 border-rose-400 ring-2 ring-rose-400' : bgColor,
         'hover:shadow-md',
         isSelected && 'ring-2 ring-primary ring-offset-1',
         isToday && 'ring-2 ring-primary/60',
@@ -326,6 +336,7 @@ export function CalendarDayCell({
       }}
     >
       <div className={cn('absolute left-0 top-2 bottom-2 w-1.5 rounded-full', barColor)} />
+      {enConflit && <span className="sr-only">{TITRE_INFO_BULLE_CONFLIT}</span>}
 
       <div className="flex items-start justify-between gap-1 p-2 pl-3 shrink-0">
         <div className="flex flex-col min-w-0">

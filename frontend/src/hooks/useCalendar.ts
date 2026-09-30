@@ -55,6 +55,9 @@ export function useCalendar(
 
   const [plannedCalendar, setPlannedCalendar] = useState<PlannedEventData[]>([]);
   const [actualHours, setActualHours] = useState<ActualHoursData[]>([]);
+  // Jours du mois qui portent des heures alors que le prévu est un arrêt ou une
+  // absence : dits par le backend (règle de `conflits_arret`), jamais recalculés ici.
+  const [joursEnConflit, setJoursEnConflit] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
@@ -141,6 +144,7 @@ export function useCalendar(
       setLoadedMonthKey(null);
       setPlannedCalendar([]);
       setActualHours([]);
+      setJoursEnConflit([]);
       return;
     }
 
@@ -154,6 +158,7 @@ export function useCalendar(
     setLoadedMonthKey(null);
     setPlannedCalendar([]);
     setActualHours([]);
+    setJoursEnConflit([]);
 
     try {
       const [plannedRes, actualRes] = await Promise.all([
@@ -172,6 +177,7 @@ export function useCalendar(
 
       setPlannedCalendar(finalPlannedCalendar);
       setActualHours(finalActualHours);
+      setJoursEnConflit(actualRes.data.jours_en_conflit ?? []);
       setOriginalPlanned(finalPlannedCalendar);
       setOriginalActual(finalActualHours);
       setLoadedMonthKey(monthKey);
@@ -198,6 +204,7 @@ export function useCalendar(
       setLoadedMonthKey(null);
       setPlannedCalendar([]);
       setActualHours([]);
+      setJoursEnConflit([]);
       return;
     }
 
@@ -211,6 +218,7 @@ export function useCalendar(
     setLoadedMonthKey(null);
     setPlannedCalendar([]);
     setActualHours([]);
+    setJoursEnConflit([]);
 
     void (async () => {
       try {
@@ -231,6 +239,7 @@ export function useCalendar(
 
         setPlannedCalendar(finalPlannedCalendar);
         setActualHours(finalActualHours);
+        setJoursEnConflit(actualRes.data.jours_en_conflit ?? []);
         setOriginalPlanned(finalPlannedCalendar);
         setOriginalActual(finalActualHours);
         setLoadedMonthKey(monthKey);
@@ -342,6 +351,18 @@ export function useCalendar(
 
       setOriginalPlanned(plannedCalendar);
       setOriginalActual(actualHours);
+
+      // Le marquage suit ce qui vient d'être enregistré (lecture tolérante).
+      try {
+        const relu = await calendarApi.getActualHours(
+          employeeId,
+          selectedDate.year,
+          selectedDate.month
+        );
+        setJoursEnConflit(relu.data.jours_en_conflit ?? []);
+      } catch (erreur) {
+        log.error(erreur);
+      }
 
       // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
       // Depuis le chantier calendrier→paie il porte aussi les demandes de
@@ -557,6 +578,7 @@ export function useCalendar(
     setPlannedCalendar,
     actualHours,
     setActualHours,
+    joursEnConflit,
     isLoading,
     isSaving,
     isCopyingPrevMonth,

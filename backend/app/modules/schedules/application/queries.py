@@ -8,7 +8,9 @@ from app.core.logging import get_logger, log_app_debug
 
 logger = get_logger("modules.schedules.application.queries")
 
+from datetime import date
 from typing import Any, Dict, List
+import calendar as _calendar
 
 from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.domain.exceptions import ScheduleNotFoundError
@@ -17,6 +19,11 @@ from app.modules.schedules.infrastructure.mappers import (
     extract_calendrier_reel_from_actual_hours,
     row_to_cumuls,
 )
+from app.modules.schedules.domain.conflits_arret import (
+    arrets_necessaires,
+    jours_en_conflit,
+)
+from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.providers import file_calendar_provider
 from app.modules.schedules.infrastructure.queries import employee_company_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
@@ -68,6 +75,45 @@ def get_planned_calendar(employee_id: str, year: int, month: int) -> Dict[str, A
         ) from e
 
 
+def _jours_en_conflit_du_mois(
+    employee_id: str, year: int, month: int, calendrier_reel: List[Dict[str, Any]]
+) -> List[int]:
+    """Jours du mois où des heures sont saisies alors que le prévu est un arrêt
+    ou une absence (règle de `conflits_arret`, la même que la garde de génération).
+
+    Lecture d'écran : si le planning ou les arrêts ne se lisent pas, on ne bloque
+    pas l'affichage. Sans les arrêts, seul le type prévu juge (un week-end
+    d'arrêt n'est alors pas marqué) ; la génération, elle, exige les arrêts.
+    """
+    try:
+        if not any(float(e.get("heures_faites") or 0) > 0 for e in calendrier_reel):
+            return []
+        prevu = [
+            {**e, "annee": year, "mois": month}
+            for e in extract_calendrier_prevu_from_planned_calendar(
+                schedule_repository.get_planned_calendar(employee_id, year, month)
+            )
+            if isinstance(e, dict)
+        ]
+        reel = [{**e, "annee": year, "mois": month} for e in calendrier_reel]
+        arrets: List[Dict[str, Any]] = []
+        if arrets_necessaires(prevu, reel):
+            try:
+                arrets = arrets_valides_reader.par_salarie(
+                    [employee_id],
+                    date(year, month, 1),
+                    date(year, month, _calendar.monthrange(year, month)[1]),
+                ).get(str(employee_id), [])
+            except Exception as exc:  # noqa: BLE001 — lecture d'écran tolérante
+                logger.warning(
+                    "[calendrier] Arrêts validés illisibles pour %s : %s", employee_id, exc
+                )
+        return [c.jour for c in jours_en_conflit(prevu, reel, arrets)]
+    except Exception:  # noqa: BLE001 — le marquage ne doit jamais casser la lecture
+        logger.exception("[calendrier] Jours en conflit non calculés pour %s", employee_id)
+        return []
+
+
 def get_actual_hours(employee_id: str, year: int, month: int) -> Dict[str, Any]:
     """
     Récupère les heures réelles depuis employee_schedules.
@@ -80,7 +126,14 @@ def get_actual_hours(employee_id: str, year: int, month: int) -> Dict[str, Any]:
         calendrier_reel = extract_calendrier_reel_from_actual_hours(actual_hours)
         if actual_hours is None:
             log_app_debug(logger, 'Calendrier réel absent en base — retour vide.')
-        return {"year": year, "month": month, "calendrier_reel": calendrier_reel}
+        return {
+            "year": year,
+            "month": month,
+            "calendrier_reel": calendrier_reel,
+            "jours_en_conflit": _jours_en_conflit_du_mois(
+                employee_id, year, month, calendrier_reel
+            ),
+        }
     except Exception as e:
         logger.exception("Exception")
         raise ScheduleAppError(

@@ -84,6 +84,14 @@ class ActualHoursRequest(BaseModel):
     calendrier_reel: List[ActualHoursEntry]
 
 
+class ActualHoursResponse(ActualHoursRequest):
+    """GET /actual-hours : les heures réelles, et les jours du mois où des heures
+    sont saisies alors que le prévu est un arrêt ou une absence non travaillée
+    (règle de `domain.conflits_arret`)."""
+
+    jours_en_conflit: List[int] = Field(default_factory=list)
+
+
 class EffacerJoursRequest(BaseModel):
     """Corps de POST /actual-hours/effacer-jours : les jours du mois dont les
     heures, saisies sur un arrêt ou une absence, sont à effacer."""
@@ -196,6 +204,7 @@ class GenerateCalendarRequest(BaseModel):
 __all__ = [
     "ActualHoursEntry",
     "ActualHoursRequest",
+    "ActualHoursResponse",
     "ImportBadgeuseBulkRequest",
     "ImportBadgeuseEmployeeRequest",
     "ApplyModelRequest",
