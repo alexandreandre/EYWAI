@@ -8,6 +8,7 @@ la période. Le jugement lui-même est dans `domain.periode_a_saisir`.
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
@@ -20,6 +21,13 @@ from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_r
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.shared.domain.periode_variables import bornes_mois_civil, semaines_iso
+
+
+logger = logging.getLogger(__name__)
+
+
+class ArretsIllisibles(Exception):
+    """Les arrêts validés n'ont pas pu être lus alors qu'ils étaient exigés."""
 
 
 def _mois_couverts(debut: date, fin: date) -> list[tuple[int, int]]:
@@ -56,8 +64,16 @@ def charger_periodes_a_saisir(
     employees: list[dict[str, Any]],
     annee: int,
     mois: int,
+    *,
+    arrets_obligatoires: bool = False,
 ) -> dict[str, PeriodeASaisir]:
-    """La période à saisir de chaque salarié, en une lecture par mois couvert."""
+    """La période à saisir de chaque salarié, en une lecture par mois couvert.
+
+    Les arrêts validés rattachent leurs week-ends aux conflits. S'ils ne se
+    lisent pas : les écrans de lecture (tableau de bord, revue pré-paie)
+    continuent sans eux, avec un avertissement ; la génération
+    (`arrets_obligatoires`) reçoit `ArretsIllisibles` et refuse.
+    """
     fenetre = resoudre_fenetre_variables(str(company_id), annee, mois)
     debut_mois, fin_mois = bornes_mois_civil(annee, mois)
     ids = [str(e["id"]) for e in employees if e.get("id")]
@@ -68,7 +84,19 @@ def charger_periodes_a_saisir(
     }
     # Les week-ends d'un arrêt gardent leur type au planning : seul l'arrêt
     # validé dit qu'ils sont couverts (heures saisies = conflit).
-    arrets = arrets_valides_reader.par_salarie(ids, debut_union, fin_union)
+    try:
+        arrets = arrets_valides_reader.par_salarie(ids, debut_union, fin_union)
+    except Exception as exc:  # noqa: BLE001 — lecture annexe, décision ci-dessous
+        if arrets_obligatoires:
+            raise ArretsIllisibles(str(exc)) from exc
+        logger.warning(
+            "Arrêts validés illisibles (%s, %02d/%d) : période jugée sans eux — %s",
+            company_id,
+            mois,
+            annee,
+            exc,
+        )
+        arrets = {}
     resultat: dict[str, PeriodeASaisir] = {}
     for employee in employees:
         eid = str(employee.get("id") or "")
@@ -95,9 +123,16 @@ def charger_periodes_a_saisir(
 
 
 def charger_periode_a_saisir(
-    company_id: str, employee: dict[str, Any], annee: int, mois: int
+    company_id: str,
+    employee: dict[str, Any],
+    annee: int,
+    mois: int,
+    *,
+    arrets_obligatoires: bool = False,
 ) -> PeriodeASaisir:
-    return charger_periodes_a_saisir(company_id, [employee], annee, mois)[str(employee["id"])]
+    return charger_periodes_a_saisir(
+        company_id, [employee], annee, mois, arrets_obligatoires=arrets_obligatoires
+    )[str(employee["id"])]
 
 
 def resume_api(periode: PeriodeASaisir) -> dict[str, Any]:
@@ -115,4 +150,9 @@ def resume_api(periode: PeriodeASaisir) -> dict[str, Any]:
     }
 
 
-__all__ = ["charger_periode_a_saisir", "charger_periodes_a_saisir", "resume_api"]
+__all__ = [
+    "ArretsIllisibles",
+    "charger_periode_a_saisir",
+    "charger_periodes_a_saisir",
+    "resume_api",
+]

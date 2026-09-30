@@ -48,7 +48,14 @@ def _reel_septembre() -> dict:
     }
 
 
-def _effacer(jours: list[int], *, reel: dict | None = None, arrets: list[dict] | None = None):
+def _effacer(
+    jours: list[int],
+    *,
+    reel: dict | None = None,
+    arrets: list[dict] | None = None,
+    prevu: dict | None = None,
+    lecture_arrets: Exception | None = None,
+):
     with (
         patch(
             f"{_COMMANDS}.get_employee_company_and_statut",
@@ -59,7 +66,9 @@ def _effacer(jours: list[int], *, reel: dict | None = None, arrets: list[dict] |
         patch(f"{_COMMANDS}.logger") as log,
     ):
         lecteur.par_salarie.return_value = {"emp-1": arrets or []}
-        repo.get_planned_calendar.return_value = _prevu_septembre()
+        if lecture_arrets is not None:
+            lecteur.par_salarie.side_effect = lecture_arrets
+        repo.get_planned_calendar.return_value = prevu if prevu is not None else _prevu_septembre()
         repo.get_actual_hours.return_value = reel if reel is not None else _reel_septembre()
         try:
             resultat = commands.effacer_heures_des_jours(
@@ -137,6 +146,23 @@ class TestEffacerHeuresDesJours:
             commands.effacer_heures_des_jours("emp-1", 2026, 9, [7])
 
         lecteur.par_salarie.assert_called_once_with(["emp-1"], date(2026, 9, 1), date(2026, 9, 30))
+
+    def test_un_jour_en_double_au_prevu_suit_sa_derniere_entree_comme_la_garde(self):
+        prevu = _prevu_septembre()
+        prevu["calendrier_prevu"].append({"jour": 7, "type": "travail", "heures_prevues": 7.0})
+
+        erreur, repo, _ = _effacer([7], prevu=prevu)
+
+        assert isinstance(erreur, ScheduleAppError) and erreur.status_code == 422
+        repo.upsert_schedule.assert_not_called()
+
+    def test_des_arrets_illisibles_refusent_l_effacement_sans_rien_ecrire(self):
+        erreur, repo, _ = _effacer([12], lecture_arrets=RuntimeError("réseau"))
+
+        assert isinstance(erreur, ScheduleAppError)
+        assert erreur.status_code == 503
+        assert "Réessayez" in erreur.message and "Rien n'a été modifié" in erreur.message
+        repo.upsert_schedule.assert_not_called()
 
     def test_une_demi_journee_de_conge_ne_s_efface_pas(self):
         """L'autre demi-journée a été travaillée : ses heures sont vraies."""

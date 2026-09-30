@@ -319,6 +319,7 @@ def effacer_heures_des_jours(
     from datetime import date as _date
 
     from app.modules.schedules.domain.conflits_arret import (
+        derniere_entree_par_jour,
         jours_sans_heures,
         libelle_des_dates,
     )
@@ -335,23 +336,32 @@ def effacer_heures_des_jours(
         )
 
     company_id, _ = get_employee_company_and_statut(employee_id)
+    # Même sélection que la garde : la dernière entrée d'un jour en double fait foi.
     prevu_par_jour = {
-        domain_rules.coerce_jour(e.get("jour")): e
-        for e in extract_calendrier_prevu_from_planned_calendar(
-            schedule_repository.get_planned_calendar(employee_id, year, month)
-        )
-        if isinstance(e, dict)
+        cle[2]: entree
+        for cle, entree in derniere_entree_par_jour(
+            [
+                {**e, "annee": year, "mois": month}
+                for e in extract_calendrier_prevu_from_planned_calendar(
+                    schedule_repository.get_planned_calendar(employee_id, year, month)
+                )
+                if isinstance(e, dict)
+            ]
+        ).items()
     }
-    arrets = arrets_valides_reader.par_salarie(
-        [employee_id], _date(year, month, 1), _date(year, month, dernier)
-    ).get(str(employee_id), [])
-    effacables = {
-        cle[2]
-        for cle in jours_sans_heures(
-            [{**e, "annee": year, "mois": month} for e in prevu_par_jour.values()],
-            arrets,
-        )
-    }
+    try:
+        arrets = arrets_valides_reader.par_salarie(
+            [employee_id], _date(year, month, 1), _date(year, month, dernier)
+        ).get(str(employee_id), [])
+    except Exception as exc:  # noqa: BLE001 — dit à l'écran, rien n'est écrit
+        logger.warning("[calendrier] Arrêts validés illisibles pour %s : %s", employee_id, exc)
+        raise ScheduleAppError(
+            "indisponible",
+            "Les arrêts n'ont pas pu être lus : impossible de savoir quels jours "
+            "effacer. Réessayez dans un instant. Rien n'a été modifié.",
+            status_code=503,
+        ) from exc
+    effacables = {cle[2] for cle in jours_sans_heures(list(prevu_par_jour.values()), arrets)}
     refuses = [j for j in demandes if j not in effacables]
     if refuses:
         quels = libelle_des_dates((year, month, j) for j in refuses)

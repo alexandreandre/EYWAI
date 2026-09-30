@@ -152,6 +152,22 @@ def _jours_d_arret_valides(
     return jours
 
 
+def derniere_entree_par_jour(
+    calendrier_prevu: list[dict],
+) -> dict[tuple[int | None, int | None, int], dict]:
+    """`(annee, mois, jour)` → l'entrée prévue du jour. Un jour en double est
+    jugé sur sa **dernière** entrée, comme la fusion du planning
+    (`merge_planned_entries`) et la période à saisir (`_par_jour`)."""
+    par_jour: dict[tuple[int | None, int | None, int], dict] = {}
+    for entree in calendrier_prevu or []:
+        if not isinstance(entree, dict):
+            continue
+        cle = _cle(entree)
+        if cle is not None:
+            par_jour[cle] = entree
+    return par_jour
+
+
 def jours_sans_heures(
     calendrier_prevu: list[dict],
     absences_validees: list[dict] | None = None,
@@ -171,10 +187,7 @@ def jours_sans_heures(
     """
     arrets = _jours_d_arret_valides(absences_validees)
     interdits: dict[tuple[int | None, int | None, int], str] = {}
-    for entree in calendrier_prevu or []:
-        cle = _cle(entree)
-        if cle is None:
-            continue
+    for cle, entree in derniere_entree_par_jour(calendrier_prevu).items():
         if _jour_prevu_sans_heures(entree):
             interdits[cle] = str(entree["type"])
             continue
@@ -274,6 +287,7 @@ __all__ = [
     "JourEnConflit",
     "TYPES_ABSENCE_NON_TRAVAILLEE",
     "TYPES_NON_OUVRES_D_UN_ARRET",
+    "derniere_entree_par_jour",
     "est_absence_non_travaillee",
     "est_un_arret",
     "jours_en_conflit",

@@ -64,3 +64,25 @@ def test_juillet_saisi_jusqu_au_24_est_saisi_si_la_fenetre_s_arrete_au_26(mock_f
         overview = _build_calendriers_overview("c1", 2026, 7)
 
     assert (overview.saisis, overview.a_saisir) == (1, 0)
+
+
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.resoudre_fenetre_variables")
+def test_des_arrets_illisibles_ne_font_pas_tomber_le_tableau_de_bord(
+    mock_fenetre, mock_repo, mock_arrets
+):
+    juillet = _mois(2026, 7, reel_jusqu_au=24)
+    juin = _mois(2026, 6, reel_jusqu_au=30)
+    mock_fenetre.return_value = FenetreVariables(debut=date(2026, 6, 22), fin=date(2026, 7, 26), origine="regle")
+    mock_repo.list_schedules_for_employees.side_effect = lambda ids, y, m: {"e1": juillet if m == 7 else juin}
+    mock_arrets.par_salarie.side_effect = RuntimeError("réseau")
+    from app.modules.dashboard.application.analytics_gestion import _build_calendriers_overview
+
+    with patch(f"{MODULE}.supabase", _supabase([juillet])), patch(
+        "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+        return_value=[],
+    ):
+        overview = _build_calendriers_overview("c1", 2026, 7)
+
+    assert (overview.saisis, overview.a_saisir) == (1, 0)

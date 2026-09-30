@@ -80,17 +80,28 @@ def _jours_importes_en_conflit(
 def _arrets_des_mois(
     employee_ids: List[str], mois: List[tuple[int, int]]
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Les arrêts validés des salariés sur les mois écrits, en une lecture."""
+    """Les arrêts validés des salariés sur les mois écrits, en une lecture.
+
+    Illisibles : l'import continue sans eux (avertissement) ; il ne signale
+    alors que ce que le type prévu suffit à voir. La génération, elle, refusera.
+    """
     from datetime import date
 
     if not employee_ids or not mois:
         return {}
     premier, dernier = min(mois), max(mois)
-    return arrets_valides_reader.par_salarie(
-        employee_ids,
-        date(premier[0], premier[1], 1),
-        date(dernier[0], dernier[1], cal_mod.monthrange(dernier[0], dernier[1])[1]),
-    )
+    try:
+        return arrets_valides_reader.par_salarie(
+            employee_ids,
+            date(premier[0], premier[1], 1),
+            date(dernier[0], dernier[1], cal_mod.monthrange(dernier[0], dernier[1])[1]),
+        )
+    except Exception as exc:  # noqa: BLE001 — signalement seulement
+        logger.warning(
+            "Import : arrêts validés illisibles, signalement sans les week-ends d'arrêt — %s",
+            exc,
+        )
+        return {}
 
 
 def _par_salarie(

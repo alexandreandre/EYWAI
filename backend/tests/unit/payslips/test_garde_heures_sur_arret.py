@@ -23,6 +23,8 @@ from app.main import app
 from app.modules.payslips.application.commands import generate_payslip
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
+    PayslipArretsIllisiblesError,
+    PayslipCalendarIncompleteError,
     PayslipHeuresSurArretError,
 )
 from app.shared.domain.periode_variables import FenetreVariables
@@ -78,6 +80,7 @@ def _generation(
     statut: str = "Non-Cadre",
     employee: dict | None = None,
     arrets: list[dict] | None = None,
+    lecture_arrets: Exception | None = None,
 ):
     """Tout ce que la génération lit, moqué ; rend la doublure du générateur."""
     with ExitStack() as pile:
@@ -107,6 +110,8 @@ def _generation(
         )
         mock_arrets = pile.enter_context(patch(f"{_SERVICE}.arrets_valides_reader"))
         mock_arrets.par_salarie.return_value = {"emp-1": arrets or []}
+        if lecture_arrets is not None:
+            mock_arrets.par_salarie.side_effect = lecture_arrets
         yield mock_provider
 
 
@@ -207,6 +212,18 @@ class TestGardeHeuresSurJourDArret:
 
         generateur.generate_heures.assert_called_once()
 
+    def test_des_arrets_illisibles_refusent_la_generation_sans_rien_calculer(self):
+        """Sans les arrêts, la garde laisserait passer un samedi d'arrêt : elle
+        refuse, et dit de réessayer."""
+        with _generation(_arret_de_septembre({}), lecture_arrets=RuntimeError("réseau")) as generateur:
+            with pytest.raises(PayslipArretsIllisiblesError) as exc:
+                generate_payslip(GeneratePayslipInput(employee_id="emp-1", year=2026, month=9))
+
+        generateur.generate_heures.assert_not_called()
+        assert exc.value.code == "arrets_illisibles"
+        assert exc.value.http_status == 503
+        assert "Octavie" in str(exc.value) and "Réessayez" in str(exc.value)
+
     def test_un_arret_sans_heures_se_genere(self):
         with _generation(_arret_de_septembre({})) as generateur:
             result = generate_payslip(
@@ -292,4 +309,52 @@ class TestRoute422HeuresSurJourDArret:
             "code": "heures_sur_jour_d_arret",
             "message": "Octavie est en arrêt, mais des heures sont saisies le 7 septembre.",
             "jours": jours,
+        }
+
+
+class TestRefusStructures:
+    """Une seule forme de refus : `{code, message, **details}` et le statut du refus."""
+
+    def _poster(self, client: TestClient, erreur: Exception):
+        from app.core.security import get_current_user
+
+        with (
+            patch("app.modules.payslips.api.router.generate_payslip", side_effect=erreur),
+            patch(
+                "app.modules.payslips.api.router.access_control_service.require_employee_access"
+            ),
+        ):
+            app.dependency_overrides[get_current_user] = TestRoute422HeuresSurJourDArret()._rh_user
+            try:
+                return client.post(
+                    "/api/actions/generate-payslip",
+                    json={"employee_id": "emp-1", "year": 2026, "month": 9},
+                )
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+    def test_le_format_du_calendrier_incomplet_ne_change_pas(self, client: TestClient):
+        details = {
+            "fenetre": {"debut": "2026-08-24", "fin": "2026-09-27", "semaines": [35], "origine": "regle"},
+            "jours_manquants": ["2026-09-01"],
+            "jours_informatifs": [],
+        }
+        response = self._poster(client, PayslipCalendarIncompleteError("Calendrier incomplet.", details))
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == {
+            "code": "calendrier_incomplet",
+            "message": "Calendrier incomplet.",
+            **details,
+        }
+
+    def test_des_arrets_illisibles_rendent_503_avec_code_et_message(self, client: TestClient):
+        response = self._poster(
+            client, PayslipArretsIllisiblesError("Les arrêts n'ont pas pu être lus. Réessayez.")
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == {
+            "code": "arrets_illisibles",
+            "message": "Les arrêts n'ont pas pu être lus. Réessayez.",
         }

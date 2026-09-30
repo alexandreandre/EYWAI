@@ -133,3 +133,47 @@ def test_les_arrets_valides_sont_lus_une_fois_sur_l_union(mock_fenetre, mock_rep
 
     mock_arrets.par_salarie.assert_called_once_with(["e1"], date(2026, 6, 22), date(2026, 7, 31))
     assert [(c.mois, c.jour, c.heures_saisies) for c in periodes["e1"].conflits] == [(7, 4, 6.0)]
+
+
+@patch(f"{SERVICE}.logger")
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.resoudre_fenetre_variables", return_value=FENETRE_JUILLET)
+def test_des_arrets_illisibles_ne_bloquent_pas_les_ecrans_de_lecture(
+    mock_fenetre, mock_repo, mock_arrets, mock_log
+):
+    """Tableau de bord et revue pré-paie : la période se calcule sans les
+    arrêts, avec un avertissement."""
+    from app.modules.schedules.application.periode_a_saisir_service import (
+        charger_periodes_a_saisir,
+    )
+
+    mock_repo.list_schedules_for_employees.side_effect = lambda ids, y, m: (
+        {"e1": _juillet_saisi_jusqu_au_24()} if (y, m) == (2026, 7) else {}
+    )
+    mock_arrets.par_salarie.side_effect = RuntimeError("réseau")
+
+    periodes = charger_periodes_a_saisir("c1", [{"id": "e1", "statut": "Non-Cadre"}], 2026, 7)
+
+    assert periodes["e1"].statut == "a_saisir"
+    mock_log.warning.assert_called_once()
+
+
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.resoudre_fenetre_variables", return_value=FENETRE_JUILLET)
+def test_des_arrets_obligatoires_illisibles_levent_une_erreur_dediee(
+    mock_fenetre, mock_repo, mock_arrets
+):
+    from app.modules.schedules.application.periode_a_saisir_service import (
+        ArretsIllisibles,
+        charger_periode_a_saisir,
+    )
+
+    mock_repo.list_schedules_for_employees.return_value = {}
+    mock_arrets.par_salarie.side_effect = RuntimeError("réseau")
+
+    with pytest.raises(ArretsIllisibles):
+        charger_periode_a_saisir(
+            "c1", {"id": "e1", "statut": "Non-Cadre"}, 2026, 7, arrets_obligatoires=True
+        )

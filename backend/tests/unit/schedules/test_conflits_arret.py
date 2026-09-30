@@ -187,6 +187,14 @@ class TestJoursEnConflit:
             (2026, 9, 12): "arret_maladie",
         }
 
+    def test_un_jour_en_double_au_prevu_est_juge_sur_sa_derniere_entree(self):
+        """Même règle que la fusion du planning et l'effacement : la dernière
+        entrée du jour fait foi."""
+        reel = [_reel(7, 9.0)]
+
+        assert jours_en_conflit([_prevu(7, "arret_maladie"), _prevu(7, "travail", 7.0)], reel) == []
+        assert [c.jour for c in jours_en_conflit([_prevu(7, "travail", 7.0), _prevu(7, "arret_maladie")], reel)] == [7]
+
     def test_une_absence_non_validee_ne_compte_pas(self):
         prevu = [_prevu(12, "weekend", annee=2026, mois=9)]
         reel = [_reel(12, 5.0, annee=2026, mois=9)]

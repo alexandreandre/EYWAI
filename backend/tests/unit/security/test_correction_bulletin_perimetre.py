@@ -102,6 +102,39 @@ def test_un_echec_du_recalcul_est_rendu():
     assert corps["recalcul_erreur"] == "Barème" and corps["recalcule"] is False
 
 
+REFUS = {
+    "code": "heures_sur_jour_d_arret",
+    "message": "Octavie est en arrêt, mais des heures sont saisies le 7 août.",
+    "jours": [{"annee": 2026, "mois": 8, "jour": 7, "heures": 9.0}],
+}
+
+
+def test_le_refus_structure_du_recalcul_est_rendu():
+    reponse, _, _ = _corriger(
+        return_value={
+            "payslip": LIGNE,
+            "new_pdf_url": "u",
+            "recalcule": False,
+            "recalcul_erreur": REFUS["message"],
+            "recalcul_refus": REFUS,
+        }
+    )
+    assert reponse.status_code == 200
+    assert reponse.json()["recalcul_refus"] == REFUS
+
+
+def test_restaurer_rend_aussi_le_refus_structure():
+    reponse, _ = _restaurer(
+        return_value={
+            "payslip": LIGNE,
+            "recalcule": False,
+            "recalcul_erreur": REFUS["message"],
+            "recalcul_refus": REFUS,
+        }
+    )
+    assert reponse.json()["recalcul_refus"] == REFUS
+
+
 def test_un_bulletin_modifie_entre_temps_rend_409():
     reponse, _, _ = _corriger(side_effect=PayslipConflictError("Le bulletin a changé"))
     assert reponse.status_code == 409

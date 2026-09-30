@@ -253,6 +253,32 @@ def test_un_samedi_d_arret_valide_importe_est_signale(
     ]
 
 
+@patch(f"{SERVICE}.logger")
+@patch(f"{SERVICE}.arrets_valides_reader")
+@patch(f"{SERVICE}.record_schedule_import_run")
+@patch(f"{SERVICE}.schedule_repository")
+@patch(f"{SERVICE}.timesheet_import_repository")
+@patch(f"{SERVICE}.get_employee_company_and_statut")
+def test_des_arrets_illisibles_n_empechent_pas_l_import(
+    mock_statut, mock_repo, mock_sched, _audit, mock_arrets, mock_log
+):
+    """L'import écrit quand même ; il signale ce que le type prévu suffit à voir."""
+    mock_repo.get_batch.return_value = _lot(
+        [AiDayEntry(jour=7, heures=9.0, type="travail", nature="reel")]
+    )
+    mock_statut.return_value = ("c1", "CDI")
+    mock_sched.list_schedules_for_employees.return_value = {"e1": _septembre()}
+    mock_arrets.par_salarie.side_effect = RuntimeError("réseau")
+
+    result = _commit()
+
+    mock_sched.bulk_upsert_schedules.assert_called_once()
+    assert result["jours_en_conflit"] == [
+        {"employee_id": "e1", "jours": [{"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0}]}
+    ]
+    mock_log.warning.assert_called_once()
+
+
 def test_la_reponse_de_persist_timesheet_porte_les_jours_en_conflit():
     from app.modules.schedules.application.persist_timesheet import (
         run_persist_with_bulk_commit,

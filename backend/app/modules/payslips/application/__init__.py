@@ -12,12 +12,14 @@ from app.modules.payslips.application.comparison_service import (
 )
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
+    PayslipArretsIllisiblesError,
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
     PayslipCriticalActiveError,
     PayslipForbiddenError,
     PayslipHeuresSurArretError,
     PayslipNotFoundError,
+    PayslipRefusStructure,
     PayslipValidatedError,
     UserContext,
 )
@@ -65,6 +67,8 @@ __all__ = [
     "PayslipBadRequestError",
     "PayslipCalendarIncompleteError",
     "PayslipHeuresSurArretError",
+    "PayslipArretsIllisiblesError",
+    "PayslipRefusStructure",
     "PayslipValidatedError",
     "PayslipCriticalActiveError",
 ]

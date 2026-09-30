@@ -181,6 +181,10 @@ class PayslipEditResponse(BaseModel):
     #: écrites, le bulletin est marqué « recalcul en attente ». Sans cette
     #: déclaration, FastAPI retirerait le champ.
     recalcul_erreur: str | None = None
+    #: Le refus structuré du recalcul (`{code, message, **details}`, le même
+    #: que la génération rend en HTTP), pour que l'écran propose la sortie :
+    #: « effacer ces heures » pour `heures_sur_jour_d_arret`, par exemple.
+    recalcul_refus: dict[str, Any] | None = None
 
 
 class PayslipRestoreResponse(BaseModel):
@@ -192,6 +196,7 @@ class PayslipRestoreResponse(BaseModel):
     restored_version: int
     recalcule: bool = False
     recalcul_erreur: str | None = None
+    recalcul_refus: dict[str, Any] | None = None
 
 
 class PayslipPreviewResponse(BaseModel):

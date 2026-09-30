@@ -293,6 +293,33 @@ def test_un_recalcul_en_echec_est_dit_et_marque_sur_le_bulletin(base):
     assert marque[2]["payslip_data"]["salaire_brut"] == 2000.0
 
 
+def test_un_refus_structure_au_recalcul_remonte_en_entier(base):
+    """Après une correction, l'écran doit pouvoir proposer « effacer ces heures » :
+    le refus remonte avec son code et ses jours, pas seulement sa phrase."""
+    from app.modules.payslips.application.dto import PayslipHeuresSurArretError
+
+    jours = [{"annee": 2026, "mois": 8, "jour": 7, "heures": 9.0}]
+    base.generer.side_effect = PayslipHeuresSurArretError(
+        "Octavie est en arrêt, mais des heures sont saisies le 7 août.", {"jours": jours}
+    )
+    resultat = _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)))
+
+    assert resultat["recalcule"] is False
+    assert resultat["recalcul_erreur"] == "Octavie est en arrêt, mais des heures sont saisies le 7 août."
+    assert resultat["recalcul_refus"] == {
+        "code": "heures_sur_jour_d_arret",
+        "message": "Octavie est en arrêt, mais des heures sont saisies le 7 août.",
+        "jours": jours,
+    }
+
+
+def test_une_erreur_ordinaire_n_a_pas_de_refus_structure(base):
+    base.generer.side_effect = RuntimeError("Barème introuvable")
+    resultat = _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)))
+
+    assert resultat["recalcul_refus"] is None
+
+
 def test_un_resultat_en_erreur_compte_comme_un_echec(base):
     base.generer.return_value = MagicMock(status="error", message="Calendrier illisible")
     resultat = _corriger(CorrectionsBulletin(heures_sup=(4.0, 0.0)))

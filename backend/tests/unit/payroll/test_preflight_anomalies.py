@@ -135,6 +135,43 @@ def _default_mod_settings(**overrides) -> ModulationSettings:
 
 
 class TestBuildPreflightAnomalies:
+    @patch(f"{_SERVICE}.arrets_valides_reader")
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_des_arrets_illisibles_ne_font_pas_tomber_la_revue(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch_reviews, mock_arrets
+    ):
+        mock_mod_settings.return_value = _default_mod_settings()
+        _configure_supabase(
+            mock_supabase,
+            schedules=[
+                {
+                    "employee_id": EMP_ID,
+                    "planned_calendar": {"calendrier_prevu": _full_june_2026_planned()},
+                    "actual_hours": {
+                        "calendrier_reel": _full_june_2026_actual(day1_hours=28)
+                    },
+                }
+            ],
+        )
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        mock_arrets.par_salarie.side_effect = RuntimeError("réseau")
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        assert "ecart_heures" in [a.type for a in result.anomalies]
+
     @patch(
         "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
         return_value=[],

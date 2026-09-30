@@ -39,34 +39,53 @@ class PayslipCriticalActiveError(Exception):
         super().__init__("Alertes critiques actives")
 
 
-class PayslipCalendarIncompleteError(Exception):
-    """Génération refusée : des jours de la période à saisir manquent (→ 422).
+class PayslipRefusStructure(Exception):
+    """Refus de génération que l'écran sait lire.
 
-    `details` : `fenetre`, `jours_manquants`, `jours_informatifs` — repris tels
-    quels dans le `detail` HTTP, en plus de `code` et `message`.
+    Le `detail` HTTP est `{code, message, **details}` (`detail_http()`), avec
+    le statut `http_status`. Le recalcul après une correction rend le même objet.
+    (Pas d'attribut `detail` : `corrections._message_d_erreur` lit celui des
+    HTTPException.)
+    """
+
+    code: str = ""
+    http_status: int = 422
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.details: dict[str, Any] = dict(details or {})
+
+    def detail_http(self) -> dict[str, Any]:
+        return {"code": self.code, "message": str(self), **self.details}
+
+
+class PayslipCalendarIncompleteError(PayslipRefusStructure):
+    """Des jours de la période à saisir manquent (422).
+
+    `details` : `fenetre`, `jours_manquants`, `jours_informatifs`.
     """
 
     code = "calendrier_incomplet"
 
-    def __init__(self, message: str, details: dict[str, Any] | None = None):
-        super().__init__(message)
-        self.details: dict[str, Any] = dict(details or {})
 
+class PayslipHeuresSurArretError(PayslipRefusStructure):
+    """Des heures sont saisies un jour d'arrêt ou d'absence non travaillée (422).
+    Aucun forçage : la seule sortie est une correction (effacer les heures, ou
+    modifier l'absence).
 
-class PayslipHeuresSurArretError(Exception):
-    """Génération refusée : des heures sont saisies un jour d'arrêt ou
-    d'absence non travaillée (→ 422). Aucun forçage : la seule sortie est une
-    correction (effacer les heures, ou modifier l'absence).
-
-    `details` : `jours` (`[{annee, mois, jour, heures}]`), repris tel quel
-    dans le `detail` HTTP, en plus de `code` et `message`.
+    `details` : `jours` (`[{annee, mois, jour, heures}]`).
     """
 
     code = "heures_sur_jour_d_arret"
 
-    def __init__(self, message: str, details: dict[str, Any] | None = None):
-        super().__init__(message)
-        self.details: dict[str, Any] = dict(details or {})
+
+class PayslipArretsIllisiblesError(PayslipRefusStructure):
+    """Les arrêts validés n'ont pas pu être lus (503) : sans eux, la garde
+    laisserait passer des heures un week-end d'arrêt. Rien n'est calculé ; il
+    suffit de réessayer."""
+
+    code = "arrets_illisibles"
+    http_status = 503
 
 
 class PayslipConflictError(Exception):

@@ -20,6 +20,7 @@ from app.modules.onboarding.domain.profile import (
 from app.modules.payslips.application.dto import (
     GeneratePayslipInput,
     GeneratePayslipResult,
+    PayslipArretsIllisiblesError,
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
     PayslipHeuresSurArretError,
@@ -104,15 +105,44 @@ def _notify_payslip_available(
         return False
 
 
+def _prenom(employee: dict[str, Any]) -> str:
+    return (
+        str(employee.get("first_name") or "").strip()
+        or str(employee.get("last_name") or "").strip()
+        or "La personne"
+    )
+
+
 def _periode_a_saisir(employee: dict[str, Any], year: int, month: int):
-    """La période à saisir du salarié pour ce mois — mois civil ∪ fenêtre des variables."""
+    """La période à saisir du salarié pour ce mois — mois civil ∪ fenêtre des variables.
+
+    Les arrêts validés sont exigés : sans eux, la garde des heures sur un jour
+    d'arrêt laisserait passer un week-end d'arrêt sans rien dire.
+    """
     from app.modules.schedules.application.periode_a_saisir_service import (
+        ArretsIllisibles,
         charger_periode_a_saisir,
     )
 
-    return charger_periode_a_saisir(
-        str(employee.get("company_id") or "").strip(), employee, year, month
-    )
+    try:
+        return charger_periode_a_saisir(
+            str(employee.get("company_id") or "").strip(),
+            employee,
+            year,
+            month,
+            arrets_obligatoires=True,
+        )
+    except ArretsIllisibles as exc:
+        logger.warning(
+            "[generation] Arrêts validés illisibles pour l'employé %s : %s",
+            employee.get("id"),
+            exc,
+        )
+        raise PayslipArretsIllisiblesError(
+            f"Les arrêts de {_prenom(employee)} n'ont pas pu être lus : impossible de "
+            "vérifier les heures saisies pendant un arrêt. Réessayez dans un instant ; "
+            "rien n'a été calculé."
+        ) from exc
 
 
 def _check_calendar_guard(
@@ -179,11 +209,7 @@ def _check_heures_sur_jour_d_arret(
     conflits = getattr(periode, "conflits", ()) or ()
     if not conflits:
         return
-    prenom = (
-        str(employee.get("first_name") or "").strip()
-        or str(employee.get("last_name") or "").strip()
-        or "La personne"
-    )
+    prenom = _prenom(employee)
     jours = [c.en_detail() for c in conflits]
     logger.info(
         "[generation] Refus heures_sur_jour_d_arret pour l'employé %s : %s",

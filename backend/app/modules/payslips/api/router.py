@@ -23,11 +23,10 @@ from app.modules.payslips.application.anomalies_report import (
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 from app.modules.payslips.application import (
     PayslipBadRequestError,
-    PayslipCalendarIncompleteError,
     PayslipCriticalActiveError,
     PayslipForbiddenError,
-    PayslipHeuresSurArretError,
     PayslipNotFoundError,
+    PayslipRefusStructure,
     PayslipValidatedError,
     UserContext,
     acquit_payslip_alert_for_user,
@@ -80,8 +79,7 @@ _PAYSLIP_APP_ERRORS = (
     PayslipForbiddenError,
     PayslipBadRequestError,
     PayslipCriticalActiveError,
-    PayslipCalendarIncompleteError,
-    PayslipHeuresSurArretError,
+    PayslipRefusStructure,
     PayslipValidatedError,
     PayslipConflictError,
     GenerationDejaEnCours,
@@ -117,26 +115,10 @@ def _map_app_errors(exc: Exception) -> None:
         raise HTTPException(
             status_code=400, detail={"critical_alerts": exc.critical_alerts}
         ) from exc
-    if isinstance(exc, PayslipCalendarIncompleteError):
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": PayslipCalendarIncompleteError.code,
-                "message": str(exc),
-                **getattr(exc, "details", {}),
-            },
-        ) from exc
-    if isinstance(exc, PayslipHeuresSurArretError):
-        # Pas de forçage : l'écran propose d'effacer les heures ou de modifier
-        # l'absence, puis relance la génération.
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": PayslipHeuresSurArretError.code,
-                "message": str(exc),
-                **getattr(exc, "details", {}),
-            },
-        ) from exc
+    if isinstance(exc, PayslipRefusStructure):
+        # Calendrier incomplet, heures sur un jour d'arrêt, arrêts illisibles :
+        # `{code, message, **details}`, que l'écran lit pour proposer la sortie.
+        raise HTTPException(status_code=exc.http_status, detail=exc.detail_http()) from exc
     if isinstance(exc, PayslipValidatedError):
         raise HTTPException(
             status_code=409,
@@ -502,6 +484,7 @@ def edit_payslip_route(
             new_pdf_url=result.get("new_pdf_url"),
             recalcule=bool(result.get("recalcule")),
             recalcul_erreur=erreur,
+            recalcul_refus=result.get("recalcul_refus"),
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)
@@ -605,6 +588,7 @@ def restore_payslip_route(
             restored_version=restore_request.version,
             recalcule=bool(result.get("recalcule")),
             recalcul_erreur=erreur,
+            recalcul_refus=result.get("recalcul_refus"),
         )
     except _PAYSLIP_APP_ERRORS as e:
         _map_app_errors(e)
