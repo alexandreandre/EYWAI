@@ -34,3 +34,22 @@ def test_la_reduction_du_mois_est_la_regularisation_de_l_annee():
 def test_le_smic_implicite_redonne_la_reduction():
     smic = smic_pour_reduction(3023.40, 569.91, P)
     assert abs(smic - 2277.75) < 0.5
+
+
+def test_une_cible_au_dela_du_maximum_atteignable_leve_une_erreur():
+    with pytest.raises(ValueError):
+        smic_pour_reduction(1000.0, 900.0, P)
+
+
+def test_une_cible_egale_au_maximum_ne_leve_pas_et_se_retrouve():
+    brut = 1000.0
+    maximum = round(brut * P.tmax, 2)
+    smic = smic_pour_reduction(brut, maximum, P)
+    assert abs(reduction_cumulee(brut, smic, P) - maximum) <= 0.01
+
+
+def test_une_cible_nulle_ou_negative_leve_une_erreur():
+    with pytest.raises(ValueError):
+        smic_pour_reduction(1000.0, 0.0, P)
+    with pytest.raises(ValueError):
+        smic_pour_reduction(1000.0, -10.0, P)

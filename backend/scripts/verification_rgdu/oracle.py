@@ -38,7 +38,22 @@ def reduction_du_mois(brut_prec: float, smic_prec: float, deja_appliquee: float,
 
 
 def smic_pour_reduction(brut_cumule: float, reduction_voulue: float, prm: Parametres) -> float:
-    """Le SMIC cumulé qui redonne `reduction_voulue` (positive) sur ce brut : dichotomie."""
+    """Le SMIC cumulé qui redonne `reduction_voulue` (positive) sur ce brut : dichotomie.
+
+    Lève `ValueError` si `reduction_voulue` est nulle, négative, ou dépasse le
+    maximum atteignable (`brut_cumule * prm.tmax`) : c'est justement le cas que le
+    chantier doit détecter, celui d'une réduction déclarée au-delà de ce que la loi
+    permet. Sans cette garde, la dichotomie convergerait en silence vers une borne
+    haute arbitraire (environ deux fois le brut cumulé) au lieu de signaler
+    l'anomalie. L'appelant (tâche 6, `implicite.py`) intercepte cette erreur et
+    marque le mois « non calculable ».
+    """
+    maximum = round(brut_cumule * prm.tmax, 2)
+    if reduction_voulue <= 0 or reduction_voulue > maximum + 0.005:
+        raise ValueError(
+            f"réduction voulue {reduction_voulue:.2f} € hors de portée : "
+            f"maximum atteignable {maximum:.2f} € pour un brut cumulé de {brut_cumule:.2f} €"
+        )
     lo, hi = 0.0, brut_cumule * 2
     for _ in range(100):
         mid = (lo + hi) / 2
