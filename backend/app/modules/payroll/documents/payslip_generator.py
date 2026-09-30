@@ -183,7 +183,7 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
         str(row.get(key) or "") for key in ("name", "description")
     ).lower()
     # « Avance sur salaire » : somme versée au salarié en plus du net (montant
-    # positif, ex. Cegid ANDRE MAJI 02/2026 pendant un arrêt maladie non
+    # positif, ex. Cegid salarié 303 MAJI 02/2026 pendant un arrêt maladie non
     # maintenu : 3 819,33 € versés, récupérés en « Acomptes » les mois suivants).
     # Comme l'acompte, c'est de la trésorerie hors assiette sociale et fiscale :
     # le canal net-only est signé, le montant positif devient un ajout au net.
@@ -196,7 +196,7 @@ def _is_net_a_payer_only_correction_input(row: dict) -> bool:
     if "mutuelle" in label and "famille" in label:
         return True
     # « Acompte MM/AAAA » (avance sur salaire versée en cours de mois, cf. Cegid
-    # MBC mai 2026 : AWAD 300 €, salarié 147 500 €, etc.) : réduit uniquement le net
+    # MBC mai 2026 : salarié 010 300 €, salarié 147 500 €, etc.) : réduit uniquement le net
     # à payer, hors assiette sociale/fiscale. On exclut « acompte sur/de
     # participation » (SINT), qui lui réduit aussi le montant net social et suit
     # le mécanisme dédié de la participation.
