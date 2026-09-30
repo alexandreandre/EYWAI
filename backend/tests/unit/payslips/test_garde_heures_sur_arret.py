@@ -130,9 +130,9 @@ class TestGardeHeuresSurJourDArret:
         )
         assert exc.value.details == {
             "jours": [
-                {"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0},
-                {"annee": 2026, "mois": 9, "jour": 8, "heures": 8.0},
-                {"annee": 2026, "mois": 9, "jour": 9, "heures": 7.75},
+                {"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0, "type_prevu": "arret_maladie"},
+                {"annee": 2026, "mois": 9, "jour": 8, "heures": 8.0, "type_prevu": "arret_maladie"},
+                {"annee": 2026, "mois": 9, "jour": 9, "heures": 7.75, "type_prevu": "arret_maladie"},
             ]
         }
 
@@ -198,7 +198,7 @@ class TestGardeHeuresSurJourDArret:
             "Octavie est en arrêt, mais des heures sont saisies le 12 septembre."
         )
         assert exc.value.details["jours"] == [
-            {"annee": 2026, "mois": 9, "jour": 12, "heures": 5.0}
+            {"annee": 2026, "mois": 9, "jour": 12, "heures": 5.0, "type_prevu": "arret_maladie"}
         ]
 
     def test_un_samedi_travaille_hors_arret_se_genere(self):
@@ -279,7 +279,7 @@ class TestRoute422HeuresSurJourDArret:
     def test_la_route_rend_422_avec_code_message_et_jours(self, client: TestClient):
         from app.core.security import get_current_user
 
-        jours = [{"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0}]
+        jours = [{"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0, "type_prevu": "arret_maladie"}]
         erreur = PayslipHeuresSurArretError(
             "Octavie est en arrêt, mais des heures sont saisies le 7 septembre.",
             {"jours": jours},

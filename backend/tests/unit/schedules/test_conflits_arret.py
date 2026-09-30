@@ -126,7 +126,22 @@ class TestJoursEnConflit:
     def test_le_detail_d_un_jour_est_au_format_de_l_api(self):
         jour = JourEnConflit(7, "arret_maladie", 9.0, annee=2026, mois=9)
 
-        assert jour.en_detail() == {"annee": 2026, "mois": 9, "jour": 7, "heures": 9.0}
+        assert jour.en_detail() == {
+            "annee": 2026,
+            "mois": 9,
+            "jour": 7,
+            "heures": 9.0,
+            "type_prevu": "arret_maladie",
+        }
+
+    def test_un_samedi_d_arret_porte_le_type_de_l_arret_et_non_weekend(self):
+        prevu = [_prevu(12, "weekend", annee=2026, mois=9)]
+        reel = [{"jour": 12, "annee": 2026, "mois": 9, "heures_faites": 4.0}]
+        arrets = [
+            {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-12"]}
+        ]
+        (conflit,) = jours_en_conflit(prevu, reel, arrets)
+        assert conflit.en_detail()["type_prevu"] == "arret_maladie"
 
     def test_un_samedi_d_arret_valide_avec_des_heures_est_en_conflit(self):
         """La validation d'un arrêt ne retype pas ses week-ends (planning « weekend »,

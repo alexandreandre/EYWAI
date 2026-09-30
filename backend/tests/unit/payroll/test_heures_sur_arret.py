@@ -78,5 +78,5 @@ def test_la_forme_de_l_alerte():
             "Heures saisies pendant l'arrêt, écartées du calcul : le 7 septembre (8,5 h). "
             "Effacez-les du calendrier, ou corrigez l'arrêt si elles ont été travaillées."
         ),
-        "jours": [{"annee": 2026, "mois": 9, "jour": 7, "heures": 8.5}],
+        "jours": [{"annee": 2026, "mois": 9, "jour": 7, "heures": 8.5, "type_prevu": "arret_maladie"}],
     }

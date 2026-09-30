@@ -303,7 +303,7 @@ class TestAlerteSurLeBulletin:
         ]
         assert len(alertes) == 1
         assert alertes[0]["message"] == MESSAGE_ATTENDU
-        assert alertes[0]["jours"][0] == {"annee": 2026, "mois": 9, "jour": 7, "heures": 7.0}
+        assert alertes[0]["jours"][0] == {"annee": 2026, "mois": 9, "jour": 7, "heures": 7.0, "type_prevu": "arret_maladie"}
         assert MESSAGE_ATTENDU in resultat["warnings"]
 
     def test_sans_heures_sur_l_arret_ni_alerte_ni_lecture_des_arrets(self, monkeypatch, moteur):

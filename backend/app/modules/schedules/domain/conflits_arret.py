@@ -78,12 +78,16 @@ class JourEnConflit:
     mois: int | None = None
 
     def en_detail(self) -> dict[str, Any]:
-        """Le jour tel que l'API le rend : `{annee, mois, jour, heures}`."""
+        """Le jour tel que l'API le rend : `{annee, mois, jour, heures, type_prevu}`.
+
+        `type_prevu` est le type d'absence en cause (pour un week-end d'arrêt, celui
+        de l'arrêt) : l'écran décide « arrêt » ou « absence » d'après lui."""
         return {
             "annee": self.annee,
             "mois": self.mois,
             "jour": self.jour,
             "heures": self.heures_saisies,
+            "type_prevu": self.type_prevu,
         }
 
 
