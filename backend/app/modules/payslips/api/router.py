@@ -26,6 +26,7 @@ from app.modules.payslips.application import (
     PayslipCalendarIncompleteError,
     PayslipCriticalActiveError,
     PayslipForbiddenError,
+    PayslipHeuresSurArretError,
     PayslipNotFoundError,
     PayslipValidatedError,
     UserContext,
@@ -80,6 +81,7 @@ _PAYSLIP_APP_ERRORS = (
     PayslipBadRequestError,
     PayslipCriticalActiveError,
     PayslipCalendarIncompleteError,
+    PayslipHeuresSurArretError,
     PayslipValidatedError,
     PayslipConflictError,
     GenerationDejaEnCours,
@@ -120,6 +122,17 @@ def _map_app_errors(exc: Exception) -> None:
             status_code=422,
             detail={
                 "code": PayslipCalendarIncompleteError.code,
+                "message": str(exc),
+                **getattr(exc, "details", {}),
+            },
+        ) from exc
+    if isinstance(exc, PayslipHeuresSurArretError):
+        # Pas de forçage : l'écran propose d'effacer les heures ou de modifier
+        # l'absence, puis relance la génération.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": PayslipHeuresSurArretError.code,
                 "message": str(exc),
                 **getattr(exc, "details", {}),
             },

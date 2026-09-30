@@ -16,6 +16,7 @@ from app.modules.payslips.application.dto import (
     PayslipCalendarIncompleteError,
     PayslipCriticalActiveError,
     PayslipForbiddenError,
+    PayslipHeuresSurArretError,
     PayslipNotFoundError,
     PayslipValidatedError,
     UserContext,
@@ -63,6 +64,7 @@ __all__ = [
     "PayslipForbiddenError",
     "PayslipBadRequestError",
     "PayslipCalendarIncompleteError",
+    "PayslipHeuresSurArretError",
     "PayslipValidatedError",
     "PayslipCriticalActiveError",
 ]

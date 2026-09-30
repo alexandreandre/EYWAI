@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Iterable, Literal, Mapping
 
+from app.modules.schedules.domain.conflits_arret import JourEnConflit, jours_en_conflit
 from app.modules.schedules.domain.ecart_rules import is_day_ready_for_payroll
 
 Motif = Literal["planning_absent", "prevu_sans_reel", "prevu_sans_heures", "reel_a_zero"]
@@ -41,6 +42,10 @@ class PeriodeASaisir:
     manquants: tuple[JourASaisir, ...]
     #: D'où vient la fenêtre : « regle » (société) ou « manuel » (surcharge du mois).
     origine: str = "regle"
+    #: Heures saisies un jour d'arrêt ou d'absence non travaillée, sur l'union
+    #: (`domain.conflits_arret`). Ce ne sont pas des jours à saisir : le statut
+    #: n'en dépend pas ; la génération les refuse à part.
+    conflits: tuple[JourEnConflit, ...] = ()
 
     @property
     def bloquants(self) -> tuple[JourASaisir, ...]:
@@ -96,6 +101,8 @@ def periode_a_saisir(
       écarte tout événement hors contrat.
     - Un mois sans ligne de planning attend ses jours ouvrés (lundi à vendredi),
       pas le week-end.
+    - Les heures saisies un jour d'arrêt ou d'absence non travaillée sont
+      relevées sur la même union et dans les mêmes bornes (`conflits`).
     """
     mois_civil = (date(annee, mois, 1), date(annee, mois, calendar.monthrange(annee, mois)[1]))
     if forfait:
@@ -120,7 +127,30 @@ def periode_a_saisir(
                 if not is_day_ready_for_payroll(planned, actual, forfait=forfait):
                     manquants.append(JourASaisir(jour, dans_fenetre, _motif(planned, actual)))
         jour += timedelta(days=1)
-    return PeriodeASaisir(debut, fin, fenetre, mois_civil, tuple(manquants), origine)
+
+    def dans_la_periode(c: JourEnConflit) -> bool:
+        try:
+            d = date(c.annee or annee, c.mois or mois, c.jour)
+        except ValueError:
+            return False
+        return (
+            debut <= d <= fin
+            and (date_entree is None or d >= date_entree)
+            and (date_sortie is None or d <= date_sortie)
+        )
+
+    conflits = [
+        c
+        for (a, m), (prevu, reel) in sorted(calendriers.items())
+        for c in jours_en_conflit(
+            [{**e, "annee": a, "mois": m} for e in prevu if isinstance(e, dict)],
+            [{**e, "annee": a, "mois": m} for e in reel if isinstance(e, dict)],
+        )
+        if dans_la_periode(c)
+    ]
+    return PeriodeASaisir(
+        debut, fin, fenetre, mois_civil, tuple(manquants), origine, tuple(conflits)
+    )
 
 
 def plages(jours: Iterable[date]) -> list[tuple[date, date]]:

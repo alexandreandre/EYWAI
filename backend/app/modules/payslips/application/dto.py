@@ -53,6 +53,22 @@ class PayslipCalendarIncompleteError(Exception):
         self.details: dict[str, Any] = dict(details or {})
 
 
+class PayslipHeuresSurArretError(Exception):
+    """Génération refusée : des heures sont saisies un jour d'arrêt ou
+    d'absence non travaillée (→ 422). Aucun forçage : la seule sortie est une
+    correction (effacer les heures, ou modifier l'absence).
+
+    `details` : `jours` (`[{annee, mois, jour, heures}]`), repris tel quel
+    dans le `detail` HTTP, en plus de `code` et `message`.
+    """
+
+    code = "heures_sur_jour_d_arret"
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.details: dict[str, Any] = dict(details or {})
+
+
 class PayslipConflictError(Exception):
     """Le bulletin a changé depuis que l'écran l'a lu (→ 409)."""
 

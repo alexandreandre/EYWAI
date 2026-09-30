@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.database import supabase
 from app.modules.employees.infrastructure.repository import EmployeeRepository
@@ -22,6 +22,7 @@ from app.modules.payslips.application.dto import (
     GeneratePayslipResult,
     PayslipBadRequestError,
     PayslipCalendarIncompleteError,
+    PayslipHeuresSurArretError,
     PayslipValidatedError,
     PayslipNotFoundError,
 )
@@ -45,6 +46,9 @@ from app.modules.notifications.application.employee_document_alerts import (
 from app.modules.employees.application.service import enrich_employee_with_exit_context
 from app.shared.domain.employment_rules import payslip_employment_period_block_reason
 from app.shared.reprise_paie import raison_de_blocage_avant_bascule
+
+if TYPE_CHECKING:
+    from app.modules.schedules.domain.periode_a_saisir import PeriodeASaisir
 
 _employee_repository = EmployeeRepository()
 logger = logging.getLogger(__name__)
@@ -112,7 +116,7 @@ def _periode_a_saisir(employee: dict[str, Any], year: int, month: int):
 
 
 def _check_calendar_guard(
-    employee: dict[str, Any], cmd: GeneratePayslipInput
+    employee: dict[str, Any], cmd: GeneratePayslipInput, periode: "PeriodeASaisir"
 ) -> dict[str, Any] | None:
     """Garde « période à saisir incomplète ».
 
@@ -126,7 +130,6 @@ def _check_calendar_guard(
     from app.modules.schedules.application.periode_a_saisir_service import resume_api
     from app.modules.schedules.domain.periode_a_saisir import libelle_plages
 
-    periode = _periode_a_saisir(employee, cmd.year, cmd.month)
     details = resume_api(periode)
     debut, fin = periode.fenetre
     if periode.statut != "a_saisir":
@@ -157,6 +160,37 @@ def _check_calendar_guard(
         ),
         **details,
     }
+
+
+def _check_heures_sur_jour_d_arret(
+    employee: dict[str, Any], periode: "PeriodeASaisir"
+) -> None:
+    """Garde « heures saisies un jour d'arrêt ou d'absence non travaillée ».
+
+    Le moteur compte ces heures comme travaillées (souvent en heures sup) et
+    n'y retient plus l'absence : 70,75 h sup à 50 % pour une salariée en arrêt
+    tout septembre (30/09/2026). Refus (422) dès qu'un jour de la période à
+    saisir — mois civil ∪ fenêtre des variables, dans les bornes du contrat —
+    est dans ce cas. Aucun forçage : la seule sortie est une correction.
+    Le bac à sable (`generate_en_bac_a_sable`) ne passe pas par ici.
+    """
+    from app.modules.schedules.domain.conflits_arret import message_de_refus
+
+    conflits = getattr(periode, "conflits", ()) or ()
+    if not conflits:
+        return
+    prenom = (
+        str(employee.get("first_name") or "").strip()
+        or str(employee.get("last_name") or "").strip()
+        or "La personne"
+    )
+    jours = [c.en_detail() for c in conflits]
+    logger.info(
+        "[generation] Refus heures_sur_jour_d_arret pour l'employé %s : %s",
+        employee.get("id"),
+        jours,
+    )
+    raise PayslipHeuresSurArretError(message_de_refus(prenom, conflits), {"jours": jours})
 
 
 def _fetch_existing_payslip(
@@ -401,6 +435,8 @@ def generate_payslip(cmd: GeneratePayslipInput) -> GeneratePayslipResult:
     délègue au provider (services legacy).
 
     Gardes (lot 3 — génération sûre), côté serveur, jamais dans les générateurs :
+    - heures saisies un jour d'arrêt ou d'absence non travaillée →
+      PayslipHeuresSurArretError (422), sans forçage possible ;
     - calendrier du mois `a_saisir` → PayslipCalendarIncompleteError (422),
       sauf `force_calendrier_incomplet` explicite (tracé, warning en réponse).
     """
@@ -416,7 +452,11 @@ def _generer_sous_verrou(
     cmd: GeneratePayslipInput, employee: dict[str, Any]
 ) -> GeneratePayslipResult:
     """Suite de `generate_payslip`, une fois les refus d'entrée passés et le verrou pris."""
-    calendar_warning = _check_calendar_guard(employee, cmd)
+    periode = _periode_a_saisir(employee, cmd.year, cmd.month)
+    # D'abord le refus sans forçage : une génération forcée pour un calendrier
+    # incomplet ne doit pas s'arrêter ensuite sur lui.
+    _check_heures_sur_jour_d_arret(employee, periode)
+    calendar_warning = _check_calendar_guard(employee, cmd, periode)
     bulletin_existant = _check_validated_guard(cmd)
     if bulletin_existant:
         _archive_before_regeneration(bulletin_existant, cmd)

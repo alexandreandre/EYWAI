@@ -176,3 +176,73 @@ def test_les_plages_regroupent_les_jours_consecutifs():
         (date(2026, 7, 1), date(2026, 7, 1)),
     ]
     assert libelle_plages(jours) == "22/06–24/06, 26/06, 01/07"
+
+
+# --- Heures saisies un jour d'arrêt : la période porte ses conflits ---
+
+
+def _arret_septembre(heures_sur: dict[int, float]):
+    """Arrêt sur tous les jours ouvrés de septembre 2026 ; heures réelles sur certains jours."""
+    prevu, reel = [], []
+    for jour in range(1, 31):
+        if date(2026, 9, jour).weekday() >= 5:
+            prevu.append({"jour": jour, "type": "weekend", "heures_prevues": 0.0})
+            continue
+        prevu.append({"jour": jour, "type": "arret_maladie", "heures_prevues": 0.0})
+        reel.append({"jour": jour, "type": "travail", "heures_faites": heures_sur.get(jour, 0.0)})
+    return prevu, reel
+
+
+def test_la_periode_porte_les_jours_en_conflit_de_toute_l_union():
+    """Fenêtre 24/08 → 27/09 : un conflit d'août dans la fenêtre compte, un
+    conflit de fin septembre aussi (mois civil), un conflit d'août hors union non."""
+    aout_prevu, aout_reel = _mois(2026, 8, reel_jusqu_au=31, heures=7.0)
+    for entree in aout_prevu:
+        if entree["jour"] in (20, 25):
+            entree.update(type="arret_maladie", heures_prevues=0.0)
+
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 8, 24), date(2026, 9, 27)),
+        calendriers={
+            (2026, 8): (aout_prevu, aout_reel),
+            (2026, 9): _arret_septembre({7: 9.0, 8: 7.25, 29: 8.0}),
+        },
+        date_entree=date(2020, 1, 15),
+    )
+
+    assert [(c.annee, c.mois, c.jour, c.heures_saisies) for c in periode.conflits] == [
+        (2026, 8, 25, 7.0),
+        (2026, 9, 7, 9.0),
+        (2026, 9, 8, 7.25),
+        (2026, 9, 29, 8.0),
+    ]
+    # Un conflit n'est pas un jour à saisir : le statut ne dépend que des manquants.
+    assert periode.statut == "saisi"
+
+
+def test_un_conflit_hors_contrat_ne_compte_pas():
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 9, 1), date(2026, 9, 30)),
+        calendriers={(2026, 9): _arret_septembre({7: 9.0, 28: 8.0})},
+        date_entree=date(2026, 9, 8),
+    )
+
+    assert [c.jour for c in periode.conflits] == [28]
+
+
+def test_une_periode_sans_conflit_a_une_liste_vide():
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=7,
+        fenetre=FENETRE_JUILLET,
+        calendriers={
+            (2026, 6): _mois(2026, 6, reel_jusqu_au=30),
+            (2026, 7): _mois(2026, 7, reel_jusqu_au=31),
+        },
+    )
+
+    assert periode.conflits == ()
