@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractGenerationRefusal,
+  estForcable,
   splitGenerationWarnings,
 } from './generationGuards';
 
@@ -159,5 +160,63 @@ describe('splitGenerationWarnings — points à arbitrer', () => {
     expect(messages).toEqual(['Régénéré.']);
     expect(infos).toEqual([]);
     expect(guardWarnings).toEqual([{ code: 'bulletin_valide_regenere', message: 'Régénéré.' }]);
+  });
+});
+
+describe('refus heures_sur_jour_d_arret et arrets_illisibles', () => {
+  const jours = [{ annee: 2026, mois: 9, jour: 7, heures: 9 }];
+
+  it('reconnaît le 422 heures_sur_jour_d_arret avec ses jours', () => {
+    const error = httpError(422, {
+      code: 'heures_sur_jour_d_arret',
+      message: 'Octavie est en arrêt, mais des heures sont saisies le 7 septembre.',
+      jours,
+    });
+    expect(extractGenerationRefusal(error)).toEqual({
+      code: 'heures_sur_jour_d_arret',
+      message: 'Octavie est en arrêt, mais des heures sont saisies le 7 septembre.',
+      jours,
+    });
+  });
+
+  it('reconnaît le 503 arrets_illisibles avec son message', () => {
+    const error = httpError(503, {
+      code: 'arrets_illisibles',
+      message: 'Les arrêts de Octavie n’ont pas pu être lus. Réessayez dans un instant.',
+    });
+    expect(extractGenerationRefusal(error)).toEqual({
+      code: 'arrets_illisibles',
+      message: 'Les arrêts de Octavie n’ont pas pu être lus. Réessayez dans un instant.',
+    });
+  });
+
+  it('un 503 sans code connu reste une erreur générique', () => {
+    expect(extractGenerationRefusal(httpError(503, 'Service indisponible'))).toBeNull();
+    expect(extractGenerationRefusal(httpError(503, { code: 'autre', message: 'm' }))).toBeNull();
+  });
+
+  it('le code doit aller avec son statut', () => {
+    expect(
+      extractGenerationRefusal(httpError(409, { code: 'heures_sur_jour_d_arret', message: 'm' }))
+    ).toBeNull();
+    expect(
+      extractGenerationRefusal(httpError(422, { code: 'arrets_illisibles', message: 'm' }))
+    ).toBeNull();
+  });
+
+  it('message de repli utile si le message manque', () => {
+    expect(
+      extractGenerationRefusal(httpError(422, { code: 'heures_sur_jour_d_arret', jours }))?.message
+    ).toContain('heures');
+    expect(extractGenerationRefusal(httpError(503, { code: 'arrets_illisibles' }))?.message).toContain(
+      'Réessayez'
+    );
+  });
+
+  it('aucun des deux ne se force', () => {
+    expect(estForcable('calendrier_incomplet')).toBe(true);
+    expect(estForcable('bulletin_valide')).toBe(true);
+    expect(estForcable('heures_sur_jour_d_arret')).toBe(false);
+    expect(estForcable('arrets_illisibles')).toBe(false);
   });
 });

@@ -555,6 +555,7 @@ export function GeneratePayrollModal({
       refusals={generation.refusedJobs}
       generatedCount={generatedCount}
       onForce={generation.forceRefused}
+      onRetry={generation.retryJob}
       onDismiss={() => setRefusalDialogDismissed(true)}
     />
     </>

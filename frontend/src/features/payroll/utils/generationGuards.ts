@@ -1,4 +1,5 @@
 import { sanitizeBackendMessage } from '@/lib/errorMessages';
+import { lireJoursEnConflit, type JourEnConflit } from './heuresSurArret';
 
 /**
  * Gardes de génération des bulletins (lot 3 « génération sûre »).
@@ -13,7 +14,19 @@ import { sanitizeBackendMessage } from '@/lib/errorMessages';
  * produit AUCUN refus structuré : tout retombe sur la gestion d'erreur générique.
  */
 
-export type GenerationRefusalCode = 'calendrier_incomplet' | 'bulletin_valide';
+export type GenerationRefusalCode =
+  | 'calendrier_incomplet'
+  | 'bulletin_valide'
+  | 'heures_sur_jour_d_arret'
+  | 'arrets_illisibles';
+
+/**
+ * Les deux refus de calendrier/bulletin se forcent d'un clic explicite. Les deux
+ * autres, jamais : `heures_sur_jour_d_arret` ne se règle que par une correction,
+ * `arrets_illisibles` que par un nouvel essai.
+ */
+export const estForcable = (code: GenerationRefusalCode): boolean =>
+  code === 'calendrier_incomplet' || code === 'bulletin_valide';
 
 export type RefusalFenetre = {
   debut: string;
@@ -33,6 +46,8 @@ export type GenerationRefusal = {
   code: GenerationRefusalCode;
   message: string;
   details?: RefusalDetails;
+  /** Jours où des heures sont saisies sur un arrêt (`heures_sur_jour_d_arret`). */
+  jours?: JourEnConflit[];
 };
 
 const isoDates = (value: unknown): string[] =>
@@ -76,6 +91,10 @@ const REFUSAL_FALLBACK_MESSAGES: Record<GenerationRefusalCode, string> = {
   calendrier_incomplet:
     'Le calendrier du mois est incomplet : des jours restent à saisir.',
   bulletin_valide: 'Un bulletin validé existe déjà pour cette période.',
+  heures_sur_jour_d_arret:
+    'Des heures sont saisies un jour d’arrêt ou d’absence : corrigez-les avant de générer le bulletin.',
+  arrets_illisibles:
+    'Les arrêts du salarié n’ont pas pu être lus, donc rien n’a été calculé. Réessayez dans un instant.',
 };
 
 /** Libellés des dialogues de refus (titre, action de forçage, libellé court). */
@@ -93,10 +112,21 @@ export const REFUSAL_DIALOG_LABELS: Record<
     actionLabel: 'Régénérer (archive l’ancienne version)',
     shortLabel: 'bulletin validé',
   },
+  heures_sur_jour_d_arret: {
+    title: 'Heures saisies un jour d’arrêt',
+    actionLabel: 'Corriger les heures',
+    shortLabel: 'heures sur un jour d’arrêt',
+  },
+  arrets_illisibles: {
+    title: 'Arrêts illisibles',
+    actionLabel: 'Réessayer',
+    shortLabel: 'arrêts illisibles',
+  },
 };
 
 /**
- * Extrait un refus structuré (422 `calendrier_incomplet` / 409 `bulletin_valide`)
+ * Extrait un refus structuré (422 `calendrier_incomplet` / `heures_sur_jour_d_arret`,
+ * 409 `bulletin_valide`, 503 `arrets_illisibles`)
  * d'une erreur HTTP. Renvoie `null` pour toute autre erreur — y compris un
  * backend ancien qui répond sans code structuré — afin de laisser la gestion
  * d'erreur générique s'appliquer.
@@ -107,7 +137,7 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
     .response;
   if (!response || typeof response !== 'object') return null;
   const { status, data } = response;
-  if (status !== 422 && status !== 409) return null;
+  if (status !== 422 && status !== 409 && status !== 503) return null;
   if (!data || typeof data !== 'object') return null;
   const detail = (data as { detail?: unknown }).detail;
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return null;
@@ -118,6 +148,10 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
     refusalCode = 'calendrier_incomplet';
   } else if (status === 409 && code === 'bulletin_valide') {
     refusalCode = 'bulletin_valide';
+  } else if (status === 422 && code === 'heures_sur_jour_d_arret') {
+    refusalCode = 'heures_sur_jour_d_arret';
+  } else if (status === 503 && code === 'arrets_illisibles') {
+    refusalCode = 'arrets_illisibles';
   }
   if (!refusalCode) return null;
 
@@ -130,6 +164,9 @@ export function extractGenerationRefusal(error: unknown): GenerationRefusal | nu
   if (refusalCode === 'calendrier_incomplet') {
     const details = extractRefusalDetails(detail as Record<string, unknown>);
     if (details) refusal.details = details;
+  }
+  if (refusalCode === 'heures_sur_jour_d_arret') {
+    refusal.jours = lireJoursEnConflit((detail as { jours?: unknown }).jours);
   }
   return refusal;
 }

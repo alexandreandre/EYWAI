@@ -8,9 +8,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
-import type { PayrollGenerationRefusal } from '@/features/payroll/hooks/usePayrollGeneration';
-import { REFUSAL_DIALOG_LABELS } from '@/features/payroll/utils/generationGuards';
+import { ChoixHeuresSurArret } from '@/features/payroll/components/ChoixHeuresSurArret';
+import type {
+  PayrollGenerationJob,
+  PayrollGenerationRefusal,
+} from '@/features/payroll/hooks/usePayrollGeneration';
+import {
+  REFUSAL_DIALOG_LABELS,
+  estForcable,
+} from '@/features/payroll/utils/generationGuards';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollGenerationRefusalDialogProps = {
@@ -20,6 +28,8 @@ type PayrollGenerationRefusalDialogProps = {
   generatedCount: number;
   /** Relance les refusés avec le flag de forçage — clic explicite uniquement. */
   onForce: () => void;
+  /** Relance un job sans forçage : après l'effacement des heures, ou pour réessayer. */
+  onRetry: (job: PayrollGenerationJob) => void;
   onDismiss: () => void;
 };
 
@@ -39,6 +49,7 @@ export function PayrollGenerationRefusalDialog({
   refusals,
   generatedCount,
   onForce,
+  onRetry,
   onDismiss,
 }: PayrollGenerationRefusalDialogProps) {
   if (refusals.length === 0) return null;
@@ -48,6 +59,11 @@ export function PayrollGenerationRefusalDialog({
     (r) => r.code === 'calendrier_incomplet'
   ).length;
   const validatedCount = refusals.filter((r) => r.code === 'bulletin_valide').length;
+  const heuresCount = refusals.filter(
+    (r) => r.code === 'heures_sur_jour_d_arret'
+  ).length;
+  const illisiblesCount = refusals.filter((r) => r.code === 'arrets_illisibles').length;
+  const forcables = refusals.filter((r) => estForcable(r.code));
 
   const title = single
     ? REFUSAL_DIALOG_LABELS[single.code].title
@@ -55,6 +71,17 @@ export function PayrollGenerationRefusalDialog({
   const actionLabel = single
     ? REFUSAL_DIALOG_LABELS[single.code].actionLabel
     : 'Forcer les refusés';
+  // Forçable : le bouton force. Arrêts illisibles : il réessaie. Heures sur un
+  // arrêt : pas de bouton, le choix est dans le corps du dialogue.
+  const actionPrincipale: 'forcer' | 'reessayer' | null = single
+    ? estForcable(single.code)
+      ? 'forcer'
+      : single.code === 'arrets_illisibles'
+        ? 'reessayer'
+        : null
+    : forcables.length > 0
+      ? 'forcer'
+      : null;
 
   return (
     <AlertDialog
@@ -87,13 +114,27 @@ export function PayrollGenerationRefusalDialog({
             <AlertDialogDescription>
               {generatedCount} généré{generatedCount !== 1 ? 's' : ''},{' '}
               {refusals.length} refusés (calendrier incomplet : {calendarCount},
-              bulletin validé : {validatedCount}).
+              bulletin validé : {validatedCount}, heures sur un jour d’arrêt :{' '}
+              {heuresCount}, arrêts illisibles : {illisiblesCount}).
             </AlertDialogDescription>
           )}
         </AlertDialogHeader>
 
         {single?.code === 'calendrier_incomplet' && single.details && (
           <JoursASaisirListe details={single.details} />
+        )}
+
+        {single?.code === 'heures_sur_jour_d_arret' && single.jours && (
+          <ChoixHeuresSurArret
+            employeeId={single.job.employeeId}
+            employeeName={single.job.employeeName}
+            message={single.message}
+            jours={single.jours}
+            onEffacees={() => {
+              onRetry(single.job);
+            }}
+            onModifier={onDismiss}
+          />
         )}
 
         {!single && (
@@ -117,16 +158,65 @@ export function PayrollGenerationRefusalDialog({
           </div>
         )}
 
-        {!single && (
+        {!single &&
+          refusals
+            .filter((r) => r.code === 'heures_sur_jour_d_arret' && r.jours)
+            .map((refusal) => (
+              <div
+                key={`choix-${refusal.job.employeeId}-${refusal.job.year}-${refusal.job.month}`}
+                className="space-y-2 rounded-md border border-border/60 p-3"
+              >
+                <p className="text-sm font-medium">
+                  {refusal.job.employeeName} —{' '}
+                  {monthYearLabel(refusal.job.month, refusal.job.year)}
+                </p>
+                <p className="text-sm text-muted-foreground">{refusal.message}</p>
+                <ChoixHeuresSurArret
+                  employeeId={refusal.job.employeeId}
+                  employeeName={refusal.job.employeeName}
+                  message={refusal.message}
+                  jours={refusal.jours ?? []}
+                  onEffacees={() => {
+                    onRetry(refusal.job);
+                  }}
+                  onModifier={onDismiss}
+                />
+              </div>
+            ))}
+
+        {!single &&
+          refusals
+            .filter((r) => r.code === 'arrets_illisibles')
+            .map((refusal) => (
+              <div
+                key={`retry-${refusal.job.employeeId}-${refusal.job.year}-${refusal.job.month}`}
+                className="flex items-center justify-between gap-3 rounded-md border border-border/60 p-3 text-sm"
+              >
+                <span>{refusal.message}</span>
+                <Button type="button" size="sm" variant="outline" onClick={() => onRetry(refusal.job)}>
+                  Réessayer
+                </Button>
+              </div>
+            ))}
+
+        {!single && forcables.length > 0 && (
           <p className="text-xs text-muted-foreground">
             Forcer génère malgré un calendrier incomplet et régénère les
-            bulletins validés en archivant l’ancienne version.
+            bulletins validés en archivant l’ancienne version. Les heures sur un
+            jour d’arrêt et les arrêts illisibles ne se forcent pas.
           </p>
         )}
 
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onDismiss}>Fermer</AlertDialogCancel>
-          <AlertDialogAction onClick={onForce}>{actionLabel}</AlertDialogAction>
+          {actionPrincipale === 'forcer' && (
+            <AlertDialogAction onClick={onForce}>{actionLabel}</AlertDialogAction>
+          )}
+          {actionPrincipale === 'reessayer' && single && (
+            <AlertDialogAction onClick={() => onRetry(single.job)}>
+              {actionLabel}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

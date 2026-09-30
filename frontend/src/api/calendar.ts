@@ -70,8 +70,19 @@ export const updatePlannedCalendar = (employeeId: string, year: number, month: n
 /**
  * Récupère les heures réelles saisies pour un employé.
  */
+export interface ActualHoursResponse {
+  year: number;
+  month: number;
+  calendrier_reel: ActualHoursData[];
+  /**
+   * Jours du mois où des heures sont saisies alors que le prévu est un arrêt ou
+   * une absence (règle du backend). Absent d'un backend plus ancien : liste vide.
+   */
+  jours_en_conflit?: number[];
+}
+
 export const getActualHours = (employeeId: string, year: number, month: number) => {
-  return apiClient.get(`/api/employees/${employeeId}/actual-hours`, {
+  return apiClient.get<ActualHoursResponse>(`/api/employees/${employeeId}/actual-hours`, {
     params: { year, month }
   });
 };
@@ -85,6 +96,32 @@ export const updateActualHours = (employeeId: string, year: number, month: numbe
     month,
     calendrier_reel: data,
   });
+};
+
+export interface EffacerJoursResponse {
+  status: string;
+  year: number;
+  month: number;
+  jours: number[];
+  message: string;
+}
+
+/**
+ * Efface les heures saisies sur des jours d'arrêt ou d'absence (0 h, type du
+ * prévu). Un mois par appel ; en cas de refus (422/503), `detail` est un texte
+ * qui dit pourquoi et rien n'est modifié.
+ */
+export const effacerHeuresDesJours = async (
+  employeeId: string,
+  year: number,
+  month: number,
+  jours: number[],
+) => {
+  const { data } = await apiClient.post<EffacerJoursResponse>(
+    `/api/employees/${employeeId}/actual-hours/effacer-jours`,
+    { year, month, jours },
+  );
+  return data;
 };
 
 export const calculatePayrollEvents = (employeeId: string, year: number, month: number) => {
@@ -330,6 +367,15 @@ export interface PersistTimesheetResponse {
   errors: Array<{ employee_id: string; message: string }>;
   /** Absent tant que le backend ne le renvoie pas — traiter comme liste vide. */
   warnings?: TimesheetCommitWarning[];
+  /**
+   * Jours où le relevé porte des heures sur un arrêt ou une absence (chemin
+   * direct). Avec un `batch_id`, la liste est vide ici : elle se lit dans
+   * `summary.commit_jours_en_conflit` du lot (voir `fusionnerJoursEnConflitImport`).
+   */
+  jours_en_conflit?: Array<{
+    employee_id: string;
+    jours: Array<{ annee: number; mois: number; jour: number; heures: number }>;
+  }>;
 }
 
 export interface ExtractTimesheetOptions {
@@ -600,6 +646,8 @@ export interface TimesheetImportBatchSummary {
    * absent tant que le schéma de réponse backend ne l'expose pas.
    */
   commit_warnings?: TimesheetCommitWarning[];
+  /** Jours du relevé tombés sur un arrêt ou une absence (import par lot), même forme que `jours_en_conflit`. */
+  commit_jours_en_conflit?: PersistTimesheetResponse['jours_en_conflit'];
 }
 
 export interface TimesheetImportBatchResponse {

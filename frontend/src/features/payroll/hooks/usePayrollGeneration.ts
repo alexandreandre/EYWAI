@@ -16,11 +16,13 @@ import {
   recordGenerationDuration,
 } from '@/features/payroll/utils/payrollMonth';
 import {
+  estForcable,
   extractGenerationRefusal,
   splitGenerationWarnings,
   type GenerationRefusalCode,
   type RefusalDetails,
 } from '@/features/payroll/utils/generationGuards';
+import type { JourEnConflit } from '@/features/payroll/utils/heuresSurArret';
 
 export type PayrollGenerationJob = {
   employeeId: string;
@@ -40,6 +42,8 @@ export type PayrollGenerationRefusal = {
   message: string;
   /** Recopié du refus structuré (jours à saisir du 422 calendrier_incomplet). */
   details?: RefusalDetails;
+  /** Jours où des heures sont saisies sur un arrêt (`heures_sur_jour_d_arret`). */
+  jours?: JourEnConflit[];
 };
 
 export type PayrollGenerationLogEntry = {
@@ -422,8 +426,10 @@ export function usePayrollGeneration() {
    * (dialogue de refus / récapitulatif) — jamais automatiquement.
    */
   const forceRefused = useCallback(() => {
-    if (refusedJobs.length === 0) return;
-    const jobs = refusedJobs.map(({ job, code }) => ({
+    // Les refus d'heures sur un arrêt et d'arrêts illisibles ne se forcent jamais.
+    const forcables = refusedJobs.filter((r) => estForcable(r.code));
+    if (forcables.length === 0) return;
+    const jobs = forcables.map(({ job, code }) => ({
       ...job,
       forceCalendrierIncomplet:
         job.forceCalendrierIncomplet || code === 'calendrier_incomplet',
@@ -432,6 +438,17 @@ export function usePayrollGeneration() {
     }));
     enqueueJobs(jobs);
   }, [refusedJobs, enqueueJobs]);
+
+  /**
+   * Relance un job refusé tel quel, sans forçage : après « effacer ces heures »
+   * ou pour réessayer quand les arrêts n'ont pas pu être lus.
+   */
+  const retryJob = useCallback(
+    (job: PayrollGenerationJob) => {
+      enqueueJobs([job]);
+    },
+    [enqueueJobs]
+  );
 
   const completedCount = log.length;
 
@@ -450,6 +467,7 @@ export function usePayrollGeneration() {
     failedJobs,
     refusedJobs,
     forceRefused,
+    retryJob,
     reset,
     cancel,
     dismiss,

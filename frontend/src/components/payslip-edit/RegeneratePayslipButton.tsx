@@ -32,7 +32,10 @@ import { generatePayslip } from '@/api/payslips';
 import { getPayrollGenerationErrorMessage } from '@/lib/errorMessages';
 import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeVariables';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
+import { ChoixHeuresSurArret } from '@/features/payroll/components/ChoixHeuresSurArret';
+import type { RefusApresCorrection } from '@/features/payroll/utils/heuresSurArret';
 import {
+  estForcable,
   extractGenerationRefusal,
   splitGenerationWarnings,
   REFUSAL_DIALOG_LABELS,
@@ -52,6 +55,15 @@ interface RegeneratePayslipButtonProps {
   manuallyEdited: boolean;
   /** Des corrections sont en cours sur l'écran : la régénération les abandonne. */
   modificationsNonEnregistrees?: boolean;
+  /** Nom complet du salarié, s'il est connu (prénom des boutons de correction). */
+  employeeName?: string | null;
+  /**
+   * Refus d'heures sur un arrêt déjà connu (venu d'une correction de bulletin) :
+   * le dialogue du choix s'ouvre tout de suite, sans relancer une génération.
+   */
+  refusInitial?: RefusApresCorrection | null;
+  /** Appelé quand le dialogue de ce refus initial se ferme, sans autre effet. */
+  onRefusInitialFerme?: () => void;
   disabled?: boolean;
   /** Recharge le bulletin depuis le serveur après une régénération réussie. */
   onRegenerated: () => Promise<void> | void;
@@ -63,12 +75,28 @@ export default function RegeneratePayslipButton({
   month,
   manuallyEdited,
   modificationsNonEnregistrees = false,
+  employeeName,
+  refusInitial,
+  onRefusInitialFerme,
   disabled,
   onRegenerated,
 }: RegeneratePayslipButtonProps) {
   const { toast } = useToast();
   const [confirmationOuverte, setConfirmationOuverte] = useState(false);
-  const [refus, setRefus] = useState<GenerationRefusal | null>(null);
+  const [refusLocal, setRefus] = useState<GenerationRefusal | null>(null);
+  const refus: GenerationRefusal | null =
+    refusLocal ??
+    (refusInitial
+      ? {
+          code: 'heures_sur_jour_d_arret',
+          message: refusInitial.message,
+          jours: refusInitial.jours,
+        }
+      : null);
+  const fermerRefus = () => {
+    setRefus(null);
+    onRefusInitialFerme?.();
+  };
   const [enCours, setEnCours] = useState(false);
 
   const lancer = async (forcage: ForcageGeneration = {}) => {
@@ -82,7 +110,7 @@ export default function RegeneratePayslipButton({
       });
 
       setConfirmationOuverte(false);
-      setRefus(null);
+      fermerRefus();
 
       const { messages, infos } = splitGenerationWarnings(reponse.warnings);
       const details = [...messages, ...infos];
@@ -167,7 +195,7 @@ export default function RegeneratePayslipButton({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={refus !== null} onOpenChange={(ouvert) => !ouvert && setRefus(null)}>
+      <AlertDialog open={refus !== null} onOpenChange={(ouvert) => !ouvert && fermerRefus()}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -181,17 +209,35 @@ export default function RegeneratePayslipButton({
               lienPlanning={`/schedules?employee=${encodeURIComponent(employeeId)}`}
             />
           )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={enCours}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={enCours}
-              onClick={(e) => {
-                e.preventDefault();
-                void lancer(forcageDuRefus());
+          {refus?.code === 'heures_sur_jour_d_arret' && refus.jours && (
+            <ChoixHeuresSurArret
+              employeeId={employeeId}
+              employeeName={employeeName}
+              message={refus.message}
+              jours={refus.jours}
+              onEffacees={async () => {
+                // Les heures sont effacées : on relance la génération de CE bulletin.
+                await lancer();
               }}
-            >
-              {refus ? REFUSAL_DIALOG_LABELS[refus.code].actionLabel : ''}
-            </AlertDialogAction>
+              onModifier={fermerRefus}
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={enCours}>
+              {refus?.code === 'heures_sur_jour_d_arret' ? 'Fermer' : 'Annuler'}
+            </AlertDialogCancel>
+            {refus && refus.code !== 'heures_sur_jour_d_arret' && (
+              <AlertDialogAction
+                disabled={enCours}
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Forçable : on reposte avec le forçage. Arrêts illisibles : simple nouvel essai.
+                  void lancer(estForcable(refus.code) ? forcageDuRefus() : {});
+                }}
+              >
+                {REFUSAL_DIALOG_LABELS[refus.code].actionLabel}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

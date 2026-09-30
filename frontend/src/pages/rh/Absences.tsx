@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isPayrollFocusActive } from "@/lib/payrollFocus";
 import { AbsenceRequestModal } from "@/components/AbsenceRequestModal";
 import { Loader2, Check, X, Clock, Info, Download, Eye, FilePlus, RefreshCw, ExternalLink, ChevronDown } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Collapsible,
   CollapsibleContent,
@@ -112,12 +112,19 @@ export default function AbsencesPage() {
   const fetchData = absencesQuery.refetch;
   // Recherche par salarié (demande Gaëlle 07/09) — insensible aux accents.
   const [rechercheSalarie, setRechercheSalarie] = useState('');
+  // Lien depuis « Modifier l'arrêt » (heures saisies un jour d'arrêt) : les
+  // demandes d'un seul salarié, par son id, sur l'onglet Historique.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const salarieFiltre = searchParams.get('employee');
   const normaliser = (v: string) =>
     v
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
-  const filtrerParSalarie = (requests: AbsenceRequest[]) => {
+  const filtrerParSalarie = (toutes: AbsenceRequest[]) => {
+    const requests = salarieFiltre
+      ? toutes.filter((req) => req.employee_id === salarieFiltre)
+      : toutes;
     const terme = normaliser(rechercheSalarie.trim());
     if (!terme) return requests;
     return requests.filter((req) =>
@@ -693,7 +700,23 @@ export default function AbsencesPage() {
           {' '}— Entreprise, onglet Paie, section Congés &amp; RTT.
         </p>
       </div>
-      <Tabs defaultValue="pending">
+      {salarieFiltre && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+          <span>
+            Demandes d’un seul salarié : retrouvez l’arrêt à corriger dans
+            l’historique.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSearchParams({}, { replace: true })}
+          >
+            Afficher tous les salariés
+          </Button>
+        </div>
+      )}
+      <Tabs defaultValue={salarieFiltre ? 'processed' : 'pending'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="pending"><Clock className="mr-2 h-4 w-4" /> Demandes en attente <Badge className="ml-2">{pending.length}</Badge></TabsTrigger>

@@ -522,6 +522,7 @@ export default function Payroll() {
         refusals={generation.refusedJobs}
         generatedCount={generatedCount}
         onForce={generation.forceRefused}
+        onRetry={generation.retryJob}
         onDismiss={() => setRefusalDialogDismissed(true)}
       />
     </div>
