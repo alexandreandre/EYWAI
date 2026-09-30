@@ -1,7 +1,7 @@
 # Cahier technique DSN CT2026.1.2 — blocs S21.G00.79 et S21.G00.81 (réduction générale)
-Source : https://www.net-entreprises.fr/media/documentation/dsn-cahier-technique-2026.1.pdf — consulté le 29/09/2026 (copie locale : `docs/audit-maji-2026/sources/dsn-cahier-technique-2026.1.pdf` et `.txt`, version « CT2026.1.2 », datée du 24/12/2025)
+Source : https://www.net-entreprises.fr/media/documentation/dsn-cahier-technique-2026.1.pdf — consulté le 29/09/2026 (copie locale : `docs/audit-maji-2026/sources/dsn-cahier-technique-2026.1.pdf` et `.txt`, version « CT2026.1.2 », datée du 24/12/2025 ; ce dossier `docs/audit-maji-2026/` n'est pas suivi par git : la copie n'existe que sur le poste qui l'a téléchargée)
 
-Le PDF n'a pas été téléchargé à nouveau le 29/09/2026 : le texte ci-dessous est extrait de la copie déjà présente dans le dépôt (dossier de l'audit MAJI), dont l'adresse d'origine figure dans `docs/audit-maji-2026/sources/consultations-web-completes.json`. La date « consulté le » est celle de la relecture de cette copie.
+Le PDF n'a pas été téléchargé à nouveau le 29/09/2026 : le texte ci-dessous est extrait de la copie locale du dossier de l'audit MAJI (non suivi par git), dont l'adresse d'origine figure dans `docs/audit-maji-2026/sources/consultations-web-completes.json`, lui aussi hors de git. Pour relire le texte d'origine ailleurs, retélécharger le PDF à l'adresse ci-dessus. La date « consulté le » est celle de la relecture de cette copie.
 
 Extraits intégraux utiles, recopiés du texte brut de la copie locale, page par page ; seuls les retours à la ligne, l'indentation et les en-têtes ou pieds de page du PDF ont été retirés. « […] » marque un passage omis (autres organismes, prévoyance).
 
@@ -53,7 +53,11 @@ Modalité de valorisation :
 […]
 - France Travail : montant
 - Urssaf : montant
-[…] »
+[…]
+
+N [4,14] CSL 00 : -?[0]*(0|[1-9][0-9]*)\.[0-9]{2} »
+
+(Format de la rubrique : montant numérique à deux décimales.)
 
 ## Bloc S21.G00.81 « Cotisation individuelle » (p. 301-308)
 

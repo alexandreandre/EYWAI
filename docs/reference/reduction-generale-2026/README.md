@@ -43,7 +43,7 @@ Le tableau des règles, avec les points que les textes ne tranchent pas et la co
 
 | Fichier | Texte | Version | Adresse |
 |---|---|---|---|
-| [`dsn-cahier-technique-2026-extrait.md`](dsn-cahier-technique-2026-extrait.md) | Cahier technique DSN CT2026.1.2, blocs S21.G00.79 et S21.G00.81 (extrait, depuis la copie du dépôt) | 24/12/2025 | https://www.net-entreprises.fr/media/documentation/dsn-cahier-technique-2026.1.pdf |
+| [`dsn-cahier-technique-2026-extrait.md`](dsn-cahier-technique-2026-extrait.md) | Cahier technique DSN CT2026.1.2, blocs S21.G00.79 et S21.G00.81 (extrait, depuis une copie locale non suivie par git) | 24/12/2025 | https://www.net-entreprises.fr/media/documentation/dsn-cahier-technique-2026.1.pdf |
 | [`netentreprises-fiche-2522.md`](netentreprises-fiche-2522.md) | Fiche 2522 : déclarer le SMIC de la RGDU (bloc 79) | modifiée le 09/06/2026 | https://net-entreprises.custhelp.com/app/answers/detail_dsn/a_id/2522/ |
 | [`netentreprises-fiche-2681.md`](netentreprises-fiche-2681.md) | Fiche consigne 2681 : proratiser le SMIC en cas d'absence (types 028 et 029) | modifiée le 09/06/2026 | https://net-entreprises.custhelp.com/app/answers/detail/a_id/2681 |
 | [`netentreprises-fiche-1265.md`](netentreprises-fiche-1265.md) | Fiche 1265 : blocs 78, 79 et 81 (extrait) | modifiée le 08/07/2026 | https://net-entreprises.custhelp.com/app/answers/detail_dsn/a_id/1265/ |
