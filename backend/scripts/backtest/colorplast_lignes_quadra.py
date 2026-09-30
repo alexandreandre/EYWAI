@@ -8,7 +8,7 @@ page porte son propre en-tête ; les positions sont relevées page par page.
 
 Un bulletin tient sur une ou deux pages, repérées par « Matricule : X ».
 
-Usage : python -m scripts.backtest.colorplast_lignes_quadra 2026 6 [BUGNY]
+Usage : python -m scripts.backtest.colorplast_lignes_quadra 2026 6 [MATRICULE...]
 """
 
 from __future__ import annotations
@@ -22,7 +22,13 @@ from pathlib import Path
 RACINE_DATA = Path(__file__).resolve().parents[3] / "data"
 
 NOMBRE = re.compile(r"-?\d+\.\d{2,4}")
-MATRICULE = re.compile(r"Matricule\s*:\s*([A-Z]+)")
+#: `[A-Z0-9]+`, pas `[A-Z]+` : des matricules suffixés d'un chiffre (contrats
+#: successifs, homonymes) étaient tronqués à leur partie alphabétique, fusionnant
+#: parfois plusieurs salariés sous une seule clé (Mont-Blanc) ou mal étiquetant un
+#: contrat (Comitech). Vérifié en lecture seule, bulletin par bulletin (Colorplast
+#: et Comitech, janvier à août), que le contenu (lignes, droite, net, cp, infos,
+#: pages) ne change jamais avec le suffixe restauré — seule la clé se corrige.
+MATRICULE = re.compile(r"Matricule\s*:\s*([A-Z0-9]+)")
 CODE = re.compile(r"^\s{0,4}([A-Z][A-Z0-9]{2,3})\s+(\S.*)$")
 
 #: Étiquettes de la colonne de droite (libellé → clé), dans l'ordre du bulletin.
