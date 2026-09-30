@@ -22,21 +22,23 @@ from scripts.verification_rgdu.oracle_smic import (
 
 pytestmark = pytest.mark.unit
 
-SMIC_H_2024 = 11.65   # SMIC des exemples de la fiche net-entreprises 2681
+SMIC_H_2024 = 11.65          # SMIC des exemples de la fiche net-entreprises 2681
+SMIC_DU_MOIS_2026 = 1823.03  # 12,02 × 1 820 / 12 arrondi (choix de calcul n° 1)
+FORFAIT_216 = 1806.30        # 1 823,03 × 216 / 218 (R-H9)
 
 
 def test_r_f2_smic_de_reference_fige_a_12_02_toute_l_annee():
     """R-F2 : 12,02 €/h pour tout 2026, même après la hausse du 1er juin (12,31 €)."""
     assert SMIC_H_2026 == 12.02
-    assert smic_mensuel() == 1823.03
+    assert smic_mensuel() == SMIC_DU_MOIS_2026
     assert smic_mensuel(12.31) == 1867.02          # ce que donnerait juin sans le gel
-    assert smic_mois_complet(151.67, 0.0, 0.0) == 1823.03
 
 
 def test_choix_1_base_mensuelle_1823_03_et_non_la_tolerance_1823_07():
-    """Choix de calcul n° 1 (R-H1) : 12,02 × 1 820 / 12 arrondi, pas 12,02 × 151,67."""
-    assert smic_mois_complet(151.67, 0.0, 0.0) == 1823.03
-    assert smic_mois_complet(151.67, 0.0, 0.0) != round(12.02 * 151.67, 2)
+    """Choix de calcul n° 1 (R-H1) : 12,02 × 1 820 / 12 arrondi, pas 12,02 × 151,67 = 1 823,07.
+    Seule vérification du mois complet sans heures : les autres tests s'y fient."""
+    assert smic_mois_complet(151.67, 0.0, 0.0) == SMIC_DU_MOIS_2026
+    assert round(12.02 * 151.67, 2) == 1823.07
 
 
 def test_r_h1_mois_complet_avec_heures_sup_comme_quadra_en_dsn():
@@ -52,11 +54,10 @@ def test_r_h1_la_duree_du_contrat_se_donne_hors_heures_supplementaires():
     assert smic_mois_complet(151.67, 17.33, 0.0) == 2031.34
 
 
-def test_r_h2_conges_payes_pris_smic_du_mois_complet_sans_smic_en_plus():
+def test_r_h2_conges_payes_indemnite_au_dixieme_sans_smic_en_plus():
     """R-H2 : congés payés pris, SMIC du mois complet ; une indemnité au dixième supérieure au
     maintien n'ajoute pas de SMIC (le rapport est plafonné à 1, choix n° 3)."""
-    assert smic_mois_complet(151.67, 0.0, 0.0) == 1823.03
-    assert smic_au_rapport_des_salaires(151.67, 2150.0, 2000.0) == 1823.03
+    assert smic_au_rapport_des_salaires(151.67, 2150.0, 2000.0) == SMIC_DU_MOIS_2026
 
 
 def test_r_h3_absence_non_payee_au_rapport_des_salaires_exemple_officiel():
@@ -93,12 +94,16 @@ def test_r_h4_arret_avec_paiement_integral_smic_complet_heures_structurelles_com
 
 
 def test_r_h4_maintien_partiel_ijss_subrogees_hors_du_rapport():
-    """R-H4 (5e alinéa) : exemple IJSS de la fiche 2681 (carence de 7 jours puis 90 %, IJSS
-    déduites du brut) : numérateur 1 391,10, dénominateur 2 285,65. Publié : 1 198,27 € au SMIC
-    2024 ; en 2026 : 1 236,32 €."""
+    """R-H4 (5e alinéa) : exemples de la fiche 2681, IJSS déduites du brut.
+    - carence de 7 jours puis 90 % : 1 391,10 / 2 285,65, publié 1 198,27 au SMIC 2024 ;
+      en 2026 : 1 236,32 ;
+    - prime d'ancienneté et maladie : 1 691,73 / 2 149,92, publié 1 390,35 ;
+    - garantie sur le net : 1 104,27 / 1 820,04, publié 1 072,04."""
     assert smic_au_rapport_des_salaires(
         151.67, 1391.10, 2285.65, heures_structurelles=17.33, smic_h=SMIC_H_2024) == 1198.27
     assert smic_au_rapport_des_salaires(151.67, 1391.10, 2285.65, heures_structurelles=17.33) == 1236.32
+    assert smic_au_rapport_des_salaires(151.67, 1691.73, 2149.92, smic_h=SMIC_H_2024) == 1390.35
+    assert smic_au_rapport_des_salaires(151.67, 1104.27, 1820.04, smic_h=SMIC_H_2024) == 1072.04
 
 
 def test_r_h4_aucun_maintien_sur_tout_le_mois_smic_nul():
@@ -120,6 +125,18 @@ def test_point_non_tranche_1_maintien_a_100_pour_cent_subroge_deux_variantes():
         smic_maintien_subroge(151.67, 2022.66, 2285.65, variante="soustraction", **commun)
 
 
+def test_point_non_tranche_1_au_forfait_jours_deux_variantes():
+    """R-H9 et point non tranché n° 1 : un salarié au forfait de 216 jours, en arrêt subrogé
+    maintenu à 100 %, passe aussi par la variante. Brut soumis 2 700 sur 3 000 :
+    « smic_entier » 1 806,30 ; « rapport_salaires » 1 806,30… × 0,9 = 1 625,67."""
+    assert smic_maintien_subroge(None, 2700.0, 3000.0, variante="smic_entier",
+                                 jours_forfait=216) == FORFAIT_216
+    assert smic_maintien_subroge(None, 2700.0, 3000.0, variante="rapport_salaires",
+                                 jours_forfait=216) == 1625.67
+    with pytest.raises(TypeError):
+        smic_maintien_subroge(None, 2700.0, 3000.0, jours_forfait=216)
+
+
 def test_r_h5_absence_payee_par_l_employeur_rapport_egal_a_1():
     """R-H5 : événement familial payé, salaire inchangé : rapport 1, SMIC complet. Sans
     maintien : les jours du congé réduisent le SMIC du rapport des salaires."""
@@ -132,18 +149,17 @@ def test_r_h6_ferie_chome_non_paye_au_rapport_ferie_paye_smic_complet():
     rapport des salaires, 1 738,89 ; férié payé ou solidarité travaillée sans paie : salaire
     inchangé, SMIC complet, aucune heure ajoutée."""
     assert smic_au_rapport_des_salaires(151.67, 2000.0 - 7 * 2000.0 / 151.67, 2000.0) == 1738.89
-    assert smic_au_rapport_des_salaires(151.67, 2000.0, 2000.0) == 1823.03
+    assert smic_au_rapport_des_salaires(151.67, 2000.0, 2000.0) == SMIC_DU_MOIS_2026
 
 
 def test_r_h7_entree_le_1er_ou_sortie_le_dernier_jour_smic_entier():
     """R-H7 : arrivée le 1er ou départ le dernier jour du mois : le mois n'est pas incomplet,
-    SMIC entier (1 823,03). Tout autre jour : mois incomplet."""
+    SMIC entier. Tout autre jour : mois incomplet."""
     assert mois_incomplet(2026, 3, date_entree=date(2026, 3, 1)) is False
     assert mois_incomplet(2026, 2, date_sortie=date(2026, 2, 28)) is False   # 2026 non bissextile
     assert mois_incomplet(2026, 5, date_entree=date(2025, 9, 1), date_sortie=date(2026, 5, 31)) is False
     assert mois_incomplet(2026, 3, date_entree=date(2026, 3, 2)) is True
     assert mois_incomplet(2026, 1, date_sortie=date(2026, 1, 30)) is True
-    assert smic_mois_complet(151.67, 0.0, 0.0) == 1823.03
 
 
 def test_r_h7_mois_d_entree_au_rapport_des_salaires_et_non_des_heures():
@@ -158,6 +174,18 @@ def test_r_h7_temps_partiel_double_prorata():
     assert smic_entree_sortie(121.33, 800.0, 1600.0) == 729.19
 
 
+def test_r_h7_sortie_au_forfait_jours_garde_la_variante_de_preavis():
+    """R-H7, R-H9, point non tranché n° 4 : sortie à mi-mois d'un salarié au forfait de 216
+    jours, 1 500 dus sur 3 000, 3 000 d'indemnité de préavis. « hors_rapport » : 1 806,30… ×
+    0,5 = 903,15 ; « dans_rapport » : 1 806,30."""
+    assert smic_entree_sortie(None, 1500.0, 3000.0, jours_forfait=216, indemnite_preavis=3000.0,
+                              variante_preavis="hors_rapport") == 903.15
+    assert smic_entree_sortie(None, 1500.0, 3000.0, jours_forfait=216, indemnite_preavis=3000.0,
+                              variante_preavis="dans_rapport") == FORFAIT_216
+    with pytest.raises(ValueError):
+        smic_entree_sortie(None, 1500.0, 3000.0, jours_forfait=216, indemnite_preavis=3000.0)
+
+
 def test_r_h7_mois_apres_la_rupture_aucun_smic():
     """R-H7 et R-A2 (d) : sommes rattachées à un mois sans jour de contrat : aucun SMIC."""
     with pytest.raises(ValueError):
@@ -169,13 +197,16 @@ def test_r_h7_mois_apres_la_rupture_aucun_smic():
 def test_point_non_tranche_4_indemnite_de_preavis_deux_variantes():
     """R-H7, point non tranché n° 4 : sortie à mi-mois, 1 000 € dus hors indemnités de rupture
     sur 2 000 €, 2 000 € d'indemnité compensatrice de préavis. « hors_rapport » : 911,52 ;
-    « dans_rapport » : rapport plafonné à 1, 1 823,03. Pas de choix implicite."""
+    « dans_rapport » : rapport plafonné à 1, 1 823,03. Pas de choix implicite, et une variante
+    inconnue est refusée même sans indemnité."""
     assert smic_entree_sortie(151.67, 1000.0, 2000.0, indemnite_preavis=2000.0,
                               variante_preavis="hors_rapport") == 911.52
     assert smic_entree_sortie(151.67, 1000.0, 2000.0, indemnite_preavis=2000.0,
-                              variante_preavis="dans_rapport") == 1823.03
+                              variante_preavis="dans_rapport") == SMIC_DU_MOIS_2026
     with pytest.raises(ValueError):
         smic_entree_sortie(151.67, 1000.0, 2000.0, indemnite_preavis=2000.0)
+    with pytest.raises(ValueError):
+        smic_entree_sortie(151.67, 1000.0, 2000.0, variante_preavis="retiree")
     assert smic_entree_sortie(151.67, 1000.0, 2000.0) == 911.52   # sans préavis, rien à trancher
 
 
@@ -185,28 +216,60 @@ def test_r_h8_temps_partiel_12_02_fois_heures_du_contrat_plus_complementaires():
     assert smic_mois_complet(121.33, 0.0, 4.0) == 1506.47
 
 
-def test_r_h9_forfait_216_jours():
+def test_r_h8_temps_partiel_de_la_fiche_2681_divergence_connue_d_un_centime():
+    """R-H8 : exemple « temps partiel, IJSS et paniers » de la fiche 2681 (86,67 h, rapport
+    735,07 / 1 205,15, SMIC 2024). La fiche proratise le SMIC mensuel arrondi :
+    1 766,92 × 86,67 / 151,67 = 1 009,69, arrondi, puis × r = 615,85. R-H8 impose 12,02 ×
+    heures du contrat (ici 11,65 × 86,67 = 1 009,7055, non arrondi), puis × r = 615,86.
+    Divergence connue d'un centime, due à la formule de R-H8 et non à une erreur."""
+    assert smic_au_rapport_des_salaires(86.67, 735.07, 1205.15, smic_h=SMIC_H_2024) == 615.86
+
+
+def test_heures_complementaires_ajoutees_hors_du_rapport():
+    """R-H8 et choix de calcul n° 3 : sous un rapport, les heures complémentaires s'ajoutent
+    entières, hors du « × r », comme les heures supplémentaires occasionnelles.
+    - temps partiel 121,33 h, rapport 0,5, 4 h complémentaires :
+      12,02 × 121,33 × 0,5 + 4 × 12,02 = 777,27 (entrée ou sortie comme absence) ;
+    - 39 h en maintien subrogé, rapport 0,9, 4 h complémentaires :
+      (1 823,03 + 17,33 × 12,02) × 0,9 + 4 × 12,02 = 1 876,28 ; « smic_entier » : 2 079,42."""
+    assert smic_au_rapport_des_salaires(121.33, 800.0, 1600.0, heures_comp=4.0) == 777.27
+    assert smic_entree_sortie(121.33, 800.0, 1600.0, heures_comp=4.0) == 777.27
+    commun = {"heures_structurelles": 17.33, "heures_comp": 4.0}
+    assert smic_maintien_subroge(151.67, 1800.0, 2000.0, variante="rapport_salaires", **commun) == 1876.28
+    assert smic_maintien_subroge(151.67, 1800.0, 2000.0, variante="smic_entier", **commun) == 2079.42
+
+
+def test_r_h9_forfait_216_jours_mois_complet():
     """R-H9 : 1 823,03 × 216 / 218 = 1 806,30 (valeur retenue) ; 218 jours et au-delà :
-    SMIC entier, jamais majoré pour des jours de repos rachetés."""
-    assert smic_forfait_jours(216) == 1806.30
-    assert smic_forfait_jours(218) == 1823.03
-    assert smic_forfait_jours(230) == 1823.03
+    SMIC entier, jamais majoré pour des jours de repos rachetés. La fonction ne sert qu'au
+    mois complet : plus de `rapport` par défaut qui choisirait en silence."""
+    assert smic_forfait_jours(216) == FORFAIT_216
+    assert smic_forfait_jours(218) == SMIC_DU_MOIS_2026
+    assert smic_forfait_jours(230) == SMIC_DU_MOIS_2026
+    with pytest.raises(TypeError):
+        smic_forfait_jours(216, rapport=0.5)
 
 
 def test_r_h9_absence_au_forfait_au_rapport_des_salaires():
     """R-H9 et point non tranché n° 8 : 2 jours d'absence sur 3 000 €, retenue sur 21,67 jours :
-    1 806,30… × 2 723,12 / 3 000 = 1 639,59, et non « jours d'absence ÷ (216 / 12) »."""
-    r = rapport_des_salaires(3000.0 - 2 * 3000.0 / 21.67, 3000.0)
-    assert smic_forfait_jours(216, rapport=r) == 1639.59
+    1 806,30… × 2 723,12 / 3 000 = 1 639,59, et non « jours d'absence ÷ (216 / 12) ».
+    Durée et forfait s'excluent ; un forfait jours n'a pas d'heures supplémentaires."""
+    due = 3000.0 - 2 * 3000.0 / 21.67
+    assert smic_au_rapport_des_salaires(None, due, 3000.0, jours_forfait=216) == 1639.59
     with pytest.raises(ValueError):
-        smic_forfait_jours(216, rapport=1.2)
+        smic_au_rapport_des_salaires(151.67, due, 3000.0, jours_forfait=216)
+    with pytest.raises(ValueError):
+        smic_au_rapport_des_salaires(None, due, 3000.0)
+    with pytest.raises(ValueError):
+        smic_au_rapport_des_salaires(None, due, 3000.0, jours_forfait=216, heures_sup_occasionnelles=5.0)
 
 
-def test_r_h10_apprenti_smic_entier_meme_paye_sous_le_smic():
-    """R-H10 : apprenti payé 51 % du SMIC (929,76 €) : SMIC de référence entier, 1 823,03.
-    Absent la moitié du mois, le rapport porte sur son propre salaire : 911,52."""
-    assert smic_mois_complet(151.67, 0.0, 0.0) == 1823.03
-    assert smic_au_rapport_des_salaires(151.67, 464.88, 929.76) == 911.52
+def test_r_h10_apprenti_paye_sous_le_smic_compte_pour_un_smic_entier():
+    """R-H10 : apprenti payé 53 % du SMIC (966,21 €), présent tout le mois : le rapport porte
+    sur son propre salaire (966,21 / 966,21), pas sur le SMIC (966,21 / 1 823,03 = 0,53) :
+    SMIC de référence entier, 1 823,03. Absent la moitié du mois : 911,52."""
+    assert smic_au_rapport_des_salaires(151.67, 966.21, 966.21) == SMIC_DU_MOIS_2026
+    assert smic_au_rapport_des_salaires(151.67, 483.11, 966.21) == 911.52
 
 
 def test_r_h11_activite_partielle_indemnite_hors_du_rapport():
