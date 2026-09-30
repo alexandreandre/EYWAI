@@ -7,7 +7,9 @@ souvent une heure sup, et l'arrêt n'est plus retenu ce jour-là. Constat du
 30/09/2026 : une salariée en arrêt tout septembre en recevait 70,75 h à 50 %.
 
 Ce module dit quels jours sont dans ce cas. La génération refuse de calculer
-tant qu'il en reste, l'import des pointages les signale, l'écran les montre.
+tant qu'il en reste, l'import des pointages les signale, l'écran les montre, et
+le moteur écarte leurs heures du calcul (`ecarter_heures_en_conflit`) pour ce
+qui ne passe pas par la garde.
 
 Module pur : l'appelant fournit le prévu et le réel (avec `annee`/`mois` sur
 chaque entrée quand plusieurs mois sont en jeu).
@@ -202,6 +204,20 @@ def jours_sans_heures(
     return interdits
 
 
+def _heures_par_jour(
+    calendrier_reel: list[dict],
+) -> dict[tuple[int | None, int | None, int], float]:
+    """Les heures réelles de chaque jour, les entrées d'un même jour additionnées."""
+    heures_par_cle: dict[tuple[int | None, int | None, int], float] = {}
+    for entree in calendrier_reel or []:
+        cle = _cle(entree)
+        if cle is not None:
+            heures_par_cle[cle] = round(
+                heures_par_cle.get(cle, 0.0) + _heures(entree.get("heures_faites")), 2
+            )
+    return heures_par_cle
+
+
 def jours_en_conflit(
     calendrier_prevu: list[dict],
     calendrier_reel: list[dict],
@@ -211,14 +227,7 @@ def jours_en_conflit(
     triés par date. `type_prevu` est le type d'absence en cause : pour un
     week-end d'arrêt, le type de l'arrêt validé."""
     interdits = jours_sans_heures(calendrier_prevu, absences_validees)
-
-    heures_par_cle: dict[tuple[int | None, int | None, int], float] = {}
-    for entree in calendrier_reel or []:
-        cle = _cle(entree)
-        if cle is not None:
-            heures_par_cle[cle] = round(
-                heures_par_cle.get(cle, 0.0) + _heures(entree.get("heures_faites")), 2
-            )
+    heures_par_cle = _heures_par_jour(calendrier_reel)
 
     conflits = [
         JourEnConflit(cle[2], interdits[cle], heures, annee=cle[0], mois=cle[1])
@@ -226,6 +235,86 @@ def jours_en_conflit(
         if heures > 0 and cle in interdits
     ]
     return sorted(conflits, key=lambda c: (c.annee or 0, c.mois or 0, c.jour))
+
+
+# --- Le filet du moteur ---
+
+
+def arrets_necessaires(calendrier_prevu: list[dict], calendrier_reel: list[dict]) -> bool:
+    """Vrai si des heures réelles tombent un jour prévu week-end, repos ou férié.
+
+    Seuls les arrêts validés disent alors si ce jour est couvert par un arrêt
+    (`jours_sans_heures`). Sinon le type prévu suffit à juger chaque jour, et
+    l'appelant peut se passer de lire les arrêts.
+    """
+    prevu = derniere_entree_par_jour(calendrier_prevu)
+    return any(
+        heures > 0
+        and str((prevu.get(cle) or {}).get("type") or "") in TYPES_NON_OUVRES_D_UN_ARRET
+        for cle, heures in _heures_par_jour(calendrier_reel).items()
+    )
+
+
+def ecarter_heures_en_conflit(
+    calendrier_prevu: list[dict],
+    calendrier_reel: list[dict],
+    absences_validees: list[dict] | None = None,
+) -> tuple[list[dict], list[JourEnConflit]]:
+    """Le filet du moteur : le réel où les heures des jours en conflit sont
+    remises à 0, et ces jours.
+
+    Même règle que la garde de génération (`jours_en_conflit`) : une heure saisie
+    un jour d'arrêt ou d'absence non travaillée ne compte ni comme heure
+    travaillée ni comme heure sup, et l'absence reste retenue ce jour-là, comme
+    si les heures avaient été effacées du calendrier. Les entrées touchées sont
+    des copies (`heures_ecartees` garde la valeur saisie) ; les autres sont
+    rendues telles quelles.
+    """
+    conflits = jours_en_conflit(calendrier_prevu, calendrier_reel, absences_validees)
+    if not conflits:
+        return list(calendrier_reel or []), []
+    cles = {(c.annee, c.mois, c.jour) for c in conflits}
+    reel: list[dict] = []
+    for entree in calendrier_reel or []:
+        if _cle(entree) in cles and _heures(entree.get("heures_faites")) != 0:
+            entree = {
+                **entree,
+                "heures_faites": 0.0,
+                "heures_ecartees": entree.get("heures_faites"),
+            }
+        reel.append(entree)
+    return reel, conflits
+
+
+def _heures_fr(heures: float) -> str:
+    return f"{round(heures, 2):g}".replace(".", ",")
+
+
+def message_heures_ecartees(conflits: Sequence[JourEnConflit]) -> str:
+    """L'alerte du bulletin : les jours et les heures écartés, et quoi faire."""
+    arrets = [c for c in conflits if est_un_arret(c.type_prevu)]
+    absences = [c for c in conflits if not est_un_arret(c.type_prevu)]
+    phrases = []
+    if arrets:
+        total = sum(c.heures_saisies for c in arrets)
+        phrases.append(
+            f"Heures saisies pendant l'arrêt, écartées du calcul : "
+            f"{libelle_des_jours(arrets)} ({_heures_fr(total)} h)."
+        )
+    if absences:
+        types = list(dict.fromkeys(libelle_absence(c.type_prevu) for c in absences))
+        total = sum(c.heures_saisies for c in absences)
+        phrases.append(
+            f"Heures saisies pendant une absence ({', '.join(types)}), écartées du "
+            f"calcul : {libelle_des_jours(absences)} ({_heures_fr(total)} h)."
+        )
+    if not phrases:
+        return ""
+    quoi = "l'arrêt ou l'absence" if arrets and absences else ("l'arrêt" if arrets else "l'absence")
+    phrases.append(
+        f"Effacez-les du calendrier, ou corrigez {quoi} si elles ont été travaillées."
+    )
+    return " ".join(phrases)
 
 
 # --- Le message du refus ---
@@ -287,7 +376,9 @@ __all__ = [
     "JourEnConflit",
     "TYPES_ABSENCE_NON_TRAVAILLEE",
     "TYPES_NON_OUVRES_D_UN_ARRET",
+    "arrets_necessaires",
     "derniere_entree_par_jour",
+    "ecarter_heures_en_conflit",
     "est_absence_non_travaillee",
     "est_un_arret",
     "jours_en_conflit",
@@ -296,4 +387,5 @@ __all__ = [
     "libelle_des_dates",
     "libelle_des_jours",
     "message_de_refus",
+    "message_heures_ecartees",
 ]

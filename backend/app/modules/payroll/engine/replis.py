@@ -41,6 +41,7 @@ CODE_REPLI_REFERENCE_CONGES = "repli_reference_conges"
 CODE_REPLI_SOLDES_CONGES = "repli_soldes_conges"
 CODE_REPLI_VARIABLES_AUTO = "repli_variables_auto"
 CODE_REPLI_REGLAGES_CONGES = "repli_reglages_conges"
+CODE_REPLI_ARRETS_ILLISIBLES = "repli_arrets_illisibles"
 
 _MESSAGES: Dict[str, str] = {
     CODE_REPLI_MAINTIEN: (
@@ -107,6 +108,12 @@ _MESSAGES: Dict[str, str] = {
     CODE_REPLI_REGLAGES_CONGES: (
         "Réglages de congés de la société non lus : la période de référence est "
         "supposée commencer en juin. À vérifier avant de valider ce bulletin."
+    ),
+    CODE_REPLI_ARRETS_ILLISIBLES: (
+        "Arrêts de travail non lus : des heures saisies un week-end, un repos ou un "
+        "férié pendant un arrêt ont pu compter comme heures travaillées. Seules celles "
+        "des jours d'arrêt du planning sont écartées. "
+        "À vérifier avant de valider ce bulletin."
     ),
 }
 

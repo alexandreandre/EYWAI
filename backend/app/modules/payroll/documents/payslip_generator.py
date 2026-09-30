@@ -21,6 +21,10 @@ from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     option_active,
 )
+from app.modules.payroll.application.heures_sur_arret import (
+    alerte_heures_ecartees,
+    ecarter_heures_sur_arret,
+)
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.replis import (
     fermer_collecte,
@@ -614,6 +618,26 @@ def process_payslip_generation(
 
         _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
+        # Filet : une heure saisie un jour d'arrêt ou d'absence non travaillée
+        # ne compte ni comme heure travaillée ni comme heure sup. Elle est écartée
+        # ici, une fois, pour les deux chemins qui la liraient (analyse des
+        # horaires, compensation entre semaines), et avant le repli planning :
+        # comme si elle avait été effacée du calendrier. Même règle que la garde
+        # de génération, que le bac à sable et le suivi IJSS ne traversent pas.
+        dernier_mois = dates_to_process[-1]
+        heures_sur_arret = ecarter_heures_sur_arret(
+            employee_id,
+            planned_data_all_months,
+            actual_data_all_months,
+            date(dates_to_process[0]["year"], dates_to_process[0]["month"], 1),
+            date(
+                dernier_mois["year"],
+                dernier_mois["month"],
+                calendar.monthrange(dernier_mois["year"], dernier_mois["month"])[1],
+            ),
+        )
+        actual_data_all_months = heures_sur_arret.reel
+
         year_months = [(d["year"], d["month"]) for d in dates_to_process]
         actual_data_all_months = appliquer_repli_sans_pointage_par_mois(
             planned_data_all_months,
@@ -702,6 +726,11 @@ def process_payslip_generation(
 
         fenetre_variables = resoudre_fenetre_variables(
             str(company_id), year, month, societe=company_data
+        )
+        alerte_heures_sur_arret = alerte_heures_ecartees(
+            heures_sur_arret.jours,
+            min(date(year, month, 1), fenetre_variables.debut),
+            max(date(year, month, last_day), fenetre_variables.fin),
         )
 
         # Option société : les heures se compensent entre semaines sur la
@@ -1251,6 +1280,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = fusionner_replis(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
+        if alerte_heures_sur_arret and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_heures_sur_arret,
+            ]
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (

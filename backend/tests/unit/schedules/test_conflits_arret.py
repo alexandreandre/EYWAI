@@ -12,9 +12,12 @@ import pytest
 
 from app.modules.schedules.domain.conflits_arret import (
     JourEnConflit,
+    arrets_necessaires,
+    ecarter_heures_en_conflit,
     jours_en_conflit,
     jours_sans_heures,
     message_de_refus,
+    message_heures_ecartees,
 )
 
 pytestmark = pytest.mark.unit
@@ -254,3 +257,115 @@ class TestMessageDeRefus:
             "Octavie a une absence (congés payés, RTT), mais des heures sont saisies "
             "les 21 et 22 septembre."
         )
+
+
+class TestEcarterHeuresEnConflit:
+    """Le filet du moteur : les heures d'un jour en conflit sont remises à 0 avant
+    le calcul, par la même règle que la garde de génération."""
+
+    def test_les_heures_d_un_jour_d_arret_sont_remises_a_zero(self):
+        prevu = [_prevu(7, "arret_maladie"), _prevu(8, "travail", 7.0)]
+        reel = [_reel(7, 9.0), _reel(8, 7.5)]
+
+        reel_filtre, jours = ecarter_heures_en_conflit(prevu, reel)
+
+        assert [e["heures_faites"] for e in reel_filtre] == [0.0, 7.5]
+        assert jours == [JourEnConflit(7, "arret_maladie", 9.0)]
+
+    def test_le_reel_d_origine_n_est_pas_modifie(self):
+        reel = [_reel(7, 9.0)]
+
+        ecarter_heures_en_conflit([_prevu(7, "arret_maladie")], reel)
+
+        assert reel == [_reel(7, 9.0)]
+
+    def test_un_week_end_couvert_par_un_arret_valide_est_ecarte(self):
+        prevu = [
+            _prevu(12, "weekend", annee=2026, mois=9),
+            _prevu(13, "weekend", annee=2026, mois=9),
+        ]
+        reel = [_reel(12, 5.0, annee=2026, mois=9), _reel(13, 3.0, annee=2026, mois=9)]
+        absences = [
+            {"type": "arret_maladie", "status": "validated", "selected_days": ["2026-09-12"]}
+        ]
+
+        reel_filtre, jours = ecarter_heures_en_conflit(prevu, reel, absences)
+
+        assert [e["heures_faites"] for e in reel_filtre] == [0.0, 3.0]
+        assert jours == [JourEnConflit(12, "arret_maladie", 5.0, annee=2026, mois=9)]
+
+    def test_une_demi_journee_de_conge_garde_ses_heures(self):
+        prevu = [_prevu(15, "conges_payes", quotite_absence=0.5)]
+        reel = [_reel(15, 4.0)]
+
+        reel_filtre, jours = ecarter_heures_en_conflit(prevu, reel)
+
+        assert reel_filtre == reel
+        assert jours == []
+
+    def test_sans_conflit_le_reel_est_rendu_a_l_identique(self):
+        prevu = [_prevu(7, "travail", 7.0), _prevu(8, "arret_maladie")]
+        reel = [_reel(7, 9.0), _reel(8, 0.0)]
+
+        reel_filtre, jours = ecarter_heures_en_conflit(prevu, reel)
+
+        assert reel_filtre == reel
+        assert jours == []
+
+
+class TestArretsNecessaires:
+    """Les arrêts validés ne changent le verdict que pour un week-end, un repos ou
+    un férié qui porte des heures : sinon, le type prévu suffit et rien n'est lu."""
+
+    @pytest.mark.parametrize("type_", ["weekend", "repos", "ferie"])
+    def test_des_heures_un_jour_non_ouvre_demandent_les_arrets(self, type_):
+        assert arrets_necessaires([_prevu(12, type_)], [_reel(12, 5.0)]) is True
+
+    def test_des_heures_sur_des_jours_ouvres_ou_d_arret_n_en_demandent_pas(self):
+        prevu = [_prevu(7, "travail", 7.0), _prevu(8, "arret_maladie")]
+        reel = [_reel(7, 9.0), _reel(8, 7.0)]
+
+        assert arrets_necessaires(prevu, reel) is False
+
+    def test_un_week_end_sans_heures_n_en_demande_pas(self):
+        assert arrets_necessaires([_prevu(12, "weekend")], [_reel(12, 0.0)]) is False
+        assert arrets_necessaires([_prevu(12, "weekend")], []) is False
+
+
+class TestMessageHeuresEcartees:
+    def test_arret(self):
+        jours = [
+            JourEnConflit(7, "arret_maladie", 7.0, annee=2026, mois=9),
+            JourEnConflit(8, "arret_maladie", 7.0, annee=2026, mois=9),
+        ]
+
+        assert message_heures_ecartees(jours) == (
+            "Heures saisies pendant l'arrêt, écartées du calcul : les 7 et 8 septembre "
+            "(14 h). Effacez-les du calendrier, ou corrigez l'arrêt si elles ont été "
+            "travaillées."
+        )
+
+    def test_absence_et_heures_decimales(self):
+        jours = [JourEnConflit(31, "conges_payes", 8.5, annee=2026, mois=8)]
+
+        assert message_heures_ecartees(jours) == (
+            "Heures saisies pendant une absence (congés payés), écartées du calcul : "
+            "le 31 août (8,5 h). Effacez-les du calendrier, ou corrigez l'absence si "
+            "elles ont été travaillées."
+        )
+
+    def test_arret_et_absence(self):
+        jours = [
+            JourEnConflit(31, "conges_payes", 8.5, annee=2026, mois=8),
+            JourEnConflit(7, "arret_maladie", 7.25, annee=2026, mois=9),
+        ]
+
+        assert message_heures_ecartees(jours) == (
+            "Heures saisies pendant l'arrêt, écartées du calcul : le 7 septembre (7,25 h). "
+            "Heures saisies pendant une absence (congés payés), écartées du calcul : "
+            "le 31 août (8,5 h). Effacez-les du calendrier, ou corrigez l'arrêt ou "
+            "l'absence si elles ont été travaillées."
+        )
+
+    def test_aucun_jour_aucun_message(self):
+        assert message_heures_ecartees([]) == ""
