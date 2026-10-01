@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
 import { getValeursEmbauche, type NouveauSalarieCree } from "@/api/employees";
 import { NouveauSalarieRecap } from "@/features/employees/components/NouveauSalarieRecap";
+import { signalerErreurEcran } from "@/api/clientErrors";
 import {
   avecValeursDeLaSociete,
   champsFacultatifsPourEnvoi,
@@ -30,6 +31,28 @@ import {
   mutuellesPourStatut,
   ongletDuChamp,
 } from "@/features/employees/utils/valeursEmbauche";
+import {
+  MESSAGE_FERMETURE_SANS_ENREGISTRER,
+  NOM_DES_ONGLETS,
+  bandeauNonEnregistre,
+  estErreurValidationInattendue,
+  fusionnerExtractionContrat,
+  memoriserNouveauSalarie,
+  pastillesParOnglet,
+  raisonEchecCreation,
+  saisieNonEnregistree,
+  texteDuBoutonCreation,
+} from "@/features/employees/utils/creationSalarie";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { mutuelleTypesApi, MutuelleType } from "@/api/mutuelleTypes";
 import { getPscSettings } from "@/api/pscSettings";
 import { MutuelleSelectionField } from "@/components/mutuelle/MutuelleSelectionField";
@@ -76,11 +99,12 @@ function defaultTrialSettings(contractType: string) {
 export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   const companyId = useActiveCompanyId();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [confirmerFermeture, setConfirmerFermeture] = useState(false);
+  const nePasConfirmerFermeture = useRef(false);
   const [onglet, setOnglet] = useState("collaborateur");
   const [cree, setCree] = useState<NouveauSalarieCree | null>(null);
   const navigate = useNavigate();
-  const [serverError, setServerError] = useState<string | null>(null); // Pour les erreurs du backend
-  const [validationErrorSummary, setValidationErrorSummary] = useState<string[] | null>(null); // Pour le résumé des erreurs de validation
+  const [serverError, setServerError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string> | null>(null); // Pour les erreurs de champs du serveur
 
   // États pour le dépôt de contrat PDF
@@ -381,31 +405,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      // Préremplir le formulaire avec les données extraites
-      const mergeFormValues = (extracted: any) => {
-        const currentValues = form.getValues();
-
-        // Fonction récursive pour fusionner les objets
-        const deepMerge = (current: any, extracted: any): any => {
-          if (!extracted || typeof extracted !== 'object') return current;
-
-          const result = { ...current };
-          for (const key in extracted) {
-            if (extracted[key] !== undefined && extracted[key] !== null && extracted[key] !== '') {
-              if (typeof extracted[key] === 'object' && !Array.isArray(extracted[key]) && current[key]) {
-                result[key] = deepMerge(current[key], extracted[key]);
-              } else {
-                result[key] = extracted[key];
-              }
-            }
-          }
-          return result;
-        };
-
-        return deepMerge(currentValues, extracted);
-      };
-
-      const mergedValues = mergeFormValues(extractedData);
+      const mergedValues = fusionnerExtractionContrat(form.getValues(), extractedData);
       if (mergedValues.specificites_paie?.mutuelle?.lignes_specifiques) {
         mergedValues.specificites_paie.mutuelle.lignes_specifiques = 
           mergedValues.specificites_paie.mutuelle.lignes_specifiques.map((ligne: any, index: number) => ({
@@ -639,31 +639,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       const extractedData = response.data.extracted_data;
       const warnings = response.data.warnings || [];
 
-      // Préremplir le formulaire avec les données extraites
-      const mergeFormValues = (extracted: any) => {
-        const currentValues = form.getValues();
-
-        // Fonction récursive pour fusionner les objets
-        const deepMerge = (current: any, extracted: any): any => {
-          if (!extracted || typeof extracted !== 'object') return current;
-
-          const result = { ...current };
-          for (const key in extracted) {
-            if (extracted[key] !== undefined && extracted[key] !== null && extracted[key] !== '') {
-              if (typeof extracted[key] === 'object' && !Array.isArray(extracted[key]) && current[key]) {
-                result[key] = deepMerge(current[key], extracted[key]);
-              } else {
-                result[key] = extracted[key];
-              }
-            }
-          }
-          return result;
-        };
-
-        return deepMerge(currentValues, extracted);
-      };
-
-      const mergedValues = mergeFormValues(extractedData);
+      const mergedValues = fusionnerExtractionContrat(form.getValues(), extractedData);
       if (mergedValues.specificites_paie?.mutuelle?.lignes_specifiques) {
         mergedValues.specificites_paie.mutuelle.lignes_specifiques = 
           mergedValues.specificites_paie.mutuelle.lignes_specifiques.map((ligne: any, index: number) => ({
@@ -733,8 +709,6 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
   };
 
   const onSubmit = async (values: CreateEmployeeFormValues) => {
-  // Réinitialiser les erreurs à chaque nouvelle soumission valide
-  setValidationErrorSummary(null);
   setServerError(null);
   setServerFieldErrors(null);
   
@@ -799,6 +773,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
         'Content-Type': 'multipart/form-data',
       },
     });
+    nePasConfirmerFermeture.current = true;
     setIsDialogOpen(false);
     form.reset();
     setOnglet("collaborateur");
@@ -806,72 +781,101 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     setIdentityDocumentType("identity"); // Réinitialiser le type de document
     setUploadedIdFile(null); // Réinitialiser le fichier uploadé
     await fetchEmployees();
+    memoriserNouveauSalarie(String((response.data as NouveauSalarieCree).id));
     // Ce qui a été posé et ce qui reste à faire, plutôt qu'une alerte à fermer.
     setCree(response.data as NouveauSalarieCree);
 
-  } catch (error: any) { 
-    log.error("Erreur lors de l'envoi au backend :", error.response?.data || error.message);
+  } catch (error: unknown) {
+    const pile = error instanceof Error ? error.stack : undefined;
+    const message = raisonEchecCreation(error);
+    void signalerErreurEcran({
+      ecran: 'creation-salarie',
+      action: 'enregistrer',
+      message,
+      pile,
+    });
+    log.error("Erreur lors de l'envoi au backend :", error);
 
-    // Vérifier si on a des erreurs de champs spécifiques
-    if (error.response?.data?.field_errors) {
-      const fieldErrors = error.response.data.field_errors;
-
-      // Stocker les erreurs de champs
+    const data = (error as { response?: { data?: { field_errors?: Record<string, string>; detail?: string } } })
+      ?.response?.data;
+    if (data?.field_errors) {
+      const fieldErrors = data.field_errors;
       setServerFieldErrors(fieldErrors);
-
-      // Appliquer les erreurs aux champs du formulaire
       Object.keys(fieldErrors).forEach((fieldPath) => {
-        // Convertir le chemin du champ (ex: "adresse.rue") en format pour setError
-        form.setError(fieldPath as any, {
+        form.setError(fieldPath as never, {
           type: 'server',
           message: fieldErrors[fieldPath]
         });
       });
-
-      // Afficher le message général
-      const errorMessage = error.response.data.detail || "Erreur de validation des données";
-      setServerError(errorMessage);
+      setServerError(bandeauNonEnregistre(data.detail || Object.values(fieldErrors)[0] || message));
     } else {
-      // Erreur générale sans champs spécifiques
-      const errorMessage = error.response?.data?.detail || "Une erreur inattendue est survenue. Veuillez réessayer.";
-      setServerError(errorMessage);
+      setServerError(message);
       setServerFieldErrors(null);
     }
   }
 };
 
-  // Cette fonction est appelée UNIQUEMENT si la validation Zod échoue
-  const onValidationErrors = (errors: any) => {
+  const onValidationErrors = (errors: Record<string, unknown>) => {
     const aPlat = erreursDansLOrdre(erreursAPlat(errors));
-    setValidationErrorSummary(aPlat.map(libelleDErreur));
-    setServerError(null); // On s'assure de ne pas afficher une ancienne erreur serveur
-    // Conduire à l'onglet du premier champ à corriger.
+    setServerError(null);
     if (aPlat.length > 0) setOnglet(ongletDuChamp(aPlat[0].chemin));
+    const inattendue = aPlat.find((e) => estErreurValidationInattendue(e.message));
+    if (inattendue) {
+      void signalerErreurEcran({
+        ecran: 'creation-salarie',
+        action: 'valider',
+        message: `validation inattendue ${inattendue.chemin}`,
+        pile: inattendue.message,
+      });
+    }
+  };
+
+  const erreursEcran = erreursDansLOrdre(erreursAPlat(form.formState.errors));
+  const pastilles = pastillesParOnglet(erreursEcran);
+  const ongletPremiereErreur = erreursEcran[0] ? ongletDuChamp(erreursEcran[0].chemin) : 'collaborateur';
+  const texteBouton = texteDuBoutonCreation({
+    nb: erreursEcran.length,
+    onglet: NOM_DES_ONGLETS[ongletPremiereErreur] ?? 'Collaborateur',
+    envoi: form.formState.isSubmitting,
+  });
+  const fermerSansEnregistrer = () => {
+    setConfirmerFermeture(false);
+    setIsDialogOpen(false);
+    form.reset();
+    setOnglet("collaborateur");
+    setServerError(null);
+    setServerFieldErrors(null);
+    setUploadedFile(null);
+    setExtractionError(null);
+    setExtractionSuccess(false);
+    setUploadedRibFile(null);
+    setRibExtractionError(null);
+    setRibExtractionSuccess(false);
+    setUploadedIdFile(null);
+    setUploadedQuestionnaireFile(null);
+    setQuestionnaireExtractionError(null);
+    setQuestionnaireExtractionSuccess(false);
+    setGeneratePdfContract(false);
+    setIdentityDocumentType("identity");
   };
 
   return (
     <>
     <Dialog open={isDialogOpen} onOpenChange={(open) => {
-      setIsDialogOpen(open);
-      if (!open) {
-        form.reset();
-        setOnglet("collaborateur");
-        setValidationErrorSummary(null);
-        setServerError(null);
-        setServerFieldErrors(null);
-        setUploadedFile(null);
-        setExtractionError(null);
-        setExtractionSuccess(false);
-        setUploadedRibFile(null);
-        setRibExtractionError(null);
-        setRibExtractionSuccess(false);
-        setUploadedIdFile(null);
-        setUploadedQuestionnaireFile(null);
-        setQuestionnaireExtractionError(null);
-        setQuestionnaireExtractionSuccess(false);
-        setGeneratePdfContract(false);
-        setIdentityDocumentType("identity");
+      if (open) {
+        setIsDialogOpen(true);
+        return;
       }
+      if (nePasConfirmerFermeture.current) {
+        nePasConfirmerFermeture.current = false;
+        fermerSansEnregistrer();
+        return;
+      }
+      if (saisieNonEnregistree(form.formState.isDirty, Boolean(uploadedFile || uploadedRibFile || uploadedIdFile || uploadedQuestionnaireFile))) {
+        setConfirmerFermeture(true);
+        return;
+      }
+      fermerSansEnregistrer();
     }}>
       <DialogTrigger asChild>
         <Button>
@@ -890,14 +894,19 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form id="collab-form" onSubmit={form.handleSubmit(onSubmit, onValidationErrors)} className="flex flex-col min-h-0">
+              <form id="collab-form" noValidate onSubmit={form.handleSubmit(onSubmit, onValidationErrors)} className="flex flex-col min-h-0">
                 <Tabs value={onglet} onValueChange={setOnglet} className="w-full flex-1 flex flex-col min-h-0">
                   <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="collaborateur">Collaborateur</TabsTrigger>
-                    <TabsTrigger value="contrat">Contrat</TabsTrigger>
-                    <TabsTrigger value="remuneration">Rémunération</TabsTrigger>
-                    <TabsTrigger value="avantages">Avantages</TabsTrigger>
-                    <TabsTrigger value="specifiques">Spécificités</TabsTrigger>
+                    {(["collaborateur", "contrat", "remuneration", "avantages", "specifiques"] as const).map((cle) => (
+                      <TabsTrigger key={cle} value={cle} className="gap-1">
+                        {NOM_DES_ONGLETS[cle]}
+                        {pastilles[cle] > 0 ? (
+                          <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground">
+                            {pastilles[cle]}
+                          </span>
+                        ) : null}
+                      </TabsTrigger>
+                    ))}
                   </TabsList>
                   <div className="py-4 space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                     <TabsContent value="collaborateur">
@@ -1195,7 +1204,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                       )}
                       <FormField control={form.control} name="first_name" render={({ field }) => (<FormItem><FormLabel>Prénom<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="last_name" render={({ field }) => (<FormItem><FormLabel>Nom<Requis /></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>E-mail <span className="font-normal text-muted-foreground">(facultatif)</span></FormLabel><FormControl><Input type="email" placeholder="email@exemple.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>E-mail <span className="font-normal text-muted-foreground">(facultatif)</span></FormLabel><FormControl><Input type="text" inputMode="email" autoComplete="email" placeholder="email@exemple.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="nir" render={({ field }) => (<FormItem><FormLabel>N° de Sécurité Sociale</FormLabel><FormControl><Input placeholder="ex: 1850701123456" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="date_naissance" render={({ field }) => (<FormItem><FormLabel>Date de naissance</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="lieu_naissance" render={({ field }) => (<FormItem><FormLabel>Lieu de naissance</FormLabel><FormControl><Input placeholder="ex: 75001 Paris" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -1278,7 +1287,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   <FormItem>
                                     <FormLabel>Durée</FormLabel>
                                     <FormControl>
-                                      <Input type="number" min={1} {...field} />
+                                      <Input type="number" step="any" min={1} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                   </FormItem>
@@ -1324,7 +1333,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           )}
                         </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
-                          <FormField control={form.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" step="0.01" min={0} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name="duree_hebdomadaire" render={({ field }) => (<FormItem><FormLabel>Durée hebdo. (heures)</FormLabel><FormControl><Input type="number" step="any" min={0} {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField
                             control={form.control}
                             name="is_temps_partiel"
@@ -1348,7 +1357,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Salaire de base mensuel (€)<Requis /></FormLabel>
-                              <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                              <FormControl><Input type="number" step="any" {...field} /></FormControl>
                               <FormMessage />
                             </FormItem>
                           )} 
@@ -1445,7 +1454,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>Classe</FormLabel>
-                                      <FormControl><Input type="number" {...field} /></FormControl>
+                                      <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )} 
@@ -1456,7 +1465,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>Coefficient</FormLabel>
-                                      <FormControl><Input type="number" {...field} /></FormControl>
+                                      <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )} 
@@ -1475,7 +1484,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Nombre de repas fournis par mois</FormLabel>
-                              <FormControl><Input type="number" {...field} /></FormControl>
+                              <FormControl><Input type="number" step="any" {...field} /></FormControl>
                               <FormMessage />
                             </FormItem>
                           )} 
@@ -1546,7 +1555,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               render={({ field }) => (
                                 <FormItem className="mt-2 ml-7">
                                   <FormLabel>Taux personnalisé (%)</FormLabel>
-                                  <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
+                                  <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                 </FormItem>
                               )}
                             />
@@ -1561,7 +1570,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>Abonnement transport mensuel total (€)</FormLabel>
-                                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                  <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                   <p className="text-xs text-muted-foreground">
                                     Remboursement URSSAF : 50 % ajouté au net à payer.
                                   </p>
@@ -1574,7 +1583,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>Indemnité transport contractuelle (€ net/mois)</FormLabel>
-                                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                                  <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                   <p className="text-xs text-muted-foreground">
                                     Montant fixe au contrat, versé en net chaque mois.
                                   </p>
@@ -1587,7 +1596,7 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>Nombre de titres-restaurant par mois</FormLabel>
-                                  <FormControl><Input type="number" {...field} /></FormControl>
+                                  <FormControl><Input type="number" step="any" {...field} /></FormControl>
                                 </FormItem>
                               )}
                             />
@@ -1662,8 +1671,8 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                                         </Button>
                                       </div>
                                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                        <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_salarial`} render={({ field }) => (<FormItem><FormLabel>Montant Salarial (€)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
-                                        <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_patronal`} render={({ field }) => (<FormItem><FormLabel>Montant Patronal (€)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                        <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_salarial`} render={({ field }) => (<FormItem><FormLabel>Montant Salarial (€)</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>)} />
+                                        <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.montant_patronal`} render={({ field }) => (<FormItem><FormLabel>Montant Patronal (€)</FormLabel><FormControl><Input type="number" step="any" {...field} /></FormControl></FormItem>)} />
                                       </div>
                                       <FormField control={form.control} name={`specificites_paie.mutuelle.lignes_specifiques.${index}.part_patronale_soumise_a_csg`} render={({ field }) => (<FormItem className="flex flex-row items-center space-x-3 pt-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Part patronale soumise à CSG</FormLabel></FormItem>)} />
                                     </div>
@@ -1689,20 +1698,27 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
             </Form>
             <DialogFooter className="mt-6 pt-4 border-t border-gray-200">
               <div className="w-full space-y-2">
-                {validationErrorSummary && validationErrorSummary.length > 0 && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                    <p className="font-semibold mb-2">Veuillez corriger les erreurs suivantes :</p>
+                {erreursEcran.length > 0 && (
+                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-950 p-3 rounded-md" data-testid="creation-salarie-reste">
+                    <p className="font-semibold mb-2">Il reste à remplir</p>
                     <ul className="list-disc list-inside space-y-1">
-                      {validationErrorSummary.map((msg, index) => (
-                        <li key={index}>{msg}</li>
+                      {erreursEcran.map((e) => (
+                        <li key={e.chemin}>
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() => setOnglet(ongletDuChamp(e.chemin))}
+                          >
+                            {libelleDErreur(e)} ({NOM_DES_ONGLETS[ongletDuChamp(e.chemin)]})
+                          </button>
+                        </li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {serverError && (
-                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                    <p className="font-semibold mb-2">Erreur :</p>
-                    <p className="mb-2">{serverError}</p>
+                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md" data-testid="creation-salarie-echec" role="alert">
+                    <p className="font-semibold mb-2">{serverError.startsWith('Salarié NON enregistré') ? serverError : bandeauNonEnregistre(serverError)}</p>
                     {serverFieldErrors && Object.keys(serverFieldErrors).length > 0 && (
                       <div className="mt-2">
                         <p className="font-medium text-xs mb-1">Champs concernés :</p>
@@ -1729,13 +1745,25 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                 </div>
                 <Button form="collab-form" type="submit" disabled={form.formState.isSubmitting} className="w-full">
                   {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Enregistrer le collaborateur
+                  {texteBouton}
                 </Button>
               </div>
             </DialogFooter>
           </DialogContent>
 
     </Dialog>
+    <AlertDialog open={confirmerFermeture} onOpenChange={setConfirmerFermeture}>
+      <AlertDialogContent data-testid="creation-salarie-confirmer-fermeture">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Salarié non enregistré</AlertDialogTitle>
+          <AlertDialogDescription>{MESSAGE_FERMETURE_SANS_ENREGISTRER}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Continuer la saisie</AlertDialogCancel>
+          <AlertDialogAction onClick={fermerSansEnregistrer}>Fermer sans enregistrer</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <NouveauSalarieRecap
       salarie={cree}
       onClose={() => setCree(null)}
