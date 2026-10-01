@@ -9,6 +9,7 @@ import axios from 'axios';
 import type { QueryKey } from '@tanstack/react-query';
 
 import { TAB_CALENDRIER } from '@/features/employee-detail/utils/tabs';
+import { clesDeLaPaieDuMois } from '@/features/payroll/utils/invalidationsBulletin';
 import { extractDetail, getApiErrorStatus, sanitizeBackendMessage } from '@/lib/errorMessages';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -228,9 +229,10 @@ export function bandeauAbsencesDuSalarie({
 
 /**
  * Requêtes TanStack à invalider après un effacement : les heures réelles de la
- * semaine (`useEmployeeWeekPayrollCalendar`), le planning et le préflight de la
- * paie, tous mois. Le calendrier mensuel (`useCalendar`) n'est pas une requête
- * TanStack : il relit le backend à son prochain chargement.
+ * semaine (`useEmployeeWeekPayrollCalendar`), le planning et la paie du mois,
+ * comme après une génération. Le calendrier mensuel (`useCalendar`) n'est pas
+ * une requête TanStack : il relit le backend à son prochain chargement. Le
+ * bulletin, lui, ne change qu'à sa régénération, qui invalide le reste.
  */
 export function clesAInvaliderApresEffacement(
   companyId: string | undefined,
@@ -239,7 +241,7 @@ export function clesAInvaliderApresEffacement(
   return [
     ['employee-week-payroll', employeeId],
     queryKeys.planning(companyId),
-    queryKeys.payrollPreflightTousMois(companyId),
+    ...clesDeLaPaieDuMois(companyId),
   ];
 }
 

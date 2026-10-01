@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw } from "lucide-react";
 
 import { getAnomaliesPayslips, type AnomaliesReport } from "@/api/analytics";
+import { queryKeys } from "@/lib/queryKeys";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export function PayrollAnomaliesPanel({
     isFetching,
     error,
   } = useQuery({
-    queryKey: ["payslips-anomalies", companyId, payrollYear, payrollMonth],
+    queryKey: queryKeys.payslipsAnomalies(companyId, payrollYear, payrollMonth),
     queryFn: () => getAnomaliesPayslips(companyId, payrollYear, payrollMonth),
     enabled: Boolean(companyId),
     staleTime: 0,
@@ -243,7 +244,7 @@ export function usePayrollAnomaliesSummary(
   payrollMonth: number,
 ) {
   const { data } = useQuery({
-    queryKey: ["payslips-anomalies", companyId, payrollYear, payrollMonth],
+    queryKey: queryKeys.payslipsAnomalies(companyId, payrollYear, payrollMonth),
     queryFn: () => getAnomaliesPayslips(companyId, payrollYear, payrollMonth),
     enabled: Boolean(companyId),
     staleTime: 0,

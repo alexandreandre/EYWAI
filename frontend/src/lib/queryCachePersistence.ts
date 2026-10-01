@@ -12,11 +12,19 @@
  * - `readQueryCacheBuster` date le cache par build, utilisateur et société
  *   active lus au démarrage : un cache écrit pour un autre couple
  *   utilisateur/société est jeté à la restauration.
+ *
+ * Les bulletins, la paie du mois et les calendriers ne sont jamais persistés
+ * (`isPersistableQueryKey`) : voir `SEGMENTS_NON_PERSISTES`.
  */
 
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import type { DehydrateOptions, QueryKey } from '@tanstack/react-query';
 import { getAccessTokenSubject } from '@/lib/authSession';
-import { QUERY_CACHE_BUSTER, QUERY_CACHE_KEY } from '@/lib/queryClient';
+import {
+  LEGACY_QUERY_CACHE_KEYS,
+  QUERY_CACHE_BUSTER,
+  QUERY_CACHE_KEY,
+} from '@/lib/queryClient';
 
 /** Clé de la société active, écrite par CompanyContext. */
 const ACTIVE_COMPANY_STORAGE_KEY = 'activeCompanyId';
@@ -41,9 +49,60 @@ function browserStorage(): CacheStorage | null {
   }
 }
 
+/**
+ * Un segment de clé parmi ceux-ci, et la requête n'est pas persistée. Ces données
+ * changent à chaque génération, régénération ou suppression de bulletin, souvent
+ * depuis un autre écran ou une autre session : restaurées d'un cache de 24 h,
+ * elles montraient des bulletins déjà supprimés ou remplacés, sans le dire (29/09).
+ */
+const SEGMENTS_NON_PERSISTES: ReadonlySet<string> = new Set([
+  'sensitive',
+  // Bulletins : listes (RH et salarié), onglets d'un bulletin, anomalies.
+  'payslips',
+  'payslip-comparison',
+  'payslip-trend',
+  'payslips-anomalies',
+  // Paie du mois : contrôle avant paie, fenêtre des variables, salariés de la paie.
+  'payroll',
+  'overtime-routing',
+  // Calendriers et plannings.
+  'employee-week-payroll',
+  'employee-absences-calendar',
+  'planning',
+  'planning-week',
+  'planning-month',
+  'planning-on-call',
+  'planning-replacements',
+  'my-planning',
+  'my-planning-month',
+  'schedules',
+]);
+
+/** Vrai si la requête peut être restaurée au prochain démarrage. */
+export function isPersistableQueryKey(queryKey: QueryKey): boolean {
+  return !queryKey.some((segment) => typeof segment === 'string' && SEGMENTS_NON_PERSISTES.has(segment));
+}
+
+/** Ce que le persister écrit : les requêtes réussies, hors données de paie et sensibles. */
+export const appDehydrateOptions: DehydrateOptions = {
+  shouldDehydrateQuery: (query) =>
+    query.state.status === 'success' && isPersistableQueryKey(query.queryKey),
+};
+
+function purgeLegacyQueryCaches(storage: CacheStorage | null): void {
+  for (const key of LEGACY_QUERY_CACHE_KEYS) {
+    try {
+      storage?.removeItem(key);
+    } catch {
+      /* stockage indisponible : il n'y a rien à purger */
+    }
+  }
+}
+
 /** Persister de l'application : celui de React Query, dont on peut suspendre les écritures. */
 export function createAppQueryPersister() {
   const storage = browserStorage();
+  purgeLegacyQueryCaches(storage);
   return createSyncStoragePersister({
     storage: storage && {
       getItem: (key) => storage.getItem(key),

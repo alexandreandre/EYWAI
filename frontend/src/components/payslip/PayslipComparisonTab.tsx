@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 
 const MONTHS_SHORT = [
@@ -109,14 +110,13 @@ export function PayslipComparisonTab({
   const [actionLoading, setActionLoading] = useState(false);
 
   const comparisonQuery = useQuery({
-    queryKey: ['payslip-comparison', payslipId],
+    queryKey: queryKeys.payslipComparison(payslipId),
     queryFn: () => getComparison(payslipId),
   });
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['payslip-comparison', payslipId] });
-    await queryClient.invalidateQueries({ queryKey: ['payslip-trend', payslipId] });
-    await queryClient.invalidateQueries({ queryKey: ['payslip-detail', payslipId] });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.payslipComparison(payslipId) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.payslipTrend(payslipId) });
     await onPayslipRefresh?.();
   };
 

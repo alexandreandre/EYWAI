@@ -13,6 +13,15 @@ export const queryKeys = {
     companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
   employeePayslips: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'payslips'),
+  /** Onglets d'un bulletin. Sans société : l'identifiant du bulletin suffit. */
+  payslipComparison: (payslipId: string) => ['payslip-comparison', payslipId] as const,
+  payslipComparisonTous: () => ['payslip-comparison'] as const,
+  payslipTrend: (payslipId: string) => ['payslip-trend', payslipId] as const,
+  payslipTrendTous: () => ['payslip-trend'] as const,
+  payslipsAnomalies: (companyId: string | null | undefined, year: number, month: number) =>
+    ['payslips-anomalies', companyId ?? 'none', year, month] as const,
+  payslipsAnomaliesTousMois: (companyId: string | null | undefined) =>
+    ['payslips-anomalies', companyId ?? 'none'] as const,
   employeeAbsenceBalances: (
     companyId: string | undefined,
     employeeId: string | undefined,

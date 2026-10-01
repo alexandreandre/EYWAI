@@ -8,7 +8,11 @@ import { installConsoleShim } from './lib/logger';
 installConsoleShim();
 installChunkLoadRecovery();
 import { createAppQueryClient } from './lib/queryClient';
-import { createAppQueryPersister, readQueryCacheBuster } from './lib/queryCachePersistence';
+import {
+  appDehydrateOptions,
+  createAppQueryPersister,
+  readQueryCacheBuster,
+} from './lib/queryCachePersistence';
 
 const queryClient = createAppQueryClient();
 
@@ -24,15 +28,7 @@ createRoot(document.getElementById('root')!).render(
       persister,
       maxAge: 24 * 60 * 60 * 1000,
       buster,
-      dehydrateOptions: {
-        shouldDehydrateQuery: (query) => {
-          const key = query.queryKey;
-          if (Array.isArray(key) && key.some((k) => k === 'sensitive')) {
-            return false;
-          }
-          return query.state.status === 'success';
-        },
-      },
+      dehydrateOptions: appDehydrateOptions,
     }}
   >
     <App />

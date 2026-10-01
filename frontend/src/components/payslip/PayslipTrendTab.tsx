@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { formatEuro, formatMonthYearFr } from '@/components/payslip/PayslipComparisonTab';
 
@@ -126,7 +127,7 @@ export function PayslipTrendTab({
   const [showCotis, setShowCotis] = useState(true);
 
   const trendQuery = useQuery({
-    queryKey: ['payslip-trend', payslipId],
+    queryKey: queryKeys.payslipTrend(payslipId),
     queryFn: () => getTrend(payslipId),
   });
 

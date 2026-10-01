@@ -13,6 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +48,7 @@ export function PayslipValidateBlockedModal({
   const [busy, setBusy] = useState(false);
 
   const comparisonQuery = useQuery({
-    queryKey: ['payslip-comparison', payslipId],
+    queryKey: queryKeys.payslipComparison(payslipId),
     queryFn: () => getComparison(payslipId),
     enabled: open && !!payslipId,
   });
@@ -58,8 +59,8 @@ export function PayslipValidateBlockedModal({
   }, [comparisonQuery.data]);
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['payslip-comparison', payslipId] });
-    await queryClient.invalidateQueries({ queryKey: ['payslip-trend', payslipId] });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.payslipComparison(payslipId) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.payslipTrend(payslipId) });
     await comparisonQuery.refetch();
   };
 

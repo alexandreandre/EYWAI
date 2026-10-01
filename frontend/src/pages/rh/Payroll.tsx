@@ -31,6 +31,7 @@ import {
   PAYROLL_MONTHS,
 } from '@/features/payroll/utils/payrollMonth';
 import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
+import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 
 type PayrollView = 'employee' | 'month';
@@ -372,15 +373,14 @@ export default function Payroll() {
       setDeletingPayslipId(payslipId);
       try {
         await deletePayslip(payslipId);
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.employeePayslips(companyId, targetEmployeeId),
-        });
       } catch (error) {
         showErrorToast(error, {
           title: 'Suppression impossible',
           fallback: 'La suppression du bulletin a échoué.',
         });
       } finally {
+        // Même en échec : le bulletin a pu changer depuis un autre écran.
+        await invaliderApresBulletin(queryClient, companyId, targetEmployeeId);
         setDeletingPayslipId(null);
       }
     },

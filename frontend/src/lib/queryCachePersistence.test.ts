@@ -4,7 +4,9 @@ import {
   persistQueryClientRestore,
   persistQueryClientSave,
 } from '@tanstack/react-query-persist-client';
+import type { QueryKey } from '@tanstack/react-query';
 import { QUERY_CACHE_KEY } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/queryKeys';
 
 type Module = typeof import('@/lib/queryCachePersistence');
 
@@ -184,5 +186,103 @@ describe('purgePersistedQueryCache', () => {
     });
     expect(() => mod.purgePersistedQueryCache({ beforeLeaving: true })).not.toThrow();
     expect(() => mod.readQueryCacheBuster()).not.toThrow();
+    expect(() => mod.createAppQueryPersister()).not.toThrow();
+  });
+});
+
+/** Clés écrites dans le cache persisté, telles que les relira le prochain démarrage. */
+function clesPersistees(): QueryKey[] {
+  const brut = store.get(QUERY_CACHE_KEY);
+  if (!brut) return [];
+  const cache = JSON.parse(brut) as { clientState: { queries: { queryKey: QueryKey }[] } };
+  return cache.clientState.queries.map((q) => q.queryKey);
+}
+
+async function persister(client: QueryClient) {
+  await persistQueryClientSave({
+    queryClient: client,
+    persister: mod.createAppQueryPersister(),
+    buster: 'b',
+    dehydrateOptions: mod.appDehydrateOptions,
+  });
+  vi.advanceTimersByTime(1000);
+}
+
+describe('requêtes de la paie : jamais persistées', () => {
+  // Le 29/09, la liste des bulletins restaurée du cache de 24 h montrait des
+  // bulletins déjà supprimés ou remplacés : l'écran ne disait pas qu'elle était périmée.
+  const NON_PERSISTEES: Record<string, QueryKey> = {
+    'bulletins du salarié (paie, fiche)': queryKeys.employeePayslips('co-1', 'e1'),
+    'mes bulletins (espace salarié)': [...queryKeys.employeeDashboard('u1'), 'payslips'],
+    'comparaison d’un bulletin': queryKeys.payslipComparison('ps-1'),
+    'tendance d’un bulletin': queryKeys.payslipTrend('ps-1'),
+    'anomalies des bulletins': queryKeys.payslipsAnomalies('co-1', 2026, 9),
+    'contrôle avant paie': queryKeys.payrollPreflight('co-1', 2026, 9),
+    'fenêtre des variables du mois': queryKeys.periodeVariables('co-1', 2026, 9),
+    'salariés de la paie': [...queryKeys.employees('co-1'), 'payroll'],
+    'heures de la semaine': ['employee-week-payroll', 'e1', '2026-09-07', false, ''],
+    'calendrier des absences': ['employee-absences-calendar', 'e1'],
+    'planning de la semaine': queryKeys.planningWeek('co-1', '2026-09-07'),
+    'planning du mois': ['planning-month', 'co-1', 2026, 9],
+    'mon planning': ['my-planning', '2026-09-07', 'co-1'],
+  };
+  const PERSISTEES: Record<string, QueryKey> = {
+    'liste des salariés': queryKeys.employees('co-1'),
+    'paramètres de la société': queryKeys.companySettings('co-1'),
+    'mes sociétés': queryKeys.myCompanies(),
+  };
+
+  it.each(Object.entries(NON_PERSISTEES))('%s : non écrite', async (_nom, key) => {
+    const client = new QueryClient();
+    client.setQueryData(key, 'donnée');
+    client.setQueryData(queryKeys.employees('co-1'), ['salarié']);
+
+    await persister(client);
+
+    expect(clesPersistees()).not.toContainEqual(key);
+    expect(clesPersistees()).toContainEqual(queryKeys.employees('co-1'));
+  });
+
+  it.each(Object.entries(PERSISTEES))('%s : toujours persistée', async (_nom, key) => {
+    const client = new QueryClient();
+    client.setQueryData(key, 'donnée');
+
+    await persister(client);
+
+    expect(clesPersistees()).toContainEqual(key);
+  });
+
+  it('les données sensibles restent exclues', async () => {
+    const client = new QueryClient();
+    client.setQueryData(['employee', 'e1', 'sensitive', 'rib'], 'FR76…');
+
+    await persister(client);
+
+    expect(clesPersistees()).toEqual([]);
+  });
+
+  it('isPersistableQueryKey : la règle seule, sans React Query', () => {
+    for (const key of Object.values(NON_PERSISTEES)) {
+      expect(mod.isPersistableQueryKey(key), JSON.stringify(key)).toBe(false);
+    }
+    for (const key of Object.values(PERSISTEES)) {
+      expect(mod.isPersistableQueryKey(key), JSON.stringify(key)).toBe(true);
+    }
+  });
+});
+
+describe('version du cache persisté', () => {
+  it('passe à v2 : le cache v1 gardait les bulletins 24 h', () => {
+    expect(QUERY_CACHE_KEY).toBe('eywai-rq-cache-v2');
+  });
+
+  it('le cache v1 laissé par l’ancienne version est jeté au démarrage', () => {
+    store.set('eywai-rq-cache-v1', '{"buster":"x","clientState":{"queries":[]}}');
+    store.set('activeCompanyId', 'societe-a');
+
+    mod.createAppQueryPersister();
+
+    expect(store.has('eywai-rq-cache-v1')).toBe(false);
+    expect(store.get('activeCompanyId')).toBe('societe-a');
   });
 });

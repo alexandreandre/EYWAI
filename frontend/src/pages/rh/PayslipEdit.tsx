@@ -42,7 +42,6 @@ import {
 } from '@/api/payslips';
 import { hasRhAccess, useAuth } from '@/contexts/AuthContext';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
-import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 
@@ -52,6 +51,7 @@ import {
   prenomDuBulletin,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
+import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
@@ -135,13 +135,11 @@ export default function PayslipEdit() {
     appliquer(await getPayslipDetails(payslipId));
   }, [payslipId, appliquer]);
 
-  // Les listes de bulletins (paie, fiche salarié) sont en cache : sans cela,
-  // elles montraient l'ancien net après une correction.
+  // Les listes de bulletins (paie, fiche salarié) et les onglets du bulletin
+  // sont en cache : sans cela, ils montraient l'ancien net après une correction.
   const invaliderListes = useCallback(() => {
     if (!payslip) return;
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.employeePayslips(companyId, payslip.employee_id),
-    });
+    void invaliderApresBulletin(queryClient, companyId, payslip.employee_id);
   }, [queryClient, companyId, payslip]);
 
   const apresChangement = useCallback(async () => {

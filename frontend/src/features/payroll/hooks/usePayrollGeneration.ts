@@ -23,6 +23,10 @@ import {
   type RefusalDetails,
 } from '@/features/payroll/utils/generationGuards';
 import type { JourEnConflit } from '@/features/payroll/utils/heuresSurArret';
+import {
+  clesAutourDesBulletins,
+  invaliderCles,
+} from '@/features/payroll/utils/invalidationsBulletin';
 
 export type PayrollGenerationJob = {
   employeeId: string;
@@ -130,6 +134,12 @@ export function usePayrollGeneration() {
     },
     [companyId, queryClient]
   );
+
+  // Une fois par lot et non par bulletin : le contrôle avant paie et les
+  // anomalies portent sur tous les salariés du mois.
+  const invalidateAroundPayslips = useCallback(() => {
+    void invaliderCles(queryClient, clesAutourDesBulletins(companyId));
+  }, [companyId, queryClient]);
 
   const updateProgress = useCallback((completed: number, intraFraction: number) => {
     const total = totalRef.current;
@@ -294,16 +304,18 @@ export function usePayrollGeneration() {
         abortRef.current = false;
         setPhase('idle');
         setEstimatedRemainingSec(null);
+        invalidateAroundPayslips();
       } else if (queueRef.current.length > 0) {
         void processQueue();
       } else {
         setProgress(100);
         setEstimatedRemainingSec(0);
         setPhase('done');
+        invalidateAroundPayslips();
         invalidateExportsPageQueries(queryClient);
       }
     }
-  }, [invalidatePayslips, queryClient, startTick, stopTick, updateProgress]);
+  }, [invalidateAroundPayslips, invalidatePayslips, queryClient, startTick, stopTick, updateProgress]);
 
   const enqueueJobs = useCallback(
     (jobs: PayrollGenerationJob[]) => {
