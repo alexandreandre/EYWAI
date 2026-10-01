@@ -290,10 +290,25 @@ export interface PayslipRestoreResponse {
 // =====================================================
 
 /**
+ * `X-Active-Company` d'une société connue de l'écran. Sans elle, l'intercepteur
+ * prend celle du localStorage, qu'un autre onglet a pu changer : le backend
+ * répondrait 404 sur un bulletin bien présent.
+ */
+function enTeteSociete(companyId: string | null | undefined) {
+  return companyId ? { headers: { 'X-Active-Company': companyId } } : undefined;
+}
+
+/**
  * Récupère les détails complets d'un bulletin de paie
  */
-export const getPayslipDetails = async (payslipId: string): Promise<PayslipDetail> => {
-  const response = await apiClient.get<PayslipDetail>(`/api/payslips/${payslipId}`);
+export const getPayslipDetails = async (
+  payslipId: string,
+  companyId?: string | null
+): Promise<PayslipDetail> => {
+  const response = await apiClient.get<PayslipDetail>(
+    `/api/payslips/${payslipId}`,
+    enTeteSociete(companyId)
+  );
   return response.data;
 };
 
@@ -302,11 +317,13 @@ export const getPayslipDetails = async (payslipId: string): Promise<PayslipDetai
  */
 export const editPayslip = async (
   payslipId: string,
-  editRequest: PayslipEditRequest
+  editRequest: PayslipEditRequest,
+  companyId?: string | null
 ): Promise<PayslipEditResponse> => {
   const response = await apiClient.post<PayslipEditResponse>(
     `/api/payslips/${payslipId}/edit`,
-    editRequest
+    editRequest,
+    enTeteSociete(companyId)
   );
   return response.data;
 };
@@ -336,11 +353,13 @@ export const getPayslipHistory = async (payslipId: string): Promise<HistoryEntry
  */
 export const restorePayslipVersion = async (
   payslipId: string,
-  version: number
+  version: number,
+  companyId?: string | null
 ): Promise<PayslipRestoreResponse> => {
   const response = await apiClient.post<PayslipRestoreResponse>(
     `/api/payslips/${payslipId}/restore`,
-    { version }
+    { version },
+    enTeteSociete(companyId)
   );
   return response.data;
 };
@@ -378,18 +397,14 @@ export function estDejaSupprime(headers: unknown): boolean {
  * Supprime un bulletin de paie. Idempotent : un bulletin déjà supprimé
  * répond 204, avec `dejaSupprime`.
  *
- * `companyId` : la société que montre l'écran. Sans lui, l'intercepteur prend
- * celle du localStorage, qu'un autre onglet a pu changer ; le backend
- * répondrait alors « déjà supprimé » pour un bulletin bien présent.
+ * `companyId` : la société que montre l'écran (voir `enTeteSociete`) ; sans
+ * elle, le backend répondrait « déjà supprimé » pour un bulletin bien présent.
  */
 export const deletePayslip = async (
   payslipId: string,
   companyId: string | null | undefined,
 ): Promise<{ dejaSupprime: boolean }> => {
-  const response = await apiClient.delete(
-    `/api/payslips/${payslipId}`,
-    companyId ? { headers: { 'X-Active-Company': companyId } } : undefined,
-  );
+  const response = await apiClient.delete(`/api/payslips/${payslipId}`, enTeteSociete(companyId));
   return { dejaSupprime: estDejaSupprime(response.headers) };
 };
 
@@ -420,7 +435,8 @@ export const generatePayslip = async (
     /** Régénère un bulletin validé en l'archivant (sinon 409 `bulletin_valide`). */
     regenerer_bulletin_valide?: boolean;
   },
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  companyId?: string | null
 ): Promise<{
   status: string;
   message: string;
@@ -428,7 +444,10 @@ export const generatePayslip = async (
   payslip_id?: string | null;
   warnings?: PayslipGenerationWarning[];
 }> => {
-  const response = await apiClient.post('/api/actions/generate-payslip', data, { signal });
+  const response = await apiClient.post('/api/actions/generate-payslip', data, {
+    signal,
+    ...enTeteSociete(companyId),
+  });
   return response.data;
 };
 
@@ -462,7 +481,14 @@ export const ignoreAlert = async (payslipId: string, ruleId: string): Promise<vo
 };
 
 /** Valide le bulletin (RH). Échoue en 400 si alertes critiques actives. */
-export const validatePayslip = async (payslipId: string): Promise<PayslipDetail> => {
-  const response = await apiClient.post<PayslipDetail>(`/api/payslips/${payslipId}/validate`);
+export const validatePayslip = async (
+  payslipId: string,
+  companyId?: string | null
+): Promise<PayslipDetail> => {
+  const response = await apiClient.post<PayslipDetail>(
+    `/api/payslips/${payslipId}/validate`,
+    undefined,
+    enTeteSociete(companyId)
+  );
   return response.data;
 };

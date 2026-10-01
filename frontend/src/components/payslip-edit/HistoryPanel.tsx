@@ -15,6 +15,8 @@ import {
 
 interface HistoryPanelProps {
   payslipId: string;
+  /** Société du bulletin : celle de l'onglet, pas celle qu'un autre onglet a choisie. */
+  companyId?: string | null;
   onRestore?: () => void;
   /** Le recalcul d'après la restauration a été refusé pour des heures sur un arrêt : l'écran propose le choix. */
   onRecalculRefuse?: (refus: RefusApresCorrection) => void;
@@ -25,6 +27,7 @@ interface HistoryPanelProps {
 
 export default function HistoryPanel({
   payslipId,
+  companyId,
   onRestore,
   onRecalculRefuse,
   canRestore = true,
@@ -67,7 +70,7 @@ export default function HistoryPanel({
 
     setIsRestoring(version);
     try {
-      const reponse = await restorePayslipVersion(payslipId, version);
+      const reponse = await restorePayslipVersion(payslipId, version, companyId);
       const suite = choixApresCorrection(reponse);
       if (suite.kind === 'choix') {
         toast({

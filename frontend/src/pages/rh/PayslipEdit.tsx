@@ -11,7 +11,7 @@
  */
 
 import { pageTitleClassName } from '@/components/layout';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Eye, History, Loader2, Save, Undo2 } from 'lucide-react';
@@ -59,6 +59,7 @@ import {
   type MessageEcran,
 } from '@/features/payroll/utils/bulletinRemplace';
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
+import { rechargementsDuBulletin } from '@/features/payroll/utils/rechargementBulletin';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import NotesSection from '@/components/payslip-edit/NotesSection';
 import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
@@ -148,15 +149,9 @@ export default function PayslipEdit() {
     [toast, queryClient, companyId, navigate]
   );
 
-  const recharger = useCallback(async () => {
-    if (!payslipId) return;
-    try {
-      appliquer(await getPayslipDetails(payslipId));
-    } catch (error) {
-      if (estBulletinIntrouvable(error)) await bulletinRemplace(payslip);
-      else toast({ ...messageBulletinNonCharge(error), variant: 'destructive' });
-    }
-  }, [payslipId, appliquer, bulletinRemplace, payslip, toast]);
+  // Société du bulletin, envoyée à chaque appel : un autre onglet a pu changer
+  // celle du localStorage, et le bulletin y serait « introuvable ».
+  const societeDuBulletin = payslip?.company_id ?? companyId;
 
   // Les listes de bulletins (paie, fiche salarié) et les onglets du bulletin
   // sont en cache : sans cela, ils montraient l'ancien net après une correction.
@@ -165,24 +160,33 @@ export default function PayslipEdit() {
     void invaliderApresBulletin(queryClient, companyId, payslip.employee_id);
   }, [queryClient, companyId, payslip]);
 
-  const apresChangement = useCallback(async () => {
-    await recharger();
-    invaliderListes();
-  }, [recharger, invaliderListes]);
+  const rechargements = useMemo(
+    () =>
+      rechargementsDuBulletin({
+        lire: payslipId ? () => getPayslipDetails(payslipId, societeDuBulletin) : null,
+        appliquer,
+        remplace: () => bulletinRemplace(payslip),
+        signalerEchec: (error) =>
+          toast({ ...messageBulletinNonCharge(error), variant: 'destructive' }),
+        invaliderListes,
+      }),
+    [payslipId, societeDuBulletin, appliquer, bulletinRemplace, payslip, toast, invaliderListes]
+  );
+  const { recharger, apresChangement } = rechargements;
 
   const charger = useCallback(async () => {
     if (!payslipId) return;
     setIsLoading(true);
     setEchecChargement(null);
     try {
-      appliquer(await getPayslipDetails(payslipId));
+      appliquer(await getPayslipDetails(payslipId, companyId));
     } catch (error) {
       if (estBulletinIntrouvable(error)) await bulletinRemplace(null);
       else setEchecChargement(messageBulletinNonCharge(error));
     } finally {
       setIsLoading(false);
     }
-  }, [payslipId, appliquer, bulletinRemplace]);
+  }, [payslipId, companyId, appliquer, bulletinRemplace]);
 
   useEffect(() => {
     if (!payslipId) {
@@ -190,9 +194,7 @@ export default function PayslipEdit() {
       return;
     }
     void charger();
-    // Au changement de bulletin seulement : changer de société sur cet écran ne
-    // doit pas recharger un bulletin qu'elle ne voit pas, et le dire « remplacé ».
-  }, [payslipId, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [payslipId, navigate, charger]);
 
   const modifie = initial && etat ? aDesModifications(initial, etat) : false;
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
@@ -225,7 +227,8 @@ export default function PayslipEdit() {
     try {
       const reponse = await editPayslip(
         payslipId,
-        requeteDeCorrection(initial, etat, payslip.updated_at)
+        requeteDeCorrection(initial, etat, payslip.updated_at),
+        payslip.company_id
       );
       const suite = choixApresCorrection(reponse);
       if (suite.kind === 'choix') {
@@ -281,7 +284,7 @@ export default function PayslipEdit() {
     if (!payslipId || !abandonnerSiBesoin()) return;
     setValidateBusy(true);
     try {
-      appliquer(await validatePayslip(payslipId));
+      appliquer(await validatePayslip(payslipId, societeDuBulletin));
       invaliderListes();
       toast({ title: 'Bulletin validé', description: 'Le statut du bulletin a été mis à jour.' });
     } catch (error) {
@@ -446,7 +449,8 @@ export default function PayslipEdit() {
             refusInitial={refusApresCorrection}
             onRefusInitialFerme={() => setRefusApresCorrection(null)}
             disabled={isEditLocked}
-            onRegenerated={apresChangement}
+            companyId={payslip.company_id}
+            onRegenerated={rechargements.apresRegeneration}
           />
           <Button variant="outline" onClick={() => setActiveTab('bulletin')}>
             <Eye className="h-4 w-4 mr-2" />
@@ -525,6 +529,7 @@ export default function PayslipEdit() {
           <HistoryPanel
             key={payslip.updated_at ?? payslip.id}
             payslipId={payslip.id}
+            companyId={payslip.company_id}
             canRestore={!isEditLocked}
             onRecalculRefuse={setRefusApresCorrection}
             avantRestauration={abandonnerSiBesoin}
@@ -581,6 +586,7 @@ export default function PayslipEdit() {
         open={validateModalOpen}
         onOpenChange={setValidateModalOpen}
         payslipId={payslip.id}
+        companyId={payslip.company_id}
         isRH={isRH}
         onValidated={apresChangement}
       />

@@ -30,6 +30,24 @@ export async function regenererPuisRecharger<R>(
   return { kind: 'regenere', reponse };
 }
 
+/**
+ * Un seul message : avec un toast à la fois, un succès affiché après l'échec
+ * du rechargement le recouvrirait.
+ */
+export function messageApresRegeneration<R>(
+  issue: Exclude<IssueRegeneration<R>, { kind: 'echec' }>,
+  details: string[]
+): MessageEcran & { variant?: 'destructive' } {
+  if (issue.kind === 'regenere_non_recharge') {
+    return { ...messageRegenereNonRecharge(), variant: 'destructive' };
+  }
+  return {
+    title: 'Bulletin régénéré',
+    description:
+      details.length > 0 ? details.join(' · ') : 'Brut, cotisations et net ont été recalculés.',
+  };
+}
+
 export function messageRegenereNonRecharge(): MessageEcran {
   return {
     title: 'Bulletin régénéré, écran non rechargé',

@@ -29,6 +29,8 @@ export interface PayslipValidateBlockedModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   payslipId: string;
+  /** Société du bulletin : celle de l'onglet, pas celle qu'un autre onglet a choisie. */
+  companyId?: string | null;
   isRH: boolean;
   onValidated: () => void | Promise<void>;
 }
@@ -37,6 +39,7 @@ export function PayslipValidateBlockedModal({
   open,
   onOpenChange,
   payslipId,
+  companyId,
   isRH,
   onValidated,
 }: PayslipValidateBlockedModalProps) {
@@ -109,7 +112,7 @@ export function PayslipValidateBlockedModal({
     if (activeCritical.length > 0) return;
     setBusy(true);
     try {
-      await validatePayslip(payslipId);
+      await validatePayslip(payslipId, companyId);
       toast({ title: 'Bulletin validé' });
       onOpenChange(false);
       await onValidated();

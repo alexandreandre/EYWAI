@@ -1,7 +1,11 @@
 import { AxiosError } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 
-import { messageRegenereNonRecharge, regenererPuisRecharger } from './regenerationBulletin';
+import {
+  messageApresRegeneration,
+  messageRegenereNonRecharge,
+  regenererPuisRecharger,
+} from './regenerationBulletin';
 
 describe('regenererPuisRecharger', () => {
   it('génération en échec : on ne recharge pas, et c’est un échec', async () => {
@@ -49,6 +53,27 @@ describe('regenererPuisRecharger', () => {
     );
 
     expect(ordre).toEqual(['généré', 'rechargé']);
+  });
+});
+
+describe('messageApresRegeneration', () => {
+  it('régénéré et rechargé : un seul message de succès, avec les avertissements', () => {
+    expect(messageApresRegeneration({ kind: 'regenere', reponse: {} }, [])).toEqual({
+      title: 'Bulletin régénéré',
+      description: 'Brut, cotisations et net ont été recalculés.',
+    });
+    expect(messageApresRegeneration({ kind: 'regenere', reponse: {} }, ['A', 'B']).description).toBe(
+      'A · B'
+    );
+  });
+
+  it('régénéré mais écran non rechargé : jamais un message de succès seul', () => {
+    const message = messageApresRegeneration(
+      { kind: 'regenere_non_recharge', reponse: {}, erreur: new Error('coupure') },
+      ['A']
+    );
+
+    expect(message).toEqual({ ...messageRegenereNonRecharge(), variant: 'destructive' });
   });
 });
 

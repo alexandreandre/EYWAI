@@ -50,7 +50,7 @@ import {
   type GenerationRefusal,
 } from '@/features/payroll/utils/generationGuards';
 import {
-  messageRegenereNonRecharge,
+  messageApresRegeneration,
   regenererPuisRecharger,
 } from '@/features/payroll/utils/regenerationBulletin';
 
@@ -77,7 +77,12 @@ interface RegeneratePayslipButtonProps {
   /** Appelé quand le dialogue de ce refus initial se ferme, sans autre effet. */
   onRefusInitialFerme?: () => void;
   disabled?: boolean;
-  /** Recharge le bulletin depuis le serveur après une régénération réussie. */
+  /** Société du bulletin : celle de l'onglet, pas celle qu'un autre onglet a choisie. */
+  companyId?: string | null;
+  /**
+   * Recharge le bulletin depuis le serveur après une régénération réussie.
+   * Doit lever si l'écran n'a pas pu être rechargé.
+   */
   onRegenerated: () => Promise<void> | void;
 }
 
@@ -91,6 +96,7 @@ export default function RegeneratePayslipButton({
   refusInitial,
   onRefusInitialFerme,
   disabled,
+  companyId,
   onRegenerated,
 }: RegeneratePayslipButtonProps) {
   const { toast } = useToast();
@@ -123,7 +129,12 @@ export default function RegeneratePayslipButton({
     setEnCours(true);
     try {
       const issue = await regenererPuisRecharger(
-        () => generatePayslip({ employee_id: employeeId, year, month, ...forcage }),
+        () =>
+          generatePayslip(
+            { employee_id: employeeId, year, month, ...forcage },
+            undefined,
+            companyId
+          ),
         onRegenerated
       );
       if (issue.kind === 'echec') {
@@ -135,15 +146,7 @@ export default function RegeneratePayslipButton({
       fermerRefus();
 
       const { messages, infos } = splitGenerationWarnings(issue.reponse.warnings);
-      const details = [...messages, ...infos];
-      toast({
-        title: 'Bulletin régénéré',
-        description:
-          details.length > 0 ? details.join(' · ') : 'Brut, cotisations et net ont été recalculés.',
-      });
-      if (issue.kind === 'regenere_non_recharge') {
-        toast({ ...messageRegenereNonRecharge(), variant: 'destructive' });
-      }
+      toast(messageApresRegeneration(issue, [...messages, ...infos]));
     } finally {
       setEnCours(false);
     }
