@@ -11,6 +11,10 @@ from __future__ import annotations
 import calendar
 from typing import Any, Dict, List, Optional
 
+from app.modules.payroll.domain.report_nap_negatif import (
+    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
+)
+
 CIVILITES_MASCULINES = {"M", "H", "MR", "MASCULIN", "1"}
 CIVILITES_FEMININES = {"F", "MME", "FEMININ", "FÉMININ", "2"}
 
@@ -386,11 +390,24 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         if montant > 0:
             lignes.append(_ligne("hors_brut", libelle, montant_salarial=montant))
 
+    # Le report d'un net négatif est compté dans `acompte_verse` : il sort sous
+    # son propre libellé, et seul le reste garde « Acomptes et avances ».
+    reports = [
+        r for r in bulletin.get(CLE_REPORTS_NAP_NEGATIF) or [] if isinstance(r, dict)
+    ]
+    for report in reports:
+        valeur = float(report.get("montant") or 0.0)
+        if valeur > 0:
+            lignes.append(
+                _ligne("hors_brut", str(report.get("libelle") or ""), montant_salarial=-valeur)
+            )
+    total_reports = sum(max(0.0, float(r.get("montant") or 0.0)) for r in reports)
+
     # L'enrichissement « saisies et avances » n'a pas toujours tourné : dans ce
     # cas l'acompte ne subsiste que dans la synthèse des nets.
     acomptes = float(
         (bulletin.get("remboursements_avances") or {}).get("total_rembourse") or 0.0
-    ) or float(synthese.get("acompte_verse") or 0.0)
+    ) or round(float(synthese.get("acompte_verse") or 0.0) - total_reports, 2)
 
     retenues = (
         (acomptes, "Acomptes et avances"),

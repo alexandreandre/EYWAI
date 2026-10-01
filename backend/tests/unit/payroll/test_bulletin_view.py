@@ -32,11 +32,11 @@ def bulletin_minimal() -> dict:
                 },
             },
             "salarie": {
-                "nom": "ALVES",
+                "nom": "FICTIF",
                 "prenom": "Lucas",
-                "nom_complet": "Lucas ALVES",
+                "nom_complet": "Lucas FICTIF",
                 "sexe": "M",
-                "matricule": "ALVES",
+                "matricule": "FICTIF",
                 "nir": "180017520045678",
                 "adresse": {
                     "rue": "32 rue de la Fabrique",
@@ -130,7 +130,7 @@ class TestSalarieEtIdentite:
     def test_nom_precede_de_la_civilite_nom_en_premier(self):
         salarie = construire_vue_bulletin(bulletin_minimal())["salarie"]
         assert salarie["civilite"] == "MR"
-        assert salarie["nom_ligne"] == "ALVES Lucas"
+        assert salarie["nom_ligne"] == "FICTIF Lucas"
 
     def test_adresse_postale_sur_deux_lignes(self):
         salarie = construire_vue_bulletin(bulletin_minimal())["salarie"]
@@ -138,7 +138,7 @@ class TestSalarieEtIdentite:
 
     def test_identite_reprend_matricule_nir_et_emploi(self):
         identite = construire_vue_bulletin(bulletin_minimal())["identite"]
-        assert identite["matricule"] == "ALVES"
+        assert identite["matricule"] == "FICTIF"
         assert identite["nir"] == "1 80 01 75 200 456 78"
         assert identite["emploi"] == "Opérateur polyvalent"
         assert identite["date_entree"] == "08/04/2026"
@@ -541,7 +541,7 @@ class TestRendu:
         for attendu in (
             "BULLETIN DE SALAIRE",
             "Société CARTOL",
-            "ALVES Lucas",
+            "FICTIF Lucas",
             "Matricule",
             "1 80 01 75 200 456 78",
             "Q100",
@@ -618,13 +618,50 @@ class TestRepliAcompte:
         assert acompte["montant_salarial"] == pytest.approx(-150.0)
 
 
+class TestReportNapNegatif:
+    """Le report d'un net négatif s'imprime sous son libellé, pas en « acompte »."""
+
+    def _lignes(self, *, acompte_verse, reports, avances=None):
+        bulletin = bulletin_avec_cotisations()
+        bulletin["synthese_net"]["acompte_verse"] = acompte_verse
+        bulletin["reports_nap_negatif"] = reports
+        if avances is not None:
+            bulletin["remboursements_avances"] = {"total_rembourse": avances}
+        return {l["libelle"]: l["montant_salarial"] for l in construire_vue_bulletin(bulletin)["lignes"]}
+
+    def test_le_report_seul_a_son_propre_libelle(self):
+        montants = self._lignes(
+            acompte_verse=115.43,
+            reports=[{"libelle": "Report NAP négatif 09/2026", "montant": 115.43}],
+        )
+        assert montants["Report NAP négatif 09/2026"] == pytest.approx(-115.43)
+        assert "Acomptes et avances" not in montants
+
+    def test_un_acompte_garde_son_libelle_a_cote_du_report(self):
+        montants = self._lignes(
+            acompte_verse=415.43,
+            reports=[{"libelle": "Report NAP négatif 09/2026", "montant": 115.43}],
+        )
+        assert montants["Report NAP négatif 09/2026"] == pytest.approx(-115.43)
+        assert montants["Acomptes et avances"] == pytest.approx(-300.0)
+
+    def test_les_avances_enrichies_ne_cachent_pas_le_report(self):
+        montants = self._lignes(
+            acompte_verse=115.43,
+            reports=[{"libelle": "Report NAP négatif 09/2026", "montant": 115.43}],
+            avances=150.0,
+        )
+        assert montants["Report NAP négatif 09/2026"] == pytest.approx(-115.43)
+        assert montants["Acomptes et avances"] == pytest.approx(-150.0)
+
+
 class TestClassificationReelle:
     """Les vraies fiches portent des clés DSN, pas « niveau » ni « coefficient »."""
 
     def test_repli_sur_la_classification_formatee_par_le_moteur(self):
         bulletin = bulletin_minimal()
         salarie = bulletin["en_tete"]["salarie"]
-        # Cas réel ALVES (Cartol) : aucune des clés attendues par le gabarit.
+        # Cas réel (Cartol) : aucune des clés attendues par le gabarit.
         salarie["classification_brute"] = {
             "pcs": "9999",
             "idcc": "3248",

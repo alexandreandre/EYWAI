@@ -601,6 +601,10 @@ def run_payslip_generation_forfait(
         )
 
     from app.modules.payroll.documents.bulletin_view import construire_vue_bulletin
+    from app.modules.payroll.domain.report_nap_negatif import CLE_BULLETIN
+
+    if saisie_du_mois.get(CLE_BULLETIN):
+        bulletin_final[CLE_BULLETIN] = saisie_du_mois[CLE_BULLETIN]
 
     templates_dir = engine_root / "templates"
     env = Environment(loader=FileSystemLoader(str(templates_dir)))

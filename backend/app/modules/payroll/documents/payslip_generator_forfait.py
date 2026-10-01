@@ -24,6 +24,10 @@ from typing import Any, Dict
 from fastapi import HTTPException
 
 from app.shared.reprise_paie import raison_de_cumul_manquant
+from app.modules.payroll.domain.report_nap_negatif import (
+    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
+    reports_du_mois,
+)
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.replis import (
     fermer_collecte,
@@ -251,6 +255,7 @@ def process_payslip_generation_forfait(
             saisies_data["ijss_brut_override"] = float(ijss_brut_override)
 
         net_a_payer_only_correction_total = 0.0
+        reports_nap_negatif: list = []
         for row in saisies_res.data:
             if _is_heures_sup_conjoncturelle_input(row):
                 continue
@@ -266,6 +271,7 @@ def process_payslip_generation_forfait(
                 continue
             if _is_net_a_payer_only_correction_input(row):
                 net_a_payer_only_correction_total += -float(row["amount"])
+                reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
             if _is_frais_pro_non_soumis_input(row):
                 net_a_payer_only_correction_total -= float(row["amount"])
@@ -363,6 +369,8 @@ def process_payslip_generation_forfait(
 
         if net_a_payer_only_correction_total:
             saisies_data["acompte"] = net_a_payer_only_correction_total
+        if reports_nap_negatif:
+            saisies_data[CLE_REPORTS_NAP_NEGATIF] = reports_nap_negatif
 
         # --- ÉTAPE 3 : PRÉPARATION DES FICHIERS TEMPORAIRES ---
         # Un dossier propre à cette génération (voir dossier_de_travail.py).

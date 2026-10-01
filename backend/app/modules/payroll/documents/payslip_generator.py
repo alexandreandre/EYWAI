@@ -25,6 +25,10 @@ from app.modules.payroll.application.heures_sur_arret import (
     alerte_heures_ecartees,
     ecarter_heures_sur_arret,
 )
+from app.modules.payroll.domain.report_nap_negatif import (
+    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
+    reports_du_mois,
+)
 from app.modules.payroll.engine.lectures import LectureIndispensable
 from app.modules.payroll.engine.replis import (
     fermer_collecte,
@@ -795,6 +799,7 @@ def process_payslip_generation(
             (company_data.get("settings") or {}).get("paniers_non_soumis_dans_mns")
         )
         net_a_payer_only_correction_total = 0.0
+        reports_nap_negatif: list = []
         for row in saisies_res.data:
             if _is_heures_sup_conjoncturelle_input(row):
                 continue
@@ -810,6 +815,7 @@ def process_payslip_generation(
                 continue
             if _is_net_a_payer_only_correction_input(row):
                 net_a_payer_only_correction_total += -float(row["amount"])
+                reports_nap_negatif.extend(reports_du_mois([row]))
                 continue
             if _is_frais_pro_non_soumis_input(row):
                 # Convention (paramétrable) : selon la CCN, le panier repas non
@@ -974,6 +980,8 @@ def process_payslip_generation(
             from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, ajouter_repli
 
             ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)
+        if reports_nap_negatif:
+            saisies_data[CLE_REPORTS_NAP_NEGATIF] = reports_nap_negatif
 
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
