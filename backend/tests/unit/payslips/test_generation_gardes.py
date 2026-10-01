@@ -1101,7 +1101,7 @@ def test_delete_d_un_valide_rend_409_pas_500():
 
     fake_user = User(
         id="rh-1", email="rh@test.local", first_name="RH", last_name="Test",
-        is_platform_admin=False,
+        is_platform_admin=False, active_company_id="co-1",
     )
     app.dependency_overrides = {}
     from app.core.security import get_current_user
@@ -1112,7 +1112,13 @@ def test_delete_d_un_valide_rend_409_pas_500():
             # Audit 23/08 : la suppression résout le périmètre depuis le
             # bulletin. On neutralise ce contrôle — le sujet ici est le
             # mapping de l'erreur applicative en 409, pas le périmètre
-            # (couvert par tests/unit/security).
+            # (couvert par tests/unit/security et test_suppression_idempotente).
+            p_.object(payslips_router, "access_control_service"),
+            p_.object(
+                payslips_router,
+                "get_payslip_meta_for_access",
+                return_value={"company_id": "co-1", "employee_id": "emp-1"},
+            ),
             p_.object(payslips_router, "_require_payslip_scope"),
             p_(
                 "app.modules.payslips.application.commands._fetch_payslip_status",

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError
 
 from app.api.router import router as api_router
+from app.core.constants import EXPOSED_HEADERS
 from app.core.supabase_resilience import is_transient_supabase_error
 from app.core.lifecycle import lifespan
 from app.core.logging import configure_logging, get_logger
@@ -89,6 +90,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=EXPOSED_HEADERS,
 )
 
 

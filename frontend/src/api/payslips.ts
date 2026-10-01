@@ -361,11 +361,36 @@ export const getEmployeePayslips = async (employeeId: string): Promise<PayslipIn
   return response.data;
 };
 
+const EN_TETE_DEJA_SUPPRIME = 'x-deja-supprime';
+
+/** En-tête `X-Deja-Supprime` d'une 204 : le bulletin n'existait déjà plus. */
+export function estDejaSupprime(headers: unknown): boolean {
+  if (!headers || typeof headers !== 'object') return false;
+  const lire = (headers as { get?: unknown }).get;
+  if (typeof lire === 'function') {
+    return String(lire.call(headers, EN_TETE_DEJA_SUPPRIME) ?? '') === 'true';
+  }
+  const cle = Object.keys(headers).find((k) => k.toLowerCase() === EN_TETE_DEJA_SUPPRIME);
+  return cle !== undefined && String((headers as Record<string, unknown>)[cle]) === 'true';
+}
+
 /**
- * Supprime un bulletin de paie
+ * Supprime un bulletin de paie. Idempotent : un bulletin déjà supprimé
+ * répond 204, avec `dejaSupprime`.
+ *
+ * `companyId` : la société que montre l'écran. Sans lui, l'intercepteur prend
+ * celle du localStorage, qu'un autre onglet a pu changer ; le backend
+ * répondrait alors « déjà supprimé » pour un bulletin bien présent.
  */
-export const deletePayslip = async (payslipId: string): Promise<void> => {
-  await apiClient.delete(`/api/payslips/${payslipId}`);
+export const deletePayslip = async (
+  payslipId: string,
+  companyId: string | null | undefined,
+): Promise<{ dejaSupprime: boolean }> => {
+  const response = await apiClient.delete(
+    `/api/payslips/${payslipId}`,
+    companyId ? { headers: { 'X-Active-Company': companyId } } : undefined,
+  );
+  return { dejaSupprime: estDejaSupprime(response.headers) };
 };
 
 /**

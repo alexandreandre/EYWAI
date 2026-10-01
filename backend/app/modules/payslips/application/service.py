@@ -58,9 +58,9 @@ def generate_payslip_use_case(employee_id: str, year: int, month: int) -> Any:
     )
 
 
-def delete_payslip_use_case(payslip_id: str) -> None:
-    """Suppression d'un bulletin (BDD + storage + recalc COR)."""
-    cmd_delete_payslip(payslip_id)
+def delete_payslip_use_case(payslip_id: str) -> bool:
+    """Suppression d'un bulletin (BDD + storage + recalc COR) ; faux s'il n'existait plus."""
+    return cmd_delete_payslip(payslip_id)
 
 
 def get_debug_storage_info(employee_id: str, year: int, month: int) -> dict[str, Any]:

@@ -21,3 +21,9 @@ ENV_SUPABASE_SERVICE_ROLE_KEY = "SUPABASE_SERVICE_ROLE_KEY"
 ENV_LOG_LEVEL = "LOG_LEVEL"
 ENV_APP_DEBUG = "APP_DEBUG"
 ENV_PAYROLL_DEBUG = "PAYROLL_DEBUG"
+
+# En-têtes de réponse lus par le frontend : exposés par le CORS (app/main.py),
+# sans quoi le navigateur les masque à un écran servi depuis une autre origine.
+#: Suppression sans objet (la ressource n'existait plus) : une 204 n'a pas de corps.
+HEADER_DEJA_SUPPRIME = "X-Deja-Supprime"
+EXPOSED_HEADERS = [HEADER_DEJA_SUPPRIME]

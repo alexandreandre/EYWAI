@@ -11,8 +11,9 @@ from __future__ import annotations
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
+from app.core.constants import HEADER_DEJA_SUPPRIME
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.audit.application.commands import log_audit_event
@@ -149,10 +150,15 @@ def _require_rh_company_context(current_user: User) -> str:
 
 
 def _require_payslip_scope(
-    current_user: User, payslip_id: str, permission_code: str
+    current_user: User,
+    payslip_id: str,
+    permission_code: str,
+    *,
+    meta: dict | None = None,
 ) -> dict:
-    """Résout le bulletin puis masque un salarié hors périmètre par une 404."""
-    meta = get_payslip_meta_for_access(payslip_id)
+    """Résout le bulletin (sauf `meta` déjà lu) puis masque un salarié hors périmètre par une 404."""
+    if meta is None:
+        meta = get_payslip_meta_for_access(payslip_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Bulletin introuvable")
     company_id = str(meta.get("company_id") or "")
@@ -275,21 +281,45 @@ def get_employee_payslips_route(
 
 
 # --- Suppression ---
+_PERMISSION_SUPPRESSION = "payslips.delete"
+
+
+def _deja_supprime() -> Response:
+    return Response(status_code=204, headers={HEADER_DEJA_SUPPRIME: "true"})
+
+
 @router.delete("/api/payslips/{payslip_id}", status_code=204)
 def delete_payslip_route(
     payslip_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Supprime un bulletin (BDD, storage, recalc COR).
+    """Supprime un bulletin (BDD, storage, recalc COR) ; idempotent.
 
     Périmètre résolu depuis le BULLETIN, comme /validate et /preview : la
     garde précédente vérifiait seulement que l'appelant était RH quelque
     part, sans jamais regarder à quelle société appartenait le bulletin
     (audit sécurité 23/08/2026).
+
+    Un bulletin déjà supprimé répond 204 avec l'en-tête `X-Deja-Supprime` (le
+    29/09, il répondait 500). Le droit de supprimer est vérifié d'abord, et un
+    bulletin d'une autre société répond comme un bulletin absent : la réponse
+    ne dit jamais qu'il existe. Dans la société, le périmètre du salarié et les
+    refus (validé, repris de l'ancien logiciel) sont ceux d'avant.
     """
     try:
-        _require_payslip_scope(current_user, payslip_id, "payslips.delete")
-        delete_payslip(payslip_id)
+        company_id = str(current_user.active_company_id or "")
+        if not company_id:
+            raise HTTPException(status_code=400, detail="Aucune entreprise active")
+        access_control_service.require_company_permission(
+            current_user, company_id, _PERMISSION_SUPPRESSION
+        )
+        meta = get_payslip_meta_for_access(payslip_id)
+        if not meta or str(meta.get("company_id") or "") != company_id:
+            return _deja_supprime()
+        _require_payslip_scope(current_user, payslip_id, _PERMISSION_SUPPRESSION, meta=meta)
+        if not delete_payslip(payslip_id):
+            return _deja_supprime()
+        return Response(status_code=204)
     except HTTPException:
         raise
     except _PAYSLIP_APP_ERRORS as e:

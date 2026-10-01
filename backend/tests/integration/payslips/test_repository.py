@@ -121,7 +121,7 @@ class TestPayslipRepositoryDelete:
             "month": 3,
         }
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = (
+        select_chain.eq.return_value.maybe_single.return_value.execute.return_value = (
             MagicMock(data=row)
         )
 
@@ -140,7 +140,7 @@ class TestPayslipRepositoryDelete:
             mock_sb.table.return_value = table_return
             mock_sb.storage.from_.return_value = storage_mock
 
-            repo.delete("ps-1")
+            assert repo.delete("ps-1") is True
 
         # Vérification select (colonnes spécifiques)
         table_return.select.assert_any_call(
@@ -156,11 +156,10 @@ class TestPayslipRepositoryDelete:
         storage_mock.remove.assert_called_once_with([row["pdf_storage_path"]])
 
     def test_delete_skips_recalc_and_storage_when_no_row(self, repo: PayslipRepository):
-        """Si la ligne n'existe pas (data vide), pas d'appel recalc ni storage."""
+        """Si la ligne n'existe pas, ni suppression, ni recalc, ni storage : faux."""
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = (
-            MagicMock(data=None)
-        )
+        # postgrest : `maybe_single().execute()` rend None quand aucune ligne.
+        select_chain.eq.return_value.maybe_single.return_value.execute.return_value = None
         table_return = MagicMock()
         table_return.select.return_value = select_chain
         table_return.delete.return_value = MagicMock()
@@ -173,8 +172,9 @@ class TestPayslipRepositoryDelete:
         ):
             mock_sb.table.return_value = table_return
 
-            repo.delete("ps-unknown")
+            assert repo.delete("ps-unknown") is False
 
+        table_return.delete.assert_not_called()
         mock_recalc.assert_not_called()
         mock_sb.storage.from_.assert_not_called()
 
@@ -188,7 +188,7 @@ class TestPayslipRepositoryDelete:
             "month": 3,
         }
         select_chain = MagicMock()
-        select_chain.eq.return_value.single.return_value.execute.return_value = (
+        select_chain.eq.return_value.maybe_single.return_value.execute.return_value = (
             MagicMock(data=row)
         )
         table_return = MagicMock()

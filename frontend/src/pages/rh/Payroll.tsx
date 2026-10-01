@@ -11,6 +11,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, type PayslipInfo } from '@/api/payslips';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
+import { toast } from '@/hooks/use-toast';
 import { PayrollEmployeeExplorer } from '@/features/payroll/components/PayrollEmployeeExplorer';
 import {
   PayrollMonthExplorer,
@@ -32,6 +33,7 @@ import {
 } from '@/features/payroll/utils/payrollMonth';
 import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
+import { messageDeSuppression } from '@/features/payroll/utils/suppressionBulletin';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 
 type PayrollView = 'employee' | 'month';
@@ -371,8 +373,9 @@ export default function Payroll() {
       const targetEmployeeId = employeeId ?? selectedEmployeeId;
       if (!targetEmployeeId) return;
       setDeletingPayslipId(payslipId);
+      let resultat: { dejaSupprime: boolean } | null = null;
       try {
-        await deletePayslip(payslipId);
+        resultat = await deletePayslip(payslipId, companyId);
       } catch (error) {
         showErrorToast(error, {
           title: 'Suppression impossible',
@@ -383,6 +386,7 @@ export default function Payroll() {
         await invaliderApresBulletin(queryClient, companyId, targetEmployeeId);
         setDeletingPayslipId(null);
       }
+      if (resultat) toast(messageDeSuppression(resultat));
     },
     [companyId, queryClient, selectedEmployeeId]
   );

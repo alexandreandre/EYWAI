@@ -40,12 +40,16 @@ def get_employee_statut(employee_id: str) -> str | None:
 
 
 def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
-    """Récupère les champs minimaux d'un bulletin pour les contrôles d'accès."""
+    """Récupère les champs minimaux d'un bulletin pour les contrôles d'accès.
+
+    None si le bulletin n'existe plus (supprimé, ou remplacé par une nouvelle
+    génération) : la route répond alors 404, et non 500.
+    """
     r = (
         supabase.table("payslips")
         .select("company_id, employee_id, year, month")
         .eq("id", payslip_id)
-        .single()
+        .maybe_single()
         .execute()
     )
     return r.data if r else None

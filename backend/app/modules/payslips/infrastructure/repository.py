@@ -38,20 +38,26 @@ class PayslipRepository:
         )
         return (r.data or []) if r else []
 
-    def delete(self, payslip_id: str) -> None:
-        """Supprime le bulletin (BDD + storage) et déclenche recalc COR."""
+    def delete(self, payslip_id: str) -> bool:
+        """Supprime le bulletin (BDD + storage) et déclenche recalc COR.
+
+        Faux, sans rien toucher, si le bulletin n'existe plus : `.single()`
+        levait sur la ligne absente et la suppression répondait 500.
+        """
         r = (
             supabase.table("payslips")
             .select("pdf_storage_path, employee_id, company_id, year, month")
             .eq("id", payslip_id)
-            .single()
+            .maybe_single()
             .execute()
         )
         row = r.data if r else None
+        if not row:
+            return False
 
         supabase.table("payslips").delete().eq("id", payslip_id).execute()
 
-        if row and row.get("employee_id"):
+        if row.get("employee_id"):
             try:
                 recalculer_credits_repos_employe(
                     row["employee_id"],
@@ -65,8 +71,9 @@ class PayslipRepository:
                     f"Recalc COR après suppression bulletin: {err}", stacklevel=2
                 )
 
-        if row and row.get("pdf_storage_path"):
+        if row.get("pdf_storage_path"):
             supabase.storage.from_("payslips").remove([row["pdf_storage_path"]])
+        return True
 
 
 payslip_repository = PayslipRepository()

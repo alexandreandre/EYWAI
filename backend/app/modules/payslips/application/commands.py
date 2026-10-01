@@ -582,17 +582,21 @@ def _refuser_si_importe(payslip_id: str) -> None:
         raise PayslipBadRequestError(MESSAGE_BULLETIN_IMPORTE)
 
 
-def delete_payslip(payslip_id: str) -> None:
+def delete_payslip(payslip_id: str) -> bool:
     """
     Supprime un bulletin (BDD + storage) et déclenche recalc COR.
 
     Lot 3 : un bulletin VALIDÉ ne se supprime pas — sinon delete+regen
     contourne l'archive de la régénération forcée. Le protocole : régénérer
     en forçant (qui archive et repasse en brouillon), puis supprimer.
+
+    Faux si le bulletin n'existait déjà plus (supprimé depuis un autre écran).
     """
     _refuser_si_importe(payslip_id)
     existing = _fetch_payslip_status(payslip_id)
-    if existing and existing.get("status") == "valide":
+    if existing is None:
+        return False
+    if existing.get("status") == "valide":
         raise PayslipValidatedError(
             "Ce bulletin est validé : sa suppression directe est refusée. "
             "Régénérez-le en forçant (l'ancienne version sera archivée), "
@@ -600,7 +604,7 @@ def delete_payslip(payslip_id: str) -> None:
         )
     from app.modules.payslips.infrastructure.repository import payslip_repository
 
-    payslip_repository.delete(payslip_id)
+    return payslip_repository.delete(payslip_id)
 
 
 def _set_payslip_status_brouillon(payslip_id: str) -> None:

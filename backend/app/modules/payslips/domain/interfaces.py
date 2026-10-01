@@ -50,8 +50,11 @@ class IPayslipRepository(Protocol):
         """Liste les bulletins d'un employé."""
         ...
 
-    def delete(self, payslip_id: str) -> None:
-        """Supprime le bulletin (BDD + fichier storage) et déclenche recalc COR si besoin."""
+    def delete(self, payslip_id: str) -> bool:
+        """Supprime le bulletin (BDD + fichier storage) et déclenche recalc COR si besoin.
+
+        Faux si le bulletin n'existait plus.
+        """
         ...
 
 

@@ -67,9 +67,12 @@ class TestSuppressionBulletinPerimetre:
         finally:
             app.dependency_overrides.pop(get_current_user, None)
 
-    def test_bulletin_d_une_autre_societe_introuvable(self):
+    def test_bulletin_d_une_autre_societe_jamais_supprime(self):
+        """Réponse d'un bulletin absent (204 « déjà supprimé ») : elle ne révèle
+        pas qu'il existe ailleurs. Voir test_suppression_idempotente."""
         reponse, suppr = self._supprimer(AUTRE_SOCIETE)
-        assert reponse.status_code == 404
+        assert reponse.status_code == 204
+        assert reponse.headers.get("X-Deja-Supprime") == "true"
         suppr.assert_not_called()
 
     def test_bulletin_de_ma_societe_supprime(self):

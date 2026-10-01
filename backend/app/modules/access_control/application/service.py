@@ -176,6 +176,28 @@ class AccessControlService:
                 detail="Ressource introuvable",
             )
 
+    def require_company_permission(
+        self, current_user: "User", company_id: str, permission_code: str
+    ) -> None:
+        """403 sans la permission dans la société, avant de regarder aucune ressource.
+
+        Même règle que la partie permission de `require_employee_access` (grant
+        ou rôle admin/rh historique), sans le périmètre du salarié : pour une
+        action dont la réponse ne doit rien révéler de sa cible tant que
+        l'appelant n'y a pas droit.
+        """
+        if current_user.is_platform_admin:
+            return
+        if self.check_user_has_permission(str(current_user.id), company_id, permission_code):
+            return
+        role = current_user.get_role_in_company(company_id)
+        if role and rules.role_has_rh_level(role):
+            return
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission insuffisante",
+        )
+
     def require_employee_access(
         self,
         current_user: "User",

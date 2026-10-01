@@ -322,7 +322,9 @@ class TestPayslipsDeleteRoute:
         assert response.status_code == 403
 
     def test_delete_refuse_un_bulletin_d_une_autre_societe(self, client: TestClient):
-        """Périmètre : bulletin hors société active → 404, aucune suppression."""
+        """Périmètre : bulletin hors société active → aucune suppression, et la
+        réponse d'un bulletin absent (204 « déjà supprimé »), qui ne révèle pas
+        qu'il existe ailleurs."""
         from app.core.security import get_current_user
 
         with (
@@ -341,7 +343,8 @@ class TestPayslipsDeleteRoute:
                 response = client.delete("/api/payslips/ps-123")
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
-        assert response.status_code == 404
+        assert response.status_code == 204
+        assert response.headers.get("X-Deja-Supprime") == "true"
         mock_del.assert_not_called()
 
 
