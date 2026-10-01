@@ -25,6 +25,7 @@ from app.modules.competencies.api.router import router as competencies_router
 from app.modules.auth.api.router import router as auth_router
 from app.modules.bonus_types.api.router import router as bonus_types_router
 from app.modules.companies.api.router import router as companies_router
+from app.modules.client_errors.api.router import router as client_errors_router
 from app.modules.contract_parser.api.router import router as contract_parser_router
 from app.modules.copilot.api.router import (
     router as copilot_router,
@@ -132,6 +133,7 @@ router.include_router(training_budget_router)
 router.include_router(legal_obligations_router)
 router.include_router(competencies_router)
 router.include_router(companies_router, prefix="/api/company")
+router.include_router(client_errors_router)
 router.include_router(contract_parser_router)
 router.include_router(copilot_router, prefix="/api/copilot")
 router.include_router(copilot_agent_router, prefix="/api/copilot")
