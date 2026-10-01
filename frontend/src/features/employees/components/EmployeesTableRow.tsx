@@ -9,8 +9,12 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { prefetchEmployeeDetail } from "@/lib/prefetchEmployeeDetail";
 import { useActiveCompanyId } from "@/hooks/queries/useCompanyId";
 import type { EmployeeDetailLocationState } from "@/features/employees/utils/employeePreview";
-
 import type { EmployeeListItem } from "@/hooks/queries/useEmployeesQuery";
+import {
+  MENTION_RIB_A_COMPLETER,
+  estNouveauSalarie,
+  mentionsListeSalarie,
+} from "@/features/employees/utils/creationSalarie";
 
 function formatEmployeeListDate(dateValue: string | null | undefined): string | null {
   if (!dateValue) return null;
@@ -81,6 +85,14 @@ export function EmployeesTableRow({ employee }: { employee: EmployeeListItem }) 
               <p className="font-medium">
                 {displayNamePrenomNom(employee)}
               </p>
+              {estNouveauSalarie(employee.id) && (
+                <Badge className="text-xs bg-emerald-600 text-white border-0">Nouveau</Badge>
+              )}
+              {mentionsListeSalarie(employee.missing_payroll_fields).includes(MENTION_RIB_A_COMPLETER) && (
+                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-900 border-amber-200">
+                  {MENTION_RIB_A_COMPLETER}
+                </Badge>
+              )}
               {employee.employment_status === "en_onboarding" && (
                 <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-amber-200">
                   Onboarding

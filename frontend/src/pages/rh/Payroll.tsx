@@ -40,6 +40,7 @@ import {
   montantsDepuisLigne,
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
+import { lireNouveauSalarie, mettreEnTeteDeListe } from '@/features/employees/utils/creationSalarie';
 
 type PayrollView = 'employee' | 'month';
 
@@ -151,10 +152,13 @@ export default function Payroll() {
   // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
   const employees = useMemo(
     () =>
-      employeesTous.filter((e) =>
-        view === 'month'
-          ? isPresentDuringMonth(e, selectedYear, selectedMonth)
-          : isPresentDuringMonth(e, selectedYear, 1)
+      mettreEnTeteDeListe(
+        employeesTous.filter((e) =>
+          view === 'month'
+            ? isPresentDuringMonth(e, selectedYear, selectedMonth)
+            : isPresentDuringMonth(e, selectedYear, 1)
+        ),
+        lireNouveauSalarie(),
       ),
     [employeesTous, view, selectedYear, selectedMonth]
   );

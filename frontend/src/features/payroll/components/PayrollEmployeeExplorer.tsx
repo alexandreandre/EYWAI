@@ -19,6 +19,11 @@ import {
   PayrollEmployeeListSkeleton,
   PayrollMonthListSkeleton,
 } from '@/features/payroll/components/PayrollSkeletons';
+import {
+  MENTION_RIB_A_COMPLETER,
+  estNouveauSalarie,
+  mentionsListeSalarie,
+} from '@/features/employees/utils/creationSalarie';
 import { libelleBoutonRecalculerTout } from '@/features/payroll/utils/bulletinARecalculer';
 
 export type PayrollEmployeeExplorerProps = {
@@ -165,6 +170,16 @@ export function PayrollEmployeeExplorer({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium leading-tight">
             {emp.first_name} {emp.last_name}
+          </span>
+          <span className="mt-0.5 flex flex-wrap gap-1">
+            {estNouveauSalarie(emp.id) ? (
+              <Badge className="text-[10px] bg-emerald-600 text-white border-0">Nouveau</Badge>
+            ) : null}
+            {mentionsListeSalarie(emp.missing_payroll_fields).includes(MENTION_RIB_A_COMPLETER) ? (
+              <Badge variant="outline" className="text-[10px] font-normal bg-amber-50 text-amber-900 border-amber-200">
+                {MENTION_RIB_A_COMPLETER}
+              </Badge>
+            ) : null}
           </span>
           {emp.job_title && (
             <span className="block truncate text-xs text-muted-foreground font-normal">

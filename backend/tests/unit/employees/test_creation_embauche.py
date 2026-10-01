@@ -192,6 +192,12 @@ def test_le_salarie_est_cree_dans_la_societe_active():
     assert reponse.json()["a_completer"] == ["Numéro de sécurité sociale"]
 
 
+def test_une_creation_sans_rib_reste_acceptee():
+    reponse, creer = _poster()
+    assert reponse.status_code == 201
+    assert creer.call_args.kwargs["employee_data"].get("coordonnees_bancaires") in (None, {})
+
+
 def test_un_collaborateur_ne_cree_pas_de_salarie():
     reponse, creer = _poster(role="collaborateur")
     assert reponse.status_code == 403

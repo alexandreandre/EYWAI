@@ -24,6 +24,7 @@ import { CreateEmployeeForm } from "@/features/employees/components/CreateEmploy
 import {
   EmployeesTableRow,
 } from "@/features/employees/components/EmployeesTableRow";
+import { lireNouveauSalarie, mettreEnTeteDeListe } from "@/features/employees/utils/creationSalarie";
 
 export default function Employees() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -91,25 +92,28 @@ export default function Employees() {
 
   const navigate = useNavigate();
 
-  const filteredEmployees = employees.filter((emp) => {
-    const matchesSearch = `${emp.first_name} ${emp.last_name} ${emp.nom_usage ?? ''}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const status = emp.employment_status || "actif";
-    const matchesStatus =
-      employmentStatusFilter === "sans_cc"
-        ? ccEmployeeIds.has(emp.id)
-        : employmentStatusFilter === "all"
-          ? true
-          : employmentStatusFilter === "actifs_et_depart"
-            ? status === "actif" || status === "active" || status === "en_sortie" || status === "en_onboarding"
-            : status === employmentStatusFilter;
-    const matchesDeadlines =
-      !contractDeadlineIds || contractDeadlineIds.has(emp.id);
-    const matchesTrialEnding =
-      !trialEndingFilter || emp.trial_period_status === "ending_soon";
-    return matchesSearch && matchesStatus && matchesDeadlines && matchesTrialEnding;
-  });
+  const filteredEmployees = mettreEnTeteDeListe(
+    employees.filter((emp) => {
+      const matchesSearch = `${emp.first_name} ${emp.last_name} ${emp.nom_usage ?? ''}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const status = emp.employment_status || "actif";
+      const matchesStatus =
+        employmentStatusFilter === "sans_cc"
+          ? ccEmployeeIds.has(emp.id)
+          : employmentStatusFilter === "all"
+            ? true
+            : employmentStatusFilter === "actifs_et_depart"
+              ? status === "actif" || status === "active" || status === "en_sortie" || status === "en_onboarding"
+              : status === employmentStatusFilter;
+      const matchesDeadlines =
+        !contractDeadlineIds || contractDeadlineIds.has(emp.id);
+      const matchesTrialEnding =
+        !trialEndingFilter || emp.trial_period_status === "ending_soon";
+      return matchesSearch && matchesStatus && matchesDeadlines && matchesTrialEnding;
+    }),
+    lireNouveauSalarie(),
+  );
 
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const virtualizeTable = filteredEmployees.length > 50;
