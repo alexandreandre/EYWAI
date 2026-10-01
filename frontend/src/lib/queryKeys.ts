@@ -11,8 +11,28 @@ export const queryKeys = {
     companyQueryKey(companyId, 'employees'),
   employee: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
+  /** Départs de la société active : une lecture groupée, pas une par salarié. */
+  employeeExits: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'employee-exits'),
+
   employeePayslips: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'payslips'),
+  /** Onglets d'un bulletin. Sans société : l'identifiant du bulletin suffit. */
+  payslipComparison: (payslipId: string) => ['payslip-comparison', payslipId] as const,
+  payslipComparisonTous: () => ['payslip-comparison'] as const,
+  payslipTrend: (payslipId: string) => ['payslip-trend', payslipId] as const,
+  payslipTrendTous: () => ['payslip-trend'] as const,
+  /** Report d'un net négatif sur le mois suivant (segment « payslips » : jamais persisté). */
+  reportNetNegatif: (companyId: string | undefined, payslipId: string) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif', payslipId),
+  reportsNetNegatifDuMois: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif', 'mois', year, month),
+  reportNetNegatifTous: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif'),
+  payslipsAnomalies: (companyId: string | null | undefined, year: number, month: number) =>
+    ['payslips-anomalies', companyId ?? 'none', year, month] as const,
+  payslipsAnomaliesTousMois: (companyId: string | null | undefined) =>
+    ['payslips-anomalies', companyId ?? 'none'] as const,
   employeeAbsenceBalances: (
     companyId: string | undefined,
     employeeId: string | undefined,
@@ -153,6 +173,7 @@ export const queryKeys = {
     companyQueryKey(companyId, 'saisies'),
   rates: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'rates'),
+  ratesMonthly: () => ['rates', 'monthly'] as const,
   schedules: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'schedules'),
   salaryAdvances: (companyId: string | undefined) =>
@@ -186,6 +207,9 @@ export const queryKeys = {
     companyQueryKey(companyId, 'formation', 'dashboard', 'achievement', year),
   payrollPreflight: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payroll', 'preflight-anomalies', year, month),
+  /** Préfixe de `payrollPreflight` : tous les mois de la société. */
+  payrollPreflightTousMois: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'payroll', 'preflight-anomalies'),
   periodeVariables: (companyId: string | undefined, year: number, month: number) =>
     companyQueryKey(companyId, 'payroll', 'periode-variables', year, month),
   surchargesPeriodeVariables: (companyId: string | undefined, year: number) =>

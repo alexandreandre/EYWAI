@@ -3,8 +3,7 @@ import { CalendarClock, Play, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import type { MonthlyAutoSyncState } from '@/lib/ratesMonthlyAuto';
-import { RATES_UPDATES_LOCK_REASON } from '@/lib/ratesUpdatesLock';
+import type { MonthlyAutoSyncState } from '@/hooks/useRatesMonthlyAuto';
 import { cn } from '@/lib/utils';
 
 type RatesMonthlyAutoPanelProps = {
@@ -14,8 +13,6 @@ type RatesMonthlyAutoPanelProps = {
   onToggleEnabled: (enabled: boolean) => void;
   onRunMonthly: () => void;
   onRestartMonthly: () => void;
-  /** Verrouille les lancements manuels ; l'interrupteur reste utilisable. */
-  updatesLocked?: boolean;
   /** Intégré dans la barre de commandes unifiée (sans bordure propre). */
   embedded?: boolean;
 };
@@ -27,13 +24,10 @@ export function RatesMonthlyAutoPanel({
   onToggleEnabled,
   onRunMonthly,
   onRestartMonthly,
-  updatesLocked = false,
   embedded = false,
 }: RatesMonthlyAutoPanelProps) {
-  const showRunMonthly =
-    state.enabled && state.isFirstDayOfMonth && !state.completedThisMonth && !isSyncing;
-  const showRestart =
-    state.enabled && state.isFirstDayOfMonth && state.completedThisMonth && !isSyncing;
+  const showRunMonthly = state.showRun && !isSyncing;
+  const showRestart = state.showRestart && !isSyncing;
 
   return (
     <div
@@ -55,7 +49,7 @@ export function RatesMonthlyAutoPanel({
             htmlFor="rates-monthly-auto"
             className="cursor-pointer text-sm font-medium leading-snug"
           >
-            Mise à jour automatique le 1er du mois
+            Mise à jour automatique en début de mois
           </Label>
           <Switch
             id="rates-monthly-auto"
@@ -75,11 +69,10 @@ export function RatesMonthlyAutoPanel({
               size="sm"
               className="h-7 shrink-0 px-2.5 text-xs"
               onClick={onRunMonthly}
-              disabled={updatesLocked}
-              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
+              disabled={isMonthlySyncRunning}
             >
               <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              Lancer la mise à jour du mois
+              {state.runButtonLabel}
             </Button>
           )}
           {showRestart && (
@@ -89,8 +82,7 @@ export function RatesMonthlyAutoPanel({
               size="sm"
               className="h-7 shrink-0 px-2.5 text-xs"
               onClick={onRestartMonthly}
-              disabled={updatesLocked}
-              title={updatesLocked ? RATES_UPDATES_LOCK_REASON : undefined}
+              disabled={isMonthlySyncRunning}
             >
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Recommencer

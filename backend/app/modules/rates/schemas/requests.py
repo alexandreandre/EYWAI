@@ -5,6 +5,18 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class MonthlyRatesUpdateRequest(BaseModel):
+    """Interrupteur de la mise à jour automatique du mois."""
+
+    enabled: bool
+
+
+class MonthlyRatesRunRequest(BaseModel):
+    """Lancement manuel du lot du mois. force relance aussi les sources déjà réussies."""
+
+    force: bool = False
+
+
 class RatesSyncRequest(BaseModel):
     """Cible de mise à jour (au moins un filtre, ou vide = toutes les sources critiques)."""
 

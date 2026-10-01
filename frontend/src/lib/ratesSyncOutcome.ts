@@ -82,9 +82,63 @@ function buildBatchSummary(
   }
 }
 
+function isSucceededJob(job: RatesSyncJob): boolean {
+  return job.status === 'completed' && job.success === true;
+}
+
+/** Un lot « failed » qui a quand même des sources réussies est une mise à jour partielle. */
+export function normalizeSyncOutcome(
+  outcome: RatesSyncStatusResponse,
+): RatesSyncStatusResponse {
+  if (outcome.status !== 'failed') return outcome;
+  const succeeded = outcome.jobs.filter(isSucceededJob);
+  if (succeeded.length === 0) return outcome;
+  return { ...outcome, status: 'completed_with_errors' };
+}
+
+/**
+ * Le serveur a perdu le lot en mémoire alors que des jobs avaient déjà un état.
+ * On garde les succès et on signale le reste comme non confirmé.
+ */
+export function recoverInterruptedSync(
+  last: RatesSyncStatusResponse,
+): RatesSyncStatusResponse {
+  const jobs = last.jobs.map((job) => {
+    if (isSucceededJob(job) || isFailedJob(job) || job.status === 'cancelled') {
+      return job;
+    }
+    return {
+      ...job,
+      status: 'failed' as const,
+      success: false,
+      error_message:
+        job.error_message || 'Suivi interrompu avant la fin de cette source.',
+    };
+  });
+  const recovered: RatesSyncStatusResponse = {
+    ...last,
+    jobs,
+    progress: {
+      ...last.progress,
+      percent: 100,
+      done: jobs.length,
+      running: 0,
+      failed: jobs.filter(isFailedJob).length,
+      completed: jobs.filter(isSucceededJob).length,
+    },
+  };
+  const anySuccess = jobs.some(isSucceededJob);
+  const anyFailed = jobs.some(isFailedJob);
+  if (anySuccess && anyFailed) recovered.status = 'completed_with_errors';
+  else if (anySuccess) recovered.status = 'completed';
+  else recovered.status = 'failed';
+  return recovered;
+}
+
 export function buildSyncOutcomePresentation(
   outcome: RatesSyncStatusResponse,
 ): SyncOutcomePresentation {
+  outcome = normalizeSyncOutcome(outcome);
   const failedJobs = outcome.jobs.filter(isFailedJob);
   const cancelledJobs = outcome.jobs.filter((j) => j.status === 'cancelled');
   const jobsWithLogs = outcome.jobs.filter((j) => (j.execution_logs?.length ?? 0) > 0);

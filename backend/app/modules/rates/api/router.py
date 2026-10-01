@@ -24,12 +24,19 @@ from app.modules.rates.application import (
     get_rates_sync_status,
     start_rates_sync,
 )
+from app.modules.rates.application.monthly import (
+    get_monthly_rates_state,
+    launch_monthly_sync,
+    set_monthly_auto_enabled,
+)
 from app.modules.rates.application.payslip_edit_lock import (
     get_payslip_edit_lock_settings,
     save_payslip_edit_lock_settings,
 )
 from app.modules.rates.schemas.requests import (
     ManualRateUpdateRequest,
+    MonthlyRatesRunRequest,
+    MonthlyRatesUpdateRequest,
     PayslipEditLockUpdateRequest,
     RatesSyncRequest,
 )
@@ -150,6 +157,67 @@ def patch_payslip_edit_lock_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logging.exception("❌ Erreur mise à jour payslip-edit-lock : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/monthly")
+def get_monthly_rates_endpoint(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """État du lot mensuel (heure de Paris), partagé par toutes les instances."""
+    try:
+        _require_rh_or_admin(current_user)
+        return get_monthly_rates_state()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("❌ Erreur lecture mise à jour mensuelle des taux : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/monthly")
+def patch_monthly_rates_endpoint(
+    body: MonthlyRatesUpdateRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Active ou coupe la mise à jour automatique du début de mois."""
+    try:
+        _require_rh_or_admin(current_user)
+        return set_monthly_auto_enabled(body.enabled)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception("❌ Erreur interrupteur mensuel des taux : %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/monthly/run")
+def run_monthly_rates_endpoint(
+    background_tasks: BackgroundTasks,
+    body: MonthlyRatesRunRequest | None = None,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Lance le lot du mois, ou se rattache au run déjà en cours."""
+    try:
+        _require_rh_or_admin(current_user)
+        payload = body or MonthlyRatesRunRequest()
+        return launch_monthly_sync(
+            triggered_by=str(current_user.id),
+            background_task_fn=background_tasks.add_task,
+            trigger="page",
+            force=payload.force,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        msg = str(e)
+        if "déjà en cours" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg)
+        if "Aucune source" in msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+    except Exception as e:
+        logging.exception("❌ Erreur lancement mensuel des taux : %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

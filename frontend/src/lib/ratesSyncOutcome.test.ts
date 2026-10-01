@@ -4,6 +4,8 @@ import type { RatesSyncStatusResponse } from '@/api/rates';
 import {
   buildSyncOutcomePresentation,
   humanizeSyncError,
+  normalizeSyncOutcome,
+  recoverInterruptedSync,
 } from '@/lib/ratesSyncOutcome';
 
 describe('humanizeSyncError', () => {
@@ -90,5 +92,50 @@ describe('buildSyncOutcomePresentation', () => {
     expect(p.summary).toContain('SMIC');
     expect(p.summary).toContain('PSS');
     expect(p.summary).toContain('Plafonds IJSS');
+  });
+
+  it('présente un échec partiel comme une mise à jour partielle', () => {
+    const mixed = normalizeSyncOutcome({
+      ...base,
+      status: 'failed',
+      jobs: [
+        ...base.jobs,
+        {
+          source_key: 'smic',
+          source_name: 'SMIC',
+          job_id: 'j2',
+          status: 'completed',
+          success: true,
+        },
+      ],
+    });
+    expect(mixed.status).toBe('completed_with_errors');
+    expect(buildSyncOutcomePresentation(mixed).tone).toBe('warning');
+  });
+
+  it('conserve les taux déjà récupérés quand le suivi est perdu', () => {
+    const recovered = recoverInterruptedSync({
+      ...base,
+      status: 'running',
+      jobs: [
+        {
+          source_key: 'smic',
+          source_name: 'SMIC',
+          job_id: 'j2',
+          status: 'completed',
+          success: true,
+        },
+        {
+          source_key: 'pss',
+          source_name: 'PSS',
+          job_id: 'j1',
+          status: 'running',
+        },
+      ],
+    });
+    expect(recovered.status).toBe('completed_with_errors');
+    expect(recovered.jobs.find((job) => job.source_key === 'smic')?.success).toBe(true);
+    expect(buildSyncOutcomePresentation(recovered).tone).toBe('warning');
+    expect(buildSyncOutcomePresentation(recovered).title).toBe('Mise à jour partielle');
   });
 });

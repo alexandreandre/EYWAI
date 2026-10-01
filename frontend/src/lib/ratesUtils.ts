@@ -90,16 +90,6 @@ export function countChangedCategories(
   return changed;
 }
 
-export {
-  clearMonthlyAutoSyncDone,
-  currentMonthKey,
-  getMonthlyAutoSyncState,
-  isMonthlyAutoSyncEnabled,
-  markMonthlyAutoSyncDone,
-  setMonthlyAutoSyncEnabled,
-  shouldAutoStartMonthlySync,
-} from '@/lib/ratesMonthlyAuto';
-
 export function parseRatesError(error: unknown): { message: string; status?: number } {
   const status = getApiErrorStatus(error);
   const detail = sanitizeBackendMessage(
@@ -109,6 +99,13 @@ export function parseRatesError(error: unknown): { message: string; status?: num
     return { message: 'Accès réservé aux RH et administrateurs.', status };
   }
   if (status === 404) {
+    if (detail && /synchronisation non trouv/i.test(detail)) {
+      return {
+        message:
+          'Le suivi de la mise à jour a été interrompu. Les taux déjà récupérés restent affichés.',
+        status,
+      };
+    }
     return {
       message:
         detail && (detail.includes('configuration') || detail.includes('source'))

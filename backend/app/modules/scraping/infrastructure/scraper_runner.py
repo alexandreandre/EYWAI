@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -414,10 +415,11 @@ def run_scraper_script(
         process.pid,
     )
     with logs_lock:
-        logs.append(f"Processus lancé (pid {process.pid})")
+        logs.append(f"Processus lancé (pid {process.pid}) sur {socket.gethostname()}")
     update_logs_in_db()
 
     stop_heartbeat = threading.Event()
+    remote_cancelled = threading.Event()
 
     def _progress_heartbeat() -> None:
         while not stop_heartbeat.wait(_HEARTBEAT_INTERVAL_SEC):
@@ -442,6 +444,18 @@ def run_scraper_script(
                     should_flush = True
             if should_flush:
                 update_logs_in_db()
+            try:
+                remote = repo.get_job_logs_fields(job_id)
+            except Exception:
+                remote = None
+            if remote and str(remote.get("status") or "").lower() == "cancelled":
+                remote_cancelled.set()
+                if process.poll() is None:
+                    try:
+                        process.kill()
+                    except Exception as exc:
+                        logger.warning("Arrêt distant du job %s: %s", job_id, exc)
+                break
 
     heartbeat_thread = threading.Thread(target=_progress_heartbeat, daemon=True)
     heartbeat_thread.start()
@@ -489,7 +503,7 @@ def run_scraper_script(
     finally:
         stop_heartbeat.set()
         if not was_cancelled:
-            was_cancelled = is_job_cancel_requested(job_id)
+            was_cancelled = is_job_cancel_requested(job_id) or remote_cancelled.is_set()
         with _process_lock:
             _ACTIVE_PROCESSES.pop(job_id, None)
         clear_cancel_request(job_id)

@@ -1,61 +1,52 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-  clearMonthlyAutoSyncDone,
-  getMonthlyAutoSyncState,
-  markMonthlyAutoSyncDone,
-  setMonthlyAutoSyncEnabled,
-  shouldAutoStartMonthlySync,
-  type MonthlyAutoSyncState,
-} from '@/lib/ratesMonthlyAuto';
+  fetchMonthlyRatesState,
+  updateMonthlyRatesEnabled,
+  type MonthlyRatesRun,
+} from '@/api/rates';
+import { queryKeys } from '@/lib/queryKeys';
+
+export type MonthlyAutoSyncState = {
+  enabled: boolean;
+  statusLabel: string;
+  showRun: boolean;
+  showRestart: boolean;
+  runButtonLabel: string;
+  run: MonthlyRatesRun | null;
+};
 
 export function useRatesMonthlyAuto() {
-  const [state, setState] = useState<MonthlyAutoSyncState>(() => getMonthlyAutoSyncState());
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: queryKeys.ratesMonthly(),
+    queryFn: fetchMonthlyRatesState,
+  });
+  const data = query.data;
 
-  const refresh = useCallback(() => {
-    setState(getMonthlyAutoSyncState());
-  }, []);
+  const mutation = useMutation({
+    mutationFn: updateMonthlyRatesEnabled,
+    onSuccess: (next) => {
+      queryClient.setQueryData(queryKeys.ratesMonthly(), next);
+    },
+  });
 
-  const pause = useCallback(() => {
-    setMonthlyAutoSyncEnabled(false);
-    refresh();
-  }, [refresh]);
-
-  const resume = useCallback(() => {
-    setMonthlyAutoSyncEnabled(true);
-    refresh();
-  }, [refresh]);
-
-  const markDone = useCallback(() => {
-    markMonthlyAutoSyncDone();
-    refresh();
-  }, [refresh]);
-
-  const resetCycle = useCallback(() => {
-    clearMonthlyAutoSyncDone();
-    refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (
-        e.key === 'rates_monthly_auto_enabled' ||
-        e.key === 'rates_auto_sync_month'
-      ) {
-        refresh();
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [refresh]);
+  const state: MonthlyAutoSyncState = {
+    enabled: data?.enabled ?? true,
+    statusLabel: query.isError
+      ? 'Planification indisponible pour le moment.'
+      : (data?.status_label ?? 'Chargement de la planification…'),
+    showRun: Boolean(data?.show_run),
+    showRestart: Boolean(data?.show_restart),
+    runButtonLabel: data?.run_button_label ?? 'Lancer la mise à jour du mois',
+    run: data?.run ?? null,
+  };
 
   return {
     state,
-    refresh,
-    pause,
-    resume,
-    markDone,
-    resetCycle,
-    shouldAutoStart: shouldAutoStartMonthlySync(),
+    refresh: () => {
+      void query.refetch();
+    },
+    setEnabled: mutation.mutateAsync,
   };
 }

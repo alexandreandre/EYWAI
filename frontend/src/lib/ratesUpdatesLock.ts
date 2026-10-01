@@ -7,10 +7,10 @@
  * n'est pas passé côté serveur (cron mensuel du lot « Taux »), personne ne doit
  * pouvoir le lancer depuis l'interface.
  *
- * Ce verrou ne couvre QUE les boutons. Le déclenchement automatique du 1er du
- * mois (le `useEffect` de la page) reste actif volontairement : c'est
- * aujourd'hui le seul mécanisme qui rafraîchit les taux. Pour le couper aussi,
- * c'est l'interrupteur « Mise à jour automatique le 1er du mois » de la page.
+ * Ce verrou ne couvre QUE les boutons de mise à jour ciblée ou complète.
+ * Le lot du mois est lancé par le cron (1er au 3, matin, heure de Paris),
+ * pas par l'ouverture de la page. L'interrupteur et « Réessayer » passent
+ * par le même verrou serveur.
  *
  * Pour lever le verrou : passer la constante à `false`.
  */
