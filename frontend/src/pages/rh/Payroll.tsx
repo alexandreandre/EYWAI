@@ -40,7 +40,7 @@ import {
   montantsDepuisLigne,
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
-import { lireNouveauSalarie, mettreEnTeteDeListe } from '@/features/employees/utils/creationSalarie';
+import { lireNouveauSalarie, salariesAvecNouveauEnTete } from '@/features/employees/utils/creationSalarie';
 
 type PayrollView = 'employee' | 'month';
 
@@ -150,17 +150,17 @@ export default function Payroll() {
   // Un parti reste visible sur les mois où il était présent : toute l'année
   // en vue salarié, le mois choisi en vue mois (salarié 086, sorti le 24/07 :
   // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
+  const idNouveau = lireNouveauSalarie();
   const employees = useMemo(
     () =>
-      mettreEnTeteDeListe(
+      salariesAvecNouveauEnTete(
         employeesTous.filter((e) =>
           view === 'month'
             ? isPresentDuringMonth(e, selectedYear, selectedMonth)
             : isPresentDuringMonth(e, selectedYear, 1)
         ),
-        lireNouveauSalarie(),
       ),
-    [employeesTous, view, selectedYear, selectedMonth]
+    [employeesTous, view, selectedYear, selectedMonth, idNouveau]
   );
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);

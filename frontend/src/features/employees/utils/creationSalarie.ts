@@ -302,6 +302,23 @@ export function mettreEnTeteDeListe<T extends { id: string }>(liste: T[], idNouv
   return [nouveau, ...copie];
 }
 
+export function salariesAvecNouveauEnTete<T extends { id: string }>(
+  liste: T[],
+  maintenant = Date.now(),
+): T[] {
+  return mettreEnTeteDeListe(liste, lireNouveauSalarie(maintenant));
+}
+
+/** Mémoriser avant d’invalider : sinon le refetch rend une liste sans badge ni tête. */
+export async function apresCreation(
+  id: string,
+  memoriser: (id: string) => void,
+  recharger: () => void | Promise<void>,
+): Promise<void> {
+  memoriser(id);
+  await recharger();
+}
+
 const IBAN = /\bFR\d{2}[\s\d]{10,}\b/gi;
 const EMAIL = /\b[\w.+-]+@[\w.-]+\.\w+\b/gi;
 const NIR = /\b[12]\s?\d{2}[\s\d]{10,}\b/g;

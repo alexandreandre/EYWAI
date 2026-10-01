@@ -38,6 +38,7 @@ import {
   estErreurValidationInattendue,
   fusionnerExtractionContrat,
   memoriserNouveauSalarie,
+  apresCreation,
   pastillesParOnglet,
   raisonEchecCreation,
   saisieNonEnregistree,
@@ -780,8 +781,11 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
     setGeneratePdfContract(false);
     setIdentityDocumentType("identity"); // Réinitialiser le type de document
     setUploadedIdFile(null); // Réinitialiser le fichier uploadé
-    await fetchEmployees();
-    memoriserNouveauSalarie(String((response.data as NouveauSalarieCree).id));
+    await apresCreation(
+      String((response.data as NouveauSalarieCree).id),
+      memoriserNouveauSalarie,
+      fetchEmployees,
+    );
     // Ce qui a été posé et ce qui reste à faire, plutôt qu'une alerte à fermer.
     setCree(response.data as NouveauSalarieCree);
 

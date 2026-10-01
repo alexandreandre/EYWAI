@@ -24,7 +24,7 @@ import { CreateEmployeeForm } from "@/features/employees/components/CreateEmploy
 import {
   EmployeesTableRow,
 } from "@/features/employees/components/EmployeesTableRow";
-import { lireNouveauSalarie, mettreEnTeteDeListe } from "@/features/employees/utils/creationSalarie";
+import { salariesAvecNouveauEnTete } from "@/features/employees/utils/creationSalarie";
 
 export default function Employees() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -92,7 +92,7 @@ export default function Employees() {
 
   const navigate = useNavigate();
 
-  const filteredEmployees = mettreEnTeteDeListe(
+  const filteredEmployees = salariesAvecNouveauEnTete(
     employees.filter((emp) => {
       const matchesSearch = `${emp.first_name} ${emp.last_name} ${emp.nom_usage ?? ''}`
         .toLowerCase()
@@ -112,7 +112,6 @@ export default function Employees() {
         !trialEndingFilter || emp.trial_period_status === "ending_soon";
       return matchesSearch && matchesStatus && matchesDeadlines && matchesTrialEnding;
     }),
-    lireNouveauSalarie(),
   );
 
   const tableScrollRef = useRef<HTMLDivElement>(null);

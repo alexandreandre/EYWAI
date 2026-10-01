@@ -7,7 +7,8 @@ import {
   emailHtmlInvalide,
   estErreurValidationInattendue,
   fusionnerExtractionContrat,
-  lireNouveauSalarie,
+  apresCreation,
+  estNouveauSalarie,
   memoriserNouveauSalarie,
   MENTION_RIB_A_COMPLETER,
   MESSAGE_FERMETURE_SANS_ENREGISTRER,
@@ -18,6 +19,7 @@ import {
   pastillesParOnglet,
   raisonEchecCreation,
   saisieNonEnregistree,
+  salariesAvecNouveauEnTete,
   texteDuBoutonCreation,
 } from './creationSalarie';
 
@@ -186,17 +188,47 @@ describe('RIB facultatif et liste', () => {
     );
   });
 
-  it('le salarié créé passe en tête, avec le badge Nouveau', () => {
-    memoriserNouveauSalarie('id-nouveau', 1_000);
-    expect(lireNouveauSalarie(1_000)).toBe('id-nouveau');
+  it('le salarié créé passe en tête, les autres gardent leur ordre', () => {
     const liste = mettreEnTeteDeListe(
       [
-        { id: 'a', last_name: 'A' },
-        { id: 'id-nouveau', last_name: 'B' },
+        { id: 'a' },
+        { id: 'b' },
+        { id: 'id-nouveau' },
+        { id: 'c' },
       ],
       'id-nouveau',
     );
-    expect(liste[0].id).toBe('id-nouveau');
+    expect(liste.map((e) => e.id)).toEqual(['id-nouveau', 'a', 'b', 'c']);
+  });
+
+  it('le tri de la liste lit la mémoire, pas un id passé à part', () => {
+    memoriserNouveauSalarie('id-nouveau', 1_000);
+    expect(salariesAvecNouveauEnTete([{ id: 'a' }, { id: 'id-nouveau' }, { id: 'c' }], 1_000).map((e) => e.id)).toEqual(
+      ['id-nouveau', 'a', 'c'],
+    );
+    expect(estNouveauSalarie('id-nouveau', 1_000)).toBe(true);
+  });
+
+  it('mémorise l’id avant de recharger, sinon le nouveau n’est pas en tête', async () => {
+    const ordre: string[] = [];
+    let teteAuRechargement: string[] = [];
+    await apresCreation(
+      'id-nouveau',
+      (id) => {
+        ordre.push('memoriser');
+        memoriserNouveauSalarie(id, 1_000);
+      },
+      () => {
+        ordre.push('recharger');
+        teteAuRechargement = salariesAvecNouveauEnTete(
+          [{ id: 'ancien' }, { id: 'id-nouveau' }],
+          1_000,
+        ).map((e) => e.id);
+      },
+    );
+    expect(ordre).toEqual(['memoriser', 'recharger']);
+    expect(teteAuRechargement).toEqual(['id-nouveau', 'ancien']);
+    expect(estNouveauSalarie('id-nouveau', 1_000)).toBe(true);
   });
 });
 
