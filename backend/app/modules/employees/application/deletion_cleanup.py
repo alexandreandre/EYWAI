@@ -131,13 +131,25 @@ def _remove_storage_paths(bucket: str, paths: List[str]) -> None:
         logger.warning("Storage remove %s: %s", bucket, exc)
 
 
+_LIST_PAGE = 100
+_LIST_MAX_PAGES = 100
+
+
 def _remove_storage_folder(bucket: str, prefix: str) -> None:
+    """Retire les fichiers du dossier ; le stockage les liste par pages de 100."""
+    entries: list[dict[str, Any]] = []
     try:
-        entries = supabase.storage.from_(bucket).list(prefix)
+        for page in range(_LIST_MAX_PAGES):
+            batch = supabase.storage.from_(bucket).list(
+                prefix, {"limit": _LIST_PAGE, "offset": page * _LIST_PAGE}
+            )
+            if not isinstance(batch, list):
+                break
+            entries.extend(batch)
+            if len(batch) < _LIST_PAGE:
+                break
     except Exception as exc:
         logger.warning("Storage list %s/%s: %s", bucket, prefix, exc)
-        return
-    if not isinstance(entries, list):
         return
     paths = [f"{prefix}/{item['name']}" for item in entries if item.get("name")]
     _remove_storage_paths(bucket, paths)
@@ -161,6 +173,9 @@ def cleanup_employee_storage(company_id: str, employee_id: str) -> None:
         )
     except Exception as exc:
         logger.warning("Payslip storage cleanup: %s", exc)
+    # PDF remplacés dont le retrait a échoué, versions archivées : la colonne
+    # ne les connaît plus, le dossier si.
+    _remove_storage_folder(_PAYSLIPS_BUCKET, f"{prefix}/bulletins")
 
     try:
         doc_rows = (
