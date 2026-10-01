@@ -223,6 +223,18 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
     );
     expect(etape(autreChamp, ETAPE_RIB).etat).toBe('fait');
   });
+
+  it('un salarié hors actifs n’est pas dans la revue pré-paie : calendriers et conflits à confirmer', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        salaries: [{ ...JEANNE, employment_status: 'en_sortie' }, PAUL],
+        calendriersASaisir: OK([]),
+        conflitsArret: OK([]),
+      })
+    );
+    expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('a_confirmer');
+    expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('a_confirmer');
+  });
 });
 
 describe('actions en attente', () => {

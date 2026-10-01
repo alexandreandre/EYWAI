@@ -28,6 +28,9 @@ export const ETAPE_RIB = 'rib';
 export const MESSAGE_ABSENCES_A_CONFIRMER =
   'Le logiciel ne peut pas vérifier que toutes les absences du mois sont saisies. Confirmez-le vous-même dans Congés & absences.';
 
+export const MESSAGE_REVUE_ACTIFS_SEULEMENT =
+  'Le contrôle automatique ne porte que les salariés actifs. Vérifiez aussi les sorties et les embauches en cours.';
+
 export type EtatEtape = 'fait' | 'a_faire' | 'a_confirmer' | 'inconnu';
 
 export type Lecture<T> =
@@ -88,6 +91,11 @@ function idsDuMois(ids: readonly string[], salaries: readonly SalariePourListeCo
   return ids.filter((id) => connus.has(id));
 }
 
+/** La revue pré-paie ne lit que `employment_status = actif`. */
+function aDesSalariesHorsRevue(salaries: readonly SalariePourListeControle[]): boolean {
+  return salaries.some((s) => (s.employment_status || 'actif').trim().toLowerCase() !== 'actif');
+}
+
 function etatDepuisLecture<T>(
   lecture: Lecture<T>,
   quandOk: (valeur: T) => { etat: EtatEtape; detail: string }
@@ -119,6 +127,9 @@ function etapeCalendriers(
   return etatDepuisLecture(lecture, (ids) => {
     const n = idsDuMois(ids, salaries).length;
     if (n === 0) {
+      if (aDesSalariesHorsRevue(salaries)) {
+        return { etat: 'a_confirmer', detail: MESSAGE_REVUE_ACTIFS_SEULEMENT };
+      }
       return { etat: 'fait', detail: 'Tous les calendriers du mois sont complets.' };
     }
     return {
@@ -139,6 +150,9 @@ function etapeConflits(
   return etatDepuisLecture(lecture, (ids) => {
     const n = idsDuMois(ids, salaries).length;
     if (n === 0) {
+      if (aDesSalariesHorsRevue(salaries)) {
+        return { etat: 'a_confirmer', detail: MESSAGE_REVUE_ACTIFS_SEULEMENT };
+      }
       return { etat: 'fait', detail: 'Aucune heure saisie un jour d’arrêt.' };
     }
     return {
