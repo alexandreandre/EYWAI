@@ -156,6 +156,10 @@ export interface PayslipInfo {
   points_a_arbitrer?: string[];
   /** « importe » : bulletin repris de l'ancien logiciel à la bascule — intouchable. */
   origine?: 'calcule' | 'importe' | string;
+  /** true = calendrier ou absences changés depuis le calcul ; false = à jour ; null = inconnu. */
+  a_recalculer?: boolean | null;
+  salaire_brut?: number | null;
+  heures_sup?: number | null;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
@@ -244,6 +248,8 @@ export interface PayslipDetail {
   updated_at?: string | null;
   /** Le mois précédent a changé depuis le calcul : phrase à afficher, sinon null. */
   a_regenerer?: string | null;
+  /** true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte). */
+  a_recalculer?: boolean | null;
   /** Exports déjà faits pour le mois (vide pour le salarié). */
   exports_du_mois?: ExportDuMois[];
 }
@@ -511,6 +517,9 @@ export const generatePayslip = async (
   download_url: string;
   payslip_id?: string | null;
   warnings?: PayslipGenerationWarning[];
+  salaire_brut?: number | null;
+  net_a_payer?: number | null;
+  heures_sup?: number | null;
 }> => {
   const response = await apiClient.post('/api/actions/generate-payslip', data, {
     signal,

@@ -28,6 +28,11 @@ import {
   clesAutourDesBulletins,
   invaliderCles,
 } from '@/features/payroll/utils/invalidationsBulletin';
+import {
+  libelleToastRecalcul,
+  montantsDepuisReponse,
+  type MontantsBulletin,
+} from '@/features/payroll/utils/bulletinARecalculer';
 
 export type PayrollGenerationJob = {
   employeeId: string;
@@ -38,6 +43,8 @@ export type PayrollGenerationJob = {
   forceCalendrierIncomplet?: boolean;
   /** Reposte avec `regenerer_bulletin_valide` (après refus 409 confirmé). */
   regenererBulletinValide?: boolean;
+  /** Montants lus sur la ligne avant le recalcul : le toast compare avant → après. */
+  montantsAvant?: MontantsBulletin;
 };
 
 /** Job refusé par une garde backend (422 calendrier / 409 bulletin validé). */
@@ -199,7 +206,8 @@ export function usePayrollGeneration() {
                 ? { regenerer_bulletin_valide: true }
                 : {}),
             },
-            controller.signal
+            controller.signal,
+            companyId
           );
 
           const duration = Date.now() - jobStartRef.current;
@@ -230,6 +238,11 @@ export function usePayrollGeneration() {
               infos: infos.length > 0 ? infos : undefined,
               error: warnings.length > 0 ? warnings.join(' · ') : undefined,
             };
+            if (job.montantsAvant) {
+              toast({
+                ...libelleToastRecalcul(job.montantsAvant, montantsDepuisReponse(response)),
+              });
+            }
             setFailedJobs((prev) => {
               const next = { ...prev };
               delete next[payrollJobKey(job)];

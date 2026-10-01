@@ -16,6 +16,7 @@ import {
 import { DocumentFileRow, DownloadLinkButton, ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import type { PayslipInfo } from '@/api/payslips';
 import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
+import { estPerime } from '@/features/payroll/utils/bulletinARecalculer';
 import {
   hasNetSuperieurBrutWarning,
   isNetSuperieurBrutWarning,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/payslipNetBrutAlert';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
-import { Edit, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Edit, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
 
@@ -77,6 +78,7 @@ export function PayrollPayslipRow({
   // Bulletin repris de l'ancien logiciel : les actions restent visibles mais
   // grisées, le motif au survol (demande d'Alexandre, 21/09).
   const importe = estBulletinImporte(payslip);
+  const perime = estPerime(payslip);
   const companyId = useActiveCompanyId();
   const netNegatif = (payslip?.net_a_payer ?? 0) < 0;
 
@@ -116,6 +118,15 @@ export function PayrollPayslipRow({
       {importe && (
         <Badge variant="outline" className="text-muted-foreground" title={MOTIF_BULLETIN_IMPORTE}>
           Importé
+        </Badge>
+      )}
+      {perime && (
+        <Badge
+          variant="outline"
+          className="border-amber-200 bg-amber-50 text-amber-800"
+          data-testid="badge-a-recalculer"
+        >
+          À recalculer
         </Badge>
       )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (
@@ -158,6 +169,12 @@ export function PayrollPayslipRow({
             </Link>
           </Button>
         )}
+        {perime ? (
+          <Button size="sm" variant="outline" onClick={onGenerate} data-testid="recalculer-ligne">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Recalculer
+          </Button>
+        ) : null}
         <ReportNetNegatif
           payslipId={payslip.id}
           companyId={companyId}

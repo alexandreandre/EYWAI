@@ -34,6 +34,11 @@ import {
 import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import { messageDeSuppression } from '@/features/payroll/utils/suppressionBulletin';
+import {
+  jobsDesBulletinsPerimes,
+  jobsDesLignesPerimes,
+  montantsDepuisLigne,
+} from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 
 type PayrollView = 'employee' | 'month';
@@ -317,15 +322,19 @@ export default function Payroll() {
   const enqueueGeneration = useCallback(
     (months: number[]) => {
       if (!selectedEmployee || months.length === 0) return;
-      const jobs = months.map((month) => ({
-        employeeId: selectedEmployee.id,
-        employeeName: employeeDisplayName(selectedEmployee),
-        year: selectedYear,
-        month,
-      }));
+      const jobs = months.map((month) => {
+        const payslip = payslipsForYear.find((p) => p.month === month);
+        return {
+          employeeId: selectedEmployee.id,
+          employeeName: employeeDisplayName(selectedEmployee),
+          year: selectedYear,
+          month,
+          ...(payslip ? { montantsAvant: montantsDepuisLigne(payslip) } : {}),
+        };
+      });
       generation.generateJobs(jobs);
     },
-    [selectedEmployee, selectedYear, generation]
+    [selectedEmployee, selectedYear, payslipsForYear, generation]
   );
 
   const handleGenerateMonth = useCallback(
@@ -343,16 +352,20 @@ export default function Payroll() {
       const emp = employees.find((e) => e.id === employeeId);
       if (!emp) return;
       if (payrollGenerationBlockReason(emp, selectedYear, selectedMonth)) return;
+      const payslip = (payslipsByEmployee[emp.id] ?? []).find(
+        (p) => p.year === selectedYear && p.month === selectedMonth
+      );
       generation.generateJobs([
         {
           employeeId: emp.id,
           employeeName: employeeDisplayName(emp),
           year: selectedYear,
           month: selectedMonth,
+          ...(payslip ? { montantsAvant: montantsDepuisLigne(payslip) } : {}),
         },
       ]);
     },
-    [employees, selectedYear, selectedMonth, generation]
+    [employees, payslipsByEmployee, selectedYear, selectedMonth, generation]
   );
 
   const handleGenerateWholeMonth = useCallback(() => {
@@ -367,6 +380,29 @@ export default function Payroll() {
     if (jobs.length === 0) return;
     generation.generateJobs(jobs);
   }, [monthEmployeeStates, selectedYear, selectedMonth, generation]);
+
+  const jobsPerimesDuMois = useMemo(
+    () => jobsDesBulletinsPerimes(employees, payslipsByEmployee, selectedYear, selectedMonth),
+    [employees, payslipsByEmployee, selectedYear, selectedMonth]
+  );
+
+  const jobsPerimesDuSalarie = useMemo(
+    () =>
+      selectedEmployee
+        ? jobsDesLignesPerimes(selectedEmployee, payslipsForYear)
+        : [],
+    [selectedEmployee, payslipsForYear]
+  );
+
+  const handleRecalculerPerimesMois = useCallback(() => {
+    if (jobsPerimesDuMois.length === 0) return;
+    generation.generateJobs(jobsPerimesDuMois);
+  }, [jobsPerimesDuMois, generation]);
+
+  const handleRecalculerPerimesSalarie = useCallback(() => {
+    if (jobsPerimesDuSalarie.length === 0) return;
+    generation.generateJobs(jobsPerimesDuSalarie);
+  }, [jobsPerimesDuSalarie, generation]);
 
   const handleDeletePayslip = useCallback(
     async (payslipId: string, employeeId?: string) => {
@@ -476,6 +512,8 @@ export default function Payroll() {
               onYearChange={setSelectedYear}
               missingMonthsCount={missingMonthsCount}
               onGenerateYear={handleGenerateYear}
+              perimesCount={jobsPerimesDuSalarie.length}
+              onRecalculerPerimes={handleRecalculerPerimesSalarie}
               detailLoading={loadingPayslipsInitial}
               loadingEmployees={loadingEmployees}
               progressSlot={progressSlot}
@@ -507,6 +545,8 @@ export default function Payroll() {
               missingCount={monthMissingCount}
               onGenerateEmployee={handleGenerateEmployeeForMonth}
               onGenerateMonth={handleGenerateWholeMonth}
+              perimesCount={jobsPerimesDuMois.length}
+              onRecalculerPerimes={handleRecalculerPerimesMois}
               onDeletePayslip={handleDeletePayslip}
               deletingPayslipId={deletingPayslipId}
               loadingEmployees={loadingEmployees}

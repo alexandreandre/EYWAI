@@ -14,11 +14,12 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
-import { Rocket, Search, Users } from 'lucide-react';
+import { RefreshCw, Rocket, Search, Users } from 'lucide-react';
 import {
   PayrollEmployeeListSkeleton,
   PayrollMonthListSkeleton,
 } from '@/features/payroll/components/PayrollSkeletons';
+import { libelleBoutonRecalculerTout } from '@/features/payroll/utils/bulletinARecalculer';
 
 export type PayrollEmployeeExplorerProps = {
   employees: EmployeeListItem[];
@@ -30,6 +31,8 @@ export type PayrollEmployeeExplorerProps = {
   onYearChange: (year: number) => void;
   missingMonthsCount: number;
   onGenerateYear: () => void;
+  perimesCount?: number;
+  onRecalculerPerimes?: () => void;
   detailLoading?: boolean;
   loadingEmployees: boolean;
   progressSlot?: ReactNode;
@@ -68,6 +71,8 @@ export function PayrollEmployeeExplorer({
   onYearChange,
   missingMonthsCount,
   onGenerateYear,
+  perimesCount = 0,
+  onRecalculerPerimes,
   detailLoading = false,
   loadingEmployees,
   progressSlot,
@@ -236,6 +241,19 @@ export function PayrollEmployeeExplorer({
           </SelectContent>
         </Select>
       </div>
+      {perimesCount > 0 && onRecalculerPerimes && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={detailLoading}
+          onClick={onRecalculerPerimes}
+          data-testid="recalculer-tout-ce-qui-a-change"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          {libelleBoutonRecalculerTout(perimesCount)}
+        </Button>
+      )}
       {missingMonthsCount > 0 && (
         <Button
           size="sm"

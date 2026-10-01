@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
-import { CalendarDays, Rocket, Search } from 'lucide-react';
+import { CalendarDays, RefreshCw, Rocket, Search } from 'lucide-react';
 import {
   monthLabel,
   monthYearLabel,
@@ -28,6 +28,7 @@ import {
   type PayslipRowState,
 } from '@/features/payroll/components/PayrollPayslipRow';
 import { ReportsNetNegatifDuMois } from '@/features/payroll/components/ReportNetNegatif';
+import { libelleBoutonRecalculerTout } from '@/features/payroll/utils/bulletinARecalculer';
 
 export type EmployeeMonthState = {
   employee: EmployeeListItem;
@@ -49,6 +50,8 @@ export type PayrollMonthExplorerProps = {
   missingCount: number;
   onGenerateEmployee: (employeeId: string) => void;
   onGenerateMonth: () => void;
+  perimesCount?: number;
+  onRecalculerPerimes?: () => void;
   onDeletePayslip: (payslipId: string, employeeId: string) => void;
   deletingPayslipId: string | null;
   loadingEmployees: boolean;
@@ -76,6 +79,8 @@ export function PayrollMonthExplorer({
   missingCount,
   onGenerateEmployee,
   onGenerateMonth,
+  perimesCount = 0,
+  onRecalculerPerimes,
   onDeletePayslip,
   deletingPayslipId,
   loadingEmployees,
@@ -160,6 +165,19 @@ export function PayrollMonthExplorer({
           </SelectContent>
         </Select>
       </div>
+      {perimesCount > 0 && onRecalculerPerimes && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={loadingPayslips || totalEmployees === 0}
+          onClick={onRecalculerPerimes}
+          data-testid="recalculer-tout-ce-qui-a-change"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          {libelleBoutonRecalculerTout(perimesCount)}
+        </Button>
+      )}
       {missingCount > 0 && (
         <Button
           size="sm"

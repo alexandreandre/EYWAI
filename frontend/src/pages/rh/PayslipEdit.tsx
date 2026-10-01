@@ -78,6 +78,10 @@ import {
   type EtatCorrections,
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
+import {
+  estPerime,
+  MESSAGE_A_RECALCULER,
+} from '@/features/payroll/utils/bulletinARecalculer';
 
 const QUESTION_ABANDON = 'Vos corrections ne sont pas enregistrées. Les abandonner ?';
 
@@ -337,7 +341,9 @@ export default function PayslipEdit() {
   const statut = payslip.status ?? 'brouillon';
   const recalculEnAttente = payslip.payslip_data?.recalcul_en_attente ?? null;
   const exportsDuMois = payslip.exports_du_mois ?? [];
-  const validationBloquee = Boolean(recalculEnAttente || payslip.a_regenerer);
+  const validationBloquee = Boolean(
+    recalculEnAttente || payslip.a_regenerer || estPerime(payslip)
+  );
   const lienSaisies = lienVariablesDuMois({
     employeeId: payslip.employee_id,
     year: payslip.year,
@@ -367,6 +373,13 @@ export default function PayslipEdit() {
         <Alert data-testid="a-regenerer">
           <AlertTitle>À régénérer</AlertTitle>
           <AlertDescription>{payslip.a_regenerer}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {estPerime(payslip) ? (
+        <Alert data-testid="a-recalculer">
+          <AlertTitle>À recalculer</AlertTitle>
+          <AlertDescription>{MESSAGE_A_RECALCULER}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -439,7 +452,13 @@ export default function PayslipEdit() {
               className="bg-sky-600 text-white hover:bg-sky-700"
               onClick={() => void valider()}
               disabled={validateBusy || validationBloquee}
-              title={validationBloquee ? 'Régénérez le bulletin avant de le valider' : undefined}
+              title={
+                validationBloquee
+                  ? estPerime(payslip)
+                    ? MESSAGE_A_RECALCULER
+                    : 'Régénérez le bulletin avant de le valider'
+                  : undefined
+              }
             >
               {validateBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Valider le bulletin
