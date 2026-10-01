@@ -492,3 +492,43 @@ class TestPeriodeASaisir:
         assert "01/06 → 21/06" in anomalie.message and "01/06 → 30/06" in anomalie.message
         assert anomalie.fenetre["fin"] == "2026-06-30"
         assert result.counts.fenetre_modifiee == 1
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_heures_saisies_un_jour_d_arret_sont_exposees(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch
+    ):
+        """A2 : la liste de contrôle du mois lit `heures_sur_arret`, pas conflit_absence."""
+        mock_mod_settings.return_value = _default_mod_settings()
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        prevu = _full_june_2026_planned()
+        for jour in prevu:
+            if jour["jour"] == 15:
+                jour.update(type="arret_maladie", heures_prevues=0.0)
+        _configure_supabase(
+            mock_supabase,
+            schedules=[
+                {
+                    "employee_id": EMP_ID,
+                    "planned_calendar": {"calendrier_prevu": prevu},
+                    "actual_hours": {"calendrier_reel": _full_june_2026_actual()},
+                }
+            ],
+        )
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        assert [s.employee_id for s in result.heures_sur_arret] == [EMP_ID]
+        jours = result.heures_sur_arret[0].jours
+        assert any(j.get("jour") == 15 and j.get("heures", 0) > 0 for j in jours)
