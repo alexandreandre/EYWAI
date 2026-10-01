@@ -40,6 +40,8 @@ function surveillerLesEcritures(page: Page) {
   page.on('request', (r) => {
     const url = new URL(r.url());
     if (!url.pathname.startsWith('/api/') || url.pathname.startsWith('/api/auth/')) return;
+    // Journal d'écran : diagnostic, pas une écriture métier.
+    if (url.pathname.startsWith('/api/client-errors')) return;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(r.method())) ecritures.push(`${r.method()} ${url.pathname}`);
   });
   return ecritures;
@@ -86,6 +88,10 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   // 24 h dans le navigateur : les réponses simulées sont bien celles affichées.
   await page.addInitScript(() => localStorage.removeItem('eywai-rq-cache-v2'));
   await seConnecter(page);
+  await page.route('**/api/client-errors', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ status: 204, body: '' });
+  });
   const s = surveiller(page);
   const ecritures = surveillerLesEcritures(page);
 
@@ -99,12 +105,13 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   });
 
   await test.step('créer un salarié depuis la page Paie', async () => {
+    const idNouveau = '00000000-0000-4000-8000-000000000081';
     await page.route('**/api/employees', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       await route.fulfill({
         status: 201,
         json: {
-          id: '00000000-0000-4000-8000-000000000081',
+          id: idNouveau,
           username: 'jeanne.essai',
           first_name: 'Jeanne',
           last_name: 'Essai',
@@ -116,23 +123,57 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
         },
       });
     });
+    await page.route('**/api/employees/summary**', async (route) => {
+      const reponse = await route.fetch();
+      const liste = (await reponse.json()) as Array<Record<string, unknown>>;
+      await route.fulfill({
+        response: reponse,
+        json: [
+          {
+            id: idNouveau,
+            first_name: 'Jeanne',
+            last_name: 'Essai',
+            job_title: 'Opératrice QA',
+            employment_status: 'en_onboarding',
+            hire_date: '2026-10-01',
+            missing_payroll_fields: ['Coordonnées bancaires (RIB)'],
+          },
+          ...liste.filter((e) => e.id !== idNouveau),
+        ],
+      });
+    });
     await page.goto('/payroll');
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: /nouveau collaborateur/i }).click();
     const fenetre = page.getByRole('dialog', { name: /nouveau collaborateur/i });
     await fenetre.getByLabel(/^prénom/i).fill('Jeanne');
-    await fenetre.getByLabel(/^nom/i).fill('Essai');
-    await fenetre.getByRole('tab', { name: 'Contrat' }).click();
+    await fenetre.getByLabel(/^nom/i).fill('X');
+    await fenetre.getByRole('tab', { name: /contrat/i }).click();
     await fenetre.getByLabel(/date d'entrée/i).fill('2026-10-01');
     await fenetre.getByLabel(/intitulé du poste/i).fill('Opératrice QA');
-    await fenetre.getByRole('tab', { name: 'Rémunération' }).click();
-    await fenetre.getByLabel(/salaire de base mensuel/i).fill('1900');
-    await fenetre.getByRole('button', { name: /enregistrer le collaborateur/i }).click();
+    await fenetre.getByRole('tab', { name: /rémunération/i }).click();
+    await fenetre.getByLabel(/salaire de base mensuel/i).fill('1990.001');
+    const enregistrer = fenetre.getByRole('button', { name: /enregistrer le salarié|information à compléter/i });
+    await enregistrer.click();
+    const reste = page.getByTestId('creation-salarie-reste');
+    await expect(reste).toBeVisible();
+    await expect(reste.getByText(/nom/i)).toBeVisible();
+    await expect(reste.getByText(/Une erreur est survenue/i)).toHaveCount(0);
+    await fenetre.getByRole('tab', { name: /collaborateur/i }).click();
+    await fenetre.getByLabel(/^nom/i).fill('Essai');
+    await page.keyboard.press('Escape');
+    const confirmer = page.getByTestId('creation-salarie-confirmer-fermeture');
+    await expect(confirmer).toBeVisible();
+    await confirmer.getByRole('button', { name: /continuer la saisie/i }).click();
+    await expect(fenetre).toBeVisible();
+    await enregistrer.click();
     const recap = page.getByTestId('recap-nouveau-salarie');
     await expect(recap.getByText('Fiche créée : Jeanne Essai')).toBeVisible({ timeout: 30_000 });
     await expect(recap.getByText('Coordonnées bancaires (RIB)')).toBeVisible();
     await recap.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.getByText('RIB à compléter').first()).toBeVisible();
     await page.unroute('**/api/employees');
+    await page.unroute('**/api/employees/summary**');
   });
 
   const salaries = await test.step('lire la liste paie', () =>
