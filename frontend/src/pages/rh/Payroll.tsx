@@ -531,12 +531,19 @@ export default function Payroll() {
     heures_sur_arret: preflightQuery.data?.heures_sur_arret,
   });
 
+  const lectureSalaries = useMemo((): Lecture<typeof salariesDuMois> => {
+    if (employeesQuery.isError && employeesQuery.data === undefined) return { statut: 'erreur' };
+    if (loadingEmployees) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: salariesDuMois };
+  }, [employeesQuery.isError, employeesQuery.data, loadingEmployees, salariesDuMois]);
+
   const listeControle = useMemo(() => {
     if (loadingEmployees) return null;
     return listeControleDuMois({
       year: selectedYear,
       month: selectedMonth,
       salaries: salariesDuMois,
+      lectureSalaries,
       bulletinsParSalarie: lectureBulletins,
       departs: lectureDeparts,
       calendriersASaisir: lectureCalendriers,
@@ -547,6 +554,7 @@ export default function Payroll() {
     selectedYear,
     selectedMonth,
     salariesDuMois,
+    lectureSalaries,
     lectureBulletins,
     lectureDeparts,
     lectureCalendriers,

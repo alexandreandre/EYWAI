@@ -68,6 +68,7 @@ export type EntreeListeControle = {
   year: number;
   month: number;
   salaries: readonly SalariePourListeControle[];
+  lectureSalaries?: Lecture<readonly SalariePourListeControle[]>;
   bulletinsParSalarie: Lecture<Record<string, LigneBulletinPaie[]>>;
   departs: Lecture<readonly DepartPourSortieGuidee[]>;
   calendriersASaisir: Lecture<readonly string[]>;
@@ -262,38 +263,44 @@ function actionSiNonFaite(
 export function listeControleDuMois(entree: EntreeListeControle): ListeControleMois {
   const { year, month, salaries } = entree;
   const hrefMois = lienMois(year, month);
+  const lectureSalaries = entree.lectureSalaries ?? { statut: 'ok', valeur: salaries };
 
-  const calendriers = {
+  const selonSalaries = (etape: EtapeControle): EtapeControle => {
+    if (lectureSalaries.statut === 'ok') return etape;
+    return { ...etape, ...etatDepuisLecture(lectureSalaries, () => etape) };
+  };
+
+  const calendriers = selonSalaries({
     id: ETAPE_CALENDRIERS,
     libelle: 'Calendriers complets',
     ...etapeCalendriers(entree.calendriersASaisir, salaries),
-  };
-  const conflits = {
+  });
+  const conflits = selonSalaries({
     id: ETAPE_CONFLITS,
     libelle: 'Aucun conflit arrêt / heures',
     ...etapeConflits(entree.conflitsArret, salaries),
-  };
+  });
   const absences: EtapeControle = {
     id: ETAPE_ABSENCES,
     libelle: 'Absences saisies',
     etat: 'a_confirmer',
     detail: MESSAGE_ABSENCES_A_CONFIRMER,
   };
-  const bulletins = {
+  const bulletins = selonSalaries({
     id: ETAPE_BULLETINS,
     libelle: 'Bulletins générés et à jour',
     ...etapeBulletins(entree.bulletinsParSalarie, salaries, year, month),
-  };
-  const sorties = {
+  });
+  const sorties = selonSalaries({
     id: ETAPE_SORTIES,
     libelle: 'Sorties créées',
     ...etapeSorties(entree.departs, salaries, year, month),
-  };
-  const rib = {
+  });
+  const rib = selonSalaries({
     id: ETAPE_RIB,
     libelle: 'RIB renseignés',
     ...etapeRib(salaries),
-  };
+  });
 
   const etapes = [calendriers, conflits, absences, bulletins, sorties, rib];
 
