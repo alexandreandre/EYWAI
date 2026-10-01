@@ -22,7 +22,7 @@ def _row(
         "status": status,
         "created_at": "2026-06-01T10:00:00+00:00",
         "updated_at": "2026-06-01T10:00:00+00:00",
-        "employees": {"first_name": "Fredo", "last_name": "André", "employment_status": "actif"},
+        "employees": {"first_name": "Salarié", "last_name": "Fictif", "employment_status": "actif"},
         "payslip_data": {
             "salaire_brut": brut,
             "net_a_payer": brut * 0.75,
@@ -65,6 +65,45 @@ class TestCollectAnomaliesFiltering:
         )
         types = {item.type for item in out}
         assert "BRUT_NEGATIF" in types
+
+
+class TestNetNegatif:
+    """Le net négatif reste au rapport même bulletin validé : le report est à faire."""
+
+    def _row_net_negatif(self, status: str):
+        row = _row(brut=19.61, status=status)
+        row["payslip_data"]["net_a_payer"] = -115.43
+        row["payslip_data"]["en_tete"] = {"annee": 2026, "mois": 9}
+        return row
+
+    def _anomalies(self, row):
+        return _collect_anomalies_for_row(
+            row,
+            year=2026,
+            month=9,
+            period_closed=False,
+            employee_ctx=EmployeeAnomalyContext(employment_status="actif"),
+        )
+
+    def test_signale_le_net_negatif_sans_bloquer(self):
+        (item,) = [a for a in self._anomalies(self._row_net_negatif("brouillon")) if "NET" in a.type]
+        assert item.type == "NET_NEGATIF"
+        assert item.severite == "avertissement"
+        assert item.message.startswith("Net à payer négatif : −115,43 €.")
+        assert "octobre 2026" in item.suggestion_correction
+
+    def test_reste_visible_sur_un_bulletin_valide(self):
+        types = [a.type for a in self._anomalies(self._row_net_negatif("valide"))]
+        assert types.count("NET_NEGATIF") == 1
+
+    def test_pas_de_doublon_quand_l_alerte_est_persistee(self):
+        row = self._row_net_negatif("brouillon")
+        row["payslip_data"]["alertes_baremes"] = [
+            {"code": "net_a_payer_negatif", "critique": False, "message": "Net à payer négatif : −115,43 €."}
+        ]
+        types = [a.type for a in self._anomalies(row)]
+        assert types.count("NET_NEGATIF") == 1
+        assert "ALERTE_NET_A_PAYER_NEGATIF" not in types
 
 
 class TestDedupeSystemConfigAnomalies:

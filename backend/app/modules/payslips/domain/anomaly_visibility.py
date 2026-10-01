@@ -22,6 +22,10 @@ WARNING_TYPES_WHEN_SETTLED = frozenset(
 )
 
 
+# Le bulletin validé ne règle rien : la somme reste à reprendre le mois suivant.
+TYPES_VISIBLES_APRES_VALIDATION = frozenset({"NET_NEGATIF"})
+
+
 def period_month_index(year: int, month: int) -> int:
     return year * 12 + month
 
@@ -103,7 +107,7 @@ def should_include_anomaly_in_report(
     if employee_ctx.is_definitively_left and period_closed:
         return False
 
-    if payslip_status == "valide":
+    if payslip_status == "valide" and anomaly_type not in TYPES_VISIBLES_APRES_VALIDATION:
         if severite == "avertissement":
             return False
         if anomaly_type.startswith("ALERTE_"):

@@ -22,9 +22,16 @@ from app.modules.payslips.domain.anomaly_visibility import (
     should_include_payslip_in_anomalies_report,
 )
 from app.modules.payslips.domain.comparison_engine import _sum_travail_base_hours, _to_float
+from app.modules.payroll.domain.report_nap_negatif import (
+    CODE_ALERTE as CODE_ALERTE_NET_NEGATIF,
+    euros,
+    mois_en_lettres,
+    mois_suivant,
+)
 from app.modules.payroll.engine.controles_convention import (
     NET_SUPERIEUR_BRUT_MESSAGE,
     extraire_alertes_rh_depuis_bulletin,
+    message_net_negatif_du_bulletin,
 )
 from app.modules.payslips.schemas.anomalies import (
     AnomaliePayslipItem,
@@ -34,6 +41,14 @@ from app.modules.payslips.schemas.anomalies import (
 SMIC_HORAIRE_2024 = 11.65
 TAUX_HORAIRE_MIN = SMIC_HORAIRE_2024 * 0.8
 TAUX_HORAIRE_MAX = 500.0
+
+
+def _suggestion_net_negatif(net: float, year: int, month: int) -> str:
+    suivant = mois_en_lettres(*mois_suivant(year, month))
+    return (
+        f"Reporter {euros(-net)} € sur {suivant} : bouton « Reporter » "
+        "sur la ligne du bulletin ou dans son éditeur."
+    )
 
 
 def _employee_name(emp: Any) -> str:
@@ -243,6 +258,21 @@ def _collect_anomalies_for_row(
             )
         )
 
+    message_net_negatif = message_net_negatif_du_bulletin(pdata)
+    if message_net_negatif:
+        _append(
+            AnomaliePayslipItem(
+                employee_id=employee_id,
+                employee_name=employee_name,
+                payslip_id=payslip_id,
+                type="NET_NEGATIF",
+                severite="avertissement",
+                message=message_net_negatif,
+                valeur_detectee=f"net={net:.2f} €",
+                suggestion_correction=_suggestion_net_negatif(net, year, month),
+            )
+        )
+
     heures = _sum_travail_base_hours(pdata.get("calcul_du_brut"))
     if heures > 0 and brut > 0:
         th = brut / heures
@@ -314,6 +344,8 @@ def _collect_anomalies_for_row(
             )
 
     for alerte in extraire_alertes_rh_depuis_bulletin(pdata):
+        if alerte["code"] == CODE_ALERTE_NET_NEGATIF:
+            continue
         _append(
             AnomaliePayslipItem(
                 employee_id=employee_id,

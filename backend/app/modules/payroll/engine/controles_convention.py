@@ -12,6 +12,10 @@ from app.modules.collective_agreements.rules.resolver import (
     code_postal_from_entreprise,
     resolve_salaires_minima,
 )
+from app.modules.payroll.domain.report_nap_negatif import (
+    CODE_ALERTE as CODE_ALERTE_NET_NEGATIF,
+    message_net_negatif,
+)
 
 NET_SUPERIEUR_BRUT_MESSAGE = "Net > Brut"
 _ALERT_CODES_NON_ACTIONNABLES_LISTE = {
@@ -565,7 +569,32 @@ def _messages_alertes_hors_baremes(payslip_data: Dict[str, Any], seen: set[str])
                 if msg and msg not in seen:
                     messages.append(msg)
                     seen.add(msg)
+
+    if CODE_ALERTE_NET_NEGATIF not in _codes_alertes_baremes(payslip_data):
+        msg = message_net_negatif_du_bulletin(payslip_data)
+        if msg and msg not in seen:
+            messages.append(msg)
+            seen.add(msg)
     return messages
+
+
+def message_net_negatif_du_bulletin(payslip_data: Dict[str, Any]) -> Optional[str]:
+    """Message « net à payer négatif » du bulletin, ou None si le net est ≥ 0."""
+    try:
+        net = float(payslip_data.get("net_a_payer"))
+    except (TypeError, ValueError):
+        return None
+    if net > -0.005:
+        return None
+    en_tete = payslip_data.get("en_tete") or {}
+    if not isinstance(en_tete, dict):
+        en_tete = {}
+    try:
+        annee = int(en_tete.get("annee")) if en_tete.get("annee") else None
+        mois = int(en_tete.get("mois")) if en_tete.get("mois") else None
+    except (TypeError, ValueError):
+        annee = mois = None
+    return message_net_negatif(round(net, 2), annee, mois)
 
 
 def extraire_alertes_rh_depuis_bulletin(
