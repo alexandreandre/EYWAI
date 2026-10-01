@@ -5,11 +5,11 @@ import { toast } from 'sonner';
 import {
   cancelRatesSync,
   getRatesSyncStatus,
+  startMonthlyRatesSync,
   startRatesSync,
   type RatesSyncStatusResponse,
 } from '@/api/rates';
 import { queryKeys } from '@/lib/queryKeys';
-import { markMonthlyAutoSyncDone } from '@/lib/ratesMonthlyAuto';
 import {
   buildRatesSnapshot,
   countChangedCategories,
@@ -32,7 +32,7 @@ import {
 import {
   applyCompletedSyncJobsToRatesCache,
 } from '@/lib/ratesLastCheckedCache';
-import { humanizeSyncError } from '@/lib/ratesSyncOutcome';
+import { humanizeSyncError, recoverInterruptedSync } from '@/lib/ratesSyncOutcome';
 import {
   findPersistedSyncSession,
   readPersistedSyncIds,
@@ -63,7 +63,7 @@ type ActiveSync = {
 
 type PendingSync = {
   target: RatesSyncTarget;
-  options?: { monthly?: boolean; snapshot?: RatesSnapshot };
+  options?: { monthly?: boolean; force?: boolean; snapshot?: RatesSnapshot };
 };
 
 function isTargetScheduled(
@@ -213,6 +213,8 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
   >(() => Promise.resolve());
 
   const [activeSyncs, setActiveSyncs] = useState<ActiveSync[]>(hydrateActiveSyncsFromStorage);
+  const activeSyncsRef = useRef(activeSyncs);
+  activeSyncsRef.current = activeSyncs;
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncOutcome, setSyncOutcome] = useState<RatesSyncStatusResponse | null>(null);
 
@@ -271,13 +273,13 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
   const finalizeWhenIdle = useCallback(
     async (
       lastStatus: RatesSyncStatusResponse,
-      markMonthlyDone: boolean,
       generation: number,
     ) => {
       await refetchRatesNow();
       await queryClient.invalidateQueries({
         queryKey: [...queryKeys.rates(companyId), 'sync-sources'],
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.ratesMonthly() });
 
       if (generation !== finalizeGenerationRef.current) {
         return;
@@ -322,10 +324,6 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
         setSyncOutcome(lastStatus);
       }
 
-      if (markMonthlyDone) {
-        markMonthlyAutoSyncDone();
-      }
-
       snapshotRef.current = null;
       onSyncComplete?.(changed);
     },
@@ -351,7 +349,6 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
         return;
       }
 
-      let wasMonthly = false;
       let anyStillRunning = true;
 
       setActiveSyncs((prev) => {
@@ -359,7 +356,6 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
         if (finished && TERMINAL.has(finalStatus.status)) {
           recordSyncDurationFromStatus(finished.target, finalStatus);
         }
-        wasMonthly = finished?.isMonthly ?? false;
         const next = prev.filter((s) => s.syncId !== syncId);
         persistActiveSyncIds(next);
         anyStillRunning = next.some(isSyncEntryActive);
@@ -375,7 +371,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
           notifyRatesDataRefresh();
           void launchSyncRef.current(next.target, next.options);
         } else {
-          await finalizeWhenIdle(finalStatus, wasMonthly, finalizeGenerationRef.current);
+          await finalizeWhenIdle(finalStatus, finalizeGenerationRef.current);
         }
       } else {
         notifyRatesDataRefresh();
@@ -430,8 +426,15 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
             await finishSync(syncId, next);
           }
         } catch (e) {
-          const { message } = parseRatesError(e);
-          setSyncError(message);
+          const parsed = parseRatesError(e);
+          const current = activeSyncsRef.current.find((s) => s.syncId === syncId);
+          if (parsed.status === 404 && current?.status?.jobs?.length) {
+            setSyncError(null);
+            const recovered = recoverInterruptedSync(current.status);
+            await finishSync(syncId, recovered);
+            return;
+          }
+          setSyncError(parsed.message);
           stopPoller(syncId);
           attachedSyncIdsRef.current.delete(syncId);
           removePersistedSyncId(syncId);
@@ -440,7 +443,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
             persistActiveSyncIds(next);
             return next;
           });
-          toast.error(message);
+          toast.error(parsed.message);
         }
       };
 
@@ -738,25 +741,49 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
       setActiveSyncs((prev) => [...prev, optimisticEntry]);
 
       try {
-        const started = await startRatesSync(syncTargetToRequest(target));
-        attachedSyncIdsRef.current.add(started.sync_id);
+        let syncId: string;
+        let jobs: RatesSyncStatusResponse['jobs'];
+        let total: number;
+        if (options?.monthly) {
+          const started = await startMonthlyRatesSync(Boolean(options.force));
+          if (started.action === 'skip' || !started.sync_id) {
+            setActiveSyncs((prev) => prev.filter((s) => s.syncId !== optimisticEntry.syncId));
+            if (started.sync_id) {
+              toast.info(started.reason || 'Une mise à jour est déjà en cours.');
+              await attachExistingSync(started.sync_id, { isMonthly: true });
+            } else {
+              toast.info(started.reason || 'Mise à jour du mois déjà effectuée.');
+            }
+            void queryClient.invalidateQueries({ queryKey: queryKeys.ratesMonthly() });
+            return;
+          }
+          syncId = started.sync_id;
+          jobs = started.jobs ?? [];
+          total = started.total ?? jobs.length;
+        } else {
+          const started = await startRatesSync(syncTargetToRequest(target));
+          syncId = started.sync_id;
+          jobs = started.jobs;
+          total = started.total;
+        }
+        attachedSyncIdsRef.current.add(syncId);
         const entry: ActiveSync = {
-          syncId: started.sync_id,
+          syncId,
           target,
           isMonthly,
-          sourceKeys: started.jobs.map((j) => j.source_key),
+          sourceKeys: jobs.map((j) => j.source_key),
           status: {
-            sync_id: started.sync_id,
+            sync_id: syncId,
             status: 'running',
             progress: {
-              total: started.total,
+              total,
               completed: 0,
               failed: 0,
-              running: started.total,
+              running: total,
               done: 0,
               percent: 0,
             },
-            jobs: started.jobs,
+            jobs,
             created_at: new Date().toISOString(),
             target: syncTargetToRequest(target),
           },
@@ -770,7 +797,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
           return next;
         });
         void invalidateSyncManifest();
-        pollStatus(started.sync_id);
+        pollStatus(syncId);
       } catch (e) {
         setActiveSyncs((prev) => prev.filter((s) => s.syncId !== optimisticEntry.syncId));
         const { message } = parseRatesError(e);
@@ -784,6 +811,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
       }
     },
     [
+      attachExistingSync,
       companyId,
       invalidateSyncManifest,
       manifest,
@@ -867,6 +895,7 @@ export function useRatesSync(onSyncComplete?: (changedKeys: string[]) => void) {
     syncError,
     syncOutcome,
     activeSyncs,
+    attachExistingSync,
     manifest,
     clearSyncError: () => setSyncError(null),
     dismissSyncOutcome: () => {

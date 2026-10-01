@@ -173,6 +173,7 @@ export const queryKeys = {
     companyQueryKey(companyId, 'saisies'),
   rates: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'rates'),
+  ratesMonthly: () => ['rates', 'monthly'] as const,
   schedules: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'schedules'),
   salaryAdvances: (companyId: string | undefined) =>

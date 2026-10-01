@@ -18,12 +18,12 @@ import {
   resolveSmicSections,
   getRateDateColor,
   latestCotisationLastCheckedAt,
+  parseRatesError,
   pickAvantagesEnNatureValue,
   resolveCotisationLastCheckedAt,
   shouldShowCotisationInRates,
 } from '@/lib/ratesUtils';
 import type { Cotisation } from '@/lib/ratesUtils';
-import { currentMonthKey } from '@/lib/ratesMonthlyAuto';
 import type { RatesResponse } from '@/api/rates';
 
 describe('ratesUtils', () => {
@@ -47,10 +47,6 @@ describe('ratesUtils', () => {
       },
     };
     expect(countChangedCategories(before, after)).toEqual(['smic']);
-  });
-
-  it('currentMonthKey returns YYYY-MM', () => {
-    expect(currentMonthKey()).toMatch(/^\d{4}-\d{2}$/);
   });
 
   it('buildSmicDisplaySections supprime les doublons cas général / SMIC horaire brut', () => {
@@ -253,5 +249,11 @@ describe('ratesUtils', () => {
       ),
     ).toBe('Au-delà du 24e mois et jusqu’au 72e mois');
     expect(formatRateDisplayValue(true, 'soumise_a_impot')).toBe('Oui');
+  });
+
+  it('ne présente pas un suivi perdu comme une absence de taux', () => {
+    const error = { response: { status: 404, data: { detail: 'Synchronisation non trouvée.' } } };
+    expect(parseRatesError(error).message).toMatch(/suivi de la mise à jour/);
+    expect(parseRatesError(error).message).not.toMatch(/pas encore disponibles/);
   });
 });

@@ -11,6 +11,7 @@ from app.modules.rates.application.sync import (
     reset_sync_registry_for_tests,
     start_rates_sync,
 )
+from app.modules.rates.infrastructure.sync_run_store import get_sync_run_store
 from app.modules.rates.application.sync_progress import MAX_JOB_DURATION_SEC
 
 
@@ -85,6 +86,33 @@ class TestStartRatesSync:
         assert result["total"] == 1
         mock_execute.assert_called_once()
 
+    @patch("app.modules.rates.application.sync.execute_scraper")
+    @patch("app.modules.rates.application.sync.ScrapingRepository")
+    def test_each_source_is_visible_before_the_scraper_returns(self, mock_repo_cls, mock_execute):
+        mock_repo = MagicMock()
+        mock_repo_cls.return_value = mock_repo
+        mock_repo.list_sources.return_value = [
+            {"source_key": "SMIC", "source_name": "SMIC", "orchestrator_path": "/x"},
+            {"source_key": "PSS", "source_name": "PSS", "orchestrator_path": "/p"},
+        ]
+        seen: list[list[dict]] = []
+
+        def _run_source(**kwargs):
+            rows = get_sync_run_store().list_running()
+            seen.append(rows[0]["jobs"])
+            return {"source": kwargs["source_key"], "job_id": f"job-{kwargs['source_key']}"}
+
+        mock_execute.side_effect = _run_source
+
+        start_rates_sync(triggered_by="u", background_task_fn=MagicMock())
+
+        assert seen[0][0]["source_key"] == "SMIC"
+        assert seen[0][0]["status"] == "running"
+        assert seen[0][0]["job_id"] is None
+        assert seen[1][0]["job_id"] == "job-SMIC"
+        assert seen[1][1]["source_key"] == "PSS"
+        assert seen[1][1]["job_id"] is None
+
     @patch("app.modules.rates.application.sync.ScrapingRepository")
     def test_start_raises_when_no_sources(self, mock_repo_cls):
         mock_repo = MagicMock()
@@ -136,6 +164,118 @@ class TestGetRatesSyncStatus:
     def test_status_unknown_sync_raises(self):
         with pytest.raises(ValueError, match="non trouvée"):
             get_rates_sync_status("missing-id")
+
+    @patch("app.modules.rates.application.sync.ScrapingRepository")
+    def test_remote_poll_does_not_close_a_run_still_listing_sources(self, mock_repo_cls):
+        mock_repo = MagicMock()
+        mock_repo_cls.return_value = mock_repo
+        store = get_sync_run_store()
+        store.insert_run(
+            {
+                "id": "sync-remote",
+                "month_key": "2026-10",
+                "trigger": "schedule",
+                "status": "running",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": None,
+                "triggered_by": "monthly-schedule",
+                "forced": False,
+                "target": {},
+                "source_keys": ["SMIC", "PSS"],
+                "jobs": [],
+            }
+        )
+
+        first = get_rates_sync_status("sync-remote")
+        assert first["status"] == "running"
+        assert first["progress"]["total"] == 2
+        assert store.get_run("sync-remote")["status"] == "running"
+
+        store.update_run(
+            "sync-remote",
+            {
+                "jobs": [
+                    {
+                        "source_key": "SMIC",
+                        "source_name": "SMIC",
+                        "job_id": "job-1",
+                        "status": "completed",
+                        "success": True,
+                        "error_message": None,
+                        "rate_keys": [],
+                        "cotisation_ids": [],
+                    }
+                ]
+            },
+        )
+        mock_repo.get_job.return_value = {
+            "id": "job-1",
+            "status": "completed",
+            "success": True,
+            "error_message": None,
+        }
+        second = get_rates_sync_status("sync-remote")
+        assert second["status"] == "running"
+        assert second["progress"]["total"] == 2
+        assert store.get_run("sync-remote")["status"] == "running"
+
+        store.update_run(
+            "sync-remote",
+            {
+                "jobs": [
+                    {
+                        "source_key": "SMIC",
+                        "source_name": "SMIC",
+                        "job_id": "job-1",
+                        "status": "completed",
+                        "success": True,
+                        "error_message": None,
+                        "rate_keys": [],
+                        "cotisation_ids": [],
+                    },
+                    {
+                        "source_key": "PSS",
+                        "source_name": "PSS",
+                        "job_id": "job-2",
+                        "status": "completed",
+                        "success": True,
+                        "error_message": None,
+                        "rate_keys": [],
+                        "cotisation_ids": [],
+                    },
+                ]
+            },
+        )
+        mock_repo.get_job.side_effect = lambda job_id: {
+            "id": job_id,
+            "status": "completed",
+            "success": True,
+            "error_message": None,
+        }
+        third = get_rates_sync_status("sync-remote")
+        assert third["status"] == "completed"
+        assert store.get_run("sync-remote")["status"] == "succeeded"
+
+    def test_empty_job_list_does_not_reopen_a_finished_run(self):
+        store = get_sync_run_store()
+        store.insert_run(
+            {
+                "id": "sync-done",
+                "month_key": "2026-10",
+                "trigger": "schedule",
+                "status": "succeeded",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "triggered_by": "monthly-schedule",
+                "forced": False,
+                "target": {},
+                "source_keys": ["SMIC"],
+                "jobs": [],
+            }
+        )
+        status = get_rates_sync_status("sync-done")
+        assert status["status"] == "completed"
+        assert store.get_run("sync-done")["status"] == "succeeded"
 
 
 class TestCancelRatesSync:
@@ -208,3 +348,37 @@ class TestStaleRunningJobs:
         assert status["status"] == "failed"
         assert status["progress"]["failed"] == 1
         mock_repo.update_job.assert_called_once()
+
+    @patch("app.modules.rates.application.sync.is_job_process_active", return_value=False)
+    @patch("app.modules.rates.application.sync.execute_scraper")
+    @patch("app.modules.rates.application.sync.ScrapingRepository")
+    def test_foreign_host_with_fresh_heartbeat_stays_running(
+        self, mock_repo_cls, mock_execute, _mock_active
+    ):
+        mock_repo = MagicMock()
+        mock_repo_cls.return_value = mock_repo
+        mock_repo.list_sources.return_value = [
+            {"source_key": "PSS", "source_name": "PSS", "orchestrator_path": "/x"},
+        ]
+        mock_execute.return_value = {
+            "source": "PSS",
+            "source_key": "PSS",
+            "job_id": "job-remote",
+        }
+        started_at = (datetime.now(timezone.utc) - timedelta(seconds=40)).isoformat()
+        mock_repo.get_job.return_value = {
+            "id": "job-remote",
+            "status": "running",
+            "success": None,
+            "started_at": started_at,
+            "execution_logs": [
+                "Processus lancé (pid 4242) sur runner-github",
+                "⏳ En cours (30s) — extraction",
+            ],
+        }
+
+        started = start_rates_sync(triggered_by="monthly-schedule", background_task_fn=MagicMock())
+        status = get_rates_sync_status(started["sync_id"])
+
+        assert status["status"] == "running"
+        mock_repo.update_job.assert_not_called()

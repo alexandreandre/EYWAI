@@ -2,7 +2,7 @@ import { CloudDownload, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { RatesMonthlyAutoPanel } from '@/components/rates/RatesMonthlyAutoPanel';
-import type { MonthlyAutoSyncState } from '@/lib/ratesMonthlyAuto';
+import type { MonthlyAutoSyncState } from '@/hooks/useRatesMonthlyAuto';
 import { RATES_UPDATES_LOCK_REASON } from '@/lib/ratesUpdatesLock';
 import { cn } from '@/lib/utils';
 
@@ -89,7 +89,6 @@ export function RatesPageToolbar({
             onToggleEnabled={onMonthlyToggle}
             onRunMonthly={onRunMonthly}
             onRestartMonthly={onRestartMonthly}
-            updatesLocked={updatesLocked}
           />
         </div>
       </div>

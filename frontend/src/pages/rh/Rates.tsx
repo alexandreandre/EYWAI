@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Inbox, RefreshCw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -131,8 +131,6 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
   const [keySectionOpen, setKeySectionOpen] = useState(false);
   const [cotisationsSectionOpen, setCotisationsSectionOpen] = useState(false);
   const [baremesSectionOpen, setBaremesSectionOpen] = useState(false);
-  const autoMonthlyStarted = useRef(false);
-
   const monthly = useRatesMonthlyAuto();
 
   const onSyncComplete = useCallback(
@@ -148,6 +146,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
 
   const {
     startSync,
+    attachExistingSync,
     cancelSync,
     cancelAllSyncs,
     isSyncing,
@@ -191,25 +190,26 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
   }, [clearSyncError, startSync]);
 
   const handleRestartMonthly = useCallback(() => {
-    monthly.resetCycle();
     clearSyncError();
-    void startSync({ scope: 'all' }, { monthly: true });
-  }, [clearSyncError, monthly, startSync]);
+    void startSync({ scope: 'all' }, { monthly: true, force: true });
+  }, [clearSyncError, startSync]);
 
   const handleMonthlyToggle = useCallback(
     (enabled: boolean) => {
-      if (enabled) {
-        monthly.resume();
-        toast.success('Mise à jour automatique activée — prochaine exécution le 1er du mois');
-      } else {
+      void monthly.setEnabled(enabled).then(() => {
+        if (enabled) {
+          toast.success('Mise à jour automatique activée — exécution le 1er du mois au matin');
+          return;
+        }
         if (isMonthlySyncRunning) {
           activeSyncs
             .filter((s) => s.isMonthly)
             .forEach((s) => void cancelSync(s.syncId));
         }
-        monthly.pause();
         toast.info('Mise à jour automatique désactivée');
-      }
+      }).catch(() => {
+        toast.error('Impossible de modifier la planification');
+      });
     },
     [activeSyncs, cancelSync, isMonthlySyncRunning, monthly],
   );
@@ -255,16 +255,10 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
   );
 
   useEffect(() => {
-    // Le déclenchement automatique mensuel reste piloté côté RH pour éviter
-    // un double lancement depuis l'espace administrateur.
-    if (admin) return;
-    if (autoMonthlyStarted.current || loading || loadError || !data || isSyncing) return;
-    if (!monthly.shouldAutoStart) return;
-
-    autoMonthlyStarted.current = true;
-    toast.info('Mise à jour automatique du 1er du mois…');
-    void startSync({ scope: 'all' }, { monthly: true });
-  }, [admin, loading, loadError, data, isSyncing, monthly.shouldAutoStart, startSync]);
+    const run = monthly.state.run;
+    if (run?.status !== 'running') return;
+    void attachExistingSync(run.sync_id, { isMonthly: true });
+  }, [attachExistingSync, monthly.state.run]);
 
   const toolbarProps = {
     onRefresh: handleRefresh,

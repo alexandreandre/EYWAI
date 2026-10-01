@@ -115,6 +115,48 @@ export async function cancelRatesSync(syncId: string): Promise<RatesSyncStatusRe
   return res.data;
 }
 
+export type MonthlyRatesRun = {
+  sync_id: string;
+  status: 'running' | 'succeeded' | 'partial' | 'failed' | 'cancelled';
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export type MonthlyRatesState = {
+  enabled: boolean;
+  month_key: string;
+  status_label: string;
+  show_run: boolean;
+  show_restart: boolean;
+  run_button_label: string;
+  run: MonthlyRatesRun | null;
+};
+
+export type MonthlyRatesRunResponse = {
+  action: 'started' | 'skip';
+  reason?: string;
+  sync_id?: string | null;
+  status?: RatesSyncStatusResponse['status'] | null;
+  jobs?: RatesSyncJob[];
+  total?: number;
+  message?: string;
+};
+
+export async function fetchMonthlyRatesState(): Promise<MonthlyRatesState> {
+  const res = await apiClient.get<MonthlyRatesState>('/api/rates/monthly');
+  return res.data;
+}
+
+export async function updateMonthlyRatesEnabled(enabled: boolean): Promise<MonthlyRatesState> {
+  const res = await apiClient.patch<MonthlyRatesState>('/api/rates/monthly', { enabled });
+  return res.data;
+}
+
+export async function startMonthlyRatesSync(force = false): Promise<MonthlyRatesRunResponse> {
+  const res = await apiClient.post<MonthlyRatesRunResponse>('/api/rates/monthly/run', { force });
+  return res.data;
+}
+
 export type ManualRateUpdateRequest = {
   config_key: string;
   config_data: Record<string, unknown>;

@@ -41,17 +41,16 @@ describe('verrou des mises à jour de taux', () => {
     expect(page).toContain('updatesLocked: RATES_UPDATES_LOCKED');
   });
 
-  for (const [fichier, boutons] of [
-    ['components/rates/RatesPageToolbar.tsx', 1],
-    ['components/rates/RatesMonthlyAutoPanel.tsx', 2],
-  ] as const) {
-    it(`${fichier} désactive ses ${boutons} bouton(s) de lancement`, () => {
-      const source = lire(fichier);
-      expect(source).toContain('disabled={updatesLocked}');
-      const occurrences = source.split('disabled={updatesLocked}').length - 1;
-      expect(occurrences).toBe(boutons);
-    });
-  }
+  it('la mise à jour complète reste verrouillée', () => {
+    const source = lire('components/rates/RatesPageToolbar.tsx');
+    expect(source.split('disabled={updatesLocked}').length - 1).toBe(1);
+  });
+
+  it('le lot du mois n’est pas sous le verrou des boutons : le serveur décide', () => {
+    const source = lire('components/rates/RatesMonthlyAutoPanel.tsx');
+    expect(source).not.toContain('updatesLocked');
+    expect(source).not.toContain('disabled={updatesLocked}');
+  });
 
   it('le motif affiché reste non vide', () => {
     expect(RATES_UPDATES_LOCK_REASON.trim().length).toBeGreaterThan(0);
