@@ -1,5 +1,6 @@
 """Bascule de reprise : ce qui doit être refusé, et ce qui doit passer."""
 
+from datetime import date
 from unittest.mock import patch
 
 import pytest as _pytest
@@ -83,6 +84,14 @@ class TestCumulManquant:
         raison = raison_de_cumul_manquant(None, "emp", 2027, 1, False, bascule=BASCULE_JUIN)
         assert raison is not None
         assert "12/2026" in raison
+
+    def test_une_entree_en_septembre_n_exige_pas_le_cumul_d_aout(self):
+        assert (
+            raison_de_cumul_manquant(
+                "soc", "emp", 2026, 9, False, date_entree=date(2026, 9, 21)
+            )
+            is None
+        )
 
     def test_premier_bulletin_d_un_salarie_part_de_zero_sans_bascule(self):
         with patch("app.shared.reprise_paie.lire_bascule", return_value=None), patch(

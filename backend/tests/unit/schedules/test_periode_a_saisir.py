@@ -269,3 +269,23 @@ def test_un_samedi_couvert_par_un_arret_valide_compte_dans_la_periode():
     assert [(c.jour, c.type_prevu, c.heures_saisies) for c in periode.conflits] == [
         (12, "arret_maladie", 5.0)
     ]
+
+
+def test_une_entree_apres_la_cloture_des_variables_ne_bloque_pas_les_jours_hors_fenetre():
+    """Entrée le 21/09, fenêtre close le 20/09 : les 21–30 hors fenêtre ne refusent pas."""
+    fenetre = (date(2026, 8, 24), date(2026, 9, 20))
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=fenetre,
+        calendriers={
+            (2026, 8): _mois(2026, 8, reel_jusqu_au=31),
+            (2026, 9): _mois(2026, 9, reel_jusqu_au=None),
+        },
+        date_entree=date(2026, 9, 21),
+    )
+
+    assert periode.statut == "saisi"
+    assert not periode.bloquants
+    assert all(j.jour >= date(2026, 9, 21) for j in periode.manquants)
+    assert [j.jour.day for j in periode.informatifs] == [21, 22, 23, 24, 25, 28, 29, 30]

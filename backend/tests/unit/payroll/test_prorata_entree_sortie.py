@@ -207,3 +207,35 @@ def test_absences_reduisent_les_hs_sur_la_periode_partielle():
     # retirée au prorata du contrat, 4,2 × 2,5/37,5 = 0,28 h, quelle que soit
     # la longueur du mois (règle du cabinet, cf. test_absence_prorata_contrat).
     assert reduction["quantite"] == pytest.approx(4.28)
+
+
+def test_entree_le_21_apres_cloture_du_20_prorate_sans_variable():
+    """Bulletin de septembre : payé du 21 au 30, sans heure sup de la fenêtre close."""
+    contexte = build_test_contexte(
+        salaire_base=1990.0,
+        duree_hebdo=39.0,
+        date_entree="2026-09-21",
+    )
+    calendrier = [
+        {"date_complete": "2026-09-18", "type": "travail_hs25", "heures": 2.0},
+        {"date_complete": "2026-09-22", "type": "travail_hs25", "heures": 2.0},
+    ]
+    resultat = calculer_salaire_brut(
+        contexte,
+        calendrier,
+        date(2026, 9, 1),
+        date(2026, 9, 30),
+        [],
+        date_debut_variables=date(2026, 8, 24),
+        date_fin_variables=date(2026, 9, 20),
+    )
+    base = next(l for l in resultat["lignes_composants_brut"] if l["libelle"] == "Salaire de base")
+    # 8 jours ouvrés du 21 au 30 / 5 × 35 h = 56 h de base.
+    assert base["quantite"] == pytest.approx(56.0)
+    hs_variables = [
+        l
+        for l in resultat["lignes_composants_brut"]
+        if l.get("quantite") == pytest.approx(2.0)
+        and "structurelles" not in str(l.get("libelle", "")).lower()
+    ]
+    assert hs_variables == []
