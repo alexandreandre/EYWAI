@@ -82,6 +82,28 @@ def test_les_champs_volatils_sont_ignores():
         {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "aaa", "smic_horaire": 11.88}}}},
         {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "bbb", "smic_horaire": 11.88}}}},
     ) == {}
+    assert comparer(
+        {
+            "b": {
+                "payslip_data": {
+                    "calcul_du_brut": [{"libelle": "Heures suppl. majorées à 25%", "gain": 10.0}]
+                }
+            }
+        },
+        {
+            "b": {
+                "payslip_data": {
+                    "calcul_du_brut": [
+                        {
+                            "libelle": "Heures suppl. majorées à 25%",
+                            "gain": 10.0,
+                            "explication": "4 h par semaine, semaines 35 à 38",
+                        }
+                    ]
+                }
+            }
+        },
+    ) == {}
 
 
 def test_une_ecriture_simulee_ne_part_jamais():

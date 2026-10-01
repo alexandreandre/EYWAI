@@ -7,6 +7,10 @@ import calendar
 
 from .cotisations_rubriques import construire_cotisations_officielles
 from app.modules.payroll.application.compensation_semaines import avec_saisie_manuelle
+from app.modules.payroll.domain.explications_lignes import (
+    poser_explications,
+    reduction_deja_pour_explication,
+)
 
 
 logger = get_logger("modules.payroll.engine.bulletin")
@@ -739,6 +743,14 @@ def creer_bulletin_final(
     declarees = getattr(contexte, "heures_sup_declarees", None)
     if isinstance(declarees, dict):
         bulletin["heures_sup_declarees"] = dict(declarees)
+    poser_explications(
+        bulletin,
+        evenements=getattr(contexte, "evenements_paie", None),
+        duree_hebdo=getattr(contexte, "duree_hebdo_contrat", None),
+        reduction_deja=reduction_deja_pour_explication(
+            mois, getattr(contexte, "cumuls", None)
+        ),
+    )
     log_payroll_debug(logger, 'INFO: Bulletin de paie final assemblé.')
     return bulletin
 

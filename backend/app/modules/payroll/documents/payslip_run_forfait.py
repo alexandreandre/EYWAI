@@ -549,6 +549,8 @@ def run_payslip_generation_forfait(
     if alerte_vm:
         contexte.alertes_baremes.append(alerte_vm)
 
+    contexte.evenements_paie = calendrier_etendu
+
     if contexte.exit_indemnities:
         bulletin_final = creer_bulletin_sortie(
             contexte,
