@@ -257,6 +257,7 @@ export function CreateExitDialog({
         void queryClient.invalidateQueries({
           queryKey: queryKeys.employee(companyId, employeeId),
         });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.employeeExits(companyId) });
       }
 
       toast({

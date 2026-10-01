@@ -41,6 +41,10 @@ import {
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 import { lireNouveauSalarie, salariesAvecNouveauEnTete } from '@/features/employees/utils/creationSalarie';
+import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
+import { BandeauxSortieGuidee } from '@/features/payroll/components/BandeauxSortieGuidee';
+import { useEmployeeExitsQuery } from '@/hooks/queries/useEmployeeExitsQuery';
+import { bandeauxSortieDuMois } from '@/features/payroll/utils/sortieGuidee';
 
 type PayrollView = 'employee' | 'month';
 
@@ -164,8 +168,11 @@ export default function Payroll() {
   );
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
+  const [departACreerId, setDepartACreerId] = useState<string | null>(null);
+  const [dialogDepartOuvert, setDialogDepartOuvert] = useState(false);
 
   const generation = usePayrollGeneration();
+  const exitsQuery = useEmployeeExitsQuery(view === 'month');
 
   useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -322,6 +329,24 @@ export default function Payroll() {
     () => monthEmployeeStates.filter((row) => canGeneratePayslip(row.state)).length,
     [monthEmployeeStates]
   );
+
+  const bandeauxSortie = useMemo(() => {
+    if (view !== 'month') return [];
+    if (exitsQuery.isLoading && exitsQuery.data === undefined) return [];
+    return bandeauxSortieDuMois(
+      employees,
+      exitsQuery.data ?? [],
+      selectedYear,
+      selectedMonth
+    );
+  }, [
+    view,
+    employees,
+    exitsQuery.isLoading,
+    exitsQuery.data,
+    selectedYear,
+    selectedMonth,
+  ]);
 
   const enqueueGeneration = useCallback(
     (months: number[]) => {
@@ -536,7 +561,14 @@ export default function Payroll() {
             />
           </TabsContent>
 
-          <TabsContent value="month" className="mt-3">
+          <TabsContent value="month" className="mt-3 space-y-3">
+            <BandeauxSortieGuidee
+              bandeaux={bandeauxSortie}
+              onCreerLeDepart={(employeeId) => {
+                setDepartACreerId(employeeId);
+                setDialogDepartOuvert(true);
+              }}
+            />
             <PayrollMonthExplorer
               selectedYear={selectedYear}
               yearOptions={monthYearOptions}
@@ -560,6 +592,15 @@ export default function Payroll() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <CreateExitDialog
+        open={dialogDepartOuvert}
+        onOpenChange={(open) => {
+          setDialogDepartOuvert(open);
+          if (!open) setDepartACreerId(null);
+        }}
+        initialEmployeeId={departACreerId ?? undefined}
+      />
 
       <PayrollGenerationRefusalDialog
         open={

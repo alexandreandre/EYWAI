@@ -11,6 +11,10 @@ export const queryKeys = {
     companyQueryKey(companyId, 'employees'),
   employee: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none'),
+  /** Départs de la société active : une lecture groupée, pas une par salarié. */
+  employeeExits: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'employee-exits'),
+
   employeePayslips: (companyId: string | undefined, employeeId: string | undefined) =>
     companyQueryKey(companyId, 'employee', employeeId ?? 'none', 'payslips'),
   /** Onglets d'un bulletin. Sans société : l'identifiant du bulletin suffit. */
