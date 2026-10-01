@@ -81,6 +81,11 @@ class PreflightAnomalyCounts(BaseModel):
     a_verifier: int = 0
 
 
+class HeuresSurArretSalarie(BaseModel):
+    employee_id: str
+    jours: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class PreflightAnomaliesResponse(BaseModel):
     year: int
     month: int
@@ -89,3 +94,5 @@ class PreflightAnomaliesResponse(BaseModel):
     total_treated: int
     counts: PreflightAnomalyCounts
     anomalies: List[PreflightAnomaly] = Field(default_factory=list)
+    #: Heures saisies un jour d'arrêt (`periode_a_saisir.conflits`, règle A2).
+    heures_sur_arret: List[HeuresSurArretSalarie] = Field(default_factory=list)

@@ -15,6 +15,7 @@ from app.modules.payroll.application.periode_variables_service import (
 )
 from app.modules.payroll.infrastructure import preflight_repository
 from app.modules.payroll.schemas.preflight_responses import (
+    HeuresSurArretSalarie,
     PreflightAnomaly,
     PreflightAnomalyCounts,
     PreflightAnomalyResolution,
@@ -183,6 +184,7 @@ def build_preflight_anomalies(
         pending_by_emp[str(row["employee_id"])].append(row)
 
     anomalies: List[PreflightAnomaly] = []
+    heures_sur_arret: List[HeuresSurArretSalarie] = []
 
     for emp in employees:
         eid = str(emp["id"])
@@ -200,6 +202,13 @@ def build_preflight_anomalies(
         heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])
         ecart = heures_faites - heures_prevues
         periode = periodes.get(eid)
+        if periode is not None and periode.conflits:
+            heures_sur_arret.append(
+                HeuresSurArretSalarie(
+                    employee_id=eid,
+                    jours=[c.en_detail() for c in periode.conflits],
+                )
+            )
         row_status = compute_row_status(
             planned_days,
             actual_days,
@@ -442,6 +451,7 @@ def build_preflight_anomalies(
         total_treated=total_treated,
         counts=counts,
         anomalies=anomalies,
+        heures_sur_arret=heures_sur_arret,
     )
 
 

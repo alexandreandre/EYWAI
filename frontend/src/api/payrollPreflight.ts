@@ -71,6 +71,11 @@ export interface PreflightAnomalyCounts {
   a_verifier: number;
 }
 
+export interface HeuresSurArretSalarie {
+  employee_id: string;
+  jours: Array<{ annee?: number; mois?: number; jour: number; heures?: number; type_prevu?: string }>;
+}
+
 export interface PreflightAnomaliesResponse {
   year: number;
   month: number;
@@ -79,6 +84,8 @@ export interface PreflightAnomaliesResponse {
   total_treated: number;
   counts: PreflightAnomalyCounts;
   anomalies: PreflightAnomaly[];
+  /** Absent d'un backend plus ancien : la liste de contrôle ne coche alors pas « aucun conflit ». */
+  heures_sur_arret?: HeuresSurArretSalarie[];
 }
 
 export interface JustifyAnomalyPayload {
