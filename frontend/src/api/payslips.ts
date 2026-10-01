@@ -44,6 +44,8 @@ export interface BulletinLigneBrut {
   gain?: number | null;
   perte?: number | null;
   is_arret_maladie?: boolean;
+  /** Phrase d'aide posée à la génération ; absente si rien à expliquer. */
+  explication?: string | null;
 }
 
 /** Rubrique officielle de cotisation (regroupement par risque). */

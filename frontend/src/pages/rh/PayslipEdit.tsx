@@ -67,6 +67,7 @@ import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslip
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
+import { LignesExpliquees } from '@/features/payroll/components/LignesExpliquees';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
@@ -542,6 +543,7 @@ export default function PayslipEdit() {
               Détail du maintien de salaire
             </Button>
           ) : null}
+          <LignesExpliquees payslipData={payslip.payslip_data} />
           {/* Clé : l'aperçu se refait après chaque rechargement du bulletin. */}
           <PayslipPreviewFrame
             key={payslip.updated_at ?? payslip.id}
