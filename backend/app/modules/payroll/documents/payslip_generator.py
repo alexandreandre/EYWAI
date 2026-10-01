@@ -432,14 +432,13 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
     d'août de Colorplast. Et l'échec n'est plus avalé : un bulletin sans ses
     congés est pire qu'un bulletin non produit.
 
-    Rend les demandes validées lues (vide s'il n'y a pas de jour CP : pas de
-    lecture supplémentaire, l'empreinte d'entrée reste alignée).
+    Rend toutes les demandes validées (maladie, RTT, arrêt…), pas seulement
+    celles projetées en `conges_payes` : l'empreinte d'entrée et la liste
+    doivent voir le même ensemble.
     """
     if not employee_id:
         return []
     jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
-    if not jours_cp:
-        return []
     res = (
         supabase.table("absence_requests")
         .select("type, selected_days")
@@ -1324,6 +1323,10 @@ def process_payslip_generation(
             employee=employee_data,
             company=company_data,
             notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
+            fenetre_variables={
+                "debut": fenetre_variables.debut.isoformat(),
+                "fin": fenetre_variables.fin.isoformat(),
+            },
         )
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"

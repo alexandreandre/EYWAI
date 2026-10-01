@@ -92,6 +92,14 @@ def test_la_fenetre_couvre_le_mois_precedent_et_le_suivant():
     assert mois_de_la_fenetre(2026, 12) == ((2026, 11), (2026, 12), (2027, 1))
 
 
+def test_changer_la_fenetre_des_variables_change_l_empreinte():
+    avant = empreinte(construire_entrees(_entrees()))
+    change = _entrees(fenetre_variables={"debut": "2026-04-27", "fin": "2026-05-31"})
+    assert empreinte(construire_entrees(change)) != avant
+    meme = _entrees(fenetre_variables={"debut": "2026-04-27", "fin": "2026-05-31"})
+    assert empreinte(construire_entrees(change)) == empreinte(construire_entrees(meme))
+
+
 def test_construire_entrees_est_stable_quel_que_soit_l_ordre_des_saisies():
     a = _entrees(saisies=[{"name": "B", "amount": 2}, {"name": "A", "amount": 1}])
     b = _entrees(saisies=[{"name": "A", "amount": 1}, {"name": "B", "amount": 2}])

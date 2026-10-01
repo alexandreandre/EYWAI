@@ -631,7 +631,13 @@ def process_payslip_generation_forfait(
         from app.modules.payroll.application.empreinte_entrees_service import (
             poser_empreinte_depuis_lectures,
         )
+        from app.modules.payroll.application.periode_variables_service import (
+            resoudre_fenetre_variables,
+        )
 
+        fenetre = resoudre_fenetre_variables(
+            str(company_id), year, month, societe=company_data
+        )
         payslip_json_data = poser_empreinte_depuis_lectures(
             payslip_json_data if isinstance(payslip_json_data, dict) else {},
             year=year,
@@ -642,6 +648,10 @@ def process_payslip_generation_forfait(
             employee=employee_data,
             company=company_data,
             notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
+            fenetre_variables={
+                "debut": fenetre.debut.isoformat(),
+                "fin": fenetre.fin.isoformat(),
+            },
         )
 
         # --- ÉTAPE 5 : SAUVEGARDER ---

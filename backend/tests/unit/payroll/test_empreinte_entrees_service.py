@@ -191,6 +191,68 @@ def test_empreinte_actuelle_sans_salarie_est_inconnue():
         assert empreinte_actuelle("inconnu", 2026, 5) is None
 
 
+def test_absence_validee_sans_jour_cp_aligne_generation_et_liste():
+    """Maladie / RTT / arrêt dans la fenêtre, sans jour CP au prévu."""
+    maladie = [{"type": "arret_maladie", "selected_days": ["2026-05-10"]}]
+    generation = empreinte_des_lectures(**_kwargs(absences=maladie))
+    liste = empreinte_des_lectures(**_kwargs(absences=maladie))
+    assert generation == liste
+    assert empreinte_des_lectures(**_kwargs(absences=[])) != generation
+    changee = empreinte_des_lectures(
+        **_kwargs(absences=[{"type": "arret_maladie", "selected_days": ["2026-05-11"]}])
+    )
+    assert changee != generation
+
+
+def test_changer_end_date_de_la_fenetre_change_l_empreinte():
+    a = empreinte_des_lectures(
+        **_kwargs(fenetre_variables={"debut": "2026-04-27", "fin": "2026-05-24"})
+    )
+    b = empreinte_des_lectures(
+        **_kwargs(fenetre_variables={"debut": "2026-04-27", "fin": "2026-05-31"})
+    )
+    assert a != b
+    assert empreinte_des_lectures(**_kwargs()) != a
+
+
+def test_une_surcharge_variable_periods_change_l_empreinte():
+    from datetime import date
+
+    a = empreinte_des_lectures(
+        **_kwargs(surcharges_fenetre={(2026, 5): date(2026, 5, 24)})
+    )
+    b = empreinte_des_lectures(
+        **_kwargs(surcharges_fenetre={(2026, 5): date(2026, 5, 31)})
+    )
+    assert a != b
+
+
+def test_changer_la_date_de_sortie_change_l_empreinte():
+    avant = empreinte_des_lectures(
+        **_kwargs(employee={**EMPLOYEE, "contract_end_date": "2026-12-31"})
+    )
+    apres = empreinte_des_lectures(
+        **_kwargs(
+            employee={
+                **EMPLOYEE,
+                "contract_end_date": "2026-12-31",
+                "exit_last_working_day": "2026-05-15",
+            }
+        )
+    )
+    assert apres != avant
+    autre = empreinte_des_lectures(
+        **_kwargs(
+            employee={
+                **EMPLOYEE,
+                "contract_end_date": "2026-12-31",
+                "exit_last_working_day": "2026-05-20",
+            }
+        )
+    )
+    assert autre != apres
+
+
 def test_entrees_depuis_lectures_ignore_les_horodatages_de_saisie():
     a = entrees_depuis_lectures(**_kwargs(saisies=[{"name": "Prime", "amount": 50, "created_at": "a"}]))
     b = entrees_depuis_lectures(**_kwargs(saisies=[{"name": "Prime", "amount": 50, "created_at": "b"}]))

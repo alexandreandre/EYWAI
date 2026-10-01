@@ -149,17 +149,22 @@ class TestEchecDeLecture:
         with pytest.raises(RuntimeError):
             payslip_generator._stamp_source_absence_conges([_jour_cp()], "emp-1")
 
-    def test_aucun_jour_de_conge_ne_declenche_aucune_lecture(self, monkeypatch):
-        """Cas passant : sans jour de congé, on ne lit rien (et on ne casse rien)."""
-
-        class _ClientInterdit:
-            def table(self, _nom):
-                raise AssertionError("aucune lecture attendue")
-
-        monkeypatch.setattr(payslip_generator, "supabase", _ClientInterdit())
-
+    def test_aucun_jour_de_conge_ne_pose_pas_de_marqueur(self, monkeypatch):
+        """Sans jour CP, on lit quand même les absences pour l'empreinte,
+        mais on n'étiquette pas un jour de travail."""
+        monkeypatch.setattr(payslip_generator, "supabase", _ClientFactice([]))
         jours = [{"annee": 2026, "mois": 7, "jour": 14, "type": "travail",
                   "heures_prevues": 7.0}]
         payslip_generator._stamp_source_absence_conges(jours, "emp-1")
-
         assert "source_absence" not in jours[0]
+
+
+    def test_une_maladie_sans_jour_cp_est_rendue_pour_l_empreinte(self, monkeypatch):
+        """Sans jour CP au prévu, les absences validées de la fenêtre doivent
+        quand même entrer dans l'empreinte (sinon génération et liste divergent)."""
+        maladie = [{"type": "arret_maladie", "selected_days": ["2026-07-14"]}]
+        monkeypatch.setattr(payslip_generator, "supabase", _ClientFactice(maladie))
+        jours = [{"annee": 2026, "mois": 7, "jour": 14, "type": "travail",
+                  "heures_prevues": 7.0}]
+        rows = payslip_generator._stamp_source_absence_conges(jours, "emp-1")
+        assert rows == maladie

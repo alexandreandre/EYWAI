@@ -103,6 +103,7 @@ def construire_entrees(brut: Mapping[str, Any] | None) -> dict[str, Any]:
         "fiche": source.get("fiche") or {},
         "notes_de_frais": _liste_stable(source.get("notes_de_frais")),
         "parametres_societe": source.get("parametres_societe") or {},
+        "fenetre_variables": source.get("fenetre_variables") or {},
     }
 
 

@@ -43,6 +43,7 @@ _CLES_FICHE = (
     "job_title",
     "date_conclusion_contrat",
     "date_debut_execution",
+    "exit_last_working_day",
 )
 
 _CLES_SAISIE = (
@@ -163,6 +164,40 @@ def _notes_du_mois(notes: Iterable[Mapping[str, Any]], year: int, month: int) ->
     return retenues
 
 
+def _fenetre_pour_empreinte(
+    company: Mapping[str, Any] | None,
+    year: int,
+    month: int,
+    fenetre_variables: Mapping[str, Any] | None = None,
+    surcharges_fenetre: Mapping[tuple[int, int], date] | None = None,
+) -> dict[str, str]:
+    """Fenêtre réellement utilisée : celle du générateur, ou la même règle + surcharge."""
+    if fenetre_variables and fenetre_variables.get("debut") and fenetre_variables.get("fin"):
+        return {
+            "debut": str(fenetre_variables["debut"])[:10],
+            "fin": str(fenetre_variables["fin"])[:10],
+        }
+    from app.modules.payroll.application.periode_variables_service import (
+        _bornes_regle,
+        _mois_precedent,
+    )
+    from app.shared.domain.periode_variables import resoudre_fenetre
+
+    societe = company or {}
+    bornes = _bornes_regle(societe, year, month)
+    annee_prec, mois_prec = _mois_precedent(year, month)
+    surcharges = surcharges_fenetre or {}
+    fin_precedente = surcharges.get((annee_prec, mois_prec))
+    if fin_precedente is None:
+        fin_precedente = _bornes_regle(societe, annee_prec, mois_prec)[1]
+    fenetre = resoudre_fenetre(
+        bornes_regle=bornes,
+        fin_mois_precedent=fin_precedente,
+        surcharge=surcharges.get((year, month)),
+    )
+    return {"debut": fenetre.debut.isoformat(), "fin": fenetre.fin.isoformat()}
+
+
 def parametres_societe_pour_empreinte(company: Mapping[str, Any] | None) -> dict[str, Any]:
     societe = company or {}
     reglages = societe.get("settings") or {}
@@ -193,6 +228,8 @@ def entrees_depuis_lectures(
     employee: Mapping[str, Any],
     company: Mapping[str, Any] | None,
     notes_de_frais: Iterable[Mapping[str, Any]] | None = None,
+    fenetre_variables: Mapping[str, Any] | None = None,
+    surcharges_fenetre: Mapping[tuple[int, int], date] | None = None,
 ) -> dict[str, Any]:
     """Pièces déjà lues → dictionnaire d'empreinte. Sans I/O."""
     absences_list = list(absences)
@@ -204,6 +241,9 @@ def entrees_depuis_lectures(
             "fiche": _extrait(employee, _CLES_FICHE),
             "notes_de_frais": _notes_du_mois(notes_de_frais or [], year, month),
             "parametres_societe": parametres_societe_pour_empreinte(company),
+            "fenetre_variables": _fenetre_pour_empreinte(
+                company, year, month, fenetre_variables, surcharges_fenetre
+            ),
         }
     )
 
@@ -227,6 +267,7 @@ def _entrees_depuis_cache(lectures: LecturesEmpreinte, year: int, month: int) ->
         employee=lectures.employee,
         company=lectures.company,
         notes_de_frais=lectures.notes_de_frais,
+        surcharges_fenetre=lectures.surcharges_fenetre,
     )
 
 

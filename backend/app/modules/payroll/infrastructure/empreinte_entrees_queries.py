@@ -8,7 +8,7 @@ requête par bulletin.
 from __future__ import annotations
 
 import calendar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -43,6 +43,7 @@ class LecturesEmpreinte:
     absences: list[dict[str, Any]]
     saisies_par_mois: dict[tuple[int, int], list[dict[str, Any]]]
     notes_de_frais: list[dict[str, Any]]
+    surcharges_fenetre: dict[tuple[int, int], date] = field(default_factory=dict)
 
 
 def _mois_a_lire(periodes: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -61,6 +62,46 @@ def _plage_dates(mois: list[tuple[int, int]]) -> tuple[str, str] | None:
     return debut.isoformat(), fin.isoformat()
 
 
+def _lire_surcharges_fenetre(
+    company_id: str, periodes: list[tuple[int, int]]
+) -> dict[tuple[int, int], date]:
+    """Surcharges `company_variable_periods` des mois demandés et du mois d'avant."""
+    from app.modules.payroll.application.periode_variables_service import _mois_precedent
+    from postgrest.exceptions import APIError
+
+    mois: set[tuple[int, int]] = set(periodes)
+    for year, month in periodes:
+        mois.add(_mois_precedent(year, month))
+    annees = sorted({y for y, _ in mois})
+    try:
+        resp = (
+            supabase.table("company_variable_periods")
+            .select("year, month, end_date")
+            .eq("company_id", str(company_id))
+            .in_("year", annees)
+            .execute()
+        )
+    except APIError as exc:
+        if str(getattr(exc, "code", "") or "") == "PGRST205":
+            return {}
+        raise
+    except Exception:  # noqa: BLE001 — table illisible : la règle société s'applique
+        return {}
+    retenues: dict[tuple[int, int], date] = {}
+    for row in (resp.data if resp else None) or []:
+        try:
+            cle = (int(row["year"]), int(row["month"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if cle not in mois or not row.get("end_date"):
+            continue
+        try:
+            retenues[cle] = date.fromisoformat(str(row["end_date"])[:10])
+        except ValueError:
+            continue
+    return retenues
+
+
 def lire_lectures_salarie(
     employee_id: str, periodes: list[tuple[int, int]]
 ) -> LecturesEmpreinte | None:
@@ -77,6 +118,9 @@ def lire_lectures_salarie(
     employee = (fiche.data if fiche else None) or None
     if not employee:
         return None
+    from app.modules.payroll.documents.payslip_generator import resolve_date_sortie
+
+    employee = {**employee, "exit_last_working_day": resolve_date_sortie(employee)}
     company_id = employee.get("company_id")
     company: dict[str, Any] = {}
     if company_id:
@@ -152,6 +196,8 @@ def lire_lectures_salarie(
         )
         notes = list((notes_res.data if notes_res else None) or [])
 
+    surcharges_fenetre = _lire_surcharges_fenetre(company_id, periodes) if company_id else {}
+
     return LecturesEmpreinte(
         employee=employee,
         company=company,
@@ -159,4 +205,5 @@ def lire_lectures_salarie(
         absences=absences,
         saisies_par_mois=saisies_par_mois,
         notes_de_frais=notes,
+        surcharges_fenetre=surcharges_fenetre,
     )
