@@ -3,7 +3,7 @@
 Le générateur imprime le bulletin du moteur, qui ne connaît pas la note ajoutée
 depuis l'écran : une régénération la faisait disparaître du PDF (audit du
 28/09). La note vit dans sa colonne et survit à la régénération ; il suffit de
-réimprimer le PDF après coup. Même chemin quand seule la note change.
+réimprimer le PDF après coup. Même chose quand seule la note change.
 """
 
 from __future__ import annotations
@@ -41,11 +41,19 @@ def _dossier_du_salarie(employee_id: str) -> str | None:
 
 
 def reimprimer_bulletin(payslip_id: str) -> str | None:
-    """Refait le PDF, le dépose à sa place et rend son nouveau lien signé.
+    """Refait le PDF, le dépose à un nouveau chemin et rend son nouveau lien signé.
+
+    Nouveau chemin et non le même : voir `pdf_du_bulletin`. L'ancien fichier
+    est retiré une fois la ligne du bulletin à jour.
 
     Rend None si le bulletin n'a pas de PDF enregistré : il n'y a rien à refaire.
     """
     from app.modules.payroll.documents.payslip_editor import regenerate_pdf_from_data
+    from app.modules.payroll.documents.pdf_du_bulletin import (
+        nom_affiche,
+        rehorodater,
+        retirer_pdf_remplace,
+    )
 
     bulletin = _lire(payslip_id)
     if not bulletin or not bulletin.get("pdf_storage_path"):
@@ -64,22 +72,27 @@ def reimprimer_bulletin(payslip_id: str) -> str | None:
         pdf_notes=bulletin.get("pdf_notes") or None,
         pdf_name_suffix="_impression",
     )
+    ancien = str(bulletin["pdf_storage_path"])
+    nouveau = rehorodater(ancien)
     try:
         stockage = supabase.storage.from_("payslips")
         stockage.upload(
-            path=bulletin["pdf_storage_path"],
+            path=nouveau,
             file=chemin.read_bytes(),
             file_options={"x-upsert": "true"},
         )
         lien = stockage.create_signed_url(
-            bulletin["pdf_storage_path"], 3600, options={"download": True}
+            nouveau, 3600, options={"download": nom_affiche(nouveau)}
         )["signedURL"]
     finally:
         try:
             chemin.unlink()
         except OSError:
             logger.warning("PDF temporaire non supprimé : %s", chemin)
-    supabase.table("payslips").update({"url": lien}).eq("id", payslip_id).execute()
+    supabase.table("payslips").update({"pdf_storage_path": nouveau, "url": lien}).eq(
+        "id", payslip_id
+    ).execute()
+    retirer_pdf_remplace(supabase, ancien, nouveau)
     return lien
 
 

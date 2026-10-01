@@ -36,6 +36,11 @@ from app.modules.payroll.documents.dossier_de_travail import (
     supprimer_dossier_de_travail,
 )
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
+from app.modules.payroll.documents.pdf_du_bulletin import (
+    chemin_enregistre,
+    chemin_horodate,
+    retirer_pdf_remplace,
+)
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
@@ -1320,7 +1325,8 @@ def process_payslip_generation(
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
         local_pdf_path = employee_path / "bulletins" / pdf_name
-        storage_path = f"{company_id}/{employee_id}/bulletins/{pdf_name}"
+        pdf_remplace = chemin_enregistre(supabase, str(company_id), employee_id, year, month)
+        storage_path = chemin_horodate(str(company_id), employee_id, pdf_name)
         files_to_cleanup.append(local_pdf_path)
 
         with open(local_pdf_path, "rb") as f:
@@ -1329,7 +1335,7 @@ def process_payslip_generation(
             )
 
         signed_url_response = supabase.storage.from_("payslips").create_signed_url(
-            storage_path, 3600, options={"download": True}
+            storage_path, 3600, options={"download": pdf_name}
         )
         pdf_url = signed_url_response["signedURL"]
 
@@ -1376,6 +1382,7 @@ def process_payslip_generation(
                     storage_path=storage_path,
                 ),
             )
+            retirer_pdf_remplace(supabase, pdf_remplace, storage_path)
 
         supabase.table("employee_schedules").update(
             {"cumuls": new_cumuls_json, "payroll_events": payroll_events_json}

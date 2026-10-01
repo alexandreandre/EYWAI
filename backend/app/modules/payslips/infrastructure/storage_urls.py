@@ -2,8 +2,22 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from app.core.database import supabase
+from app.modules.payroll.documents.pdf_du_bulletin import nom_affiche
 from app.shared.infrastructure.storage_signed_url import extract_signed_url
+
+
+def _telecharger_sous(url: str, nom: str) -> str:
+    """Le nom du fichier téléchargé : le paramètre `download`, hors signature.
+
+    La signature par lot donne un seul nom à tous les fichiers ; sans nom, le
+    stockage prend celui du chemin, qui porte l'horodatage de l'impression.
+    """
+    morceaux = urlsplit(url)
+    requete = [(k, v) for k, v in parse_qsl(morceaux.query, keep_blank_values=True) if k != "download"]
+    return urlunsplit(morceaux._replace(query=urlencode([*requete, ("download", nom)])))
 
 
 def _signed_url_map(paths: list[str], expires: int, *, download: bool) -> dict[str, str]:
@@ -16,7 +30,7 @@ def _signed_url_map(paths: list[str], expires: int, *, download: bool) -> dict[s
         raise RuntimeError(signed.get("message", "Storage error"))
     items = signed if isinstance(signed, list) else []
     return {
-        path: url
+        path: _telecharger_sous(url, nom_affiche(path)) if download else url
         for path, item in zip(paths, items)
         if (url := extract_signed_url(item))
     }

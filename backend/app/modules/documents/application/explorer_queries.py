@@ -10,6 +10,7 @@ from app.modules.employee_exits.domain.document_access import (
     rh_should_list_in_documents_explorer,
 )
 from app.modules.employees.application.service import enrich_employee_with_exit_context
+from app.modules.payroll.documents.pdf_du_bulletin import nom_affiche
 from app.modules.payslips.infrastructure.storage_urls import create_payslip_url_maps
 from app.modules.employees.infrastructure.providers import get_storage_provider
 
@@ -79,7 +80,7 @@ def _fetch_company_payslips(company_id: str) -> List[Dict[str, Any]]:
                 "id": str(p["id"]),
                 "employee_id": eid,
                 "employee_name": names.get(eid) or eid,
-                "name": storage_path.split("/")[-1],
+                "name": nom_affiche(storage_path),
                 "url": download_map[storage_path],
                 "preview_url": preview_url_with_download_fallback(
                     preview_map, download_map, storage_path

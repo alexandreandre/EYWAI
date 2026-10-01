@@ -51,7 +51,16 @@ class DebugStorageInfoProvider:
             raise ValueError("Employé non trouvé.")
         company_id = emp.data["company_id"]
         folder_name = emp.data["employee_folder_name"]
-        storage_path = (
+        # Le PDF porte l'horodatage de son impression : seul le bulletin connaît
+        # son chemin. Sans bulletin, le chemin d'avant l'horodatage.
+        bulletin = (
+            supabase.table("payslips")
+            .select("pdf_storage_path")
+            .match({"employee_id": employee_id, "year": year, "month": month})
+            .maybe_single()
+            .execute()
+        )
+        storage_path = ((bulletin.data if bulletin else None) or {}).get("pdf_storage_path") or (
             f"{company_id}/{employee_id}/bulletins/"
             f"Bulletin_{folder_name}_{month:02d}-{year}.pdf"
         )

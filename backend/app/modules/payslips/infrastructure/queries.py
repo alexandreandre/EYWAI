@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.payroll.documents.pdf_du_bulletin import nom_affiche
 from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
@@ -88,7 +89,7 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
         storage_path = p.get("pdf_storage_path")
         if storage_path not in download_map:
             continue
-        file_name = storage_path.split("/")[-1]
+        file_name = nom_affiche(storage_path)
         meta = payslip_list_meta(p.get("payslip_data"))
         result.append(
             {
@@ -154,7 +155,7 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
         result.append(
             {
                 "id": p["id"],
-                "name": storage_path.split("/")[-1],
+                "name": nom_affiche(storage_path),
                 "month": p["month"],
                 "year": p["year"],
                 "url": download_map[storage_path],

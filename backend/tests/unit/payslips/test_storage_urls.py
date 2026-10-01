@@ -19,7 +19,7 @@ def test_create_payslip_url_maps_returns_download_and_preview(mock_supabase):
 
     download_map, preview_map = create_payslip_url_maps(["co/2025/01.pdf"])
 
-    assert download_map == {"co/2025/01.pdf": "https://dl.example/a.pdf"}
+    assert download_map == {"co/2025/01.pdf": "https://dl.example/a.pdf?download=01.pdf"}
     assert preview_map == {"co/2025/01.pdf": "https://preview.example/a.pdf"}
     assert bucket.create_signed_urls.call_args_list[0].kwargs["options"] == {"download": True}
     assert bucket.create_signed_urls.call_args_list[1].kwargs["options"] == {"download": False}

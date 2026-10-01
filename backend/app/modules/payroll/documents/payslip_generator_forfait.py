@@ -35,6 +35,11 @@ from app.modules.payroll.documents.dossier_de_travail import (
     supprimer_dossier_de_travail,
 )
 from app.modules.payroll.documents.bac_a_sable import BacASable, cumuls_de_depart
+from app.modules.payroll.documents.pdf_du_bulletin import (
+    chemin_enregistre,
+    chemin_horodate,
+    retirer_pdf_remplace,
+)
 
 from app.core.database import supabase
 from app.modules.collective_agreements.application.idcc_resolution import (
@@ -646,17 +651,21 @@ def process_payslip_generation_forfait(
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
         local_pdf_path = employee_path / "bulletins" / pdf_name
-        storage_path = f"{company_id}/{employee_id}/bulletins/{pdf_name}"
+        pdf_remplace = chemin_enregistre(supabase, str(company_id), employee_id, year, month)
         files_to_cleanup.append(local_pdf_path)
 
         if local_pdf_path.exists():
+            storage_path = chemin_horodate(str(company_id), employee_id, pdf_name)
             with open(local_pdf_path, "rb") as f:
                 supabase.storage.from_("payslips").upload(
                     path=storage_path, file=f.read(), file_options={"x-upsert": "true"}
                 )
+        else:
+            # Pas de PDF imprimé : le bulletin garde le sien, qui n'est pas retiré.
+            storage_path = pdf_remplace or f"{company_id}/{employee_id}/bulletins/{pdf_name}"
 
         signed_url_response = supabase.storage.from_("payslips").create_signed_url(
-            storage_path, 3600, options={"download": True}
+            storage_path, 3600, options={"download": pdf_name}
         )
         pdf_url = signed_url_response["signedURL"]
 
@@ -700,6 +709,7 @@ def process_payslip_generation_forfait(
                     pdf_name_suffix="_FORFAIT",
                 ),
             )
+            retirer_pdf_remplace(supabase, pdf_remplace, storage_path)
 
         supabase.table("employee_schedules").update({"cumuls": new_cumuls_json}).match(
             {"employee_id": employee_id, "year": year, "month": month}
