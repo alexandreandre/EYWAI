@@ -7,9 +7,13 @@ le net sort négatif. Rien n'est viré ; la somme se reprend le mois suivant.
 from app.modules.payroll.domain.report_nap_negatif import (
     est_un_report,
     message_net_negatif,
+    message_reports_multiples,
+    message_retenue_autre_nom,
+    message_verrou_report,
     mois_reporte,
     mois_suivant,
     nom_du_report,
+    statut_qui_verrouille,
 )
 from app.modules.payroll.engine.controles_convention import avertissements_de_generation
 from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
@@ -78,17 +82,37 @@ def test_seules_les_saisies_de_report_passent_au_bulletin():
     assert reports_du_mois(saisies) == [{"libelle": "Report NAP négatif 09/2026", "montant": 115.43}]
 
 
-def test_seules_les_saisies_de_report_passent_au_bulletin():
-    from app.modules.payroll.domain.report_nap_negatif import reports_du_mois
-
-    saisies = [
-        {"name": "Report NAP négatif 09/2026", "amount": -115.43, "sur_le_net": True},
-        {"name": "Acompte du 15", "amount": -300.0, "sur_le_net": True},
-    ]
-    assert reports_du_mois(saisies) == [{"libelle": "Report NAP négatif 09/2026", "montant": 115.43}]
-
-
 def test_un_report_se_reconnait_par_le_catalogue_ou_par_le_nom():
     assert est_un_report({"catalog_prime_id": "report_nap_negatif", "name": "X"})
     assert est_un_report({"name": "report nap negatif 09/2026"})
     assert not est_un_report({"name": "Acompte du 15"})
+
+
+def test_un_bulletin_valide_verrouille_meme_a_cote_d_un_brouillon():
+    assert statut_qui_verrouille(["brouillon", "valide"]) == "valide"
+    assert statut_qui_verrouille(["brouillon"]) == "brouillon"
+    assert statut_qui_verrouille([]) is None
+
+
+def test_le_verrou_nomme_le_mois_et_le_geste():
+    assert message_verrou_report("bulletin_valide", 2026, 10, supprimer=False) == (
+        "Le bulletin d’octobre 2026 est déjà validé : impossible d’y reporter la somme."
+    )
+    assert message_verrou_report("mois_cloture", 2026, 10, supprimer=True) == (
+        "La paie d’octobre 2026 est clôturée : impossible d’en retirer le report."
+    )
+
+
+def test_une_retenue_sous_un_autre_nom_dit_le_montant_et_renvoie_aux_saisies():
+    assert message_retenue_autre_nom(300.0, 2026, 10) == (
+        "Une retenue sur le net de 300,00 € existe déjà en octobre 2026, sous un autre nom. "
+        "Ouvrez les saisies avant d’ajouter le report."
+    )
+
+
+def test_plusieurs_reports_nomment_chaque_montant():
+    assert message_reports_multiples([-115.43, -100.0], 2026, 10) == (
+        "Plusieurs reports existent déjà en octobre 2026 : 115,43 € et 100,00 €. "
+        "Chacun est déduit du net tant que la ligne existe. "
+        "Ouvrez les saisies pour n’en garder qu’un."
+    )

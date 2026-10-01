@@ -12,6 +12,7 @@ from app.modules.payslips.schemas.requests import (
     PayslipPreviewRequest,
     PayslipRequest,
     PayslipRestoreRequest,
+    ReportNetNegatifActionRequest,
 )
 from app.modules.payslips.schemas.responses import (
     ComparisonLineResponse,
@@ -33,6 +34,7 @@ __all__ = [
     "PayslipEditRequest",
     "PayslipRestoreRequest",
     "AcquitAlertRequest",
+    "ReportNetNegatifActionRequest",
     "InternalNoteCreate",
     "PayslipInfo",
     "PayslipDetail",

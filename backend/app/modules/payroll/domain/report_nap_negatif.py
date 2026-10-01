@@ -71,13 +71,59 @@ def reports_du_mois(saisies_sur_le_net: Iterable[Mapping[str, Any]]) -> List[Dic
     ]
 
 
-def reports_du_mois(saisies_sur_le_net: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
-    """Reports parmi les saisies « sur le net », en retenue positive, pour le bulletin."""
-    return [
-        {"libelle": str(s.get("name") or LIBELLE), "montant": round(-float(s.get("amount") or 0.0), 2)}
-        for s in saisies_sur_le_net
-        if est_un_report(s)
-    ]
+def statut_qui_verrouille(statuts: Iterable[str]) -> Optional[str]:
+    """Un bulletin validé verrouille, même s'il est listé après un brouillon."""
+    valeurs = [str(s or "") for s in statuts]
+    if "valide" in valeurs:
+        return "valide"
+    return next((s for s in valeurs if s), None)
+
+
+def article_de(mot: str) -> str:
+    """« de octobre 2026 » → « d’octobre 2026 »."""
+    return f"d’{mot}" if mot and mot[0].lower() in "aeiouyéèâîôûh" else f"de {mot}"
+
+
+def message_verrou_report(
+    verrou: str, annee_suivante: int, mois_suivant_: int, *, supprimer: bool
+) -> str:
+    suivant = mois_en_lettres(annee_suivante, mois_suivant_)
+    geste = (
+        "impossible d’en retirer le report"
+        if supprimer
+        else "impossible d’y reporter la somme"
+    )
+    if verrou == "bulletin_valide":
+        return f"Le bulletin {article_de(suivant)} est déjà validé : {geste}."
+    return f"La paie {article_de(suivant)} est clôturée : {geste}."
+
+
+def message_retenue_autre_nom(montant: float, annee_suivante: int, mois_suivant_: int) -> str:
+    return (
+        f"Une retenue sur le net de {euros(abs(montant))} € existe déjà en "
+        f"{mois_en_lettres(annee_suivante, mois_suivant_)}, sous un autre nom. "
+        "Ouvrez les saisies avant d’ajouter le report."
+    )
+
+
+def _joindre_montants_euros(montants: Iterable[float]) -> str:
+    textes = [f"{euros(abs(float(m)))} €" for m in montants]
+    if not textes:
+        return ""
+    if len(textes) == 1:
+        return textes[0]
+    return f"{', '.join(textes[:-1])} et {textes[-1]}"
+
+
+def message_reports_multiples(
+    montants: Iterable[float], annee_suivante: int, mois_suivant_: int
+) -> str:
+    return (
+        f"Plusieurs reports existent déjà en {mois_en_lettres(annee_suivante, mois_suivant_)} : "
+        f"{_joindre_montants_euros(montants)}. "
+        "Chacun est déduit du net tant que la ligne existe. "
+        "Ouvrez les saisies pour n’en garder qu’un."
+    )
 
 
 def mois_reporte(nom: str) -> Optional[Tuple[int, int]]:

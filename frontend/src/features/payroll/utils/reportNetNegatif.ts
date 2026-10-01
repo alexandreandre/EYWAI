@@ -7,13 +7,11 @@
  */
 
 import type { QueryKey } from '@tanstack/react-query';
-import type { EtatReportNetNegatif } from '@/api/payslips';
+import type { EtatReportNetNegatif, SaisieReportNetNegatif } from '@/api/payslips';
 import { queryKeys } from '@/lib/queryKeys';
 import { extractDetail, getApiErrorStatus, sanitizeBackendMessage } from '@/lib/errorMessages';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { clesAInvaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
-
-export const CATALOGUE_REPORT_NAP_NEGATIF = 'report_nap_negatif';
 
 export type { EtatReportNetNegatif };
 
@@ -51,8 +49,19 @@ function de(mot: string): string {
   return /^[aeiouyéèâîôûh]/i.test(mot) ? `d’${mot}` : `de ${mot}`;
 }
 
-function montantDuReport(etat: EtatReportNetNegatif): number | null {
-  return etat.saisie ? Math.round(-etat.saisie.amount * 100) / 100 : null;
+function reportsDe(etat: EtatReportNetNegatif): SaisieReportNetNegatif[] {
+  if (etat.saisies && etat.saisies.length > 0) return etat.saisies;
+  return etat.saisie ? [etat.saisie] : [];
+}
+
+function joindreMontants(saisies: SaisieReportNetNegatif[]): string {
+  const textes = saisies.map((s) => `${euros(Math.abs(s.amount))} €`);
+  if (textes.length <= 1) return textes[0] ?? '';
+  return `${textes.slice(0, -1).join(', ')} et ${textes[textes.length - 1]}`;
+}
+
+function montantDuReport(saisie: SaisieReportNetNegatif | null | undefined): number | null {
+  return saisie ? Math.round(-saisie.amount * 100) / 100 : null;
 }
 
 const CACHEE: VueReport = {
@@ -69,7 +78,9 @@ export function vueDuReport(etat: EtatReportNetNegatif): VueReport {
   const ceMois = moisEnLettres(etat.annee, etat.mois);
   const suivant = moisEnLettres(etat.annee_suivante, etat.mois_suivant);
   const montant = etat.montant_a_reporter;
-  const existant = montantDuReport(etat);
+  const reports = reportsDe(etat);
+  const existant = montantDuReport(reports[0] ?? etat.saisie);
+  const autre = etat.autre_retenue_sur_le_net;
   const lien = lienVariablesDuMois({
     employeeId: etat.employee_id,
     year: etat.annee_suivante,
@@ -77,7 +88,26 @@ export function vueDuReport(etat: EtatReportNetNegatif): VueReport {
   });
 
   let vue: VueReport;
-  if (montant > 0 && existant === null) {
+  if (reports.length > 1) {
+    vue = {
+      ...CACHEE,
+      visible: true,
+      texte:
+        `Plusieurs reports existent déjà en ${suivant} : ${joindreMontants(reports)}. ` +
+        'Chacun est déduit du net tant que la ligne existe. ' +
+        'Ouvrez les saisies pour n’en garder qu’un.',
+      lien,
+    };
+  } else if (autre && reports.length === 0) {
+    vue = {
+      ...CACHEE,
+      visible: true,
+      texte:
+        `Une retenue sur le net de ${euros(Math.abs(autre.amount))} € existe déjà en ${suivant}, sous un autre nom. ` +
+        'Ouvrez les saisies avant d’ajouter le report.',
+      lien,
+    };
+  } else if (montant > 0 && existant === null) {
     vue = {
       ...CACHEE,
       visible: true,
@@ -88,7 +118,7 @@ export function vueDuReport(etat: EtatReportNetNegatif): VueReport {
       action: 'creer',
     };
   } else if (montant > 0 && existant !== null && Math.abs(existant - montant) < 0.005) {
-    return { ...CACHEE, visible: true, texte: `Reporté sur ${suivant} (${euros(montant)} €)`, lien };
+    vue = { ...CACHEE, visible: true, texte: `Reporté sur ${suivant} (${euros(montant)} €)`, lien };
   } else if (montant > 0 && existant !== null) {
     vue = {
       ...CACHEE,
@@ -123,22 +153,6 @@ export function vueDuReport(etat: EtatReportNetNegatif): VueReport {
   return vue;
 }
 
-export function saisieDuReport(etat: EtatReportNetNegatif) {
-  return {
-    year: etat.annee_suivante,
-    month: etat.mois_suivant,
-    name: etat.nom_du_report,
-    description:
-      `Net à payer négatif du bulletin de ${moisEnLettres(etat.annee, etat.mois)}, ` +
-      `repris sur ${moisEnLettres(etat.annee_suivante, etat.mois_suivant)}.`,
-    amount: -etat.montant_a_reporter,
-    is_socially_taxed: false,
-    is_taxable: false,
-    sur_le_net: true,
-    catalog_prime_id: CATALOGUE_REPORT_NAP_NEGATIF,
-  };
-}
-
 export function messageSuccesReport(action: ActionReport, etat: EtatReportNetNegatif): string {
   const saisies = `saisies ${de(MOIS[etat.mois_suivant - 1])}`;
   const montant = euros(etat.montant_a_reporter);
@@ -164,27 +178,16 @@ export function messageEchecReport(action: ActionReport, erreur: unknown): strin
 }
 
 export interface ApiDuReport {
-  creer: (employeeId: string, saisie: ReturnType<typeof saisieDuReport>, companyId: string) => Promise<unknown>;
-  mettreAJour: (saisieId: string, changements: { amount: number }, companyId: string) => Promise<unknown>;
-  supprimer: (employeeId: string, saisieId: string, companyId: string) => Promise<unknown>;
+  executer: (payslipId: string, action: ActionReport, companyId: string) => Promise<unknown>;
 }
 
-/** Une seule saisie par report : la mise à jour et la suppression visent la saisie existante. */
+/** L’écriture passe par l’endpoint du report : idempotente, et refusée si le mois suivant est verrouillé. */
 export async function executerReport(
   action: ActionReport,
   etat: EtatReportNetNegatif,
   api: ApiDuReport
 ): Promise<void> {
-  if (action === 'creer') {
-    await api.creer(etat.employee_id, saisieDuReport(etat), etat.company_id);
-    return;
-  }
-  if (!etat.saisie) throw new Error('Aucune saisie de report à modifier.');
-  if (action === 'mettre_a_jour') {
-    await api.mettreAJour(etat.saisie.id, { amount: -etat.montant_a_reporter }, etat.company_id);
-    return;
-  }
-  await api.supprimer(etat.employee_id, etat.saisie.id, etat.company_id);
+  await api.executer(etat.payslip_id, action, etat.company_id);
 }
 
 /** L'état du report, les bulletins du salarié et la paie du mois. */

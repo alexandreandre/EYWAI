@@ -47,12 +47,18 @@ from app.modules.payslips.application import (
     GeneratePayslipInput,
 )
 from app.modules.payslips.application.dto import PayslipConflictError
-from app.modules.payslips.application.report_nap_negatif import lire_etat_du_report
+from app.modules.payslips.application.report_nap_negatif import (
+    ReportNapRefuse,
+    executer_report,
+    lire_etat_du_report,
+    lire_etats_du_mois,
+)
 from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
 from app.modules.payslips.schemas import (
     AcquitAlertRequest,
     ComparisonResultResponse,
+    ReportNetNegatifActionRequest,
     HistoryEntry,
     PayslipDetail,
     PayslipEditRequest,
@@ -193,6 +199,24 @@ def get_payslips_anomalies_route(
     except Exception as e:
         logger.exception("Échec de get_payslips_anomalies_route")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/api/payslips/reports-net-negatif")
+def get_reports_net_negatif_du_mois_route(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    current_user: User = Depends(get_current_user),
+):
+    """Reports de net négatif de tous les bulletins du mois (une lecture groupée)."""
+    company_id = _require_rh_company_context(current_user)
+    try:
+        return lire_etats_du_mois(company_id, year, month)
+    except Exception as e:
+        logger.exception("Échec de get_reports_net_negatif_du_mois_route")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lecture des reports du net négatif impossible : {e}",
+        )
 
 
 # --- Génération ---
@@ -384,6 +408,27 @@ def get_report_net_negatif_route(
         raise HTTPException(
             status_code=500,
             detail=f"Lecture du report du net négatif impossible : {e}",
+        )
+
+
+@router.post("/api/payslips/{payslip_id}/report-net-negatif")
+def post_report_net_negatif_route(
+    payslip_id: str,
+    body: ReportNetNegatifActionRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Crée, met à jour ou supprime le report. Idempotent ; refuse si le mois suivant est verrouillé."""
+    _require_rh_company_context(current_user)
+    meta = _require_payslip_scope(current_user, payslip_id, "payslips.view_all")
+    try:
+        return executer_report(body.action, payslip_id, meta)
+    except ReportNapRefuse as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("Échec de post_report_net_negatif_route")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Écriture du report du net négatif impossible : {e}",
         )
 
 

@@ -161,7 +161,6 @@ export function PayrollPayslipRow({
         <ReportNetNegatif
           payslipId={payslip.id}
           companyId={companyId}
-          netAPayer={payslip.net_a_payer}
           variante="ligne"
         />
         <DownloadLinkButton href={payslip.url} download={payslip.name} label="Télécharger" />

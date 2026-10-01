@@ -350,7 +350,6 @@ export default function PayslipEdit() {
       <ReportNetNegatif
         payslipId={payslip.id}
         companyId={payslip.company_id}
-        toujours
         variante="editeur"
       />
 

@@ -12,6 +12,7 @@ from typing import Any
 
 from app.core.database import supabase
 from app.modules.payroll.documents.pdf_du_bulletin import nom_affiche
+from app.modules.payroll.domain.report_nap_negatif import statut_qui_verrouille
 from app.shared.domain.employment_rules import effective_statut_for_payroll
 
 from app.modules.payslips.infrastructure.mappers import build_payslip_detail
@@ -72,25 +73,83 @@ def get_payslip_net_a_payer(payslip_id: str) -> float | None:
 def get_payslip_status_for_period(
     employee_id: str, company_id: str, year: int, month: int
 ) -> str | None:
+    """Si un bulletin validé existe, c'est lui qui verrouille, même à côté d'un brouillon."""
     r = (
         supabase.table("payslips")
         .select("status")
         .match({"employee_id": employee_id, "company_id": company_id, "year": year, "month": month})
-        .limit(1)
         .execute()
     )
     rows = (r.data if r else None) or []
-    return str(rows[0].get("status") or "") if rows else None
+    return statut_qui_verrouille(str(row.get("status") or "") for row in rows)
+
+
+def get_payslip_statuses_by_employee_for_period(
+    company_id: str, year: int, month: int
+) -> dict[str, list[str]]:
+    r = (
+        supabase.table("payslips")
+        .select("employee_id, status")
+        .match({"company_id": company_id, "year": year, "month": month})
+        .execute()
+    )
+    par_employe: dict[str, list[str]] = {}
+    for row in (r.data if r else None) or []:
+        par_employe.setdefault(str(row.get("employee_id") or ""), []).append(
+            str(row.get("status") or "")
+        )
+    return par_employe
+
+
+def get_payslips_meta_for_period(
+    company_id: str, year: int, month: int
+) -> list[dict[str, Any]]:
+    """Bulletins du mois de paie : identifiants, salarié, net à payer."""
+    r = (
+        supabase.table("payslips")
+        .select("id, company_id, employee_id, year, month, payslip_data")
+        .match({"company_id": company_id, "year": year, "month": month})
+        .execute()
+    )
+    result: list[dict[str, Any]] = []
+    for row in (r.data if r else None) or []:
+        data = row.get("payslip_data") or {}
+        net = data.get("net_a_payer") if isinstance(data, dict) else None
+        result.append(
+            {
+                "id": row["id"],
+                "company_id": str(row.get("company_id") or company_id),
+                "employee_id": str(row.get("employee_id") or ""),
+                "year": int(row["year"]),
+                "month": int(row["month"]),
+                "net_a_payer": float(net) if isinstance(net, (int, float)) else None,
+            }
+        )
+    return result
 
 
 def get_report_candidates_for_period(
     employee_id: str, company_id: str, year: int, month: int
 ) -> list[dict[str, Any]]:
-    """Saisies « sur le net » du mois : le report d'un net négatif en fait partie."""
+    """Saisies du mois : le report d'un net négatif en fait partie."""
     r = (
         supabase.table("monthly_inputs")
         .select("id, name, amount, catalog_prime_id, sur_le_net")
         .match({"employee_id": employee_id, "company_id": company_id, "year": year, "month": month})
+        .order("created_at")
+        .execute()
+    )
+    return (r.data if r else None) or []
+
+
+def get_report_candidates_for_company_period(
+    company_id: str, year: int, month: int
+) -> list[dict[str, Any]]:
+    """Saisies du mois pour toute la société (lecture groupée du report)."""
+    r = (
+        supabase.table("monthly_inputs")
+        .select("id, employee_id, name, amount, catalog_prime_id, sur_le_net")
+        .match({"company_id": company_id, "year": year, "month": month})
         .order("created_at")
         .execute()
     )

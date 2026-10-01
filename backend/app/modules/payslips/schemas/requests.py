@@ -5,7 +5,7 @@ Structure alignée sur schemas.payslip (legacy). Migration : remplacer les usage
 par ces schémas puis retirer l'ancien fichier.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -147,6 +147,12 @@ class AcquitAlertRequest(BaseModel):
     """Acquittement ou commentaire sur une alerte."""
 
     comment: str | None = None
+
+
+class ReportNetNegatifActionRequest(BaseModel):
+    """Création, mise à jour ou suppression du report d'un net négatif."""
+
+    action: Literal["creer", "mettre_a_jour", "supprimer"]
 
 
 class PayslipPreviewRequest(BaseModel):

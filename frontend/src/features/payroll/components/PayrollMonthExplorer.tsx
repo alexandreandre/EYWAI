@@ -27,6 +27,7 @@ import {
   PayrollPayslipRow,
   type PayslipRowState,
 } from '@/features/payroll/components/PayrollPayslipRow';
+import { ReportsNetNegatifDuMois } from '@/features/payroll/components/ReportNetNegatif';
 
 export type EmployeeMonthState = {
   employee: EmployeeListItem;
@@ -212,7 +213,8 @@ export function PayrollMonthExplorer({
   );
 
   return (
-    <div className="space-y-4">
+    <ReportsNetNegatifDuMois year={selectedYear} month={selectedMonth}>
+      <div className="space-y-4">
       <Card className="hidden lg:block overflow-hidden">
         <div className="grid min-h-[420px] grid-cols-[minmax(200px,240px)_1fr]">
           <div className="border-r bg-muted/30 p-3 flex flex-col min-h-0">
@@ -291,6 +293,7 @@ export function PayrollMonthExplorer({
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </ReportsNetNegatifDuMois>
   );
 }

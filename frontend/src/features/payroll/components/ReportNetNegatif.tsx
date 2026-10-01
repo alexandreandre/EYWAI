@@ -1,3 +1,4 @@
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, Check, Loader2 } from 'lucide-react';
@@ -5,13 +6,14 @@ import { AlertTriangle, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { getReportNetNegatif } from '@/api/payslips';
 import {
-  createEmployeeMonthlyInput,
-  deleteEmployeeMonthlyInput,
-  updateMonthlyInput,
-} from '@/api/saisies';
+  executerReportNetNegatif,
+  getReportNetNegatif,
+  getReportsNetNegatifDuMois,
+  type EtatReportNetNegatif,
+} from '@/api/payslips';
 import { queryKeys } from '@/lib/queryKeys';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { invaliderCles } from '@/features/payroll/utils/invalidationsBulletin';
 import {
   clesApresReport,
@@ -26,31 +28,55 @@ type Props = {
   payslipId: string;
   /** Société du bulletin : lectures et écritures partent avec elle. */
   companyId: string | undefined;
-  /** Liste : seule une ligne à net négatif interroge le serveur. */
-  netAPayer?: number | null;
-  /** Éditeur : toujours interroger (un report peut survivre à un net redevenu positif). */
-  toujours?: boolean;
   variante: 'ligne' | 'editeur';
 };
 
 const API = {
-  creer: createEmployeeMonthlyInput,
-  mettreAJour: updateMonthlyInput,
-  supprimer: deleteEmployeeMonthlyInput,
+  executer: executerReportNetNegatif,
 };
 
-/** Propose de reporter un net négatif sur le mois suivant, en un clic. */
-export function ReportNetNegatif({ payslipId, companyId, netAPayer, toujours = false, variante }: Props) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const actif = toujours || (netAPayer != null && netAPayer < 0);
+/** Lot du mois de paie : une lecture, pas une requête par salarié. */
+const LotReportsNetNegatif = createContext<Record<string, EtatReportNetNegatif> | null>(null);
 
-  const { data: etat } = useQuery({
-    queryKey: queryKeys.reportNetNegatif(companyId, payslipId),
-    queryFn: () => getReportNetNegatif(payslipId, companyId),
-    enabled: actif,
+export function ReportsNetNegatifDuMois({
+  year,
+  month,
+  children,
+}: {
+  year: number;
+  month: number;
+  children: ReactNode;
+}) {
+  const companyId = useActiveCompanyId();
+  const { data } = useQuery({
+    queryKey: queryKeys.reportsNetNegatifDuMois(companyId, year, month),
+    queryFn: () => getReportsNetNegatifDuMois(year, month, companyId),
+    enabled: Boolean(companyId),
     staleTime: 30_000,
   });
+  const parId = useMemo(() => {
+    const map: Record<string, EtatReportNetNegatif> = {};
+    for (const etat of data ?? []) map[etat.payslip_id] = etat;
+    return map;
+  }, [data]);
+  return <LotReportsNetNegatif.Provider value={parId}>{children}</LotReportsNetNegatif.Provider>;
+}
+
+/** Propose de reporter un net négatif sur le mois suivant, en un clic. */
+export function ReportNetNegatif({ payslipId, companyId, variante }: Props) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const lot = useContext(LotReportsNetNegatif);
+  const depuisLot = lot !== null;
+
+  const { data: etatSeul } = useQuery({
+    queryKey: queryKeys.reportNetNegatif(companyId, payslipId),
+    queryFn: () => getReportNetNegatif(payslipId, companyId),
+    enabled: !depuisLot && Boolean(payslipId),
+    staleTime: 30_000,
+  });
+
+  const etat = depuisLot ? lot[payslipId] : etatSeul;
 
   const mutation = useMutation({
     mutationFn: (action: ActionReport) => executerReport(action, etat!, API),
@@ -86,9 +112,24 @@ export function ReportNetNegatif({ payslipId, companyId, netAPayer, toujours = f
     ) : null;
 
   if (variante === 'ligne') {
+    if (action === 'supprimer' && bouton) {
+      return (
+        <span className="inline-flex max-w-md flex-wrap items-center gap-2">
+          <span className="text-xs text-amber-800" title={vue.explication ?? vue.texte}>
+            {vue.texte}
+          </span>
+          {bouton}
+        </span>
+      );
+    }
     if (bouton) return bouton;
     return (
-      <Button variant="ghost" size="sm" asChild title="Ouvrir les saisies du mois suivant">
+      <Button
+        variant="ghost"
+        size="sm"
+        asChild
+        title={vue.explication ?? 'Ouvrir les saisies du mois suivant'}
+      >
         <Link to={vue.lien ?? '/saisies'} data-testid="report-net-negatif-fait">
           <Check className="mr-1 h-4 w-4 text-emerald-600" aria-hidden />
           {vue.texte}
@@ -100,7 +141,9 @@ export function ReportNetNegatif({ payslipId, companyId, netAPayer, toujours = f
   return (
     <Alert data-testid="report-net-negatif-encart">
       <AlertTriangle className="h-4 w-4" aria-hidden />
-      <AlertTitle>Net à payer négatif</AlertTitle>
+      <AlertTitle>
+        {etat.montant_a_reporter > 0 ? 'Net à payer négatif' : 'Report du net négatif'}
+      </AlertTitle>
       <AlertDescription className="space-y-2">
         <p>{vue.texte}</p>
         {vue.explication ? <p className="text-muted-foreground">{vue.explication}</p> : null}

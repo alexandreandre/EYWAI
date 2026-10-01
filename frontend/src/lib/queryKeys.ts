@@ -21,6 +21,8 @@ export const queryKeys = {
   /** Report d'un net négatif sur le mois suivant (segment « payslips » : jamais persisté). */
   reportNetNegatif: (companyId: string | undefined, payslipId: string) =>
     companyQueryKey(companyId, 'payslips', 'report-net-negatif', payslipId),
+  reportsNetNegatifDuMois: (companyId: string | undefined, year: number, month: number) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif', 'mois', year, month),
   reportNetNegatifTous: (companyId: string | undefined) =>
     companyQueryKey(companyId, 'payslips', 'report-net-negatif'),
   payslipsAnomalies: (companyId: string | null | undefined, year: number, month: number) =>

@@ -7,6 +7,13 @@ import type { MaintenancePreview } from './absences';
 // TYPES
 // =====================================================
 
+/** Saisie « sur le net » déjà au mois suivant (montant négatif : retenue). */
+export interface SaisieReportNetNegatif {
+  id: string;
+  name: string;
+  amount: number;
+}
+
 /** GET /api/payslips/{id}/report-net-negatif */
 export interface EtatReportNetNegatif {
   payslip_id: string;
@@ -20,8 +27,12 @@ export interface EtatReportNetNegatif {
   annee_suivante: number;
   mois_suivant: number;
   nom_du_report: string;
-  /** Saisie de report déjà au mois suivant (montant négatif : retenue sur le net). */
-  saisie: { id: string; name: string; amount: number } | null;
+  /** Premier report reconnu, s'il y en a un. */
+  saisie: SaisieReportNetNegatif | null;
+  /** Tous les reports reconnus de ce bulletin (plusieurs = retenues cumulées). */
+  saisies: SaisieReportNetNegatif[];
+  /** Retenue « sur le net » qui n'est pas un report (acompte, etc.). */
+  autre_retenue_sur_le_net: SaisieReportNetNegatif | null;
   verrou: 'bulletin_valide' | 'mois_cloture' | null;
 }
 
@@ -323,6 +334,33 @@ export const getReportNetNegatif = async (
 ): Promise<EtatReportNetNegatif> => {
   const response = await apiClient.get<EtatReportNetNegatif>(
     `/api/payslips/${payslipId}/report-net-negatif`,
+    enTeteSociete(companyId)
+  );
+  return response.data;
+};
+
+/** Une lecture pour tous les bulletins du mois de paie. */
+export const getReportsNetNegatifDuMois = async (
+  year: number,
+  month: number,
+  companyId?: string | null
+): Promise<EtatReportNetNegatif[]> => {
+  const response = await apiClient.get<EtatReportNetNegatif[]>(
+    '/api/payslips/reports-net-negatif',
+    { ...enTeteSociete(companyId), params: { year, month } }
+  );
+  return response.data;
+};
+
+/** Création, mise à jour ou suppression du report (idempotente, verrou côté serveur). */
+export const executerReportNetNegatif = async (
+  payslipId: string,
+  action: 'creer' | 'mettre_a_jour' | 'supprimer',
+  companyId?: string | null
+): Promise<EtatReportNetNegatif> => {
+  const response = await apiClient.post<EtatReportNetNegatif>(
+    `/api/payslips/${payslipId}/report-net-negatif`,
+    { action },
     enTeteSociete(companyId)
   );
   return response.data;
