@@ -103,6 +103,19 @@ def test_sans_detail_semaine_aucune_semaine_inventee_et_pas_d_infobulle_vide():
     assert "explication" not in ligne
 
 
+def test_heures_sup_somme_des_semaines_differente_pas_de_detail_faux():
+    bulletin = _bulletin(calcul_du_brut=[_ligne_hs(25, 6.0, 96.0)])
+    evenements = [
+        {"date_complete": "2026-09-07", "type": "travail_hs25", "heures": 4.0},
+        {"date_complete": "2026-09-14", "type": "travail_hs25", "heures": 4.0},
+    ]
+    pose = poser_explications(bulletin, evenements=evenements, duree_hebdo=39.0)
+    ligne = pose["calcul_du_brut"][0]
+    assert ligne["quantite"] == 6.0
+    assert ligne["gain"] == 96.0
+    assert "explication" not in ligne
+
+
 def test_absence_type_et_dates_retenus_par_le_bulletin():
     bulletin = _bulletin(
         details_absences=[

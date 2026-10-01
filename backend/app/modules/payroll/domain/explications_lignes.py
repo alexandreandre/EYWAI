@@ -171,8 +171,9 @@ def _texte_heures_depuis_semaines(
     if not retenues:
         return None
     total = _nombre(ligne.get("quantite"))
-    if total is None:
-        total = round(sum(h for _, h in retenues), 2)
+    somme = sum(h for _, h in retenues)
+    if total is None or abs(somme - total) > 0.01:
+        return None
     numeros = [n for n, _ in retenues]
     valeurs = [h for _, h in retenues]
     liste = _liste_semaines(numeros)
