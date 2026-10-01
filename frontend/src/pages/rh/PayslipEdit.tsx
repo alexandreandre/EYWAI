@@ -51,6 +51,13 @@ import {
   prenomDuBulletin,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
+import {
+  estBulletinIntrouvable,
+  lienListeDesBulletins,
+  messageBulletinNonCharge,
+  messageBulletinRemplace,
+  type MessageEcran,
+} from '@/features/payroll/utils/bulletinRemplace';
 import { invaliderApresBulletin } from '@/features/payroll/utils/invalidationsBulletin';
 import HistoryPanel from '@/components/payslip-edit/HistoryPanel';
 import NotesSection from '@/components/payslip-edit/NotesSection';
@@ -122,6 +129,7 @@ export default function PayslipEdit() {
   const [refusApresCorrection, setRefusApresCorrection] =
     useState<RefusApresCorrection | null>(null);
   const [showMaintienModal, setShowMaintienModal] = useState(false);
+  const [echecChargement, setEchecChargement] = useState<MessageEcran | null>(null);
 
   const appliquer = useCallback((data: PayslipDetail) => {
     const depart = etatInitial(data.payslip_data, data.pdf_notes);
@@ -130,10 +138,25 @@ export default function PayslipEdit() {
     setEtat(depart);
   }, []);
 
+  /** 404 : supprimé, ou supprimé puis généré à nouveau (autre identifiant). */
+  const bulletinRemplace = useCallback(
+    async (connu: PayslipDetail | null) => {
+      toast(messageBulletinRemplace());
+      await invaliderApresBulletin(queryClient, companyId, connu?.employee_id);
+      navigate(lienListeDesBulletins(connu), { replace: true });
+    },
+    [toast, queryClient, companyId, navigate]
+  );
+
   const recharger = useCallback(async () => {
     if (!payslipId) return;
-    appliquer(await getPayslipDetails(payslipId));
-  }, [payslipId, appliquer]);
+    try {
+      appliquer(await getPayslipDetails(payslipId));
+    } catch (error) {
+      if (estBulletinIntrouvable(error)) await bulletinRemplace(payslip);
+      else toast({ ...messageBulletinNonCharge(error), variant: 'destructive' });
+    }
+  }, [payslipId, appliquer, bulletinRemplace, payslip, toast]);
 
   // Les listes de bulletins (paie, fiche salarié) et les onglets du bulletin
   // sont en cache : sans cela, ils montraient l'ancien net après une correction.
@@ -147,28 +170,29 @@ export default function PayslipEdit() {
     invaliderListes();
   }, [recharger, invaliderListes]);
 
+  const charger = useCallback(async () => {
+    if (!payslipId) return;
+    setIsLoading(true);
+    setEchecChargement(null);
+    try {
+      appliquer(await getPayslipDetails(payslipId));
+    } catch (error) {
+      if (estBulletinIntrouvable(error)) await bulletinRemplace(null);
+      else setEchecChargement(messageBulletinNonCharge(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [payslipId, appliquer, bulletinRemplace]);
+
   useEffect(() => {
     if (!payslipId) {
       navigate('/');
       return;
     }
-    const charger = async () => {
-      setIsLoading(true);
-      try {
-        appliquer(await getPayslipDetails(payslipId));
-      } catch (error) {
-        toast({
-          title: 'Erreur',
-          description: messageDErreur(error, 'Impossible de charger le bulletin'),
-          variant: 'destructive',
-        });
-        navigate('/payroll');
-      } finally {
-        setIsLoading(false);
-      }
-    };
     void charger();
-  }, [payslipId, navigate, toast, appliquer]);
+    // Au changement de bulletin seulement : changer de société sur cet écran ne
+    // doit pas recharger un bulletin qu'elle ne voit pas, et le dire « remplacé ».
+  }, [payslipId, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const modifie = initial && etat ? aDesModifications(initial, etat) : false;
   const recalculPrevu = initial && etat ? recalculAttendu(initial, etat) : false;
@@ -234,6 +258,8 @@ export default function PayslipEdit() {
           variant: 'destructive',
         });
         await recharger();
+      } else if (estBulletinIntrouvable(error)) {
+        await bulletinRemplace(payslip);
       } else {
         toast({
           title: 'Correction impossible',
@@ -261,6 +287,8 @@ export default function PayslipEdit() {
     } catch (error) {
       if (isCriticalValidationBlock(error)) {
         setValidateModalOpen(true);
+      } else if (estBulletinIntrouvable(error)) {
+        await bulletinRemplace(payslip);
       } else {
         toast({
           title: 'Validation impossible',
@@ -275,6 +303,24 @@ export default function PayslipEdit() {
 
   if (isLoading) {
     return <SharkFinLoader variant="fullPage" label="Chargement du bulletin…" />;
+  }
+  if (echecChargement) {
+    return (
+      <div className="container mx-auto max-w-2xl space-y-4">
+        <Alert variant="destructive" data-testid="bulletin-non-charge">
+          <AlertTitle>{echecChargement.title}</AlertTitle>
+          <AlertDescription>{echecChargement.description}</AlertDescription>
+        </Alert>
+        <div className="flex gap-2">
+          <Button type="button" onClick={() => void charger()}>
+            Réessayer
+          </Button>
+          <Button type="button" variant="outline" onClick={() => navigate('/payroll')}>
+            Retour à la paie
+          </Button>
+        </div>
+      </div>
+    );
   }
   if (!payslip || !initial || !etat) {
     return null;

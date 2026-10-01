@@ -49,6 +49,10 @@ import {
   REFUSAL_DIALOG_LABELS,
   type GenerationRefusal,
 } from '@/features/payroll/utils/generationGuards';
+import {
+  messageRegenereNonRecharge,
+  regenererPuisRecharger,
+} from '@/features/payroll/utils/regenerationBulletin';
 
 type ForcageGeneration = {
   force_calendrier_incomplet?: boolean;
@@ -118,49 +122,54 @@ export default function RegeneratePayslipButton({
   const lancer = async (forcage: ForcageGeneration = {}, effaces: JourEnConflit[] = []) => {
     setEnCours(true);
     try {
-      const reponse = await generatePayslip({
-        employee_id: employeeId,
-        year,
-        month,
-        ...forcage,
-      });
+      const issue = await regenererPuisRecharger(
+        () => generatePayslip({ employee_id: employeeId, year, month, ...forcage }),
+        onRegenerated
+      );
+      if (issue.kind === 'echec') {
+        signalerEchec(issue.erreur, effaces);
+        return;
+      }
 
       setConfirmationOuverte(false);
       fermerRefus();
 
-      const { messages, infos } = splitGenerationWarnings(reponse.warnings);
+      const { messages, infos } = splitGenerationWarnings(issue.reponse.warnings);
       const details = [...messages, ...infos];
       toast({
         title: 'Bulletin régénéré',
         description:
           details.length > 0 ? details.join(' · ') : 'Brut, cotisations et net ont été recalculés.',
       });
-
-      await onRegenerated();
-    } catch (error) {
-      const refusStructure = extractGenerationRefusal(error);
-      if (refusStructure) {
-        // Le backend refuse et dit pourquoi : on demande confirmation avant de forcer.
-        setConfirmationOuverte(false);
-        setSuiteEffacement(null);
-        setRefus(refusStructure);
-        return;
+      if (issue.kind === 'regenere_non_recharge') {
+        toast({ ...messageRegenereNonRecharge(), variant: 'destructive' });
       }
-      if (effaces.length > 0) {
-        setSuiteEffacement({
-          effaces,
-          echecGeneration: getPayrollGenerationErrorMessage(error),
-        });
-        return;
-      }
-      toast({
-        title: 'Régénération impossible',
-        description: getPayrollGenerationErrorMessage(error),
-        variant: 'destructive',
-      });
     } finally {
       setEnCours(false);
     }
+  };
+
+  const signalerEchec = (error: unknown, effaces: JourEnConflit[]) => {
+    const refusStructure = extractGenerationRefusal(error);
+    if (refusStructure) {
+      // Le backend refuse et dit pourquoi : on demande confirmation avant de forcer.
+      setConfirmationOuverte(false);
+      setSuiteEffacement(null);
+      setRefus(refusStructure);
+      return;
+    }
+    if (effaces.length > 0) {
+      setSuiteEffacement({
+        effaces,
+        echecGeneration: getPayrollGenerationErrorMessage(error),
+      });
+      return;
+    }
+    toast({
+      title: 'Régénération impossible',
+      description: getPayrollGenerationErrorMessage(error),
+      variant: 'destructive',
+    });
   };
 
   const forcageDuRefus = (): ForcageGeneration =>
