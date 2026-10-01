@@ -1,8 +1,12 @@
+import fs from 'fs';
+import path from 'path';
+
 import { describe, expect, it } from 'vitest';
 import { QueryClient, QueryObserver, type QueryKey } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { clesAInvaliderApresEffacement } from '@/features/payroll/utils/heuresSurArret';
 import {
+  clesApresAnnulation,
   clesAInvaliderApresBulletin,
   clesAutourDesBulletins,
   clesDeLaPaieDuMois,
@@ -142,5 +146,23 @@ describe('cohérence avec l’effacement d’heures', () => {
     for (const key of clesDeLaPaieDuMois('co-1')) {
       expect(effacement).toContainEqual(key);
     }
+  });
+});
+
+describe('clesApresAnnulation : un lot annulé', () => {
+  it('le salarié du bulletin en cours : le serveur a pu le générer', () => {
+    expect(clesApresAnnulation('co-1', 'e1')).toEqual(clesAInvaliderApresBulletin('co-1', 'e1'));
+  });
+
+  it('aucun bulletin en cours : ce qui entoure les bulletins seulement', () => {
+    expect(clesApresAnnulation('co-1', null)).toEqual(clesAutourDesBulletins('co-1'));
+  });
+
+  it('le lot l’utilise à l’annulation, avec le salarié du bulletin interrompu', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '../hooks/usePayrollGeneration.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/clesApresAnnulation\(companyId, salarieInterrompu\)/);
   });
 });

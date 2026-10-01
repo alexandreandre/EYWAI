@@ -37,6 +37,19 @@ export function clesAInvaliderApresBulletin(
   return [queryKeys.employeePayslips(companyId, employeeId), ...clesAutourDesBulletins(companyId)];
 }
 
+/**
+ * Lot annulé : le bulletin en cours a pu être généré côté serveur avant
+ * l'annulation, la liste de son salarié est donc rechargée aussi.
+ */
+export function clesApresAnnulation(
+  companyId: string | undefined,
+  salarieInterrompu: string | null
+): QueryKey[] {
+  return salarieInterrompu
+    ? clesAInvaliderApresBulletin(companyId, salarieInterrompu)
+    : clesAutourDesBulletins(companyId);
+}
+
 /** Une liste de bulletins d'un salarié de la société, quel qu'il soit. */
 function estUneListeDeBulletins(queryKey: QueryKey, companyId: string | undefined): boolean {
   const employeeId = queryKey[3];

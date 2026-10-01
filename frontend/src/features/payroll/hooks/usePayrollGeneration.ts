@@ -24,6 +24,7 @@ import {
 } from '@/features/payroll/utils/generationGuards';
 import type { JourEnConflit } from '@/features/payroll/utils/heuresSurArret';
 import {
+  clesApresAnnulation,
   clesAutourDesBulletins,
   invaliderCles,
 } from '@/features/payroll/utils/invalidationsBulletin';
@@ -170,6 +171,7 @@ export function usePayrollGeneration() {
   const processQueue = useCallback(async () => {
     if (processingRef.current) return;
     processingRef.current = true;
+    let salarieInterrompu: string | null = null;
 
     try {
       while (queueRef.current.length > 0 && !abortRef.current) {
@@ -249,6 +251,7 @@ export function usePayrollGeneration() {
           }
         } catch (error: unknown) {
           if (abortRef.current || controller.signal.aborted || isAbortError(error)) {
+            salarieInterrompu = job.employeeId;
             stopTick();
             break;
           }
@@ -277,7 +280,10 @@ export function usePayrollGeneration() {
 
         stopTick();
 
-        if (abortRef.current) break;
+        if (abortRef.current) {
+          salarieInterrompu = job.employeeId;
+          break;
+        }
 
         // Remplace un éventuel refus antérieur du même job par l'issue du jour.
         setRefusedJobs((prev) => {
@@ -304,7 +310,7 @@ export function usePayrollGeneration() {
         abortRef.current = false;
         setPhase('idle');
         setEstimatedRemainingSec(null);
-        invalidateAroundPayslips();
+        void invaliderCles(queryClient, clesApresAnnulation(companyId, salarieInterrompu));
       } else if (queueRef.current.length > 0) {
         void processQueue();
       } else {
@@ -315,7 +321,7 @@ export function usePayrollGeneration() {
         invalidateExportsPageQueries(queryClient);
       }
     }
-  }, [invalidateAroundPayslips, invalidatePayslips, queryClient, startTick, stopTick, updateProgress]);
+  }, [companyId, invalidateAroundPayslips, invalidatePayslips, queryClient, startTick, stopTick, updateProgress]);
 
   const enqueueJobs = useCallback(
     (jobs: PayrollGenerationJob[]) => {
