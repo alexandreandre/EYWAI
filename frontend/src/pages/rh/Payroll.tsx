@@ -55,8 +55,9 @@ import {
   listeControleDuMois,
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
+import { lireParamsVuePaie, type VuePaie } from '@/features/payroll/utils/vuePaieUrl';
 
-type PayrollView = 'employee' | 'month';
+type PayrollView = VuePaie;
 
 function employeeDisplayName(emp: EmployeeListItem): string {
   return `${emp.first_name} ${emp.last_name}`;
@@ -145,22 +146,19 @@ export default function Payroll() {
   const employeesTous = (employeesQuery.data ?? []) as EmployeeListItem[];
 
   const employeeFromUrl = searchParams.get('employee');
-  const viewFromUrl = searchParams.get('view') === 'month' ? 'month' : 'employee';
-  const [view, setView] = useState<PayrollView>(viewFromUrl);
+  const paramsVue = lireParamsVuePaie(searchParams);
+  const view = paramsVue.view;
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
     employeeFromUrl
   );
-  // ?month=YYYY-MM : posé par « Voir les bulletins » après une génération,
-  // pour atterrir sur le mois réellement généré (souvent le mois précédent).
-  const monthFromUrl = searchParams.get('month');
-  const [selectedYear, setSelectedYear] = useState(() => {
-    const y = monthFromUrl ? parseInt(monthFromUrl.split('-')[0], 10) : NaN;
-    return Number.isFinite(y) && y > 2000 ? y : new Date().getFullYear();
-  });
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const m = monthFromUrl ? parseInt(monthFromUrl.split('-')[1], 10) : NaN;
-    return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1;
-  });
+  // ?month=YYYY-MM : posé par « Voir les bulletins » et par la liste de contrôle.
+  // Relu à chaque changement d’URL, pas seulement au premier rendu.
+  const [selectedYear, setSelectedYear] = useState(
+    () => paramsVue.year ?? new Date().getFullYear()
+  );
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => paramsVue.month ?? new Date().getMonth() + 1
+  );
   // Un parti reste visible sur les mois où il était présent : toute l'année
   // en vue salarié, le mois choisi en vue mois (salarié 086, sorti le 24/07 :
   // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
@@ -203,6 +201,11 @@ export default function Payroll() {
   }, [employeeFromUrl]);
 
   useEffect(() => {
+    if (paramsVue.year != null) setSelectedYear(paramsVue.year);
+    if (paramsVue.month != null) setSelectedMonth(paramsVue.month);
+  }, [paramsVue.year, paramsVue.month]);
+
+  useEffect(() => {
     if (employees.length === 0) return;
     if (selectedEmployeeId && employees.some((e) => e.id === selectedEmployeeId)) return;
     if (employeeFromUrl && employees.some((e) => e.id === employeeFromUrl)) {
@@ -229,7 +232,6 @@ export default function Payroll() {
 
   const handleViewChange = useCallback(
     (next: PayrollView) => {
-      setView(next);
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
