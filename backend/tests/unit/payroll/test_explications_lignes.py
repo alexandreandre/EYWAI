@@ -119,7 +119,7 @@ def test_absence_type_et_dates_retenus_par_le_bulletin():
     pose = poser_explications(bulletin)
     assert pose["details_absences"][0]["perte"] == 2023.56
     assert pose["details_absences"][0]["explication"] == (
-        "Absence : arrêt maladie du 1er au 30/09"
+        "Absence : arrêt maladie du 01/09 au 30/09"
     )
 
 
@@ -151,8 +151,25 @@ def test_conges_payes_avec_les_dates_du_bulletin():
     )
     pose = poser_explications(bulletin)
     assert pose["details_conges"][0]["explication"] == (
-        "Absence : congés payés du 12/09 au 13/09"
+        "Absence : congés payés 12/09, 13/09"
     )
+
+
+def test_absence_ne_recompose_pas_une_plage_continue_sur_des_trous():
+    bulletin = _bulletin(
+        details_conges=[
+            {
+                "libelle": "Absence congés payés (4,00 j : 13/07, 15/07→17/07, 21/07)",
+                "quantite": 28.0,
+                "perte": 368.0,
+            }
+        ]
+    )
+    pose = poser_explications(bulletin)
+    texte = pose["details_conges"][0]["explication"]
+    assert "du 13/07 au 21/07" not in texte
+    assert texte == "Absence : congés payés 13/07, 15/07→17/07, 21/07"
+    assert pose["details_conges"][0]["perte"] == 368.0
 
 
 def test_reduction_generale_regularisation_depuis_janvier():

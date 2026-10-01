@@ -261,15 +261,27 @@ def _texte_absence(libelle: str) -> str | None:
     if not libelle.strip():
         return None
     nature = _nature_absence(libelle)
-    dates = [(int(j), int(m)) for j, m in _RE_DATE.findall(libelle)]
-    plage = _plage_dates(dates)
-    if not nature and not plage:
+    dates = _dates_telles_qu_ecrites(libelle)
+    if not nature and not dates:
         return None
-    if nature and plage:
-        return f"Absence : {nature} {plage}"
+    if nature and dates:
+        return f"Absence : {nature} {dates}"
     if nature:
         return f"Absence : {nature}"
-    return f"Absence {plage}"
+    return f"Absence {dates}"
+
+
+def _dates_telles_qu_ecrites(libelle: str) -> str:
+    """Dates du libellé, sans recomposer une plage continue."""
+    apres_deux_points = re.search(r":\s*([^)]+)\)", libelle)
+    if apres_deux_points:
+        return apres_deux_points.group(1).strip()
+    deja_ecrites = re.search(
+        r"\bdu\s+\d{1,2}/\d{2}(?:\s+au\s+\d{1,2}/\d{2})?", libelle, flags=re.I
+    )
+    if deja_ecrites:
+        return deja_ecrites.group(0)
+    return ""
 
 
 def _nature_absence(libelle: str) -> str:
@@ -298,23 +310,6 @@ def _nature_absence(libelle: str) -> str:
     reste = _RE_DATE.sub("", reste)
     reste = re.sub(r"\bdu\b|\bau\b|[()]", " ", reste)
     return " ".join(reste.split())
-
-
-def _plage_dates(dates: list[tuple[int, int]]) -> str:
-    if not dates:
-        return ""
-    if len(dates) == 1:
-        jour, mois = dates[0]
-        return f"du {_jour_fr(jour, mois)}"
-    debut, fin = dates[0], dates[-1]
-    debut_txt = "1er" if debut[0] == 1 else _jour_fr(*debut)
-    return f"du {debut_txt} au {_jour_fr(*fin)}"
-
-
-def _jour_fr(jour: int, mois: int) -> str:
-    if jour == 1:
-        return "1er"
-    return f"{jour}/{mois:02d}"
 
 
 def _liste_semaines(numeros: Sequence[int]) -> str:
