@@ -235,6 +235,41 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
     expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('a_confirmer');
     expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('a_confirmer');
   });
+
+  it('liste des salariés illisible : calendriers, conflits, bulletins, sorties et RIB à confirmer', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        salaries: [],
+        lectureSalaries: ERREUR,
+        calendriersASaisir: OK(['e-1']),
+        conflitsArret: OK(['e-1']),
+        bulletinsParSalarie: OK({}),
+        departs: OK([]),
+      })
+    );
+    for (const id of [ETAPE_CALENDRIERS, ETAPE_CONFLITS, ETAPE_BULLETINS, ETAPE_SORTIES, ETAPE_RIB]) {
+      expect(etape(resultat, id).etat, id).toBe('a_confirmer');
+      expect(etape(resultat, id).etat, id).not.toBe('fait');
+    }
+  });
+
+  it('une liste salariés vide lue avec succès peut encore être prouvée', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        salaries: [],
+        lectureSalaries: OK([]),
+        calendriersASaisir: OK([]),
+        conflitsArret: OK([]),
+        bulletinsParSalarie: OK({}),
+        departs: OK([]),
+      })
+    );
+    expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('fait');
+    expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('fait');
+    expect(etape(resultat, ETAPE_BULLETINS).etat).toBe('fait');
+    expect(etape(resultat, ETAPE_SORTIES).etat).toBe('fait');
+    expect(etape(resultat, ETAPE_RIB).etat).toBe('fait');
+  });
 });
 
 describe('actions en attente', () => {
