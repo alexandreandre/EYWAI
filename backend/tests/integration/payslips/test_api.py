@@ -706,7 +706,7 @@ class TestPayslipPreview:
                                 "annee": 2026,
                                 "mois": 6,
                                 "entreprise": {"raison_sociale": "Société CARTOL"},
-                                "salarie": {"nom": "ALVES", "prenom": "Lucas"},
+                                "salarie": {"nom": "TESTEUR", "prenom": "Camille"},
                             },
                             "salaire_brut": 1436.21,
                             "net_a_payer": 910.64,
@@ -721,7 +721,7 @@ class TestPayslipPreview:
             assert response.status_code == 200
             html = response.json()["html"]
             assert "BULLETIN DE SALAIRE" in html
-            assert "ALVES Lucas" in html
+            assert "TESTEUR Camille" in html
         finally:
             app.dependency_overrides.clear()
 
