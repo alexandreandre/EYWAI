@@ -46,6 +46,8 @@ Ne nommez jamais un autre salarié de MAJI dans les captures. Si un parcours dem
 
 Pour chaque parcours : suivez les clics, saisissez exactement les données indiquées, comparez à « Résultat attendu », prenez la capture demandée, puis remplissez la grille en fin de document (`OK`, `KO`, ou `non joué` + une remarque).
 
+Le **2.6** rétablit des jours travaillés après un 2.5 qui a vidé le calendrier. Sans ça, les 3.1, 3.3 et 3.6 n’ont plus de jour à 7 h à passer à 8 h. Si le 2.5 n’a pas touché au calendrier, sautez le 2.6.
+
 ---
 
 ## 1. Création de salarié
@@ -215,7 +217,9 @@ Menu **Calendrier** (`/schedules`) → **Importer des pointages**. Uniquement un
 
 ### 2.5 Mois entier d’arrêt, net négatif
 
-Seulement si Octavie (entrée le 1er) peut être en arrêt **tous les jours ouvrés** du mois M, sans maintien, et que la génération n’est plus refusée (heures de conflit à 0).
+**Avant d’écraser le calendrier.** Ouvrir le bulletin déjà généré (après 2.2). S’il n’y a **aucune** ligne de mutuelle ni de forfait santé, le net d’un mois d’arrêt ne sera pas négatif : marquer **2.5 `non joué`**, **ne pas modifier le calendrier**, passer au 2.6 (qui se saute) puis au lot 3. Ne pas aller chercher un bulletin ailleurs.
+
+Seulement si cette ligne existe, qu’Octavie (entrée le 1er) peut être en arrêt **tous les jours ouvrés** du mois M, sans maintien, et que la génération n’est plus refusée (heures de conflit à 0) :
 
 1. Calendrier : tous les jours ouvrés du mois M en **Arrêt maladie**, réel 0. Enregistrer.
 2. Générer le bulletin du mois M.
@@ -228,9 +232,25 @@ Seulement si Octavie (entrée le 1er) peut être en arrêt **tous les jours ouvr
 - Bouton du type « **Reporter … € sur** {mois suivant} ». Après clic : « Reporté sur … » (saisie « Report NAP négatif MM/AAAA »).
 - Ne copiez pas un montant d’une autre société. Notez seulement le signe et le libellé.
 
-Si le net n’est pas négatif (mutuelle absente, brut encore haut) : `OK` avec remarque « net positif sur MAJI, alerte non visible » — ne pas aller chercher un vrai bulletin ailleurs.
+Si, **après** génération, le net n’est pas négatif : **2.5 `non joué`** (pas `OK`). Enchaîner **quand même** le 2.6 : le calendrier ne doit pas rester vidé.
 
-**Capture** : ligne de paie (badge Alerte, net, bouton de report si présent).
+**Capture** : ligne de paie (badge Alerte, net, bouton de report si présent). Si `non joué` sans avoir touché au calendrier : pas de capture de calendrier vidé.
+
+### 2.6 Rétablir des jours travaillés avant le lot 3
+
+Les 3.1, 3.3 et 3.6 ont besoin d’un jour **travaillé** à 7 h, à passer à 8 h. Un mois entier d’arrêt (2.5) ne laisse plus ce jour. Remettre des heures sur un arrêt relancerait le refus du 2.1, pas le toast « Bulletin recalculé ».
+
+**Si le 2.5 n’a pas modifié le calendrier** (`non joué` avant écrasement) : ne rien faire ici, passer au 3.1.
+
+**Si le 2.5 a mis les jours ouvrés en arrêt** (net négatif ou non) :
+
+1. Fiche → **Calendrier** → mois M.
+2. Chaque jour ouvré du 1er au 15 du mois M (bornes du CDD) : type prévu **Travail**, réel **7 h**. Enregistrer.
+3. Retour **Bulletins de paie**, mois M : **Recalculer** (ou **Générer** s’il n’y a plus de bulletin). Le bulletin doit correspondre à ces jours travaillés avant d’enchaîner le 3.1.
+
+**Résultat attendu** : au moins un jour ouvré en Travail à 7 h ; plus de refus « heures saisies un jour d’arrêt » ; un bulletin du mois M à jour.
+
+**Capture** : calendrier du mois M avec des jours travaillés à 7 h.
 
 ---
 
@@ -238,7 +258,7 @@ Si le net n’est pas négatif (mutuelle absente, brut encore haut) : `OK` avec 
 
 ### 3.1 « À recalculer » — seul `a_recalculer` vrai bloque
 
-1. Avoir un bulletin **généré** pour Octavie, mois M (après 2.2).
+1. Avoir un bulletin **généré** pour Octavie, mois M, avec des jours **travaillés** (après 2.6, ou après 2.2 si le 2.5 n’a pas touché au calendrier).
 2. Fiche → **Calendrier** → mois M : changer les heures réelles d’**un jour travaillé** (par exemple 7 h → 8 h). **Enregistrer**. Ne pas régénérer tout de suite.
 3. Retour **Bulletins de paie**, mois M (recharger la page si besoin).
 
@@ -493,7 +513,9 @@ Société : MAJI seulement. N’ouvre jamais Colorplast ni Comitech.
 Si le bandeau orange du site de test est absent : arrête-toi, c’est la production.
 Si la page /payroll n’a ni « Liste de contrôle » ni le lien « Manuel de la paie » : arrête-toi, le déploiement n’est pas fait. Dis-le clairement.
 
-Suis chaque parcours numéroté de ce document, dans l’ordre. Saisis uniquement le salarié inventé « Octavie Recette » (et « Nestor Recette » seulement pour le parcours 1.4). Ne recopie aucun nom réel, NIR, RIB ou montant d’un autre salarié.
+Suis chaque parcours numéroté de ce document, dans l’ordre (y compris le 2.6, qui rétablit des jours travaillés avant le lot 3). Saisis uniquement le salarié inventé « Octavie Recette » (et « Nestor Recette » seulement pour le parcours 1.4). Ne recopie aucun nom réel, NIR, RIB ou montant d’un autre salarié.
+
+Si le bulletin déjà généré n’a ni mutuelle ni forfait santé : 2.5 = non joué, n’écrase pas le calendrier. Si tu as quand même mis tous les jours en arrêt, fais le 2.6 avant 3.1, 3.3 et 3.6 : sans jour travaillé à 7 h, Recalculer relance le refus d’heures sur arrêt au lieu du toast « Bulletin recalculé ».
 
 Pour chaque parcours : fais les clics, compare au résultat attendu, prends la capture demandée. Remplis ensuite la grille (OK / KO / non joué + une remarque courte).
 
@@ -520,6 +542,7 @@ Si un parcours échoue : KO, capture, passe au suivant quand il est indépendant
 | 2.3 | « Modifier l’arrêt » → bandeau planning → calendrier |  |  |  |  |
 | 2.4 | Import de pointages, récap conflits |  |  |  |  |
 | 2.5 | Mois d’arrêt, net négatif, bouton de report |  |  |  |  |
+| 2.6 | Rétablir des jours travaillés avant le lot 3 |  |  |  |  |
 | 3.1 | Badge « À recalculer », validation bloquée |  |  |  |  |
 | 3.2 | Ancien bulletin sans empreinte : pas périmé |  |  |  |  |
 | 3.3 | Recalculer : toast avant → après, badge disparu |  |  |  |  |
