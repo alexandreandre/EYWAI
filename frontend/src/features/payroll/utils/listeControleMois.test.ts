@@ -230,7 +230,7 @@ describe('actions en attente', () => {
     const resultat = listeControleDuMois(
       entree({
         calendriersASaisir: OK(['e-1']),
-        conflitsArret: OK(['e-2']),
+        conflitsArret: OK(['e-1']),
         bulletinsParSalarie: OK({}),
         salaries: [
           { ...JEANNE, contract_end_date: '2026-09-15', missing_payroll_fields: ['Coordonnées bancaires (RIB)'] },
