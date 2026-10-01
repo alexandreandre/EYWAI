@@ -70,6 +70,10 @@ import {
   Archive,
 } from 'lucide-react';
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
+import {
+  MESSAGE_GENERER_DABORD_BULLETIN,
+  documentsDeSortieGrises,
+} from '@/features/employee-exits/utils/documentsSortie';
 import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
   Dialog,
@@ -589,6 +593,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const employee = exitDetails.employee;
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
+  const documentsGrises = documentsDeSortieGrises(exitDetails.bulletin_de_sortie);
   const generatedDocuments = documents.filter((doc) => doc.document_category === 'generated');
   const pendingReviewFromNote = (note: unknown): ExitDocument['document_type'][] => {
     const changedAt = typeof (note as any)?.timestamp === 'string'
@@ -980,7 +985,6 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Actions : générer / téléverser (toujours disponibles) */}
                 <div className="flex flex-wrap items-center gap-2 pb-4 mb-4 border-b">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -988,7 +992,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                         variant="default"
                         size="sm"
                         className="flex items-center gap-2"
-                        disabled={generatingDocument !== null}
+                        disabled={documentsGrises || generatingDocument !== null}
                       >
                         {generatingDocument !== null ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1006,7 +1010,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       ).map(({ type, label }) => (
                         <DropdownMenuItem
                           key={type}
-                          disabled={generatingDocument !== null}
+                          disabled={documentsGrises || generatingDocument !== null}
                           onClick={() => handleGenerateDocument(type)}
                         >
                           {generatingDocument === type ? (
@@ -1019,6 +1023,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  {documentsGrises && (
+                    <p className="text-sm text-muted-foreground" data-testid="documents-sortie-grises">
+                      {MESSAGE_GENERER_DABORD_BULLETIN}
+                    </p>
+                  )}
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
