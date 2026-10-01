@@ -225,8 +225,18 @@ describe('requêtes de la paie : jamais persistées', () => {
     'planning de la semaine': queryKeys.planningWeek('co-1', '2026-09-07'),
     'planning du mois': ['planning-month', 'co-1', 2026, 9],
     'mon planning': ['my-planning', '2026-09-07', 'co-1'],
+    'mes cumuls (tableau de bord salarié)': [...queryKeys.employeeDashboard('u1'), 'cumuls'],
+    'jour du calendrier (badgeuse)': ['badgeuse', 'calendar-day', '2026-09-30'],
+    'soldes d’absences d’un salarié': queryKeys.employeeAbsenceBalances('co-1', 'e1'),
+    'soldes de congés de la société': queryKeys.leaveBalancesOverview('co-1', 2026),
+    'RTT de fin d’année': queryKeys.rttYearEndOverview('co-1', 2026),
+    'contingent d’heures sup': queryKeys.overtimeContingentOverview('co-1', 2026, '2026-09-30'),
+    'contingent d’heures sup d’un salarié': queryKeys.overtimeContingentDetail('co-1', 'e1', 2026, '2026-09-30'),
+    'compte épargne-temps (salarié)': queryKeys.employeeCetSummary('u1', 2026, 9),
+    'compte épargne-temps (RH)': queryKeys.employeeCetRhSummary('co-1', 'e1', 2026, 9),
   };
   const PERSISTEES: Record<string, QueryKey> = {
+    'tableau de bord salarié': queryKeys.employeeDashboard('u1'),
     'liste des salariés': queryKeys.employees('co-1'),
     'paramètres de la société': queryKeys.companySettings('co-1'),
     'mes sociétés': queryKeys.myCompanies(),

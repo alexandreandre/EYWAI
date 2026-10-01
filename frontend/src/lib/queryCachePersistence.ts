@@ -13,7 +13,7 @@
  *   active lus au démarrage : un cache écrit pour un autre couple
  *   utilisateur/société est jeté à la restauration.
  *
- * Les bulletins, la paie du mois et les calendriers ne sont jamais persistés
+ * Les bulletins, la paie du mois, les compteurs et les calendriers ne sont jamais persistés
  * (`isPersistableQueryKey`) : voir `SEGMENTS_NON_PERSISTES`.
  */
 
@@ -65,9 +65,17 @@ const SEGMENTS_NON_PERSISTES: ReadonlySet<string> = new Set([
   // Paie du mois : contrôle avant paie, fenêtre des variables, salariés de la paie.
   'payroll',
   'overtime-routing',
-  // Calendriers et plannings.
+  // Cumuls et compteurs, suivis par chaque bulletin : congés, RTT, heures sup, CET.
+  'cumuls',
+  'absence-balances',
+  'leave-balances-overview',
+  'rtt-year-end-overview',
+  'overtime-contingent',
+  'cet',
+  // Calendriers et plannings (les réglages du planning suivent : rechargés, sans risque).
   'employee-week-payroll',
   'employee-absences-calendar',
+  'calendar-day',
   'planning',
   'planning-week',
   'planning-month',
