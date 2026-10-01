@@ -252,6 +252,15 @@ export interface PayslipDetail {
   a_regenerer?: string | null;
   /** true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte). */
   a_recalculer?: boolean | null;
+  /** Brut, net, heures sup et absences vs le bulletin du mois précédent. */
+  comparaison_mois_dernier?: {
+    present?: boolean;
+    texte?: string | null;
+    brut?: { avant: number; apres: number } | null;
+    net?: { avant: number; apres: number } | null;
+    heures_sup?: { avant: number; apres: number } | null;
+    absences?: { avant: number; apres: number } | null;
+  } | null;
   /** Exports déjà faits pour le mois (vide pour le salarié). */
   exports_du_mois?: ExportDuMois[];
 }

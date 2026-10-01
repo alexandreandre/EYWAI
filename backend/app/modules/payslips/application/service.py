@@ -33,7 +33,12 @@ from app.modules.payslips.application.dto import (
     RestorePayslipInput,
     UserContext,
 )
+from app.modules.payroll.domain.comparaison_mois_dernier import (
+    comparer_au_mois_dernier,
+    mois_precedent_civil,
+)
 from app.modules.payslips.application.queries import (
+    get_payslip_data_du_mois,
     get_payslip_details,
     get_payslip_history,
 )
@@ -118,6 +123,7 @@ def get_payslip_details_for_user(
             "a_regenerer": None,
             "a_recalculer": None,
             "exports_du_mois": [],
+            "comparaison_mois_dernier": _comparaison_du_bulletin(detail),
         }
     return {
         **detail,
@@ -126,7 +132,20 @@ def get_payslip_details_for_user(
         "exports_du_mois": exports_du_mois(
             detail["company_id"], detail["year"], detail["month"]
         ),
+        "comparaison_mois_dernier": _comparaison_du_bulletin(detail),
     }
+
+
+def _comparaison_du_bulletin(detail: dict[str, Any]) -> dict[str, Any]:
+    """Brut, net, heures sup et absences vs le bulletin du mois précédent."""
+    try:
+        annee, mois = mois_precedent_civil(int(detail["year"]), int(detail["month"]))
+        precedent = get_payslip_data_du_mois(
+            str(detail["employee_id"]), annee, mois
+        )
+    except Exception:  # noqa: BLE001 — un mois illisible n'empêche pas d'ouvrir le bulletin
+        precedent = None
+    return comparer_au_mois_dernier(detail.get("payslip_data"), precedent)
 
 
 def _a_recalculer_du_bulletin(detail: dict[str, Any]) -> bool | None:

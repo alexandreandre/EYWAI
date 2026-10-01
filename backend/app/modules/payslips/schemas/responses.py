@@ -107,6 +107,8 @@ class PayslipDetail(BaseModel):
     a_regenerer: str | None = None
     #: true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte).
     a_recalculer: bool | None = None
+    #: Brut, net, heures sup et absences vs le bulletin du mois précédent.
+    comparaison_mois_dernier: dict[str, Any] | None = None
     #: Exports déjà faits pour le mois (type, libellé, date) : à refaire après
     #: une correction. Vide pour le salarié.
     exports_du_mois: list[ExportDuMois] = []

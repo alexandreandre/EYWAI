@@ -350,6 +350,26 @@ def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:
     return build_payslip_detail(row, signed_url, cumuls, preview_url)
 
 
+def get_payslip_data_du_mois(
+    employee_id: str, year: int, month: int
+) -> dict[str, Any] | None:
+    """Bulletin du salarié pour un mois civil, ou None s'il n'existe pas."""
+    r = (
+        supabase.table("payslips")
+        .select("payslip_data")
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .maybe_single()
+        .execute()
+    )
+    row = r.data if r else None
+    if not row:
+        return None
+    data = row.get("payslip_data")
+    return data if isinstance(data, dict) else None
+
+
 def get_payslip_history(payslip_id: str) -> list[dict[str, Any]]:
     """Historique d'édition d'un bulletin."""
     r = (

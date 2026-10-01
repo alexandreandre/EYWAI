@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { formatMonthYearFr } from '@/components/payslip/PayslipComparisonTab';
+import { ComparaisonMoisDernier } from '@/features/payroll/components/ComparaisonMoisDernier';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function EmployeePayslipDetail() {
@@ -84,7 +85,8 @@ export default function EmployeePayslipDetail() {
           <TabsTrigger value="comparison">Comparaison N-1</TabsTrigger>
           <TabsTrigger value="trend">Tendance</TabsTrigger>
         </TabsList>
-        <TabsContent value="comparison" className="mt-0">
+        <TabsContent value="comparison" className="mt-0 space-y-4">
+          <ComparaisonMoisDernier comparaison={payslip.comparaison_mois_dernier} />
           <PayslipComparisonTab
             payslipId={payslip.id}
             isRH={false}

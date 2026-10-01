@@ -25,6 +25,8 @@ from app.modules.payslips.application.service import (
     restore_payslip_for_user,
 )
 
+_CMP_ABSENT = {"present": False, "texte": "Pas de bulletin le mois dernier"}
+
 
 def _ctx_employee(employee_id: str):
     """Contexte utilisateur = employé (pas RH, pas super admin)."""
@@ -149,6 +151,9 @@ class TestGetPayslipDetailsForUser:
         ), patch(
             "app.modules.payslips.application.service._a_recalculer_du_bulletin",
             return_value=None,
+        ), patch(
+            "app.modules.payslips.application.service.get_payslip_data_du_mois",
+            return_value=None,
         ):
             yield
 
@@ -182,6 +187,7 @@ class TestGetPayslipDetailsForUser:
             "a_regenerer": None,
             "a_recalculer": None,
             "exports_du_mois": [],
+            "comparaison_mois_dernier": _CMP_ABSENT,
         }
 
     def test_le_salarie_ne_voit_ni_versions_ni_notes_internes(self):
@@ -202,6 +208,56 @@ class TestGetPayslipDetailsForUser:
         assert vu_salarie["edit_history"] == [] and vu_salarie["internal_notes"] == []
         assert vu_rh["edit_history"] == [{"version": 1}]
         assert vu_rh["internal_notes"] == [{"content": "interne"}]
+        assert vu_salarie["comparaison_mois_dernier"] == _CMP_ABSENT
+        assert vu_rh["comparaison_mois_dernier"] == _CMP_ABSENT
+
+    def test_compare_au_bulletin_du_mois_precedent(self):
+        actuel = {
+            "id": "ps-juin",
+            "employee_id": "emp-1",
+            "company_id": "co-1",
+            "year": 2026,
+            "month": 6,
+            "status": "valide",
+            "payslip_data": {
+                "salaire_brut": 2100.0,
+                "net_a_payer": 1600.0,
+                "calcul_du_brut": [
+                    {"libelle": "Heures suppl. majorées à 25%", "quantite": 12.0}
+                ],
+                "details_absences": [],
+                "details_conges": [],
+            },
+        }
+        precedent = {
+            "salaire_brut": 2000.0,
+            "net_a_payer": 1500.0,
+            "calcul_du_brut": [
+                {"libelle": "Heures suppl. majorées à 25%", "quantite": 8.0}
+            ],
+            "details_absences": [],
+            "details_conges": [],
+        }
+        with (
+            patch(
+                "app.modules.payslips.application.service.get_payslip_details",
+                return_value=actuel,
+            ),
+            patch(
+                "app.modules.payslips.application.service.enrich_payslip_detail_with_edit_lock",
+                side_effect=lambda d, **_: d,
+            ),
+            patch(
+                "app.modules.payslips.application.service.get_payslip_data_du_mois",
+                return_value=precedent,
+            ) as lire,
+        ):
+            vu = get_payslip_details_for_user("ps-juin", _ctx_rh("co-1"))
+        lire.assert_called_once_with("emp-1", 2026, 5)
+        cmp_ = vu["comparaison_mois_dernier"]
+        assert cmp_["present"] is True
+        assert cmp_["brut"] == {"avant": 2000.0, "apres": 2100.0}
+        assert "Pas de bulletin le mois dernier" not in cmp_["texte"]
 
     def test_raises_not_found_when_detail_is_none(self):
         """Lève PayslipNotFoundError si le bulletin n'existe pas."""
@@ -239,7 +295,13 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == {**detail, "a_regenerer": None, "a_recalculer": None, "exports_du_mois": []}
+        assert result == {
+            **detail,
+            "a_regenerer": None,
+            "a_recalculer": None,
+            "exports_du_mois": [],
+            "comparaison_mois_dernier": _CMP_ABSENT,
+        }
 
     def test_super_admin_can_view_any(self):
         """Un super admin peut consulter n'importe quel bulletin."""
@@ -256,7 +318,13 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == {**detail, "a_regenerer": None, "a_recalculer": None, "exports_du_mois": []}
+        assert result == {
+            **detail,
+            "a_regenerer": None,
+            "a_recalculer": None,
+            "exports_du_mois": [],
+            "comparaison_mois_dernier": _CMP_ABSENT,
+        }
 
 
 class TestGetPayslipHistoryForUser:
