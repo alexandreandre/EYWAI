@@ -56,6 +56,47 @@ def get_payslip_meta(payslip_id: str) -> dict[str, Any] | None:
     return r.data if r else None
 
 
+def get_payslip_net_a_payer(payslip_id: str) -> float | None:
+    r = (
+        supabase.table("payslips")
+        .select("payslip_data")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    data = ((r.data if r else None) or {}).get("payslip_data") or {}
+    net = data.get("net_a_payer") if isinstance(data, dict) else None
+    return float(net) if isinstance(net, (int, float)) else None
+
+
+def get_payslip_status_for_period(
+    employee_id: str, company_id: str, year: int, month: int
+) -> str | None:
+    r = (
+        supabase.table("payslips")
+        .select("status")
+        .match({"employee_id": employee_id, "company_id": company_id, "year": year, "month": month})
+        .limit(1)
+        .execute()
+    )
+    rows = (r.data if r else None) or []
+    return str(rows[0].get("status") or "") if rows else None
+
+
+def get_report_candidates_for_period(
+    employee_id: str, company_id: str, year: int, month: int
+) -> list[dict[str, Any]]:
+    """Saisies « sur le net » du mois : le report d'un net négatif en fait partie."""
+    r = (
+        supabase.table("monthly_inputs")
+        .select("id, name, amount, catalog_prime_id, sur_le_net")
+        .match({"employee_id": employee_id, "company_id": company_id, "year": year, "month": month})
+        .order("created_at")
+        .execute()
+    )
+    return (r.data if r else None) or []
+
+
 def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins VALIDÉS de l'employé (net_a_payer, URLs signées).
 

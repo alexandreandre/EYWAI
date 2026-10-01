@@ -47,6 +47,7 @@ from app.modules.payslips.application import (
     GeneratePayslipInput,
 )
 from app.modules.payslips.application.dto import PayslipConflictError
+from app.modules.payslips.application.report_nap_negatif import lire_etat_du_report
 from app.modules.payslips.application.router_queries import get_payslip_meta_for_access
 from app.modules.payslips.schemas.anomalies import PayslipsAnomaliesReport
 from app.modules.payslips.schemas import (
@@ -367,6 +368,23 @@ def get_payslip_trend_route(
     except Exception as e:
         logger.exception("Échec de get_payslip_trend_route")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/payslips/{payslip_id}/report-net-negatif")
+def get_report_net_negatif_route(
+    payslip_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Report d'un net négatif sur le mois suivant : montant, saisie existante, verrou."""
+    meta = _require_payslip_scope(current_user, payslip_id, "payslips.view_all")
+    try:
+        return lire_etat_du_report(payslip_id, meta)
+    except Exception as e:
+        logger.exception("Échec de get_report_net_negatif_route")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lecture du report du net négatif impossible : {e}",
+        )
 
 
 @router.post("/api/payslips/{payslip_id}/alerts/{rule_id}/acquit")

@@ -17,13 +17,14 @@ export function clesDeLaPaieDuMois(companyId: string | undefined): QueryKey[] {
 /**
  * Ce qui entoure les bulletins de la société : onglets d'un bulletin
  * (comparaison N-1 et tendance lisent aussi les mois voisins), anomalies des
- * bulletins, explorateur de documents, paie du mois.
+ * bulletins, report d'un net négatif, explorateur de documents, paie du mois.
  */
 export function clesAutourDesBulletins(companyId: string | undefined): QueryKey[] {
   return [
     queryKeys.payslipComparisonTous(),
     queryKeys.payslipTrendTous(),
     queryKeys.payslipsAnomaliesTousMois(companyId),
+    queryKeys.reportNetNegatifTous(companyId),
     queryKeys.documentsExplorer(companyId),
     ...clesDeLaPaieDuMois(companyId),
   ];

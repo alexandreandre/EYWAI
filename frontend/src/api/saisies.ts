@@ -3,6 +3,7 @@
  * Ne pas confondre avec `saisiesAvances.ts` (saisies sur salaire + avances sur salaire).
  */
 import apiClient from './apiClient';
+import { enTeteSociete } from './payslips';
 
 
 // --- INTERFACES ---
@@ -64,8 +65,22 @@ export const updateMonthlyInput = (
   data: Partial<
     Pick<MonthlyInput, 'amount' | 'name' | 'description' | 'is_socially_taxed' | 'is_taxable'>
   >,
+  companyId?: string | null,
 ) => {
-  return apiClient.patch<MonthlyInput>(`/api/monthly-inputs/${id}`, data);
+  return apiClient.patch<MonthlyInput>(`/api/monthly-inputs/${id}`, data, enTeteSociete(companyId));
+};
+
+/** Une saisie pour un salarié, dans la société donnée (sinon la société active). */
+export const createEmployeeMonthlyInput = (
+  employeeId: string,
+  data: Omit<MonthlyInputCreate, 'employee_id'>,
+  companyId?: string | null,
+) => {
+  return apiClient.post<MonthlyInput>(
+    `/api/employees/${employeeId}/monthly-inputs`,
+    data,
+    enTeteSociete(companyId),
+  );
 };
 
 export const getEmployeeMonthlyInputs = (employeeId: string, year: number, month: number) => {
@@ -74,8 +89,15 @@ export const getEmployeeMonthlyInputs = (employeeId: string, year: number, month
   });
 };
 
-export const deleteEmployeeMonthlyInput = (employeeId: string, inputId: string) => {
-  return apiClient.delete(`/api/employees/${employeeId}/monthly-inputs/${inputId}`);
+export const deleteEmployeeMonthlyInput = (
+  employeeId: string,
+  inputId: string,
+  companyId?: string | null,
+) => {
+  return apiClient.delete(
+    `/api/employees/${employeeId}/monthly-inputs/${inputId}`,
+    enTeteSociete(companyId),
+  );
 };
 
 

@@ -22,6 +22,8 @@ import {
   normalizePayslipWarning,
   PayslipNetBrutInlineLabel,
 } from '@/lib/payslipNetBrutAlert';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { Edit, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
@@ -75,10 +77,12 @@ export function PayrollPayslipRow({
   // Bulletin repris de l'ancien logiciel : les actions restent visibles mais
   // grisées, le motif au survol (demande d'Alexandre, 21/09).
   const importe = estBulletinImporte(payslip);
+  const companyId = useActiveCompanyId();
+  const netNegatif = (payslip?.net_a_payer ?? 0) < 0;
 
   const statusBadge =
     state.status === 'success' ? (
-      warnings.length > 0 ? (
+      warnings.length > 0 || netNegatif ? (
         <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
           <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />
           Alerte
@@ -154,6 +158,12 @@ export function PayrollPayslipRow({
             </Link>
           </Button>
         )}
+        <ReportNetNegatif
+          payslipId={payslip.id}
+          companyId={companyId}
+          netAPayer={payslip.net_a_payer}
+          variante="ligne"
+        />
         <DownloadLinkButton href={payslip.url} download={payslip.name} label="Télécharger" />
         <AlertDialog>
           <AlertDialogTrigger asChild>

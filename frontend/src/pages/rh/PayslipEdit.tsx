@@ -66,6 +66,7 @@ import PayslipPreviewFrame from '@/components/payslip-edit/PayslipPreviewFrame';
 import RegeneratePayslipButton from '@/components/payslip-edit/RegeneratePayslipButton';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
 import { PayslipAlertsBanner } from '@/components/payslip/PayslipAlertsBanner';
+import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { PayslipValidateBlockedModal } from '@/components/payslip/PayslipValidateBlockedModal';
@@ -346,6 +347,12 @@ export default function PayslipEdit() {
   return (
     <div className="container mx-auto space-y-6">
       <PayslipAlertsBanner data={payslip.payslip_data} />
+      <ReportNetNegatif
+        payslipId={payslip.id}
+        companyId={payslip.company_id}
+        toujours
+        variante="editeur"
+      />
 
       {recalculEnAttente ? (
         <Alert variant="destructive" data-testid="recalcul-en-attente">

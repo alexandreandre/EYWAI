@@ -7,6 +7,24 @@ import type { MaintenancePreview } from './absences';
 // TYPES
 // =====================================================
 
+/** GET /api/payslips/{id}/report-net-negatif */
+export interface EtatReportNetNegatif {
+  payslip_id: string;
+  company_id: string;
+  employee_id: string;
+  annee: number;
+  mois: number;
+  net_a_payer: number | null;
+  /** Positif quand le net est négatif, sinon 0. */
+  montant_a_reporter: number;
+  annee_suivante: number;
+  mois_suivant: number;
+  nom_du_report: string;
+  /** Saisie de report déjà au mois suivant (montant négatif : retenue sur le net). */
+  saisie: { id: string; name: string; amount: number } | null;
+  verrou: 'bulletin_valide' | 'mois_cloture' | null;
+}
+
 /** Ligne de détail brut (congés, absences, maintien arrêt maladie, etc.). */
 export interface BulletinLigneBrut {
   libelle?: string | null;
@@ -294,9 +312,21 @@ export interface PayslipRestoreResponse {
  * prend celle du localStorage, qu'un autre onglet a pu changer : le backend
  * répondrait 404 sur un bulletin bien présent.
  */
-function enTeteSociete(companyId: string | null | undefined) {
+export function enTeteSociete(companyId: string | null | undefined) {
   return companyId ? { headers: { 'X-Active-Company': companyId } } : undefined;
 }
+
+/** Report d'un net négatif sur le mois suivant : montant, saisie existante, verrou. */
+export const getReportNetNegatif = async (
+  payslipId: string,
+  companyId?: string | null
+): Promise<EtatReportNetNegatif> => {
+  const response = await apiClient.get<EtatReportNetNegatif>(
+    `/api/payslips/${payslipId}/report-net-negatif`,
+    enTeteSociete(companyId)
+  );
+  return response.data;
+};
 
 /**
  * Récupère les détails complets d'un bulletin de paie

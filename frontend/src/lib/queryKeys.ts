@@ -18,6 +18,11 @@ export const queryKeys = {
   payslipComparisonTous: () => ['payslip-comparison'] as const,
   payslipTrend: (payslipId: string) => ['payslip-trend', payslipId] as const,
   payslipTrendTous: () => ['payslip-trend'] as const,
+  /** Report d'un net négatif sur le mois suivant (segment « payslips » : jamais persisté). */
+  reportNetNegatif: (companyId: string | undefined, payslipId: string) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif', payslipId),
+  reportNetNegatifTous: (companyId: string | undefined) =>
+    companyQueryKey(companyId, 'payslips', 'report-net-negatif'),
   payslipsAnomalies: (companyId: string | null | undefined, year: number, month: number) =>
     ['payslips-anomalies', companyId ?? 'none', year, month] as const,
   payslipsAnomaliesTousMois: (companyId: string | null | undefined) =>

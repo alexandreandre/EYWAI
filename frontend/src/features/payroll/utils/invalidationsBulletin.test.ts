@@ -117,11 +117,12 @@ describe('clesAInvaliderApresBulletin', () => {
     ]);
   });
 
-  it('autour des bulletins : comparaison, tendance, anomalies, documents et paie du mois', () => {
+  it('autour des bulletins : comparaison, tendance, anomalies, report du net négatif, documents et paie du mois', () => {
     expect(clesAutourDesBulletins('co-1')).toEqual([
       queryKeys.payslipComparisonTous(),
       queryKeys.payslipTrendTous(),
       queryKeys.payslipsAnomaliesTousMois('co-1'),
+      queryKeys.reportNetNegatifTous('co-1'),
       DOCUMENTS,
       ...clesDeLaPaieDuMois('co-1'),
     ]);
