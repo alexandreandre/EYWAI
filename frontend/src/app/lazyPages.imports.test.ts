@@ -14,6 +14,7 @@ const PAGE_MODULE_PATHS = [
   '@/pages/rh/Rates',
   '@/pages/rh/Payroll',
   '@/pages/rh/PayrollDetail',
+  '@/pages/rh/PayrollManuel',
   '@/pages/rh/PayslipEdit',
   '@/pages/rh/Saisies',
   '@/pages/rh/SalarySeizures',

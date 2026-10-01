@@ -12,6 +12,7 @@ export const EmployeeDetail = lazy(() => import('@/pages/rh/EmployeeDetail'));
 export const Rates = lazy(() => import('@/pages/rh/Rates'));
 export const Payroll = lazy(() => import('@/pages/rh/Payroll'));
 export const PayrollGenerate = lazy(() => import('@/pages/rh/PayrollGenerate'));
+export const PayrollManuel = lazy(() => import('@/pages/rh/PayrollManuel'));
 export const PayrollDetail = lazy(() => import('@/pages/rh/PayrollDetail'));
 export const PayslipEdit = lazy(() => import('@/pages/rh/PayslipEdit'));
 export const Saisies = lazy(() => import('@/pages/rh/Saisies'));

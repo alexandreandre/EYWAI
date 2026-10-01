@@ -204,6 +204,14 @@ function ProtectedRoutes() {
                     }
                   />
                   <Route
+                    path="/payroll/manuel"
+                    element={
+                      <Suspense fallback={<RouteSkeleton />}>
+                        <Pages.PayrollManuel />
+                      </Suspense>
+                    }
+                  />
+                  <Route
                     path="/payroll"
                     element={
                       <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>

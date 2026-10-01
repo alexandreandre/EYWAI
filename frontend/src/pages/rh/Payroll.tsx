@@ -29,6 +29,7 @@ import {
 } from '@/features/payroll/hooks/usePayrollGeneration';
 import {
   buildYearOptions,
+  monthYearLabel,
   PAYROLL_MONTHS,
 } from '@/features/payroll/utils/payrollMonth';
 import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
@@ -38,6 +39,7 @@ import {
   jobsDesBulletinsPerimes,
   jobsDesLignesPerimes,
   montantsDepuisLigne,
+  type LigneBulletinPaie,
 } from '@/features/payroll/utils/bulletinARecalculer';
 import { CreateEmployeeForm } from '@/features/employees/components/CreateEmployeeForm';
 import { lireNouveauSalarie, salariesAvecNouveauEnTete } from '@/features/employees/utils/creationSalarie';
@@ -45,6 +47,14 @@ import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
 import { BandeauxSortieGuidee } from '@/features/payroll/components/BandeauxSortieGuidee';
 import { useEmployeeExitsQuery } from '@/hooks/queries/useEmployeeExitsQuery';
 import { bandeauxSortieDuMois } from '@/features/payroll/utils/sortieGuidee';
+import { ListeControleMois } from '@/features/payroll/components/ListeControleMois';
+import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
+import {
+  lectureCalendriersASaisir,
+  lectureConflitsArret,
+  listeControleDuMois,
+  type Lecture,
+} from '@/features/payroll/utils/listeControleMois';
 
 type PayrollView = 'employee' | 'month';
 
@@ -166,13 +176,18 @@ export default function Payroll() {
       ),
     [employeesTous, view, selectedYear, selectedMonth, idNouveau]
   );
+  const salariesDuMois = useMemo(
+    () => employeesTous.filter((e) => isPresentDuringMonth(e, selectedYear, selectedMonth)),
+    [employeesTous, selectedYear, selectedMonth]
+  );
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
   const [departACreerId, setDepartACreerId] = useState<string | null>(null);
   const [dialogDepartOuvert, setDialogDepartOuvert] = useState(false);
 
   const generation = usePayrollGeneration();
-  const exitsQuery = useEmployeeExitsQuery(view === 'month');
+  const exitsQuery = useEmployeeExitsQuery(true);
+  const preflightQuery = usePreflightAnomalies(selectedYear, selectedMonth);
 
   useEffect(() => () => generation.dismiss(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -490,6 +505,54 @@ export default function Payroll() {
     ? 'Impossible de charger la liste des collaborateurs. Réessayez.'
     : null;
 
+  const lectureBulletins = useMemo((): Lecture<Record<string, LigneBulletinPaie[]>> => {
+    if (loadingMonthData) return { statut: 'chargement' };
+    const map: Record<string, LigneBulletinPaie[]> = {};
+    for (const emp of salariesDuMois) {
+      map[emp.id] = payslipsByEmployee[emp.id] ?? [];
+    }
+    return { statut: 'ok', valeur: map };
+  }, [loadingMonthData, salariesDuMois, payslipsByEmployee]);
+
+  const lectureDeparts = useMemo((): Lecture<NonNullable<typeof exitsQuery.data>> => {
+    if (exitsQuery.isError && exitsQuery.data === undefined) return { statut: 'erreur' };
+    if (exitsQuery.isLoading && exitsQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: exitsQuery.data ?? [] };
+  }, [exitsQuery.isError, exitsQuery.isLoading, exitsQuery.data]);
+
+  const lectureCalendriers = lectureCalendriersASaisir({
+    chargement: preflightQuery.isLoading,
+    erreur: Boolean(preflightQuery.isError),
+    anomalies: preflightQuery.data?.anomalies,
+  });
+  const lectureConflits = lectureConflitsArret({
+    chargement: preflightQuery.isLoading,
+    erreur: Boolean(preflightQuery.isError),
+    heures_sur_arret: preflightQuery.data?.heures_sur_arret,
+  });
+
+  const listeControle = useMemo(() => {
+    if (loadingEmployees) return null;
+    return listeControleDuMois({
+      year: selectedYear,
+      month: selectedMonth,
+      salaries: salariesDuMois,
+      bulletinsParSalarie: lectureBulletins,
+      departs: lectureDeparts,
+      calendriersASaisir: lectureCalendriers,
+      conflitsArret: lectureConflits,
+    });
+  }, [
+    loadingEmployees,
+    selectedYear,
+    selectedMonth,
+    salariesDuMois,
+    lectureBulletins,
+    lectureDeparts,
+    lectureCalendriers,
+    lectureConflits,
+  ]);
+
   const generatedCount = useMemo(
     () =>
       generation.log.filter(
@@ -527,6 +590,17 @@ export default function Payroll() {
           {error}
         </div>
       )}
+
+      <ListeControleMois
+        titreMois={monthYearLabel(selectedMonth, selectedYear)}
+        liste={listeControle}
+        chargement={loadingEmployees}
+        preflightEnErreur={Boolean(preflightQuery.isError)}
+        onRetryPreflight={() => {
+          void preflightQuery.refetch();
+        }}
+        isRetrying={preflightQuery.isFetching}
+      />
 
       <div className="space-y-3">
         <PayrollGroupLaunchCta />

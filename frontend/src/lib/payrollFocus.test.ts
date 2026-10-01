@@ -24,6 +24,7 @@ describe('isPayrollFocusAllowed', () => {
   it('autorise les sous-routes ouvertes depuis ces écrans', () => {
     expect(isPayrollFocusAllowed('/employees/abc-123')).toBe(true);
     expect(isPayrollFocusAllowed('/payroll/abc-123')).toBe(true);
+    expect(isPayrollFocusAllowed('/payroll/manuel')).toBe(true);
     expect(isPayrollFocusAllowed('/payslips/abc-123/edit')).toBe(true);
   });
 
