@@ -333,17 +333,28 @@ export default function Payroll() {
   const bandeauxSortie = useMemo(() => {
     if (view !== 'month') return [];
     if (exitsQuery.isLoading && exitsQuery.data === undefined) return [];
+    const idsAvecBulletin = new Set(
+      employees
+        .filter((emp) =>
+          (payslipsByEmployee[emp.id] ?? []).some(
+            (p) => p.year === selectedYear && p.month === selectedMonth
+          )
+        )
+        .map((emp) => emp.id)
+    );
     return bandeauxSortieDuMois(
       employees,
       exitsQuery.data ?? [],
       selectedYear,
-      selectedMonth
+      selectedMonth,
+      idsAvecBulletin
     );
   }, [
     view,
     employees,
     exitsQuery.isLoading,
     exitsQuery.data,
+    payslipsByEmployee,
     selectedYear,
     selectedMonth,
   ]);
@@ -568,6 +579,7 @@ export default function Payroll() {
                 setDepartACreerId(employeeId);
                 setDialogDepartOuvert(true);
               }}
+              onGenererBulletin={handleGenerateEmployeeForMonth}
             />
             <PayrollMonthExplorer
               selectedYear={selectedYear}

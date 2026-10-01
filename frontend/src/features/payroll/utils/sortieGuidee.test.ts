@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BOUTON_CREER_LE_DEPART,
+  BOUTON_GENERER_BULLETIN_SORTIE,
   bandeauxSortieDuMois,
   dateDeFinDuContrat,
   messageCreerLeDepart,
+  messageGenererBulletinSortie,
 } from './sortieGuidee';
 
 const JEANNE = {
@@ -39,24 +41,38 @@ describe('qui déclenche le bandeau « créez son départ »', () => {
     expect(bandeaux.map((b) => b.employeeId)).toEqual(['e-cdd']);
   });
 
-  it('un départ déjà créé : pas le bandeau de création', () => {
+  it('un départ déjà créé, sans bulletin : proposer de générer le bulletin de sortie', () => {
+    const bandeaux = bandeauxSortieDuMois(
+      [{ ...JEANNE, current_exit_id: 'exit-1' }],
+      [{ employee_id: 'e-cdd', last_working_day: '2026-09-15', status: 'demission_effective' }],
+      2026,
+      9
+    );
+    expect(bandeaux).toHaveLength(1);
+    expect(bandeaux[0].etape).toBe('generer_bulletin');
+    expect(bandeaux[0].bouton).toBe(BOUTON_GENERER_BULLETIN_SORTIE);
+    expect(bandeaux[0].message).toBe(messageGenererBulletinSortie(JEANNE));
+  });
+
+  it('un départ archivé, sans bulletin : même proposition de génération', () => {
+    const bandeaux = bandeauxSortieDuMois(
+      [JEANNE],
+      [{ employee_id: 'e-cdd', last_working_day: '2026-09-15', status: 'archivee' }],
+      2026,
+      9
+    );
+    expect(bandeaux).toHaveLength(1);
+    expect(bandeaux[0].etape).toBe('generer_bulletin');
+  });
+
+  it('un départ créé, bulletin du mois déjà là : plus de bandeau', () => {
     expect(
       bandeauxSortieDuMois(
         [{ ...JEANNE, current_exit_id: 'exit-1' }],
         [{ employee_id: 'e-cdd', last_working_day: '2026-09-15', status: 'demission_effective' }],
         2026,
-        9
-      )
-    ).toEqual([]);
-  });
-
-  it('un départ archivé (plus de current_exit_id) : pas le bandeau de création', () => {
-    expect(
-      bandeauxSortieDuMois(
-        [JEANNE],
-        [{ employee_id: 'e-cdd', last_working_day: '2026-09-15', status: 'archivee' }],
-        2026,
-        9
+        9,
+        new Set(['e-cdd'])
       )
     ).toEqual([]);
   });

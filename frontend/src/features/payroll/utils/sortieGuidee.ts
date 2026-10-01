@@ -7,6 +7,7 @@
 import { displayNamePrenomNom } from '@/lib/employeeName';
 
 export const BOUTON_CREER_LE_DEPART = 'Créer le départ';
+export const BOUTON_GENERER_BULLETIN_SORTIE = 'Générer le bulletin de sortie';
 
 const STATUTS_ANNULES = new Set(['annulee', 'annule', 'cancelled', 'canceled']);
 
@@ -26,7 +27,7 @@ export type DepartPourSortieGuidee = {
   status?: string | null;
 };
 
-export type EtapeSortieGuidee = 'creer_depart';
+export type EtapeSortieGuidee = 'creer_depart' | 'generer_bulletin';
 
 export type BandeauSortieGuidee = {
   employeeId: string;
@@ -77,22 +78,39 @@ export function messageCreerLeDepart(
   return `${displayNamePrenomNom(salarie)} quitte l'entreprise le ${jjMm(dateIso)} : créez son départ.`;
 }
 
+export function messageGenererBulletinSortie(
+  salarie: Pick<SalariePourSortieGuidee, 'first_name' | 'last_name' | 'nom_usage'>
+): string {
+  return `Départ de ${displayNamePrenomNom(salarie)} créé : générez son bulletin de sortie.`;
+}
+
 export function bandeauxSortieDuMois(
   salaries: readonly SalariePourSortieGuidee[],
   departs: readonly DepartPourSortieGuidee[],
   year: number,
-  month: number
+  month: number,
+  idsAvecBulletin: ReadonlySet<string> = new Set()
 ): BandeauSortieGuidee[] {
   const bandeaux: BandeauSortieGuidee[] = [];
   for (const salarie of salaries) {
     const dateIso = dateDeFinDuContrat(salarie);
     if (!dateIso || !tombeDansLeMois(dateIso, year, month)) continue;
-    if (aUnDepartCree(salarie, departs)) continue;
+    if (!aUnDepartCree(salarie, departs)) {
+      bandeaux.push({
+        employeeId: salarie.id,
+        etape: 'creer_depart',
+        bouton: BOUTON_CREER_LE_DEPART,
+        message: messageCreerLeDepart(salarie, dateIso),
+        dateIso,
+      });
+      continue;
+    }
+    if (idsAvecBulletin.has(salarie.id)) continue;
     bandeaux.push({
       employeeId: salarie.id,
-      etape: 'creer_depart',
-      bouton: BOUTON_CREER_LE_DEPART,
-      message: messageCreerLeDepart(salarie, dateIso),
+      etape: 'generer_bulletin',
+      bouton: BOUTON_GENERER_BULLETIN_SORTIE,
+      message: messageGenererBulletinSortie(salarie),
       dateIso,
     });
   }
