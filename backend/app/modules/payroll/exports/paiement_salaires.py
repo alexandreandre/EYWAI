@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
+from app.modules.payroll.domain.report_nap_negatif import avertissement_virement_ecarte
 from app.modules.payroll.engine.controles_convention import NET_SUPERIEUR_BRUT_MESSAGE
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
@@ -134,15 +135,8 @@ def get_paiement_salaires_data(
         net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
 
         if net_a_payer <= 0:
-            anomalies.append(
-                {
-                    "type": "error",
-                    "message": f"Montant ≤ 0 - {employee.get('first_name', '')} {employee.get('last_name', '')}",
-                    "severity": "blocking",
-                    "employee_id": employee_id,
-                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}",
-                }
-            )
+            nom = f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip()
+            warnings.append(avertissement_virement_ecarte(nom, net_a_payer))
             continue
 
         payment_method = (employee.get("salary_payment_method") or "virement").strip().lower()

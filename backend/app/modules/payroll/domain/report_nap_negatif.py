@@ -30,6 +30,13 @@ _MOIS = (
 _NOM = re.compile(r"report\s+nap\s+n[ée]gatif\s+(\d{1,2})/(\d{4})", re.IGNORECASE)
 
 
+def avertissement_virement_ecarte(nom_salarie: str, net_a_payer: float) -> str:
+    """Pourquoi un salarié à net ≤ 0 sort de la remise de virements, et quoi faire."""
+    if net_a_payer < 0:
+        return f"{nom_salarie} : {MOTIF_EXPORT_NET_NEGATIF}"
+    return f"{nom_salarie} : net à payer nul : rien à virer ce mois-ci"
+
+
 def nom_du_report(annee: int, mois: int) -> str:
     return f"{LIBELLE} {mois:02d}/{annee}"
 
