@@ -5,6 +5,7 @@
  */
 
 import { displayNamePrenomNom } from '@/lib/employeeName';
+import { payrollGenerationBlockReason } from '@/features/payroll/utils/employmentPeriod';
 
 export const BOUTON_CREER_LE_DEPART = 'Créer le départ';
 export const BOUTON_GENERER_BULLETIN_SORTIE = 'Générer le bulletin de sortie';
@@ -16,12 +17,17 @@ export type SalariePourSortieGuidee = {
   first_name?: string | null;
   last_name?: string | null;
   nom_usage?: string | null;
+  hire_date?: string | null;
+  date_debut_execution?: string | null;
   contract_end_date?: string | null;
   exit_last_working_day?: string | null;
   current_exit_id?: string | null;
+  employment_status?: string | null;
+  missing_payroll_fields?: string[] | null;
 };
 
 export type DepartPourSortieGuidee = {
+  id?: string | null;
   employee_id: string;
   last_working_day?: string | null;
   status?: string | null;
@@ -35,6 +41,9 @@ export type BandeauSortieGuidee = {
   bouton: string;
   message: string;
   dateIso: string;
+  /** Faux si la fiche empêche la génération : pas de clic, la raison est affichée. */
+  peutGenerer: boolean;
+  raisonBlocage: string | null;
 };
 
 function sliceDate(value?: string | null): string | null {
@@ -58,12 +67,21 @@ export function dateDeFinDuContrat(
   return sliceDate(salarie.contract_end_date) || sliceDate(salarie.exit_last_working_day);
 }
 
+/** Un départ ne compte que s'il concerne la fin de contrat du mois affiché. */
 export function aUnDepartCree(
   salarie: SalariePourSortieGuidee,
-  departs: readonly DepartPourSortieGuidee[]
+  departs: readonly DepartPourSortieGuidee[],
+  year: number,
+  month: number
 ): boolean {
-  if (salarie.current_exit_id) return true;
-  return departs.some((d) => d.employee_id === salarie.id && !statutAnnule(d.status));
+  const dateFin = dateDeFinDuContrat(salarie);
+  return departs.some((d) => {
+    if (d.employee_id !== salarie.id || statutAnnule(d.status)) return false;
+    const lwd = sliceDate(d.last_working_day);
+    if (lwd) return tombeDansLeMois(lwd, year, month);
+    const memeDossier = Boolean(salarie.current_exit_id && d.id && d.id === salarie.current_exit_id);
+    return memeDossier && Boolean(dateFin && tombeDansLeMois(dateFin, year, month));
+  });
 }
 
 function jjMm(iso: string): string {
@@ -79,9 +97,41 @@ export function messageCreerLeDepart(
 }
 
 export function messageGenererBulletinSortie(
-  salarie: Pick<SalariePourSortieGuidee, 'first_name' | 'last_name' | 'nom_usage'>
+  salarie: Pick<SalariePourSortieGuidee, 'first_name' | 'last_name' | 'nom_usage'>,
+  raisonBlocage?: string | null
 ): string {
-  return `Départ de ${displayNamePrenomNom(salarie)} créé : générez son bulletin de sortie.`;
+  const base = `Départ de ${displayNamePrenomNom(salarie)} créé : générez son bulletin de sortie.`;
+  return raisonBlocage ? `${base} ${raisonBlocage}` : base;
+}
+
+function bandeauCommun(
+  salarie: SalariePourSortieGuidee,
+  etape: EtapeSortieGuidee,
+  dateIso: string,
+  year: number,
+  month: number
+): BandeauSortieGuidee {
+  if (etape === 'creer_depart') {
+    return {
+      employeeId: salarie.id,
+      etape,
+      bouton: BOUTON_CREER_LE_DEPART,
+      message: messageCreerLeDepart(salarie, dateIso),
+      dateIso,
+      peutGenerer: false,
+      raisonBlocage: null,
+    };
+  }
+  const raisonBlocage = payrollGenerationBlockReason(salarie, year, month);
+  return {
+    employeeId: salarie.id,
+    etape,
+    bouton: raisonBlocage ?? BOUTON_GENERER_BULLETIN_SORTIE,
+    message: messageGenererBulletinSortie(salarie, raisonBlocage),
+    dateIso,
+    peutGenerer: raisonBlocage === null,
+    raisonBlocage,
+  };
 }
 
 export function bandeauxSortieDuMois(
@@ -95,24 +145,12 @@ export function bandeauxSortieDuMois(
   for (const salarie of salaries) {
     const dateIso = dateDeFinDuContrat(salarie);
     if (!dateIso || !tombeDansLeMois(dateIso, year, month)) continue;
-    if (!aUnDepartCree(salarie, departs)) {
-      bandeaux.push({
-        employeeId: salarie.id,
-        etape: 'creer_depart',
-        bouton: BOUTON_CREER_LE_DEPART,
-        message: messageCreerLeDepart(salarie, dateIso),
-        dateIso,
-      });
+    if (!aUnDepartCree(salarie, departs, year, month)) {
+      bandeaux.push(bandeauCommun(salarie, 'creer_depart', dateIso, year, month));
       continue;
     }
     if (idsAvecBulletin.has(salarie.id)) continue;
-    bandeaux.push({
-      employeeId: salarie.id,
-      etape: 'generer_bulletin',
-      bouton: BOUTON_GENERER_BULLETIN_SORTIE,
-      message: messageGenererBulletinSortie(salarie),
-      dateIso,
-    });
+    bandeaux.push(bandeauCommun(salarie, 'generer_bulletin', dateIso, year, month));
   }
   return bandeaux;
 }

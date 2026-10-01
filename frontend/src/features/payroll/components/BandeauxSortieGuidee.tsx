@@ -33,20 +33,36 @@ export function BandeauxSortieGuidee({
             )}
             <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-amber-900/90">
               <p>{bandeau.message}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="shrink-0 border-amber-300 bg-white"
-                data-testid={creer ? 'creer-le-depart' : 'generer-bulletin-sortie'}
-                onClick={() =>
-                  creer
-                    ? onCreerLeDepart(bandeau.employeeId)
-                    : onGenererBulletin(bandeau.employeeId)
-                }
-              >
-                {bandeau.bouton}
-              </Button>
+              {creer ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-amber-300 bg-white"
+                  data-testid="creer-le-depart"
+                  onClick={() => onCreerLeDepart(bandeau.employeeId)}
+                >
+                  {bandeau.bouton}
+                </Button>
+              ) : bandeau.peutGenerer ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-amber-300 bg-white"
+                  data-testid="generer-bulletin-sortie"
+                  onClick={() => onGenererBulletin(bandeau.employeeId)}
+                >
+                  {bandeau.bouton}
+                </Button>
+              ) : (
+                <p
+                  className="shrink-0 text-sm text-muted-foreground"
+                  data-testid="generer-bulletin-bloque"
+                >
+                  {bandeau.raisonBlocage}
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         );
