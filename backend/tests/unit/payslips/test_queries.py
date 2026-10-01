@@ -65,7 +65,10 @@ class TestGetEmployeePayslipsQuery:
         with patch(
             "app.modules.payslips.application.queries._get_employee_payslips",
             return_value=expected,
-        ) as mock_infra:
+        ) as mock_infra, patch(
+            "app.modules.payroll.application.empreinte_entrees_service.annoter_a_recalculer",
+            side_effect=lambda _eid, lignes: lignes,
+        ):
             result = get_employee_payslips("emp-1")
         mock_infra.assert_called_once_with("emp-1")
         assert result == expected

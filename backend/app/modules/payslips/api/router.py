@@ -257,6 +257,9 @@ def generate_payslip_route(
             "download_url": result.download_url,
             "payslip_id": result.payslip_id,
             "warnings": result.warnings or [],
+            "salaire_brut": result.salaire_brut,
+            "net_a_payer": result.net_a_payer,
+            "heures_sup": result.heures_sup,
         }
     except HTTPException:
         raise

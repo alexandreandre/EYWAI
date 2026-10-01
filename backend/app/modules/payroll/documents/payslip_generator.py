@@ -417,7 +417,7 @@ def _source_conges_par_date(rows: list) -> dict:
     return source_par_date
 
 
-def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> None:
+def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> list:
     """Étiquette chaque jour `conges_payes` avec le type de la demande validée
     d'origine. Congé payé et récupération modulation partagent le MÊME type
     calendrier, mais seuls les vrais CP produisent des lignes au bulletin
@@ -430,12 +430,16 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> Non
     libellé du code manque à l'enum (22P02). C'est arrivé du 07 au 08/09/2026
     avec `recuperation_modulation` — 67 jours de congés absents des bulletins
     d'août de Colorplast. Et l'échec n'est plus avalé : un bulletin sans ses
-    congés est pire qu'un bulletin non produit."""
+    congés est pire qu'un bulletin non produit.
+
+    Rend les demandes validées lues (vide s'il n'y a pas de jour CP : pas de
+    lecture supplémentaire, l'empreinte d'entrée reste alignée).
+    """
     if not employee_id:
-        return
+        return []
     jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
     if not jours_cp:
-        return
+        return []
     res = (
         supabase.table("absence_requests")
         .select("type, selected_days")
@@ -443,9 +447,10 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> Non
         .eq("status", "validated")
         .execute()
     )
+    toutes = list(res.data or [])
     rows = [
         r
-        for r in (res.data or [])
+        for r in toutes
         if r.get("type") in _TYPES_DEMANDE_PROJETES_EN_CONGES_PAYES
     ]
     source_par_date = _source_conges_par_date(rows)
@@ -457,6 +462,7 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> Non
         src = source_par_date.get(iso)
         if src:
             e["source_absence"] = src
+    return toutes
 
 
 def process_payslip_generation(
@@ -625,7 +631,7 @@ def process_payslip_generation(
                 new_entry.update({"annee": y, "mois": m})
                 actual_data_all_months.append(new_entry)
 
-        _stamp_source_absence_conges(planned_data_all_months, employee_id)
+        absences_rows = _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
         # Filet : une heure saisie un jour d'arrêt ou d'absence non travaillée
         # ne compte ni comme heure travaillée ni comme heure sup. Elle est écartée
@@ -1304,6 +1310,22 @@ def process_payslip_generation(
                 alerte_heures_sur_arret,
             ]
 
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            poser_empreinte_depuis_lectures,
+        )
+
+        payslip_json_data = poser_empreinte_depuis_lectures(
+            payslip_json_data if isinstance(payslip_json_data, dict) else {},
+            year=year,
+            month=month,
+            calendriers=db_data_map,
+            absences=absences_rows,
+            saisies=saisies_res.data or [],
+            employee=employee_data,
+            company=company_data,
+            notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
+        )
+
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
         new_cumuls_json = (
             json.loads(new_cumuls_path.read_text(encoding="utf-8"))
@@ -1320,6 +1342,9 @@ def process_payslip_generation(
             from app.modules.payroll.engine.controles_convention import (
                 avertissements_de_generation,
             )
+            from app.modules.payslips.infrastructure.payslip_list_meta import (
+                montants_du_bulletin,
+            )
 
             return {
                 "status": "success",
@@ -1329,6 +1354,7 @@ def process_payslip_generation(
                 "payslip_data": payslip_json_data,
                 "cumuls": new_cumuls_json,
                 "warnings": avertissements_de_generation(payslip_json_data),
+                **montants_du_bulletin(payslip_json_data),
             }
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
@@ -1466,6 +1492,9 @@ def process_payslip_generation(
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,
         )
+        from app.modules.payslips.infrastructure.payslip_list_meta import (
+            montants_du_bulletin,
+        )
 
         rh_warnings = avertissements_de_generation(final_payslip_data)
 
@@ -1475,6 +1504,7 @@ def process_payslip_generation(
             "download_url": pdf_url,
             "payslip_id": payslip_id,
             "warnings": rh_warnings,
+            **montants_du_bulletin(final_payslip_data),
         }
 
     except HTTPException:

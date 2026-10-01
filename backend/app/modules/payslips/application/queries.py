@@ -39,8 +39,12 @@ def get_my_payslips_for_user_account(
 
 
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
-    """Liste des bulletins d'un employé (pour RH)."""
-    return _get_employee_payslips(employee_id)
+    """Liste des bulletins d'un employé (pour RH), avec `a_recalculer`."""
+    from app.modules.payroll.application.empreinte_entrees_service import (
+        annoter_a_recalculer,
+    )
+
+    return annoter_a_recalculer(employee_id, _get_employee_payslips(employee_id))
 
 
 def get_payslip_details(payslip_id: str) -> dict[str, Any] | None:

@@ -36,8 +36,13 @@ def test_les_points_a_arbitrer_survivent_au_schema():
     assert rendu["warnings"] == ["Classification manquante."]
 
 
-def test_un_bulletin_calcule_sans_point_a_arbitrer_reste_valide():
+def test_a_recalculer_survit_au_schema():
+    rendu = PayslipInfo(**{**LIGNE, "a_recalculer": True, "salaire_brut": 1800.0, "heures_sup": 2.0}).model_dump()
+    assert rendu["a_recalculer"] is True
+    assert rendu["salaire_brut"] == 1800.0
+    assert rendu["heures_sup"] == 2.0
     minimal = {k: v for k, v in LIGNE.items() if k not in ("origine", "points_a_arbitrer")}
     rendu = PayslipInfo(**minimal).model_dump()
     assert rendu["origine"] == "calcule"
     assert rendu["points_a_arbitrer"] == []
+    assert rendu["a_recalculer"] is None

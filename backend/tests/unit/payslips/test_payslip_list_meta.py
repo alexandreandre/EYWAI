@@ -91,6 +91,32 @@ def test_les_points_a_arbitrer_sont_a_part_des_alertes():
     assert meta["points_a_arbitrer"] == ["Transport : 700,00 € versés."]
 
 
+def test_les_heures_sup_et_le_brut_sont_dans_la_meta():
+    from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
+
+    meta = payslip_list_meta(
+        {
+            "salaire_brut": 1800.5,
+            "net_a_payer": 1400.0,
+            "calcul_du_brut": [
+                {"libelle": "Heures suppl. majorées à 25%", "quantite": 2},
+                {"libelle": "Heures suppl. majorées à 50%", "quantite": 1.5},
+            ],
+            "parametres": {"empreinte_entrees": "ab" * 32},
+        }
+    )
+    assert meta["salaire_brut"] == 1800.5
+    assert meta["heures_sup"] == 3.5
+    assert meta["empreinte_entrees"] == "ab" * 32
+
+
+def test_sans_lignes_de_brut_les_heures_sup_sont_inconnues():
+    from app.modules.payslips.infrastructure.payslip_list_meta import heures_sup_du_bulletin
+
+    assert heures_sup_du_bulletin({"net_a_payer": 1}) is None
+    assert heures_sup_du_bulletin({"calcul_du_brut": []}) == 0.0
+
+
 def test_sans_point_a_arbitrer_la_liste_est_vide():
     assert payslip_list_meta({"net_a_payer": 1.0})["points_a_arbitrer"] == []
     assert payslip_list_meta("rien")["points_a_arbitrer"] == []

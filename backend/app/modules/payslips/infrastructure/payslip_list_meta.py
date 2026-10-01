@@ -4,9 +4,50 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.payroll.domain.empreinte_entrees import empreinte_stockee
 from app.modules.payroll.engine.controles_convention import (
     avertissements_de_generation,
 )
+
+
+def _nombre(valeur: Any) -> float | None:
+    if isinstance(valeur, bool) or not isinstance(valeur, (int, float)):
+        return None
+    return float(valeur)
+
+
+def heures_sup_du_bulletin(payslip_data: Any) -> float | None:
+    """Heures sup du mois, lues sur les lignes de brut. None si le bulletin n'en a pas."""
+    if not isinstance(payslip_data, dict):
+        return None
+    lignes = payslip_data.get("calcul_du_brut")
+    if not isinstance(lignes, list):
+        return None
+    total = 0.0
+    vu = False
+    for ligne in lignes:
+        if not isinstance(ligne, dict):
+            continue
+        libelle = str(ligne.get("libelle") or "")
+        if "Heures suppl." not in libelle or "major" not in libelle.lower():
+            continue
+        quantite = _nombre(ligne.get("quantite"))
+        if quantite is None:
+            continue
+        total += quantite
+        vu = True
+    return round(total, 2) if vu else 0.0
+
+
+def montants_du_bulletin(payslip_data: Any) -> dict[str, float | None]:
+    """Heures sup, brut et net : ce que le toast de recalcul compare."""
+    if not isinstance(payslip_data, dict):
+        return {"heures_sup": None, "salaire_brut": None, "net_a_payer": None}
+    return {
+        "heures_sup": heures_sup_du_bulletin(payslip_data),
+        "salaire_brut": _nombre(payslip_data.get("salaire_brut")),
+        "net_a_payer": _nombre(payslip_data.get("net_a_payer")),
+    }
 
 
 def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
@@ -14,13 +55,18 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
 
     Un point à arbitrer (plafond transport…) n'est pas une alerte : la liste le
     montre discrètement, hors du compte des alertes."""
+    vide = {
+        "net_a_payer": None,
+        "salaire_brut": None,
+        "heures_sup": None,
+        "empreinte_entrees": None,
+        "warnings": [],
+        "points_a_arbitrer": [],
+    }
     if not isinstance(payslip_data, dict):
-        return {"net_a_payer": None, "warnings": [], "points_a_arbitrer": []}
+        return vide
 
-    net_amount = None
-    val = payslip_data.get("net_a_payer")
-    if isinstance(val, (int, float)):
-        net_amount = float(val)
+    montants = montants_du_bulletin(payslip_data)
 
     warnings: list[str] = []
     points_a_arbitrer: list[str] = []
@@ -33,7 +79,10 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
             warnings.append(str(avertissement.get("message") or ""))
 
     return {
-        "net_a_payer": net_amount,
+        "net_a_payer": montants["net_a_payer"],
+        "salaire_brut": montants["salaire_brut"],
+        "heures_sup": montants["heures_sup"],
+        "empreinte_entrees": empreinte_stockee(payslip_data),
         "warnings": warnings,
         "points_a_arbitrer": points_a_arbitrer,
     }

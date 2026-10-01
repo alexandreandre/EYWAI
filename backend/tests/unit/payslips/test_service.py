@@ -146,6 +146,9 @@ class TestGetPayslipDetailsForUser:
         ), patch(
             "app.modules.payslips.application.service.exports_du_mois",
             return_value=[],
+        ), patch(
+            "app.modules.payslips.application.service._a_recalculer_du_bulletin",
+            return_value=None,
         ):
             yield
 
@@ -177,6 +180,7 @@ class TestGetPayslipDetailsForUser:
             "edit_history": [],
             "internal_notes": [],
             "a_regenerer": None,
+            "a_recalculer": None,
             "exports_du_mois": [],
         }
 
@@ -235,7 +239,7 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == {**detail, "a_regenerer": None, "exports_du_mois": []}
+        assert result == {**detail, "a_regenerer": None, "a_recalculer": None, "exports_du_mois": []}
 
     def test_super_admin_can_view_any(self):
         """Un super admin peut consulter n'importe quel bulletin."""
@@ -252,7 +256,7 @@ class TestGetPayslipDetailsForUser:
             ),
         ):
             result = get_payslip_details_for_user("ps-1", ctx)
-        assert result == {**detail, "a_regenerer": None, "exports_du_mois": []}
+        assert result == {**detail, "a_regenerer": None, "a_recalculer": None, "exports_du_mois": []}
 
 
 class TestGetPayslipHistoryForUser:

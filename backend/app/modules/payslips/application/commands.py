@@ -534,6 +534,9 @@ def _generer_sous_verrou(
         download_url=result["download_url"],
         payslip_id=result.get("payslip_id"),
         warnings=warnings or None,
+        salaire_brut=result.get("salaire_brut"),
+        net_a_payer=result.get("net_a_payer"),
+        heures_sup=result.get("heures_sup"),
     )
 
 

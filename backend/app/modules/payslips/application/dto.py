@@ -153,6 +153,9 @@ class GeneratePayslipResult:
     download_url: str
     payslip_id: str | None = None
     warnings: list[Any] | None = None
+    salaire_brut: float | None = None
+    net_a_payer: float | None = None
+    heures_sup: float | None = None
 
 
 @dataclass

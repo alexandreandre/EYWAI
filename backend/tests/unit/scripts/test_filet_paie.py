@@ -78,6 +78,10 @@ def test_la_comparaison_tolere_moins_d_un_demi_centime():
 
 def test_les_champs_volatils_sont_ignores():
     assert comparer({"b": {"date_generation": "hier", "net": 1}}, {"b": {"date_generation": "aujourd'hui", "net": 1}}) == {}
+    assert comparer(
+        {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "aaa", "smic_horaire": 11.88}}}},
+        {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "bbb", "smic_horaire": 11.88}}}},
+    ) == {}
 
 
 def test_une_ecriture_simulee_ne_part_jamais():

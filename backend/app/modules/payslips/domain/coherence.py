@@ -10,6 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.modules.payroll.domain.empreinte_entrees import (
+    MESSAGE_A_RECALCULER,
+    empreinte_stockee,
+    etat_a_recalculer,
+)
+
 _TOLERANCE = 0.011
 
 MESSAGE_RECALCUL_EN_ATTENTE = (
@@ -22,10 +28,16 @@ MESSAGE_A_REGENERER = (
 )
 
 
-def raisons_de_ne_pas_valider(payslip_data: dict[str, Any] | None) -> list[str]:
+def raisons_de_ne_pas_valider(
+    payslip_data: dict[str, Any] | None,
+    empreinte_actuelle: str | None = None,
+) -> list[str]:
+    raisons: list[str] = []
     if isinstance(payslip_data, dict) and payslip_data.get("recalcul_en_attente"):
-        return [MESSAGE_RECALCUL_EN_ATTENTE]
-    return []
+        raisons.append(MESSAGE_RECALCUL_EN_ATTENTE)
+    if etat_a_recalculer(empreinte_stockee(payslip_data), empreinte_actuelle) is True:
+        raisons.append(MESSAGE_A_RECALCULER)
+    return raisons
 
 
 def _nombre(valeur: Any) -> float | None:

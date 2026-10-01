@@ -26,6 +26,11 @@ class PayslipInfo(BaseModel):
     points_a_arbitrer: list[str] = []
     #: « importe » : bulletin repris de l'ancien logiciel, intouchable.
     origine: str = "calcule"
+    #: true = calendrier ou absences changés depuis le calcul ; false = à jour ;
+    #: null = bulletin d'avant l'empreinte, ou repris : on ne bloque pas.
+    a_recalculer: bool | None = None
+    salaire_brut: float | None = None
+    heures_sup: float | None = None
     manually_edited: bool = False
     edit_count: int = 0
     edited_at: datetime | None = None
@@ -100,6 +105,8 @@ class PayslipDetail(BaseModel):
     #: Phrase à afficher quand le mois précédent a changé depuis le calcul de
     #: ce bulletin (cumuls qui ne se suivent plus) ; None sinon.
     a_regenerer: str | None = None
+    #: true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte).
+    a_recalculer: bool | None = None
     #: Exports déjà faits pour le mois (type, libellé, date) : à refaire après
     #: une correction. Vide pour le salarié.
     exports_du_mois: list[ExportDuMois] = []

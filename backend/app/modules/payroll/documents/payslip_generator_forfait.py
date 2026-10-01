@@ -238,7 +238,7 @@ def process_payslip_generation_forfait(
             _stamp_source_absence_conges,
         )
 
-        _stamp_source_absence_conges(planned_data_all_months, employee_id)
+        absences_rows = _stamp_source_absence_conges(planned_data_all_months, employee_id)
 
         last_day = calendar.monthrange(year, month)[1]
         expense_reports_res = (
@@ -628,6 +628,22 @@ def process_payslip_generation_forfait(
                 payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur
             )
 
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            poser_empreinte_depuis_lectures,
+        )
+
+        payslip_json_data = poser_empreinte_depuis_lectures(
+            payslip_json_data if isinstance(payslip_json_data, dict) else {},
+            year=year,
+            month=month,
+            calendriers=db_data_map,
+            absences=absences_rows,
+            saisies=saisies_res.data or [],
+            employee=employee_data,
+            company=company_data,
+            notes_de_frais=(expense_reports_res.data or []) if expense_reports_res else [],
+        )
+
         # --- ÉTAPE 5 : SAUVEGARDER ---
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"
@@ -646,6 +662,9 @@ def process_payslip_generation_forfait(
             from app.modules.payroll.engine.controles_convention import (
                 avertissements_de_generation,
             )
+            from app.modules.payslips.infrastructure.payslip_list_meta import (
+                montants_du_bulletin,
+            )
 
             return {
                 "status": "success",
@@ -655,6 +674,7 @@ def process_payslip_generation_forfait(
                 "payslip_data": payslip_json_data,
                 "cumuls": new_cumuls_json,
                 "warnings": avertissements_de_generation(payslip_json_data),
+                **montants_du_bulletin(payslip_json_data),
             }
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}_FORFAIT.pdf"
@@ -726,6 +746,9 @@ def process_payslip_generation_forfait(
         from app.modules.payroll.engine.controles_convention import (
             avertissements_de_generation,
         )
+        from app.modules.payslips.infrastructure.payslip_list_meta import (
+            montants_du_bulletin,
+        )
 
         rh_warnings = avertissements_de_generation(final_payslip_data)
 
@@ -735,6 +758,7 @@ def process_payslip_generation_forfait(
             "download_url": pdf_url,
             "payslip_id": payslip_id,
             "warnings": rh_warnings,
+            **montants_du_bulletin(final_payslip_data),
         }
 
     except HTTPException:

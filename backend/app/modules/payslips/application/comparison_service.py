@@ -46,6 +46,21 @@ from app.modules.payslips.infrastructure.readers import payslip_meta_reader
 logger = get_logger("modules.payslips.application.comparison_service")
 
 
+def _empreinte_actuelle_du_bulletin(detail: dict[str, Any]) -> str | None:
+    """None si illisible : on ne bloque pas la validation sur une lecture ratée."""
+    try:
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            empreinte_actuelle,
+        )
+
+        return empreinte_actuelle(
+            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
+        )
+    except Exception:  # noqa: BLE001 — une lecture ratée ne doit pas valider un bulletin faux ni tout casser
+        logger.warning("Empreinte actuelle illisible, validation sans ce filet", exc_info=True)
+        return None
+
+
 def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict[str, Any]:
     if not detail:
         raise PayslipNotFoundError("Bulletin non trouvé")
@@ -235,7 +250,7 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     if not isinstance(pd, dict):
         pd = {}
 
-    raisons = raisons_de_ne_pas_valider(pd)
+    raisons = raisons_de_ne_pas_valider(pd, _empreinte_actuelle_du_bulletin(detail))
     signal = signal_a_regenerer(detail)
     if signal:
         raisons.append(signal)

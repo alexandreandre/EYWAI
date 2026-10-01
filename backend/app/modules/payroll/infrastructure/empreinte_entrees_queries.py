@@ -1,0 +1,162 @@
+"""Lectures groupées pour l'empreinte d'entrée d'un bulletin.
+
+Une passe par salarié : fiche, société, calendriers de la fenêtre, absences
+validées, saisies des mois demandés, notes de frais de la plage. Pas une
+requête par bulletin.
+"""
+
+from __future__ import annotations
+
+import calendar
+from dataclasses import dataclass
+from datetime import date
+from typing import Any
+
+from app.core.database import supabase
+from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
+
+FICHE_COLONNES = (
+    "id, company_id, salaire_de_base, classification_conventionnelle, "
+    "duree_hebdomadaire, is_temps_partiel, statut, is_forfait_jour, hire_date, "
+    "seniority_reference_date, prior_service_months, contract_end_date, "
+    "contract_type, elements_variables, avantages_en_nature, specificites_paie, "
+    "job_title, date_conclusion_contrat, date_debut_execution, current_exit_id"
+)
+
+SAISIE_COLONNES = (
+    "year, month, name, amount, catalog_prime_id, is_socially_taxed, is_taxable, "
+    "payroll_quantity, sur_le_net, export_code, quantity_kind, situation_repas, "
+    "description, participation_campaign_id, participation_bulletin_id"
+)
+
+SOCIETE_COLONNES = (
+    "id, idcc, effectif, taux_at_mp, taux_vm, taux_fnal, "
+    "paie_jour_de_fin, paie_occurrence, settings"
+)
+
+
+@dataclass(frozen=True)
+class LecturesEmpreinte:
+    employee: dict[str, Any]
+    company: dict[str, Any]
+    calendriers: dict[tuple[int, int], dict[str, Any]]
+    absences: list[dict[str, Any]]
+    saisies_par_mois: dict[tuple[int, int], list[dict[str, Any]]]
+    notes_de_frais: list[dict[str, Any]]
+
+
+def _mois_a_lire(periodes: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    vus: set[tuple[int, int]] = set()
+    for year, month in periodes:
+        vus.update(mois_de_la_fenetre(year, month))
+    return sorted(vus)
+
+
+def _plage_dates(mois: list[tuple[int, int]]) -> tuple[str, str] | None:
+    if not mois:
+        return None
+    premier, dernier = mois[0], mois[-1]
+    debut = date(premier[0], premier[1], 1)
+    fin = date(dernier[0], dernier[1], calendar.monthrange(dernier[0], dernier[1])[1])
+    return debut.isoformat(), fin.isoformat()
+
+
+def lire_lectures_salarie(
+    employee_id: str, periodes: list[tuple[int, int]]
+) -> LecturesEmpreinte | None:
+    """Tout ce qu'il faut pour l'empreinte des bulletins `periodes` de ce salarié."""
+    if not employee_id or not periodes:
+        return None
+    fiche = (
+        supabase.table("employees")
+        .select(FICHE_COLONNES)
+        .eq("id", employee_id)
+        .maybe_single()
+        .execute()
+    )
+    employee = (fiche.data if fiche else None) or None
+    if not employee:
+        return None
+    company_id = employee.get("company_id")
+    company: dict[str, Any] = {}
+    if company_id:
+        societe = (
+            supabase.table("companies")
+            .select(SOCIETE_COLONNES)
+            .eq("id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        company = (societe.data if societe else None) or {}
+
+    fenetre = _mois_a_lire(periodes)
+    annees = sorted({y for y, _ in fenetre})
+    mois = sorted({m for _, m in fenetre})
+    plannings = (
+        supabase.table("employee_schedules")
+        .select("year, month, planned_calendar, actual_hours")
+        .eq("employee_id", employee_id)
+        .in_("year", annees)
+        .in_("month", mois)
+        .execute()
+    )
+    calendriers: dict[tuple[int, int], dict[str, Any]] = {}
+    for row in (plannings.data if plannings else None) or []:
+        try:
+            calendriers[(int(row["year"]), int(row["month"]))] = row
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    absences_res = (
+        supabase.table("absence_requests")
+        .select("type, selected_days")
+        .eq("employee_id", employee_id)
+        .eq("status", "validated")
+        .execute()
+    )
+    absences = list((absences_res.data if absences_res else None) or [])
+
+    periodes_demandees = set(periodes)
+    annees_saisies = sorted({y for y, _ in periodes_demandees})
+    mois_saisies = sorted({m for _, m in periodes_demandees})
+    saisies_res = (
+        supabase.table("monthly_inputs")
+        .select(SAISIE_COLONNES)
+        .eq("employee_id", employee_id)
+        .in_("year", annees_saisies)
+        .in_("month", mois_saisies)
+        .execute()
+    )
+    saisies_par_mois: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for row in (saisies_res.data if saisies_res else None) or []:
+        try:
+            cle = (int(row["year"]), int(row["month"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        # `.in_(year).in_(month)` peut ramener un mois d'une autre année.
+        if cle not in periodes_demandees:
+            continue
+        saisies_par_mois.setdefault(cle, []).append(row)
+
+    notes: list[dict[str, Any]] = []
+    plage = _plage_dates(fenetre)
+    if plage:
+        notes_res = (
+            supabase.table("expense_reports")
+            .select("type, amount, date")
+            .eq("employee_id", employee_id)
+            .eq("status", "validated")
+            .gte("date", plage[0])
+            .lte("date", plage[1])
+            .execute()
+        )
+        notes = list((notes_res.data if notes_res else None) or [])
+
+    return LecturesEmpreinte(
+        employee=employee,
+        company=company,
+        calendriers=calendriers,
+        absences=absences,
+        saisies_par_mois=saisies_par_mois,
+        notes_de_frais=notes,
+    )

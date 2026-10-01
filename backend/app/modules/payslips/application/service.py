@@ -116,15 +116,38 @@ def get_payslip_details_for_user(
             "edit_history": [],
             "internal_notes": [],
             "a_regenerer": None,
+            "a_recalculer": None,
             "exports_du_mois": [],
         }
     return {
         **detail,
         "a_regenerer": signal_a_regenerer(detail),
+        "a_recalculer": _a_recalculer_du_bulletin(detail),
         "exports_du_mois": exports_du_mois(
             detail["company_id"], detail["year"], detail["month"]
         ),
     }
+
+
+def _a_recalculer_du_bulletin(detail: dict[str, Any]) -> bool | None:
+    """true / false / null, même règle que la liste de la paie du mois."""
+    if str(detail.get("origine") or "calcule") == "importe":
+        return None
+    try:
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            empreinte_actuelle,
+        )
+        from app.modules.payroll.domain.empreinte_entrees import (
+            empreinte_stockee,
+            etat_a_recalculer,
+        )
+
+        actuelle = empreinte_actuelle(
+            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
+        )
+        return etat_a_recalculer(empreinte_stockee(detail.get("payslip_data")), actuelle)
+    except Exception:  # noqa: BLE001 — un détail illisible n'empêche pas d'ouvrir le bulletin
+        return None
 
 
 def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:

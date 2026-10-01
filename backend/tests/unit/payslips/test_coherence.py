@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.modules.payslips.domain.coherence import (
+    MESSAGE_A_RECALCULER,
     MESSAGE_A_REGENERER,
     MESSAGE_RECALCUL_EN_ATTENTE,
     a_regenerer,
@@ -26,6 +27,14 @@ def test_un_recalcul_en_attente_empeche_la_validation():
         MESSAGE_RECALCUL_EN_ATTENTE
     ]
     assert raisons_de_ne_pas_valider({"salaire_brut": 1}) == []
+
+
+def test_un_bulletin_perime_empeche_la_validation():
+    data = {"parametres": {"empreinte_entrees": "a" * 64}}
+    assert raisons_de_ne_pas_valider(data, "b" * 64) == [MESSAGE_A_RECALCULER]
+    assert raisons_de_ne_pas_valider(data, "a" * 64) == []
+    assert raisons_de_ne_pas_valider({"salaire_brut": 1}, "a" * 64) == []
+    assert raisons_de_ne_pas_valider(data, None) == []
 
 
 def test_le_cumul_brut_se_lit_dans_les_deux_formes():
@@ -79,10 +88,35 @@ def test_la_validation_est_refusee_avec_les_raisons():
         patch.object(cs, "_ensure_edit_meta"),
         patch.object(cs, "get_payslip_details", return_value=detail),
         patch.object(cs, "signal_a_regenerer", return_value=MESSAGE_A_REGENERER),
+        patch.object(cs, "_empreinte_actuelle_du_bulletin", return_value=None),
         patch.object(cs, "mark_payslip_validated") as valider,
     ):
         with pytest.raises(PayslipBadRequestError) as exc:
             cs.validate_payslip_for_user("ps-1", ctx)
     assert MESSAGE_RECALCUL_EN_ATTENTE in str(exc.value)
     assert MESSAGE_A_REGENERER in str(exc.value)
+    valider.assert_not_called()
+
+
+def test_la_validation_est_refusee_si_l_empreinte_a_change():
+    from app.modules.payslips.application import comparison_service as cs
+    from app.modules.payslips.application.dto import PayslipBadRequestError, UserContext
+
+    detail = {
+        "id": "ps-1", "employee_id": "e1", "company_id": "c1", "year": 2026, "month": 8,
+        "payslip_data": {"parametres": {"empreinte_entrees": "a" * 64}},
+    }
+    ctx = UserContext(user_id="rh", is_platform_admin=False,
+                      has_rh_access_in_company=lambda _c: True, active_company_id="c1")
+    with (
+        patch.object(cs, "payslip_meta_reader", MagicMock()),
+        patch.object(cs, "_ensure_edit_meta"),
+        patch.object(cs, "get_payslip_details", return_value=detail),
+        patch.object(cs, "signal_a_regenerer", return_value=None),
+        patch.object(cs, "_empreinte_actuelle_du_bulletin", return_value="b" * 64),
+        patch.object(cs, "mark_payslip_validated") as valider,
+    ):
+        with pytest.raises(PayslipBadRequestError) as exc:
+            cs.validate_payslip_for_user("ps-1", ctx)
+    assert MESSAGE_A_RECALCULER in str(exc.value)
     valider.assert_not_called()
