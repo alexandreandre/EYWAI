@@ -3,6 +3,7 @@ Point d’entrée de l’application cible (modular monolith).
 """
 
 import os
+import re
 import traceback
 
 import httpx
@@ -180,6 +181,28 @@ def httpx_exception_handler(request: Request, exc: httpx.HTTPError):
     )
 
 
+def _entetes_cors(request: Request) -> dict[str, str]:
+    """En-têtes CORS pour une origine autorisée.
+
+    Le gestionnaire ci-dessous tourne hors du CORSMiddleware (Starlette le place
+    dans ServerErrorMiddleware) : sans eux, le navigateur change une 500 en
+    « erreur réseau » et l'écran ne peut pas dire ce qui s'est passé.
+    """
+    origine = request.headers.get("origin")
+    if not origine:
+        return {}
+    autorisee = origine in ALLOWED_ORIGINS or bool(
+        _cors_origin_regex and re.fullmatch(_cors_origin_regex, origine)
+    )
+    if not autorisee:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origine,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
+
+
 @app.exception_handler(Exception)
 def global_exception_handler(request: Request, exc: Exception):
     """Catch-all : garantit une réponse JSON propre (avec headers CORS) même sur erreur 500."""
@@ -198,6 +221,7 @@ def global_exception_handler(request: Request, exc: Exception):
                     "Réessayez dans quelques secondes."
                 )
             },
+            headers=_entetes_cors(request),
         )
 
     logger.error(
@@ -208,6 +232,7 @@ def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
+        headers=_entetes_cors(request),
     )
 
 
