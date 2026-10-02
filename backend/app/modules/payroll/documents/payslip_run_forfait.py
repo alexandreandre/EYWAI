@@ -23,7 +23,10 @@ from app.modules.payroll.engine.calcul_cotisations import (
 from app.modules.payroll.engine.calcul_net import calculer_net_et_impot
 from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
+    heures_reduction_forfait_jours,
+    rapport_salaires_forfait_jours,
 )
+from app.modules.payroll.engine.lectures import lire_ou_arreter
 from app.modules.payroll.engine.ijss_bulletin import build_rappel_ijss_net_prime
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
@@ -52,6 +55,55 @@ from .payslip_run_heures import (
     _extraire_arret_pour_maintien,
 )
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
+
+
+def jours_du_forfait_pour_reduction(contexte: ContextePaie, company_id: str | None) -> float:
+    """Jours « prévus au forfait du salarié » (BOSS, allègements généraux, § 860).
+
+    D'abord le forfait propre au salarié, déjà réduit de ses congés d'ancienneté
+    quand la société le prévoit (`forfait_annual_days_adjusted`, posé plus haut
+    dans ce calcul) ; sinon le forfait de la société, celui que l'application
+    retient aussi pour ses jours de repos (`company_leave_settings`). Sans
+    réglage enregistré, c'est la valeur par défaut de ces réglages. Une lecture
+    ratée arrête le calcul : sans ce nombre, le SMIC de la réduction serait faux.
+    """
+    ajuste = (contexte.contrat or {}).get("forfait_annual_days_adjusted")
+    if ajuste:
+        return float(ajuste)
+    from app.modules.absences.domain.leave_policy import DEFAULT_LEAVE_POLICY
+
+    if not company_id:
+        return float(DEFAULT_LEAVE_POLICY.rtt_forfait_annual_days)
+    from app.modules.absences.infrastructure import leave_settings_repository
+
+    politique = lire_ou_arreter(
+        lambda: leave_settings_repository.get_leave_policy(str(company_id)),
+        "Les jours du forfait (réglages des congés) n'ont pas pu être lus",
+    )
+    return float(politique.rtt_forfait_annual_days)
+
+
+def heures_reduction_du_mois(
+    resultat_brut: Dict[str, Any],
+    resultats_maintien: Dict[str, Any] | None,
+    jours_du_forfait: float,
+) -> float:
+    """Heures du SMIC de référence de la réduction générale pour ce bulletin forfait.
+
+    Mois complet : 151,67 h × jours du forfait / 218, quel que soit le nombre de
+    jours travaillés (et non plus 7 h par jour travaillé). Absence non payée,
+    arrêt sans maintien intégral, entrée ou sortie : corrigé du rapport des
+    salaires, maintien employeur compris (CSS D241-7, IV, 3e et 5e alinéas).
+    """
+    maintien_verse = float(
+        ((resultats_maintien or {}).get("maintien", {}) or {}).get("maintien_verse") or 0.0
+    )
+    rapport = rapport_salaires_forfait_jours(
+        float(resultat_brut.get("salaire_forfait_mois") or 0.0),
+        float(resultat_brut.get("retenues_absence_mois") or 0.0),
+        maintien_verse,
+    )
+    return heures_reduction_forfait_jours(jours_du_forfait, rapport)
 
 
 def _preparer_calendrier_enrichi_forfait(
@@ -497,7 +549,17 @@ def run_payslip_generation_forfait(
         )
 
     nombre_jours_travailles = resultat_brut.get("nombre_jours_travailles", 0)
+    # Plafond du JEI seulement : la réduction générale a sa propre règle.
     heures_equivalentes = nombre_jours_travailles * 7.0
+    # SMIC de référence de la réduction générale : la durée du forfait, pas les
+    # jours travaillés (7 h × 21 jours = 147 h, quand Quadra et la loi comptent
+    # 150,28 h pour 216 jours). Aussi le « Cumul heures » des cumuls, que relit
+    # la régularisation du mois suivant.
+    heures_reduction = heures_reduction_du_mois(
+        resultat_brut,
+        resultats_maintien,
+        jours_du_forfait_pour_reduction(contexte, company_id),
+    )
 
     ligne_exoneration_jei = calculer_exoneration_jei(
         contexte,
@@ -517,7 +579,7 @@ def run_payslip_generation_forfait(
     ligne_reduction_generale = None
     if not jei_applicable(contexte, year, month):
         ligne_reduction_generale = calculer_reduction_generale(
-            contexte, salaire_brut_calcule, heures_equivalentes
+            contexte, salaire_brut_calcule, heures_reduction
         )
         if ligne_reduction_generale:
             lignes_cotisations.append(ligne_reduction_generale)
@@ -593,7 +655,7 @@ def run_payslip_generation_forfait(
         pss_du_mois,
         employee_path,
         heures_supplementaires_mois=total_heures_supp,
-        heures_remunerees_mois=heures_equivalentes,
+        heures_remunerees_mois=heures_reduction,
     )
 
     chemin_cumuls_mis_a_jour = employee_path / "cumuls" / f"{month:02d}.json"

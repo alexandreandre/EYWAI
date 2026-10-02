@@ -7,6 +7,10 @@ from __future__ import annotations
 # Temps de travail
 DUREE_LEGALE_HEBDO = 35.0
 DIVISEUR_JOURS_CALENDAIRES = 30.42
+# Durée légale d'un forfait annuel en jours (Code du travail L3121-64) : le
+# SMIC de la réduction générale d'un forfait plus court en est le prorata
+# (CSS D241-7, IV, 3e alinéa).
+JOURS_FORFAIT_LEGAL = 218
 
 # Seuils d'effectif
 SEUIL_EFFECTIF_FNAL = 50

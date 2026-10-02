@@ -195,6 +195,95 @@ def calculer_coefficient_rgdu(
     return coefficient, detail
 
 
+def heures_reduction_forfait_jours(
+    jours_du_forfait: float, rapport_salaires: float = 1.0
+) -> float:
+    """Heures du SMIC de référence d'un mois, pour un salarié au forfait annuel en jours.
+
+    CSS D241-7, IV, 3e alinéa, et BOSS (allègements généraux, § 860) : le SMIC
+    annuel est « corrigé du rapport entre le nombre de jours prévu au forfait du
+    salarié, et 218 jours ». Un mois complet vaut donc la durée légale mensuelle
+    (35 × 52 / 12 = 151,67 h) × jours du forfait / 218 : 150,28 h pour 216 jours,
+    comme le compte Quadra. Le nombre de jours travaillés dans le mois n'y entre
+    pas ; un forfait n'est jamais compté au-delà de 218 jours (pas de majoration
+    pour des jours de repos rachetés, § 860).
+
+    `rapport_salaires` corrige le mois d'une absence non payée, d'un arrêt sans
+    maintien intégral ou d'une entrée/sortie en cours de mois (D241-7, IV,
+    5e alinéa ; voir `rapport_salaires_forfait_jours`). Il est borné à [0, 1].
+    """
+    jours = float(jours_du_forfait or 0.0)
+    if jours <= 0:
+        raise ValueError(
+            "Nombre de jours du forfait inconnu : la réduction générale d'un "
+            "salarié au forfait jours ne peut pas être calculée."
+        )
+    jours = min(jours, lc.JOURS_FORFAIT_LEGAL)
+    rapport = min(1.0, max(0.0, float(rapport_salaires)))
+    heures_mois_complet = (lc.DUREE_LEGALE_HEBDO * 52) / 12 * jours / lc.JOURS_FORFAIT_LEGAL
+    return round(heures_mois_complet * rapport, 2)
+
+
+def rapport_salaires_forfait_jours(
+    salaire_du_forfait: float,
+    retenues_d_absence: float,
+    maintien_employeur: float,
+) -> float:
+    """Rapport des salaires du mois d'un salarié au forfait jours, borné à [0, 1].
+
+    D241-7, IV, 5e alinéa : le SMIC du mois est corrigé du rapport entre la
+    rémunération due au titre du mois et celle qui aurait été due si le salarié
+    avait été présent tout le mois, hors éléments non affectés par l'absence.
+    Pour un forfait jours, la seconde est le salaire du forfait ; la première en
+    retire les retenues d'absence non payée, d'arrêt et d'entrée ou de sortie, et
+    y rajoute le maintien versé par l'employeur (les IJSS subrogées n'y entrent
+    pas, BOSS § 790). Les primes, rappels et indemnités de rupture ne sont
+    affectés par aucune absence : ils restent hors du rapport. Les congés payés
+    sont payés (retenue compensée par l'indemnité) : ils ne réduisent rien
+    (BOSS § 630), l'appelant ne les compte donc pas dans les retenues.
+    """
+    salaire = float(salaire_du_forfait or 0.0)
+    if salaire <= 0:
+        return 0.0
+    du_au_titre_du_mois = (
+        salaire - float(retenues_d_absence or 0.0) + float(maintien_employeur or 0.0)
+    )
+    return min(1.0, max(0.0, du_au_titre_du_mois / salaire))
+
+
+class OuvertureReductionIncomplete(ValueError):
+    """Cumuls repris sans heures alors qu'une réduction a déjà été appliquée.
+
+    `ValueError` : les générateurs la rendent telle quelle à l'écran (refus 400).
+    """
+
+
+def _montant_fr(montant: float) -> str:
+    return f"{montant:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def _verifier_cumuls_coherents(
+    brut_cumule: float, heures_cumulees: float, reduction_deja_appliquee: float
+) -> None:
+    """Refuse un cumul d'heures vide quand une réduction a déjà été appliquée.
+
+    Une réduction cumulée suppose un SMIC de référence cumulé, donc des heures.
+    Un solde d'ouverture repris sans elles (cas d'un forfait jours chez Quadra,
+    qui n'imprime pas d'heures) ferait conclure la formule annualisée à plus de
+    3 SMIC : le bulletin rembourserait toute la réduction de l'année. Mieux vaut
+    ne pas le calculer et dire pourquoi.
+    """
+    if brut_cumule > 0 and heures_cumulees <= 0 and reduction_deja_appliquee > 0:
+        raise OuvertureReductionIncomplete(
+            "Réduction générale : les cumuls du mois précédent portent "
+            f"{_montant_fr(reduction_deja_appliquee)} € de réduction déjà appliquée "
+            f"sur {_montant_fr(brut_cumule)} € de brut, mais aucune heure de SMIC de "
+            "référence. Calculé ainsi, ce bulletin rembourserait toute la réduction "
+            "de l'année. Le bulletin n'est pas calculé : il faut d'abord compléter "
+            "les heures de la réduction générale dans le solde d'ouverture repris."
+        )
+
+
 def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float]:
     """Lit les cumuls (brut, heures rémunérées, réduction déjà appliquée) du mois N-1.
 
@@ -293,6 +382,8 @@ def _calculer_reduction_rgdu(
     if not config or not config.get("actif", False):
         log_payroll_debug(logger, 'INFO: RGDU inactive (absente ou actif=false).')
         return _resultat_remboursement_seul(salaire_brut_mois, reduction_deja)
+
+    _verifier_cumuls_coherents(brut_prec, heures_prec, reduction_deja)
 
     brut_total_cumule = brut_prec + salaire_brut_mois
     heures_total_cumulees = heures_prec + heures_remunerees_mois

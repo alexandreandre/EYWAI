@@ -194,8 +194,17 @@ def run_bulletin_pipeline_forfait(
     hs = brut_res["remuneration_brute_heures_supp"]
     ths = brut_res["total_heures_supp"]
     lignes, total_sal = calculer_cotisations(contexte, brut, hs, ths)
-    jours = brut_res.get("nombre_jours_travailles", 0)
-    red = calculer_reduction_generale(contexte, brut, jours * 7.0)
+    # Même règle que le bulletin forfait : la durée du forfait, pas 7 h par jour.
+    from app.modules.payroll.documents.payslip_run_forfait import (
+        heures_reduction_du_mois,
+        jours_du_forfait_pour_reduction,
+    )
+
+    red = calculer_reduction_generale(
+        contexte,
+        brut,
+        heures_reduction_du_mois(brut_res, None, jours_du_forfait_pour_reduction(contexte, None)),
+    )
     if red:
         lignes.append(red)
     nets = calculer_net_et_impot(

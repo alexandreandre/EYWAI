@@ -267,8 +267,13 @@ def calculer_salaire_brut_forfait(
         if (date_entree_effective and jour < date_entree_effective)
         or (date_sortie and jour > date_sortie)
     ]
+    # Retenues du salaire du forfait qui entrent dans le rapport des salaires de
+    # la réduction générale (CSS D241-7, IV, 5e al.) : entrée ou sortie, absences
+    # non payées, arrêts. Les congés payés n'en font pas partie (payés).
+    retenues_absence_mois = 0.0
     if jours_hors_contrat and jours_ouvres_mois:
         taux_prorata = salaire_contractuel / len(jours_ouvres_mois)
+        retenues_absence_mois += round(len(jours_hors_contrat) * taux_prorata, 2)
         lignes_composants_brut.append(
             {
                 "libelle": "Absence pour entrée ou sortie",
@@ -328,6 +333,7 @@ def calculer_salaire_brut_forfait(
                 "%d/%m/%y"
             )
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
+            retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
                 {
                     "libelle": f"Absence injustifiée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
@@ -345,6 +351,7 @@ def calculer_salaire_brut_forfait(
                 "%d/%m/%y"
             )
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
+            retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
                 {
                     "libelle": f"Absence non rémunérée du {date_absence} ({_format_jours_conges(jours_abs)} jour{'s' if jours_abs > 1 else ''})",
@@ -359,6 +366,7 @@ def calculer_salaire_brut_forfait(
             # règle qu'en mode horaire, une journée de forfait retenue.
             jours_abs = 1.0
             jours_absence_non_payes += jours_abs
+            retenues_absence_mois += round(jours_abs * salaire_journalier_absence, 2)
             date_absence = date.fromisoformat(evenement["date_complete"]).strftime(
                 "%d/%m/%y"
             )
@@ -385,6 +393,7 @@ def calculer_salaire_brut_forfait(
                 "%d/%m/%y"
             )
             montant_deduction = round(jours_abs * salaire_journalier_absence, 2)
+            retenues_absence_mois += montant_deduction
             lignes_composants_brut.append(
                 {
                     "libelle": f"Absence maladie du {date_absence}",
@@ -482,6 +491,7 @@ def calculer_salaire_brut_forfait(
         )
         complement = round(salaire_contractuel - perte_entree_sortie - perte_absences, 2)
         if abs(complement) >= 0.01:
+            retenues_absence_mois += complement
             lignes_composants_brut.append(
                 {
                     "libelle": "Absence sur tout le mois : retenue ramenée au salaire du mois",
@@ -566,4 +576,7 @@ def calculer_salaire_brut_forfait(
         "total_heures_supp": round(total_heures_supp, 2),
         "nombre_jours_travailles": round(nombre_jours_travailles, 2),
         "nombre_jours_absence": round(nombre_jours_absence_injustifiee, 2),
+        # Rapport des salaires de la réduction générale (forfait jours).
+        "salaire_forfait_mois": round(salaire_contractuel, 2),
+        "retenues_absence_mois": round(retenues_absence_mois, 2),
     }
