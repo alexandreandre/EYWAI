@@ -11,6 +11,7 @@ from .iccp_fin_contrat import (
     valeur_jour_maintien,
 )
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
+from .iccp_arbitrage import lire_parametres_conges
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -390,6 +391,92 @@ def _calculer_ifm_interim(
     }
 
 
+def _iccp_legale_par_periode(
+    contexte: ContextePaie,
+    brut_du_mois: float,
+    taux: float,
+    taux_horaire_base: float | None,
+    majoration_hs25: float | None,
+) -> Any:
+    """Règle légale : par période de référence, sur les jours restants, dixième
+    contre maintien (engine/iccp_fin_contrat). Le run a posé les compteurs et la
+    rémunération des périodes ; le brut du mois de sortie s'ajoute ici à la
+    période en cours. None sans compteurs ou sans taux horaire."""
+    periodes_cfg = getattr(contexte, "cp_fin_de_contrat", None)
+    if not (isinstance(periodes_cfg, dict) and periodes_cfg and taux_horaire_base):
+        return None
+    valeur_jour = valeur_jour_maintien(
+        taux_horaire_base, contexte.duree_hebdo_contrat, float(majoration_hs25 or 0.0)
+    )
+    periodes: List[PeriodeConges] = []
+    precedente = periodes_cfg.get("periode_precedente")
+    if isinstance(precedente, dict):
+        periodes.append(
+            PeriodeConges(
+                libelle=str(precedente.get("libelle") or "période précédente"),
+                brut=None if precedente.get("brut") is None else float(precedente["brut"]),
+                droits=float(precedente.get("droits") or 0.0),
+                restants=float(precedente.get("restants") or 0.0),
+            )
+        )
+    en_cours = periodes_cfg.get("periode_en_cours")
+    if isinstance(en_cours, dict):
+        periodes.append(
+            PeriodeConges(
+                libelle=str(en_cours.get("libelle") or "période en cours"),
+                brut=round(float(en_cours.get("brut_avant_mois") or 0.0) + brut_du_mois, 2),
+                droits=float(en_cours.get("droits") or 0.0),
+                restants=float(en_cours.get("restants") or 0.0),
+            )
+        )
+    return indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour)
+
+
+LIBELLE_ICCP_DEPART = "Indemnité compensatrice de congés payés"
+
+
+def _calculer_iccp_depart(
+    contexte: ContextePaie,
+    brut_du_mois: float,
+    date_debut_periode: date,
+    date_fin_periode: date,
+    *,
+    taux_horaire_base: float | None = None,
+    majoration_hs25: float | None = None,
+) -> tuple[bool, Dict[str, Any] | None]:
+    """Départ autre qu'une fin de CDD ou de mission (démission, licenciement,
+    rupture, retraite, fin de période d'essai) : la même règle légale par
+    période, sans précarité. Rend (calculée, ligne) : calculée=False quand les
+    compteurs manquent, et l'estimation du dossier de départ reste alors en
+    repli ; calculée=True la remplace, même à zéro jour restant."""
+    if not getattr(contexte, "depart_du_mois", False):
+        return False, None
+    if (contexte.is_cdd and contexte.est_dernier_mois_cdd(date_debut_periode, date_fin_periode)) or (
+        getattr(contexte, "is_interim", False)
+        and contexte.est_dernier_mois_mission(date_debut_periode, date_fin_periode)
+    ):
+        return False, None
+    spec = contexte.contrat.get("specificites_paie", {}) or {}
+    if spec.get("exclure_iccp"):
+        return False, None
+    taux = lire_parametres_conges(contexte.baremes)["taux_dixieme"]
+    resultat = _iccp_legale_par_periode(
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
+    )
+    if resultat is None:
+        return False, None
+    contexte.detail_iccp_fin_contrat = resultat.resume()
+    if resultat.total <= 0:
+        return True, None
+    return True, {
+        "libelle": LIBELLE_ICCP_DEPART,
+        "quantite": None,
+        "taux": taux,
+        "gain": resultat.total,
+        "perte": None,
+    }
+
+
 def _calculer_iccp_cdd(
     contexte: ContextePaie,
     salaire_brut_hors_precarite: float,
@@ -446,37 +533,10 @@ def _calculer_iccp_cdd(
         else {}
     )
     brut_du_mois = salaire_brut_hors_precarite + max(montant_precarite, 0.0)
-    periodes_cfg = getattr(contexte, "cp_fin_de_contrat", None)
-    if isinstance(periodes_cfg, dict) and periodes_cfg and taux_horaire_base:
-        # Règle légale : par période de référence, sur les jours restants,
-        # dixième contre maintien (engine/iccp_fin_contrat). Le run a posé les
-        # compteurs et la rémunération des périodes ; le mois de sortie et la
-        # précarité s'ajoutent ici à la période en cours.
-        valeur_jour = valeur_jour_maintien(
-            taux_horaire_base, contexte.duree_hebdo_contrat, float(majoration_hs25 or 0.0)
-        )
-        periodes: List[PeriodeConges] = []
-        precedente = periodes_cfg.get("periode_precedente")
-        if isinstance(precedente, dict):
-            periodes.append(
-                PeriodeConges(
-                    libelle=str(precedente.get("libelle") or "période précédente"),
-                    brut=None if precedente.get("brut") is None else float(precedente["brut"]),
-                    droits=float(precedente.get("droits") or 0.0),
-                    restants=float(precedente.get("restants") or 0.0),
-                )
-            )
-        en_cours = periodes_cfg.get("periode_en_cours")
-        if isinstance(en_cours, dict):
-            periodes.append(
-                PeriodeConges(
-                    libelle=str(en_cours.get("libelle") or "période en cours"),
-                    brut=round(float(en_cours.get("brut_avant_mois") or 0.0) + brut_du_mois, 2),
-                    droits=float(en_cours.get("droits") or 0.0),
-                    restants=float(en_cours.get("restants") or 0.0),
-                )
-            )
-        resultat = indemnite_fin_de_contrat(periodes, taux=taux, valeur_jour=valeur_jour)
+    resultat = _iccp_legale_par_periode(
+        contexte, brut_du_mois, taux, taux_horaire_base, majoration_hs25
+    )
+    if resultat is not None:
         contexte.detail_iccp_fin_contrat = resultat.resume()
         montant = resultat.total
     else:
@@ -1800,9 +1860,25 @@ def calculer_salaire_brut(
     if ligne_iccp:
         lignes_composants_brut.append(ligne_iccp)
 
+    # Autres départs : la règle légale par période remplace l'estimation du
+    # dossier de départ quand les compteurs sont là.
+    iccp_legale_calculee, ligne_iccp_depart = _calculer_iccp_depart(
+        contexte,
+        brut_hors_precarite,
+        date_debut_periode,
+        date_fin_periode,
+        taux_horaire_base=taux_horaire_de_base,
+        majoration_hs25=majoration_hs25,
+    )
+    if ligne_iccp_depart:
+        lignes_composants_brut.append(ligne_iccp_depart)
+
     # Indemnités du dossier de départ soumises à cotisations (préavis, congés
     # payés) : dans le brut, pas après les cotisations.
-    lignes_composants_brut.extend(lignes_indemnites_sortie_soumises(contexte))
+    lignes_sortie = lignes_indemnites_sortie_soumises(contexte)
+    if iccp_legale_calculee:
+        lignes_sortie = [l for l in lignes_sortie if l.get("libelle") != LIBELLE_ICCP_DEPART]
+    lignes_composants_brut.extend(lignes_sortie)
 
     # Le calcul du brut total reste inchangé
     total_gains = sum(

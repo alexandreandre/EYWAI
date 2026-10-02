@@ -164,6 +164,9 @@ class ContextePaie:
 
         self.exit_indemnities: dict | None = None
         self.block_iccp_cdd: bool = False
+        # Départ (autre qu'une fin de CDD) rattaché à ce bulletin : l'ICCP suit la
+        # règle légale par période (calcul_brut._calculer_iccp_depart).
+        self.depart_du_mois: bool = False
 
         # DEBUG SPÉCIFIQUE PRÉVOYANCE
         prevoyance_data = self.contrat.get("specificites_paie", {}).get(

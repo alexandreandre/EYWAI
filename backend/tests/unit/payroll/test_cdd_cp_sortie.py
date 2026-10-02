@@ -191,3 +191,54 @@ def test_sans_jour_restant_pas_de_ligne():
     }
     res = calculer_salaire_brut(ctx, [], date(2026, 7, 1), date(2026, 7, 31), [])
     assert not any("compensatrice de congés" in k for k in _lignes_gain(res))
+
+
+# --- Autres départs (démission, licenciement, rupture…) : même règle légale ---
+
+
+def _contexte_demission_cdi():
+    ctx = build_test_contexte(salaire_base=2200.0, type_contrat="CDI", date_entree="2020-01-01")
+    # Le dossier de départ porte son estimation ; la règle légale doit la remplacer.
+    ctx.exit_indemnities = {
+        "indemnite_preavis": {"montant": 2200.0},
+        "indemnite_conges": {"montant": 999.0},
+    }
+    ctx.depart_du_mois = True
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2024-2025", "brut": 26400.0, "droits": 30.0, "restants": 5.0},
+        "periode_en_cours": {"libelle": "2025-2026", "brut_avant_mois": 22000.0, "droits": 25.0, "restants": 20.0},
+    }
+    return ctx
+
+
+def test_demission_l_indemnite_de_conges_suit_la_regle_legale_par_periode():
+    ctx = _contexte_demission_cdi()
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    lignes = [l for l in res["lignes_composants_brut"] if "compensatrice de congés" in (l.get("libelle") or "")]
+    assert len(lignes) == 1
+    assert lignes[0]["libelle"] == "Indemnité compensatrice de congés payés"
+    detail = ctx.detail_iccp_fin_contrat
+    assert detail["methode"] == "par_periode"
+    # Dixième sans précarité : 10 % × 26 400 × 5/30 et 10 % × (22 000 + 2 200) × 20/25.
+    assert [p["dixieme"] for p in detail["periodes"]] == pytest.approx([440.0, 1936.0], abs=0.01)
+    assert lignes[0]["gain"] == pytest.approx(detail["total"], abs=0.01)
+    assert lignes[0]["gain"] != 999.0
+    # Le préavis du dossier reste.
+    assert _lignes_gain(res)["Indemnité compensatrice de préavis"] == 2200.0
+
+
+def test_demission_sans_jour_restant_pas_d_indemnite_meme_si_le_dossier_en_estime_une():
+    ctx = _contexte_demission_cdi()
+    ctx.cp_fin_de_contrat = {
+        "periode_precedente": {"libelle": "2024-2025", "brut": 26400.0, "droits": 30.0, "restants": 0.0},
+        "periode_en_cours": {"libelle": "2025-2026", "brut_avant_mois": 22000.0, "droits": 25.0, "restants": 0.0},
+    }
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    assert not any("compensatrice de congés" in k for k in _lignes_gain(res))
+
+
+def test_demission_sans_compteurs_l_estimation_du_dossier_reste_en_repli():
+    ctx = _contexte_demission_cdi()
+    ctx.cp_fin_de_contrat = None
+    res = calculer_salaire_brut(ctx, [], date(2026, 4, 1), date(2026, 4, 30), [])
+    assert _lignes_gain(res)["Indemnité compensatrice de congés payés"] == 999.0

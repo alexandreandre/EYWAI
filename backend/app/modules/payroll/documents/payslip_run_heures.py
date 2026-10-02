@@ -399,17 +399,20 @@ def _brut_de_la_periode_precedente(employee_id: str, cumuls: dict | None) -> flo
         return None
 
 
-def cp_fin_de_contrat(contexte, employee_id: str | None, year: int, month: int) -> dict | None:
-    """Au dernier mois d'un CDD ou d'une mission : les compteurs de congés du
-    pied de page et la rémunération des périodes, pour l'indemnité de fin de
-    contrat (calcul_brut). Sinon None, et aucune requête."""
+def cp_fin_de_contrat(
+    contexte, employee_id: str | None, year: int, month: int, *, depart_du_mois: bool = False
+) -> dict | None:
+    """Au dernier mois d'un CDD ou d'une mission, ou au mois d'un autre départ
+    (démission, licenciement, rupture…) : les compteurs de congés du pied de
+    page et la rémunération des périodes, pour l'indemnité compensatrice de
+    congés (calcul_brut). Sinon None, et aucune requête."""
     if not employee_id:
         return None
     premier = date(year, month, 1)
     dernier = date(year, month, calendar.monthrange(year, month)[1])
     fin_cdd = bool(contexte.is_cdd) and contexte.est_dernier_mois_cdd(premier, dernier)
     fin_mission = bool(getattr(contexte, "is_interim", False)) and contexte.est_dernier_mois_mission(premier, dernier)
-    if not (fin_cdd or fin_mission):
+    if not (fin_cdd or fin_mission or depart_du_mois):
         return None
     try:
         from app.modules.absences.application.queries import get_absence_balances_for_payslip
@@ -427,6 +430,31 @@ def cp_fin_de_contrat(contexte, employee_id: str | None, year: int, month: int) 
         compteurs,
         brut_periode_precedente=_brut_de_la_periode_precedente(employee_id, contexte.cumuls),
         brut_en_cours_avant_mois=lire_brut_reference_depuis_cumuls(contexte.cumuls),
+    )
+
+
+def poser_le_depart_du_mois(
+    contexte, employee_id: str, year: int, month: int, date_debut_periode: date, date_fin_periode: date
+) -> None:
+    """Départ rattaché à ce bulletin : indemnités du dossier, et compteurs de
+    congés pour l'indemnité compensatrice (règle légale par période).
+
+    Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un dernier
+    jour travaillé en toute fin de M-1 appartient au bulletin de M — cf.
+    resolve_exit_state_for_payslip."""
+    contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
+        employee_id,
+        year,
+        month,
+        date_debut_periode=date_debut_periode,
+        date_fin_periode=date_fin_periode,
+        alertes=contexte.alertes_baremes if hasattr(contexte, "alertes_baremes") else None,
+    )
+    depart = contexte.exit_indemnities is not None or bool(contexte.block_iccp_cdd)
+    ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
+    contexte.depart_du_mois = depart
+    contexte.cp_fin_de_contrat = cp_fin_de_contrat(
+        contexte, employee_id, year, month, depart_du_mois=depart
     )
 
 
@@ -501,27 +529,17 @@ def run_payslip_generation_heures(
     # Résumé de la compensation entre semaines (option société), pour la
     # mention du bulletin et payslip_data.
     contexte.compensation_semaines = saisie_du_mois.get("compensation_semaines") or None
-    # Indemnité de CP de fin de contrat : compteurs et rémunérations des
-    # périodes de référence, seulement au dernier mois d'un CDD ou d'une mission.
-    contexte.cp_fin_de_contrat = cp_fin_de_contrat(contexte, employee_id, year, month)
     # Premier mois après une reprise : les absences datées jusqu'à la bascule ont
     # été traitées par l'ancien logiciel (cf. fin_de_la_reprise_au_premier_mois).
     from app.shared.reprise_paie import fin_de_la_reprise_au_premier_mois
 
     contexte.fin_de_la_reprise = fin_de_la_reprise_au_premier_mois(company_id, year, month)
     if employee_id:
-        # Rattachement du STC à la PÉRIODE DE PAIE (fenêtre glissante) : un
-        # dernier jour travaillé en toute fin de M-1 appartient au bulletin
-        # de M — cf. resolve_exit_state_for_payslip.
-        contexte.exit_indemnities, contexte.block_iccp_cdd = resolve_exit_state_for_payslip(
-            employee_id,
-            year,
-            month,
-            date_debut_periode=date_debut_periode,
-            date_fin_periode=date_fin_periode,
-            alertes=contexte.alertes_baremes,
+        poser_le_depart_du_mois(
+            contexte, employee_id, year, month, date_debut_periode, date_fin_periode
         )
-        ecarter_iccp_du_dossier_pour_fin_cdd(contexte, date_debut_periode, date_fin_periode)
+    else:
+        contexte.cp_fin_de_contrat = None
     logging.info(
         "Bulletin : %s - %s | variables : %s - %s",
         date_debut_periode.strftime("%d/%m/%Y"),
