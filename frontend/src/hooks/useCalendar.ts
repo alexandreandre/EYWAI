@@ -14,6 +14,7 @@ import {
   summarizePlanningWarnings,
 } from '@/lib/planningAbsenceWarnings';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
+import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -352,7 +353,10 @@ export function useCalendar(
       setOriginalPlanned(plannedCalendar);
       setOriginalActual(actualHours);
 
-      // Le marquage suit ce qui vient d'être enregistré (lecture tolérante).
+      // Le marquage et le réel affichés suivent ce qui vient d'être enregistré
+      // (lecture tolérante) : le serveur remet à 0 les heures d'un jour
+      // d'arrêt ou d'absence, l'écran doit le montrer et le dire.
+      let heuresRetirees: number[] = [];
       try {
         const relu = await calendarApi.getActualHours(
           employeeId,
@@ -360,8 +364,22 @@ export function useCalendar(
           selectedDate.month
         );
         setJoursEnConflit(relu.data.jours_en_conflit ?? []);
+        const reelEnregistre = relu.data.calendrier_reel ?? [];
+        heuresRetirees = joursAuxHeuresRetirees(actualHours, reelEnregistre);
+        if (heuresRetirees.length > 0) {
+          const affiche = avecLeReelEnregistre(actualHours, reelEnregistre);
+          setActualHours(affiche);
+          setOriginalActual(affiche);
+        }
       } catch (erreur) {
         log.error(erreur);
+      }
+      if (heuresRetirees.length > 0) {
+        toast({
+          title: 'Heures non gardées sur des jours d’absence',
+          description: messageHeuresRetirees(heuresRetirees),
+          variant: 'destructive',
+        });
       }
 
       // Défensif : `warnings` est absent tant que le backend ne le renvoie pas.
@@ -372,7 +390,7 @@ export function useCalendar(
       );
       if (warningsToast) {
         toast(warningsToast);
-      } else {
+      } else if (heuresRetirees.length === 0) {
         toast({
           title: 'Succès',
           description: 'Calendrier et événements de paie sauvegardés et calculés.',
