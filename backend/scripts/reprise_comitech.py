@@ -401,6 +401,57 @@ def donnees_du_bulletin(bulletin, annee: int, mois: int, fiche: dict, societe: d
 # ---------------------------------------------------------------------------
 
 
+_FORFAIT_JOURS = re.compile(r"FORFAIT\s+(\d{2,3})\s+JOURS", re.I)
+#: Retenues d'absence imprimées par Quadra (« Abs. paternité … », « Absence
+#: maladie … », « Absence pour entrée ou sortie ») ; les congés payés
+#: (« Jours Absence Congés Payés ») sont payés et n'en font pas partie.
+_ABSENCE_RETENUE = re.compile(r"^ABS|ABSENCE", re.I)
+_CONGES_PAYES = re.compile(r"CONG", re.I)
+_MAINTIEN = re.compile(r"MAINTIEN", re.I)
+
+
+def heures_reduction_forfait_quadra(bulletin) -> float | None:
+    """Heures de la réduction générale d'un mois Quadra au forfait jours, ou None.
+
+    Quadra n'imprime pas de « Cumul heures » pour un forfait jours : sans ce
+    compte, l'ouverture portait 0 h et le premier bulletin EYWAI remboursait
+    toute la réduction de l'année. Quadra compte 151,67 × jours du forfait / 218
+    par mois (150,28 h pour 216 jours), corrigé du rapport des salaires quand
+    une absence ou un arrêt réduit le salaire (salaire de base − retenues
+    d'absence + maintien, sur le salaire de base). Même règle que le moteur
+    (`heures_reduction_forfait_jours`), vérifiée au centime sur les bulletins
+    Quadra de Comitech et de Mont-Blanc (2026).
+    """
+    from app.modules.payroll.engine.calcul_reduction_generale import (
+        heures_reduction_forfait_jours,
+        rapport_salaires_forfait_jours,
+    )
+
+    jours = next(
+        (int(m.group(1)) for lg in bulletin.lignes if (m := _FORFAIT_JOURS.search(lg.libelle or ""))),
+        None,
+    )
+    if jours is None:
+        return None
+    salaire = sum(lg.gain or 0.0 for lg in bulletin.lignes
+                  if _norme(lg.libelle) == "SALAIRE DE BASE")
+    retenues = sum(lg.montant_sal or 0.0 for lg in bulletin.lignes
+                   if _ABSENCE_RETENUE.search((lg.libelle or "").strip())
+                   and not _CONGES_PAYES.search(lg.libelle or ""))
+    maintien = sum(lg.gain or 0.0 for lg in bulletin.lignes if _MAINTIEN.search(lg.libelle or ""))
+    return heures_reduction_forfait_jours(
+        jours, rapport_salaires_forfait_jours(salaire, retenues, maintien)
+    )
+
+
+def _heures_de_la_reduction(lus: dict[int, dict], mois_presents: list[int], matricule: str,
+                            dernier) -> float:
+    """Le « Cumul heures » imprimé, plus les heures des mois au forfait jours."""
+    forfait = [heures_reduction_forfait_quadra(lus[m][matricule]) for m in mois_presents]
+    return round(float(dernier.droite.get("cumul_heures") or 0.0)
+                 + sum(h for h in forfait if h is not None), 2)
+
+
 def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dict:
     mois_presents = [m for m in sorted(lus) if m <= bascule and matricule in lus[m]]
     dernier = lus[bascule][matricule]
@@ -422,7 +473,7 @@ def solde_d_ouverture(lus: dict[int, dict], bascule: int, matricule: str) -> dic
             "brut_total": brut,
             "net_imposable": float(dernier.net.get("net_imposable_cumul") or 0.0),
             "impot_preleve_a_la_source": float(dernier.net.get("pas_cumul") or 0.0),
-            "heures_remunerees": float(dernier.droite.get("cumul_heures") or 0.0),
+            "heures_remunerees": _heures_de_la_reduction(lus, mois_presents, matricule, dernier),
             "heures_supplementaires_remunerees": float(dernier.droite.get("cumul_hs") or 0.0),
             "montant_hs_remunerees": round(hs_brut, 2),
             "montant_net_hs_exonerees_cumul": net_hs_exo,

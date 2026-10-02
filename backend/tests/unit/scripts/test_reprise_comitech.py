@@ -160,3 +160,103 @@ def test_deux_contrats_le_meme_mois_l_ouverture_est_celle_du_contrat_qui_continu
     apprenti = {"cumuls": {"brut_total": 53.18, "reduction_generale_patronale": -21.17}}
     assert solde_du_contrat_qui_continue([("31/08/2026", apprenti), ("22/06/2026", cdd)]) is apprenti
     assert solde_du_contrat_qui_continue([("22/06/2026", cdd)]) is cdd
+
+
+# ---------------------------------------------------------------------------
+# Forfait jours : heures de la réduction générale dans le solde d'ouverture
+# ---------------------------------------------------------------------------
+#
+# Quadra n'imprime pas de « Cumul heures » pour un salarié au forfait jours :
+# l'ouverture portait 0 h, et le premier bulletin calculé par EYWAI remboursait
+# toute la réduction de l'année. Quadra compte 151,67 × jours du forfait / 218
+# par mois (150,28 h pour 216 jours), corrigé du rapport des salaires les mois
+# d'absence (CSS D241-7, IV, 3e et 5e alinéas) : l'ouverture reprend ce compte.
+
+
+def _forfait(*lignes_du_brut, base=3750.0, brut=None) -> Bulletin:
+    lignes = [
+        *lignes_du_brut,
+        Ligne(None, "SALAIRE DE BASE", gain=base),
+        Ligne(None, "Forfait 216 jours"),
+        Ligne(None, "Solde repos Cadre =8j"),
+        Ligne(None, "SALAIRE BRUT", gain=brut if brut is not None else base),
+    ]
+    return _bulletin(lignes)
+
+
+def test_forfait_mois_complet_150_28_heures():
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    assert heures_reduction_forfait_quadra(_forfait()) == 150.28
+
+
+def test_salarie_a_l_heure_pas_d_heures_de_forfait():
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    assert heures_reduction_forfait_quadra(_mensuel()) is None
+
+
+def test_forfait_absence_non_payee_rapport_des_salaires():
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    paternite = Ligne(None, "Abs. paternité 010126-040126", base=2.0, taux=170.4545, montant_sal=340.91)
+    # 150,2752 × 3 409,09 / 3 750 = 136,6138.
+    assert heures_reduction_forfait_quadra(_forfait(paternite, brut=3409.09)) == 136.61
+
+
+def test_forfait_conges_payes_mois_complet():
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    conges = [
+        Ligne(None, "Congés payés : 030826-140826", base=10.0, taux=170.455, gain=1704.55),
+        Ligne(None, "Jours Absence Congés Payés", base=10.0, taux=170.4545, montant_sal=1704.55),
+        Ligne(None, "ARBITRAGE DES CONGES PAYES", base=12.0, gain=12.0),
+    ]
+    assert heures_reduction_forfait_quadra(_forfait(*conges, brut=3762.0)) == 150.28
+
+
+def test_forfait_arret_avec_maintien_partiel():
+    # Cadre Mont-Blanc, février 2026 : 11 jours de maladie, maintien partiel.
+    # Quadra : −204,86 € de réduction, reproduits avec 134,16 h.
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    arret = [
+        Ligne(None, "Absence maladie 300126-310126", base=1.0, taux=245.9859, montant_sal=245.99),
+        Ligne(None, "Absence maladie 010226-150226", base=10.0, taux=245.9859, montant_sal=2459.86),
+        Ligne(None, "Maintien de salaire", base=245.99, gain=245.99),
+        Ligne(None, "Maintien de salaire", base=1879.42, gain=1879.42),
+    ]
+    b = _forfait(*arret, base=5411.69, brut=4831.25)
+    assert heures_reduction_forfait_quadra(b) == 134.16
+
+
+def test_forfait_prime_et_regularisation_hors_rapport():
+    from scripts.reprise_comitech import heures_reduction_forfait_quadra
+
+    autres = [
+        Ligne(None, "Prime exceptionnelle", base=2150.0, gain=2150.0),
+        Ligne(None, "Régularisation salaire 01/2026", base=166.0, gain=166.0),
+    ]
+    assert heures_reduction_forfait_quadra(_forfait(*autres, brut=6066.0)) == 150.28
+
+
+def test_ouverture_forfait_porte_les_heures_de_janvier_a_aout():
+    """Cadre au forfait 216 jours, Comitech : paternité non maintenue en janvier,
+    mois complets ensuite. 136,61 + 7 × 150,28 = 1 188,57 h au 31/08."""
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    paternite = Ligne(None, "Abs. paternité 010126-040126", base=2.0, taux=170.4545, montant_sal=340.91)
+    lus = {1: {"M": _forfait(paternite, brut=3409.09)}}
+    for m in range(2, 9):
+        lus[m] = {"M": _forfait()}
+    lus[8]["M"].droite = {"cumul_bruts": 29659.09}
+    solde = solde_d_ouverture(lus, 8, "M")
+    assert solde["cumuls"]["heures_remunerees"] == 1188.57
+
+
+def test_ouverture_a_l_heure_inchangee():
+    from scripts.reprise_comitech import solde_d_ouverture
+
+    lus = {m: {"M": _mensuel()} for m in range(6, 9)}
+    lus[8]["M"].droite = {"cumul_bruts": 7094.94, "cumul_heures": 455.01}
+    assert solde_d_ouverture(lus, 8, "M")["cumuls"]["heures_remunerees"] == 455.01
