@@ -413,7 +413,7 @@ def parse_import_file(
 ) -> Dict[str, Any]:
     file_hash = hashlib.sha256(content).hexdigest()
     if repo.batch_exists_by_hash(company_id, file_hash):
-        raise ValueError("Ce fichier a déjà été importé (hash identique).")
+        raise ValueError("Ce fichier a déjà été importé : ses indemnités sont déjà dans le suivi.")
 
     if batch_type == "bank_recap":
         parsed = parse_bank_recap_file(filename, content, column_mapping)

@@ -40,7 +40,8 @@ def assert_not_committed_duplicate(company_id: str, file_hash: str) -> None:
     if check_file_hash_committed(company_id, file_hash):
         raise ScheduleAppError(
             "validation",
-            "Ce fichier a déjà été importé (hash identique).",
+            "Ce fichier a déjà été importé : ses heures sont dans le calendrier. "
+            "Pour corriger une journée, modifiez-la directement dans le calendrier.",
             status_code=409,
         )
 
