@@ -126,6 +126,10 @@ class AiEmployeeProposal(BaseModel):
     days_imported_count: Optional[int] = None
     coverage_ratio: Optional[float] = None
     quality_issue: Optional[str] = None
+    # Annotations du relevé, jour par jour (« ven 18/09 « +1 », badgeage
+    # incomplet, 3,53 h lues ») : lues et dites, jamais appliquées aux heures.
+    # Une ligne qui en porte reste « à vérifier ».
+    sheet_annotations: list[str] = Field(default_factory=list)
 
 
 class AiCalendarProposalResponse(BaseModel):

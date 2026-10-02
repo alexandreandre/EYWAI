@@ -271,6 +271,21 @@ def _compute_review_summary(
     }
 
 
+def _attach_day_notes(proposal: AiEmployeeProposal, block) -> None:
+    """Dit à la revue ce que le relevé porte en plus du badge (annotations de la
+    gestionnaire, badgeages incomplets) ; les heures restent celles du badge."""
+    from app.modules.schedules.application.parsers.cegid_weekly import (
+        describe_day_note,
+        describe_day_notes,
+    )
+
+    notes = getattr(block, "day_notes", None) or []
+    if not notes:
+        return
+    proposal.sheet_annotations = [describe_day_note(n) for n in notes]
+    proposal.warnings.append(describe_day_notes(notes))
+
+
 def _build_proposal_from_cegid(
     *,
     year: int,
@@ -312,6 +327,7 @@ def _build_proposal_from_cegid(
         proposal.coverage_ratio = block.coverage_ratio
         if block.parse_warnings:
             proposal.warnings.extend(block.parse_warnings)
+        _attach_day_notes(proposal, block)
         if not days and not block.empty_week:
             proposal.warnings.append("Aucun jour exploitable détecté pour cet employé.")
         employees_out.append(proposal)
@@ -373,6 +389,7 @@ def _build_single_employee_from_cegid(
         proposal.review_status = "empty"
     if block.parse_warnings:
         proposal.warnings.extend(block.parse_warnings)
+    _attach_day_notes(proposal, block)
     return AiCalendarProposalResponse(
         year=year,
         month=month,

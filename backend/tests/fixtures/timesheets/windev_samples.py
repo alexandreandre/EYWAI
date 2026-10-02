@@ -72,13 +72,12 @@ Mercredi 4:53 8:57 9:18 13:00 7:46
 16/09/26
 Jeudi 6:50 9:01 9:23 13:20 13:52 16:00 8:16
 17/09/26
-Vendredi 6:24 9:20 9:36 12:00 5:20
-18/09/26
-CP
+Vendredi
+18/09/26 CP
 Samedi
 19/09/26
 Dimanche
 20/09/26
-Total pour la semaine 38/2026: 27:36
-176 BERTIN Paul 27:36
+Total pour la semaine 38/2026: 22:16
+176 BERTIN Paul 22:16
 """

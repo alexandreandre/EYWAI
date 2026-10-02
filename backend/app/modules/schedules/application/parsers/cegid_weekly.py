@@ -50,6 +50,23 @@ class CegidDayEntry:
 
 
 @dataclass
+class CegidDayNote:
+    """Ce que le relevé dit d'un jour en plus du total du badge.
+
+    `notes` : le texte tapé sur le PDF par la gestionnaire (« +1 », « -0.5 »,
+    « CP », « ABSENCE JUSTIFIE -8.5 », « ??? »), tel qu'écrit, jamais interprété.
+    `incomplete_punches` : nombre impair de badgeages (une entrée sans sortie) —
+    le total du badge ne compte alors qu'une partie de la journée.
+    `hours_read` : le total du badge retenu pour ce jour, s'il y en a un.
+    """
+
+    day: date
+    notes: list[str] = field(default_factory=list)
+    incomplete_punches: bool = False
+    hours_read: float | None = None
+
+
+@dataclass
 class CegidEmployeeBlock:
     matricule: str
     raw_name: str
@@ -61,6 +78,7 @@ class CegidEmployeeBlock:
     parse_warnings: List[str] = field(default_factory=list)
     days_expected_count: int = 0
     days_parsed_count: int = 0
+    day_notes: list[CegidDayNote] = field(default_factory=list)
 
     @property
     def coverage_ratio(self) -> float:
@@ -234,6 +252,125 @@ def _dates_trail_their_hours(block: str, date_matches: List[re.Match]) -> bool:
     return False
 
 
+_WEEKDAY_LINE_RE = re.compile(
+    r"^(Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\b(.*)$", re.IGNORECASE
+)
+_DATE_LINE_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})\b(.*)$")
+_NOISE_LINE_RE = re.compile(
+    r"édition\s+en\s+heures|pointages?\s+[\"']?retenu|^du\s+\d{1,2}/\d{1,2}/\d{2,4}\s+au\b",
+    re.IGNORECASE,
+)
+_PUNCH_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
+
+
+def _normalize_note(text: str) -> str:
+    """« + 0 . 5 » → « +0.5 », « +1.2 5 » → « +1.25 », « ? ? ? » → « ??? ».
+
+    Le PDF espace parfois les caractères d'une annotation tapée : on recolle un
+    nombre signé, sans rien changer à ce qui est écrit.
+    """
+    t = " ".join(text.split())
+    t = re.sub(r"([+\-−])\s*[.,]\s*(?=\d)", r"\1", t)
+    t = re.sub(r"([+\-−])\s+(?=\d)", r"\1", t)
+    t = re.sub(r"(\d)\s*([.,])\s*(\d)", r"\1\2\3", t)
+    t = re.sub(r"([.,]\d)\s+(\d)\b", r"\1\2", t)
+    t = re.sub(r"\?(?:\s*\?)+", lambda m: m.group(0).replace(" ", ""), t)
+    return t.strip(" .")
+
+
+def _incomplete_punches(punch_count: int) -> bool:
+    """La ligne du jour finit par son total : badgeages = heures lues − 1.
+
+    Un badgeage seul (sans total) ou un nombre impair de badgeages est une
+    entrée sans sa sortie (ou l'inverse).
+    """
+    if punch_count == 1:
+        return True
+    return punch_count >= 3 and (punch_count - 1) % 2 == 1
+
+
+def _day_notes_date_trailing(body: str) -> list[tuple[tuple[int, int, int], list[str], bool]]:
+    """Annotations et badgeages incomplets, jour par jour, d'un bloc « date en pied ».
+
+    Chaque jour tient sur deux lignes : « Lundi <badgeages> <total> » puis la date.
+    Le texte tapé sur le PDF arrive sur la ligne du jour, après la date, ou sur
+    une ligne isolée : entre un jour et sa date, il est à ce jour ; après une
+    date, il précède le jour suivant (vérifié sur la mise en page du PDF).
+    """
+    rows: list[dict] = []
+    current: dict | None = None
+    pending: list[str] = []
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if re.search(r"Total\s+pour\s+la\s+semaine", line, re.IGNORECASE):
+            break
+        weekday = _WEEKDAY_LINE_RE.match(line)
+        if weekday:
+            rest = weekday.group(2)
+            punches = _PUNCH_RE.findall(rest)
+            current = {
+                "date": None,
+                "notes": [*pending, _PUNCH_RE.sub(" ", rest)],
+                "incomplete": _incomplete_punches(len(punches)),
+            }
+            pending = []
+            rows.append(current)
+            continue
+        day_line = _DATE_LINE_RE.match(line)
+        if day_line and current is not None and current["date"] is None:
+            current["date"] = (
+                int(day_line.group(1)),
+                int(day_line.group(2)),
+                int(day_line.group(3)),
+            )
+            current["notes"].append(day_line.group(4))
+            continue
+        if _NOISE_LINE_RE.search(line):
+            continue
+        if current is not None and current["date"] is None:
+            current["notes"].append(line)
+        else:
+            pending.append(line)
+    if pending and rows:
+        rows[-1]["notes"].extend(pending)
+
+    found: list[tuple[tuple[int, int, int], list[str], bool]] = []
+    for row in rows:
+        if row["date"] is None:
+            continue
+        notes = [n for n in (_normalize_note(t) for t in row["notes"]) if n]
+        if notes or row["incomplete"]:
+            found.append((row["date"], notes, row["incomplete"]))
+    return found
+
+
+_JOURS_COURTS = ("lun", "mar", "mer", "jeu", "ven", "sam", "dim")
+
+
+def describe_day_note(note: CegidDayNote) -> str:
+    """« ven 18/09 « +1 », badgeage incomplet, 3,53 h lues »."""
+    parts = [f"« {n} »" for n in note.notes]
+    if note.incomplete_punches:
+        if note.hours_read is not None:
+            heures = f"{note.hours_read:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            parts.append(f"badgeage incomplet, {heures} h lues")
+        else:
+            parts.append("badgeage incomplet, aucune heure lue")
+    jour = f"{_JOURS_COURTS[note.day.weekday()]} {note.day:%d/%m}"
+    return f"{jour} {', '.join(parts)}"
+
+
+def describe_day_notes(notes: list[CegidDayNote]) -> str:
+    """Message de revue : ce que le relevé porte, et ce qu'EYWAI a retenu."""
+    return (
+        "Relevé à relire — EYWAI a retenu les heures du badge, pas les annotations : "
+        + " ; ".join(describe_day_note(n) for n in notes)
+        + "."
+    )
+
+
 def _parse_block(
     block: str,
     target_year: int,
@@ -338,6 +475,30 @@ def _parse_block(
             f"Extraction partielle ({parsed_in_period}/{expected} jours ouvrés lus)."
         )
 
+    # Ce que la gestionnaire a tapé sur le relevé et les badgeages incomplets :
+    # relevés et dits à la revue, jamais appliqués aux heures (le relevé ne dit
+    # pas sur quoi porte « +1 » : l'horaire prévu, que le lecteur ne connaît pas).
+    day_notes: list[CegidDayNote] = []
+    if date_trails:
+        hours_by_day = {(d.year, d.month, d.jour): d.heures for d in week_days}
+        for (d, mo, y_raw), notes, incomplete in _day_notes_date_trailing(
+            block[header.end() :]
+        ):
+            try:
+                day_date = date(_normalize_year(y_raw), mo, d)
+            except ValueError:
+                continue
+            if period_start and period_end and not (period_start <= day_date <= period_end):
+                continue
+            day_notes.append(
+                CegidDayNote(
+                    day=day_date,
+                    notes=notes,
+                    incomplete_punches=incomplete,
+                    hours_read=hours_by_day.get((day_date.year, day_date.month, day_date.day)),
+                )
+            )
+
     return CegidEmployeeBlock(
         matricule=matricule,
         raw_name=raw_name,
@@ -349,6 +510,7 @@ def _parse_block(
         parse_warnings=warnings,
         days_expected_count=expected,
         days_parsed_count=parsed_in_period,
+        day_notes=day_notes,
     )
 
 

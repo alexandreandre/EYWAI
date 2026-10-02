@@ -682,6 +682,7 @@ def rematch_proposal_employees(
                 "weekly_total_imported": ancien.weekly_total_imported,
                 "weekly_total_gap": ancien.weekly_total_gap,
                 "quality_issue": ancien.quality_issue,
+                "sheet_annotations": list(ancien.sheet_annotations),
                 "warnings": list(nouveau.warnings) + conserves,
             }
         )

@@ -90,7 +90,9 @@ def _apply_review_status_rules(proposal: AiEmployeeProposal) -> AiEmployeePropos
         proposal.quality_issue = "weekly_total_gap"
         return proposal
 
-    proposal.review_status = "ok"
+    # Un relevé annoté (« +1 », absence écrite, badgeage incomplet) n'est pas prêt :
+    # les heures retenues sont celles du badge, l'annotation reste à trancher.
+    proposal.review_status = "warning" if proposal.sheet_annotations else "ok"
     proposal.quality_issue = None
     return proposal
 
