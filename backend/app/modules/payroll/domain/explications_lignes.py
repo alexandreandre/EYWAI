@@ -261,6 +261,10 @@ def _date_evenement(
 def _texte_absence(libelle: str) -> str | None:
     if not libelle.strip():
         return None
+    # L'indemnité compensatrice de fin de contrat paie des congés non pris :
+    # ce n'est pas une absence du mois.
+    if "compensatrice" in libelle.lower():
+        return "Congés acquis et non pris, payés à la fin du contrat"
     nature = _nature_absence(libelle)
     dates = _dates_telles_qu_ecrites(libelle)
     if not nature and not dates:

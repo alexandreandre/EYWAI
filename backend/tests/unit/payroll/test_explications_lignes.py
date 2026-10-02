@@ -168,6 +168,23 @@ def test_conges_payes_avec_les_dates_du_bulletin():
     )
 
 
+def test_indemnite_compensatrice_de_fin_de_contrat_n_est_pas_une_absence():
+    bulletin = _bulletin(
+        details_conges=[
+            {
+                "libelle": "Indemnité compensatrice de congés payés (CDD)",
+                "quantite": None,
+                "gain": 150.02,
+            }
+        ]
+    )
+    pose = poser_explications(bulletin)
+    texte = pose["details_conges"][0]["explication"]
+    assert "Absence" not in texte
+    assert texte == "Congés acquis et non pris, payés à la fin du contrat"
+    assert pose["details_conges"][0]["gain"] == 150.02
+
+
 def test_absence_ne_recompose_pas_une_plage_continue_sur_des_trous():
     bulletin = _bulletin(
         details_conges=[
