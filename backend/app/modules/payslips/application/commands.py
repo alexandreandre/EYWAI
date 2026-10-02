@@ -395,7 +395,9 @@ def _check_validated_guard(
     return existing
 
 
-_STATUTS_PARTIS = ("parti", "sorti", "inactif")
+# `en_sortie` : départ créé, pas encore clos. Sans lui, « Générer le bulletin
+# de sortie », proposé juste après « Créer le départ », était refusé (02/10).
+_STATUTS_PARTIS = ("parti", "sorti", "inactif", "en_sortie")
 
 
 def _sortie_dans_ou_apres_le_mois(employee: dict[str, Any], year: int, month: int) -> bool:

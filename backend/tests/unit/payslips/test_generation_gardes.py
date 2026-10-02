@@ -1175,6 +1175,26 @@ class TestPartiDernierMois:
 
         mock_provider.generate_heures.assert_called_once()
 
+    def test_en_sortie_dans_le_mois_est_genere(self):
+        """« Créer le départ » passe le salarié « en_sortie » ; le bulletin de
+        sortie proposé juste après doit se générer (02/10/2026 : refusé avec
+        « Ce collaborateur n'est pas actif (statut : en_sortie) »)."""
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 7)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti(
+                employment_status="en_sortie", contract_end_date="2026-07-24"
+            )
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = {
+                "status": "success", "message": "OK", "download_url": "u",
+            }
+            generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_called_once()
+
     def test_sorti_avant_le_mois_est_refuse(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=8)
         p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
