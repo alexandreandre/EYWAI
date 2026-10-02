@@ -10,6 +10,7 @@ type PayrollFiche = EmploymentPeriod & {
 };
 
 const STATUTS_DE_DEPART = ['parti', 'sorti', 'inactif'];
+const FICHE_A_COMPLETER = 'Fiche à compléter';
 
 function parseDate(value?: string | null): Date | null {
   if (!value) return null;
@@ -64,7 +65,12 @@ export function payrollGenerationBlockReason(
   const statut = (employee.employment_status || 'actif').toLowerCase();
   const manque = employee.missing_payroll_fields ?? [];
   if (manque.length > 0 && !STATUTS_DE_DEPART.includes(statut)) {
-    return `Fiche à compléter : ${manque.join(', ')}`;
+    return `${FICHE_A_COMPLETER} : ${manque.join(', ')}`;
   }
   return null;
+}
+
+/** Badge de la ligne bloquée : la cause, pas « hors période » pour une fiche incomplète. */
+export function libelleDuBlocage(raison: string): string {
+  return raison.startsWith(FICHE_A_COMPLETER) ? FICHE_A_COMPLETER : 'Hors période d’emploi';
 }

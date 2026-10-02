@@ -3,6 +3,7 @@ import {
   isEmployeePresentForPayrollMonth,
   payrollEmploymentBlockReason,
   payrollGenerationBlockReason,
+  libelleDuBlocage,
 } from './employmentPeriod';
 
 describe('employmentPeriod', () => {
@@ -43,5 +44,16 @@ describe('payrollGenerationBlockReason', () => {
   it('une fiche complète, ou un départ, ne bloque pas', () => {
     expect(payrollGenerationBlockReason({ ...nouveau, missing_payroll_fields: [] }, 2026, 9)).toBeNull();
     expect(payrollGenerationBlockReason({ ...nouveau, employment_status: 'parti' }, 2026, 9)).toBeNull();
+  });
+});
+
+describe('libelleDuBlocage', () => {
+  it('une fiche à compléter n’est pas hors période d’emploi', () => {
+    expect(libelleDuBlocage('Fiche à compléter : RIB')).toBe('Fiche à compléter');
+  });
+
+  it('avant l’entrée ou après la sortie, hors période d’emploi', () => {
+    expect(libelleDuBlocage("Entrée dans l'entreprise le 14/09/2026")).toBe('Hors période d’emploi');
+    expect(libelleDuBlocage("Sortie de l'entreprise le 15/09/2026")).toBe('Hors période d’emploi');
   });
 });

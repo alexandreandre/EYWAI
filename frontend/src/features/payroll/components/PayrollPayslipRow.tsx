@@ -25,6 +25,7 @@ import {
 } from '@/lib/payslipNetBrutAlert';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
+import { libelleDuBlocage } from '@/features/payroll/utils/employmentPeriod';
 import { Edit, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
@@ -104,7 +105,7 @@ export function PayrollPayslipRow({
       </Badge>
     ) : state.status === 'unavailable' ? (
       <Badge variant="outline" className="text-muted-foreground">
-        Hors période d&apos;emploi
+        {libelleDuBlocage(state.errorMessage ?? '')}
       </Badge>
     ) : (
       <Badge variant="outline" className="text-muted-foreground">
