@@ -20,6 +20,7 @@ from app.modules.payroll.application.compensation_semaines import (
     option_active,
     appliquer,
     appliquer_aux_mois,
+    bornes_du_contrat,
     compenser,
     ecarts_par_semaine,
     majorations,
@@ -276,7 +277,7 @@ class TestAbsencePartielleDeclaree:
         assert ecarts[(2026, 30)] == pytest.approx(0.01)
 
     def test_travailler_plus_que_le_reste_attendu_est_du_surplus(self):
-        """Hugo Lanumet, 10/07 : absence de 2,5 h sur un vendredi de 5 h, 7 h faites → +4,5."""
+        """Lanumet, 10/07 : absence de 2,5 h sur un vendredi de 5 h, 7 h faites → +4,5."""
         ecarts = ecarts_par_semaine(self._planning(), self._reel(**{"6": 8.5, "7": 8.5, "8": 8.5, "9": 1.0, "10": 7.0}), (date(2026, 6, 22), date(2026, 7, 26)))
         assert ecarts[(2026, 28)] == pytest.approx(4.5)
 
@@ -450,3 +451,92 @@ class TestRetenueDuSoldeNegatif:
         retenue = replace(compensation, solde_retenu=2.0, reliquat_sans_jour=3.0)
 
         assert "dont 3 h sans jour identifié" in mention(retenue)
+
+
+class TestHorsContrat:
+    """Un jour avant l'entrée ou après la sortie n'est ni prévu ni fait.
+
+    Fin de CDD au 15/09/2026, fenêtre au 20/09 : le planning prévoit encore
+    « travail » du 16 au 18/09, le réel y est à 0 h ou vide. Compté, S38 valait
+    −39 h au lieu de −17 h, et le solde était retenu sur des jours que le
+    bulletin écarte ensuite (rien n'est payé ni retenu hors contrat).
+    """
+
+    FENETRE = (date(2026, 8, 24), date(2026, 9, 20))
+    SORTIE = date(2026, 9, 15)
+
+    @staticmethod
+    def _septembre():
+        """S37 à +1,5 (le 11/09 : 6,5 h pour 5 h) ; S38 : 0 h du 14 au 17, vide le 18."""
+        prevus = {7: 8.5, 8: 8.5, 9: 8.5, 10: 8.5, 11: 5.0, 14: 8.5, 15: 8.5, 16: 8.5, 17: 8.5, 18: 5.0}
+        faits = {7: 8.5, 8: 8.5, 9: 8.5, 10: 8.5, 11: 6.5, 14: 0.0, 15: 0.0, 16: 0.0, 17: 0.0, 18: None}
+        planned = [
+            {"annee": 2026, "mois": 9, "jour": j, "type": "travail", "heures_prevues": h}
+            for j, h in prevus.items()
+        ]
+        actual = [
+            {"annee": 2026, "mois": 9, "jour": j, "type": "travail", "heures_faites": h}
+            for j, h in faits.items()
+        ]
+        return planned, actual
+
+    def test_sans_bornes_les_jours_apres_la_sortie_comptent_encore(self):
+        planned, actual = self._septembre()
+
+        assert ecarts_par_semaine(planned, actual, self.FENETRE) == {(2026, 37): 1.5, (2026, 38): -39.0}
+
+    def test_les_jours_apres_la_sortie_ne_comptent_ni_prevus_ni_faits(self):
+        planned, actual = self._septembre()
+        actual.append({"annee": 2026, "mois": 9, "jour": 19, "type": "travail", "heures_faites": 4.0})
+
+        ecarts = ecarts_par_semaine(planned, actual, self.FENETRE, contrat=(None, self.SORTIE))
+
+        assert ecarts == {(2026, 37): 1.5, (2026, 38): -17.0}
+
+    def test_les_jours_avant_l_entree_ne_comptent_ni_prevus_ni_faits(self):
+        planned, actual = self._septembre()
+
+        ecarts = ecarts_par_semaine(planned, actual, self.FENETRE, contrat=(date(2026, 9, 16), None))
+
+        assert ecarts == {(2026, 38): -22.0}
+
+    def test_le_solde_est_retenu_sur_les_jours_du_contrat(self):
+        planned, actual = self._septembre()
+        absences = [
+            {"annee": 2026, "mois": 9, "jour": j, "type": "absence_injustifiee_base", "heures": h}
+            for j, h in ((14, 8.5), (15, 8.5), (16, 8.5), (17, 8.5), (18, 5.0))
+        ]
+
+        resultat, compensation = appliquer_aux_mois(
+            {(2026, 9): absences, (2026, 8): []},
+            planned,
+            actual,
+            39.0,
+            self.FENETRE,
+            contrat=(date(2026, 4, 7), self.SORTIE),
+        )
+
+        assert (compensation.net25, compensation.solde_negatif) == (0.0, -15.5)
+        assert compensation.solde_retenu == 15.5
+        assert compensation.reliquat_sans_jour == 0.0
+        assert [(e["jour"], e["heures"]) for e in resultat[(2026, 9)]] == [(14, 7.0), (15, 8.5)]
+
+    def test_une_fenetre_toute_avant_l_entree_a_une_mention_lisible(self):
+        """Entrée le 23/03, fenêtre close le 22/03 : aucune semaine ne reste."""
+        planned, actual = self._septembre()
+
+        ecarts = ecarts_par_semaine(planned, actual, self.FENETRE, contrat=(date(2026, 9, 21), None))
+
+        assert ecarts == {}
+        assert mention(compenser(ecarts, 39.0)) == (
+            "Heures compensées entre semaines (option société) : aucune semaine à "
+            "compenser → 0 h à 25 %, 0 h à 50 %."
+        )
+
+    def test_les_bornes_se_lisent_sur_la_fiche_comme_au_bulletin(self):
+        assert bornes_du_contrat("2026-04-07", "2026-09-15T00:00:00") == (
+            date(2026, 4, 7),
+            date(2026, 9, 15),
+        )
+        assert bornes_du_contrat(date(2026, 4, 7), None) == (date(2026, 4, 7), None)
+        assert bornes_du_contrat(None, "pas une date") == (None, None)

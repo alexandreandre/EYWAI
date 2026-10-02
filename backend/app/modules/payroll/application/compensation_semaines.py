@@ -115,16 +115,48 @@ def _journee_type_par_jour_de_semaine(
     }
 
 
+#: (date d'entrée, date de sortie) ; None = pas de borne de ce côté.
+Contrat = tuple[date | None, date | None]
+
+
+def _date(valeur: Any) -> date | None:
+    if not valeur:
+        return None
+    if isinstance(valeur, date):
+        return valeur
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except ValueError:
+        return None
+
+
+def bornes_du_contrat(date_entree: Any, date_sortie: Any) -> Contrat:
+    """(entrée, sortie) lues comme le bulletin (`calcul_brut._parse_date_contrat`) :
+    texte ISO ou date ; illisible ou vide, pas de borne."""
+    return _date(date_entree), _date(date_sortie)
+
+
+def _dans_le_contrat(d: date, contrat: Contrat) -> bool:
+    entree, sortie = contrat
+    return (entree is None or d >= entree) and (sortie is None or d <= sortie)
+
+
 def ecarts_par_semaine(
     planned_all: list[dict[str, Any]],
     actual_all: list[dict[str, Any]],
     fenetre: tuple[date, date],
+    *,
+    contrat: Contrat = (None, None),
 ) -> dict[tuple[int, int], float]:
     """Écart total (faites − prévues) de chaque semaine dont le lundi est dans la fenêtre.
 
     Comme l'analyseur : un jour prévu sans pointage est neutre, un mois sans
     aucun pointage aussi ; un jour non prévu compte pour ses heures faites.
     Une semaine n'apparaît que si un jour y a contribué.
+
+    Un jour avant l'entrée ou après la sortie n'est ni prévu ni fait, comme au
+    bulletin qui n'en paie ni n'en retient rien : fin de CDD au 15/09, les
+    16–18/09 restés « travail » au planning faisaient S38 à −39 h au lieu de −17 h.
     """
     debut, fin = fenetre
     reel_par_jour: dict[date, float] = {}
@@ -148,7 +180,7 @@ def ecarts_par_semaine(
             d = date(int(p["annee"]), int(p["mois"]), int(p["jour"]))
         except (KeyError, TypeError, ValueError):
             continue
-        if not (debut <= _lundi(d) <= fin):
+        if not (debut <= _lundi(d) <= fin) or not _dans_le_contrat(d, contrat):
             continue
         type_prevu = str(p.get("type") or "")
         if type_prevu != "travail" and not type_prevu.startswith("absence"):
@@ -173,6 +205,8 @@ def ecarts_par_semaine(
 
     for d, faites in reel_par_jour.items():
         if d in vus or not (debut <= _lundi(d) <= fin) or faites <= 0:
+            continue
+        if not _dans_le_contrat(d, contrat):
             continue
         ajouter(d, faites)
     return ecarts
@@ -325,14 +359,21 @@ def appliquer_aux_mois(
     actual_all: list[dict[str, Any]],
     duree_hebdo: float,
     fenetre: tuple[date, date],
+    *,
+    contrat: Contrat = (None, None),
 ) -> tuple[dict[tuple[int, int], list[dict[str, Any]]], Compensation]:
     """L'orchestration que le générateur appelle : bilan, compensation, application.
 
     La fenêtre est à cheval sur deux mois : la décision de ce qui est retenu se
     prend **une seule fois**, sur toutes les absences de la fenêtre, avant
     d'appliquer mois par mois.
+
+    Hors contrat (`contrat` = entrée, sortie), aucun jour ne compte ni ne porte
+    la retenue : le bulletin écarterait une absence datée après la sortie.
     """
-    compensation = compenser(ecarts_par_semaine(planned_all, actual_all, fenetre), duree_hebdo)
+    compensation = compenser(
+        ecarts_par_semaine(planned_all, actual_all, fenetre, contrat=contrat), duree_hebdo
+    )
 
     absences: list[dict[str, Any]] = []
     for (annee_m, mois_m), evts in evenements_par_mois.items():
@@ -343,13 +384,13 @@ def appliquer_aux_mois(
                 continue
             if not _dans_la_fenetre(ev, fenetre, annee_m, mois_m):
                 continue
-            absences.append(
-                {
-                    **ev,
-                    "annee": int(ev.get("annee") or annee_m),
-                    "mois": int(ev.get("mois") or mois_m),
-                }
-            )
+            annee_ev, mois_ev = int(ev.get("annee") or annee_m), int(ev.get("mois") or mois_m)
+            try:
+                if not _dans_le_contrat(date(annee_ev, mois_ev, int(ev["jour"])), contrat):
+                    continue
+            except (KeyError, TypeError, ValueError):
+                continue
+            absences.append({**ev, "annee": annee_ev, "mois": mois_ev})
 
     gardees, reliquat = absences_a_conserver(absences, compensation.solde_negatif)
     compensation = replace(
@@ -377,7 +418,7 @@ def mention(compensation: Compensation) -> str:
     """La phrase du bulletin : les semaines, leurs écarts, les nets."""
     semaines = " · ".join(
         f"S{s.semaine} {'+' if s.total >= 0 else ''}{_fr(s.total, 1)}" for s in compensation.semaines
-    )
+    ) or "aucune semaine à compenser"
     texte = (
         f"Heures compensées entre semaines (option société) : {semaines} → "
         f"{_fr(compensation.net25)} h à 25 %, {_fr(compensation.net50)} h à 50 %."
@@ -419,6 +460,7 @@ __all__ = [
     "appliquer",
     "appliquer_aux_mois",
     "avec_saisie_manuelle",
+    "bornes_du_contrat",
     "compenser",
     "ecarts_par_semaine",
     "majorations",
