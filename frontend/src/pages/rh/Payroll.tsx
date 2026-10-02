@@ -350,6 +350,9 @@ export default function Payroll() {
   const bandeauxSortie = useMemo(() => {
     if (view !== 'month') return [];
     if (exitsQuery.isLoading && exitsQuery.data === undefined) return [];
+    // Bulletins pas encore lus : on ne sait pas qui a déjà son bulletin de
+    // sortie, et un bandeau « générez-le » cliquable serait faux (recette 02/10).
+    if (payslipQueries.some((q) => q.isLoading && q.data === undefined)) return [];
     const idsAvecBulletin = new Set(
       employees
         .filter((emp) =>
@@ -371,6 +374,7 @@ export default function Payroll() {
     employees,
     exitsQuery.isLoading,
     exitsQuery.data,
+    payslipQueries,
     payslipsByEmployee,
     selectedYear,
     selectedMonth,

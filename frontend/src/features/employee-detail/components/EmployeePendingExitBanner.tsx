@@ -20,8 +20,8 @@ export function EmployeePendingExitBanner({ employeeId, exitId, fullName }: Prop
       <AlertTitle className="text-amber-900">Départ à finaliser</AlertTitle>
       <AlertDescription className="space-y-3 text-amber-900/90">
         <p>
-          {fullName} a été signalé(e) comme absent(e) de la DSN. Un processus de sortie est
-          ouvert — complétez la clôture (documents, solde, checklist) dans le module Départs.
+          Un départ est en cours pour {fullName}. Complétez la clôture (documents, solde,
+          checklist) dans le module Départs.
         </p>
         <Button asChild size="sm" variant="outline" className="border-amber-300 bg-white">
           <Link to={exitsHref}>Ouvrir le dossier de départ</Link>

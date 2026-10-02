@@ -43,7 +43,8 @@ export type DocumentType =
   | 'attestation_pole_emploi'
   | 'solde_tout_compte'
   | 'recu_solde_compte'
-  | 'attestation_portabilite_mutuelle';
+  | 'attestation_portabilite_mutuelle'
+  | 'attestation_portabilite_prevoyance';
 
 export interface SimpleEmployee {
   id: string;
@@ -712,6 +713,7 @@ export const documentTypeLabels: Record<DocumentType, string> = {
   solde_tout_compte: 'Solde de tout compte',
   recu_solde_compte: 'Reçu pour solde de tout compte',
   attestation_portabilite_mutuelle: 'Attestation de portabilité mutuelle',
+  attestation_portabilite_prevoyance: 'Attestation de portabilité prévoyance',
 };
 
 export function getStatusVariant(status: ExitStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
