@@ -45,7 +45,6 @@ import {
   ChecklistItem,
   ExitIndemnityCalculation,
   exitTypeLabels,
-  statusLabels,
   getStatusVariant,
   documentTypeLabels,
   PublishExitDocumentsResponse,
@@ -89,6 +88,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
+import { libelleStatutDepart } from '@/features/employee-exits/utils/statutDepart';
 
 interface ExitDetailsPanelProps {
   exitId: string | null;
@@ -640,7 +640,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
           </SheetTitle>
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Badge variant={getStatusVariant(exitDetails.status)}>
-              {statusLabels[exitDetails.status]}
+              {libelleStatutDepart(exitDetails.status, exitDetails.last_working_day)}
             </Badge>
             {editingExitType ? (
               <div className="flex flex-wrap items-center gap-2">

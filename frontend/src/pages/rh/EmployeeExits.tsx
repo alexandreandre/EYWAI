@@ -21,11 +21,11 @@ import {
   type EmployeeExitWithDetails,
   type ExitType,
   exitTypeLabels,
-  statusLabels,
   getStatusVariant,
 } from '@/api/employeeExits';
 import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
 import { ExitDetailsPanel } from '@/components/exits/ExitDetailsPanel';
+import { libelleStatutDepart } from '@/features/employee-exits/utils/statutDepart';
 
 function loadErrorMessage(error: unknown): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -267,7 +267,7 @@ const EmployeeExitsPage = () => {
                           </TableCell>
                           <TableCell>
                             <Badge variant={getStatusVariant(exit.status)}>
-                              {statusLabels[exit.status]}
+                              {libelleStatutDepart(exit.status, exit.last_working_day)}
                             </Badge>
                           </TableCell>
                           <TableCell>
