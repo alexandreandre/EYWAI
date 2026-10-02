@@ -593,20 +593,38 @@ def get_contract_periods(
 def post_contract_period(
     employee_id: str,
     payload: contract_periods.ContractPeriodIn,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """Ajoute un contrat terminé. Ne modifie pas la date d'ancienneté."""
     company_id = _rh_employee(current_user, employee_id)
     try:
-        return contract_periods.add_contract_period(employee_id, company_id, payload)
+        ligne = contract_periods.add_contract_period(employee_id, company_id, payload)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    log_audit_event(
+        company_id=str(company_id),
+        user_id=str(current_user.id),
+        user_email=current_user.email,
+        action="employee.contract_period.create",
+        resource_type="employee",
+        resource_id=employee_id,
+        details={
+            "period_id": ligne.get("id"),
+            "contract_type": payload.contract_type,
+            "date_debut": payload.date_debut.isoformat(),
+            "date_fin": payload.date_fin.isoformat(),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    return ligne
 
 
 @router.delete("/{employee_id}/contract-periods/{period_id}", status_code=204)
 def remove_contract_period(
     employee_id: str,
     period_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     company_id = _rh_employee(current_user, employee_id)
@@ -614,6 +632,16 @@ def remove_contract_period(
         contract_periods.delete_contract_period(employee_id, company_id, period_id)
     except contract_periods.ContractPeriodMissing as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    log_audit_event(
+        company_id=str(company_id),
+        user_id=str(current_user.id),
+        user_email=current_user.email,
+        action="employee.contract_period.delete",
+        resource_type="employee",
+        resource_id=employee_id,
+        details={"period_id": period_id},
+        ip_address=request.client.host if request.client else None,
+    )
 
 
 @router.get("/{employee_id}/deletion-impact", response_model=EmployeeDeletionImpact)
