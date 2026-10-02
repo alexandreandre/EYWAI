@@ -734,6 +734,17 @@ def calculer_cotisations(
                 / 100.0
             )
 
+        elif coti_id == "assurance_chomage":
+            # Taux modulé (bonus-malus) notifié à la société ; l'apprenti reste
+            # au taux de droit commun (Comitech, bulletins de 2026).
+            taux_module = (
+                contexte.entreprise.get("parametres_paie", {})
+                .get("taux_specifiques", {})
+                .get("taux_assurance_chomage")
+            )
+            if taux_module is not None and not contexte.is_apprenti:
+                taux_patronal_final = float(taux_module) / 100.0
+
         elif coti_id == "versement_mobilite":
             taux_patronal_final = resoudre_taux_vm_pour_paie(
                 contexte.baremes,

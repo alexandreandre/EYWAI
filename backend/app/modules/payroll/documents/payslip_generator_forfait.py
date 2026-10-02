@@ -540,6 +540,9 @@ def process_payslip_generation_forfait(
                         "taux_at_mp": company_data.get("taux_at_mp"),
                         "taux_versement_mobilite": company_data.get("taux_vm"),
                         "taux_fnal": company_data.get("taux_fnal"),
+                        "taux_assurance_chomage": (company_data.get("settings") or {}).get(
+                            "taux_assurance_chomage"
+                        ),
                     },
                     "jei": jei_bloc,
                     "prime_anciennete": prime_anciennete_overrides or None,

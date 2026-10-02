@@ -203,7 +203,7 @@ def parametres_societe_pour_empreinte(company: Mapping[str, Any] | None) -> dict
     reglages = societe.get("settings") or {}
     if not isinstance(reglages, Mapping):
         reglages = {}
-    return {
+    parametres = {
         "idcc": societe.get("idcc"),
         "effectif": societe.get("effectif"),
         "taux_at_mp": societe.get("taux_at_mp"),
@@ -216,6 +216,11 @@ def parametres_societe_pour_empreinte(company: Mapping[str, Any] | None) -> dict
         "date_paiement": reglages.get("date_paiement"),
         CLE_REGLAGE: reglages.get(CLE_REGLAGE) is True,
     }
+    # Seulement s'il est réglé : une clé de plus pour tous périmerait tous les
+    # bulletins déjà générés.
+    if reglages.get("taux_assurance_chomage") is not None:
+        parametres["taux_assurance_chomage"] = reglages.get("taux_assurance_chomage")
+    return parametres
 
 
 def entrees_depuis_lectures(
