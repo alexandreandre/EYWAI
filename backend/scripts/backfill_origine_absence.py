@@ -131,7 +131,7 @@ def fetch_validated_absences(
         def page(offset: int, limit: int, _batch=batch) -> List[Dict[str, Any]]:
             resp = (
                 client.table("absence_requests")
-                .select("id, employee_id, type, selected_days")
+                .select("id, employee_id, type, selected_days, created_at, manager_approved_at")
                 .eq("status", "validated")
                 .in_("employee_id", _batch)
                 .order("id")
@@ -153,6 +153,11 @@ TYPES_ECRIVANT_CALENDRIER: frozenset = frozenset(
 
 JOURS_NON_OUVRES = {"ferie", "weekend", "repos"}
 
+#: Le congé sans solde écrit le planning (`absence_non_remuneree`) depuis le
+#: déploiement du 02/10/2026 (UTC). Validé avant, il ne l'écrivait pas, par
+#: conception : il n'a ni marqueur à poser ni « absence perdue ».
+DEBUT_PROJECTION_SANS_SOLDE = "2026-10-02"
+
 
 def days_by_employee_month(
     absence_rows: List[Dict[str, Any]],
@@ -168,6 +173,10 @@ def days_by_employee_month(
         # le calendrier (types dérivés du mapping partagé).
         if row.get("type") not in TYPES_ECRIVANT_CALENDRIER:
             continue
+        if row.get("type") == "sans_solde":
+            validee_le = str(row.get("manager_approved_at") or row.get("created_at") or "")
+            if validee_le[:10] < DEBUT_PROJECTION_SANS_SOLDE:
+                continue
         for raw_day in row.get("selected_days") or []:
             jour = _as_date(raw_day)
             if jour is None:

@@ -27,6 +27,42 @@ class TestMarquage:
         assert jours == []
 
 
+class TestSansSolde:
+    """Un congé sans solde n'écrit le planning que depuis le 02/10/2026.
+
+    Validé avant, il ne l'écrivait pas, par conception : le compter fabriquerait
+    des milliers d'« absences perdues » fantômes.
+    """
+
+    def test_un_sans_solde_valide_avant_la_regle_est_ignore(self):
+        jours = script.days_by_employee_month(
+            [
+                {
+                    "employee_id": "e1",
+                    "type": "sans_solde",
+                    "created_at": "2026-04-01T08:00:00+00:00",
+                    "manager_approved_at": "2026-04-02T08:00:00+00:00",
+                    "selected_days": ["2026-04-03"],
+                }
+            ]
+        )
+        assert jours == {}
+
+    def test_un_sans_solde_valide_depuis_la_regle_compte(self):
+        jours = script.days_by_employee_month(
+            [
+                {
+                    "employee_id": "e1",
+                    "type": "sans_solde",
+                    "created_at": "2026-09-30T08:00:00+00:00",
+                    "manager_approved_at": "2026-10-05T08:00:00+00:00",
+                    "selected_days": ["2026-10-07"],
+                }
+            ]
+        )
+        assert jours == {("e1", 2026, 10): {7}}
+
+
 class TestAbsencesPerdues:
     """Les salariés déjà lésés : absence validée, planning d'un autre type."""
 
