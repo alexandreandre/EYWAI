@@ -27,8 +27,10 @@ from app.core.logging import get_logger
 
 logger = get_logger("modules.payroll.verrou_generation")
 
-# Délai maximal d'une requête sur le service (Cloud Run, --timeout 900).
-DUREE_SECONDES = 900
+# Un bulletin se calcule en une quinzaine de secondes. Une génération coupée
+# net (instance arrêtée) ne rend pas son verrou : il bloquait 15 minutes, calé
+# sur --timeout 900 de Cloud Run (recette du 02/10/2026). Cinq minutes suffisent.
+DUREE_SECONDES = 300
 
 
 class GenerationDejaEnCours(ValueError):
@@ -38,8 +40,8 @@ class GenerationDejaEnCours(ValueError):
 
     def __init__(self) -> None:
         super().__init__(
-            "Une génération de ce bulletin est déjà en cours. "
-            "Réessayez dans quelques instants."
+            "Une génération de ce bulletin est déjà en cours, ou s'est arrêtée "
+            "sans finir. Réessayez dans 5 minutes au plus."
         )
 
 

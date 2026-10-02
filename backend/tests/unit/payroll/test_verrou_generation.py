@@ -165,3 +165,13 @@ def test_un_autre_mois_se_prend_normalement(verrous_de_generation):
     with verrou_de_generation("e1", 2026, 8):
         with verrou_de_generation("e1", 2026, 9):
             assert len(verrous_de_generation.tenus) == 2
+
+
+def test_un_verrou_abandonne_ne_bloque_que_cinq_minutes():
+    """Une génération coupée net (instance arrêtée) ne rend pas son verrou :
+    il bloquait 15 minutes avec « réessayez dans quelques instants » (recette
+    du 02/10/2026). Un bulletin se calcule en une quinzaine de secondes."""
+    assert verrou_generation.DUREE_SECONDES == 300
+    message = str(GenerationDejaEnCours())
+    assert "déjà en cours" in message
+    assert "5 minutes" in message
