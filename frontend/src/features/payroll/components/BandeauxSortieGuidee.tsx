@@ -5,7 +5,7 @@ import type { BandeauSortieGuidee } from '@/features/payroll/utils/sortieGuidee'
 
 type Props = {
   bandeaux: BandeauSortieGuidee[];
-  onCreerLeDepart: (employeeId: string) => void;
+  onCreerLeDepart: (bandeau: BandeauSortieGuidee) => void;
   onGenererBulletin: (employeeId: string) => void;
 };
 
@@ -40,7 +40,7 @@ export function BandeauxSortieGuidee({
                   variant="outline"
                   className="shrink-0 border-amber-300 bg-white"
                   data-testid="creer-le-depart"
-                  onClick={() => onCreerLeDepart(bandeau.employeeId)}
+                  onClick={() => onCreerLeDepart(bandeau)}
                 >
                   {bandeau.bouton}
                 </Button>

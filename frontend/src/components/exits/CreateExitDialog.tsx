@@ -33,6 +33,8 @@ interface CreateExitDialogProps {
   onSuccess?: () => void;
   initialEmployeeId?: string;
   initialExitType?: ExitType;
+  /** Dernier jour travaillé déjà connu (fin de contrat lue sur la fiche). */
+  initialLastWorkingDay?: string;
 }
 
 export const CONTRAT_ABSENT_MESSAGE =
@@ -57,6 +59,7 @@ export function CreateExitDialog({
   onSuccess,
   initialEmployeeId,
   initialExitType,
+  initialLastWorkingDay,
 }: CreateExitDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -82,8 +85,17 @@ export function CreateExitDialog({
   const [exitReason, setExitReason] = useState<string>('');
 
   const selectedEmployee = employees.find((emp) => emp.id === employeeId);
+  // Salarié présélectionné (bandeau de la Paie) absent de la liste : le dire,
+  // plutôt qu'un choix vide sans explication.
+  const [listeChargee, setListeChargee] = useState(false);
+  const preselectionAbsente =
+    open &&
+    listeChargee &&
+    Boolean(initialEmployeeId) &&
+    !employees.some((emp) => emp.id === initialEmployeeId);
 
   const resetForm = () => {
+    setListeChargee(false);
     setEmployeeId('');
     setExitType('demission');
     setExitRequestDate(new Date().toISOString().split('T')[0]);
@@ -104,12 +116,19 @@ export function CreateExitDialog({
         setEmployeeId(initialEmployeeId);
       }
       if (initialExitType) {
-        setExitType(initialExitType);
+        handleExitTypeChange(initialExitType);
+      }
+      if (initialLastWorkingDay) {
+        setLastWorkingDay(initialLastWorkingDay);
+        // Fin de contrat déjà passée : la demande ne peut pas être postérieure
+        // au dernier jour, sinon l'enregistrement est refusé.
+        const aujourdHui = new Date().toISOString().split('T')[0];
+        if (initialLastWorkingDay < aujourdHui) setExitRequestDate(initialLastWorkingDay);
       }
     } else {
       resetForm();
     }
-  }, [open, initialEmployeeId, initialExitType]);
+  }, [open, initialEmployeeId, initialExitType, initialLastWorkingDay]);
 
   useEffect(() => {
     if (!open || !employeeId) {
@@ -167,6 +186,7 @@ export function CreateExitDialog({
     try {
       const eligibleEmployees = await getExitEligibleEmployees();
       setEmployees(eligibleEmployees);
+      setListeChargee(true);
     } catch (error) {
       log.error('Erreur lors du chargement des employés:', error);
       toast({
@@ -331,6 +351,12 @@ export function CreateExitDialog({
                 ))}
               </SelectContent>
             </Select>
+            {preselectionAbsente && (
+              <p className="text-sm text-amber-700" data-testid="salarie-non-propose">
+                Ce collaborateur n&apos;est pas proposé : un départ est déjà en cours pour lui, ou il
+                a quitté l&apos;entreprise. Ouvrez le module Départs pour retrouver son dossier.
+              </p>
+            )}
             {!loadingEmployees && employees.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Seuls les collaborateurs actifs peuvent faire l&apos;objet d&apos;un départ. Un

@@ -8,7 +8,9 @@ Aucune dépendance DB ni FastAPI.
 
 from typing import Any, Dict, List, Optional
 
-EXIT_ELIGIBLE_STATUSES = frozenset({"actif", "active"})
+# « en_onboarding » = fiche de paie incomplète : le départ se crée, le bulletin
+# de sortie attend la fiche (la paie le dit).
+EXIT_ELIGIBLE_STATUSES = frozenset({"actif", "active", "en_onboarding"})
 DEFAULT_EMPLOYMENT_STATUS = "actif"
 
 # Map exit_type -> statut initial
@@ -161,11 +163,6 @@ def exit_block_reason(employee: Dict[str, Any]) -> Optional[str]:
     status = str(
         employee.get("employment_status") or DEFAULT_EMPLOYMENT_STATUS
     ).lower()
-    if status == "en_onboarding":
-        return (
-            "Impossible d'initier un départ : ce collaborateur est encore en onboarding. "
-            "Finalisez son intégration depuis sa fiche."
-        )
     if status not in EXIT_ELIGIBLE_STATUSES:
         return f"Ce collaborateur n'est pas éligible à un départ (statut : {status})."
     return None

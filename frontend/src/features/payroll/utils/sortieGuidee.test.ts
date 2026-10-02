@@ -95,6 +95,12 @@ describe('qui déclenche le bandeau « créez son départ »', () => {
     expect(bandeauxSortieDuMois([JEANNE], [], 2026, 10)).toEqual([]);
   });
 
+  it('une fin de contrat propose le motif fin de CDD et son dernier jour', () => {
+    const [bandeau] = bandeauxSortieDuMois([JEANNE], [], 2026, 9);
+    expect(bandeau.dateIso).toBe('2026-09-15');
+    expect(bandeau.motifPropose).toBe('fin_cdd');
+  });
+
   it('une date de sortie déjà connue, sans date de fin de contrat : le bandeau', () => {
     const bandeaux = bandeauxSortieDuMois(
       [
@@ -112,6 +118,8 @@ describe('qui déclenche le bandeau « créez son départ »', () => {
     );
     expect(bandeaux).toHaveLength(1);
     expect(bandeaux[0].dateIso).toBe('2026-09-20');
+    // Sans fin de contrat, le motif du départ n'est pas deviné.
+    expect(bandeaux[0].motifPropose).toBeNull();
   });
 
   it("un ancien départ de janvier n'est pas déjà créé pour une fin d'avril", () => {

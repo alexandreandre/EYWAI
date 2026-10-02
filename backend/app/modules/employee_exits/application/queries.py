@@ -63,7 +63,8 @@ def list_exit_eligible_employees(
     """
     _ = supabase_client  # réservé pour tests / injection future
     repo = EmployeeRepository()
-    rows = repo.get_summary_by_company(company_id, active_only=True)
+    # Toute la société : la règle de départ décide (une fiche incomplète peut partir).
+    rows = repo.get_summary_by_company(company_id)
     eligible: List[Dict[str, Any]] = []
     for employee in rows:
         if exit_block_reason(employee) is not None:

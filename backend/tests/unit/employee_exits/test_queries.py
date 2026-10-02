@@ -429,10 +429,24 @@ class TestListExitEligibleEmployees:
         assert [e["id"] for e in result] == ["e1"]
         assert result[0]["contrat_absent"] is False
 
-    @pytest.mark.parametrize("statut", ["parti", "en_sortie", "en_onboarding"])
-    def test_salarie_parti_ou_en_sortie_ou_onboarding_nest_pas_eligible(self, statut):
+    @pytest.mark.parametrize("statut", ["parti", "en_sortie"])
+    def test_salarie_parti_ou_en_sortie_nest_pas_eligible(self, statut):
         result = self._run(
             [self._row("e1", status=statut), self._row("e2")],
             {"e1": True, "e2": True},
         )
         assert [e["id"] for e in result] == ["e2"]
+
+    def test_fiche_incomplete_est_proposee(self):
+        # Le bandeau « créez son départ » de la Paie préremplit ce salarié : il
+        # doit figurer dans la liste, sinon le choix reste vide (recette 02/10).
+        with patch.object(queries, "EmployeeRepository") as repo_cls, patch.object(
+            queries, "employee_has_work_contract", return_value=True
+        ):
+            repo = repo_cls.return_value
+            repo.get_summary_by_company.side_effect = lambda _co, active_only=False: (
+                [r for r in [self._row("e1", status="en_onboarding"), self._row("e2")]
+                 if not active_only or r["employment_status"] == "actif"]
+            )
+            result = queries.list_exit_eligible_employees(COMPANY_ID)
+        assert [e["id"] for e in result] == ["e1", "e2"]

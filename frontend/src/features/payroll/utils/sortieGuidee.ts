@@ -44,6 +44,8 @@ export type BandeauSortieGuidee = {
   /** Faux si la fiche empêche la génération : pas de clic, la raison est affichée. */
   peutGenerer: boolean;
   raisonBlocage: string | null;
+  /** Motif proposé au formulaire de départ : une fin de contrat est une fin de CDD. */
+  motifPropose: 'fin_cdd' | null;
 };
 
 function sliceDate(value?: string | null): string | null {
@@ -111,6 +113,7 @@ function bandeauCommun(
   year: number,
   month: number
 ): BandeauSortieGuidee {
+  const motifPropose = sliceDate(salarie.contract_end_date) ? 'fin_cdd' : null;
   if (etape === 'creer_depart') {
     return {
       employeeId: salarie.id,
@@ -120,6 +123,7 @@ function bandeauCommun(
       dateIso,
       peutGenerer: false,
       raisonBlocage: null,
+      motifPropose,
     };
   }
   const raisonBlocage = payrollGenerationBlockReason(salarie, year, month);
@@ -131,6 +135,7 @@ function bandeauCommun(
     dateIso,
     peutGenerer: raisonBlocage === null,
     raisonBlocage,
+    motifPropose,
   };
 }
 

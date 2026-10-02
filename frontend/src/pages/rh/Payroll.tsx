@@ -46,7 +46,7 @@ import { lireNouveauSalarie, salariesAvecNouveauEnTete } from '@/features/employ
 import { CreateExitDialog } from '@/components/exits/CreateExitDialog';
 import { BandeauxSortieGuidee } from '@/features/payroll/components/BandeauxSortieGuidee';
 import { useEmployeeExitsQuery } from '@/hooks/queries/useEmployeeExitsQuery';
-import { bandeauxSortieDuMois } from '@/features/payroll/utils/sortieGuidee';
+import { bandeauxSortieDuMois, type BandeauSortieGuidee } from '@/features/payroll/utils/sortieGuidee';
 import { ListeControleMois } from '@/features/payroll/components/ListeControleMois';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import {
@@ -180,7 +180,7 @@ export default function Payroll() {
   );
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [refusalDialogDismissed, setRefusalDialogDismissed] = useState(false);
-  const [departACreerId, setDepartACreerId] = useState<string | null>(null);
+  const [departACreer, setDepartACreer] = useState<BandeauSortieGuidee | null>(null);
   const [dialogDepartOuvert, setDialogDepartOuvert] = useState(false);
 
   const generation = usePayrollGeneration();
@@ -663,8 +663,8 @@ export default function Payroll() {
           <TabsContent value="month" className="mt-3 space-y-3">
             <BandeauxSortieGuidee
               bandeaux={bandeauxSortie}
-              onCreerLeDepart={(employeeId) => {
-                setDepartACreerId(employeeId);
+              onCreerLeDepart={(bandeau) => {
+                setDepartACreer(bandeau);
                 setDialogDepartOuvert(true);
               }}
               onGenererBulletin={handleGenerateEmployeeForMonth}
@@ -697,9 +697,11 @@ export default function Payroll() {
         open={dialogDepartOuvert}
         onOpenChange={(open) => {
           setDialogDepartOuvert(open);
-          if (!open) setDepartACreerId(null);
+          if (!open) setDepartACreer(null);
         }}
-        initialEmployeeId={departACreerId ?? undefined}
+        initialEmployeeId={departACreer?.employeeId}
+        initialExitType={departACreer?.motifPropose ?? undefined}
+        initialLastWorkingDay={departACreer?.dateIso}
       />
 
       <PayrollGenerationRefusalDialog

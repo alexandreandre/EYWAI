@@ -292,11 +292,11 @@ class TestExitBlockReason:
         employee = {"employment_status": "actif", "first_name": "Terence"}
         assert exit_block_reason(employee) is None
 
-    def test_en_onboarding_is_blocked(self):
+    def test_fiche_incomplete_peut_partir(self):
+        # « en onboarding » = fiche de paie incomplète. Le départ se crée ; c'est
+        # le bulletin de sortie qui attend la fiche, et l'écran le dit.
         employee = {"employment_status": "en_onboarding", "first_name": "Terence"}
-        reason = exit_block_reason(employee)
-        assert reason is not None
-        assert "onboarding" in reason.lower()
+        assert exit_block_reason(employee) is None
 
     @pytest.mark.parametrize("statut", ["en_sortie", "parti"])
     def test_salarie_deja_en_sortie_ou_parti_est_bloque(self, statut):
