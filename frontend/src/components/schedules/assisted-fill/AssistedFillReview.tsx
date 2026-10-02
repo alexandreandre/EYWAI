@@ -42,6 +42,12 @@ import {
 } from '@/features/payroll/utils/heuresSurArret';
 import { downloadBlob } from '@/lib/downloadBlob';
 import { showReviewSummaryBanner, removeReviewRow } from './assistedFillReviewLayout';
+import {
+  reservedEmployeeIds,
+  rowCarriesHours,
+  statusAfterLosingEmployee,
+  visibleRowWarnings,
+} from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
@@ -514,17 +520,16 @@ export function AssistedFillReview({
 
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
 
-  const takenEmployeeIds = useMemo(
-    () => rows.filter((r) => r.employeeId).map((r) => r.employeeId as string),
-    [rows],
-  );
+  // Une ligne vide ne réserve pas son salarié : il reste proposé à la ligne qui
+  // porte ses heures (ancienne fiche badge vide, 02/10/2026).
+  const takenEmployeeIds = useMemo(() => reservedEmployeeIds(rows), [rows]);
 
   const associateEmployee = (rowKey: string, employeeId: string, matchedName: string) => {
     setRows((prev) => {
       const conflicting = prev.find(
         (r) => r.key !== rowKey && r.employeeId === employeeId,
       );
-      if (conflicting) {
+      if (conflicting && rowCarriesHours(conflicting)) {
         toast({
           title: 'Salarié réassigné',
           description: `${matchedName} était déjà associé à « ${conflicting.rawName} » — cette ligne repasse en attente de rapprochement.`,
@@ -548,7 +553,7 @@ export function AssistedFillReview({
             employeeId: null,
             matchedName: null,
             confidence: 'none' as const,
-            reviewStatus: 'error' as const,
+            reviewStatus: statusAfterLosingEmployee(r),
             manuallyConfirmed: false,
           };
         }
@@ -1185,9 +1190,11 @@ export function AssistedFillReview({
                   </button>
                 </div>
 
-                {row.warnings.length > 0 && status !== 'ok' && (
-                  <p className="mt-0.5 pl-6 text-[11px] text-amber-700">{row.warnings[0]}</p>
-                )}
+                {visibleRowWarnings(row.warnings, status).map((warning) => (
+                  <p key={warning} className="mt-0.5 pl-6 text-[11px] text-amber-700">
+                    {warning}
+                  </p>
+                ))}
                 {needsAssociate && (
                   <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground">
                     {formatDocumentNameHint(row.rawName)}

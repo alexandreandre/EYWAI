@@ -253,6 +253,8 @@ export interface AiEmployeeProposal {
   days_imported_count?: number | null;
   coverage_ratio?: number | null;
   quality_issue?: string | null;
+  /** Annotations du relevé, jour par jour : dites à la revue, jamais appliquées aux heures. */
+  sheet_annotations?: string[];
 }
 
 export type TimesheetScope = 'weekly' | 'monthly' | 'unknown';
