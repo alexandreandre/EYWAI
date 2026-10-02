@@ -2,6 +2,7 @@ import { z } from "zod";
 import { bicFieldSchema, ibanFieldSchema } from "@/lib/ibanSchema";
 import { isEmployeeCadre } from "@/lib/mutuelleUtils";
 import { needsContractEndDate } from "@/constants/contracts";
+import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
 export const createEmployeeFormSchema = z.object({
   // --- SECTION SALARIÉ ---
@@ -77,7 +78,10 @@ export const createEmployeeFormSchema = z.object({
   
   // --- SECTION RÉMUNÉRATION (COMPLÉTÉE) ---
   salaire_de_base: z.object({
-    valeur: z.coerce.number({ invalid_type_error: "Salaire requis." }).positive({ message: "Salaire requis." })
+    valeur: z.coerce
+      .number({ invalid_type_error: "Salaire requis." })
+      .positive({ message: "Salaire requis." })
+      .max(SALAIRE_MENSUEL_MAXIMUM, { message: MESSAGE_SALAIRE_TROP_ELEVE }),
   }),
   classification_conventionnelle: z.object({
     groupe_emploi: z.string().min(1, { message: "Groupe requis." }),

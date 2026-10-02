@@ -67,3 +67,17 @@ describe('champsRefuses', () => {
     ]);
   });
 });
+
+describe('salaire saisi sans sa virgule', () => {
+  it('un salaire mensuel absurde est refusé avec la cause probable', () => {
+    const fiche = { id: 'e3', first_name: 'Jeanne', last_name: 'Essai', specificites_paie: {} } as unknown as Employee;
+    const resultat = employeeProfileEditSchema.safeParse({
+      ...buildDefaultValues(fiche),
+      salaire_de_base: { valeur: 1990001 },
+    });
+    const surSalaire = resultat.success
+      ? []
+      : resultat.error.issues.filter((i) => i.path.join('.') === 'salaire_de_base.valeur').map((i) => i.message);
+    expect(surSalaire).toEqual([expect.stringMatching(/virgule/)]);
+  });
+});

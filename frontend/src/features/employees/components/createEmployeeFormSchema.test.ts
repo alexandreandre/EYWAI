@@ -50,6 +50,12 @@ describe('création : le minimum suffit', () => {
     expect(erreurs({ job_title: ' ' })).toEqual(['job_title: Poste requis.']);
   });
 
+  it('un salaire mensuel absurde est refusé : la virgule a sans doute été perdue', () => {
+    expect(erreurs({ salaire_de_base: { valeur: 1990001 } })).toEqual([
+      expect.stringMatching(/^salaire_de_base\.valeur: .*virgule/),
+    ]);
+  });
+
   it('un champ facultatif rempli doit être juste', () => {
     expect(erreurs({ email: 'jeanne@' })).toEqual(['email: Adresse e-mail invalide.']);
     expect(erreurs({ nir: '29005730080' })).toEqual([

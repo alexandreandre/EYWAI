@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
 import { bicFieldSchema, ibanFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
+import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
 
 export const employeeProfileEditSchema = z
   .object({
@@ -43,7 +44,10 @@ export const employeeProfileEditSchema = z
     date_debut_execution: z.string().optional(),
     date_conclusion_contrat: z.string().optional(),
     salaire_de_base: z.object({
-      valeur: z.coerce.number().positive({ message: 'Le salaire doit être positif.' }),
+      valeur: z.coerce
+        .number()
+        .positive({ message: 'Le salaire doit être positif.' })
+        .max(SALAIRE_MENSUEL_MAXIMUM, { message: MESSAGE_SALAIRE_TROP_ELEVE }),
     }),
     collective_agreement_id: z.string().nullable().optional(),
     classification_conventionnelle: z.object({

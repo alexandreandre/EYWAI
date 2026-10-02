@@ -1,4 +1,5 @@
 import { brutMensuelPourDuree, formaterEuros } from '@/lib/brutDureeHebdo';
+import { alerteSalaireInhabituel } from '@/lib/salaireVraisemblable';
 
 export function BrutPourDureeHint({
   salaire,
@@ -10,6 +11,15 @@ export function BrutPourDureeHint({
   /** `specificites_paie.salaire_hors_hs_structurelles` du salarié. */
   baseA35h: boolean;
 }) {
+  // Une virgule avalée par le navigateur multiplie le salaire par 10 ou 1 000.
+  const alerte = alerteSalaireInhabituel(salaire);
+  if (alerte) {
+    return (
+      <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+        {alerte}
+      </p>
+    );
+  }
   const ligne = brutMensuelPourDuree(Number(salaire), Number(dureeHebdo), baseA35h);
   if (!ligne) return null;
   const heures = Number.isInteger(ligne.heures) ? String(ligne.heures) : ligne.heures.toLocaleString('fr-FR');
