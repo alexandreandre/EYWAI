@@ -187,6 +187,10 @@ export function CreateExitDialog({
       const eligibleEmployees = await getExitEligibleEmployees();
       setEmployees(eligibleEmployees);
       setListeChargee(true);
+      // Présélection (bandeau de la Paie) : reposée une fois la liste là.
+      if (initialEmployeeId && eligibleEmployees.some((emp) => emp.id === initialEmployeeId)) {
+        setEmployeeId(initialEmployeeId);
+      }
     } catch (error) {
       log.error('Erreur lors du chargement des employés:', error);
       toast({
@@ -200,6 +204,9 @@ export function CreateExitDialog({
   };
 
   const handleEmployeeChange = (value: string) => {
+    // La liste déroulante renvoie une valeur vide quand la présélection arrive
+    // avant ses options : on ne vide pas le choix pour autant (recette 02/10).
+    if (!value) return;
     setEmployeeId(value);
     noticeManuallyEdited.current = false;
   };
