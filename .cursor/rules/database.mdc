@@ -6,11 +6,13 @@ alwaysApply: true
 
 # Base de données Supabase (MCP `supabase-eywai`)
 
-## Contexte projet
+## Contexte projet (mis à jour le 02/10/2026)
 
-- **Projet Supabase** : `slleauhyjnmiawosvlcg` — **dev et prod partagent la même instance**.
-- Toute écriture MCP (`apply_migration`, `execute_sql` DDL/DML) impacte **immédiatement les données réelles**.
-- Config MCP : `.cursor/mcp.json` — outils limités à `features=database` (pas d’Edge Functions, branches, etc.).
+- **Base de travail : la base de test `tlvkjwleahkmuzcegrde`.** C’est la seule où l’on travaille. Elle porte la vraie paie de sociétés clientes et deviendra la production : la traiter comme une production.
+- **Ancienne production `slleauhyjnmiawosvlcg` : interdite.** Aucune lecture de travail, aucune écriture, aucune migration. Elle n’est plus la base partagée dev/prod.
+- Un MCP qui pointe un autre projet (par exemple `lwbqaabjwbkeijdxehfv`) est le mauvais projet : ne pas l’utiliser.
+- Toute écriture MCP (`apply_migration`, `execute_sql` DDL/DML) sur la base de test impacte **immédiatement des données de paie réelles**.
+- Config MCP : `.cursor/mcp.json` (Cursor) et `.mcp.json` (Claude Code). Avant tout appel, vérifier le projet visé (`get_project_url`).
 
 ## Sources de vérité (schéma)
 
@@ -27,7 +29,7 @@ alwaysApply: true
    `supabase/migrations/YYYYMMDDHHMMSS_nom_snake_case.sql`
 2. SQL **idempotent** quand possible (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
 3. **Nouvelle table** exposée au client → activer RLS + policies adaptées dans la même migration.
-4. **Appliquer ensuite** via MCP `apply_migration` avec le **même nom** et le **même SQL**.
+4. **Appliquer ensuite** sur la base de test seulement : par le déploiement (`gh workflow run deploy-test-env.yml --ref <branche> -f migration=<fichier>`), ou via MCP `apply_migration` sur `tlvkjwleahkmuzcegrde` avec le **même nom** et le **même SQL**. Jamais de `supabase db push` sur la base de test.
 5. **Vérifier** avec `list_migrations` et un `execute_sql` de contrôle (ex. `\d` équivalent via `information_schema`).
 6. **Ne jamais** appliquer une migration MCP sans le fichier Git correspondant.
 
@@ -36,7 +38,8 @@ alwaysApply: true
 - `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`
 - `DELETE` ou `UPDATE` massifs sur tables métier (`employees`, `payslips`, `companies`, etc.)
 - Désactiver ou supprimer des policies RLS
-- Modifier des données de prod « pour tester »
+- Modifier des données de la base de test « pour tester » (elle porte de la vraie paie)
+- Toute opération sur l’ancienne production `slleauhyjnmiawosvlcg`
 
 ## Bonnes pratiques
 
