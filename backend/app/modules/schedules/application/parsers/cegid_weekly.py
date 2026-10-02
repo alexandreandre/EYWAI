@@ -14,7 +14,10 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import List, Optional
 
-from app.modules.schedules.application.employee_match import is_junk_employee_name
+from app.modules.schedules.application.employee_match import (
+    is_junk_employee_name,
+    is_surname_only_badge_name,
+)
 
 _FORMAT_SIGNATURE = re.compile(
     r"pointages?\s+[\"']?retenu|semaine\s+[àa]\s+semaine",
@@ -244,7 +247,8 @@ def _parse_block(
     matricule = header.group(1).strip()
     raw_name = " ".join(header.group(2).split())
 
-    if is_junk_employee_name(raw_name):
+    # L'en-tête porte un numéro de badge : un nom seul est une fiche sans prénom.
+    if is_junk_employee_name(raw_name) and not is_surname_only_badge_name(raw_name):
         return None
 
     total_match = _WEEK_TOTAL_RE.search(block)

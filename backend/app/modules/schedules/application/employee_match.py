@@ -98,6 +98,33 @@ def is_single_name_allowed(raw_name: str, format_hint: str | None = None) -> boo
     return re.fullmatch(r"[A-Za-zÀ-ÿ'\-]{3,}", raw) is not None
 
 
+_MOTS_QUI_NE_SONT_PAS_DES_NOMS = frozenset(
+    {
+        "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche",
+        "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout",
+        "septembre", "octobre", "novembre", "decembre",
+        "total", "semaine", "edition", "entreprise", "page",
+    }
+)
+
+
+def is_surname_only_badge_name(raw_name: str) -> bool:
+    """Fiche badge au nom seul (« 178 DUPONT ») : un seul mot de lettres.
+
+    Les exports de badgeuse portent parfois une fiche sans prénom ; ce n'est pas
+    du bruit OCR (Comitech, septembre 2026 : deux salariés sans aucune heure).
+    Un jour de la semaine, un mois ou un mot d'en-tête n'en est jamais une.
+    """
+    raw = (raw_name or "").strip()
+    if len(raw.split()) != 1:
+        return False
+    if re.fullmatch(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{2,}", raw) is None:
+        return False
+    if _normalize(raw) in _MOTS_QUI_NE_SONT_PAS_DES_NOMS:
+        return False
+    return _JUNK_NAME_RE.search(raw) is None
+
+
 def _levenshtein(a: str, b: str) -> int:
     if a == b:
         return 0
@@ -1020,6 +1047,7 @@ __all__ = [
     "deduplicate_employee_matches",
     "is_junk_employee_name",
     "is_single_name_allowed",
+    "is_surname_only_badge_name",
     "rank_planning_sheet_candidates",
     "resolve_employee_for_planning_sheet",
     "resolve_employee_for_timesheet",
