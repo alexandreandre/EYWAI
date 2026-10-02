@@ -158,7 +158,7 @@ def _check_calendar_guard(
     société, vraie tous les mois, pas un problème à signaler.
     """
     from app.modules.schedules.application.periode_a_saisir_service import resume_api
-    from app.modules.schedules.domain.periode_a_saisir import libelle_plages
+    from app.modules.schedules.domain.periode_a_saisir import libelle_plages, raisons_en_clair
 
     details = resume_api(periode)
     debut, fin = periode.fenetre
@@ -167,7 +167,8 @@ def _check_calendar_guard(
     bloquants = [j.jour for j in periode.bloquants]
     message = (
         f"{cmd.month:02d}/{cmd.year} — {len(bloquants)} jour(s) à saisir dans la fenêtre "
-        f"des variables ({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)}. "
+        f"des variables ({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
+        f"({raisons_en_clair(periode.bloquants)}). "
         "Complétez le planning avant de générer, ou forcez explicitement la génération."
     )
     if not cmd.force_calendrier_incomplet:

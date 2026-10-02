@@ -480,7 +480,7 @@ class TestPeriodeASaisir:
         anomalie = next(a for a in result.anomalies if a.type == "heures_non_saisies")
         assert anomalie.jours_manquants == ["2026-06-15"]
         assert anomalie.fenetre["debut"] == "2026-06-01"
-        assert "15/06" in anomalie.message
+        assert "15/06 (heures réelles non saisies)" in anomalie.message
 
     @patch(
         "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",

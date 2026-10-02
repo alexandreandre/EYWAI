@@ -311,7 +311,7 @@ class TestGardeCalendrierIncomplet:
                 generate_payslip(cmd)
 
         mock_provider.generate_heures.assert_not_called()
-        assert "24/08–28/08, 07/09–11/09" in str(exc.value)
+        assert "24/08–28/08, 07/09–11/09 (heures réelles non saisies)" in str(exc.value)
         assert exc.value.details["jours_manquants"][:5] == [
             f"2026-08-{jour}" for jour in range(24, 29)
         ]

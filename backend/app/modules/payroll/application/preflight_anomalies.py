@@ -35,7 +35,7 @@ from app.modules.schedules.domain.ecart_rules import (
     sum_hours,
     validated_absence_days_in_month,
 )
-from app.modules.schedules.domain.periode_a_saisir import libelle_plages
+from app.modules.schedules.domain.periode_a_saisir import libelle_plages, raisons_en_clair
 from app.shared.domain.employment_rules import is_forfait_jour
 from app.shared.domain.periode_variables import semaines_iso
 
@@ -227,7 +227,8 @@ def build_preflight_anomalies(
                 debut, fin = periode.fenetre
                 message = (
                     f"{len(bloquants)} jour(s) à saisir dans la fenêtre des variables "
-                    f"({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)}."
+                    f"({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
+                    f"({raisons_en_clair(periode.bloquants)})."
                 )
             else:
                 message = "Calendrier du mois incomplet — heures planifiées manquantes."

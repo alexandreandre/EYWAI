@@ -192,4 +192,28 @@ def libelle_plages(jours: Iterable[date]) -> str:
     )
 
 
-__all__ = ["JourASaisir", "PeriodeASaisir", "libelle_plages", "periode_a_saisir", "plages"]
+#: Pourquoi un jour manque, dit à la gestionnaire — dans cet ordre.
+_RAISONS: dict[str, str] = {
+    "planning_absent": "pas de planning",
+    "prevu_sans_heures": "planning sans heures prévues",
+    "prevu_sans_reel": "heures réelles non saisies",
+    "reel_a_zero": "0 h au réel un jour travaillé",
+}
+
+
+def raisons_en_clair(jours: Iterable[JourASaisir]) -> str:
+    """« heures réelles non saisies, 0 h au réel un jour travaillé » : ce qu'il
+    faut corriger. Une semaine créée à vide se voit au calendrier comme une
+    semaine saisie ; sans la raison, le refus ne dit pas où regarder."""
+    motifs = {j.motif for j in jours}
+    return ", ".join(texte for motif, texte in _RAISONS.items() if motif in motifs)
+
+
+__all__ = [
+    "JourASaisir",
+    "PeriodeASaisir",
+    "libelle_plages",
+    "periode_a_saisir",
+    "plages",
+    "raisons_en_clair",
+]

@@ -9,9 +9,11 @@ from datetime import date
 import pytest
 
 from app.modules.schedules.domain.periode_a_saisir import (
+    JourASaisir,
     libelle_plages,
     periode_a_saisir,
     plages,
+    raisons_en_clair,
 )
 
 pytestmark = pytest.mark.unit
@@ -450,3 +452,17 @@ def test_une_sortie_dans_la_fenetre_n_attend_rien_apres_le_dernier_jour():
 
     assert libelle_plages(j.jour for j in periode.bloquants) == "07/09–09/09"
     assert periode.informatifs == ()
+
+
+def test_les_raisons_se_disent_en_clair_dans_un_ordre_fixe():
+    jours = [
+        JourASaisir(date(2026, 8, 24), True, "reel_a_zero"),
+        JourASaisir(date(2026, 9, 7), True, "prevu_sans_reel"),
+        JourASaisir(date(2026, 9, 8), True, "prevu_sans_reel"),
+    ]
+
+    assert raisons_en_clair(jours) == "heures réelles non saisies, 0 h au réel un jour travaillé"
+    assert raisons_en_clair([JourASaisir(date(2026, 9, 1), True, "planning_absent")]) == (
+        "pas de planning"
+    )
+    assert raisons_en_clair([]) == ""
