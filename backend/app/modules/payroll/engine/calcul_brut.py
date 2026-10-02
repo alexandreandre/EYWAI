@@ -1587,6 +1587,20 @@ def calculer_salaire_brut(
                     "perte": complement_absence_pleine,
                 }
             )
+        elif complement_absence_pleine < -0.01:
+            # Mois de plus de 21,67 jours ouvrés : la retenue jour par jour
+            # (22 × 7,8 h pour un 39 h) dépasse le salaire mensualisé. Comme
+            # Quadra (« Absence maladie 010726-310726 » = salaire de base en
+            # juillet 2026, 22 jours ouvrés), la retenue s'arrête au salaire.
+            lignes_composants_brut.append(
+                {
+                    "libelle": "Retenue absence intégrale du mois limitée au salaire mensuel",
+                    "quantite": None,
+                    "taux": None,
+                    "gain": -complement_absence_pleine,
+                    "perte": None,
+                }
+            )
 
     # Saisie manuelle (monthly_inputs) : HS conjoncturelles déclarées sans badgeage.
     declared_conj = float(contexte.heures_sup_du_mois or 0)
