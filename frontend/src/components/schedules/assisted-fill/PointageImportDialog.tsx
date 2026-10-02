@@ -39,7 +39,7 @@ import {
   AssistedFillReview,
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
-import { aiFillErrorMessage } from './aiFillUtils';
+import { messageDeLErreur } from './aiFillUtils';
 import { usePeriodeVariables } from '@/features/payroll/hooks/usePeriodeVariables';
 import { libellePaieDe, payrollWeekOptions } from './importWeekOptions';
 import {
@@ -512,7 +512,7 @@ export function PointageImportDialog({
       if (abort.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
         return;
       }
-      const message = e instanceof Error ? e.message : aiFillErrorMessage(e);
+      const message = messageDeLErreur(e);
       if (message.includes('annulé')) {
         return;
       }
