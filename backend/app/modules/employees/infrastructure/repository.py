@@ -336,10 +336,21 @@ class EmployeeRepository(IEmployeeRepository):
         company_id: str,
         as_of: date,
     ) -> Optional[Dict[str, Any]]:
-        """Aligne employees.salaire_de_base sur le salaire actif à as_of (timeline)."""
+        """Aligne employees.salaire_de_base sur le salaire actif à as_of (timeline).
+
+        N'écrit que si le montant change : réécrire 2000 en 2000.0 à chaque
+        génération changeait la fiche après la pose de l'empreinte, et le
+        bulletin s'affichait « À recalculer » dès son premier calcul.
+        """
+        emp = self.get_by_id(employee_id, company_id)
+        if emp is None:
+            return None
         new_sb = self.salaire_de_base_a_date(employee_id, company_id, as_of)
         if new_sb is None:
             return None
+        actuel = _valeur_salaire_row(emp)
+        if actuel is not None and new_sb.get("valeur") is not None and float(actuel) == float(new_sb["valeur"]):
+            return emp
         return self.update(employee_id, {"salaire_de_base": new_sb})
 
     def update_salary(
