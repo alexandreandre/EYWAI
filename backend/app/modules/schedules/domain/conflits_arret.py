@@ -393,3 +393,63 @@ __all__ = [
     "message_de_refus",
     "message_heures_ecartees",
 ]
+
+
+# --- Arrêts qui se recouvrent avec une subrogation différente ---
+
+
+def _plages(dates: Sequence[date]) -> list[tuple[date, date]]:
+    plages: list[tuple[date, date]] = []
+    for jour in sorted(dates):
+        if plages and (jour - plages[-1][1]).days == 1:
+            plages[-1] = (plages[-1][0], jour)
+        else:
+            plages.append((jour, jour))
+    return plages
+
+
+def _libelle_plage(debut: date, fin: date) -> str:
+    nom_fin = _MOIS[fin.month - 1]
+    if debut == fin:
+        return f"le {_libelle_jour(debut.day)} {nom_fin}"
+    nom_debut = "" if debut.month == fin.month else f" {_MOIS[debut.month - 1]}"
+    return f"du {_libelle_jour(debut.day)}{nom_debut} au {_libelle_jour(fin.day)} {nom_fin}"
+
+
+def alerte_arrets_contradictoires(
+    absences_validees: Iterable[Mapping[str, Any]] | None, debut: date, fin: date
+) -> dict[str, Any] | None:
+    """Alerte du bulletin quand deux arrêts validés couvrent un même jour de la
+    période, l'un subrogé, l'autre non. La saisie n'est pas bloquée (une
+    prolongation recouvre souvent le dernier jour du premier arrêt) ; le
+    bulletin suit le planning, c'est-à-dire le dernier arrêt validé.
+    """
+    subrogations: dict[date, set[bool]] = {}
+    for absence in absences_validees or []:
+        if not est_un_arret(str(absence.get("type") or "")):
+            continue
+        if str(absence.get("status") or _STATUT_VALIDE) != _STATUT_VALIDE:
+            continue
+        subrogee = bool(absence.get("subrogation_active"))
+        for brut in absence.get("selected_days") or []:
+            try:
+                jour = date.fromisoformat(str(brut)[:10])
+            except ValueError:
+                continue
+            if debut <= jour <= fin:
+                subrogations.setdefault(jour, set()).add(subrogee)
+    jours = sorted(j for j, valeurs in subrogations.items() if len(valeurs) > 1)
+    if not jours:
+        return None
+    quand = _enumerer([_libelle_plage(a, b) for a, b in _plages(jours)])
+    return {
+        "code": "arrets_subrogation_contradictoire",
+        "severity": "warning",
+        "critique": False,
+        "jours": [{"annee": j.year, "mois": j.month, "jour": j.day} for j in jours],
+        "message": (
+            f"Deux arrêts validés se recouvrent {quand}, l'un avec subrogation, l'autre sans. "
+            "Le bulletin suit le planning : vérifiez dans Congés & absences quel arrêt est "
+            "juste et corrigez l'autre."
+        ),
+    }

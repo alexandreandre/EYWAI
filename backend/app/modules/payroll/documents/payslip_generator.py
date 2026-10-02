@@ -25,6 +25,7 @@ from app.modules.payroll.application.heures_sur_arret import (
     alerte_heures_ecartees,
     ecarter_heures_sur_arret,
 )
+from app.modules.schedules.domain.conflits_arret import alerte_arrets_contradictoires
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
     reports_du_mois,
@@ -441,7 +442,7 @@ def _stamp_source_absence_conges(planned_entries: list, employee_id: str) -> lis
     jours_cp = [e for e in planned_entries if e.get("type") == "conges_payes"]
     res = (
         supabase.table("absence_requests")
-        .select("type, selected_days")
+        .select("type, selected_days, subrogation_active")
         .eq("employee_id", employee_id)
         .eq("status", "validated")
         .execute()
@@ -745,6 +746,9 @@ def process_payslip_generation(
             heures_sur_arret.jours,
             min(date(year, month, 1), fenetre_variables.debut),
             max(date(year, month, last_day), fenetre_variables.fin),
+        )
+        alerte_subrogation = alerte_arrets_contradictoires(
+            absences_rows, date(year, month, 1), date(year, month, last_day)
         )
 
         # Option société : les heures se compensent entre semaines sur la
@@ -1307,6 +1311,12 @@ def process_payslip_generation(
             payslip_json_data["alertes_baremes"] = [
                 *(payslip_json_data.get("alertes_baremes") or []),
                 alerte_heures_sur_arret,
+            ]
+        if alerte_subrogation and isinstance(payslip_json_data, dict):
+            payslip_json_data = dict(payslip_json_data)
+            payslip_json_data["alertes_baremes"] = [
+                *(payslip_json_data.get("alertes_baremes") or []),
+                alerte_subrogation,
             ]
 
         from app.modules.payroll.application.empreinte_entrees_service import (
