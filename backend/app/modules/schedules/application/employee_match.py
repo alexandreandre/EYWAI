@@ -1069,6 +1069,11 @@ _CONFIDENCE_RANK = {"high": 3, "medium": 2, "low": 1, "none": 0}
 _STATUS_RANK = {"ok": 3, "warning": 2, "error": 1, "empty": 0}
 
 
+def _porte_des_heures(emp: AiEmployeeProposal) -> bool:
+    """Au moins un jour à plus de 0 h : une semaine vide ou à 0 h n'en porte pas."""
+    return any((d.heures or 0) > 0 for d in emp.days)
+
+
 def deduplicate_employee_matches(
     employees: List[AiEmployeeProposal],
 ) -> List[AiEmployeeProposal]:
@@ -1087,9 +1092,14 @@ def deduplicate_employee_matches(
         if len(indices) < 2:
             continue
 
+        # Une ligne qui porte des heures passe avant une ligne qui n'en porte
+        # aucune, quelle que soit la confiance du rapprochement : une ancienne
+        # fiche badge vide, rapprochée exactement, prenait la salariée à sa
+        # vraie fiche (02/10/2026).
         def _rank(i: int) -> tuple:
             emp = employees[i]
             return (
+                _porte_des_heures(emp),
                 _CONFIDENCE_RANK.get(emp.match_confidence or "none", 0),
                 _STATUS_RANK.get(emp.review_status or "error", 0),
                 len(emp.days),
@@ -1105,6 +1115,13 @@ def deduplicate_employee_matches(
             loser.matched_name = None
             loser.match_confidence = "none"
             loser.match_method = "none"
+            if not _porte_des_heures(loser):
+                loser.review_status = "empty"
+                loser.warnings.append(
+                    f"Ligne sans heure : même salarié que « {winner.raw_name} », "
+                    "qui porte les heures — ignorée."
+                )
+                continue
             loser.review_status = "error"
             loser.warnings.append(
                 f"Même salarié que « {winner.raw_name} » (déjà rapproché à "
