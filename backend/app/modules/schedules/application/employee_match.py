@@ -202,6 +202,77 @@ def _first_name_matches_ocr(
     return True
 
 
+def _family_names(emp: RosterEmployee) -> list[str]:
+    """Nom de famille, puis nom d'usage s'il diffère (une badgeuse porte souvent le
+    nom marital : sans lui, la fiche n'était rapprochée que par le prénom)."""
+    names = [emp.last_name or ""]
+    usage = (emp.usage_name or "").strip()
+    if usage and _compact_name(usage) != _compact_name(emp.last_name):
+        names.append(usage)
+    return [n for n in names if n.strip()]
+
+
+def _label(emp: RosterEmployee) -> str:
+    return f"{emp.first_name} {emp.last_name}"
+
+
+def _resolve_by_name_alone(
+    raw_name: str,
+    matricule: str | None,
+    roster: list[RosterEmployee],
+) -> AiEmployeeProposal | None:
+    """Ligne au nom seul (fiche badge sans prénom) ou au prénom seul.
+
+    Rapproche le salarié quand il est le seul de ce nom — nom de famille ou nom
+    d'usage — ou, pour un mot seul, le seul de ce prénom. Plusieurs candidats :
+    l'ambiguïté est dite et la ligne attend une association manuelle.
+    Aucun candidat : None, la suite du rapprochement décide.
+    """
+    compact_raw = _compact_name(raw_name)
+    if len(compact_raw) < 3 or not roster:
+        return None
+    by_surname = [
+        e
+        for e in roster
+        if any(_compact_name(n) == compact_raw for n in _family_names(e))
+    ]
+    single_word = len(_normalize(raw_name).split()) == 1
+    by_first = _employees_with_first_name(roster, raw_name) if single_word else []
+    candidates = list({e.id: e for e in by_surname + by_first}.values())
+    if not candidates:
+        return None
+
+    proposal = AiEmployeeProposal(raw_name=raw_name or "")
+    proposal.time_tracking_id = matricule
+    proposal.match_method = "name_exact"
+    if len(candidates) > 1:
+        kind = "Nom seul" if by_surname else "Prénom seul"
+        labels = ", ".join(_label(e) for e in candidates[:4])
+        proposal.warnings.append(
+            f"{kind} « {raw_name} » ambigu ({labels}) — associez manuellement."
+        )
+        proposal.review_status = "error"
+        return proposal
+
+    emp = candidates[0]
+    proposal.employee_id = emp.id
+    proposal.matched_name = _label(emp)
+    proposal.match_confidence = "medium"
+    proposal.review_status = "warning"
+    if any(e.id == emp.id for e in by_surname):
+        par_usage = _compact_name(emp.last_name) != compact_raw
+        precision = " (nom d'usage)" if par_usage else ""
+        proposal.warnings.append(
+            f"Nom seul « {raw_name} » rapproché de {proposal.matched_name}"
+            f"{precision} : seul salarié de ce nom."
+        )
+    else:
+        proposal.warnings.append(
+            f"Prénom seul « {raw_name} » rapproché de {proposal.matched_name}."
+        )
+    return proposal
+
+
 def _employees_with_last_name(
     roster: List[RosterEmployee], last: str
 ) -> List[RosterEmployee]:
@@ -227,7 +298,11 @@ def _match_by_cegid_name_order(
     if not ocr_last:
         return None
 
-    by_last = [e for e in roster if _last_name_matches_ocr(ocr_last, e.last_name)]
+    by_last = [
+        e
+        for e in roster
+        if any(_last_name_matches_ocr(ocr_last, n) for n in _family_names(e))
+    ]
     if not by_last:
         return None
 
@@ -373,35 +448,22 @@ def resolve_employee_for_timesheet(
     roster: List[RosterEmployee],
     format_hint: str | None = None,
 ) -> AiEmployeeProposal:
-    single_tokens = _normalize(raw_name).split()
-    if len(single_tokens) == 1 and roster:
-        token = single_tokens[0]
-        by_first = _employees_with_first_name(roster, token)
-        if len(by_first) == 1:
-            emp = by_first[0]
-            proposal = AiEmployeeProposal(raw_name=raw_name or "")
-            proposal.time_tracking_id = matricule
-            proposal.employee_id = emp.id
-            proposal.matched_name = f"{emp.first_name} {emp.last_name}"
-            proposal.match_confidence = "medium"
-            proposal.match_method = "name_exact"
-            proposal.review_status = "warning"
-            proposal.warnings.append(
-                f"Prénom seul « {raw_name} » rapproché de {proposal.matched_name}."
-            )
-            return proposal
-        if len(by_first) > 1:
-            proposal = AiEmployeeProposal(raw_name=raw_name or "")
-            proposal.time_tracking_id = matricule
-            labels = ", ".join(f"{e.first_name} {e.last_name}" for e in by_first[:3])
-            proposal.warnings.append(
-                f"Prénom seul « {raw_name} » ambigu ({labels}) — associez manuellement."
-            )
-            proposal.match_method = "name_exact"
-            proposal.review_status = "error"
-            return proposal
+    # Un matricule connu de la fiche décide seul ; sinon, une ligne au nom seul
+    # (fiche badge sans prénom) ou au prénom seul se rapproche avant le filtre
+    # anti-bruit, qui jetait tout mot isolé.
+    norm_mat_seul = _normalize_matricule(matricule)
+    par_matricule = [
+        e
+        for e in roster
+        if norm_mat_seul and _normalize_matricule(e.time_tracking_id) == norm_mat_seul
+    ]
+    if len(par_matricule) != 1:
+        nom_seul = _resolve_by_name_alone(raw_name, matricule, roster)
+        if nom_seul is not None:
+            return nom_seul
 
-    if is_junk_employee_name(raw_name, format_hint=format_hint):
+    fiche_badge_au_nom_seul = bool(matricule) and is_surname_only_badge_name(raw_name)
+    if is_junk_employee_name(raw_name, format_hint=format_hint) and not fiche_badge_au_nom_seul:
         proposal = AiEmployeeProposal(raw_name=raw_name or "")
         proposal.time_tracking_id = matricule
         proposal.warnings.append(
@@ -446,12 +508,16 @@ def resolve_employee_for_timesheet(
     raw_tokens = _tokens(raw_name)
 
     for emp in roster:
-        full_a = _normalize(f"{emp.first_name} {emp.last_name}")
-        full_b = _normalize(f"{emp.last_name} {emp.first_name}")
-        if norm_raw in (full_a, full_b):
+        noms = _family_names(emp)
+        complets = {
+            _normalize(forme)
+            for nom in noms
+            for forme in (f"{emp.first_name} {nom}", f"{nom} {emp.first_name}")
+        }
+        if norm_raw in complets:
             exact.append(emp)
             continue
-        emp_tokens = _tokens(f"{emp.first_name} {emp.last_name}")
+        emp_tokens = _tokens(" ".join([emp.first_name, *noms]))
         if raw_tokens and raw_tokens.issubset(emp_tokens):
             partial.append(emp)
         elif emp_tokens & raw_tokens:
@@ -498,6 +564,13 @@ def resolve_employee_for_timesheet(
         proposal.match_confidence = "medium"
         proposal.match_method = "name_exact"
         proposal.review_status = "warning"
+        # Seul le prénom est commun : une autre personne du même prénom, ou la
+        # bonne sous un nom que la fiche ignore. On le dit plutôt que le taire.
+        if raw_tokens and not raw_tokens & _tokens(" ".join(_family_names(emp))):
+            proposal.warnings.append(
+                f"« {raw_name} » rapproché de {proposal.matched_name} par le prénom "
+                "seul : le nom ne correspond pas, vérifiez."
+            )
         return proposal
 
     if len(partial) > 1:

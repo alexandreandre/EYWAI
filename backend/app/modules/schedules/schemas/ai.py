@@ -33,6 +33,9 @@ class RosterEmployee(BaseModel):
     first_name: str
     last_name: str
     time_tracking_id: Optional[str] = None
+    # Nom d'usage de la fiche (`employees.nom_usage`), complété côté serveur :
+    # une badgeuse ou un relevé porte souvent le nom marital, pas le nom de famille.
+    usage_name: str | None = None
 
 
 class CurrentProposalDay(BaseModel):
