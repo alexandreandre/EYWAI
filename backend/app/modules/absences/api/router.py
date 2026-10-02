@@ -10,6 +10,7 @@ import io
 import logging
 from typing import List, Literal
 
+from postgrest.exceptions import APIError
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
@@ -395,6 +396,13 @@ def create_absence_request(
         return r
     except HTTPException:
         raise
+    except APIError as e:
+        # Refus d'un déclencheur de la base (check_violation) : sa phrase est
+        # écrite pour l'écran (jour après le dernier jour travaillé).
+        if getattr(e, "code", None) == "23514" and getattr(e, "message", None):
+            raise HTTPException(status_code=400, detail=e.message) from e
+        logger.exception("Échec de create_absence_request")
+        raise HTTPException(status_code=500, detail="La demande d'absence n'a pas été enregistrée.") from e
     except (ValueError, LookupError, RuntimeError) as e:
         _handle_application_errors(e)
     except Exception as e:
