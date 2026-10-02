@@ -1243,6 +1243,19 @@ def process_payslip_generation(
             employee_path / "calendriers" / f"{month:02d}.json",
             (db_data_map.get((year, month)) or {}).get("planned_calendar") or {},
         )
+        # Le planning des deux mois voisins, déjà lu : l'horaire d'un mois
+        # d'entrée ou de sortie se lit parfois chez eux (entrée le 28 : le jeudi
+        # et le vendredi de la semaine sont en octobre ; cf. `heures_prevues`).
+        for voisin in dates_to_process:
+            if (voisin["year"], voisin["month"]) == (year, month):
+                continue
+            write_temp_json(
+                employee_path / "calendriers" / f"{voisin['month']:02d}.json",
+                (db_data_map.get((voisin["year"], voisin["month"])) or {}).get(
+                    "planned_calendar"
+                )
+                or {},
+            )
         # Réel BRUT, sans le filet des heures sur arrêt. `payslip_run_heures`
         # ne le relit que sous la clé `calendrier`, qu'aucune ligne n'a en base
         # (toutes ont `calendrier_reel`) : chemin mort aujourd'hui. S'il revivait,

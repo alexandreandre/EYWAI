@@ -267,6 +267,37 @@ def jour_du_calendrier_final(
     return jour_final
 
 
+def jours_prevus_autour_du_mois(
+    chemin_employe: Path, annee: int, mois: int
+) -> List[Dict[str, Any]]:
+    """Planning du mois et de ses deux voisins, chaque jour daté (`annee`, `mois`).
+
+    Sert au mois d'entrée ou de sortie : l'horaire d'une entrée le 28 se lit
+    sur le mois suivant (cf. `engine.heures_prevues`). Un mois absent ou
+    illisible est simplement sauté.
+    """
+    jours: List[Dict[str, Any]] = []
+    for decalage in (-1, 0, 1):
+        m, a = mois + decalage, annee
+        if m == 0:
+            m, a = 12, annee - 1
+        elif m == 13:
+            m, a = 1, annee + 1
+        chemin = chemin_employe / "calendriers" / f"{m:02d}.json"
+        if not chemin.exists():
+            continue
+        try:
+            prevu = json.loads(chemin.read_text(encoding="utf-8")).get(
+                "calendrier_prevu", []
+            )
+        except (json.JSONDecodeError, OSError, AttributeError):
+            continue
+        for jour in prevu or []:
+            if isinstance(jour, dict) and jour.get("jour") is not None:
+                jours.append({**jour, "annee": a, "mois": m})
+    return jours
+
+
 def _preparer_calendrier_enrichi(
     chemin_employe: Path, annee: int, mois: int
 ) -> List[Dict[str, Any]]:
@@ -854,6 +885,9 @@ def run_payslip_generation_heures(
         nb_jours_travail_planifies=nb_jours_travail_planifies,
         date_debut_variables=date_debut_variables,
         date_fin_variables=date_fin_variables,
+        # Mois d'entrée ou de sortie : les heures de l'horaire du salarié sur
+        # les jours sous contrat (cf. `engine.heures_prevues`).
+        jours_prevus=jours_prevus_autour_du_mois(employee_path, year, month),
     )
     salaire_brut_calcule = resultat_brut["salaire_brut_total"]
     details_brut = resultat_brut["lignes_composants_brut"]
