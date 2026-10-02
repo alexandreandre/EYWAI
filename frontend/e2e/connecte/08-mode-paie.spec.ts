@@ -261,11 +261,18 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     const dossier = page.getByRole('dialog');
     await expect(dossier).toBeVisible({ timeout: 30_000 });
     await dossier.getByRole('tab', { name: /documents/i }).click();
-    await dossier.getByRole('button', { name: /générer un document/i }).click();
-    for (const document of [/certificat de travail/i, /attestation employeur/i, /solde de tout compte/i]) {
-      await expect(page.getByRole('menuitem', { name: document })).toBeVisible();
+    const generer = dossier.getByRole('button', { name: /générer un document/i });
+    await expect(generer).toBeVisible();
+    // Sans bulletin de sortie, les documents sont grisés et l'écran dit pourquoi.
+    if (await generer.isDisabled()) {
+      await expect(dossier.getByTestId('documents-sortie-grises')).toHaveText(/bulletin de sortie/i);
+    } else {
+      await generer.click();
+      for (const document of [/certificat de travail/i, /attestation employeur/i, /solde de tout compte/i]) {
+        await expect(page.getByRole('menuitem', { name: document })).toBeVisible();
+      }
+      await page.keyboard.press('Escape');
     }
-    await page.keyboard.press('Escape');
   });
 
   // Seules écritures du parcours, interceptées : la création et la fiche complétée.

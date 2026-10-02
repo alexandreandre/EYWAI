@@ -1066,7 +1066,9 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
                 {documents.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation employeur, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.
+                    {documentsGrises
+                      ? 'Aucun document pour le moment. Les pièces officielles (certificat de travail, attestation employeur, solde de tout compte) se génèrent une fois le bulletin de sortie fait ; « Téléverser » reste possible pour vos propres fichiers.'
+                      : 'Aucun document pour le moment. Utilisez « Générer un document » pour produire les pièces officielles (certificat de travail, attestation employeur, solde de tout compte), ou « Téléverser » pour ajouter vos propres fichiers.'}
                   </p>
                 ) : (
                   <div className="space-y-2">
