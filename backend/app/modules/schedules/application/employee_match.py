@@ -1071,8 +1071,9 @@ _STATUS_RANK = {"ok": 3, "warning": 2, "error": 1, "empty": 0}
 
 
 def _porte_des_heures(emp: AiEmployeeProposal) -> bool:
-    """Au moins un jour à plus de 0 h : une semaine vide ou à 0 h n'en porte pas."""
-    return any((d.heures or 0) > 0 for d in emp.days)
+    """Au moins un jour à plus de 0 h, ou un jour d'absence (congé, maladie…) :
+    une semaine vide, ou de jours travaillés à 0 h, ne porte rien."""
+    return any((d.heures or 0) > 0 or d.type != "travail" for d in emp.days)
 
 
 def deduplicate_employee_matches(

@@ -51,6 +51,20 @@ class TestDedoublonnage:
         assert a_zero.employee_id is None
         assert a_zero.review_status == "empty"
 
+    def test_une_ligne_d_absences_passe_avant_une_ligne_vide(self):
+        vide = _ligne("DUPRAT Claire", heures=[], confiance="high", statut="empty")
+        absences = AiEmployeeProposal(
+            raw_name="DUPRAT",
+            employee_id="m1",
+            match_confidence="medium",
+            review_status="warning",
+            days=[AiDayEntry(jour=14, heures=0.0, type="conge")],
+        )
+        vide, absences = deduplicate_employee_matches([vide, absences])
+        assert absences.employee_id == "m1"
+        assert vide.employee_id is None
+        assert vide.review_status == "empty"
+
     def test_deux_lignes_avec_heures_restent_en_association_manuelle(self):
         sure = _ligne("MOREL Claire", heures=[8.0], confiance="high")
         douteuse = _ligne("MOREL C", heures=[7.0], confiance="medium", statut="warning")
