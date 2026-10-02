@@ -2,7 +2,7 @@
 
 Document pour Alexandre, à coller tel quel à Claude dans Chrome **après** le déploiement de la branche `fix/payslip-edit-state` sur le site de test.
 
-Rédigé le 1er octobre 2026. **Cette interface n’est pas encore en ligne** au moment où ce texte est écrit. Ne lancez la recette que lorsque le site de test a reçu ce déploiement. Si la page Paie n’affiche pas le bloc « Liste de contrôle » ni le lien « Manuel de la paie », arrêtez-vous : le déploiement n’est pas fait.
+Rédigé le 1er octobre 2026. L’interface est en ligne sur le site de test depuis le 1er octobre au soir (commit `aabc109e`, déploiement GitHub Actions 36957527656). Les parcours 9.1 à 9.4 couvrent les demandes de Gaëlle livrées dans ce même déploiement ; le texte attendu au 9.3 suppose le correctif de l’indication du brut, déployé après. Si la page Paie n’affiche pas le bloc « Liste de contrôle » ni le lien « Manuel de la paie », arrêtez-vous : le déploiement n’est pas celui-ci.
 
 ## Pré-requis
 
@@ -499,6 +499,70 @@ Après les parcours 2 et 3, sur Octavie uniquement.
 
 ---
 
+## 9. Demandes de Gaëlle (1er octobre)
+
+À jouer en dernier : ces parcours modifient le bulletin d’Octavie. Un jour ouvré « J » désigne un jour ouvré du 1er au 15 du mois M qui n’a servi à aucun parcours précédent (ni 7, ni 8).
+
+### 9.1 Congé sans solde saisi par la RH
+
+1. Menu **Congés & Absences** → **Nouveau congé**, salarié Octavie.
+2. Type : **Congé sans solde**. Jour : J. Enregistrer, puis valider la demande si elle n’est pas validée d’office.
+3. Fiche d’Octavie → **Calendrier** → mois M.
+4. **Bulletins de paie** → mois M → **Recalculer**.
+
+**Résultat attendu**
+
+- Le choix « Congé sans solde » existe dans la liste du **Nouveau congé** RH.
+- Au calendrier, le jour J devient **Absence non rémunérée** (orange).
+- Le bulletin recalculé retient une journée d’absence non rémunérée ; le brut baisse d’une journée.
+
+**Capture** : liste des types ; calendrier avec le jour J orange ; ligne de retenue du bulletin.
+
+### 9.2 Jour École
+
+1. Fiche d’Octavie → **Calendrier** → mois M. Choisir un autre jour ouvré J2 (pas J).
+2. Type prévu : **École**. Enregistrer.
+3. **Bulletins de paie** → mois M → **Recalculer**.
+
+**Résultat attendu**
+
+- « École » apparaît dans le sélecteur de type et dans la légende, en indigo.
+- Le bulletin ne retient rien pour J2 : le brut ne baisse pas à cause de ce jour, et aucune heure sup n’en naît.
+
+**Capture** : calendrier avec J2 en indigo et la légende ; toast « ce qui a changé » s’il s’affiche.
+
+### 9.3 Brut pour la durée du contrat
+
+1. Fiche d’Octavie → **Modifier** → section rémunération.
+2. Durée hebdomadaire : `39`. Ne pas enregistrer.
+3. Lire la ligne sous « Salaire de base mensuel ». Puis **Annuler**.
+4. **Nouveau Collaborateur** → onglet **Rémunération** : durée `39`, salaire `2000`. Lire la même ligne. Fermer sans enregistrer (confirmer la fermeture).
+
+**Résultat attendu**
+
+- À 35 h, aucune ligne ne s’affiche.
+- À 39 h : « Brut pour 169 h : … € » suivi de « Le montant saisi est le brut pour 169 h : les heures au-delà de 35 h y sont déjà comprises. » Le montant affiché est le montant saisi (1 990,00 € pour Octavie, 2 000,00 € à la création).
+- KO si l’écran annonce un brut plus élevé que le montant saisi (par exemple 2 285,65 € pour 2 000 €) : c’est l’ancienne version de l’indication.
+
+**Capture** : la ligne sous le salaire, dans les deux fenêtres.
+
+### 9.4 Contrats passés
+
+1. Fiche d’Octavie → carte **Contrats**.
+2. Type `CDD`, Début = 1er février de l’année en cours, Fin = 28 février. **Ajouter**.
+3. Relire la carte, puis **Retirer** la ligne ajoutée.
+
+**Résultat attendu**
+
+- En tête, le contrat en cours vient de la fiche (date d’entrée, fin au 15 du mois M), marqué « fiche ».
+- La ligne CDD de février s’ajoute sous le contrat en cours.
+- « Date d’ancienneté sur la fiche » ne change pas après l’ajout.
+- **Retirer** fait disparaître la ligne.
+
+**Capture** : carte après l’ajout ; carte après le retrait.
+
+---
+
 ## Prompt à coller dans Claude dans Chrome
 
 Coller **tout ce fichier**, puis le bloc ci-dessous.
@@ -513,7 +577,7 @@ Société : MAJI seulement. N’ouvre jamais Colorplast ni Comitech.
 Si le bandeau orange du site de test est absent : arrête-toi, c’est la production.
 Si la page /payroll n’a ni « Liste de contrôle » ni le lien « Manuel de la paie » : arrête-toi, le déploiement n’est pas fait. Dis-le clairement.
 
-Suis chaque parcours numéroté de ce document, dans l’ordre (y compris le 2.6, qui rétablit des jours travaillés avant le lot 3). Saisis uniquement le salarié inventé « Octavie Recette » (et « Nestor Recette » seulement pour le parcours 1.4). Ne recopie aucun nom réel, NIR, RIB ou montant d’un autre salarié.
+Suis chaque parcours numéroté de ce document, dans l’ordre (y compris le 2.6, qui rétablit des jours travaillés avant le lot 3, et le lot 9 en dernier). Saisis uniquement le salarié inventé « Octavie Recette » (et « Nestor Recette » seulement pour le parcours 1.4). Ne recopie aucun nom réel, NIR, RIB ou montant d’un autre salarié.
 
 Si le bulletin déjà généré n’a ni mutuelle ni forfait santé : 2.5 = non joué, n’écrase pas le calendrier. Si tu as quand même mis tous les jours en arrêt, fais le 2.6 avant 3.1, 3.3 et 3.6 : sans jour travaillé à 7 h, Recalculer relance le refus d’heures sur arrêt au lieu du toast « Bulletin recalculé ».
 
@@ -558,3 +622,7 @@ Si un parcours échoue : KO, capture, passe au suivant quand il est indépendant
 | 6.2 | Lien « Par mois » ouvre l’onglet Par mois |  |  |  |  |
 | 7 | Manuel `/payroll/manuel` |  |  |  |  |
 | 8 | Heures sup du bulletin = jours travaillés du calendrier |  |  |  |  |
+| 9.1 | Congé sans solde RH : jour orange, une journée retenue |  |  |  |  |
+| 9.2 | Jour École : indigo, aucune retenue, aucune heure sup |  |  |  |  |
+| 9.3 | Brut 169 h : montant saisi, heures au-delà de 35 h comprises |  |  |  |  |
+| 9.4 | Contrats passés : ajout, ancienneté inchangée, retrait |  |  |  |  |
