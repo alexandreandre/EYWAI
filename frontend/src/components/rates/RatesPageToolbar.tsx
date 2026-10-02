@@ -18,6 +18,8 @@ type RatesPageToolbarProps = {
   onRestartMonthly: () => void;
   /** Verrouille tout ce qui déclenche un scraping (le rafraîchissement d'affichage reste actif). */
   updatesLocked?: boolean;
+  /** Admin plateforme : commandes du lot mensuel. */
+  canManageMonthly?: boolean;
   className?: string;
 };
 
@@ -32,6 +34,7 @@ export function RatesPageToolbar({
   onRunMonthly,
   onRestartMonthly,
   updatesLocked = false,
+  canManageMonthly = false,
   className,
 }: RatesPageToolbarProps) {
   return (
@@ -89,6 +92,7 @@ export function RatesPageToolbar({
             onToggleEnabled={onMonthlyToggle}
             onRunMonthly={onRunMonthly}
             onRestartMonthly={onRestartMonthly}
+            canManage={canManageMonthly}
           />
         </div>
       </div>

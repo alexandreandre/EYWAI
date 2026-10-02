@@ -271,6 +271,7 @@ export default function Rates({ admin = false }: { admin?: boolean } = {}) {
     onRunMonthly: handleMonthlySync,
     onRestartMonthly: handleRestartMonthly,
     updatesLocked: RATES_UPDATES_LOCKED,
+    canManageMonthly: admin,
   };
 
   const header = (

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import type { MonthlyAutoSyncState } from '@/hooks/useRatesMonthlyAuto';
+import { commandesDuMois } from '@/lib/ratesMonthlyControls';
 import { cn } from '@/lib/utils';
 
 type RatesMonthlyAutoPanelProps = {
@@ -15,6 +16,8 @@ type RatesMonthlyAutoPanelProps = {
   onRestartMonthly: () => void;
   /** Intégré dans la barre de commandes unifiée (sans bordure propre). */
   embedded?: boolean;
+  /** Admin plateforme : lance, recommence et coupe le lot. Un RH lit l'état. */
+  canManage?: boolean;
 };
 
 export function RatesMonthlyAutoPanel({
@@ -25,9 +28,15 @@ export function RatesMonthlyAutoPanel({
   onRunMonthly,
   onRestartMonthly,
   embedded = false,
+  canManage = false,
 }: RatesMonthlyAutoPanelProps) {
-  const showRunMonthly = state.showRun && !isSyncing;
-  const showRestart = state.showRestart && !isSyncing;
+  const commandes = commandesDuMois(state, {
+    isSyncing,
+    isMonthlySyncRunning,
+    peutGerer: canManage,
+  });
+  const showRunMonthly = commandes.lancer;
+  const showRestart = commandes.recommencer;
 
   return (
     <div
@@ -55,7 +64,7 @@ export function RatesMonthlyAutoPanel({
             id="rates-monthly-auto"
             checked={state.enabled}
             onCheckedChange={onToggleEnabled}
-            disabled={isMonthlySyncRunning}
+            disabled={!commandes.interrupteurActif}
             className="shrink-0"
           />
         </div>

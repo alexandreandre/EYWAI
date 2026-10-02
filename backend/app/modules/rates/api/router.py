@@ -45,6 +45,9 @@ router = APIRouter(tags=["Rates"])
 
 _ERR_RH_REQUIRED = "Accès réservé aux RH et administrateurs."
 _ERR_ADMIN_REQUIRED = "Saisie manuelle réservée aux administrateurs plateforme."
+# Le référentiel est commun à toutes les sociétés : un RH ne lance ni ne coupe
+# sa mise à jour (scraping global, crédits OpenRouter, écriture des taux).
+_ERR_SYNC_ADMIN_REQUIRED = "Mise à jour des taux réservée aux administrateurs plateforme."
 
 
 def _require_rh_or_admin(current_user: User) -> None:
@@ -55,9 +58,9 @@ def _require_rh_or_admin(current_user: User) -> None:
         raise HTTPException(status_code=403, detail=_ERR_RH_REQUIRED)
 
 
-def _require_platform_admin(current_user: User) -> None:
+def _require_platform_admin(current_user: User, detail: str = _ERR_ADMIN_REQUIRED) -> None:
     if not current_user.is_platform_admin:
-        raise HTTPException(status_code=403, detail=_ERR_ADMIN_REQUIRED)
+        raise HTTPException(status_code=403, detail=detail)
 
 
 @router.get("/all")
@@ -182,7 +185,7 @@ def patch_monthly_rates_endpoint(
 ) -> dict:
     """Active ou coupe la mise à jour automatique du début de mois."""
     try:
-        _require_rh_or_admin(current_user)
+        _require_platform_admin(current_user, _ERR_SYNC_ADMIN_REQUIRED)
         return set_monthly_auto_enabled(body.enabled)
     except HTTPException:
         raise
@@ -199,7 +202,7 @@ def run_monthly_rates_endpoint(
 ) -> dict:
     """Lance le lot du mois, ou se rattache au run déjà en cours."""
     try:
-        _require_rh_or_admin(current_user)
+        _require_platform_admin(current_user, _ERR_SYNC_ADMIN_REQUIRED)
         payload = body or MonthlyRatesRunRequest()
         return launch_monthly_sync(
             triggered_by=str(current_user.id),
@@ -247,7 +250,7 @@ def start_rates_sync_endpoint(
     Réservé aux RH / administrateurs.
     """
     try:
-        _require_rh_or_admin(current_user)
+        _require_platform_admin(current_user, _ERR_SYNC_ADMIN_REQUIRED)
         payload = body or RatesSyncRequest()
         return start_rates_sync(
             triggered_by=current_user.id,
@@ -277,7 +280,7 @@ def cancel_rates_sync_endpoint(
 ) -> dict:
     """Annule une synchronisation en cours (jobs scraping + verrous sources)."""
     try:
-        _require_rh_or_admin(current_user)
+        _require_platform_admin(current_user, _ERR_SYNC_ADMIN_REQUIRED)
         return cancel_rates_sync(sync_id)
     except HTTPException:
         raise
