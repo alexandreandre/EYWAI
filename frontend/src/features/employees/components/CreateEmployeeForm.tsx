@@ -225,6 +225,13 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
       },
     },
   });
+  // Lus pendant le rendu, sinon react-hook-form ne les tient pas à jour (son
+  // formState ne suit que ce qu'un rendu a lu) : fermer avec une saisie en cours
+  // partait sans confirmation, et les valeurs de la société arrivées après la
+  // première frappe écrasaient la saisie (form.reset sur un isDirty resté faux).
+  const { isDirty: _saisieModifiee, dirtyFields: _champsModifies } = form.formState;
+  void _saisieModifiee;
+  void _champsModifies;
 
   // Les valeurs de la société (durée, convention, classification, mutuelle,
   // prévoyance, titres-restaurant) remplacent les valeurs génériques, une fois

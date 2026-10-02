@@ -68,7 +68,7 @@ test.describe('Création d’un salarié depuis la paie', () => {
 
     await fenetre.getByLabel(/^prénom/i).fill('Jeanne');
     await fenetre.getByLabel(/^nom/i).fill('Essai');
-    await fenetre.getByRole('button', { name: /enregistrer le collaborateur/i }).click();
+    await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
 
     // Date d'entrée et poste manquent : on est conduit à l'onglet Contrat.
     await expect(fenetre.getByText("Date d'entrée : Date d'entrée requise.")).toBeVisible();
@@ -78,12 +78,12 @@ test.describe('Création d’un salarié depuis la paie', () => {
 
     await fenetre.getByLabel(/date d'entrée/i).fill('2026-09-14');
     await fenetre.getByLabel(/intitulé du poste/i).fill('Préparatrice QA');
-    await fenetre.getByRole('button', { name: /enregistrer le collaborateur/i }).click();
+    await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
 
     // Reste le salaire : onglet Rémunération.
     await expect(fenetre.getByRole('tab', { name: 'Rémunération' })).toHaveAttribute('aria-selected', 'true');
     await fenetre.getByLabel(/salaire de base mensuel/i).fill('1990');
-    await fenetre.getByRole('button', { name: /enregistrer le collaborateur/i }).click();
+    await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
 
     const recap = page.getByTestId('recap-nouveau-salarie');
     await expect(recap.getByText('Fiche créée : Jeanne Essai')).toBeVisible();
@@ -159,7 +159,7 @@ test.describe('Création d’un salarié depuis la paie', () => {
     await fenetre.getByRole('tab', { name: 'Rémunération' }).click();
     await expect(fenetre.getByRole('combobox').filter({ hasText: 'Groupe C - Classe 710 - Coeff. 710' })).toBeVisible();
     await fenetre.getByLabel(/salaire de base mensuel/i).fill('3200');
-    await fenetre.getByRole('button', { name: /enregistrer le collaborateur/i }).click();
+    await fenetre.getByRole('button', { name: /enregistrer le salarié|informations? à compléter/i }).click();
 
     await expect(page.getByTestId('recap-nouveau-salarie')).toBeVisible();
     expect(envois[0]).toMatchObject({
