@@ -65,6 +65,8 @@ _VALID_TYPES = {
     "ferie",
     "arret_maladie",
     "absence",
+    # Journée d'école de l'alternant : payée, ni travail ni absence.
+    "ecole",
 }
 
 _VALID_NATURES = {"prevu", "reel"}
@@ -137,8 +139,10 @@ def _build_system_prompt(
         "de paie mensuel français.\n"
         f"Période : {month}/{year}. {_month_calendar_anchor(year, month)}\n\n"
         "Champs par jour : jour (1-" + str(num_days) + "), heures (nombre ou null), "
-        "type (travail|conge|ferie|arret_maladie|absence|weekend), "
+        "type (travail|conge|ferie|arret_maladie|absence|weekend|ecole), "
         "nature (prevu|reel).\n"
+        "- Jour d'école, de cours ou de formation d'un alternant → type ecole, "
+        "heures null.\n"
         "- prevu = heures planifiées ; reel = heures faites / pointage.\n"
         f"- Par défaut nature='{default_nature}' si non précisé.\n"
         "- Même date peut avoir prevu et reel si la consigne le distingue.\n"

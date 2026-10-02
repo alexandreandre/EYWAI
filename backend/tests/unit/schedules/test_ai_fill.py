@@ -90,6 +90,20 @@ class TestCoerceDays:
         )
         assert days[0].type == "travail"
 
+    def test_jour_ecole_preserve(self):
+        """« Semaine d'école » dictée à l'IA : un type inconnu devenait « travail »
+        en silence ; l'école est un type du calendrier (journée payée)."""
+        days = ai_fill._coerce_days(
+            [{"jour": 7, "heures": None, "type": "ecole", "nature": "prevu"}],
+            num_days=30,
+            default_nature="prevu",
+        )
+        assert days[0].type == "ecole"
+
+    def test_la_consigne_propose_le_type_ecole(self):
+        prompt = ai_fill._build_system_prompt(2026, 9, "prevu")
+        assert "ecole" in prompt
+
     def test_known_absence_type_preserved(self):
         days = ai_fill._coerce_days(
             [{"jour": 3, "heures": 0, "type": "conge", "nature": "reel"}],

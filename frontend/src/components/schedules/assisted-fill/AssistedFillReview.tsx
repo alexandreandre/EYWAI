@@ -62,6 +62,7 @@ const DAY_TYPES: { value: string; label: string }[] = [
   { value: 'arret_maladie', label: 'Arrêt maladie' },
   { value: 'absence', label: 'Absence' },
   { value: 'weekend', label: 'Week-end' },
+  { value: 'ecole', label: 'École' },
 ];
 
 const DAY_TYPE_LABELS: Record<string, string> = {
