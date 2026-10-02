@@ -106,6 +106,9 @@ class TestGenerationBulletinPerimetre:
                         "download_url": None,
                         "payslip_id": "bull-1",
                         "warnings": [],
+                        "salaire_brut": 0,
+                        "net_a_payer": 0,
+                        "heures_sup": 0,
                     },
                 )()
                 reponse = TestClient(app).post(
