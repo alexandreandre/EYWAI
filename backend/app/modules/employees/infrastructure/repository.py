@@ -197,8 +197,10 @@ class EmployeeRepository(IEmployeeRepository):
             # invisible sur juin et juillet — retour Gaëlle 12/09). La couche
             # application ne garde que ceux dont la sortie est datée, et
             # l'écran filtre ensuite mois par mois.
+            # `en_sortie` : départ créé, bulletin de sortie encore à faire (il
+            # disparaissait de la page Paie juste après « Créer le départ »).
             statuts_paie = (
-                "actif", "active", "en_onboarding", "parti", "sorti", "inactif",
+                "actif", "active", "en_onboarding", "en_sortie", "parti", "sorti", "inactif",
             )
             active_rows = [
                 r
@@ -213,7 +215,7 @@ class EmployeeRepository(IEmployeeRepository):
                 # mois se décide à l'écran, à partir de sa date de sortie.
                 item["payroll_eligible"] = (
                     is_profile_complete(row)
-                    if statut in ("parti", "sorti", "inactif")
+                    if statut in ("en_sortie", "parti", "sorti", "inactif")
                     else is_payroll_eligible(row)
                 )
                 enriched.append(item)

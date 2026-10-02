@@ -68,3 +68,28 @@ def test_payroll_summary_returns_active_with_eligibility_flags(mock_supabase):
     assert by_id["e2"]["missing_payroll_fields"]
     assert by_id["e3"]["employment_status"] == "parti"
     assert by_id["e3"]["payroll_eligible"] is True
+
+
+@patch("app.modules.employees.infrastructure.repository.supabase")
+def test_un_salarie_en_sortie_reste_dans_la_liste_paie(mock_supabase):
+    """« Créer le départ » le passe en_sortie : il doit rester sur la page Paie,
+    où l'attend « Générer le bulletin de sortie » (02/10/2026 : il disparaissait
+    des deux onglets, bulletin de sortie introuvable)."""
+    en_sortie = {
+        "id": "e4",
+        "first_name": "Octavie",
+        "last_name": "Recette",
+        "employment_status": "en_sortie",
+        **_complete_payroll_fields(),
+    }
+    table = MagicMock()
+    mock_supabase.table.return_value = table
+    table.select.return_value = table
+    table.eq.return_value = table
+    table.order.return_value = table
+    table.execute.return_value = MagicMock(data=[en_sortie])
+
+    rows = EmployeeRepository().get_summary_by_company("company-1", payroll_ready_only=True)
+
+    assert [r["id"] for r in rows] == ["e4"]
+    assert rows[0]["payroll_eligible"] is True

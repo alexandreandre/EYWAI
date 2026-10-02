@@ -104,7 +104,7 @@ def _configure_supabase(mock_supabase, *, schedules=None, resolutions=None):
     resolutions_execute = MagicMock(data=resolutions or [])
 
     employees_chain = MagicMock()
-    employees_chain.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
+    employees_chain.select.return_value.eq.return_value.in_.return_value.execute.return_value = (
         employees_execute
     )
 
@@ -128,6 +128,7 @@ def _configure_supabase(mock_supabase, *, schedules=None, resolutions=None):
         raise AssertionError(f"unexpected table {name}")
 
     mock_supabase.table.side_effect = table
+    return employees_chain
 
 
 def _default_mod_settings(**overrides) -> ModulationSettings:
@@ -171,6 +172,35 @@ class TestBuildPreflightAnomalies:
             result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
 
         assert "ecart_heures" in [a.type for a in result.anomalies]
+
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_un_salarie_en_sortie_est_controle(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch_reviews
+    ):
+        """Départ créé, bulletin de sortie à faire : ses heures et ses conflits
+        se contrôlent comme ceux d'un actif (02/10/2026 : « Aucun conflit » vert
+        alors que la salariée en sortie n'était plus regardée)."""
+        mock_mod_settings.return_value = _default_mod_settings()
+        employees_chain = _configure_supabase(mock_supabase)
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        employees_chain.select.return_value.eq.return_value.in_.assert_called_once_with(
+            "employment_status", ["actif", "en_sortie"]
+        )
 
     @patch(
         "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",

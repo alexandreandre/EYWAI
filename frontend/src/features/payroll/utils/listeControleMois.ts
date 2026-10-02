@@ -29,7 +29,7 @@ export const MESSAGE_ABSENCES_A_CONFIRMER =
   'Le logiciel ne peut pas vérifier que toutes les absences du mois sont saisies. Confirmez-le vous-même dans Congés & absences.';
 
 export const MESSAGE_REVUE_ACTIFS_SEULEMENT =
-  'Le contrôle automatique ne porte que les salariés actifs. Vérifiez aussi les sorties et les embauches en cours.';
+  'Le contrôle automatique ne porte que les salariés actifs et en sortie. Vérifiez aussi les embauches en cours.';
 
 export type EtatEtape = 'fait' | 'a_faire' | 'a_confirmer' | 'inconnu';
 
@@ -92,9 +92,11 @@ function idsDuMois(ids: readonly string[], salaries: readonly SalariePourListeCo
   return ids.filter((id) => connus.has(id));
 }
 
-/** La revue pré-paie ne lit que `employment_status = actif`. */
+/** La revue pré-paie lit les salariés actifs et en sortie (départ créé, dernier bulletin à faire). */
+const STATUTS_DE_LA_REVUE = new Set(['actif', 'en_sortie']);
+
 function aDesSalariesHorsRevue(salaries: readonly SalariePourListeControle[]): boolean {
-  return salaries.some((s) => (s.employment_status || 'actif').trim().toLowerCase() !== 'actif');
+  return salaries.some((s) => !STATUTS_DE_LA_REVUE.has((s.employment_status || 'actif').trim().toLowerCase()));
 }
 
 function etatDepuisLecture<T>(

@@ -230,7 +230,7 @@ def get_employees_summary(
 
 
 def _est_parti(employment_status: Any) -> bool:
-    return str(employment_status or "actif").lower() in ("parti", "sorti", "inactif")
+    return str(employment_status or "actif").lower() in ("en_sortie", "parti", "sorti", "inactif")
 
 
 def get_employee_by_id(employee_id: str, company_id: str) -> Optional[Dict[str, Any]]:

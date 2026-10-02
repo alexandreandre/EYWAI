@@ -224,7 +224,19 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
     expect(etape(autreChamp, ETAPE_RIB).etat).toBe('fait');
   });
 
-  it('un salarié hors actifs n’est pas dans la revue pré-paie : calendriers et conflits à confirmer', () => {
+  it('un salarié hors revue pré-paie (embauche en cours) : calendriers et conflits à confirmer', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        salaries: [{ ...JEANNE, employment_status: 'en_onboarding' }, PAUL],
+        calendriersASaisir: OK([]),
+        conflitsArret: OK([]),
+      })
+    );
+    expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('a_confirmer');
+    expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('a_confirmer');
+  });
+
+  it('un salarié en sortie est dans la revue pré-paie : ses calendriers et conflits comptent', () => {
     const resultat = listeControleDuMois(
       entree({
         salaries: [{ ...JEANNE, employment_status: 'en_sortie' }, PAUL],
@@ -232,8 +244,8 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
         conflitsArret: OK([]),
       })
     );
-    expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('a_confirmer');
-    expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('a_confirmer');
+    expect(etape(resultat, ETAPE_CALENDRIERS).etat).toBe('fait');
+    expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('fait');
   });
 
   it('liste des salariés illisible : calendriers, conflits, bulletins, sorties et RIB à confirmer', () => {

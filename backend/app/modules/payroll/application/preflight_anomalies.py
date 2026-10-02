@@ -110,7 +110,9 @@ def build_preflight_anomalies(
             "hire_date, contract_end_date"
         )
         .eq("company_id", company_id)
-        .eq("employment_status", "actif")
+        # En sortie : départ créé, dernier bulletin encore à faire ; ses heures
+        # et ses conflits se contrôlent comme ceux d'un actif.
+        .in_("employment_status", ["actif", "en_sortie"])
         .execute()
     )
     employees = emp_res.data or []
