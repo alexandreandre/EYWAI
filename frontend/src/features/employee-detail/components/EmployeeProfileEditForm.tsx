@@ -359,7 +359,7 @@ export function EmployeeProfileEditForm({
                     {...field}
                     type="number"
                     min={0}
-                    step="0.01"
+                    step="any"
                     onChange={(e) => field.onChange(e.target.valueAsNumber || '')}
                   />
                 </FormControl>
