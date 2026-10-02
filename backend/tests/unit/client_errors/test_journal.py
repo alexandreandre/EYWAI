@@ -35,6 +35,25 @@ def test_assainir_retire_nom_rib_et_pdf_et_tronque_la_pile():
     assert "last_name" not in propre
 
 
+def test_assainir_retire_un_nom_en_majuscules_et_les_montants():
+    propre = assainir_journal(
+        {
+            "ecran": "bulletin Jeanne ESSAI",
+            "action": "ouvrir ESSAI Jeanne",
+            "message": "Salarié Jeanne ESSAI : net 1 842,15 € au lieu de 2010.40",
+            "pile": "TypeError: Cannot read properties of undefined (reading 'x')\n at f (app.js:12:345)",
+        }
+    )
+    tout = " ".join(propre.values())
+    assert "ESSAI" not in tout
+    assert "Jeanne" not in tout
+    assert "842" not in tout
+    assert "2010.40" not in tout
+    # Une pile technique reste lisible.
+    assert "TypeError: Cannot read properties of undefined" in propre["pile"]
+    assert "app.js:12:345" in propre["pile"]
+
+
 def _utilisateur():
     return User(
         id="33333333-3333-3333-3333-333333333333",
