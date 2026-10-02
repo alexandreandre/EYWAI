@@ -117,6 +117,11 @@ export function ChoixHeuresSurArret({
           {textes.modifier}
         </Button>
       </div>
+      {textes.aide && (
+        <p className="text-sm text-muted-foreground" data-testid="aide-arret-en-cours-de-journee">
+          {textes.aide}
+        </p>
+      )}
       {echec && (
         <p role="alert" className="text-destructive" data-testid="echec-effacement">
           {echec}

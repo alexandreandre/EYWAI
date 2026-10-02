@@ -131,21 +131,28 @@ export function prenomDuBulletin(payslipData: unknown): string | null {
   return typeof nom_complet === 'string' ? prenomDe(nom_complet) : null;
 }
 
-/** Textes des deux boutons, sans genrer : le prénom, sinon « Le salarié ». */
+/**
+ * Textes des deux boutons, sans genrer : le prénom, sinon « Le salarié ».
+ * `aide` : un arrêt pris en cours de journée commence le lendemain, le jour
+ * entamé se paie comme travaillé ; c'est le cas courant d'heures sur un arrêt.
+ */
 export function textesDuChoix(
   nature: NatureConflit,
   prenom: string | null
-): { effacer: string; modifier: string } {
+): { effacer: string; modifier: string; aide: string | null } {
   const sujet = prenom ?? 'Le salarié';
   if (nature === 'arret') {
     return {
       effacer: `${sujet} était en arrêt : effacer ces heures`,
       modifier: `${sujet} a travaillé : modifier l’arrêt`,
+      aide:
+        'Travaillé le matin, arrêté l’après-midi ? Ce jour se paie comme travaillé : faites commencer l’arrêt le lendemain.',
     };
   }
   return {
     effacer: `${sujet} n’a pas travaillé ces jours-là : effacer ces heures`,
     modifier: `${sujet} a travaillé : modifier l’absence`,
+    aide: null,
   };
 }
 

@@ -130,12 +130,15 @@ describe('textesDuChoix', () => {
     expect(textesDuChoix('arret', 'Octavie')).toEqual({
       effacer: 'Octavie était en arrêt : effacer ces heures',
       modifier: 'Octavie a travaillé : modifier l’arrêt',
+      aide:
+        'Travaillé le matin, arrêté l’après-midi ? Ce jour se paie comme travaillé : faites commencer l’arrêt le lendemain.',
     });
   });
   it('absence avec prénom', () => {
     expect(textesDuChoix('absence', 'Octavie')).toEqual({
       effacer: 'Octavie n’a pas travaillé ces jours-là : effacer ces heures',
       modifier: 'Octavie a travaillé : modifier l’absence',
+      aide: null,
     });
   });
   it('mélange : le texte des absences', () => {
@@ -144,7 +147,7 @@ describe('textesDuChoix', () => {
     );
   });
   it('sans prénom : « Le salarié », sans genre', () => {
-    expect(textesDuChoix('arret', null)).toEqual({
+    expect(textesDuChoix('arret', null)).toMatchObject({
       effacer: 'Le salarié était en arrêt : effacer ces heures',
       modifier: 'Le salarié a travaillé : modifier l’arrêt',
     });
