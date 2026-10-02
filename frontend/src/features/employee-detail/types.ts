@@ -96,6 +96,8 @@ export interface Employee {
   trial_period_days_remaining?: number | null;
   trial_period_renewal_possible?: boolean | null;
   specificites_paie?: {
+    /** Salaire saisi = base à 35 h, heures structurelles payées en plus (moteur). */
+    salaire_hors_hs_structurelles?: boolean;
     prelevement_a_la_source?: {
       is_personnalise?: boolean;
       taux?: number | null;

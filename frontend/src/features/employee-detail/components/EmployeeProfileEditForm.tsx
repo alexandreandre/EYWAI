@@ -48,6 +48,8 @@ interface EmployeeProfileEditFormProps {
   loadingMutuelles: boolean;
   companyOrganismeLabel?: string | null;
   payrollFocus?: boolean;
+  /** `specificites_paie.salaire_hors_hs_structurelles` de la fiche enregistrée. */
+  salaireBaseA35h?: boolean;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -65,6 +67,7 @@ export function EmployeeProfileEditForm({
   loadingMutuelles,
   companyOrganismeLabel,
   payrollFocus = false,
+  salaireBaseA35h = false,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
@@ -362,7 +365,7 @@ export function EmployeeProfileEditForm({
                   />
                 </FormControl>
                 <FormMessage />
-                <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} />
+                <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} baseA35h={salaireBaseA35h} />
               </FormItem>
             )}
           />

@@ -1364,9 +1364,12 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               <FormLabel>Salaire de base mensuel (€)<Requis /></FormLabel>
                               <FormControl><Input type="number" step="any" {...field} /></FormControl>
                               <FormMessage />
+                              {/* Le formulaire ne pose pas `salaire_hors_hs_structurelles` :
+                                  une fiche créée ici est payée sur le montant saisi. */}
                               <BrutPourDureeHint
                                 salaire={form.watch("salaire_de_base.valeur")}
                                 dureeHebdo={form.watch("duree_hebdomadaire")}
+                                baseA35h={false}
                               />
                             </FormItem>
                           )} 
