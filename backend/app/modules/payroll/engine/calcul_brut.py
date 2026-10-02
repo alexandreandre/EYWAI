@@ -12,6 +12,7 @@ from .iccp_fin_contrat import (
 )
 from .indemnites_sortie_brut import lignes_indemnites_sortie_soumises
 from .iccp_arbitrage import lire_parametres_conges
+from .heures_prevues import heures_prevues_sous_contrat, repartir_heures_du_contrat
 from .salary_evolution_brut import (
     lignes_rappel_salaire,
     salaire_contractuel_avec_evolution,
@@ -196,23 +197,34 @@ def _parse_date_contrat(value: Any) -> date | None:
         return None
 
 
+def _bornes_sous_contrat(
+    contexte: ContextePaie,
+    date_debut_periode: date,
+    date_fin_periode: date,
+) -> tuple[date, date]:
+    """Premier et dernier jour de la période couverts par le contrat."""
+    contrat = contexte.contrat.get("contrat", {}) or {}
+    date_entree = _parse_date_contrat(contrat.get("date_entree"))
+    date_sortie = _parse_date_contrat(
+        contrat.get("date_sortie") or contrat.get("date_fin_contrat")
+    )
+    debut_effectif = (
+        max(date_debut_periode, date_entree) if date_entree else date_debut_periode
+    )
+    fin_effective = (
+        min(date_fin_periode, date_sortie) if date_sortie else date_fin_periode
+    )
+    return debut_effectif, fin_effective
+
+
 def _facteur_prorata_entree_sortie(
     contexte: ContextePaie,
     date_debut_periode: date,
     date_fin_periode: date,
 ) -> float:
     """Prorata entrée/sortie selon les jours ouvrés réellement sous contrat."""
-    contrat = contexte.contrat.get("contrat", {}) or {}
-    date_entree = _parse_date_contrat(contrat.get("date_entree"))
-    date_sortie = _parse_date_contrat(
-        contrat.get("date_sortie") or contrat.get("date_fin_contrat")
-    )
-
-    debut_effectif = (
-        max(date_debut_periode, date_entree) if date_entree else date_debut_periode
-    )
-    fin_effective = (
-        min(date_fin_periode, date_sortie) if date_sortie else date_fin_periode
+    debut_effectif, fin_effective = _bornes_sous_contrat(
+        contexte, date_debut_periode, date_fin_periode
     )
 
     if fin_effective < debut_effectif:
@@ -882,9 +894,18 @@ def calculer_salaire_brut(
     nb_jours_travail_planifies: Optional[int] = None,
     date_debut_variables: Optional[date] = None,
     date_fin_variables: Optional[date] = None,
+    jours_prevus: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Calcule le salaire brut à partir d'une liste d'événements de paie déjà analysés.
+
+    ``jours_prevus`` (optionnel) : le planning du mois et de ses deux voisins
+    (`annee`, `mois`, `jour`, `type`, `heures_prevues`). Sur un mois d'entrée
+    ou de sortie sans surcharge, les heures payées sont alors celles que
+    l'horaire du salarié prévoit les jours sous contrat (cf.
+    `heures_prevues.heures_prevues_sous_contrat`), au lieu du prorata en jours
+    ouvrés. Sans planning, ou si le planning ne fait pas la durée du contrat,
+    le prorata en jours ouvrés reste la règle.
 
     ``nb_jours_travail_planifies`` (optionnel) : nombre de jours de type
     ``"travail"`` OU ``"conges_payes"`` dans le `planned_calendar` BRUT du mois
@@ -962,6 +983,39 @@ def calculer_salaire_brut(
     ) or montant_hs_exonerees < 0:
         montant_hs_exonerees = None
 
+    # Mois d'entrée ou de sortie sans surcharge : les heures que l'horaire du
+    # salarié prévoit les jours sous contrat, partagées entre base et heures sup
+    # structurelles, comme Quadra (septembre 2026 : sortie le mardi 15/09 sur
+    # l'horaire 8,5/5, 86,50 h et non 11 jours × 7,80 = 85,80 h ; entrée le
+    # lundi 28/09 sur l'horaire d'hiver, 25,00 h et non 23,40 h). Sans planning,
+    # ou si son horaire ne fait pas la durée du contrat, le prorata en jours
+    # ouvrés reste la règle (cf. `heures_prevues`).
+    heures_prevues_mois_partiel: float | None = None
+    if (
+        facteur_prorata < 1.0
+        and jours_prevus
+        and heures_base_reelles is None
+        and heures_hs_structurelles_reelles is None
+        and retenue_entree_sortie_heures is None
+    ):
+        debut_contrat, fin_contrat = _bornes_sous_contrat(
+            contexte, date_debut_periode, date_fin_periode
+        )
+        heures_prevues_mois_partiel = heures_prevues_sous_contrat(
+            jours_prevus, debut_contrat, fin_contrat, duree_contrat_hebdo
+        )
+    heures_base_prevues: float | None = None
+    heures_sup_structurelles_prevues: float | None = None
+    if heures_prevues_mois_partiel is not None:
+        heures_base_prevues, heures_sup_structurelles_prevues = (
+            repartir_heures_du_contrat(heures_prevues_mois_partiel, duree_contrat_hebdo)
+        )
+    #: Heures sup structurelles d'où se tire la quote-part journalière des
+    #: absences d'un mois incomplet. Elle reste celle du prorata en jours
+    #: ouvrés quand les heures payées suivent le planning : seules les heures
+    #: payées changent, pas les retenues.
+    heures_sup_structurelles_quote_part: float | None = None
+
     majoration_hs25 = _taux_majoration_hs(contexte, 0)
     majoration_hs50 = _taux_majoration_hs(contexte, 1)
     if majoration_hs25 is None:
@@ -988,6 +1042,8 @@ def calculer_salaire_brut(
             heures_mensuelles_contrat = round(
                 heures_base_reelles
                 if heures_base_reelles is not None
+                else heures_base_prevues
+                if heures_base_prevues is not None
                 else jours_ouvres_presence * duree_contrat_hebdo / 5,
                 2,
             )
@@ -1015,6 +1071,8 @@ def calculer_salaire_brut(
             heures_mensuelles_legales_val = round(
                 heures_base_reelles
                 if heures_base_reelles is not None
+                else heures_base_prevues
+                if heures_base_prevues is not None
                 else jours_ouvres_presence * duree_legale_hebdo / 5,
                 2,
             )
@@ -1044,16 +1102,22 @@ def calculer_salaire_brut(
         heures_sup_structurelles_mensuelles = 0.0
         if duree_contrat_hebdo > duree_legale_hebdo:
             if facteur_prorata < 1.0:
+                hs_jours_ouvres = round(
+                    jours_ouvres_presence
+                    * (duree_contrat_hebdo - duree_legale_hebdo)
+                    / 5,
+                    2,
+                )
                 heures_sup_structurelles_mensuelles = round(
                     heures_hs_structurelles_reelles
                     if heures_hs_structurelles_reelles is not None
-                    else (
-                        jours_ouvres_presence
-                        * (duree_contrat_hebdo - duree_legale_hebdo)
-                        / 5
-                    ),
+                    else heures_sup_structurelles_prevues
+                    if heures_sup_structurelles_prevues is not None
+                    else hs_jours_ouvres,
                     2,
                 )
+                if heures_sup_structurelles_prevues is not None:
+                    heures_sup_structurelles_quote_part = hs_jours_ouvres
             else:
                 heures_sup_structurelles_mensuelles = (
                     compute_hs_structurelles_mensuelles(duree_contrat_hebdo)
@@ -1534,7 +1598,12 @@ def calculer_salaire_brut(
             else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
         )
         quote_part_hs_journaliere = (
-            heures_sup_structurelles_mensuelles / jours_legaux_mensuels
+            (
+                heures_sup_structurelles_quote_part
+                if heures_sup_structurelles_quote_part is not None
+                else heures_sup_structurelles_mensuelles
+            )
+            / jours_legaux_mensuels
         )
         heures_hs_perdues = (
             quote_part_hs_journaliere * jours_absence_legale_equivalents
@@ -1586,7 +1655,11 @@ def calculer_salaire_brut(
                 else heures_mensuelles_legales() / (lc.DUREE_LEGALE_HEBDO / 5)
             )
             heures_hs_evenement_familial = round(
-                heures_sup_structurelles_mensuelles
+                (
+                    heures_sup_structurelles_quote_part
+                    if heures_sup_structurelles_quote_part is not None
+                    else heures_sup_structurelles_mensuelles
+                )
                 * jours_legaux_evenement_familial
                 / jours_legaux_mensuels,
                 2,
