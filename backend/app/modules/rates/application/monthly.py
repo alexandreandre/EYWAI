@@ -116,11 +116,16 @@ def launch_monthly_sync(
     except MonthRunBusy as exc:
         return _skipped("Une mise à jour du mois est déjà en cours.", exc.sync_id or None)
 
-    status = get_rates_sync_status(started["sync_id"])
+    try:
+        status = get_rates_sync_status(started["sync_id"])
+        overall = status["status"]
+    except Exception:
+        logger.exception("Statut final illisible pour %s", started.get("sync_id"))
+        overall = "failed"
     return {
         "action": "started",
         "reason": decision.reason,
-        "status": status["status"],
+        "status": overall,
         **started,
     }
 

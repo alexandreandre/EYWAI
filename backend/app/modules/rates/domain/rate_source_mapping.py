@@ -67,6 +67,7 @@ COTISATION_ID_TO_SOURCE_KEYS: dict[str, list[str]] = {
     "securite_sociale_maladie": ["MMID_PATRONAL", "MMID_SALARIAL"],
     "CFP": ["CFP"],
     "cfp": ["CFP"],
+    "cpf_cdd": ["CFP"],
     "taxe_apprentissage": ["TAXE_APPRENTISSAGE"],
     "taxe_apprentissage_solde": ["TAXE_APPRENTISSAGE"],
     "retraite_secu_plafond": ["VIEILLESSE_PATRONAL", "VIEILLESSE_SALARIAL"],

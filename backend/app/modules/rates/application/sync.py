@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from app.core.logging import get_logger
 from app.modules.rates.domain.rate_source_mapping import (
     COTISATION_ID_TO_SOURCE_KEYS,
     RATE_KEY_TO_SOURCE_KEYS,
@@ -37,6 +38,8 @@ from app.modules.rates.infrastructure.sync_run_store import (
     get_sync_run_store,
     set_sync_run_store,
 )
+
+logger = get_logger("modules.rates.sync")
 
 _ERR_NO_SOURCES = "Aucune source active trouvée pour cette mise à jour."
 _ERR_SYNC_NOT_FOUND = "Synchronisation non trouvée."
@@ -353,7 +356,11 @@ def _load_batch(sync_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _publish_jobs(sync_id: str, jobs: List[Dict[str, Any]]) -> None:
-    get_sync_run_store().update_run(sync_id, {"jobs": _jobs_for_store(jobs)})
+    """Écrit le suivi. Un trou de réseau ne doit pas abandonner les sources suivantes."""
+    try:
+        get_sync_run_store().update_run(sync_id, {"jobs": _jobs_for_store(jobs)})
+    except Exception as exc:
+        logger.warning("Suivi du lot %s non publié : %s", sync_id, exc)
 
 
 def _expected_source_count(batch: Dict[str, Any], stored: Optional[Dict[str, Any]]) -> int:
@@ -561,7 +568,11 @@ def start_rates_sync(
     tracked_background = _bind_background(sync_id, background_task_fn)
 
     for source in sources:
-        stored = get_sync_run_store().get_run(sync_id) or {}
+        try:
+            stored = get_sync_run_store().get_run(sync_id) or {}
+        except Exception as exc:
+            logger.warning("Lecture du lot %s impossible : %s", sync_id, exc)
+            stored = {}
         if batch.get("cancelled") or stored.get("status") == "cancelled":
             batch["cancelled"] = True
             break

@@ -377,27 +377,47 @@ SPEC_VIEILLESSE_SALARIAL = _vieillesse_spec(
 
 def _cfp_extract(p: dict) -> dict:
     s = payload_sections(p)
-    return {"moins_11": s.get("patronal_moins_11"), "plus_11": s.get("patronal_11_et_plus")}
+    extracted = {
+        "moins_11": s.get("patronal_moins_11"),
+        "plus_11": s.get("patronal_11_et_plus"),
+    }
+    if s.get("cpf_cdd") is not None:
+        extracted["cpf_cdd"] = s.get("cpf_cdd")
+    return extracted
 
 
 def _cfp_build(sig: dict, current: Optional[dict]) -> dict:
     cur = current["config_data"] if current else None
+    patches: list[tuple[str, dict]] = [
+        (
+            "CFP",
+            {
+                "patronal": {
+                    "taux_moins_11": sig["moins_11"],
+                    "taux_11_et_plus": sig["plus_11"],
+                }
+            },
+        )
+    ]
+    default_new = {
+        "CFP": {
+            "id": "CFP",
+            "libelle": "Contribution formation professionnelle",
+            "base": "brut",
+        }
+    }
+    if sig.get("cpf_cdd") is not None:
+        patches.append(("cpf_cdd", {"patronal": sig["cpf_cdd"]}))
+        default_new["cpf_cdd"] = {
+            "id": "cpf_cdd",
+            "libelle": "Contribution CPF des titulaires de CDD",
+            "base": "brut",
+            "salarial": None,
+        }
     return patch_cotisation_fields(
         cur,
-        patches=[
-            (
-                "CFP",
-                {
-                    "patronal": {
-                        "taux_moins_11": sig["moins_11"],
-                        "taux_11_et_plus": sig["plus_11"],
-                    }
-                },
-            )
-        ],
-        default_new_items={
-            "CFP": {"id": "CFP", "libelle": "Contribution formation professionnelle", "base": "brut"}
-        },
+        patches=patches,
+        default_new_items=default_new,
     )
 
 

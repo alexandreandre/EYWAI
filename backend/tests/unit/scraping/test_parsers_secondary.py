@@ -63,3 +63,33 @@ def test_ij_service_public_from_fixture(mock_get):
     assert plafonds["maternite_paternite"] == 104.02
     assert plafonds["at_mp"] == 240.49
     assert plafonds["at_mp_majoree"] == 320.66
+
+
+def test_cfp_page_also_yields_cpf_cdd_rate():
+    cfp = _load_module("CFP", "CFP.py", "cfp_primary_cpf_cdd")
+    text = (
+        "Le taux de la contribution au CPF-CDD est égal à 1 % "
+        "du revenu d'activité retenu pour le calcul des cotisations."
+    )
+    assert cfp.parse_cpf_cdd_rate(text) == 0.01
+    assert cfp.parse_cpf_cdd_rate("pas de taux ici") is None
+
+
+def test_cfp_build_stamps_cpf_cdd_when_the_page_has_it():
+    from core.migrated_specs import _cfp_build
+
+    current = {
+        "config_data": {
+            "cotisations": [
+                {"id": "CFP", "patronal": {"taux_moins_11": 0.0055, "taux_11_et_plus": 0.01}},
+                {"id": "cpf_cdd", "libelle": "Contribution CPF des titulaires de CDD", "patronal": 0.01, "salarial": None},
+            ]
+        }
+    }
+    built = _cfp_build(
+        {"moins_11": 0.0055, "plus_11": 0.01, "cpf_cdd": 0.01},
+        current,
+    )
+    line = next(item for item in built["cotisations"] if item["id"] == "cpf_cdd")
+    assert line["patronal"] == 0.01
+    assert line["last_checked_at"]

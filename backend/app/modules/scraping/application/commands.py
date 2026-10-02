@@ -7,6 +7,7 @@ Comportement identique au routeur legacy.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 
@@ -26,6 +27,14 @@ from app.modules.scraping.infrastructure.scraper_runner import (
 
 def _repo() -> ScrapingRepository:
     return ScrapingRepository()
+
+
+def _triggered_by_job(value: str) -> Optional[str]:
+    """scraping_jobs.triggered_by est un UUID. Un libellé de cron n'y entre pas."""
+    try:
+        return str(uuid.UUID(str(value)))
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def execute_scraper(
@@ -53,7 +62,7 @@ def execute_scraper(
         "source_id": source["id"],
         "job_type": "manual",
         "scraper_used": script_type,
-        "triggered_by": triggered_by,
+        "triggered_by": _triggered_by_job(triggered_by),
         "status": "pending",
         "started_at": datetime.now(timezone.utc).isoformat(),
         "execution_logs": [f"Initialisation du job - Script: {script_path}"],

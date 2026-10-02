@@ -17,6 +17,22 @@ def iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_CPF_CDD_RATE = re.compile(
+    r"taux de la contribution au CPF-CDD est égal à\s*([0-9]+(?:[.,][0-9]+)?)\s*%",
+    re.IGNORECASE,
+)
+
+
+def parse_cpf_cdd_rate(page_text: str) -> float | None:
+    """Taux CPF-CDD (1 % légal) sur la même page Urssaf que la CFP."""
+    if not page_text:
+        return None
+    match = _CPF_CDD_RATE.search(page_text)
+    if not match:
+        return None
+    return parse_taux(match.group(1))
+
+
 def parse_taux(text: str) -> float | None:
     """Nettoie un texte (ex: "0,55 %") et le convertit en taux réel (0.0055)."""
     if not text:
@@ -92,6 +108,10 @@ def scrape_cfp_rates() -> dict | None:
                 "Impossible de trouver les deux taux de formation professionnelle dans le paragraphe cible."
             )
 
+        cpf_cdd = parse_cpf_cdd_rate(soup.get_text(" ", strip=True))
+        if cpf_cdd is not None:
+            print(f"  - Taux CPF-CDD trouvé : {cpf_cdd * 100:.2f}%", file=sys.stderr)
+
         print(
             f"  - Taux (< 11 salariés) trouvé : {taux_moins_11 * 100:.2f}%",
             file=sys.stderr,
@@ -104,6 +124,7 @@ def scrape_cfp_rates() -> dict | None:
         return {
             "patronal_moins_11": taux_moins_11,
             "patronal_11_et_plus": taux_11_et_plus,
+            "cpf_cdd": cpf_cdd,
         }
 
     except Exception as e:
@@ -128,6 +149,7 @@ def main():
             "salarial": None,
             "patronal_moins_11": rates_data.get("patronal_moins_11"),
             "patronal_11_et_plus": rates_data.get("patronal_11_et_plus"),
+            "cpf_cdd": rates_data.get("cpf_cdd"),
         },
         "meta": {
             "source": [
