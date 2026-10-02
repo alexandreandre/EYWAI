@@ -65,6 +65,17 @@ def a_des_heures_pointees(actual_days: List[Dict[str, Any]]) -> bool:
     return False
 
 
+def _zero_saisi_un_jour_travaille(actual_days: List[Dict[str, Any]]) -> bool:
+    """Un 0 saisi sur un jour « travail » : pour un forfait, un jour non travaillé."""
+    for jour in actual_days:
+        if not isinstance(jour, dict) or str(jour.get("type") or "") not in ("travail", "work"):
+            continue
+        valeur = jour.get("heures_faites")
+        if isinstance(valeur, (int, float)) and not isinstance(valeur, bool) and valeur == 0:
+            return True
+    return False
+
+
 def is_day_ready_for_payroll(
     planned: Dict[str, Any] | None,
     actual: Dict[str, Any] | None,
@@ -138,7 +149,9 @@ def compute_row_status(
     règle historique sur le mois civil seul.
 
     Sans aucune heure pointée, le prévu fait foi (le moteur ne lit pas le
-    réel) : pas d'écart à signaler, la ligne est `saisi`.
+    réel) : pas d'écart à signaler, la ligne est `saisi`. Sauf un 0 saisi sur
+    un jour travaillé : un forfait à 0 jour tout le mois serait payé au prévu
+    par le moteur, l'écart est alors le seul signal.
     """
     if a_saisir is None:
         a_saisir = (
@@ -147,7 +160,7 @@ def compute_row_status(
         )
     if a_saisir:
         return "a_saisir"
-    if not a_des_heures_pointees(actual_days):
+    if not a_des_heures_pointees(actual_days) and not _zero_saisi_un_jour_travaille(actual_days):
         return "saisi"
     heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
     heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])

@@ -252,3 +252,15 @@ def test_sans_aucune_heure_pointee_le_prevu_fait_foi_et_il_n_y_a_pas_d_ecart():
     # Une heure pointée suffit : l'écart redevient lisible.
     pointe = [_weekday_actual(1, 1.0)]
     assert compute_row_status(planned, pointe, 2026, 9, False, a_saisir=False) == "saisi_avec_ecart"
+    # Des week-ends à 0 ne font pas un salarié qui pointe.
+    week_ends = [{"jour": 6, "type": "weekend", "heures_faites": 0.0}]
+    assert compute_row_status(planned, week_ends, 2026, 9, False, a_saisir=False) == "saisi"
+
+
+def test_un_forfait_saisi_a_zero_jour_garde_son_ecart():
+    """0 jour saisi sur chaque jour travaillé : le moteur paierait le prévu
+    (aucune heure > 0), l'écart reste le seul signal."""
+    planned = [{"jour": d, "type": "travail", "heures_prevues": 1} for d in (1, 2, 3)]
+    actual = [{"jour": d, "type": "travail", "heures_faites": 0} for d in (1, 2, 3)]
+
+    assert compute_row_status(planned, actual, 2026, 9, True, a_saisir=False) == "saisi_avec_ecart"
