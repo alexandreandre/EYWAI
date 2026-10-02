@@ -7,7 +7,11 @@ import * as calendarApi from '@/api/calendar';
 import { DayData } from '@/components/ScheduleModal';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { applyHolidayHints } from '@/lib/companyCalendarHolidays';
-import { computeMonthCompletionStatus } from '@/lib/calendarStats';
+import {
+  aDesHeuresPointees,
+  computeMonthCompletionStatus,
+  moisPrecedent,
+} from '@/lib/calendarStats';
 import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
 import {
   planningWarningsToast,
@@ -70,10 +74,17 @@ export function useCalendar(
   const [isCopyingPrevMonth, setIsCopyingPrevMonth] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadedMonthKey, setLoadedMonthKey] = useState<string | null>(null);
+  // Heures pointées le mois précédent (que la fenêtre des variables chevauche).
+  // Vrai tant qu'on ne sait pas, ou si la lecture échoue : règle stricte.
+  const [pointeMoisPrecedent, setPointeMoisPrecedent] = useState(true);
 
   const selectedMonthKey = `${selectedDate.year}-${selectedDate.month}`;
   const isMonthDataReady =
     loadedMonthKey === selectedMonthKey && plannedCalendar.length > 0;
+
+  // Comme le juge du serveur : un salarié qui ne pointe pas (aucune heure ni ce
+  // mois ni le précédent) n'a rien « à saisir », le prévu fait foi.
+  const pointe = pointeMoisPrecedent || aDesHeuresPointees(actualHours);
 
   const monthCompletionStatus = useMemo(() => {
     if (isLoading || !isMonthDataReady) return 'a_saisir' as const;
@@ -82,7 +93,8 @@ export function useCalendar(
       actualHours,
       selectedDate.year,
       selectedDate.month,
-      isForfaitJourMode
+      isForfaitJourMode,
+      pointe
     );
   }, [
     plannedCalendar,
@@ -92,7 +104,20 @@ export function useCalendar(
     isLoading,
     isMonthDataReady,
     isForfaitJourMode,
+    pointe,
   ]);
+
+  /** Le réel du mois précédent a-t-il des heures ? Illisible : oui (règle stricte). */
+  const lirePointeMoisPrecedent = useCallback(
+    (id: string, year: number, month: number): Promise<boolean> => {
+      const precedent = moisPrecedent(year, month);
+      return calendarApi
+        .getActualHours(id, precedent.year, precedent.month)
+        .then((res) => aDesHeuresPointees(res.data.calendrier_reel ?? []))
+        .catch(() => true);
+    },
+    []
+  );
 
   const buildMonthCalendar = useCallback(
     (
@@ -160,12 +185,15 @@ export function useCalendar(
     setPlannedCalendar([]);
     setActualHours([]);
     setJoursEnConflit([]);
+    setPointeMoisPrecedent(true);
 
     try {
-      const [plannedRes, actualRes] = await Promise.all([
+      const [plannedRes, actualRes, pointeAvant] = await Promise.all([
         calendarApi.getPlannedCalendar(employeeId, year, month),
         calendarApi.getActualHours(employeeId, year, month),
+        lirePointeMoisPrecedent(employeeId, year, month),
       ]);
+      setPointeMoisPrecedent(pointeAvant);
 
       const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
       const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
@@ -194,7 +222,15 @@ export function useCalendar(
     } finally {
       setIsLoading(false);
     }
-  }, [employeeId, selectedDate.year, selectedDate.month, buildMonthCalendar, toast, fetchEnabled]);
+  }, [
+    employeeId,
+    selectedDate.year,
+    selectedDate.month,
+    buildMonthCalendar,
+    toast,
+    fetchEnabled,
+    lirePointeMoisPrecedent,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,14 +256,17 @@ export function useCalendar(
     setPlannedCalendar([]);
     setActualHours([]);
     setJoursEnConflit([]);
+    setPointeMoisPrecedent(true);
 
     void (async () => {
       try {
-        const [plannedRes, actualRes] = await Promise.all([
+        const [plannedRes, actualRes, pointeAvant] = await Promise.all([
           calendarApi.getPlannedCalendar(employeeId, year, month),
           calendarApi.getActualHours(employeeId, year, month),
+          lirePointeMoisPrecedent(employeeId, year, month),
         ]);
         if (cancelled) return;
+        setPointeMoisPrecedent(pointeAvant);
 
         const plannedDataFromApi = plannedRes.data.calendrier_prevu ?? [];
         const actualDataFromApi = actualRes.data.calendrier_reel ?? [];
@@ -262,7 +301,15 @@ export function useCalendar(
     return () => {
       cancelled = true;
     };
-  }, [employeeId, selectedDate.year, selectedDate.month, buildMonthCalendar, toast, fetchEnabled]);
+  }, [
+    employeeId,
+    selectedDate.year,
+    selectedDate.month,
+    buildMonthCalendar,
+    toast,
+    fetchEnabled,
+    lirePointeMoisPrecedent,
+  ]);
 
   useEffect(() => {
     setWeekTemplate(getInitialWeekTemplate(isForfaitJourMode));
@@ -617,6 +664,8 @@ export function useCalendar(
     updateSelection,
     isForfaitJour: isForfaitJourMode,
     monthCompletionStatus,
+    /** Le salarié pointe sur la période : sinon, un jour sans réel n'est pas « à saisir ». */
+    pointe,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     copyPlannedToActualForDays,

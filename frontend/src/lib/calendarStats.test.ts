@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ActualHoursData, PlannedEventData } from '@/api/calendar';
 import {
+  aDesHeuresPointees,
   computeEmployeeRowStatus,
   computeMonthCompletionStatus,
   isDayReadyForPayroll,
+  moisPrecedent,
+  pointeSurLaPeriode,
 } from './calendarStats';
 
 const YEAR = 2026;
@@ -167,6 +170,81 @@ describe('computeEmployeeRowStatus', () => {
       fait: null,
     }));
     expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true)).toBe('a_saisir');
+  });
+});
+
+// Même règle que le juge du serveur (`periode_a_saisir`) : un salarié qui ne
+// pointe jamais n'a rien à saisir, le prévu fait foi ; un 0 h saisi un jour
+// travaillé reste à saisir.
+describe('salarié qui ne pointe pas', () => {
+  it('aDesHeuresPointees ne compte que les heures > 0', () => {
+    expect(aDesHeuresPointees([])).toBe(false);
+    expect(aDesHeuresPointees([actual(1, 'travail', null), actual(2, 'travail', 0)])).toBe(
+      false
+    );
+    expect(aDesHeuresPointees([actual(3, 'travail', 0.5)])).toBe(true);
+  });
+
+  it('pointe sur la période si le mois ou le mois précédent a des heures', () => {
+    expect(pointeSurLaPeriode([actual(1, 'travail', null)], [actual(28, 'travail', 8)])).toBe(
+      true
+    );
+    expect(pointeSurLaPeriode([actual(1, 'travail', 8)], [])).toBe(true);
+    expect(pointeSurLaPeriode([actual(1, 'travail', null)], [])).toBe(false);
+  });
+
+  it('un mois précédent illisible garde la règle stricte', () => {
+    expect(pointeSurLaPeriode([], null)).toBe(true);
+  });
+
+  it('le mois précédent de janvier est décembre de l année d avant', () => {
+    expect(moisPrecedent(2026, 1)).toEqual({ year: 2025, month: 12 });
+    expect(moisPrecedent(2026, 9)).toEqual({ year: 2026, month: 8 });
+  });
+
+  it('un jour travail sans réel est prêt quand le salarié ne pointe pas', () => {
+    expect(
+      isDayReadyForPayroll(planned(3, 'travail', 8), actual(3, 'travail', null), false, false)
+    ).toBe(true);
+    expect(
+      isDayReadyForPayroll(planned(3, 'travail', 8), actual(3, 'travail', 0), false, false)
+    ).toBe(false);
+  });
+
+  it('le mois est saisi et sans écart quand le salarié ne pointe pas', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 8, fait: null }));
+    expect(computeMonthCompletionStatus(p, a, YEAR, MONTH, false, false)).toBe('saisi');
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false, false)).toBe('saisi');
+  });
+
+  it('un forfait jour qui ne pointe pas est saisi', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 1, fait: null }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true, false)).toBe('saisi');
+  });
+
+  it('un 0 h saisi un jour travaillé reste à saisir', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar((day) => ({
+      prev: 8,
+      fait: day === 10 ? 0 : null,
+    }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false, false)).toBe('a_saisir');
+  });
+
+  it('un forfait jour saisi à 0 tout le mois garde son écart', () => {
+    // Le moteur paierait le prévu (aucune heure > 0) : l'écart est le seul signal.
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 1, fait: 0 }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, true, false)).toBe('saisi_avec_ecart');
+  });
+
+  it('des week-ends à 0 ne font pas un salarié qui pointe', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 8, fait: null }));
+    expect(a.some((j) => j.type === 'weekend' && j.heures_faites === 0)).toBe(true);
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false, false)).toBe('saisi');
+  });
+
+  it('par défaut la règle reste stricte', () => {
+    const { planned: p, actual: a } = buildFullJuneCalendar(() => ({ prev: 8, fait: null }));
+    expect(computeEmployeeRowStatus(p, a, YEAR, MONTH, false)).toBe('a_saisir');
   });
 });
 

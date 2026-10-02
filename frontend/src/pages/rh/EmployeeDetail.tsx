@@ -145,6 +145,7 @@ export default function EmployeeDetail() {
     updateSelection,
     isForfaitJour,
     monthCompletionStatus,
+    pointe,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
@@ -819,6 +820,7 @@ export default function EmployeeDetail() {
               updateSelection={updateSelection}
               isDirty={isDirty}
               monthCompletionStatus={monthCompletionStatus}
+              pointe={pointe}
               copyPreviousMonthPlanned={copyPreviousMonthPlanned}
               copyPlannedToActualForDay={copyPlannedToActualForDay}
               bulkCopyPlannedToActual={bulkCopyPlannedToActual}

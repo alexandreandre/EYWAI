@@ -195,16 +195,48 @@ function hasHourValue(value: number | null | undefined): boolean {
   return value !== null && value !== undefined;
 }
 
-/** Jour prêt pour la paie : type travail exige prévu + réel ; les autres types sont complets en l'état. */
+/**
+ * Une heure au moins pointée au réel. Même critère que le moteur de paie
+ * (`planning_repli.mois_sans_pointage`) : sans aucune heure > 0, il ne lit pas
+ * le réel et paie le prévu. Un jour vide ou à 0 h ne fait pas un salarié qui pointe.
+ */
+export function aDesHeuresPointees(actual: readonly ActualHoursData[]): boolean {
+  return actual.some((a) => typeof a.heures_faites === 'number' && a.heures_faites > 0);
+}
+
+/**
+ * Le salarié pointe-t-il sur la période de paie du mois ? Comme le juge du
+ * serveur (`periode_a_saisir`), on regarde le mois et le précédent, que la
+ * fenêtre des variables chevauche. Mois précédent illisible (`null`) : on
+ * garde la règle stricte plutôt que de taire un mois oublié.
+ */
+export function pointeSurLaPeriode(
+  actualDuMois: readonly ActualHoursData[],
+  actualDuMoisPrecedent: readonly ActualHoursData[] | null
+): boolean {
+  if (actualDuMoisPrecedent === null) return true;
+  return aDesHeuresPointees(actualDuMois) || aDesHeuresPointees(actualDuMoisPrecedent);
+}
+
+export function moisPrecedent(year: number, month: number): { year: number; month: number } {
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+}
+
+/**
+ * Jour prêt pour la paie : type travail exige prévu + réel ; les autres types sont complets en l'état.
+ * `pointe` à faux (salarié qui ne pointe pas) : un jour sans réel n'attend rien, le prévu
+ * fait foi ; un 0 h saisi un jour travaillé reste à saisir. Par défaut, règle stricte.
+ */
 export function isDayReadyForPayroll(
   plannedDay: PlannedEventData | undefined,
   actualDay: ActualHoursData | undefined,
-  isForfaitJour = false
+  isForfaitJour = false,
+  pointe = true
 ): boolean {
   if (!plannedDay) return false;
   if (plannedDay.type === 'travail' || plannedDay.type === 'work') {
     if (!hasHourValue(plannedDay.heures_prevues)) return false;
-    if (!hasHourValue(actualDay?.heures_faites)) return false;
+    if (!hasHourValue(actualDay?.heures_faites)) return !pointe;
     const prev = plannedDay.heures_prevues as number;
     const fait = actualDay!.heures_faites as number;
     // Horaire : 0 h sur un jour prévu = pas encore saisi (distinct du forfait 0/1).
@@ -219,16 +251,28 @@ export function computeEmployeeRowStatus(
   actual: ActualHoursData[],
   year: number,
   month: number,
-  isForfaitJour: boolean
+  isForfaitJour: boolean,
+  pointe = true
 ): EmployeeRowStatus {
   const completion = computeMonthCompletionStatus(
     planned,
     actual,
     year,
     month,
-    isForfaitJour
+    isForfaitJour,
+    pointe
   );
   if (completion === 'a_saisir') return 'a_saisir';
+  // Sans aucune heure pointée, le prévu fait foi : pas d'écart à signaler.
+  // Sauf un 0 saisi un jour travaillé (forfait à 0 jour) : le moteur paierait
+  // le prévu, l'écart est le seul signal.
+  const joursTravailles = new Set(
+    planned.filter((p) => p.type === 'travail' || p.type === 'work').map((p) => p.jour)
+  );
+  const zeroUnJourTravaille = actual.some(
+    (a) => joursTravailles.has(a.jour) && a.heures_faites === 0
+  );
+  if (!aDesHeuresPointees(actual) && !zeroUnJourTravaille) return 'saisi';
   const stats = computeMonthStats(planned, actual, isForfaitJour);
   if (isForfaitJour) {
     return stats.ecartJours !== 0 ? 'saisi_avec_ecart' : 'saisi';
@@ -244,7 +288,8 @@ export function computeMonthCompletionStatus(
   actual: ActualHoursData[],
   year: number,
   month: number,
-  isForfaitJour = false
+  isForfaitJour = false,
+  pointe = true
 ): MonthCompletionStatus {
   const daysInMonth = new Date(year, month, 0).getDate();
   const plannedByDay = new Map(planned.map((p) => [p.jour, p]));
@@ -253,7 +298,7 @@ export function computeMonthCompletionStatus(
   for (let day = 1; day <= daysInMonth; day++) {
     const plannedDay = plannedByDay.get(day);
     const actualDay = actualByDay.get(day);
-    if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour)) {
+    if (!isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour, pointe)) {
       return 'a_saisir';
     }
   }

@@ -40,6 +40,8 @@ interface CalendarDayCellProps {
   onCopyPlannedToActual?: (dayNumber: number) => void;
   /** Jours en conflit dits par le backend (heures saisies pendant un arrêt ou une absence). */
   joursEnConflit?: number[];
+  /** Le salarié pointe sur la période (`useCalendar`). Faux : un jour sans réel n'attend rien. */
+  pointe?: boolean;
 }
 
 // Types de saisie : source unique calendarTypes.ts — conges_payes/rtt créent
@@ -52,10 +54,11 @@ function dayNeedsInput(
   type: string,
   plannedDay: PlannedEventData,
   actualDay: ActualHoursData,
-  isForfaitJour = false
+  isForfaitJour = false,
+  pointe = true
 ): boolean {
   if (type !== 'travail') return false;
-  return !isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour);
+  return !isDayReadyForPayroll(plannedDay, actualDay, isForfaitJour, pointe);
 }
 
 function HourGauges({
@@ -202,6 +205,7 @@ export function CalendarDayCell({
   isForfaitJour = false,
   onCopyPlannedToActual,
   joursEnConflit,
+  pointe = true,
 }: CalendarDayCellProps) {
   const { observedHolidayIds } = useObservedPublicHolidays();
   const dayNumber = arg.date.getDate();
@@ -281,7 +285,13 @@ export function CalendarDayCell({
     );
   }
 
-  const needsInput = dayNeedsInput(plannedDay.type, plannedDay, actualDay, isForfaitJour);
+  const needsInput = dayNeedsInput(
+    plannedDay.type,
+    plannedDay,
+    actualDay,
+    isForfaitJour,
+    pointe
+  );
 
   const handleTypeChange = (newType: string) => {
     const preserved = plannedDay.heures_prevues;

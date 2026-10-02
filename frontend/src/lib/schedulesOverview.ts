@@ -3,8 +3,11 @@ import { getAbsencesForEmployee } from '@/api/absences';
 import type { PlannedEventData, ActualHoursData } from '@/api/calendar';
 import { runWithConcurrency } from '@/lib/concurrency';
 import {
+  aDesHeuresPointees,
   computeMonthStats,
   computeEmployeeRowStatus,
+  moisPrecedent,
+  pointeSurLaPeriode,
   type EmployeeRowStatus,
 } from '@/lib/calendarStats';
 import {
@@ -51,6 +54,11 @@ export interface EmployeeCalendarOverviewRow {
   absenceConflictDays: number[];
   loadError: boolean;
   isForfaitJour: boolean;
+  /**
+   * Heures pointées le mois précédent (ou mois précédent illisible : règle
+   * stricte). Absent : règle stricte. Sert au statut recalculé après une saisie.
+   */
+  pointeMoisPrecedent?: boolean;
 }
 
 function buildBasePlannedCalendar(
@@ -86,10 +94,16 @@ async function fetchEmployeeOverview(
   const forfait = isForfaitJour(employee.statut, employee.is_forfait_jour);
 
   try {
-    const [plannedRes, actualRes, absencesRes] = await Promise.all([
+    const precedent = moisPrecedent(year, month);
+    const [plannedRes, actualRes, absencesRes, reelMoisPrecedent] = await Promise.all([
       calendarApi.getPlannedCalendar(employee.id, year, month),
       calendarApi.getActualHours(employee.id, year, month),
       getAbsencesForEmployee(employee.id),
+      // Lecture annexe : illisible, on garde la règle stricte (jamais d'erreur de ligne).
+      calendarApi
+        .getActualHours(employee.id, precedent.year, precedent.month)
+        .then((res): ActualHoursData[] => res.data.calendrier_reel ?? [])
+        .catch((): null => null),
     ]);
 
     const plannedFromApi: PlannedEventData[] =
@@ -110,12 +124,15 @@ async function fetchEmployeeOverview(
     });
 
     const stats = computeMonthStats(planned, actual, forfait);
+    const pointeMoisPrecedent =
+      reelMoisPrecedent === null || aDesHeuresPointees(reelMoisPrecedent);
     const rowStatus = computeEmployeeRowStatus(
       planned,
       actual,
       year,
       month,
-      forfait
+      forfait,
+      pointeSurLaPeriode(actual, reelMoisPrecedent)
     );
 
     const validatedDays = validatedAbsenceDaysInMonth(
@@ -141,6 +158,7 @@ async function fetchEmployeeOverview(
       absenceConflictDays,
       loadError: false,
       isForfaitJour: forfait,
+      pointeMoisPrecedent,
     };
   } catch {
     return {
@@ -257,7 +275,8 @@ export function applyDayPatchToRow(
     newActual,
     year,
     month,
-    row.isForfaitJour
+    row.isForfaitJour,
+    (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual)
   );
 
   return {

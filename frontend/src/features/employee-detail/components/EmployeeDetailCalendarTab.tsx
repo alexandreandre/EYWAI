@@ -50,6 +50,8 @@ interface CalendarTabProps {
   updateSelection: (mode: "all" | "weekdays" | "none") => void;
   isDirty: boolean;
   monthCompletionStatus: string;
+  /** Le salarié pointe sur la période (`useCalendar`) ; absent : règle stricte. */
+  pointe?: boolean;
   copyPreviousMonthPlanned: () => void | Promise<void>;
   copyPlannedToActualForDay: (day: number) => void;
   bulkCopyPlannedToActual: () => void;
@@ -85,6 +87,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
     updateSelection,
     isDirty,
     monthCompletionStatus,
+    pointe = true,
     copyPreviousMonthPlanned,
     copyPlannedToActualForDay,
     bulkCopyPlannedToActual,
@@ -353,6 +356,7 @@ export function EmployeeDetailCalendarTab(props: CalendarTabProps) {
                                 onDaySelect={handleDaySelection}
                                 selectedDate={selectedDate}
                                 isForfaitJour={isForfaitJour}
+                                pointe={pointe}
                                 onCopyPlannedToActual={copyPlannedToActualForDay}
                               />
                             </div>

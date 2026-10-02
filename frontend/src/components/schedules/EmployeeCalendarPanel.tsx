@@ -63,6 +63,7 @@ export function EmployeeCalendarPanel({
     isDirty,
     isForfaitJour,
     monthCompletionStatus,
+    pointe,
     copyPlannedToActualForDay,
   } = useCalendar(employeeId, employeeStatut, { isForfaitJour: employeeIsForfaitJour });
 
@@ -239,6 +240,7 @@ export function EmployeeCalendarPanel({
                           onDaySelect={handleDaySelection}
                           selectedDate={selectedDate}
                           isForfaitJour={isForfaitJour}
+                          pointe={pointe}
                           onCopyPlannedToActual={copyPlannedToActualForDay}
                         />
                       </div>
