@@ -37,6 +37,7 @@ import {
 import { PrevoyanceAffiliationFields } from '@/features/employees/components/PrevoyanceAffiliationFields';
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
+import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
 
 interface EmployeeProfileEditFormProps {
   control: Control<EmployeeProfileEditFormValues>;
@@ -66,6 +67,8 @@ export function EmployeeProfileEditForm({
   payrollFocus = false,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
+  const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
+  const dureeHebdo = useWatch({ control, name: 'duree_hebdomadaire' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
   const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
@@ -359,6 +362,7 @@ export function EmployeeProfileEditForm({
                   />
                 </FormControl>
                 <FormMessage />
+                <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} />
               </FormItem>
             )}
           />

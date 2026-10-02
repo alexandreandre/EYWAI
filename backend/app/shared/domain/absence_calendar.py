@@ -28,8 +28,9 @@ ORIGINE_ABSENCE = "absence"
 # (`type_mapping` + le cas arrêt de travail).
 # Mapping type de demande d'absence -> type de jour au calendrier.
 # Source unique : le provider de validation d'absence ET le script de reprise
-# le consomment ; les types absents de ce dict (jtc, sans_solde...) n'écrivent
-# JAMAIS le calendrier, par design.
+# le consomment ; le type absent de ce dict (jtc) n'écrit JAMAIS le
+# calendrier. `sans_solde` écrit `absence_non_remuneree` : le jour se voit
+# et le salaire est retenu.
 #: Le moteur de paie ne compte que les jours `conges_payes` — `conge` ne figure
 #: nulle part dans `payslip_run_heures`, `analyzer` ni `temps_travail_mois`. Un
 #: congé payé écrit sous `conge` n'est donc ni travaillé ni en congé pour le
@@ -48,10 +49,18 @@ ABSENCE_TYPE_TO_CALENDAR_TYPE: dict[str, str] = {
     "repos_compensateur": "conge",
     "recuperation_modulation": "conges_payes",
     "evenement_familial": "evenement_familial",
+    "sans_solde": "absence_non_remuneree",
 }
 
 ABSENCE_CALENDAR_TYPES: frozenset[str] = frozenset(
-    {"arret_maladie", "conge", "conges_payes", "evenement_familial", "rtt"}
+    {
+        "arret_maladie",
+        "conge",
+        "conges_payes",
+        "evenement_familial",
+        "rtt",
+        "absence_non_remuneree",
+    }
 )
 
 # Clés d'un jour de planning que seul le serveur écrit.

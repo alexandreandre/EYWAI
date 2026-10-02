@@ -9,11 +9,12 @@ const ABSENCE_CALENDAR_TYPES = new Set([
   'rtt',
   'arret_maladie',
   'ferie',
+  'absence_non_remuneree',
 ]);
 
-// Types d'absence qui n'écrivent JAMAIS le calendrier (aligné backend) : leurs
-// jours restent « travail » par design — ce n'est pas un conflit.
-const TYPES_SANS_CALENDRIER = new Set(['jtc', 'sans_solde']);
+// Le JTC n'écrit jamais le calendrier : ses jours restent « travail ».
+// Le congé sans solde écrit `absence_non_remuneree`.
+const TYPES_SANS_CALENDRIER = new Set(['jtc']);
 
 export function validatedAbsenceDaysInMonth(
   absences: AbsenceRequest[],

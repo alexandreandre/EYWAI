@@ -22,6 +22,7 @@ export const CALENDAR_TYPE_LABELS: Record<string, string> = {
   // (cas Marion 30/06, retour Gaëlle 07/09).
   absence_non_remuneree: 'Absence non rémunérée',
   absence_justifiee: 'Absence justifiée',
+  ecole: 'École',
 };
 
 export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
@@ -36,6 +37,7 @@ export const CALENDAR_TYPE_BAR_COLORS: Record<string, string> = {
   repos: 'bg-slate-400',
   absence_non_remuneree: 'bg-orange-500',
   absence_justifiee: 'bg-amber-500',
+  ecole: 'bg-indigo-500',
 };
 
 /** Fonds de cellule/carte teintés par type (mêmes teintes que la vue semaine). */
@@ -51,6 +53,7 @@ export const CALENDAR_TYPE_BG_COLORS: Record<string, string> = {
   repos: 'bg-slate-50 hover:bg-slate-100 border-slate-200/60',
   absence_non_remuneree: 'bg-orange-50 hover:bg-orange-100 border-orange-200/60',
   absence_justifiee: 'bg-amber-50 hover:bg-amber-100 border-amber-200/60',
+  ecole: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200/60',
 };
 
 export const CALENDAR_LEGEND_ITEMS: {
@@ -64,6 +67,7 @@ export const CALENDAR_LEGEND_ITEMS: {
   { key: 'ferie', label: 'Férié', colorClass: 'bg-purple-500' },
   { key: 'arret_maladie', label: 'Arrêt maladie', colorClass: 'bg-red-500' },
   { key: 'weekend', label: 'Week-end', colorClass: 'bg-slate-400' },
+  { key: 'ecole', label: 'École', colorClass: 'bg-indigo-500' },
   { key: 'today', label: "Aujourd'hui", colorClass: 'ring-2 ring-primary' },
 ];
 
@@ -83,6 +87,7 @@ export const CALENDAR_EDITABLE_TYPE_OPTIONS: { value: string; label: string }[] 
   { value: 'arret_maladie', label: 'Arrêt maladie' },
   { value: 'weekend', label: 'Week-end' },
   { value: 'absence_non_remuneree', label: 'Absence non rémunérée' },
+  { value: 'ecole', label: 'École' },
 ];
 
 /** Types qu'une COPIE de mois ne doit jamais répliquer : les jours CP/RTT du
@@ -93,6 +98,7 @@ export const NON_COPYABLE_DAY_TYPES: ReadonlySet<string> = new Set([
   'conges_payes',
   'rtt',
   'conge',
+  'ecole',
 ]);
 
 /** Option « Congé (hors paie) » ajoutée uniquement quand le jour la porte déjà. */

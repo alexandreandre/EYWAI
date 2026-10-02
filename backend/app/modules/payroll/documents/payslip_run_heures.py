@@ -26,6 +26,11 @@ from app.modules.payroll.engine.calcul_reduction_generale import (
     calculer_reduction_generale,
 )
 from app.modules.payroll.engine import legal_constants as lc
+
+# Jours qui empêchent la retenue « absence intégrale du mois ».
+# `ecole` : journée payée hors entreprise (alternant). Sans elle, un mois
+# sans jour « travail » effacerait aussi ces journées.
+TYPES_JOURS_COUVERTS = frozenset({"travail", "conges_payes", "ecole"})
 from app.modules.payroll.engine.exoneration_jei import (
     calculer_exoneration_jei,
     jei_applicable,
@@ -792,8 +797,9 @@ def run_payslip_generation_heures(
             hs_conj_decl_50 or 0
         )
 
-    # Nombre de jours "travail" OU "conges_payes" dans le calendrier BRUT du
-    # mois (avant analyse) : sert uniquement à détecter une absence couvrant
+    # Nombre de jours couverts (travail, congés payés, école) dans le
+    # calendrier BRUT du mois (avant analyse) : sert uniquement à détecter
+    # une absence couvrant
     # l'intégralité du mois calendaire (cf. docstring `calculer_salaire_brut`)
     # — ne PAS remplacer par les accumulateurs d'heures travaillées du calcul
     # lui-même, qui sont toujours à 0 pour un salarié "heures" (régression
@@ -814,7 +820,7 @@ def run_payslip_generation_heures(
             nb_jours_travail_planifies = sum(
                 1
                 for j in calendrier_prevu_mois
-                if j.get("type") in ("travail", "conges_payes")
+                if j.get("type") in TYPES_JOURS_COUVERTS
             )
         except (json.JSONDecodeError, OSError):
             nb_jours_travail_planifies = None

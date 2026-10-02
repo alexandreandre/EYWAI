@@ -198,15 +198,14 @@ class TestAbsenceConflicts:
         ]
         assert validated_absence_days_in_month(absences, 2026, 6) == {11}
 
-    def test_jtc_et_sans_solde_ignores_du_decompte(self):
-        """jtc/sans_solde n'écrivent jamais le calendrier (par design) :
-        leurs demandes validées ne créent pas de jours attendus."""
+    def test_jtc_ignore_sans_solde_compte(self):
+        """Le JTC n'écrit pas le calendrier. Le congé sans solde, si."""
         absences = [
             {"type": "jtc", "selected_days": ["2026-06-10"]},
             {"type": "sans_solde", "selected_days": ["2026-06-11"]},
             {"type": "conge_paye", "selected_days": ["2026-06-12"]},
         ]
-        assert validated_absence_days_in_month(absences, 2026, 6) == {12}
+        assert validated_absence_days_in_month(absences, 2026, 6) == {11, 12}
 
 
 class TestDayEcartsAndHeuresSup:

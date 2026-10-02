@@ -83,11 +83,23 @@ describe("detectAbsenceConflictDays", () => {
     expect(detectAbsenceConflictDays(planned, days, 2026, 8)).toEqual([18]);
   });
 
-  it("ignore les types d'absence qui n'écrivent jamais le calendrier (jtc, sans_solde)", () => {
+  it("ignore le JTC, qui n'écrit pas le calendrier", () => {
     const jtc = {
       ...arret(["2026-08-14"]),
       type: "jtc",
     } as AbsenceRequest;
     expect(validatedAbsenceDaysInMonth([jtc], 2026, 8)).toEqual([]);
+  });
+
+  it("compte un congé sans solde et ne le signale pas si le jour est non rémunéré", () => {
+    const sansSolde = {
+      ...arret(["2026-08-14"]),
+      type: "sans_solde",
+    } as AbsenceRequest;
+    expect(validatedAbsenceDaysInMonth([sansSolde], 2026, 8)).toEqual([14]);
+    const planned: PlannedEventData[] = [
+      { jour: 14, type: "absence_non_remuneree", heures_prevues: 0 },
+    ] as PlannedEventData[];
+    expect(detectAbsenceConflictDays(planned, [14], 2026, 8)).toEqual([]);
   });
 });

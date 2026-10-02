@@ -19,6 +19,7 @@ import { EmployeeDetailBadgeuseSection } from "@/components/badgeuse/rh/Employee
 import { getEmployeeDaysSummary } from "@/api/badgeuse";
 import { periodRangeLastDays } from "@/lib/badgeuseApiUtils";
 import { EmployeeDetailHeaderCard } from "@/components/employee-detail/EmployeeDetailHeaderCard";
+import { EmployeeContractPeriodsCard } from "@/components/employee-detail/EmployeeContractPeriodsCard";
 import { EmployeeDetailTrialPeriodCard } from "@/components/employee-detail/EmployeeDetailTrialPeriodCard";
 import {
   EmployeeDetailAnnualReviewsTab,
@@ -589,6 +590,10 @@ export default function EmployeeDetail() {
           employee={employee}
           onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
         />
+      )}
+
+      {employeeId && employee && (
+        <EmployeeContractPeriodsCard employee={employee} />
       )}
 
       {employeeId && employee && (

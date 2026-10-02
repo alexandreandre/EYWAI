@@ -23,7 +23,7 @@ from app.modules.employees.api.deps import (
 from app.modules.employees.api.router_me import me_router
 from app.modules.audit.application.commands import log_audit_event
 from app.modules.webhooks.application.service import trigger_webhook_event
-from app.modules.employees.application import commands, queries
+from app.modules.employees.application import commands, contract_periods, queries
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.schemas.requests import NewFullEmployee, UpdateEmployee
 from app.modules.documents.application.commands import generate_document
@@ -570,6 +570,50 @@ def confirm_trial_period(
         raise HTTPException(
             status_code=500, detail=f"Erreur interne du serveur: {str(e)}"
         )
+
+
+def _rh_employee(current_user: User, employee_id: str) -> str:
+    company_id = require_rh_access(current_user.active_company_id, current_user)
+    assert_can_read_employee_profile(current_user, employee_id, company_id)
+    access_control_service.assert_employee_in_company(str(company_id), str(employee_id))
+    return company_id
+
+
+@router.get("/{employee_id}/contract-periods")
+def get_contract_periods(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Contrats passés. Le contrat en cours reste sur la fiche."""
+    company_id = _rh_employee(current_user, employee_id)
+    return contract_periods.list_contract_periods(employee_id, company_id)
+
+
+@router.post("/{employee_id}/contract-periods", status_code=201)
+def post_contract_period(
+    employee_id: str,
+    payload: contract_periods.ContractPeriodIn,
+    current_user: User = Depends(get_current_user),
+):
+    """Ajoute un contrat terminé. Ne modifie pas la date d'ancienneté."""
+    company_id = _rh_employee(current_user, employee_id)
+    try:
+        return contract_periods.add_contract_period(employee_id, company_id, payload)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.delete("/{employee_id}/contract-periods/{period_id}", status_code=204)
+def remove_contract_period(
+    employee_id: str,
+    period_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    company_id = _rh_employee(current_user, employee_id)
+    try:
+        contract_periods.delete_contract_period(employee_id, company_id, period_id)
+    except contract_periods.ContractPeriodMissing as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{employee_id}/deletion-impact", response_model=EmployeeDeletionImpact)

@@ -40,7 +40,8 @@ def type_calendrier_projete(absence_type: str) -> str | None:
 
     Source unique pour la projection ET sa réciproque (restauration à
     l'annulation) : arrêts → 'arret_maladie', sinon le mapping partagé ;
-    None pour les types qui n'écrivent jamais le calendrier (jtc, sans_solde…).
+    None pour le type qui n'écrit jamais le calendrier (jtc).
+    `sans_solde` écrit `absence_non_remuneree`.
     """
     from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 

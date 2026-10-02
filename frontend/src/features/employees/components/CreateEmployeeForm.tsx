@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, PlusCircle, Loader2, Upload, FileText, Trash2 } from "lucide-react";
+import { BrutPourDureeHint } from "@/components/employees/BrutPourDureeHint";
 import { getValeursEmbauche, type NouveauSalarieCree } from "@/api/employees";
 import { NouveauSalarieRecap } from "@/features/employees/components/NouveauSalarieRecap";
 import { signalerErreurEcran } from "@/api/clientErrors";
@@ -1363,6 +1364,10 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               <FormLabel>Salaire de base mensuel (€)<Requis /></FormLabel>
                               <FormControl><Input type="number" step="any" {...field} /></FormControl>
                               <FormMessage />
+                              <BrutPourDureeHint
+                                salaire={form.watch("salaire_de_base.valeur")}
+                                dureeHebdo={form.watch("duree_hebdomadaire")}
+                              />
                             </FormItem>
                           )} 
                         />

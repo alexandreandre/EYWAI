@@ -28,7 +28,16 @@ logger = get_logger("modules.payroll.application.analyzer")
 # validée d'origine (payslip_generator._stamp_source_absence_conges) — seuls
 # les vrais congés payés sont conservés à 0 h (cf. _conserver_evenement_a_
 # zero_heure). Un jour sans marqueur (planning pur, reprise DSN) reste ignoré.
-TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset({"arret_maladie", "ferie"})
+TYPES_SIGNIFICATIFS_A_ZERO_HEURE: frozenset[str] = frozenset(
+    {
+        "arret_maladie",
+        "ferie",
+        # Congé sans solde, projeté à 0 h : calcul_brut impute alors la
+        # journée contractuelle. Sans cette conservation, la retenue n'a
+        # jamais lieu.
+        "absence_non_remuneree",
+    }
+)
 
 _MAINTIEN_EVENT_META_KEYS: tuple[str, ...] = (
     "arret_type",

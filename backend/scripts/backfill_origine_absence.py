@@ -163,8 +163,9 @@ def days_by_employee_month(
         employee_id = row.get("employee_id")
         if not employee_id:
             continue
-        # jtc et sans_solde n'écrivent JAMAIS le calendrier (par design) :
-        # les compter fabriquerait des « absences perdues » fantômes.
+        # Le JTC n'écrit jamais le calendrier : le compter fabriquerait
+        # des « absences perdues » fantômes. Le congé sans solde, lui, écrit
+        # le calendrier (types dérivés du mapping partagé).
         if row.get("type") not in TYPES_ECRIVANT_CALENDRIER:
             continue
         for raw_day in row.get("selected_days") or []:

@@ -148,7 +148,8 @@ def month_period_bounds(year: int, month: int) -> tuple[date, date]:
 # Types de demande qui n'écrivent JAMAIS le calendrier (par design,
 # cf. shared/domain/absence_calendar.ABSENCE_TYPE_TO_CALENDAR_TYPE) : une
 # demande validée de ces types n'est pas un conflit de calendrier.
-_TYPES_DEMANDE_SANS_CALENDRIER = frozenset({"jtc", "sans_solde"})
+# `sans_solde` n'y est plus : il écrit `absence_non_remuneree`.
+_TYPES_DEMANDE_SANS_CALENDRIER = frozenset({"jtc"})
 
 # Types de jour qui reflètent correctement une absence validée : la source
 # partagée ABSENCE_CALENDAR_TYPES (conge, conges_payes, rtt, arret_maladie)

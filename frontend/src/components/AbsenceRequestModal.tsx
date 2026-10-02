@@ -501,6 +501,7 @@ export function AbsenceRequestModal({
               ]
             : []),
           { value: "evenement_familial" as const, label: "Événement Familial" },
+          { value: "sans_solde" as const, label: "Congé sans solde" },
         ]
       : EMPLOYEE_REQUESTABLE_ABSENCE_TYPES.filter(
           (value) =>
