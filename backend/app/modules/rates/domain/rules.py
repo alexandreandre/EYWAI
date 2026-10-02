@@ -64,3 +64,15 @@ def build_rate_category_output(row: dict[str, Any]) -> dict[str, Any]:
     Retourne uniquement les clés RATE_CATEGORY_OUTPUT_KEYS.
     """
     return {k: row.get(k) for k in RATE_CATEGORY_OUTPUT_KEYS}
+
+
+#: Ancienne base de production (projet Supabase). Le lot de taux n'y écrit
+#: jamais : il n'écrit que la base de test tant que le moteur recetté de la
+#: démo n'est pas devenu celui de la production.
+PROJETS_INTERDITS_POUR_LES_TAUX: frozenset[str] = frozenset({"slleauhyjnmiawosvlcg"})
+
+
+def base_interdite_pour_les_taux(supabase_url: str) -> bool:
+    """True si l'URL Supabase désigne une base où le lot de taux ne doit pas écrire."""
+    hote = (supabase_url or "").split("://", 1)[-1].split("/", 1)[0]
+    return hote.split(".", 1)[0] in PROJETS_INTERDITS_POUR_LES_TAUX

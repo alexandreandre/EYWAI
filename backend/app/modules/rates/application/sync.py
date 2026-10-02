@@ -12,7 +12,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from app.core.database import supabase_url
 from app.core.logging import get_logger
+from app.modules.rates.domain.rules import base_interdite_pour_les_taux
 from app.modules.rates.domain.rate_source_mapping import (
     COTISATION_ID_TO_SOURCE_KEYS,
     RATE_KEY_TO_SOURCE_KEYS,
@@ -514,6 +516,10 @@ def start_rates_sync(
     """
     Démarre une mise à jour ciblée ou globale (toutes les sources actives de la page si aucun filtre).
     """
+    if base_interdite_pour_les_taux(supabase_url):
+        raise ValueError(
+            "Mise à jour des taux refusée : ce serveur est branché sur l'ancienne base de production."
+        )
     _hydrate_running_locks()
     requested = resolve_source_keys(
         rate_keys=rate_keys,
