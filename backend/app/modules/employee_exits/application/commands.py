@@ -56,6 +56,9 @@ from app.services.portability_document_generator import portability_generator
 from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
 )
+from app.modules.payroll.solde_de_tout_compte.common.bulletin_de_sortie import (
+    bulletin_du_mois_de_sortie,
+)
 
 ELIGIBLE_PORTABILITY_MOTIFS = frozenset(
     {"licenciement", "fin_cdd", "rupture_conventionnelle"}
@@ -491,11 +494,21 @@ def _run_post_create_indemnities_and_docs(
     logger.info('✓ Indemnités calculées automatiquement')
 
     log_app_debug(logger, '[CREATE EXIT] Génération automatique des documents...')
+    # Le solde de tout compte et l'attestation France Travail reprennent les
+    # sommes du bulletin du mois de sortie : sans lui, ils ne sont pas produits
+    # (l'écran grise leur génération jusqu'au bulletin). Le certificat, sans
+    # montant, l'est toujours.
+    avec_bulletin_de_sortie = (
+        bulletin_du_mois_de_sortie(employee_id_exit, exit_full_data, sb) is not None
+    )
     for doc_type in (
         "certificat_travail",
         "attestation_pole_emploi",
         "solde_tout_compte",
     ):
+        if doc_type != "certificat_travail" and not avec_bulletin_de_sortie:
+            logger.info(f"{doc_type} attendu après le bulletin de sortie")
+            continue
         try:
             if doc_type == "solde_tout_compte":
                 pdf_bytes = generator.generate_solde_tout_compte(
