@@ -46,6 +46,25 @@ def sum_hours(values: List[Any]) -> float:
     return total
 
 
+def a_des_heures_pointees(actual_days: List[Dict[str, Any]]) -> bool:
+    """Vrai si une heure au moins est pointée au réel.
+
+    Même critère que le moteur (`payroll.planning_repli.mois_sans_pointage`) :
+    sans aucune heure > 0, il ne lit pas le réel et paie le prévu. Un jour
+    vide ou à 0 h ne fait donc pas, à lui seul, un salarié qui pointe.
+    """
+    for jour in actual_days:
+        valeur = jour.get("heures_faites") if isinstance(jour, dict) else None
+        if isinstance(valeur, bool) or not isinstance(valeur, (int, float, str)):
+            continue
+        try:
+            if float(valeur) > 0:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def is_day_ready_for_payroll(
     planned: Dict[str, Any] | None,
     actual: Dict[str, Any] | None,
@@ -117,6 +136,9 @@ def compute_row_status(
     `a_saisir` fourni : la décision de complétude vient de la période à saisir
     (`domain.periode_a_saisir`, mois civil ∪ fenêtre des variables). Absent :
     règle historique sur le mois civil seul.
+
+    Sans aucune heure pointée, le prévu fait foi (le moteur ne lit pas le
+    réel) : pas d'écart à signaler, la ligne est `saisi`.
     """
     if a_saisir is None:
         a_saisir = (
@@ -125,6 +147,8 @@ def compute_row_status(
         )
     if a_saisir:
         return "a_saisir"
+    if not a_des_heures_pointees(actual_days):
+        return "saisi"
     heures_prevues = sum_hours([d.get("heures_prevues") for d in planned_days])
     heures_faites = sum_hours([d.get("heures_faites") for d in actual_days])
     if forfait:

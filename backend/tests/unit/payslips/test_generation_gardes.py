@@ -285,6 +285,53 @@ class TestGardeCalendrierIncomplet:
         mock_provider.generate_heures.assert_called_once()
         assert not [w for w in (result.warnings or []) if isinstance(w, dict)]
 
+    def test_une_semaine_a_vide_et_une_semaine_non_importee_refusent_avec_les_jours(self):
+        """Septembre 2026, fenêtre 24/08 → 20/09 : S35 créée à vide, S37 jamais
+        importée. Le moteur compterait S35 à 0 h (−39 h) et effacerait les heures
+        sup du mois : la génération refuse et nomme les jours."""
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=9)
+        aout = _schedule_semaine_ouvree(2026, 8, reel_jusqu_au=31)
+        for entree in aout["actual_hours"]["calendrier_reel"]:
+            if 24 <= entree["jour"] <= 28:
+                entree["heures_faites"] = None
+        septembre = _schedule_semaine_ouvree(2026, 9, reel_jusqu_au=20)
+        septembre["actual_hours"]["calendrier_reel"] = [
+            e for e in septembre["actual_hours"]["calendrier_reel"] if not 7 <= e["jour"] <= 11
+        ]
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
+            None, fenetre=_fenetre(date(2026, 8, 24), date(2026, 9, 20))
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched as mock_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_sched.list_schedules_for_employees.side_effect = lambda ids, y, m: (
+                {"emp-1": aout if m == 8 else septembre}
+            )
+            with pytest.raises(PayslipCalendarIncompleteError) as exc:
+                generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_not_called()
+        assert "24/08–28/08, 07/09–11/09" in str(exc.value)
+        assert exc.value.details["jours_manquants"][:5] == [
+            f"2026-08-{jour}" for jour in range(24, 29)
+        ]
+
+    def test_un_salarie_qui_ne_pointe_pas_genere_sans_refus(self):
+        """Aucune heure réelle sur la période : le prévu fait foi, comme au moteur."""
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
+        mock_result = {"status": "success", "message": "OK", "download_url": "u"}
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(
+            _schedule_semaine_ouvree(2026, 5, reel_jusqu_au=None)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = mock_result
+            result = generate_payslip(cmd)
+
+        mock_provider.generate_heures.assert_called_once()
+        assert not [w for w in (result.warnings or []) if isinstance(w, dict)]
+
     def test_le_forcage_nomme_les_jours_forces(self):
         cmd = GeneratePayslipInput(
             employee_id="emp-1",

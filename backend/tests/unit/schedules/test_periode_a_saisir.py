@@ -77,8 +77,9 @@ def test_une_fois_juin_saisi_juillet_est_saisi_avec_cinq_informatifs():
 
 
 def test_rien_a_saisir_avant_l_embauche_ni_apres_la_sortie():
+    # Un salarié qui pointe (juin saisi) ; juillet reste vide.
     calendriers = {
-        (2026, 6): _mois(2026, 6, reel_jusqu_au=None),
+        (2026, 6): _mois(2026, 6, reel_jusqu_au=30),
         (2026, 7): _mois(2026, 7, reel_jusqu_au=None),
     }
 
@@ -289,3 +290,163 @@ def test_une_entree_apres_la_cloture_des_variables_ne_bloque_pas_les_jours_hors_
     assert not periode.bloquants
     assert all(j.jour >= date(2026, 9, 21) for j in periode.manquants)
     assert [j.jour.day for j in periode.informatifs] == [21, 22, 23, 24, 25, 28, 29, 30]
+
+
+# --- Ce que le moteur lira : un réel vide ou à 0 h compte, l'absence de réel non ---
+#
+# Le moteur lit le réel d'un mois dès qu'une heure y est pointée
+# (`planning_repli.mois_sans_pointage`) : un jour « travail » vide ou à 0 h
+# vaut alors 0 h contre 8 h prévues, et la compensation entre semaines en
+# fait une semaine à −39 h qui efface les heures sup du mois. Sans aucune
+# heure pointée, le prévu fait foi. Constat du 02/10/2026 (septembre 2026).
+
+FENETRE_SEPTEMBRE = (date(2026, 8, 24), date(2026, 9, 20))  # S35–S38
+
+
+def _septembre_pointe(*, s35: float | None, s37_importee: bool):
+    """Août et septembre pointés à 8 h ; S35 (24–28/08) selon `s35`, S37 (07–11/09) selon l'import.
+
+    `s35` : heures réelles de S35 (None = lignes créées à vide, 0.0 = zéro saisi).
+    """
+    aout_prevu, aout_reel = _mois(2026, 8, reel_jusqu_au=31)
+    for entree in aout_reel:
+        if 24 <= entree["jour"] <= 28:
+            entree["heures_faites"] = s35
+    sept_prevu, sept_reel = _mois(2026, 9, reel_jusqu_au=20)
+    if not s37_importee:
+        sept_reel = [e for e in sept_reel if not 7 <= e["jour"] <= 11]
+    return {(2026, 8): (aout_prevu, aout_reel), (2026, 9): (sept_prevu, sept_reel)}
+
+
+def test_une_semaine_a_vide_et_une_semaine_jamais_importee_bloquent_la_fenetre():
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=FENETRE_SEPTEMBRE,
+        calendriers=_septembre_pointe(s35=None, s37_importee=False),
+        date_entree=date(2018, 2, 1),
+    )
+
+    assert periode.statut == "a_saisir"
+    assert libelle_plages(j.jour for j in periode.bloquants) == "24/08–28/08, 07/09–11/09"
+    assert {j.motif for j in periode.bloquants} == {"prevu_sans_reel"}
+    assert [j.jour.day for j in periode.informatifs] == [21, 22, 23, 24, 25, 28, 29, 30]
+
+
+def test_une_semaine_saisie_a_zero_heure_bloque_comme_reel_a_zero():
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=FENETRE_SEPTEMBRE,
+        calendriers=_septembre_pointe(s35=0.0, s37_importee=True),
+    )
+
+    assert [(j.jour.isoformat(), j.motif) for j in periode.bloquants] == [
+        (f"2026-08-{jour}", "reel_a_zero") for jour in range(24, 29)
+    ]
+
+
+def test_un_salarie_qui_pointe_avant_la_fenetre_doit_saisir_la_fenetre():
+    """Pointé du 1er au 21/08, plus rien ensuite : un oubli d'import, pas un salarié sans pointage."""
+    aout_prevu, aout_reel = _mois(2026, 8, reel_jusqu_au=21)
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=FENETRE_SEPTEMBRE,
+        calendriers={
+            (2026, 8): (aout_prevu, aout_reel),
+            (2026, 9): _mois(2026, 9, reel_jusqu_au=None),
+        },
+    )
+
+    assert libelle_plages(j.jour for j in periode.bloquants) == (
+        "24/08–28/08, 31/08–04/09, 07/09–11/09, 14/09–18/09"
+    )
+
+
+def test_un_salarie_qui_ne_pointe_jamais_n_a_rien_a_saisir():
+    """Société qui ne pointe pas : sans aucune heure réelle, le prévu fait foi."""
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=FENETRE_SEPTEMBRE,
+        calendriers={
+            (2026, 8): _mois(2026, 8, reel_jusqu_au=None),
+            (2026, 9): _mois(2026, 9, reel_jusqu_au=None),
+        },
+    )
+
+    assert periode.statut == "saisi"
+    assert periode.manquants == ()
+
+
+def test_des_lignes_reelles_a_vide_ne_font_pas_un_salarie_qui_pointe():
+    """Des entrées réelles sans heures (créées à vide par une saisie) : le moteur
+    les ignore tant qu'aucune heure n'est pointée, le juge aussi."""
+    prevu, _ = _mois(2026, 9, reel_jusqu_au=None)
+    reel = [{"jour": e["jour"], "type": e["type"], "heures_faites": None} for e in prevu]
+
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 9, 1), date(2026, 9, 30)),
+        calendriers={(2026, 9): (prevu, reel)},
+    )
+
+    assert periode.statut == "saisi"
+    assert periode.manquants == ()
+
+
+def test_un_zero_saisi_reste_a_saisir_meme_sans_aucune_heure_pointee():
+    """0 h saisie un jour travaillé : le moteur paierait le prévu sans le dire."""
+    prevu, _ = _mois(2026, 9, reel_jusqu_au=None)
+    reel = [{"jour": 9, "type": "travail", "heures_faites": 0.0}]
+
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 9, 1), date(2026, 9, 30)),
+        calendriers={(2026, 9): (prevu, reel)},
+    )
+
+    assert [(j.jour.day, j.motif) for j in periode.bloquants] == [(9, "reel_a_zero")]
+
+
+def test_absence_repos_ferie_et_ecole_ne_sont_jamais_a_saisir():
+    sept_prevu, sept_reel = _mois(2026, 9, reel_jusqu_au=20)
+    types = {
+        7: "conges_payes",
+        8: "arret_maladie",
+        9: "absence_non_remuneree",
+        10: "ferie",
+        11: "ecole",
+        14: "repos",
+        15: "rtt",
+    }
+    for entree in sept_prevu:
+        if entree["jour"] in types:
+            entree.update(type=types[entree["jour"]], heures_prevues=0.0)
+    sept_reel = [e for e in sept_reel if e["jour"] not in types]
+
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=(date(2026, 9, 1), date(2026, 9, 20)),
+        calendriers={(2026, 9): (sept_prevu, sept_reel)},
+    )
+
+    assert periode.bloquants == ()
+
+
+def test_une_sortie_dans_la_fenetre_n_attend_rien_apres_le_dernier_jour():
+    periode = periode_a_saisir(
+        annee=2026,
+        mois=9,
+        fenetre=FENETRE_SEPTEMBRE,
+        calendriers=_septembre_pointe(s35=8.0, s37_importee=False),
+        date_entree=date(2026, 8, 24),
+        date_sortie=date(2026, 9, 9),
+    )
+
+    assert libelle_plages(j.jour for j in periode.bloquants) == "07/09–09/09"
+    assert periode.informatifs == ()

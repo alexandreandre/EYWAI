@@ -237,3 +237,18 @@ def test_compute_row_status_prend_la_decision_a_saisir_quand_on_la_lui_donne():
     assert compute_row_status(planned, actual, 2026, 7, False, a_saisir=True) == "a_saisir"
     # Sans décision : règle historique sur le mois civil.
     assert compute_row_status(planned, actual, 2026, 7, False) == "a_saisir"
+
+
+def test_sans_aucune_heure_pointee_le_prevu_fait_foi_et_il_n_y_a_pas_d_ecart():
+    """Un salarié qui ne pointe pas n'a pas « 0 h faites » : le moteur paie le
+    prévu (`planning_repli.mois_sans_pointage`). Pas d'écart à lui reprocher."""
+    planned = [_weekday_planned(d, 8.0) for d in (1, 2, 3, 4, 5)]
+    vide = [_weekday_actual(d, None) for d in (1, 2, 3)]
+    forfait_planned = [{"jour": d, "type": "travail", "heures_prevues": 1} for d in (1, 2, 3)]
+
+    assert compute_row_status(planned, [], 2026, 9, False, a_saisir=False) == "saisi"
+    assert compute_row_status(planned, vide, 2026, 9, False, a_saisir=False) == "saisi"
+    assert compute_row_status(forfait_planned, [], 2026, 9, True, a_saisir=False) == "saisi"
+    # Une heure pointée suffit : l'écart redevient lisible.
+    pointe = [_weekday_actual(1, 1.0)]
+    assert compute_row_status(planned, pointe, 2026, 9, False, a_saisir=False) == "saisi_avec_ecart"

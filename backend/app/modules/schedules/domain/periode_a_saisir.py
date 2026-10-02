@@ -18,7 +18,10 @@ from datetime import date, timedelta
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from app.modules.schedules.domain.conflits_arret import JourEnConflit, jours_en_conflit
-from app.modules.schedules.domain.ecart_rules import is_day_ready_for_payroll
+from app.modules.schedules.domain.ecart_rules import (
+    a_des_heures_pointees,
+    is_day_ready_for_payroll,
+)
 
 Motif = Literal["planning_absent", "prevu_sans_reel", "prevu_sans_heures", "reel_a_zero"]
 #: (année, mois) → (calendrier prévu, calendrier réel) tels que stockés.
@@ -102,6 +105,13 @@ def periode_a_saisir(
       écarte tout événement hors contrat.
     - Un mois sans ligne de planning attend ses jours ouvrés (lundi à vendredi),
       pas le week-end.
+    - Un jour travaillé sans réel ne manque que chez un salarié qui pointe : une
+      heure au moins au réel sur les mois de la période. Le moteur lit alors le
+      réel, et un jour vide y vaut 0 h contre l'horaire — une semaine entière à
+      −39 h efface les heures sup du mois avec la compensation entre semaines
+      (02/10/2026). Sans aucune heure pointée, le moteur paie le prévu
+      (`payroll.planning_repli.mois_sans_pointage`) : rien n'est à saisir.
+      Un 0 h saisi un jour travaillé manque toujours.
     - Les heures saisies un jour d'arrêt ou d'absence non travaillée sont
       relevées sur la même union et dans les mêmes bornes (`conflits`) ; les
       arrêts validés (`absences_validees`) y ajoutent leurs week-ends, repos et
@@ -112,6 +122,11 @@ def periode_a_saisir(
         fenetre = mois_civil
     debut, fin = min(mois_civil[0], fenetre[0]), max(mois_civil[1], fenetre[1])
     par_mois = {cle: (_par_jour(prevu), _par_jour(reel)) for cle, (prevu, reel) in calendriers.items()}
+    pointe = any(
+        a_des_heures_pointees(list(reel.values()))
+        for cle, (_, reel) in par_mois.items()
+        if (debut.year, debut.month) <= cle <= (fin.year, fin.month)
+    )
 
     manquants: list[JourASaisir] = []
     jour = debut
@@ -128,7 +143,9 @@ def periode_a_saisir(
             else:
                 planned, actual = planning[0].get(jour.day), planning[1].get(jour.day)
                 if not is_day_ready_for_payroll(planned, actual, forfait=forfait):
-                    manquants.append(JourASaisir(jour, dans_fenetre, _motif(planned, actual)))
+                    motif = _motif(planned, actual)
+                    if pointe or motif != "prevu_sans_reel":
+                        manquants.append(JourASaisir(jour, dans_fenetre, motif))
         jour += timedelta(days=1)
 
     def dans_la_periode(c: JourEnConflit) -> bool:

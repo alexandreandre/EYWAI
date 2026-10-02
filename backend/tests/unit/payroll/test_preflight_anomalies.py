@@ -482,6 +482,40 @@ class TestPeriodeASaisir:
         assert anomalie.fenetre["debut"] == "2026-06-01"
         assert "15/06" in anomalie.message
 
+    @patch(
+        "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
+        return_value=[],
+    )
+    @patch("app.modules.modulation.infrastructure.repository.get_modulation_settings")
+    @patch("app.modules.payroll.application.preflight_anomalies.badgeuse_service.get_company_period_summary")
+    @patch("app.modules.payroll.application.preflight_anomalies.preflight_repository.list_resolutions")
+    @patch("app.modules.payroll.application.preflight_anomalies.supabase")
+    def test_un_salarie_qui_ne_pointe_pas_n_a_ni_jour_a_saisir_ni_ecart(
+        self, mock_supabase, mock_resolutions, mock_badgeuse, mock_mod_settings, _mock_punch
+    ):
+        """Aucune heure réelle : le prévu fait foi au moteur, la revue ne reproche rien."""
+        mock_mod_settings.return_value = _default_mod_settings()
+        mock_resolutions.return_value = []
+        mock_badgeuse.return_value = {}
+        _configure_supabase(
+            mock_supabase,
+            schedules=[
+                {
+                    "employee_id": EMP_ID,
+                    "planned_calendar": {"calendrier_prevu": _full_june_2026_planned()},
+                    "actual_hours": {"calendrier_reel": []},
+                }
+            ],
+        )
+
+        with patch(
+            "app.modules.absences.infrastructure.repository.absence_repository.list_validated_for_employees",
+            return_value=[],
+        ):
+            result = preflight_anomalies.build_preflight_anomalies(COMPANY_ID, 2026, 6)
+
+        assert {a.type for a in result.anomalies} & {"heures_non_saisies", "ecart_heures"} == set()
+
     @patch("app.modules.payroll.application.preflight_anomalies.bulletins_sur_une_autre_fenetre")
     @patch(
         "app.modules.schedules.infrastructure.punch_accounting_repository.list_overtime_reviews",
