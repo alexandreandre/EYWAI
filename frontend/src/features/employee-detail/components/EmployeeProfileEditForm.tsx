@@ -38,6 +38,7 @@ import { PrevoyanceAffiliationFields } from '@/features/employees/components/Pre
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
+import { Switch } from '@/components/ui/switch';
 
 interface EmployeeProfileEditFormProps {
   control: Control<EmployeeProfileEditFormValues>;
@@ -48,8 +49,6 @@ interface EmployeeProfileEditFormProps {
   loadingMutuelles: boolean;
   companyOrganismeLabel?: string | null;
   payrollFocus?: boolean;
-  /** `specificites_paie.salaire_hors_hs_structurelles` de la fiche enregistrée. */
-  salaireBaseA35h?: boolean;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -67,11 +66,11 @@ export function EmployeeProfileEditForm({
   loadingMutuelles,
   companyOrganismeLabel,
   payrollFocus = false,
-  salaireBaseA35h = false,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
   const dureeHebdo = useWatch({ control, name: 'duree_hebdomadaire' });
+  const salaireBaseA35h = useWatch({ control, name: 'specificites_paie.salaire_hors_hs_structurelles' });
   const selectedCcId = useWatch({ control, name: 'collective_agreement_id' });
   const isPasPerso = useWatch({ control, name: 'specificites_paie.prelevement_a_la_source.is_personnalise' });
   const isResidencePermit = useWatch({ control, name: 'is_subject_to_residence_permit' });
@@ -365,10 +364,30 @@ export function EmployeeProfileEditForm({
                   />
                 </FormControl>
                 <FormMessage />
-                <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} baseA35h={salaireBaseA35h} />
+                <BrutPourDureeHint salaire={salaireBase} dureeHebdo={dureeHebdo} baseA35h={Boolean(salaireBaseA35h)} />
               </FormItem>
             )}
           />
+          {Number(dureeHebdo) > 35 && (
+            <FormField
+              control={control}
+              name="specificites_paie.salaire_hors_hs_structurelles"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between gap-4 rounded-md border border-dashed p-4">
+                  <div className="space-y-1">
+                    <FormLabel>Salaire saisi pour 35 h</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Activé : les heures au-delà de 35 h sont payées en plus, majorées de 25 %. Désactivé :
+                      le montant saisi couvre toute la durée du contrat. Change le prochain bulletin calculé.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          )}
           <FormField
             control={control}
             name="collective_agreement_id"

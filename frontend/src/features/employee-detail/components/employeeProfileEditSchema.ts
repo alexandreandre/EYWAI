@@ -86,6 +86,8 @@ export const employeeProfileEditSchema = z
       }),
       maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),
+      // Au-delà de 35 h : salaire saisi en base 35 h (moteur : salaire_hors_hs_structurelles).
+      salaire_hors_hs_structurelles: z.boolean().optional(),
       deplacement_astreinte: z
         .object({
           enabled: z.boolean().optional().default(false),

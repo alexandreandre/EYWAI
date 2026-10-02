@@ -12,6 +12,7 @@ const COLORPLAST: ValeursEmbauche = {
   mutuelle_type_ids_par_statut: { 'Non-Cadre': ['iso-nc'], Cadre: ['iso-c'] },
   prevoyance_adhesion: true,
   titres_restaurant_beneficie: false,
+  salaire_hors_hs_structurelles: true,
 };
 
 const BASE = {
@@ -39,6 +40,12 @@ describe('avecValeursDeLaSociete', () => {
 
   it('sans valeurs, rien ne change', () => {
     expect(avecValeursDeLaSociete(BASE, null)).toBe(BASE);
+  });
+
+  it('propose le salaire saisi en base 35 h quand les collègues sont payés ainsi', () => {
+    expect(avecValeursDeLaSociete(BASE, COLORPLAST).specificites_paie.salaire_hors_hs_structurelles).toBe(true);
+    const brutComplet = { ...COLORPLAST, salaire_hors_hs_structurelles: false };
+    expect(avecValeursDeLaSociete(BASE, brutComplet).specificites_paie.salaire_hors_hs_structurelles).toBe(false);
   });
 });
 

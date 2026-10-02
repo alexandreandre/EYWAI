@@ -5,7 +5,8 @@ classification C / 6 / 240, titres-restaurant cochés, aucune mutuelle), fausses
 pour Colorplast, et une mutuelle oubliée faisait un bulletin faux sans alerte.
 On propose ce que portent déjà les salariés actifs de la société : durée,
 convention, classification la plus courante, mutuelle obligatoire de la
-catégorie, prévoyance, titres-restaurant. Tout reste modifiable ; le salaire,
+catégorie, prévoyance, titres-restaurant, salaire saisi en base 35 h au-delà
+de 35 h. Tout reste modifiable ; le salaire,
 propre à chaque embauche, n'est jamais proposé.
 """
 
@@ -89,6 +90,14 @@ def valeurs_d_embauche(
         and (_entier((s.get("titres_restaurant") or {}).get("nombre_par_mois")) or 0) > 0
         for s in specificites
     ]
+    # Au-delà de 35 h, le salaire saisi est-il la base à 35 h (heures
+    # structurelles payées en plus) ? Ce que fait la majorité des collègues :
+    # sans cela, une base saisie au SMIC était payée sous le SMIC horaire.
+    bases_35h = [
+        bool((e.get("specificites_paie") or {}).get("salaire_hors_hs_structurelles"))
+        for e in actifs
+        if float(e.get("duree_hebdomadaire") or 0) > 35
+    ]
 
     return {
         "statut": NON_CADRE,
@@ -112,4 +121,5 @@ def valeurs_d_embauche(
         },
         "prevoyance_adhesion": (sum(prevoyances) * 2 >= len(prevoyances)) if prevoyances else True,
         "titres_restaurant_beneficie": (sum(titres) * 2 > len(titres)) if titres else False,
+        "salaire_hors_hs_structurelles": (sum(bases_35h) * 2 > len(bases_35h)) if bases_35h else False,
     }

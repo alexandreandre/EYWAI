@@ -214,7 +214,6 @@ export function EmployeeProfileEditDialog({
               loadingMutuelles={loadingMutuelles}
               companyOrganismeLabel={companyOrganismeLabel}
               payrollFocus={payrollFocus}
-              salaireBaseA35h={Boolean(employee.specificites_paie?.salaire_hors_hs_structurelles)}
             />
 
             <DialogFooter className="gap-2 sm:gap-0">

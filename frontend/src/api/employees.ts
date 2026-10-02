@@ -195,6 +195,8 @@ export interface ValeursEmbauche {
   mutuelle_type_ids_par_statut: Record<string, string[]>;
   prevoyance_adhesion: boolean;
   titres_restaurant_beneficie: boolean;
+  /** Au-delà de 35 h, salaire saisi en base 35 h comme la majorité des collègues. */
+  salaire_hors_hs_structurelles?: boolean;
 }
 
 export async function getValeursEmbauche(): Promise<ValeursEmbauche> {

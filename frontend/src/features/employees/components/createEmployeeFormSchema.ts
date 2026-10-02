@@ -106,6 +106,9 @@ export const createEmployeeFormSchema = z.object({
     maintien_regime_apprenti: z.boolean().optional(),
     personnel_rd_eligible_jei: z.boolean().optional(),
     mandataire_rd: z.boolean().optional(),
+    // Au-delà de 35 h : le salaire saisi est la base à 35 h, les heures
+    // structurelles sont payées en plus (moteur : salaire_hors_hs_structurelles).
+    salaire_hors_hs_structurelles: z.boolean().optional(),
     prelevement_a_la_source: z.object({
       is_personnalise: z.boolean(),
       taux: z.coerce.number().min(0).max(100).optional(),

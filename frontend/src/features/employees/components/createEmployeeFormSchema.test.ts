@@ -79,3 +79,15 @@ describe('création : le minimum suffit', () => {
     expect(erreurs({ nir: '290057300800001' })).toEqual([]);
   });
 });
+
+describe('création : salaire saisi en base 35 h', () => {
+  it('le réglage survit à la validation du formulaire', () => {
+    const valeurs = {
+      ...MINIMAL,
+      specificites_paie: { ...MINIMAL.specificites_paie, salaire_hors_hs_structurelles: true },
+    };
+    const res = createEmployeeFormSchema.safeParse(valeurs);
+    expect(res.success).toBe(true);
+    expect(res.success && res.data.specificites_paie.salaire_hors_hs_structurelles).toBe(true);
+  });
+});

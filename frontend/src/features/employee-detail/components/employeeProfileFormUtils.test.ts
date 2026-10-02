@@ -260,3 +260,23 @@ describe('classification conventionnelle à l’enregistrement (29/09/2026)', ()
     expect(payload.classification_conventionnelle).toMatchObject({ coefficient: 710, taux_at_individuel_dsn: '3.15' });
   });
 });
+
+describe('employeeProfileFormUtils salaire saisi pour 35 h', () => {
+  it('buildDefaultValues lit le réglage de la fiche', () => {
+    const values = buildDefaultValues({
+      ...baseEmployee,
+      specificites_paie: { ...baseEmployee.specificites_paie, salaire_hors_hs_structurelles: true },
+    });
+    expect(values.specificites_paie.salaire_hors_hs_structurelles).toBe(true);
+  });
+
+  it('buildUpdatePayload enregistre le réglage changé à l’écran', () => {
+    const defaults = buildDefaultValues(baseEmployee);
+    const values: EmployeeProfileEditFormValues = {
+      ...defaults,
+      specificites_paie: { ...defaults.specificites_paie, salaire_hors_hs_structurelles: true },
+    };
+    const payload = buildUpdatePayload(values, baseEmployee);
+    expect(payload.specificites_paie?.salaire_hors_hs_structurelles).toBe(true);
+  });
+});

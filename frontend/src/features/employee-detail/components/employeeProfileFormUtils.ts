@@ -153,6 +153,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
+      salaire_hors_hs_structurelles: Boolean(spec.salaire_hors_hs_structurelles),
       deplacement_astreinte: {
         enabled: Boolean(deplacementAstreinte?.enabled),
         distance_km_one_way: deplacementAstreinte?.distance_km_one_way ?? undefined,
@@ -262,6 +263,7 @@ export function buildUpdatePayload(
       },
       maintien_regime_apprenti: Boolean(values.specificites_paie.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(values.specificites_paie.personnel_rd_eligible_jei),
+      salaire_hors_hs_structurelles: Boolean(values.specificites_paie.salaire_hors_hs_structurelles),
     },
   };
 

@@ -37,6 +37,7 @@ export function avecValeursDeLaSociete(
       : base.classification_conventionnelle,
     specificites_paie: {
       ...base.specificites_paie,
+      salaire_hors_hs_structurelles: valeurs.salaire_hors_hs_structurelles ?? false,
       titres_restaurant: {
         ...base.specificites_paie.titres_restaurant,
         beneficie: valeurs.titres_restaurant_beneficie,

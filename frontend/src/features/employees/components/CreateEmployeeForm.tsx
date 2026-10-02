@@ -1364,16 +1364,35 @@ export function CreateEmployeeForm({ onCreated }: { onCreated?: () => void }) {
                               <FormLabel>Salaire de base mensuel (€)<Requis /></FormLabel>
                               <FormControl><Input type="number" step="any" {...field} /></FormControl>
                               <FormMessage />
-                              {/* Le formulaire ne pose pas `salaire_hors_hs_structurelles` :
-                                  une fiche créée ici est payée sur le montant saisi. */}
                               <BrutPourDureeHint
                                 salaire={form.watch("salaire_de_base.valeur")}
                                 dureeHebdo={form.watch("duree_hebdomadaire")}
-                                baseA35h={false}
+                                baseA35h={Boolean(form.watch("specificites_paie.salaire_hors_hs_structurelles"))}
                               />
                             </FormItem>
-                          )} 
+                          )}
                         />
+                        {Number(form.watch("duree_hebdomadaire")) > 35 && (
+                          <FormField
+                            control={form.control}
+                            name="specificites_paie.salaire_hors_hs_structurelles"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center justify-between gap-4 rounded-md border border-dashed p-4">
+                                <div className="space-y-1">
+                                  <FormLabel>Salaire saisi pour 35 h</FormLabel>
+                                  <p className="text-xs text-muted-foreground">
+                                    Activé : les heures au-delà de 35 h sont payées en plus, majorées de 25 %.
+                                    Désactivé : le montant saisi couvre toute la durée du contrat. Proposé comme
+                                    pour la plupart des salariés de la société.
+                                  </p>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        )}
                         <h3 className="font-semibold pt-4">Convention Collective</h3>
                         <FormField
                           control={form.control}
