@@ -55,7 +55,9 @@ def test_salarie_introuvable():
 def test_la_synchronisation_ecrit_exactement_ce_calcul():
     repo = EmployeeRepository()
     calcule = {"type": "mensuel", "valeur": 2100.0}
+    fiche = {"id": EMPLOYEE_ID, "salaire_de_base": {"type": "mensuel", "valeur": 2000.0}}
     with (
+        patch.object(repo, "get_by_id", return_value=fiche),
         patch.object(repo, "salaire_de_base_a_date", return_value=calcule) as calcul,
         patch.object(repo, "update", return_value={"id": EMPLOYEE_ID}) as update,
     ):
@@ -69,6 +71,7 @@ def test_la_synchronisation_ecrit_exactement_ce_calcul():
 def test_la_synchronisation_d_un_salarie_introuvable_n_ecrit_rien():
     repo = EmployeeRepository()
     with (
+        patch.object(repo, "get_by_id", return_value=None),
         patch.object(repo, "salaire_de_base_a_date", return_value=None),
         patch.object(repo, "update") as update,
     ):
