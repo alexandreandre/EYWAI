@@ -62,6 +62,7 @@ from app.core.paths import (
 
 
 from app.shared.domain.employment_rules import (
+    cumuls_precedents_du_contrat,
     is_forfait_jour as is_forfait_jour,
     payslip_employment_period_block_reason,
 )
@@ -599,6 +600,14 @@ def process_payslip_generation_forfait(
             if raison:
                 raise HTTPException(status_code=422, detail=raison)
             previous_cumuls_data = {"cumuls": {}, "periode": {}}
+        # Premier mois d'un contrat : même règle que le chemin heures.
+        previous_cumuls_data = cumuls_precedents_du_contrat(
+            previous_cumuls_data,
+            employee_data,
+            year,
+            month,
+            {"cumuls": {}, "periode": {}},
+        )
 
         write_temp_json(
             employee_path / "cumuls" / f"{prev_month:02d}.json", previous_cumuls_data

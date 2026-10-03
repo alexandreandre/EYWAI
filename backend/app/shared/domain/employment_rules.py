@@ -5,8 +5,10 @@ Règles métier transverses liées au statut d'emploi (sans I/O).
 from __future__ import annotations
 
 import calendar
+import copy
+from collections.abc import Mapping
 from datetime import date
-from typing import Any, Mapping
+from typing import Any
 
 
 def _parse_employment_date(value: Any) -> date | None:
@@ -57,6 +59,41 @@ def payslip_employment_period_block_reason(
             f"(sortie le {end.strftime('%d/%m/%Y')})."
         )
     return None
+
+
+def premier_mois_du_contrat(employee: Mapping[str, Any], year: int, month: int) -> bool:
+    """Vrai si le contrat en cours commence dans ce mois.
+
+    Même date de début que la garde de présence : le début d'exécution, à
+    défaut la date d'entrée de la fiche. Après « Nouveau contrat », la fiche
+    porte la date de début du nouveau contrat ; une suite en CDI garde celle
+    du CDD (même contrat, L1243-11).
+    """
+    start = _parse_employment_date(
+        employee.get("date_debut_execution") or employee.get("hire_date")
+    )
+    return start is not None and (start.year, start.month) == (year, month)
+
+
+def cumuls_precedents_du_contrat(
+    cumuls_precedents: dict | None,
+    employee: Mapping[str, Any],
+    year: int,
+    month: int,
+    depart_vide: dict,
+) -> dict | None:
+    """Les cumuls de départ du bulletin : ceux du mois d'avant, sauf au premier mois d'un contrat.
+
+    La réduction générale se calcule pour chaque contrat (CSS L241-13, III ;
+    D241-7, V ; BOSS § 1070), l'indemnité de fin de CDD sur le seul contrat
+    (C. trav. L1243-8), et les congés du contrat précédent ont été payés à sa
+    fin (L1242-16). Au premier mois d'un contrat, les cumuls du mois d'avant
+    sont ceux d'un autre contrat, ou n'existent pas : on part de `depart_vide`,
+    le zéro propre à chaque générateur.
+    """
+    if premier_mois_du_contrat(employee, year, month):
+        return copy.deepcopy(depart_vide)
+    return cumuls_precedents
 
 
 def is_employee_present_for_payslip_month(
@@ -115,11 +152,13 @@ def effective_statut_for_payroll(
 
 
 __all__ = [
-    "is_forfait_jour",
-    "is_cadre",
-    "is_non_cadre",
-    "statut_categoriel_clean",
+    "cumuls_precedents_du_contrat",
     "effective_statut_for_payroll",
+    "is_cadre",
     "is_employee_present_for_payslip_month",
+    "is_forfait_jour",
+    "is_non_cadre",
     "payslip_employment_period_block_reason",
+    "premier_mois_du_contrat",
+    "statut_categoriel_clean",
 ]

@@ -58,6 +58,7 @@ from app.modules.payroll.application.analyzer import (
 )
 from app.modules.payroll.planning_repli import appliquer_repli_sans_pointage_par_mois
 from app.shared.domain.employment_rules import (
+    cumuls_precedents_du_contrat,
     is_forfait_jour,
     payslip_employment_period_block_reason,
 )
@@ -1016,6 +1017,16 @@ def process_payslip_generation(
             if raison:
                 raise HTTPException(status_code=422, detail=raison)
             previous_cumuls_data = cumuls_de_depart(BacASable(), year)
+        # Premier mois d'un contrat : les cumuls du mois d'avant sont ceux d'un
+        # autre contrat (réembauche, CDD successifs). La réduction générale,
+        # l'indemnité de fin de CDD et les congés repartent avec le contrat.
+        previous_cumuls_data = cumuls_precedents_du_contrat(
+            previous_cumuls_data,
+            employee_data,
+            year,
+            month,
+            cumuls_de_depart(BacASable(), year),
+        )
 
         # --- ÉTAPE 3 : ÉCRIRE LES FICHIERS TEMPORAIRES ET EXÉCUTER ---
 
