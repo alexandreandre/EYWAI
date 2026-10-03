@@ -594,7 +594,10 @@ export default function EmployeeDetail() {
       )}
 
       {employeeId && employee && (
-        <EmployeeContractPeriodsCard employee={employee} />
+        <EmployeeContractPeriodsCard
+          employee={employee}
+          onEmployeeUpdated={(updated) => updateEmployeeCache(employeeId, updated)}
+        />
       )}
 
       {employeeId && employee && (

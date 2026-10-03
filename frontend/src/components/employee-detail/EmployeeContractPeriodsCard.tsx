@@ -6,7 +6,9 @@ import {
   deleteContractPeriod,
   listContractPeriods,
   type ContractPeriod,
+  type NewContractResult,
 } from '@/api/contractPeriods';
+import { NouveauContratDialog } from '@/components/employee-detail/NouveauContratDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +22,9 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import type { Employee } from '@/features/employee-detail/types';
+import { peutCreerUnNouveauContrat } from '@/features/employee-detail/nouveauContrat';
+import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
+import { queryKeys } from '@/lib/queryKeys';
 
 const TYPES = ['CDI', 'CDD', 'Alternance', 'Intérim', 'Autre'] as const;
 
@@ -49,8 +54,16 @@ export function periodesPasseesVisibles(
   });
 }
 
-export function EmployeeContractPeriodsCard({ employee }: { employee: Employee }) {
+export function EmployeeContractPeriodsCard({
+  employee,
+  onEmployeeUpdated,
+}: {
+  employee: Employee;
+  onEmployeeUpdated?: (employee: Employee) => void;
+}) {
   const queryClient = useQueryClient();
+  const companyId = useActiveCompanyId();
+  const [nouveauContratOuvert, setNouveauContratOuvert] = useState(false);
   const [contractType, setContractType] = useState<string>('CDD');
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
@@ -91,6 +104,22 @@ export function EmployeeContractPeriodsCard({ employee }: { employee: Employee }
   );
   const anciennete = employee.seniority_reference_date || employee.hire_date;
 
+  // Succès confirmé et nommé, puis tout est relu : la fiche, la carte, la liste de paie.
+  function nouveauContratEnregistre(resultat: NewContractResult<Employee>) {
+    if (resultat.employee) onEmployeeUpdated?.(resultat.employee);
+    queryClient.invalidateQueries({ queryKey: ['contract-periods', employee.id] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.employees(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.employee(companyId, employee.id) });
+    toast({ title: 'Nouveau contrat enregistré', description: resultat.message });
+    if (resultat.avertissements.length > 0) {
+      toast({
+        title: 'À faire',
+        description: resultat.avertissements.join(' '),
+        variant: 'destructive',
+      });
+    }
+  }
+
   function soumettre(event: FormEvent) {
     event.preventDefault();
     if (!dateDebut || !dateFin || dateFin < dateDebut) {
@@ -106,7 +135,14 @@ export function EmployeeContractPeriodsCard({ employee }: { employee: Employee }
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Contrats</CardTitle>
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle>Contrats</CardTitle>
+          {peutCreerUnNouveauContrat(employee.employment_status) ? (
+            <Button type="button" size="sm" onClick={() => setNouveauContratOuvert(true)}>
+              Nouveau contrat
+            </Button>
+          ) : null}
+        </div>
         <CardDescription>
           Le contrat en cours est celui de la fiche. Ajoutez ici un contrat déjà terminé,
           par exemple un CDD avant une réembauche. Le trou entre deux contrats reste visible :
@@ -180,6 +216,12 @@ export function EmployeeContractPeriodsCard({ employee }: { employee: Employee }
             </Button>
           </div>
         </form>
+        <NouveauContratDialog
+          open={nouveauContratOuvert}
+          onOpenChange={setNouveauContratOuvert}
+          employeeId={employee.id}
+          onEnregistre={nouveauContratEnregistre}
+        />
       </CardContent>
     </Card>
   );
