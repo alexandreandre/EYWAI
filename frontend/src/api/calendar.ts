@@ -301,6 +301,53 @@ export interface AiCalendarProposal {
   extraction_truncated?: boolean;
   extraction_mode?: string | null;
   consensus_conflicts?: number | null;
+  /** Relecture d'un fichier déjà importé : lot précédent et corrections à la main. */
+  reimport?: ReimportInfo | null;
+}
+
+/** Heures et type d'un jour, tels qu'écrits ou relus. */
+export interface ValeurJourImport {
+  heures: number | null;
+  type: string | null;
+}
+
+/**
+ * Jour corrigé à la main depuis le premier import, que le fichier relu
+ * contredit. `import_precedent` null : l'import n'avait rien écrit ce jour-là ;
+ * `calendrier` null : le jour est vide au calendrier.
+ */
+export interface CorrectionALaMain {
+  employee_id: string;
+  annee: number;
+  mois: number;
+  jour: number;
+  import_precedent: ValeurJourImport | null;
+  calendrier: ValeurJourImport | null;
+  fichier: ValeurJourImport;
+}
+
+/** Le lot validé qui avait déjà importé ce fichier. */
+export interface LotPrecedent {
+  batch_id: string;
+  /** Le fichier déposé aujourd'hui. */
+  fichier?: string | null;
+  /** Le nom du lot précédent (« S39.pdf », « 3 fichiers »). */
+  filename?: string | null;
+  valide_le?: string | null;
+  valide_par?: string | null;
+  jours_ecrits?: number | null;
+}
+
+export interface ReimportInfo {
+  lots_precedents: LotPrecedent[];
+  corrections_a_la_main: CorrectionALaMain[];
+}
+
+/** Corps du refus 409 « déjà importé » (`detail`). */
+export interface RefusDejaImporte {
+  code: 'deja_importe';
+  message: string;
+  fichiers: { filename: string; lot_precedent: LotPrecedent }[];
 }
 
 export type TimesheetExtractJobStatus =
@@ -386,6 +433,8 @@ export interface ExtractTimesheetOptions {
   weekAnchorDate?: string | null;
   /** Import groupé : une semaine par fichier, dans l'ordre des fichiers (null = non précisée). */
   weekAnchorDates?: (string | null)[];
+  /** « Refaire l'import » : relire un fichier déjà importé (sinon refus 409). */
+  refaireImport?: boolean;
   onProgress?: (progress: TimesheetExtractProgress) => void;
   signal?: AbortSignal;
 }
@@ -453,6 +502,9 @@ export const startTimesheetExtract = async (
   formData.append('document_scope', documentScope);
   if (weekAnchorDate) {
     formData.append('week_anchor_date', weekAnchorDate);
+  }
+  if (options.refaireImport) {
+    formData.append('refaire_import', 'true');
   }
   const { data } = await apiClient.post<TimesheetExtractStartResponse>(
     '/api/schedules/assisted-fill/extract-timesheet/start',
@@ -617,6 +669,7 @@ export const parseStructuredTimesheet = async (
   month: number,
   employees: RosterEmployee[],
   columnMapping?: Record<string, string>,
+  options: { refaireImport?: boolean } = {},
 ): Promise<TimesheetImportParseResult> => {
   const formData = new FormData();
   formData.append('file', file);
@@ -624,6 +677,9 @@ export const parseStructuredTimesheet = async (
   formData.append('month', String(month));
   formData.append('employees', JSON.stringify(employees));
   formData.append('column_mapping', JSON.stringify(columnMapping ?? {}));
+  if (options.refaireImport) {
+    formData.append('refaire_import', 'true');
+  }
   const { data } = await apiClient.post<TimesheetImportParseResult>(
     '/api/schedules/timesheet-import/parse',
     formData,
@@ -650,6 +706,11 @@ export interface TimesheetImportBatchSummary {
   commit_warnings?: TimesheetCommitWarning[];
   /** Jours du relevé tombés sur un arrêt ou une absence (import par lot), même forme que `jours_en_conflit`. */
   commit_jours_en_conflit?: PersistTimesheetResponse['jours_en_conflit'];
+  /** Relecture d'un fichier déjà importé : lien vers le lot précédent. */
+  reimport?: boolean | null;
+  previous_committed_batch_id?: string | null;
+  /** Corrections à la main gardées : jours non réécrits, la valeur du calendrier reste. */
+  corrections_gardees?: CorrectionALaMain[] | null;
 }
 
 export interface TimesheetImportBatchResponse {
@@ -703,6 +764,9 @@ export const startTimesheetExtractBatch = async (
   formData.append('document_scope', options.documentScope ?? 'auto');
   if (options.weekAnchorDates) {
     formData.append('week_anchor_dates', JSON.stringify(options.weekAnchorDates));
+  }
+  if (options.refaireImport) {
+    formData.append('refaire_import', 'true');
   }
   const { data } = await apiClient.post<{ job_id: string; file_count: number }>(
     '/api/schedules/timesheet-import/extract-timesheet/start-batch',

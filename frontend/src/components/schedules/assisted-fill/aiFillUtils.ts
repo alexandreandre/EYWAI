@@ -20,6 +20,9 @@ export function aiFillErrorMessage(error: unknown): string {
 export function messageDeLErreur(error: unknown): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail;
   if (typeof detail === 'string' && detail.trim()) return detail;
+  // Refus structuré (ex. « déjà importé » avec son lot précédent) : sa phrase.
+  const phrase = (detail as { message?: unknown } | null | undefined)?.message;
+  if (typeof phrase === 'string' && phrase.trim()) return phrase;
   if (error instanceof Error && error.message) return error.message;
   return aiFillErrorMessage(error);
 }

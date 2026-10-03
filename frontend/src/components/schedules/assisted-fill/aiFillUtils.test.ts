@@ -10,6 +10,15 @@ describe('messageDeLErreur', () => {
     expect(messageDeLErreur(erreur)).toBe('Ce fichier a déjà été importé.');
   });
 
+  it('lit la phrase d’un refus structuré (« déjà importé » avec son lot précédent)', () => {
+    const erreur = Object.assign(new Error('Request failed with status code 409'), {
+      response: {
+        data: { detail: { code: 'deja_importe', message: '« S39.pdf » a déjà été importé.', fichiers: [] } },
+      },
+    });
+    expect(messageDeLErreur(erreur)).toBe('« S39.pdf » a déjà été importé.');
+  });
+
   it('garde le message d’une erreur locale', () => {
     expect(messageDeLErreur(new Error('Import annulé'))).toBe('Import annulé');
   });

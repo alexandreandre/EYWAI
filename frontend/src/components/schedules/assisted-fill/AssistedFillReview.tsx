@@ -49,6 +49,8 @@ import {
   visibleRowWarnings,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import { ReimportBanner } from './ReimportBanner';
+import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
 import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
   persistTimesheetBatch,
@@ -377,6 +379,9 @@ export function AssistedFillReview({
   // absence : listés au récapitulatif, avec le chemin pour les corriger.
   const [conflitsArret, setConflitsArret] = useState<ConflitsImportSalarie[]>([]);
   const [pendingApplyMeta, setPendingApplyMeta] = useState<AssistedFillApplyMeta | null>(null);
+  // Relecture d'un fichier déjà importé : les jours corrigés à la main depuis
+  // l'import ne seront pas réécrits (le serveur les retire à l'enregistrement).
+  const reimport = proposal.reimport ?? null;
   const [filter, setFilter] = useState<ReviewFilter>(() =>
     defaultReviewFilter(
       proposal.review_summary ?? {
@@ -391,7 +396,7 @@ export function AssistedFillReview({
   const [includeEmpty, setIncludeEmpty] = useState(false);
   const [includeOrange, setIncludeOrange] = useState(false);
   // Consigne texte sur 1-3 salariés : les points d'attention sont LA chose à
-  // lire — ouverts d'office. Sur un gros import, repliés pour ne pas noyer.
+  // lire — ouverts d'office. Sur un import volumineux, repliés pour ne pas noyer.
   const [showGlobalWarnings, setShowGlobalWarnings] = useState(
     () => proposal.source === 'texte' && proposal.employees.length <= 3,
   );
@@ -519,6 +524,25 @@ export function AssistedFillReview({
   }, [rows, includeOrange]);
 
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
+
+  // Ce que l'enregistrement d'une relecture écrira : une correction faite à la
+  // main n'est pas réécrite.
+  const bilan = bilanReimport(
+    savableRows.flatMap((r) =>
+      r.days
+        .filter((d) => d.nature === 'reel')
+        .map((d) =>
+          cleJour({
+            employee_id: r.employeeId as string,
+            annee: d.year ?? proposal.year,
+            mois: d.month ?? proposal.month,
+            jour: d.jour,
+          }),
+        ),
+    ),
+    totalDaysToSave,
+    reimport?.corrections_a_la_main ?? [],
+  );
 
   // Une ligne vide ne réserve pas son salarié : il reste proposé à la ligne qui
   // porte ses heures (ancienne fiche badge vide, 02/10/2026).
@@ -674,6 +698,7 @@ export function AssistedFillReview({
     conflits: ConflitsImportSalarie[],
     successDescription: string,
     meta: AssistedFillApplyMeta,
+    successTitle = 'Heures enregistrées',
   ) => {
     if (conflits.length > 0) {
       const nbJours = conflits.reduce((n, c) => n + c.jours.length, 0);
@@ -699,7 +724,7 @@ export function AssistedFillReview({
       setPendingApplyMeta(meta);
       return;
     }
-    toast({ title: 'Heures enregistrées', description: successDescription });
+    toast({ title: successTitle, description: successDescription });
     onApplied(meta);
   };
 
@@ -708,6 +733,17 @@ export function AssistedFillReview({
       toast({
         title: 'Rien à enregistrer',
         description: 'Aucun salarié prêt à enregistrer avec les filtres actuels.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (reimport && !batchId) {
+      // Sans lot, le serveur ne saurait pas quels jours garder : rien n'est
+      // écrit plutôt qu'une correction écrasée en silence.
+      toast({
+        title: 'Relecture introuvable',
+        description:
+          'Cette relecture n’a pas de lot d’import : fermez la fenêtre et choisissez à nouveau « Refaire l’import ».',
         variant: 'destructive',
       });
       return;
@@ -763,11 +799,16 @@ export function AssistedFillReview({
           result.jours_en_conflit,
           committed.summary?.commit_jours_en_conflit,
         );
+        // Relecture : ce que le serveur a vraiment écrit et gardé (la garde se
+        // recalcule à l'enregistrement contre le calendrier du moment).
         finishSave(
           preserved,
           conflits,
-          `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
+          reimport
+            ? `${libelleImportRefait(committed.summary)}.`
+            : `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
           applyMeta,
+          reimport ? 'Import refait' : undefined,
         );
         return;
       }
@@ -1008,6 +1049,14 @@ export function AssistedFillReview({
           </p>
         )}
       </div>
+      )}
+
+      {reimport && (
+        <ReimportBanner
+          reimport={reimport}
+          bilan={bilan}
+          libelleSalarie={employeeWarningLabel}
+        />
       )}
 
       {!isTextInstruction && <ImportPunchRuleBar onApply={applyPunchBreakRule} />}
@@ -1373,7 +1422,7 @@ export function AssistedFillReview({
           ) : (
             <Check className="mr-2 h-4 w-4" />
           )}
-          Enregistrer ({savableRows.length} · {totalDaysToSave} j)
+          Enregistrer ({savableRows.length} · {reimport ? bilan.joursEcrits : totalDaysToSave} j)
         </Button>
       </div>
     </div>

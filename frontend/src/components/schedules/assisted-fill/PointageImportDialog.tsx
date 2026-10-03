@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, HelpCircle, Loader2, Sparkles, Upload, X, XCircle } from 'lucide-react';
+import {
+  ChevronDown,
+  HelpCircle,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Upload,
+  X,
+  XCircle,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +42,7 @@ import {
   type AiCalendarProposal,
   type AiEmployeeProposal,
   type DocumentScopeInput,
+  type RefusDejaImporte,
   type RosterEmployee,
 } from '@/api/calendar';
 import {
@@ -40,6 +50,7 @@ import {
   type AssistedFillApplyMeta,
 } from './AssistedFillReview';
 import { messageDeLErreur } from './aiFillUtils';
+import { libelleLotPrecedent, lireRefusDejaImporte } from './reimport';
 import { usePeriodeVariables } from '@/features/payroll/hooks/usePeriodeVariables';
 import { libellePaieDe, payrollWeekOptions } from './importWeekOptions';
 import {
@@ -224,6 +235,9 @@ export function PointageImportDialog({
   const [documentScope, setDocumentScope] = useState<DocumentScopeInput>('auto');
   const [weekByFile, setWeekByFile] = useState<WeekByFile>({});
   const [helpOpen, setHelpOpen] = useState(false);
+  // Refus « déjà importé » : l'écran propose de refaire l'import plutôt
+  // qu'un message d'erreur sans suite.
+  const [dejaImporte, setDejaImporte] = useState<RefusDejaImporte | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -278,6 +292,7 @@ export function PointageImportDialog({
     setDocumentScope('auto');
     setWeekByFile({});
     setHelpOpen(false);
+    setDejaImporte(null);
   };
 
   // Le lundi choisi n'a de sens que pour le mois affiché : on repart de zéro
@@ -410,14 +425,25 @@ export function PointageImportDialog({
     return registered.localId;
   };
 
-  const runStructuredParse = async (file: File, abort: AbortController) => {
-    const parsed = await parseStructuredTimesheet(file, year, month, roster);
+  const runStructuredParse = async (
+    file: File,
+    abort: AbortController,
+    refaireImport: boolean,
+  ) => {
+    const parsed = await parseStructuredTimesheet(file, year, month, roster, undefined, {
+      refaireImport,
+    });
     if (abort.signal.aborted) return null;
     return parsed;
   };
 
-  const analyzeFiles = async () => {
+  /**
+   * `refaireImport` : la gestionnaire a choisi « Refaire l'import » après le
+   * refus « déjà importé » — le serveur relit le fichier avec le lecteur actuel.
+   */
+  const analyzeFiles = async (refaireImport = false) => {
     if (files.length === 0) return;
+    setDejaImporte(null);
     if (documentScope === 'weekly') {
       const manquants = filesMissingWeek(files, weekByFile);
       if (manquants.length > 0) {
@@ -445,6 +471,7 @@ export function PointageImportDialog({
           singleEmployee,
           documentScope,
           weekAnchorDates: weeksAlignedWithFiles(files, weekByFile),
+          refaireImport,
         });
         trackedId = registerBackendJob(
           started.job_id,
@@ -472,7 +499,7 @@ export function PointageImportDialog({
         const file = files[i];
         let result: AiCalendarProposal;
         if (isStructuredFile(file.name)) {
-          const parsed = await runStructuredParse(file, abort);
+          const parsed = await runStructuredParse(file, abort, refaireImport);
           if (!parsed) return;
           result = parsed.preview;
           lastBatchId = parsed.batch_id;
@@ -481,6 +508,7 @@ export function PointageImportDialog({
             singleEmployee,
             documentScope,
             weekAnchorDate: weekByFile[file.name] || null,
+            refaireImport,
           });
           trackedId = registerBackendJob(started.job_id, file.name);
           result = await waitForTimesheetExtractJob(
@@ -512,6 +540,14 @@ export function PointageImportDialog({
       if (abort.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
         return;
       }
+      const refus = lireRefusDejaImporte(e);
+      if (refus) {
+        // Pas un échec anonyme : l'écran dit quand et par qui le fichier a été
+        // importé, et propose de le relire.
+        if (trackedId) removeJob(trackedId);
+        setDejaImporte(refus);
+        return;
+      }
       const message = messageDeLErreur(e);
       if (message.includes('annulé')) {
         return;
@@ -539,6 +575,8 @@ export function PointageImportDialog({
 
   const addFiles = (incoming: FileList | File[]) => {
     const list = Array.from(incoming);
+    // Le refus portait sur les fichiers d'avant : il ne vaut plus.
+    setDejaImporte(null);
     setFiles((prev) => {
       const names = new Set(prev.map((f) => f.name));
       return [...prev, ...list.filter((f) => !names.has(f.name))];
@@ -546,6 +584,7 @@ export function PointageImportDialog({
   };
 
   const removeFile = (name: string) => {
+    setDejaImporte(null);
     setFiles((prev) => prev.filter((f) => f.name !== name));
     setWeekByFile((prev) => {
       const next = { ...prev };
@@ -747,6 +786,53 @@ export function PointageImportDialog({
               </p>
             )}
 
+            {dejaImporte && !isAnalyzing && (
+              <div
+                className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+                data-testid="deja-importe"
+              >
+                <p className="text-sm font-medium">
+                  {dejaImporte.fichiers.length > 1
+                    ? `${dejaImporte.fichiers.length} fichiers ont déjà été importés`
+                    : 'Ce fichier a déjà été importé'}
+                </p>
+                <ul className="space-y-0.5">
+                  {dejaImporte.fichiers.map((f) => (
+                    <li key={f.filename}>
+                      « {f.filename} » — {libelleLotPrecedent(f.lot_precedent)}.
+                    </li>
+                  ))}
+                </ul>
+                <p>
+                  {dejaImporte.fichiers.length > 1 ? 'Leurs' : 'Ses'} heures sont dans le
+                  calendrier. Pour corriger une journée, modifiez-la dans le calendrier.
+                </p>
+                <p>
+                  « Refaire l&apos;import » relit le fichier avec le lecteur actuel et ouvre la
+                  revue habituelle. Les jours corrigés à la main depuis le premier import y
+                  sont listés et ne seront pas réécrits.
+                  {files.length > dejaImporte.fichiers.length &&
+                    ' Les autres fichiers sont importés normalement.'}
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDejaImporte(null)}
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => void analyzeFiles(true)}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {dejaImporte.fichiers.length > 1
+                      ? 'Refaire l’import de ces fichiers'
+                      : 'Refaire l’import de ce fichier'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {isAnalyzing && (
               <div className="space-y-1">
                 {files.length > 1 && <Progress value={smoothedQueuePct} className="h-2" />}
@@ -787,18 +873,29 @@ export function PointageImportDialog({
               ) : (
                 <>
                   {files.length > 0 && (
-                    <Button type="button" variant="ghost" onClick={() => setFiles([])}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setFiles([]);
+                        setDejaImporte(null);
+                      }}
+                    >
                       Retirer
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    onClick={() => void analyzeFiles()}
-                    disabled={files.length === 0}
-                  >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Analyser {files.length > 1 ? `(${files.length})` : 'le relevé'}
-                  </Button>
+                  {/* Après le refus « déjà importé », le choix est dans l'encadré :
+                      relancer l'analyse seule redonnerait le même refus. */}
+                  {!dejaImporte && (
+                    <Button
+                      type="button"
+                      onClick={() => void analyzeFiles()}
+                      disabled={files.length === 0}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Analyser {files.length > 1 ? `(${files.length})` : 'le relevé'}
+                    </Button>
+                  )}
                 </>
               )}
             </div>
