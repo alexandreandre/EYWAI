@@ -22,6 +22,9 @@ from app.modules.schedules.infrastructure.schedule_import_storage import (
 from app.modules.schedules.application.timesheet_import.parse_service import (
     parse_with_llm_fallback,
 )
+from app.modules.schedules.application.timesheet_import.reimport_service import (
+    annoter_reimport,
+)
 from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
 
 logger = logging.getLogger(__name__)
@@ -379,6 +382,14 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             detect_source_type,
         )
 
+        # Relecture d'un relevé déjà importé : la revue montre le lot précédent
+        # et les jours corrigés à la main depuis ; le nouveau lot pointe l'ancien.
+        resume_reimport = None
+        if request.get("reimport"):
+            proposal, resume_reimport = annoter_reimport(
+                company_id, proposal, request["reimport"]
+            )
+
         batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=str(user_id) if user_id else None,
@@ -390,6 +401,7 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
             file_storage_path=job.get("file_storage_path"),
             import_job_id=job_id,
             file_content=file_content,
+            extra_summary=resume_reimport,
         )
         batch_id = str(batch["id"])
 
@@ -463,6 +475,7 @@ def run_multi_timesheet_extraction_job(
     user_id = job.get("user_id")
     roster = [RosterEmployee(**item) for item in request.get("employees") or []]
     year, month = int(request.get("year")), int(request.get("month"))
+    reimport = request.get("reimport") or []
 
     proposals: List[AiCalendarProposalResponse] = []
     batch_ids: List[str] = []
@@ -492,6 +505,9 @@ def run_multi_timesheet_extraction_job(
                 document_scope=str(request.get("document_scope") or "auto"),
                 week_anchor_date=fichier.week_anchor_date,
                 import_job_id=job_id,
+                # « Refaire l'import » : relu avec le lecteur actuel, jamais
+                # l'aperçu en cache d'un import précédent.
+                relire=bool(reimport),
             )
             proposals.append(proposal)
             batch_ids.append(batch_id)
@@ -502,6 +518,9 @@ def run_multi_timesheet_extraction_job(
             merged = merged.model_copy(
                 update={"warnings": list(merged.warnings) + doublons}
             )
+        resume_reimport = None
+        if reimport:
+            merged, resume_reimport = annoter_reimport(company_id, merged, reimport)
         master_batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=str(user_id) if user_id else None,
@@ -510,6 +529,7 @@ def run_multi_timesheet_extraction_job(
             parser_key="multi_file_merge",
             filename=f"{len(files)} fichiers",
             import_job_id=job_id,
+            extra_summary=resume_reimport,
         )
         master_id = str(master_batch["id"])
 

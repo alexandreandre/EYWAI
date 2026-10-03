@@ -6,7 +6,6 @@ from datetime import date
 from typing import Optional
 
 from app.core.database import get_supabase_admin_client
-from app.modules.schedules.application.exceptions import ScheduleAppError
 from app.modules.schedules.application.punch_accounting_service import (
     punch_calc_fingerprint,
 )
@@ -34,16 +33,6 @@ def check_file_hash_committed(company_id: str, file_hash: str) -> Optional[str]:
     if row.data:
         return str(row.data[0]["id"])
     return None
-
-
-def assert_not_committed_duplicate(company_id: str, file_hash: str) -> None:
-    if check_file_hash_committed(company_id, file_hash):
-        raise ScheduleAppError(
-            "validation",
-            "Ce fichier a déjà été importé : ses heures sont dans le calendrier. "
-            "Pour corriger une journée, modifiez-la directement dans le calendrier.",
-            status_code=409,
-        )
 
 
 def find_cached_preview(
@@ -76,7 +65,6 @@ def find_cached_preview(
 
 
 __all__ = [
-    "assert_not_committed_duplicate",
     "check_file_hash_committed",
     "find_cached_preview",
 ]

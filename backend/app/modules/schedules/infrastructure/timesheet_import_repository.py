@@ -65,6 +65,75 @@ class TimesheetImportRepository:
                 .execute()
             )
 
+    def lots_valides_du_fichier(
+        self, company_id: str, file_hash: str
+    ) -> List[Dict[str, Any]]:
+        """Les lots validés qui ont écrit ce fichier, du plus récent au plus ancien.
+
+        Deux traces :
+        - le lot validé porte l'empreinte (fichier importé seul) ;
+        - un import groupé valide un lot fusionné sans empreinte ; c'est le lot
+          de chaque fichier, resté « previewed », qui la porte, sous le même job.
+        """
+        if not file_hash:
+            return []
+        directs = (
+            _admin()
+            .table(BATCHES)
+            .select("id, import_job_id, status")
+            .eq("company_id", company_id)
+            .eq("file_hash", file_hash)
+            .execute()
+        ).data or []
+        job_ids = sorted({str(r["import_job_id"]) for r in directs if r.get("import_job_id")})
+        ids = {str(r["id"]) for r in directs if r.get("status") == "committed"}
+        if job_ids:
+            par_job = (
+                _admin()
+                .table(BATCHES)
+                .select("id")
+                .eq("company_id", company_id)
+                .eq("status", "committed")
+                .in_("import_job_id", job_ids)
+                .execute()
+            ).data or []
+            ids |= {str(r["id"]) for r in par_job}
+        if not ids:
+            return []
+        lots = (
+            _admin()
+            .table(BATCHES)
+            .select("*")
+            .in_("id", sorted(ids))
+            .execute()
+        ).data or []
+        return sorted(
+            lots,
+            key=lambda lot: str(lot.get("completed_at") or lot.get("updated_at") or ""),
+            reverse=True,
+        )
+
+    def nom_utilisateur(self, user_id: Optional[str]) -> Optional[str]:
+        """« Prénom Nom » d'un compte, ou None s'il est illisible."""
+        if not user_id:
+            return None
+        try:
+            resp = (
+                _admin()
+                .table("profiles")
+                .select("first_name, last_name")
+                .eq("id", user_id)
+                .maybe_single()
+                .execute()
+            )
+        except Exception:  # noqa: BLE001 — un nom d'affichage, jamais bloquant
+            return None
+        row = (resp.data if resp else None) or {}
+        nom = " ".join(
+            str(p).strip() for p in (row.get("first_name"), row.get("last_name")) if p
+        ).strip()
+        return nom or None
+
     def find_recent_preview_by_hash(
         self,
         company_id: str,

@@ -58,6 +58,11 @@ class TimesheetImportBatchSummary(BaseModel):
     # Jours importés sur un arrêt ou une absence non travaillée (écrits,
     # signalés) : `[{employee_id, jours: [{annee, mois, jour, heures}]}]`.
     commit_jours_en_conflit: Optional[List[Dict[str, Any]]] = None
+    # Relecture d'un fichier déjà importé : le lot précédent, et les jours
+    # corrigés à la main depuis, que l'enregistrement n'a pas réécrits.
+    reimport: Optional[bool] = None
+    previous_committed_batch_id: Optional[str] = None
+    corrections_gardees: Optional[List[Dict[str, Any]]] = None
 
 
 class TimesheetImportParseResponse(BaseModel):

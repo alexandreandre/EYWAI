@@ -13,8 +13,11 @@ from app.modules.schedules.application.timesheet_import.batch_service import (
     create_batch_from_proposal,
 )
 from app.modules.schedules.application.timesheet_import.cache_service import (
-    assert_not_committed_duplicate,
     find_cached_preview,
+)
+from app.modules.schedules.application.timesheet_import.reimport_service import (
+    annoter_reimport,
+    verifier_import,
 )
 from app.modules.schedules.application.timesheet_import.proposal_builder import (
     build_proposal_from_attempt,
@@ -83,15 +86,26 @@ def parse_structured_file(
     profile_name: str | None = None,
     period_config: ImportPeriodConfig | None = None,
     allow_reimport: bool = False,
+    refaire_import: bool = False,
 ) -> TimesheetImportParseResponse:
+    """`allow_reimport` : l'appelant gère lui-même le déjà-importé (planning).
+    `refaire_import` : la gestionnaire relit un fichier déjà importé — relu sans
+    cache, la proposition porte le lot précédent et les corrections à la main."""
     period_config = period_config or ImportPeriodConfig(
         mode="month", year=year, month=month
     )
     file_hash = hashlib.sha256(content).hexdigest()
+    deja: List[Dict[str, Any]] = []
     if not allow_reimport:
-        assert_not_committed_duplicate(company_id, file_hash)
+        deja = verifier_import(
+            company_id, [(filename, file_hash)], refaire_import=refaire_import
+        )
 
-    cached = find_cached_preview(company_id, file_hash, year=year, month=month)
+    cached = (
+        None
+        if deja
+        else find_cached_preview(company_id, file_hash, year=year, month=month)
+    )
     source_type = detect_source_type(filename)
     if cached and source_type in ("csv", "xlsx"):
         roster = enrich_roster_time_tracking_ids(roster, company_id)
@@ -286,6 +300,9 @@ def parse_structured_file(
             "month_groups": month_groups,
             "months_count": len(month_groups),
         }
+    if deja:
+        proposal, resume_reimport = annoter_reimport(company_id, proposal, deja)
+        extra_summary = {**(extra_summary or {}), **resume_reimport}
 
     batch = create_batch_from_proposal(
         company_id=company_id,
@@ -333,11 +350,22 @@ def parse_with_llm_fallback(
     document_scope: str = "auto",
     week_anchor_date=None,
     import_job_id: str | None = None,
+    relire: bool = False,
 ) -> tuple[AiCalendarProposalResponse, str]:
+    """`relire` : « Refaire l'import » — relu avec le lecteur actuel, sans
+    resservir l'aperçu en cache (produit peut-être par l'ancien lecteur)."""
     file_hash = hashlib.sha256(content).hexdigest()
     roster = enrich_roster_time_tracking_ids(roster, company_id)
-    cached = find_cached_preview(
-        company_id, file_hash, year=year, month=month, week_anchor_date=week_anchor_date
+    cached = (
+        None
+        if relire
+        else find_cached_preview(
+            company_id,
+            file_hash,
+            year=year,
+            month=month,
+            week_anchor_date=week_anchor_date,
+        )
     )
     if cached:
         # La lecture est resservie, pas le rapprochement : le roster du jour peut

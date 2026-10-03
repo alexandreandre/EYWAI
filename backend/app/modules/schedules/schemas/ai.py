@@ -132,6 +132,50 @@ class AiEmployeeProposal(BaseModel):
     sheet_annotations: list[str] = Field(default_factory=list)
 
 
+class ValeurJourImport(BaseModel):
+    """Heures et type d'un jour, tels qu'écrits ou relus."""
+
+    heures: Optional[float] = None
+    type: Optional[str] = None
+
+
+class CorrectionALaMainImport(BaseModel):
+    """Jour corrigé à la main depuis le premier import, que le fichier relu contredit.
+
+    `import_precedent` : ce qu'avait écrit le lot précédent (None : rien ce
+    jour-là) ; `calendrier` : ce qui est au calendrier (None : vide) ;
+    `fichier` : ce que relit le fichier. Gardée par défaut à l'enregistrement.
+    """
+
+    employee_id: str
+    annee: int
+    mois: int
+    jour: int
+    import_precedent: Optional[ValeurJourImport] = None
+    calendrier: Optional[ValeurJourImport] = None
+    fichier: ValeurJourImport
+
+
+class LotPrecedent(BaseModel):
+    """Le lot validé qui avait déjà importé ce fichier : quand, par qui, combien."""
+
+    batch_id: str
+    #: Le fichier déposé aujourd'hui (nom du dépôt).
+    fichier: Optional[str] = None
+    #: Le nom du lot précédent (« S39.pdf », « 3 fichiers »).
+    filename: Optional[str] = None
+    valide_le: Optional[str] = None
+    valide_par: Optional[str] = None
+    jours_ecrits: Optional[int] = None
+
+
+class ReimportInfo(BaseModel):
+    """Relecture d'un fichier déjà importé (« Refaire l'import de ce fichier »)."""
+
+    lots_precedents: List[LotPrecedent] = Field(default_factory=list)
+    corrections_a_la_main: List[CorrectionALaMainImport] = Field(default_factory=list)
+
+
 class AiCalendarProposalResponse(BaseModel):
     """Proposition complète renvoyée au front (jamais écrite directement)."""
 
@@ -173,6 +217,9 @@ class AiCalendarProposalResponse(BaseModel):
     #: partie de la clé du cache d'aperçu : le même fichier ancré sur une autre
     #: semaine n'est pas le même aperçu.
     week_anchor_date: Optional[date] = None
+    #: Présent quand le fichier avait déjà été importé et qu'on le relit : le
+    #: lot précédent et les jours corrigés à la main depuis, gardés par défaut.
+    reimport: Optional[ReimportInfo] = None
 
 
 class TimesheetExtractStartResponse(BaseModel):
@@ -206,11 +253,14 @@ __all__ = [
     "AiCalendarProposalResponse",
     "AiDayEntry",
     "AiEmployeeProposal",
+    "CorrectionALaMainImport",
     "DayNature",
     "DocumentScopeInput",
+    "LotPrecedent",
     "MatchMethod",
     "ParseInstructionRequest",
     "QualityLevel",
+    "ReimportInfo",
     "ReviewStatus",
     "RosterEmployee",
     "TimesheetConfidence",
@@ -219,4 +269,5 @@ __all__ = [
     "TimesheetExtractStartResponse",
     "TimesheetQualityCheck",
     "TimesheetScope",
+    "ValeurJourImport",
 ]

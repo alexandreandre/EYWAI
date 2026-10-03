@@ -5,6 +5,7 @@ Aucune logique métier ni accès DB : validation (schémas), Depends, appel appl
 conversion ScheduleAppError -> HTTPException, retour HTTP. Comportement identique aux anciens endpoints.
 """
 
+import hashlib
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
@@ -56,8 +57,11 @@ from app.modules.users.schemas.responses import User
 
 
 def _handle_schedule_error(e: ScheduleAppError) -> None:
-    """Convertit ScheduleAppError en HTTPException."""
-    raise HTTPException(status_code=e.status_code, detail=e.message)
+    """Convertit ScheduleAppError en HTTPException (corps structuré s'il y en a un)."""
+    raise HTTPException(
+        status_code=e.status_code,
+        detail=e.detail if e.detail is not None else e.message,
+    )
 
 
 def _require_employee_schedule_access(
@@ -507,9 +511,18 @@ async def assisted_fill_extract_timesheet_start(
     single_employee: bool = Form(False),
     document_scope: str = Form("auto"),
     week_anchor_date: str | None = Form(None),
+    refaire_import: bool = Form(False),
     current_user: User = Depends(get_current_user),
 ):
-    """Lance l'extraction hybride IA en arrière-plan ; le front interroge GET /jobs/{id}."""
+    """Lance l'extraction hybride IA en arrière-plan ; le front interroge GET /jobs/{id}.
+
+    Un relevé déjà importé est refusé (409 `deja_importe`, avec le lot
+    précédent) sauf `refaire_import` : il est alors relu avec le lecteur actuel
+    et la revue montre les jours corrigés à la main depuis.
+    """
+    from app.modules.schedules.application.timesheet_import.reimport_service import (
+        verifier_import,
+    )
     from app.modules.schedules.application.timesheet_import_service import (
         create_import_job,
         run_timesheet_extraction_job,
@@ -529,6 +542,15 @@ async def assisted_fill_extract_timesheet_start(
         roster = []
 
     scope = document_scope if document_scope in ("auto", "weekly", "monthly") else "auto"
+    filename = file.filename or "document.pdf"
+    try:
+        deja = verifier_import(
+            str(current_user.active_company_id),
+            [(filename, hashlib.sha256(content).hexdigest())],
+            refaire_import=refaire_import,
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
     request_json = {
         "year": year,
         "month": month,
@@ -536,13 +558,14 @@ async def assisted_fill_extract_timesheet_start(
         "single_employee": single_employee,
         "document_scope": scope,
         "week_anchor_date": week_anchor_date.strip() if week_anchor_date else None,
+        "reimport": deja,
     }
 
     try:
         job = create_import_job(
             company_id=str(current_user.active_company_id),
             user_id=str(current_user.id),
-            filename=file.filename or "document.pdf",
+            filename=filename,
             file_content=content,
             request_json=request_json,
         )
@@ -729,9 +752,13 @@ async def timesheet_import_parse(
     employees: str = Form("[]"),
     column_mapping: str = Form("{}"),
     profile_name: str | None = Form(None),
+    refaire_import: bool = Form(False),
     current_user: User = Depends(get_current_user),
 ):
-    """Parse synchrone CSV/XLSX/PDF déterministe → batch previewed."""
+    """Parse synchrone CSV/XLSX/PDF déterministe → batch previewed.
+
+    Un fichier déjà importé est refusé (409 `deja_importe`) sauf `refaire_import`.
+    """
     from app.modules.schedules.application.timesheet_import.parse_service import (
         parse_structured_file,
     )
@@ -760,6 +787,7 @@ async def timesheet_import_parse(
             roster=roster,
             column_mapping=mapping or None,
             profile_name=profile_name,
+            refaire_import=refaire_import,
         )
         return TimesheetImportParseResponse.model_validate(result)
     except ScheduleAppError as e:
@@ -835,15 +863,22 @@ async def timesheet_import_start_batch(
     single_employee: bool = Form(False),
     document_scope: str = Form("auto"),
     week_anchor_dates: str = Form("[]"),
+    refaire_import: bool = Form(False),
     current_user: User = Depends(get_current_user),
 ):
     """Lance l'extraction de plusieurs relevés en un job fusionné.
 
     `week_anchor_dates` : liste JSON alignée sur `files`, une entrée par fichier,
     lundi ISO (YYYY-MM-DD) de la semaine du relevé ou null si non précisée.
+
+    Un lot qui contient un relevé déjà importé est refusé (409 `deja_importe`,
+    chaque fichier concerné nommé) sauf `refaire_import`.
     """
     from app.modules.schedules.application.timesheet_import.job_runner import (
         BackgroundTasksRunner,
+    )
+    from app.modules.schedules.application.timesheet_import.reimport_service import (
+        verifier_import,
     )
     from app.modules.schedules.application.timesheet_import_service import (
         FichierAImporter,
@@ -872,6 +907,14 @@ async def timesheet_import_start_batch(
         FichierAImporter(nom, data, semaine)
         for (nom, data), semaine in zip(contents, semaines)
     ]
+    try:
+        deja = verifier_import(
+            str(current_user.active_company_id),
+            [(f.filename, hashlib.sha256(f.content).hexdigest()) for f in fichiers],
+            refaire_import=refaire_import,
+        )
+    except ScheduleAppError as e:
+        _handle_schedule_error(e)
     request_json = {
         "year": year,
         "month": month,
@@ -879,6 +922,7 @@ async def timesheet_import_start_batch(
         "single_employee": single_employee,
         "document_scope": document_scope,
         "multi_file": True,
+        "reimport": deja,
         "files": [
             {
                 "filename": f.filename,

@@ -19,6 +19,9 @@ from app.modules.schedules.application.service import get_employee_company_and_s
 from app.modules.admin_import.infrastructure import repository as admin_repo
 from app.modules.schedules.infrastructure.arrets_valides import arrets_valides_reader
 from app.modules.schedules.infrastructure.repository import schedule_repository
+from app.modules.schedules.application.timesheet_import.reimport_service import (
+    GardeDesCorrections,
+)
 from app.modules.schedules.infrastructure.timesheet_import_repository import (
     timesheet_import_repository,
 )
@@ -622,6 +625,7 @@ def _commit_multi_month_batch(
     arrets_valides = _arrets_des_mois(
         sorted({e.employee_id for emps in by_month.values() for e in emps}), month_keys
     )
+    garde = GardeDesCorrections.du_lot(batch, company_id=company_id)
     summary = _emit_planning_commit_progress(
         batch_id,
         summary,
@@ -655,6 +659,9 @@ def _commit_multi_month_batch(
         existing_rows = schedule_repository.list_schedules_for_employees(
             employee_ids, year, month
         )
+        if garde is not None:
+            # Relecture : les jours corrigés à la main restent tels quels.
+            month_employees = garde.filtrer(month_employees, year, month, existing_rows)
         (
             payloads,
             days_written,
@@ -697,7 +704,9 @@ def _commit_multi_month_batch(
             completed_labels=month_queue[: month_index + 1],
         )
 
-    if not upsert_payloads:
+    # Une relecture dont tous les jours sont des corrections gardées n'écrit
+    # rien, et c'est un succès : le récapitulatif les nomme.
+    if not upsert_payloads and not (garde is not None and garde.gardees):
         plan_count = len(employees_plan)
         unknown_count = len(rejected_unknown)
         upsert_error_count = len(errors) - unknown_count
@@ -759,6 +768,7 @@ def _commit_multi_month_batch(
                 "phase": "completed",
                 "employees_done": len({p["employee_id"] for p in upsert_payloads}),
             },
+            **(garde.resume() if garde is not None else {}),
         },
     )
 
@@ -784,6 +794,7 @@ def _commit_multi_month_batch(
         "errors": errors,
         "warnings": warnings,
         "jours_en_conflit": jours_en_conflit,
+        **(garde.resume() if garde is not None else {}),
     }
 
 
@@ -922,10 +933,17 @@ def commit_batch_bulk(
     arrets_valides = _arrets_des_mois(
         sorted({e.employee_id for e in employees}), sorted(par_mois)
     )
+    garde = GardeDesCorrections.du_lot(batch, company_id=company_id)
     for (annee, mois), employes_du_mois in sorted(par_mois.items()):
         existing_rows = schedule_repository.list_schedules_for_employees(
             [e.employee_id for e in employes_du_mois], annee, mois
         )
+        if garde is not None:
+            # Relecture : les jours corrigés à la main depuis le premier
+            # import ne sont pas réécrits, la valeur du calendrier reste.
+            employes_du_mois = garde.filtrer(employes_du_mois, annee, mois, existing_rows)
+            if not employes_du_mois:
+                continue
         (
             payloads,
             jours_ecrits,
@@ -976,6 +994,7 @@ def commit_batch_bulk(
                 "phase": "completed",
                 "employees_done": len(upsert_payloads),
             },
+            **(garde.resume() if garde is not None else {}),
         },
     )
 
@@ -1001,6 +1020,7 @@ def commit_batch_bulk(
         "errors": errors,
         "warnings": warnings,
         "jours_en_conflit": jours_en_conflit,
+        **(garde.resume() if garde is not None else {}),
     }
 
 

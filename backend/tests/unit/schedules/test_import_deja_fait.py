@@ -4,15 +4,21 @@ from unittest.mock import patch
 
 import pytest
 
-from app.modules.schedules.application.timesheet_import import cache_service
+from app.modules.schedules.application.timesheet_import import reimport_service
 
 
 def test_un_releve_deja_importe_dit_quoi_faire():
-    with patch.object(cache_service, "check_file_hash_committed", return_value="batch-1"):
+    lot = {"id": "batch-1", "filename": "releve.csv", "summary_json": {}}
+    with patch.object(reimport_service, "timesheet_import_repository") as repo:
+        repo.lots_valides_du_fichier.return_value = [lot]
+        repo.nom_utilisateur.return_value = None
         with pytest.raises(Exception) as refus:
-            cache_service.assert_not_committed_duplicate("co-1", "abc")
+            reimport_service.verifier_import(
+                "co-1", [("releve.csv", "abc")], refaire_import=False
+            )
     message = str(getattr(refus.value, "message", refus.value))
     assert "hash" not in message
     assert "déjà été importé" in message
     assert "calendrier" in message
+    assert "Refaire l'import de ce fichier" in message
     assert getattr(refus.value, "status_code", None) == 409
