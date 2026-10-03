@@ -8,6 +8,15 @@ Comportement identique aux anciennes définitions (api/routers/company, api/rout
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic_core import PydanticCustomError
+
+from app.modules.companies.domain.parametres_paie import (
+    CLES_SETTINGS,
+    valider_date_paiement,
+    valider_effectif,
+    valider_jour_solidarite,
+    valider_taux_assurance_chomage,
+)
 
 
 # ----- Company settings (PATCH /api/company/settings) -----
@@ -128,9 +137,71 @@ class CompanyDetailsUpdate(BaseModel):
         None,
         description="external | native | transition — source paie pour alertes DSN",
     )
+    effectif: Optional[int] = Field(
+        None,
+        description=(
+            "Effectif retenu pour les seuils (11, 20, 50 salariés) : effectif moyen "
+            "de l'année précédente. Entier, 0 ou plus ; jamais vidé."
+        ),
+    )
+    taux_assurance_chomage: Optional[float] = Field(
+        None,
+        description=(
+            "settings.taux_assurance_chomage : taux bonus-malus notifié par l'URSSAF, "
+            "en %, entre 2,95 et 5. null retire la clé (taux normal du barème)."
+        ),
+    )
+    date_paiement: Optional[str] = Field(
+        None,
+        description=(
+            "settings.date_paiement : dernier_jour_du_mois | arrete_des_variables. "
+            "null retire la clé (comportement historique)."
+        ),
+    )
+    jour_solidarite: Optional[str] = Field(
+        None,
+        description=(
+            "settings.jour_solidarite : date AAAA-MM-JJ de l'année en cours. "
+            "null retire la clé (le moteur prend le lundi de Pentecôte)."
+        ),
+    )
+
+    @field_validator("effectif", mode="before")
+    @classmethod
+    def _effectif(cls, valeur: Any) -> int:
+        return _en_erreur_lisible(valider_effectif, valeur)
+
+    @field_validator("taux_assurance_chomage", mode="before")
+    @classmethod
+    def _taux_assurance_chomage(cls, valeur: Any) -> Optional[float]:
+        return _en_erreur_lisible(valider_taux_assurance_chomage, valeur)
+
+    @field_validator("date_paiement", mode="before")
+    @classmethod
+    def _date_paiement(cls, valeur: Any) -> Optional[str]:
+        return _en_erreur_lisible(valider_date_paiement, valeur)
+
+    @field_validator("jour_solidarite", mode="before")
+    @classmethod
+    def _jour_solidarite(cls, valeur: Any) -> Optional[str]:
+        return _en_erreur_lisible(valider_jour_solidarite, valeur)
 
     def to_update_dict(self) -> Dict[str, Any]:
-        return self.model_dump(exclude_none=True)
+        """Champs fournis. Pour les réglages de settings, un null explicite est
+        gardé : il demande le retrait de la clé."""
+        data = self.model_dump(exclude_none=True, exclude=set(CLES_SETTINGS))
+        for cle in CLES_SETTINGS:
+            if cle in self.model_fields_set:
+                data[cle] = getattr(self, cle)
+        return data
+
+
+def _en_erreur_lisible(valider: Any, valeur: Any) -> Any:
+    """La phrase métier telle quelle dans le 422, sans le préfixe « Value error »."""
+    try:
+        return valider(valeur)
+    except ValueError as exc:
+        raise PydanticCustomError("parametre_paie_invalide", str(exc)) from None
 
 
 class CompanyUpdate(BaseModel):

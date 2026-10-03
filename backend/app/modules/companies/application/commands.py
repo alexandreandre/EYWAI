@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from app.modules.audit.infrastructure.repository import audit_repository
 from app.modules.companies.application.dto import CompanySettingsResultDto
+from app.modules.companies.domain.parametres_paie import (
+    changements,
+    changements_settings,
+    fusionner_reglages,
+    separer_reglages,
+)
 from app.modules.companies.domain.public_holidays import merge_public_holidays_settings
 from app.modules.employees.domain.trial_period_bareme import (
     validate_trial_period_settings,
@@ -65,16 +72,42 @@ def update_company_details(
     current_user: Any,
 ) -> Dict[str, Any]:
     """
-    Met à jour les champs administratifs de l'entreprise active.
-    L'appelant doit vérifier has_rh_access_in_company(company_id).
-    """
-    if not update_data:
-        row = company_repository.get_by_id(company_id)
-        if not row:
-            raise LookupError("Entreprise non trouvée.")
-        return row
+    Met à jour les champs administratifs et les paramètres de paie de
+    l'entreprise active. L'appelant doit vérifier has_rh_access_in_company(company_id).
 
-    updated = company_repository.update_company(company_id, update_data)
+    Les réglages rangés dans `settings` (taux d'assurance chômage, date de
+    paiement, journée de solidarité) y sont fusionnés sans toucher aux autres
+    clés ; `None` retire la clé. Seuls les champs qui changent vraiment sont
+    écrits, et chacun laisse une trace d'audit avant/après.
+    """
+    avant = company_repository.get_by_id(company_id)
+    if not avant:
+        raise LookupError("Entreprise non trouvée.")
+    if not update_data:
+        return avant
+
+    colonnes, reglages = separer_reglages(update_data)
+    diff = changements(avant, colonnes)
+    a_ecrire = {cle: colonnes[cle] for cle in diff}
+    if reglages:
+        settings = fusionner_reglages(avant.get("settings"), reglages)
+        diff_settings = changements_settings(avant.get("settings"), settings)
+        if diff_settings:
+            a_ecrire["settings"] = settings
+            diff.update(diff_settings)
+    if not diff:
+        return avant
+
+    updated = company_repository.update_company(company_id, a_ecrire)
     if not updated:
         raise LookupError("Entreprise non trouvée.")
+    audit_repository.log(
+        company_id,
+        str(getattr(current_user, "id", "") or "") or None,
+        getattr(current_user, "email", None),
+        "company.update",
+        "company",
+        company_id,
+        {"changements": diff},
+    )
     return updated

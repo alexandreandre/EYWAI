@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from app.modules.payroll.application.empreinte_entrees_service import (
     annoter_a_recalculer,
     entrees_depuis_lectures,
@@ -257,3 +259,25 @@ def test_entrees_depuis_lectures_ignore_les_horodatages_de_saisie():
     a = entrees_depuis_lectures(**_kwargs(saisies=[{"name": "Prime", "amount": 50, "created_at": "a"}]))
     b = entrees_depuis_lectures(**_kwargs(saisies=[{"name": "Prime", "amount": 50, "created_at": "b"}]))
     assert a == b
+
+
+@pytest.mark.parametrize(
+    ("avant", "apres"),
+    [
+        ({"effectif": 19}, {"effectif": 21}),
+        ({"settings": {}}, {"settings": {"taux_assurance_chomage": 2.95}}),
+        (
+            {"settings": {"taux_assurance_chomage": 2.95}},
+            {"settings": {"taux_assurance_chomage": 4.2}},
+        ),
+        ({"settings": {}}, {"settings": {"date_paiement": "dernier_jour_du_mois"}}),
+        ({"settings": {}}, {"settings": {"jour_solidarite": "2026-05-25"}}),
+    ],
+)
+def test_un_reglage_de_l_ecran_parametres_de_paie_fait_passer_a_recalculer(avant, apres):
+    """Effectif, chômage, date de paiement, journée de solidarité : réglés à
+    l'écran « Paramètres de paie », ils changent le calcul — les bulletins déjà
+    calculés doivent passer « À recalculer »."""
+    assert empreinte_des_lectures(
+        **_kwargs(company={**COMPANY, **avant})
+    ) != empreinte_des_lectures(**_kwargs(company={**COMPANY, **apres}))
