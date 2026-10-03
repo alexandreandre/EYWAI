@@ -79,9 +79,18 @@ export interface CompanyDetails {
     public_holidays?: {
       observed_holiday_ids?: FrenchPublicHolidayId[];
     };
+    /** Taux bonus-malus notifié par l'URSSAF, en % ; absent = taux normal. */
+    taux_assurance_chomage?: number | null;
+    /** Absent = date de l'arrêté des variables (comportement historique). */
+    date_paiement?: DatePaiement | null;
+    /** AAAA-MM-JJ ; absent = lundi de Pentecôte. */
+    jour_solidarite?: string | null;
   };
   dsn_sync_mode?: DsnSyncMode | null;
 }
+
+/** Valeurs de `settings.date_paiement` connues du moteur de paie. */
+export type DatePaiement = "dernier_jour_du_mois" | "arrete_des_variables";
 
 export interface CompanyDetailsPayload {
   company_data: CompanyDetails;
@@ -180,6 +189,14 @@ export type CompanyDetailsUpdate = Partial<
   >
 > & {
   dsn_sync_mode?: DsnSyncMode;
+  /** Effectif retenu pour les seuils ; jamais vidé. */
+  effectif?: number;
+  /** null retire le taux notifié (retour au taux normal). */
+  taux_assurance_chomage?: number | null;
+  /** null revient au comportement historique. */
+  date_paiement?: DatePaiement | null;
+  /** null retire la date. */
+  jour_solidarite?: string | null;
 };
 
 export async function fetchCompanyDetails(): Promise<CompanyDetailsPayload> {
