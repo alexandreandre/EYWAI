@@ -23,7 +23,12 @@ from app.modules.employees.api.deps import (
 from app.modules.employees.api.router_me import me_router
 from app.modules.audit.application.commands import log_audit_event
 from app.modules.webhooks.application.service import trigger_webhook_event
-from app.modules.employees.application import commands, contract_periods, queries
+from app.modules.employees.application import (
+    commands,
+    contract_periods,
+    nouveau_contrat,
+    queries,
+)
 from app.modules.employees.application.dto import EmployeeCreateValidationError
 from app.modules.employees.schemas.requests import NewFullEmployee, UpdateEmployee
 from app.modules.documents.application.commands import generate_document
@@ -642,6 +647,62 @@ def remove_contract_period(
         details={"period_id": period_id},
         ip_address=request.client.host if request.client else None,
     )
+
+
+@router.get("/{employee_id}/new-contract")
+def get_new_contract(
+    employee_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Ce que « Nouveau contrat » propose pour un salarié parti, ou pourquoi rien."""
+    company_id = _rh_employee(current_user, employee_id)
+    return nouveau_contrat.apercu(employee_id, company_id)
+
+
+@router.post("/{employee_id}/new-contract", status_code=201)
+def post_new_contract(
+    employee_id: str,
+    payload: nouveau_contrat.NouveauContratIn,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Range le contrat précédent, porte le nouveau sur la fiche, qui redevient active."""
+    company_id = _rh_employee(current_user, employee_id)
+    try:
+        resultat = nouveau_contrat.creer(employee_id, company_id, payload, str(current_user.id))
+    except nouveau_contrat.NouveauContratRefuse as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except nouveau_contrat.FicheModifiee as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except nouveau_contrat.NonEnregistre as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    precedent = resultat.get("contrat_precedent") or {}
+    log_audit_event(
+        company_id=str(company_id),
+        user_id=str(current_user.id),
+        user_email=current_user.email,
+        action="employee.contract.new",
+        resource_type="employee",
+        resource_id=employee_id,
+        details={
+            "contrat_precedent": {
+                cle: precedent.get(cle) for cle in ("contract_type", "date_debut", "date_fin")
+            },
+            "nouveau_contrat": {
+                "contract_type": payload.contract_type,
+                "date_debut": payload.date_debut.isoformat(),
+                "date_fin": payload.date_fin.isoformat() if payload.date_fin else None,
+                "duree_hebdomadaire": float(payload.duree_hebdomadaire),
+                "salaire_mensuel": float(payload.salaire_mensuel),
+                "job_title": payload.job_title,
+            },
+            "reprendre_anciennete": payload.reprendre_anciennete,
+            "date_anciennete": resultat.get("date_anciennete"),
+            "avertissements": resultat.get("avertissements") or [],
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    return resultat
 
 
 @router.get("/{employee_id}/deletion-impact", response_model=EmployeeDeletionImpact)
