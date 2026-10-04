@@ -540,3 +540,26 @@ class TestHorsContrat:
         )
         assert bornes_du_contrat(date(2026, 4, 7), None) == (date(2026, 4, 7), None)
         assert bornes_du_contrat(None, "pas une date") == (None, None)
+
+
+# --- Passage d'un CDD à l'apprentissage sur la même fiche ---
+
+
+def test_l_apprentissage_commence_a_sa_date_d_effet_pas_a_l_entree_du_cdd():
+    """Comitech, septembre 2026 : un CDD (entré le 22/06) devient apprenti le 31/08.
+    Les heures badgées les 26-28/08 relèvent du CDD, payé en août : elles ne
+    doivent pas compter dans la fenêtre du premier bulletin d'apprenti."""
+    from app.modules.payroll.application.compensation_semaines import debut_du_contrat_en_cours
+
+    fiche = {"hire_date": "2026-06-22", "specificites_paie": {"apprenti_date_effet": "2026-08-31"}}
+    assert debut_du_contrat_en_cours(fiche) == "2026-08-31"
+
+
+def test_sans_passage_l_entree_reste_la_date_d_embauche():
+    from app.modules.payroll.application.compensation_semaines import debut_du_contrat_en_cours
+
+    assert debut_du_contrat_en_cours({"hire_date": "2026-06-22", "specificites_paie": {}}) == "2026-06-22"
+    assert debut_du_contrat_en_cours({"hire_date": "2026-06-22"}) == "2026-06-22"
+    # Une date d'effet antérieure à l'embauche ne recule pas l'entrée.
+    fiche = {"hire_date": "2026-06-22", "specificites_paie": {"apprenti_date_effet": "2025-09-01"}}
+    assert debut_du_contrat_en_cours(fiche) == "2026-06-22"

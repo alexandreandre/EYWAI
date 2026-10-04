@@ -130,6 +130,18 @@ def _date(valeur: Any) -> date | None:
         return None
 
 
+def debut_du_contrat_en_cours(fiche: dict) -> Any:
+    """L'entrée du contrat en cours : la date d'embauche, ou la date d'effet de
+    l'apprentissage quand un CDD est devenu apprenti sur la même fiche. Les
+    heures du CDD ont été payées avec lui (Comitech, 31/08/2026)."""
+    entree = fiche.get("hire_date")
+    effet = ((fiche.get("specificites_paie") or {}) or {}).get("apprenti_date_effet")
+    d_entree, d_effet = _date(entree), _date(effet)
+    if d_effet and (d_entree is None or d_effet > d_entree):
+        return effet
+    return entree
+
+
 def bornes_du_contrat(date_entree: Any, date_sortie: Any) -> Contrat:
     """(entrée, sortie) lues comme le bulletin (`calcul_brut._parse_date_contrat`) :
     texte ISO ou date ; illisible ou vide, pas de borne."""

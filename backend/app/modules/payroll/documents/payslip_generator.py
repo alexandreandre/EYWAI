@@ -20,6 +20,7 @@ from app.shared.reprise_paie import raison_de_cumul_manquant
 from app.modules.payroll.application.compensation_semaines import (
     appliquer_aux_mois,
     bornes_du_contrat,
+    debut_du_contrat_en_cours,
     option_active,
 )
 from app.modules.payroll.application.heures_sur_arret import (
@@ -770,7 +771,7 @@ def process_payslip_generation(
                 (fenetre_variables.debut, fenetre_variables.fin),
                 # Mêmes bornes que le bulletin : hors contrat, rien ne compte.
                 contrat=bornes_du_contrat(
-                    employee_data.get("hire_date"), resolve_date_sortie(employee_data)
+                    debut_du_contrat_en_cours(employee_data), resolve_date_sortie(employee_data)
                 ),
             )
             payroll_events_list = evenements_compenses[(year, month)]
