@@ -71,7 +71,9 @@ import {
 import { employeeDocumentsPath } from '@/lib/employeeExitDocumentsAccess';
 import {
   MESSAGE_GENERER_DABORD_BULLETIN,
+  documentsARevoir,
   documentsDeSortieGrises,
+  messageDocumentsARevoir,
 } from '@/features/employee-exits/utils/documentsSortie';
 import { ViewLinkButton } from '@/components/employee-detail/DocumentFileRow';
 import {
@@ -594,29 +596,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const checklist = exitDetails.checklist_items || [];
   const documents = exitDetails.documents || [];
   const documentsGrises = documentsDeSortieGrises(exitDetails.bulletin_de_sortie);
-  const generatedDocuments = documents.filter((doc) => doc.document_category === 'generated');
-  const pendingReviewFromNote = (note: unknown): ExitDocument['document_type'][] => {
-    const changedAt = typeof (note as any)?.timestamp === 'string'
-      ? new Date((note as any).timestamp).getTime()
-      : 0;
-    if (!changedAt) return [];
-    const docTypes = Array.isArray((note as any)?.generated_documents_to_review)
-      ? (note as any).generated_documents_to_review.filter(
-          (type: unknown): type is ExitDocument['document_type'] => typeof type === 'string',
-        )
-      : [];
-    return docTypes.filter(
-      (type) =>
-        !generatedDocuments.some((doc) => {
-          const generatedAt = doc.generated_at || doc.created_at;
-          return doc.document_type === type && new Date(generatedAt).getTime() > changedAt;
-        }),
-    );
-  };
-  const documentTypesToReview = [
-    ...pendingReviewFromNote(exitDetails.exit_notes?.exit_type_change),
-    ...pendingReviewFromNote(exitDetails.exit_notes?.last_working_day_change),
-  ];
+  // Type ou date de départ changés, ou bulletin recalculé après la génération.
+  const documentTypesToReview = documentsARevoir(exitDetails.exit_notes, documents);
   const hasDocumentsToReview = documentTypesToReview.length > 0;
   const completionRate = exitDetails.checklist_completion_rate || 0;
   const isArchived = exitDetails.status === 'archivee';
@@ -876,10 +857,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
           <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Documents à revoir</AlertTitle>
-            <AlertDescription>
-              Le type de départ a été modifié après génération de documents. Régénérez les pièces
-              officielles concernées avant publication ou remise au collaborateur.
-            </AlertDescription>
+            <AlertDescription>{messageDocumentsARevoir(documentTypesToReview)}</AlertDescription>
           </Alert>
         )}
 

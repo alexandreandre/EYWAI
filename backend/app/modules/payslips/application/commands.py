@@ -349,6 +349,32 @@ def _apres_regeneration(existant: dict[str, Any]) -> None:
         )
 
 
+def _signaler_documents_de_sortie(employee: dict[str, Any], year: int, month: int) -> None:
+    """Le solde de tout compte et l'attestation employeur reprennent les montants
+    du bulletin ; calculé après eux, il les met « à revoir » sur le départ.
+
+    Seulement pour un salarié qui part ou est parti. Jamais bloquant : le
+    bulletin est déjà enregistré.
+    """
+    statut = str(employee.get("employment_status") or "").lower()
+    if not employee.get("current_exit_id") and statut not in _STATUTS_PARTIS:
+        return
+    try:
+        from app.modules.employee_exits.application import bulletin_recalcule
+
+        bulletin_recalcule.signaler_bulletin_recalcule(
+            str(employee["id"]), str(employee["company_id"]), year, month
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Documents de sortie de %s non signalés après le bulletin %02d/%d.",
+            employee.get("id"),
+            month,
+            year,
+            exc_info=True,
+        )
+
+
 def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
     """Après régénération forcée : le bulletin redevient un brouillon.
 
@@ -514,6 +540,8 @@ def _generer_sous_verrou(
 
     if bulletin_existant and str(result.get("status") or "") == "success":
         _apres_regeneration(bulletin_existant)
+    if str(result.get("status") or "") == "success":
+        _signaler_documents_de_sortie(employee, cmd.year, cmd.month)
 
     warnings: list[Any] = list(result.get("warnings") or [])
     if calendar_warning:

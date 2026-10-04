@@ -1202,8 +1202,34 @@ class TestPartiDernierMois:
     refus de statut ; la garde de période refuse toujours les mois suivants.
     """
 
+    @pytest.fixture(autouse=True)
+    def _documents_de_sortie(self):
+        """Un parti peut avoir des documents de sortie : ici, rien à lire en base."""
+        with patch(
+            "app.modules.payslips.application.commands._signaler_documents_de_sortie"
+        ) as signal:
+            yield signal
+
     def _parti(self, **extra):
         return {**_COMPLETE_EMPLOYEE, "employment_status": "parti", **extra}
+
+    def test_le_bulletin_d_un_parti_signale_ses_documents_de_sortie(self, _documents_de_sortie):
+        """Le solde de tout compte et l'attestation reprennent ce bulletin : le
+        recalculer après eux les met « à revoir » sur le départ."""
+        cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
+        p_repo, p_reader, p_provider, p_sched, p_valide = _patches_generation(
+            _schedule_complet(2026, 7)
+        )
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            mock_repo.get_by_id_only.return_value = self._parti(contract_end_date="2026-07-24")
+            mock_reader.get_employee_statut.return_value = "Non-Cadre"
+            mock_provider.generate_heures.return_value = {
+                "status": "success", "message": "OK", "download_url": "u",
+            }
+            generate_payslip(cmd)
+        _documents_de_sortie.assert_called_once()
+        employe, annee, mois = _documents_de_sortie.call_args.args
+        assert (employe["id"], annee, mois) == ("emp-1", 2026, 7)
 
     def test_sorti_dans_le_mois_est_genere(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=7)
@@ -1284,3 +1310,27 @@ class TestPartiDernierMois:
                 generate_payslip(cmd)
 
         mock_provider.generate_heures.assert_not_called()
+
+
+def test_un_salarie_sans_depart_ne_lit_aucun_document_de_sortie():
+    from app.modules.payslips.application import commands as mod
+
+    with patch(
+        "app.modules.employee_exits.application.bulletin_recalcule.signaler_bulletin_recalcule"
+    ) as signal:
+        mod._signaler_documents_de_sortie(dict(_COMPLETE_EMPLOYEE), 2026, 5)
+    signal.assert_not_called()
+
+
+def test_un_echec_du_signal_ne_fait_pas_echouer_la_generation():
+    from app.modules.payslips.application import commands as mod
+
+    with patch(
+        "app.modules.employee_exits.application.bulletin_recalcule.signaler_bulletin_recalcule",
+        side_effect=RuntimeError("base indisponible"),
+    ) as signal:
+        mod._signaler_documents_de_sortie(
+            {**_COMPLETE_EMPLOYEE, "employment_status": "en_sortie", "current_exit_id": "x1"},
+            2026, 9,
+        )
+    signal.assert_called_once_with("emp-1", "co-1", 2026, 9)
