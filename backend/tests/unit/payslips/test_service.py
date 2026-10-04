@@ -147,7 +147,7 @@ class TestGetPayslipDetailsForUser:
             return_value=[],
         ), patch(
             "app.modules.payslips.application.service._etats_du_bulletin",
-            return_value=(None, None),
+            return_value=(None, None, None),
         ), patch(
             "app.modules.payslips.application.service.get_payslip_data_du_mois",
             return_value=None,
@@ -183,6 +183,7 @@ class TestGetPayslipDetailsForUser:
             "internal_notes": [],
             "a_regenerer": None,
             "a_recalculer": None,
+            "raison_a_recalculer": None,
             "exports_du_mois": [],
             "comparaison_mois_dernier": _CMP_ABSENT,
         }
@@ -296,6 +297,7 @@ class TestGetPayslipDetailsForUser:
             **detail,
             "a_regenerer": None,
             "a_recalculer": None,
+            "raison_a_recalculer": None,
             "exports_du_mois": [],
             "comparaison_mois_dernier": _CMP_ABSENT,
         }
@@ -319,6 +321,7 @@ class TestGetPayslipDetailsForUser:
             **detail,
             "a_regenerer": None,
             "a_recalculer": None,
+            "raison_a_recalculer": None,
             "exports_du_mois": [],
             "comparaison_mois_dernier": _CMP_ABSENT,
         }
@@ -328,7 +331,7 @@ def test_le_detail_dit_a_recalculer_et_a_regenerer_quand_le_mois_d_avant_a_chang
     """Mars régénéré après le calcul d'avril : les entrées d'avril n'ont pas bougé,
     ses cumuls de départ si. Le détail le dit comme la liste, et dit pourquoi."""
     from app.modules.payslips.application import service
-    from app.modules.payslips.domain.coherence import MESSAGE_A_REGENERER
+    from app.modules.payslips.domain.coherence import MESSAGE_A_RECALCULER, MESSAGE_A_REGENERER
 
     detail = {
         "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
@@ -343,19 +346,38 @@ def test_le_detail_dit_a_recalculer_et_a_regenerer_quand_le_mois_d_avant_a_chang
     with patch(cible, return_value=EtatDuBulletin(
         entrees_changees=False, cumuls_precedents_changes=True, cascade_depuis=(2026, 4)
     )):
-        assert service._etats_du_bulletin(detail) == (True, MESSAGE_A_REGENERER)
+        assert service._etats_du_bulletin(detail) == (True, MESSAGE_A_REGENERER, None)
     with patch(cible, return_value=EtatDuBulletin(**a_jour)):
-        assert service._etats_du_bulletin(detail) == (False, None)
+        assert service._etats_du_bulletin(detail) == (False, None, None)
     with patch(cible, return_value=EtatDuBulletin(entrees_changees=True, cumuls_precedents_changes=False)):
-        assert service._etats_du_bulletin(detail) == (True, None)
+        assert service._etats_du_bulletin(detail) == (True, None, MESSAGE_A_RECALCULER)
     # Février corrigé : mars est à recalculer d'abord, avril le dit en le nommant.
     with patch(cible, return_value=EtatDuBulletin(**a_jour, cascade_depuis=(2026, 3))):
         assert service._etats_du_bulletin(detail) == (
-            True, message_mois_d_avant_a_recalculer(2026, 3)
+            True, message_mois_d_avant_a_recalculer(2026, 3), None
         )
     with patch(cible) as jamais_lu:
-        assert service._etats_du_bulletin({**detail, "origine": "importe"}) == (None, None)
+        assert service._etats_du_bulletin({**detail, "origine": "importe"}) == (None, None, None)
     jamais_lu.assert_not_called()
+
+
+def test_le_detail_dit_ce_qui_a_change():
+    """La mutuelle modifiée depuis le calcul : le détail le dit simplement."""
+    from app.modules.payroll.application.empreinte_entrees_service import EtatDuBulletin
+    from app.modules.payslips.application import service
+
+    detail = {
+        "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
+        "month": 4, "status": "brouillon", "origine": "calcule", "payslip_data": {},
+    }
+    cible = "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine"
+    etat = EtatDuBulletin(
+        entrees_changees=True, cumuls_precedents_changes=False, parties_changees=("mutuelle",)
+    )
+    with patch(cible, return_value=etat):
+        assert service._etats_du_bulletin(detail) == (
+            True, None, "La mutuelle a changé depuis le calcul : recalculez avant de valider."
+        )
 
 
 class TestGetPayslipHistoryForUser:

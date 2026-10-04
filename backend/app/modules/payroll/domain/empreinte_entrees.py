@@ -28,6 +28,20 @@ MESSAGE_A_RECALCULER = (
     "de valider."
 )
 
+#: Les cumuls du mois d'avant ont changé depuis le calcul de ce bulletin.
+MESSAGE_A_REGENERER = (
+    "Le bulletin du mois précédent a changé depuis le calcul de celui-ci : "
+    "leurs cumuls ne se suivent plus. Régénérez ce bulletin."
+)
+
+
+def message_mois_d_avant_a_recalculer(annee: int, mois: int) -> str:
+    """Un mois plus ancien de la chaîne est à recalculer d'abord : on le nomme."""
+    return (
+        f"Le bulletin de {mois:02d}/{annee} doit être recalculé : un mois avant lui a "
+        "changé depuis. Recalculez les mois dans l'ordre, celui-ci ensuite."
+    )
+
 _CLES_IGNOREES = frozenset(
     {
         "cumuls",

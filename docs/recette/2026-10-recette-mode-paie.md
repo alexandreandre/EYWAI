@@ -267,8 +267,10 @@ Les 3.1, 3.3 et 3.6 ont besoin d’un jour **travaillé** à 7 h, à passer à 8
 - Badge **À recalculer** sur la ligne (`badge-a-recalculer`).
 - Bouton **Recalculer** sur la ligne.
 - En tête de l’onglet **Par mois** (et/ou **Par collaborateur** si d’autres bulletins du même salarié sont périmés) : **Recalculer tout ce qui a changé (n)**.
+- Le survol du badge dit ce qui a changé : « Le planning a changé depuis le calcul : recalculez avant de valider. »
 - Ouvrir **Modifier** : bandeau « **À recalculer** » avec le texte exact  
-  « Le calendrier ou les absences ont changé depuis le calcul : recalculez avant de valider ».
+  « Le planning a changé depuis le calcul : recalculez avant de valider. »  
+  (Un bulletin calculé avant le 04/10/2026 ne sait pas dire quoi : « Une donnée du bulletin a changé depuis le calcul (planning, absences, variables, fiche du salarié ou réglages de la société) : recalculez avant de valider. »)
 - **Valider le bulletin** est inactif ; le survol reprend ce message.
 
 **Capture** : liste avec badge et boutons ; écran de correction, bouton Valider grisé.

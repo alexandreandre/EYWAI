@@ -426,6 +426,23 @@ def test_mars_recalcule_perime_avril_puis_mai_et_juin_de_proche_en_proche():
     assert _etats(lignes, apres) == {3: False, 4: True, 5: True, 6: True}
 
 
+def test_la_liste_dit_quel_mois_recalculer_d_abord():
+    from app.modules.payroll.domain.empreinte_entrees import (
+        MESSAGE_A_REGENERER,
+        message_mois_d_avant_a_recalculer,
+    )
+
+    lignes = _bulletins_de_la_chaine(_calendriers_de_la_chaine())
+    lectures = _lectures(calendriers=_calendriers_de_la_chaine(mois=(3,)), saisies_par_mois={})
+    raisons = {int(l["month"]): l["raison_a_recalculer"] for l in _annoter_toutes(lectures, lignes)}
+    assert raisons == {
+        3: None,
+        4: MESSAGE_A_REGENERER,
+        5: message_mois_d_avant_a_recalculer(2026, 4),
+        6: message_mois_d_avant_a_recalculer(2026, 4),
+    }
+
+
 def test_un_bulletin_repris_ou_un_mois_sans_bulletin_arrete_la_cascade():
     apres = _calendriers_de_la_chaine(mois=(3,))
     repris = _bulletins_de_la_chaine(_calendriers_de_la_chaine(), repris=(5,))

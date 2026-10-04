@@ -479,6 +479,37 @@ def test_le_contrat_en_cours_commence_au_mois_de_son_debut():
     assert mois_du_contrat_en_cours({}, 2020, 1)
 
 
+# --- Ce que dit le badge ----------------------------------------------------------
+
+
+def test_la_liste_dit_que_la_mutuelle_a_change():
+    modifiee = replace(COMPLEMENTS, mutuelles=[{**MUTUELLE_M1, "montant_patronal": 35.0}, MUTUELLE_M2])
+    ligne = _annoter(_lectures(modifiee), _genere())
+    assert ligne["raison_a_recalculer"] == (
+        "La mutuelle a changé depuis le calcul : recalculez avant de valider."
+    )
+
+
+def test_la_liste_dit_qu_un_conge_a_ete_ajuste():
+    ajuste = replace(COMPLEMENTS, ajustements_conges=[
+        {**COMPLEMENTS.ajustements_conges[0], "cp_n1_opening_balance": 15.0}])
+    assert _annoter(_lectures(ajuste), _genere())["raison_a_recalculer"] == (
+        "Un compteur de congés a été ajusté depuis le calcul : recalculez avant de valider."
+    )
+
+
+def test_un_bulletin_a_jour_n_a_pas_de_raison():
+    assert _annoter(_lectures(), _genere())["raison_a_recalculer"] is None
+
+
+def test_un_bulletin_d_avant_dit_le_message_general():
+    from app.modules.payroll.domain.empreinte_entrees import MESSAGE_A_RECALCULER
+
+    ancien = {**_genere(), "empreinte_complementaire": None}
+    ligne = _annoter(_lectures(employee=FICHE_AUGMENTEE), ancien)
+    assert ligne["raison_a_recalculer"] == MESSAGE_A_RECALCULER
+
+
 def test_les_lectures_des_bulletins_rendent_leur_statut():
     from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
 

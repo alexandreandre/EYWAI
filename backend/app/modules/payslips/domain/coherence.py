@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.modules.payroll.domain.empreinte_entrees import (
+from app.modules.payroll.domain.empreinte_entrees import (  # noqa: F401 — réexportés
     MESSAGE_A_RECALCULER,
-    empreinte_stockee,
-    etat_a_recalculer,
+    MESSAGE_A_REGENERER,
 )
 
 _TOLERANCE = 0.011
@@ -22,21 +21,19 @@ MESSAGE_RECALCUL_EN_ATTENTE = (
     "Le bulletin n'a pas été recalculé après la dernière correction : "
     "régénérez-le avant de le valider."
 )
-MESSAGE_A_REGENERER = (
-    "Le bulletin du mois précédent a changé depuis le calcul de celui-ci : "
-    "leurs cumuls ne se suivent plus. Régénérez ce bulletin."
-)
 
 
 def raisons_de_ne_pas_valider(
     payslip_data: dict[str, Any] | None,
-    empreinte_actuelle: str | None = None,
+    raison_a_recalculer: str | None = None,
 ) -> list[str]:
+    """Recalcul en attente, ou entrées changées depuis le calcul (`raison_a_recalculer`,
+    la phrase qui dit quoi — None quand rien n'a changé ou qu'on ne sait pas)."""
     raisons: list[str] = []
     if isinstance(payslip_data, dict) and payslip_data.get("recalcul_en_attente"):
         raisons.append(MESSAGE_RECALCUL_EN_ATTENTE)
-    if etat_a_recalculer(empreinte_stockee(payslip_data), empreinte_actuelle) is True:
-        raisons.append(MESSAGE_A_RECALCULER)
+    if raison_a_recalculer:
+        raisons.append(raison_a_recalculer)
     return raisons
 
 

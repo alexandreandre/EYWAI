@@ -122,14 +122,16 @@ def get_payslip_details_for_user(
             "internal_notes": [],
             "a_regenerer": None,
             "a_recalculer": None,
+            "raison_a_recalculer": None,
             "exports_du_mois": [],
             "comparaison_mois_dernier": _comparaison_du_bulletin(detail),
         }
-    a_recalculer, a_regenerer = _etats_du_bulletin(detail)
+    a_recalculer, a_regenerer, raison_a_recalculer = _etats_du_bulletin(detail)
     return {
         **detail,
         "a_regenerer": a_regenerer,
         "a_recalculer": a_recalculer,
+        "raison_a_recalculer": raison_a_recalculer,
         "exports_du_mois": exports_du_mois(
             detail["company_id"], detail["year"], detail["month"]
         ),
@@ -149,14 +151,19 @@ def _comparaison_du_bulletin(detail: dict[str, Any]) -> dict[str, Any]:
     return comparer_au_mois_dernier(detail.get("payslip_data"), precedent)
 
 
-def _etats_du_bulletin(detail: dict[str, Any]) -> tuple[bool | None, str | None]:
-    """(`a_recalculer`, `a_regenerer`) — même règle que la liste, une seule lecture.
+def _etats_du_bulletin(
+    detail: dict[str, Any],
+) -> tuple[bool | None, str | None, str | None]:
+    """(`a_recalculer`, `a_regenerer`, `raison_a_recalculer`) — même règle que la
+    liste, une seule lecture.
 
     `a_recalculer` : entrées changées ou mois d'avant recalculé depuis le calcul ;
-    `a_regenerer` : la phrase qui le dit quand c'est le mois d'avant.
+    `a_regenerer` : la phrase qui le dit quand c'est le mois d'avant ;
+    `raison_a_recalculer` : ce qui a changé dans ses entrées (« La mutuelle a
+    changé… »), None si rien.
     """
     if str(detail.get("origine") or "calcule") == "importe":
-        return None, None
+        return None, None, None
     try:
         from app.modules.payroll.application import empreinte_entrees_service
 
@@ -173,7 +180,11 @@ def _etats_du_bulletin(detail: dict[str, Any]) -> tuple[bool | None, str | None]
         )
     except Exception:  # noqa: BLE001
         message = None
-    return (etat.a_recalculer if etat else None), message
+    return (
+        (etat.a_recalculer if etat else None),
+        message,
+        (etat.raison_a_recalculer if etat else None),
+    )
 
 
 def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:

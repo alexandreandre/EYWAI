@@ -6,6 +6,9 @@ import logging
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.payroll.domain.empreinte_entrees import (  # noqa: F401 — réexporté
+    message_mois_d_avant_a_recalculer,
+)
 from app.modules.payslips.domain.coherence import (
     MESSAGE_A_REGENERER,
     a_regenerer,
@@ -33,13 +36,6 @@ def cumul_brut_du_mois_precedent(employee_id: str, year: int, month: int) -> flo
     if not r or not r.data:
         return None
     return cumul_brut({"cumuls": r.data.get("cumuls")})
-
-
-def message_mois_d_avant_a_recalculer(annee: int, mois: int) -> str:
-    return (
-        f"Le bulletin de {mois:02d}/{annee} doit être recalculé : un mois avant lui a "
-        "changé depuis. Recalculez les mois dans l'ordre, celui-ci ensuite."
-    )
 
 
 def signal_a_regenerer(

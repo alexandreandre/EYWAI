@@ -2,14 +2,16 @@
  * Un bulletin dont les données d'entrée ont changé depuis le calcul.
  *
  * `a_recalculer` vaut true (périmé), false (empreinte identique) ou null
- * (bulletin d'avant l'empreinte, ou repris). Seul true porte le badge, le
- * bouton, et refuse la validation.
+ * (bulletin d'avant l'empreinte, repris, ou d'un ancien contrat). Seul true
+ * porte le badge, le bouton, et refuse la validation. `raison_a_recalculer`
+ * dit ce qui a changé (« La mutuelle a changé… »).
  */
 
 import { estBulletinImporte } from './bulletinImporte';
 
+/** Quand le serveur ne sait pas quelle donnée a changé (bulletin d'avant l'empreinte par partie). */
 export const MESSAGE_A_RECALCULER =
-  'Le calendrier ou les absences ont changé depuis le calcul : recalculez avant de valider';
+  'Une donnée du bulletin a changé depuis le calcul (planning, absences, variables, fiche du salarié ou réglages de la société) : recalculez avant de valider.';
 
 export const MESSAGE_COMPARAISON_INDISPONIBLE = 'recalculé, comparaison indisponible';
 
@@ -51,19 +53,27 @@ export function estPerime(
 }
 
 /**
- * L'alerte « calendrier ou absences ont changé », sur le bulletin.
+ * La phrase de l'alerte « À recalculer » du bulletin, ou null s'il n'y en a pas.
  *
+ * Le serveur dit ce qui a changé dans ses entrées (`raison_a_recalculer`).
  * Un bulletin est aussi périmé quand le mois d'avant a été recalculé depuis
- * son calcul : le serveur le dit alors par `a_regenerer`, qui s'affiche seul —
- * la phrase du calendrier serait fausse.
+ * son calcul : `a_regenerer` le dit seul. Sans phrase du serveur, le message
+ * général, qui ne prétend pas savoir quoi.
  */
-export function alerteCalendrierChange(
+export function messageARecalculer(
   payslip:
-    | { a_recalculer?: boolean | null; a_regenerer?: string | null; origine?: string | null }
+    | {
+        a_recalculer?: boolean | null;
+        a_regenerer?: string | null;
+        raison_a_recalculer?: string | null;
+        origine?: string | null;
+      }
     | null
     | undefined
-): boolean {
-  return estPerime(payslip) && !payslip?.a_regenerer;
+): string | null {
+  if (!payslip || estBulletinImporte(payslip)) return null;
+  if (payslip.raison_a_recalculer) return payslip.raison_a_recalculer;
+  return estPerime(payslip) && !payslip.a_regenerer ? MESSAGE_A_RECALCULER : null;
 }
 
 function nombreOuNull(valeur: unknown): number | null {

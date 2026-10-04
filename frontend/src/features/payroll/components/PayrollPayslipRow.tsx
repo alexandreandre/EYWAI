@@ -126,6 +126,7 @@ export function PayrollPayslipRow({
           variant="outline"
           className="border-amber-200 bg-amber-50 text-amber-800"
           data-testid="badge-a-recalculer"
+          title={payslip?.raison_a_recalculer ?? undefined}
         >
           À recalculer
         </Badge>

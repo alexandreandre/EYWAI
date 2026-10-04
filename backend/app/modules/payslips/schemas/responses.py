@@ -26,9 +26,11 @@ class PayslipInfo(BaseModel):
     points_a_arbitrer: list[str] = []
     #: « importe » : bulletin repris de l'ancien logiciel, intouchable.
     origine: str = "calcule"
-    #: true = calendrier ou absences changés depuis le calcul ; false = à jour ;
-    #: null = bulletin d'avant l'empreinte, ou repris : on ne bloque pas.
+    #: true = une donnée du bulletin a changé depuis le calcul ; false = à jour ;
+    #: null = bulletin d'avant l'empreinte, repris ou d'un ancien contrat.
     a_recalculer: bool | None = None
+    #: Ce qui a changé, dit simplement (« La mutuelle a changé… ») ; None si rien.
+    raison_a_recalculer: str | None = None
     salaire_brut: float | None = None
     heures_sup: float | None = None
     manually_edited: bool = False
@@ -109,6 +111,9 @@ class PayslipDetail(BaseModel):
     a_regenerer: str | None = None
     #: true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte).
     a_recalculer: bool | None = None
+    #: Ce qui a changé dans ses entrées (« La mutuelle a changé… ») ; None si
+    #: rien — le mois d'avant se dit par `a_regenerer`.
+    raison_a_recalculer: str | None = None
     #: Brut, net, heures sup et absences vs le bulletin du mois précédent.
     comparaison_mois_dernier: dict[str, Any] | None = None
     #: Exports déjà faits pour le mois (type, libellé, date) : à refaire après

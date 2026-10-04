@@ -81,11 +81,7 @@ import {
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
-import {
-  alerteCalendrierChange,
-  estPerime,
-  MESSAGE_A_RECALCULER,
-} from '@/features/payroll/utils/bulletinARecalculer';
+import { estPerime, messageARecalculer } from '@/features/payroll/utils/bulletinARecalculer';
 
 const QUESTION_ABANDON = 'Vos corrections ne sont pas enregistrées. Les abandonner ?';
 
@@ -348,6 +344,8 @@ export default function PayslipEdit() {
   const validationBloquee = Boolean(
     recalculEnAttente || payslip.a_regenerer || estPerime(payslip)
   );
+  // Ce qui a changé depuis le calcul, dit simplement (« La mutuelle a changé… »).
+  const aRecalculer = messageARecalculer(payslip);
   const lienSaisies = lienVariablesDuMois({
     employeeId: payslip.employee_id,
     year: payslip.year,
@@ -380,10 +378,10 @@ export default function PayslipEdit() {
         </Alert>
       ) : null}
 
-      {alerteCalendrierChange(payslip) ? (
+      {aRecalculer ? (
         <Alert data-testid="a-recalculer">
           <AlertTitle>À recalculer</AlertTitle>
-          <AlertDescription>{MESSAGE_A_RECALCULER}</AlertDescription>
+          <AlertDescription>{aRecalculer}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -458,9 +456,7 @@ export default function PayslipEdit() {
               disabled={validateBusy || validationBloquee}
               title={
                 validationBloquee
-                  ? alerteCalendrierChange(payslip)
-                    ? MESSAGE_A_RECALCULER
-                    : 'Régénérez le bulletin avant de le valider'
+                  ? (aRecalculer ?? 'Régénérez le bulletin avant de le valider')
                   : undefined
               }
             >

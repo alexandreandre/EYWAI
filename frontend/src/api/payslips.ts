@@ -158,8 +158,10 @@ export interface PayslipInfo {
   points_a_arbitrer?: string[];
   /** « importe » : bulletin repris de l'ancien logiciel à la bascule — intouchable. */
   origine?: 'calcule' | 'importe' | string;
-  /** true = calendrier ou absences changés depuis le calcul ; false = à jour ; null = inconnu. */
+  /** true = une donnée du bulletin a changé depuis le calcul ; false = à jour ; null = inconnu. */
   a_recalculer?: boolean | null;
+  /** Ce qui a changé, dit simplement (« La mutuelle a changé… ») ; null si rien. */
+  raison_a_recalculer?: string | null;
   salaire_brut?: number | null;
   heures_sup?: number | null;
   manually_edited: boolean;
@@ -252,6 +254,8 @@ export interface PayslipDetail {
   a_regenerer?: string | null;
   /** true = à recalculer ; false = à jour ; null = inconnu (pas d'empreinte). */
   a_recalculer?: boolean | null;
+  /** Ce qui a changé dans ses entrées (« La mutuelle a changé… ») ; null si rien. */
+  raison_a_recalculer?: string | null;
   /** Brut, net, heures sup et absences vs le bulletin du mois précédent. */
   comparaison_mois_dernier?: {
     present?: boolean;

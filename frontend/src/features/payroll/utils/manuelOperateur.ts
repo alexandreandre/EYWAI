@@ -65,7 +65,8 @@ export const ETAPES_MANUEL: EtapeManuel[] = [
   {
     titre: '6. Recalculer ce qui a changé',
     paragraphes: [
-      'Si vous corrigez un calendrier ou une absence après la génération, le bulletin concerné porte « À recalculer ». Un bouton « Recalculer tout ce qui a changé » relance seulement ceux-là.',
+      'Si vous corrigez après la génération ce que le bulletin lit (planning, absence, variables, fiche, mutuelle, compteur de congés, départ, salaire…), le bulletin concerné porte « À recalculer » et dit ce qui a changé. Un bouton « Recalculer tout ce qui a changé » relance seulement ceux-là.',
+      'Une fiche modifiée ne remet en cause que les bulletins non validés du contrat en cours : un bulletin validé reste tel quel, celui d’un ancien contrat n’est jamais signalé.',
       'Un bulletin d’avant cette marque, ou repris de l’ancien logiciel, n’est pas « à recalculer ». Seul un vrai changement depuis le calcul l’est.',
     ],
   },
@@ -99,7 +100,7 @@ export const PIEGES_MANUEL: PiegeManuel[] = [
   {
     titre: 'Le bulletin est à recalculer',
     quoiFaire:
-      'Le calendrier ou les absences ont changé depuis le calcul. Cliquez « Recalculer » (ou « Recalculer tout ce qui a changé » sur la page du mois). Un message résume les écarts (heures sup, brut, net). Ne validez pas avant.',
+      'Une donnée que le bulletin lit a changé depuis le calcul ; le bandeau dit laquelle (planning, fiche, mutuelle, congés…). Cliquez « Recalculer » (ou « Recalculer tout ce qui a changé » sur la page du mois). Un message résume les écarts (heures sup, brut, net). Ne validez pas avant.',
   },
   {
     titre: 'Le net à payer est négatif',

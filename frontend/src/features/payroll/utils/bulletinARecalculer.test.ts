@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   MESSAGE_A_RECALCULER,
   MESSAGE_COMPARAISON_INDISPONIBLE,
-  alerteCalendrierChange,
   estPerime,
   jobsDesBulletinsPerimes,
   jobsDesLignesPerimes,
   libelleBoutonRecalculerTout,
   libelleToastRecalcul,
+  messageARecalculer,
   montantsDepuisLigne,
   montantsDepuisReponse,
 } from './bulletinARecalculer';
@@ -27,17 +27,48 @@ describe('estPerime', () => {
   });
 });
 
-describe('alerteCalendrierChange', () => {
-  it('le mois d’avant recalculé se dit par « À régénérer », pas par « calendrier ou absences »', () => {
-    expect(
-      alerteCalendrierChange({ a_recalculer: true, a_regenerer: 'Le bulletin du mois précédent a changé…' })
-    ).toBe(false);
+describe('messageARecalculer', () => {
+  const MUTUELLE = 'La mutuelle a changé depuis le calcul : recalculez avant de valider.';
+
+  it('dit ce que le serveur a vu changer', () => {
+    expect(messageARecalculer({ a_recalculer: true, raison_a_recalculer: MUTUELLE })).toBe(MUTUELLE);
   });
 
-  it('sans phrase du mois d’avant, un bulletin périmé garde son alerte', () => {
-    expect(alerteCalendrierChange({ a_recalculer: true, a_regenerer: null })).toBe(true);
-    expect(alerteCalendrierChange({ a_recalculer: true })).toBe(true);
-    expect(alerteCalendrierChange({ a_recalculer: false })).toBe(false);
+  it('le dit aussi quand le mois d’avant est à régénérer', () => {
+    expect(
+      messageARecalculer({
+        a_recalculer: true,
+        a_regenerer: 'Le bulletin du mois précédent a changé…',
+        raison_a_recalculer: MUTUELLE,
+      })
+    ).toBe(MUTUELLE);
+  });
+
+  it('le mois d’avant seul se dit par « À régénérer »', () => {
+    expect(
+      messageARecalculer({
+        a_recalculer: true,
+        a_regenerer: 'Le bulletin du mois précédent a changé…',
+        raison_a_recalculer: null,
+      })
+    ).toBeNull();
+  });
+
+  it('sans raison du serveur, un bulletin périmé garde le message général', () => {
+    expect(messageARecalculer({ a_recalculer: true })).toBe(MESSAGE_A_RECALCULER);
+    expect(messageARecalculer({ a_recalculer: false })).toBeNull();
+    expect(messageARecalculer(undefined)).toBeNull();
+  });
+
+  it('un bulletin repris n’a jamais d’alerte', () => {
+    expect(
+      messageARecalculer({ a_recalculer: true, origine: 'importe', raison_a_recalculer: MUTUELLE })
+    ).toBeNull();
+  });
+
+  it('le message général ne prétend pas savoir que c’est le calendrier', () => {
+    expect(MESSAGE_A_RECALCULER).not.toMatch(/^Le calendrier ou les absences/);
+    expect(MESSAGE_A_RECALCULER).toMatch(/fiche/);
   });
 });
 

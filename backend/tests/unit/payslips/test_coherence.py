@@ -31,12 +31,10 @@ def test_un_recalcul_en_attente_empeche_la_validation():
     assert raisons_de_ne_pas_valider({"salaire_brut": 1}) == []
 
 
-def test_un_bulletin_perime_empeche_la_validation():
-    data = {"parametres": {"empreinte_entrees": "a" * 64}}
-    assert raisons_de_ne_pas_valider(data, "b" * 64) == [MESSAGE_A_RECALCULER]
-    assert raisons_de_ne_pas_valider(data, "a" * 64) == []
-    assert raisons_de_ne_pas_valider({"salaire_brut": 1}, "a" * 64) == []
-    assert raisons_de_ne_pas_valider(data, None) == []
+def test_un_bulletin_perime_empeche_la_validation_en_disant_pourquoi():
+    raison = "La mutuelle a changé depuis le calcul : recalculez avant de valider."
+    assert raisons_de_ne_pas_valider({"salaire_brut": 1}, raison) == [raison]
+    assert raisons_de_ne_pas_valider({"salaire_brut": 1}, None) == []
 
 
 def test_le_cumul_brut_se_lit_dans_les_deux_formes():
@@ -115,12 +113,39 @@ def test_la_validation_est_refusee_si_l_empreinte_a_change():
         patch.object(cs, "_ensure_edit_meta"),
         patch.object(cs, "get_payslip_details", return_value=detail),
         patch.object(cs, "signal_a_regenerer", return_value=None),
-        patch.object(cs, "_etat_actuel_du_bulletin", return_value=EtatDuBulletin(empreinte_actuelle="b" * 64)),
+        patch.object(cs, "_etat_actuel_du_bulletin", return_value=EtatDuBulletin(empreinte_actuelle="b" * 64, entrees_changees=True)),
         patch.object(cs, "mark_payslip_validated") as valider,
     ):
         with pytest.raises(PayslipBadRequestError) as exc:
             cs.validate_payslip_for_user("ps-1", ctx)
+    # Bulletin d'avant l'empreinte complémentaire : on ne sait pas quoi, on le dit juste.
     assert MESSAGE_A_RECALCULER in str(exc.value)
+    valider.assert_not_called()
+
+
+def test_la_validation_refusee_dit_ce_qui_a_change():
+    """Une mutuelle modifiée après le calcul : la validation est refusée, et dit pourquoi."""
+    from app.modules.payslips.application import comparison_service as cs
+    from app.modules.payslips.application.dto import PayslipBadRequestError, UserContext
+
+    detail = {
+        "id": "ps-1", "employee_id": "e1", "company_id": "c1", "year": 2026, "month": 8,
+        "payslip_data": {"parametres": {"empreinte_entrees": "a" * 64}},
+    }
+    ctx = UserContext(user_id="rh", is_platform_admin=False,
+                      has_rh_access_in_company=lambda _c: True, active_company_id="c1")
+    etat = EtatDuBulletin(empreinte_actuelle="a" * 64, entrees_changees=True, parties_changees=("mutuelle",))
+    with (
+        patch.object(cs, "payslip_meta_reader", MagicMock()),
+        patch.object(cs, "_ensure_edit_meta"),
+        patch.object(cs, "get_payslip_details", return_value=detail),
+        patch.object(cs, "signal_a_regenerer", return_value=None),
+        patch.object(cs, "_etat_actuel_du_bulletin", return_value=etat),
+        patch.object(cs, "mark_payslip_validated") as valider,
+    ):
+        with pytest.raises(PayslipBadRequestError) as exc:
+            cs.validate_payslip_for_user("ps-1", ctx)
+    assert "La mutuelle a changé depuis le calcul" in str(exc.value)
     valider.assert_not_called()
 
 

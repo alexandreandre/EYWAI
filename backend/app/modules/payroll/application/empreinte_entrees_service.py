@@ -20,6 +20,7 @@ from app.modules.payroll.application.monthly_specificites import (
     resolve_monthly_specificites,
 )
 from app.modules.payroll.domain.empreinte_entrees import (
+    MESSAGE_A_REGENERER,
     PARTIE_FICHE,
     a_recalculer,
     construire_entrees,
@@ -28,6 +29,8 @@ from app.modules.payroll.domain.empreinte_entrees import (
     empreinte_cumuls,
     empreinte_partie,
     etat_a_recalculer,
+    message_a_recalculer,
+    message_mois_d_avant_a_recalculer,
     mois_de_la_fenetre,
     parties_changees,
     poser_empreinte,
@@ -631,6 +634,26 @@ class EtatDuBulletin:
             return True
         return a_recalculer(self.entrees_changees, self.cumuls_precedents_changes)
 
+    @property
+    def raison_a_recalculer(self) -> str | None:
+        """Ce qui a changé dans ses entrées, dit simplement (« La mutuelle a
+        changé… ») ; le message général s'il ne sait pas quoi ; None sinon."""
+        if self.entrees_changees is not True:
+            return None
+        return message_a_recalculer(self.parties_changees)
+
+    def raison_du_badge(self, periode: tuple[int, int]) -> str | None:
+        """Tout ce qui met le bulletin « À recalculer » : ses entrées, puis la
+        chaîne des cumuls (le mois d'avant, ou le plus ancien à recalculer)."""
+        raisons = [self.raison_a_recalculer] if self.raison_a_recalculer else []
+        if self.cascade_depuis is not None:
+            raisons.append(
+                MESSAGE_A_REGENERER
+                if self.cascade_depuis == periode
+                else message_mois_d_avant_a_recalculer(*self.cascade_depuis)
+            )
+        return " ".join(raisons) or None
+
 
 def _hash_ou_none(valeur: Any) -> str | None:
     return valeur if isinstance(valeur, str) and valeur else None
@@ -770,9 +793,11 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
         copie.pop("empreinte_cumuls_precedents", None)
         copie.pop("empreinte_complementaire", None)
         try:
-            etat = etats.get((int(copie["year"]), int(copie["month"])))
+            periode = (int(copie["year"]), int(copie["month"]))
+            etat = etats.get(periode)
         except (KeyError, TypeError, ValueError):
             etat = None
         copie["a_recalculer"] = etat.a_recalculer if etat else None
+        copie["raison_a_recalculer"] = etat.raison_du_badge(periode) if etat else None
         annotées.append(copie)
     return annotées
