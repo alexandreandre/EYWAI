@@ -152,6 +152,42 @@ class TestEmpreinteDesCumulsPrecedents:
         assert empreinte_cumuls_stockee(resultat["payslip_data"]) == empreinte_cumuls(CUMULS_DU_CDD)
 
 
+class TestCumulsVidesDuMoisPrecedent:
+    """Une ligne de planning créée sans bulletin porte `cumuls = {}` : ce n'est pas
+    un cumul, et il ne vaut pas zéro plus qu'un cumul absent."""
+
+    def test_des_cumuls_vides_passent_par_la_garde_du_cumul_manquant(self, monkeypatch, moteur):  # noqa: F811
+        from fastapi import HTTPException
+
+        class _BaseVide(_Base):
+            def lire(self, table, colonnes):
+                if table == "employee_schedules" and colonnes == "cumuls":
+                    return {"cumuls": {}}
+                return super().lire(table, colonnes)
+
+        vus: list = []
+
+        def garde(*args, **kwargs):
+            vus.append(args)
+            return "La chaîne des cumuls est rompue."
+
+        monkeypatch.setattr(pg, "supabase", _BaseVide([], compensation=False))
+        monkeypatch.setattr(arrets_valides_reader, "par_salarie", lambda *_a, **_k: {EMP: []})
+        monkeypatch.setattr(pg, "raison_de_cumul_manquant", garde)
+        with pytest.raises(HTTPException) as refus:
+            pg.process_payslip_generation(EMP, 2026, 9)
+        assert refus.value.status_code == 422
+        assert len(vus) == 1
+
+    def test_le_generateur_forfait_traite_aussi_les_cumuls_vides_comme_absents(self):
+        import inspect
+
+        from app.modules.payroll.documents import payslip_generator_forfait as pgf
+
+        source = inspect.getsource(pgf.process_payslip_generation_forfait)
+        assert "elif not isinstance(previous_cumuls_data, dict) or not previous_cumuls_data:" in source
+
+
 def test_le_generateur_forfait_pose_aussi_l_empreinte_des_cumuls_lus():
     import inspect
 

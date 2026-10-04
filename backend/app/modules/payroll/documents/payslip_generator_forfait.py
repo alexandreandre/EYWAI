@@ -597,8 +597,8 @@ def process_payslip_generation_forfait(
         )
         if bac_a_sable is not None:
             previous_cumuls_data = cumuls_de_depart(bac_a_sable, year)
-        elif not isinstance(previous_cumuls_data, dict):
-            # Même règle que le chemin heures : un cumul absent ne vaut pas zéro.
+        elif not isinstance(previous_cumuls_data, dict) or not previous_cumuls_data:
+            # Même règle que le chemin heures : un cumul absent ou vide ne vaut pas zéro.
             raison = raison_de_cumul_manquant(
                 str(company_id), employee_id, year, month, cumul_trouve=False
             )

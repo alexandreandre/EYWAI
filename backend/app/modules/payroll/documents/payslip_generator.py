@@ -1011,7 +1011,8 @@ def process_payslip_generation(
             # Bac à sable : le passé vient de l'appelant, la chaîne de la base
             # n'est ni la source ni la destination.
             previous_cumuls_data = cumuls_de_depart(bac_a_sable, year)
-        elif previous_cumuls_data is None:
+        elif not previous_cumuls_data:
+            # Absent ou vide (`{}` : ligne de planning créée sans bulletin).
             # Un cumul absent ne vaut pas zéro : il fausserait en silence la
             # régularisation progressive de la réduction générale, les tranches
             # Agirc-Arrco, le plafond d'exonération des heures sup et la base du
