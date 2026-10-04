@@ -57,6 +57,26 @@ class PayslipRepository:
 
         supabase.table("payslips").delete().eq("id", payslip_id).execute()
 
+        if row.get("employee_id") and row.get("year") and row.get("month"):
+            # Les cumuls du mois partent avec le bulletin : restés en base, ils
+            # servaient de départ au mois suivant comme si ce bulletin avait été
+            # payé. Effacés, un mois suivant déjà calculé passe « À recalculer »
+            # (empreinte des cumuls), et le calcul suivant demande ce mois d'abord.
+            try:
+                supabase.table("employee_schedules").update({"cumuls": None}).match(
+                    {
+                        "employee_id": row["employee_id"],
+                        "year": row["year"],
+                        "month": row["month"],
+                    }
+                ).execute()
+            except Exception as err:
+                import warnings
+
+                warnings.warn(
+                    f"Cumuls du bulletin supprimé non effacés : {err}", stacklevel=2
+                )
+
         if row.get("employee_id"):
             try:
                 recalculer_credits_repos_employe(

@@ -236,3 +236,23 @@ class TestLecturesSansSingle:
         assert depot.PayslipRepository().delete(BULLETIN) is True
         client.table.return_value.delete.return_value.eq.assert_called_once_with("id", BULLETIN)
         client.storage.from_.return_value.remove.assert_called_once_with(["co/emp/bulletins/b.pdf"])
+
+    def test_les_cumuls_du_mois_partent_avec_le_bulletin(self, monkeypatch):
+        """Restés en base, ils servaient de départ au mois suivant comme si le
+        bulletin supprimé avait été payé. Effacés, le mois suivant déjà calculé
+        passe « À recalculer », et le prochain calcul demande ce mois d'abord."""
+        client = _supabase_sans_ligne()
+        requete = client.table.return_value.select.return_value.eq.return_value
+        requete.maybe_single.return_value.execute.return_value = SimpleNamespace(
+            data={"pdf_storage_path": None, "employee_id": SALARIE, "company_id": MA_SOCIETE,
+                  "year": 2026, "month": 9}
+        )
+        monkeypatch.setattr(depot, "supabase", client)
+        monkeypatch.setattr(depot, "recalculer_credits_repos_employe", lambda *_a: None)
+
+        assert depot.PayslipRepository().delete(BULLETIN) is True
+        client.table.assert_any_call("employee_schedules")
+        client.table.return_value.update.assert_called_once_with({"cumuls": None})
+        client.table.return_value.update.return_value.match.assert_called_once_with(
+            {"employee_id": SALARIE, "year": 2026, "month": 9}
+        )
