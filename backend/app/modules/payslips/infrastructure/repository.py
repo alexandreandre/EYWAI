@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.constants import AUDIT_BULLETIN_SUPPRIME
 from app.core.database import supabase
+from app.modules.audit.infrastructure.repository import audit_repository
 from app.shared.infrastructure.payslip_services import recalculer_credits_repos_employe
 
 
@@ -56,6 +58,24 @@ class PayslipRepository:
             return False
 
         supabase.table("payslips").delete().eq("id", payslip_id).execute()
+
+        if row.get("company_id"):
+            # Un bulletin recalculé ou ajouté se date lui-même ; supprimé, il
+            # n'est plus là pour le dire. La trace datée rend « à refaire » les
+            # exports déjà faits pour son mois. Sans échec possible (best effort).
+            audit_repository.log(
+                str(row["company_id"]),
+                None,
+                None,
+                AUDIT_BULLETIN_SUPPRIME,
+                "payslip",
+                resource_id=payslip_id,
+                details={
+                    "employee_id": row.get("employee_id"),
+                    "year": row.get("year"),
+                    "month": row.get("month"),
+                },
+            )
 
         if row.get("employee_id") and row.get("year") and row.get("month"):
             # Les cumuls du mois partent avec le bulletin : restés en base, ils

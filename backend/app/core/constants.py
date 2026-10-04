@@ -27,3 +27,8 @@ ENV_PAYROLL_DEBUG = "PAYROLL_DEBUG"
 #: Suppression sans objet (la ressource n'existait plus) : une 204 n'a pas de corps.
 HEADER_DEJA_SUPPRIME = "X-Deja-Supprime"
 EXPOSED_HEADERS = [HEADER_DEJA_SUPPRIME]
+
+# Journal d'audit : action posée à la suppression d'un bulletin (année et mois
+# dans `details`). Relue par l'écran des exports : un export dont un bulletin
+# du mois a été supprimé depuis est « à refaire ».
+AUDIT_BULLETIN_SUPPRIME = "payslip.delete"

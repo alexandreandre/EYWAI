@@ -249,6 +249,7 @@ class TestLecturesSansSingle:
         )
         monkeypatch.setattr(depot, "supabase", client)
         monkeypatch.setattr(depot, "recalculer_credits_repos_employe", lambda *_a: None)
+        monkeypatch.setattr(depot, "audit_repository", MagicMock())
 
         assert depot.PayslipRepository().delete(BULLETIN) is True
         client.table.assert_any_call("employee_schedules")

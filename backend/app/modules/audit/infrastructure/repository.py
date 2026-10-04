@@ -11,6 +11,7 @@ ACTIONS_LABELS = {
     "employee.delete": "Suppression salarié",
     "payslip.validate": "Validation bulletin",
     "payslip.generate": "Génération bulletin",
+    "payslip.delete": "Suppression bulletin",
     "absence.validate": "Validation absence",
     "absence.reject": "Refus absence",
     "document.sign": "Signature document",
