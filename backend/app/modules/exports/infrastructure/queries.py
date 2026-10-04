@@ -2,7 +2,9 @@
 # Comportement identique aux accès lecture de api/routers/exports.py.
 from typing import Any, Dict, List, Optional
 
+from app.core.constants import AUDIT_BULLETIN_SUPPRIME
 from app.core.database import supabase
+from app.modules.absences.infrastructure.pagination import fetch_all_rows
 
 LIMIT_HISTORY = 100
 
@@ -28,6 +30,42 @@ def list_exports_by_company(
     if period:
         query = query.eq("period", period)
     response = query.execute()
+    return response.data or []
+
+
+def list_calculs_des_bulletins(company_id: str, annees: List[int]) -> List[Dict[str, Any]]:
+    """Année, mois et date du dernier calcul de chaque bulletin de la société sur ces années.
+
+    Toutes les pages : PostgREST tronque à 1 000 lignes, et un mois tombé dans
+    la troncature passerait pour inchangé.
+    """
+    if not annees:
+        return []
+
+    def page(debut: int, taille: int) -> List[Dict[str, Any]]:
+        response = (
+            supabase.table("payslips")
+            .select("year, month, generated_at")
+            .eq("company_id", company_id)
+            .in_("year", list(annees))
+            .order("id")
+            .range(debut, debut + taille - 1)
+            .execute()
+        )
+        return response.data or []
+
+    return fetch_all_rows(page)
+
+
+def list_suppressions_de_bulletins(company_id: str, depuis: str) -> List[Dict[str, Any]]:
+    """Bulletins de la société supprimés depuis cette date (journal d'audit)."""
+    response = (
+        supabase.table("audit_logs")
+        .select("details, created_at")
+        .match({"company_id": company_id, "action": AUDIT_BULLETIN_SUPPRIME})
+        .gte("created_at", depuis)
+        .execute()
+    )
     return response.data or []
 
 

@@ -1,6 +1,7 @@
 # Queries applicatives exports (lectures : prévisualisation, historique, téléchargement).
 from typing import Optional
 
+from app.modules.exports.application.a_refaire import ids_des_exports_a_refaire
 from app.modules.exports.domain import rules as domain_rules
 from app.modules.exports.infrastructure import providers
 from app.modules.exports.infrastructure import queries as infra_queries
@@ -365,6 +366,7 @@ def get_export_history(
     exports = infra_queries.list_exports_by_company(company_id, export_type, period)
     user_ids = list({exp["generated_by"] for exp in exports if exp.get("generated_by")})
     profiles_map = infra_queries.get_profiles_map(user_ids)
+    a_refaire = ids_des_exports_a_refaire(company_id, exports)
 
     history_entries = []
     for exp in exports:
@@ -374,6 +376,7 @@ def get_export_history(
         entry_dict = mappers.build_history_entry_dict(exp, user_name)
         totals_raw = entry_dict.get("totals")
         entry_dict["totals"] = ExportTotals(**totals_raw) if totals_raw else None
+        entry_dict["a_refaire"] = str(exp["id"]) in a_refaire
         history_entries.append(ExportHistoryEntry(**entry_dict))
     return ExportHistoryResponse(exports=history_entries, total=len(history_entries))
 

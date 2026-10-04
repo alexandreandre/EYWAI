@@ -69,6 +69,8 @@ class ExportDuMois(BaseModel):
     type: str
     libelle: str
     date: str
+    #: Un bulletin du mois a été recalculé, supprimé ou ajouté depuis : à refaire.
+    a_refaire: bool = False
 
 
 class PayslipDetail(BaseModel):

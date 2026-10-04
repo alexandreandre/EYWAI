@@ -80,6 +80,7 @@ import {
   type EtatCorrections,
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
+import { bandeauExportsDuMois } from '@/lib/exportsARefaire';
 import {
   alerteCalendrierChange,
   estPerime,
@@ -343,7 +344,7 @@ export default function PayslipEdit() {
     Boolean(payslip.period_edit_locked) && isPlatformAdmin(user) && !isEditLocked;
   const statut = payslip.status ?? 'brouillon';
   const recalculEnAttente = payslip.payslip_data?.recalcul_en_attente ?? null;
-  const exportsDuMois = payslip.exports_du_mois ?? [];
+  const bandeauExports = bandeauExportsDuMois(payslip.exports_du_mois ?? [], dateCourte);
   const validationBloquee = Boolean(
     recalculEnAttente || payslip.a_regenerer || estPerime(payslip)
   );
@@ -386,13 +387,13 @@ export default function PayslipEdit() {
         </Alert>
       ) : null}
 
-      {exportsDuMois.length > 0 ? (
-        <Alert data-testid="exports-du-mois">
-          <AlertTitle>Déjà exporté pour ce mois</AlertTitle>
-          <AlertDescription>
-            {exportsDuMois.map((e) => `${e.libelle} (${dateCourte(e.date)})`).join(' · ')}. Après une
-            correction, refaites ces exports.
-          </AlertDescription>
+      {bandeauExports ? (
+        <Alert
+          data-testid="exports-du-mois"
+          variant={bandeauExports.aRefaire ? 'destructive' : 'default'}
+        >
+          <AlertTitle>{bandeauExports.titre}</AlertTitle>
+          <AlertDescription>{bandeauExports.texte}</AlertDescription>
         </Alert>
       ) : null}
 

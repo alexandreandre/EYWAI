@@ -269,6 +269,8 @@ export interface ExportDuMois {
   type: string;
   libelle: string;
   date: string;
+  /** Un bulletin du mois a été recalculé, supprimé ou ajouté depuis : à refaire. */
+  a_refaire?: boolean;
 }
 
 export interface PrimeAjoutee {

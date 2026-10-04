@@ -208,18 +208,20 @@ class TestGetExportHistory:
             },
         ]
         profiles_map = {"user-1": {"first_name": "Jean", "last_name": "Dupont"}}
-        with patch.object(
-            queries.infra_queries, "list_exports_by_company", return_value=exports_data
+        with (
+            patch.object(queries.infra_queries, "list_exports_by_company", return_value=exports_data),
+            patch.object(queries.infra_queries, "get_profiles_map", return_value=profiles_map),
+            # Rien n'a bougé depuis l'export : il n'est pas à refaire.
+            patch.object(queries.infra_queries, "list_calculs_des_bulletins", return_value=[]),
+            patch.object(queries.infra_queries, "list_suppressions_de_bulletins", return_value=[]),
         ):
-            with patch.object(
-                queries.infra_queries, "get_profiles_map", return_value=profiles_map
-            ):
-                result = queries.get_export_history("company-1")
+            result = queries.get_export_history("company-1")
         assert result.total == 1
         assert len(result.exports) == 1
         assert result.exports[0].id == "exp-1"
         assert result.exports[0].generated_by_name == "Jean Dupont"
         assert result.exports[0].files_count == 1
+        assert result.exports[0].a_refaire is False
 
     def test_filters_by_export_type_and_period(self):
         """list_exports_by_company est appelé avec export_type et period si fournis."""

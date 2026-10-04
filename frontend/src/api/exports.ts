@@ -140,6 +140,8 @@ export interface ExportHistoryEntry {
   generated_by_name?: string;
   files_count: number;
   totals?: ExportTotals;
+  /** Un bulletin du mois a été recalculé, supprimé ou ajouté depuis cet export. */
+  a_refaire?: boolean;
 }
 
 export interface ExportHistoryResponse {

@@ -20,6 +20,7 @@ import {
   ExportType,
 } from "@/api/exports";
 import { downloadBlob } from '@/lib/downloadBlob';
+import { LIBELLE_EXPORT_A_REFAIRE } from '@/lib/exportsARefaire';
 
 const exportTypeLabels: Record<string, string> = {
   // Paie & Comptabilité
@@ -201,7 +202,14 @@ export function ExportHistory({ exportType, hideHeader = false }: ExportHistoryP
                     })}
                   </TableCell>
                   <TableCell>{item.generated_by_name || "Utilisateur"}</TableCell>
-                  <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  <TableCell>
+                    {getStatusBadge(item.status)}
+                    {item.a_refaire ? (
+                      <p className="mt-1 text-xs font-medium text-destructive" data-testid="export-a-refaire">
+                        {LIBELLE_EXPORT_A_REFAIRE}
+                      </p>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="text-center">
                     <Button
                       variant="ghost"

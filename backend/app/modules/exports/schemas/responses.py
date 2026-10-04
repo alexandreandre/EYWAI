@@ -117,6 +117,10 @@ class ExportHistoryEntry(BaseModel):
     generated_by_name: Optional[str] = None
     files_count: int
     totals: Optional[ExportTotals] = None
+    #: Un bulletin du mois a été recalculé, supprimé ou ajouté depuis cet
+    #: export : le fichier sorti ne le reflète plus (dernier export du type et
+    #: du mois seulement).
+    a_refaire: bool = False
 
 
 class ExportHistoryResponse(BaseModel):
