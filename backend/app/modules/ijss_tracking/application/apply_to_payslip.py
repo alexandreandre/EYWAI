@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from app.modules.payslips.application import effets_du_bulletin as effets
 from app.modules.payslips.application.commands import (
     _archive_before_regeneration,
     _fetch_existing_payslip,
@@ -129,6 +130,9 @@ def apply_validated_ijss_to_payslip(
         # la régénération forcée : bulletin validé → archive AVANT, retour en
         # brouillon APRÈS (nouvelle validation exigée).
         existing_payslip = _fetch_existing_payslip(employee_id, year, month)
+        # Ce que le bulletin a retenu (prêt, avance) ou appliqué (CET, modulation)
+        # doit pouvoir être défait avant d'être refait — sinon refus, sans écrire.
+        effets.refuser_si_effets_non_defaisables(employee_id, year, month)
         was_validated = bool(
             existing_payslip and existing_payslip.get("status") == "valide"
         )
@@ -143,6 +147,12 @@ def apply_validated_ijss_to_payslip(
                     requested_by_name="rapprochement IJSS",
                 ),
             )
+        effets.defaire_effets_du_bulletin(
+            employee_id,
+            year,
+            month,
+            payslip_id=str(existing_payslip["id"]) if existing_payslip else None,
+        )
 
         emp_res = (
             get_supabase_admin_client()

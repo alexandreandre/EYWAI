@@ -61,6 +61,21 @@ def list_for_period(
     return resp.data or []
 
 
+def rouvrir_decision(employee_id: str, year: int, month: int) -> bool:
+    """La décision appliquée par la paie du mois redevient « validée »."""
+    now = datetime.now(timezone.utc).isoformat()
+    resp = (
+        supabase.table("employee_overtime_routing_decisions")
+        .update({"status": "validated", "updated_at": now})
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .eq("status", "applied_payroll")
+        .execute()
+    )
+    return bool(resp.data)
+
+
 def mark_applied_payroll(employee_id: str, year: int, month: int) -> None:
     now = datetime.now(timezone.utc).isoformat()
     (

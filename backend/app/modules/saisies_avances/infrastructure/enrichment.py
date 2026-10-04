@@ -43,6 +43,21 @@ def get_existing_repayment(
     return r.data if r and r.data else None
 
 
+def remboursements_d_avance_du_bulletin(payslip_id: str) -> list[Dict[str, Any]]:
+    """Les remboursements d'avance que ce bulletin a retenus."""
+    r = (
+        supabase.table("salary_advance_repayments")
+        .select("id, advance_id, repayment_amount")
+        .eq("payslip_id", payslip_id)
+        .execute()
+    )
+    return r.data or []
+
+
+def supprimer_remboursement_d_avance(repayment_id: str) -> None:
+    supabase.table("salary_advance_repayments").delete().eq("id", repayment_id).execute()
+
+
 def supprimer_deductions_du_bulletin(payslip_id: str) -> None:
     """Retire les prélèvements de saisie enregistrés pour ce bulletin.
 

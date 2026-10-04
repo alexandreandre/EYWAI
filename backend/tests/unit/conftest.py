@@ -37,6 +37,30 @@ def verrous_de_generation(monkeypatch) -> VerrousEnMemoire:
     return faux
 
 
+def pytest_configure(config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "effets_en_base: les effets d'un bulletin (prêts, avances, CET, modulation) "
+        "sont lus et défaits pour de bon, sur une base en mémoire",
+    )
+
+
+@pytest.fixture(autouse=True)
+def aucun_effet_de_bulletin_en_base(request, monkeypatch) -> None:
+    """Défaire les effets d'un bulletin lit et écrit en base : en test, rien à
+    défaire ni à refuser, sauf pour les tests qui portent `effets_en_base`."""
+    if request.node.get_closest_marker("effets_en_base"):
+        return
+    from app.modules.payslips.application import effets_du_bulletin as effets
+
+    for nom in (
+        "refuser_si_effets_non_defaisables",
+        "defaire_effets_du_bulletin",
+        "defaire_avant_suppression",
+    ):
+        monkeypatch.setattr(effets, nom, lambda *a, **k: None)
+
+
 @pytest.fixture(autouse=True)
 def aucun_arret_valide_lu_en_base(monkeypatch) -> None:
     """Les arrêts validés se lisent en base (`absence_requests`) : en test, aucun,

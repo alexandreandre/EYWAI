@@ -184,6 +184,45 @@ class SupabaseEmployeeLoanInstallmentsRepository(
             "loan_id", loan_id
         ).eq("status", "pending").execute()
 
+    def retirer_paiement(
+        self,
+        installment_id: str,
+        capital: float,
+        interets: float,
+        payslip_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Rend à l'échéance ce que le bulletin en avait payé : elle redevient due."""
+        current = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS)
+            .select("capital_paid, interest_paid, payslip_id")
+            .eq("id", installment_id)
+            .maybe_single()
+            .execute()
+        )
+        if not current or not current.data:
+            return None
+        row = current.data
+        capital_paye = max(0.0, round(float(row.get("capital_paid") or 0) - capital, 2))
+        interets_payes = max(0.0, round(float(row.get("interest_paid") or 0) - interets, 2))
+        payload: Dict[str, Any] = {
+            "capital_paid": capital_paye,
+            "interest_paid": interets_payes,
+            "status": "pending" if capital_paye <= 0 and interets_payes <= 0 else "partial",
+        }
+        if str(row.get("payslip_id") or "") == payslip_id:
+            payload["payslip_id"] = None
+        return self.update(installment_id, payload)
+
+    def detacher_du_bulletin(self, payslip_id: str) -> None:
+        """Plus aucune échéance ne pointe vers ce bulletin.
+
+        La clé `payslip_id` part en cascade avec le bulletin : sans ce
+        détachement, supprimer le bulletin effaçait l'échéance de l'échéancier.
+        """
+        supabase.table(TABLE_EMPLOYEE_LOAN_INSTALLMENTS).update({"payslip_id": None}).eq(
+            "payslip_id", payslip_id
+        ).execute()
+
 
 class SupabaseEmployeeLoanRepaymentsRepository(
     AbstractEmployeeLoanRepaymentsRepository
@@ -216,6 +255,18 @@ class SupabaseEmployeeLoanRepaymentsRepository(
             .execute()
         )
         return r.data if r and r.data else None
+
+    def list_by_payslip(self, payslip_id: str) -> List[Dict[str, Any]]:
+        res = (
+            supabase.table(TABLE_EMPLOYEE_LOAN_REPAYMENTS)
+            .select("*")
+            .eq("payslip_id", payslip_id)
+            .execute()
+        )
+        return res.data or []
+
+    def delete(self, repayment_id: str) -> None:
+        supabase.table(TABLE_EMPLOYEE_LOAN_REPAYMENTS).delete().eq("id", repayment_id).execute()
 
 
 employee_loans_repository = SupabaseEmployeeLoansRepository()

@@ -217,6 +217,11 @@ class TestPayslipsWiringDelete:
                     "status": "brouillon",
                 },
             ),
+            # 04/10 : prêts, avances, CET et modulation du bulletin sont défaits
+            # avant qu'il ne soit supprimé.
+            patch(
+                "app.modules.payslips.application.effets_du_bulletin.defaire_avant_suppression"
+            ) as defaire,
         ):
             app.dependency_overrides[get_current_user] = lambda: _rh_user()
             try:
@@ -224,4 +229,5 @@ class TestPayslipsWiringDelete:
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
         assert response.status_code == 204
+        defaire.assert_called_once_with("ps-123")
         mock_repo.delete.assert_called_once_with("ps-123")

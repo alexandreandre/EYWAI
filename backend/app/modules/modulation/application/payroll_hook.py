@@ -278,6 +278,24 @@ def finalize_modulation_payroll_application(
         otr_repo.mark_applied_payroll(employee_id, year, month)
 
 
+def defaire_credits_de_paie(employee_id: str, year: int, month: int) -> int:
+    """Avant de recalculer le bulletin du mois, ou en le supprimant : retire les
+    heures sup qu'il a créditées au compte et rouvre la décision de routage.
+
+    Sans cela, le recalcul comptait ce crédit dans la franchise déjà consommée
+    et dans le solde : les heures étaient créditées et payées, ou créditées deux
+    fois ; et une décision « appliquée » n'étant plus « validée », toutes les
+    heures sup étaient payées.
+    """
+    from app.modules.modulation.infrastructure import overtime_routing_repository as otr_repo
+
+    retires = repo.supprimer_credits_de_paie(employee_id, year, month)
+    otr_repo.rouvrir_decision(employee_id, year, month)
+    if retires:
+        sync_employee_modulation_counter(str(retires[0]["company_id"]), employee_id, year)
+    return len(retires)
+
+
 def compute_pay_smoothing_gain(
     company_id: str,
     year: int,

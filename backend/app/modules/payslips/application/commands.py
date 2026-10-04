@@ -34,6 +34,7 @@ from app.modules.payslips.domain.historique import (
     plafonner,
     prochaine_version,
 )
+from app.modules.payslips.application import effets_du_bulletin as effets
 from app.modules.payslips.domain.rules import is_forfait_jour
 from app.modules.payslips.infrastructure.providers import (
     payslip_generator_provider,
@@ -480,6 +481,9 @@ def salarie_generable(employee_id: str, year: int, month: int) -> dict[str, Any]
     )
     if bascule_block_reason:
         raise PayslipBadRequestError(bascule_block_reason)
+    # Ce que le bulletin du mois a retenu (prêts…) doit pouvoir être défait avant
+    # d'être refait : sinon, refus ici, avant la moindre écriture.
+    effets.refuser_si_effets_non_defaisables(employee_id, year, month)
     return employee
 
 
@@ -515,6 +519,14 @@ def _generer_sous_verrou(
     bulletin_existant = _check_validated_guard(cmd)
     if bulletin_existant:
         _archive_before_regeneration(bulletin_existant, cmd)
+    # Échéance de prêt, avance, CET, modulation : ce que l'ancien calcul a écrit
+    # est défait, le nouveau le refait une seule fois.
+    effets.defaire_effets_du_bulletin(
+        cmd.employee_id,
+        cmd.year,
+        cmd.month,
+        payslip_id=str(bulletin_existant["id"]) if bulletin_existant else None,
+    )
     validated_existing = (
         bulletin_existant
         if (bulletin_existant or {}).get("status") == "valide"
@@ -636,6 +648,9 @@ def delete_payslip(payslip_id: str) -> bool:
             "Régénérez-le en forçant (l'ancienne version sera archivée), "
             "puis supprimez le brouillon si nécessaire."
         )
+    # L'échéance de prêt redevient due, l'avance se rouvre, les dépôts CET et les
+    # heures créditées en modulation reviennent : le bulletin n'existera plus.
+    effets.defaire_avant_suppression(payslip_id)
     from app.modules.payslips.infrastructure.repository import payslip_repository
 
     return payslip_repository.delete(payslip_id)

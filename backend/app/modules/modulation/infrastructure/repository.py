@@ -269,6 +269,25 @@ def get_franchise_consumed_in_period(
     )
 
 
+def supprimer_credits_de_paie(employee_id: str, year: int, month: int) -> list[dict[str, Any]]:
+    """Retire les heures sup que la paie du mois a créditées au compte.
+
+    Seule la paie crée des crédits `payroll_auto` : ceux saisis à la main par
+    les RH (`manual_rh`) et les récupérations (`absence`) restent.
+    """
+    resp = (
+        supabase.table("employee_modulation_movements")
+        .delete()
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .eq("movement_type", "credit_hs")
+        .eq("source", "payroll_auto")
+        .execute()
+    )
+    return resp.data or []
+
+
 def mark_movements_applied_payroll(movement_ids: list[str]) -> None:
     if not movement_ids:
         return

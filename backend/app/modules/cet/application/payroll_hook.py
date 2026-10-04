@@ -49,7 +49,19 @@ def apply_cet_deposits_to_calendar(
 
 
 def finalize_cet_payroll_application(movement_ids: list[str]) -> None:
-    cet_repo.mark_movements_applied_payroll(movement_ids)
+    """Le bulletin a appliqué ces mouvements, et le note sur eux : le recalcul ou
+    la suppression du bulletin les rouvrira, eux seuls."""
+    cet_repo.marquer_appliques_en_paie(movement_ids)
+
+
+def defaire_application_en_paie(employee_id: str, year: int, month: int) -> int:
+    """Avant de recalculer le bulletin du mois, ou en le supprimant : ses dépôts
+    d'heures, retraits et dépôts de congés redeviennent « validés », à appliquer.
+
+    Sans cela, le recalcul ne les voyait plus : les heures déposées au CET
+    étaient payées de nouveau, le repos CET disparaissait du bulletin.
+    """
+    return len(cet_repo.rouvrir_appliques_en_paie(employee_id, year, month))
 
 
 def apply_cet_cp_debits_for_payroll(

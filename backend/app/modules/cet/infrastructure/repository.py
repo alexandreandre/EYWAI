@@ -258,6 +258,58 @@ def mark_movements_applied_payroll(movement_ids: list[str]) -> None:
         ).eq("id", mid).execute()
 
 
+# Posée dans `metadata` par la paie seule : un dépôt d'heures « débité à la
+# validation » passe aussi `applied_payroll`, mais sans elle, et ne se rouvre pas.
+MARQUE_APPLIQUE_EN_PAIE = "applique_en_paie"
+
+
+def marquer_appliques_en_paie(movement_ids: list[str]) -> None:
+    """`applied_payroll` posé par un bulletin, marque comprise (voir rouvrir)."""
+    if not movement_ids:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    lignes = (
+        supabase.table("employee_cet_movements")
+        .select("id, metadata")
+        .in_("id", movement_ids)
+        .execute()
+        .data
+        or []
+    )
+    for ligne in lignes:
+        metadata = dict(ligne.get("metadata") or {})
+        metadata[MARQUE_APPLIQUE_EN_PAIE] = True
+        supabase.table("employee_cet_movements").update(
+            {"status": "applied_payroll", "metadata": metadata, "updated_at": now}
+        ).eq("id", ligne["id"]).execute()
+
+
+def rouvrir_appliques_en_paie(employee_id: str, year: int, month: int) -> list[str]:
+    """Les mouvements du mois que la paie a appliqués redeviennent validés."""
+    now = datetime.now(timezone.utc).isoformat()
+    lignes = (
+        supabase.table("employee_cet_movements")
+        .select("id, metadata")
+        .eq("employee_id", employee_id)
+        .eq("year", year)
+        .eq("month", month)
+        .eq("status", "applied_payroll")
+        .execute()
+        .data
+        or []
+    )
+    rouverts: list[str] = []
+    for ligne in lignes:
+        metadata = dict(ligne.get("metadata") or {})
+        if not metadata.pop(MARQUE_APPLIQUE_EN_PAIE, False):
+            continue
+        supabase.table("employee_cet_movements").update(
+            {"status": "validated", "metadata": metadata, "updated_at": now}
+        ).eq("id", ligne["id"]).execute()
+        rouverts.append(str(ligne["id"]))
+    return rouverts
+
+
 def get_validated_deposit_hours_for_payroll(
     employee_id: str, year: int, month: int
 ) -> tuple[float, list[str]]:
