@@ -215,7 +215,7 @@ def _lire_surcharges_fenetre(
 
 
 _EMPREINTES_DES_BULLETINS = (
-    "year, month, "
+    "year, month, status, "
     "empreinte_entrees:payslip_data->parametres->>empreinte_entrees, "
     "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents, "
     "empreinte_complementaire:payslip_data->parametres->empreinte_complementaire"
@@ -223,7 +223,7 @@ _EMPREINTES_DES_BULLETINS = (
 
 
 def lire_empreintes_des_bulletins(employee_id: str) -> list[dict[str, Any]]:
-    """Mois, origine et empreintes de chaque bulletin du salarié — pas le bulletin.
+    """Mois, statut, origine et empreintes de chaque bulletin du salarié — pas le bulletin.
 
     Sans la colonne `origine` (migration de reprise pas encore appliquée), tous
     les bulletins valent calculés, comme dans la liste.

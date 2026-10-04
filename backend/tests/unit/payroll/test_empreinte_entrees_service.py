@@ -447,7 +447,9 @@ def test_le_premier_mois_d_un_contrat_arrete_la_cascade():
         employee=nouveau_contrat, calendriers=_calendriers_de_la_chaine(mois=(3,)), saisies_par_mois={}
     )
     etats = {int(l["month"]): l["a_recalculer"] for l in _annoter_toutes(lectures, lignes)}
-    assert etats == {3: False, 4: True, 5: False, 6: False}
+    # Mars et avril appartiennent au contrat d'avant : ils ne se recalculent
+    # plus, rien n'est dit pour eux. Mai repart de zéro : la cascade s'arrête.
+    assert etats == {3: None, 4: None, 5: False, 6: False}
 
 
 def test_des_entrees_changees_ne_se_propagent_pas_au_dela_de_la_fenetre():

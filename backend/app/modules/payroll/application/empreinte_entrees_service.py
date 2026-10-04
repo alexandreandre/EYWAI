@@ -16,8 +16,11 @@ from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.modules.payroll.application.compensation_semaines import CLE_REGLAGE
-from app.modules.payroll.application.monthly_specificites import resolve_monthly_specificites
+from app.modules.payroll.application.monthly_specificites import (
+    resolve_monthly_specificites,
+)
 from app.modules.payroll.domain.empreinte_entrees import (
+    PARTIE_FICHE,
     a_recalculer,
     construire_entrees,
     empreinte,
@@ -37,7 +40,11 @@ from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
     lire_empreintes_des_bulletins,
     lire_lectures_salarie,
 )
-from app.shared.domain.employment_rules import is_forfait_jour, premier_mois_du_contrat
+from app.shared.domain.employment_rules import (
+    is_forfait_jour,
+    mois_du_contrat_en_cours,
+    premier_mois_du_contrat,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -635,9 +642,12 @@ def _etats_par_mois(
     """L'état de chaque bulletin, mois après mois, la cascade suivant la chaîne.
 
     La cascade ne suit que les cumuls : un mois d'avant aux entrées changées
-    (une fiche modifiée périme tous les mois) ne périme pas celui-ci tant
-    qu'il n'a pas été recalculé. Elle s'arrête à un bulletin repris, à un mois
-    sans bulletin et au premier mois d'un contrat.
+    (une fiche modifiée périme tous les brouillons du contrat) ne périme pas
+    celui-ci tant qu'il n'a pas été recalculé. Elle s'arrête à un bulletin
+    repris, à un mois sans bulletin et au premier mois d'un contrat.
+
+    Un mois d'un ancien contrat n'est jamais signalé (il ne se recalcule
+    plus) ; un bulletin validé ne l'est pas pour une fiche modifiée depuis.
     """
     etats: dict[tuple[int, int], EtatDuBulletin] = {}
     for ligne in sorted(lignes, key=lambda l: (int(l["year"]), int(l["month"]))):
@@ -646,6 +656,13 @@ def _etats_par_mois(
             etats[periode] = EtatDuBulletin()
             continue
         annee, mois = periode
+        if not mois_du_contrat_en_cours(lectures.employee, annee, mois):
+            # Un ancien contrat : son bulletin ne se recalcule plus, rien à dire.
+            etats[periode] = EtatDuBulletin()
+            continue
+        #: Validé : une fiche modifiée depuis (elle est celle d'aujourd'hui) ne
+        #: le remet pas en cause ; le reste, si.
+        valide = str(ligne.get("status") or "") == "valide"
         try:
             entrees, parties = _parties_du_mois(lectures, annee, mois)
             actuelle = empreinte(entrees)
@@ -664,6 +681,8 @@ def _etats_par_mois(
             # Calculé avec l'empreinte complémentaire : elle seule décide, partie
             # par partie (elle contient celles de l'empreinte d'entrée).
             changees: tuple[str, ...] | None = parties_changees(stockees, parties)
+            if valide:
+                changees = tuple(p for p in changees if p != PARTIE_FICHE)
             entrees_changees: bool | None = bool(changees)
         else:
             # Bulletin d'avant elle : l'empreinte d'entrée seule, comme avant.
@@ -671,6 +690,9 @@ def _etats_par_mois(
             entrees_changees = etat_a_recalculer(
                 _hash_ou_none(ligne.get("empreinte_entrees")), actuelle
             )
+            if valide and entrees_changees:
+                # Le hash global ne dit pas si c'est la fiche : on ne sait pas.
+                entrees_changees = None
         etats[periode] = EtatDuBulletin(
             empreinte_actuelle=actuelle,
             entrees_changees=entrees_changees,
@@ -729,9 +751,9 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
 
     Périmé quand ses entrées ont changé, ou quand un mois d'avant a été recalculé
     depuis (ses cumuls ne sont plus ceux du calcul, de proche en proche). Un
-    bulletin repris n'est pas recalculable : `null`, comme un bulletin d'avant
-    ce changement (sans empreinte). Une seule lecture groupée pour tous les
-    mois du salarié.
+    bulletin repris ou d'un ancien contrat n'est pas recalculable : `null`,
+    comme un bulletin d'avant ce changement (sans empreinte). Une seule
+    lecture groupée pour tous les mois du salarié.
     """
     if not lignes:
         return lignes

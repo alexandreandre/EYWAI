@@ -75,6 +75,18 @@ def premier_mois_du_contrat(employee: Mapping[str, Any], year: int, month: int) 
     return start is not None and (start.year, start.month) == (year, month)
 
 
+def mois_du_contrat_en_cours(employee: Mapping[str, Any], year: int, month: int) -> bool:
+    """Faux pour un mois d'avant le début du contrat en cours (date inconnue : vrai).
+
+    Ce mois appartient à un contrat terminé : son bulletin ne se recalcule plus
+    (la garde de présence refuse un mois d'avant l'entrée de la fiche).
+    """
+    start = _parse_employment_date(
+        employee.get("date_debut_execution") or employee.get("hire_date")
+    )
+    return start is None or (year, month) >= (start.year, start.month)
+
+
 def cumuls_precedents_du_contrat(
     cumuls_precedents: dict | None,
     employee: Mapping[str, Any],

@@ -211,7 +211,7 @@ def get_my_payslips(employee_id: str) -> list[dict[str, Any]]:
 def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
     """Liste des bulletins d'un employé (net, alertes RH, URLs signées)."""
     base = (
-        "id, month, year, pdf_storage_path, payslip_data, "
+        "id, month, year, pdf_storage_path, payslip_data, status, "
         "manually_edited, edit_count, edited_at, edited_by"
     )
     # `origine` vient de la migration de reprise (20260917090000), pas encore
@@ -271,6 +271,8 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "warnings": meta["warnings"],
                 "points_a_arbitrer": meta.get("points_a_arbitrer") or [],
                 "origine": str(p.get("origine") or "calcule"),
+                # Validé : une fiche modifiée depuis ne le met pas « À recalculer ».
+                "status": p.get("status"),
                 "manually_edited": bool(p.get("manually_edited")),
                 "edit_count": int(p.get("edit_count") or 0),
                 "edited_at": p.get("edited_at"),

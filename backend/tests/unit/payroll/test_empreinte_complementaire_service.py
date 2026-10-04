@@ -417,3 +417,69 @@ def test_la_lecture_groupee_lit_les_complements():
         "company_maintenance_settings", "company_jei_settings",
     ):
         assert table in lues
+
+
+# --- Une fiche modifiée : seulement les brouillons du contrat en cours ----------
+#
+# La fiche est celle d'aujourd'hui, pas celle du mois : une augmentation saisie
+# en octobre n'a pas à périmer un bulletin validé, et recalculer un mois d'un
+# ancien contrat est impossible (la fiche porte le nouveau).
+
+FICHE_AUGMENTEE = {**EMPLOYEE, "salaire_de_base": {"valeur": 2100}}
+
+
+def test_une_fiche_modifiee_signale_un_brouillon_du_contrat_en_cours():
+    ligne = _annoter(_lectures(employee=FICHE_AUGMENTEE), _genere())
+    assert ligne["a_recalculer"] is True
+
+
+def test_une_fiche_modifiee_ne_signale_pas_un_bulletin_valide():
+    valide = {**_genere(), "status": "valide"}
+    assert _annoter(_lectures(employee=FICHE_AUGMENTEE), valide)["a_recalculer"] is False
+
+
+def test_un_bulletin_valide_reste_signale_quand_sa_mutuelle_change():
+    valide = {**_genere(), "status": "valide"}
+    modifiee = replace(COMPLEMENTS, mutuelles=[{**MUTUELLE_M1, "montant_patronal": 35.0}, MUTUELLE_M2])
+    assert _annoter(_lectures(modifiee), valide)["a_recalculer"] is True
+
+
+def test_un_bulletin_d_un_ancien_contrat_n_est_jamais_signale():
+    """Réembauche en juillet : mai appartient au contrat d'avant, il ne se recalcule plus."""
+    reembauche = {**EMPLOYEE, "hire_date": "2026-07-01"}
+    calendriers = {
+        **CALENDRIERS,
+        (2026, 5): {
+            "planned_calendar": {"calendrier_prevu": [{"jour": 12, "type": "travail", "heures": 7}]},
+            "actual_hours": {"calendrier_reel": [{"jour": 12, "type": "travail", "heures": 9}]},
+        },
+    }
+    ligne = _annoter(_lectures(employee=reembauche, calendriers=calendriers), _genere())
+    assert ligne["a_recalculer"] is None
+
+
+def test_un_bulletin_valide_d_avant_l_empreinte_complementaire_n_est_plus_signale():
+    """Sans parties, on ne sait pas si c'est la fiche : un bulletin validé reste tel quel."""
+    ancien = {**_genere(), "empreinte_complementaire": None, "status": "valide"}
+    assert _annoter(_lectures(employee=FICHE_AUGMENTEE), ancien)["a_recalculer"] is None
+
+
+def test_un_brouillon_d_avant_l_empreinte_complementaire_reste_signale_comme_avant():
+    ancien = {**_genere(), "empreinte_complementaire": None}
+    assert _annoter(_lectures(employee=FICHE_AUGMENTEE), ancien)["a_recalculer"] is True
+
+
+def test_le_contrat_en_cours_commence_au_mois_de_son_debut():
+    from app.shared.domain.employment_rules import mois_du_contrat_en_cours
+
+    fiche = {"hire_date": "2026-01-10", "date_debut_execution": "2026-07-01"}
+    assert not mois_du_contrat_en_cours(fiche, 2026, 6)
+    assert mois_du_contrat_en_cours(fiche, 2026, 7)
+    assert mois_du_contrat_en_cours(fiche, 2027, 1)
+    assert mois_du_contrat_en_cours({}, 2020, 1)
+
+
+def test_les_lectures_des_bulletins_rendent_leur_statut():
+    from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
+
+    assert "status" in q._EMPREINTES_DES_BULLETINS
