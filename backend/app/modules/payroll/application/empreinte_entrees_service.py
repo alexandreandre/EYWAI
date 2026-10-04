@@ -9,6 +9,7 @@ lues par le générateur, sans aller relire la base.
 from __future__ import annotations
 
 import calendar
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -18,13 +19,13 @@ from app.modules.payroll.domain.empreinte_entrees import (
     construire_entrees,
     empreinte,
     empreinte_cumuls,
-    empreinte_cumuls_stockee,
     etat_a_recalculer,
     mois_de_la_fenetre,
     poser_empreinte,
 )
 from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
     LecturesEmpreinte,
+    lire_empreintes_des_bulletins,
     lire_lectures_salarie,
 )
 from app.shared.domain.employment_rules import premier_mois_du_contrat
@@ -305,63 +306,124 @@ def _cumuls_precedents_changes(
     return stockee != empreinte_cumuls(actuels)
 
 
-def etat_actuel(
-    employee_id: str, year: int, month: int, payslip_data: Mapping[str, Any] | None
-) -> tuple[str | None, bool | None]:
-    """(empreinte actuelle des entrées, cumuls du mois d'avant changés ?) — une lecture.
+@dataclass(frozen=True)
+class EtatDuBulletin:
+    """Un bulletin calculé face aux lectures actuelles."""
 
-    (None, None) si le salarié est illisible.
+    empreinte_actuelle: str | None = None
+    #: Calendrier, absences, saisies, fiche… changés depuis le calcul.
+    entrees_changees: bool | None = None
+    #: Ses cumuls de départ (ceux du mois d'avant) : changés, inchangés ou sans
+    #: objet (premier mois du contrat), inconnus (bulletin d'avant l'empreinte).
+    cumuls_precedents_changes: bool | None = None
+    #: Le mois de la chaîne dont les cumuls de départ ont changé depuis son
+    #: calcul : ce bulletin, ou un mois d'avant encore à recalculer. Corriger
+    #: septembre en novembre laisse octobre périmé, donc novembre aussi.
+    cascade_depuis: tuple[int, int] | None = None
+
+    @property
+    def a_recalculer(self) -> bool | None:
+        if self.cascade_depuis is not None:
+            return True
+        return a_recalculer(self.entrees_changees, self.cumuls_precedents_changes)
+
+
+def _hash_ou_none(valeur: Any) -> str | None:
+    return valeur if isinstance(valeur, str) and valeur else None
+
+
+def _etats_par_mois(
+    lectures: LecturesEmpreinte | None, lignes: Iterable[Mapping[str, Any]]
+) -> dict[tuple[int, int], EtatDuBulletin]:
+    """L'état de chaque bulletin, mois après mois, la cascade suivant la chaîne.
+
+    La cascade ne suit que les cumuls : un mois d'avant aux entrées changées
+    (une fiche modifiée périme tous les mois) ne périme pas celui-ci tant
+    qu'il n'a pas été recalculé. Elle s'arrête à un bulletin repris, à un mois
+    sans bulletin et au premier mois d'un contrat.
     """
-    lectures = lire_lectures_salarie(employee_id, [(year, month)])
+    etats: dict[tuple[int, int], EtatDuBulletin] = {}
+    for ligne in sorted(lignes, key=lambda l: (int(l["year"]), int(l["month"]))):
+        periode = (int(ligne["year"]), int(ligne["month"]))
+        if lectures is None or str(ligne.get("origine") or "calcule") == "importe":
+            etats[periode] = EtatDuBulletin()
+            continue
+        annee, mois = periode
+        try:
+            actuelle = empreinte(_entrees_depuis_cache(lectures, annee, mois))
+            propres = _cumuls_precedents_changes(
+                lectures, annee, mois, _hash_ou_none(ligne.get("empreinte_cumuls_precedents"))
+            )
+        except (KeyError, TypeError, ValueError):
+            etats[periode] = EtatDuBulletin()
+            continue
+        cascade = periode if propres else None
+        if cascade is None and not premier_mois_du_contrat(lectures.employee, annee, mois):
+            precedent = etats.get(mois_de_la_fenetre(annee, mois)[0])
+            cascade = precedent.cascade_depuis if precedent else None
+        etats[periode] = EtatDuBulletin(
+            empreinte_actuelle=actuelle,
+            entrees_changees=etat_a_recalculer(
+                _hash_ou_none(ligne.get("empreinte_entrees")), actuelle
+            ),
+            cumuls_precedents_changes=propres,
+            cascade_depuis=cascade,
+        )
+    return etats
+
+
+#: Assez loin pour une correction tardive ; la chaîne s'arrête de toute façon
+#: au premier mois repris ou sans bulletin.
+MOIS_DE_CHAINE = 24
+
+
+def etat_dans_la_chaine(employee_id: str, year: int, month: int) -> EtatDuBulletin | None:
+    """L'état du bulletin de ce mois, cascade des mois d'avant comprise.
+
+    Une lecture des empreintes des bulletins du salarié, une lecture groupée
+    des entrées. None si le salarié ou ses bulletins sont illisibles.
+    """
+    borne = year * 12 + month
+    lignes = [
+        l
+        for l in lire_empreintes_des_bulletins(employee_id)
+        if borne - MOIS_DE_CHAINE <= int(l["year"]) * 12 + int(l["month"]) <= borne
+    ]
+    if not any((int(l["year"]), int(l["month"])) == (year, month) for l in lignes):
+        return None
+    periodes = sorted({(int(l["year"]), int(l["month"])) for l in lignes})
+    lectures = lire_lectures_salarie(employee_id, periodes)
     if lectures is None:
-        return None, None
-    return (
-        empreinte(_entrees_depuis_cache(lectures, year, month)),
-        _cumuls_precedents_changes(
-            lectures, year, month, empreinte_cumuls_stockee(payslip_data)
-        ),
-    )
+        return None
+    return _etats_par_mois(lectures, lignes).get((year, month))
 
 
 def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ajoute `a_recalculer` (true / false / null) à chaque ligne de la liste RH.
 
-    Périmé quand ses entrées ont changé, ou quand le mois d'avant a été recalculé
-    depuis (ses cumuls ne sont plus ceux du calcul). Un bulletin repris n'est
-    pas recalculable : `null`, comme un bulletin d'avant ce changement (sans
-    empreinte). Une seule lecture groupée pour tous les mois du salarié.
+    Périmé quand ses entrées ont changé, ou quand un mois d'avant a été recalculé
+    depuis (ses cumuls ne sont plus ceux du calcul, de proche en proche). Un
+    bulletin repris n'est pas recalculable : `null`, comme un bulletin d'avant
+    ce changement (sans empreinte). Une seule lecture groupée pour tous les
+    mois du salarié.
     """
     if not lignes:
         return lignes
     periodes = sorted({(int(l["year"]), int(l["month"])) for l in lignes})
     lectures = lire_lectures_salarie(employee_id, periodes)
+    try:
+        etats = _etats_par_mois(lectures, lignes)
+    except (KeyError, TypeError, ValueError):
+        etats = {}
     annotées: list[dict[str, Any]] = []
     for ligne in lignes:
         copie = dict(ligne)
-        hash_stockee = copie.pop("empreinte_entrees", None)
-        if not isinstance(hash_stockee, str) or not hash_stockee:
-            hash_stockee = None
-        hash_cumuls = copie.pop("empreinte_cumuls_precedents", None)
-        if not isinstance(hash_cumuls, str) or not hash_cumuls:
-            hash_cumuls = None
-        if str(copie.get("origine") or "calcule") == "importe":
-            copie["a_recalculer"] = None
-            annotées.append(copie)
-            continue
-        if lectures is None:
-            copie["a_recalculer"] = None
-            annotées.append(copie)
-            continue
+        copie.pop("empreinte_entrees", None)
+        copie.pop("empreinte_cumuls_precedents", None)
         try:
-            annee, mois = int(copie["year"]), int(copie["month"])
-            actuelle = empreinte(_entrees_depuis_cache(lectures, annee, mois))
-            cumuls_changes = _cumuls_precedents_changes(lectures, annee, mois, hash_cumuls)
+            etat = etats.get((int(copie["year"]), int(copie["month"])))
         except (KeyError, TypeError, ValueError):
-            copie["a_recalculer"] = None
-            annotées.append(copie)
-            continue
-        copie["a_recalculer"] = a_recalculer(
-            etat_a_recalculer(hash_stockee, actuelle), cumuls_changes
-        )
+            etat = None
+        copie["a_recalculer"] = etat.a_recalculer if etat else None
         annotées.append(copie)
     return annotées

@@ -102,6 +102,37 @@ def _lire_surcharges_fenetre(
     return retenues
 
 
+_EMPREINTES_DES_BULLETINS = (
+    "year, month, "
+    "empreinte_entrees:payslip_data->parametres->>empreinte_entrees, "
+    "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents"
+)
+
+
+def lire_empreintes_des_bulletins(employee_id: str) -> list[dict[str, Any]]:
+    """Mois, origine et empreintes de chaque bulletin du salarié — pas le bulletin.
+
+    Sans la colonne `origine` (migration de reprise pas encore appliquée), tous
+    les bulletins valent calculés, comme dans la liste.
+    """
+    from postgrest.exceptions import APIError
+
+    for colonnes in (f"{_EMPREINTES_DES_BULLETINS}, origine", _EMPREINTES_DES_BULLETINS):
+        try:
+            resp = (
+                supabase.table("payslips")
+                .select(colonnes)
+                .eq("employee_id", employee_id)
+                .execute()
+            )
+        except APIError:
+            if "origine" not in colonnes:
+                raise
+            continue
+        return list((resp.data if resp else None) or [])
+    return []
+
+
 def lire_lectures_salarie(
     employee_id: str, periodes: list[tuple[int, int]]
 ) -> LecturesEmpreinte | None:

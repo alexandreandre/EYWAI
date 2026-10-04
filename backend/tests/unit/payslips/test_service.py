@@ -335,13 +335,24 @@ def test_le_detail_dit_a_recalculer_et_a_regenerer_quand_le_mois_d_avant_a_chang
         "month": 4, "status": "brouillon", "origine": "calcule",
         "payslip_data": {"parametres": {"empreinte_entrees": "a" * 64}},
     }
-    cible = "app.modules.payroll.application.empreinte_entrees_service.etat_actuel"
-    with patch(cible, return_value=("a" * 64, True)):
+    from app.modules.payroll.application.empreinte_entrees_service import EtatDuBulletin
+    from app.modules.payslips.application.coherence import message_mois_d_avant_a_recalculer
+
+    cible = "app.modules.payroll.application.empreinte_entrees_service.etat_dans_la_chaine"
+    a_jour = dict(entrees_changees=False, cumuls_precedents_changes=False)
+    with patch(cible, return_value=EtatDuBulletin(
+        entrees_changees=False, cumuls_precedents_changes=True, cascade_depuis=(2026, 4)
+    )):
         assert service._etats_du_bulletin(detail) == (True, MESSAGE_A_REGENERER)
-    with patch(cible, return_value=("a" * 64, False)):
+    with patch(cible, return_value=EtatDuBulletin(**a_jour)):
         assert service._etats_du_bulletin(detail) == (False, None)
-    with patch(cible, return_value=("b" * 64, False)):
+    with patch(cible, return_value=EtatDuBulletin(entrees_changees=True, cumuls_precedents_changes=False)):
         assert service._etats_du_bulletin(detail) == (True, None)
+    # Février corrigé : mars est à recalculer d'abord, avril le dit en le nommant.
+    with patch(cible, return_value=EtatDuBulletin(**a_jour, cascade_depuis=(2026, 3))):
+        assert service._etats_du_bulletin(detail) == (
+            True, message_mois_d_avant_a_recalculer(2026, 3)
+        )
     with patch(cible) as jamais_lu:
         assert service._etats_du_bulletin({**detail, "origine": "importe"}) == (None, None)
     jamais_lu.assert_not_called()

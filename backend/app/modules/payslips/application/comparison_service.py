@@ -46,23 +46,20 @@ from app.modules.payslips.infrastructure.readers import payslip_meta_reader
 logger = get_logger("modules.payslips.application.comparison_service")
 
 
-def _etat_actuel_du_bulletin(detail: dict[str, Any]) -> tuple[str | None, bool | None]:
-    """(empreinte actuelle, cumuls du mois d'avant changés ?) ; (None, None) si
-    illisible : on ne bloque pas la validation sur une lecture ratée."""
+def _etat_actuel_du_bulletin(detail: dict[str, Any]) -> Any:
+    """L'état du bulletin dans sa chaîne (`EtatDuBulletin`) ; None si illisible :
+    on ne bloque pas la validation sur une lecture ratée."""
     try:
         from app.modules.payroll.application.empreinte_entrees_service import (
-            etat_actuel,
+            etat_dans_la_chaine,
         )
 
-        return etat_actuel(
-            str(detail["employee_id"]),
-            int(detail["year"]),
-            int(detail["month"]),
-            detail.get("payslip_data"),
+        return etat_dans_la_chaine(
+            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
         )
     except Exception:  # noqa: BLE001 — une lecture ratée ne doit pas valider un bulletin faux ni tout casser
         logger.warning("Empreinte actuelle illisible, validation sans ce filet", exc_info=True)
-        return None, None
+        return None
 
 
 def _ensure_view_detail(detail: dict[str, Any] | None, ctx: UserContext) -> dict[str, Any]:
@@ -254,9 +251,13 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
     if not isinstance(pd, dict):
         pd = {}
 
-    actuelle, cumuls_precedents_changes = _etat_actuel_du_bulletin(detail)
-    raisons = raisons_de_ne_pas_valider(pd, actuelle)
-    signal = signal_a_regenerer(detail, cumuls_precedents_changes)
+    etat = _etat_actuel_du_bulletin(detail)
+    raisons = raisons_de_ne_pas_valider(pd, getattr(etat, "empreinte_actuelle", None))
+    signal = signal_a_regenerer(
+        detail,
+        getattr(etat, "cumuls_precedents_changes", None),
+        getattr(etat, "cascade_depuis", None),
+    )
     if signal and signal not in raisons:
         raisons.append(signal)
     if raisons:

@@ -159,29 +159,21 @@ def _etats_du_bulletin(detail: dict[str, Any]) -> tuple[bool | None, str | None]
         return None, None
     try:
         from app.modules.payroll.application import empreinte_entrees_service
-        from app.modules.payroll.domain.empreinte_entrees import (
-            a_recalculer,
-            empreinte_stockee,
-            etat_a_recalculer,
-        )
 
-        actuelle, cumuls_changes = empreinte_entrees_service.etat_actuel(
-            str(detail["employee_id"]),
-            int(detail["year"]),
-            int(detail["month"]),
-            detail.get("payslip_data"),
-        )
-        etat = a_recalculer(
-            etat_a_recalculer(empreinte_stockee(detail.get("payslip_data")), actuelle),
-            cumuls_changes,
+        etat = empreinte_entrees_service.etat_dans_la_chaine(
+            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
         )
     except Exception:  # noqa: BLE001 — un détail illisible n'empêche pas d'ouvrir le bulletin
-        etat, cumuls_changes = None, None
+        etat = None
     try:
-        message = signal_a_regenerer(detail, cumuls_changes)
+        message = signal_a_regenerer(
+            detail,
+            etat.cumuls_precedents_changes if etat else None,
+            etat.cascade_depuis if etat else None,
+        )
     except Exception:  # noqa: BLE001
         message = None
-    return etat, message
+    return (etat.a_recalculer if etat else None), message
 
 
 def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:

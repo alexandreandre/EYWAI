@@ -35,19 +35,36 @@ def cumul_brut_du_mois_precedent(employee_id: str, year: int, month: int) -> flo
     return cumul_brut({"cumuls": r.data.get("cumuls")})
 
 
+def message_mois_d_avant_a_recalculer(annee: int, mois: int) -> str:
+    return (
+        f"Le bulletin de {mois:02d}/{annee} doit être recalculé : un mois avant lui a "
+        "changé depuis. Recalculez les mois dans l'ordre, celui-ci ensuite."
+    )
+
+
 def signal_a_regenerer(
-    bulletin: dict[str, Any], cumuls_precedents_changes: bool | None = None
+    bulletin: dict[str, Any],
+    cumuls_precedents_changes: bool | None = None,
+    cascade_depuis: tuple[int, int] | None = None,
 ) -> str | None:
     """La phrase « à régénérer » quand le mois d'avant a changé depuis le calcul.
 
     Rien pour un bulletin repris : il n'est pas recalculable, sa chaîne fait foi.
-    L'empreinte des cumuls du mois d'avant (`cumuls_precedents_changes`, posée à
-    la génération) décide quand elle est connue : elle voit tous les cumuls, pas
+    Un mois plus ancien de la chaîne recalculé depuis (`cascade_depuis`) se dit
+    en le nommant : c'est lui qu'il faut recalculer d'abord. Sinon l'empreinte
+    des cumuls du mois d'avant (`cumuls_precedents_changes`, posée à la
+    génération) décide quand elle est connue : elle voit tous les cumuls, pas
     le seul brut, et sait qu'un premier mois de contrat n'en dépend pas. Sans
     elle (bulletin calculé avant), on contrôle le brut cumulé.
     """
     if str(bulletin.get("origine") or "calcule") == "importe":
         return None
+    try:
+        ce_mois = (int(bulletin["year"]), int(bulletin["month"]))
+    except (KeyError, TypeError, ValueError):
+        ce_mois = None
+    if cascade_depuis is not None and cascade_depuis != ce_mois:
+        return message_mois_d_avant_a_recalculer(*cascade_depuis)
     if cumuls_precedents_changes is not None:
         return MESSAGE_A_REGENERER if cumuls_precedents_changes else None
     try:

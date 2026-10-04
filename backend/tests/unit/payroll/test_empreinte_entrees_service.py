@@ -363,32 +363,139 @@ def test_janvier_suit_les_cumuls_de_decembre():
     assert _annoter(_lectures(calendriers=corrige, saisies_par_mois={}), dict(ligne))["a_recalculer"] is True
 
 
-def test_etat_actuel_rend_l_empreinte_et_l_etat_des_cumuls_en_une_lecture():
-    from app.modules.payroll.application.empreinte_entrees_service import etat_actuel
-    from app.modules.payroll.domain.empreinte_entrees import (
-        empreinte_cumuls,
-        poser_empreinte_cumuls,
-    )
+# --- La cascade, de proche en proche ------------------------------------------
+#
+# Bulletins de mars à juin, chacun calculé sur les cumuls du mois d'avant.
+# Corriger février (ou mars) périme mars ; avril, calculé sur les cumuls de
+# mars que le recalcul de mars changera, l'est aussi, et ainsi de suite.
 
-    bulletin = poser_empreinte_cumuls({}, empreinte_cumuls(CALENDRIERS[(2026, 4)]["cumuls"]))
+_MOIS = (3, 4, 5, 6)
+
+
+def _calendriers_de_la_chaine(**cumuls_changes):
+    calendriers = {}
+    for mois in range(2, 8):
+        cumuls = {"cumuls": {"brut_total": 1000.0 * mois}}
+        if mois in cumuls_changes.get("mois", ()):
+            cumuls = {"cumuls": {"brut_total": 1000.0 * mois + 400}}
+        calendriers[(2026, mois)] = {
+            "planned_calendar": {"calendrier_prevu": []},
+            "actual_hours": {"calendrier_reel": []},
+            "cumuls": cumuls,
+        }
+    return calendriers
+
+
+def _bulletins_de_la_chaine(calendriers, *, sauf=(), repris=()):
+    from app.modules.payroll.domain.empreinte_entrees import empreinte_cumuls
+
+    return [
+        {
+            "year": 2026,
+            "month": mois,
+            "origine": "importe" if mois in repris else "calcule",
+            "empreinte_entrees": empreinte_des_lectures(
+                **_kwargs(month=mois, calendriers=calendriers, saisies=[])
+            ),
+            "empreinte_cumuls_precedents": empreinte_cumuls(calendriers[(2026, mois - 1)]["cumuls"]),
+        }
+        for mois in _MOIS
+        if mois not in sauf
+    ]
+
+
+def _etats(lignes, calendriers_actuels):
+    lectures = _lectures(calendriers=calendriers_actuels, saisies_par_mois={})
+    return {
+        int(l["month"]): l["a_recalculer"] for l in _annoter_toutes(lectures, lignes)
+    }
+
+
+def _annoter_toutes(lectures, lignes):
     with patch(
         "app.modules.payroll.application.empreinte_entrees_service.lire_lectures_salarie",
-        return_value=_lectures(calendriers=_cumuls_d_avril_corriges()),
-    ) as lire:
-        actuelle, cumuls_changes = etat_actuel("e1", 2026, 5, bulletin)
-    lire.assert_called_once_with("e1", [(2026, 5)])
-    assert actuelle == empreinte_des_lectures(**_kwargs(calendriers=_cumuls_d_avril_corriges()))
-    assert cumuls_changes is True
-
-
-def test_etat_actuel_d_un_salarie_illisible_est_inconnu():
-    from app.modules.payroll.application.empreinte_entrees_service import etat_actuel
-
-    with patch(
-        "app.modules.payroll.application.empreinte_entrees_service.lire_lectures_salarie",
-        return_value=None,
+        return_value=lectures,
     ):
-        assert etat_actuel("e1", 2026, 5, {}) == (None, None)
+        return annoter_a_recalculer("e1", [dict(l) for l in lignes])
+
+
+def test_mars_recalcule_perime_avril_puis_mai_et_juin_de_proche_en_proche():
+    lignes = _bulletins_de_la_chaine(_calendriers_de_la_chaine())
+    assert _etats(lignes, _calendriers_de_la_chaine()) == {3: False, 4: False, 5: False, 6: False}
+    apres = _calendriers_de_la_chaine(mois=(3,))
+    assert _etats(lignes, apres) == {3: False, 4: True, 5: True, 6: True}
+
+
+def test_un_bulletin_repris_ou_un_mois_sans_bulletin_arrete_la_cascade():
+    apres = _calendriers_de_la_chaine(mois=(3,))
+    repris = _bulletins_de_la_chaine(_calendriers_de_la_chaine(), repris=(5,))
+    assert _etats(repris, apres) == {3: False, 4: True, 5: None, 6: False}
+    trou = _bulletins_de_la_chaine(_calendriers_de_la_chaine(), sauf=(5,))
+    assert _etats(trou, apres) == {3: False, 4: True, 6: False}
+
+
+def test_le_premier_mois_d_un_contrat_arrete_la_cascade():
+    nouveau_contrat = {**EMPLOYEE, "hire_date": "2026-05-01"}
+    calendriers = _calendriers_de_la_chaine()
+    lignes = [
+        {**l, "empreinte_entrees": empreinte_des_lectures(
+            **_kwargs(month=l["month"], calendriers=calendriers, saisies=[], employee=nouveau_contrat)
+        )}
+        for l in _bulletins_de_la_chaine(calendriers)
+    ]
+    lectures = _lectures(
+        employee=nouveau_contrat, calendriers=_calendriers_de_la_chaine(mois=(3,)), saisies_par_mois={}
+    )
+    etats = {int(l["month"]): l["a_recalculer"] for l in _annoter_toutes(lectures, lignes)}
+    assert etats == {3: False, 4: True, 5: False, 6: False}
+
+
+def test_des_entrees_changees_ne_se_propagent_pas_au_dela_de_la_fenetre():
+    """Une fiche ou un calendrier changés périment les bulletins qui les lisent,
+    pas toute la suite : seul un recalcul change les cumuls."""
+    calendriers = _calendriers_de_la_chaine()
+    lignes = _bulletins_de_la_chaine(calendriers)
+    apres = dict(calendriers)
+    apres[(2026, 4)] = {
+        **calendriers[(2026, 4)],
+        "actual_hours": {"calendrier_reel": [{"jour": 2, "type": "travail", "heures": 9}]},
+    }
+    assert _etats(lignes, apres) == {3: True, 4: True, 5: True, 6: False}
+
+
+def test_etat_dans_la_chaine_nomme_le_mois_a_recalculer_d_abord():
+    from app.modules.payroll.application import empreinte_entrees_service as service
+
+    lignes = _bulletins_de_la_chaine(_calendriers_de_la_chaine())
+    with (
+        patch.object(service, "lire_empreintes_des_bulletins", return_value=lignes),
+        patch.object(
+            service,
+            "lire_lectures_salarie",
+            return_value=_lectures(calendriers=_calendriers_de_la_chaine(mois=(3,)), saisies_par_mois={}),
+        ) as lire,
+    ):
+        juin = service.etat_dans_la_chaine("e1", 2026, 6)
+        avril = service.etat_dans_la_chaine("e1", 2026, 4)
+    assert lire.call_args_list[0].args == ("e1", [(2026, 3), (2026, 4), (2026, 5), (2026, 6)])
+    assert juin.a_recalculer is True
+    assert juin.cascade_depuis == (2026, 4)
+    assert juin.cumuls_precedents_changes is False
+    assert juin.entrees_changees is False
+    assert (avril.cascade_depuis, avril.cumuls_precedents_changes) == ((2026, 4), True)
+
+
+def test_etat_dans_la_chaine_inconnu_sans_bulletin_ou_sans_lecture():
+    from app.modules.payroll.application import empreinte_entrees_service as service
+
+    lignes = _bulletins_de_la_chaine(_calendriers_de_la_chaine())
+    with (
+        patch.object(service, "lire_empreintes_des_bulletins", return_value=lignes),
+        patch.object(service, "lire_lectures_salarie", return_value=None),
+    ):
+        assert service.etat_dans_la_chaine("e1", 2026, 6) is None
+    with patch.object(service, "lire_empreintes_des_bulletins", return_value=lignes):
+        assert service.etat_dans_la_chaine("e1", 2026, 9) is None
 
 
 def test_la_lecture_groupee_relit_les_cumuls_des_calendriers():
