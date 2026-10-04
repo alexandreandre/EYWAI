@@ -74,7 +74,16 @@ def enrich_payslip_after_upsert(
                 payslip_id=payslip_id,
             )
         except Exception as exc:
+            # Les avances ne sont retenues qu'ici : leur échec se voit sur le
+            # bulletin, comme tout repli de la génération.
             logger.warning("Erreur enrichissement saisies/avances: %s", exc)
+            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, fusionner_replis
+
+            enriched_data = dict(enriched_data)
+            enriched_data["alertes_baremes"] = fusionner_replis(
+                enriched_data.get("alertes_baremes"),
+                [{"code": CODE_REPLI_AVANCES}],
+            )
 
         try:
             from app.modules.employee_loans.application.enrichment import (

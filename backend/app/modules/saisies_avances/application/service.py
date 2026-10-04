@@ -635,12 +635,9 @@ def enrich_payslip(
                 except Exception:
                     pass
 
-    # 2. Traitement des avances à rembourser
-    synthese_net = payslip_json_data.get("synthese_net", {}) or {}
-    acompte_deja_deduit = Decimal(str(synthese_net.get("acompte_verse", 0)))
-    if acompte_deja_deduit == 0:
-        acompte_deja_deduit = Decimal(str(payslip_json_data.get("acompte_verse", 0)))
-
+    # 2. Traitement des avances à rembourser. Le moteur ne les connaît pas : elles
+    # ne sortent du net qu'ici, une fois. (Le générateur heures les retirait
+    # aussi : 800 € d'avance faisaient perdre 1 600 € au net, audit 04/10/2026.)
     advances = get_advances_to_repay(employee_id, year, month)
     total_repayments = Decimal("0")
     remboursements_appliques: List[Dict[str, Any]] = []
@@ -740,7 +737,10 @@ def enrich_payslip(
         },
     }
 
-    if total_repayments > 0 and acompte_deja_deduit == 0:
+    # Un acompte saisi en variable du mois (`acompte_verse`) est déjà dans le net
+    # du moteur ; il n'empêche plus de retenir l'avance, que l'on marquait
+    # remboursée sans la retirer du net.
+    if total_repayments > 0:
         current_net = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
         new_net = current_net - total_repayments
         payslip_json_data["net_a_payer"] = float(max(Decimal("0"), new_net))

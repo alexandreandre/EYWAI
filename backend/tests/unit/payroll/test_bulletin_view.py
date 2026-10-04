@@ -609,13 +609,16 @@ class TestRepliAcompte:
         acompte = next(l for l in lignes if l["libelle"] == "Acomptes et avances")
         assert acompte["montant_salarial"] == pytest.approx(-300.0)
 
-    def test_enrichissement_prioritaire_sur_la_synthese(self):
+    def test_l_acompte_du_mois_et_l_avance_du_module_s_additionnent(self):
+        """300 € d'acompte saisis en variable (déjà retirés par le moteur) et
+        150 € d'avance du module « Avances » (retirés à l'enrichissement) : le
+        net perd 450 €, la ligne aussi. Elle n'en montrait que 150 (04/10/2026)."""
         bulletin = bulletin_avec_cotisations()
         bulletin["synthese_net"]["acompte_verse"] = 300.0
         bulletin["remboursements_avances"] = {"total_rembourse": 150.0}
         lignes = construire_vue_bulletin(bulletin)["lignes"]
         acompte = next(l for l in lignes if l["libelle"] == "Acomptes et avances")
-        assert acompte["montant_salarial"] == pytest.approx(-150.0)
+        assert acompte["montant_salarial"] == pytest.approx(-450.0)
 
 
 class TestReportNapNegatif:

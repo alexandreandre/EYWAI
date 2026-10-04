@@ -403,11 +403,16 @@ def _lignes_hors_brut(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
     total_reports = sum(max(0.0, float(r.get("montant") or 0.0)) for r in reports)
 
-    # L'enrichissement « saisies et avances » n'a pas toujours tourné : dans ce
-    # cas l'acompte ne subsiste que dans la synthèse des nets.
-    acomptes = float(
-        (bulletin.get("remboursements_avances") or {}).get("total_rembourse") or 0.0
-    ) or round(float(synthese.get("acompte_verse") or 0.0) - total_reports, 2)
+    # Deux sources, deux retenues distinctes, toutes deux sorties du net : les
+    # acomptes saisis en variables du mois (`acompte_verse`, retirés par le
+    # moteur, reports à part) et les avances du module « Avances » (retirées à
+    # l'enrichissement). La ligne ne montrait que les secondes quand il y en avait.
+    acomptes = round(
+        float((bulletin.get("remboursements_avances") or {}).get("total_rembourse") or 0.0)
+        + float(synthese.get("acompte_verse") or 0.0)
+        - total_reports,
+        2,
+    )
 
     retenues = (
         (acomptes, "Acomptes et avances"),

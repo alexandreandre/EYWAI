@@ -308,14 +308,19 @@ class TestSaisiesAvances:
                     )
 
     def test_enrich_payslip_avoid_double_deduction(self):
-        """Test pour éviter la double déduction des avances"""
-        # Données de test avec acompte déjà déduit par le moteur
+        """L'avance du module sort du net une fois, à l'enrichissement.
+
+        Le moteur ne la connaît plus : `acompte_verse` ne porte que les acomptes
+        saisis en variables du mois, une autre retenue. Ce test supposait
+        l'inverse et sautait l'avance dès qu'un acompte du mois existait : elle
+        était marquée remboursée sans sortir du net (04/10/2026).
+        """
         payslip_data = {
-            "net_a_payer": 1300.0,  # Déjà réduit de 200€
+            "net_a_payer": 1300.0,  # 1 500 € moins 200 € d'acompte saisi en variable
             "salaire_brut": 2000.0,
             "synthese_net": {
                 "net_imposable": 1400.0,
-                "acompte_verse": 200.0,  # Déjà déduit par le moteur
+                "acompte_verse": 200.0,  # l'acompte du mois, pas l'avance
             },
         }
 
@@ -357,10 +362,9 @@ class TestSaisiesAvances:
 
                     enriched = enrich_payslip(payslip_data.copy(), "emp-1", 2026, 2)
 
-                    # Le net à payer ne doit pas être réduit deux fois
-                    # Il doit rester à 1300€ (déjà réduit par le moteur)
-                    assert enriched["net_a_payer"] == 1300.0, (
-                        f"Le net à payer ne doit pas être réduit deux fois. Attendu 1300€, obtenu {enriched['net_a_payer']}€"
+                    # L'avance de 200 € sort du net, une fois.
+                    assert enriched["net_a_payer"] == 1100.0, (
+                        f"L'avance doit sortir du net une fois. Attendu 1100€, obtenu {enriched['net_a_payer']}€"
                     )
 
                     print("✓ Test évitation double déduction : net à payer correct")

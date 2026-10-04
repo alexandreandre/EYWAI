@@ -931,71 +931,14 @@ def process_payslip_generation(
                 saisies_data["primes"].append(expense_entry)
                 log_payroll_debug(logger, f'DEBUG [Generator] - Note de frais ajoutée: {expense_entry}')
 
-        try:
-            from app.modules.saisies_avances.infrastructure.queries import (
-                get_advances_to_repay,
-            )
-            from decimal import Decimal
-
-            advances_to_repay = get_advances_to_repay(employee_id, year, month)
-            total_advances_repayment = Decimal("0")
-
-            log_payroll_debug(logger, f'[DEBUG GENERATOR] Avances à rembourser trouvées: {len(advances_to_repay)}')
-
-            for advance in advances_to_repay:
-                remaining = Decimal(str(advance.get("remaining_amount", 0)))
-                if remaining <= 0:
-                    continue
-
-                if advance.get("repayment_mode") == "single":
-                    repayment_amount = remaining
-                else:
-                    approved_amount = Decimal(str(advance.get("approved_amount", 0)))
-                    repayment_months = advance.get("repayment_months", 1)
-                    repayment_amount = approved_amount / Decimal(str(repayment_months))
-                    repayment_amount = min(repayment_amount, remaining)
-
-                total_advances_repayment += repayment_amount
-                log_payroll_debug(logger, f"[DEBUG GENERATOR] Avance {advance.get('id')}: {float(repayment_amount)}€ à rembourser ce mois")
-
-            # Remboursement de PRÊT SALARIÉ (table `salary_advances`, distinct des
-            # acomptes/saisies saisis en `monthly_inputs`) : un prêt employeur est
-            # une transaction financière séparée, pas une avance sur la
-            # rémunération du mois restant due — il ne doit donc PAS entrer dans
-            # le Montant Net Social (MNS), qui ne reflète QUE la rémunération.
-            # Routé comme une prime NON SOUMISE (cotisations/impôt) au montant
-            # négatif — mécanisme déjà existant et éprouvé côté forfait-jour
-            # (cf. payslip_generator_forfait.py, "remboursement_avance_salaire"),
-            # généralisé ici au chemin heures pour cohérence. Ce canal réduit à
-            # la fois le net à payer ET le MNS de façon symétrique
-            # (`_calculer_net_a_payer` et `calculer_montant_net_social` lisent
-            # tous deux `primes_non_soumises`), contrairement à l'ancien canal
-            # "acompte" qui ne touchait que le net à payer — comportement
-            # volontairement conservé tel quel pour les acomptes/saisies
-            # monthly_inputs (vérifié correct sur 5 cas convergés : salarié 118/
-            # salarié 091/salarié 207/salarié 176/salarié 302, Lewis mai 2026 — ceux-ci ne doivent
-            # JAMAIS toucher le MNS, distinction gardée nette).
-            if total_advances_repayment > 0:
-                saisies_data.setdefault("primes", []).append(
-                    {
-                        "prime_id": "remboursement_pret_salarie",
-                        "libelle": "Remboursement prêt salarié",
-                        "montant": -float(total_advances_repayment),
-                        "soumise_a_cotisations": False,
-                        "soumise_a_impot": False,
-                    }
-                )
-            saisies_data["acompte"] = net_a_payer_only_correction_total
-            log_payroll_debug(logger, f"[DEBUG GENERATOR] Total des remboursements d'avances à déduire: {float(total_advances_repayment)}€")
-        except Exception:
-            # Repli : les acomptes et corrections nettes du mois restent au
-            # bulletin (ils ne dépendent pas des avances) ; seules les avances
-            # ne sont pas retenues, et le bulletin le dit.
-            logger.exception("Erreur lors du calcul des avances à rembourser")
-            saisies_data["acompte"] = net_a_payer_only_correction_total
-            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, ajouter_repli
-
-            ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)
+        # Les avances et acomptes du module « Avances » (`salary_advances`) ne
+        # passent pas par le moteur : l'enrichissement d'après enregistrement les
+        # retient du net à payer, une fois, comme au forfait jours. Le moteur les
+        # retirait aussi, en ligne « Remboursement prêt salarié » : 800 € d'avance
+        # faisaient perdre 1 600 € au net (audit du 04/10/2026, vérifié en bac à
+        # sable). Seuls les acomptes et corrections nettes saisis en variables du
+        # mois restent ici.
+        saisies_data["acompte"] = net_a_payer_only_correction_total
         if reports_nap_negatif:
             saisies_data[CLE_REPORTS_NAP_NEGATIF] = reports_nap_negatif
 

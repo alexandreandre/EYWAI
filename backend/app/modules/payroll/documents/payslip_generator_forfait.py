@@ -334,39 +334,11 @@ def process_payslip_generation_forfait(
                 }
                 saisies_data["primes"].append(expense_entry)
 
-        try:
-            from app.modules.saisies_avances.infrastructure.queries import (
-                get_advances_to_repay,
-            )
-            from decimal import Decimal
-
-            advances_to_repay = get_advances_to_repay(employee_id, year, month)
-            total_advances_repayment = Decimal("0")
-
-            for advance in advances_to_repay:
-                remaining = Decimal(str(advance.get("remaining_amount", 0)))
-                if remaining <= 0:
-                    continue
-
-                monthly_repayment = Decimal(
-                    str(advance.get("monthly_repayment_amount", 0))
-                )
-                repayment_this_month = min(remaining, monthly_repayment)
-                total_advances_repayment += repayment_this_month
-
-            if total_advances_repayment > 0:
-                advance_entry = {
-                    "prime_id": "remboursement_avance_salaire",
-                    "montant": -float(total_advances_repayment),
-                    "soumise_a_cotisations": False,
-                    "soumise_a_impot": False,
-                }
-                saisies_data["primes"].append(advance_entry)
-        except Exception:
-            logger.exception("Erreur lors du calcul des avances à rembourser (forfait)")
-            from app.modules.payroll.engine.replis import CODE_REPLI_AVANCES, ajouter_repli
-
-            ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)
+        # Les avances et acomptes du module « Avances » ne passent pas par le
+        # moteur : l'enrichissement d'après enregistrement les retient du net, une
+        # fois. (Ce bloc lisait `monthly_repayment_amount`, colonne inexistante :
+        # il ne retenait jamais rien. Supprimé pour qu'aucune correction de nom ne
+        # rouvre le double prélèvement du générateur heures, audit 04/10/2026.)
 
         if net_a_payer_only_correction_total:
             saisies_data["acompte"] = net_a_payer_only_correction_total

@@ -90,14 +90,46 @@ def test_la_sortie_illisible_est_signalee_par_les_deux_calculs():
         assert "alertes=contexte.alertes_baremes" in source[appel : appel + 400], module.__name__
 
 
-def test_les_avances_avalees_se_signalent_sans_perdre_les_acomptes():
+def test_les_generateurs_gardent_les_acomptes_et_ne_retiennent_plus_les_avances():
+    """Les avances ne sortent du net qu'à l'enrichissement : le générateur heures
+    les retirait aussi, et 800 € d'avance coûtaient 1 600 € au net (04/10/2026)."""
     source = inspect.getsource(payslip_generator)
-    bloc = _bloc_except_apres(source, "get_advances_to_repay(employee_id, year, month)")
-    assert 'saisies_data["acompte"] = net_a_payer_only_correction_total' in bloc
-    assert 'saisies_data["acompte"] = 0.0' not in bloc
-    assert "ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)" in bloc
     source_forfait = inspect.getsource(payslip_generator_forfait)
-    assert "ajouter_repli(alertes_de_repli_generateur, CODE_REPLI_AVANCES)" in source_forfait
+    assert 'saisies_data["acompte"] = net_a_payer_only_correction_total' in source
+    assert 'saisies_data["acompte"] = net_a_payer_only_correction_total' in source_forfait
     for s in (source, source_forfait):
+        assert "get_advances_to_repay(" not in s
+        assert "remboursement_pret_salarie" not in s and "remboursement_avance_salaire" not in s
         # Les replis du générateur rejoignent les alertes du bulletin, sans doublon.
         assert 'fusionner_replis(\n                payslip_json_data.get("alertes_baremes"), alertes_de_repli_generateur\n            )' in s
+
+
+def test_les_avances_avalees_se_signalent_sur_le_bulletin():
+    """L'enrichissement est seul à retenir les avances : s'il échoue, le
+    bulletin le dit, comme tout repli de la génération."""
+    from unittest.mock import patch
+
+    from app.modules.employee_loans.application import payroll_integration
+
+    with (
+        patch(
+            "app.modules.saisies_avances.application.service.enrich_payslip",
+            side_effect=RuntimeError("base injoignable"),
+        ),
+        patch(
+            "app.modules.employee_loans.application.enrichment.enrich_payslip_loans",
+            side_effect=lambda donnees, *a, **k: donnees,
+        ),
+        patch.object(payroll_integration, "supabase"),
+    ):
+        bulletin = payroll_integration.enrich_payslip_after_upsert(
+            {"net_a_payer": 1500.0, "alertes_baremes": [{"code": "autre"}]},
+            "e1",
+            2026,
+            9,
+            "bulletin-1",
+        )
+
+    codes = [a["code"] for a in bulletin["alertes_baremes"]]
+    assert codes == ["autre", CODE_REPLI_AVANCES]
+    assert bulletin["net_a_payer"] == 1500.0
