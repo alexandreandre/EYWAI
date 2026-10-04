@@ -281,3 +281,144 @@ def test_un_reglage_de_l_ecran_parametres_de_paie_fait_passer_a_recalculer(avant
     assert empreinte_des_lectures(
         **_kwargs(company={**COMPANY, **avant})
     ) != empreinte_des_lectures(**_kwargs(company={**COMPANY, **apres}))
+
+
+# --- Cascade : le mois d'avant recalculé après le calcul de ce bulletin -------
+#
+# Mai a été calculé sur les cumuls d'avril (CALENDRIERS[(2026, 4)]). Gaëlle
+# corrige avril et le régénère : ses cumuls changent, mai porte encore les
+# anciens. Le calendrier, les absences et les saisies de mai n'ont pas bougé.
+
+
+def _cumuls_d_avril_corriges():
+    return {
+        cle: {**row, "cumuls": {"brut_total": 10_400}} if cle == (2026, 4) else row
+        for cle, row in CALENDRIERS.items()
+    }
+
+
+def _ligne_de_mai(**surcharges):
+    from app.modules.payroll.domain.empreinte_entrees import empreinte_cumuls
+
+    ligne = {
+        "year": 2026,
+        "month": 5,
+        "origine": "calcule",
+        "empreinte_entrees": empreinte_des_lectures(**_kwargs()),
+        "empreinte_cumuls_precedents": empreinte_cumuls(CALENDRIERS[(2026, 4)]["cumuls"]),
+    }
+    ligne.update(surcharges)
+    return ligne
+
+
+def _annoter(lectures, ligne):
+    with patch(
+        "app.modules.payroll.application.empreinte_entrees_service.lire_lectures_salarie",
+        return_value=lectures,
+    ):
+        return annoter_a_recalculer("e1", [ligne])[0]
+
+
+def test_le_mois_d_avant_recalcule_met_ce_bulletin_a_recalculer():
+    ligne = _annoter(_lectures(calendriers=_cumuls_d_avril_corriges()), _ligne_de_mai())
+    assert ligne["a_recalculer"] is True
+    assert "empreinte_cumuls_precedents" not in ligne
+
+
+def test_le_mois_d_avant_inchange_laisse_le_bulletin_a_jour():
+    assert _annoter(_lectures(), _ligne_de_mai())["a_recalculer"] is False
+
+
+def test_un_bulletin_sans_empreinte_des_cumuls_suit_la_seule_empreinte_d_entree():
+    ligne = _ligne_de_mai(empreinte_cumuls_precedents=None)
+    assert _annoter(_lectures(calendriers=_cumuls_d_avril_corriges()), ligne)["a_recalculer"] is False
+
+
+def test_au_premier_mois_du_contrat_les_cumuls_d_avant_ne_comptent_pas():
+    """Le bulletin repart de zéro (contrats successifs) : il ne dépend pas du mois d'avant."""
+    nouveau_contrat = {**EMPLOYEE, "hire_date": "2026-05-01"}
+    ligne = _ligne_de_mai(
+        empreinte_entrees=empreinte_des_lectures(**_kwargs(employee=nouveau_contrat))
+    )
+    lectures = _lectures(employee=nouveau_contrat, calendriers=_cumuls_d_avril_corriges())
+    assert _annoter(lectures, ligne)["a_recalculer"] is False
+
+
+def test_janvier_suit_les_cumuls_de_decembre():
+    from app.modules.payroll.domain.empreinte_entrees import empreinte_cumuls
+
+    decembre = {"cumuls": {"brut_total": 30_000}}
+    calendriers = {(2025, 12): {"cumuls": decembre}, (2026, 1): {}, (2026, 2): {}}
+    lectures = _lectures(calendriers=calendriers, saisies_par_mois={})
+    entrees = empreinte_des_lectures(
+        **_kwargs(year=2026, month=1, calendriers=calendriers, saisies=[])
+    )
+    ligne = {
+        "year": 2026, "month": 1, "origine": "calcule",
+        "empreinte_entrees": entrees,
+        "empreinte_cumuls_precedents": empreinte_cumuls(decembre),
+    }
+    assert _annoter(lectures, dict(ligne))["a_recalculer"] is False
+    corrige = {**calendriers, (2025, 12): {"cumuls": {"brut_total": 30_500}}}
+    assert _annoter(_lectures(calendriers=corrige, saisies_par_mois={}), dict(ligne))["a_recalculer"] is True
+
+
+def test_etat_actuel_rend_l_empreinte_et_l_etat_des_cumuls_en_une_lecture():
+    from app.modules.payroll.application.empreinte_entrees_service import etat_actuel
+    from app.modules.payroll.domain.empreinte_entrees import (
+        empreinte_cumuls,
+        poser_empreinte_cumuls,
+    )
+
+    bulletin = poser_empreinte_cumuls({}, empreinte_cumuls(CALENDRIERS[(2026, 4)]["cumuls"]))
+    with patch(
+        "app.modules.payroll.application.empreinte_entrees_service.lire_lectures_salarie",
+        return_value=_lectures(calendriers=_cumuls_d_avril_corriges()),
+    ) as lire:
+        actuelle, cumuls_changes = etat_actuel("e1", 2026, 5, bulletin)
+    lire.assert_called_once_with("e1", [(2026, 5)])
+    assert actuelle == empreinte_des_lectures(**_kwargs(calendriers=_cumuls_d_avril_corriges()))
+    assert cumuls_changes is True
+
+
+def test_etat_actuel_d_un_salarie_illisible_est_inconnu():
+    from app.modules.payroll.application.empreinte_entrees_service import etat_actuel
+
+    with patch(
+        "app.modules.payroll.application.empreinte_entrees_service.lire_lectures_salarie",
+        return_value=None,
+    ):
+        assert etat_actuel("e1", 2026, 5, {}) == (None, None)
+
+
+def test_la_lecture_groupee_relit_les_cumuls_des_calendriers():
+    from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
+
+    vues: list[str] = []
+
+    class _Requete:
+        def __init__(self, table):
+            self.table = table
+
+        def select(self, colonnes, *_a, **_k):
+            if self.table == "employee_schedules":
+                vues.append(colonnes)
+            return self
+
+        def __getattr__(self, _nom):
+            return lambda *_a, **_k: self
+
+        def execute(self):
+            from types import SimpleNamespace
+
+            if self.table == "employees":
+                return SimpleNamespace(data={"id": "e1", "company_id": None})
+            return SimpleNamespace(data=[])
+
+    class _Base:
+        def table(self, nom):
+            return _Requete(nom)
+
+    with patch.object(q, "supabase", _Base()):
+        q.lire_lectures_salarie("e1", [(2026, 5)])
+    assert vues and "cumuls" in vues[0]

@@ -82,6 +82,11 @@ def test_les_champs_volatils_sont_ignores():
         {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "aaa", "smic_horaire": 11.88}}}},
         {"b": {"payslip_data": {"parametres": {"empreinte_entrees": "bbb", "smic_horaire": 11.88}}}},
     ) == {}
+    # Empreinte des cumuls du mois d'avant : métadonnée, absente des photos d'avant.
+    assert comparer(
+        {"b": {"payslip_data": {"parametres": {"smic_horaire": 11.88}}}},
+        {"b": {"payslip_data": {"parametres": {"empreinte_cumuls_precedents": "c", "smic_horaire": 11.88}}}},
+    ) == {}
     assert comparer(
         {
             "b": {

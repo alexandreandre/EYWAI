@@ -128,3 +128,37 @@ def test_le_generateur_forfait_applique_la_meme_regle():
     regle = source.index("cumuls_precedents_du_contrat(")
     ecriture = source.index('employee_path / "cumuls"')
     assert choix < regle < ecriture
+
+
+class TestEmpreinteDesCumulsPrecedents:
+    """Le bulletin garde l'empreinte des cumuls du mois d'avant qu'il a lus : c'est
+    elle qui dira, si ce mois est régénéré ensuite, que celui-ci est à recalculer."""
+
+    def test_le_generateur_heures_pose_l_empreinte_des_cumuls_lus(self, monkeypatch, moteur):  # noqa: F811
+        from app.modules.payroll.domain.empreinte_entrees import (
+            empreinte_cumuls,
+            empreinte_cumuls_stockee,
+        )
+
+        def run(*_a, **_k):
+            return {"alertes_baremes": [], "salaire_brut": 0.0, "net_a_payer": 0.0}
+
+        monkeypatch.setattr(payslip_run_heures, "run_payslip_generation_heures", run)
+        monkeypatch.setattr(pg, "supabase", _Base([], compensation=False))
+        monkeypatch.setattr(arrets_valides_reader, "par_salarie", lambda *_a, **_k: {EMP: []})
+        resultat = pg.process_payslip_generation(
+            EMP, 2026, 9, bac_a_sable=BacASable(cumuls_precedents=CUMULS_DU_CDD)
+        )
+        assert empreinte_cumuls_stockee(resultat["payslip_data"]) == empreinte_cumuls(CUMULS_DU_CDD)
+
+
+def test_le_generateur_forfait_pose_aussi_l_empreinte_des_cumuls_lus():
+    import inspect
+
+    from app.modules.payroll.documents import payslip_generator_forfait as pgf
+
+    source = inspect.getsource(pgf.process_payslip_generation_forfait)
+    lecture = source.index("cumuls_lus_au_mois_precedent =")
+    pose = source.index("poser_empreinte_cumuls(")
+    sauvegarde = source.index('"payslip_data": payslip_json_data')
+    assert lecture < pose < sauvegarde

@@ -110,6 +110,16 @@ def test_les_heures_sup_et_le_brut_sont_dans_la_meta():
     assert meta["empreinte_entrees"] == "ab" * 32
 
 
+def test_la_liste_porte_l_empreinte_des_cumuls_du_mois_d_avant():
+    """Sans elle, la liste ne verrait pas un bulletin dont le mois d'avant a été recalculé."""
+    from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
+
+    meta = payslip_list_meta({"parametres": {"empreinte_cumuls_precedents": "cd" * 32}})
+    assert meta["empreinte_cumuls_precedents"] == "cd" * 32
+    assert payslip_list_meta({"net_a_payer": 1.0})["empreinte_cumuls_precedents"] is None
+    assert payslip_list_meta("rien")["empreinte_cumuls_precedents"] is None
+
+
 def test_sans_lignes_de_brut_les_heures_sup_sont_inconnues():
     from app.modules.payslips.infrastructure.payslip_list_meta import heures_sup_du_bulletin
 

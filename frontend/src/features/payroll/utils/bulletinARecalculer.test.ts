@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MESSAGE_A_RECALCULER,
   MESSAGE_COMPARAISON_INDISPONIBLE,
+  alerteCalendrierChange,
   estPerime,
   jobsDesBulletinsPerimes,
   jobsDesLignesPerimes,
@@ -23,6 +24,20 @@ describe('estPerime', () => {
 
   it('un bulletin repris ne se marque pas, même si le serveur dit true', () => {
     expect(estPerime({ a_recalculer: true, origine: 'importe' })).toBe(false);
+  });
+});
+
+describe('alerteCalendrierChange', () => {
+  it('le mois d’avant recalculé se dit par « À régénérer », pas par « calendrier ou absences »', () => {
+    expect(
+      alerteCalendrierChange({ a_recalculer: true, a_regenerer: 'Le bulletin du mois précédent a changé…' })
+    ).toBe(false);
+  });
+
+  it('sans phrase du mois d’avant, un bulletin périmé garde son alerte', () => {
+    expect(alerteCalendrierChange({ a_recalculer: true, a_regenerer: null })).toBe(true);
+    expect(alerteCalendrierChange({ a_recalculer: true })).toBe(true);
+    expect(alerteCalendrierChange({ a_recalculer: false })).toBe(false);
   });
 });
 

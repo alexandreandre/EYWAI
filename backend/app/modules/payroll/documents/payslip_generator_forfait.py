@@ -590,6 +590,11 @@ def process_payslip_generation_forfait(
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
         )
+        # Les cumuls du mois d'avant tels que lus : leur empreinte, posée sur le
+        # bulletin, dira s'il a été recalculé depuis (voir empreinte_entrees.py).
+        cumuls_lus_au_mois_precedent = (
+            bac_a_sable.cumuls_precedents if bac_a_sable is not None else previous_cumuls_data
+        )
         if bac_a_sable is not None:
             previous_cumuls_data = cumuls_de_depart(bac_a_sable, year)
         elif not isinstance(previous_cumuls_data, dict):
@@ -664,6 +669,14 @@ def process_payslip_generation_forfait(
                 "debut": fenetre.debut.isoformat(),
                 "fin": fenetre.fin.isoformat(),
             },
+        )
+        from app.modules.payroll.domain.empreinte_entrees import (
+            empreinte_cumuls,
+            poser_empreinte_cumuls,
+        )
+
+        payslip_json_data = poser_empreinte_cumuls(
+            payslip_json_data, empreinte_cumuls(cumuls_lus_au_mois_precedent)
         )
 
         # --- ÉTAPE 5 : SAUVEGARDER ---

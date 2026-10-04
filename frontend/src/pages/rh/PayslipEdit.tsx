@@ -81,6 +81,7 @@ import {
 } from '@/features/payroll/utils/correctionsBulletin';
 import { lienVariablesDuMois } from '@/features/payroll/utils/payslipDerivedLines';
 import {
+  alerteCalendrierChange,
   estPerime,
   MESSAGE_A_RECALCULER,
 } from '@/features/payroll/utils/bulletinARecalculer';
@@ -378,7 +379,7 @@ export default function PayslipEdit() {
         </Alert>
       ) : null}
 
-      {estPerime(payslip) ? (
+      {alerteCalendrierChange(payslip) ? (
         <Alert data-testid="a-recalculer">
           <AlertTitle>À recalculer</AlertTitle>
           <AlertDescription>{MESSAGE_A_RECALCULER}</AlertDescription>
@@ -456,7 +457,7 @@ export default function PayslipEdit() {
               disabled={validateBusy || validationBloquee}
               title={
                 validationBloquee
-                  ? estPerime(payslip)
+                  ? alerteCalendrierChange(payslip)
                     ? MESSAGE_A_RECALCULER
                     : 'Régénérez le bulletin avant de le valider'
                   : undefined

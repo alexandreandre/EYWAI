@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.modules.payroll.domain.empreinte_entrees import empreinte_stockee
+from app.modules.payroll.domain.empreinte_entrees import (
+    empreinte_cumuls_stockee,
+    empreinte_stockee,
+)
 from app.modules.payroll.engine.controles_convention import (
     avertissements_de_generation,
 )
@@ -60,6 +63,7 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "salaire_brut": None,
         "heures_sup": None,
         "empreinte_entrees": None,
+        "empreinte_cumuls_precedents": None,
         "warnings": [],
         "points_a_arbitrer": [],
     }
@@ -83,6 +87,7 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "salaire_brut": montants["salaire_brut"],
         "heures_sup": montants["heures_sup"],
         "empreinte_entrees": empreinte_stockee(payslip_data),
+        "empreinte_cumuls_precedents": empreinte_cumuls_stockee(payslip_data),
         "warnings": warnings,
         "points_a_arbitrer": points_a_arbitrer,
     }

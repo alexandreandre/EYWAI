@@ -105,3 +105,58 @@ def test_construire_entrees_est_stable_quel_que_soit_l_ordre_des_saisies():
     b = _entrees(saisies=[{"name": "A", "amount": 1}, {"name": "B", "amount": 2}])
     assert empreinte(construire_entrees(a)) == empreinte(construire_entrees(b))
     assert deepcopy(a)["saisies"][0]["name"] == "B"
+
+
+# --- Cumuls du mois précédent -------------------------------------------------
+#
+# Le bulletin de M est calculé sur les cumuls de M-1 (réduction générale
+# régularisée, tranches Agirc-Arrco, plafond des heures sup, base du dixième).
+# Ils restent hors de l'empreinte d'entrée, que le moteur réécrit ; leur
+# empreinte à part dit si M-1 a été recalculé depuis le calcul de M.
+
+
+def test_l_empreinte_des_cumuls_suit_chaque_valeur():
+    from app.modules.payroll.domain.empreinte_entrees import empreinte_cumuls
+
+    cumuls = {"cumuls": {"brut_total": 6723.03, "reduction_generale_patronale": -1565.79}}
+    assert empreinte_cumuls(cumuls) == empreinte_cumuls(deepcopy(cumuls))
+    change = deepcopy(cumuls)
+    change["cumuls"]["reduction_generale_patronale"] = -1515.79
+    assert empreinte_cumuls(change) != empreinte_cumuls(cumuls)
+    assert len(empreinte_cumuls(cumuls)) == 64
+
+
+def test_des_cumuls_absents_valent_des_cumuls_vides():
+    from app.modules.payroll.domain.empreinte_entrees import empreinte_cumuls
+
+    assert empreinte_cumuls(None) == empreinte_cumuls({})
+    assert empreinte_cumuls(None) != empreinte_cumuls({"cumuls": {"brut_total": 1.0}})
+
+
+def test_poser_et_lire_l_empreinte_des_cumuls_dans_parametres():
+    from app.modules.payroll.domain.empreinte_entrees import (
+        CLE_EMPREINTE_CUMULS,
+        empreinte_cumuls_stockee,
+        poser_empreinte_cumuls,
+    )
+
+    data = {"salaire_brut": 1.0, "parametres": {CLE_EMPREINTE: "abc"}}
+    pose = poser_empreinte_cumuls(data, "f" * 64)
+    assert empreinte_cumuls_stockee(pose) == "f" * 64
+    assert empreinte_stockee(pose) == "abc"
+    assert pose["salaire_brut"] == 1.0
+    assert CLE_EMPREINTE_CUMULS not in data["parametres"]
+    assert empreinte_cumuls_stockee({"parametres": {}}) is None
+    assert empreinte_cumuls_stockee(None) is None
+
+
+def test_a_recalculer_des_que_les_entrees_ou_les_cumuls_ont_change():
+    from app.modules.payroll.domain.empreinte_entrees import a_recalculer
+
+    assert a_recalculer(False, True) is True
+    assert a_recalculer(True, False) is True
+    assert a_recalculer(None, True) is True
+    assert a_recalculer(False, False) is False
+    assert a_recalculer(False, None) is False
+    assert a_recalculer(None, None) is None
+    assert a_recalculer(None, False) is None

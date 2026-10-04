@@ -50,6 +50,22 @@ export function estPerime(
   return payslip.a_recalculer === true;
 }
 
+/**
+ * L'alerte « calendrier ou absences ont changé », sur le bulletin.
+ *
+ * Un bulletin est aussi périmé quand le mois d'avant a été recalculé depuis
+ * son calcul : le serveur le dit alors par `a_regenerer`, qui s'affiche seul —
+ * la phrase du calendrier serait fausse.
+ */
+export function alerteCalendrierChange(
+  payslip:
+    | { a_recalculer?: boolean | null; a_regenerer?: string | null; origine?: string | null }
+    | null
+    | undefined
+): boolean {
+  return estPerime(payslip) && !payslip?.a_regenerer;
+}
+
 function nombreOuNull(valeur: unknown): number | null {
   if (typeof valeur !== 'number' || !Number.isFinite(valeur)) return null;
   return valeur;

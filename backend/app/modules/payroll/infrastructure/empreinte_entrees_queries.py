@@ -138,7 +138,8 @@ def lire_lectures_salarie(
     mois = sorted({m for _, m in fenetre})
     plannings = (
         supabase.table("employee_schedules")
-        .select("year, month, planned_calendar, actual_hours")
+        # `cumuls` : ceux du mois d'avant, pour l'empreinte des cumuls précédents.
+        .select("year, month, planned_calendar, actual_hours, cumuls")
         .eq("employee_id", employee_id)
         .in_("year", annees)
         .in_("month", mois)

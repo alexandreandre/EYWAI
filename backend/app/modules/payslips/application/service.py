@@ -125,10 +125,11 @@ def get_payslip_details_for_user(
             "exports_du_mois": [],
             "comparaison_mois_dernier": _comparaison_du_bulletin(detail),
         }
+    a_recalculer, a_regenerer = _etats_du_bulletin(detail)
     return {
         **detail,
-        "a_regenerer": signal_a_regenerer(detail),
-        "a_recalculer": _a_recalculer_du_bulletin(detail),
+        "a_regenerer": a_regenerer,
+        "a_recalculer": a_recalculer,
         "exports_du_mois": exports_du_mois(
             detail["company_id"], detail["year"], detail["month"]
         ),
@@ -148,25 +149,39 @@ def _comparaison_du_bulletin(detail: dict[str, Any]) -> dict[str, Any]:
     return comparer_au_mois_dernier(detail.get("payslip_data"), precedent)
 
 
-def _a_recalculer_du_bulletin(detail: dict[str, Any]) -> bool | None:
-    """true / false / null, même règle que la liste de la paie du mois."""
+def _etats_du_bulletin(detail: dict[str, Any]) -> tuple[bool | None, str | None]:
+    """(`a_recalculer`, `a_regenerer`) — même règle que la liste, une seule lecture.
+
+    `a_recalculer` : entrées changées ou mois d'avant recalculé depuis le calcul ;
+    `a_regenerer` : la phrase qui le dit quand c'est le mois d'avant.
+    """
     if str(detail.get("origine") or "calcule") == "importe":
-        return None
+        return None, None
     try:
-        from app.modules.payroll.application.empreinte_entrees_service import (
-            empreinte_actuelle,
-        )
+        from app.modules.payroll.application import empreinte_entrees_service
         from app.modules.payroll.domain.empreinte_entrees import (
+            a_recalculer,
             empreinte_stockee,
             etat_a_recalculer,
         )
 
-        actuelle = empreinte_actuelle(
-            str(detail["employee_id"]), int(detail["year"]), int(detail["month"])
+        actuelle, cumuls_changes = empreinte_entrees_service.etat_actuel(
+            str(detail["employee_id"]),
+            int(detail["year"]),
+            int(detail["month"]),
+            detail.get("payslip_data"),
         )
-        return etat_a_recalculer(empreinte_stockee(detail.get("payslip_data")), actuelle)
+        etat = a_recalculer(
+            etat_a_recalculer(empreinte_stockee(detail.get("payslip_data")), actuelle),
+            cumuls_changes,
+        )
     except Exception:  # noqa: BLE001 — un détail illisible n'empêche pas d'ouvrir le bulletin
-        return None
+        etat, cumuls_changes = None, None
+    try:
+        message = signal_a_regenerer(detail, cumuls_changes)
+    except Exception:  # noqa: BLE001
+        message = None
+    return etat, message
 
 
 def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:

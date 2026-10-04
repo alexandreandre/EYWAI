@@ -140,8 +140,74 @@ def empreinte_stockee(payslip_data: Mapping[str, Any] | None) -> str | None:
 
 def poser_empreinte(payslip_data: Mapping[str, Any] | None, valeur: str) -> dict[str, Any]:
     """Copie du bulletin avec l'empreinte dans `parametres`, sans muter l'original."""
+    return _poser(payslip_data, CLE_EMPREINTE, valeur)
+
+
+def _poser(payslip_data: Mapping[str, Any] | None, cle: str, valeur: str) -> dict[str, Any]:
     data = dict(payslip_data or {})
     parametres = dict(data.get("parametres") or {}) if isinstance(data.get("parametres"), Mapping) else {}
-    parametres[CLE_EMPREINTE] = valeur
+    parametres[cle] = valeur
     data["parametres"] = parametres
     return data
+
+
+# --- Cumuls du mois précédent ---------------------------------------------------
+#
+# Le bulletin de M part des cumuls de M-1 (`employee_schedules.cumuls`) : brut et
+# heures de l'année pour la réduction générale régularisée, tranches Agirc-Arrco,
+# plafond des heures sup, brut de référence du dixième. Régénérer M-1 réécrit ces
+# cumuls, et M — calculé sur les anciens — devient faux sans qu'aucune de ses
+# entrées ait bougé. Ils restent hors de l'empreinte d'entrée (le moteur réécrit
+# ceux du mois qu'il calcule) ; une empreinte à part, posée à la génération, dit
+# si M-1 a changé depuis. Un bulletin d'avant cette empreinte n'en a pas : rien
+# n'est dit pour lui.
+
+CLE_EMPREINTE_CUMULS = "empreinte_cumuls_precedents"
+
+
+def empreinte_cumuls(cumuls: Any) -> str:
+    """sha256 des cumuls du mois précédent, tels que lus en base ; absents = vides."""
+    texte = json.dumps(
+        _jsonable_profond(cumuls or {}),
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(texte.encode("utf-8")).hexdigest()
+
+
+def _jsonable_profond(valeur: Any) -> Any:
+    if isinstance(valeur, Mapping):
+        return {str(cle): _jsonable_profond(sous) for cle, sous in valeur.items()}
+    if isinstance(valeur, list):
+        return [_jsonable_profond(sous) for sous in valeur]
+    return _jsonable(valeur)
+
+
+def empreinte_cumuls_stockee(payslip_data: Mapping[str, Any] | None) -> str | None:
+    if not isinstance(payslip_data, Mapping):
+        return None
+    parametres = payslip_data.get("parametres")
+    if not isinstance(parametres, Mapping):
+        return None
+    valeur = parametres.get(CLE_EMPREINTE_CUMULS)
+    if isinstance(valeur, str) and valeur:
+        return valeur
+    return None
+
+
+def poser_empreinte_cumuls(payslip_data: Mapping[str, Any] | None, valeur: str) -> dict[str, Any]:
+    """Copie du bulletin avec l'empreinte des cumuls d'avant, sans muter l'original."""
+    return _poser(payslip_data, CLE_EMPREINTE_CUMULS, valeur)
+
+
+def a_recalculer(entrees: bool | None, cumuls_precedents: bool | None) -> bool | None:
+    """Périmé dès que ses entrées ou les cumuls du mois d'avant ont changé.
+
+    Sinon l'état des entrées : false = à jour, None = inconnu (bulletin d'avant
+    l'empreinte).
+    """
+    if entrees is True or cumuls_precedents is True:
+        return True
+    return entrees

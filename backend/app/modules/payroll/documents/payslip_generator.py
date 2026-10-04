@@ -1002,6 +1002,11 @@ def process_payslip_generation(
         previous_cumuls_data = (
             (cumuls_res.data or {}).get("cumuls") if cumuls_res else None
         )
+        # Les cumuls du mois d'avant tels que lus : leur empreinte, posée sur le
+        # bulletin, dira s'il a été recalculé depuis (voir empreinte_entrees.py).
+        cumuls_lus_au_mois_precedent = (
+            bac_a_sable.cumuls_precedents if bac_a_sable is not None else previous_cumuls_data
+        )
         if bac_a_sable is not None:
             # Bac à sable : le passé vient de l'appelant, la chaîne de la base
             # n'est ni la source ni la destination.
@@ -1370,6 +1375,14 @@ def process_payslip_generation(
                 "debut": fenetre_variables.debut.isoformat(),
                 "fin": fenetre_variables.fin.isoformat(),
             },
+        )
+        from app.modules.payroll.domain.empreinte_entrees import (
+            empreinte_cumuls,
+            poser_empreinte_cumuls,
+        )
+
+        payslip_json_data = poser_empreinte_cumuls(
+            payslip_json_data, empreinte_cumuls(cumuls_lus_au_mois_precedent)
         )
 
         new_cumuls_path = employee_path / "cumuls" / f"{month:02d}.json"

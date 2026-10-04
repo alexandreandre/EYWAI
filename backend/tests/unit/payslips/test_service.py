@@ -143,14 +143,11 @@ class TestGetPayslipDetailsForUser:
         """Le signal « à régénérer » lit le mois précédent, les exports leur
         table : ici, rien."""
         with patch(
-            "app.modules.payslips.application.service.signal_a_regenerer",
-            return_value=None,
-        ), patch(
             "app.modules.payslips.application.service.exports_du_mois",
             return_value=[],
         ), patch(
-            "app.modules.payslips.application.service._a_recalculer_du_bulletin",
-            return_value=None,
+            "app.modules.payslips.application.service._etats_du_bulletin",
+            return_value=(None, None),
         ), patch(
             "app.modules.payslips.application.service.get_payslip_data_du_mois",
             return_value=None,
@@ -325,6 +322,29 @@ class TestGetPayslipDetailsForUser:
             "exports_du_mois": [],
             "comparaison_mois_dernier": _CMP_ABSENT,
         }
+
+
+def test_le_detail_dit_a_recalculer_et_a_regenerer_quand_le_mois_d_avant_a_change():
+    """Mars régénéré après le calcul d'avril : les entrées d'avril n'ont pas bougé,
+    ses cumuls de départ si. Le détail le dit comme la liste, et dit pourquoi."""
+    from app.modules.payslips.application import service
+    from app.modules.payslips.domain.coherence import MESSAGE_A_REGENERER
+
+    detail = {
+        "id": "ps-1", "employee_id": "emp-1", "company_id": "co-1", "year": 2026,
+        "month": 4, "status": "brouillon", "origine": "calcule",
+        "payslip_data": {"parametres": {"empreinte_entrees": "a" * 64}},
+    }
+    cible = "app.modules.payroll.application.empreinte_entrees_service.etat_actuel"
+    with patch(cible, return_value=("a" * 64, True)):
+        assert service._etats_du_bulletin(detail) == (True, MESSAGE_A_REGENERER)
+    with patch(cible, return_value=("a" * 64, False)):
+        assert service._etats_du_bulletin(detail) == (False, None)
+    with patch(cible, return_value=("b" * 64, False)):
+        assert service._etats_du_bulletin(detail) == (True, None)
+    with patch(cible) as jamais_lu:
+        assert service._etats_du_bulletin({**detail, "origine": "importe"}) == (None, None)
+    jamais_lu.assert_not_called()
 
 
 class TestGetPayslipHistoryForUser:

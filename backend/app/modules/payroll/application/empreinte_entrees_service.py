@@ -14,8 +14,11 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from app.modules.payroll.application.compensation_semaines import CLE_REGLAGE
 from app.modules.payroll.domain.empreinte_entrees import (
+    a_recalculer,
     construire_entrees,
     empreinte,
+    empreinte_cumuls,
+    empreinte_cumuls_stockee,
     etat_a_recalculer,
     mois_de_la_fenetre,
     poser_empreinte,
@@ -24,6 +27,7 @@ from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
     LecturesEmpreinte,
     lire_lectures_salarie,
 )
+from app.shared.domain.employment_rules import premier_mois_du_contrat
 
 _CLES_FICHE = (
     "salaire_de_base",
@@ -284,12 +288,48 @@ def empreinte_actuelle(employee_id: str, year: int, month: int) -> str | None:
     return empreinte(_entrees_depuis_cache(lectures, year, month))
 
 
+def _cumuls_precedents_changes(
+    lectures: LecturesEmpreinte, year: int, month: int, stockee: str | None
+) -> bool | None:
+    """Les cumuls du mois d'avant ont-ils changé depuis le calcul de ce bulletin ?
+
+    false au premier mois d'un contrat : le bulletin repart de zéro, il ne dépend
+    pas du mois d'avant (contrats successifs). None sans empreinte stockée.
+    """
+    if premier_mois_du_contrat(lectures.employee, year, month):
+        return False
+    if not stockee:
+        return None
+    precedent = mois_de_la_fenetre(year, month)[0]
+    actuels = (lectures.calendriers.get(precedent) or {}).get("cumuls")
+    return stockee != empreinte_cumuls(actuels)
+
+
+def etat_actuel(
+    employee_id: str, year: int, month: int, payslip_data: Mapping[str, Any] | None
+) -> tuple[str | None, bool | None]:
+    """(empreinte actuelle des entrées, cumuls du mois d'avant changés ?) — une lecture.
+
+    (None, None) si le salarié est illisible.
+    """
+    lectures = lire_lectures_salarie(employee_id, [(year, month)])
+    if lectures is None:
+        return None, None
+    return (
+        empreinte(_entrees_depuis_cache(lectures, year, month)),
+        _cumuls_precedents_changes(
+            lectures, year, month, empreinte_cumuls_stockee(payslip_data)
+        ),
+    )
+
+
 def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ajoute `a_recalculer` (true / false / null) à chaque ligne de la liste RH.
 
-    Un bulletin repris n'est pas recalculable : `null`, comme un bulletin
-    d'avant ce changement (sans empreinte). Une seule lecture groupée pour
-    tous les mois du salarié.
+    Périmé quand ses entrées ont changé, ou quand le mois d'avant a été recalculé
+    depuis (ses cumuls ne sont plus ceux du calcul). Un bulletin repris n'est
+    pas recalculable : `null`, comme un bulletin d'avant ce changement (sans
+    empreinte). Une seule lecture groupée pour tous les mois du salarié.
     """
     if not lignes:
         return lignes
@@ -301,6 +341,9 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
         hash_stockee = copie.pop("empreinte_entrees", None)
         if not isinstance(hash_stockee, str) or not hash_stockee:
             hash_stockee = None
+        hash_cumuls = copie.pop("empreinte_cumuls_precedents", None)
+        if not isinstance(hash_cumuls, str) or not hash_cumuls:
+            hash_cumuls = None
         if str(copie.get("origine") or "calcule") == "importe":
             copie["a_recalculer"] = None
             annotées.append(copie)
@@ -310,13 +353,15 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
             annotées.append(copie)
             continue
         try:
-            actuelle = empreinte(
-                _entrees_depuis_cache(lectures, int(copie["year"]), int(copie["month"]))
-            )
+            annee, mois = int(copie["year"]), int(copie["month"])
+            actuelle = empreinte(_entrees_depuis_cache(lectures, annee, mois))
+            cumuls_changes = _cumuls_precedents_changes(lectures, annee, mois, hash_cumuls)
         except (KeyError, TypeError, ValueError):
             copie["a_recalculer"] = None
             annotées.append(copie)
             continue
-        copie["a_recalculer"] = etat_a_recalculer(hash_stockee, actuelle)
+        copie["a_recalculer"] = a_recalculer(
+            etat_a_recalculer(hash_stockee, actuelle), cumuls_changes
+        )
         annotées.append(copie)
     return annotées
