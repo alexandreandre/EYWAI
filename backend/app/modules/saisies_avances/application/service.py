@@ -24,10 +24,10 @@ from app.modules.saisies_avances.domain import rules as domain_rules
 from app.modules.saisies_avances.infrastructure import mappers as infra_mappers
 from app.modules.saisies_avances.infrastructure.providers import advance_payment_storage
 from app.modules.saisies_avances.infrastructure.enrichment import (
-    get_existing_deduction,
     get_existing_repayment,
     insert_advance_repayment,
     insert_seizure_deduction,
+    supprimer_deductions_du_bulletin,
 )
 from app.modules.saisies_avances.infrastructure.queries import (
     build_advance_available,
@@ -590,13 +590,22 @@ def enrich_payslip(
     saisies_appliquees: List[Dict[str, Any]] = []
     remaining_seizable = seizable_amount
 
+    # Un recalcul (correction, régénération) repasse ici sur le même bulletin :
+    # la retenue est refaite sur le net du nouveau calcul. Sauter une saisie
+    # déjà prélevée laissait le bulletin recalculé sans retenue.
+    if payslip_id:
+        try:
+            supprimer_deductions_du_bulletin(payslip_id)
+        except Exception:  # noqa: BLE001 — le bulletin garde sa retenue, l'historique au pire un doublon
+            logger.warning(
+                "Prélèvements de saisie du bulletin %s non retirés avant recalcul",
+                payslip_id,
+                exc_info=True,
+            )
+
     for seizure in seizures:
         if remaining_seizable <= 0:
             break
-        if payslip_id:
-            existing = get_existing_deduction(seizure["id"], payslip_id)
-            if existing:
-                continue
         deduction = domain_rules.calculate_seizure_deduction(
             seizure, net_a_payer, remaining_seizable, dependents_count
         )

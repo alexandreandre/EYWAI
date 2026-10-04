@@ -43,6 +43,17 @@ def get_existing_repayment(
     return r.data if r and r.data else None
 
 
+def supprimer_deductions_du_bulletin(payslip_id: str) -> None:
+    """Retire les prélèvements de saisie enregistrés pour ce bulletin.
+
+    Un recalcul refait la retenue sur le net du nouveau calcul : celle de
+    l'ancien ne doit ni rester dans l'historique ni empêcher la nouvelle.
+    """
+    supabase.table("salary_seizure_deductions").delete().eq(
+        "payslip_id", payslip_id
+    ).execute()
+
+
 def insert_seizure_deduction(
     seizure_id: str,
     payslip_id: str,
