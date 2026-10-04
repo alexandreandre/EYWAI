@@ -60,6 +60,7 @@ CLES_VOLATILES: frozenset[str] = frozenset(
         # Métadonnées d'entrée, pas des montants : le filet ne les compare pas.
         "empreinte_entrees",
         "empreinte_cumuls_precedents",
+        "empreinte_complementaire",
         # Phrase d'aide posée à la génération, pas un montant.
         "explication",
     }

@@ -20,9 +20,12 @@ from typing import Any, Mapping
 
 CLE_EMPREINTE = "empreinte_entrees"
 
+#: Ce qu'on dit quand on ne sait pas quelle donnée a changé : un bulletin
+#: calculé avant l'empreinte complémentaire n'a qu'un hash global.
 MESSAGE_A_RECALCULER = (
-    "Le calendrier ou les absences ont changé depuis le calcul : "
-    "recalculez avant de valider"
+    "Une donnée du bulletin a changé depuis le calcul (planning, absences, "
+    "variables, fiche du salarié ou réglages de la société) : recalculez avant "
+    "de valider."
 )
 
 _CLES_IGNOREES = frozenset(
@@ -143,7 +146,7 @@ def poser_empreinte(payslip_data: Mapping[str, Any] | None, valeur: str) -> dict
     return _poser(payslip_data, CLE_EMPREINTE, valeur)
 
 
-def _poser(payslip_data: Mapping[str, Any] | None, cle: str, valeur: str) -> dict[str, Any]:
+def _poser(payslip_data: Mapping[str, Any] | None, cle: str, valeur: Any) -> dict[str, Any]:
     data = dict(payslip_data or {})
     parametres = dict(data.get("parametres") or {}) if isinstance(data.get("parametres"), Mapping) else {}
     parametres[cle] = valeur
@@ -211,3 +214,114 @@ def a_recalculer(entrees: bool | None, cumuls_precedents: bool | None) -> bool |
     if entrees is True or cumuls_precedents is True:
         return True
     return entrees
+
+
+# --- Empreinte complémentaire ---------------------------------------------------
+#
+# L'empreinte d'entrée est un seul hash : elle ne dit pas ce qui a changé, et ne
+# voit pas tout ce que le moteur lit pour le mois — formules de mutuelle de la
+# société, ajustements et réglages de congés, départ du salarié, historique de
+# salaire daté, réglages société hors des champs suivis. L'empreinte
+# complémentaire, posée à la génération, garde un hash PAR PARTIE : celles de
+# l'empreinte d'entrée et ces données-là. Un bulletin d'avant elle n'en a pas :
+# rien n'est comparé pour lui, l'empreinte d'entrée seule décide (le
+# déploiement ne fait passer aucun bulletin « À recalculer »).
+
+CLE_EMPREINTE_COMPLEMENTAIRE = "empreinte_complementaire"
+
+#: Partie de la fiche du salarié : son changement ne périme que les brouillons
+#: du contrat en cours (la fiche est celle d'aujourd'hui, pas celle du mois).
+PARTIE_FICHE = "fiche"
+
+#: Phrase quand une seule partie a changé, et nom de la partie dans une liste.
+_PARTIES: dict[str, tuple[str, str]] = {
+    "calendriers": ("Le planning a changé", "le planning"),
+    "absences": ("Une absence a changé", "les absences"),
+    "saisies": ("Les variables du mois ont changé", "les variables du mois"),
+    PARTIE_FICHE: ("La fiche du salarié a changé", "la fiche du salarié"),
+    "notes_de_frais": ("Une note de frais a changé", "les notes de frais"),
+    "parametres_societe": (
+        "Un réglage de paie de la société a changé",
+        "les réglages de paie de la société",
+    ),
+    "fenetre_variables": (
+        "La période des variables a changé",
+        "la période des variables",
+    ),
+    "mutuelle": ("La mutuelle a changé", "la mutuelle"),
+    "conges_ajustements": (
+        "Un compteur de congés a été ajusté",
+        "les compteurs de congés",
+    ),
+    "conges_reglages": ("Les réglages de congés ont changé", "les réglages de congés"),
+    "depart": ("Le départ du salarié a changé", "le départ du salarié"),
+    "salaire": ("L'historique de salaire a changé", "l'historique de salaire"),
+    "reglages_societe": (
+        "Un réglage de paie de la société a changé",
+        "les réglages de paie de la société",
+    ),
+}
+
+
+def empreinte_partie(valeur: Any) -> str:
+    """sha256 du JSON trié d'une partie (dates et décimaux rendus en texte)."""
+    texte = json.dumps(
+        _jsonable_profond(valeur),
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(texte.encode("utf-8")).hexdigest()
+
+
+def empreinte_complementaire_valide(valeur: Any) -> dict[str, str] | None:
+    """Les hash par partie, ou None (absente, vide ou illisible)."""
+    if not isinstance(valeur, Mapping):
+        return None
+    parties = {str(k): v for k, v in valeur.items() if isinstance(v, str) and v}
+    return parties or None
+
+
+def empreinte_complementaire_stockee(
+    payslip_data: Mapping[str, Any] | None,
+) -> dict[str, str] | None:
+    if not isinstance(payslip_data, Mapping):
+        return None
+    parametres = payslip_data.get("parametres")
+    if not isinstance(parametres, Mapping):
+        return None
+    return empreinte_complementaire_valide(parametres.get(CLE_EMPREINTE_COMPLEMENTAIRE))
+
+
+def poser_empreinte_complementaire(
+    payslip_data: Mapping[str, Any] | None, parties: Mapping[str, str]
+) -> dict[str, Any]:
+    """Copie du bulletin avec les hash par partie, sans muter l'original."""
+    return _poser(payslip_data, CLE_EMPREINTE_COMPLEMENTAIRE, dict(parties))
+
+
+def parties_changees(
+    stockees: Mapping[str, str], actuelles: Mapping[str, str]
+) -> tuple[str, ...]:
+    """Les parties dont le hash a changé depuis le calcul.
+
+    Une partie absente d'un côté (lecture ratée, partie ajoutée depuis) ne se
+    compare pas : rien n'est dit sur ce qu'on ne sait pas.
+    """
+    return tuple(
+        nom for nom, valeur in stockees.items() if nom in actuelles and actuelles[nom] != valeur
+    )
+
+
+def message_a_recalculer(parties: tuple[str, ...] | list[str] | None) -> str:
+    """Ce qui a changé, dit simplement ; sinon le message général, juste."""
+    connues = [p for p in (parties or ()) if p in _PARTIES]
+    phrases = list(dict.fromkeys(_PARTIES[p][0] for p in connues))
+    if not phrases:
+        return MESSAGE_A_RECALCULER
+    if len(phrases) == 1:
+        return f"{phrases[0]} depuis le calcul : recalculez avant de valider."
+    noms = list(dict.fromkeys(_PARTIES[p][1] for p in connues))
+    liste = f"{', '.join(noms[:-1])} et {noms[-1]}"
+    return f"Ont changé depuis le calcul : {liste}. Recalculez avant de valider."

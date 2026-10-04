@@ -8,11 +8,16 @@ requête par bulletin.
 from __future__ import annotations
 
 import calendar
+import json
+import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
 from app.core.database import supabase
+
+logger = logging.getLogger(__name__)
 from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
 
 FICHE_COLONNES = (
@@ -36,6 +41,24 @@ SOCIETE_COLONNES = (
 
 
 @dataclass(frozen=True)
+class Complements:
+    """Ce que le moteur lit hors de l'empreinte d'entrée, pour tous les mois du salarié.
+
+    Le tri par mois (formules de la fiche, départ du mois, salaire jusqu'à la
+    fin du mois…) se fait ensuite, sans I/O (`complements_du_mois`).
+    """
+
+    mutuelles: list[dict[str, Any]] = field(default_factory=list)
+    sorties: list[dict[str, Any]] = field(default_factory=list)
+    ajustements_conges: list[dict[str, Any]] = field(default_factory=list)
+    reglages_conges: dict[str, Any] | None = None
+    conges_anciennete: dict[str, Any] | None = None
+    historique_salaire: list[dict[str, Any]] = field(default_factory=list)
+    maintien: dict[str, Any] | None = None
+    jei: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
 class LecturesEmpreinte:
     employee: dict[str, Any]
     company: dict[str, Any]
@@ -44,6 +67,95 @@ class LecturesEmpreinte:
     saisies_par_mois: dict[tuple[int, int], list[dict[str, Any]]]
     notes_de_frais: list[dict[str, Any]]
     surcharges_fenetre: dict[tuple[int, int], date] = field(default_factory=dict)
+    #: None : illisibles (les parties complémentaires ne se comparent pas).
+    complements: Complements | None = None
+
+
+def _ids_mutuelle_de_la_fiche(employee: Mapping[str, Any]) -> list[str]:
+    """Les formules de la fiche, mois surchargés compris (`overrides_mensuels`)."""
+    specificites = employee.get("specificites_paie")
+    if isinstance(specificites, str):
+        try:
+            specificites = json.loads(specificites)
+        except ValueError:
+            return []
+    if not isinstance(specificites, Mapping):
+        return []
+    blocs = [specificites.get("mutuelle")]
+    surcharges = specificites.get("overrides_mensuels")
+    if isinstance(surcharges, Mapping):
+        blocs += [s.get("mutuelle") for s in surcharges.values() if isinstance(s, Mapping)]
+    ids: set[str] = set()
+    for bloc in blocs:
+        if isinstance(bloc, Mapping):
+            ids.update(str(i) for i in (bloc.get("mutuelle_type_ids") or []) if i)
+    return sorted(ids)
+
+
+def _une_ligne(resp: Any) -> dict[str, Any] | None:
+    lignes = (resp.data if resp else None) or []
+    if isinstance(lignes, Mapping):
+        return dict(lignes)
+    return dict(lignes[0]) if lignes else None
+
+
+def _lignes(resp: Any) -> list[dict[str, Any]]:
+    return [dict(l) for l in ((resp.data if resp else None) or []) if isinstance(l, Mapping)]
+
+
+def lire_complements(
+    employee: Mapping[str, Any], company: Mapping[str, Any] | None
+) -> Complements:
+    """Mutuelles de la fiche, départs, congés, salaire daté, réglages société.
+
+    Les mêmes lectures à la génération et à la liste : c'est ce qui garantit
+    qu'un bulletin relu sans changement reste à jour.
+    """
+    employee_id = str(employee.get("id") or "")
+    company_id = str((company or {}).get("id") or employee.get("company_id") or "")
+    ids = _ids_mutuelle_de_la_fiche(employee)
+    mutuelles: list[dict[str, Any]] = []
+    if ids:
+        mutuelles = _lignes(
+            supabase.table("company_mutuelle_types").select("*").in_("id", ids).execute()
+        )
+    sorties = _lignes(
+        supabase.table("employee_exits")
+        .select("exit_type, status, last_working_day, calculated_indemnities")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    ajustements = _lignes(
+        supabase.table("employee_leave_adjustments")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not company_id:
+        return Complements(mutuelles=mutuelles, sorties=sorties, ajustements_conges=ajustements)
+
+    def _reglage(table: str) -> dict[str, Any] | None:
+        return _une_ligne(
+            supabase.table(table).select("*").eq("company_id", company_id).limit(1).execute()
+        )
+
+    historique = _lignes(
+        supabase.table("salary_history")
+        .select("effective_date, ancien_salaire, nouveau_salaire")
+        .eq("employee_id", employee_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return Complements(
+        mutuelles=mutuelles,
+        sorties=sorties,
+        ajustements_conges=ajustements,
+        reglages_conges=_reglage("company_leave_settings"),
+        conges_anciennete=_reglage("company_cp_seniority_settings"),
+        historique_salaire=historique,
+        maintien=_reglage("company_maintenance_settings"),
+        jei=_reglage("company_jei_settings"),
+    )
 
 
 def _mois_a_lire(periodes: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -105,7 +217,8 @@ def _lire_surcharges_fenetre(
 _EMPREINTES_DES_BULLETINS = (
     "year, month, "
     "empreinte_entrees:payslip_data->parametres->>empreinte_entrees, "
-    "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents"
+    "empreinte_cumuls_precedents:payslip_data->parametres->>empreinte_cumuls_precedents, "
+    "empreinte_complementaire:payslip_data->parametres->empreinte_complementaire"
 )
 
 
@@ -230,6 +343,12 @@ def lire_lectures_salarie(
 
     surcharges_fenetre = _lire_surcharges_fenetre(company_id, periodes) if company_id else {}
 
+    try:
+        complements: Complements | None = lire_complements(employee, company)
+    except Exception:  # noqa: BLE001 — lecture ratée : les parties complémentaires ne se comparent pas
+        logger.warning("Compléments de l'empreinte illisibles (%s)", employee_id, exc_info=True)
+        complements = None
+
     return LecturesEmpreinte(
         employee=employee,
         company=company,
@@ -238,4 +357,5 @@ def lire_lectures_salarie(
         saisies_par_mois=saisies_par_mois,
         notes_de_frais=notes,
         surcharges_fenetre=surcharges_fenetre,
+        complements=complements,
     )

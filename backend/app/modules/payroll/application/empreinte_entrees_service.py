@@ -9,26 +9,37 @@ lues par le générateur, sans aller relire la base.
 from __future__ import annotations
 
 import calendar
+import json
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.modules.payroll.application.compensation_semaines import CLE_REGLAGE
+from app.modules.payroll.application.monthly_specificites import resolve_monthly_specificites
 from app.modules.payroll.domain.empreinte_entrees import (
     a_recalculer,
     construire_entrees,
     empreinte,
+    empreinte_complementaire_valide,
     empreinte_cumuls,
+    empreinte_partie,
     etat_a_recalculer,
     mois_de_la_fenetre,
+    parties_changees,
     poser_empreinte,
+    poser_empreinte_complementaire,
 )
 from app.modules.payroll.infrastructure.empreinte_entrees_queries import (
+    Complements,
     LecturesEmpreinte,
+    lire_complements,
     lire_empreintes_des_bulletins,
     lire_lectures_salarie,
 )
-from app.shared.domain.employment_rules import premier_mois_du_contrat
+from app.shared.domain.employment_rules import is_forfait_jour, premier_mois_du_contrat
+
+logger = logging.getLogger(__name__)
 
 _CLES_FICHE = (
     "salaire_de_base",
@@ -267,6 +278,289 @@ def poser_empreinte_depuis_lectures(payslip_data: Mapping[str, Any] | None, **kw
     return poser_empreinte(payslip_data, empreinte_des_lectures(**kwargs))
 
 
+# --- Empreinte complémentaire : ce que le moteur lit pour le mois ----------------
+
+#: Colonnes qui ne disent rien du calcul : identifiants, horodatages, rappels.
+_COLONNES_HORS_CALCUL = frozenset(
+    {
+        "id",
+        "company_id",
+        "employee_id",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "rtt_forfeited_by_user_id",
+        "rtt_year_end_reminder_enabled",
+        "rtt_year_end_reminder_days_before",
+    }
+)
+
+#: Ce que le moteur lit d'une formule de mutuelle (engine/calcul_cotisations.py,
+#: engine/calcul_net.py) : ni les codes DSN, ni l'organisme.
+_CHAMPS_MUTUELLE = (
+    "libelle",
+    "montant_salarial",
+    "montant_patronal",
+    "part_patronale_soumise_a_csg",
+    "part_salariale_deductible_impot",
+    "part_salariale_obligatoire",
+    "is_active",
+)
+
+#: Indemnités de départ : la date du calcul et les identifiants changent sans
+#: que le montant bouge.
+_CLES_INDEMNITES_HORS_CALCUL = frozenset({"calculation_date", "exit_id", "employee_id"})
+
+_SORTIES_ANNULEES = frozenset({"cancelled", "canceled", "annule", "annulee"})
+
+
+def _sans(row: Mapping[str, Any] | None, cles: frozenset[str] = _COLONNES_HORS_CALCUL) -> dict[str, Any] | None:
+    if not isinstance(row, Mapping):
+        return None
+    return {k: v for k, v in row.items() if k not in cles}
+
+
+def _cle_tri(valeur: Any) -> str:
+    return json.dumps(valeur, sort_keys=True, ensure_ascii=False, default=str)
+
+
+def _jour(valeur: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(valeur)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _specificites(employee: Mapping[str, Any]) -> dict[str, Any]:
+    brut = employee.get("specificites_paie")
+    if isinstance(brut, str):
+        try:
+            brut = json.loads(brut)
+        except ValueError:
+            return {}
+    return brut if isinstance(brut, dict) else {}
+
+
+def _mutuelle_du_mois(
+    mutuelles: Iterable[Mapping[str, Any]], employee: Mapping[str, Any], year: int, month: int
+) -> list[dict[str, Any]]:
+    """Les formules que le bulletin du mois retient (surcharge du mois comprise)."""
+    bloc = resolve_monthly_specificites(_specificites(employee), year, month).get("mutuelle")
+    if not isinstance(bloc, Mapping) or not bloc.get("adhesion"):
+        return []
+    par_id = {str(m.get("id")): m for m in mutuelles}
+    ids = sorted({str(i) for i in (bloc.get("mutuelle_type_ids") or []) if i})
+    return [{"id": i, **_extrait(par_id.get(i), _CHAMPS_MUTUELLE)} for i in ids]
+
+
+def _ajustements_du_mois(ajustements: Iterable[Mapping[str, Any]], year: int) -> list[dict[str, Any]]:
+    """Les lignes jusqu'à l'année du bulletin, comme `get_applicable_adjustment`."""
+    retenues = []
+    for row in ajustements:
+        try:
+            annee = int(row.get("year") or 0)
+        except (TypeError, ValueError):
+            continue
+        if annee <= year:
+            retenues.append(_sans(row))
+    return sorted(retenues, key=_cle_tri)
+
+
+def _bornes_du_mois(year: int, month: int, fenetre: Mapping[str, Any] | None) -> tuple[date, date]:
+    """Mois civil ∪ fenêtre des variables : le départ et l'arrêt s'y rattachent."""
+    debut = date(year, month, 1)
+    fin = date(year, month, calendar.monthrange(year, month)[1])
+    f_debut = _jour((fenetre or {}).get("debut"))
+    f_fin = _jour((fenetre or {}).get("fin"))
+    return (min(debut, f_debut) if f_debut else debut, max(fin, f_fin) if f_fin else fin)
+
+
+def _depart_du_mois(
+    sorties: Iterable[Mapping[str, Any]], bornes: tuple[date, date]
+) -> list[dict[str, Any]]:
+    """Le départ que le bulletin porte : type et indemnités (resolve_exit_state_for_payslip)."""
+    retenues = []
+    for row in sorties:
+        if str(row.get("status") or "").lower() in _SORTIES_ANNULEES:
+            continue
+        dernier_jour = _jour(row.get("last_working_day"))
+        if dernier_jour is None or not (bornes[0] <= dernier_jour <= bornes[1]):
+            continue
+        indemnites = row.get("calculated_indemnities")
+        retenues.append(
+            {
+                "exit_type": row.get("exit_type"),
+                "last_working_day": dernier_jour.isoformat(),
+                "calculated_indemnities": _sans(indemnites, _CLES_INDEMNITES_HORS_CALCUL)
+                if isinstance(indemnites, Mapping)
+                else indemnites,
+            }
+        )
+    return sorted(retenues, key=_cle_tri)
+
+
+def _salaire_du_mois(historique: Iterable[Mapping[str, Any]], year: int, month: int) -> dict[str, Any]:
+    """Les salaires datés jusqu'à la fin du mois (salaire du mois, prorata, rappel).
+
+    Sans aucun, `salaire_actif_a_date` lit l'ancien salaire de la première
+    entrée future : lui seul compte alors.
+    """
+    fin = date(year, month, calendar.monthrange(year, month)[1])
+    lignes = [
+        {
+            "effective_date": jour.isoformat(),
+            "ancien_salaire": row.get("ancien_salaire"),
+            "nouveau_salaire": row.get("nouveau_salaire"),
+        }
+        for row in historique
+        if (jour := _jour(row.get("effective_date"))) is not None
+    ]
+    lignes.sort(key=lambda l: (l["effective_date"], _cle_tri(l)))
+    jusqu_au_mois = [l for l in lignes if l["effective_date"] <= fin.isoformat()]
+    if jusqu_au_mois:
+        return {"jusqu_au_mois": jusqu_au_mois}
+    suivantes = [l for l in lignes if l["effective_date"] > fin.isoformat()]
+    return {"ancien_salaire_suivant": suivantes[0]["ancien_salaire"] if suivantes else None}
+
+
+def _arret_dans_le_mois(
+    calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    year: int,
+    month: int,
+    bornes: tuple[date, date],
+) -> bool:
+    """Un jour d'arrêt typé : le moteur lit alors le réglage du maintien de salaire."""
+    for y, m in mois_de_la_fenetre(year, month):
+        for entree in _liste_prevu(calendriers.get((y, m))):
+            if not isinstance(entree, Mapping) or not entree.get("arret_type"):
+                continue
+            iso = _iso_jour(entree, y, m)
+            if iso and bornes[0].isoformat() <= iso <= bornes[1].isoformat():
+                return True
+    return False
+
+
+def _reglages_societe_du_mois(
+    complements: Complements,
+    *,
+    employee: Mapping[str, Any],
+    company: Mapping[str, Any] | None,
+    calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    year: int,
+    month: int,
+    bornes: tuple[date, date],
+) -> dict[str, Any]:
+    """Réglages société lus par le moteur hors de `parametres_societe_pour_empreinte`."""
+    reglages = (company or {}).get("settings") or {}
+    if not isinstance(reglages, Mapping):
+        reglages = {}
+    paie = reglages.get("parametres_paie")
+    parties: dict[str, Any] = {
+        "prime_anciennete": (paie.get("prime_anciennete") if isinstance(paie, Mapping) else None) or {},
+    }
+    if is_forfait_jour(employee.get("statut"), employee.get("is_forfait_jour")):
+        parties["forfait_jours_ouvres_mois"] = reglages.get("forfait_jours_ouvres_mois")
+    if _arret_dans_le_mois(calendriers, year, month, bornes):
+        parties["maintien"] = _sans(complements.maintien)
+    jei = complements.jei
+    if isinstance(jei, Mapping) and jei.get("jei_enabled"):
+        parties["jei"] = _sans(jei)
+    return parties
+
+
+def complements_du_mois(
+    complements: Complements,
+    *,
+    year: int,
+    month: int,
+    employee: Mapping[str, Any],
+    company: Mapping[str, Any] | None,
+    calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+    fenetre: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Les données de la liste complémentaire que le bulletin du mois lit. Sans I/O."""
+    bornes = _bornes_du_mois(year, month, fenetre)
+    return {
+        "mutuelle": _mutuelle_du_mois(complements.mutuelles, employee, year, month),
+        "conges_ajustements": _ajustements_du_mois(complements.ajustements_conges, year),
+        "conges_reglages": {
+            "conges": _sans(complements.reglages_conges),
+            "anciennete": _sans(complements.conges_anciennete),
+        },
+        "depart": _depart_du_mois(complements.sorties, bornes),
+        "salaire": _salaire_du_mois(complements.historique_salaire, year, month),
+        "reglages_societe": _reglages_societe_du_mois(
+            complements,
+            employee=employee,
+            company=company,
+            calendriers=calendriers,
+            year=year,
+            month=month,
+            bornes=bornes,
+        ),
+    }
+
+
+def empreintes_des_parties(
+    entrees: Mapping[str, Any], complements: Mapping[str, Any] | None
+) -> dict[str, str]:
+    """Un hash par partie : celles de l'empreinte d'entrée, puis les compléments."""
+    parties = dict(entrees)
+    parties.update(complements or {})
+    return {nom: empreinte_partie(valeur) for nom, valeur in parties.items()}
+
+
+def _complements_ou_none(
+    complements: Complements | None,
+    entrees: Mapping[str, Any],
+    *,
+    year: int,
+    month: int,
+    employee: Mapping[str, Any],
+    company: Mapping[str, Any] | None,
+    calendriers: Mapping[tuple[int, int], Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    if complements is None:
+        return None
+    return complements_du_mois(
+        complements,
+        year=year,
+        month=month,
+        employee=employee,
+        company=company,
+        calendriers=calendriers,
+        fenetre=entrees.get("fenetre_variables"),
+    )
+
+
+def poser_empreinte_complementaire_depuis_lectures(
+    payslip_data: Mapping[str, Any] | None, **kwargs: Any
+) -> dict[str, Any]:
+    """À la génération : un hash par partie, posé sur le JSON du bulletin.
+
+    Les parties d'entrée viennent des pièces déjà lues par le générateur (les
+    mêmes que l'empreinte d'entrée) ; les compléments sont lus ici, après le
+    calcul, par les mêmes lectures que la liste. Illisibles : seules les
+    parties d'entrée sont posées — jamais un bulletin refusé pour elles.
+    """
+    entrees = entrees_depuis_lectures(**kwargs)
+    try:
+        complements: Complements | None = lire_complements(kwargs["employee"], kwargs.get("company"))
+    except Exception:  # noqa: BLE001 — l'empreinte est une aide, pas une garde de calcul
+        logger.warning("Compléments de l'empreinte illisibles à la génération", exc_info=True)
+        complements = None
+    du_mois = _complements_ou_none(
+        complements,
+        entrees,
+        year=kwargs["year"],
+        month=kwargs["month"],
+        employee=kwargs["employee"],
+        company=kwargs.get("company"),
+        calendriers=kwargs["calendriers"],
+    )
+    return poser_empreinte_complementaire(payslip_data, empreintes_des_parties(entrees, du_mois))
+
+
 def _entrees_depuis_cache(lectures: LecturesEmpreinte, year: int, month: int) -> dict[str, Any]:
     return entrees_depuis_lectures(
         year=year,
@@ -320,6 +614,9 @@ class EtatDuBulletin:
     #: calcul : ce bulletin, ou un mois d'avant encore à recalculer. Corriger
     #: septembre en novembre laisse octobre périmé, donc novembre aussi.
     cascade_depuis: tuple[int, int] | None = None
+    #: Les parties changées (mutuelle, fiche, planning…) quand le bulletin porte
+    #: l'empreinte complémentaire ; None pour un bulletin d'avant elle.
+    parties_changees: tuple[str, ...] | None = None
 
     @property
     def a_recalculer(self) -> bool | None:
@@ -350,7 +647,8 @@ def _etats_par_mois(
             continue
         annee, mois = periode
         try:
-            actuelle = empreinte(_entrees_depuis_cache(lectures, annee, mois))
+            entrees, parties = _parties_du_mois(lectures, annee, mois)
+            actuelle = empreinte(entrees)
             propres = _cumuls_precedents_changes(
                 lectures, annee, mois, _hash_ou_none(ligne.get("empreinte_cumuls_precedents"))
             )
@@ -361,15 +659,43 @@ def _etats_par_mois(
         if cascade is None and not premier_mois_du_contrat(lectures.employee, annee, mois):
             precedent = etats.get(mois_de_la_fenetre(annee, mois)[0])
             cascade = precedent.cascade_depuis if precedent else None
+        stockees = empreinte_complementaire_valide(ligne.get("empreinte_complementaire"))
+        if stockees is not None:
+            # Calculé avec l'empreinte complémentaire : elle seule décide, partie
+            # par partie (elle contient celles de l'empreinte d'entrée).
+            changees: tuple[str, ...] | None = parties_changees(stockees, parties)
+            entrees_changees: bool | None = bool(changees)
+        else:
+            # Bulletin d'avant elle : l'empreinte d'entrée seule, comme avant.
+            changees = None
+            entrees_changees = etat_a_recalculer(
+                _hash_ou_none(ligne.get("empreinte_entrees")), actuelle
+            )
         etats[periode] = EtatDuBulletin(
             empreinte_actuelle=actuelle,
-            entrees_changees=etat_a_recalculer(
-                _hash_ou_none(ligne.get("empreinte_entrees")), actuelle
-            ),
+            entrees_changees=entrees_changees,
             cumuls_precedents_changes=propres,
             cascade_depuis=cascade,
+            parties_changees=changees,
         )
     return etats
+
+
+def _parties_du_mois(
+    lectures: LecturesEmpreinte, year: int, month: int
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Les entrées du mois (empreinte d'entrée) et un hash par partie."""
+    entrees = _entrees_depuis_cache(lectures, year, month)
+    du_mois = _complements_ou_none(
+        lectures.complements,
+        entrees,
+        year=year,
+        month=month,
+        employee=lectures.employee,
+        company=lectures.company,
+        calendriers=lectures.calendriers,
+    )
+    return entrees, empreintes_des_parties(entrees, du_mois)
 
 
 #: Assez loin pour une correction tardive ; la chaîne s'arrête de toute façon
@@ -420,6 +746,7 @@ def annoter_a_recalculer(employee_id: str, lignes: list[dict[str, Any]]) -> list
         copie = dict(ligne)
         copie.pop("empreinte_entrees", None)
         copie.pop("empreinte_cumuls_precedents", None)
+        copie.pop("empreinte_complementaire", None)
         try:
             etat = etats.get((int(copie["year"]), int(copie["month"])))
         except (KeyError, TypeError, ValueError):

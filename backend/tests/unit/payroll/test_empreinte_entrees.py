@@ -81,7 +81,8 @@ def test_poser_et_lire_l_empreinte_dans_parametres():
     assert pose["salaire_brut"] == 1.0
     assert empreinte_stockee(pose) == valeur
     assert data.get("parametres", {}).get(CLE_EMPREINTE) is None
-    assert MESSAGE_A_RECALCULER.startswith("Le calendrier ou les absences")
+    # Le hash global ne dit pas quoi : le message ne nomme pas une seule cause.
+    assert "fiche" in MESSAGE_A_RECALCULER and "planning" in MESSAGE_A_RECALCULER
 
 
 def test_la_fenetre_couvre_le_mois_precedent_et_le_suivant():

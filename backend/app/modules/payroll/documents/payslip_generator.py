@@ -1305,8 +1305,9 @@ def process_payslip_generation(
             poser_empreinte_depuis_lectures,
         )
 
-        payslip_json_data = poser_empreinte_depuis_lectures(
-            payslip_json_data if isinstance(payslip_json_data, dict) else {},
+        # Les pièces lues pour ce calcul : l'empreinte d'entrée, puis
+        # l'empreinte complémentaire du bulletin enregistré, partent d'elles.
+        lectures_du_calcul = dict(
             year=year,
             month=month,
             calendriers=db_data_map,
@@ -1319,6 +1320,10 @@ def process_payslip_generation(
                 "debut": fenetre_variables.debut.isoformat(),
                 "fin": fenetre_variables.fin.isoformat(),
             },
+        )
+        payslip_json_data = poser_empreinte_depuis_lectures(
+            payslip_json_data if isinstance(payslip_json_data, dict) else {},
+            **lectures_du_calcul,
         )
         from app.modules.payroll.domain.empreinte_entrees import (
             empreinte_cumuls,
@@ -1359,6 +1364,16 @@ def process_payslip_generation(
                 "warnings": avertissements_de_generation(payslip_json_data),
                 **montants_du_bulletin(payslip_json_data),
             }
+
+        # Un hash par partie (mutuelle, congés, départ, salaire daté…), lu après
+        # le calcul : il dira ce qui a changé depuis. Pas en bac à sable.
+        from app.modules.payroll.application.empreinte_entrees_service import (
+            poser_empreinte_complementaire_depuis_lectures,
+        )
+
+        payslip_json_data = poser_empreinte_complementaire_depuis_lectures(
+            payslip_json_data, **lectures_du_calcul
+        )
 
         pdf_name = f"Bulletin_{employee_folder_name}_{month:02d}-{year}.pdf"
         local_pdf_path = employee_path / "bulletins" / pdf_name
