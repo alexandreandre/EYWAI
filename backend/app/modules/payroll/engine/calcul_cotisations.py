@@ -998,6 +998,9 @@ def calculer_cotisations(
                 ligne.get("salarial"),
                 ligne.get("patronal"),
                 coti_id="prevoyance_cadre",
+                # Tranche B : régularisation progressive du plafond, comme la
+                # retraite complémentaire (l'assiette peut être négative).
+                autoriser_assiette_negative=(base_id == "tranche_2"),
             )
             if ligne_calculee:
                 bulletin_cotisations.append(ligne_calculee)
@@ -1045,6 +1048,7 @@ def calculer_cotisations(
                     ligne.get("salarial"),
                     ligne.get("patronal"),
                     coti_id="prevoyance_non_cadre",
+                    autoriser_assiette_negative=(base_id == "tranche_2"),
                 )
                 if ligne_calculee:
                     bulletin_cotisations.append(ligne_calculee)
