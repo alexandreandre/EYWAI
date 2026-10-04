@@ -17,6 +17,7 @@ from __future__ import annotations
 import html
 import logging
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -252,6 +253,8 @@ def generate_regularisation_participation_payslip(
                 "url": pdf_url,
                 "status": "valide",
                 "bulletin_kind": REGULARISATION_KIND,
+                # Date du calcul : les exports déjà faits du mois deviennent « à refaire ».
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             },
             on_conflict="company_id,employee_id,year,month",
         )

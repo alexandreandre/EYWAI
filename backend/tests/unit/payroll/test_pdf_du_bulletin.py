@@ -376,6 +376,19 @@ class TestGenerateur:
         assert base.storage.seau.options_de_signature == [{"download": NOM_DU_PDF}]
         assert enregistrer[2]["name"] == NOM_DU_PDF
 
+    def test_chaque_calcul_date_le_bulletin(self, monkeypatch, imprimeur):
+        """`generated_at` ne valait que la première création : un bulletin
+        recalculé après un export ne le rendait pas « à refaire »."""
+        base = _BaseEcrite(chemin_en_place=CHEMIN_HISTORIQUE)
+        avant = datetime.now(UTC)
+
+        _generer(monkeypatch, base)
+
+        enregistrer = [e for e in base.journal if e[0] == "enregistrer"][0]
+        calcule_le = datetime.fromisoformat(enregistrer[2]["generated_at"])
+        assert calcule_le.tzinfo is not None
+        assert avant <= calcule_le <= datetime.now(UTC)
+
     def test_premiere_generation_ne_retire_rien(self, monkeypatch, imprimeur):
         base = _BaseEcrite(chemin_en_place=None)
 

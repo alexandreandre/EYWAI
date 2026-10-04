@@ -5,7 +5,7 @@
 
 import calendar
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1445,6 +1445,9 @@ def process_payslip_generation(
                     "pdf_storage_path": storage_path,
                     "url": pdf_url,
                     "company_id": company_id,
+                    # Date du dernier calcul (l'upsert ne la reposait pas) : les
+                    # exports déjà faits du mois deviennent « à refaire ».
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                 },
                 on_conflict="company_id,employee_id,year,month",
             )

@@ -17,7 +17,7 @@ logger = get_logger("modules.payroll.documents.payslip_generator_forfait")
 import json
 import logging
 import calendar
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -742,6 +742,9 @@ def process_payslip_generation_forfait(
                 "payslip_data": payslip_json_data,
                 "pdf_storage_path": storage_path,
                 "url": pdf_url,
+                # Date du dernier calcul (l'upsert ne la reposait pas) : les
+                # exports déjà faits du mois deviennent « à refaire ».
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             },
             on_conflict="company_id,employee_id,year,month",
         ).execute()
