@@ -1,9 +1,11 @@
 """Annoter les bulletins périmés et assembler l'empreinte depuis les lectures.
 
 Les lectures sont groupées par salarié (calendriers de la fenêtre, absences,
-saisies des mois demandés, fiche, société, notes de frais) — pas une requête
+saisies des mois demandés, fiche, société, notes de frais, et les compléments :
+mutuelles, départs, congés, salaire daté, réglages société) — pas une requête
 par bulletin. L'empreinte à la génération réutilise les mêmes pièces déjà
-lues par le générateur, sans aller relire la base.
+lues par le générateur, sans aller relire la base ; seuls les compléments
+sont relus, après le calcul, par les mêmes lectures que la liste.
 """
 
 from __future__ import annotations

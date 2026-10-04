@@ -1,7 +1,8 @@
 """Lectures groupées pour l'empreinte d'entrée d'un bulletin.
 
 Une passe par salarié : fiche, société, calendriers de la fenêtre, absences
-validées, saisies des mois demandés, notes de frais de la plage. Pas une
+validées, saisies des mois demandés, notes de frais de la plage, et les
+compléments de l'empreinte complémentaire (trois lectures jointes). Pas une
 requête par bulletin.
 """
 
@@ -16,9 +17,9 @@ from datetime import date
 from typing import Any
 
 from app.core.database import supabase
+from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
 
 logger = logging.getLogger(__name__)
-from app.modules.payroll.domain.empreinte_entrees import mois_de_la_fenetre
 
 FICHE_COLONNES = (
     "id, company_id, salaire_de_base, classification_conventionnelle, "
@@ -92,15 +93,34 @@ def _ids_mutuelle_de_la_fiche(employee: Mapping[str, Any]) -> list[str]:
     return sorted(ids)
 
 
-def _une_ligne(resp: Any) -> dict[str, Any] | None:
-    lignes = (resp.data if resp else None) or []
-    if isinstance(lignes, Mapping):
-        return dict(lignes)
-    return dict(lignes[0]) if lignes else None
+def _une_ligne(valeur: Any) -> dict[str, Any] | None:
+    """Une ligne (objet, ou première d'une liste) ; None si rien."""
+    if isinstance(valeur, Mapping):
+        return dict(valeur)
+    if isinstance(valeur, list) and valeur and isinstance(valeur[0], Mapping):
+        return dict(valeur[0])
+    return None
 
 
-def _lignes(resp: Any) -> list[dict[str, Any]]:
-    return [dict(l) for l in ((resp.data if resp else None) or []) if isinstance(l, Mapping)]
+def _lignes(valeur: Any) -> list[dict[str, Any]]:
+    return [dict(l) for l in (valeur or []) if isinstance(l, Mapping)] if isinstance(valeur, list) else []
+
+
+#: Départs, ajustements de congés et salaire daté, joints au salarié (une lecture).
+#: Deux clés relient salarié et départs (`employee_exits.employee_id` et
+#: `employees.current_exit_id`) : on nomme celle des départs DU salarié.
+_SALARIE_JOINT = (
+    "id, "
+    "employee_exits!employee_exits_employee_id_fkey"
+    "(exit_type, status, last_working_day, calculated_indemnities), "
+    "employee_leave_adjustments(*), "
+    "salary_history(effective_date, ancien_salaire, nouveau_salaire, company_id)"
+)
+#: Réglages de congés, de maintien de salaire et JEI, joints à la société.
+_SOCIETE_JOINTE = (
+    "id, company_leave_settings(*), company_cp_seniority_settings(*), "
+    "company_maintenance_settings(*), company_jei_settings(*)"
+)
 
 
 def lire_complements(
@@ -108,53 +128,37 @@ def lire_complements(
 ) -> Complements:
     """Mutuelles de la fiche, départs, congés, salaire daté, réglages société.
 
-    Les mêmes lectures à la génération et à la liste : c'est ce qui garantit
-    qu'un bulletin relu sans changement reste à jour.
+    Trois lectures (jointures par clé étrangère). Les mêmes à la génération et
+    à la liste : c'est ce qui garantit qu'un bulletin relu sans changement
+    reste à jour.
     """
     employee_id = str(employee.get("id") or "")
     company_id = str((company or {}).get("id") or employee.get("company_id") or "")
     ids = _ids_mutuelle_de_la_fiche(employee)
     mutuelles: list[dict[str, Any]] = []
     if ids:
-        mutuelles = _lignes(
-            supabase.table("company_mutuelle_types").select("*").in_("id", ids).execute()
-        )
-    sorties = _lignes(
-        supabase.table("employee_exits")
-        .select("exit_type, status, last_working_day, calculated_indemnities")
-        .eq("employee_id", employee_id)
-        .execute()
-    )
-    ajustements = _lignes(
-        supabase.table("employee_leave_adjustments")
-        .select("*")
-        .eq("employee_id", employee_id)
-        .execute()
-    )
-    if not company_id:
-        return Complements(mutuelles=mutuelles, sorties=sorties, ajustements_conges=ajustements)
-
-    def _reglage(table: str) -> dict[str, Any] | None:
-        return _une_ligne(
-            supabase.table(table).select("*").eq("company_id", company_id).limit(1).execute()
-        )
-
-    historique = _lignes(
-        supabase.table("salary_history")
-        .select("effective_date, ancien_salaire, nouveau_salaire")
-        .eq("employee_id", employee_id)
-        .eq("company_id", company_id)
-        .execute()
-    )
+        resp = supabase.table("company_mutuelle_types").select("*").in_("id", ids).execute()
+        mutuelles = _lignes(resp.data if resp else None)
+    resp = supabase.table("employees").select(_SALARIE_JOINT).eq("id", employee_id).limit(1).execute()
+    salarie = _une_ligne(resp.data if resp else None) or {}
+    societe: dict[str, Any] = {}
+    if company_id:
+        resp = supabase.table("companies").select(_SOCIETE_JOINTE).eq("id", company_id).limit(1).execute()
+        societe = _une_ligne(resp.data if resp else None) or {}
     return Complements(
         mutuelles=mutuelles,
-        sorties=sorties,
-        ajustements_conges=ajustements,
-        reglages_conges=_reglage("company_leave_settings"),
-        conges_anciennete=_reglage("company_cp_seniority_settings"),
-        historique_salaire=historique,
-        maintien=_reglage("company_maintenance_settings"),
-        jei=_reglage("company_jei_settings"),
+        sorties=_lignes(salarie.get("employee_exits")),
+        ajustements_conges=_lignes(salarie.get("employee_leave_adjustments")),
+        reglages_conges=_une_ligne(societe.get("company_leave_settings")),
+        conges_anciennete=_une_ligne(societe.get("company_cp_seniority_settings")),
+        # Le moteur lit le salaire daté du salarié DANS sa société.
+        historique_salaire=[
+            h
+            for h in _lignes(salarie.get("salary_history"))
+            if company_id and str(h.get("company_id") or "") == company_id
+        ],
+        maintien=_une_ligne(societe.get("company_maintenance_settings")),
+        jei=_une_ligne(societe.get("company_jei_settings")),
     )
 
 

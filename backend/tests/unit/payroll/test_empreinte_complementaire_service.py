@@ -384,21 +384,44 @@ def test_la_lecture_groupee_lit_les_complements():
 
     from app.modules.payroll.infrastructure import empreinte_entrees_queries as q
 
-    lues: list[str] = []
+    lues: list[tuple[str, str]] = []
+    historique = [
+        {"effective_date": "2025-01-01", "ancien_salaire": None, "nouveau_salaire": {"valeur": 2000},
+         "company_id": "c1"},
+        {"effective_date": "2024-01-01", "ancien_salaire": None, "nouveau_salaire": {"valeur": 9},
+         "company_id": "autre"},
+    ]
 
     class _Requete:
         def __init__(self, table):
             self.table = table
-            lues.append(table)
+            self.colonnes = ""
+
+        def select(self, colonnes, *_a, **_k):
+            self.colonnes = colonnes
+            lues.append((self.table, colonnes))
+            return self
 
         def __getattr__(self, _nom):
             return lambda *_a, **_k: self
 
         def execute(self):
+            if self.table == "employees" and "salary_history" in self.colonnes:
+                return SimpleNamespace(data=[{
+                    "id": "e1", "employee_exits": [DEPART], "salary_history": historique,
+                    "employee_leave_adjustments": COMPLEMENTS.ajustements_conges,
+                }])
             if self.table == "employees":
                 return SimpleNamespace(data={**EMPLOYEE, "current_exit_id": None})
             if self.table == "company_mutuelle_types":
                 return SimpleNamespace(data=[MUTUELLE_M1])
+            if self.table == "companies" and "company_leave_settings" in self.colonnes:
+                return SimpleNamespace(data=[{
+                    "id": "c1", "company_leave_settings": COMPLEMENTS.reglages_conges,
+                    "company_cp_seniority_settings": None,
+                    "company_maintenance_settings": [COMPLEMENTS.maintien],
+                    "company_jei_settings": [],
+                }])
             if self.table == "companies":
                 return SimpleNamespace(data=COMPANY)
             return SimpleNamespace(data=[])
@@ -409,14 +432,24 @@ def test_la_lecture_groupee_lit_les_complements():
 
     with patch.object(q, "supabase", _Base()):
         lectures = q.lire_lectures_salarie("e1", [(2026, 5)])
-    assert lectures.complements is not None
-    assert lectures.complements.mutuelles == [MUTUELLE_M1]
-    for table in (
-        "company_mutuelle_types", "employee_exits", "employee_leave_adjustments",
-        "company_leave_settings", "company_cp_seniority_settings", "salary_history",
-        "company_maintenance_settings", "company_jei_settings",
-    ):
-        assert table in lues
+    complements = lectures.complements
+    assert complements is not None
+    assert complements.mutuelles == [MUTUELLE_M1]
+    assert complements.sorties == [DEPART]
+    assert complements.ajustements_conges == COMPLEMENTS.ajustements_conges
+    # Le salaire daté d'une autre société n'est pas celui que le moteur lit.
+    assert [h["company_id"] for h in complements.historique_salaire] == ["c1"]
+    assert complements.reglages_conges == COMPLEMENTS.reglages_conges
+    assert complements.maintien == COMPLEMENTS.maintien
+    assert complements.conges_anciennete is None and complements.jei is None
+    # Trois lectures de plus, pas huit : mutuelles, salarié joint, société jointe.
+    tables = [t for t, _c in lues]
+    assert tables.count("company_mutuelle_types") == 1
+    assert tables.count("employees") == 2 and tables.count("companies") == 2
+    # Deux clés relient salarié et départs (`current_exit_id` aussi) : sans la
+    # nommer, PostgREST refuse la jointure (PGRST201) et rien ne se compare.
+    jointure = next(c for t, c in lues if t == "employees" and "salary_history" in c)
+    assert "employee_exits!employee_exits_employee_id_fkey(" in jointure
 
 
 # --- Une fiche modifiée : seulement les brouillons du contrat en cours ----------
