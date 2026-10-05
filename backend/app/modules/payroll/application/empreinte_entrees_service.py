@@ -91,9 +91,31 @@ _CLES_SAISIE = (
 )
 
 
+#: Clés de `specificites_paie` que seules la DSN (export et import) lisent :
+#: les poser ou les corriger ne change aucun bulletin.
+_SPECIFICITES_DSN_SEULE = frozenset({"affiliations_psc", "dsn_reprise"})
+
+
 def _extrait(source: Mapping[str, Any] | None, cles: Sequence[str]) -> dict[str, Any]:
     row = source or {}
     return {cle: row.get(cle) for cle in cles}
+
+
+def _fiche(employee: Mapping[str, Any] | None) -> dict[str, Any]:
+    """La fiche hachée, sans les clés de `specificites_paie` propres à la DSN.
+
+    Une fiche qui ne les porte pas est extraite telle quelle : son empreinte
+    reste celle d'avant cette exclusion.
+    """
+    fiche = _extrait(employee, _CLES_FICHE)
+    specificites = fiche.get("specificites_paie")
+    if isinstance(specificites, Mapping) and _SPECIFICITES_DSN_SEULE & specificites.keys():
+        fiche["specificites_paie"] = {
+            cle: valeur
+            for cle, valeur in specificites.items()
+            if cle not in _SPECIFICITES_DSN_SEULE
+        }
+    return fiche
 
 
 def _iso_jour(entree: Mapping[str, Any], year: int, month: int) -> str | None:
@@ -271,7 +293,7 @@ def entrees_depuis_lectures(
             "calendriers": _calendriers_de_la_fenetre(calendriers, absences_list, year, month),
             "absences": _absences_de_la_fenetre(absences_list, year, month),
             "saisies": [_extrait(s, _CLES_SAISIE) for s in saisies],
-            "fiche": _extrait(employee, _CLES_FICHE),
+            "fiche": _fiche(employee),
             "notes_de_frais": _notes_du_mois(notes_de_frais or [], year, month),
             "parametres_societe": parametres_societe_pour_empreinte(company),
             "fenetre_variables": _fenetre_pour_empreinte(
