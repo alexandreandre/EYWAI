@@ -40,6 +40,7 @@ COMPTEURS_ANNEE_CIVILE = (
     "heures_supplementaires_remunerees",
     "montant_hs_remunerees",
     "reduction_generale_patronale",
+    "brut_annee_civile",
 )
 
 
@@ -137,6 +138,7 @@ class TestEcritureDesCumuls:
         assert cumuls["heures_supplementaires_remunerees"] == pytest.approx(6.0)
         assert cumuls["montant_hs_remunerees"] == pytest.approx(100.0)
         assert cumuls["reduction_generale_patronale"] == pytest.approx(-400.0)
+        assert cumuls["brut_annee_civile"] == pytest.approx(2500.0)
 
     def test_janvier_ne_touche_pas_au_brut_total(self):
         # `brut_total` sert aussi la prime de précarité (fenêtre du contrat) et la
@@ -149,6 +151,8 @@ class TestEcritureDesCumuls:
         assert cumuls["net_imposable"] == pytest.approx(36000.0 + 2000.0)
         assert cumuls["heures_remunerees"] == pytest.approx(1820.0 + 160.0)
         assert cumuls["brut_total"] == pytest.approx(42000.0 + 2500.0)
+        # Décembre écrit avant le compteur : son brut est celui de l'année civile.
+        assert cumuls["brut_annee_civile"] == pytest.approx(42000.0 + 2500.0)
 
     def test_tous_les_compteurs_annuels_sont_couverts_par_le_test(self):
         # Garde-fou : si un compteur est ajouté à la remise à zéro du code sans

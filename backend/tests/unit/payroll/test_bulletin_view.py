@@ -423,6 +423,18 @@ class TestColonneLaterale:
         assert valeurs["Allègement cotis. employeur"] == "493,29"
         assert valeurs["Total versé employeur"] == "1 649,98"
 
+    def test_bruts_imprime_le_brut_de_l_annee_civile(self):
+        # Dès janvier, `brut_total` porte aussi l'année d'avant (précarité,
+        # dixième des congés) : le pied imprime le cumul de l'année civile.
+        bulletin = bulletin_minimal()
+        bulletin["cumuls"] = {
+            "cumuls": {"brut_total": 52100.0, "brut_annee_civile": 2100.0}
+        }
+        lateral = construire_vue_bulletin(bulletin)["lateral"]
+        bloc = next(b for b in lateral if b["titre"] == "CUMULS")
+        valeurs = {v["libelle"]: v["valeur"] for v in bloc["valeurs"]}
+        assert valeurs["Bruts"] == "2 100,00"
+
     def test_allegement_employeur_retombe_sur_le_total_pour_un_bulletin_ancien(self):
         bulletin = bulletin_minimal()
         bulletin["pied_de_page"] = {"cout_total_employeur": 1.0, "total_exonerations": 544.13}
