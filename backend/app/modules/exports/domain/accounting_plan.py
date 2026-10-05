@@ -19,6 +19,9 @@ ORGANISME_RETRAITE = "RETRAITE"
 ORGANISME_RETRAITE_SUP = "RETRAITE_SUP"
 ORGANISME_MUTUELLE = "MUTUELLE"
 ORGANISME_PREVOYANCE = "PREVOYANCE"
+# CSG/CRDS sur IJSS subrogées : la caisse verse les IJSS nettes de cette CSG,
+# qui ne se paie donc pas à l'URSSAF ; elle réduit la somme à recevoir.
+ORGANISME_IJSS = "IJSS"
 ORGANISME_INCONNU = "INCONNU"
 
 ORGANISMES: Dict[str, str] = {
@@ -27,6 +30,7 @@ ORGANISMES: Dict[str, str] = {
     ORGANISME_RETRAITE_SUP: "Retraite supplémentaire",
     ORGANISME_MUTUELLE: "Mutuelle",
     ORGANISME_PREVOYANCE: "Prévoyance",
+    ORGANISME_IJSS: "IJSS subrogées",
     ORGANISME_INCONNU: "Organisme non rattaché",
 }
 
@@ -59,6 +63,15 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     "taxe_apprentissage": ORGANISME_URSSAF,
     "taxe_apprentissage_solde": ORGANISME_URSSAF,
     "forfait_social": ORGANISME_URSSAF,
+    # Contribution 1 % CPF des titulaires de CDD, recouvrée par l'URSSAF.
+    "cpf_cdd": ORGANISME_URSSAF,
+    # Bulletins repris de l'ancien logiciel (Comitech, janvier à août 2026) :
+    # « Sécu.Soc Plafonnée / Déplafonnée » et « Autres contrib. dues par empl. »
+    # (FNAL, CSA, formation, taxe d'apprentissage… agrégés, tous recouvrés par
+    # l'URSSAF).
+    "vieillesse_plafonnee": ORGANISME_URSSAF,
+    "vieillesse_deplafonnee": ORGANISME_URSSAF,
+    "autres_contributions": ORGANISME_URSSAF,
     # Allègements et exonérations : même organisme, montant négatif
     "reduction_generale": ORGANISME_URSSAF,
     "deduction_hs_patronale": ORGANISME_URSSAF,
@@ -73,10 +86,12 @@ COTI_TO_ORGANISME: Dict[str, str] = {
     "apec": ORGANISME_RETRAITE,
     # --- Retraite supplémentaire ---
     "retraite_sup": ORGANISME_RETRAITE_SUP,
+    "retraite_supplementaire": ORGANISME_RETRAITE_SUP,
     # --- Santé et prévoyance ---
     "mutuelle": ORGANISME_MUTUELLE,
     "prevoyance_cadre": ORGANISME_PREVOYANCE,
     "prevoyance_non_cadre": ORGANISME_PREVOYANCE,
+    "prevoyance": ORGANISME_PREVOYANCE,
 }
 
 # Comptes par défaut au PCG. Surchargés par société en base.
@@ -86,6 +101,8 @@ DEFAULT_ACCOUNTS: Dict[str, AccountPair] = {
     ORGANISME_RETRAITE_SUP: AccountPair(compte_charge="645301", compte_tiers="437800"),
     ORGANISME_MUTUELLE: AccountPair(compte_charge="645242", compte_tiers="437020"),
     ORGANISME_PREVOYANCE: AccountPair(compte_charge="645241", compte_tiers="437400"),
+    # Jamais de part patronale : seul le compte de tiers sert (voir FAMILLE_IJSS).
+    ORGANISME_IJSS: AccountPair(compte_charge="438700", compte_tiers="438700"),
 }
 
 # Éléments du bulletin qui ne sont pas des cotisations.
@@ -133,14 +150,30 @@ FAMILLE_PARTICIPATION_PEE = "participation_pee"
 FAMILLE_ACOMPTE_VERSE = "acompte_verse"
 FAMILLE_SAISIE = "saisie_opposition"
 FAMILLE_ACTIVITE_PARTIELLE = "activite_partielle"
+FAMILLE_PPV = "prime_partage_valeur"
+FAMILLE_INDEMNITE_RUPTURE = "indemnite_rupture"
+# Report d'un net négatif, trop-perçu repris : la somme retenue éteint ce que
+# le salarié devait déjà sur son compte de rémunérations — le compte du net.
+FAMILLE_REGULARISATION_NET = "regularisation_net"
+# Retenues du module Avances et du module Prêts : posées depuis le bulletin,
+# jamais devinées depuis un libellé.
+FAMILLE_AVANCE = "avance_salaire"
+FAMILLE_INTERETS_PRET = "interets_pret_employeur"
 FAMILLE_INCONNUE = "INCONNUE"
 
 # Familles déjà portées par un autre champ du bulletin : ne pas les reprendre
 # depuis les saisies mensuelles, sous peine de double comptage.
-# `synthese_net.acompte_verse` agrège les acomptes ET les saisies sur salaire.
-# Les notes de frais ont leur propre extraction dans le moteur (get_notes_frais_ecritures).
+# `synthese_net.acompte_verse` agrège les acomptes, les saisies sur salaire et
+# les régularisations du net ; les notes de frais remboursées sont dans les
+# éléments non soumis du bulletin.
 FAMILLES_DEJA_COUVERTES = frozenset(
-    {FAMILLE_ACOMPTE_VERSE, FAMILLE_SAISIE, FAMILLE_PRET, FAMILLE_NOTE_DE_FRAIS}
+    {
+        FAMILLE_ACOMPTE_VERSE,
+        FAMILLE_SAISIE,
+        FAMILLE_PRET,
+        FAMILLE_NOTE_DE_FRAIS,
+        FAMILLE_REGULARISATION_NET,
+    }
 )
 
 # Préfixes normalisés (minuscules, sans accents) → famille.
@@ -153,6 +186,7 @@ _FAMILLE_PREFIXES = (
     ("remboursement pret", FAMILLE_PRET),
     ("indemnite de transport", FAMILLE_TRANSPORT),
     ("remboursement transport", FAMILLE_TRANSPORT),
+    ("prime de transport", FAMILLE_TRANSPORT),
     ("indemnite de panier", FAMILLE_PANIER),
     ("paniers jours", FAMILLE_PANIER),
     ("paniers repas", FAMILLE_PANIER),
@@ -161,9 +195,24 @@ _FAMILLE_PREFIXES = (
     ("cantine", FAMILLE_CANTINE),
     ("remboursement de notes de frais", FAMILLE_NOTE_DE_FRAIS),
     ("remboursement note de frais", FAMILLE_NOTE_DE_FRAIS),
+    ("rbst note de frais", FAMILLE_NOTE_DE_FRAIS),
+    ("rbst notes de frais", FAMILLE_NOTE_DE_FRAIS),
+    # Note de frais validée, versée avec la paie : « remb_<type>_<date> ».
+    ("remb ", FAMILLE_NOTE_DE_FRAIS),
     ("ijss", FAMILLE_IJSS),
     ("indemnite activite partielle", FAMILLE_ACTIVITE_PARTIELLE),
-    ("saisie sur salaire", FAMILLE_SAISIE),
+    ("prime de partage de la valeur", FAMILLE_PPV),
+    ("prime partage valeur", FAMILLE_PPV),
+    ("ppv", FAMILLE_PPV),
+    ("indemnite legale de licenciement", FAMILLE_INDEMNITE_RUPTURE),
+    ("indemnite de licenciement", FAMILLE_INDEMNITE_RUPTURE),
+    ("indemnite conventionnelle de licenciement", FAMILLE_INDEMNITE_RUPTURE),
+    ("indemnite de rupture", FAMILLE_INDEMNITE_RUPTURE),
+    ("report nap", FAMILLE_REGULARISATION_NET),
+    ("trop-percu", FAMILLE_REGULARISATION_NET),
+    ("trop percu", FAMILLE_REGULARISATION_NET),
+    # Toute saisie, quel que soit le créancier nommé à la suite.
+    ("saisie", FAMILLE_SAISIE),
     # Après les avances et acomptes de participation, qui sont autre chose.
     ("participation", FAMILLE_PARTICIPATION),
     ("acompte", FAMILLE_ACOMPTE_VERSE),
@@ -188,6 +237,21 @@ FAMILY_ACCOUNTS: Dict[str, AccountPair] = {
     # « Indemnités et avantages divers ». À confirmer avec le cabinet, aucune OD
     # de référence n'en comporte.
     FAMILLE_ACTIVITE_PARTIELLE: AccountPair(compte_charge="641400", compte_tiers=""),
+    # Comptes du PCG, à confirmer avec chaque comptable : aucune OD de référence
+    # n'en comporte. Une société les surcharge par une ligne de mapping portant
+    # le nom de la famille.
+    FAMILLE_PPV: AccountPair(compte_charge="641300", compte_tiers=""),
+    FAMILLE_INDEMNITE_RUPTURE: AccountPair(compte_charge="641400", compte_tiers=""),
+    FAMILLE_INTERETS_PRET: AccountPair(compte_charge="762400", compte_tiers=""),
+    FAMILLE_IJSS: AccountPair(compte_charge="", compte_tiers="438700"),
+    FAMILLE_AVANCE: AccountPair(compte_charge="", compte_tiers="425200"),
+    FAMILLE_REGULARISATION_NET: AccountPair(compte_charge="", compte_tiers="421000"),
+}
+
+# Famille → rubrique de mapping, quand le paramétrage la nomme autrement.
+FAMILY_MAPPING_ALIASES: Dict[str, str] = {
+    FAMILLE_ACOMPTE_VERSE: "acompte_salaire",
+    FAMILLE_REGULARISATION_NET: "net_a_payer",
 }
 
 
@@ -228,6 +292,8 @@ def default_accounts_for_family(famille: str) -> Optional[AccountPair]:
 
 # Repli par libellé, pour les lignes sans coti_id.
 _LIBELLE_FALLBACK = (
+    # Avant « CSG » : la CSG sur IJSS n'est pas due à l'URSSAF.
+    ("IJSS", ORGANISME_IJSS),
     ("CSG", ORGANISME_URSSAF),
     ("CRDS", ORGANISME_URSSAF),
     ("URSSAF", ORGANISME_URSSAF),

@@ -237,3 +237,127 @@ class TestFamillesElementsHorsBrut:
         assert default_accounts_for_family(FAMILLE_TRANSPORT) is not None
         assert default_accounts_for_family(FAMILLE_PANIER) is None
         assert default_accounts_for_family(FAMILLE_CANTINE) is None
+
+
+class TestCotisationsDesBulletinsRepris:
+    """Les bulletins repris de l'ancien logiciel portent leurs propres coti_id.
+
+    Sans rattachement, chaque ligne sort en anomalie et l'OD ne s'équilibre
+    pas (Comitech, juin et août 2026 : plus de 3 500 € non postés par mois).
+    """
+
+    def test_coti_id_de_la_reprise_rattaches(self):
+        assert resolve_organisme_from_coti_id("vieillesse_plafonnee") == ORGANISME_URSSAF
+        assert resolve_organisme_from_coti_id("vieillesse_deplafonnee") == ORGANISME_URSSAF
+        assert resolve_organisme_from_coti_id("autres_contributions") == ORGANISME_URSSAF
+        assert resolve_organisme_from_coti_id("prevoyance") == ORGANISME_PREVOYANCE
+        assert (
+            resolve_organisme_from_coti_id("retraite_supplementaire")
+            == ORGANISME_RETRAITE_SUP
+        )
+
+    def test_contribution_cpf_cdd_recouvree_par_l_urssaf(self):
+        assert resolve_organisme_from_coti_id("cpf_cdd") == ORGANISME_URSSAF
+
+    def test_csg_sur_ijss_sans_coti_id_va_au_compte_des_ijss(self):
+        """En subrogation, la caisse verse les IJSS nettes de CSG/CRDS : cette
+        CSG ne se paie pas à l'URSSAF, elle réduit la somme à recevoir."""
+        from app.modules.exports.domain.accounting_plan import ORGANISME_IJSS
+
+        assert resolve_organisme_from_coti_id(None, "CSG déductible IJSS") == ORGANISME_IJSS
+        assert (
+            resolve_organisme_from_coti_id(None, "CSG/CRDS IJSS non déductible")
+            == ORGANISME_IJSS
+        )
+
+
+class TestFamillesDesBulletinsRecents:
+    def test_ppv_reconnue(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_PPV,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Prime de partage de la valeur (PPV)") == FAMILLE_PPV
+        assert resolve_element_family("", "prime_partage_valeur") == FAMILLE_PPV
+
+    def test_prime_de_transport_est_du_transport(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_TRANSPORT,
+            resolve_element_family,
+        )
+
+        assert (
+            resolve_element_family("Prime de transport (carburant / frais de trajet)")
+            == FAMILLE_TRANSPORT
+        )
+
+    def test_notes_de_frais_remboursees_sur_le_bulletin(self):
+        """Une note de frais validée entre au bulletin sous « remb_<type>_<date> » ;
+        l'ancien logiciel l'appelait « Rbst note de frais »."""
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_NOTE_DE_FRAIS,
+            resolve_element_family,
+        )
+
+        assert (
+            resolve_element_family(
+                "remb indemnités kilométriques 2026-09-30",
+                "remb_indemnités_kilométriques_2026-09-30",
+            )
+            == FAMILLE_NOTE_DE_FRAIS
+        )
+        assert resolve_element_family("Rbst note de frais") == FAMILLE_NOTE_DE_FRAIS
+
+    def test_saisie_quel_que_soit_le_creancier(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_SAISIE,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Saisie Trésor public") == FAMILLE_SAISIE
+        assert resolve_element_family("Saisie sur salaire") == FAMILLE_SAISIE
+
+    def test_regularisations_du_net(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_REGULARISATION_NET,
+            resolve_element_family,
+        )
+
+        assert resolve_element_family("Report NAP négatif") == FAMILLE_REGULARISATION_NET
+        assert (
+            resolve_element_family("Report NAP négatif 08/2026")
+            == FAMILLE_REGULARISATION_NET
+        )
+        assert resolve_element_family("Trop-perçu mars 2026") == FAMILLE_REGULARISATION_NET
+
+    def test_indemnites_de_rupture(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_INDEMNITE_RUPTURE,
+            resolve_element_family,
+        )
+
+        assert (
+            resolve_element_family("Indemnité légale de licenciement")
+            == FAMILLE_INDEMNITE_RUPTURE
+        )
+        assert (
+            resolve_element_family("Indemnité de rupture conventionnelle")
+            == FAMILLE_INDEMNITE_RUPTURE
+        )
+
+    def test_comptes_par_defaut_des_nouvelles_familles(self):
+        from app.modules.exports.domain.accounting_plan import (
+            FAMILLE_IJSS,
+            FAMILLE_INDEMNITE_RUPTURE,
+            FAMILLE_INTERETS_PRET,
+            FAMILLE_PPV,
+            default_accounts_for_family,
+        )
+
+        assert default_accounts_for_family(FAMILLE_PPV).compte_charge == "641300"
+        assert default_accounts_for_family(FAMILLE_INDEMNITE_RUPTURE).compte_charge == "641400"
+        # Intérêts d'un prêt au personnel : produit financier, pas une dette.
+        assert default_accounts_for_family(FAMILLE_INTERETS_PRET).compte_charge == "762400"
+        # IJSS subrogées : somme à recevoir de la caisse.
+        assert default_accounts_for_family(FAMILLE_IJSS).compte_tiers == "438700"
