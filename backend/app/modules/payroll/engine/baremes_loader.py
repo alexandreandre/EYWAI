@@ -317,6 +317,69 @@ def _ajouter_alerte(
     )
 
 
+class BaremesDUneAnneePassee(ValueError):
+    """Les barèmes chargés sont d'une année antérieure à celle du bulletin.
+
+    `ValueError` : les générateurs la rendent telle quelle à l'écran (refus 400).
+    """
+
+
+#: Les seuls barèmes qui portent leur année, dans leur contenu : `payroll_config`
+#: n'a pas de date d'effet. La synchro du SMIC pose `annee` à chaque écriture ;
+#: celle de la réduction générale ne touche ni `annee` ni
+#: `smic_reference_horaire`, qui se mettent à jour ensemble, à la main.
+_BAREMES_DATES = (("smic", "SMIC"), ("reduction_generale", "réduction générale"))
+
+CODE_BAREMES_ANNEE_SUIVANTE = "baremes_d_une_annee_suivante"
+
+
+def controler_annee_des_baremes(
+    baremes: Dict[str, Any], annee_du_bulletin: int
+) -> List[Dict[str, Any]]:
+    """Refuse des barèmes d'une année antérieure au bulletin ; signale ceux d'après.
+
+    Janvier 2027 calculé avec les barèmes de 2026 prendrait en silence le SMIC,
+    le plafond et la réduction générale de 2026 : refus. Un bulletin de 2026
+    recalculé en janvier 2027 avec les barèmes de 2027 se calcule (décembre se
+    corrige souvent en janvier), avec une alerte sur le bulletin. Un barème sans
+    `annee` n'est pas contrôlé.
+    """
+    anterieurs: List[str] = []
+    posterieurs: List[str] = []
+    for cle, libelle in _BAREMES_DATES:
+        bloc = baremes.get(cle)
+        if not isinstance(bloc, dict):
+            continue
+        try:
+            annee = int(bloc.get("annee"))
+        except (TypeError, ValueError):
+            continue
+        if annee < annee_du_bulletin:
+            anterieurs.append(f"{libelle} {annee}")
+        elif annee > annee_du_bulletin:
+            posterieurs.append(f"{libelle} {annee}")
+    if anterieurs:
+        raise BaremesDUneAnneePassee(
+            f"Les barèmes {annee_du_bulletin} ne sont pas encore chargés "
+            f"(chargés : {', '.join(anterieurs)}). Le bulletin n'est pas calculé : "
+            "contactez le support."
+        )
+    if not posterieurs:
+        return []
+    return [
+        {
+            "code": CODE_BAREMES_ANNEE_SUIVANTE,
+            "critique": False,
+            "severity": "warning",
+            "message": (
+                f"Bulletin de {annee_du_bulletin} calculé avec les barèmes d'une année "
+                f"suivante ({', '.join(posterieurs)}) : vérifiez les montants avant de "
+                "le valider."
+            ),
+        }
+    ]
+
+
 def controler_integrite_baremes(baremes: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Contrôles de présence et plausibilité non bloquants."""
     alertes: List[Dict[str, Any]] = []
