@@ -108,12 +108,15 @@ def test_generate_payslip_prend_le_verrou(monkeypatch, verrous_de_generation):
 
 
 def test_la_regeneration_ijss_passe_par_le_meme_verrou():
+    """La saisie IJSS et le recalcul se font sous le verrou ; le recalcul est la
+    génération normale, qui le reprend (réentrant)."""
     source = (
         RACINE / "backend/app/modules/ijss_tracking/application/apply_to_payslip.py"
     ).read_text(encoding="utf-8")
     debut = source.index("with verrou_de_generation(employee_id, year, month):")
-    assert source.index("process_payslip_generation(", debut) > debut
-    assert source.index("_archive_before_regeneration(\n", debut) > debut
+    assert source.index("_ecrire_saisie_ijss(", debut) > debut
+    assert source.index("generate_payslip(", debut) > debut
+    assert "process_payslip_generation" not in source
 
 
 def test_la_migration_ferme_la_table_et_les_fonctions_au_public():

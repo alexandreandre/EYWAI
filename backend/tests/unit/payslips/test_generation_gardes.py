@@ -670,11 +670,12 @@ def test_un_echec_de_notification_ne_fait_pas_echouer_la_validation():
 
 
 def test_ijss_sur_bulletin_valide_archive_et_remet_en_brouillon():
-    """La porte latérale IJSS suit le même protocole que la régénération
-    forcée : archive avant, brouillon après — plus d'écrasement silencieux."""
+    """La porte latérale IJSS passe par la génération normale : sur un bulletin
+    validé, archive avant, brouillon après — plus d'écrasement silencieux."""
     from unittest.mock import MagicMock
 
     from app.modules.ijss_tracking.application import apply_to_payslip as mod
+    from app.modules.payslips.application import commands as cmd_mod
 
     ordre = []
     existing = {
@@ -685,30 +686,31 @@ def test_ijss_sur_bulletin_valide_archive_et_remet_en_brouillon():
         "edit_history": [],
     }
 
-    def fake_generation(*a, **k):
+    def fake_generation(**_k):
         ordre.append("generation")
-        return {"status": "success", "payslip_id": "p-1"}
-
-    fake_emp = MagicMock()
-    fake_emp.data = {"statut": "Non-Cadre", "is_forfait_jour": False}
-    fake_admin = MagicMock()
-    fake_admin.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fake_emp
+        return {"status": "success", "message": "OK", "download_url": "u", "payslip_id": "p-1"}
 
     with (
         patch.object(mod, "repo") as fake_repo,
-        patch.object(mod, "get_supabase_admin_client", return_value=fake_admin),
+        patch.object(mod, "supabase", MagicMock()),
+        patch.object(cmd_mod, "_employee_repository") as mock_employees,
+        patch.object(cmd_mod, "raison_de_blocage_avant_bascule", return_value=None),
+        patch.object(cmd_mod, "employee_statut_reader") as mock_reader,
+        patch.object(cmd_mod, "payslip_generator_provider") as mock_provider,
+        patch.object(cmd_mod, "_periode_a_saisir", return_value=_periode_vide()),
+        patch.object(cmd_mod, "_fetch_existing_payslip", return_value=existing),
         patch.object(mod, "_fetch_existing_payslip", return_value=existing),
-        patch.object(mod, "_archive_before_regeneration") as m_archive,
-        patch.object(mod, "_reset_payslip_flags_after_regeneration") as m_reset,
+        patch.object(cmd_mod, "_fetch_payslip_status", return_value={"id": "p-1", "origine": None}),
+        patch.object(cmd_mod, "_archive_before_regeneration") as m_archive,
+        patch.object(cmd_mod, "_reset_payslip_flags_after_regeneration") as m_reset,
         patch(
             "app.modules.ijss_tracking.application.service._recompute_period",
             return_value={},
         ),
-        patch(
-            "app.modules.payroll.documents.payslip_generator.process_payslip_generation",
-            side_effect=fake_generation,
-        ),
     ):
+        mock_employees.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+        mock_reader.get_employee_statut.return_value = "Non-Cadre"
+        mock_provider.generate_heures.side_effect = fake_generation
         fake_repo.get_expected_line.return_value = {
             "id": "line-1",
             "period_id": "per-1",
