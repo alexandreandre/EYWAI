@@ -14,6 +14,7 @@ const NOMS: Array<[RegExp, string]> = [
   [/^specificites_paie/, 'Paie sociale'],
   [/^residence_permit|^is_subject_to_residence_permit/, 'Titre de séjour'],
   [/^classification_conventionnelle|^collective_agreement_id/, 'Classification conventionnelle'],
+  [/^code_pcs/, 'Code PCS-ESE'],
   [/^contract_end_date/, 'Date de fin de contrat'],
   [/^adresse/, 'Adresse'],
   [/^coordonnees_bancaires/, 'RIB'],

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { needsContractEndDate } from '@/constants/contracts';
+import { FORMAT_PCS_ESE } from '@/constants/dsnFiche';
 import { bicFieldSchema, ibanFieldSchema } from '@/lib/ibanSchema';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 import { MESSAGE_SALAIRE_TROP_ELEVE, SALAIRE_MENSUEL_MAXIMUM } from '@/lib/salaireVraisemblable';
@@ -55,6 +56,13 @@ export const employeeProfileEditSchema = z
       classe_emploi: z.coerce.number().int(),
       coefficient: z.coerce.number().int().positive({ message: 'Coefficient requis.' }),
     }),
+    // Déclaré en DSN (S21.G00.40.004), rangé dans la classification.
+    code_pcs: z
+      .string()
+      .trim()
+      .refine((v) => !v || FORMAT_PCS_ESE.test(v), {
+        message: 'Code PCS-ESE : trois chiffres et une lettre minuscule (ex. 674a).',
+      }),
     team_id: z.string().optional(),
     specificites_paie: z.object({
       prelevement_a_la_source: z.object({
@@ -87,6 +95,12 @@ export const employeeProfileEditSchema = z
           )
           .optional()
           .default([]),
+      }),
+      // Déclarés en DSN seulement : motif de recours d'un CDD (S21.G00.40.021),
+      // niveau de diplôme préparé d'un apprenti (S21.G00.30.025).
+      dsn_reprise: z.object({
+        motif_recours: z.string(),
+        niveau_diplome_prepare: z.string(),
       }),
       maintien_regime_apprenti: z.boolean().optional(),
       personnel_rd_eligible_jei: z.boolean().optional(),

@@ -1,7 +1,12 @@
 import type { UpdateEmployeePayload } from '@/api/employees';
 import type { Employee } from '@/features/employee-detail/types';
 import type { EmployeeProfileEditFormValues } from '@/features/employee-detail/components/employeeProfileEditSchema';
-import { needsContractEndDate, normalizeContractType } from '@/constants/contracts';
+import {
+  isApprentissageContract,
+  isCddContract,
+  needsContractEndDate,
+  normalizeContractType,
+} from '@/constants/contracts';
 import { isEmployeeCadre } from '@/lib/mutuelleUtils';
 
 export function normalizeNir(value: string | null | undefined): string {
@@ -54,6 +59,65 @@ export function isCddOrStage(contractType: string | null | undefined): boolean {
   return needsContractEndDate(contractType);
 }
 
+function texte(valeur: unknown): string {
+  return typeof valeur === 'string' ? valeur : '';
+}
+
+function lireRepriseDsn(valeur: unknown): Record<string, unknown> {
+  return valeur && typeof valeur === 'object' && !Array.isArray(valeur)
+    ? (valeur as Record<string, unknown>)
+    : {};
+}
+
+type Classification = Record<string, unknown> | null | undefined;
+
+function classificationDe(employee: Employee): Classification {
+  return (employee as Employee & { classification_conventionnelle?: Classification })
+    .classification_conventionnelle;
+}
+
+function lirePcs(employee: Employee): string {
+  return texte(classificationDe(employee)?.pcs);
+}
+
+/**
+ * La reprise DSN enregistrée part de celle de la fiche (type et identifiant du
+ * taux PAS, SMIC retenu… posés par le chargeur) : seuls les champs affichés
+ * pour ce contrat s'y écrivent — le motif pour un CDD, le diplôme préparé pour
+ * un apprenti. Un champ vidé part à null (le serveur fusionne, une clé omise
+ * resterait). Rien à dire : pas de clé `dsn_reprise` ajoutée.
+ */
+export function fusionnerRepriseDsn(
+  origine: unknown,
+  saisie: EmployeeProfileEditFormValues['specificites_paie']['dsn_reprise'],
+  contractType: string,
+): Record<string, unknown> | undefined {
+  const avant = lireRepriseDsn(origine);
+  const fusion: Record<string, unknown> = { ...avant };
+  const ecrire = (cle: 'motif_recours' | 'niveau_diplome_prepare') => {
+    const valeur = saisie[cle].trim();
+    if (valeur) fusion[cle] = valeur;
+    else if (avant[cle] != null && avant[cle] !== '') fusion[cle] = null;
+  };
+  if (isCddContract(contractType)) ecrire('motif_recours');
+  if (isApprentissageContract(contractType)) ecrire('niveau_diplome_prepare');
+  return Object.keys(fusion).length > 0 || origine != null ? fusion : undefined;
+}
+
+/**
+ * Le code PCS-ESE se range dans la classification, sans rien en perdre ; il
+ * n'est écrit que s'il a changé.
+ */
+function avecPcs(
+  classification: Record<string, unknown> | undefined,
+  employee: Employee,
+  saisie: string,
+): Record<string, unknown> | undefined {
+  const pcs = saisie.trim();
+  if (pcs === lirePcs(employee)) return classification;
+  return { ...(classification ?? classificationDe(employee) ?? {}), pcs: pcs || null };
+}
+
 export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormValues {
   const adresse = employee.adresse ?? {};
   const spec = employee.specificites_paie ?? {};
@@ -80,6 +144,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
   } | undefined;
   const tr = spec.titres_restaurant as { beneficie?: boolean; nombre_par_mois?: number } | undefined;
   const classification = (employee as Employee & { classification_conventionnelle?: EmployeeProfileEditFormValues['classification_conventionnelle'] }).classification_conventionnelle;
+  const reprise = lireRepriseDsn(spec.dsn_reprise);
 
   return {
     first_name: employee.first_name ?? '',
@@ -121,6 +186,7 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
       classe_emploi: classification?.classe_emploi ?? 6,
       coefficient: classification?.coefficient ?? 240,
     },
+    code_pcs: lirePcs(employee),
     team_id: employee.team_id ?? '',
     specificites_paie: {
       prelevement_a_la_source: {
@@ -150,6 +216,10 @@ export function buildDefaultValues(employee: Employee): EmployeeProfileEditFormV
           patronal: ligne.patronal ?? 0,
           forfait_social: ligne.forfait_social ?? 0,
         })),
+      },
+      dsn_reprise: {
+        motif_recours: texte(reprise.motif_recours),
+        niveau_diplome_prepare: texte(reprise.niveau_diplome_prepare),
       },
       maintien_regime_apprenti: Boolean(spec.maintien_regime_apprenti),
       personnel_rd_eligible_jei: Boolean(spec.personnel_rd_eligible_jei),
@@ -285,13 +355,28 @@ export function buildUpdatePayload(
     };
   }
 
-  if (values.collective_agreement_id) {
-    payload.classification_conventionnelle = fusionnerClassification(
-      (employee as Employee & { classification_conventionnelle?: Record<string, unknown> | null })
-        .classification_conventionnelle,
-      values.classification_conventionnelle,
-      buildDefaultValues(employee).classification_conventionnelle,
-    );
+  const repriseDsn = fusionnerRepriseDsn(
+    existingSpec.dsn_reprise,
+    values.specificites_paie.dsn_reprise,
+    normalizeContractType(values.contract_type),
+  );
+  if (repriseDsn) {
+    payload.specificites_paie = { ...payload.specificites_paie, dsn_reprise: repriseDsn };
+  }
+
+  const classification = avecPcs(
+    values.collective_agreement_id
+      ? fusionnerClassification(
+          classificationDe(employee),
+          values.classification_conventionnelle,
+          buildDefaultValues(employee).classification_conventionnelle,
+        )
+      : undefined,
+    employee,
+    values.code_pcs,
+  );
+  if (classification) {
+    payload.classification_conventionnelle = classification;
   }
 
   return payload;

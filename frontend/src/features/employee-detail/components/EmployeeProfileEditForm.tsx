@@ -39,6 +39,12 @@ import { EmployeeContractConfigFormFields } from '@/features/employees/component
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
 import { Switch } from '@/components/ui/switch';
+import { isApprentissageContract, isCddContract } from '@/constants/contracts';
+import {
+  MOTIFS_RECOURS_CDD,
+  NIVEAUX_DIPLOME_PREPARE,
+  type CodeDsn,
+} from '@/constants/dsnFiche';
 
 interface EmployeeProfileEditFormProps {
   control: Control<EmployeeProfileEditFormValues>;
@@ -57,6 +63,51 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+const NON_RENSEIGNE = '__none__';
+
+/** Liste déroulante d'un code DSN : le libellé à l'écran, le code enregistré. */
+function CodeDsnSelectField({
+  control,
+  name,
+  label,
+  codes,
+}: {
+  control: Control<EmployeeProfileEditFormValues>;
+  name:
+    | 'specificites_paie.dsn_reprise.motif_recours'
+    | 'specificites_paie.dsn_reprise.niveau_diplome_prepare';
+  label: string;
+  codes: readonly CodeDsn[];
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <Select
+            onValueChange={(v) => field.onChange(v === NON_RENSEIGNE ? '' : v)}
+            value={field.value || NON_RENSEIGNE}
+          >
+            <FormControl>
+              <SelectTrigger><SelectValue placeholder="Non renseigné" /></SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              <SelectItem value={NON_RENSEIGNE}>Non renseigné</SelectItem>
+              {codes.map((c) => (
+                <SelectItem key={c.code} value={c.code}>{c.libelle}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Déclaré en DSN, sans effet sur le bulletin.</p>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
 export function EmployeeProfileEditForm({
   control,
   companyAgreements,
@@ -68,6 +119,7 @@ export function EmployeeProfileEditForm({
   payrollFocus = false,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
+  const contractType = useWatch({ control, name: 'contract_type' });
   const salaireBase = useWatch({ control, name: 'salaire_de_base.valeur' });
   const dureeHebdo = useWatch({ control, name: 'duree_hebdomadaire' });
   const salaireBaseA35h = useWatch({ control, name: 'specificites_paie.salaire_hors_hs_structurelles' });
@@ -308,6 +360,36 @@ export function EmployeeProfileEditForm({
           />
         </div>
         <EmployeeContractConfigFormFields control={control} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField
+            control={control}
+            name="code_pcs"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Code PCS-ESE</FormLabel>
+                <FormControl><Input {...field} placeholder="ex. 674a" maxLength={4} /></FormControl>
+                <p className="text-xs text-muted-foreground">Déclaré en DSN : trois chiffres et une lettre.</p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {isCddContract(contractType) && (
+            <CodeDsnSelectField
+              control={control}
+              name="specificites_paie.dsn_reprise.motif_recours"
+              label="Motif de recours du CDD"
+              codes={MOTIFS_RECOURS_CDD}
+            />
+          )}
+          {isApprentissageContract(contractType) && (
+            <CodeDsnSelectField
+              control={control}
+              name="specificites_paie.dsn_reprise.niveau_diplome_prepare"
+              label="Niveau de diplôme préparé"
+              codes={NIVEAUX_DIPLOME_PREPARE}
+            />
+          )}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField
             control={control}
