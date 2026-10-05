@@ -100,6 +100,11 @@ def bordereau_urssaf(
                 continue
             taux = float(ligne.get("taux") or 0)
             montant = float(ligne.get("montant") or 0)
+            assiette_ligne = float(ligne.get("assiette") or 0)
+            if not taux and montant and assiette_ligne:
+                # Taux absent (bulletin repris) : celui que donnent montant et
+                # assiette, arrondi au centième de point.
+                taux = round(abs(montant) / assiette_ligne * 100, 2)
             cle = ctp_du_code(code, str(ligne.get("base") or ""), taux, montant)
             if cle is None:
                 if code not in inconnus:
