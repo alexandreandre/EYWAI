@@ -1,22 +1,28 @@
-"""Application du montant IJSS validé sur le bulletin (regénération ciblée)."""
+"""Application du montant IJSS validé sur le bulletin : une saisie du mois, puis
+la génération normale."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-
-from app.modules.payslips.application import effets_du_bulletin as effets
-from app.modules.payslips.application.commands import (
-    _archive_before_regeneration,
-    _fetch_existing_payslip,
-    _reset_payslip_flags_after_regeneration,
-)
-from app.modules.payslips.application.dto import GeneratePayslipInput
 from typing import Any, Dict, Optional
 
-from app.core.database import get_supabase_admin_client
+from app.core.database import supabase
 from app.core.logging import get_logger
+from app.modules.ijss_tracking.domain.saisie_ijss import LIBELLE_IJSS_VALIDEES
 from app.modules.ijss_tracking.infrastructure import repository as repo
 from app.modules.payroll.documents.verrou_generation import verrou_de_generation
+from app.modules.payslips.application.commands import (
+    _fetch_existing_payslip,
+    _refuser_si_importe,
+    generate_payslip,
+    salarie_generable,
+)
+from app.modules.payslips.application.corrections import _message_d_erreur
+from app.modules.payslips.application.dto import (
+    GeneratePayslipInput,
+    PayslipBadRequestError,
+    PayslipNotFoundError,
+)
 
 logger = get_logger("modules.ijss_tracking.apply")
 
@@ -99,11 +105,54 @@ def validate_expected_line_brut(
     return updated or expected
 
 
+def _ecrire_saisie_ijss(
+    employee_id: str,
+    company_id: str,
+    year: int,
+    month: int,
+    brut: float,
+    expected_line_id: str,
+) -> None:
+    """Le montant validé devient la saisie du mois que le générateur relit.
+
+    Une seule par salarié et par mois : la précédente est remplacée.
+    `manual_override` la protège de la génération automatique des variables.
+    """
+    periode = {"employee_id": employee_id, "year": year, "month": month}
+    (
+        supabase.table("monthly_inputs")
+        .delete()
+        .match(periode)
+        .eq("name", LIBELLE_IJSS_VALIDEES)
+        .execute()
+    )
+    supabase.table("monthly_inputs").insert(
+        {
+            **periode,
+            "company_id": company_id,
+            "name": LIBELLE_IJSS_VALIDEES,
+            "description": f"Suivi IJSS, ligne {expected_line_id}",
+            "amount": brut,
+            "is_socially_taxed": False,
+            "is_taxable": False,
+            "manual_override": True,
+        }
+    ).execute()
+
+
 def apply_validated_ijss_to_payslip(
     company_id: str,
     expected_line_id: str,
     user_id: str,
 ) -> Dict[str, Any]:
+    """Écrit le montant validé comme saisie du mois, puis recalcule le bulletin
+    par la génération normale.
+
+    Le montant passait au générateur en paramètre, sans être écrit : le recalcul
+    suivant le perdait, et ce chemin pouvait recalculer un mois repris. Désormais
+    la saisie persiste (empreinte, badge « À recalculer ») et la génération
+    oppose ses gardes : mois repris, bulletin validé archivé, documents de sortie.
+    """
     expected = repo.get_expected_line(company_id, expected_line_id)
     if not expected:
         raise LookupError("Ligne attendue introuvable.")
@@ -122,109 +171,62 @@ def apply_validated_ijss_to_payslip(
     year = int(period["period_year"])
     month = int(period["period_month"])
 
-    # Une seule génération à la fois pour ce salarié et ce mois (voir
-    # verrou_generation.py) : ce chemin appelle les générateurs en direct.
+    # Avant toute écriture : un mois payé par le logiciel précédent, un bulletin
+    # repris, un salarié qu'on ne peut pas recalculer ne reçoivent pas la saisie.
+    try:
+        salarie_generable(employee_id, year, month)
+        existant = _fetch_existing_payslip(employee_id, year, month)
+        if existant:
+            _refuser_si_importe(str(existant["id"]))
+    except (PayslipBadRequestError, PayslipNotFoundError) as exc:
+        raise ValueError(str(exc)) from exc
+
     with verrou_de_generation(employee_id, year, month):
-        # Lot 3 : ce chemin régénère le bulletin en direct (générateurs appelés
-        # sans passer par generate_payslip) — il suit donc le même protocole que
-        # la régénération forcée : bulletin validé → archive AVANT, retour en
-        # brouillon APRÈS (nouvelle validation exigée).
-        existing_payslip = _fetch_existing_payslip(employee_id, year, month)
-        # Ce que le bulletin a retenu (prêt, avance) ou appliqué (CET, modulation)
-        # doit pouvoir être défait avant d'être refait — sinon refus, sans écrire.
-        effets.refuser_si_effets_non_defaisables(employee_id, year, month)
-        was_validated = bool(
-            existing_payslip and existing_payslip.get("status") == "valide"
-        )
-        if was_validated:
-            _archive_before_regeneration(
-                existing_payslip,
+        _ecrire_saisie_ijss(employee_id, company_id, year, month, brut_f, expected_line_id)
+        try:
+            result = generate_payslip(
                 GeneratePayslipInput(
                     employee_id=employee_id,
                     year=year,
                     month=month,
+                    # Comme une correction au bulletin : le mois a déjà passé ces
+                    # gardes à sa génération ; un bulletin validé est archivé puis
+                    # repasse en brouillon.
+                    force_calendrier_incomplet=True,
+                    regenerer_bulletin_valide=True,
                     requested_by=user_id,
                     requested_by_name="rapprochement IJSS",
-                ),
+                    motif=f"IJSS validées appliquées : {brut_f:.2f} €",
+                )
             )
-        effets.defaire_effets_du_bulletin(
-            employee_id,
-            year,
-            month,
-            payslip_id=str(existing_payslip["id"]) if existing_payslip else None,
-        )
+            if str(getattr(result, "status", "success")) != "success":
+                raise RuntimeError(getattr(result, "message", None) or "Recalcul impossible.")
+        except Exception as exc:  # noqa: BLE001 — rendu à l'écran, la saisie reste
+            logger.exception("[ijss] Recalcul après application de %s impossible", expected_line_id)
+            raise ValueError(
+                f"Montant de {brut_f:.2f} € enregistré dans les saisies du mois, mais "
+                f"le bulletin n'a pas été recalculé : {_message_d_erreur(exc)}"
+            ) from exc
 
-        emp_res = (
-            get_supabase_admin_client()
-            .table("employees")
-            .select("statut, is_forfait_jour")
-            .eq("id", employee_id)
-            .maybe_single()
-            .execute()
-        )
-        emp = emp_res.data or {}
-        statut = emp.get("statut") or ""
-        from app.shared.domain.employment_rules import is_forfait_jour
-
-        ijss_tracking_meta = {
-            "expected_line_id": expected_line_id,
-            "brut_validated": brut_f,
-            "brut_theorique": float(expected.get("ijss_theorique") or 0),
-            "source": expected.get("validation_source") or "manual",
-            "applied_at": datetime.now(timezone.utc).isoformat(),
-            "applied_by": user_id,
-        }
-
-        if is_forfait_jour(statut, emp.get("is_forfait_jour")):
-            from app.modules.payroll.documents.payslip_generator_forfait import (
-                process_payslip_generation_forfait,
-            )
-
-            result = process_payslip_generation_forfait(
-                employee_id,
-                year,
-                month,
-                ijss_brut_override=brut_f,
-                ijss_tracking_meta=ijss_tracking_meta,
-            )
-        else:
-            from app.modules.payroll.documents.payslip_generator import (
-                process_payslip_generation,
-            )
-
-            result = process_payslip_generation(
-                employee_id,
-                year,
-                month,
-                ijss_brut_override=brut_f,
-                ijss_tracking_meta=ijss_tracking_meta,
-            )
-
-        payslip_id = result.get("payslip_id") if isinstance(result, dict) else None
-        if (
-            was_validated
-            and isinstance(result, dict)
-            and str(result.get("status") or "") == "success"
-        ):
-            _reset_payslip_flags_after_regeneration(str(existing_payslip["id"]))
-        now = datetime.now(timezone.utc).isoformat()
-        repo.update_expected_line(
-            expected_line_id,
-            {
-                "applied_to_payslip_at": now,
-                "applied_ijss_brut": brut_f,
-                "payslip_id": payslip_id or expected.get("payslip_id"),
-            },
-        )
-        from app.modules.ijss_tracking.application.service import _recompute_period
-
-        _recompute_period(period)
-        return {
-            "expected_line_id": expected_line_id,
+    payslip_id = getattr(result, "payslip_id", None)
+    now = datetime.now(timezone.utc).isoformat()
+    repo.update_expected_line(
+        expected_line_id,
+        {
+            "applied_to_payslip_at": now,
             "applied_ijss_brut": brut_f,
-            "payslip_id": payslip_id,
-            "employee_id": employee_id,
-        }
+            "payslip_id": payslip_id or expected.get("payslip_id"),
+        },
+    )
+    from app.modules.ijss_tracking.application.service import _recompute_period
+
+    _recompute_period(period)
+    return {
+        "expected_line_id": expected_line_id,
+        "applied_ijss_brut": brut_f,
+        "payslip_id": payslip_id,
+        "employee_id": employee_id,
+    }
 
 
 def apply_all_validated_for_period(

@@ -78,6 +78,7 @@ from app.modules.payroll.documents.payslip_generator import (
     _is_participation_numeraire_input,
     _is_ijss_override_input,
 )
+from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
 
 
 def _periode_de_paie_company(company_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -258,6 +259,10 @@ def process_payslip_generation_forfait(
         net_a_payer_only_correction_total = 0.0
         reports_nap_negatif: list = []
         for row in saisies_res.data:
+            if est_saisie_ijss_validees(row):
+                # Montant validé au suivi IJSS : les IJSS subrogées du mois, rien d'autre.
+                saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
+                continue
             if _is_heures_sup_conjoncturelle_input(row):
                 continue
             if _is_cantine_input(row):
