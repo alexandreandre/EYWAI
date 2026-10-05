@@ -61,6 +61,15 @@ describe('isPayrollFocusAllowed', () => {
     expect(PAYROLL_FOCUS_NAV_URLS).toContain('/company');
   });
 
+  it('autorise le Support, lien du pied de la barre latérale', () => {
+    // Le lien s'affichait en mode paie mais renvoyait au tableau de bord :
+    // la gestionnaire ne pouvait pas ouvrir de ticket.
+    expect(isPayrollFocusAllowed('/support')).toBe(true);
+    expect(isPayrollFocusAllowed('/support/confirmation')).toBe(true);
+    expect(isPayrollFocusAllowed('/support/tickets')).toBe(true);
+    expect(isPayrollFocusAllowed('/supports')).toBe(false);
+  });
+
   it('autorise le tableau de bord d’un groupe de sociétés', () => {
     // Entrée construite par la barre latérale pour les gestionnaires
     // multi-sociétés ; elle ramenait au tableau de bord (retour Alexandre 11/09).
