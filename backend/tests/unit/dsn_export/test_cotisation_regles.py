@@ -453,6 +453,36 @@ def test_la_crds_de_la_participation_se_compte_aussi():
     assert _ligne(cotisations, "072")["S21.G00.81.004"] == "347.83"
 
 
+def test_csg_et_crds_se_calculent_par_taux_sur_l_assiette_cumulee():
+    """Comme le cabinet : chaque composante (CSG 6,80 %, CSG 2,40 %, CRDS
+    0,50 %) s'arrondit une fois sur l'assiette cumulée des lignes de même taux
+    (salaire + participation), et non ligne à ligne. Mesuré sur 251 salariés
+    de mai et juin : 205 CSG justes au lieu de 123."""
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "csg_deductible", "libelle": "CSG déductible", "base": 2548.53, "taux_salarial": 0.068, "montant_salarial": 173.30},
+            {"coti_id": None, "libelle": "CSG déductible — Participation 2025", "base": 1482.57, "taux_salarial": 0.068, "montant_salarial": 100.81},
+            {"coti_id": "csg_non_deductible", "libelle": "CSG/CRDS non déductible", "base": 2548.53, "taux_salarial": 0.029, "montant_salarial": 73.91},
+            {"coti_id": None, "libelle": "CSG/CRDS non déductible — Participation 2025", "base": 1482.57, "taux_salarial": 0.029, "montant_salarial": 42.99},
+        ]
+    )
+    assert _ligne(cotisations, "079")["S21.G00.81.004"] == "20.16"  # 4031,10 × 0,5 %
+    assert _ligne(cotisations, "072")["S21.G00.81.004"] == "370.86"  # 274,11 + 96,75
+
+
+def test_la_csg_non_deductible_se_declare_hors_crds_arrondie_a_part():
+    """Le bulletin arrondit 2,90 % d'un bloc (57,22) ; le cabinet déclare
+    2,40 % (47,35) et 0,50 % (9,86) arrondis chacun."""
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "csg_deductible", "base": 1972.98, "taux_salarial": 0.068, "montant_salarial": 134.16},
+            {"coti_id": "csg_non_deductible", "base": 1972.98, "taux_salarial": 0.029, "montant_salarial": 57.22},
+        ]
+    )
+    assert _ligne(cotisations, "079")["S21.G00.81.004"] == "9.86"
+    assert _ligne(cotisations, "072")["S21.G00.81.004"] == "181.51"
+
+
 def test_apec_se_declare_sans_identifiant_urssaf():
     """L'Apec est recouvrée par l'Agirc-Arrco : pas d'OPS Urssaf en 81.002."""
     _, cotisations, _ = build_bases_and_cotisations(
