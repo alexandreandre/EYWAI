@@ -183,6 +183,52 @@ def test_absence_injustifiee_hors_salaire_retabli_mais_dans_la_remuneration_habi
     assert remunerations["029"] == "2245.35"
 
 
+def _blocs_54(lignes) -> List[Tuple[str, str, str, str]]:
+    sortie = []
+    for rubrique, valeur in lignes:
+        if rubrique == "S21.G00.54.001":
+            sortie.append([valeur])
+        elif rubrique.startswith("S21.G00.54.") and rubrique[-3:] in ("002", "003", "004"):
+            sortie[-1].append(valeur)
+    return [tuple(b) for b in sortie]
+
+
+def test_participation_calculee_en_54_types_11_et_37():
+    """Participation 2025 versée en mai 2026 : 11 (participation) et 37 (versée
+    directement par l'employeur), son montant brut, l'exercice 2025 — même si
+    un acompte a déjà été versé (ancien logiciel, mai 2026)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["participations"] = [
+        {"brut": 3936.59, "part_pee": 0.0, "libelle": "Participation 2025 — numéraire"}
+    ]
+    bulletin["primes_non_soumises"] = [
+        {"libelle": "Acompte participation 2025 (déjà versé)", "montant": -1000.0}
+    ]
+    blocs = [b for b in _blocs_54(_lignes(bulletin=bulletin, periode="2026-05")) if b[0] in ("11", "37")]
+    assert blocs == [
+        ("11", "3936.59", "01012025", "31122025"),
+        ("37", "3936.59", "01012025", "31122025"),
+    ]
+
+
+def test_participation_placee_n_est_pas_versee_directement():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["participations"] = [{"brut": 1000.0, "part_pee": 400.0, "libelle": "Participation 2025"}]
+    blocs = {b[0]: b[1] for b in _blocs_54(_lignes(bulletin=bulletin, periode="2026-05"))}
+    assert blocs["11"] == "1000.00"
+    assert blocs["37"] == "600.00"
+
+
+def test_participation_d_un_bulletin_repris_lue_dans_les_elements_non_soumis():
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["primes_non_soumises"] = [
+        {"libelle": "Participation 2025", "montant": 1752.57},
+        {"libelle": "Acompte sur participation 2025", "montant": -500.0},
+    ]
+    blocs = [b for b in _blocs_54(_lignes(bulletin=bulletin, periode="2026-05")) if b[0] in ("11", "37")]
+    assert [b[:2] for b in blocs] == [("11", "1752.57"), ("37", "1752.57")]
+
+
 def test_cdd_a_terme_imprecis_sans_taux_dgfip_porte_l_identifiant_moins_un():
     """CT 50.008 : CDD de deux mois au plus ou à terme imprécis → « -1 »."""
     salarie = {
