@@ -476,3 +476,34 @@ def test_reduction_salariale_heures_sup_au_taux_legal_arrondi():
         ]
     )
     assert _ligne(cotisations, "114")["S21.G00.81.007"] == "11.310"
+
+
+def test_la_prevoyance_generique_va_sur_une_base_31():
+    """« prevoyance » sans précision tombait sur la base 03 par son libellé :
+    un 059 hors base 31 est refusé (CCH-13), et son assiette de tranche A
+    (4 005 €) gonflait la base 03 d'un cadre payé 3 750 €."""
+    bases, cotisations, _ = _construire(
+        [
+            {
+                "coti_id": "prevoyance",
+                "libelle": "GAN PREVOYANCE CADRE TA",
+                "base": 4005.0,
+                "montant_salarial": 14.62,
+                "montant_patronal": 73.09,
+            }
+        ],
+        brut=3750.0,
+    )
+    assert all(c.rubriques["_base"].startswith("31") for c in cotisations if c.code == "059")
+    base_03 = next(b for b in bases if b.code == "03")
+    assert base_03.rubriques["S21.G00.78.004"] == "3750.00"
+
+
+def test_la_base_03_est_toujours_le_brut():
+    """Assiette brute déplafonnée : le brut, quelle que soit l'assiette d'une ligne."""
+    bases, _, _ = _construire(
+        [{"coti_id": "csa", "base": 4200.0, "taux_patronal": 0.003, "montant_patronal": 12.6}],
+        brut=3750.0,
+    )
+    base_03 = next(b for b in bases if b.code == "03")
+    assert base_03.rubriques["S21.G00.78.004"] == "3750.00"

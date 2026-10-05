@@ -315,3 +315,11 @@ def test_smic_de_la_reduction_generale_lu_sur_la_ligne_du_bulletin():
         if rubrique == "S21.G00.79.004":
             composants[-1].append(valeur)
     assert ["03", "01", "2031.38"] in composants
+
+
+def test_montant_soumis_au_pas_nul_quand_la_paie_l_annule():
+    """Apprenti sous le seuil : la paie ne soumet rien au PAS (assiette 0) ;
+    50.013 vaut 0.00, pas la RNF (l'ancien logiciel : 0.00)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["synthese_net"]["impot_prelevement_a_la_source"] = {"base": 0.0, "taux": 0.0, "montant": 0.0}
+    assert _valeur(_lignes(bulletin=bulletin), "S21.G00.50.013") == "0.00"
