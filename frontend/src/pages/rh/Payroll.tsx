@@ -56,6 +56,14 @@ import {
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
 import { lireParamsVuePaie, type VuePaie } from '@/features/payroll/utils/vuePaieUrl';
+import {
+  ecartAvecMoisPrecedent,
+  estARevoir,
+  libelleEcart,
+  moisPrecedent,
+  phraseSynthese,
+  syntheseDuMois,
+} from '@/features/payroll/utils/revueDuMois';
 
 type PayrollView = VuePaie;
 
@@ -315,10 +323,18 @@ export default function Payroll() {
     return counts;
   }, [employees, payslipsByEmployee, selectedYear]);
 
+  const precedent = useMemo(
+    () => moisPrecedent(selectedYear, selectedMonth),
+    [selectedYear, selectedMonth]
+  );
+
   const monthEmployeeStates = useMemo<EmployeeMonthState[]>(() => {
     return employees.map((emp) => {
       const payslip = (payslipsByEmployee[emp.id] ?? []).find(
         (p) => p.year === selectedYear && p.month === selectedMonth
+      );
+      const payslipPrecedent = (payslipsByEmployee[emp.id] ?? []).find(
+        (p) => p.year === precedent.year && p.month === precedent.month
       );
       const state = buildRowState(
         payslip,
@@ -332,15 +348,48 @@ export default function Payroll() {
         selectedYear,
         selectedMonth
       );
+      const rowState: PayslipRowState =
+        unavailableReason && state.status !== 'success' && state.status !== 'loading'
+          ? { status: 'unavailable' as const, errorMessage: unavailableReason }
+          : state;
+      const ecart = payslip ? ecartAvecMoisPrecedent(payslip, payslipPrecedent) : null;
       return {
         employee: emp,
-        state:
-          unavailableReason && state.status !== 'success' && state.status !== 'loading'
-            ? { status: 'unavailable' as const, errorMessage: unavailableReason }
-            : state,
+        state: rowState,
+        payslipPrecedent,
+        ecart: ecart
+          ? {
+              texte: libelleEcart(ecart, selectedYear, selectedMonth),
+              fort: ecart.fort,
+              raison: ecart.raison,
+            }
+          : null,
+        aRevoir: estARevoir({
+          statut: rowState.status,
+          bulletin: rowState.payslip,
+          alertes: rowState.warnings,
+          ecart,
+        }),
       };
     });
-  }, [employees, payslipsByEmployee, selectedYear, selectedMonth, generationState]);
+  }, [employees, payslipsByEmployee, selectedYear, selectedMonth, precedent, generationState]);
+
+  const syntheseMois = useMemo(
+    () =>
+      phraseSynthese(
+        syntheseDuMois(
+          monthEmployeeStates.map((row) => ({
+            statut: row.state.status,
+            bulletin: row.state.payslip,
+            bulletinPrecedent: row.payslipPrecedent,
+          }))
+        ),
+        selectedYear,
+        selectedMonth
+      ),
+    [monthEmployeeStates, selectedYear, selectedMonth]
+  );
+  const [aRevoirSeulement, setARevoirSeulement] = useState(false);
 
   const monthMissingCount = useMemo(
     () => monthEmployeeStates.filter((row) => canGeneratePayslip(row.state)).length,
@@ -688,6 +737,9 @@ export default function Payroll() {
               loadingEmployees={loadingEmployees}
               loadingPayslips={loadingMonthData}
               progressSlot={progressSlot}
+              synthese={loadingMonthData ? undefined : syntheseMois}
+              aRevoirSeulement={aRevoirSeulement}
+              onARevoirChange={setARevoirSeulement}
             />
           </TabsContent>
         </Tabs>

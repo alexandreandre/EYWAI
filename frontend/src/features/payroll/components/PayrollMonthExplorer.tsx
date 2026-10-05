@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
+import type { PayslipInfo } from '@/api/payslips';
 import { CalendarDays, RefreshCw, Rocket, Search } from 'lucide-react';
 import {
   monthLabel,
@@ -25,6 +27,7 @@ import {
 } from '@/features/payroll/components/PayrollSkeletons';
 import {
   PayrollPayslipRow,
+  type EcartLigne,
   type PayslipRowState,
 } from '@/features/payroll/components/PayrollPayslipRow';
 import { ReportsNetNegatifDuMois } from '@/features/payroll/components/ReportNetNegatif';
@@ -33,6 +36,12 @@ import { libelleBoutonRecalculerTout } from '@/features/payroll/utils/bulletinAR
 export type EmployeeMonthState = {
   employee: EmployeeListItem;
   state: PayslipRowState;
+  /** Écart avec le mois précédent, déjà dit. */
+  ecart?: EcartLigne | null;
+  /** Sans bulletin, en échec, à recalculer, en alerte ou en écart fort. */
+  aRevoir?: boolean;
+  /** Bulletin du mois précédent, pour la synthèse. */
+  payslipPrecedent?: PayslipInfo;
 };
 
 export type PayrollMonthExplorerProps = {
@@ -57,6 +66,11 @@ export type PayrollMonthExplorerProps = {
   loadingEmployees: boolean;
   loadingPayslips: boolean;
   progressSlot?: ReactNode;
+  /** « 25/25 générés · 18 validés · Brut … · Net … · +3 % sur août ». */
+  synthese?: string;
+  /** N'afficher que les bulletins à revoir. */
+  aRevoirSeulement?: boolean;
+  onARevoirChange?: (actif: boolean) => void;
 };
 
 function matchesSearch(emp: EmployeeListItem, q: string): boolean {
@@ -86,6 +100,9 @@ export function PayrollMonthExplorer({
   loadingEmployees,
   loadingPayslips,
   progressSlot,
+  synthese,
+  aRevoirSeulement = false,
+  onARevoirChange,
 }: PayrollMonthExplorerProps) {
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(true);
@@ -94,7 +111,10 @@ export function PayrollMonthExplorer({
     setSearch('');
   }, [selectedMonth, selectedYear]);
 
-  const filtered = employeeStates.filter((row) => matchesSearch(row.employee, search));
+  const aRevoirCount = employeeStates.filter((row) => row.aRevoir).length;
+  const filtered = employeeStates.filter(
+    (row) => matchesSearch(row.employee, search) && (!aRevoirSeulement || row.aRevoir)
+  );
   const generatedForMonth = monthGeneratedCounts[selectedMonth] ?? 0;
 
   const renderMonthButton = (month: number, variant: 'sidebar' | 'mobile') => {
@@ -126,6 +146,22 @@ export function PayrollMonthExplorer({
       </button>
     );
   };
+
+  const filtreARevoir = (idSuffix: string) =>
+    onARevoirChange ? (
+      <div className="flex items-center gap-2">
+        <Switch
+          id={`payroll-month-a-revoir-${idSuffix}`}
+          checked={aRevoirSeulement}
+          onCheckedChange={onARevoirChange}
+          disabled={loadingPayslips}
+          data-testid="seulement-a-revoir"
+        />
+        <Label htmlFor={`payroll-month-a-revoir-${idSuffix}`} className="text-sm whitespace-nowrap">
+          Seulement à revoir ({aRevoirCount})
+        </Label>
+      </div>
+    ) : null;
 
   const searchField = (idSuffix: string) => (
     <div className="relative">
@@ -200,15 +236,18 @@ export function PayrollMonthExplorer({
       <p className="px-3 py-8 text-center text-sm text-muted-foreground">
         {employeeStates.length === 0
           ? 'Aucun collaborateur à afficher.'
-          : 'Aucun collaborateur trouvé.'}
+          : aRevoirSeulement && aRevoirCount === 0
+            ? 'Rien à revoir ce mois-ci : chaque bulletin est généré, à jour, sans alerte ni écart fort.'
+            : 'Aucun collaborateur trouvé.'}
       </p>
     ) : (
       <ul className="divide-y divide-border/60">
-        {filtered.map(({ employee, state }) => (
+        {filtered.map(({ employee, state, ecart }) => (
           <PayrollPayslipRow
             key={employee.id}
             name={`${employee.first_name} ${employee.last_name}`}
             state={state}
+            ecart={ecart}
             onGenerate={() => onGenerateEmployee(employee.id)}
             onDelete={(payslipId) => onDeletePayslip(payslipId, employee.id)}
             deletingPayslipId={deletingPayslipId}
@@ -223,7 +262,11 @@ export function PayrollMonthExplorer({
       </ul>
     );
 
-  const detailSubtitle = (
+  const detailSubtitle = synthese ? (
+    <p className="text-xs text-muted-foreground tabular-nums" data-testid="synthese-du-mois">
+      {synthese}
+    </p>
+  ) : (
     <p className="text-xs text-muted-foreground">
       {generatedForMonth} / {totalEmployees} bulletin{totalEmployees !== 1 ? 's' : ''} généré
       {generatedForMonth !== 1 ? 's' : ''}
@@ -258,7 +301,10 @@ export function PayrollMonthExplorer({
                 </div>
                 {yearControls}
               </div>
-              <div className="pt-1">{searchField('desktop')}</div>
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <div className="min-w-[200px] flex-1">{searchField('desktop')}</div>
+                {filtreARevoir('desktop')}
+              </div>
               {progressSlot}
             </div>
             <div className="flex-1 overflow-y-auto p-2 max-h-[min(70vh,640px)]">
@@ -304,6 +350,7 @@ export function PayrollMonthExplorer({
               {yearControls}
             </div>
             {searchField('mobile')}
+            {filtreARevoir('mobile')}
             {progressSlot}
           </CardHeader>
           <CardContent className="pt-3">

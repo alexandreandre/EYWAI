@@ -37,6 +37,15 @@ export type PayslipRowState = {
   warnings?: string[];
 };
 
+/** Écart avec le mois précédent, déjà dit (vue par mois). */
+export type EcartLigne = {
+  /** « +3 % sur août » ; null sans mois précédent. */
+  texte: string | null;
+  fort: boolean;
+  /** Ce qui met la ligne en orange (« Net +14 % sur août · 22 h sup. »). */
+  raison: string | null;
+};
+
 type PayrollPayslipRowProps = {
   /** Libellé principal de la ligne (mois ou nom du collaborateur). */
   name: string;
@@ -46,15 +55,17 @@ type PayrollPayslipRowProps = {
   deletingPayslipId: string | null;
   /** Texte affiché dans la confirmation de suppression. */
   deleteDescription: ReactNode;
+  /** Écart avec le mois précédent (vue par mois). */
+  ecart?: EcartLigne | null;
 };
 
-function formatNet(net?: number): string | null {
-  if (net == null || Number.isNaN(net)) return null;
+function formatEuro(montant?: number | null): string | null {
+  if (montant == null || Number.isNaN(montant)) return null;
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,
-  }).format(net);
+  }).format(montant);
 }
 
 export function PayrollPayslipRow({
@@ -64,9 +75,12 @@ export function PayrollPayslipRow({
   onDelete,
   deletingPayslipId,
   deleteDescription,
+  ecart,
 }: PayrollPayslipRowProps) {
   const payslip = state.payslip;
-  const netLabel = payslip ? formatNet(payslip.net_a_payer) : null;
+  const netLabel = payslip ? formatEuro(payslip.net_a_payer) : null;
+  const brutLabel = payslip ? formatEuro(payslip.salaire_brut) : null;
+  const ecartAffiche = ecart ? (ecart.fort ? ecart.raison : ecart.texte) : null;
   const warnings = state.warnings ?? payslip?.warnings ?? [];
   const showNetBrut = hasNetSuperieurBrutWarning(warnings);
   const otherWarnings = warnings
@@ -140,7 +154,25 @@ export function PayrollPayslipRow({
           À arbitrer
         </Badge>
       )}
-      {netLabel && <span className="text-xs text-muted-foreground">Net {netLabel}</span>}
+      {(brutLabel || netLabel) && (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {[brutLabel && `Brut ${brutLabel}`, netLabel && `Net ${netLabel}`]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      )}
+      {state.status === 'success' && ecartAffiche && (
+        <span
+          className={
+            ecart?.fort
+              ? 'text-xs font-medium tabular-nums text-amber-700 dark:text-amber-400'
+              : 'text-xs tabular-nums text-muted-foreground'
+          }
+          data-testid="ecart-mois-precedent"
+        >
+          {ecartAffiche}
+        </span>
+      )}
       {payslip?.manually_edited && (
         <Badge variant="secondary" className="text-xs">
           Modifié

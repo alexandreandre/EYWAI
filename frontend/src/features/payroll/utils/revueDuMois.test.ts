@@ -13,7 +13,7 @@ import {
 } from './revueDuMois';
 
 /** Espaces insécables d'Intl ramenées à des espaces simples, pour lire les phrases. */
-const lisible = (texte: string) => texte.replace(/[  ]/g, ' ');
+const lisible = (texte: string) => texte.replace(/[\u00a0\u202f]/g, ' ');
 
 function bulletin(overrides: Partial<BulletinPourRevue> = {}): BulletinPourRevue {
   return {
