@@ -246,6 +246,50 @@ def _parts_patronales_psc(lignes: List[Dict[str, Any]]) -> Tuple[float, float]:
     return round(sante, 2), round(prevoyance, 2)
 
 
+def _epargne_salariale(payslip_data: Dict[str, Any], period: str) -> List[Tuple[str, float, int]]:
+    """(type 54, montant, exercice) de la participation et de l'intéressement versés.
+
+    11 participation, 12 intéressement, sur leur montant brut ; 37 la part
+    versée directement par l'employeur (hors part placée). L'exercice est
+    celui du libellé (« Participation 2025 »), à défaut l'année précédente.
+    Un acompte déjà versé ne réduit pas le montant déclaré (ancien
+    logiciel, mai 2026).
+    """
+    annee_precedente = int(period[:4]) - 1
+    elements: List[Tuple[str, float, float, str]] = []
+    for ligne in payslip_data.get("participations") or []:
+        if isinstance(ligne, dict) and float(ligne.get("brut") or 0) > 0:
+            elements.append(
+                (
+                    str(ligne.get("libelle") or ""),
+                    float(ligne["brut"]),
+                    float(ligne.get("part_pee") or 0),
+                    "participations",
+                )
+            )
+    if not elements:
+        for ligne in payslip_data.get("primes_non_soumises") or []:
+            if not isinstance(ligne, dict):
+                continue
+            libelle = str(ligne.get("libelle") or "")
+            texte = libelle.lower().strip()
+            if not (texte.startswith("participation") or texte.startswith("intéressement") or texte.startswith("interessement")):
+                continue
+            montant = float(ligne.get("montant") or 0)
+            if montant > 0:
+                elements.append((libelle, montant, 0.0, "primes"))
+    cumuls: Dict[Tuple[str, int], float] = {}
+    for libelle, brut, place, _ in elements:
+        texte = libelle.lower()
+        type_54 = "12" if "intéressement" in texte or "interessement" in texte else "11"
+        annee = re.search(r"\b(20\d{2})\b", libelle)
+        exercice = int(annee.group(1)) if annee else annee_precedente
+        cumuls[(type_54, exercice)] = cumuls.get((type_54, exercice), 0.0) + brut
+        if brut - place > 0:
+            cumuls[("37", exercice)] = cumuls.get(("37", exercice), 0.0) + brut - place
+    return [(t, round(m, 2), e) for (t, e), m in sorted(cumuls.items())]
+
+
 def _net_verse(net_fiscal: float, lignes: List[Dict[str, Any]]) -> float:
     """Montant net versé (S21.G00.50.004), formule du CT 2026.
 
@@ -1068,7 +1112,18 @@ def build_individu_from_payroll(
     # Autres éléments de revenu brut (bloc 54) : parts patronales santé (92),
     # prévoyance et retraite supplémentaire (93), datées de la période.
     sante, prevoyance = _parts_patronales_psc(cot_lines)
+    # Participation et intéressement versés (11, 12, 37), datés de l'exercice.
     blocs_54 = [
+        {
+            "type": type_54,
+            "montant": f"{montant:.2f}",
+            "debut": f"0101{exercice}",
+            "fin": f"3112{exercice}",
+            "contrat": numero,
+        }
+        for type_54, montant, exercice in _epargne_salariale(payslip_data, period)
+    ]
+    blocs_54 += [
         {
             "type": type_54,
             "montant": f"{montant:.2f}",
