@@ -463,17 +463,24 @@ def _defauts_contrat(
 REGIME_GENERAL = "200"
 
 
-def _pas_details(payslip_data: Dict[str, Any]) -> Tuple[float, float, float]:
-    """Retourne (montant, taux, assiette)."""
+def _pas_details(payslip_data: Dict[str, Any]) -> Tuple[float, float, Optional[float]]:
+    """Retourne (montant, taux, assiette) ; assiette None si la paie ne la dit pas.
+
+    Une assiette à zéro est une vraie valeur : l'apprenti sous le seuil
+    d'exonération n'a rien de soumis au PAS (50.013 = 0.00).
+    """
     synthese = payslip_data.get("synthese_net")
     if not isinstance(synthese, dict):
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, None
     pas_obj = synthese.get("impot_prelevement_a_la_source")
     if isinstance(pas_obj, dict):
+        assiette = pas_obj.get("base")
+        if assiette is None:
+            assiette = pas_obj.get("assiette")
         return (
             float(pas_obj.get("montant") or 0),
             float(pas_obj.get("taux") or 0),
-            float(pas_obj.get("base") or pas_obj.get("assiette") or 0),
+            float(assiette) if assiette not in (None, "") else None,
         )
     _, extract_pas_amount = _extracteurs_bulletin()
     montant = extract_pas_amount(synthese)
@@ -1025,7 +1032,7 @@ def build_individu_from_payroll(
         "S21.G00.50.006": f"{pas_taux:.2f}",
         "S21.G00.50.007": pas_type,
         "S21.G00.50.009": f"{pas_montant:.2f}",
-        "S21.G00.50.013": f"{(pas_assiette or net_fiscal):.2f}",
+        "S21.G00.50.013": f"{(net_fiscal if pas_assiette is None else pas_assiette):.2f}",
         "activites": rem_build.activites,
     }
     if pas_identifiant and (pas_type == "01" or pas_identifiant == "-1"):
@@ -1097,7 +1104,7 @@ def build_individu_from_payroll(
         pas_taux=round(pas_taux, 2),
         pas_type=pas_type,
         pas_identifiant=pas_identifiant,
-        montant_soumis_pas=round(pas_assiette or net_fiscal, 2),
+        montant_soumis_pas=round(net_fiscal if pas_assiette is None else pas_assiette, 2),
         remunerations=rem_build.remunerations,
         bases_assujetties=bases,
         cotisations_individuelles=cotisations,

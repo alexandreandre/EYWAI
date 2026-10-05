@@ -160,6 +160,7 @@ REGLES: Dict[str, Regle] = {
     # Base 31 — prévoyance, santé, retraite supplémentaire
     "mutuelle": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "complementaire_sante": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
+    "prevoyance": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "prevoyance_cadre": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "prevoyance_non_cadre": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
     "retraite_sup": Regle(PSC_COTISATION_CODE, BASE_PREVOYANCE),
@@ -575,7 +576,9 @@ def _traduire(
         code = _code_depuis_libelle(libelle)
         if code is None:
             return []
-        regle = Regle(code, BASE_BRUT_DEPLAFONNE)
+        # Une cotisation de prévoyance ou de santé n'existe que sur sa base 31.
+        base = BASE_PREVOYANCE if code == PSC_COTISATION_CODE else BASE_BRUT_DEPLAFONNE
+        regle = Regle(code, base)
 
     # Codes Agirc-Arrco (CT 2026, 81.002 / 81.003 / 81.007) : ni OPS, ni
     # assiette, ni taux hors réduction — le montant seul, comme le 131.
@@ -748,6 +751,10 @@ def build_bases_and_cotisations(
         montants_base[BASE_BRUT_DEPLAFONNE] = round(brut, 2)
     for ligne in produites:
         if ligne.base == BASE_PREVOYANCE:
+            continue
+        if ligne.base == BASE_BRUT_DEPLAFONNE and brut > 0:
+            # L'assiette brute déplafonnée est le brut, jamais l'assiette d'une
+            # ligne (une tranche A à 4 005 € la gonflait sur un brut de 3 750 €).
             continue
         if ligne.par_taux:
             # Base du forfait social : la somme des assiettes, une par taux.
