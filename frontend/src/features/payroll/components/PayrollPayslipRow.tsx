@@ -26,6 +26,7 @@ import {
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { libelleDuBlocage } from '@/features/payroll/utils/employmentPeriod';
+import { useGenerationEnCours } from '@/features/payroll/components/GenerationEnCoursContext';
 import { Edit, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export type PayslipRowStatus = 'idle' | 'loading' | 'success' | 'error' | 'unavailable';
@@ -95,6 +96,8 @@ export function PayrollPayslipRow({
   const importe = estBulletinImporte(payslip);
   const perime = estPerime(payslip);
   const companyId = useActiveCompanyId();
+  const generationEnCours = useGenerationEnCours();
+  const motifGeneration = generationEnCours ? 'Génération en cours : patientez' : undefined;
   const netNegatif = (payslip?.net_a_payer ?? 0) < 0;
   const valide = payslip?.status === 'valide';
   const enAlerte = warnings.length > 0 || netNegatif;
@@ -200,8 +203,8 @@ export function PayrollPayslipRow({
     actions = (
       <>
         <ViewLinkButton href={payslip.preview_url ?? payslip.url ?? ''} title="Visualiser le bulletin" downloadUrl={payslip.url} downloadName={payslip.name} />
-        {importe ? (
-          <Button variant="outline" size="sm" disabled title={MOTIF_BULLETIN_IMPORTE}>
+        {importe || generationEnCours ? (
+          <Button variant="outline" size="sm" disabled title={importe ? MOTIF_BULLETIN_IMPORTE : motifGeneration}>
             <Edit className="mr-2 h-4 w-4" />
             Modifier
           </Button>
@@ -214,7 +217,14 @@ export function PayrollPayslipRow({
           </Button>
         )}
         {perime ? (
-          <Button size="sm" variant="outline" onClick={onGenerate} data-testid="recalculer-ligne">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onGenerate}
+            disabled={generationEnCours}
+            title={motifGeneration}
+            data-testid="recalculer-ligne"
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
             Recalculer
           </Button>
@@ -231,8 +241,8 @@ export function PayrollPayslipRow({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-destructive hover:text-destructive"
-              disabled={deletingPayslipId === payslip.id || importe}
-              title={importe ? MOTIF_BULLETIN_IMPORTE : undefined}
+              disabled={deletingPayslipId === payslip.id || importe || generationEnCours}
+              title={importe ? MOTIF_BULLETIN_IMPORTE : motifGeneration}
             >
               {deletingPayslipId === payslip.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -257,13 +267,13 @@ export function PayrollPayslipRow({
     );
   } else if (state.status === 'error') {
     actions = (
-      <Button size="sm" variant="destructive" onClick={onGenerate}>
+      <Button size="sm" variant="destructive" onClick={onGenerate} disabled={generationEnCours} title={motifGeneration}>
         Réessayer
       </Button>
     );
   } else {
     actions = (
-      <Button size="sm" variant="outline" onClick={onGenerate}>
+      <Button size="sm" variant="outline" onClick={onGenerate} disabled={generationEnCours} title={motifGeneration}>
         Générer
       </Button>
     );
@@ -277,7 +287,7 @@ export function PayrollPayslipRow({
           {showNetBrut ? <PayslipNetBrutInlineLabel /> : null}
         </>
       }
-      rowHref={state.status === 'success' && payslip ? `/payslips/${payslip.id}/edit` : undefined}
+      rowHref={state.status === 'success' && payslip && !generationEnCours ? `/payslips/${payslip.id}/edit` : undefined}
       subtitle={
         state.status === 'error' && state.errorMessage ? (
           <span className="text-destructive">{state.errorMessage}</span>

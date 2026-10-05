@@ -21,6 +21,13 @@ import {
 import { PayrollGroupLaunchCta } from '@/features/payroll/components/PayrollGroupLaunchCta';
 import { PayrollMonthList, type MonthStatusMap } from '@/features/payroll/components/PayrollMonthList';
 import type { PayslipRowState } from '@/features/payroll/components/PayrollPayslipRow';
+import { GenerationEnCoursProvider } from '@/features/payroll/components/GenerationEnCoursContext';
+import {
+  libelleBandeauGeneration,
+  lireInterruption,
+  oublierInterruption,
+  phraseInterruption,
+} from '@/features/payroll/utils/generationEnCours';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
 import {
@@ -204,6 +211,23 @@ export default function Payroll() {
   const [dialogDepartOuvert, setDialogDepartOuvert] = useState(false);
 
   const generation = usePayrollGeneration();
+  // Génération interrompue par une page quittée : dite une fois au retour.
+  const [interruption, setInterruption] = useState(() => {
+    try {
+      return lireInterruption(window.sessionStorage, companyId);
+    } catch {
+      return null;
+    }
+  });
+  const oublierNoteInterruption = () => {
+    try {
+      oublierInterruption(window.sessionStorage);
+    } catch {
+      // Stockage indisponible : rien à effacer.
+    }
+    setInterruption(null);
+  };
+  const generationEnCours = generation.phase === 'running';
   const exitsQuery = useEmployeeExitsQuery(true);
   const preflightQuery = usePreflightAnomalies(selectedYear, selectedMonth);
 
@@ -211,7 +235,10 @@ export default function Payroll() {
 
   // Une nouvelle passe de génération ré-arme le récapitulatif des refusés.
   useEffect(() => {
-    if (generation.phase === 'running') setRefusalDialogDismissed(false);
+    if (generation.phase === 'running') {
+      setRefusalDialogDismissed(false);
+      oublierNoteInterruption();
+    }
   }, [generation.phase]);
 
   useEffect(() => {
@@ -705,6 +732,7 @@ export default function Payroll() {
     ) : null;
 
   return (
+    <GenerationEnCoursProvider value={generationEnCours}>
     <div className="space-y-6">
       <PageFetchIndicator isFetching={employeesQuery.isFetching || payslipsQuery.isFetching} />
       <RhPageHeader
@@ -712,6 +740,54 @@ export default function Payroll() {
         description="Générez et consultez les bulletins par collaborateur ou par mois."
         actions={<CreateEmployeeForm />}
       />
+
+      {generationEnCours && (
+        <div
+          role="status"
+          data-testid="bandeau-generation"
+          className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900"
+        >
+          {libelleBandeauGeneration(generation.completedCount, generation.totalJobs)}
+        </div>
+      )}
+
+      {!generationEnCours && interruption && (
+        <div
+          role="alert"
+          data-testid="bandeau-interruption"
+          className="flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          <span>{phraseInterruption(interruption)}</span>
+          <button type="button" className="underline" onClick={oublierNoteInterruption}>
+            Compris
+          </button>
+        </div>
+      )}
+
+      {!generationEnCours && generation.recapEchecs.length > 0 && (
+        <div
+          role="alert"
+          data-testid="recap-echecs-generation"
+          className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-medium">
+              {generation.recapEchecs.length} bulletin{generation.recapEchecs.length > 1 ? 's' : ''} non généré
+              {generation.recapEchecs.length > 1 ? 's' : ''} à la dernière génération
+            </p>
+            <button type="button" className="underline" onClick={generation.oublierEchecs}>
+              Masquer
+            </button>
+          </div>
+          <ul className="mt-1 list-disc pl-5">
+            {generation.recapEchecs.map((echec) => (
+              <li key={echec.cle}>
+                {echec.nom} ({echec.mois}) : {echec.raison}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -844,5 +920,6 @@ export default function Payroll() {
         onDismiss={() => setRefusalDialogDismissed(true)}
       />
     </div>
+    </GenerationEnCoursProvider>
   );
 }

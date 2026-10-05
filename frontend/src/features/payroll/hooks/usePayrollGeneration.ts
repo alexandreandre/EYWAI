@@ -33,6 +33,13 @@ import {
   montantsDepuisReponse,
   type MontantsBulletin,
 } from '@/features/payroll/utils/bulletinARecalculer';
+import {
+  lienQuitteLaPage,
+  noterInterruption,
+  questionQuitterGeneration,
+  recapitulatifEchecs,
+  type EchecGeneration,
+} from '@/features/payroll/utils/generationEnCours';
 
 export type PayrollGenerationJob = {
   employeeId: string;
@@ -86,6 +93,15 @@ export function payrollJobKey(
   return `${job.employeeId}-${job.year}-${job.month}`;
 }
 
+/** sessionStorage, ou null quand le navigateur l'interdit. */
+function stockageDeSession(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 function isAbortError(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return true;
   if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -107,6 +123,8 @@ export function usePayrollGeneration() {
   const [totalJobs, setTotalJobs] = useState(0);
   const [failedJobs, setFailedJobs] = useState<Record<string, string>>({});
   const [refusedJobs, setRefusedJobs] = useState<PayrollGenerationRefusal[]>([]);
+  /** Échecs de la dernière passe, gardés une fois le suivi fermé. */
+  const [recapEchecs, setRecapEchecs] = useState<EchecGeneration[]>([]);
 
   const abortRef = useRef(false);
   const tickRef = useRef<number | null>(null);
@@ -119,6 +137,8 @@ export function usePayrollGeneration() {
   const processingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const logRef = useRef<PayrollGenerationLogEntry[]>([]);
+  const companyIdRef = useRef(companyId);
+  companyIdRef.current = companyId;
 
   const stopTick = useCallback(() => {
     if (tickRef.current != null) {
@@ -354,6 +374,7 @@ export function usePayrollGeneration() {
         setLog([]);
         setFailedJobs({});
         setRefusedJobs([]);
+        setRecapEchecs([]);
         completedCountRef.current = 0;
         totalRef.current = 0;
         setProgress(0);
@@ -426,9 +447,18 @@ export function usePayrollGeneration() {
     stopTick();
   }, [stopTick]);
 
+  /**
+   * Ferme le suivi. Les échecs restent : sur leur ligne (« Échec » et sa
+   * raison) et dans le récapitulatif, jusqu'à la prochaine génération.
+   */
   const dismiss = useCallback(() => {
+    const echecs = recapitulatifEchecs(logRef.current);
     reset();
+    setRecapEchecs(echecs);
+    setFailedJobs(Object.fromEntries(echecs.map((e) => [e.cle, e.raison])));
   }, [reset]);
+
+  const oublierEchecs = useCallback(() => setRecapEchecs([]), []);
 
   useEffect(
     () => () => {
@@ -437,6 +467,57 @@ export function usePayrollGeneration() {
     },
     [stopTick, clearDismissTimer]
   );
+
+  // Page quittée en pleine génération : la passe s'arrête avec la page. Une
+  // note le dit au retour (déclaré avant le `dismiss` de démontage des pages).
+  useEffect(
+    () => () => {
+      if (!processingRef.current || !companyIdRef.current) return;
+      noterInterruption(stockageDeSession(), {
+        companyId: companyIdRef.current,
+        faits: completedCountRef.current,
+        total: totalRef.current,
+      });
+    },
+    []
+  );
+
+  // Pendant la génération : question avant de fermer l'onglet ou de suivre un
+  // lien vers une autre page de l'application.
+  useEffect(() => {
+    if (phase !== 'running') return undefined;
+    const avantDeQuitter = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const surClic = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const cible = event.target instanceof Element ? event.target : null;
+      const lien = cible?.closest('a[href]');
+      if (!lien) return;
+      const quitte = lienQuitteLaPage(
+        {
+          href: lien.getAttribute('href'),
+          target: lien.getAttribute('target'),
+          download: lien.hasAttribute('download'),
+        },
+        window.location
+      );
+      if (!quitte) return;
+      if (window.confirm(questionQuitterGeneration(completedCountRef.current, totalRef.current))) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.addEventListener('beforeunload', avantDeQuitter);
+    document.addEventListener('click', surClic, true);
+    return () => {
+      window.removeEventListener('beforeunload', avantDeQuitter);
+      document.removeEventListener('click', surClic, true);
+    };
+  }, [phase]);
 
   const currentLabel = currentJob
     ? `Génération du bulletin de ${monthYearLabel(currentJob.month, currentJob.year)} — ${currentJob.employeeName}…`
@@ -497,6 +578,8 @@ export function usePayrollGeneration() {
     generateJobs,
     failedJobs,
     refusedJobs,
+    recapEchecs,
+    oublierEchecs,
     forceRefused,
     retryJob,
     reset,
