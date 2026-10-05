@@ -95,6 +95,9 @@ class Absences:
     # Retenues d'absence, entrée / sortie comprises : ce qu'il faut rendre au
     # brut pour reconstituer le salaire d'un mois complet (003).
     retenues: float = 0.0
+    # Part des retenues due à des absences injustifiées : hors salaire
+    # rétabli (003), dans la rémunération habituelle du mois complet (029).
+    retenues_injustifiees: float = 0.0
     compensations: float = 0.0
     entree_sortie: bool = False
 
@@ -116,6 +119,7 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
         l for l in (payslip_data.get("details_absences") or []) if isinstance(l, dict)
     ]
     ligne_precedente_cp = False
+    ligne_precedente_injustifiee = False
     for ligne in lignes:
         libelle = _lib(ligne)
         perte = _f(ligne.get("perte"))
@@ -134,8 +138,14 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
         if "structurell" in libelle and ligne_precedente_cp:
             continue
         ligne_precedente_cp = False
+        injustifiee = "injustifi" in libelle or (
+            "structurell" in libelle and ligne_precedente_injustifiee
+        )
+        ligne_precedente_injustifiee = injustifiee
         resultat.heures_non_payees += heures
         resultat.retenues += perte
+        if injustifiee:
+            resultat.retenues_injustifiees += perte
         if "entrée ou sortie" in libelle or "entree ou sortie" in libelle:
             resultat.entree_sortie = True
             continue
@@ -143,6 +153,7 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
     resultat.heures_non_payees = round(resultat.heures_non_payees, 2)
     resultat.heures_absence = round(resultat.heures_absence, 2)
     resultat.retenues = round(resultat.retenues, 2)
+    resultat.retenues_injustifiees = round(resultat.retenues_injustifiees, 2)
     resultat.compensations = round(resultat.compensations, 2)
     return resultat
 
@@ -301,14 +312,19 @@ def build_remunerations_from_payslip(
     # 003 salaire rétabli : le brut auquel on rend ce que les absences ont
     # retiré, moins ce qui les a indemnisées (maintien). Sur le rejeu de juin,
     # 2026,41 + 93,93 + 13,39 = 2133,73 : le brut d'un mois sans absence.
-    retabli = max(
+    # Une absence injustifiée ne se reconstitue pas dans le rétabli (003) ;
+    # elle reste dans la rémunération habituelle du mois complet (029).
+    habituelle = max(
         brut_r, round(brut_r + absences.retenues - absences.compensations, 2)
     )
+    retabli = max(brut_r, round(habituelle - absences.retenues_injustifiees, 2))
     if mois_incomplet and not absences.entree_sortie and heures_contrat_mois:
         # Entrée ou sortie sans ligne d'absence : la base payée est déjà
         # proratisée. On rend les heures manquantes au taux de chaque ligne —
         # 49 h payées sur 151,67 : le rétabli est le mois complet.
-        retabli = round(retabli + _manque_du_mois(payslip_data, heures_contrat_mois), 2)
+        manque = _manque_du_mois(payslip_data, heures_contrat_mois)
+        retabli = round(retabli + manque, 2)
+        habituelle = round(habituelle + manque, 2)
     # 028 / 029 : sans les éléments que l'absence n'affecte pas — les heures
     # sup aléatoires, payées comme travaillées — ni les indemnités de rupture.
     # Comme l'ancien logiciel, seulement un mois d'absence : sans absence, 028
@@ -386,7 +402,7 @@ def build_remunerations_from_payslip(
     remus.append(
         _rem_block(
             type_code="029",
-            montant=round(retabli - hors_absence, 2),
+            montant=round(habituelle - hors_absence, 2),
             period_start=period_start,
             period_end=period_end,
             contrat_ref=contrat_ref,
