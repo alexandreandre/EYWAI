@@ -202,6 +202,7 @@ _FAMILLE_PREFIXES = (
     ("ijss", FAMILLE_IJSS),
     ("indemnite activite partielle", FAMILLE_ACTIVITE_PARTIELLE),
     ("prime de partage de la valeur", FAMILLE_PPV),
+    ("prime partage de la valeur", FAMILLE_PPV),
     ("prime partage valeur", FAMILLE_PPV),
     ("ppv", FAMILLE_PPV),
     ("indemnite legale de licenciement", FAMILLE_INDEMNITE_RUPTURE),

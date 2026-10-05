@@ -280,6 +280,8 @@ class TestFamillesDesBulletinsRecents:
 
         assert resolve_element_family("Prime de partage de la valeur (PPV)") == FAMILLE_PPV
         assert resolve_element_family("", "prime_partage_valeur") == FAMILLE_PPV
+        # Libellé de l'ancien logiciel (bulletins repris, juillet 2026).
+        assert resolve_element_family("PRIME PARTAGE DE LA VALEUR") == FAMILLE_PPV
 
     def test_prime_de_transport_est_du_transport(self):
         from app.modules.exports.domain.accounting_plan import (
