@@ -123,6 +123,49 @@ def _acquisition_cp_changee(
 _OUVERTURE_SONDE = 10_000.0
 
 
+def _soldes_a_la_reprise(
+    hire_date: date,
+    validated: list[dict],
+    ref: date,
+    policy: LeavePolicySettings,
+    n1: float,
+    n: float,
+) -> tuple[float, float]:
+    """N-1 et N (sans plancher) à la date de reprise, pour des écarts donnés."""
+    from app.modules.absences.domain.rules import compute_cp_period_balances
+
+    calcul = compute_cp_period_balances(
+        hire_date, validated, ref, policy=policy,
+        adjustment=EmployeeLeaveAdjustment(cp_n1_opening_balance=n1, cp_n_opening_balance=n),
+        _skip_adjustment_roll=True,
+    )
+    return float(calcul["n1_remaining"]), float(calcul["n_remaining_brut"])
+
+
+def _ecarts_qui_gardent_le_solde(
+    hire_date: date,
+    validated: list[dict],
+    ref: date,
+    ancienne: LeavePolicySettings,
+    nouvelle: LeavePolicySettings,
+    ancien_n1: float,
+    ancien_n: float,
+) -> tuple[float, float] | None:
+    """Écarts N-1/N qui redonnent sous `nouvelle` le solde repris sous
+    `ancienne` ; None si les écarts en place le redonnent déjà."""
+    cible = _soldes_a_la_reprise(hire_date, validated, ref, ancienne, ancien_n1, ancien_n)
+    if _soldes_a_la_reprise(hire_date, validated, ref, nouvelle, ancien_n1, ancien_n) == cible:
+        return None
+    sonde_n1, _ = _soldes_a_la_reprise(
+        hire_date, validated, ref,
+        dataclasses.replace(nouvelle, cp_carryover_max_days=None),
+        _OUVERTURE_SONDE, 0.0,
+    )
+    nouveau_n1 = round(_OUVERTURE_SONDE + cible[0] - sonde_n1, 2)
+    _, sonde_n = _soldes_a_la_reprise(hire_date, validated, ref, nouvelle, nouveau_n1, 0.0)
+    return nouveau_n1, round(cible[1] - sonde_n, 2)
+
+
 def rebaser_reprises_cp(
     company_id: str, ancienne: LeavePolicySettings, nouvelle: LeavePolicySettings
 ) -> int:
@@ -142,7 +185,6 @@ def rebaser_reprises_cp(
     seuils, chaque solde suit son écart jour pour jour : une sonde suffit.
     Rend le nombre de lignes réécrites.
     """
-    from app.modules.absences.domain.rules import compute_cp_period_balances
     from app.modules.absences.infrastructure.queries import get_employee_hire_date
 
     reecrites = 0
@@ -158,30 +200,14 @@ def rebaser_reprises_cp(
         ref = date.fromisoformat(str(ref_raw)[:10])
         validated = absence_repository.list_validated_for_employees([employee_id])
 
-        def soldes(policy: LeavePolicySettings, n1: float, n: float) -> tuple[float, float]:
-            calcul = compute_cp_period_balances(
-                hire_date, validated, ref, policy=policy,
-                adjustment=EmployeeLeaveAdjustment(
-                    cp_n1_opening_balance=n1, cp_n_opening_balance=n
-                ),
-                _skip_adjustment_roll=True,
-            )
-            return float(calcul["n1_remaining"]), float(calcul["n_remaining_brut"])
-
         ancien_n1 = round(float(row.get("cp_n1_opening_balance") or 0), 2)
         ancien_n = round(float(row.get("cp_n_opening_balance") or 0), 2)
-        cible_n1, cible_n = soldes(ancienne, ancien_n1, ancien_n)
-        # Le nouveau réglage redonne déjà le solde repris : rien à réécrire.
-        if soldes(nouvelle, ancien_n1, ancien_n) == (cible_n1, cible_n):
-            continue
-        sonde_n1, _ = soldes(
-            dataclasses.replace(nouvelle, cp_carryover_max_days=None),
-            _OUVERTURE_SONDE,
-            0.0,
+        nouveaux = _ecarts_qui_gardent_le_solde(
+            hire_date, validated, ref, ancienne, nouvelle, ancien_n1, ancien_n
         )
-        nouveau_n1 = round(_OUVERTURE_SONDE + cible_n1 - sonde_n1, 2)
-        _, sonde_n = soldes(nouvelle, nouveau_n1, 0.0)
-        nouveau_n = round(cible_n - sonde_n, 2)
+        if nouveaux is None:
+            continue
+        nouveau_n1, nouveau_n = nouveaux
         upsert_employee_adjustment(
             company_id,
             employee_id,
