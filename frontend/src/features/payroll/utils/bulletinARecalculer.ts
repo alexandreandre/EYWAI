@@ -29,6 +29,8 @@ export type LigneBulletinPaie = {
   heures_sup?: number | null;
   salaire_brut?: number | null;
   net_a_payer?: number | null;
+  /** « valide » une fois validé par la RH. */
+  status?: string | null;
 };
 
 export type SalariePourRelance = {

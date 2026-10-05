@@ -4,6 +4,9 @@
  *
  * Absences : aucun signal ne dit que toutes les absences du mois sont
  * saisies. L'étape reste à confirmer par la gestionnaire.
+ *
+ * Les deux dernières étapes disent que le mois est fini : bulletins validés,
+ * DSN et export comptable faits (revue du 05/10 : rien ne le disait).
  */
 
 import {
@@ -12,6 +15,7 @@ import {
 } from '@/features/employees/utils/creationSalarie';
 import { payrollEmploymentBlockReason } from '@/features/payroll/utils/employmentPeriod';
 import { estPerime, type LigneBulletinPaie } from '@/features/payroll/utils/bulletinARecalculer';
+import { estBulletinImporte } from '@/features/payroll/utils/bulletinImporte';
 import {
   bandeauxSortieDuMois,
   type DepartPourSortieGuidee,
@@ -24,6 +28,21 @@ export const ETAPE_ABSENCES = 'absences';
 export const ETAPE_BULLETINS = 'bulletins';
 export const ETAPE_SORTIES = 'sorties';
 export const ETAPE_RIB = 'rib';
+export const ETAPE_VALIDES = 'valides';
+export const ETAPE_DECLARATIONS = 'declarations';
+
+/** Les exports qui comptent comme « export comptable » du mois. */
+export const TYPES_EXPORT_COMPTABLE: readonly string[] = [
+  'od_globale',
+  'od_salaires',
+  'od_charges_sociales',
+  'od_pas',
+  'export_cabinet_generique',
+  'export_cabinet_quadra',
+  'export_cabinet_sage',
+  'fec',
+];
+export const TYPE_EXPORT_DSN = 'dsn_mensuelle';
 
 export const MESSAGE_ABSENCES_A_CONFIRMER =
   'Le logiciel ne peut pas vérifier que toutes les absences du mois sont saisies. Confirmez-le vous-même dans Congés & absences.';
@@ -64,6 +83,14 @@ export type ListeControleMois = {
   actions: ActionEnAttente[];
 };
 
+/** Une ligne de l'historique des exports du mois (GET /api/exports/history?period=). */
+export type ExportPourControle = {
+  export_type: string;
+  status: string;
+  generated_at: string;
+  a_refaire?: boolean;
+};
+
 export type EntreeListeControle = {
   year: number;
   month: number;
@@ -73,6 +100,8 @@ export type EntreeListeControle = {
   departs: Lecture<readonly DepartPourSortieGuidee[]>;
   calendriersASaisir: Lecture<readonly string[]>;
   conflitsArret: Lecture<readonly string[]>;
+  /** Absent : non lu, l'étape reste à confirmer. */
+  exportsDuMois?: Lecture<readonly ExportPourControle[]>;
 };
 
 type AnomalieCalendrier = {
@@ -233,6 +262,70 @@ function etapeSorties(
   });
 }
 
+function etapeValides(
+  lecture: Lecture<Record<string, LigneBulletinPaie[]>>,
+  salaries: readonly SalariePourListeControle[],
+  year: number,
+  month: number
+): { etat: EtatEtape; detail: string } {
+  return etatDepuisLecture(lecture, (parSalarie) => {
+    let aValider = 0;
+    for (const salarie of salaries) {
+      if (payrollEmploymentBlockReason(salarie, year, month)) continue;
+      const ligne = (parSalarie[salarie.id] ?? []).find((p) => p.year === year && p.month === month);
+      // Un bulletin repris de l'ancien logiciel a été payé : rien à valider.
+      if (ligne && (ligne.status === 'valide' || estBulletinImporte(ligne))) continue;
+      aValider += 1;
+    }
+    if (aValider === 0) {
+      return { etat: 'fait', detail: 'Les bulletins du mois sont validés.' };
+    }
+    return {
+      etat: 'a_faire',
+      detail: pluriel(
+        aValider,
+        '1 bulletin reste à valider.',
+        `${aValider} bulletins restent à valider.`
+      ),
+    };
+  });
+}
+
+/** Le dernier export généré de ces types : fait, à refaire, ou absent. */
+function etatExport(
+  exports: readonly ExportPourControle[],
+  types: readonly string[]
+): 'fait' | 'a_refaire' | 'absent' {
+  const derniers = new Map<string, ExportPourControle>();
+  for (const e of exports) {
+    if (e.status !== 'generated' || !types.includes(e.export_type)) continue;
+    const avant = derniers.get(e.export_type);
+    if (!avant || e.generated_at > avant.generated_at) derniers.set(e.export_type, e);
+  }
+  if (derniers.size === 0) return 'absent';
+  return [...derniers.values()].some((e) => e.a_refaire) ? 'a_refaire' : 'fait';
+}
+
+function etapeDeclarations(
+  lecture: Lecture<readonly ExportPourControle[]>
+): { etat: EtatEtape; detail: string } {
+  return etatDepuisLecture(lecture, (exports) => {
+    const dsn = etatExport(exports, [TYPE_EXPORT_DSN]);
+    const compta = etatExport(exports, TYPES_EXPORT_COMPTABLE);
+    if (dsn === 'fait' && compta === 'fait') {
+      return { etat: 'fait', detail: 'La DSN et l’export comptable du mois sont faits.' };
+    }
+    const morceaux: string[] = [];
+    if (dsn === 'absent') morceaux.push('La DSN du mois n’est pas faite.');
+    if (dsn === 'a_refaire') morceaux.push('La DSN est à refaire : un bulletin du mois a changé depuis.');
+    if (compta === 'absent') morceaux.push('L’export comptable du mois n’est pas fait.');
+    if (compta === 'a_refaire') {
+      morceaux.push('L’export comptable est à refaire : un bulletin du mois a changé depuis.');
+    }
+    return { etat: 'a_faire', detail: morceaux.join(' ') };
+  });
+}
+
 function salariesSansRib(salaries: readonly SalariePourListeControle[]): SalariePourListeControle[] {
   return salaries.filter((s) =>
     mentionsListeSalarie(s.missing_payroll_fields).includes(MENTION_RIB_A_COMPLETER)
@@ -303,8 +396,18 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
     libelle: 'RIB renseignés',
     ...etapeRib(salaries),
   });
+  const valides = selonSalaries({
+    id: ETAPE_VALIDES,
+    libelle: 'Bulletins validés',
+    ...etapeValides(entree.bulletinsParSalarie, salaries, year, month),
+  });
+  const declarations: EtapeControle = {
+    id: ETAPE_DECLARATIONS,
+    libelle: 'DSN et export comptable faits',
+    ...etapeDeclarations(entree.exportsDuMois ?? { statut: 'indisponible' }),
+  };
 
-  const etapes = [calendriers, conflits, absences, bulletins, sorties, rib];
+  const etapes = [calendriers, conflits, absences, bulletins, sorties, rib, valides, declarations];
 
   const actions = [
     actionSiNonFaite(calendriers, {
@@ -344,9 +447,38 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
       href: '/employees',
       ensuite: `La mention « ${MENTION_RIB_A_COMPLETER} » disparaît de la liste.`,
     }),
+    actionSiNonFaite(valides, {
+      quoi: 'Validez les bulletins du mois.',
+      ouCliquer: 'Bulletins de paie, onglet Par mois',
+      href: hrefMois,
+      ensuite:
+        'Le bouton « Valider les bulletins prêts » valide ceux qui n’ont rien à revoir ; les autres se valident depuis leur bulletin. Chaque ligne porte « Validé ».',
+    }),
+    actionSiNonFaite(declarations, {
+      quoi: 'Faites la DSN du mois et l’export comptable.',
+      ouCliquer: 'Exports',
+      href: '/exports',
+      ensuite: 'La DSN mensuelle et l’export comptable du mois figurent dans l’historique, sans « à refaire ».',
+    }),
   ].filter((a): a is ActionEnAttente => a !== null);
 
   return { etapes, actions };
+}
+
+/** La phrase sous le titre de la liste : ce qui reste, ou que le mois est fini. */
+export function phraseListeControle(liste: ListeControleMois): string {
+  const aFaire = liste.etapes.filter((e) => e.etat === 'a_faire').length;
+  if (aFaire > 0) {
+    return `${aFaire} point${aFaire > 1 ? 's' : ''} à traiter, d’après les données.`;
+  }
+  const restantes = liste.etapes.filter((e) => e.etat !== 'fait');
+  if (restantes.length === 1 && restantes[0]?.id === ETAPE_ABSENCES) {
+    return 'Paie du mois terminée : bulletins validés, DSN et export comptable faits. Confirmez vous-même que les absences étaient toutes saisies.';
+  }
+  if (restantes.some((e) => e.etat === 'a_confirmer')) {
+    return 'Rien n’est coché sans preuve. Confirmez ce que le logiciel ne peut pas vérifier.';
+  }
+  return 'Les étapes vérifiables sont à jour.';
 }
 
 export function lectureCalendriersASaisir(preflight: {

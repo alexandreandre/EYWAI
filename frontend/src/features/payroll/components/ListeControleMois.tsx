@@ -7,7 +7,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
-import type { ListeControleMois as Liste } from '@/features/payroll/utils/listeControleMois';
+import {
+  phraseListeControle,
+  type ListeControleMois as Liste,
+} from '@/features/payroll/utils/listeControleMois';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -27,9 +30,6 @@ export function ListeControleMois({
   onRetryPreflight,
   isRetrying = false,
 }: Props) {
-  const aFaire = liste?.etapes.filter((e) => e.etat === 'a_faire').length ?? 0;
-  const aConfirmer = liste?.etapes.filter((e) => e.etat === 'a_confirmer').length ?? 0;
-
   return (
     <section
       className="rounded-xl border border-border bg-card px-4 py-3"
@@ -42,13 +42,7 @@ export function ListeControleMois({
             Liste de contrôle — {titreMois}
           </h2>
           <p className="text-xs text-muted-foreground">
-            {chargement
-              ? 'Vérification en cours…'
-              : aFaire > 0
-                ? `${aFaire} point${aFaire > 1 ? 's' : ''} à traiter, d’après les données.`
-                : aConfirmer > 0
-                  ? 'Rien n’est coché sans preuve. Confirmez ce que le logiciel ne peut pas vérifier.'
-                  : 'Les étapes vérifiables sont à jour.'}
+            {chargement || !liste ? 'Vérification en cours…' : phraseListeControle(liste)}
           </p>
         </div>
         <Link

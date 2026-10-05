@@ -1,7 +1,7 @@
 import { isPresentDuringMonth } from '@/lib/employmentStatus';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RhPageHeader } from '@/components/layout';
 import { PageFetchIndicator } from '@/components/skeletons/PageFetchIndicator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -9,6 +9,7 @@ import { usePayrollEmployeesQuery, type EmployeeListItem } from '@/hooks/queries
 import { useEmployeePayslipsQuery } from '@/hooks/queries/useEmployeePayslipsQuery';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { deletePayslip, getEmployeePayslips, type PayslipInfo } from '@/api/payslips';
+import { getExportHistory } from '@/api/exports';
 import { queryKeys } from '@/lib/queryKeys';
 import { showErrorToast } from '@/lib/errorMessages';
 import { toast } from '@/hooks/use-toast';
@@ -53,6 +54,7 @@ import {
   lectureCalendriersASaisir,
   lectureConflitsArret,
   listeControleDuMois,
+  type ExportPourControle,
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
 import {
@@ -633,6 +635,20 @@ export default function Payroll() {
     heures_sur_arret: preflightQuery.data?.heures_sur_arret,
   });
 
+  // Exports du mois (DSN, comptabilité) : la dernière étape de la liste de contrôle.
+  const periodeExports = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const exportsDuMoisQuery = useQuery({
+    queryKey: ['export-history', companyId, 'mois', periodeExports],
+    queryFn: () => getExportHistory(undefined, periodeExports),
+    enabled: Boolean(companyId),
+    staleTime: 30_000,
+  });
+  const lectureExports = useMemo((): Lecture<readonly ExportPourControle[]> => {
+    if (exportsDuMoisQuery.isError && exportsDuMoisQuery.data === undefined) return { statut: 'erreur' };
+    if (exportsDuMoisQuery.data === undefined) return { statut: 'chargement' };
+    return { statut: 'ok', valeur: exportsDuMoisQuery.data.exports ?? [] };
+  }, [exportsDuMoisQuery.isError, exportsDuMoisQuery.data]);
+
   const lectureSalaries = useMemo((): Lecture<typeof salariesDuMois> => {
     if (employeesQuery.isError && employeesQuery.data === undefined) return { statut: 'erreur' };
     if (loadingEmployees) return { statut: 'chargement' };
@@ -650,6 +666,7 @@ export default function Payroll() {
       departs: lectureDeparts,
       calendriersASaisir: lectureCalendriers,
       conflitsArret: lectureConflits,
+      exportsDuMois: lectureExports,
     });
   }, [
     loadingEmployees,
@@ -661,6 +678,7 @@ export default function Payroll() {
     lectureDeparts,
     lectureCalendriers,
     lectureConflits,
+    lectureExports,
   ]);
 
   const generatedCount = useMemo(
