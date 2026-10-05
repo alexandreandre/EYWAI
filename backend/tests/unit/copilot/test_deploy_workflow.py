@@ -92,3 +92,44 @@ def test_deploy_test_env_injects_openrouter_api_key():
     assert "gcloud run deploy" in brut
     assert "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" in brut
     assert "--set-env-vars" in brut or "--update-env-vars" in brut
+
+
+def _commandes_du_deploiement_de_test() -> str:
+    workflow = yaml.safe_load(DEPLOY_TEST_ENV_WORKFLOW.read_text(encoding="utf-8"))
+    return "\n".join(
+        str(etape.get("run", "")) for etape in workflow["jobs"]["deploy"]["steps"]
+    )
+
+
+def test_deploy_test_env_garde_les_variables_posees_dans_la_console():
+    """
+    `--set-env-vars` remplace TOUTES les variables du service à chaque
+    déploiement : FRONTEND_URL, SMTP, SECRET_ENCRYPTION_KEY, l'allowlist…
+    posées une fois dans la console disparaissaient au déploiement suivant.
+    """
+    commandes = _commandes_du_deploiement_de_test()
+    assert "--set-env-vars" not in commandes
+    assert "--clear-env-vars" not in commandes
+    assert "--update-env-vars" in commandes
+    deploiement_backend = next(
+        bloc for bloc in commandes.split("gcloud run deploy")[1:] if "BACKEND_SERVICE" in bloc
+    )
+    assert "--update-env-vars" in deploiement_backend
+    # Les garde-fous du test restent posés à chaque déploiement.
+    assert "APP_ENV=test" in deploiement_backend
+    assert "EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}" in deploiement_backend
+
+
+def test_deploy_test_env_pose_frontend_url():
+    """Sans FRONTEND_URL, les liens d'activation pointent vers localhost:8080."""
+    workflow = yaml.safe_load(DEPLOY_TEST_ENV_WORKFLOW.read_text(encoding="utf-8"))
+    etapes = workflow["jobs"]["deploy"]["steps"]
+    noms = [etape.get("name", "") for etape in etapes]
+    mise_a_jour = next(
+        (etape for etape in etapes if "FRONTEND_URL=" in str(etape.get("run", ""))),
+        None,
+    )
+    assert mise_a_jour is not None, "Aucune étape ne pose FRONTEND_URL."
+    # Posée après le déploiement du frontend : son adresse n'est connue qu'alors.
+    assert noms.index(mise_a_jour["name"]) > noms.index("Deploy frontend test")
+    assert "--update-env-vars" in mise_a_jour["run"]
