@@ -55,7 +55,13 @@ import {
   listeControleDuMois,
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
-import { lireParamsVuePaie, type VuePaie } from '@/features/payroll/utils/vuePaieUrl';
+import {
+  avecMois,
+  avecRevue,
+  lireParamsVuePaie,
+  moisAffiche,
+  type VuePaie,
+} from '@/features/payroll/utils/vuePaieUrl';
 import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
 import { ValiderBulletinsPrets } from '@/features/payroll/components/ValiderBulletinsPrets';
 import {
@@ -161,14 +167,16 @@ export default function Payroll() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
     employeeFromUrl
   );
-  // ?month=YYYY-MM : posé par « Voir les bulletins » et par la liste de contrôle.
-  // Relu à chaque changement d’URL, pas seulement au premier rendu.
+  // ?month=YYYY-MM : posé par « Voir les bulletins », par la liste de contrôle
+  // et par le choix du mois. Relu à chaque changement d’URL. Sans lui, le mois
+  // de paie (jusqu’au 15, le mois précédent), pas le mois civil.
   const [selectedYear, setSelectedYear] = useState(
-    () => paramsVue.year ?? new Date().getFullYear()
+    () => moisAffiche(paramsVue, new Date()).year
   );
   const [selectedMonth, setSelectedMonth] = useState(
-    () => paramsVue.month ?? new Date().getMonth() + 1
+    () => moisAffiche(paramsVue, new Date()).month
   );
+  const aRevoirSeulement = paramsVue.aRevoir;
   // Un parti reste visible sur les mois où il était présent : toute l'année
   // en vue salarié, le mois choisi en vue mois (salarié 086, sorti le 24/07 :
   // bulletin de juin à consulter, juillet à générer — retour Gaëlle 12/09).
@@ -236,6 +244,23 @@ export default function Payroll() {
         },
         { replace: true }
       );
+    },
+    [setSearchParams]
+  );
+
+  // Le mois choisi va dans l’adresse : le retour d’un bulletin y revient.
+  const choisirMois = useCallback(
+    (year: number, month: number) => {
+      setSelectedYear(year);
+      setSelectedMonth(month);
+      setSearchParams((prev) => avecMois(prev, year, month), { replace: true });
+    },
+    [setSearchParams]
+  );
+
+  const changerARevoir = useCallback(
+    (actif: boolean) => {
+      setSearchParams((prev) => avecRevue(prev, actif), { replace: true });
     },
     [setSearchParams]
   );
@@ -397,7 +422,6 @@ export default function Payroll() {
       ),
     [monthEmployeeStates, selectedYear, selectedMonth]
   );
-  const [aRevoirSeulement, setARevoirSeulement] = useState(false);
 
   const idsPretsAValider = useMemo(
     () =>
@@ -709,7 +733,7 @@ export default function Payroll() {
               yearCounts={yearCounts}
               selectedYear={selectedYear}
               yearOptions={yearOptions}
-              onYearChange={setSelectedYear}
+              onYearChange={(year) => choisirMois(year, selectedMonth)}
               missingMonthsCount={missingMonthsCount}
               onGenerateYear={handleGenerateYear}
               perimesCount={jobsPerimesDuSalarie.length}
@@ -744,9 +768,9 @@ export default function Payroll() {
             <PayrollMonthExplorer
               selectedYear={selectedYear}
               yearOptions={monthYearOptions}
-              onYearChange={setSelectedYear}
+              onYearChange={(year) => choisirMois(year, selectedMonth)}
               selectedMonth={selectedMonth}
-              onSelectMonth={setSelectedMonth}
+              onSelectMonth={(month) => choisirMois(selectedYear, month)}
               monthGeneratedCounts={monthGeneratedCounts}
               totalEmployees={employees.length}
               employeeStates={monthEmployeeStates}
@@ -762,7 +786,7 @@ export default function Payroll() {
               progressSlot={progressSlot}
               synthese={loadingMonthData ? undefined : syntheseMois}
               aRevoirSeulement={aRevoirSeulement}
-              onARevoirChange={setARevoirSeulement}
+              onARevoirChange={changerARevoir}
               actionValider={
                 <ValiderBulletinsPrets
                   idsPrets={loadingMonthData ? [] : idsPretsAValider}
