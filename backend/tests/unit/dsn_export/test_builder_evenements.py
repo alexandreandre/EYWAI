@@ -173,6 +173,32 @@ def test_subrogation_declare_ses_dates_et_l_arret_sans_reprise_n_en_a_pas():
     assert "S21.G00.60.010" not in blocs[0]
 
 
+def test_subrogation_porte_le_compte_de_l_employeur():
+    """CT 60.007 / 60.008 : IBAN et BIC de l'employeur obligatoires en subrogation."""
+    blocs = blocs_arret(
+        [_arret("arret_maladie", "2026-08-17", "2026-09-30", subrogation_active=True)],
+        date(2026, 9, 1),
+        date(2026, 9, 30),
+        compte_employeur=("FR7600000000000000000000000", "CEPAFRPP000"),
+    )
+    assert blocs[0]["S21.G00.60.007"] == "FR7600000000000000000000000"
+    assert blocs[0]["S21.G00.60.008"] == "CEPAFRPP000"
+
+
+def test_la_paie_dit_si_l_employeur_est_subroge():
+    """La demande d'arrêt cochait la subrogation, la paie n'en a rien fait
+    (indemnités versées directement au salarié) : on déclare la paie."""
+    salarie = {
+        **SALARIE,
+        "absences_dsn": [_arret("arret_maladie", "2026-08-17", "2026-09-30", subrogation_active=True)],
+    }
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["synthese_net"]["subrogation_active"] = False
+    arret = _blocs(_lignes(salarie, bulletin), "S21.G00.60")[0]
+    assert arret["004"] == "02"
+    assert "005" not in arret
+
+
 # --------------------------------------------------------------------------
 # Autres suspensions (65), lues sur les lignes du bulletin
 # --------------------------------------------------------------------------
