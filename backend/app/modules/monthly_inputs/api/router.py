@@ -103,8 +103,8 @@ def delete_monthly_input(
 ):
     """Supprime une saisie ponctuelle (réservé RH, société active)."""
     company_id = require_rh_access(current_user.active_company_id, current_user)
-    commands.delete_monthly_input(input_id, company_id)
-    return delete_response()
+    retiree = commands.delete_monthly_input(input_id, company_id)
+    return delete_response(bool(retiree))
 
 
 @router.get("/api/employees/{employee_id}/monthly-inputs")
@@ -150,8 +150,8 @@ def delete_employee_monthly_input(
     """Supprime une saisie ponctuelle d'un salarié (réservé RH)."""
     company_id = require_rh_access(current_user.active_company_id, current_user)
     try:
-        commands.delete_employee_monthly_input(employee_id, input_id, company_id)
-        return delete_response()
+        retiree = commands.delete_employee_monthly_input(employee_id, input_id, company_id)
+        return delete_response(bool(retiree))
     except Exception as e:
         logger.exception("delete_employee_monthly_input")
         raise HTTPException(status_code=500, detail=str(e))

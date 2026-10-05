@@ -52,8 +52,12 @@ export const getAllMonthlyInputs = (year: number, month: number) => {
 
 
 
+/**
+ * Supprime une saisie. Une prime d'une règle automatique n'est pas supprimée
+ * (la préparation du mois la recréerait) : elle passe à 0 €, `retiree` vaut vrai.
+ */
 export const deleteMonthlyInput = (id: string) => {
-  return apiClient.delete(`/api/monthly-inputs/${id}`);
+  return apiClient.delete<{ status: string; retiree?: boolean }>(`/api/monthly-inputs/${id}`);
 };
 
 /**

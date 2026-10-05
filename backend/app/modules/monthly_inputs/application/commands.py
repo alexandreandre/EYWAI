@@ -104,22 +104,30 @@ def _retirer_si_generee(ligne: dict | None, company_id: str) -> bool:
     return True
 
 
-def delete_monthly_input(input_id: str, company_id: str) -> None:
-    """Supprime une saisie par id, dans la société de l'appelant."""
+def delete_monthly_input(input_id: str, company_id: str) -> bool:
+    """Supprime une saisie par id, dans la société de l'appelant.
+
+    Vrai si c'était une saisie générée, retirée (à 0) au lieu d'être supprimée.
+    """
     ligne = monthly_inputs_repository.get_by_id(input_id, company_id)
     if _retirer_si_generee(ligne, company_id):
-        return
+        return True
     monthly_inputs_repository.delete_by_id(input_id, company_id)
+    return False
 
 
 def delete_employee_monthly_input(
     employee_id: str, input_id: str, company_id: str
-) -> None:
-    """Supprime une saisie d'un salarié, dans la société de l'appelant."""
+) -> bool:
+    """Supprime une saisie d'un salarié, dans la société de l'appelant.
+
+    Vrai si c'était une saisie générée, retirée (à 0) au lieu d'être supprimée.
+    """
     ligne = monthly_inputs_repository.get_by_id(input_id, company_id)
     if ligne and str(ligne.get("employee_id")) == str(employee_id):
         if _retirer_si_generee(ligne, company_id):
-            return
+            return True
     monthly_inputs_repository.delete_by_id_and_employee(
         input_id, employee_id, company_id
     )
+    return False

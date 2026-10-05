@@ -23,6 +23,7 @@ def create_single_response(inserted_data: dict[str, Any]) -> dict[str, Any]:
     return {"status": "success", "inserted_data": inserted_data}
 
 
-def delete_response() -> dict[str, str]:
-    """Réponse DELETE monthly-inputs."""
-    return {"status": "success"}
+def delete_response(retiree: bool = False) -> dict[str, Any]:
+    """Réponse DELETE monthly-inputs. `retiree` : saisie d'une règle automatique
+    gardée à 0 (pour ne pas être recréée) au lieu d'être supprimée."""
+    return {"status": "success", "retiree": retiree}

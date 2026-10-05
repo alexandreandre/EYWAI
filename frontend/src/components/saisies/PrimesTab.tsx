@@ -111,8 +111,16 @@ export function PrimesTab({
   const handleDelete = async (id: string) => {
     if (!confirm("Supprimer cette saisie ?")) return;
     try {
-      await saisiesApi.deleteMonthlyInput(id);
-      toast({ title: "Supprimée", description: "La saisie a été supprimée." });
+      const reponse = await saisiesApi.deleteMonthlyInput(id);
+      toast(
+        reponse.data?.retiree
+          ? {
+              title: "Prime automatique retirée",
+              description:
+                "Elle reste à 0 € pour que la préparation du mois ne la recrée pas. Recalculez le bulletin.",
+            }
+          : { title: "Supprimée", description: "La saisie a été supprimée." },
+      );
       fetchData();
     } catch (error) {
       toast({ title: "Erreur", description: "Impossible de supprimer la saisie.", variant: "destructive" });
