@@ -280,6 +280,9 @@ export interface ExitIndemnityCalculation {
   };
   indemnite_rupture_conventionnelle?: {
     montant_negocie: number;
+    montant_minimum?: number;
+    /** Montant de la convention saisi sur le départ ; null = minimum légal. */
+    montant_negocie_saisi?: number | null;
     description: string;
     calcul: string;
   };
@@ -316,6 +319,8 @@ export interface UpdateEmployeeExitRequest {
   notice_period_days?: number;
   is_gross_misconduct?: boolean;
   notice_indemnity_type?: 'paid' | 'waived' | 'not_applicable';
+  /** Rupture conventionnelle : montant de la convention ; null = minimum légal. */
+  montant_negocie?: number | null;
 }
 
 export interface StatusUpdateRequest {

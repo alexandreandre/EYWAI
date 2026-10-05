@@ -4,6 +4,7 @@
  */
 
 import IccpArbitrageDetail from '@/features/employee-exits/IccpArbitrageDetail';
+import { lireMontantNegocie } from '@/features/employee-exits/utils/montantNegocie';
 import { log } from '@/lib/logger';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -148,6 +149,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
   const [editingLastWorkingDay, setEditingLastWorkingDay] = useState(false);
   const [draftLastWorkingDay, setDraftLastWorkingDay] = useState('');
   const [savingLastWorkingDay, setSavingLastWorkingDay] = useState(false);
+  const [draftMontantNegocie, setDraftMontantNegocie] = useState('');
+  const [savingMontantNegocie, setSavingMontantNegocie] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadType, setPendingUploadType] = useState<string>('justificatif_autre');
 
@@ -169,6 +172,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       setDraftLastWorkingDay(String(exitDetails.last_working_day || '').slice(0, 10));
     }
   }, [exitDetails]);
+
+  useEffect(() => {
+    const saisi = indemnities?.indemnite_rupture_conventionnelle?.montant_negocie_saisi;
+    setDraftMontantNegocie(saisi == null ? '' : String(saisi).replace('.', ','));
+  }, [indemnities]);
 
   const checkPublishPermission = async () => {
     if (!user || !exitDetails) return;
@@ -328,6 +336,39 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       });
     } finally {
       setSavingLastWorkingDay(false);
+    }
+  };
+
+  const handleMontantNegocieSave = async () => {
+    if (!exitId) return;
+    const lecture = lireMontantNegocie(draftMontantNegocie);
+    if ('erreur' in lecture) {
+      toast({ title: 'Montant négocié', description: lecture.erreur, variant: 'destructive' });
+      return;
+    }
+    setSavingMontantNegocie(true);
+    try {
+      const updated = await updateEmployeeExit(exitId, { montant_negocie: lecture.valeur });
+      setExitDetails((current) => (current ? { ...current, ...updated } : current));
+      setIndemnities((updated.calculated_indemnities as ExitIndemnityCalculation | undefined) ?? null);
+      toast({
+        title: 'Montant négocié enregistré',
+        description:
+          lecture.valeur === null
+            ? 'Le minimum légal s\'applique. Recalculez le bulletin de sortie pour le porter au net.'
+            : 'Les indemnités sont recalculées. Recalculez le bulletin de sortie pour le porter au net.',
+      });
+      fetchExitDetails();
+      onUpdate?.();
+    } catch (error: any) {
+      log.error('Erreur lors de l\'enregistrement du montant négocié:', error);
+      toast({
+        title: 'Montant négocié non enregistré',
+        description: error.response?.data?.detail || 'Impossible d\'enregistrer le montant négocié',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingMontantNegocie(false);
     }
   };
 
@@ -1244,7 +1285,8 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                       )}
 
                       {/* Indemnité de rupture conventionnelle */}
-                      {indemnities.indemnite_rupture_conventionnelle && (
+                      {exitDetails.exit_type === 'rupture_conventionnelle' &&
+                        indemnities.indemnite_rupture_conventionnelle && (
                         <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950">
                           <div className="flex justify-between items-start mb-2">
                             <div>
@@ -1260,6 +1302,32 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                           <p className="text-xs text-muted-foreground">
                             {indemnities.indemnite_rupture_conventionnelle.calcul}
                           </p>
+                          {!isArchived && !isCancelled && (
+                            <div className="mt-3 flex items-end gap-2">
+                              <div className="flex-1 space-y-1">
+                                <Label htmlFor="montant-negocie">Montant de la convention (€)</Label>
+                                <Input
+                                  id="montant-negocie"
+                                  inputMode="decimal"
+                                  value={draftMontantNegocie}
+                                  onChange={(e) => setDraftMontantNegocie(e.target.value)}
+                                  placeholder={
+                                    indemnities.indemnite_rupture_conventionnelle.montant_minimum
+                                      ? `Vide : minimum légal ${formatCurrency(indemnities.indemnite_rupture_conventionnelle.montant_minimum)}`
+                                      : 'Vide : minimum légal'
+                                  }
+                                />
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={handleMontantNegocieSave}
+                                disabled={savingMontantNegocie}
+                              >
+                                {savingMontantNegocie && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Enregistrer
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
