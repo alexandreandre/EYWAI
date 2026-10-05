@@ -61,6 +61,7 @@ from app.modules.dsn_import.domain.model import (
     VersementBlock,
     VersementOrganismeBlock,
 )
+from app.shared.domain.employment_rules import mois_du_contrat_en_cours
 from app.shared.dsn_validation import build_siret_from_siren_nic
 
 
@@ -325,13 +326,21 @@ def _net_verse(net_fiscal: float, lignes: List[Dict[str, Any]]) -> float:
 
 
 def _smic_reduction_generale(
-    lignes: List[Dict[str, Any]], synthese_net: Dict[str, Any], reprise: Dict[str, Any]
+    lignes: List[Dict[str, Any]],
+    synthese_net: Dict[str, Any],
+    payslip_data: Dict[str, Any],
+    employee: Dict[str, Any],
 ) -> Optional[float]:
     """SMIC retenu pour la réduction générale du mois (S21.G00.79 type 01).
 
-    Le moteur le pose sur la ligne de réduction (`smic_reference_mois`) ; les
-    bulletins plus anciens n'en ont pas, la reprise des DSN du cabinet sert
-    alors de repli.
+    Le moteur le pose sur la ligne de réduction (`smic_reference_mois`). Un
+    bulletin calculé avant (septembre 2026) se rattrape par le calcul même du
+    moteur : SMIC horaire de référence × heures rémunérées du mois, écart
+    entre le cumul du bulletin et celui du bulletin précédent de l'année
+    (`smic_horaire_reduction`, `heures_cumulees_avant`, posés par l'export).
+
+    Le SMIC d'une DSN du cabinet (reprise) n'est jamais réutilisé : il ne vaut
+    que pour son mois, et une valeur périmée passerait sans refus.
     """
     for ligne in lignes:
         if str(ligne.get("coti_id") or "") == "reduction_generale" and ligne.get(
@@ -339,10 +348,37 @@ def _smic_reduction_generale(
         ) is not None:
             # Zéro est une vraie valeur : un mois sans heure payée.
             return float(ligne["smic_reference_mois"])
-    valeur = synthese_net.get("montant_smic_reduction_generale") or reprise.get(
-        "smic_retenu"
-    )
-    return float(valeur) if valeur else None
+    valeur = synthese_net.get("montant_smic_reduction_generale")
+    if valeur:
+        return float(valeur)
+    horaire = employee.get("smic_horaire_reduction")
+    cumul = ((payslip_data.get("cumuls") or {}).get("cumuls") or {}).get("heures_remunerees")
+    if horaire in (None, "") or cumul in (None, ""):
+        return None
+    heures_du_mois = round(float(cumul) - float(employee.get("heures_cumulees_avant") or 0), 2)
+    return round(float(horaire) * heures_du_mois, 2)
+
+
+def heures_cumulees_avant(
+    bulletins: List[Dict[str, Any]], annee: int, mois: int, employee: Dict[str, Any]
+) -> float:
+    """Heures rémunérées cumulées au dernier bulletin de l'année avant ``mois``.
+
+    ``bulletins`` : les bulletins de l'année du salarié (`month`, `cumuls`).
+    Seuls comptent ceux du contrat en cours : le moteur repart de zéro au
+    premier mois d'un nouveau contrat. Aucun bulletin antérieur : zéro.
+    """
+    anterieurs = [
+        b
+        for b in bulletins
+        if int(b.get("month") or 0) < mois
+        and mois_du_contrat_en_cours(employee, annee, int(b.get("month") or 0))
+    ]
+    if not anterieurs:
+        return 0.0
+    dernier = max(anterieurs, key=lambda b: int(b.get("month") or 0))
+    cumuls = ((dernier.get("cumuls") or {}).get("cumuls") or {})
+    return float(cumuls.get("heures_remunerees") or 0.0)
 
 
 #: Plafond mensuel de la Sécurité sociale, pour les bulletins qui ne portent
@@ -969,7 +1005,7 @@ def build_individu_from_payroll(
     cot_sal, cot_pat, cot_lines, meta = extract_cotisations_from_payslip(payslip_data)
     warnings.extend(meta.get("warnings") or [])
     net_verse = _net_verse(net_fiscal, cot_lines)
-    smic_retenu = _smic_reduction_generale(cot_lines, synthese_net, reprise)
+    smic_retenu = _smic_reduction_generale(cot_lines, synthese_net, payslip_data, employee)
     if smic_retenu is None and any(
         str(l.get("coti_id") or "") == "reduction_generale" for l in cot_lines
     ):

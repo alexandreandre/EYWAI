@@ -48,7 +48,10 @@ def get_company_data(company_id: str) -> Dict[str, Any]:
 
 
 def _evenements_dsn(
-    company_id: str, period: str, employee_ids: List[str]
+    company_id: str,
+    period: str,
+    employee_ids: List[str],
+    fiches: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Arrêts, sortie et taux PAS reçus de chaque salarié, pour la DSN du mois.
 
@@ -59,13 +62,17 @@ def _evenements_dsn(
     """
     from datetime import timedelta
 
-    from app.modules.dsn_export.application.builder import taux_pas_du_mois
+    from app.modules.dsn_export.application.builder import (
+        heures_cumulees_avant,
+        taux_pas_du_mois,
+    )
     from app.modules.dsn_export.domain.contract_map import period_bounds
     from app.modules.dsn_export.domain.evenements import MOTIF_ARRET, date_dsn
 
     resultat: Dict[str, Dict[str, Any]] = {eid: {} for eid in employee_ids}
     if not employee_ids:
         return resultat
+    fiches = fiches or {}
     debut_dsn, fin_dsn = period_bounds(period)
     debut_mois, fin_mois = date_dsn(debut_dsn), date_dsn(fin_dsn)
     plancher = debut_mois - timedelta(days=366)
@@ -116,6 +123,46 @@ def _evenements_dsn(
         jour = str(sortie.get("last_working_day") or "")[:10]
         if eid in resultat and debut_mois.isoformat() <= jour <= fin_mois.isoformat():
             resultat[eid]["sortie_dsn"] = sortie
+
+    # SMIC de la réduction générale d'un bulletin qui ne le porte pas : de
+    # quoi le refaire comme le moteur (SMIC horaire de référence, cumul des
+    # heures au bulletin précédent de l'année).
+    reduction = (
+        supabase.table("payroll_config")
+        .select("config_data")
+        .eq("config_key", "reduction_generale")
+        .eq("is_active", True)
+        .execute()
+    ).data or []
+    horaire = next(
+        (
+            (r.get("config_data") or {}).get("smic_reference_horaire")
+            for r in reduction
+            if isinstance(r.get("config_data"), dict)
+        ),
+        None,
+    )
+    if horaire:
+        annee, mois = map(int, period.split("-"))
+        anterieurs = (
+            supabase.table("payslips")
+            .select("employee_id,month,cumuls:payslip_data->cumuls")
+            .eq("company_id", company_id)
+            .eq("year", annee)
+            .lt("month", mois)
+            .in_("employee_id", employee_ids)
+            .execute()
+        ).data or []
+        par_salarie_bulletins: Dict[str, List[Dict[str, Any]]] = {}
+        for bulletin in anterieurs:
+            par_salarie_bulletins.setdefault(str(bulletin.get("employee_id")), []).append(
+                bulletin
+            )
+        for eid in resultat:
+            resultat[eid]["smic_horaire_reduction"] = float(horaire)
+            resultat[eid]["heures_cumulees_avant"] = heures_cumulees_avant(
+                par_salarie_bulletins.get(eid, []), annee, mois, fiches.get(eid, {})
+            )
     return resultat
 
 
@@ -182,7 +229,12 @@ def get_dsn_employees_data(
     payslips_response = payslips_query.execute()
     payslips = payslips_response.data or []
     payslips_by_employee = {p["employee_id"]: p for p in payslips}
-    evenements = _evenements_dsn(company_id, period, list(payslips_by_employee))
+    evenements = _evenements_dsn(
+        company_id,
+        period,
+        list(payslips_by_employee),
+        {str(e["id"]): e for e in employees},
+    )
 
     employees_data = []
     totals = {
