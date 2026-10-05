@@ -96,6 +96,7 @@ class Absences:
     # brut pour reconstituer le salaire d'un mois complet (003).
     retenues: float = 0.0
     compensations: float = 0.0
+    entree_sortie: bool = False
 
 
 def _est_conges_payes(libelle: str) -> bool:
@@ -136,6 +137,7 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
         resultat.heures_non_payees += heures
         resultat.retenues += perte
         if "entrée ou sortie" in libelle or "entree ou sortie" in libelle:
+            resultat.entree_sortie = True
             continue
         resultat.heures_absence += heures
     resultat.heures_non_payees = round(resultat.heures_non_payees, 2)
@@ -143,6 +145,32 @@ def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
     resultat.retenues = round(resultat.retenues, 2)
     resultat.compensations = round(resultat.compensations, 2)
     return resultat
+
+
+HEURES_LEGALES_MOIS = 151.67
+
+
+def _manque_du_mois(payslip_data: Dict[str, Any], heures_contrat_mois: float) -> float:
+    """Ce que la base et les HS structurelles auraient payé de plus sur un mois complet."""
+    pleines = {
+        "base": min(heures_contrat_mois, HEURES_LEGALES_MOIS),
+        "hs": max(0.0, round(heures_contrat_mois - HEURES_LEGALES_MOIS, 2)),
+    }
+    manque = 0.0
+    for ligne in _iter_brut_lines(payslip_data):
+        if _is_sous_total(ligne):
+            continue
+        libelle = _lib(ligne)
+        if "salaire de base" in libelle or libelle.startswith("salaire base"):
+            nature = "base"
+        elif _is_hs_structurelle(libelle):
+            nature = "hs"
+        else:
+            continue
+        taux, heures = _f(ligne.get("taux")), _f(ligne.get("quantite"))
+        if taux > 0 and heures > 0 and pleines[nature] > heures:
+            manque += round(taux * pleines[nature], 2) - _f(ligne.get("gain"))
+    return round(manque, 2)
 
 
 def jours_calendaires(debut_dsn: str, fin_dsn: str) -> int:
@@ -243,6 +271,9 @@ def build_remunerations_from_payslip(
     contrat_ref: str = "00000",
     jours_plafond: Optional[int] = None,
     indemnites_rupture: float = 0.0,
+    heures_contrat_mois: Optional[float] = None,
+    mois_incomplet: bool = False,
+    mesure_activite: Optional[float] = None,
 ) -> RemunerationBuildResult:
     """Produit les types 001/002/003/010/017/018/028/029 alignés sur Cegid.
 
@@ -251,6 +282,10 @@ def build_remunerations_from_payslip(
     fin de contrat comprises dans le brut et déclarées en bloc 52 — elles
     n'entrent ni dans le salaire chômage (002, CT 51.011), ni dans les
     rémunérations hors éléments non affectés par l'absence (028, 029).
+    ``mois_incomplet`` et ``heures_contrat_mois`` : entrée ou sortie en cours
+    de mois, base proratisée sans ligne d'absence — le rétabli reconstitue le
+    mois complet. ``mesure_activite`` : mesure du travail rémunéré (53 type
+    01) quand elle ne se compte pas en heures (forfait jours).
     """
     parts = analyze_calcul_du_brut(payslip_data)
     absences = analyser_absences(payslip_data)
@@ -269,13 +304,19 @@ def build_remunerations_from_payslip(
     retabli = max(
         brut_r, round(brut_r + absences.retenues - absences.compensations, 2)
     )
+    if mois_incomplet and not absences.entree_sortie and heures_contrat_mois:
+        # Entrée ou sortie sans ligne d'absence : la base payée est déjà
+        # proratisée. On rend les heures manquantes au taux de chaque ligne —
+        # 49 h payées sur 151,67 : le rétabli est le mois complet.
+        retabli = round(retabli + _manque_du_mois(payslip_data, heures_contrat_mois), 2)
     # 028 / 029 : sans les éléments que l'absence n'affecte pas — les heures
     # sup aléatoires, payées comme travaillées — ni les indemnités de rupture.
-    # L'ancien logiciel ne retire les heures sup qu'un mois d'absence.
-    hors_absence = round(
-        float(indemnites_rupture or 0)
-        + (m_017 if absences.heures_absence > 0 else 0.0),
-        2,
+    # Comme l'ancien logiciel, seulement un mois d'absence : sans absence, 028
+    # et 029 suivent 001 et 003.
+    hors_absence = (
+        round(float(indemnites_rupture or 0) + m_017, 2)
+        if absences.heures_absence > 0
+        else 0.0
     )
     montant_002 = round(brut_r - float(indemnites_rupture or 0), 2)
 
@@ -381,6 +422,8 @@ def build_remunerations_from_payslip(
             2,
         )
     heures_activite = round(heures_activite - absences.heures_non_payees, 2)
+    if mesure_activite is not None:
+        heures_activite = round(float(mesure_activite), 2)
 
     activites: List[Dict[str, Any]] = [
         {"type": "01", "mesure": float(days), "unite": "40", "remuneration": "001"},

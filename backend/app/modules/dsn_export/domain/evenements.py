@@ -74,6 +74,11 @@ INDEMNITES_RUPTURE: List[Tuple[Tuple[str, ...], str]] = [
     (("départ à la retraite", "depart a la retraite", "départ en retraite", "depart en retraite"), "005"),
     (("mise à la retraite", "mise a la retraite"), "003"),
 ]
+#: Une indemnité « conventionnelle » a son propre code, voisin du légal.
+CODE_CONVENTIONNEL = {"005": "006", "003": "004", "007": "021"}
+#: « Indemnité CP » seule, au départ : l'indemnité compensatrice (020). Hors
+#: départ, ce libellé est le paiement de congés pris — « Indemnités de CP ».
+_ICCP_AU_DEPART = re.compile(r"^\s*indemnit[ée] (de )?c\.?p\.?\s*$", re.IGNORECASE)
 
 
 def _date(valeur: Any) -> Optional[date]:
@@ -386,35 +391,45 @@ def bloc_fin_contrat(
 # --------------------------------------------------------------------------
 
 
-def _code_indemnite(libelle: str) -> Optional[str]:
+def _code_indemnite(libelle: str, sortie: bool = False) -> Optional[str]:
     texte = libelle.lower()
     for mots, code in INDEMNITES_RUPTURE:
         if any(mot in texte for mot in mots):
+            if "conv" in texte and code in CODE_CONVENTIONNEL:
+                return CODE_CONVENTIONNEL[code]
             return code
+    if sortie and _ICCP_AU_DEPART.match(libelle):
+        return "020"
     return None
 
 
-def indemnites_de_rupture(payslip_data: Dict[str, Any]) -> List[Tuple[str, float, bool]]:
-    """(code 52, montant, comprise dans le brut) des indemnités de fin de contrat."""
+def indemnites_de_rupture(
+    payslip_data: Dict[str, Any], sortie: bool = False
+) -> List[Tuple[str, float, bool]]:
+    """(code 52, montant, comprise dans le brut) des indemnités de fin de contrat.
+
+    ``sortie`` : le contrat finit dans le mois — seule une sortie fait d'une
+    « Indemnité CP » l'indemnité compensatrice de congés payés.
+    """
     resultat: Dict[str, List[float]] = {}
     dans_le_brut: Dict[str, bool] = {}
     calcul = payslip_data.get("calcul_du_brut")
     for ligne in calcul if isinstance(calcul, list) else []:
         if not isinstance(ligne, dict) or not float(ligne.get("gain") or 0):
             continue
-        code = _code_indemnite(str(ligne.get("libelle") or ""))
+        code = _code_indemnite(str(ligne.get("libelle") or ""), sortie)
         if code:
             resultat.setdefault(code, []).append(float(ligne["gain"]))
             dans_le_brut[code] = True
-    sortie = payslip_data.get("indemnites_sortie")
-    if isinstance(sortie, dict):
-        for ligne in sortie.get("lignes_soumises") or []:
-            code = _code_indemnite(str(ligne.get("libelle") or ""))
+    indemnites_sortie = payslip_data.get("indemnites_sortie")
+    if isinstance(indemnites_sortie, dict):
+        for ligne in indemnites_sortie.get("lignes_soumises") or []:
+            code = _code_indemnite(str(ligne.get("libelle") or ""), True)
             if code and code not in resultat and float(ligne.get("gain") or 0):
                 resultat.setdefault(code, []).append(float(ligne["gain"]))
                 dans_le_brut[code] = True
-        for ligne in sortie.get("lignes_exonerees") or []:
-            code = _code_indemnite(str(ligne.get("libelle") or ""))
+        for ligne in indemnites_sortie.get("lignes_exonerees") or []:
+            code = _code_indemnite(str(ligne.get("libelle") or ""), True)
             if code and float(ligne.get("montant") or 0):
                 resultat.setdefault(code, []).append(float(ligne["montant"]))
                 dans_le_brut.setdefault(code, False)

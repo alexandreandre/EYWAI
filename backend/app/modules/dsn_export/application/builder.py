@@ -330,6 +330,80 @@ def _jours_plafond(
     return max(0, jours)
 
 
+def _cdd_court_ou_imprecis(nature: str, employee: Dict[str, Any]) -> bool:
+    """CDD dont le terme initial n'excède pas deux mois, ou à terme imprécis."""
+    import calendar
+    from datetime import date as _date
+
+    if nature != "02":
+        return False
+    try:
+        debut = _date.fromisoformat(str(employee.get("hire_date") or "")[:10])
+    except ValueError:
+        return False
+    fin_texte = str(employee.get("contract_end_date") or "")[:10]
+    if not fin_texte:
+        return True
+    try:
+        fin = _date.fromisoformat(fin_texte)
+    except ValueError:
+        return False
+    mois, an = debut.month + 2, debut.year
+    if mois > 12:
+        mois, an = mois - 12, an + 1
+    limite = _date(an, mois, min(debut.day, calendar.monthrange(an, mois)[1]))
+    return fin <= limite
+
+
+def _jours_forfait(
+    payslip_data: Dict[str, Any],
+    period_start: str,
+    period_end: str,
+    absences: List[Dict[str, Any]],
+) -> float:
+    """Jours travaillés d'un forfait jours (53 type 01, en jours).
+
+    Ceux de la paie quand le bulletin les porte ; sinon les jours ouvrés de la
+    période, hors fériés, moins les jours d'arrêt ou d'absence non rémunérée —
+    22 en juin 2026, comme l'ancien logiciel.
+    """
+    from datetime import timedelta
+
+    from app.modules.absences.domain.rtt_forfait import french_public_holiday_dates
+    from app.modules.dsn_export.domain.evenements import (
+        MOTIF_CONGE_NON_REMUNERE,
+        periodes_d_arret,
+        suspensions_du_bulletin,
+    )
+
+    stocke = payslip_data.get("nombre_jours_travailles")
+    if stocke not in (None, ""):
+        return float(stocke)
+    debut, fin = date_dsn(period_start), date_dsn(period_end)
+    if not debut or not fin:
+        return 0.0
+    feries = set(french_public_holiday_dates(debut.year))
+    absents = set()
+    for periode in periodes_d_arret(absences):
+        jour = periode.debut
+        while jour <= periode.fin:
+            absents.add(jour)
+            jour += timedelta(days=1)
+    for motif, debut_s, fin_s in suspensions_du_bulletin(payslip_data):
+        if motif == MOTIF_CONGE_NON_REMUNERE:
+            jour = debut_s
+            while jour <= fin_s:
+                absents.add(jour)
+                jour += timedelta(days=1)
+    jours = 0
+    jour = debut
+    while jour <= fin:
+        if jour.weekday() < 5 and jour not in feries and jour not in absents:
+            jours += 1
+        jour += timedelta(days=1)
+    return float(jours)
+
+
 def taux_pas_du_mois(lignes: List[Dict[str, Any]], periode: str) -> Dict[str, str]:
     """Type et identifiant du taux PAS en vigueur pour le mois déclaré.
 
@@ -874,8 +948,20 @@ def build_individu_from_payroll(
         else (None, [])
     )
     warnings.extend(avertissements_fin)
-    indemnites = indemnites_de_rupture(payslip_data)
+    indemnites = indemnites_de_rupture(payslip_data, sortie=bool(bloc_62))
     indemnites_dans_le_brut = round(sum(m for _, m, dans in indemnites if dans), 2)
+    duree_hebdo = employee.get("duree_hebdomadaire")
+    heures_contrat_mois = (
+        round(float(duree_hebdo) * 52 / 12, 2) if duree_hebdo not in (None, "") else None
+    )
+    mois_incomplet = period_start != period_bounds(period)[0] or (
+        period_end != period_bounds(period)[1]
+    )
+    mesure_activite = (
+        _jours_forfait(payslip_data, period_start, period_end, absences)
+        if employee.get("is_forfait_jour")
+        else None
+    )
 
     rem_build = build_remunerations_from_payslip(
         payslip_data,
@@ -888,7 +974,32 @@ def build_individu_from_payroll(
             payslip_data, period, period_start, period_end, absences
         ),
         indemnites_rupture=indemnites_dans_le_brut,
+        heures_contrat_mois=heures_contrat_mois,
+        mois_incomplet=mois_incomplet,
+        mesure_activite=mesure_activite,
     )
+
+    # Composants de la base 03 : parts patronales santé (04) et retraite
+    # supplémentaire (05), après le SMIC de la réduction (01) — ce que déclare
+    # l'ancien logiciel sur 146 salariés-mois sur 146.
+    sante_pat, _ = _parts_patronales_psc(cot_lines)
+    retraite_sup_pat = round(
+        sum(
+            float(l.get("montant_patronal") or 0)
+            for l in cot_lines
+            if str(l.get("coti_id") or "") == "retraite_sup"
+        ),
+        2,
+    )
+    for base in bases:
+        if (base.rubriques or {}).get("S21.G00.78.001") != "03":
+            continue
+        composants = list(base.rubriques.get("_composants_79") or [])
+        for type_79, montant in (("04", sante_pat), ("05", retraite_sup_pat)):
+            if montant > 0:
+                composants.append({"type": type_79, "montant": f"{montant:.2f}"})
+        if composants:
+            base.rubriques["_composants_79"] = composants
 
     # Type et identifiant du taux PAS : « 01 - taux transmis par la DGFiP »
     # exige l'identifiant du compte rendu (50.008) ; sans lui, le type honnête
@@ -900,6 +1011,11 @@ def build_individu_from_payroll(
     )
     if not pas_type:
         pas_type = "01" if pas_identifiant else "13"
+    if pas_type != "01" and not pas_identifiant and _cdd_court_ou_imprecis(
+        nature, employee
+    ):
+        # CT 50.008 : CDD de deux mois au plus, ou à terme imprécis : « -1 ».
+        pas_identifiant = "-1"
 
     rubriques_versement = {
         "S21.G00.50.001": date_versement,
@@ -912,7 +1028,7 @@ def build_individu_from_payroll(
         "S21.G00.50.013": f"{(pas_assiette or net_fiscal):.2f}",
         "activites": rem_build.activites,
     }
-    if pas_type == "01" and pas_identifiant:
+    if pas_identifiant and (pas_type == "01" or pas_identifiant == "-1"):
         rubriques_versement["S21.G00.50.008"] = pas_identifiant
 
     # Éléments de revenu calculés en net (bloc 58) : les heures sup exonérées
