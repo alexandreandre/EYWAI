@@ -298,6 +298,12 @@ def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float
     Même garde que `calcul_cotisations._cumul_agirc_arrco_debut_mois` et
     `calcul_net._cumul_hs_exonerees_ir_debut_mois`, qui l'avaient déjà pour leurs
     propres compteurs d'année civile.
+
+    Le brut est `brut_annee_civile`, remis à zéro en janvier comme les heures et
+    la réduction : `brut_total` porte aussi l'année d'avant (précarité, dixième
+    des congés), et février aurait remboursé la réduction de janvier. Les cumuls
+    écrits avant ce compteur (reprise, septembre 2026) n'ont que `brut_total`,
+    qui est alors le cumul de l'année civile 2026.
     """
     if getattr(contexte, "month", None) == 1:
         return 0.0, 0.0, 0.0
@@ -306,7 +312,9 @@ def _lire_cumuls_precedents(contexte: ContextePaie) -> tuple[float, float, float
     cumuls_precedents = (
         contexte.cumuls.get("cumuls", {}) if isinstance(contexte.cumuls, dict) else {}
     )
-    brut_cumule = cumuls_precedents.get("brut_total", 0.0)
+    brut_cumule = cumuls_precedents.get(
+        "brut_annee_civile", cumuls_precedents.get("brut_total", 0.0)
+    )
     heures_cumulees = cumuls_precedents.get("heures_remunerees", 0.0)
     reduction_deja_appliquee = abs(
         cumuls_precedents.get("reduction_generale_patronale", 0.0)

@@ -586,7 +586,9 @@ def construire_lateral(bulletin: Dict[str, Any]) -> List[Dict[str, Any]]:
         _bloc_lateral(
             "CUMULS",
             [
-                valeur("Bruts", cumuls.get("brut_total")),
+                # Cumul de l'année civile ; un bulletin d'avant ce compteur
+                # retombe sur `brut_total`, qui l'était alors.
+                valeur("Bruts", cumuls.get("brut_annee_civile", cumuls.get("brut_total"))),
                 valeur("Net imposable", cumuls.get("net_imposable")),
                 # Patronal seul ; les bulletins générés avant l'ajout de la
                 # clé retombent sur l'ancien total.

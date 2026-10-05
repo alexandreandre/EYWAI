@@ -72,8 +72,15 @@ def mettre_a_jour_cumuls(
     # précarité et l'IFM (fenêtre du contrat, cf. calcul_brut) et la base du
     # dixième des congés (fenêtre du 1ᵉʳ juin au 31 mai, cf.
     # reference_remuneration). Lui donner la fenêtre de l'année civile casserait
-    # ces deux usages. Les calculs qui ont besoin du brut de l'année civile
-    # écartent janvier à la lecture, comme la réduction générale.
+    # ces deux usages. Le brut de l'année civile a son propre compteur,
+    # `brut_annee_civile`, que lisent la réduction générale et le pied du
+    # bulletin : sans lui, février 2027 lisait le brut de 2026 face aux seules
+    # heures de janvier et remboursait la réduction.
+    #
+    # Les cumuls écrits avant ce compteur (reprise de l'ancien logiciel,
+    # septembre 2026) ne l'ont pas : leur `brut_total` est le cumul de l'année
+    # civile 2026, il en tient lieu.
+    cumuls.setdefault("brut_annee_civile", cumuls.get("brut_total", 0.0))
     if mois == 1:
         for compteur in (
             "net_imposable",
@@ -82,9 +89,11 @@ def mettre_a_jour_cumuls(
             "heures_supplementaires_remunerees",
             "montant_hs_remunerees",
             "reduction_generale_patronale",
+            "brut_annee_civile",
         ):
             cumuls[compteur] = 0.0
 
+    cumuls["brut_annee_civile"] = cumuls["brut_annee_civile"] + round(salaire_brut_mois, 2)
     cumuls["brut_total"] = cumuls.get("brut_total", 0.0) + round(salaire_brut_mois, 2)
     cumuls["net_imposable"] = cumuls.get("net_imposable", 0.0) + round(
         resultats_nets_mois.get("net_imposable", 0.0), 2
