@@ -317,8 +317,11 @@ def controler_mois(company_id: str, periode: str) -> list[dict[str, Any]]:
     prets_bulletins = round(
         -(natures.get("hors_brut:pret_employeur", 0.0) + natures.get("hors_brut:interets_pret_employeur", 0.0)), 2
     ) + 0.0
-    prets_export = round(sum(e["credit"] - e["debit"] for e in generate_prets_ecritures(company_id, periode)), 2)
-    ajouter("Prêts employeur (écritures)", None, abs(prets_export - prets_bulletins) < TOLERANCE,
+    ecritures_prets = generate_prets_ecritures(company_id, periode)
+    prets_debit = round(sum(e["debit"] for e in ecritures_prets), 2)
+    prets_export = round(sum(e["credit"] for e in ecritures_prets), 2)
+    ajouter("Prêts employeur (écritures)", abs(prets_debit - prets_export) < TOLERANCE,
+            abs(prets_export - prets_bulletins) < TOLERANCE,
             round(abs(prets_export - prets_bulletins), 2), f"bulletins {prets_bulletins:.2f}")
 
     _, remboursements, _, _ = get_acomptes_data(company_id, periode)

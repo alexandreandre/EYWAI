@@ -7,11 +7,14 @@ from typing import Any, Dict, List, Tuple
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
+from app.modules.exports.infrastructure.export_ecritures_comptables import (
+    compte_du_net_a_payer,
+)
 from app.modules.exports.infrastructure.payroll_ledger import (
     build_payroll_ledger,
     ledger_to_od_export_rows,
 )
-from app.shared.utils.export import generate_csv
+from app.shared.utils.export import format_period, generate_csv
 
 LIST_HEADERS = [
     "Employé",
@@ -72,7 +75,21 @@ def generate_prets_ecritures(
         company_id, period, scope="auxiliaries"
     )
     ecritures = ledger_to_od_export_rows(ecritures_raw)
-    return [e for e in ecritures if "prêt" in e.get("libelle", "").lower()]
+    prets = [e for e in ecritures if "prêt" in e.get("libelle", "").lower()]
+    if not prets:
+        return []
+    # La retenue sur le bulletin a pour contrepartie le net à payer : sans elle,
+    # l'écriture n'avait que des crédits (capital, intérêts).
+    solde = round(sum(e["credit"] - e["debit"] for e in prets), 2)
+    modele = prets[0]
+    contrepartie = {
+        **modele,
+        "compte_comptable": compte_du_net_a_payer(company_id),
+        "libelle": f"Retenue prêt employeur sur le net {format_period(period)}",
+        "debit": solde if solde > 0 else 0.0,
+        "credit": -solde if solde < 0 else 0.0,
+    }
+    return prets + [contrepartie]
 
 
 def preview_prets_employeur(company_id: str, period: str) -> Dict[str, Any]:
