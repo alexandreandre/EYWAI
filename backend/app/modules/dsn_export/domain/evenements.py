@@ -35,8 +35,8 @@ MOTIF_ARRET = {
     "arret_at": "06",
 }
 MOTIF_ACCIDENT_TRAJET = "04"
-#: Accident et maladie professionnelle : date de l'accident obligatoire
-#: (60.012, CCH-11) ; le jour de l'accident est travaillé (60.002).
+#: Accident et maladie professionnelle : le jour de l'accident est
+#: travaillé (60.002). Leur date (60.012) relève du signalement d'arrêt.
 MOTIFS_ACCIDENT = {"04", "05", "06"}
 
 MOTIF_CONGE_NON_REMUNERE = "501"
@@ -182,8 +182,8 @@ def blocs_arret(
         if periode.fin < fin_mois:
             rubriques["S21.G00.60.010"] = dsn(periode.fin + timedelta(days=1))
             rubriques["S21.G00.60.011"] = "01"
-        if periode.motif in MOTIFS_ACCIDENT:
-            rubriques["S21.G00.60.012"] = dsn(periode.debut)
+        # La date de l'accident (60.012) ne se déclare qu'au signalement
+        # d'arrêt : en DSN mensuelle, DSN-VAL la refuse (CST-04).
         blocs.append(rubriques)
     return blocs
 

@@ -655,9 +655,12 @@ def _traduire(
 
 def _taux_dsn(taux_fraction: float) -> str:
     """La DSN attend un taux en pourcentage, à trois décimales."""
-    if abs(taux_fraction) < 1e-12:
+    # Le taux s'écrit sans signe (CSL-00) : sur une régularisation, c'est le
+    # montant qui porte le signe, jamais le taux.
+    taux_fraction = abs(taux_fraction)
+    if taux_fraction < 1e-12:
         return "0.000"
-    pourcentage = taux_fraction * 100.0 if abs(taux_fraction) <= 1.0 else taux_fraction
+    pourcentage = taux_fraction * 100.0 if taux_fraction <= 1.0 else taux_fraction
     return f"{pourcentage:.3f}"
 
 

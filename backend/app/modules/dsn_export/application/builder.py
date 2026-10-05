@@ -967,6 +967,14 @@ def build_individu_from_payroll(
             f"SMIC retenu pour la réduction générale inconnu pour le NIR {nir_dsn} : "
             "composant 79 type 01 absent (CCH-17), bulletin à recalculer"
         )
+    if not affiliations_psc and any(
+        _famille_psc(l) and (float(l.get("montant_salarial") or 0) or float(l.get("montant_patronal") or 0))
+        for l in cot_lines
+    ):
+        warnings.append(
+            f"Cotisations prévoyance / santé sans affiliation (bloc 70) pour le NIR "
+            f"{nir_dsn} : base 31 refusée (CCH-11 / CCH-12), affiliations à reprendre"
+        )
     bases, cotisations, map_warnings = build_bases_and_cotisations(
         cot_lines,
         brut=brut,
