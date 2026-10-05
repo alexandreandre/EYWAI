@@ -217,15 +217,18 @@ def compute_comparison(
         d_net = abs(_pct_change(v1["net_a_payer"], vn["net_a_payer"]))
         d_cot = abs(_pct_change(v1["total_cotisations_salariales"], vn["total_cotisations_salariales"]))
 
-        # R01 / R02 — salaire brut
+        # R01 / R02 — salaire brut. R01 compare le brut TOTAL (heures sup,
+        # primes, absences comprises) : les variables du mois le font bouger
+        # sans que rien ne soit faux. Un avertissement, pas un blocage ; le net
+        # à plus de 10 % (R03) reste critique (revue du 05/10).
         if d_brut > 5.0 and not has_contract_change:
             alerts.append(
                 PayslipAlert(
                     rule_id="R01",
-                    level="CRITIQUE",
+                    level="AVERTISSEMENT",
                     message=(
-                        f"Le salaire brut de base a varié de {d_brut:.1f}% "
-                        "sans modification de contrat détectée."
+                        f"Le salaire brut a varié de {d_brut:.1f}% "
+                        "par rapport au dernier bulletin validé."
                     ),
                     field="salaire_brut",
                     value_n=vn["salaire_brut"],

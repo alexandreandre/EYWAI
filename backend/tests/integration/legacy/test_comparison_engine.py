@@ -51,13 +51,14 @@ def _bulletin(
     }
 
 
-def test_t1_r01_brut_variation_over_5_percent_critical():
+def test_t1_r01_brut_variation_over_5_percent_warning():
+    # R01 compare le brut total : un avertissement, pas un blocage (revue du 05/10).
     n = _bulletin(salaire_brut=2000.0)
     n1 = _bulletin(salaire_brut=1800.0)
     res = compute_comparison(n, n1, _ctx())
     r01 = [a for a in res.alerts if a.rule_id == "R01"]
     assert len(r01) == 1
-    assert r01[0].level == "CRITIQUE"
+    assert r01[0].level == "AVERTISSEMENT"
 
 
 def test_t2_r01_not_triggered_when_variation_at_most_5_percent():
@@ -114,8 +115,8 @@ def test_t6_r06_missing_brut_line_from_n1():
 
 
 def test_t7_has_critical_true_when_critical_alert():
-    n = _bulletin(salaire_brut=2000.0)
-    n1 = _bulletin(salaire_brut=1800.0)
+    n = _bulletin(net_a_payer=1200.0)
+    n1 = _bulletin(net_a_payer=1000.0)
     res = compute_comparison(n, n1, _ctx())
     assert res.has_critical is True
 
