@@ -37,6 +37,7 @@ from app.modules.dsn_export.domain.evenements import (
     dsn as en_date_dsn,
     indemnites_de_rupture,
     jours_hors_plafond,
+    primes_partage_valeur,
 )
 from app.modules.dsn_export.domain.remuneration_map import (
     build_remunerations_from_payslip,
@@ -1164,6 +1165,19 @@ def build_individu_from_payroll(
             },
         )
         for code, montant, _ in indemnites
+    ]
+    # Prime de partage de la valeur (52.904 / 905), hors brut.
+    primes += [
+        PrimeBlock(
+            code=code,
+            montant=montant,
+            rubriques={
+                "S21.G00.52.001": code,
+                "S21.G00.52.002": f"{montant:.2f}",
+                "S21.G00.52.006": numero,
+            },
+        )
+        for code, montant in primes_partage_valeur(payslip_data)
     ]
 
     versement = VersementBlock(

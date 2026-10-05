@@ -437,3 +437,30 @@ def indemnites_de_rupture(
         (code, round(sum(montants), 2), dans_le_brut.get(code, False))
         for code, montants in sorted(resultat.items())
     ]
+
+
+# --------------------------------------------------------------------------
+# Prime de partage de la valeur (52, codes 904 à 906)
+# --------------------------------------------------------------------------
+
+
+def _est_ppv(ligne: Dict[str, Any]) -> bool:
+    if str(ligne.get("prime_id") or "") == "prime_partage_valeur":
+        return True
+    return "partage de la valeur" in str(ligne.get("libelle") or "").lower()
+
+
+def primes_partage_valeur(payslip_data: Dict[str, Any]) -> List[Tuple[str, float]]:
+    """(code 52, montant) des primes de partage de la valeur du mois.
+
+    La paie range la PPV exonérée et non imposable (moins de 50 salariés)
+    dans les éléments non soumis : 904 ; exonérée mais imposable (50 et
+    plus), dans les revenus imposables hors brut : 905. Soumise à
+    cotisations, elle est dans le brut et n'a pas de bloc 52.
+    """
+    resultat: Dict[str, float] = {}
+    for cle, code in (("primes_non_soumises", "904"), ("revenus_hors_brut_imposables", "905")):
+        for ligne in payslip_data.get(cle) or []:
+            if isinstance(ligne, dict) and _est_ppv(ligne) and float(ligne.get("montant") or 0):
+                resultat[code] = resultat.get(code, 0.0) + float(ligne["montant"])
+    return [(code, round(montant, 2)) for code, montant in sorted(resultat.items())]
