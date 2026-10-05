@@ -1,0 +1,142 @@
+{
+  "sections": [
+    {
+      "id": "etapes",
+      "titre": "La paie du mois, étape par étape",
+      "intro": "Faites-les dans l’ordre. La liste de contrôle de la page Bulletins de paie dit ce qui est déjà prouvé."
+    },
+    {
+      "id": "pieges",
+      "titre": "Cas particuliers et pièges : quoi faire",
+      "intro": "Si l’écran dit une chose et que vous en voyez une autre, croyez l’écran à jour — ou rechargez."
+    }
+  ],
+  "etapes": [
+    {
+      "titre": "1. Importer les pointages",
+      "paragraphes": [
+        "Ouvrez Calendrier, puis « Importer des pointages ». Déposez un fichier par semaine (PDF ou photo) et choisissez sa semaine en face du fichier. « Analyser » lit les feuilles.",
+        "La revue liste les salariés reconnus. Associez les autres (liste « Associer… »), vérifiez les heures, puis « Enregistrer ».",
+        "Une ligne de pointage qui tombe un jour d’arrêt n’est plus écrite en silence : elle apparaît dans le récapitulatif. Traitez-la avant de continuer."
+      ]
+    },
+    {
+      "titre": "2. Compléter le calendrier",
+      "paragraphes": [
+        "Chaque jour de la fenêtre des variables doit avoir des heures prévues et des heures réelles. Un calendrier incomplet bloque la génération, sauf si vous forcez après un message clair.",
+        "La liste de contrôle de la page Bulletins de paie coche cette étape seulement quand plus aucun jour n’est à saisir."
+      ]
+    },
+    {
+      "titre": "3. Saisir les absences",
+      "paragraphes": [
+        "Ouvrez Congés & Absences et saisissez les arrêts, congés et RTT du mois. Un arrêt validé met le calendrier à jour.",
+        "Le logiciel ne peut pas prouver que toutes les absences sont là. Cette étape reste à confirmer par vous, chaque mois."
+      ]
+    },
+    {
+      "titre": "4. Générer les bulletins",
+      "paragraphes": [
+        "Sur la page Bulletins de paie, onglet « Par mois », cliquez « Générer le mois ». « Lancer la paie (Mode Groupé) » fait de même en vous laissant choisir les salariés. Si un calendrier est incomplet ou si des heures sont saisies un jour d’arrêt, la génération s’arrête et dit pourquoi. Rien n’est calculé en silence.",
+        "Restez sur la page pendant la génération : elle se fait bulletin par bulletin. Ensuite, les listes se rechargent. Le PDF affiché est celui du dernier calcul."
+      ]
+    },
+    {
+      "titre": "5. Vérifier les bulletins",
+      "paragraphes": [
+        "Ouvrez chaque bulletin qui sort de l’ordinaire : heures sup, absence, net négatif, premier ou dernier mois. Un astérisque sur une ligne explique le calcul.",
+        "Dans l’onglet « Bulletin », le cadre « Ce qui a changé par rapport au mois dernier » compare au mois précédent. Si un montant change sans raison, ne validez pas."
+      ]
+    },
+    {
+      "titre": "6. Corriger un bulletin",
+      "paragraphes": [
+        "Cliquez « Modifier » sur la ligne du salarié. Dans l’onglet « Corriger », changez les « Heures supplémentaires du mois » ou les « Primes du mois ». Ce que vous saisissez devient une variable du mois : on ne retouche jamais le PDF.",
+        "Cliquez « Enregistrer et recalculer » : tout le bulletin est refait (brut, cotisations, net, cumuls). Tant que ce n’est pas fait, la barre « Corrections non enregistrées » reste en bas de l’écran.",
+        "Le reste se corrige à sa source, par les liens « Ce qui se corrige ailleurs » : planning du mois, fiche du salarié, saisies du mois. Le bulletin passe alors « À recalculer »."
+      ]
+    },
+    {
+      "titre": "7. Recalculer ce qui a changé",
+      "paragraphes": [
+        "Si vous corrigez après la génération ce que le bulletin lit (planning, absence, variables, fiche, mutuelle, compteur de congés, départ, salaire…), le bulletin concerné porte « À recalculer » et dit ce qui a changé. Un bouton « Recalculer tout ce qui a changé » relance seulement ceux-là.",
+        "Une fiche modifiée ne remet en cause que les bulletins non validés du contrat en cours : un bulletin validé reste tel quel, celui d’un ancien contrat n’est jamais signalé.",
+        "Un bulletin d’avant cette marque, ou repris de l’ancien logiciel, n’est pas « à recalculer ». Seul un vrai changement depuis le calcul l’est."
+      ]
+    },
+    {
+      "titre": "8. Valider",
+      "paragraphes": [
+        "Ouvrez le bulletin et cliquez « Valider le bulletin », un bulletin à la fois. Le salarié ne voit son bulletin qu’une fois validé.",
+        "Ne validez un bulletin que s’il n’est pas à recalculer. Le message dit alors pourquoi il faut d’abord relancer le calcul.",
+        "Valider envoie le bulletin vers la suite (PDF, documents). Ce n’est pas la même action que générer."
+      ]
+    },
+    {
+      "titre": "9. Traiter les sorties",
+      "paragraphes": [
+        "Un salarié dont le contrat finit dans le mois doit avoir un dossier de départ. Sans ce dossier, il n’y a pas de bulletin de sortie.",
+        "Sur l’onglet Par mois, un bandeau dit de créer le départ, puis de générer le bulletin de sortie. Les documents (solde de tout compte, attestation) restent grisés tant que ce bulletin n’existe pas."
+      ]
+    },
+    {
+      "titre": "10. Envoyer à la comptabilité et à la banque",
+      "paragraphes": [
+        "Une fois tous les bulletins du mois validés, ouvrez Exports, onglet « Envois », et choisissez la « Période de paie ». L’export prend les bulletins tels qu’ils sont, validés ou non : n’envoyez pas avant la fin.",
+        "« Envoyer vers compta » prépare l’OD globale, le journal de paie et le FEC ; « Envoyer vers banque », le fichier de virement des salaires. À l’aperçu, vérifiez le nombre de salariés et le total (brut pour la compta, net à payer pour la banque), et qu’aucune anomalie n’est listée.",
+        "Cliquez « Générer les fichiers », téléchargez-les et déposez-les vous-même : rien ne part tout seul, aucun paiement n’est déclenché. Puis cliquez « Marquer comme transmis ».",
+        "Si un bulletin change après l’envoi, son écran affiche « Exports à refaire » : refaites l’envoi du mois. N’utilisez pas la « Planification automatique » pour l’instant : elle ne part pas encore sur votre base."
+      ]
+    },
+    {
+      "titre": "11. Déclarer la DSN",
+      "paragraphes": [
+        "Ouvrez Exports, onglet « Déclarations », carte « DSN mensuelle », « Configurer », choisissez la période puis « Prévisualiser ».",
+        "Aujourd’hui, la DSN d’EYWAI n’est pas encore déposable : l’aperçu le dit, liste ce qui reste à faire, et « Générer l’export » reste grisé. C’est voulu : un fichier incomplet serait rejeté, ou pire accepté à moitié.",
+        "En attendant, déposez la DSN du mois comme avant, depuis votre ancien logiciel de paie, sur net-entreprises. Si ce n’est pas possible, ouvrez un ticket au support (module « Paie & Bulletins », urgence « Critique ») avant l’échéance de dépôt."
+      ]
+    }
+  ],
+  "pieges": [
+    {
+      "titre": "Des heures sont saisies un jour d’arrêt",
+      "quoiFaire": "Le calendrier montre les jours en conflit. Choisissez : le salarié était en arrêt (effacer ces heures) ou il a travaillé (modifier l’arrêt). Sans ce clic, rien ne se corrige. Ensuite le bulletin passe « à recalculer »."
+    },
+    {
+      "titre": "L’import dit « Ce fichier a déjà été importé »",
+      "quoiFaire": "Ses heures sont déjà dans le calendrier : pour corriger un jour, modifiez-le dans le calendrier. Si la lecture était fausse, cliquez « Refaire l’import de ce fichier » : le fichier est relu et la revue s’ouvre. Les jours corrigés à la main depuis le premier import y sont listés et ne sont pas réécrits. Un fichier rescanné ou modifié n’est pas reconnu : il s’importe comme un nouveau fichier."
+    },
+    {
+      "titre": "L’écran montre un bulletin périmé",
+      "quoiFaire": "Rechargez la page. Après une génération, une régénération ou une suppression, les listes viennent du serveur. Si le bulletin n’existe plus, l’écran dit qu’il a été remplacé et propose de revenir à la liste — pas une erreur brute."
+    },
+    {
+      "titre": "Le bulletin est à recalculer",
+      "quoiFaire": "Une donnée que le bulletin lit a changé depuis le calcul ; le bandeau dit laquelle (planning, fiche, mutuelle, congés…). Cliquez « Recalculer » (ou « Recalculer tout ce qui a changé » sur la page du mois). Un message résume les écarts (heures sup, brut, net). Ne validez pas avant."
+    },
+    {
+      "titre": "Une génération échoue",
+      "quoiFaire": "La ligne du salarié porte « Échec » et le message en rouge sous son nom. Souvent il dit quoi corriger (calendrier, arrêt, fiche) : corrigez, puis générez de nouveau. S’il n’est pas clair ou s’il revient, ouvrez un ticket : menu Support, module « Paie & Bulletins », type « Bulletin non généré », urgence « Critique » si la paie est bloquée. Écrivez la société, le salarié, le mois, le message exact et ce que vous veniez de faire. Copiez le message avant de fermer la fenêtre de génération : il n’est pas gardé. Le ticket ne prend pas de pièce jointe. Réponse habituelle sous 24 à 48 h ouvrées."
+    },
+    {
+      "titre": "Le bulletin est déjà validé",
+      "quoiFaire": "Corrigez-le comme un autre (étape 6). À l’enregistrement, l’écran demande confirmation : « Corriger et repasser en brouillon ». Le salarié ne le voit plus jusqu’à ce que vous cliquiez de nouveau « Valider le bulletin ». Si le mois est déjà exporté, le bulletin affiche « Exports à refaire » : refaites ces exports. Si l’écran affiche « Correction verrouillée », la période est close (la date limite est écrite en haut du bulletin) : ouvrez un ticket au support. Un bulletin repris de l’ancien logiciel ne se modifie jamais."
+    },
+    {
+      "titre": "Le net à payer est négatif",
+      "quoiFaire": "C’est possible, par exemple un mois entier d’arrêt sans maintien, avec les indemnités versées ailleurs. Le net n’est pas ramené à zéro. Le mois suivant, une saisie « Report NAP négatif » reprend la somme. Créez-la depuis le bandeau du bulletin."
+    },
+    {
+      "titre": "Un solde de congés est faux",
+      "quoiFaire": "Ouvrez la fiche du salarié (Collaborateurs), onglet « Soldes congés ». Quand l’écran le propose, le crayon d’une ligne corrige le solde. Sinon, ouvrez un ticket au support (module « Absences & Congés », type « Solde incorrect ») avec le solde attendu et le bulletin où vous le lisez. Ensuite, recalculez les bulletins qui portent « À recalculer »."
+    },
+    {
+      "titre": "Un départ sans bulletin de sortie",
+      "quoiFaire": "Créer le départ ne génère pas le bulletin tout seul. Après le dossier, générez le bulletin de sortie (indemnité de congés comprise). Tant qu’il manque, les documents de sortie restent grisés."
+    },
+    {
+      "titre": "Le RIB n’est pas encore là",
+      "quoiFaire": "La fiche s’enregistre sans RIB. Elle porte « RIB à compléter » dans la liste. Complétez-le dans la fiche avant de valider la paie. Le virement ne peut pas partir sans ces coordonnées."
+    }
+  ]
+}

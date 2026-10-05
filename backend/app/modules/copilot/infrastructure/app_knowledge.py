@@ -7,9 +7,46 @@ Sert à répondre aux questions d'aide à l'utilisation du logiciel :
 Source de vérité maintenue à la main à partir de la navigation réelle du
 frontend (barres latérales RH et collaborateur, routes React Router). À mettre
 à jour lorsque la navigation ou les fonctionnalités évoluent.
+
+La paie du mois, elle, n'est pas réécrite ici : le guide reprend mot pour mot
+le manuel de la paie affiché à l'écran (`manuel_paie.json`, copie identique de
+frontend/src/features/payroll/utils/manuelOperateur.json ; un test refuse
+qu'elles divergent).
 """
 
-APP_FEATURE_GUIDE = """\
+import json
+from pathlib import Path
+
+_MANUEL_PAIE = json.loads(
+    Path(__file__).with_name("manuel_paie.json").read_text(encoding="utf-8")
+)
+
+
+def _texte_du_manuel_de_la_paie(manuel: dict) -> str:
+    lignes = [
+        "=" * 80,
+        "MANUEL DE LA PAIE DU MOIS (fait foi pour la paie du mois)",
+        "=" * 80,
+        "",
+        "Reprend mot pour mot la page « Manuel de la paie » : menu Bulletins de paie",
+        "→ liste de contrôle du mois → « Manuel de la paie ». Pour toute question sur",
+        "la paie du mois, réponds d'après ce manuel.",
+    ]
+    for section in manuel["sections"]:
+        lignes += ["", f"--- {section['titre']} ---"]
+        if section.get("intro"):
+            lignes.append(section["intro"])
+        if section["id"] == "etapes":
+            for etape in manuel["etapes"]:
+                lignes += ["", etape["titre"]]
+                lignes += [f"  {paragraphe}" for paragraphe in etape["paragraphes"]]
+        elif section["id"] == "pieges":
+            for piege in manuel["pieges"]:
+                lignes += ["", f"— {piege['titre']}", f"  {piege['quoiFaire']}"]
+    return "\n".join(lignes) + "\n"
+
+
+_GUIDE_NAVIGATION = """\
 EYWAI est un logiciel SaaS de gestion RH et de paie pour les entreprises françaises.
 Il comporte deux grands espaces selon le profil connecté :
 - l'espace RH / administrateur (gestionnaires RH, admins d'entreprise) ;
@@ -153,7 +190,13 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 
 --- Section « EYWAI Paie » (parcours de production de la paie) ---
 
-Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la paie :
+Pour faire la paie du mois (pointages, génération, vérification, correction,
+validation, envois à la comptabilité et à la banque, DSN), suis le MANUEL DE LA
+PAIE DU MOIS plus bas : il fait foi. Pour les gestionnaires de paie des
+sociétés clientes, le menu est réduit à la paie : certains écrans ci-dessous
+n'y figurent pas.
+
+Le menu « EYWAI Paie » range ces écrans dans l'ordre du parcours :
   ① Calendrier → valider les heures / calendriers du mois (même écran que
     « Calendriers » en EYWAI Gestion, mais accessible ici dans le workflow paie).
   ② Congés & Absences → valider / refuser les demandes de congés et absences.
@@ -183,8 +226,8 @@ Le parcours est numéroté et doit être suivi dans l'ordre avant de lancer la p
     (« Hors plafond 50 % du net ») pour une demande exceptionnelle.
   ⑩ Prêts employeur → gérer les prêts en cours, échéanciers et remboursements
     sur bulletin.
-Une fois les étapes à jour, le bouton « Lancer la paie » génère les bulletins du
-mois.
+Le bouton « Lancer la paie » (« Lancer la paie (Mode Groupé) » sur la page
+Bulletins de paie) ouvre la génération groupée ; la suite est dans le manuel.
 
 — Suivi CET (« Suivi CET », étape ⑤ du workflow) : tableau de bord CET entreprise
   (mouvements en attente, soldes, validation RH). Paramétrage dans Mon Entreprise
@@ -203,14 +246,17 @@ Autres outils de la section paie :
 — Suivi des taux (« Suivi des taux ») : cotisations, barèmes, synchronisation
   réglementaire.
 — Exports (« Exports ») : onglets « Paie & Comptabilité », « Déclarations »,
-  « Paiements », « Exports RH », exports planifiés et historique. Dans
+  « Paiements », « Exports RH », « Envois » et « Historique ». Dans
   « Paie & Comptabilité », le panneau « Intégration comptable » permet de
-  « Connecter Cegid Loop » pour transmettre les écritures FEC.
-— Paie (« Paie ») : consultation des bulletins (par collaborateur ou par mois) ;
-  l'édition d'un bulletin donne accès aux onglets Édition, Aperçu, Historique,
-  Comparaison N-1, Tendance. Les régularisations participation/intéressement
-  peuvent générer un bulletin de régularisation consultable avec les autres
-  bulletins.
+  « Connecter Cegid Loop » pour transmettre les écritures FEC. L'envoi du mois
+  à la comptabilité et à la banque se fait dans « Envois » ; la DSN mensuelle
+  (« Déclarations ») n'est pas encore déposable : voir le manuel, étape 11.
+— Bulletins de paie (« Bulletins de paie ») : consultation des bulletins
+  (onglets « Par collaborateur » et « Par mois »), liste de contrôle du mois et
+  lien « Manuel de la paie ». L'édition d'un bulletin (« Modifier ») donne accès
+  aux onglets Corriger, Bulletin, Historique, Comparaison N-1, Tendance. Les
+  régularisations participation/intéressement peuvent générer un bulletin de
+  régularisation consultable avec les autres bulletins.
 
 --- Pied de barre latérale RH ---
 — Support (« Support ») : assistant de création de ticket en plusieurs étapes et
@@ -316,8 +362,9 @@ Sans e-mail, le compte ne peut pas être créé.
 FAQ RH TRANSVERSES
 ================================================================================
 
-— Lancer la paie : suivre le parcours numéroté ① à ⑩ dans EYWAI Paie, puis
-  cliquer sur « Lancer la paie » (disponible une fois les étapes à jour).
+— Faire la paie du mois : suivre le MANUEL DE LA PAIE DU MOIS ci-dessous. La
+  génération se lance depuis Bulletins de paie (« Générer le mois », ou
+  « Lancer la paie (Mode Groupé) » pour choisir les salariés).
 — Limiter un RH à une équipe : Gestion des Utilisateurs → créer/éditer le compte
   → « Rôle et permissions » → « Périmètre par permission » → mode « Équipes »
   (ou « Exceptions uniquement » pour un accès cas par cas).
@@ -381,6 +428,9 @@ FAQ RH TRANSVERSES
   « Vues Consolidées ». Le libellé Mon Entreprise reprend le nom de la société.
 — Identifiants collaborateur : voir section dédiée ci-dessus (Documents → Autres).
 
+"""
+
+_REGLES_DE_REPONSE = """
 ================================================================================
 RÈGLES DE RÉPONSE POUR L'AIDE À L'UTILISATION
 ================================================================================
@@ -388,6 +438,12 @@ RÈGLES DE RÉPONSE POUR L'AIDE À L'UTILISATION
 - Si la fonctionnalité dépend du profil (RH vs collaborateur), précise-le.
 - Reste concis : indique où aller et les étapes clés, sans inventer d'écrans ou
   de boutons qui ne figurent pas dans ce guide.
+- Pour la paie du mois, le MANUEL DE LA PAIE DU MOIS l'emporte sur le reste du
+  guide en cas de différence.
 - Si une fonctionnalité demandée n'existe manifestement pas dans le guide,
   dis-le honnêtement et propose l'option la plus proche ou le module Support.
 """
+
+APP_FEATURE_GUIDE = (
+    _GUIDE_NAVIGATION + _texte_du_manuel_de_la_paie(_MANUEL_PAIE) + _REGLES_DE_REPONSE
+)
