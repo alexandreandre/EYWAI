@@ -38,6 +38,7 @@ import { PrevoyanceAffiliationFields } from '@/features/employees/components/Pre
 import { EmployeeContractConfigFormFields } from '@/features/employees/components/EmployeeContractConfigFields';
 import { getCollectiveAgreementLabel } from '@/lib/employeeDisplayUtils';
 import { BrutPourDureeHint } from '@/components/employees/BrutPourDureeHint';
+import { ChangerSalaire } from '@/features/employee-detail/components/ChangerSalaire';
 import { Switch } from '@/components/ui/switch';
 import { isApprentissageContract, isCddContract } from '@/constants/contracts';
 import {
@@ -55,6 +56,9 @@ interface EmployeeProfileEditFormProps {
   loadingMutuelles: boolean;
   companyOrganismeLabel?: string | null;
   payrollFocus?: boolean;
+  /** Historique de salaire présent : le salaire se change avec une date d'effet. */
+  salaireVerrouille?: boolean;
+  employeeId?: string;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -117,6 +121,8 @@ export function EmployeeProfileEditForm({
   loadingMutuelles,
   companyOrganismeLabel,
   payrollFocus = false,
+  salaireVerrouille = false,
+  employeeId,
 }: EmployeeProfileEditFormProps) {
   const statut = useWatch({ control, name: 'statut' });
   const contractType = useWatch({ control, name: 'contract_type' });
@@ -430,6 +436,13 @@ export function EmployeeProfileEditForm({
       <section className="space-y-3">
         <SectionTitle>Rémunération</SectionTitle>
         <div className="grid gap-3 sm:grid-cols-2">
+          {salaireVerrouille && employeeId && companyId ? (
+            <ChangerSalaire
+              employeeId={employeeId}
+              companyId={companyId}
+              salaireActuel={Number(salaireBase) || null}
+            />
+          ) : (
           <FormField
             control={control}
             name="salaire_de_base.valeur"
@@ -450,6 +463,7 @@ export function EmployeeProfileEditForm({
               </FormItem>
             )}
           />
+          )}
           {Number(dureeHebdo) > 35 && (
             <FormField
               control={control}

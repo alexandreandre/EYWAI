@@ -265,6 +265,7 @@ export function fusionnerClassification<T extends Record<string, unknown>>(
 export function buildUpdatePayload(
   values: EmployeeProfileEditFormValues,
   employee: Employee,
+  options: { salaireVerrouille?: boolean } = {},
 ): UpdateEmployeePayload {
   const existingSpec = employee.specificites_paie ?? {};
   const mutuelleIds = values.specificites_paie.mutuelle.mutuelle_type_ids ?? [];
@@ -377,6 +378,12 @@ export function buildUpdatePayload(
   );
   if (classification) {
     payload.classification_conventionnelle = classification;
+  }
+
+  // Avec un historique daté, la génération remet sur la fiche le salaire de
+  // l'historique : il se change avec une date d'effet, jamais ici.
+  if (options.salaireVerrouille) {
+    delete payload.salaire_de_base;
   }
 
   return payload;

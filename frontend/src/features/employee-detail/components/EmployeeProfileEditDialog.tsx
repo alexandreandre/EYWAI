@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, Loader2, X } from 'lucide-react';
 
+import { getSalaryHistory } from '@/api/augmentations';
+import { salaireVerrouille } from '@/features/employee-detail/components/salaireDate';
 import { updateEmployee } from '@/api/employees';
 import * as collectiveAgreementsApi from '@/api/collectiveAgreements';
 import { mutuelleTypesApi, type MutuelleType } from '@/api/mutuelleTypes';
@@ -72,6 +74,13 @@ export function EmployeeProfileEditDialog({
   const [loadingMutuelles, setLoadingMutuelles] = useState(false);
   const [companyOrganismeLabel, setCompanyOrganismeLabel] = useState<string | null>(null);
 
+  const historiqueSalaire = useQuery({
+    queryKey: ['salary-history', employeeId, companyId],
+    queryFn: () => getSalaryHistory(employeeId, companyId as string),
+    enabled: open && Boolean(companyId),
+  });
+  const salaireFige = salaireVerrouille(historiqueSalaire.data);
+
   const defaultValues = useMemo(() => buildDefaultValues(employee), [employee]);
   const wasOnboarding = employee.employment_status === 'en_onboarding';
 
@@ -127,7 +136,7 @@ export function EmployeeProfileEditDialog({
 
   const saveMutation = useMutation({
     mutationFn: (values: EmployeeProfileEditFormValues) =>
-      updateEmployee(employeeId, buildUpdatePayload(values, employee)),
+      updateEmployee(employeeId, buildUpdatePayload(values, employee, { salaireVerrouille: salaireFige })),
     onSuccess: (updated) => {
       onSuccess(updated);
       if (companyId) {
@@ -214,6 +223,8 @@ export function EmployeeProfileEditDialog({
               loadingMutuelles={loadingMutuelles}
               companyOrganismeLabel={companyOrganismeLabel}
               payrollFocus={payrollFocus}
+              salaireVerrouille={salaireFige}
+              employeeId={employeeId}
             />
 
             <DialogFooter className="gap-2 sm:gap-0">
