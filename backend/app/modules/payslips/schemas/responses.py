@@ -33,6 +33,8 @@ class PayslipInfo(BaseModel):
     raison_a_recalculer: str | None = None
     salaire_brut: float | None = None
     heures_sup: float | None = None
+    #: « valide » ou « brouillon » ; la paie du mois montre « Validé » sur la ligne.
+    status: str | None = None
     manually_edited: bool = False
     edit_count: int = 0
     edited_at: datetime | None = None

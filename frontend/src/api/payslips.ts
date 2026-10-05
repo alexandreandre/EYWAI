@@ -164,6 +164,8 @@ export interface PayslipInfo {
   raison_a_recalculer?: string | null;
   salaire_brut?: number | null;
   heures_sup?: number | null;
+  /** « valide » une fois validé par la RH ; « brouillon » ou absent sinon. */
+  status?: 'brouillon' | 'valide' | string | null;
   manually_edited: boolean;
   edit_count: number;
   edited_at?: string;
