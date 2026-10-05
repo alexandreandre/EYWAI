@@ -54,6 +54,38 @@ def dernier_jeu(societe: str) -> Optional[Path]:
     return dossiers[-1] if dossiers else None
 
 
+#: Rubriques du bloc 15 et leur clé dans company_dsn_settings.organismes_complementaires.
+_BLOC_15 = {
+    "S21.G00.15.001": "reference",
+    "S21.G00.15.002": "organisme",
+    "S21.G00.15.003": "delegataire",
+    "S21.G00.15.004": "nature",
+    "S21.G00.15.005": "ordre",
+}
+
+
+def organismes_du_jeu(jeu: Path) -> List[Dict[str, str]]:
+    """Le bloc 15 de la DSN de référence du jeu, celle des affiliations.
+
+    Les 70.013 des salariés désignent un contrat par son ordre 15.005 : le bloc
+    15 doit venir de la même DSN, le cabinet pouvant réordonner ses contrats
+    d'un mois à l'autre. Sans DSN de référence, rien (pas de settings.json
+    d'un autre mois).
+    """
+    from app.modules.dsn_export.domain.conformance import lire_rubriques
+
+    chemin = jeu / "reference.dsn"
+    if not chemin.exists():
+        return []
+    organismes: List[Dict[str, str]] = []
+    for code, valeur in lire_rubriques(chemin.read_bytes()):
+        if code == "S21.G00.15.001":
+            organismes.append({})
+        if code in _BLOC_15 and organismes:
+            organismes[-1][_BLOC_15[code]] = valeur
+    return organismes
+
+
 def reprise_par_salarie(jeu: Path) -> List[Tuple[str, str, Dict[str, Any]]]:
     """[(employee_id, nir, {affiliations_psc, dsn_reprise})] du jeu."""
     donnees = json.loads((jeu / "input.json").read_text())
@@ -131,7 +163,7 @@ def traiter(societe: str, appliquer: bool) -> Tuple[int, int, int]:
 
 
 def traiter_organismes(societe: str, appliquer: bool) -> int:
-    """Porte le bloc 15 (settings.json local) vers company_dsn_settings.
+    """Porte le bloc 15 de la DSN de référence du jeu vers company_dsn_settings.
 
     Exige la colonne ``organismes_complementaires`` (migration
     20260811170000). L'ordre 15.005 fait partie de la donnée : les 70.013
@@ -140,13 +172,10 @@ def traiter_organismes(societe: str, appliquer: bool) -> int:
     from app.core.database import supabase  # import tardif
     from app.modules.dsn_export.infrastructure import settings_repository
 
-    chemin = FIXTURES / societe / "settings.json"
-    if not chemin.exists():
-        print(f"{societe} : pas de settings.json local, ignoré")
-        return 0
-    organismes = json.loads(chemin.read_text()).get("organismes_complementaires") or []
+    jeu = dernier_jeu(societe)
+    organismes = organismes_du_jeu(jeu) if jeu else []
     if not organismes:
-        print(f"{societe} : pas d'organismes dans le settings.json, ignoré")
+        print(f"{societe} : pas de bloc 15 dans la DSN de référence du jeu, ignoré")
         return 0
 
     nom = json.loads((dernier_jeu(societe) / "input.json").read_text())["company_name"]
@@ -178,7 +207,7 @@ def main() -> int:
     parser.add_argument(
         "--organismes",
         action="store_true",
-        help="porte aussi le bloc 15 des settings.json vers company_dsn_settings",
+        help="porte aussi le bloc 15 de la DSN du jeu vers company_dsn_settings",
     )
     parser.add_argument("--apply", action="store_true", help="écrit en base (simulation sinon)")
     parser.add_argument(
