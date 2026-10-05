@@ -684,6 +684,11 @@ def creer_bulletin_final(
             # rémunérée l'avait réduit (salarié 068 janvier 2026 : 4 005,00 imprimé
             # pour 3 875,81 appliqués, là où le cabinet imprime le proratisé).
             "pss_mensuel": _pss_de_la_periode(contexte),
+            # Le plafond plein du barème : la DSN déclare les jours du plafond
+            # (S21.G00.53 unité 40) au ratio des deux.
+            "pss_mensuel_plein": float(
+                (contexte.baremes.get("pss", {}) or {}).get("mensuel", 0.0) or 0.0
+            ),
             # Salaire de base mensuel en vigueur à la fin du mois : le rappel
             # de salaire s'en sert pour savoir à quel taux ce mois a été payé.
             "salaire_base_mensuel": _salaire_base_mensuel_en_vigueur(contexte),
