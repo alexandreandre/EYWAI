@@ -317,6 +317,14 @@ def test_smic_de_la_reduction_generale_lu_sur_la_ligne_du_bulletin():
     assert ["03", "01", "2031.38"] in composants
 
 
+def test_cotisation_prevoyance_sans_affiliation_signalee():
+    """Une base 31 sans bloc 70 est refusée (CCH-11 / CCH-12) : on le dit."""
+    _, avertissements = build_parsed_dsn_from_payroll(
+        SOCIETE, [{"employee": SALARIE, "payslip_data": BULLETIN}], "2026-06"
+    )
+    assert any("affiliation" in a.lower() and "177017512345678"[:13] in a for a in avertissements)
+
+
 def test_montant_soumis_au_pas_nul_quand_la_paie_l_annule():
     """Apprenti sous le seuil : la paie ne soumet rien au PAS (assiette 0) ;
     50.013 vaut 0.00, pas la RNF (l'ancien logiciel : 0.00)."""

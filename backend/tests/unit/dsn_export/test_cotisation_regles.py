@@ -499,6 +499,15 @@ def test_la_prevoyance_generique_va_sur_une_base_31():
     assert base_03.rubriques["S21.G00.78.004"] == "3750.00"
 
 
+def test_le_taux_d_une_regularisation_negative_reste_positif():
+    """CSL-00 de 81.007 : pas de signe. Une régularisation (assiette et montant
+    négatifs) déclarait « -11.260 », refusé (DSN-VAL, avril)."""
+    _, cotisations, _ = _construire(
+        [{"coti_id": "reduction_hs_salariale", "base": -120.0, "montant_salarial": 13.51}]
+    )
+    assert _ligne(cotisations, "114")["S21.G00.81.007"] == "11.260"
+
+
 def test_la_base_03_est_toujours_le_brut():
     """Assiette brute déplafonnée : le brut, quelle que soit l'assiette d'une ligne."""
     bases, _, _ = _construire(

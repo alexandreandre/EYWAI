@@ -147,8 +147,10 @@ def test_la_prolongation_continue_l_arret_initial():
     assert blocs[0]["S21.G00.60.010"] == "13042026"
 
 
-def test_accident_du_travail_jour_travaille_et_date_de_l_accident():
-    """CT 60.002 : le jour de l'accident est travaillé ; 60.012 obligatoire."""
+def test_accident_du_travail_jour_travaille_sans_date_de_l_accident():
+    """CT 60.002 : le jour de l'accident est travaillé. La date de l'accident
+    (60.012) est interdite en DSN mensuelle (DSN-VAL, CST-04) : elle ne se
+    déclare qu'au signalement d'arrêt — l'ancien logiciel l'omet aussi."""
     blocs = blocs_arret(
         [_arret("arret_at", "2026-05-23", "2026-05-29", arret_type="accident_travail")],
         date(2026, 5, 1),
@@ -156,7 +158,7 @@ def test_accident_du_travail_jour_travaille_et_date_de_l_accident():
     )
     assert blocs[0]["S21.G00.60.001"] == "06"
     assert blocs[0]["S21.G00.60.002"] == "23052026"
-    assert blocs[0]["S21.G00.60.012"] == "23052026"
+    assert "S21.G00.60.012" not in blocs[0]
 
 
 def test_subrogation_declare_ses_dates_et_l_arret_sans_reprise_n_en_a_pas():
