@@ -10,7 +10,10 @@ from __future__ import annotations
 import copy
 from typing import Dict, List, Tuple
 
-from app.modules.dsn_export.application.builder import build_parsed_dsn_from_payroll
+from app.modules.dsn_export.application.builder import (
+    build_parsed_dsn_from_payroll,
+    heures_cumulees_avant,
+)
 from app.modules.dsn_export.domain.writer import encode_dsn_bytes
 
 SOCIETE = {
@@ -331,6 +334,52 @@ def test_smic_nul_d_un_mois_sans_heure_payee_reste_declare():
         if lignes[i][0] == "S21.G00.79.001"
     ]
     assert ("01", "0.00") in composants
+
+
+def _composants_79(bulletin: Dict, salarie: Dict) -> List[Tuple[str, str]]:
+    lignes = _lignes(salarie=salarie, bulletin=bulletin, periode="2026-09")
+    return [
+        (lignes[i][1], lignes[i + 1][1])
+        for i in range(len(lignes) - 1)
+        if lignes[i][0] == "S21.G00.79.001"
+    ]
+
+
+def _bulletin_sans_smic(heures_cumulees: float) -> Dict:
+    """Bulletin calculé avant que le moteur ne pose le SMIC sur la ligne."""
+    bulletin = copy.deepcopy(BULLETIN)
+    for ligne in bulletin["structure_cotisations"]["bloc_allegements"]:
+        ligne.pop("smic_reference_mois", None)
+    bulletin["cumuls"] = {"cumuls": {"heures_remunerees": heures_cumulees}}
+    return bulletin
+
+
+def test_smic_d_un_bulletin_qui_ne_le_porte_pas_refait_comme_le_moteur():
+    """SMIC horaire de référence × heures du mois, celles-ci étant l'écart
+    entre le cumul du bulletin et celui du bulletin précédent de l'année."""
+    salarie = {**SALARIE, "smic_horaire_reduction": 12.02, "heures_cumulees_avant": 1352.0}
+    composants = _composants_79(_bulletin_sans_smic(1521.0), salarie)
+    assert ("01", "2031.38") in composants  # 12,02 × 169 h
+
+
+def test_heures_cumulees_avant_lues_au_dernier_bulletin_de_l_annee():
+    """Mois sans bulletin (absence, embauche) : le dernier bulletin antérieur
+    de l'année fait foi ; aucun bulletin antérieur : zéro."""
+    bulletins = [
+        {"month": 7, "cumuls": {"cumuls": {"heures_remunerees": 1183.0}}},
+        {"month": 6, "cumuls": {"cumuls": {"heures_remunerees": 1014.0}}},
+        {"month": 9, "cumuls": {"cumuls": {"heures_remunerees": 1521.0}}},
+    ]
+    assert heures_cumulees_avant(bulletins, 9) == 1183.0
+    assert heures_cumulees_avant([], 9) == 0.0
+
+
+def test_le_smic_repris_d_une_dsn_du_cabinet_ne_vaut_que_pour_son_mois():
+    """La reprise garde le SMIC du dernier mois déclaré par l'ancien logiciel :
+    le redéclarer en septembre serait faux sans que rien ne le refuse."""
+    salarie = {**SALARIE, "dsn_reprise": {"smic_retenu": "1823.03"}}
+    composants = _composants_79(_bulletin_sans_smic(1521.0), salarie)
+    assert not [c for c in composants if c[0] == "01"]
 
 
 def test_cotisation_prevoyance_sans_affiliation_signalee():
