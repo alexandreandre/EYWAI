@@ -3,11 +3,31 @@ from __future__ import annotations
 
 from calendar import monthrange
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from app.modules.exports.domain.accounting_plan import (
+    FAMILLE_ACOMPTE_VERSE,
+    FAMILLE_ACTIVITE_PARTIELLE,
+    FAMILLE_AVANCE,
+    FAMILLE_AVANCE_PARTICIPATION,
+    FAMILLE_CANTINE,
+    FAMILLE_IJSS,
     FAMILLE_INCONNUE,
+    FAMILLE_INDEMNITE_RUPTURE,
+    FAMILLE_INTERETS_PRET,
+    FAMILLE_NOTE_DE_FRAIS,
+    FAMILLE_PANIER,
+    FAMILLE_PARTICIPATION,
+    FAMILLE_PARTICIPATION_PEE,
+    FAMILLE_PPV,
+    FAMILLE_PRET,
+    FAMILLE_REGULARISATION_NET,
+    FAMILLE_SAISIE,
+    FAMILLE_TRANSPORT,
+    FAMILY_MAPPING_ALIASES,
     ORGANISMES,
+    ORGANISME_IJSS,
     ORGANISME_INCONNU,
     ORGANISME_MUTUELLE,
     ORGANISME_PREVOYANCE,
@@ -18,6 +38,7 @@ from app.modules.exports.domain.accounting_plan import (
     default_accounts_for_family,
     resolve_organisme_from_coti_id,
 )
+from app.modules.exports.domain.controle_comptable import residu_du_bulletin
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     DEFAULT_MAPPINGS,
     get_accounting_mappings,
@@ -290,6 +311,8 @@ _ORGANISME_TO_RUBRIQUE = {
     ORGANISME_RETRAITE_SUP: "organisme_retraite_sup",
     ORGANISME_MUTUELLE: "organisme_mutuelle",
     ORGANISME_PREVOYANCE: "organisme_prevoyance",
+    # La CSG sur IJSS réduit la somme à recevoir : même compte que les IJSS.
+    ORGANISME_IJSS: FAMILLE_IJSS,
 }
 
 
@@ -298,7 +321,9 @@ def _accounts_for_cotisation(
 ) -> Tuple[str, str, str]:
     """Retourne (organisme, compte de charge, compte de tiers) d'une cotisation.
 
-    Cascade : mapping société → défaut plateforme. Un organisme non rattaché
+    Cascade : mapping de la cotisation (`coti_id`, pour ventiler un organisme
+    sur deux comptes, comme les deux prévoyances de l'OD de Colorplast) →
+    mapping de l'organisme → défaut plateforme. Un organisme non rattaché
     retourne des comptes vides ; l'appelant doit le signaler, pas l'absorber.
     """
     organisme = resolve_organisme_from_coti_id(
@@ -307,16 +332,57 @@ def _accounts_for_cotisation(
     if organisme == ORGANISME_INCONNU:
         return organisme, "", ""
 
+    par_coti = mappings.get(str(coti.get("coti_id") or "")) or {}
+    if not (par_coti.get("compte_charge") or par_coti.get("compte_tiers")):
+        par_coti = {}
     mapping = mappings.get(_ORGANISME_TO_RUBRIQUE.get(organisme, "")) or {}
     pair = default_accounts_for(organisme)
 
     compte_charge = str(
-        mapping.get("compte_charge") or (pair.compte_charge if pair else "")
+        par_coti.get("compte_charge")
+        or mapping.get("compte_charge")
+        or (pair.compte_charge if pair else "")
     )
     compte_tiers = str(
-        mapping.get("compte_tiers") or (pair.compte_tiers if pair else "")
+        par_coti.get("compte_tiers")
+        or mapping.get("compte_tiers")
+        or (pair.compte_tiers if pair else "")
     )
     return organisme, compte_charge, compte_tiers
+
+
+def _compte_element(
+    element: Dict[str, Any], mappings: Dict[str, Dict[str, Any]]
+) -> str:
+    """Compte d'un élément hors brut.
+
+    Le plan comptable propre à la société prime ; puis le compte que porte
+    l'élément (celui où l'avance a été versée, celui du type de saisie) ; puis
+    le mapping plateforme ; puis le défaut de la famille. Vide si la famille
+    doit être paramétrée : l'appelant le signale.
+    """
+    famille = str(element.get("famille") or FAMILLE_INCONNUE)
+    if famille == FAMILLE_INCONNUE:
+        return ""
+    mapping = (
+        mappings.get(famille)
+        or mappings.get(FAMILY_MAPPING_ALIASES.get(famille, ""))
+        or {}
+    )
+    compte_mapping = str(
+        mapping.get("compte_charge")
+        or mapping.get("compte_tiers")
+        or mapping.get("compte_comptable")
+        or ""
+    )
+    if compte_mapping and mapping.get("company_id"):
+        return compte_mapping
+    if element.get("compte"):
+        return str(element["compte"])
+    if compte_mapping:
+        return compte_mapping
+    pair = default_accounts_for_family(famille)
+    return (pair.compte_charge or pair.compte_tiers) if pair else ""
 
 
 def _period_end_date(period: str) -> str:
@@ -337,8 +403,9 @@ def _make_entry(
     period: str,
     analytique: Optional[str] = None,
     group_key: str = "global",
+    nature: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return {
+    entry = {
         "date_ecriture": date_ecriture,
         "journal": journal,
         "compte_comptable": compte,
@@ -350,6 +417,9 @@ def _make_entry(
         "periode_paie": period,
         "group_key": group_key,
     }
+    if nature:
+        entry["nature"] = nature
+    return entry
 
 
 def list_loan_repayments_by_period(
@@ -418,414 +488,138 @@ def list_loan_repayments_by_period(
     return result
 
 
-def _append_core_salary_entries(
-    ecritures: List[Dict[str, Any]],
-    sub_totals: Dict[str, float],
-    *,
-    date_ecriture: str,
-    period: str,
-    period_label: str,
-    reference: str,
-    group_key: str,
+# --- Portées : l'OD globale et ses trois parts -------------------------------
+#
+# L'OD globale est la somme exacte de trois OD partielles, chacune équilibrée :
+# - salaires : brut et éléments hors brut au débit ; net avant impôt, parts
+#   salariales et retenues au crédit ;
+# - charges sociales : parts patronales, charge au débit, dette au crédit ;
+# - PAS : l'impôt retenu sur le net, du compte du net au compte de l'État.
+# Les auxiliaires (acomptes, avances, saisies, prêts) sont la vue de détail
+# de l'export « Prêts employeur ».
+
+FULL = "full"
+SALAIRES = "salaires"
+CHARGES = "charges_sociales"
+PAS = "pas"
+AUXILIAIRES = "auxiliaries"
+
+FAMILLES_AUXILIAIRES = frozenset(
+    {
+        FAMILLE_ACOMPTE_VERSE,
+        FAMILLE_AVANCE,
+        FAMILLE_SAISIE,
+        FAMILLE_PRET,
+        FAMILLE_INTERETS_PRET,
+    }
+)
+
+LIBELLES_FAMILLES: Dict[str, str] = {
+    FAMILLE_TRANSPORT: "Indemnités de transport",
+    FAMILLE_NOTE_DE_FRAIS: "Notes de frais remboursées",
+    FAMILLE_PPV: "Prime de partage de la valeur",
+    FAMILLE_ACOMPTE_VERSE: "Acomptes",
+    FAMILLE_AVANCE: "Avances sur salaire",
+    FAMILLE_SAISIE: "Saisies sur salaire",
+    FAMILLE_PRET: "Remboursement prêt employeur",
+    FAMILLE_INTERETS_PRET: "Intérêts prêt employeur",
+    FAMILLE_REGULARISATION_NET: "Régularisations du net",
+    FAMILLE_PARTICIPATION: "Participation",
+    FAMILLE_PARTICIPATION_PEE: "Participation placée sur un plan d'épargne",
+    FAMILLE_AVANCE_PARTICIPATION: "Avances de participation",
+    FAMILLE_IJSS: "IJSS subrogées",
+    FAMILLE_INDEMNITE_RUPTURE: "Indemnités de rupture",
+    FAMILLE_ACTIVITE_PARTIELLE: "Indemnité d'activité partielle",
+    FAMILLE_PANIER: "Paniers",
+    FAMILLE_CANTINE: "Cantine",
+}
+
+# Ordre des lignes : celui d'une OD de paie, salaires d'abord.
+_RANG_NATURE = {"brut": 0, "net_a_payer": 1, "pas": 2, "charges": 3, "dettes": 4, "hors_brut": 5}
+
+
+@dataclass(frozen=True)
+class _Mouvement:
+    """Un montant d'un bulletin, à un compte. Positif : débit ; négatif : crédit."""
+
+    nature: str
+    libelle: str
+    compte: str
+    montant: float
+    portees: frozenset
+    analytique: Optional[str] = None
+
+
+def _mouvements_du_bulletin(
+    payslip: Dict[str, Any],
     mappings: Dict[str, Dict[str, Any]],
-    label_suffix: str = "",
-    tracker: Optional[_BalanceTracker] = None,
-) -> None:
-    suffix = f" — {label_suffix}" if label_suffix and label_suffix != "global" else ""
-    m_brut = _resolve_mapping(mappings, "salaire_brut")
-    m_net = _resolve_mapping(mappings, "net_a_payer")
-    m_pas = _resolve_mapping(mappings, "pas")
-
-    brut = float(sub_totals.get("total_brut", 0) or 0)
-    if brut > 0 and m_brut:
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_brut.get("journal", "OD"),
-                compte=m_brut["compte_comptable"],
-                libelle=f"Salaires {period_label}{suffix}",
-                debit=brut,
-                credit=0.0,
-                reference=reference,
-                period=period,
-                analytique=m_brut.get("analytique"),
-                group_key=group_key,
-            )
-        )
-        if tracker:
-            tracker.add_debit("salaire_brut", brut)
-    elif brut > 0 and tracker:
-        tracker.skip(f"salaire_brut non posté ({_round2(brut)}€) : mapping manquant")
-
-    net = float(sub_totals.get("total_net_a_payer", 0) or 0)
-    if net > 0 and m_net:
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_net.get("journal", "OD"),
-                compte=m_net["compte_comptable"],
-                libelle=f"Net à payer {period_label}{suffix}",
-                debit=0.0,
-                credit=net,
-                reference=reference,
-                period=period,
-                analytique=m_net.get("analytique"),
-                group_key=group_key,
-            )
-        )
-        if tracker:
-            tracker.add_credit("net_a_payer", net)
-    elif net > 0 and tracker:
-        tracker.skip(f"net_a_payer non posté ({_round2(net)}€) : mapping manquant")
-
-    # Les cotisations salariales ne sont plus créditées globalement : chaque part
-    # salariale est portée par le compte de tiers de son organisme, en même temps
-    # que la part patronale. Un crédit global ici les compterait deux fois.
-
-    pas = float(sub_totals.get("total_pas", 0) or 0)
-    if pas > 0 and m_pas:
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_pas.get("journal", "OD"),
-                compte=m_pas["compte_comptable"],
-                libelle=f"PAS {period_label}{suffix}",
-                debit=0.0,
-                credit=pas,
-                reference=reference,
-                period=period,
-                analytique=m_pas.get("analytique"),
-                group_key=group_key,
-            )
-        )
-        if tracker:
-            tracker.add_credit("pas", pas)
-    elif pas > 0 and tracker:
-        tracker.skip(f"pas non posté ({_round2(pas)}€) : mapping manquant")
-
-
-def build_payroll_ledger(
-    company_id: str,
-    period: str,
-    employee_ids: Optional[List[str]] = None,
-    date_ecriture: Optional[str] = None,
-    regroupement: Regroupement = "global",
-    include_notes_frais: bool = False,
-    scope: LedgerScope = "full",
-) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
-    if scope == "full":
-        include_notes_frais = True
-    """
-    Construit le registre d'écritures paie équilibré pour une période.
-
-    Structure PCG :
-    - Débit 641 (brut)
-    - Crédit 425 (net), 43x (cot. sal.), 442 (PAS), 427 (saisies), 425x (acomptes), 274 (prêts)
-    - Débit 645 (charges patronales par organisme)
-    - Crédit 431 (dettes organismes)
-    """
-    from app.modules.exports.infrastructure.export_acomptes import (
-        get_acomptes_data,
-    )
-    from app.modules.exports.infrastructure.export_saisies import (
-        get_saisies_data,
-    )
-
-    payslip_list, totals = get_payslip_data_for_od(
-        company_id, period, employee_ids, "od_globale"
-    )
-    mappings = get_accounting_mappings(company_id)
-    if not date_ecriture:
-        date_ecriture = _period_end_date(period)
-
-    period_label = format_period(period)
-    reference = f"OD_PAIE_{period}"
-    ecritures: List[Dict[str, Any]] = []
-    tracker = _BalanceTracker()
-
-    m_brut = _resolve_mapping(mappings, "salaire_brut")
-    _resolve_mapping(mappings, "net_a_payer")
-    _resolve_mapping(mappings, "cotisation_salariale")
-
-    group_key = "global"
-    if regroupement == "par_analytique" and m_brut.get("analytique"):
-        group_key = str(m_brut.get("analytique"))
-
-    if regroupement == "par_etablissement":
-        subtotals_by_est: Dict[str, Dict[str, float]] = defaultdict(
-            lambda: {
-                "total_brut": 0.0,
-                "total_net_a_payer": 0.0,
-                "total_cotisations_salariales": 0.0,
-                "total_pas": 0.0,
-            }
-        )
-        for payslip in payslip_list:
-            est = payslip.get("establishment_label") or "Principal"
-            subtotals_by_est[est]["total_brut"] += payslip.get("brut", 0)
-            subtotals_by_est[est]["total_net_a_payer"] += payslip.get("net_a_payer", 0)
-            subtotals_by_est[est]["total_cotisations_salariales"] += payslip.get(
-                "cotisations_salariales", 0
-            )
-            subtotals_by_est[est]["total_pas"] += payslip.get("pas", 0)
-        for est, sub in subtotals_by_est.items():
-            _append_core_salary_entries(
-                ecritures,
-                sub,
-                date_ecriture=date_ecriture,
-                period=period,
-                period_label=period_label,
-                reference=reference,
-                group_key=est,
-                mappings=mappings,
-                label_suffix=est,
-                tracker=tracker,
-            )
-    else:
-        _append_core_salary_entries(
-            ecritures,
-            totals,
-            date_ecriture=date_ecriture,
-            period=period,
-            period_label=period_label,
-            reference=reference,
-            group_key=group_key,
-            mappings=mappings,
-            tracker=tracker,
-        )
-
-    charges_par_compte: Dict[Tuple[str, str, str], float] = defaultdict(float)
-    dettes_par_compte: Dict[Tuple[str, str, str], float] = defaultdict(float)
+    comptes: Dict[str, Dict[str, Any]],
+) -> Tuple[List[_Mouvement], List[Dict[str, Any]]]:
+    """Les mouvements d'un bulletin, et ce qui n'a pas de compte."""
+    mouvements: List[_Mouvement] = []
     anomalies: List[Dict[str, Any]] = []
+    brut = float(payslip.get("brut", 0) or 0)
+    net = float(payslip.get("net_a_payer", 0) or 0)
+    pas = float(payslip.get("pas", 0) or 0)
+    m_brut, m_net, m_pas = comptes["salaire_brut"], comptes["net_a_payer"], comptes["pas"]
+    compte_net = str(m_net.get("compte_comptable") or "")
 
-    for payslip in payslip_list:
-        entry_group = (
-            payslip.get("establishment_label") or "Principal"
-            if regroupement == "par_etablissement"
-            else group_key
-        )
-        for coti in payslip.get("cotisations_detail", []):
-            if not isinstance(coti, dict):
-                continue
-            montant_pat = float(coti.get("montant_patronal", 0) or 0)
-            montant_sal = float(coti.get("montant_salarial", 0) or 0)
-            if montant_pat == 0 and montant_sal == 0:
-                continue
+    mouvements += [
+        _Mouvement("brut", "Salaires", str(m_brut.get("compte_comptable") or ""), brut,
+                   frozenset({FULL, SALAIRES}), m_brut.get("analytique")),
+        _Mouvement("net_a_payer", "Net à payer", compte_net, -net,
+                   frozenset({FULL}), m_net.get("analytique")),
+        # OD salaires seule : le net avant impôt ; l'OD PAS en retire l'impôt.
+        _Mouvement("net_a_payer", "Net à payer", compte_net, -(net + pas),
+                   frozenset({SALAIRES}), m_net.get("analytique")),
+        _Mouvement("pas", "PAS", str(m_pas.get("compte_comptable") or ""), -pas,
+                   frozenset({FULL, PAS}), m_pas.get("analytique")),
+        _Mouvement("net_a_payer", "PAS retenu sur le net", compte_net, pas,
+                   frozenset({PAS}), m_net.get("analytique")),
+    ]
 
-            organisme, compte_charge, compte_tiers = _accounts_for_cotisation(
-                coti, mappings
+    for coti in payslip.get("cotisations_detail") or []:
+        if not isinstance(coti, dict):
+            continue
+        patronal = float(coti.get("montant_patronal", 0) or 0)
+        salarial = float(coti.get("montant_salarial", 0) or 0)
+        if patronal == 0 and salarial == 0:
+            continue
+        organisme, compte_charge, compte_tiers = _accounts_for_cotisation(coti, mappings)
+        if not compte_charge or not compte_tiers:
+            anomalies.append(
+                {
+                    "code": "organisme_non_rattache",
+                    "label": "Cotisation sans compte comptable",
+                    "detail": f"{coti.get('coti_id') or '?'} — {coti.get('libelle') or ''}",
+                    "montant": _round2(abs(patronal) + abs(salarial)),
+                }
             )
-            if not compte_charge or not compte_tiers:
-                anomalies.append(
-                    {
-                        "code": "organisme_non_rattache",
-                        "label": "Cotisation sans compte comptable",
-                        "detail": f"{coti.get('coti_id') or '?'} — {coti.get('libelle') or ''}",
-                        "montant": _round2(abs(montant_pat) + abs(montant_sal)),
-                    }
-                )
-                tracker.skip(
-                    f"cotisation non postée ({_round2(abs(montant_pat))}€) : organisme "
-                    f"non rattaché pour {coti.get('coti_id') or coti.get('libelle')}"
-                )
-                continue
-
-            # Part patronale : charge au débit, dette au crédit.
-            if montant_pat != 0:
-                charges_par_compte[(entry_group, organisme, compte_charge)] += montant_pat
-                dettes_par_compte[(entry_group, organisme, compte_tiers)] += montant_pat
-            # Part salariale : dette au crédit ; sa contrepartie est le brut,
-            # déjà débité.
-            if montant_sal != 0:
-                dettes_par_compte[(entry_group, organisme, compte_tiers)] += montant_sal
-
-    for (grp, organisme, compte), montant in sorted(charges_par_compte.items()):
-        if abs(montant) < 0.005:
             continue
         nom = ORGANISMES.get(organisme, organisme)
-        if montant > 0:
-            ecritures.append(
-                _make_entry(
-                    date_ecriture=date_ecriture,
-                    journal="OD",
-                    compte=compte,
-                    libelle=f"Charges sociales {nom} {period_label}",
-                    debit=montant,
-                    credit=0.0,
-                    reference=reference,
-                    period=period,
-                    group_key=grp,
-                )
+        if patronal:
+            mouvements += [
+                _Mouvement(f"charges:{organisme}", f"Charges sociales {nom}", compte_charge,
+                           patronal, frozenset({FULL, CHARGES})),
+                _Mouvement(f"dettes:{organisme}", f"Dette {nom}", compte_tiers,
+                           -patronal, frozenset({FULL, CHARGES})),
+            ]
+        if salarial:
+            # Sa contrepartie est le brut, déjà débité.
+            mouvements.append(
+                _Mouvement(f"dettes:{organisme}", f"Dette {nom}", compte_tiers,
+                           -salarial, frozenset({FULL, SALAIRES}))
             )
-            tracker.add_debit("charges_patronales", montant)
-        else:
-            ecritures.append(
-                _make_entry(
-                    date_ecriture=date_ecriture,
-                    journal="OD",
-                    compte=compte,
-                    libelle=f"Allègements {nom} {period_label}",
-                    debit=0.0,
-                    credit=abs(montant),
-                    reference=reference,
-                    period=period,
-                    group_key=grp,
-                )
-            )
-            tracker.add_credit("charges_patronales_allegements", abs(montant))
 
-    for (grp, organisme, compte), montant in sorted(dettes_par_compte.items()):
-        if abs(montant) < 0.005:
+    for element in payslip.get("elements_hors_brut") or []:
+        if not isinstance(element, dict):
             continue
-        nom = ORGANISMES.get(organisme, organisme)
-        if montant > 0:
-            ecritures.append(
-                _make_entry(
-                    date_ecriture=date_ecriture,
-                    journal="OD",
-                    compte=compte,
-                    libelle=f"Dette {nom} {period_label}",
-                    debit=0.0,
-                    credit=montant,
-                    reference=reference,
-                    period=period,
-                    group_key=grp,
-                )
-            )
-            tracker.add_credit("dettes_organismes", montant)
-        else:
-            ecritures.append(
-                _make_entry(
-                    date_ecriture=date_ecriture,
-                    journal="OD",
-                    compte=compte,
-                    libelle=f"Dette {nom} (allègements) {period_label}",
-                    debit=abs(montant),
-                    credit=0.0,
-                    reference=reference,
-                    period=period,
-                    group_key=grp,
-                )
-            )
-            tracker.add_debit("dettes_organismes_allegements", abs(montant))
-
-    m_net_acompte = _resolve_mapping(mappings, "net_a_payer")
-    net_account = str(m_net_acompte.get("compte_comptable") or "425000")
-
-    _, repayments, _, _ = get_acomptes_data(company_id, period)
-    for rep in repayments:
-        montant = float(rep.get("amount_repaid", 0) or 0)
-        if montant <= 0:
+        montant = float(element.get("montant", 0) or 0)
+        if montant == 0:
             continue
-        compte = str(rep.get("accounting_account") or "425100")
-        employee = rep.get("employee_name", "")
-        nature = rep.get("advance_type_label", "Acompte")
-        libelle = f"Remboursement {nature} — {employee} — {period_label}"
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal="OD",
-                compte=net_account,
-                libelle=libelle,
-                debit=montant,
-                credit=0.0,
-                reference=f"ACOMPTE_R_{period}",
-                period=period,
-                group_key=group_key,
-            )
-        )
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal="OD",
-                compte=compte,
-                libelle=libelle,
-                debit=0.0,
-                credit=montant,
-                reference=f"ACOMPTE_R_{period}",
-                period=period,
-                group_key=group_key,
-            )
-        )
-        tracker.add_debit("acomptes_remboursement_425", montant)
-        tracker.add_credit("acomptes", montant)
-
-    deductions, _, _ = get_saisies_data(company_id, period)
-    m_saisie = _resolve_mapping(mappings, "saisie_opposition")
-    for ded in deductions:
-        montant = float(ded.get("deducted_amount", 0) or 0)
-        if montant <= 0:
-            continue
-        compte = str(ded.get("accounting_account") or m_saisie.get("compte_comptable", "427000"))
-        employee = ded.get("employee_name", "")
-        nature = ded.get("seizure_type_label", "Saisie")
-        creditor = ded.get("creditor_name", "")
-        libelle = " — ".join(p for p in [nature, employee, creditor] if p) + f" — {period_label}"
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_saisie.get("journal", "OD"),
-                compte=compte,
-                libelle=libelle,
-                debit=0.0,
-                credit=montant,
-                reference=f"SAISIE_{period}",
-                period=period,
-                group_key=group_key,
-            )
-        )
-        tracker.add_credit("saisies", montant)
-
-    m_loan = _resolve_mapping(mappings, "pret_employeur")
-    loan_repayments = list_loan_repayments_by_period(company_id, period)
-    for rep in loan_repayments:
-        montant = float(rep.get("total_amount", 0) or 0)
-        if montant <= 0:
-            continue
-        employee = rep.get("employee_name", "")
-        libelle = f"Remboursement prêt employeur — {employee} — {period_label}"
-        compte = m_loan.get("compte_comptable", DEFAULT_LOAN_ACCOUNT)
-        ecritures.append(
-            _make_entry(
-                date_ecriture=date_ecriture,
-                journal=m_loan.get("journal", "OD"),
-                compte=compte,
-                libelle=libelle,
-                debit=0.0,
-                credit=montant,
-                reference=f"PRET_{period}",
-                period=period,
-                group_key=group_key,
-            )
-        )
-        tracker.add_credit("prets_employeur", montant)
-
-    elements_par_famille: Dict[Tuple[str, str], float] = defaultdict(float)
-    for payslip in payslip_list:
-        for element in payslip.get("elements_hors_brut", []) or []:
-            if not isinstance(element, dict):
-                continue
-            montant = float(element.get("montant", 0) or 0)
-            if montant == 0:
-                continue
-            famille = str(element.get("famille") or FAMILLE_INCONNUE)
-            elements_par_famille[(famille, str(element.get("libelle") or famille))] += (
-                montant
-            )
-
-    for (famille, libelle), montant in sorted(elements_par_famille.items()):
-        if abs(montant) < 0.005:
-            continue
-        mapping_element = mappings.get(famille) or {}
-        compte = str(
-            mapping_element.get("compte_charge")
-            or mapping_element.get("compte_tiers")
-            or mapping_element.get("compte_comptable")
-            or ""
-        )
-        if not compte:
-            pair = default_accounts_for_family(famille)
-            compte = (pair.compte_charge or pair.compte_tiers) if pair else ""
+        famille = str(element.get("famille") or FAMILLE_INCONNUE)
+        libelle = str(element.get("libelle") or famille)
+        compte = _compte_element(element, mappings)
         if not compte:
             anomalies.append(
                 {
@@ -835,115 +629,174 @@ def build_payroll_ledger(
                     "montant": _round2(abs(montant)),
                 }
             )
-            tracker.skip(
-                f"élément hors brut non posté ({_round2(montant)}€) : aucun compte "
-                f"pour la famille {famille} ({libelle})"
-            )
             continue
+        portees = {FULL, SALAIRES}
+        if famille in FAMILLES_AUXILIAIRES:
+            portees.add(AUXILIAIRES)
+        mouvements.append(
+            _Mouvement(f"hors_brut:{famille}", LIBELLES_FAMILLES.get(famille, libelle),
+                       compte, montant, frozenset(portees))
+        )
+    return mouvements, anomalies
+
+
+def _composante(nature: str, montant: float) -> str:
+    """Poste du diagnostic d'équilibre (`balance_debug`) d'une ligne."""
+    if nature == "brut":
+        return "salaire_brut"
+    if nature in ("net_a_payer", "pas"):
+        return nature
+    if nature.startswith("charges:"):
+        return "charges_patronales" if montant > 0 else "charges_patronales_allegements"
+    if nature.startswith("dettes:"):
+        return "dettes_organismes" if montant < 0 else "dettes_organismes_allegements"
+    famille = nature.split(":", 1)[-1]
+    if famille in (FAMILLE_PRET, FAMILLE_INTERETS_PRET):
+        return "prets_employeur"
+    if famille == FAMILLE_SAISIE:
+        return "saisies"
+    if famille in (FAMILLE_ACOMPTE_VERSE, FAMILLE_AVANCE):
+        return "acomptes"
+    return "elements_hors_brut"
+
+
+def build_payroll_ledger(
+    company_id: str,
+    period: str,
+    employee_ids: Optional[List[str]] = None,
+    date_ecriture: Optional[str] = None,
+    regroupement: Regroupement = "global",
+    scope: LedgerScope = "full",
+) -> Tuple[List[Dict[str, Any]], Dict[str, float], Dict[str, Any]]:
+    """Registre d'écritures paie d'une période, lu sur les seuls bulletins.
+
+    Chaque bulletin donne ses mouvements (brut, net, PAS, cotisations par
+    organisme, éléments hors brut et retenues), agrégés ensuite par compte —
+    une ligne par compte et par nature, comme l'OD d'un cabinet. Un bulletin
+    dont le net ne se reconstruit pas au centime est signalé par son nom : l'OD
+    ne peut pas s'équilibrer sans lui.
+
+    Les notes de frais remboursées sur le bulletin y sont un élément hors brut
+    (débit du compte des notes de frais) ; leur constatation en charge relève
+    de l'export « Notes de frais », pas de l'OD de paie.
+    """
+    payslip_list, totals = get_payslip_data_for_od(
+        company_id, period, employee_ids, "od_globale"
+    )
+    mappings = get_accounting_mappings(company_id)
+    if not date_ecriture:
+        date_ecriture = _period_end_date(period)
+
+    period_label = format_period(period)
+    reference = f"OD_PAIE_{period}"
+    tracker = _BalanceTracker()
+    comptes = {
+        code: _resolve_mapping(mappings, code)
+        for code in ("salaire_brut", "net_a_payer", "pas")
+    }
+    # Une OD, un journal : celui de la société.
+    journal = str(comptes["salaire_brut"].get("journal") or "OD")
+
+    group_key = "global"
+    if regroupement == "par_analytique" and comptes["salaire_brut"].get("analytique"):
+        group_key = str(comptes["salaire_brut"].get("analytique"))
+
+    anomalies: List[Dict[str, Any]] = []
+    sommes: Dict[Tuple[str, str, str, str, Optional[str]], float] = defaultdict(float)
+    for payslip in payslip_list:
+        grp = (
+            str(payslip.get("establishment_label") or "Principal")
+            if regroupement == "par_etablissement"
+            else group_key
+        )
+        mouvements, manquants = _mouvements_du_bulletin(payslip, mappings, comptes)
+        anomalies.extend(manquants)
+        residu = residu_du_bulletin(payslip)
+        if abs(residu) >= 0.005:
+            nom = payslip.get("employee_name") or payslip.get("employee_id") or "?"
+            anomalies.append(
+                {
+                    "code": "bulletin_incoherent",
+                    "label": "Bulletin dont le net ne se retrouve pas",
+                    "detail": (
+                        f"{nom} : le net à payer ({_round2(float(payslip.get('net_a_payer', 0) or 0))} €) "
+                        f"diffère de {residu} € du brut moins les cotisations et l'impôt, "
+                        f"plus les éléments hors brut — recalculez ce bulletin"
+                    ),
+                    "montant": abs(residu),
+                }
+            )
+        for mv in mouvements:
+            if scope in mv.portees and mv.montant:
+                sommes[(grp, mv.nature, mv.libelle, mv.compte, mv.analytique)] += mv.montant
+
+    for anomalie in anomalies:
+        tracker.skip(f"{anomalie['label']} : {anomalie['detail']} ({anomalie['montant']} €)")
+
+    def _rang(cle: Tuple[str, str, str, str, Optional[str]]) -> Tuple[Any, ...]:
+        grp, nature, libelle, compte, _ = cle
+        return (grp, _RANG_NATURE.get(nature.split(":", 1)[0], 9), nature, compte, libelle)
+
+    ecritures: List[Dict[str, Any]] = []
+    for cle in sorted(sommes, key=_rang):
+        grp, nature, libelle, compte, analytique = cle
+        montant = _round2(sommes[cle])
+        if abs(montant) < 0.005:
+            continue
+        organisme = nature.split(":", 1)[-1]
+        nom = ORGANISMES.get(organisme, organisme)
+        if nature.startswith("charges:") and montant < 0:
+            libelle = f"Allègements {nom}"
+        elif nature.startswith("dettes:") and montant > 0:
+            libelle = f"Dette {nom} (allègements)"
+        suffixe = (
+            f" — {grp}"
+            if regroupement == "par_etablissement" and nature in ("brut", "net_a_payer", "pas")
+            else ""
+        )
         ecritures.append(
             _make_entry(
                 date_ecriture=date_ecriture,
-                journal="OD",
+                journal=journal,
                 compte=compte,
-                libelle=f"{libelle} {period_label}",
+                libelle=f"{libelle} {period_label}{suffixe}",
                 debit=montant if montant > 0 else 0.0,
-                credit=abs(montant) if montant < 0 else 0.0,
+                credit=-montant if montant < 0 else 0.0,
                 reference=reference,
                 period=period,
-                group_key=group_key,
+                analytique=analytique,
+                group_key=grp,
+                nature=nature,
             )
         )
+        composante = _composante(nature, montant)
         if montant > 0:
-            tracker.add_debit("elements_hors_brut", montant)
+            tracker.add_debit(composante, montant)
         else:
-            tracker.add_credit("elements_hors_brut", abs(montant))
+            tracker.add_credit(composante, -montant)
 
-    if include_notes_frais:
-        from app.modules.exports.infrastructure.export_notes_frais import (
-            get_notes_frais_ecritures,
-        )
-
-        nf_ecritures = get_notes_frais_ecritures(
-            company_id, period, employee_ids, date_ecriture
-        )
-        for nf in nf_ecritures:
-            tracker.add_debit("notes_frais", float(nf.get("debit", 0) or 0))
-            tracker.add_credit("notes_frais", float(nf.get("credit", 0) or 0))
-        ecritures.extend(nf_ecritures)
-
-    if regroupement == "global":
-        final_ecritures = ecritures
-    else:
-        grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-        for e in ecritures:
-            grouped[e.get("group_key", "global")].append(e)
-        final_ecritures = []
-        for group_entries in grouped.values():
-            final_ecritures.extend(group_entries)
-
-    if scope != "full":
-        final_ecritures = _filter_by_scope(final_ecritures, scope)
-
-    total_debit = sum(e["debit"] for e in final_ecritures)
-    total_credit = sum(e["credit"] for e in final_ecritures)
+    total_debit = sum(e["debit"] for e in ecritures)
+    total_credit = sum(e["credit"] for e in ecritures)
     balance_debug = tracker.finalize(
         payslips_count=len(payslip_list),
-        ecritures_lines=len(final_ecritures),
+        ecritures_lines=len(ecritures),
         payslip_source_totals=totals,
         period=period,
         payslip_list=payslip_list,
     )
+    ecart = _round2(abs(total_debit - total_credit))
     od_totals = {
         "total_debit": _round2(total_debit),
         "total_credit": _round2(total_credit),
-        "equilibre": abs(total_debit - total_credit) < 0.01,
-        "ecart": _round2(abs(total_debit - total_credit)),
+        # Au centime : un écart d'un centime est un écart. Un bulletin incohérent
+        # bloque même si un autre compense son écart.
+        "equilibre": ecart == 0
+        and not any(a["code"] == "bulletin_incoherent" for a in anomalies),
+        "ecart": ecart,
         "anomalies": anomalies,
         "balance_debug": balance_debug,
     }
-    return final_ecritures, od_totals, mappings
-
-
-def _filter_by_scope(
-    ecritures: List[Dict[str, Any]], scope: LedgerScope
-) -> List[Dict[str, Any]]:
-    """Filtre les écritures selon le type d'OD demandé."""
-    if scope == "full":
-        return ecritures
-
-    ref = ecritures[0].get("reference_export", "") if ecritures else ""
-    ref.split("_")[-1] if ref else ""
-
-    def _is_salaires(e: Dict[str, Any]) -> bool:
-        lib = e.get("libelle", "")
-        ref_e = e.get("reference_export", "")
-        return ref_e.startswith("OD_PAIE_") and (
-            lib.startswith("Salaires")
-            or lib.startswith("Net à payer")
-            or lib.startswith("Cotisations salariales")
-        )
-
-    def _is_charges(e: Dict[str, Any]) -> bool:
-        lib = e.get("libelle", "")
-        return lib.startswith("Charges ") or lib.startswith("Dettes organismes")
-
-    def _is_pas(e: Dict[str, Any]) -> bool:
-        return e.get("libelle", "").startswith("PAS ")
-
-    def _is_auxiliary(e: Dict[str, Any]) -> bool:
-        ref_e = e.get("reference_export", "")
-        return ref_e.startswith(("ACOMPTE_", "SAISIE_", "PRET_", "NDF-"))
-
-    filters = {
-        "salaires": _is_salaires,
-        "charges_sociales": _is_charges,
-        "pas": _is_pas,
-        "auxiliaries": _is_auxiliary,
-    }
-    predicate = filters.get(scope)
-    if not predicate:
-        return ecritures
-    return [e for e in ecritures if predicate(e)]
+    return ecritures, od_totals, mappings
 
 
 def ledger_to_od_export_rows(ecritures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -982,16 +835,22 @@ def assert_ledger_balanced(od_totals: Dict[str, Any]) -> None:
     lignes = [f"L'écriture ne s'équilibre pas : écart de {ecart} €."]
 
     anomalies = od_totals.get("anomalies") or []
-    if anomalies:
+    incoherents = [a for a in anomalies if a.get("code") == "bulletin_incoherent"]
+    sans_compte = [a for a in anomalies if a.get("code") != "bulletin_incoherent"]
+    if incoherents:
+        lignes.append("Bulletins dont le net ne se retrouve pas :")
+        for anomalie in incoherents:
+            lignes.append(f"  — {anomalie.get('detail', '')}")
+    if sans_compte:
         lignes.append("Éléments sans compte comptable :")
-        for anomalie in anomalies:
+        for anomalie in sans_compte:
             lignes.append(
                 f"  — {anomalie.get('detail', '')} ({anomalie.get('montant', 0)} €)"
             )
         lignes.append(
             "Renseignez les comptes manquants dans Exports > Comptes comptables."
         )
-    else:
+    if not anomalies:
         lignes.append(
             "Aucun élément non rattaché n'a été détecté : vérifiez le détail de "
             "l'équilibre dans le panneau de diagnostic de l'OD."

@@ -136,7 +136,6 @@ class TestPayrollLedgerPatronalBalance:
             ecritures, od_totals, _ = ledger_module.build_payroll_ledger(
                 "co-1",
                 "2026-06",
-                include_notes_frais=False,
                 scope="full",
             )
 

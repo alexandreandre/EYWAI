@@ -2,7 +2,7 @@ from app.core.logging import get_logger
 
 logger = get_logger("modules.exports.infrastructure.export_ecritures_comptables")
 # Implémentation locale des écritures comptables OD (ex-services.exports.ecritures_comptables).
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.core.database import supabase
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
@@ -88,6 +88,54 @@ def get_default_mapping(rubrique_code: str) -> Optional[Dict[str, Any]]:
     return DEFAULT_MAPPINGS.get(rubrique_code)
 
 
+def ligne_od_du_bulletin(
+    *,
+    payslip_id: Any,
+    employee: Dict[str, Any],
+    payslip_data: Dict[str, Any],
+    saisies_du_salarie: List[Dict[str, Any]],
+    compte_de_saisie: Callable[[str], str],
+    establishment_label: str = "Principal",
+) -> Dict[str, Any]:
+    """Ce que l'OD lit d'un bulletin : montants, cotisations et éléments hors brut.
+
+    `compte_de_saisie(type)` donne le compte d'opposition d'un type de saisie
+    (paramétrage du module Saisies) ; il n'est appelé que s'il y a une saisie.
+    """
+    from app.modules.exports.domain.accounting_plan import FAMILLE_SAISIE
+
+    brut = float(payslip_data.get("salaire_brut", 0) or 0)
+    net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
+    pas = extract_pas_amount(payslip_data.get("synthese_net", {}))
+    cotisations_salariales, cotisations_patronales, cotisations_list, _ = (
+        extract_cotisations_from_payslip(payslip_data)
+    )
+    elements = merge_monthly_inputs_hors_brut(
+        extract_elements_hors_brut(payslip_data), saisies_du_salarie
+    )
+    for element in elements:
+        if (
+            element.get("famille") == FAMILLE_SAISIE
+            and element.get("type_saisie")
+            and not element.get("compte")
+        ):
+            element["compte"] = compte_de_saisie(str(element["type_saisie"]))
+
+    return {
+        "payslip_id": payslip_id,
+        "employee_id": employee.get("id"),
+        "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
+        "establishment_label": establishment_label,
+        "brut": brut,
+        "net_a_payer": net_a_payer,
+        "cotisations_salariales": cotisations_salariales,
+        "cotisations_patronales": cotisations_patronales,
+        "pas": pas,
+        "cotisations_detail": cotisations_list,
+        "elements_hors_brut": elements,
+    }
+
+
 def get_payslip_data_for_od(
     company_id: str,
     period: str,
@@ -155,20 +203,25 @@ def get_payslip_data_for_od(
     }
     payslip_list = []
 
+    comptes_de_saisie: Dict[str, str] = {}
+
+    def compte_de_saisie(type_saisie: str) -> str:
+        if type_saisie not in comptes_de_saisie:
+            from app.modules.saisies_avances.infrastructure.queries import (
+                get_seizure_accounting_account,
+            )
+
+            comptes_de_saisie[type_saisie] = get_seizure_accounting_account(
+                company_id, type_saisie
+            )
+        return comptes_de_saisie[type_saisie]
+
     for payslip in payslips:
         employee = payslip.get("employees", {})
         payslip_data = payslip.get("payslip_data", {})
 
         if not isinstance(payslip_data, dict):
             continue
-
-        brut = float(payslip_data.get("salaire_brut", 0) or 0)
-        net_a_payer = float(payslip_data.get("net_a_payer", 0) or 0)
-        synthese_net = payslip_data.get("synthese_net", {})
-        pas = extract_pas_amount(synthese_net)
-        cotisations_salariales, cotisations_patronales, cotisations_list, _cot_meta = (
-            extract_cotisations_from_payslip(payslip_data)
-        )
 
         company_info = employee.get("companies") or {}
         if isinstance(company_info, list) and company_info:
@@ -179,29 +232,20 @@ def get_payslip_data_for_od(
             or "Principal"
         )
 
-        payslip_list.append(
-            {
-                "payslip_id": payslip["id"],
-                "employee_id": employee.get("id"),
-                "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
-                "establishment_label": establishment_label,
-                "brut": brut,
-                "net_a_payer": net_a_payer,
-                "cotisations_salariales": cotisations_salariales,
-                "cotisations_patronales": cotisations_patronales,
-                "pas": pas,
-                "cotisations_detail": cotisations_list,
-                "elements_hors_brut": merge_monthly_inputs_hors_brut(
-                    extract_elements_hors_brut(payslip_data),
-                    saisies_par_salarie.get(str(employee.get("id") or ""), []),
-                ),
-            }
+        ligne = ligne_od_du_bulletin(
+            payslip_id=payslip["id"],
+            employee=employee,
+            payslip_data=payslip_data,
+            saisies_du_salarie=saisies_par_salarie.get(str(employee.get("id") or ""), []),
+            compte_de_saisie=compte_de_saisie,
+            establishment_label=establishment_label,
         )
-        totals["total_brut"] += brut
-        totals["total_net_a_payer"] += net_a_payer
-        totals["total_cotisations_salariales"] += cotisations_salariales
-        totals["total_cotisations_patronales"] += cotisations_patronales
-        totals["total_pas"] += pas
+        payslip_list.append(ligne)
+        totals["total_brut"] += ligne["brut"]
+        totals["total_net_a_payer"] += ligne["net_a_payer"]
+        totals["total_cotisations_salariales"] += ligne["cotisations_salariales"]
+        totals["total_cotisations_patronales"] += ligne["cotisations_patronales"]
+        totals["total_pas"] += ligne["pas"]
         totals["employees_count"] += 1
 
     return payslip_list, totals

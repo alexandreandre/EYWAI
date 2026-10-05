@@ -37,6 +37,94 @@ def _flatten_cotisation_lines(structure_cotisations: Dict[str, Any]) -> List[Dic
     return lines
 
 
+#: Marque l'élément tiré de `synthese_net.acompte_verse`, que les variables du
+#: mois permettent de décomposer.
+SOURCE_ACOMPTE_VERSE = "acompte_verse"
+
+
+def _retenues_des_modules(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Saisies, avances et prêts retenus par les modules, lus sur le bulletin.
+
+    Le bulletin fait foi : ses tables d'historique peuvent diverger (bulletin
+    supprimé puis refait, écriture d'historique en échec) et ne connaissent
+    pas le filtre de salariés de l'export.
+    """
+    from app.modules.exports.domain.accounting_plan import (
+        FAMILLE_AVANCE,
+        FAMILLE_INTERETS_PRET,
+        FAMILLE_PRET,
+        FAMILLE_SAISIE,
+    )
+
+    elements: List[Dict[str, Any]] = []
+
+    saisies = payslip_data.get("retenues_saisies")
+    if isinstance(saisies, dict):
+        detail = [s for s in saisies.get("saisies") or [] if isinstance(s, dict)]
+        if not detail and float(saisies.get("total_preleve", 0) or 0):
+            detail = [{"montant": saisies.get("total_preleve")}]
+        for saisie in detail:
+            montant = float(saisie.get("montant", 0) or 0)
+            if montant == 0:
+                continue
+            creancier = str(saisie.get("creditor_name") or "").strip()
+            element: Dict[str, Any] = {
+                "famille": FAMILLE_SAISIE,
+                "libelle": "Saisie sur salaire" + (f" — {creancier}" if creancier else ""),
+                "montant": -montant,
+            }
+            if saisie.get("type"):
+                element["type_saisie"] = str(saisie["type"])
+            elements.append(element)
+
+    avances = payslip_data.get("remboursements_avances")
+    if isinstance(avances, dict):
+        detail = [a for a in avances.get("avances") or [] if isinstance(a, dict)]
+        if not detail and float(avances.get("total_rembourse", 0) or 0):
+            detail = [{"montant": avances.get("total_rembourse")}]
+        for avance in detail:
+            montant = float(avance.get("montant", 0) or 0)
+            if montant == 0:
+                continue
+            element = {
+                "famille": FAMILLE_AVANCE,
+                "libelle": str(avance.get("type_label") or "Avance sur salaire"),
+                "montant": -montant,
+            }
+            # Le versement de l'avance a été passé sur ce compte : le
+            # remboursement doit solder le même.
+            if avance.get("compte"):
+                element["compte"] = str(avance["compte"])
+            elements.append(element)
+
+    prets = payslip_data.get("remboursements_prets")
+    if isinstance(prets, dict):
+        capital = float(prets.get("total_capital", 0) or 0)
+        interets = float(prets.get("total_interets", 0) or 0)
+        if capital == 0 and interets == 0:
+            capital = float(prets.get("total_rembourse", 0) or 0)
+        if capital != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_PRET,
+                    "libelle": "Remboursement prêt employeur",
+                    "montant": -capital,
+                }
+            )
+        # L'intérêt est un produit de l'employeur, pas un remboursement de la
+        # créance : il ne va pas au compte du prêt.
+        if interets != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_INTERETS_PRET,
+                    "libelle": "Intérêts prêt employeur",
+                    "montant": -interets,
+                }
+            )
+
+    return elements
+
+
 def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Éléments qui s'ajoutent au net à payer sans transiter par le brut.
 
@@ -50,17 +138,41 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
     """
     from app.modules.exports.domain.accounting_plan import (
         FAMILLE_ACOMPTE_VERSE,
+        FAMILLE_AVANCE_PARTICIPATION,
         FAMILLE_PARTICIPATION,
         FAMILLE_PARTICIPATION_PEE,
+        FAMILLE_TRANSPORT,
         resolve_element_family,
     )
 
     elements: List[Dict[str, Any]] = []
-
-    # Acompte déjà versé : le net à payer en est net, la dette reste due au
-    # compte d'acomptes.
     synthese = payslip_data.get("synthese_net")
-    if isinstance(synthese, dict):
+    if not isinstance(synthese, dict):
+        synthese = {}
+
+    retenues_reprises = payslip_data.get("retenues_sur_net")
+    if isinstance(retenues_reprises, list):
+        # Bulletin repris de l'ancien logiciel : chaque retenue sur le net y est
+        # détaillée (acompte, saisie, report d'un net négatif). `acompte_verse`
+        # y répète l'acompte : le lire aussi le compterait deux fois.
+        for retenue in retenues_reprises:
+            if not isinstance(retenue, dict) or retenue.get("sans_effet_sur_le_net"):
+                continue
+            montant = float(retenue.get("montant", 0) or 0)
+            if montant == 0:
+                continue
+            libelle = str(retenue.get("libelle") or "")
+            elements.append(
+                {
+                    "famille": resolve_element_family(libelle),
+                    "libelle": libelle or "Retenue sur le net",
+                    "montant": -montant,
+                }
+            )
+    else:
+        # Ce que les variables du mois retiennent sur le net, additionné par le
+        # moteur (acompte, saisie, report d'un net négatif…). Décomposé plus
+        # loin d'après les variables du mois (merge_monthly_inputs_hors_brut).
         acompte = float(synthese.get("acompte_verse", 0) or 0)
         if acompte != 0:
             elements.append(
@@ -68,6 +180,40 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                     "famille": FAMILLE_ACOMPTE_VERSE,
                     "libelle": "Acompte déjà versé",
                     "montant": -acompte,
+                    "source": SOURCE_ACOMPTE_VERSE,
+                }
+            )
+
+    elements.extend(_retenues_des_modules(payslip_data))
+
+    # Prise en charge de l'abonnement de transport prévue au contrat : ajoutée
+    # au net par le moteur, hors brut.
+    transport = float(synthese.get("remboursement_transport", 0) or 0)
+    if transport != 0:
+        elements.append(
+            {
+                "famille": FAMILLE_TRANSPORT,
+                "libelle": "Prise en charge des frais de transport",
+                "montant": transport,
+            }
+        )
+
+    # Indemnités de rupture exonérées : ajoutées au net d'un bulletin de sortie,
+    # hors brut (les indemnités soumises y sont déjà).
+    sortie = payslip_data.get("indemnites_sortie")
+    if isinstance(sortie, dict):
+        for ligne in sortie.get("lignes_exonerees") or []:
+            if not isinstance(ligne, dict):
+                continue
+            montant = float(ligne.get("montant", 0) or 0)
+            if montant == 0:
+                continue
+            libelle = str(ligne.get("libelle") or "Indemnité de rupture")
+            elements.append(
+                {
+                    "famille": resolve_element_family(libelle),
+                    "libelle": libelle,
+                    "montant": montant,
                 }
             )
 
@@ -160,6 +306,17 @@ def extract_elements_hors_brut(payslip_data: Dict[str, Any]) -> List[Dict[str, A
                     "montant": brut,
                 }
             )
+        # Acompte de participation déjà versé : retenu du net, il solde le compte
+        # de l'avance.
+        acompte_part = float(part.get("acompte", 0) or 0)
+        if acompte_part != 0:
+            elements.append(
+                {
+                    "famille": FAMILLE_AVANCE_PARTICIPATION,
+                    "libelle": f"{libelle} — acompte déjà versé",
+                    "montant": -acompte_part,
+                }
+            )
         if part_pee != 0:
             # `part_pee` est brut de CSG : la contribution est prélevée avant le
             # placement. Sans cette déduction, l'OD est déséquilibrée du montant
@@ -209,6 +366,57 @@ def extract_cotisations_from_payslip(
     return cot_sal, cot_pat, detail, meta
 
 
+def _decomposer_acompte_verse(
+    elements: List[Dict[str, Any]],
+    saisies: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Remplace `acompte_verse` par les variables du mois qui le composent.
+
+    Le moteur additionne dans `acompte_verse` tout ce que les variables du mois
+    retiennent sur le net (acompte, saisie, report d'un net négatif…) ou y
+    ajoutent hors assiette (panier, déplacement). Chacun a son compte : une
+    saisie va au 427, pas au compte des acomptes.
+
+    Les variables candidates sont celles que le bulletin ne porte pas déjà
+    ailleurs. On ne décompose que si elles redonnent l'acompte au centime ;
+    sinon (variables changées depuis le calcul) l'acompte reste entier.
+    """
+    from app.modules.exports.domain.accounting_plan import (
+        FAMILLE_ACOMPTE_VERSE,
+        FAMILLE_INCONNUE,
+        resolve_element_family,
+    )
+
+    acompte = next(
+        (e for e in elements if e.get("source") == SOURCE_ACOMPTE_VERSE), None
+    )
+    if acompte is None:
+        return elements
+
+    deja_au_bulletin = {
+        round(float(e.get("montant", 0) or 0), 2) for e in elements if e is not acompte
+    }
+    composantes: List[Dict[str, Any]] = []
+    for saisie in saisies:
+        montant = round(float(saisie.get("amount", 0) or 0), 2)
+        if montant == 0 or montant in deja_au_bulletin:
+            continue
+        libelle = str(saisie.get("name") or "")
+        famille = resolve_element_family(libelle)
+        composantes.append(
+            {
+                "famille": FAMILLE_ACOMPTE_VERSE if famille == FAMILLE_INCONNUE else famille,
+                "libelle": libelle or "Retenue sur le net",
+                "montant": montant,
+            }
+        )
+
+    attendu = round(float(acompte.get("montant", 0) or 0), 2)
+    if not composantes or round(sum(c["montant"] for c in composantes), 2) != attendu:
+        return elements
+    return [e for e in elements if e is not acompte] + composantes
+
+
 def merge_monthly_inputs_hors_brut(
     elements: List[Dict[str, Any]],
     saisies: List[Dict[str, Any]],
@@ -230,6 +438,8 @@ def merge_monthly_inputs_hors_brut(
         FAMILLES_DEJA_COUVERTES,
         resolve_element_family,
     )
+
+    elements = _decomposer_acompte_verse(elements, saisies)
 
     # Comparaison sur le montant seul : les libellés du bulletin et de la saisie
     # ne coïncident pas toujours, alors que le montant, lui, est le même.
