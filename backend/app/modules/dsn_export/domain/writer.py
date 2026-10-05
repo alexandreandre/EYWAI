@@ -609,16 +609,27 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
 def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
     if ctr.rubriques:
         _emit_rubriques_dict(ctr.rubriques, out)
-        # Ordre du cabinet, que le validateur exige : contrat (40), puis les
-        # affiliations (70), puis la retraite complémentaire (71), puis le
+        # Ordre de la norme, celui du cabinet, que le validateur exige :
+        # contrat (40), arrêts (60), fin du contrat (62), autres suspensions
+        # (65), affiliations (70), retraite complémentaire (71), puis le
         # versement (50). Sans bloc 71, le statut catégoriel S21.G00.40.003 est
         # refusé quelle que soit sa valeur. Les clés « _* » ne commencent pas
         # par « S » : `_emit_rubriques_dict` les ignore, rien ne fuit.
+        for arret in ctr.arrets:
+            write_arret(arret, out)
+        if ctr.fin_contrat:
+            write_fin_contrat(ctr.fin_contrat, out)
+        for susp in ctr.suspensions:
+            write_suspension(susp, out)
         for aff in ctr.affiliations:
             write_affiliation(aff, out)
         regime = str(ctr.rubriques.get("_regime_retraite_complementaire") or "")
         if regime:
             _emit(R_S21_CTR_REGIME_RC, regime, out)
+        for ver in ctr.versements:
+            write_versement(ver, out)
+        _write_anciennetes(ctr, out)
+        return
     else:
         _emit(R_S21_CTR_DATE_DEBUT, ctr.date_debut, out)
         _emit(R_S21_CTR_STATUT, ctr.statut, out)
@@ -636,15 +647,18 @@ def write_contrat(ctr: ContratBlock, out: List[str]) -> None:
         _emit(R_S21_CTR_POSITION, ctr.position_conv, out)
     for arret in ctr.arrets:
         write_arret(arret, out)
-    if not ctr.rubriques:
-        for aff in ctr.affiliations:
-            write_affiliation(aff, out)
+    for aff in ctr.affiliations:
+        write_affiliation(aff, out)
     for susp in ctr.suspensions:
         write_suspension(susp, out)
     if ctr.fin_contrat:
         write_fin_contrat(ctr.fin_contrat, out)
     for ver in ctr.versements:
         write_versement(ver, out)
+    _write_anciennetes(ctr, out)
+
+
+def _write_anciennetes(ctr: ContratBlock, out: List[str]) -> None:
     # L'ancienneté ferme le contrat, après le versement : c'est la place que lui
     # donne le cabinet, et le validateur la réclame à ce niveau.
     for anc in ctr.anciennetes:

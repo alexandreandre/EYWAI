@@ -23,10 +23,27 @@ from app.modules.dsn_export.domain.contract_map import (
     period_to_mois_principal,
 )
 from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
-from app.modules.dsn_export.domain.remuneration_map import build_remunerations_from_payslip
+from app.modules.dsn_export.domain.evenements import (
+    bloc_fin_contrat,
+    blocs_arret,
+    blocs_suspension,
+    date_de_fin,
+    date_dsn,
+    dsn as en_date_dsn,
+    indemnites_de_rupture,
+    jours_hors_plafond,
+)
+from app.modules.dsn_export.domain.remuneration_map import (
+    build_remunerations_from_payslip,
+    jours_calendaires,
+)
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
+    ArretTravailBlock,
     ContratBlock,
+    FinContratBlock,
+    PrimeBlock,
+    SuspensionContratBlock,
     DeclarationBlock,
     DsnFile,
     EtablissementBlock,
@@ -273,6 +290,103 @@ def _smic_reduction_generale(
         "smic_retenu"
     )
     return float(valeur) if valeur else None
+
+
+#: Plafond mensuel de la Sécurité sociale, pour les bulletins qui ne portent
+#: pas encore leur plafond plein (`parametres.pss_mensuel_plein`, depuis le
+#: 04/10/2026).
+PSS_MENSUEL = {2024: 3864.0, 2025: 3925.0, 2026: 4005.0}
+
+
+def _jours_plafond(
+    payslip_data: Dict[str, Any],
+    period: str,
+    period_start: str,
+    period_end: str,
+    absences: List[Dict[str, Any]],
+) -> int:
+    """Jours calendaires retenus pour le plafond (S21.G00.53 unité 40).
+
+    Ceux de la paie d'abord : elle proratise le plafond au jour près (entrée,
+    sortie, arrêt, absence non rémunérée) et garde le plafond retenu ; le ratio
+    au plafond plein, rapporté aux jours du mois, les redonne. À défaut, la
+    période d'emploi moins les arrêts et les absences non rémunérées.
+    """
+    import calendar
+
+    year, month = (int(x) for x in period.split("-")[:2])
+    nb_jours = calendar.monthrange(year, month)[1]
+    parametres = payslip_data.get("parametres") or {}
+    pss = parametres.get("pss_mensuel") if isinstance(parametres, dict) else None
+    plein = (
+        parametres.get("pss_mensuel_plein") if isinstance(parametres, dict) else None
+    ) or PSS_MENSUEL.get(year)
+    if pss not in (None, "") and plein:
+        return int(round(float(pss) / float(plein) * nb_jours))
+    jours = jours_calendaires(period_start, period_end)
+    debut, fin = date_dsn(period_start), date_dsn(period_end)
+    if debut and fin:
+        jours -= jours_hors_plafond(absences, payslip_data, debut, fin)
+    return max(0, jours)
+
+
+def taux_pas_du_mois(lignes: List[Dict[str, Any]], periode: str) -> Dict[str, str]:
+    """Type et identifiant du taux PAS en vigueur pour le mois déclaré.
+
+    `employee_pas_rates` garde chaque taux reçu (CRM de la DGFiP, ou repris
+    des DSN de l'ancien logiciel) daté de sa période : on retient le dernier
+    reçu au plus tard le mois déclaré. Un taux « 01 - transmis par la DGFiP »
+    exige son identifiant (50.008, CCH-11) ; un barème n'en a pas.
+    """
+    retenus = [
+        l
+        for l in lignes
+        if isinstance(l, dict) and str(l.get("periode") or "") <= periode and l.get("type_taux")
+    ]
+    if not retenus:
+        return {}
+    dernier = max(retenus, key=lambda l: str(l.get("periode") or ""))
+    resultat = {"pas_type_taux": str(dernier["type_taux"])}
+    if dernier.get("identifiant_taux"):
+        resultat["pas_identifiant_taux"] = str(dernier["identifiant_taux"])
+    return resultat
+
+
+def _defauts_contrat(
+    company: Dict[str, Any],
+    employees_data: List[Dict[str, Any]],
+    settings: Optional[DsnSettings],
+) -> Dict[str, str]:
+    """Ce que l'établissement fixe pour tous ses contrats.
+
+    L'IDCC déclaré de l'établissement, son taux AT, et le code risque AT
+    quand tous les contrats qui en portent un portent le même — un
+    établissement à plusieurs risques ne se devine pas.
+    """
+    defauts: Dict[str, str] = {}
+    idcc = normaliser_idcc((settings.idcc if settings else "") or company.get("idcc") or "")
+    if idcc:
+        defauts["idcc"] = idcc
+    taux_at = company.get("taux_at_mp")
+    if taux_at not in (None, ""):
+        try:
+            defauts["taux_at"] = f"{float(taux_at):.2f}"
+        except (TypeError, ValueError):
+            pass
+    codes = set()
+    for row in employees_data:
+        employe = (row or {}).get("employee") or row or {}
+        classification = employe.get("classification_conventionnelle")
+        if isinstance(classification, dict) and classification.get("classification_dsn"):
+            codes.add(str(classification["classification_dsn"]))
+    if len(codes) == 1:
+        defauts["code_risque_at"] = codes.pop()
+    return defauts
+
+
+#: Code régime de base (maladie, vieillesse, accident du travail) du régime
+#: général : 40.018, 40.020, 40.039.
+REGIME_GENERAL = "200"
 
 
 def _pas_details(payslip_data: Dict[str, Any]) -> Tuple[float, float, float]:
@@ -634,8 +748,10 @@ def build_individu_from_payroll(
     require_cotisation_codes: bool = False,
     default_ops: str = "",
     settings: Optional[DsnSettings] = None,
+    defauts_contrat: Optional[Dict[str, str]] = None,
 ) -> Tuple[IndividuBlock, List[str]]:
     warnings: List[str] = []
+    defauts = defauts_contrat or {}
     nir = str(employee.get("nir") or "").replace(" ", "")
     if not nir:
         raise DsnBuildError(
@@ -672,6 +788,14 @@ def build_individu_from_payroll(
             period_start = date_debut
     except ValueError:
         pass
+    # Sortie en cours de mois : les périodes s'arrêtent au dernier jour du
+    # contrat (CCH-13 sur 51.002). Le versement reste daté de la fin du mois.
+    debut_mois = date_dsn(period_bounds(period)[0])
+    fin_mois = date_dsn(period_bounds(period)[1])
+    date_versement = period_end
+    fin_du_contrat = date_de_fin(employee, debut_mois, fin_mois) if debut_mois else None
+    if fin_du_contrat and fin_du_contrat < fin_mois:
+        period_end = en_date_dsn(fin_du_contrat)
 
     brut = float(payslip_data.get("salaire_brut") or 0)
     if brut <= 0:
@@ -733,6 +857,26 @@ def build_individu_from_payroll(
         or employee.get("contract_number")
         or "00000"
     )
+    # Événements du contrat : arrêts (60), autres suspensions (65), fin (62)
+    # et indemnités de rupture (52), qui sortent du salaire brut chômage.
+    absences = [a for a in (employee.get("absences_dsn") or []) if isinstance(a, dict)]
+    blocs_60 = (
+        blocs_arret(absences, debut_mois, fin_mois, date_dsn(date_debut)) if debut_mois else []
+    )
+    blocs_65 = blocs_suspension(payslip_data)
+    dispositif_contrat = str(classification.get("dispositif_politique_publique") or "")
+    apprentissage = dispositif_contrat in {"64", "65", "66"} or "apprenti" in str(
+        employee.get("contract_type") or ""
+    ).lower()
+    bloc_62, avertissements_fin = (
+        bloc_fin_contrat(employee, debut_mois, fin_mois, apprentissage=apprentissage)
+        if debut_mois
+        else (None, [])
+    )
+    warnings.extend(avertissements_fin)
+    indemnites = indemnites_de_rupture(payslip_data)
+    indemnites_dans_le_brut = round(sum(m for _, m, dans in indemnites if dans), 2)
+
     rem_build = build_remunerations_from_payslip(
         payslip_data,
         brut=brut,
@@ -740,6 +884,10 @@ def build_individu_from_payroll(
         period_end=period_end,
         period=period,
         contrat_ref=numero,
+        jours_plafond=_jours_plafond(
+            payslip_data, period, period_start, period_end, absences
+        ),
+        indemnites_rupture=indemnites_dans_le_brut,
     )
 
     # Type et identifiant du taux PAS : « 01 - taux transmis par la DGFiP »
@@ -754,7 +902,7 @@ def build_individu_from_payroll(
         pas_type = "01" if pas_identifiant else "13"
 
     rubriques_versement = {
-        "S21.G00.50.001": period_end,
+        "S21.G00.50.001": date_versement,
         "S21.G00.50.002": f"{net_fiscal:.2f}",
         "S21.G00.50.003": "01",
         "S21.G00.50.004": f"{net_verse:.2f}",
@@ -811,8 +959,22 @@ def build_individu_from_payroll(
     if blocs_54:
         rubriques_versement["_blocs_54"] = blocs_54
 
+    # Indemnités de rupture (bloc 52, codes 001 à 025), rattachées au contrat.
+    primes = [
+        PrimeBlock(
+            code=code,
+            montant=montant,
+            rubriques={
+                "S21.G00.52.001": code,
+                "S21.G00.52.002": f"{montant:.2f}",
+                "S21.G00.52.006": numero,
+            },
+        )
+        for code, montant, _ in indemnites
+    ]
+
     versement = VersementBlock(
-        date_versement=period_end,
+        date_versement=date_versement,
         net_fiscal=round(net_fiscal, 2),
         net_verse=round(net_verse, 2),
         pas=round(pas_montant, 2),
@@ -823,6 +985,7 @@ def build_individu_from_payroll(
         remunerations=rem_build.remunerations,
         bases_assujetties=bases,
         cotisations_individuelles=cotisations,
+        primes=primes,
         rubriques=rubriques_versement,
     )
 
@@ -868,7 +1031,14 @@ def build_individu_from_payroll(
             )
 
     pcs = str(classification.get("pcs") or employee.get("pcs") or employee.get("code_pcs") or "")
-    idcc = normaliser_idcc(classification.get("idcc") or employee.get("idcc") or "")
+    if not pcs:
+        warnings.append(
+            f"Code PCS-ESE (S21.G00.40.004) manquant pour le NIR {nir_dsn} : "
+            "rubrique obligatoire, fiche à compléter"
+        )
+    idcc = normaliser_idcc(
+        classification.get("idcc") or employee.get("idcc") or defauts.get("idcc") or ""
+    )
     if not idcc:
         warnings.append(
             f"Code convention collective (IDCC) manquant pour le NIR {nir_dsn}"
@@ -920,18 +1090,29 @@ def build_individu_from_payroll(
         rubriques_contrat["S21.G00.40.021"] = motif_recours
     if idcc:
         rubriques_contrat["S21.G00.40.017"] = idcc
-    # Position, niveau et classification conventionnelle du salarié.
+    # Codes régime de base maladie, vieillesse et accident du travail : ceux
+    # de la fiche (importés sous « position »), le régime général sinon.
     for rubrique in ("S21.G00.40.018", "S21.G00.40.020", "S21.G00.40.039"):
-        if position:
-            rubriques_contrat[rubrique] = position
-    if classification.get("classification_dsn"):
-        rubriques_contrat["S21.G00.40.040"] = str(classification["classification_dsn"])
-    if classification.get("niveau_dsn"):
-        rubriques_contrat["S21.G00.40.041"] = str(classification["niveau_dsn"])
-    if classification.get("taux_at_individuel_dsn"):
-        rubriques_contrat["S21.G00.40.043"] = str(
-            classification["taux_at_individuel_dsn"]
+        rubriques_contrat[rubrique] = position or REGIME_GENERAL
+    # Code risque et taux AT : ceux de la fiche, ceux de l'établissement sinon.
+    code_risque = str(
+        classification.get("classification_dsn") or defauts.get("code_risque_at") or ""
+    )
+    if code_risque:
+        rubriques_contrat["S21.G00.40.040"] = code_risque
+    else:
+        warnings.append(
+            f"Code risque accident du travail (S21.G00.40.040) inconnu pour le NIR "
+            f"{nir_dsn} : ni sur la fiche, ni commun à l'établissement"
         )
+    # Positionnement dans la convention : niveau DSN de la fiche, à défaut son
+    # coefficient (plasturgie : 700, 710, 720… sont les deux à la fois).
+    niveau = classification.get("niveau_dsn") or classification.get("coefficient")
+    if niveau not in (None, ""):
+        rubriques_contrat["S21.G00.40.041"] = str(niveau)
+    taux_at = str(classification.get("taux_at_individuel_dsn") or defauts.get("taux_at") or "")
+    if taux_at:
+        rubriques_contrat["S21.G00.40.043"] = taux_at
     rubriques_contrat.update(CONSTANTES_CONTRAT)
 
     ctr = ContratBlock(
@@ -951,6 +1132,10 @@ def build_individu_from_payroll(
         versements=[versement],
         rubriques=rubriques_contrat,
     )
+    ctr.arrets = [ArretTravailBlock(rubriques=bloc) for bloc in blocs_60]
+    ctr.suspensions = [SuspensionContratBlock(rubriques=bloc) for bloc in blocs_65]
+    if bloc_62:
+        ctr.fin_contrat = FinContratBlock(rubriques=bloc_62)
     # Régime de retraite complémentaire : RUAA, le régime unifié AGIRC-ARRCO,
     # celui de tout le secteur privé. Le cabinet ne déclare rien d'autre sur les
     # sept sociétés, cadres compris.
@@ -1100,6 +1285,7 @@ def build_parsed_dsn_from_payroll(
         or company.get("ops_urssaf")
         or ""
     ).replace(" ", "")
+    defauts_contrat = _defauts_contrat(company, employees_data, parametres)
 
     for row in employees_data:
         employee = row.get("employee") or row
@@ -1160,6 +1346,7 @@ def build_parsed_dsn_from_payroll(
                 require_cotisation_codes=require_cotisation_codes,
                 default_ops=default_ops,
                 settings=parametres,
+                defauts_contrat=defauts_contrat,
             )
             warnings.extend(w)
             etab.individus.append(ind)

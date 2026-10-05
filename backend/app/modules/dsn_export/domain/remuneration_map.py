@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from app.modules.dsn_import.domain.model import RemunerationBlock
 
@@ -241,15 +241,16 @@ def build_remunerations_from_payslip(
     period_end: str,
     period: str,
     contrat_ref: str = "00000",
-    jours_suspendus: int = 0,
-    brut_chomage: Optional[float] = None,
+    jours_plafond: Optional[int] = None,
+    indemnites_rupture: float = 0.0,
 ) -> RemunerationBuildResult:
     """Produit les types 001/002/003/010/017/018/028/029 alignés sur Cegid.
 
-    ``jours_suspendus`` : jours calendaires d'arrêt ou de suspension non
-    rémunérée de la période, retirés des jours du plafond (53 unité 40).
-    ``brut_chomage`` : salaire brut chômage (002) quand il diffère du brut —
-    les indemnités de rupture déclarées en bloc 52 n'y entrent pas.
+    ``jours_plafond`` : jours calendaires retenus pour le plafond (53 unité
+    40) ; à défaut, ceux de la période. ``indemnites_rupture`` : indemnités de
+    fin de contrat comprises dans le brut et déclarées en bloc 52 — elles
+    n'entrent ni dans le salaire chômage (002, CT 51.011), ni dans les
+    rémunérations hors éléments non affectés par l'absence (028, 029).
     """
     parts = analyze_calcul_du_brut(payslip_data)
     absences = analyser_absences(payslip_data)
@@ -268,6 +269,15 @@ def build_remunerations_from_payslip(
     retabli = max(
         brut_r, round(brut_r + absences.retenues - absences.compensations, 2)
     )
+    # 028 / 029 : sans les éléments que l'absence n'affecte pas — les heures
+    # sup aléatoires, payées comme travaillées — ni les indemnités de rupture.
+    # L'ancien logiciel ne retire les heures sup qu'un mois d'absence.
+    hors_absence = round(
+        float(indemnites_rupture or 0)
+        + (m_017 if absences.heures_absence > 0 else 0.0),
+        2,
+    )
+    montant_002 = round(brut_r - float(indemnites_rupture or 0), 2)
 
     remus: List[RemunerationBlock] = [
         _rem_block(
@@ -279,7 +289,7 @@ def build_remunerations_from_payslip(
         ),
         _rem_block(
             type_code="002",
-            montant=brut_r if brut_chomage is None else round(brut_chomage, 2),
+            montant=montant_002,
             period_start=period_start,
             period_end=period_end,
             contrat_ref=contrat_ref,
@@ -325,7 +335,7 @@ def build_remunerations_from_payslip(
     remus.append(
         _rem_block(
             type_code="028",
-            montant=brut_r,
+            montant=round(brut_r - hors_absence, 2),
             period_start=period_start,
             period_end=period_end,
             contrat_ref=contrat_ref,
@@ -335,7 +345,7 @@ def build_remunerations_from_payslip(
     remus.append(
         _rem_block(
             type_code="029",
-            montant=retabli,
+            montant=round(retabli - hors_absence, 2),
             period_start=period_start,
             period_end=period_end,
             contrat_ref=contrat_ref,
@@ -347,14 +357,16 @@ def build_remunerations_from_payslip(
     # les jours d'arrêt et de suspension non rémunérée. Les heures se
     # rattachent au salaire chômage (002, CCH-11) : travail rémunéré (01) et
     # durée d'absence partiellement ou pas rémunérée (02).
-    days = jours_calendaires(period_start, period_end)
-    if days <= 0:
-        try:
-            year, month = [int(x) for x in period.split("-")[:2]]
-            days = calendar.monthrange(year, month)[1]
-        except Exception:
-            days = 30
-    days = max(0, days - int(jours_suspendus or 0))
+    if jours_plafond is not None:
+        days = max(0, int(jours_plafond))
+    else:
+        days = jours_calendaires(period_start, period_end)
+        if days <= 0:
+            try:
+                year, month = [int(x) for x in period.split("-")[:2]]
+                days = calendar.monthrange(year, month)[1]
+            except Exception:
+                days = 30
     heures_activite = round(
         (parts["heures_base"] or 0)
         + parts["hs_structurelles_heures"]

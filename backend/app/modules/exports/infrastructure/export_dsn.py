@@ -47,6 +47,78 @@ def get_company_data(company_id: str) -> Dict[str, Any]:
     return data
 
 
+def _evenements_dsn(
+    company_id: str, period: str, employee_ids: List[str]
+) -> Dict[str, Dict[str, Any]]:
+    """Arrêts, sortie et taux PAS reçus de chaque salarié, pour la DSN du mois.
+
+    - ``absences_dsn`` : les demandes d'arrêt validées de l'année écoulée
+      jusqu'à la fin du mois — un arrêt prolongé se déclare depuis son début ;
+    - ``sortie_dsn`` : la sortie dont le dernier jour tombe dans le mois ;
+    - ``pas_type_taux`` / ``pas_identifiant_taux`` : le dernier taux reçu.
+    """
+    from datetime import timedelta
+
+    from app.modules.dsn_export.application.builder import taux_pas_du_mois
+    from app.modules.dsn_export.domain.contract_map import period_bounds
+    from app.modules.dsn_export.domain.evenements import MOTIF_ARRET, date_dsn
+
+    resultat: Dict[str, Dict[str, Any]] = {eid: {} for eid in employee_ids}
+    if not employee_ids:
+        return resultat
+    debut_dsn, fin_dsn = period_bounds(period)
+    debut_mois, fin_mois = date_dsn(debut_dsn), date_dsn(fin_dsn)
+    plancher = debut_mois - timedelta(days=366)
+
+    taux = (
+        supabase.table("employee_pas_rates")
+        .select("employee_id,periode,taux,type_taux,identifiant_taux")
+        .eq("company_id", company_id)
+        .lte("periode", period)
+        .execute()
+    ).data or []
+    par_salarie: Dict[str, List[Dict[str, Any]]] = {}
+    for ligne in taux:
+        par_salarie.setdefault(str(ligne.get("employee_id")), []).append(ligne)
+    for eid, lignes in par_salarie.items():
+        if eid in resultat:
+            resultat[eid].update(taux_pas_du_mois(lignes, period))
+
+    arrets = (
+        supabase.table("absence_requests")
+        .select("employee_id,type,status,selected_days,subrogation_active,arret_type")
+        .eq("company_id", company_id)
+        .eq("status", "validated")
+        .in_("type", sorted(MOTIF_ARRET))
+        .execute()
+    ).data or []
+    for arret in arrets:
+        eid = str(arret.get("employee_id"))
+        jours = sorted(str(j)[:10] for j in arret.get("selected_days") or [])
+        if eid not in resultat or not jours:
+            continue
+        if jours[0] > fin_mois.isoformat() or jours[-1] < plancher.isoformat():
+            continue
+        resultat[eid].setdefault("absences_dsn", []).append(arret)
+
+    sorties = (
+        supabase.table("employee_exits")
+        .select(
+            "employee_id,exit_type,status,last_working_day,exit_request_date,"
+            "exit_reason,is_gross_misconduct"
+        )
+        .eq("company_id", company_id)
+        .neq("status", "annulee")
+        .execute()
+    ).data or []
+    for sortie in sorties:
+        eid = str(sortie.get("employee_id"))
+        jour = str(sortie.get("last_working_day") or "")[:10]
+        if eid in resultat and debut_mois.isoformat() <= jour <= fin_mois.isoformat():
+            resultat[eid]["sortie_dsn"] = sortie
+    return resultat
+
+
 def get_dsn_employees_data(
     company_id: str,
     period: str,
@@ -110,6 +182,7 @@ def get_dsn_employees_data(
     payslips_response = payslips_query.execute()
     payslips = payslips_response.data or []
     payslips_by_employee = {p["employee_id"]: p for p in payslips}
+    evenements = _evenements_dsn(company_id, period, list(payslips_by_employee))
 
     employees_data = []
     totals = {
@@ -155,6 +228,9 @@ def get_dsn_employees_data(
                 employee = {**employee, "boeth_code": boeth}
         except Exception:
             pass
+        # Arrêts, sortie et taux PAS reçus : ce que la DSN déclare et que le
+        # bulletin ne porte pas (blocs 60, 62, rubriques 50.007 / 50.008).
+        employee = {**employee, **evenements.get(employee["id"], {})}
         employees_data.append(
             {
                 "employee": employee,
