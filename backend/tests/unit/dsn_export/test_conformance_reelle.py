@@ -142,7 +142,7 @@ ECARTS_ATTENDUS: List[EcartAttendu] = [
         depuis="2026-08-03",
     ),
     # Écarts de données entre notre fiche et celle du cabinet, relevés le
-    # 2026-08-03 sur Mont Blanc Composite. À arbitrer avec Elsa : tant que le
+    # 2026-08-03 sur Mont Blanc Composite. À arbitrer avec le client : tant que le
     # sujet n'est pas tranché, ils restent affichés à chaque rapport.
     EcartAttendu(
         rubrique="S21.G00.30.007",
@@ -293,10 +293,15 @@ def test_blocs_livres_sont_conformes(societe: str, periode: str, repertoire: Pat
 # Mesuré le 11/08 : 174 absentes, 17 en trop, 1031 divergents, 23 taux.
 # Les plafonds suivent la mesure ; à mai constant, la part de juin est
 # 75 / 10 / 414 / 5 — toute baisse obtenue doit être répercutée ici.
+#
+# 04/10 : 1031 → 940 divergents, 23 → 7 taux. CSG et CRDS arrondies par taux
+# sur l'assiette cumulée comme le cabinet (072 : 95 → 45, 079 : 74 → 41),
+# coefficient 2026 de la réduction générale (018 / 106), Apec (132) déclarée
+# en montant seul (taux : les 16 écarts 03/132 disparaissent).
 PLAFOND_LIGNES_MANQUANTES = 174
 PLAFOND_LIGNES_EN_TROP = 17
-PLAFOND_MONTANTS_DIVERGENTS = 1031
-PLAFOND_TAUX_DIVERGENTS = 23
+PLAFOND_MONTANTS_DIVERGENTS = 940
+PLAFOND_TAUX_DIVERGENTS = 7
 
 
 @besoin_de_fixtures
