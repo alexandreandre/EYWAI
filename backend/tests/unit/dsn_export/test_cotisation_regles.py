@@ -345,3 +345,131 @@ def test_solde_de_taxe_d_apprentissage_non_declare_par_salarie():
     codes = _par_code(cotisations)
     assert codes["130"] == ("03", 17.7, 0.59)
     assert not avertissements
+
+
+# --------------------------------------------------------------------------
+# Rejeu de juin 2026 contre la DSN de l'ancien logiciel (04/10/2026)
+# --------------------------------------------------------------------------
+
+
+def _ligne(cotisations, code: str, rang: int = 0):
+    return [c for c in cotisations if c.code == code][rang].rubriques
+
+
+def test_reduction_generale_2026_ventilee_avec_t_a_39_81():
+    """RGDU 2026 : T = Tmin 2 % + Tdelta 37,81 % = 39,81 % sous 50 salariés.
+
+    La DSN de juin de l'ancien logiciel ventile 552,97 € en 469,49 (018) et
+    83,48 (106) : 552,97 × 6,01 / 39,81. Avec 39,80, on déclarait 83,50.
+    """
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "fnal", "base": 3084.43, "taux_patronal": 0.001, "montant_patronal": 3.08},
+            {"coti_id": "reduction_generale", "base": 3084.43, "montant_patronal": -552.97},
+        ],
+        brut=3084.43,
+    )
+    assert _ligne(cotisations, "106")["S21.G00.81.004"] == "-83.48"
+    assert _ligne(cotisations, "018")["S21.G00.81.004"] == "-469.49"
+
+
+def test_reduction_generale_50_salaries_et_plus_t_a_40_21():
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "fnal", "base": 3000.0, "taux_patronal": 0.005, "montant_patronal": 15.0},
+            {"coti_id": "reduction_generale", "base": 3000.0, "montant_patronal": -400.0},
+        ]
+    )
+    attendu = f"{round(-400.0 * 6.01 / 40.21, 2):.2f}"
+    assert _ligne(cotisations, "106")["S21.G00.81.004"] == attendu
+
+
+def test_reduction_generale_a_pour_assiette_le_brut():
+    """CCH-16 : 018 et 106 portent une assiette, la rémunération brute.
+
+    Les bulletins repris rangent le montant de la réduction dans la base de la
+    ligne : il ne faut pas la recopier en assiette (on déclarait -552,97).
+    """
+    _, cotisations, _ = _construire(
+        [{"coti_id": "reduction_generale", "base": -552.97, "montant_patronal": -552.97}],
+        brut=3084.43,
+    )
+    assert _ligne(cotisations, "018")["S21.G00.81.003"] == "3084.43"
+    assert _ligne(cotisations, "106")["S21.G00.81.003"] == "3084.43"
+
+
+def test_deux_forfaits_sociaux_a_taux_differents_restent_deux_lignes():
+    """8 % sur la prévoyance, 20 % sur la retraite supplémentaire : deux 071.
+
+    Les fusionner donnait un 071 unique à 28 % sur la plus grande assiette.
+    La base 05 porte la somme des deux assiettes.
+    """
+    bases, cotisations, _ = _construire(
+        [
+            {"coti_id": "forfait_social", "base": 47.16, "taux_patronal": 0.08, "montant_patronal": 3.77},
+            {"coti_id": "forfait_social", "base": 96.40, "taux_patronal": 0.20, "montant_patronal": 19.28},
+        ]
+    )
+    lignes_071 = [c.rubriques for c in cotisations if c.code == "071"]
+    assert [
+        (l["S21.G00.81.003"], l["S21.G00.81.004"], l["S21.G00.81.007"]) for l in lignes_071
+    ] == [("47.16", "3.77", "8.000"), ("96.40", "19.28", "20.000")]
+    base_05 = next(b for b in bases if b.code == "05")
+    assert base_05.rubriques["S21.G00.78.004"] == "143.56"
+
+
+def test_csg_et_crds_reprennent_les_montants_du_bulletin():
+    """072 + 079 = le total CSG/CRDS retenu sur le bulletin, au centime.
+
+    La CRDS (0,50 %) s'arrondit ligne à ligne sur l'assiette des lignes non
+    déductibles ; la CSG est le reste. Recalculer 9,20 % de l'assiette totale
+    décalait un centime sur un tiers des salariés.
+    """
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "csg_deductible", "base": 1972.98, "taux_salarial": 0.068, "montant_salarial": 134.16},
+            {"coti_id": "csg_non_deductible", "base": 1972.98, "taux_salarial": 0.029, "montant_salarial": 57.21},
+            {"coti_id": "csg_non_deductible", "base": 386.03, "taux_salarial": 0.097, "montant_salarial": 37.45},
+        ]
+    )
+    assert _ligne(cotisations, "079")["S21.G00.81.004"] == "11.79"
+    assert _ligne(cotisations, "072")["S21.G00.81.004"] == "217.03"
+    assert _ligne(cotisations, "072")["S21.G00.81.003"] == "2359.01"
+
+
+def test_apec_se_declare_sans_identifiant_urssaf():
+    """L'Apec est recouvrée par l'Agirc-Arrco : pas d'OPS Urssaf en 81.002."""
+    _, cotisations, _ = build_bases_and_cotisations(
+        [
+            {
+                "coti_id": "apec",
+                "base": 3855.98,
+                "taux_salarial": 0.00024,
+                "montant_salarial": 0.93,
+                "taux_patronal": 0.00036,
+                "montant_patronal": 1.39,
+            }
+        ],
+        brut=3855.98,
+        period_start=PERIODE[0],
+        period_end=PERIODE[1],
+        default_ops="79484650100011",
+    )
+    apec = _ligne(cotisations, "132")
+    assert "S21.G00.81.002" not in apec
+    assert apec["S21.G00.81.004"] == "2.32"
+
+
+def test_reduction_salariale_heures_sup_au_taux_legal_arrondi():
+    """Le bulletin porte le taux effectif (-11,3093 %) ; la DSN déclare 11,310."""
+    _, cotisations, _ = _construire(
+        [
+            {
+                "coti_id": "reduction_hs_salariale",
+                "base": 449.54,
+                "taux_salarial": -0.113093,
+                "montant_salarial": -50.84,
+            }
+        ]
+    )
+    assert _ligne(cotisations, "114")["S21.G00.81.007"] == "11.310"
