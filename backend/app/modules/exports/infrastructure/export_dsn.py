@@ -7,6 +7,7 @@ from app.modules.dsn_export.application.builder import (
     DsnBuildError,
     build_parsed_dsn_from_payroll,
 )
+from app.modules.dsn_export.domain.affiliations import Collegue, deduire_affiliations
 from app.modules.dsn_export.domain.etat_conformite import (
     DEPOSABLE,
     SUFFIXE_NON_DEPOSABLE,
@@ -21,6 +22,10 @@ from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_pas_amount,
 )
 from app.modules.oeth_settings.application import queries as oeth_queries
+from app.modules.payroll.application.monthly_specificites import (
+    resolve_monthly_specificites,
+)
+from app.shared.domain.employment_rules import is_cadre
 from app.shared.dsn_validation import validate_nir, validate_nir_dsn, validate_siret
 
 DSN_NORME = "P26V01"
@@ -166,6 +171,61 @@ def _evenements_dsn(
     return resultat
 
 
+def _specificites(employee: Dict[str, Any]) -> Dict[str, Any]:
+    specificites = employee.get("specificites_paie")
+    return specificites if isinstance(specificites, dict) else {}
+
+
+def _affiliations(employee: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Celles du builder : au niveau racine, sinon sous specificites_paie."""
+    brutes = employee.get("affiliations_psc") or _specificites(employee).get("affiliations_psc")
+    return [a for a in (brutes or []) if isinstance(a, dict)]
+
+
+def _collegue(employee: Dict[str, Any], year: int, month: int) -> Collegue:
+    """Population comme le moteur (prévoyance cadre / non-cadre), adhésion du mois."""
+    mutuelle = resolve_monthly_specificites(_specificites(employee), year, month).get("mutuelle")
+    return Collegue(
+        cadre=is_cadre(employee.get("statut")),
+        adherent_mutuelle=isinstance(mutuelle, dict) and bool(mutuelle.get("adhesion")),
+        affiliations=_affiliations(employee),
+    )
+
+
+def _collegues_affilies(
+    company_id: str,
+    employees: List[Dict[str, Any]],
+    employee_ids: Optional[List[str]],
+    year: int,
+    month: int,
+) -> List[Collegue]:
+    """Les salariés de la société qui ont des affiliations, même hors de l'export."""
+    fiches = employees
+    if employee_ids:
+        fiches = (
+            supabase.table("employees")
+            .select("id,statut,specificites_paie")
+            .eq("company_id", company_id)
+            .execute()
+        ).data or []
+    return [_collegue(f, year, month) for f in fiches if _affiliations(f)]
+
+
+def _avec_affiliations_deduites(
+    employee: Dict[str, Any], collegues: List[Collegue], year: int, month: int
+) -> Dict[str, Any]:
+    """Sans affiliations, celles de ses collègues comparables, le temps de
+    l'export : rien n'est écrit sur la fiche. Sans modèle, la fiche reste telle
+    quelle et le builder garde son avertissement."""
+    lui = _collegue(employee, year, month)
+    deduites = deduire_affiliations(
+        cadre=lui.cadre, adherent_mutuelle=lui.adherent_mutuelle, collegues=collegues
+    )
+    if not deduites:
+        return employee
+    return {**employee, "affiliations_psc": deduites, "affiliations_psc_deduites": True}
+
+
 def get_dsn_employees_data(
     company_id: str,
     period: str,
@@ -237,6 +297,7 @@ def get_dsn_employees_data(
     )
 
     employees_data = []
+    collegues: Optional[List[Collegue]] = None
     totals = {
         "nombre_salaries": 0,
         "nombre_contrats": 0,
@@ -283,6 +344,14 @@ def get_dsn_employees_data(
         # Arrêts, sortie et taux PAS reçus : ce que la DSN déclare et que le
         # bulletin ne porte pas (blocs 60, 62, rubriques 50.007 / 50.008).
         employee = {**employee, **evenements.get(employee["id"], {})}
+        # Embauché après la reprise des DSN de l'ancien logiciel : pas
+        # d'affiliations prévoyance / santé, que DSN-VAL exige (bloc 70).
+        if not _affiliations(employee):
+            if collegues is None:
+                collegues = _collegues_affilies(
+                    company_id, employees, employee_ids, year, month
+                )
+            employee = _avec_affiliations_deduites(employee, collegues, year, month)
         employees_data.append(
             {
                 "employee": employee,

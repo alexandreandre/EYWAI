@@ -1013,6 +1013,12 @@ def build_individu_from_payroll(
             f"SMIC retenu pour la réduction générale inconnu pour le NIR {nir_dsn} : "
             "composant 79 type 01 absent (CCH-17), bulletin à recalculer"
         )
+    if affiliations_psc and employee.get("affiliations_psc_deduites"):
+        warnings.append(
+            f"Affiliations prévoyance / santé (bloc 70) du NIR {nir_dsn} déduites de "
+            "ses collègues de même statut et même situation face à la mutuelle : "
+            "à confirmer auprès de l'organisme"
+        )
     if not affiliations_psc and any(
         _famille_psc(l) and (float(l.get("montant_salarial") or 0) or float(l.get("montant_patronal") or 0))
         for l in cot_lines
