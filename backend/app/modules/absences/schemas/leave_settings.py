@@ -2,7 +2,7 @@
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 CpCountingUnit = Literal["ouvrable", "ouvre"]
@@ -50,12 +50,34 @@ class EmployeeLeaveSoldeUpdate(BaseModel):
     Volontairement limité à RTT et JTC : l'inversion cible→écart des CP est
     piégeuse (bascule N→N-1 du 1er juin, mode « fidèle au bulletin », CP pris
     au planning, ancienneté) — le recalage des CP passe par la reprise
-    d'un bulletin (apply_cp_solde_import), qui gère tout ça correctement.
+    d'un bulletin (apply_cp_solde_import), qui gère tout ça correctement ;
+    côté RH, par `EmployeeCpRecalage` (N-1 et N à la fin d'un mois).
     """
 
     compteur: Literal["rtt", "jtc"]
     solde_cible: float = Field(..., ge=0, le=200)
     note: Optional[str] = Field(None, max_length=2000)
+
+
+class EmployeeCpRecalage(BaseModel):
+    """Recalage RH des CP N-1 et N tels qu'ils doivent figurer en pied de
+    bulletin à la fin d'un mois écoulé — une reprise datée, comme l'import d'un
+    bulletin (apply_cp_solde_import), qui gère la bascule du 1er juin, le CP du
+    planning et l'ancienneté. Commentaire obligatoire : il reste dans la note."""
+
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    cp_n1_solde: float = Field(..., ge=-100, le=200)
+    cp_n_solde: float = Field(..., ge=-100, le=200)
+    note: str = Field(..., max_length=1000)
+
+    @field_validator("note")
+    @classmethod
+    def commentaire_obligatoire(cls, valeur: str) -> str:
+        valeur = (valeur or "").strip()
+        if not valeur:
+            raise ValueError("Le commentaire est obligatoire : dites pourquoi vous recalez.")
+        return valeur
 
 
 class LeaveAdjustmentImportRow(BaseModel):

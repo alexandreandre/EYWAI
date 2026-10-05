@@ -88,7 +88,7 @@ def test_le_recalage_est_une_reprise_datee_qui_ne_touche_pas_aux_rtt(recalage):
     assert appel["rtt_solde"] is None
 
 
-def test_la_note_dit_qui_quand_quoi_et_pourquoi(recalage):
+def test_la_note_dit_quand_quoi_et_pourquoi(recalage):
     cmd.recaler_cp_rh(SOCIETE, SALARIE, _demande())
 
     note = recalage[0]["note"]

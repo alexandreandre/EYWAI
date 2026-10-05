@@ -35,21 +35,27 @@ from app.modules.absences.infrastructure.leave_settings_repository import (
     upsert_employee_adjustment,
     upsert_leave_policy,
 )
+from app.modules.absences.infrastructure.planning_cp_repository import (
+    get_cp_opening_reference_dates,
+)
 from app.modules.absences.infrastructure.queries import get_employee_hire_date
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.absences.schemas.leave_settings import (
+    EmployeeCpRecalage,
     EmployeeLeaveAdjustmentUpdate,
     LeaveAdjustmentImportRequest,
     LeaveSettingsUpdate,
     RttYearEndCloseRequest,
 )
 from app.modules.absences.schemas.leave_settings_responses import (
+    CpRecalageResponse,
     EmployeeLeaveAdjustmentResponse,
     JtcAnnualRunRow,
     LeaveAdjustmentImportResult,
     LeaveSettingsResponse,
     RttYearEndCloseResult,
 )
+from app.shared.reprise_paie import lire_bascule, rang_du_mois
 
 
 def bulletin_reference_date(year: int, month: int | None = None) -> date:
@@ -386,16 +392,20 @@ def apply_cp_solde_import(
     *,
     cp_n1_solde: float,
     cp_n_solde: float,
-    rtt_solde: float = 0.0,
+    rtt_solde: float | None = 0.0,
     month: int | None = None,
     note: str | None = None,
 ) -> None:
-    """Convertit des soldes CP/RTT affichés en soldes d'ouverture et upsert."""
+    """Convertit des soldes CP/RTT affichés en soldes d'ouverture et upsert.
+
+    `rtt_solde=None` : le compteur RTT n'est pas touché (recalage des seuls CP).
+    """
     from app.modules.absences.domain.rules import (
         compute_cp_period_balances,
         compute_rtt_balance,
     )
     from app.modules.absences.infrastructure.queries import get_employee_hire_date
+    from app.modules.absences.infrastructure.repository import oublier_dates_de_reprise
 
     hire_raw = get_employee_hire_date(employee_id)
     if not hire_raw:
@@ -411,30 +421,33 @@ def apply_cp_solde_import(
         policy=policy,
         adjustment=EmployeeLeaveAdjustment.empty(),
     )
-    rtt = compute_rtt_balance(
-        hire_date,
-        validated,
-        ref,
-        policy=policy,
-        adjustment=EmployeeLeaveAdjustment.empty(),
-    )
     cp_n1_opening = cp_n1_solde - max(0.0, float(periods["n1_remaining"]))
     # Sans plancher : pour un solde repris de −0,43 j face à un décompte théorique
     # de −0,76 j, l'ouverture vaut +0,33 (et non −0,43 en partant de zéro).
     cp_n_opening = cp_n_solde - float(periods.get("n_remaining_brut", periods["n_remaining"]))
-    rtt_opening = rtt_solde - max(0.0, float(rtt["solde"]))
 
     payload: dict = {
         "cp_n1_opening_balance": round(cp_n1_opening, 2),
         "cp_n_opening_balance": round(cp_n_opening, 2),
-        "rtt_opening_balance": round(rtt_opening, 2),
         # Les congés pris jusqu'à cette date sont déjà dans le solde repris :
         # le moteur s'en sert pour ne pas les redéduire depuis le planning.
         "cp_opening_reference_date": ref.isoformat(),
     }
+    if rtt_solde is not None:
+        rtt = compute_rtt_balance(
+            hire_date,
+            validated,
+            ref,
+            policy=policy,
+            adjustment=EmployeeLeaveAdjustment.empty(),
+        )
+        payload["rtt_opening_balance"] = round(rtt_solde - max(0.0, float(rtt["solde"])), 2)
     if note:
         payload["note"] = note
     upsert_employee_adjustment(company_id, employee_id, year, payload)
+    # La date de reprise vient de changer : les congés du planning qu'elle
+    # absorbe ne doivent plus compter dans le solde affiché relu ci-dessous.
+    oublier_dates_de_reprise()
     _recaler_sur_le_solde_affiche(
         company_id, employee_id, year, month, payload, cp_n1_solde, cp_n_solde
     )
@@ -484,6 +497,108 @@ def _recaler_sur_le_solde_affiche(
     recale["cp_n1_opening_balance"] = round(payload["cp_n1_opening_balance"] + ecart_n1, 2)
     recale["cp_n_opening_balance"] = round(payload["cp_n_opening_balance"] + ecart_n, 2)
     upsert_employee_adjustment(company_id, employee_id, year, recale)
+
+
+_MOIS = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+#: Le marqueur du mode « fidèle au bulletin » (rules._is_bulletin_cp_import).
+_MARQUEUR_FIDELE = "Import CP bulletin"
+
+
+def _fin_du_mois(annee: int, mois: int) -> date:
+    return date(annee, mois, calendar.monthrange(annee, mois)[1])
+
+
+def _jours(valeur: float) -> str:
+    return f"{valeur:.2f}".replace(".", ",")
+
+
+def _refus_de_recalage(
+    company_id: str, employee_id: str, body: EmployeeCpRecalage, fin: date
+) -> str | None:
+    """Pourquoi ce recalage ne doit pas s'écrire, dit pour la RH ; None sinon."""
+    mois = f"{_MOIS[body.month - 1]} {body.year}"
+    if fin > date.today():
+        return (
+            f"Le mois de {mois} n'est pas terminé : recalez les congés sur la fin "
+            "d'un mois écoulé, celui du dernier bulletin."
+        )
+    bascule = lire_bascule(company_id)
+    if bascule is not None and rang_du_mois(body.year, body.month) < bascule.rang:
+        logiciel = f" ({bascule.logiciel_precedent})" if bascule.logiciel_precedent else ""
+        return (
+            f"Jusqu'au {_fin_du_mois(bascule.annee, bascule.mois):%d/%m/%Y}, les soldes "
+            f"viennent de la reprise{logiciel} : choisissez "
+            f"{_MOIS[bascule.mois - 1]} {bascule.annee} ou un mois après."
+        )
+    dernier = get_cp_opening_reference_dates([employee_id]).get(employee_id)
+    if dernier is not None and fin < dernier:
+        return (
+            f"Les congés de ce salarié sont déjà recalés au {dernier:%d/%m/%Y} : "
+            f"choisissez {_MOIS[dernier.month - 1]} {dernier.year} ou un mois après."
+        )
+    if _MARQUEUR_FIDELE in (get_employee_adjustment(employee_id, body.year).note or ""):
+        return (
+            "Les congés de ce salarié suivent l'import de ses bulletins (« fidèle au "
+            "bulletin ») : un recalage à la main changerait ce mode de calcul. "
+            "Demandez à l'administrateur de réimporter le bulletin."
+        )
+    return None
+
+
+def recaler_cp_rh(
+    company_id: str, employee_id: str, body: EmployeeCpRecalage
+) -> CpRecalageResponse:
+    """Recalage RH des CP N-1 et N à la fin d'un mois écoulé.
+
+    Une reprise datée, comme l'import d'un bulletin (`apply_cp_solde_import`) :
+    le pied de bulletin et l'indemnité de départ la relisent, elle roule au
+    1er juin comme une reprise, et l'empreinte des ajustements passe « À
+    recalculer » les bulletins calculés de l'année. Les RTT ne bougent pas.
+    Refusé avant la bascule de la société ou avant un recalage plus récent :
+    la reprise la plus récente fait foi, on ne revient pas en arrière.
+    """
+    from app.modules.absences.application.queries import get_absence_balances_for_payslip
+
+    _ensure_employee_in_company(employee_id, company_id)
+    fin = _fin_du_mois(body.year, body.month)
+    refus = _refus_de_recalage(company_id, employee_id, body, fin)
+    if refus:
+        raise ValueError(refus)
+
+    precedente = (get_employee_adjustment(employee_id, body.year).note or "").strip()
+    note = (
+        f"Recalage RH du {date.today():%d/%m/%Y} au {fin:%d/%m/%Y} : "
+        f"CP N-1 {_jours(body.cp_n1_solde)} j, CP N {_jours(body.cp_n_solde)} j — "
+        # Le marqueur est du code : tapé dans un commentaire, il ferait passer
+        # le salarié en mode « fidèle au bulletin ».
+        + body.note.replace(_MARQUEUR_FIDELE, "Import CP du bulletin")
+    )
+    if precedente:
+        note = f"{note} | Précédent : {precedente}"
+    apply_cp_solde_import(
+        company_id,
+        employee_id,
+        body.year,
+        cp_n1_solde=body.cp_n1_solde,
+        cp_n_solde=body.cp_n_solde,
+        rtt_solde=None,
+        month=body.month,
+        note=note[:2000],
+    )
+
+    relu = get_absence_balances_for_payslip(employee_id, body.year, body.month) or {}
+    n1 = (relu.get("conges_payes_periode_precedente") or {}).get("solde")
+    n = (relu.get("conges_payes") or {}).get("solde")
+    return CpRecalageResponse(
+        employee_id=employee_id,
+        date_reference=fin,
+        cp_n1_solde=None if n1 is None else float(n1),
+        cp_n_solde=None if n is None else float(n),
+    )
 
 
 def import_leave_adjustments(

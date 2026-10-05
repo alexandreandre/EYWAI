@@ -1,5 +1,6 @@
 """Schémas réponse — paramètres congés / RTT."""
 
+from datetime import date
 from typing import List, Optional
 
 from pydantic import BaseModel
@@ -42,6 +43,16 @@ class EmployeeLeaveAdjustmentResponse(BaseModel):
     rtt_forfeited_days: float = 0.0
     jtc_opening_balance: float = 0.0
     note: Optional[str] = None
+
+
+class CpRecalageResponse(BaseModel):
+    """Le solde CP que le bulletin du mois imprimera, relu après le recalage."""
+
+    employee_id: str
+    date_reference: date
+    #: None : le bulletin de ce mois n'imprime pas de compteur (salarié sorti).
+    cp_n1_solde: Optional[float] = None
+    cp_n_solde: Optional[float] = None
 
 
 class JtcAnnualRunRow(BaseModel):

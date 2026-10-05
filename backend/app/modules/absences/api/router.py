@@ -50,6 +50,7 @@ from app.modules.absences.application import (
 )
 from app.modules.absences.domain.enums import SALARY_CERTIFICATE_ABSENCE_TYPES
 from app.modules.absences.schemas.leave_settings import (
+    EmployeeCpRecalage,
     EmployeeLeaveAdjustmentUpdate,
     EmployeeLeaveSoldeUpdate,
     EmployeeRttSoldeUpdate,
@@ -59,6 +60,7 @@ from app.modules.absences.schemas.leave_settings import (
     RttYearEndCloseRequest,
 )
 from app.modules.absences.schemas.leave_settings_responses import (
+    CpRecalageResponse,
     EmployeeLeaveAdjustmentResponse,
     JtcAnnualRunResponse,
     LeaveAdjustmentImportResult,
@@ -1078,6 +1080,26 @@ def update_employee_leave_solde_route(
             solde_cible=body.solde_cible,
             note=body.note,
         )
+    except (ValueError, LookupError) as e:
+        _handle_application_errors(e)
+
+
+@router.put(
+    "/leave-settings/employees/{employee_id}/soldes-cp",
+    response_model=CpRecalageResponse,
+)
+def recaler_soldes_cp_route(
+    employee_id: str,
+    body: EmployeeCpRecalage,
+    current_user: User = Depends(get_current_user),
+):
+    """Recalage RH des CP N-1 et N à la fin d'un mois écoulé (reprise datée).
+
+    Rend le solde que le bulletin de ce mois imprimera, relu après l'écriture.
+    """
+    cid = _require_rh_company_context(current_user)
+    try:
+        return leave_settings_commands.recaler_cp_rh(str(cid), employee_id, body)
     except (ValueError, LookupError) as e:
         _handle_application_errors(e)
 

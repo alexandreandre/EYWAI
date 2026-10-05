@@ -21,6 +21,12 @@ _planning_cache = ShortLivedCache()
 _cutoff_cache = ShortLivedCache()
 
 
+def oublier_dates_de_reprise() -> None:
+    """À appeler après l'écriture d'une date de reprise des congés : la lecture
+    suivante doit voir la nouvelle, pas celle mémorisée quelques secondes plus tôt."""
+    _cutoff_cache.clear()
+
+
 def _with_planning_conges_payes(
     validated: List[Dict[str, Any]], employee_ids: List[str]
 ) -> List[Dict[str, Any]]:
