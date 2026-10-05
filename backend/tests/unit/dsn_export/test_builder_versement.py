@@ -317,6 +317,22 @@ def test_smic_de_la_reduction_generale_lu_sur_la_ligne_du_bulletin():
     assert ["03", "01", "2031.38"] in composants
 
 
+def test_smic_nul_d_un_mois_sans_heure_payee_reste_declare():
+    """Arrêt tout le mois : la réduction se régularise sur zéro heure ; le SMIC
+    retenu vaut 0,00 et se déclare quand même (CCH-17)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["structure_cotisations"]["bloc_allegements"] = [
+        {"coti_id": "reduction_generale", "base": 54.67, "montant_patronal": 12.5, "smic_reference_mois": 0.0}
+    ]
+    lignes = _lignes(bulletin=bulletin)
+    composants = [
+        (lignes[i][1], lignes[i + 1][1])
+        for i in range(len(lignes) - 1)
+        if lignes[i][0] == "S21.G00.79.001"
+    ]
+    assert ("01", "0.00") in composants
+
+
 def test_cotisation_prevoyance_sans_affiliation_signalee():
     """Une base 31 sans bloc 70 est refusée (CCH-11 / CCH-12) : on le dit."""
     _, avertissements = build_parsed_dsn_from_payroll(
