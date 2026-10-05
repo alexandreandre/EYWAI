@@ -540,6 +540,12 @@ def update_employee(
         # le salarié sur sa propre fiche.
         assert_can_update_employee(current_user, employee_id, str(company_id))
         update_data = employee_data.model_dump(exclude_unset=True)
+        if "salaire_de_base" in update_data:
+            refus = commands.refus_salaire_sans_date(
+                employee_id, str(company_id), update_data["salaire_de_base"]
+            )
+            if refus:
+                raise HTTPException(status_code=400, detail=refus)
         commands.update_employee(employee_id, update_data)
         data = queries.get_employee_by_id(employee_id, company_id)
         if not data:

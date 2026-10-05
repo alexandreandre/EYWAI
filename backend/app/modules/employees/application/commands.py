@@ -50,6 +50,7 @@ from app.modules.employees.infrastructure.providers import (
 from app.modules.employees.infrastructure.repository import (
     EmployeeRepository,
     ProfileRepository,
+    _valeur_salaire_row,
 )
 
 _employee_repository = EmployeeRepository()
@@ -812,6 +813,39 @@ def update_employee(employee_id: str, update_data: Dict[str, Any]) -> Dict[str, 
         # ou script de reprise passent tous par ici.
         sync_auth_email_for_employee(result)
     return enrich_employee_profile_completeness(result)
+
+
+MESSAGE_SALAIRE_DATE = (
+    "Ce salarié a un historique de salaire : son salaire se change avec une date "
+    "d'effet (bouton « Changer le salaire », rubrique Rémunération). Rien n'a été "
+    "enregistré."
+)
+
+
+def refus_salaire_sans_date(
+    employee_id: str, company_id: str, salaire_de_base: Any
+) -> str | None:
+    """Refus d'un salaire changé sur la fiche d'un salarié qui a un historique.
+
+    La génération remet sur la fiche le salaire de l'historique daté
+    (`sync_employee_salaire_actif`) : un salaire tapé ici serait perdu au
+    bulletin suivant. Le même salaire renvoyé par le formulaire passe, comme
+    tout salaire d'une fiche sans historique.
+    """
+    if not isinstance(salaire_de_base, dict) or salaire_de_base.get("valeur") is None:
+        return None
+    try:
+        demande = round(float(salaire_de_base["valeur"]), 2)
+    except (TypeError, ValueError):
+        return None
+    fiche = _employee_repository.get_by_id(employee_id, company_id)
+    if fiche is None:
+        return None
+    if demande == round(_valeur_salaire_row(fiche), 2):
+        return None
+    if not _employee_repository.get_salary_history(employee_id, company_id):
+        return None
+    return MESSAGE_SALAIRE_DATE
 
 
 def apply_salary_update(
