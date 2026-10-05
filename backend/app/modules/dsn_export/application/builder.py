@@ -1368,7 +1368,7 @@ def build_individu_from_payroll(
     motif_recours = str(
         classification.get("motif_recours")
         or employee.get("motif_recours_cdd")
-        or (employee.get("dsn_reprise") or {}).get("motif_recours")
+        or reprise.get("motif_recours")
         or ""
     )
     if motif_recours:
