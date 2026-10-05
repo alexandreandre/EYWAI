@@ -1063,7 +1063,11 @@ export function ExportCommonModel({
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2 space-y-1">
                     {blockingAnomalies.map((anomaly, index) => (
-                      <li key={index}>{anomaly.message}</li>
+                      // Les retours à la ligne du message (DSN non déposable :
+                      // déjà produit, reste, quoi faire) se lisent à l'écran.
+                      <li key={index} className="whitespace-pre-line">
+                        {anomaly.message}
+                      </li>
                     ))}
                   </ul>
                 </AlertDescription>

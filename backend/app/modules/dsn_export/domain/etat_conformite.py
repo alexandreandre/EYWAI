@@ -2,38 +2,38 @@
 
 Un fichier incomplet qui se présente comme valide est plus dangereux qu'un
 export absent : déposé tel quel, il est rejeté au mieux, accepté partiellement
-au pire. Tant que tous les blocs ne sont pas produits, la génération le dit.
+au pire. Tant que le dépôt n'est pas ouvert, la génération le dit.
 
 Le chantier et sa méthode de mesure sont décrits dans
 ``docs/superpowers/specs/2026-08-03-dsn-export-conformite-design.md``.
+
+Lever le blocage (``DEPOSABLE = True``) est une décision d'Alexandre, pas un
+effet de bord d'un correctif : ce module ne dit que l'état, à jour du 05/10/2026.
 """
 
 from __future__ import annotations
 
 from typing import List
 
-# Blocs dont la conformité est établie par comparaison aux DSN du cabinet.
-BLOCS_CONFORMES: List[str] = [
-    "S10.G00.00 — envoi",
-    "S10.G00.01 — émetteur",
-    "S20.G00.05 — déclaration",
-    "S20.G00.07 — contacts",
-    "S21.G00.06 — entreprise",
-    "S21.G00.11 — établissement",
-    "S21.G00.30 — individu",
-    "S21.G00.40 — contrat",
-    "S90.G00.90 — total du fichier",
+# Ce que l'export produit déjà (chantier DSN des 03/08 au 05/10/2026), dit
+# avec les mots de la gestionnaire de paie : elle lit ce texte à l'écran.
+DEJA_PRODUIT: List[str] = [
+    "envoi, déclaration, entreprise et établissement",
+    "salariés et contrats",
+    "rémunérations et cotisations individuelles",
+    "bordereau et versements Urssaf, retraite complémentaire et impôt à la source",
+    "prévoyance et mutuelle : adhésions et affiliations",
+    "arrêts de travail, fins de contrat et autres suspensions",
 ]
 
-# Ce qui manque encore, dans l'ordre où le spec prévoit de le traiter.
-BLOCS_MANQUANTS: List[str] = [
-    "cotisations individuelles (S21.G00.81) : parts salariale et patronale "
-    "émises en double, codes 071, 072, 102, 106 et 907 absents",
-    "cotisations agrégées, bordereau et versement URSSAF "
-    "(S21.G00.23, S21.G00.22, S21.G00.20)",
-    "prévoyance : adhésion et affiliations (S21.G00.15, S21.G00.44, S21.G00.70)",
-    "fins de contrat et arrêts de travail (S21.G00.62, S21.G00.65)",
-    "salariés sortis encore déclarés le mois de leur solde",
+# Ce qui reste avant d'ouvrir le dépôt.
+RESTE_AVANT_DEPOT: List[str] = [
+    "les versements trimestriels aux organismes de prévoyance et de mutuelle : "
+    "pas encore produits",
+    "les cotisations Urssaf qui ne figurent sur aucun bulletin (solde annuel, "
+    "réduction ponctuelle) : absentes du bordereau",
+    "une DSN complète contrôlée sans rejet par l'outil officiel DSN-VAL, "
+    "pour chaque société",
 ]
 
 DEPOSABLE = False
@@ -42,13 +42,18 @@ SUFFIXE_NON_DEPOSABLE = "_NON_DEPOSABLE"
 
 
 def message_non_deposable() -> str:
-    manquants = "\n".join(f"  - {bloc}" for bloc in BLOCS_MANQUANTS)
+    produit = "\n".join(f"  - {ligne}" for ligne in DEJA_PRODUIT)
+    reste = "\n".join(f"  - {ligne}" for ligne in RESTE_AVANT_DEPOT)
     return (
-        "DSN incomplète : ne pas déposer sur net-entreprises.\n"
-        "Blocs conformes : "
-        + ", ".join(bloc.split(" — ")[0] for bloc in BLOCS_CONFORMES)
-        + ".\nReste à produire :\n"
-        + manquants
+        "DSN pas encore déposable : ne déposez pas ce fichier sur net-entreprises.\n"
+        "Déjà produit par EYWAI :\n"
+        + produit
+        + "\nReste avant d'ouvrir le dépôt :\n"
+        + reste
+        + "\nEn attendant : déposez la DSN du mois comme avant, depuis votre "
+        "ancien logiciel de paie. Si ce n'est pas possible, ouvrez un ticket "
+        "(menu Support, module « Paie & Bulletins », urgence « Critique ») "
+        "avant l'échéance de dépôt."
     )
 
 
