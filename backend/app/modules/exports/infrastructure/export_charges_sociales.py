@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from app.modules.exports.domain.charges_organisme import resolve_organisme
+from app.modules.exports.domain.accounting_plan import resolve_organisme_from_coti_id
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     get_payslip_data_for_od,
 )
@@ -57,7 +57,9 @@ def _aggregate_charges(
                 continue
 
             libelle = coti.get("libelle", "Cotisation")
-            organisme = resolve_organisme(libelle)
+            # La caisse de l'OD de paie : rattachée sur `coti_id`, le libellé
+            # ne sert qu'à défaut (il varie d'une société à l'autre).
+            organisme = resolve_organisme_from_coti_id(coti.get("coti_id"), str(libelle))
             if caisses_filter and organisme not in caisses_filter:
                 continue
 

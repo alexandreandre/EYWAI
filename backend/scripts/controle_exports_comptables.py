@@ -342,6 +342,31 @@ def controler_mois(company_id: str, periode: str) -> list[dict[str, Any]]:
             round(abs(saisies_table - saisies_bulletins_module), 2),
             f"table {saisies_table:.2f} / bulletins {saisies_bulletins_module:.2f}")
 
+    # Caisses et remise de paiement : la dette de chaque organisme, celle de l'OD.
+    from app.modules.exports.infrastructure.export_charges_sociales import (
+        get_charges_sociales_data,
+    )
+    from app.modules.exports.infrastructure.export_paiement_organismes import (
+        _build_payment_rows,
+    )
+
+    detail_caisses, resume_caisses, _ = get_charges_sociales_data(company_id, periode)
+    dettes_od = {
+        n["nature"].split(":", 1)[1]: round(-n["export"], 2)
+        for n in rapport["natures"]
+        if n["nature"].startswith("dettes:")
+    }
+    par_caisse = {r["Organisme"]: round(r["Total cotisations"], 2) for r in resume_caisses}
+    a_payer: dict[str, float] = defaultdict(float)
+    for r in _build_payment_rows(detail_caisses, periode):
+        a_payer[r["Organisme"]] += r["Total à payer"]
+    for nom, releve in (("Charges sociales par caisse", par_caisse), ("Paiement organismes", a_payer)):
+        ecart = max(
+            (abs(round(releve.get(o, 0.0) - dettes_od.get(o, 0.0), 2)) for o in set(releve) | set(dettes_od)),
+            default=0.0,
+        )
+        ajouter(nom, None, ecart < TOLERANCE, ecart, "contre les dettes par organisme de l'OD")
+
     # Contre-épreuve indépendante de l'extraction de l'export.
     brutes = [r for r in (_identite_brute(b.get("payslip_data") or {}) for b in bruts) if abs(r) >= TOLERANCE]
     ajouter("Bulletins (identité du net, lecture brute)", None, not brutes,

@@ -164,3 +164,44 @@ class TestPreviewChargesSociales:
         assert len(preview["details"]["organismes"]) == 1
         assert preview["details"]["organismes"][0]["organisme"] == ORGANISME_URSSAF
         assert preview["can_generate"] is True
+
+
+class TestCaissesCommeLOdDePaie:
+    """La dette envers chaque caisse doit être celle de l'OD (431, 437…).
+
+    Le regroupement par mots du libellé laissait « Sécurité sociale »,
+    « Allocations familiales » ou la CSG hors de l'URSSAF, et la remise de
+    paiement sautait la réduction générale (montant négatif) : l'URSSAF y
+    était payée sans elle.
+    """
+
+    BULLETIN = [
+        {
+            "employee_id": "salarie-1",
+            "cotisations_detail": [
+                {"coti_id": "securite_sociale_maladie", "libelle": "Sécurité sociale - Maladie",
+                 "montant_salarial": 0.0, "montant_patronal": 210.0},
+                {"coti_id": "csg_deductible", "libelle": "CSG déductible",
+                 "montant_salarial": 200.0, "montant_patronal": 0.0},
+                {"coti_id": "reduction_generale", "libelle": "Réduction générale",
+                 "montant_salarial": 0.0, "montant_patronal": -150.0},
+                {"coti_id": "retraite_sup", "libelle": "Supplémentaire",
+                 "montant_salarial": 10.0, "montant_patronal": 10.0},
+            ],
+        }
+    ]
+
+    def test_caisse_lue_sur_le_coti_id(self):
+        _, summary, _ = module._aggregate_charges(self.BULLETIN)
+        par_caisse = {r["Organisme"]: r["Total cotisations"] for r in summary}
+        assert par_caisse == {"URSSAF": 260.0, "RETRAITE_SUP": 20.0}
+
+    def test_remise_de_paiement_deduit_les_allegements(self):
+        from app.modules.exports.infrastructure.export_paiement_organismes import (
+            _build_payment_rows,
+        )
+
+        detail, _, _ = module._aggregate_charges(self.BULLETIN)
+        lignes = _build_payment_rows(detail, "2026-09")
+        urssaf = round(sum(r["Total à payer"] for r in lignes if r["Organisme"] == "URSSAF"), 2)
+        assert urssaf == 260.0

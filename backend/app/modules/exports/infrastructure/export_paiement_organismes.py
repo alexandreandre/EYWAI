@@ -33,7 +33,9 @@ def _build_payment_rows(
     rows: List[Dict[str, Any]] = []
     for item in detail_rows:
         total = float(item.get("Total cotisations", 0) or 0)
-        if total <= 0:
+        # Une réduction (réduction générale, déduction heures sup.) est
+        # négative : la sauter ferait payer l'organisme sans elle.
+        if total == 0:
             continue
         org = item.get("Organisme", "AUTRE")
         rows.append(
