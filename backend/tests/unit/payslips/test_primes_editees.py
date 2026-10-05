@@ -156,6 +156,90 @@ def test_l_insertion_impose_le_salarie_la_societe_et_la_periode_du_bulletin():
     ]
 
 
+class _Saisies:
+    """`monthly_inputs` en mémoire, pour les retraits depuis le bulletin."""
+
+    def __init__(self, lignes):
+        self.lignes = {str(l["id"]): dict(l) for l in lignes}
+        self.supprimees: list[str] = []
+        self._ids: list[str] = []
+
+    def table(self, nom):
+        assert nom == "monthly_inputs"
+        self._action, self._ids, self._valeurs = None, [], None
+        return self
+
+    def select(self, *_a):
+        self._action = "select"
+        return self
+
+    def update(self, valeurs):
+        self._action, self._valeurs = "update", valeurs
+        return self
+
+    def delete(self):
+        self._action = "delete"
+        return self
+
+    def in_(self, _cle, ids):
+        self._ids = [str(i) for i in ids]
+        return self
+
+    def eq(self, _cle, valeur):
+        self._ids = [str(valeur)]
+        return self
+
+    def execute(self):
+        from unittest.mock import MagicMock
+
+        if self._action == "select":
+            return MagicMock(data=[self.lignes[i] for i in self._ids if i in self.lignes])
+        for i in self._ids:
+            if self._action == "update":
+                self.lignes[i].update(self._valeurs)
+            elif self._action == "delete":
+                self.supprimees.append(i)
+                self.lignes.pop(i, None)
+        return MagicMock(data=[])
+
+
+def test_une_prime_generee_retiree_du_bulletin_passe_a_zero_et_ne_revient_pas():
+    """Comitech : la génération des variables tourne avant chaque bulletin. Une
+    prime de règle automatique supprimée y était recréée ; retirée, elle passe à
+    0 avec manual_override, que la génération respecte."""
+    from unittest.mock import patch
+
+    from app.modules.payroll_variables.infrastructure import repository as variables
+    from app.modules.payslips.application import primes_editees as app_primes
+    from app.modules.payslips.domain.primes_editees import DiffPrimes
+
+    base = _Saisies(
+        [
+            {"id": "s-auto", "name": "Prime de poste difficile", "description": "Auto: PRIME_POSTE_DIFFICILE", "amount": 80.0},
+            {"id": "s-main", "name": "Prime exceptionnelle", "description": None, "amount": 50.0},
+        ]
+    )
+    with patch.object(app_primes, "supabase", base):
+        app_primes.appliquer_primes_editees(
+            DiffPrimes(retirees=("s-auto", "s-main")),
+            employee_id="e1", company_id="c1", year=2026, month=10,
+        )
+
+    assert base.supprimees == ["s-main"]
+    assert base.lignes["s-auto"]["amount"] == 0
+    assert base.lignes["s-auto"]["manual_override"] is True
+
+    # La génération suivante ne repasse pas derrière.
+    with (
+        patch.object(variables, "find_existing_monthly_input", return_value=base.lignes["s-auto"]),
+        patch.object(variables, "supabase") as client,
+    ):
+        variables.upsert_monthly_input(
+            {"employee_id": "e1", "year": 2026, "month": 10, "name": "Prime de poste difficile", "amount": 80.0}
+        )
+    client.table.assert_not_called()
+
+
 def test_un_montant_corrige_au_bulletin_n_est_plus_ecrase_par_la_generation():
     from unittest.mock import MagicMock, patch
 

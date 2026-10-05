@@ -146,3 +146,27 @@ class TestIsValidPeriod:
         assert is_valid_period(2025, 6.0) is False  # type: ignore[arg-type]
         assert is_valid_period("2025", 6) is False  # type: ignore[arg-type]
         assert is_valid_period(2025, "6") is False  # type: ignore[arg-type]
+
+
+# --- Saisies générées par les règles automatiques ---
+
+
+class TestSaisieGeneree:
+    """Une saisie écrite par la génération des variables se reconnaît à sa
+    description « Auto: <règle> » ; retirée, elle reste à 0 et protégée."""
+
+    def test_une_saisie_generee_se_reconnait_a_sa_description(self):
+        from app.modules.monthly_inputs.domain.rules import est_saisie_generee
+
+        assert est_saisie_generee({"description": "Auto: PRIME_POSTE_DIFFICILE"})
+        assert not est_saisie_generee({"description": "Prime de fin d'année"})
+        assert not est_saisie_generee({"description": None})
+
+    def test_retiree_veut_dire_generee_a_zero_et_protegee(self):
+        from app.modules.monthly_inputs.domain.rules import est_saisie_retiree
+
+        generee = {"description": "Auto: PRIME_POSTE_DIFFICILE", "manual_override": True}
+        assert est_saisie_retiree({**generee, "amount": 0})
+        assert not est_saisie_retiree({**generee, "amount": 80.0})
+        assert not est_saisie_retiree({**generee, "amount": 0, "manual_override": False})
+        assert not est_saisie_retiree({"description": "Prime", "amount": 0, "manual_override": True})

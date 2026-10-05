@@ -159,6 +159,16 @@ class TestCreateEmployeeMonthlyInput:
         assert call_row["description"] == "Acompte mai"
 
 
+SOCIETE = "11111111-1111-1111-1111-111111111111"
+GENEREE = {
+    "id": "input-id-123",
+    "employee_id": "emp-456",
+    "name": "Prime de poste difficile",
+    "description": "Auto: PRIME_POSTE_DIFFICILE",
+    "amount": 80.0,
+}
+
+
 class TestDeleteMonthlyInput:
     """Commande delete_monthly_input."""
 
@@ -167,9 +177,22 @@ class TestDeleteMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
-            commands.delete_monthly_input("input-id-123", "11111111-1111-1111-1111-111111111111")
+            repo.get_by_id.return_value = {"id": "input-id-123", "description": None}
+            commands.delete_monthly_input("input-id-123", SOCIETE)
 
-        repo.delete_by_id.assert_called_once_with("input-id-123", "11111111-1111-1111-1111-111111111111")
+        repo.delete_by_id.assert_called_once_with("input-id-123", SOCIETE)
+
+    def test_une_saisie_generee_retiree_passe_a_zero_au_lieu_de_revenir(self):
+        """Supprimée, une saisie d'une règle automatique serait recréée au calcul
+        suivant (Comitech) : elle passe à 0, protégée de la génération."""
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.get_by_id.return_value = dict(GENEREE)
+            commands.delete_monthly_input("input-id-123", SOCIETE)
+
+        repo.delete_by_id.assert_not_called()
+        repo.update_by_id.assert_called_once_with(
+            "input-id-123", {"amount": 0, "manual_override": True}, SOCIETE
+        )
 
 
 class TestDeleteEmployeeMonthlyInput:
@@ -180,9 +203,50 @@ class TestDeleteEmployeeMonthlyInput:
         with patch(
             "app.modules.monthly_inputs.application.commands.monthly_inputs_repository"
         ) as repo:
-            commands.delete_employee_monthly_input("emp-456", "input-id-789", "11111111-1111-1111-1111-111111111111")
+            repo.get_by_id.return_value = {"id": "input-id-789", "employee_id": "emp-456"}
+            commands.delete_employee_monthly_input("emp-456", "input-id-789", SOCIETE)
 
-        repo.delete_by_id_and_employee.assert_called_once_with("input-id-789", "emp-456", "11111111-1111-1111-1111-111111111111")
+        repo.delete_by_id_and_employee.assert_called_once_with("input-id-789", "emp-456", SOCIETE)
+
+    def test_une_saisie_generee_retiree_passe_a_zero_au_lieu_de_revenir(self):
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.get_by_id.return_value = dict(GENEREE)
+            commands.delete_employee_monthly_input("emp-456", "input-id-123", SOCIETE)
+
+        repo.delete_by_id_and_employee.assert_not_called()
+        repo.update_by_id.assert_called_once_with(
+            "input-id-123", {"amount": 0, "manual_override": True}, SOCIETE
+        )
+
+    def test_la_saisie_generee_d_un_autre_salarie_n_est_pas_touchee(self):
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.get_by_id.return_value = {**GENEREE, "employee_id": "autre"}
+            commands.delete_employee_monthly_input("emp-456", "input-id-123", SOCIETE)
+
+        repo.update_by_id.assert_not_called()
+
+
+class TestSaisieCreeeALaMain:
+    """Une saisie créée sur /saisies est un choix de la RH : la génération des
+    variables ne doit pas l'écraser sous le même nom."""
+
+    def test_le_lot_porte_manual_override(self):
+        payload = [
+            MonthlyInput(employee_id="550e8400-e29b-41d4-a716-446655440000", year=2026, month=10, name="Prime", amount=100.0)
+        ]
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.insert_batch.return_value = [{"id": "x"}]
+            commands.create_monthly_inputs_batch(payload, SOCIETE)
+
+        assert repo.insert_batch.call_args[0][0][0]["manual_override"] is True
+
+    def test_la_saisie_d_un_salarie_porte_manual_override(self):
+        prime = MonthlyInputCreate(year=2026, month=10, name="Prime", amount=100.0)
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.insert_one.return_value = {}
+            commands.create_employee_monthly_input("emp-1", prime, SOCIETE)
+
+        assert repo.insert_one.call_args[0][0]["manual_override"] is True
 
 
 class TestUpdateMonthlyInput:
