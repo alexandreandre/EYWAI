@@ -96,14 +96,23 @@ export function PayrollPayslipRow({
   const perime = estPerime(payslip);
   const companyId = useActiveCompanyId();
   const netNegatif = (payslip?.net_a_payer ?? 0) < 0;
+  const valide = payslip?.status === 'valide';
+  const enAlerte = warnings.length > 0 || netNegatif;
+  const badgeValide = (
+    <Badge className="bg-emerald-600 text-white hover:bg-emerald-600" data-testid="badge-valide">
+      Validé
+    </Badge>
+  );
 
   const statusBadge =
     state.status === 'success' ? (
-      warnings.length > 0 || netNegatif ? (
+      enAlerte ? (
         <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
           <AlertTriangle className="mr-1 h-3 w-3" aria-hidden />
           Alerte
         </Badge>
+      ) : valide ? (
+        badgeValide
       ) : (
         <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
           Généré
@@ -130,6 +139,7 @@ export function PayrollPayslipRow({
   const meta = (
     <>
       {statusBadge}
+      {state.status === 'success' && enAlerte && valide ? badgeValide : null}
       {importe && (
         <Badge variant="outline" className="text-muted-foreground" title={MOTIF_BULLETIN_IMPORTE}>
           Importé

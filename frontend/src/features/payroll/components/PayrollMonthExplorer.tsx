@@ -42,6 +42,8 @@ export type EmployeeMonthState = {
   aRevoir?: boolean;
   /** Bulletin du mois précédent, pour la synthèse. */
   payslipPrecedent?: PayslipInfo;
+  /** Rien à revoir et pas encore validé : part avec « Valider les bulletins prêts ». */
+  pret?: boolean;
 };
 
 export type PayrollMonthExplorerProps = {
@@ -71,6 +73,8 @@ export type PayrollMonthExplorerProps = {
   /** N'afficher que les bulletins à revoir. */
   aRevoirSeulement?: boolean;
   onARevoirChange?: (actif: boolean) => void;
+  /** Bouton « Valider les bulletins prêts (n) ». */
+  actionValider?: ReactNode;
 };
 
 function matchesSearch(emp: EmployeeListItem, q: string): boolean {
@@ -103,6 +107,7 @@ export function PayrollMonthExplorer({
   synthese,
   aRevoirSeulement = false,
   onARevoirChange,
+  actionValider,
 }: PayrollMonthExplorerProps) {
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(true);
@@ -201,6 +206,7 @@ export function PayrollMonthExplorer({
           </SelectContent>
         </Select>
       </div>
+      {actionValider}
       {perimesCount > 0 && onRecalculerPerimes && (
         <Button
           size="sm"

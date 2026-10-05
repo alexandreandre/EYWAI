@@ -56,6 +56,8 @@ import {
   type Lecture,
 } from '@/features/payroll/utils/listeControleMois';
 import { lireParamsVuePaie, type VuePaie } from '@/features/payroll/utils/vuePaieUrl';
+import { estPretAValider } from '@/features/payroll/utils/validationGroupee';
+import { ValiderBulletinsPrets } from '@/features/payroll/components/ValiderBulletinsPrets';
 import {
   ecartAvecMoisPrecedent,
   estARevoir,
@@ -370,6 +372,12 @@ export default function Payroll() {
           alertes: rowState.warnings,
           ecart,
         }),
+        pret: estPretAValider({
+          statut: rowState.status,
+          bulletin: rowState.payslip,
+          alertes: rowState.warnings,
+          ecart,
+        }),
       };
     });
   }, [employees, payslipsByEmployee, selectedYear, selectedMonth, precedent, generationState]);
@@ -390,6 +398,21 @@ export default function Payroll() {
     [monthEmployeeStates, selectedYear, selectedMonth]
   );
   const [aRevoirSeulement, setARevoirSeulement] = useState(false);
+
+  const idsPretsAValider = useMemo(
+    () =>
+      monthEmployeeStates
+        .filter((row) => row.pret && row.state.payslip)
+        .map((row) => row.state.payslip!.id),
+    [monthEmployeeStates]
+  );
+  const nomParBulletin = useMemo(() => {
+    const noms: Record<string, string> = {};
+    for (const row of monthEmployeeStates) {
+      if (row.state.payslip) noms[row.state.payslip.id] = employeeDisplayName(row.employee);
+    }
+    return noms;
+  }, [monthEmployeeStates]);
 
   const monthMissingCount = useMemo(
     () => monthEmployeeStates.filter((row) => canGeneratePayslip(row.state)).length,
@@ -740,6 +763,16 @@ export default function Payroll() {
               synthese={loadingMonthData ? undefined : syntheseMois}
               aRevoirSeulement={aRevoirSeulement}
               onARevoirChange={setARevoirSeulement}
+              actionValider={
+                <ValiderBulletinsPrets
+                  idsPrets={loadingMonthData ? [] : idsPretsAValider}
+                  nomParBulletin={nomParBulletin}
+                  companyId={companyId}
+                  titreMois={monthYearLabel(selectedMonth, selectedYear)}
+                  disabled={generation.phase === 'running'}
+                  onTermine={() => invaliderApresBulletin(queryClient, companyId, undefined)}
+                />
+              }
             />
           </TabsContent>
         </Tabs>

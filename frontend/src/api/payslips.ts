@@ -576,6 +576,28 @@ export const ignoreAlert = async (payslipId: string, ruleId: string): Promise<vo
   );
 };
 
+/** POST /api/payslips/validate-batch : les validés, et les refusés avec leur raison. */
+export interface ValidationGroupeeResponse {
+  valides: string[];
+  refus: Array<{ payslip_id: string; raison: string }>;
+}
+
+/**
+ * Valide en une fois les bulletins prêts du mois. Chacun repasse par la règle
+ * de validation d'un seul ; un refus n'arrête pas le lot.
+ */
+export const validerBulletinsPrets = async (
+  payslipIds: string[],
+  companyId?: string | null
+): Promise<ValidationGroupeeResponse> => {
+  const response = await apiClient.post<ValidationGroupeeResponse>(
+    '/api/payslips/validate-batch',
+    { payslip_ids: payslipIds },
+    enTeteSociete(companyId)
+  );
+  return response.data;
+};
+
 /** Valide le bulletin (RH). Échoue en 400 si alertes critiques actives. */
 export const validatePayslip = async (
   payslipId: string,

@@ -44,7 +44,7 @@ export type LigneDuMois = {
   bulletin?: BulletinPourRevue;
   /** Alertes affichées sur la ligne (celles du bulletin et de la dernière génération). */
   alertes?: string[];
-  ecart?: EcartMoisPrecedent | null;
+  ecart?: Pick<EcartMoisPrecedent, 'fort'> | null;
 };
 
 export type SyntheseDuMois = {
