@@ -428,10 +428,17 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
         assiette, sal, pat, taux_sal, _ = _parts(ligne)
         montant = round(sal + pat, 2)
         total_retenu += montant
+        libelle_bas = libelle.lower()
         if coti_id == "crds":
             crds += montant
-        elif abs(taux_sal) > TAUX_CSG_DEDUCTIBLE + 1e-9 or coti_id == "csg_non_deductible":
-            # Ligne non déductible (2,90 % ou 9,70 %) : elle porte la CRDS.
+        elif (
+            coti_id == "csg_non_deductible"
+            or "non déductible" in libelle_bas
+            or "non deductible" in libelle_bas
+            or abs(taux_sal) > TAUX_CSG_DEDUCTIBLE + 1e-9
+        ):
+            # Ligne non déductible (2,90 % ou 9,70 %), celle de la participation
+            # comprise, qui n'a pas d'identifiant : elle porte la CRDS.
             crds += _arrondi(assiette * TAUX_CRDS)
         if assiette <= 0:
             continue
