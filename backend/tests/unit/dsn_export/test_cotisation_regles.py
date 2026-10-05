@@ -122,7 +122,7 @@ def test_les_deux_parts_du_decoupage_se_calculent_depuis_l_assiette():
 
 
 def test_reduction_generale_se_ventile_entre_018_et_106():
-    """La part retraite complémentaire vaut 6,01 / T, T = 39,80 % sous 50 salariés."""
+    """La part retraite complémentaire vaut 6,01 / T, T = 39,81 % sous 50 salariés."""
     _, cotisations, _ = _construire(
         [
             {"coti_id": "fnal", "base": 3000.0, "taux_patronal": 0.001, "montant_patronal": 3.0},
@@ -135,14 +135,14 @@ def test_reduction_generale_se_ventile_entre_018_et_106():
         ]
     )
     codes = _par_code(cotisations)
-    part_retraite = round(-400.0 * 0.0601 / 0.3980, 2)
+    part_retraite = round(-400.0 * 0.0601 / 0.3981, 2)
     assert codes["106"][1] == part_retraite
     assert codes["018"][1] == round(-400.0 - part_retraite, 2)
     assert round(codes["018"][1] + codes["106"][1], 2) == -400.0
 
 
 def test_le_coefficient_maximal_suit_le_taux_de_fnal():
-    """FNAL à 0,50 % ⇒ effectif d'au moins 50 ⇒ T = 40,20 %, donc une autre part."""
+    """FNAL à 0,50 % ⇒ effectif d'au moins 50 ⇒ T = 40,21 %, donc une autre part."""
     _, cotisations, _ = _construire(
         [
             {"coti_id": "fnal", "base": 3000.0, "taux_patronal": 0.005, "montant_patronal": 15.0},
@@ -154,7 +154,7 @@ def test_le_coefficient_maximal_suit_le_taux_de_fnal():
         ]
     )
     codes = _par_code(cotisations)
-    assert codes["106"][1] == round(-400.0 * 0.0601 / 0.4020, 2)
+    assert codes["106"][1] == round(-400.0 * 0.0601 / 0.4021, 2)
     # Et le FNAL déplafonné bascule sur la base 03.
     assert codes["049"][0] == "03"
 
@@ -458,6 +458,9 @@ def test_apec_se_declare_sans_identifiant_urssaf():
     apec = _ligne(cotisations, "132")
     assert "S21.G00.81.002" not in apec
     assert apec["S21.G00.81.004"] == "2.32"
+    # CT 2026 : assiette et taux « non concernés » pour l'Agirc-Arrco, comme 131.
+    assert "S21.G00.81.003" not in apec
+    assert apec["S21.G00.81.007"] == "0.000"
 
 
 def test_reduction_salariale_heures_sup_au_taux_legal_arrondi():

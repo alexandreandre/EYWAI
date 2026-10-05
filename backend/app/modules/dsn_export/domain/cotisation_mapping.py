@@ -28,6 +28,7 @@ La nomenclature des codes est publique : voir `nomenclature_cotisation.py`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_import.domain.model import (
@@ -76,9 +77,12 @@ TAUX_AF_BASE = 0.0345
 # points de coefficient (décret n°2025-887). La fraction vaut 6,01 / T, T étant
 # le coefficient maximal applicable à la société.
 POINTS_RETRAITE_COMPLEMENTAIRE = 0.0601
-# Coefficients maximaux 2026 (T = Tmin + Tdelta). Le FNAL distingue les deux.
-TMAX_FNAL_MOINS_50 = 0.3980
-TMAX_FNAL_50_ET_PLUS = 0.4020
+# Coefficients maximaux 2026 (T = Tmin + Tdelta) : Tmin 2 %, Tdelta 37,81 % ou
+# 38,21 % selon le FNAL — les valeurs de `payroll_config.reduction_generale`.
+# 39,80 / 40,20 décalaient la ventilation 018 / 106 de deux centimes sur
+# chaque salarié (rejeu de juin 2026 contre la DSN de l'ancien logiciel).
+TMAX_FNAL_MOINS_50 = 0.3981
+TMAX_FNAL_50_ET_PLUS = 0.4021
 # Le FNAL à 0,10 % est plafonné (base 02) et signale un effectif < 50.
 TAUX_FNAL_MOINS_50 = 0.001
 
@@ -86,6 +90,7 @@ TAUX_FNAL_MOINS_50 = 0.001
 # CSG (9,20 %) et CRDS (0,50 %).
 TAUX_CSG_TOTAL = 0.092
 TAUX_CRDS = 0.005
+TAUX_CSG_DEDUCTIBLE = 0.068
 # L'épargne salariale supporte CSG et CRDS d'un bloc, sans abattement.
 TAUX_CSG_EPARGNE = 0.097
 
@@ -200,6 +205,9 @@ class LigneDsn:
     affiliation_id: str = ""
     # Une ligne par affiliation ne se cumule pas avec une autre.
     distincte: bool = False
+    # Ne se cumule qu'avec une ligne de même taux, en additionnant les
+    # assiettes (forfait social : 8 % et 20 % restent deux lignes).
+    par_taux: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -344,9 +352,10 @@ def _fnal(assiette: float, montant: float, taux: float) -> List[LigneDsn]:
 def _reduction_generale(assiette: float, montant: float, tmax: float) -> List[LigneDsn]:
     """Ventile la réduction entre sécurité sociale (`018`) et retraite (`106`).
 
-    La fraction imputée sur la retraite complémentaire vaut 6,01 / T. Vérifiée
-    sur 216 salariés des DSN du cabinet : 0,1494 pour T = 40,20 % et 0,1510
-    pour T = 39,80 %.
+    La fraction imputée sur la retraite complémentaire vaut 6,01 / T, au
+    centime près sur les DSN de l'ancien logiciel (T = 39,81 % en 2026).
+    L'assiette déclarée est la rémunération brute (CCH-16), jamais le montant
+    de la réduction que les bulletins repris rangent dans la base de la ligne.
     """
     if tmax <= 0:
         return [LigneDsn(CODE_REDUCTION_GENERALE, BASE_BRUT_DEPLAFONNE, assiette, montant, 0.0)]
@@ -394,8 +403,17 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     systématiquement dégrade la conformité (136 lignes en trop contre 10 en
     moins) ; on suit donc l'usage majoritaire, et ces 10 salariés restent un
     écart connu.
+
+    Les montants sont ceux du bulletin, pas un recalcul : la CRDS s'arrondit
+    ligne à ligne (0,50 % de l'assiette de chaque ligne non déductible, ou le
+    montant d'une ligne de CRDS isolée), la CSG est le reste du total retenu.
+    072 + 079 égalent ainsi au centime ce que le salarié a payé — recalculer
+    9,20 % de l'assiette totale décalait un centime sur un tiers des salariés
+    (rejeu de juin 2026 : 143 lignes sur 146 justes au lieu de 96).
     """
     assiette_salaires = 0.0
+    total_retenu = 0.0
+    crds = 0.0
     vues: set = set()
 
     for ligne in lignes:
@@ -406,11 +424,16 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
         )
         if not est_csg:
             continue
-        assiette, _, _, _, _ = _parts(ligne)
+        assiette, sal, pat, taux_sal, _ = _parts(ligne)
+        montant = round(sal + pat, 2)
+        total_retenu += montant
+        if coti_id == "crds":
+            crds += montant
+        elif abs(taux_sal) > TAUX_CSG_DEDUCTIBLE + 1e-9 or coti_id == "csg_non_deductible":
+            # Ligne non déductible (2,90 % ou 9,70 %) : elle porte la CRDS.
+            crds += _arrondi(assiette * TAUX_CRDS)
         if assiette <= 0:
             continue
-        # Une même assiette porte la CSG déductible et la non déductible : ne la
-        # compter qu'une fois.
         # Une même assiette porte la CSG déductible et la non déductible : ne la
         # compter qu'une fois.
         cle = round(assiette, 2)
@@ -421,12 +444,13 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
 
     resultat: List[LigneDsn] = []
     if assiette_salaires > 0:
+        crds = round(crds, 2)
         resultat.append(
             LigneDsn(
                 CODE_CSG,
                 BASE_CSG,
                 round(assiette_salaires, 2),
-                round(assiette_salaires * TAUX_CSG_TOTAL, 2),
+                round(total_retenu - crds, 2),
                 TAUX_CSG_TOTAL,
             )
         )
@@ -435,11 +459,16 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
                 CODE_CRDS,
                 BASE_CSG,
                 round(assiette_salaires, 2),
-                round(assiette_salaires * TAUX_CRDS, 2),
+                crds,
                 TAUX_CRDS,
             )
         )
     return resultat
+
+
+def _arrondi(valeur: float) -> float:
+    """Arrondi commercial au centime (0,005 → 0,01), comme une paie."""
+    return float(Decimal(str(round(valeur, 6))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 # --------------------------------------------------------------------------
@@ -520,7 +549,7 @@ def _code_depuis_libelle(libelle: str) -> Optional[str]:
 
 
 def _traduire(
-    ligne: Dict[str, Any], tmax: float, assiette_heures_sup: float
+    ligne: Dict[str, Any], tmax: float, assiette_heures_sup: float, brut: float = 0.0
 ) -> List[LigneDsn]:
     """Lignes DSN produites par une ligne de bulletin, hors CSG/CRDS."""
     coti_id = str(ligne.get("coti_id") or "")
@@ -537,7 +566,7 @@ def _traduire(
     if coti_id == "fnal":
         return _fnal(assiette, montant, taux_pat or taux_sal)
     if coti_id == "reduction_generale":
-        return _reduction_generale(assiette, montant, tmax)
+        return _reduction_generale(round(brut, 2) if brut > 0 else assiette, montant, tmax)
     if coti_id == "deduction_hs_patronale":
         return _deduction_heures_supplementaires(ligne, assiette_heures_sup)
 
@@ -547,6 +576,33 @@ def _traduire(
         if code is None:
             return []
         regle = Regle(code, BASE_BRUT_DEPLAFONNE)
+
+    # Codes Agirc-Arrco (CT 2026, 81.002 / 81.003 / 81.007) : ni OPS, ni
+    # assiette, ni taux hors réduction — le montant seul, comme le 131.
+    if regle.code in CODES_AGIRC_ARRCO_MONTANT_SEUL and not regle.code_patronal:
+        return [LigneDsn(regle.code, regle.base, 0.0, montant, 0.0)] if montant else []
+
+    # Forfait social : une ligne par taux (8 % prévoyance, 20 % retraite
+    # supplémentaire…), chacune avec son assiette. La fusion donnait un 071 à
+    # 28 % sur la plus grande des deux assiettes.
+    if regle.base == BASE_FORFAIT_SOCIAL:
+        if not montant and not assiette:
+            return []
+        return [
+            LigneDsn(
+                regle.code,
+                regle.base,
+                assiette,
+                montant,
+                abs(round(taux_sal + taux_pat, 6)),
+                par_taux=True,
+            )
+        ]
+
+    # Réduction salariale sur heures supplémentaires : le bulletin porte le
+    # taux effectif (11,3093 %), la DSN le taux arrondi au centième (11,310).
+    if regle.code == "114" and assiette:
+        return [LigneDsn(regle.code, regle.base, assiette, montant, round(abs(montant) / assiette, 4))]
 
     # Agirc-Arrco : le code générique porte le **total** de la cotisation, et la
     # part patronale est redéclarée à part, par tranche. Vérifié salarié par
@@ -604,19 +660,22 @@ def _taux_dsn(taux_fraction: float) -> str:
 
 def _cumuler(lignes: List[LigneDsn]) -> List[LigneDsn]:
     """Fusionne les lignes de même code et même base, sauf celles marquées distinctes."""
-    cumulees: Dict[Tuple[str, str], LigneDsn] = {}
+    cumulees: Dict[Tuple[str, str, Optional[float]], LigneDsn] = {}
     ordre: List[LigneDsn] = []
     for ligne in lignes:
         if ligne.distincte:
             ordre.append(ligne)
             continue
-        cle = (ligne.base, ligne.code)
+        cle = (ligne.base, ligne.code, round(ligne.taux, 6) if ligne.par_taux else None)
         existante = cumulees.get(cle)
         if existante is None:
             cumulees[cle] = ligne
             ordre.append(ligne)
             continue
         existante.montant = round(existante.montant + ligne.montant, 2)
+        if ligne.par_taux:
+            existante.assiette = round(existante.assiette + ligne.assiette, 2)
+            continue
         existante.assiette = max(existante.assiette, ligne.assiette)
         existante.taux = round(existante.taux + ligne.taux, 6)
     return ordre
@@ -624,8 +683,13 @@ def _cumuler(lignes: List[LigneDsn]) -> List[LigneDsn]:
 
 #: Codes que le cabinet déclare sans identifiant OPS (S21.G00.81.002) : la
 #: cotisation individuelle Prévoyance (059) le refuse même — CCH-11 — et les
-#: réductions 106 / 131 sortent nues dans toutes les DSN acceptées.
-CODES_SANS_OPS = {"059", "106", "131"}
+#: codes recouvrés par l'Agirc-Arrco (106, 131, 132 Apec) sont « non
+#: concernés » par l'OPS au CT 2026. 142 et 146 sont, eux, des codes Urssaf.
+CODES_SANS_OPS = {"059", "106", "131", "132"}
+
+#: Codes Agirc-Arrco déclarés par leur seul montant (assiette et taux « non
+#: concernés » au CT 2026 hors réduction) — le 131 l'était déjà.
+CODES_AGIRC_ARRCO_MONTANT_SEUL = {"132"}
 
 
 def build_bases_and_cotisations(
@@ -662,7 +726,7 @@ def build_bases_and_cotisations(
             continue  # traitées en bloc plus bas
         if coti_id in COTI_ID_NON_INDIVIDUELS:
             continue  # déclarées au niveau de l'établissement, pas du salarié
-        traduites = _traduire(ligne, tmax, assiette_hs)
+        traduites = _traduire(ligne, tmax, assiette_hs, brut)
         if traduites:
             produites.extend(traduites)
             continue
@@ -685,7 +749,12 @@ def build_bases_and_cotisations(
     for ligne in produites:
         if ligne.base == BASE_PREVOYANCE:
             continue
-        if ligne.assiette:
+        if ligne.par_taux:
+            # Base du forfait social : la somme des assiettes, une par taux.
+            montants_base[ligne.base] = round(
+                montants_base.get(ligne.base, 0.0) + ligne.assiette, 2
+            )
+        elif ligne.assiette:
             montants_base[ligne.base] = max(
                 montants_base.get(ligne.base, 0.0), round(ligne.assiette, 2)
             )
