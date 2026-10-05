@@ -229,6 +229,35 @@ def test_participation_d_un_bulletin_repris_lue_dans_les_elements_non_soumis():
     assert [b[:2] for b in blocs] == [("11", "1752.57"), ("37", "1752.57")]
 
 
+def _blocs_52(lignes) -> List[Tuple[str, str]]:
+    sortie = []
+    for rubrique, valeur in lignes:
+        if rubrique == "S21.G00.52.001":
+            sortie.append([valeur])
+        elif rubrique == "S21.G00.52.002":
+            sortie[-1].append(valeur)
+    return [tuple(b) for b in sortie]
+
+
+def test_prime_de_partage_de_la_valeur_exoneree_en_52_904():
+    """Moins de 50 salariés : PPV exonérée et non imposable, hors brut (CT 52.001 = 904)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["primes_non_soumises"] = [
+        {"libelle": "Prime de partage de la valeur (PPV)", "montant": 100.0, "prime_id": "prime_partage_valeur"},
+        {"libelle": "Prime de transport (carburant / frais de trajet)", "montant": 100.0, "prime_id": "prime_transport"},
+    ]
+    assert _blocs_52(_lignes(bulletin=bulletin, periode="2026-09")) == [("904", "100.00")]
+
+
+def test_prime_de_partage_de_la_valeur_imposable_en_52_905():
+    """50 salariés et plus : exonérée socialement mais imposable (905)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["revenus_hors_brut_imposables"] = [
+        {"libelle": "Prime de partage de la valeur (PPV)", "montant": 250.0, "prime_id": "prime_partage_valeur"}
+    ]
+    assert _blocs_52(_lignes(bulletin=bulletin, periode="2026-09")) == [("905", "250.00")]
+
+
 def test_cdd_a_terme_imprecis_sans_taux_dgfip_porte_l_identifiant_moins_un():
     """CT 50.008 : CDD de deux mois au plus ou à terme imprécis → « -1 »."""
     salarie = {
