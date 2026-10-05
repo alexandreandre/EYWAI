@@ -477,6 +477,51 @@ def test_un_bulletin_valide_reste_signale_quand_sa_mutuelle_change():
     assert _annoter(_lectures(modifiee), valide)["a_recalculer"] is True
 
 
+# --- Un réglage de la société changé : seulement les brouillons -----------------
+#
+# Taux AT notifié, effectif de l'année écoulée, journée de solidarité : ils se
+# saisissent en janvier pour la nouvelle année, et les réglages ne sont pas
+# datés. Un bulletin validé de l'année close n'a pas à repasser « À recalculer » :
+# le recalculer lui appliquerait les valeurs de la nouvelle année.
+
+SOCIETE_REGLEE_EN_JANVIER = {
+    **COMPANY,
+    "taux_at_mp": 2.9,
+    "effectif": 21,
+    "settings": {
+        **COMPANY["settings"],
+        "jour_solidarite": "2027-05-17",
+        "parametres_paie": {"prime_anciennete": {"valeur_point_override": 5.1}},
+    },
+}
+
+
+def test_un_reglage_de_la_societe_change_signale_un_brouillon():
+    ligne = _annoter(_lectures(company=SOCIETE_REGLEE_EN_JANVIER), _genere())
+    assert ligne["a_recalculer"] is True
+    assert "réglage de paie de la société" in ligne["raison_a_recalculer"]
+
+
+def test_un_reglage_de_la_societe_change_ne_signale_pas_un_bulletin_valide():
+    valide = {**_genere(), "status": "valide"}
+    ligne = _annoter(_lectures(company=SOCIETE_REGLEE_EN_JANVIER), valide)
+    assert ligne["a_recalculer"] is False
+    assert ligne["raison_a_recalculer"] is None
+
+
+def test_un_bulletin_valide_reste_signale_quand_son_planning_change():
+    valide = {**_genere(), "status": "valide"}
+    calendriers = {
+        **CALENDRIERS,
+        (2026, 5): {
+            "planned_calendar": {"calendrier_prevu": [{"jour": 12, "type": "travail", "heures": 7}]},
+            "actual_hours": {"calendrier_reel": [{"jour": 12, "type": "travail", "heures": 9}]},
+        },
+    }
+    ligne = _annoter(_lectures(company=SOCIETE_REGLEE_EN_JANVIER, calendriers=calendriers), valide)
+    assert ligne["a_recalculer"] is True
+
+
 def test_un_bulletin_d_un_ancien_contrat_n_est_jamais_signale():
     """Réembauche en juillet : mai appartient au contrat d'avant, il ne se recalcule plus."""
     reembauche = {**EMPLOYEE, "hire_date": "2026-07-01"}
