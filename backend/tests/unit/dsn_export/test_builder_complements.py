@@ -165,6 +165,24 @@ def test_salaire_retabli_d_un_mois_d_entree_reconstitue_le_mois_complet():
     assert remunerations["001"] == "689.36"
 
 
+def test_absence_injustifiee_hors_salaire_retabli_mais_dans_la_remuneration_habituelle():
+    """L'ancien logiciel (juin) : 003 = 001 malgré trois absences injustifiées,
+    029 les réintègre (1 934,45 + 3 × 90,68 + 38,86 = 2 245,35)."""
+    bulletin = copy.deepcopy(BULLETIN)
+    bulletin["salaire_brut"] = 1934.45
+    bulletin["calcul_du_brut"] = [
+        {"libelle": "Salaire de base", "quantite": 151.67, "taux": 12.954, "gain": 1964.73},
+        {"libelle": "Heures suppl. structurelles majorées à 25%", "quantite": 17.33, "taux": 16.1925, "gain": 280.62},
+        {"libelle": "Abs. Abs injustifiée 040626", "quantite": 7.0, "perte": 90.68},
+        {"libelle": "Abs. Abs injustifiée 110626", "quantite": 7.0, "perte": 90.68},
+        {"libelle": "Abs. Abs injustifiée 150626", "quantite": 7.0, "perte": 90.68},
+        {"libelle": "Réduction HS structurelles (jours d'absence)", "quantite": 2.4, "perte": 38.86},
+    ]
+    remunerations = _remunerations(_lignes(bulletin=bulletin))
+    assert remunerations["003"] == "1934.45"
+    assert remunerations["029"] == "2245.35"
+
+
 def test_cdd_a_terme_imprecis_sans_taux_dgfip_porte_l_identifiant_moins_un():
     """CT 50.008 : CDD de deux mois au plus ou à terme imprécis → « -1 »."""
     salarie = {
