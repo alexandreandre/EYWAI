@@ -404,6 +404,7 @@ def _make_entry(
     analytique: Optional[str] = None,
     group_key: str = "global",
     nature: Optional[str] = None,
+    compte_lib: Optional[str] = None,
 ) -> Dict[str, Any]:
     entry = {
         "date_ecriture": date_ecriture,
@@ -419,6 +420,8 @@ def _make_entry(
     }
     if nature:
         entry["nature"] = nature
+    if compte_lib:
+        entry["compte_lib"] = compte_lib
     return entry
 
 
@@ -767,6 +770,7 @@ def build_payroll_ledger(
                 analytique=analytique,
                 group_key=grp,
                 nature=nature,
+                compte_lib=libelle,
             )
         )
         composante = _composante(nature, montant)

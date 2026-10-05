@@ -87,3 +87,123 @@ class TestFormatCabinet:
 
         assert format_libelle_ecriture("2025-10") == "Salaire de 10/2025"
         assert format_libelle_ecriture("2026-06") == "Salaire de 06/2026"
+
+
+ECRITURE_NET = {
+    "date_ecriture": "2026-09-30",
+    "journal": "PAI",
+    "compte_comptable": "42100000",
+    "libelle": "Net à payer Septembre 2026",
+    "debit": 0.0,
+    "credit": 13159.38,
+    "periode_paie": "2026-09",
+    "reference_export": "OD_PAIE_2026-09",
+}
+
+
+class TestFichierQuadra:
+    """Fichier d'entrée ASCII de QuadraCOMPTA, enregistrement M (spécification
+    Cegid) : compte en 2, journal en 10, folio, date JJMMAA, sens en 42,
+    montant en centimes signé en 43. Le format précédent (journal en tête,
+    date AAAAMMJJ, débit et crédit en euros) ne s'importait pas."""
+
+    def test_ligne_aux_positions_de_la_specification(self):
+        from app.modules.exports.infrastructure.export_formats_cabinet import (
+            _format_quadra_line,
+        )
+
+        ligne = _format_quadra_line(ECRITURE_NET)
+        assert len(ligne) == 146
+        assert ligne[0] == "M"
+        assert ligne[1:9] == "42100000"
+        assert ligne[9:11] == "PA"
+        assert ligne[11:14] == "000"
+        assert ligne[14:20] == "300926"
+        assert ligne[21:41] == "Salaire de 09/2026  "
+        assert ligne[41] == "C"
+        assert ligne[42:55] == "+000001315938"
+        assert ligne[99:107] == "PAIE0926"
+        assert ligne[107:110] == "EUR"
+        assert ligne[110:113] == "PAI"
+        assert ligne[116:146] == "Net à payer Septembre 2026".ljust(30)
+
+    def test_compte_court_complete_a_huit_chiffres(self):
+        from app.modules.exports.infrastructure.export_formats_cabinet import (
+            _format_quadra_line,
+        )
+
+        ligne = _format_quadra_line({**ECRITURE_NET, "compte_comptable": "641000", "debit": 1.0, "credit": 0.0})
+        assert ligne[1:9] == "64100000"
+        assert ligne[41] == "D"
+        assert ligne[42:55] == "+000000000100"
+
+    def test_compte_trop_long_refuse_plutot_que_tronque(self):
+        from app.modules.exports.infrastructure.export_formats_cabinet import (
+            _format_quadra_line,
+        )
+
+        with pytest.raises(ValueError, match="8 caractères"):
+            _format_quadra_line({**ECRITURE_NET, "compte_comptable": "421000001"})
+
+    def test_fichier_relu_au_centime(self, monkeypatch):
+        from app.modules.exports.infrastructure import export_formats_cabinet as cabinet
+
+        ecritures = [
+            {**ECRITURE_NET, "compte_comptable": "641000", "libelle": "Salaires Septembre 2026",
+             "debit": 15944.12, "credit": 0.0},
+            {**ECRITURE_NET, "credit": 13159.38},
+            {**ECRITURE_NET, "compte_comptable": "431000", "libelle": "Dette URSSAF — Septembre 2026",
+             "credit": 2784.74},
+        ]
+        monkeypatch.setattr(
+            cabinet,
+            "build_payroll_ledger",
+            lambda *a, **k: (ecritures, {"equilibre": True, "anomalies": []}, {}),
+        )
+        contenu = cabinet.generate_cabinet_quadra_export("societe", "2026-09")
+        lignes = contenu.decode("latin-1").split("\r\n")
+        assert lignes[-1] == ""
+        debit = credit = 0
+        for ligne in lignes[:-1]:
+            centimes = int(ligne[42:55])
+            if ligne[41] == "D":
+                debit += centimes
+            else:
+                credit += centimes
+        assert debit == credit == 1594412
+
+
+class TestFecConforme:
+    """BOI-CF-IOR-60-40-20 : montants à la virgule décimale (« 96,28 »,
+    « 0,00 ») ; CompteLib est l'intitulé du compte, pas le libellé de
+    l'écriture."""
+
+    def _rows(self, monkeypatch):
+        from app.modules.exports.infrastructure import export_fec
+
+        ecritures = [
+            {**ECRITURE_NET, "compte_comptable": "641000", "libelle": "Salaires Septembre 2026",
+             "compte_lib": "Salaires", "debit": 100.5, "credit": 0.0},
+            {**ECRITURE_NET, "compte_comptable": "421000", "libelle": "Net à payer Septembre 2026",
+             "compte_lib": "Net à payer", "credit": 80.5},
+            {**ECRITURE_NET, "compte_comptable": "421000", "libelle": "Régularisations du net Septembre 2026",
+             "compte_lib": "Régularisations du net", "credit": 20.0},
+        ]
+        monkeypatch.setattr(
+            export_fec,
+            "build_payroll_ledger",
+            lambda *a, **k: (ecritures, {"equilibre": True, "anomalies": []}, {}),
+        )
+        rows, _, _ = export_fec.build_fec_rows("societe", "2026-09")
+        return rows
+
+    def test_montants_a_la_virgule(self, monkeypatch):
+        rows = self._rows(monkeypatch)
+        assert rows[0]["Debit"] == "100,50"
+        assert rows[0]["Credit"] == "0,00"
+
+    def test_comptelib_intitule_du_compte_identique_sur_toutes_ses_lignes(self, monkeypatch):
+        rows = self._rows(monkeypatch)
+        assert rows[0]["CompteLib"] == "Salaires"
+        assert {r["CompteLib"] for r in rows if r["CompteNum"] == "421000"} == {"Net à payer"}
+        assert rows[2]["EcritureLib"] == "Régularisations du net Septembre 2026"

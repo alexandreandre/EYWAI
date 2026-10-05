@@ -203,6 +203,14 @@ class TestOdComplete:
         net = _par_compte(ecritures)["421000"]
         assert net == (0.0, 1926.31)
 
+    def test_chaque_ligne_porte_l_intitule_de_son_compte(self):
+        """Le FEC en a besoin (CompteLib) : le libellé sans la période."""
+        ecritures, _, _ = _construire([_ligne("B", _bulletin_de_sortie())])
+        intitules = {e["compte_comptable"]: e["compte_lib"] for e in ecritures}
+        assert intitules["421000"] == "Net à payer"
+        assert intitules["431000"] == "Dette URSSAF"
+        assert intitules["641400"] == "Indemnités de rupture"
+
     def test_un_seul_journal_celui_de_la_societe(self):
         mappings = dict(MAPPINGS_PLATEFORME)
         mappings["salaire_brut"] = {**mappings["salaire_brut"], "journal": "PAI"}

@@ -45,6 +45,11 @@ def _fec_date(period: str, date_ecriture: Optional[str] = None) -> str:
     return f"{year:04d}{month:02d}{last_day:02d}"
 
 
+def _montant_fec(valeur: Any) -> str:
+    """Montant à la virgule décimale, comme les exemples du BOI-CF-IOR-60-40-20."""
+    return f"{float(valeur or 0):.2f}".replace(".", ",")
+
+
 def build_fec_rows(
     company_id: str,
     period: str,
@@ -58,6 +63,14 @@ def build_fec_rows(
     # Un FEC déséquilibré est rejeté à l'import : autant refuser de le produire.
     assert_ledger_balanced(od_totals)
     ecritures = ledger_to_od_export_rows(ecritures_raw)
+    # CompteLib est l'intitulé du compte, le même sur toutes ses lignes : celui
+    # de sa première ligne dans l'OD (« Net à payer » pour le 421).
+    intitule_du_compte: Dict[str, str] = {}
+    for brute in ecritures_raw:
+        intitule_du_compte.setdefault(
+            str(brute.get("compte_comptable", "")),
+            str(brute.get("compte_lib") or brute.get("libelle") or ""),
+        )
     fec_date = _fec_date(period, date_ecriture)
     valid_date = datetime.now().strftime("%Y%m%d")
     ecriture_num = f"PAIE{period.replace('-', '')}"
@@ -75,14 +88,14 @@ def build_fec_rows(
                 "EcritureNum": ecriture_num,
                 "EcritureDate": fec_date,
                 "CompteNum": compte,
-                "CompteLib": str(e.get("libelle", ""))[:50],
+                "CompteLib": intitule_du_compte.get(compte, "")[:50],
                 "CompAuxNum": "",
                 "CompAuxLib": "",
                 "PieceRef": piece_ref,
                 "PieceDate": fec_date,
                 "EcritureLib": str(e.get("libelle", ""))[:200],
-                "Debit": f"{float(e.get('debit', 0) or 0):.2f}",
-                "Credit": f"{float(e.get('credit', 0) or 0):.2f}",
+                "Debit": _montant_fec(e.get("debit")),
+                "Credit": _montant_fec(e.get("credit")),
                 "EcritureLet": "",
                 "DateLet": "",
                 "ValidDate": valid_date,

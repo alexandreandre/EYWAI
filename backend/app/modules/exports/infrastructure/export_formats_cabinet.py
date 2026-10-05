@@ -68,16 +68,60 @@ def generate_cabinet_generic_export(
     return generate_csv(data, headers)
 
 
+def _compte_quadra(compte: str) -> str:
+    """Compte sur 8 caractères : un compte général plus court est complété à
+    droite par des zéros (641000 → 64100000), comme dans un dossier à 8
+    chiffres ; un compte plus long est refusé, jamais tronqué."""
+    compte = compte.strip()
+    if len(compte) > 8:
+        raise ValueError(
+            f"Compte {compte} : QuadraCOMPTA n'accepte que 8 caractères. "
+            "Corrigez-le dans Exports > Comptes comptables."
+        )
+    return compte.ljust(8, "0") if compte.isdigit() else compte.ljust(8)
+
+
 def _format_quadra_line(ecriture: Dict[str, Any]) -> str:
-    """Format ASCII Quadra/Cegid — enregistrement M (mouvement)."""
-    date_str = str(ecriture["date_ecriture"]).replace("-", "")
-    journal = str(ecriture.get("journal", "OD"))[:3].ljust(3)
-    compte = str(ecriture.get("compte_comptable", ""))[:8].ljust(8)
-    libelle = str(ecriture.get("libelle", ""))[:30].ljust(30)
-    debit = f"{float(ecriture.get('debit', 0) or 0):015.2f}"
-    credit = f"{float(ecriture.get('credit', 0) or 0):015.2f}"
-    analytique = str(ecriture.get("analytique") or "")[:6].ljust(6)
-    return f"M{journal}{date_str}{compte}{libelle}{debit}{credit}{analytique}"
+    """Enregistrement M du fichier d'entrée ASCII de QuadraCOMPTA (146 caractères).
+
+    Positions de la spécification Cegid : type (1), compte (2, 8), journal sur
+    2 (10), folio « 000 » (12), date JJMMAA (15), code libellé (21), libellé
+    libre sur 20 (22), sens D/C (42), montant en centimes signé (43, 13),
+    contrepartie, échéance, lettrage, statistiques, pièce sur 5, affaire,
+    quantité (blancs), pièce sur 8 (100), devise (108), journal sur 3 (111),
+    TVA (114, blancs), libellé de l'écriture sur 30 (117).
+    """
+    annee, mois, jour = str(ecriture["date_ecriture"])[:10].split("-")
+    periode = str(ecriture.get("periode_paie") or f"{annee}-{mois}")
+    journal = str(ecriture.get("journal") or "OD")
+    debit = round(float(ecriture.get("debit", 0) or 0), 2)
+    credit = round(float(ecriture.get("credit", 0) or 0), 2)
+    sens, montant = ("D", debit) if debit else ("C", credit)
+    centimes = int(round(montant * 100))
+    return (
+        "M"
+        + _compte_quadra(str(ecriture.get("compte_comptable", "")))
+        + journal[:2].ljust(2)
+        + "000"
+        + f"{jour}{mois}{annee[2:]}"
+        + " "
+        + format_libelle_ecriture(periode)[:20].ljust(20)
+        + sens
+        + ("-" if centimes < 0 else "+")
+        + f"{abs(centimes):012d}"
+        + " " * 8  # compte de contrepartie
+        + " " * 6  # date d'échéance
+        + " " * 2  # lettrage
+        + " " * 3  # statistiques
+        + " " * 5  # pièce sur 5
+        + " " * 10  # affaire
+        + " " * 10  # quantité
+        + format_piece_reference(periode)[:8].ljust(8)
+        + "EUR"
+        + journal[:3].ljust(3)
+        + " " * 3  # TVA
+        + str(ecriture.get("libelle", ""))[:30].ljust(30)
+    )
 
 
 def generate_cabinet_quadra_export(
@@ -89,6 +133,9 @@ def generate_cabinet_quadra_export(
     all_ecritures = _ledger_ecritures(company_id, period, employee_ids)
     lines = [_format_quadra_line(e) for e in all_ecritures]
     content = "\r\n".join(lines) + "\r\n"
+    # QuadraCOMPTA lit l'ANSI : tirets et apostrophes typographiques remplacés
+    # caractère pour caractère, la largeur des zones est conservée.
+    content = content.translate({ord("—"): "-", ord("–"): "-", ord("’"): "'"})
     return content.encode("latin-1", errors="replace")
 
 
