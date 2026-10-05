@@ -683,6 +683,15 @@ def _hash_ou_none(valeur: Any) -> str | None:
     return valeur if isinstance(valeur, str) and valeur else None
 
 
+#: Ce qu'un bulletin validé ignore : la fiche et les réglages de paie de la
+#: société sont ceux d'aujourd'hui, pas ceux du mois. Les réglages ne sont pas
+#: datés (taux AT, effectif, journée de solidarité se saisissent en janvier pour
+#: la nouvelle année) : les suivre périmerait tous les bulletins validés de
+#: l'année close, et les recalculer leur appliquerait les valeurs de l'année
+#: suivante. Seul le filtre change : le contenu haché reste le même.
+_PARTIES_IGNOREES_SI_VALIDE = frozenset({PARTIE_FICHE, "parametres_societe", "reglages_societe"})
+
+
 def _etats_par_mois(
     lectures: LecturesEmpreinte | None, lignes: Iterable[Mapping[str, Any]]
 ) -> dict[tuple[int, int], EtatDuBulletin]:
@@ -694,7 +703,8 @@ def _etats_par_mois(
     repris, à un mois sans bulletin et au premier mois d'un contrat.
 
     Un mois d'un ancien contrat n'est jamais signalé (il ne se recalcule
-    plus) ; un bulletin validé ne l'est pas pour une fiche modifiée depuis.
+    plus) ; un bulletin validé ne l'est pas pour une fiche ou un réglage de
+    paie de la société modifiés depuis.
     """
     etats: dict[tuple[int, int], EtatDuBulletin] = {}
     for ligne in sorted(lignes, key=lambda l: (int(l["year"]), int(l["month"]))):
@@ -707,8 +717,8 @@ def _etats_par_mois(
             # Un ancien contrat : son bulletin ne se recalcule plus, rien à dire.
             etats[periode] = EtatDuBulletin()
             continue
-        #: Validé : une fiche modifiée depuis (elle est celle d'aujourd'hui) ne
-        #: le remet pas en cause ; le reste, si.
+        #: Validé : une fiche ou un réglage de la société modifiés depuis (ils
+        #: sont ceux d'aujourd'hui) ne le remettent pas en cause ; le reste, si.
         valide = str(ligne.get("status") or "") == "valide"
         try:
             entrees, parties = _parties_du_mois(lectures, annee, mois)
@@ -729,7 +739,7 @@ def _etats_par_mois(
             # par partie (elle contient celles de l'empreinte d'entrée).
             changees: tuple[str, ...] | None = parties_changees(stockees, parties)
             if valide:
-                changees = tuple(p for p in changees if p != PARTIE_FICHE)
+                changees = tuple(p for p in changees if p not in _PARTIES_IGNOREES_SI_VALIDE)
             entrees_changees: bool | None = bool(changees)
         else:
             # Bulletin d'avant elle : l'empreinte d'entrée seule, comme avant.
