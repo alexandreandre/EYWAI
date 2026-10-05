@@ -404,6 +404,74 @@ class TestUpdateEmployeeExit:
         assert "requalifié" in exc_info.value.detail
         mock_repo.update.assert_not_called()
 
+    @patch("app.modules.employee_exits.application.commands.get_employee_full")
+    @patch("app.modules.employee_exits.application.commands.get_indemnity_calculator")
+    def test_montant_negocie_recalcule_le_dossier_sans_colonne_dediee(
+        self, mock_calculator_provider, mock_get_employee_full, mock_repo_class
+    ):
+        """Le montant négocié d'une rupture conventionnelle se saisit sur le
+        départ : il passe au calcul, qui le range dans le dossier
+        d'indemnités (suivi par l'empreinte du bulletin), jamais dans une
+        colonne qui n'existe pas."""
+        existing = _make_exit_record(
+            status="rupture_validee", exit_type="rupture_conventionnelle"
+        )
+        indemnities = {
+            "indemnite_rupture_conventionnelle": {"montant_negocie": 15000.0},
+            "indemnite_conges": {"jours_restants": 3},
+            "total_net_indemnities": 15000.0,
+        }
+        mock_calculator = MagicMock()
+        mock_calculator.calculate.return_value = indemnities
+        mock_calculator_provider.return_value = mock_calculator
+        mock_get_employee_full.return_value = {"id": EMPLOYEE_ID}
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo.update.side_effect = lambda _exit_id, _company_id, data: {
+            **existing,
+            **data,
+        }
+        mock_repo_class.return_value = mock_repo
+
+        result = update_employee_exit(
+            EXIT_ID, COMPANY_ID, {"montant_negocie": 15000.0}, supabase_client=MagicMock()
+        )
+
+        contexte = mock_calculator.calculate.call_args.args[1]
+        assert contexte["montant_negocie"] == 15000.0
+        ecrit = mock_repo.update.call_args.args[2]
+        assert "montant_negocie" not in ecrit
+        assert ecrit["calculated_indemnities"] == indemnities
+        assert ecrit["final_net_amount"] == 15000.0
+        assert result["status"] == "rupture_validee"
+
+    def test_montant_negocie_refuse_hors_rupture_conventionnelle(self, mock_repo_class):
+        existing = _make_exit_record(status="demission_recue", exit_type="demission")
+        mock_repo = MagicMock()
+        mock_repo.get_by_id.return_value = existing
+        mock_repo_class.return_value = mock_repo
+
+        with pytest.raises(EmployeeExitApplicationError) as exc_info:
+            update_employee_exit(
+                EXIT_ID, COMPANY_ID, {"montant_negocie": 1000.0}, supabase_client=MagicMock()
+            )
+        assert exc_info.value.status_code == 400
+        assert "rupture conventionnelle" in exc_info.value.detail
+        mock_repo.update.assert_not_called()
+
+
+def test_le_schema_de_mise_a_jour_accepte_le_montant_negocie():
+    from app.modules.employee_exits.schemas.requests import EmployeeExitUpdate
+
+    assert EmployeeExitUpdate(montant_negocie=15000.0).model_dump(exclude_unset=True) == {
+        "montant_negocie": 15000.0
+    }
+    assert EmployeeExitUpdate(montant_negocie=None).model_dump(exclude_unset=True) == {
+        "montant_negocie": None
+    }
+    with pytest.raises(ValueError):
+        EmployeeExitUpdate(montant_negocie=-1)
+
 
 @patch(
     "app.modules.employee_exits.application.commands.update_employee_employment_status"
