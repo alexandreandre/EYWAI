@@ -8,12 +8,16 @@ import {
   ETAPE_BULLETINS,
   ETAPE_CALENDRIERS,
   ETAPE_CONFLITS,
+  ETAPE_DECLARATIONS,
   ETAPE_RIB,
   ETAPE_SORTIES,
+  ETAPE_VALIDES,
   MESSAGE_ABSENCES_A_CONFIRMER,
   lectureCalendriersASaisir,
   lectureConflitsArret,
   listeControleDuMois,
+  phraseListeControle,
+  type ExportPourControle,
   type EntreeListeControle,
   type Lecture,
 } from './listeControleMois';
@@ -37,18 +41,32 @@ const PAUL = {
   hire_date: '2019-03-01',
 };
 
+function exportFait(export_type: string, overrides: Partial<ExportPourControle> = {}): ExportPourControle {
+  return {
+    export_type,
+    status: 'generated',
+    generated_at: '2026-10-04T09:00:00Z',
+    a_refaire: false,
+    ...overrides,
+  };
+}
+
+const DSN = exportFait('dsn_mensuelle');
+const COMPTA = exportFait('od_globale');
+
 function entree(overrides: Partial<EntreeListeControle> = {}): EntreeListeControle {
   return {
     year: 2026,
     month: 9,
     salaries: [JEANNE, PAUL],
     bulletinsParSalarie: OK({
-      'e-1': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule' }],
-      'e-2': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule' }],
+      'e-1': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule', status: 'valide' }],
+      'e-2': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule', status: 'valide' }],
     }),
     departs: OK([]),
     calendriersASaisir: OK([]),
     conflitsArret: OK([]),
+    exportsDuMois: OK([DSN, COMPTA]),
     ...overrides,
   };
 }
@@ -281,6 +299,106 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
     expect(etape(resultat, ETAPE_BULLETINS).etat).toBe('fait');
     expect(etape(resultat, ETAPE_SORTIES).etat).toBe('fait');
     expect(etape(resultat, ETAPE_RIB).etat).toBe('fait');
+  });
+});
+
+describe('« c’est fini » : bulletins validés, DSN et export comptable faits — revue du 05/10', () => {
+  it('tous les bulletins validés : fait', () => {
+    expect(etape(listeControleDuMois(entree()), ETAPE_VALIDES).etat).toBe('fait');
+  });
+
+  it('un brouillon ou un bulletin manquant reste à valider', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        bulletinsParSalarie: OK({
+          'e-1': [{ year: 2026, month: 9, a_recalculer: false, origine: 'calcule', status: 'brouillon' }],
+        }),
+      })
+    );
+    const valides = etape(resultat, ETAPE_VALIDES);
+    expect(valides.etat).toBe('a_faire');
+    expect(valides.detail).toBe('2 bulletins restent à valider.');
+    const action = resultat.actions.find((a) => a.id === ETAPE_VALIDES);
+    expect(action?.href).toBe('/payroll?view=month&month=2026-09');
+    expect(action?.ensuite).toContain('Valider les bulletins prêts');
+  });
+
+  it('un bulletin repris de l’ancien logiciel ne se valide pas : il compte comme fait', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        bulletinsParSalarie: OK({
+          'e-1': [{ year: 2026, month: 9, origine: 'importe', status: null }],
+          'e-2': [{ year: 2026, month: 9, origine: 'calcule', status: 'valide' }],
+        }),
+      })
+    );
+    expect(etape(resultat, ETAPE_VALIDES).etat).toBe('fait');
+  });
+
+  it('bulletins illisibles : validés à confirmer, jamais cochés', () => {
+    expect(etape(listeControleDuMois(entree({ bulletinsParSalarie: ERREUR })), ETAPE_VALIDES).etat).toBe(
+      'a_confirmer'
+    );
+  });
+
+  it('DSN et export comptable du mois générés : fait', () => {
+    expect(etape(listeControleDuMois(entree()), ETAPE_DECLARATIONS).etat).toBe('fait');
+    const quadra = listeControleDuMois(
+      entree({ exportsDuMois: OK([DSN, exportFait('export_cabinet_quadra')]) })
+    );
+    expect(etape(quadra, ETAPE_DECLARATIONS).etat).toBe('fait');
+  });
+
+  it('il manque l’un ou l’autre : à faire, en disant lequel', () => {
+    const sansCompta = etape(listeControleDuMois(entree({ exportsDuMois: OK([DSN]) })), ETAPE_DECLARATIONS);
+    expect(sansCompta.etat).toBe('a_faire');
+    expect(sansCompta.detail).toBe('L’export comptable du mois n’est pas fait.');
+
+    const rien = etape(listeControleDuMois(entree({ exportsDuMois: OK([]) })), ETAPE_DECLARATIONS);
+    expect(rien.detail).toBe('La DSN du mois n’est pas faite. L’export comptable du mois n’est pas fait.');
+  });
+
+  it('un journal de paie ou un export annulé ne compte pas', () => {
+    const resultat = listeControleDuMois(
+      entree({
+        exportsDuMois: OK([exportFait('journal_paie'), exportFait('dsn_mensuelle', { status: 'cancelled' }), COMPTA]),
+      })
+    );
+    expect(etape(resultat, ETAPE_DECLARATIONS).detail).toBe('La DSN du mois n’est pas faite.');
+  });
+
+  it('un export fait avant le dernier calcul est à refaire', () => {
+    const resultat = listeControleDuMois(
+      entree({ exportsDuMois: OK([exportFait('dsn_mensuelle', { a_refaire: true }), COMPTA]) })
+    );
+    const declarations = etape(resultat, ETAPE_DECLARATIONS);
+    expect(declarations.etat).toBe('a_faire');
+    expect(declarations.detail).toBe('La DSN est à refaire : un bulletin du mois a changé depuis.');
+    expect(resultat.actions.find((a) => a.id === ETAPE_DECLARATIONS)?.href).toBe('/exports');
+  });
+
+  it('historique des exports illisible ou non lu : à confirmer', () => {
+    expect(etape(listeControleDuMois(entree({ exportsDuMois: ERREUR })), ETAPE_DECLARATIONS).etat).toBe(
+      'a_confirmer'
+    );
+    expect(
+      etape(listeControleDuMois(entree({ exportsDuMois: undefined })), ETAPE_DECLARATIONS).etat
+    ).toBe('a_confirmer');
+  });
+
+  it('tout est fait : la liste dit que la paie du mois est terminée', () => {
+    expect(phraseListeControle(listeControleDuMois(entree()))).toBe(
+      'Paie du mois terminée : bulletins validés, DSN et export comptable faits. Confirmez vous-même que les absences étaient toutes saisies.'
+    );
+  });
+
+  it('sinon, elle compte ce qui reste', () => {
+    expect(phraseListeControle(listeControleDuMois(entree({ exportsDuMois: OK([DSN]) })))).toBe(
+      '1 point à traiter, d’après les données.'
+    );
+    expect(
+      phraseListeControle(listeControleDuMois(entree({ exportsDuMois: OK([]), bulletinsParSalarie: OK({}) })))
+    ).toBe('3 points à traiter, d’après les données.');
   });
 });
 
