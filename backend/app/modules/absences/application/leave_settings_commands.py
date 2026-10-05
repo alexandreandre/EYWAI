@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import dataclasses
 from datetime import date, datetime, timezone
 
 from app.core.database import supabase
@@ -102,24 +103,44 @@ def _taux_legal(unite: str) -> float:
 def _acquisition_cp_changee(
     avant: LeavePolicySettings, apres: LeavePolicySettings
 ) -> bool:
-    return (avant.cp_counting_unit, avant.cp_acquisition_days_per_month) != (
+    """Le réglage change-t-il le solde calculé à une date de reprise ?
+
+    L'unité et le taux déplacent l'acquis ; le report déplace l'imputation des
+    congés pris (N-1 d'abord au lieu de N)."""
+    return (
+        avant.cp_counting_unit,
+        avant.cp_acquisition_days_per_month,
+        avant.cp_carryover_enabled,
+    ) != (
         apres.cp_counting_unit,
         apres.cp_acquisition_days_per_month,
+        apres.cp_carryover_enabled,
     )
+
+
+# Ouverture N-1 de sonde : assez grande pour que ni le plancher à zéro ni
+# l'imputation des congés sur le N-1 (report) ne la tronquent.
+_OUVERTURE_SONDE = 10_000.0
 
 
 def rebaser_reprises_cp(
     company_id: str, ancienne: LeavePolicySettings, nouvelle: LeavePolicySettings
 ) -> int:
-    """Réexprime les écarts des compteurs repris après un changement d'acquisition.
+    """Réexprime les écarts des compteurs repris après un changement de calcul.
 
     Un compteur repris d'un bulletin (« Import CP bulletin », recalage) est
     stocké en ÉCART par rapport au calcul théorique à sa date de référence
-    (cf. `apply_cp_solde_import`). Changer l'unité de décompte ou le taux
-    mensuel déplace ce théorique, donc le solde affiché — alors que le solde
-    repris, lui, vient du cabinet et ne doit pas bouger. On retrouve la cible
-    (écart + théorique d'avant) et on repose l'écart contre le théorique
-    d'après. Rend le nombre de lignes réécrites.
+    (cf. `apply_cp_solde_import`). Changer l'unité de décompte, le taux
+    mensuel ou le report déplace ce théorique, donc le solde affiché — alors
+    que le solde repris, lui, vient du cabinet et ne doit pas bouger.
+
+    On prend le solde repris tel que l'ancien réglage le calcule, puis on
+    cherche les écarts qui le redonnent sous le nouveau. Une simple
+    différence de théoriques ne suffit pas : le plancher à zéro et, avec le
+    report, l'imputation des congés pris sur le N-1 ne sont pas linéaires
+    (10 jours d'août pour 6,24 acquis : N gonflé de 3,76). Au-delà de ces
+    seuils, chaque solde suit son écart jour pour jour : une sonde suffit.
+    Rend le nombre de lignes réécrites.
     """
     from app.modules.absences.domain.rules import compute_cp_period_balances
     from app.modules.absences.infrastructure.queries import get_employee_hire_date
@@ -136,28 +157,28 @@ def rebaser_reprises_cp(
         )
         ref = date.fromisoformat(str(ref_raw)[:10])
         validated = absence_repository.list_validated_for_employees([employee_id])
-        avant = compute_cp_period_balances(
-            hire_date, validated, ref, policy=ancienne,
-            adjustment=EmployeeLeaveAdjustment.empty(),
-        )
-        apres = compute_cp_period_balances(
-            hire_date, validated, ref, policy=nouvelle,
-            adjustment=EmployeeLeaveAdjustment.empty(),
-        )
+
+        def soldes(policy: LeavePolicySettings, n1: float, n: float) -> tuple[float, float]:
+            calcul = compute_cp_period_balances(
+                hire_date, validated, ref, policy=policy,
+                adjustment=EmployeeLeaveAdjustment(
+                    cp_n1_opening_balance=n1, cp_n_opening_balance=n
+                ),
+                _skip_adjustment_roll=True,
+            )
+            return float(calcul["n1_remaining"]), float(calcul["n_remaining_brut"])
+
         ancien_n1 = round(float(row.get("cp_n1_opening_balance") or 0), 2)
         ancien_n = round(float(row.get("cp_n_opening_balance") or 0), 2)
-        nouveau_n1 = round(
-            ancien_n1
-            + max(0.0, float(avant["n1_remaining"]))
-            - max(0.0, float(apres["n1_remaining"])),
-            2,
+        cible_n1, cible_n = soldes(ancienne, ancien_n1, ancien_n)
+        sonde_n1, _ = soldes(
+            dataclasses.replace(nouvelle, cp_carryover_max_days=None),
+            _OUVERTURE_SONDE,
+            0.0,
         )
-        nouveau_n = round(
-            ancien_n
-            + max(0.0, float(avant["n_remaining"]))
-            - max(0.0, float(apres["n_remaining"])),
-            2,
-        )
+        nouveau_n1 = round(_OUVERTURE_SONDE + cible_n1 - sonde_n1, 2)
+        _, sonde_n = soldes(nouvelle, nouveau_n1, 0.0)
+        nouveau_n = round(cible_n - sonde_n, 2)
         if nouveau_n1 == ancien_n1 and nouveau_n == ancien_n:
             continue
         upsert_employee_adjustment(
