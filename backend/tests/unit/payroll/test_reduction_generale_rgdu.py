@@ -162,3 +162,36 @@ class TestReductionGeneraleGardeFou:
         assert red["montant_patronal"] == pytest.approx(-669.2, abs=2.0)
         # Le cumul enregistré double (2 mois).
         assert red["valeur_cumulative_a_enregistrer"] == pytest.approx(1338.4, abs=4.0)
+
+
+class TestSmicDeReferenceDuMois:
+    """La DSN déclare le SMIC retenu du mois (S21.G00.79 type 01, CCH-17).
+
+    Le moteur le calcule pour la réduction mais ne le gardait pas : la DSN ne
+    pouvait déclarer 018 / 106 sans le recopier de l'ancien logiciel.
+    """
+
+    def test_la_ligne_porte_le_smic_du_mois_et_pas_le_cumul(self):
+        from app.modules.payroll.engine.calcul_reduction_generale import (
+            _calculer_smic_de_reference_cumule,
+        )
+
+        ctx = build_test_contexte(salaire_base=2000.0, effectif=10)
+        ctx.year = 2026
+        ctx.cumuls = {
+            "cumuls": {
+                "brut_total": 2000.0,
+                "heures_remunerees": 151.67,
+                "reduction_generale_patronale": -669.2,
+            }
+        }
+        red = calculer_reduction_generale(ctx, 2000.0, 169.0)
+        attendu = _calculer_smic_de_reference_cumule(ctx, 169.0)
+        assert red["smic_reference_mois"] == pytest.approx(attendu, abs=0.001)
+        assert red["smic_reference_mois"] < _calculer_smic_de_reference_cumule(ctx, 320.67)
+
+    def test_fillon_avant_2026_porte_aussi_le_smic_du_mois(self):
+        ctx = build_test_contexte(salaire_base=2000.0, effectif=10)
+        ctx.year = 2025
+        red = calculer_reduction_generale(ctx, 2000.0, 151.67)
+        assert red["smic_reference_mois"] > 0
