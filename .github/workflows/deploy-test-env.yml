@@ -168,16 +168,48 @@ jobs:
       # bulletin n'a jamais pu être généré sur le test. La production la définit
       # déjà. Même valeur que SUPABASE_KEY côté test, comme en production.
       #
-      # OPENROUTER_API_KEY manquait : `--set-env-vars` remplace TOUTES les
-      # variables. Sans cette clé, le remplissage calendrier IA répond 503 et
-      # le copilote 500 (ValueError « pas configuré »). Même secret qu'en prod.
+      # OPENROUTER_API_KEY : sans cette clé, le remplissage calendrier IA
+      # répond 503 et le copilote 500 (ValueError « pas configuré »). Même
+      # secret qu'en prod.
+      #
+      # `--update-env-vars`, jamais `--set-env-vars` : ce dernier remplaçait
+      # TOUTES les variables du service à chaque déploiement, et effaçait
+      # celles qu'on ne peut pas mettre dans ce dépôt public (05/10/2026).
+      # Ici, chaque déploiement repose ses variables et garde les autres.
+      #
+      # À poser UNE FOIS, à la main, dans la console Cloud Run (service
+      # sirh-backend-test → Modifier et déployer une nouvelle révision →
+      # Variables et secrets). Elles survivent désormais aux déploiements :
+      #   - SECRET_ENCRYPTION_KEY : chiffre les secrets gardés en base
+      #     (connecteur comptable). Sans elle, le connecteur lève une erreur.
+      #     Même valeur que le secret GitHub du même nom, sinon les secrets
+      #     déjà chiffrés ne se relisent plus.
+      #   - ACTIVATION_EMAIL_ALLOWLIST : adresses servies en direct malgré la
+      #     redirection du test (activation, mot de passe oublié, tickets).
+      #     Y mettre l'adresse de la gestionnaire de paie et contact@eywai.fr,
+      #     sinon ses e-mails et les tickets de support partent vers
+      #     TEST_EMAIL_REDIRECT_TO. Adresses personnelles : hors dépôt.
+      #   - SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, FROM_EMAIL (et
+      #     SMTP_SECURITY si ce n'est pas starttls) : seulement si l'écran
+      #     super-admin « Mails automatiques » n'est pas actif (sa
+      #     configuration en base passe avant ces variables). Sans l'un ni
+      #     l'autre, aucun e-mail ne part.
+      #   - BADGEUSE_QR_SECRET : signe les QR de la badgeuse. Sans elle, la
+      #     signature repose sur une valeur écrite dans ce dépôt public. La
+      #     poser invalide les QR déjà imprimés.
+      #   - PISTE_CLIENT_ID, PISTE_CLIENT_SECRET : import des conventions
+      #     collectives depuis Légifrance (admin plateforme). Facultatif pour
+      #     la paie. Mêmes valeurs que les secrets GitHub du même nom.
+      # Ne pas poser GITHUB_DISPATCH_TOKEN : il rouvrirait la resynchro de la
+      # base de test, verrouillée. FRONTEND_URL et ALLOWED_ORIGINS_EXTRA sont
+      # posées plus bas, après le déploiement du frontend.
       - name: Deploy backend test
         run: |
           gcloud run deploy "$BACKEND_SERVICE" \
             --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/sirh-backend:test-${{ github.sha }}" \
             --region "$GCP_REGION" \
             --memory 4Gi --cpu 2 --no-cpu-throttling --timeout 900 --allow-unauthenticated \
-            --set-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
+            --update-env-vars "^##^APP_ENV=test##EMAIL_FORCE_REDIRECT_TO=${{ secrets.TEST_EMAIL_REDIRECT_TO }}##SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL }}##SUPABASE_KEY=${{ secrets.SUPABASE_TEST_KEY }}##SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_TEST_SERVICE_KEY }}##OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}##TIMESHEET_EXTRACT_MODE=native##COPILOT_RH_DATA_ENABLED=true##GITHUB_REPO=${{ github.repository }}"
 
       - name: Relever l'URL du backend de test
         id: back
@@ -209,6 +241,8 @@ jobs:
 
       # ---------------------------------------------------------------------
       # 3) CORS — sans cette étape, le navigateur rejette tous les appels API.
+      #    Et FRONTEND_URL — sans elle, les liens des e-mails d'activation et
+      #    de mot de passe oublié pointent vers http://localhost:8080.
       # ---------------------------------------------------------------------
       - name: Autoriser l'origine du frontend de test
         id: front
@@ -228,8 +262,12 @@ jobs:
           # déploiement, donc `gcloud projects describe` échoue ici.
           num="${{ vars.GCP_PROJECT_NUMBER }}"
           origines="$url"
+          # Adresse des liens envoyés par e-mail : celle que la console
+          # affiche et que la gestionnaire de paie utilise.
+          adresse_publique="$url"
           if [ -n "$num" ]; then
-            origines="$origines,https://${FRONTEND_SERVICE}-${num}.${GCP_REGION}.run.app"
+            adresse_publique="https://${FRONTEND_SERVICE}-${num}.${GCP_REGION}.run.app"
+            origines="$origines,$adresse_publique"
           else
             echo "::warning::GCP_PROJECT_NUMBER absent — une seule forme d'URL autorisée en CORS."
           fi
@@ -237,8 +275,9 @@ jobs:
           # ^##^ : délimiteur explicite, sans quoi gcloud prendrait la virgule
           # de la liste d'origines pour un séparateur de variables.
           gcloud run services update "$BACKEND_SERVICE" --region "$GCP_REGION" \
-            --update-env-vars "^##^ALLOWED_ORIGINS_EXTRA=$origines"
+            --update-env-vars "^##^ALLOWED_ORIGINS_EXTRA=$origines##FRONTEND_URL=$adresse_publique"
           echo "Origines autorisées : $origines"
+          echo "Liens des e-mails : $adresse_publique"
 
       - name: Smoke tests
         run: |
