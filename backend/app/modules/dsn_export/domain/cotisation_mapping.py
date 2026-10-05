@@ -405,41 +405,47 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
     moins) ; on suit donc l'usage majoritaire, et ces 10 salariés restent un
     écart connu.
 
-    Les montants sont ceux du bulletin, pas un recalcul : la CRDS s'arrondit
-    ligne à ligne (0,50 % de l'assiette de chaque ligne non déductible, ou le
-    montant d'une ligne de CRDS isolée), la CSG est le reste du total retenu.
-    072 + 079 égalent ainsi au centime ce que le salarié a payé — recalculer
-    9,20 % de l'assiette totale décalait un centime sur un tiers des salariés
-    (rejeu de juin 2026 : 143 lignes sur 146 justes au lieu de 96).
+    Chaque composante s'arrondit une fois, sur l'assiette cumulée des lignes
+    de même taux (salaire et participation ensemble) : CSG déductible 6,80 %,
+    CSG non déductible (2,40 %, ou 9,20 % sur les heures supplémentaires) et
+    CRDS 0,50 %, comme le cabinet. Le bulletin arrondit lui 2,90 % ligne à
+    ligne : sur 251 salariés de mai et juin, ce calcul donne 205 CSG justes,
+    contre 123 en reprenant les montants du bulletin.
+
+    Un groupe dont les montants ne s'expliquent pas par assiette × taux (un
+    bulletin repris de l'ancien logiciel, dont l'assiette affichée n'est pas
+    celle du calcul) garde ses montants, moins sa CRDS.
     """
     assiette_salaires = 0.0
-    total_retenu = 0.0
-    crds = 0.0
+    crds_isolee = 0.0
+    deductibles: Dict[float, List[Tuple[float, float]]] = {}
+    non_deductibles: Dict[float, List[Tuple[float, float]]] = {}
     vues: set = set()
 
     for ligne in lignes:
         coti_id = str(ligne.get("coti_id") or "")
         libelle = str(ligne.get("libelle") or "")
+        libelle_bas = libelle.lower()
         est_csg = coti_id in {"csg_deductible", "csg_non_deductible", "crds"} or (
-            "csg" in libelle.lower() or "crds" in libelle.lower()
+            "csg" in libelle_bas or "crds" in libelle_bas
         )
         if not est_csg:
             continue
         assiette, sal, pat, taux_sal, _ = _parts(ligne)
         montant = round(sal + pat, 2)
-        total_retenu += montant
-        libelle_bas = libelle.lower()
         if coti_id == "crds":
-            crds += montant
+            crds_isolee += montant
         elif (
             coti_id == "csg_non_deductible"
             or "non déductible" in libelle_bas
             or "non deductible" in libelle_bas
             or abs(taux_sal) > TAUX_CSG_DEDUCTIBLE + 1e-9
         ):
-            # Ligne non déductible (2,90 % ou 9,70 %), celle de la participation
-            # comprise, qui n'a pas d'identifiant : elle porte la CRDS.
-            crds += _arrondi(assiette * TAUX_CRDS)
+            # Non déductible (2,90 % ou 9,70 %), participation comprise, qui
+            # n'a pas d'identifiant : la CRDS y est incluse.
+            non_deductibles.setdefault(round(abs(taux_sal), 4), []).append((assiette, montant))
+        else:
+            deductibles.setdefault(round(abs(taux_sal), 4), []).append((assiette, montant))
         if assiette <= 0:
             continue
         # Une même assiette porte la CSG déductible et la non déductible : ne la
@@ -450,6 +456,25 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
         vues.add(cle)
         assiette_salaires += assiette
 
+    def coherent(groupe: List[Tuple[float, float]], taux: float) -> bool:
+        return all(abs(_arrondi(a * taux) - m) < 0.005 for a, m in groupe)
+
+    # Une ligne de CRDS isolée porte la CRDS : la CSG non déductible n'en a pas.
+    part_crds = 0.0 if crds_isolee else TAUX_CRDS
+    csg = 0.0
+    crds = crds_isolee
+    for taux, groupe in deductibles.items():
+        assiette = sum(a for a, _ in groupe)
+        csg += _arrondi(assiette * taux) if coherent(groupe, taux) else sum(m for _, m in groupe)
+    for taux, groupe in non_deductibles.items():
+        assiette = sum(a for a, _ in groupe)
+        crds_groupe = _arrondi(assiette * part_crds)
+        crds += crds_groupe
+        if coherent(groupe, taux):
+            csg += _arrondi(assiette * (taux - part_crds))
+        else:
+            csg += sum(m for _, m in groupe) - crds_groupe
+
     resultat: List[LigneDsn] = []
     if assiette_salaires > 0:
         crds = round(crds, 2)
@@ -458,7 +483,7 @@ def _csg_et_crds(lignes: List[Dict[str, Any]]) -> List[LigneDsn]:
                 CODE_CSG,
                 BASE_CSG,
                 round(assiette_salaires, 2),
-                round(total_retenu - crds, 2),
+                round(csg, 2),
                 TAUX_CSG_TOTAL,
             )
         )
