@@ -83,6 +83,16 @@ class DsnSettings:
     # doit plus bouger une fois émis.
     organismes_complementaires: List[Dict[str, str]] = field(default_factory=list)
 
+    # Versements aux organismes (bloc S21.G00.20) : organisme (20.001),
+    # entité d'affectation (20.002), BIC / IBAN, mode de paiement (20.010),
+    # délégataire (20.008). Repris du cabinet ; les montants, eux, se
+    # calculent chaque mois.
+    versements: List[Dict[str, str]] = field(default_factory=list)
+    # Assujettissements fiscaux déclarés chaque mois (bloc S21.G00.44) :
+    # taxe d'apprentissage (001), contribution supplémentaire (003),
+    # formation professionnelle (007), CPF-CDD (013)…
+    assujettissements_fiscaux: List[str] = field(default_factory=list)
+
     source: str = SOURCE_SAISIE
     source_fichier: str = ""
     source_date: str = ""
@@ -162,6 +172,11 @@ def extraire_depuis_dsn(contenu: bytes, *, fichier: str = "") -> DsnSettings:
     }
 
     quotite_forfait_jours = _quotite_forfait_jours(contenu)
+    versements = _versements(contenu)
+    assujettissements: List[str] = []
+    for code in rubriques.get("S21.G00.44.001") or []:
+        if code not in assujettissements:
+            assujettissements.append(code)
 
     return DsnSettings(
         emetteur_siren=_premiere(rubriques, "S10.G00.01.001"),
@@ -184,9 +199,42 @@ def extraire_depuis_dsn(contenu: bytes, *, fichier: str = "") -> DsnSettings:
         or _premiere(rubriques, "S21.G00.11.007"),
         rubriques_etablissement=complementaires,
         quotite_forfait_jours=quotite_forfait_jours,
+        versements=versements,
+        assujettissements_fiscaux=assujettissements,
         source=SOURCE_REPRISE,
         source_fichier=fichier,
     )
+
+
+#: Rubriques du bloc 20 qui décrivent l'organisme et le paiement, pas le montant.
+_VERSEMENT_CLES = {
+    "S21.G00.20.001": "organisme",
+    "S21.G00.20.002": "entite",
+    "S21.G00.20.003": "bic",
+    "S21.G00.20.004": "iban",
+    "S21.G00.20.008": "delegataire",
+    "S21.G00.20.010": "mode",
+}
+
+
+def _versements(contenu: bytes) -> List[Dict[str, str]]:
+    """Organismes payés par la DSN du cabinet, avec leurs coordonnées bancaires."""
+    from app.modules.dsn_export.domain.conformance import lire_rubriques
+
+    versements: List[Dict[str, str]] = []
+    for code, valeur in lire_rubriques(contenu):
+        if code == "S21.G00.20.001":
+            versements.append({"organisme": valeur})
+        elif code in _VERSEMENT_CLES and versements:
+            versements[-1][_VERSEMENT_CLES[code]] = valeur
+    vus = set()
+    uniques = []
+    for versement in versements:
+        if versement["organisme"] in vus:
+            continue
+        vus.add(versement["organisme"])
+        uniques.append(versement)
+    return uniques
 
 
 def _quotite_forfait_jours(contenu: bytes) -> str:
@@ -245,6 +293,14 @@ def depuis_dict(donnees: Optional[Dict[str, Any]]) -> DsnSettings:
             for entree in donnees.get("organismes_complementaires") or []
             if isinstance(entree, dict) and entree.get("reference")
         ],
+        versements=[
+            dict(entree)
+            for entree in donnees.get("versements") or []
+            if isinstance(entree, dict) and entree.get("organisme")
+        ],
+        assujettissements_fiscaux=[
+            str(code) for code in donnees.get("assujettissements_fiscaux") or [] if code
+        ],
         source=donnees.get("source") or SOURCE_SAISIE,
         source_fichier=donnees.get("source_fichier") or "",
         source_date=str(donnees.get("source_date") or ""),
@@ -280,6 +336,8 @@ def vers_dict(settings: DsnSettings) -> Dict[str, Any]:
         "quotite_forfait_jours": settings.quotite_forfait_jours,
         "rubriques_etablissement": settings.rubriques_etablissement,
         "organismes_complementaires": settings.organismes_complementaires,
+        "versements": settings.versements,
+        "assujettissements_fiscaux": settings.assujettissements_fiscaux,
         "source": settings.source,
         "source_fichier": settings.source_fichier,
     }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.dsn_export.domain.settings import (
@@ -21,6 +22,10 @@ from app.modules.dsn_export.domain.contract_map import (
     map_statut_to_dsn,
     period_bounds,
     period_to_mois_principal,
+)
+from app.modules.dsn_export.domain.agregats import (
+    bordereau_urssaf,
+    montant_retraite_complementaire,
 )
 from app.modules.dsn_export.domain.cotisation_mapping import build_bases_and_cotisations
 from app.modules.dsn_export.domain.evenements import (
@@ -40,6 +45,7 @@ from app.modules.dsn_export.domain.remuneration_map import (
 from app.modules.dsn_import.domain.model import (
     AffiliationBlock,
     ArretTravailBlock,
+    BordereauBlock,
     ContratBlock,
     FinContratBlock,
     PrimeBlock,
@@ -52,6 +58,7 @@ from app.modules.dsn_import.domain.model import (
     IndividuBlock,
     OrganismePscBlock,
     VersementBlock,
+    VersementOrganismeBlock,
 )
 from app.shared.dsn_validation import build_siret_from_siren_nic
 
@@ -1433,6 +1440,123 @@ def _anciennete_entreprise(
     return "01", str(jours)
 
 
+def _cotisations_du_salarie(ind: IndividuBlock) -> List[Dict[str, Any]]:
+    """Cotisations individuelles d'un salarié, à plat pour les agrégats."""
+    lignes: List[Dict[str, Any]] = []
+    for contrat in ind.contrats:
+        for versement in contrat.versements:
+            for cotisation in versement.cotisations_individuelles:
+                rubriques = cotisation.rubriques or {}
+                lignes.append(
+                    {
+                        "code": rubriques.get("S21.G00.81.001") or cotisation.code,
+                        "base": str(rubriques.get("_base") or "").split("#")[0],
+                        "assiette": float(rubriques.get("S21.G00.81.003") or 0),
+                        "montant": float(rubriques.get("S21.G00.81.004") or 0),
+                        "taux": float(rubriques.get("S21.G00.81.007") or 0),
+                        "ops": rubriques.get("S21.G00.81.002") or "",
+                    }
+                )
+    return lignes
+
+
+def _paiements(
+    etab: EtablissementBlock,
+    period: str,
+    ops_urssaf: str,
+    parametres: DsnSettings,
+) -> List[str]:
+    """Bordereau Urssaf (22 / 23), versements (20) et assujettissements (44).
+
+    Les montants viennent des cotisations individuelles déclarées ; les
+    organismes, l'entité d'affectation et les coordonnées bancaires du
+    paramétrage repris du cabinet. Un versement à un organisme
+    complémentaire (prévoyance, santé, retraite supplémentaire) n'est pas
+    produit : son appel est trimestriel et ventilé par contrat (bloc 55).
+    """
+    avertissements: List[str] = []
+    debut, fin = period_bounds(period)
+    salaries = [_cotisations_du_salarie(ind) for ind in etab.individus]
+    urssaf = [[l for l in lignes if ops_urssaf and l["ops"] == ops_urssaf] for lignes in salaries]
+    lignes_23, total_urssaf, inconnus = bordereau_urssaf(urssaf)
+    for code in inconnus:
+        avertissements.append(
+            f"Cotisation {code} sans code type de personnel connu : absente du bordereau Urssaf"
+        )
+    if ops_urssaf and lignes_23:
+        etab.bordereaux.append(
+            BordereauBlock(
+                identifiant=ops_urssaf,
+                date_debut=debut,
+                date_fin=fin,
+                montant=float(total_urssaf),
+                rubriques={
+                    "S21.G00.22.001": ops_urssaf,
+                    "S21.G00.22.003": debut,
+                    "S21.G00.22.004": fin,
+                    "S21.G00.22.005": f"{total_urssaf:.2f}",
+                    "_cotisations_agregees": lignes_23,
+                },
+            )
+        )
+
+    pas = sum(
+        float(v.pas or 0)
+        for ind in etab.individus
+        for contrat in ind.contrats
+        for v in contrat.versements
+    )
+    montants = {
+        "DGFIP": float(int(Decimal(str(round(pas, 6))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))),
+        ops_urssaf: float(total_urssaf),
+    }
+    retraite = montant_retraite_complementaire(salaries)
+    oc_ignores = []
+    for versement in parametres.versements:
+        organisme = str(versement.get("organisme") or "")
+        if organisme in montants and organisme:
+            montant = montants[organisme]
+        elif organisme.isdigit() and len(organisme) == 14:
+            montant = retraite  # caisse de retraite complémentaire (Agirc-Arrco)
+        else:
+            oc_ignores.append(organisme)
+            continue
+        rubriques = {
+            "S21.G00.20.001": organisme,
+            "S21.G00.20.002": str(versement.get("entite") or ""),
+            "S21.G00.20.003": str(versement.get("bic") or ""),
+            "S21.G00.20.004": str(versement.get("iban") or ""),
+            "S21.G00.20.005": f"{montant:.2f}",
+            "S21.G00.20.006": debut,
+            "S21.G00.20.007": fin,
+            "S21.G00.20.010": str(versement.get("mode") or "05"),
+        }
+        etab.versements_organismes.append(
+            VersementOrganismeBlock(
+                identifiant=organisme,
+                montant=montant,
+                rubriques={k: v for k, v in rubriques.items() if v},
+            )
+        )
+    if not parametres.versements:
+        avertissements.append(
+            "Versements aux organismes non paramétrés (bloc S21.G00.20) : "
+            "reprendre le paramétrage DSN du cabinet"
+        )
+    if oc_ignores:
+        avertissements.append(
+            "Versements aux organismes complémentaires non produits ("
+            + ", ".join(oc_ignores)
+            + ") : appel trimestriel par contrat, à régler hors DSN ou à paramétrer"
+        )
+    annee = period[:4]
+    etab.rubriques["_blocs_44"] = [
+        {"S21.G00.44.001": code, "S21.G00.44.002": "0.00", "S21.G00.44.003": annee}
+        for code in parametres.assujettissements_fiscaux
+    ]
+    return avertissements
+
+
 def build_parsed_dsn_from_payroll(
     company: Dict[str, Any],
     employees_data: List[Dict[str, Any]],
@@ -1535,6 +1659,8 @@ def build_parsed_dsn_from_payroll(
 
     if not etab.individus:
         raise DsnBuildError("Aucun salarié avec bulletin pour la période")
+
+    warnings.extend(_paiements(etab, period, default_ops, parametres))
 
     return (
         DsnFile(

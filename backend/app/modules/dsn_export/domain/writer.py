@@ -299,6 +299,13 @@ def write_versement_organisme(vo: VersementOrganismeBlock, out: List[str]) -> No
 def write_bordereau(bord: BordereauBlock, out: List[str]) -> None:
     if bord.rubriques:
         _emit_rubriques_dict(bord.rubriques, out)
+        # Cotisations agrégées (bloc 23), enfants du bordereau.
+        for ligne in bord.rubriques.get("_cotisations_agregees") or []:
+            _emit("S21.G00.23.001", str(ligne.get("ctp") or ""), out)
+            _emit("S21.G00.23.002", str(ligne.get("qualifiant") or ""), out)
+            _emit("S21.G00.23.003", str(ligne.get("taux") or ""), out)
+            _emit("S21.G00.23.004", str(ligne.get("assiette") or ""), out)
+            _emit("S21.G00.23.005", str(ligne.get("montant") or ""), out)
         return
     _emit(R_S21_BORD_IDENT, bord.identifiant, out)
     _emit(R_S21_BORD_DATE_DEB, bord.date_debut, out)
@@ -347,6 +354,9 @@ def write_etablissement_header(etab: EtablissementBlock, out: List[str]) -> None
         write_versement_organisme(vo, out)
     for bord in etab.bordereaux:
         write_bordereau(bord, out)
+    # Assujettissements fiscaux (bloc 44), après le bordereau.
+    for bloc in (etab.rubriques.get("_blocs_44") if etab.rubriques else None) or []:
+        _emit_rubriques_dict(bloc, out)
     for cc in etab.composants_cotisation:
         write_composant_etab(cc, out)
     for cpt in etab.compteurs_annuels:
