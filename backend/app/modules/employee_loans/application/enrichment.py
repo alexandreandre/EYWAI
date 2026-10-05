@@ -8,6 +8,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from app.modules.payroll.domain.report_nap_negatif import (
+    CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
+)
+
 from app.modules.employee_loans.domain.rules import (
     compute_installment_remaining,
     compute_interest_benefit_in_kind,
@@ -56,12 +60,28 @@ def enrich_payslip_loans(
 ) -> Dict[str, Any]:
     """
     Applique les retenues de remboursement de prêt sur le net à payer.
-    Reprend la plus ancienne échéance non soldée ; plafonné à la quotité saisissable.
+    Reprend la plus ancienne échéance non soldée ; plafonné au dixième du salaire (art. L3251-3).
     """
     process_suspended_loan_installments(employee_id, year, month)
 
     net_a_payer = Decimal(str(payslip_json_data.get("net_a_payer", 0)))
-    seizable_remaining = compute_loan_repayment_cap(net_a_payer)
+    # Salaire exigible = net avant acomptes et avances (saisies/avances ont déjà
+    # été retirées de net_a_payer) ; le net encore disponible, lui, est net_a_payer.
+    reports = sum(
+        max(0.0, float(r.get("montant") or 0.0))
+        for r in payslip_json_data.get(CLE_REPORTS_NAP_NEGATIF) or []
+        if isinstance(r, dict)
+    )
+    acompte_moteur = max(
+        Decimal("0"),
+        Decimal(str((payslip_json_data.get("synthese_net") or {}).get("acompte_verse") or 0))
+        - Decimal(str(reports)),
+    )
+    avances = Decimal(
+        str((payslip_json_data.get("remboursements_avances") or {}).get("total_rembourse") or 0)
+    )
+    salaire_exigible = net_a_payer + acompte_moteur + avances
+    seizable_remaining = compute_loan_repayment_cap(salaire_exigible, net_a_payer)
 
     loans_due = get_unsettled_installments_for_payroll(employee_id, year, month)
     legal_rate = get_legal_interest_rate()

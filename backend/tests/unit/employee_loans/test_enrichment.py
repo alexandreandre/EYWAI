@@ -168,7 +168,7 @@ def test_enrich_payslip_loans_continues_partial_installment(
         )
     ]
 
-    payslip = {"net_a_payer": 2500.0}
+    payslip = {"net_a_payer": 4000.0}
     result = enrich_payslip_loans(
         payslip, "emp-1", 2026, 7, payslip_id="payslip-2"
     )

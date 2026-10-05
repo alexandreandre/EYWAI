@@ -12,7 +12,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import List
 
 from app.modules.employee_loans.domain.constants import DECLARATION_2062_THRESHOLD_EUR
-from app.modules.saisies_avances.domain.rules import calculate_seizable_amount
 
 
 def _money(value: Decimal) -> Decimal:
@@ -118,12 +117,19 @@ def compute_interest_benefit_in_kind(
     return _money(max(Decimal("0"), benefit))
 
 
+#: Art. L3251-3 du Code du travail : la retenue pour une avance en espèces
+#: (le prêt de l'employeur y est assimilé) ne dépasse pas le dixième du salaire exigible.
+LOAN_REPAYMENT_SALARY_FRACTION = Decimal("0.10")
+
+
 def compute_loan_repayment_cap(
-    net_salary: Decimal,
-    dependents_count: int = 0,
+    salaire_exigible: Decimal,
+    net_disponible: Decimal,
 ) -> Decimal:
-    """Plafond de retenue sur le net (fraction saisissable)."""
-    return calculate_seizable_amount(net_salary, dependents_count)
+    """Plafond de retenue du mois : dixième du salaire exigible (art. L3251-3),
+    sans jamais dépasser le net encore disponible (le net ne devient pas négatif)."""
+    dixieme = salaire_exigible * LOAN_REPAYMENT_SALARY_FRACTION
+    return _money(max(Decimal("0"), min(dixieme, net_disponible)))
 
 
 def compute_repayment_amount(
