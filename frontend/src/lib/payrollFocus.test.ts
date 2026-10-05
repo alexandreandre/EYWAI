@@ -8,9 +8,9 @@ import {
 } from './payrollFocus';
 
 describe('PAYROLL_FOCUS_NAV_URLS', () => {
-  it('contient exactement 16 entrées, sans doublon', () => {
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(16);
-    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(16);
+  it('contient exactement 17 entrées, sans doublon', () => {
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(17);
+    expect(new Set(PAYROLL_FOCUS_NAV_URLS).size).toBe(17);
   });
 });
 
@@ -191,13 +191,13 @@ describe('restrictToPayrollFocus', () => {
     expect(restrictToPayrollFocus('gestion', gestionGroups)).toEqual([]);
   });
 
-  it('écarte du parcours paie Analytics, IJSS, CET et prêts employeur', () => {
+  it('écarte du parcours paie Analytics, IJSS et CET, mais garde les prêts employeur', () => {
     const out = restrictToPayrollFocus('paie', paieGroups);
     expect(urlsOf(out)).not.toContain('/analytics-paie');
     expect(urlsOf(out)).not.toContain('/suivi-ijss');
     expect(urlsOf(out)).not.toContain('/suivi-cet');
-    expect(urlsOf(out)).not.toContain('/employee-loans');
-    expect(urlsOf(out)).toHaveLength(12);
+    expect(urlsOf(out)).toContain('/employee-loans');
+    expect(urlsOf(out)).toHaveLength(13);
   });
 
   it('conserve les métadonnées de groupe', () => {
@@ -217,7 +217,7 @@ describe('restrictToPayrollFocus', () => {
     expect(urlsOf(paieGroups)).toHaveLength(before);
   });
 
-  it('produit exactement les 16 URL du périmètre, toutes sections confondues', () => {
+  it('produit exactement les 17 URL du périmètre, toutes sections confondues', () => {
     const all = [
       '/',
       ...urlsOf(restrictToPayrollFocus('team', teamGroups)),
@@ -242,7 +242,7 @@ describe('routes du circuit de validation manager', () => {
     for (const url of ['/approvals', '/leave-requests', '/cet-requests']) {
       expect(PAYROLL_FOCUS_NAV_URLS).not.toContain(url);
     }
-    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(16);
+    expect(PAYROLL_FOCUS_NAV_URLS).toHaveLength(17);
   });
 
   it('garde bloqués les modules hors paie, y compris pour les directeurs', () => {
