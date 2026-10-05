@@ -300,7 +300,10 @@ CONTRACT_NATURE_MAP = {
     "89": "CDD",
 }
 
-STATUT_CADRE_CODES = {"03", "04", "06", "07", "08", "09"}
+# Statut conventionnel S21.G00.40.002 (cahier technique 2026) : 03 cadre
+# dirigeant, 04 autres cadres. 05 profession intermédiaire, 06 employé,
+# 07 ouvrier, 08 à 10 fonction publique ne sont pas cadres.
+STATUT_CADRE_CODES = {"03", "04"}
 # Types obligatoires DSN : vues différentes du même salaire — ne pas les additionner
 REMUNERATION_BRUT_PRIMARY = ("001", "010", "002", "003")
 REMUNERATION_BRUT_TYPES = set(REMUNERATION_BRUT_PRIMARY)
