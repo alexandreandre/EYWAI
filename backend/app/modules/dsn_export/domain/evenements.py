@@ -155,12 +155,22 @@ def blocs_arret(
     debut_mois: date,
     fin_mois: date,
     debut_contrat: Optional[date] = None,
+    *,
+    compte_employeur: Optional[Tuple[str, str]] = None,
+    subrogation_paie: Optional[bool] = None,
 ) -> List[Dict[str, str]]:
-    """Blocs 60 des arrêts qui touchent le mois (« supra-mensuel » compris)."""
+    """Blocs 60 des arrêts qui touchent le mois (« supra-mensuel » compris).
+
+    ``compte_employeur`` : (IBAN, BIC) de l'employeur, obligatoires en
+    subrogation (60.007 / 60.008). ``subrogation_paie`` : ce que la paie du
+    mois a appliqué, qui prime sur la case cochée dans la demande d'arrêt.
+    """
     blocs: List[Dict[str, str]] = []
     for periode in periodes_d_arret(absences):
         if periode.fin < debut_mois or periode.debut > fin_mois:
             continue
+        if subrogation_paie is not None:
+            periode.subrogation = subrogation_paie
         # La veille de la prescription, sauf arrêt prescrit un jour travaillé :
         # le jour de l'accident est travaillé (CT, 60.002).
         dernier_jour = (
@@ -179,6 +189,9 @@ def blocs_arret(
         if periode.subrogation:
             rubriques["S21.G00.60.005"] = dsn(periode.debut)
             rubriques["S21.G00.60.006"] = dsn(periode.fin)
+            if compte_employeur and compte_employeur[0]:
+                rubriques["S21.G00.60.007"] = compte_employeur[0]
+                rubriques["S21.G00.60.008"] = compte_employeur[1]
         if periode.fin < fin_mois:
             rubriques["S21.G00.60.010"] = dsn(periode.fin + timedelta(days=1))
             rubriques["S21.G00.60.011"] = "01"

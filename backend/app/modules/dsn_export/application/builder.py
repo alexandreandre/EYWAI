@@ -1001,9 +1001,32 @@ def build_individu_from_payroll(
     # Événements du contrat : arrêts (60), autres suspensions (65), fin (62)
     # et indemnités de rupture (52), qui sortent du salaire brut chômage.
     absences = [a for a in (employee.get("absences_dsn") or []) if isinstance(a, dict)]
-    blocs_60 = (
-        blocs_arret(absences, debut_mois, fin_mois, date_dsn(date_debut)) if debut_mois else []
+    compte = next(
+        (
+            (str(v.get("iban") or ""), str(v.get("bic") or ""))
+            for v in (settings.versements if settings else [])
+            if v.get("iban")
+        ),
+        None,
     )
+    subrogation_paie = synthese_net.get("subrogation_active")
+    blocs_60 = (
+        blocs_arret(
+            absences,
+            debut_mois,
+            fin_mois,
+            date_dsn(date_debut),
+            compte_employeur=compte,
+            subrogation_paie=subrogation_paie if isinstance(subrogation_paie, bool) else None,
+        )
+        if debut_mois
+        else []
+    )
+    if any(b.get("S21.G00.60.004") == "01" and "S21.G00.60.007" not in b for b in blocs_60):
+        warnings.append(
+            f"Arrêt subrogé sans IBAN / BIC de l'employeur pour le NIR {nir_dsn} "
+            "(60.007 / 60.008 obligatoires) : paramétrer les versements"
+        )
     blocs_65 = blocs_suspension(payslip_data)
     dispositif_contrat = str(classification.get("dispositif_politique_publique") or "")
     apprentissage = dispositif_contrat in {"64", "65", "66"} or "apprenti" in str(
