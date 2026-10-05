@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from app.modules.exports.infrastructure.export_ecritures_comptables import (
+    compte_du_net_a_payer,
+)
 from app.modules.saisies_avances.infrastructure.queries import (
     list_seizure_deductions_by_period,
 )
@@ -37,7 +40,6 @@ ECRITURES_HEADERS = [
     "Période de paie",
 ]
 
-DEFAULT_NET_ACCOUNT = "425000"
 
 
 def _round2(value: float) -> float:
@@ -135,6 +137,8 @@ def generate_saisies_ecritures(
     period_label = format_period(period)
     ecritures: List[Dict[str, Any]] = []
 
+    # Contrepartie de la retenue : le compte du net à payer de la société.
+    compte_net = compte_du_net_a_payer(company_id) if deductions else ""
     for deduction in deductions:
         montant = float(deduction.get("deducted_amount", 0) or 0)
         if montant <= 0:
@@ -154,7 +158,7 @@ def generate_saisies_ecritures(
             {
                 "date_ecriture": date_ecriture,
                 "journal": "OD",
-                "compte_comptable": DEFAULT_NET_ACCOUNT,
+                "compte_comptable": compte_net,
                 "libelle": libelle,
                 "debit": _round2(montant),
                 "credit": 0.0,

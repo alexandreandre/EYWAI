@@ -39,13 +39,18 @@ class TestBuildListRows:
 
 class TestGenerateSaisiesEcritures:
     def test_prelevement_debit_net_credit_opposition(self):
-        ecritures = module.generate_saisies_ecritures(
-            "co-1",
-            "2026-06",
-            SAMPLE_DEDUCTIONS,
-        )
+        """Sans plan propre à la société : le net à payer plateforme, 421000."""
+        with patch(
+            "app.modules.exports.infrastructure.export_ecritures_comptables.get_accounting_mappings",
+            return_value={},
+        ):
+            ecritures = module.generate_saisies_ecritures(
+                "co-1",
+                "2026-06",
+                SAMPLE_DEDUCTIONS,
+            )
         assert len(ecritures) == 2
-        assert ecritures[0]["compte_comptable"] == "425000"
+        assert ecritures[0]["compte_comptable"] == "421000"
         assert ecritures[0]["debit"] == 350.0
         assert ecritures[1]["compte_comptable"] == "4272"
         assert ecritures[1]["credit"] == 350.0

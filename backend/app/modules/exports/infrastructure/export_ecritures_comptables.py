@@ -22,10 +22,13 @@ DEFAULT_MAPPINGS = {
         "type_rubrique": "salaire",
         "journal": "OD",
     },
+    # Alignés sur les défauts plateforme en base (migration du 05/08/2026) :
+    # le net est une rémunération due (421), le PAS une dette envers l'État
+    # (442), les parts salariales vont aux organismes (431).
     "net_a_payer": {
         "rubrique_code": "net_a_payer",
         "rubrique_libelle": "Net à payer",
-        "compte_comptable": "425000",
+        "compte_comptable": "421000",
         "sens": "credit",
         "type_rubrique": "dette_salarie",
         "journal": "OD",
@@ -33,7 +36,7 @@ DEFAULT_MAPPINGS = {
     "cotisation_salariale": {
         "rubrique_code": "cotisation_salariale",
         "rubrique_libelle": "Cotisations salariales",
-        "compte_comptable": "425000",
+        "compte_comptable": "431000",
         "sens": "credit",
         "type_rubrique": "dette_salarie",
         "journal": "OD",
@@ -49,7 +52,7 @@ DEFAULT_MAPPINGS = {
     "pas": {
         "rubrique_code": "pas",
         "rubrique_libelle": "Prélèvement à la source",
-        "compte_comptable": "425100",
+        "compte_comptable": "442000",
         "sens": "credit",
         "type_rubrique": "pas",
         "journal": "OD",
@@ -58,6 +61,11 @@ DEFAULT_MAPPINGS = {
 
 
 def get_accounting_mappings(company_id: str) -> Dict[str, Dict[str, Any]]:
+    """Plan comptable de la société sur les défauts plateforme.
+
+    Une lecture en échec n'est plus avalée : l'OD sortirait aux comptes par
+    défaut, sans le plan de la société, et rien ne le dirait.
+    """
     try:
         global_response = (
             supabase.table("accounting_mappings")
@@ -79,9 +87,18 @@ def get_accounting_mappings(company_id: str) -> Dict[str, Dict[str, Any]]:
         for m in company_response.data or []:
             by_code[m["rubrique_code"]] = m
         return by_code
-    except Exception as e:
-        logger.warning(f'Erreur lors de la récupération des mappings: {e}')
-        return {}
+    except Exception:
+        logger.exception("Plan comptable illisible pour la société %s", company_id)
+        raise
+
+
+def compte_du_net_a_payer(company_id: str) -> str:
+    """Compte du net à payer de la société (421000 par défaut)."""
+    mapping = (
+        get_accounting_mappings(company_id).get("net_a_payer")
+        or DEFAULT_MAPPINGS["net_a_payer"]
+    )
+    return str(mapping.get("compte_comptable") or mapping.get("compte_tiers") or "421000")
 
 
 def get_default_mapping(rubrique_code: str) -> Optional[Dict[str, Any]]:

@@ -68,14 +68,19 @@ class TestGenerateAcomptesEcritures:
         assert ecritures[1]["credit"] == 500.0
 
     def test_remboursement_debit_net_credit_425(self):
-        ecritures = module.generate_acomptes_ecritures(
-            "co-1",
-            "2026-06",
-            [],
-            SAMPLE_REPAYMENTS,
-        )
+        """Sans plan propre à la société : le net à payer plateforme, 421000."""
+        with patch(
+            "app.modules.exports.infrastructure.export_ecritures_comptables.get_accounting_mappings",
+            return_value={},
+        ):
+            ecritures = module.generate_acomptes_ecritures(
+                "co-1",
+                "2026-06",
+                [],
+                SAMPLE_REPAYMENTS,
+            )
         assert len(ecritures) == 2
-        assert ecritures[0]["compte_comptable"] == "425000"
+        assert ecritures[0]["compte_comptable"] == "421000"
         assert ecritures[0]["debit"] == 500.0
         assert ecritures[1]["compte_comptable"] == "4251"
         assert ecritures[1]["credit"] == 500.0

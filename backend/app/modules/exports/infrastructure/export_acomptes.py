@@ -9,6 +9,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from app.core.database import supabase
+from app.modules.exports.infrastructure.export_ecritures_comptables import (
+    compte_du_net_a_payer,
+)
 from app.modules.saisies_avances.infrastructure.queries import (
     list_advance_payments_by_period,
     list_advance_repayments_by_period,
@@ -39,7 +42,6 @@ ECRITURES_HEADERS = [
 ]
 
 DEFAULT_BANK_ACCOUNT = "512000"
-DEFAULT_NET_ACCOUNT = "425000"
 
 
 def _round2(value: float) -> float:
@@ -231,6 +233,8 @@ def generate_acomptes_ecritures(
             }
         )
 
+    # Contrepartie de la retenue : le compte du net à payer de la société.
+    compte_net = compte_du_net_a_payer(company_id) if repayments else ""
     for repayment in repayments:
         compte = str(repayment.get("accounting_account") or "425")
         montant = float(repayment.get("amount_repaid", 0) or 0)
@@ -243,7 +247,7 @@ def generate_acomptes_ecritures(
             {
                 "date_ecriture": date_ecriture,
                 "journal": "OD",
-                "compte_comptable": DEFAULT_NET_ACCOUNT,
+                "compte_comptable": compte_net,
                 "libelle": libelle,
                 "debit": _round2(montant),
                 "credit": 0.0,
