@@ -21,6 +21,7 @@ export const PAYROLL_FOCUS_NAV_URLS: readonly string[] = [
   '/saisies',
   '/salary-seizures',
   '/salary-advances',
+  '/employee-loans',
   '/simulation',
   '/rates',
   '/taux-pas',
@@ -58,10 +59,9 @@ const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = [
   // continuent de rediriger, absentes du menu.
   '/suivi-contingent-hs',
   '/suivi-modulation',
-  // Aucun mouvement CET ni prêt employeur dans le groupe pour l'instant :
-  // hors menu en mode paie, mais les routes restent atteignables.
+  // Aucun mouvement CET dans le groupe pour l'instant : hors menu en mode
+  // paie, mais la route reste atteignable.
   '/suivi-cet',
-  '/employee-loans',
   // Tableau de bord d'un groupe de sociétés (`/groups/:groupId`) : c'est par
   // là qu'une gestionnaire multi-sociétés passe d'une société à l'autre.
   // L'entrée est construite dynamiquement par la barre latérale, elle ne
