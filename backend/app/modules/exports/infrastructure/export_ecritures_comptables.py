@@ -395,6 +395,15 @@ def preview_od(
                 "severity": "blocking",
             }
         )
+        # Ce qui la déséquilibre : bulletin à reprendre ou compte à paramétrer.
+        for anomalie in od_totals.get("anomalies") or []:
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"{anomalie.get('label', '')} : {anomalie.get('detail', '')}",
+                    "severity": "blocking",
+                }
+            )
     if len(ecritures) == 0:
         anomalies.append(
             {

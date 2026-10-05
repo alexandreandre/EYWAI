@@ -5,7 +5,12 @@ from typing import Any, Dict, List, Optional
 
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
 
-from .payroll_ledger import build_payroll_ledger, ledger_to_od_export_rows
+from .export_ecritures_comptables import get_payslip_data_for_od
+from .payroll_ledger import (
+    assert_ledger_balanced,
+    build_payroll_ledger,
+    ledger_to_od_export_rows,
+)
 
 
 def _ledger_ecritures(
@@ -13,9 +18,15 @@ def _ledger_ecritures(
     period: str,
     employee_ids: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
-    ecritures, _, _ = build_payroll_ledger(
+    """Écritures de l'OD complète ; refusées si elles ne s'équilibrent pas.
+
+    Un fichier déséquilibré est rejeté à l'import par le logiciel comptable :
+    mieux vaut le refuser ici, avec le détail de ce qui manque.
+    """
+    ecritures, od_totals, _ = build_payroll_ledger(
         company_id, period, employee_ids, scope="full"
     )
+    assert_ledger_balanced(od_totals)
     return ledger_to_od_export_rows(ecritures)
 
 
@@ -116,25 +127,52 @@ def preview_cabinet_export(
     export_type: str,
     employee_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    ecritures = _ledger_ecritures(company_id, period, employee_ids)
-    total_debit = sum(e["debit"] for e in ecritures)
-    total_credit = sum(e["credit"] for e in ecritures)
-    equilibre = abs(total_debit - total_credit) < 0.01
-    return {
-        "nombre_lignes": len(ecritures),
-        "total_debit": round(total_debit, 2),
-        "total_credit": round(total_credit, 2),
-        "equilibre": equilibre,
-        "ecart": round(abs(total_debit - total_credit), 2),
-        "anomalies": [] if equilibre and ecritures else [
+    ecritures, od_totals, _ = build_payroll_ledger(
+        company_id, period, employee_ids, scope="full"
+    )
+    _, totaux_bulletins = get_payslip_data_for_od(company_id, period, employee_ids)
+    employees_count = int(totaux_bulletins.get("employees_count") or 0)
+    equilibre = bool(od_totals.get("equilibre"))
+
+    anomalies: List[Dict[str, Any]] = []
+    if not ecritures:
+        anomalies.append(
+            {"type": "error", "message": "Aucune écriture à exporter", "severity": "blocking"}
+        )
+    if not equilibre:
+        anomalies.append(
             {
                 "type": "error",
-                "message": "OD non équilibrée ou vide",
+                "message": f"OD non équilibrée : écart de {od_totals.get('ecart', 0):.2f} €",
                 "severity": "blocking",
             }
-        ],
+        )
+        for anomalie in od_totals.get("anomalies") or []:
+            anomalies.append(
+                {
+                    "type": "error",
+                    "message": f"{anomalie.get('label', '')} : {anomalie.get('detail', '')}",
+                    "severity": "blocking",
+                }
+            )
+    return {
+        "employees_count": employees_count,
+        "totals": {
+            "employees_count": employees_count,
+            "total_brut": totaux_bulletins.get("total_brut"),
+            "total_net_a_payer": totaux_bulletins.get("total_net_a_payer"),
+            "total_cotisations_salariales": totaux_bulletins.get("total_cotisations_salariales"),
+            "total_cotisations_patronales": totaux_bulletins.get("total_cotisations_patronales"),
+            "total_amount": od_totals.get("total_debit", 0),
+        },
+        "nombre_lignes": len(ecritures),
+        "total_debit": od_totals.get("total_debit", 0),
+        "total_credit": od_totals.get("total_credit", 0),
+        "equilibre": equilibre,
+        "ecart": od_totals.get("ecart", 0),
+        "anomalies": anomalies,
         "warnings": [],
-        "can_generate": equilibre and len(ecritures) > 0,
+        "can_generate": equilibre and bool(ecritures),
     }
 
 
