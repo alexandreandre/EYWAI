@@ -78,6 +78,23 @@ def test_bordereau_urssaf_regroupe_par_code_type_de_personnel():
     assert total == 685 + 757 + 286 + 3 + 89 + 8 + 114 + 3 + 18 - 420 - 45 + 121
 
 
+def test_taux_absent_retrouve_depuis_montant_et_assiette():
+    """Un bulletin repris ne porte pas toujours le taux : 1 849,32 € sur
+    62 689,04 € de chômage, c'est 2,95 % (taux modulé), pas un taux nul."""
+    lignes, _, _ = bordereau_urssaf(
+        [
+            [
+                _ligne("040", "07", 62689.04, 1849.32, "0.000"),
+                _ligne("045", "03", 62689.04, 1974.72, "0.000"),
+                _ligne("075", "03", 62689.04, 4388.23, "7.000"),
+            ]
+        ]
+    )
+    par_ctp = {(l["ctp"], l["qualifiant"]): l for l in lignes}
+    assert par_ctp[("725", "920")]["taux"] == "2.95"
+    assert par_ctp[("100", "920")]["taux"] == "3.15"
+
+
 def test_code_sans_correspondance_signale():
     _, _, inconnus = bordereau_urssaf([[_ligne("999", "03", 100.0, 1.0, "1.000")]])
     assert inconnus == ["999"]
