@@ -149,6 +149,12 @@ class AcquitAlertRequest(BaseModel):
     comment: str | None = None
 
 
+class ValidationGroupeeRequest(BaseModel):
+    """Les bulletins prêts du mois à valider en une fois."""
+
+    payslip_ids: list[str] = Field(..., min_length=1, max_length=500)
+
+
 class ReportNetNegatifActionRequest(BaseModel):
     """Création, mise à jour ou suppression du report d'un net négatif."""
 

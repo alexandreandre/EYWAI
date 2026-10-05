@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from typing import Any
+from typing import Any, Callable, Iterable
 
 from app.modules.payslips.application.dto import (
     PayslipBadRequestError,
@@ -318,3 +318,50 @@ def validate_payslip_for_user(payslip_id: str, ctx: UserContext) -> None:
                 "Notification bulletin %s après validation en échec", payslip_id
             )
             logger.exception("Exception")
+
+
+REFUS_INTROUVABLE = (
+    "Bulletin introuvable : il a été supprimé ou régénéré depuis l'affichage. "
+    "Rechargez la page."
+)
+REFUS_INATTENDU = (
+    "La validation a échoué sur une erreur inattendue. "
+    "Ouvrez le bulletin et validez-le depuis son écran."
+)
+
+
+def raison_du_refus(exc: Exception) -> str | None:
+    """La raison d'un refus de validation, dite pour la gestionnaire ; None si inconnue."""
+    if isinstance(exc, PayslipCriticalActiveError):
+        messages = [
+            str(a.get("message") or "").strip()
+            for a in exc.critical_alerts
+            if isinstance(a, dict) and a.get("message")
+        ]
+        return "Alerte à acquitter dans le bulletin : " + " ".join(messages)
+    if isinstance(exc, PayslipNotFoundError):
+        return REFUS_INTROUVABLE
+    if isinstance(exc, (PayslipBadRequestError, PayslipForbiddenError)):
+        return str(exc)
+    return None
+
+
+def valider_plusieurs_bulletins(
+    payslip_ids: Iterable[str], valider_un: Callable[[str], None]
+) -> dict[str, list[Any]]:
+    """Valide chaque bulletin par la règle d'un seul (`valider_un`) ; un refus
+    n'arrête pas le lot et revient avec sa raison (revue du 05/10)."""
+    valides: list[str] = []
+    refus: list[dict[str, str]] = []
+    for payslip_id in dict.fromkeys(payslip_ids):
+        try:
+            valider_un(payslip_id)
+        except Exception as exc:  # noqa: BLE001 — chaque bulletin a sa réponse, le lot continue
+            raison = raison_du_refus(exc)
+            if raison is None:
+                logger.exception("Validation groupée : échec inattendu sur %s", payslip_id)
+                raison = REFUS_INATTENDU
+            refus.append({"payslip_id": payslip_id, "raison": raison})
+        else:
+            valides.append(payslip_id)
+    return {"valides": valides, "refus": refus}

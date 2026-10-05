@@ -217,6 +217,20 @@ class PayslipRestoreResponse(BaseModel):
     recalcul_refus: dict[str, Any] | None = None
 
 
+class RefusDeValidation(BaseModel):
+    """Un bulletin non validé par la validation groupée, et pourquoi."""
+
+    payslip_id: str
+    raison: str
+
+
+class ValidationGroupeeResponse(BaseModel):
+    """Ce que la validation groupée a validé, et ce qu'elle a refusé."""
+
+    valides: list[str]
+    refus: list[RefusDeValidation]
+
+
 class PayslipPreviewResponse(BaseModel):
     """Bulletin rendu, prêt à être affiché tel quel."""
 

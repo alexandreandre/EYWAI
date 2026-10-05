@@ -46,6 +46,9 @@ from app.modules.payslips.application import (
     validate_payslip_for_user,
     GeneratePayslipInput,
 )
+from app.modules.payslips.application.comparison_service import (
+    valider_plusieurs_bulletins,
+)
 from app.modules.payslips.application.dto import PayslipConflictError
 from app.modules.payslips.application.report_nap_negatif import (
     ReportNapRefuse,
@@ -70,6 +73,8 @@ from app.modules.payslips.schemas import (
     PayslipRestoreRequest,
     PayslipRestoreResponse,
     TrendResponse,
+    ValidationGroupeeRequest,
+    ValidationGroupeeResponse,
 )
 from app.modules.payroll.documents.verrou_generation import GenerationDejaEnCours
 from app.modules.users.schemas.responses import User
@@ -485,6 +490,60 @@ def ignore_payslip_alert_route(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _tracer_la_validation(
+    meta: dict | None, payslip_id: str, current_user: User, request: Request
+) -> None:
+    """Journal d'audit et webhook d'un bulletin validé."""
+    cid = str(meta.get("company_id") or "") if meta else ""
+    if not cid:
+        return
+    log_audit_event(
+        company_id=cid,
+        user_id=str(current_user.id),
+        user_email=current_user.email,
+        action="payslip.validate",
+        resource_type="payslip",
+        resource_id=payslip_id,
+        details={
+            "employee_id": str(meta.get("employee_id") or ""),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    trigger_webhook_event(
+        cid,
+        "payslip.validated",
+        {
+            "payslip_id": payslip_id,
+            "employee_id": str(meta.get("employee_id") or ""),
+        },
+    )
+
+
+@router.post("/api/payslips/validate-batch", response_model=ValidationGroupeeResponse)
+def validate_payslips_batch_route(
+    body: ValidationGroupeeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Valide les bulletins prêts du mois, chacun par la règle d'un seul ;
+    rend ceux qui sont refusés, avec leur raison."""
+    ctx = _to_user_context(current_user)
+
+    def valider_un(payslip_id: str) -> None:
+        try:
+            meta = _require_payslip_scope(current_user, payslip_id, "payslips.validate")
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                raise PayslipNotFoundError(str(exc.detail)) from exc
+            raise PayslipForbiddenError(
+                "Vous n'avez pas le droit de valider ce bulletin."
+            ) from exc
+        validate_payslip_for_user(payslip_id, ctx)
+        _tracer_la_validation(meta, payslip_id, current_user, request)
+
+    return valider_plusieurs_bulletins(body.payslip_ids, valider_un)
+
+
 @router.post("/api/payslips/{payslip_id}/validate", response_model=PayslipDetail)
 def validate_payslip_route(
     payslip_id: str,
@@ -497,28 +556,7 @@ def validate_payslip_route(
             current_user, payslip_id, "payslips.validate"
         )
         validate_payslip_for_user(payslip_id, _to_user_context(current_user))
-        cid = str(meta.get("company_id") or "") if meta else ""
-        if cid:
-            log_audit_event(
-                company_id=cid,
-                user_id=str(current_user.id),
-                user_email=current_user.email,
-                action="payslip.validate",
-                resource_type="payslip",
-                resource_id=payslip_id,
-                details={
-                    "employee_id": str(meta.get("employee_id") or ""),
-                },
-                ip_address=request.client.host if request.client else None,
-            )
-            trigger_webhook_event(
-                cid,
-                "payslip.validated",
-                {
-                    "payslip_id": payslip_id,
-                    "employee_id": str(meta.get("employee_id") or ""),
-                },
-            )
+        _tracer_la_validation(meta, payslip_id, current_user, request)
         return get_payslip_details_for_user(payslip_id, _to_user_context(current_user))
     except _PAYSLIP_APP_ERRORS as e:
         _handle_application_errors(e)

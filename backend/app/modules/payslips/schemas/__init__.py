@@ -13,6 +13,7 @@ from app.modules.payslips.schemas.requests import (
     PayslipRequest,
     PayslipRestoreRequest,
     ReportNetNegatifActionRequest,
+    ValidationGroupeeRequest,
 )
 from app.modules.payslips.schemas.responses import (
     ComparisonLineResponse,
@@ -27,6 +28,7 @@ from app.modules.payslips.schemas.responses import (
     PayslipRestoreResponse,
     TrendMonthResponse,
     TrendResponse,
+    ValidationGroupeeResponse,
 )
 
 __all__ = [
@@ -49,4 +51,6 @@ __all__ = [
     "ComparisonResultResponse",
     "TrendMonthResponse",
     "TrendResponse",
+    "ValidationGroupeeRequest",
+    "ValidationGroupeeResponse",
 ]
