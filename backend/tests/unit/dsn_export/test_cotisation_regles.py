@@ -437,6 +437,22 @@ def test_csg_et_crds_reprennent_les_montants_du_bulletin():
     assert _ligne(cotisations, "072")["S21.G00.81.003"] == "2359.01"
 
 
+def test_la_crds_de_la_participation_se_compte_aussi():
+    """La ligne non déductible de la participation n'a pas d'identifiant et
+    porte 2,90 % : elle paie sa CRDS comme celle du salaire (rejeu de mai,
+    quatre sociétés : la CRDS de la participation passait dans la CSG)."""
+    _, cotisations, _ = _construire(
+        [
+            {"coti_id": "csg_deductible", "libelle": "CSG déductible", "base": 2226.42, "taux_salarial": 0.068, "montant_salarial": 151.40},
+            {"coti_id": None, "libelle": "CSG déductible — Participation 2025", "base": 1554.30, "taux_salarial": 0.068, "montant_salarial": 105.69},
+            {"coti_id": "csg_non_deductible", "libelle": "CSG/CRDS non déductible", "base": 2226.42, "taux_salarial": 0.029, "montant_salarial": 64.57},
+            {"coti_id": None, "libelle": "CSG/CRDS non déductible — Participation 2025", "base": 1554.30, "taux_salarial": 0.029, "montant_salarial": 45.07},
+        ]
+    )
+    assert _ligne(cotisations, "079")["S21.G00.81.004"] == "18.90"  # 11,13 + 7,77
+    assert _ligne(cotisations, "072")["S21.G00.81.004"] == "347.83"
+
+
 def test_apec_se_declare_sans_identifiant_urssaf():
     """L'Apec est recouvrée par l'Agirc-Arrco : pas d'OPS Urssaf en 81.002."""
     _, cotisations, _ = build_bases_and_cotisations(
