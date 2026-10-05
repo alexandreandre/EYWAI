@@ -75,8 +75,8 @@ def test_la_notification_in_app_reste_emise(supabase_table) -> None:
     [
         "import.x.y.1@534386495.dsn-import.local",
         "import.abc@dsn-import.eywai.fr",
-        "gaelle.cavotin@eywai.access.local",
-        "vanessa.barague@users.eywai",
+        "gestionnaire.paie@eywai.access.local",
+        "admin.societe@users.eywai",
     ],
 )
 def test_toutes_les_familles_fabriquees_sont_bloquees(supabase_table, adresse) -> None:

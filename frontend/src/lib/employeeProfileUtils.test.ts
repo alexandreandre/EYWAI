@@ -41,8 +41,8 @@ describe('employeeProfileUtils', () => {
 
   it('isDsnImportPlaceholderEmail detects every fabricated domain', () => {
     expect(isDsnImportPlaceholderEmail('import.abc123@dsn-import.eywai.fr')).toBe(true);
-    expect(isDsnImportPlaceholderEmail('gaelle.cavotin@eywai.access.local')).toBe(true);
-    expect(isDsnImportPlaceholderEmail('vanessa.barague@users.eywai')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('gestionnaire.paie@eywai.access.local')).toBe(true);
+    expect(isDsnImportPlaceholderEmail('admin.societe@users.eywai')).toBe(true);
     expect(isDsnImportPlaceholderEmail('dupontvanessa@yahoo.fr')).toBe(false);
     expect(isDsnImportPlaceholderEmail('')).toBe(false);
     expect(isDsnImportPlaceholderEmail(null)).toBe(false);

@@ -62,10 +62,10 @@ def test_le_reste_du_payload_est_intact() -> None:
 def test_les_anciennes_adresses_restent_reconnues() -> None:
     """Les 183 fiches déjà en base gardent leur adresse : la détection doit survivre."""
     assert is_dsn_import_placeholder_email(
-        "import.vanessa.barague.383122@534386495.dsn-import.local"
+        "import.admin.societe.383122@534386495.dsn-import.local"
     )
     assert is_dsn_import_placeholder_email("import.abc123@dsn-import.eywai.fr")
-    assert is_dsn_import_placeholder_email("gaelle.cavotin@eywai.access.local")
-    assert is_dsn_import_placeholder_email("vanessa.barague@users.eywai")
+    assert is_dsn_import_placeholder_email("gestionnaire.paie@eywai.access.local")
+    assert is_dsn_import_placeholder_email("admin.societe@users.eywai")
     assert not is_dsn_import_placeholder_email("dupontvanessa@yahoo.fr")
     assert not is_dsn_import_placeholder_email(None)

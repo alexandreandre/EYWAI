@@ -51,8 +51,8 @@ def test_acces_actif_conserve_si_is_active_absent():
 @pytest.mark.parametrize(
     "adresse",
     [
-        "gaelle.cavotin@eywai.access.local",
-        "import.vanessa.barague.383122@534386495.dsn-import.local",
+        "gestionnaire.paie@eywai.access.local",
+        "import.admin.societe.383122@534386495.dsn-import.local",
         "quelquun@dsn-import.eywai.fr",
     ],
 )
@@ -70,13 +70,13 @@ def test_adresse_fabriquee_journalisee():
     pas vers la racine, `caplog` ne le verrait donc pas.
     """
     rows = [_row("u1", "rh"), _row("u2", "admin")]
-    emails = {"u1": "gaelle.cavotin@eywai.access.local", "u2": "vraie@exemple.fr"}
+    emails = {"u1": "gestionnaire.paie@eywai.access.local", "u2": "vraie@exemple.fr"}
 
     with patch.object(mod.logger, "warning") as warn:
         assert _recipients(rows, emails) == ["vraie@exemple.fr"]
 
     warn.assert_called_once()
-    assert "gaelle.cavotin@eywai.access.local" in warn.call_args.args
+    assert "gestionnaire.paie@eywai.access.local" in warn.call_args.args
 
 
 def test_role_non_rh_exclu():

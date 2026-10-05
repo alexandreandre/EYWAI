@@ -89,7 +89,7 @@ def test_technical_account_create_then_second_run_noop(tmp_path: Path):
                 "key": "gaelle",
                 "identity": {
                     "name": "Gaëlle Cavotin",
-                    "email": "gaelle.cavotin@eywai.access.local",
+                    "email": "gestionnaire.paie@eywai.access.local",
                 },
                 "account": "technical_login",
                 "accesses": [{"company": "mbc", "role": "rh", "scope_mode": "company"}],
@@ -109,7 +109,7 @@ def test_technical_account_create_then_second_run_noop(tmp_path: Path):
     assert all(i.decision == "no-op" for i in plan2.items)
 
     out = tmp_path / "out.xlsx"
-    write_access_workbook(plan1, out, passwords=passwords, usernames={"gaelle": "gaelle.cavotin"})
+    write_access_workbook(plan1, out, passwords=passwords, usernames={"gaelle": "gestionnaire.paie"})
     assert out.exists()
     assert oct(out.stat().st_mode)[-3:] == "600"
 
@@ -206,8 +206,8 @@ def test_sync_accesses_deactivates_stale():
                 "key": "gaelle",
                 "identity": {
                     "name": "Gaëlle Cavotin",
-                    "email": "gaelle.cavotin@eywai.access.local",
-                    "username": "gaelle.cavotin",
+                    "email": "gestionnaire.paie@eywai.access.local",
+                    "username": "gestionnaire.paie",
                 },
                 "account": "technical_login",
                 "sync_accesses": True,
@@ -234,7 +234,7 @@ def test_sync_accesses_deactivates_stale():
                 "id": "u-g",
                 "first_name": "Gaëlle",
                 "last_name": "Cavotin",
-                "email": "gaelle.cavotin@eywai.access.local",
+                "email": "gestionnaire.paie@eywai.access.local",
                 "role": "rh",
             }
         ],

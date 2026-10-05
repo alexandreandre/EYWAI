@@ -101,8 +101,8 @@ describe('isPayrollFocusAllowed', () => {
 
 describe('isPayrollFocusActive', () => {
   it('est actif pour un compte client', () => {
-    expect(isPayrollFocusActive({ role: 'rh', email: 'gaelle.cavotin@maji-invest.fr' })).toBe(true);
-    expect(isPayrollFocusActive({ role: 'admin', email: 'vanessa.barague@maji-invest.fr' })).toBe(true);
+    expect(isPayrollFocusActive({ role: 'rh', email: 'gestionnaire.paie@exemple.fr' })).toBe(true);
+    expect(isPayrollFocusActive({ role: 'admin', email: 'admin.societe@exemple.fr' })).toBe(true);
   });
 
   it('est inactif pour un administrateur plateforme', () => {
