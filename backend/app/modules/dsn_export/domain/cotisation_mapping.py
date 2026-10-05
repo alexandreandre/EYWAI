@@ -782,7 +782,7 @@ def build_bases_and_cotisations(
             "S21.G00.78.003": period_end,
             "S21.G00.78.004": f"{montant:.2f}",
         }
-        if code == BASE_BRUT_DEPLAFONNE and smic_retenu:
+        if code == BASE_BRUT_DEPLAFONNE and smic_retenu is not None:
             # Composant « 01 - montant du SMIC retenu pour la réduction
             # générale » : sa présence conditionne le droit de déclarer 018/106.
             rubriques["_composants_79"] = [

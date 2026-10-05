@@ -336,7 +336,8 @@ def _smic_reduction_generale(
     for ligne in lignes:
         if str(ligne.get("coti_id") or "") == "reduction_generale" and ligne.get(
             "smic_reference_mois"
-        ):
+        ) is not None:
+            # Zéro est une vraie valeur : un mois sans heure payée.
             return float(ligne["smic_reference_mois"])
     valeur = synthese_net.get("montant_smic_reduction_generale") or reprise.get(
         "smic_retenu"
