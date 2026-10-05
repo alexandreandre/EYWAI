@@ -370,8 +370,17 @@ def test_heures_cumulees_avant_lues_au_dernier_bulletin_de_l_annee():
         {"month": 6, "cumuls": {"cumuls": {"heures_remunerees": 1014.0}}},
         {"month": 9, "cumuls": {"cumuls": {"heures_remunerees": 1521.0}}},
     ]
-    assert heures_cumulees_avant(bulletins, 9) == 1183.0
-    assert heures_cumulees_avant([], 9) == 0.0
+    salarie = {"hire_date": "2014-09-01"}
+    assert heures_cumulees_avant(bulletins, 2026, 9, salarie) == 1183.0
+    assert heures_cumulees_avant([], 2026, 9, salarie) == 0.0
+
+
+def test_un_nouveau_contrat_repart_de_zero_heure():
+    """Réembauche : le moteur repart de zéro au premier mois du contrat ;
+    les cumuls du contrat précédent ne comptent pas."""
+    bulletins = [{"month": 4, "cumuls": {"cumuls": {"heures_remunerees": 676.0}}}]
+    reembauche = {"hire_date": "2026-09-08"}
+    assert heures_cumulees_avant(bulletins, 2026, 9, reembauche) == 0.0
 
 
 def test_le_smic_repris_d_une_dsn_du_cabinet_ne_vaut_que_pour_son_mois():
