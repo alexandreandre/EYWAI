@@ -171,6 +171,9 @@ def rebaser_reprises_cp(
         ancien_n1 = round(float(row.get("cp_n1_opening_balance") or 0), 2)
         ancien_n = round(float(row.get("cp_n_opening_balance") or 0), 2)
         cible_n1, cible_n = soldes(ancienne, ancien_n1, ancien_n)
+        # Le nouveau réglage redonne déjà le solde repris : rien à réécrire.
+        if soldes(nouvelle, ancien_n1, ancien_n) == (cible_n1, cible_n):
+            continue
         sonde_n1, _ = soldes(
             dataclasses.replace(nouvelle, cp_carryover_max_days=None),
             _OUVERTURE_SONDE,
@@ -179,8 +182,6 @@ def rebaser_reprises_cp(
         nouveau_n1 = round(_OUVERTURE_SONDE + cible_n1 - sonde_n1, 2)
         _, sonde_n = soldes(nouvelle, nouveau_n1, 0.0)
         nouveau_n = round(cible_n - sonde_n, 2)
-        if nouveau_n1 == ancien_n1 and nouveau_n == ancien_n:
-            continue
         upsert_employee_adjustment(
             company_id,
             employee_id,

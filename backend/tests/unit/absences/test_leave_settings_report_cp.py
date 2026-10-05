@@ -146,7 +146,12 @@ class TestRebaserReprisesAuReport:
 
         rebaser_reprises_cp("co-1", SANS_REPORT, AVEC_REPORT)
 
-        payload = upsert.call_args.args[3]
+        # Sans réécriture, ce sont les écarts d'avant qui valent.
+        payload = (
+            upsert.call_args.args[3]
+            if upsert.called
+            else {"cp_n1_opening_balance": ecarts[0], "cp_n_opening_balance": ecarts[1]}
+        )
         apres = EmployeeLeaveAdjustment(
             cp_n1_opening_balance=payload["cp_n1_opening_balance"],
             cp_n_opening_balance=payload["cp_n_opening_balance"],
