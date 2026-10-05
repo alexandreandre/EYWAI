@@ -163,3 +163,20 @@ class TestRebaserReprisesAuReport:
         sur_n1 = min(3.0, repris[0])
         assert n1_fin_septembre == round(n1_sans - sur_n1, 2)
         assert n_fin_septembre == round(n_sans - (3.0 - sur_n1), 2)
+
+    @patch(f"{_CMD}.upsert_employee_adjustment")
+    @patch(f"{_CMD}.absence_repository")
+    @patch(f"{_QUERIES}.get_employee_hire_date")
+    @patch(f"{_CMD}.list_company_adjustments_avec_reference")
+    def test_un_solde_que_le_report_ne_change_pas_n_est_pas_reecrit(
+        self, lister, hire, repo, upsert
+    ):
+        # Aucun congé pris depuis le 1er juin : le report ne change rien au
+        # 31/08. L'écart N-1 (−26 pour 25 acquis, N-1 repris à 0) reste tel
+        # quel, même si −25 donnerait le même solde.
+        lister.return_value = [self._ligne(-26.0, -8.0)]
+        hire.return_value = "2019-09-01"
+        repo.list_validated_for_employees.return_value = []
+
+        assert rebaser_reprises_cp("co-1", SANS_REPORT, AVEC_REPORT) == 0
+        upsert.assert_not_called()
