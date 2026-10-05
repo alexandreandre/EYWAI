@@ -280,3 +280,23 @@ describe('employeeProfileFormUtils salaire saisi pour 35 h', () => {
     expect(payload.specificites_paie?.salaire_hors_hs_structurelles).toBe(true);
   });
 });
+
+describe('salaire verrouillé par l’historique', () => {
+  // La génération remet sur la fiche le salaire de l'historique daté : avec un
+  // historique, le formulaire n'envoie pas de salaire, qui se change avec une
+  // date d'effet (« Changer le salaire »).
+  it('n’envoie pas le salaire quand il est verrouillé', () => {
+    const values = buildDefaultValues(baseEmployee);
+    const payload = buildUpdatePayload(values, baseEmployee, { salaireVerrouille: true });
+    expect(payload).not.toHaveProperty('salaire_de_base');
+    expect(payload.first_name).toBe('Alice');
+  });
+
+  it('envoie le salaire d’une fiche sans historique', () => {
+    const values = buildDefaultValues(baseEmployee);
+    expect(buildUpdatePayload(values, baseEmployee).salaire_de_base).toEqual({ valeur: 3500 });
+    expect(
+      buildUpdatePayload(values, baseEmployee, { salaireVerrouille: false }).salaire_de_base,
+    ).toEqual({ valeur: 3500 });
+  });
+});
