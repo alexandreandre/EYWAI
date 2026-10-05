@@ -424,6 +424,10 @@ def _calculer_reduction_rgdu(
             "taux_patronal": coefficient_C if coefficient_C > 0 else None,
             "montant_patronal": montant_final,
             "valeur_cumulative_a_enregistrer": reduction_totale_due,
+            # SMIC retenu du mois, que la DSN déclare (S21.G00.79 type 01).
+            "smic_reference_mois": _calculer_smic_de_reference_cumule(
+                contexte, heures_remunerees_mois
+            ),
         },
         coti_id="reduction_generale",
     )
@@ -501,6 +505,10 @@ def _calculer_reduction_fillon(
             "montant_patronal": montant_final,
             # Info supplémentaire pour la mise à jour des cumuls
             "valeur_cumulative_a_enregistrer": round(reduction_totale_due, 2),
+            # SMIC retenu du mois, que la DSN déclare (S21.G00.79 type 01).
+            "smic_reference_mois": _calculer_smic_de_reference_cumule(
+                contexte, heures_remunerees_mois
+            ),
         },
         coti_id="reduction_generale",
     )

@@ -80,6 +80,83 @@ def _sum_absence_pertes(payslip_data: Dict[str, Any]) -> float:
     return round(total, 2)
 
 
+@dataclass
+class Absences:
+    """Ce que les absences du mois retirent au bulletin, en heures et en euros.
+
+    Les congés payés n'en sont pas : ils sont rémunérés (la retenue et
+    l'indemnité se compensent), et la réduction d'heures sup structurelles qui
+    suit leur ligne leur appartient. L'absence pour entrée ou sortie réduit les
+    heures payées mais n'est pas une absence du salarié (pas de type 02).
+    """
+
+    heures_non_payees: float = 0.0
+    heures_absence: float = 0.0
+    # Retenues d'absence, entrée / sortie comprises : ce qu'il faut rendre au
+    # brut pour reconstituer le salaire d'un mois complet (003).
+    retenues: float = 0.0
+    compensations: float = 0.0
+
+
+def _est_conges_payes(libelle: str) -> bool:
+    texte = libelle.replace("é", "e").replace("É", "E").lower()
+    return "conges payes" in texte or "absence cp" in texte
+
+
+def analyser_absences(payslip_data: Dict[str, Any]) -> Absences:
+    """Lit les lignes d'absence du brut, bulletin calculé ou repris.
+
+    Un bulletin calculé range ses absences dans ``details_absences`` (et ses CP
+    dans ``details_conges``, ignorés ici) ; un bulletin repris les garde dans
+    ``calcul_du_brut``. On lit les deux.
+    """
+    resultat = Absences()
+    lignes = _iter_brut_lines(payslip_data) + [
+        l for l in (payslip_data.get("details_absences") or []) if isinstance(l, dict)
+    ]
+    ligne_precedente_cp = False
+    for ligne in lignes:
+        libelle = _lib(ligne)
+        perte = _f(ligne.get("perte"))
+        gain = _f(ligne.get("gain"))
+        heures = _f(ligne.get("quantite"))
+        if perte <= 0:
+            explication = str(ligne.get("explication") or "").lower()
+            if gain > 0 and ("maintien" in libelle or explication.startswith("absence")):
+                # Maintien de salaire, ou retenue plafonnée au salaire du mois :
+                # rend une partie de ce que l'absence avait retiré.
+                resultat.compensations += gain
+            continue
+        if _est_conges_payes(libelle):
+            ligne_precedente_cp = True
+            continue
+        if "structurell" in libelle and ligne_precedente_cp:
+            continue
+        ligne_precedente_cp = False
+        resultat.heures_non_payees += heures
+        resultat.retenues += perte
+        if "entrée ou sortie" in libelle or "entree ou sortie" in libelle:
+            continue
+        resultat.heures_absence += heures
+    resultat.heures_non_payees = round(resultat.heures_non_payees, 2)
+    resultat.heures_absence = round(resultat.heures_absence, 2)
+    resultat.retenues = round(resultat.retenues, 2)
+    resultat.compensations = round(resultat.compensations, 2)
+    return resultat
+
+
+def jours_calendaires(debut_dsn: str, fin_dsn: str) -> int:
+    """Jours calendaires de la période, bornes comprises (dates JJMMAAAA)."""
+    from datetime import datetime
+
+    try:
+        debut = datetime.strptime(debut_dsn, "%d%m%Y")
+        fin = datetime.strptime(fin_dsn, "%d%m%Y")
+    except (TypeError, ValueError):
+        return 0
+    return max(0, (fin - debut).days + 1)
+
+
 def _rem_block(
     *,
     type_code: str,
@@ -164,9 +241,18 @@ def build_remunerations_from_payslip(
     period_end: str,
     period: str,
     contrat_ref: str = "00000",
+    jours_suspendus: int = 0,
+    brut_chomage: Optional[float] = None,
 ) -> RemunerationBuildResult:
-    """Produit les types 001/002/003/010/017/018/028/029 alignés sur Cegid."""
+    """Produit les types 001/002/003/010/017/018/028/029 alignés sur Cegid.
+
+    ``jours_suspendus`` : jours calendaires d'arrêt ou de suspension non
+    rémunérée de la période, retirés des jours du plafond (53 unité 40).
+    ``brut_chomage`` : salaire brut chômage (002) quand il diffère du brut —
+    les indemnités de rupture déclarées en bloc 52 n'y entrent pas.
+    """
     parts = analyze_calcul_du_brut(payslip_data)
+    absences = analyser_absences(payslip_data)
     brut_r = round(float(brut or 0), 2)
 
     # 010 = salaire de base contractuel (sous-total Cegid)
@@ -176,20 +262,12 @@ def build_remunerations_from_payslip(
     m_017, h_017 = parts["hs_aleatoires_montant"], parts["hs_aleatoires_heures"]
     m_018, h_018 = parts["hs_structurelles_montant"], parts["hs_structurelles_heures"]
 
-    # 003 salaire rétabli : sans absences = brut ; avec absences = gains avant pertes
-    retabli = brut_r
-    if parts["absence_pertes"] > 0.005:
-        retabli = round(
-            parts["sous_total_contractuel"]
-            + parts["hs_aleatoires_montant"]
-            + parts["autres_gains"],
-            2,
-        )
-        if retabli < brut_r:
-            retabli = brut_r
-    elif parts["sous_total_contractuel"] > 0 and parts["autres_gains"] >= 0:
-        # Cas normal Cegid : 003 = 001 = brut
-        retabli = brut_r
+    # 003 salaire rétabli : le brut auquel on rend ce que les absences ont
+    # retiré, moins ce qui les a indemnisées (maintien). Sur le rejeu de juin,
+    # 2026,41 + 93,93 + 13,39 = 2133,73 : le brut d'un mois sans absence.
+    retabli = max(
+        brut_r, round(brut_r + absences.retenues - absences.compensations, 2)
+    )
 
     remus: List[RemunerationBlock] = [
         _rem_block(
@@ -201,7 +279,7 @@ def build_remunerations_from_payslip(
         ),
         _rem_block(
             type_code="002",
-            montant=brut_r,
+            montant=brut_r if brut_chomage is None else round(brut_chomage, 2),
             period_start=period_start,
             period_end=period_end,
             contrat_ref=contrat_ref,
@@ -264,12 +342,19 @@ def build_remunerations_from_payslip(
         )
     )
 
-    # Activités : jours calendaires (unité 40) + heures payées (base + HS)
-    try:
-        year, month = [int(x) for x in period.split("-")[:2]]
-        days = calendar.monthrange(year, month)[1]
-    except Exception:
-        days = 30
+    # Activités. Les jours calendaires du plafond (unité 40) se rattachent au
+    # brut (001, CCH-12) et se comptent sur la période d'emploi du mois, moins
+    # les jours d'arrêt et de suspension non rémunérée. Les heures se
+    # rattachent au salaire chômage (002, CCH-11) : travail rémunéré (01) et
+    # durée d'absence partiellement ou pas rémunérée (02).
+    days = jours_calendaires(period_start, period_end)
+    if days <= 0:
+        try:
+            year, month = [int(x) for x in period.split("-")[:2]]
+            days = calendar.monthrange(year, month)[1]
+        except Exception:
+            days = 30
+    days = max(0, days - int(jours_suspendus or 0))
     heures_activite = round(
         (parts["heures_base"] or 0)
         + parts["hs_structurelles_heures"]
@@ -283,11 +368,21 @@ def build_remunerations_from_payslip(
             or 151.67,
             2,
         )
+    heures_activite = round(heures_activite - absences.heures_non_payees, 2)
 
     activites: List[Dict[str, Any]] = [
-        {"type": "01", "mesure": float(days), "unite": "40"},
-        {"type": "01", "mesure": heures_activite, "unite": ""},
+        {"type": "01", "mesure": float(days), "unite": "40", "remuneration": "001"},
+        {"type": "01", "mesure": heures_activite, "unite": "", "remuneration": "002"},
     ]
+    if absences.heures_absence > 0:
+        activites.append(
+            {
+                "type": "02",
+                "mesure": absences.heures_absence,
+                "unite": "",
+                "remuneration": "002",
+            }
+        )
 
     return RemunerationBuildResult(
         remunerations=remus,

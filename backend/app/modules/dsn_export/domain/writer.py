@@ -524,29 +524,50 @@ def write_versement(ver: VersementBlock, out: List[str]) -> None:
         if ver.montant_soumis_pas:
             _emit(R_S21_VER_PAS_ASSIETTE, _fmt_amount(ver.montant_soumis_pas), out)
 
-    # Le bloc activité (S21.G00.53) en unité « 40 - jours calendaires du
-    # plafond » n'est admis que sous la rémunération brute non plafonnée
-    # (type 001) : émis juste après elle, pas en fin de liste (CCH-12).
+    # Le bloc activité (S21.G00.53) se rattache à une rémunération précise :
+    # l'unité « 40 - jours calendaires du plafond » à la rémunération brute non
+    # plafonnée (001, CCH-12), toute autre mesure au salaire brut chômage
+    # (002, CCH-11). Chaque activité est émise juste après sa rémunération.
     activites = ver.rubriques.get("activites") if ver.rubriques else None
+    activites = [a for a in activites if isinstance(a, dict)] if isinstance(activites, list) else []
     for rem in ver.remunerations:
         write_remuneration(rem, out)
         type_rem = str(
             (rem.rubriques or {}).get("S21.G00.51.011") or rem.type_code or ""
         )
-        if type_rem == "001" and isinstance(activites, list):
-            for act in activites:
-                if not isinstance(act, dict):
-                    continue
-                _emit(R_S21_ACT_TYPE, str(act.get("type") or ""), out)
-                if act.get("mesure") is not None:
-                    _emit(R_S21_ACT_MESURE, _fmt_amount(float(act["mesure"])), out)
-                unite = str(act.get("unite") or "").strip()
-                if unite:
-                    _emit(R_S21_ACT_UNITE, unite, out)
-            activites = None  # émises une seule fois
+        for act in activites:
+            unite = str(act.get("unite") or "").strip()
+            parent = str(act.get("remuneration") or ("001" if unite == "40" else "002"))
+            if parent != type_rem:
+                continue
+            _emit(R_S21_ACT_TYPE, str(act.get("type") or ""), out)
+            if act.get("mesure") is not None:
+                _emit(R_S21_ACT_MESURE, _fmt_amount(float(act["mesure"])), out)
+            if unite:
+                _emit(R_S21_ACT_UNITE, unite, out)
+        # Une activité n'est émise qu'une fois, sous la première rémunération
+        # de son type.
+        activites = [
+            a
+            for a in activites
+            if str(
+                a.get("remuneration")
+                or ("001" if str(a.get("unite") or "").strip() == "40" else "002")
+            )
+            != type_rem
+        ]
 
     for prime in ver.primes:
         write_prime(prime, out)
+
+    # Autres éléments de revenu brut (S21.G00.54) : parts patronales santé
+    # (92), prévoyance et retraite supplémentaire (93)…
+    for bloc in (ver.rubriques.get("_blocs_54") if ver.rubriques else None) or []:
+        _emit("S21.G00.54.001", str(bloc.get("type") or ""), out)
+        _emit("S21.G00.54.002", str(bloc.get("montant") or ""), out)
+        _emit("S21.G00.54.003", str(bloc.get("debut") or ""), out)
+        _emit("S21.G00.54.004", str(bloc.get("fin") or ""), out)
+        _emit("S21.G00.54.005", str(bloc.get("contrat") or ""), out)
 
     # Éléments de revenu calculés en net (S21.G00.58) — le type 03, montant net
     # social, est obligatoire sur tout versement du mois principal (CCH-14).

@@ -100,8 +100,8 @@ def _texte_dsn(valeur: str) -> str:
 
     Apostrophe, espace, trait d'union et point n'y sont admis qu'« à bon
     escient » : jamais accolés à un autre séparateur, ni en bord de champ.
-    Vu chez le cabinet : virgule et barre oblique retirées, « ANDRE - REUNION »
-    resserré en « ANDRE REUNION ». On ne corrige que l'interdit.
+    Vu chez le cabinet : virgule et barre oblique retirées, « SAINT PAUL -
+    REUNION » resserré en « SAINT PAUL REUNION ». On ne corrige que l'interdit.
     """
     texte = str(valeur or "").replace(",", " ").replace("/", " ")
     texte = re.sub(r"\s+-\s+", " ", texte)
@@ -180,6 +180,99 @@ def _net_a_payer(payslip_data: Dict[str, Any]) -> float:
                 except (TypeError, ValueError):
                     pass
     return 0.0
+
+
+#: Contributions patronales déclarées en autres éléments de revenu brut
+#: (S21.G00.54) : 92 la santé, 93 la prévoyance et la retraite supplémentaire.
+COTI_SANTE = {"mutuelle", "complementaire_sante"}
+COTI_PREVOYANCE_RETRAITE_SUP = {
+    "prevoyance",
+    "prevoyance_cadre",
+    "prevoyance_non_cadre",
+    "retraite_sup",
+}
+
+
+def _arrondi(valeur: float) -> float:
+    from decimal import ROUND_HALF_UP, Decimal
+
+    return float(Decimal(str(round(valeur, 6))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def _famille_psc(ligne: Dict[str, Any]) -> str:
+    """« sante », « prevoyance » ou « » pour une ligne de cotisation."""
+    coti_id = str(ligne.get("coti_id") or "")
+    if coti_id in COTI_SANTE:
+        return "sante"
+    if coti_id in COTI_PREVOYANCE_RETRAITE_SUP:
+        return "prevoyance"
+    if coti_id:
+        return ""
+    libelle = str(ligne.get("libelle") or "").lower()
+    if "mutuelle" in libelle or "santé" in libelle or "sante" in libelle:
+        return "sante"
+    if "prévoyance" in libelle or "prevoyance" in libelle or "retraite sup" in libelle:
+        return "prevoyance"
+    return ""
+
+
+def _parts_patronales_psc(lignes: List[Dict[str, Any]]) -> Tuple[float, float]:
+    """(santé, prévoyance + retraite supplémentaire), parts patronales."""
+    sante = prevoyance = 0.0
+    for ligne in lignes:
+        famille = _famille_psc(ligne)
+        montant = float(ligne.get("montant_patronal") or 0)
+        if famille == "sante":
+            sante += montant
+        elif famille == "prevoyance":
+            prevoyance += montant
+    return round(sante, 2), round(prevoyance, 2)
+
+
+def _net_verse(net_fiscal: float, lignes: List[Dict[str, Any]]) -> float:
+    """Montant net versé (S21.G00.50.004), formule du CT 2026.
+
+    RNF - fraction de CSG non déductible (2,40 %) - CRDS (0,50 %) - part
+    patronale « frais de santé » réintégrée dans la base fiscale. Ni le
+    prélèvement à la source, ni les heures sup exonérées (hors RNF), ni les
+    remboursements de frais, acomptes, prêts ou saisies n'y entrent : ce n'est
+    pas le net à payer. Les deux fractions s'appliquent à l'assiette de chaque
+    ligne non déductible (2,90 % comme 9,70 %), chacune arrondie : c'est le
+    calcul de l'ancien logiciel, au centime sur 146 salariés-mois de 2026.
+    """
+    non_deductible = 0.0
+    for ligne in lignes:
+        coti_id = str(ligne.get("coti_id") or "")
+        libelle = str(ligne.get("libelle") or "").lower()
+        base = float(ligne.get("base") or 0)
+        if coti_id == "crds":
+            non_deductible += float(ligne.get("montant_salarial") or 0)
+        elif coti_id == "csg_non_deductible" or (
+            not coti_id and "csg" in libelle and "non d" in libelle
+        ):
+            non_deductible += _arrondi(base * 0.024) + _arrondi(base * 0.005)
+    sante, _ = _parts_patronales_psc(lignes)
+    return round(net_fiscal - non_deductible - sante, 2)
+
+
+def _smic_reduction_generale(
+    lignes: List[Dict[str, Any]], synthese_net: Dict[str, Any], reprise: Dict[str, Any]
+) -> Optional[float]:
+    """SMIC retenu pour la réduction générale du mois (S21.G00.79 type 01).
+
+    Le moteur le pose sur la ligne de réduction (`smic_reference_mois`) ; les
+    bulletins plus anciens n'en ont pas, la reprise des DSN du cabinet sert
+    alors de repli.
+    """
+    for ligne in lignes:
+        if str(ligne.get("coti_id") or "") == "reduction_generale" and ligne.get(
+            "smic_reference_mois"
+        ):
+            return float(ligne["smic_reference_mois"])
+    valeur = synthese_net.get("montant_smic_reduction_generale") or reprise.get(
+        "smic_retenu"
+    )
+    return float(valeur) if valeur else None
 
 
 def _pas_details(payslip_data: Dict[str, Any]) -> Tuple[float, float, float]:
@@ -585,7 +678,6 @@ def build_individu_from_payroll(
         raise DsnBuildError(f"Brut ≤ 0 pour NIR {nir_dsn}")
 
     net_fiscal = _net_imposable(payslip_data)
-    net_verse = _net_a_payer(payslip_data)
     pas_montant, pas_taux, pas_assiette = _pas_details(payslip_data)
 
     # Données de reprise DSN : affiliations prévoyance/santé du salarié, type
@@ -606,13 +698,19 @@ def build_individu_from_payroll(
     ]
 
     synthese_net = payslip_data.get("synthese_net") or {}
-    smic_retenu = synthese_net.get("montant_smic_reduction_generale") or reprise.get(
-        "smic_retenu"
-    )
 
     extract_cotisations_from_payslip, _ = _extracteurs_bulletin()
     cot_sal, cot_pat, cot_lines, meta = extract_cotisations_from_payslip(payslip_data)
     warnings.extend(meta.get("warnings") or [])
+    net_verse = _net_verse(net_fiscal, cot_lines)
+    smic_retenu = _smic_reduction_generale(cot_lines, synthese_net, reprise)
+    if smic_retenu is None and any(
+        str(l.get("coti_id") or "") == "reduction_generale" for l in cot_lines
+    ):
+        warnings.append(
+            f"SMIC retenu pour la réduction générale inconnu pour le NIR {nir_dsn} : "
+            "composant 79 type 01 absent (CCH-17), bulletin à recalculer"
+        )
     bases, cotisations, map_warnings = build_bases_and_cotisations(
         cot_lines,
         brut=brut,
@@ -669,18 +767,49 @@ def build_individu_from_payroll(
     if pas_type == "01" and pas_identifiant:
         rubriques_versement["S21.G00.50.008"] = pas_identifiant
 
-    # Montant net social (bloc 58 type 03), obligatoire depuis 2023. La paie le
-    # calcule déjà : seul manquait le bloc.
+    # Éléments de revenu calculés en net (bloc 58) : les heures sup exonérées
+    # (type 01, loi MUES), puis le montant net social (type 03, obligatoire,
+    # CCH-14). La paie calcule les deux.
+    blocs_58: List[Dict[str, str]] = []
+    hs_exonerees = float(synthese_net.get("montant_net_hs_exonerees") or 0)
+    if hs_exonerees > 0:
+        blocs_58.append(
+            {
+                "debut": period_start,
+                "fin": period_end,
+                "type": "01",
+                "montant": f"{hs_exonerees:.2f}",
+            }
+        )
     montant_net_social = synthese_net.get("montant_net_social")
     if montant_net_social is not None:
-        rubriques_versement["_blocs_58"] = [
+        blocs_58.append(
             {
                 "debut": period_start,
                 "fin": period_end,
                 "type": "03",
                 "montant": f"{float(montant_net_social):.2f}",
             }
-        ]
+        )
+    if blocs_58:
+        rubriques_versement["_blocs_58"] = blocs_58
+
+    # Autres éléments de revenu brut (bloc 54) : parts patronales santé (92),
+    # prévoyance et retraite supplémentaire (93), datées de la période.
+    sante, prevoyance = _parts_patronales_psc(cot_lines)
+    blocs_54 = [
+        {
+            "type": type_54,
+            "montant": f"{montant:.2f}",
+            "debut": period_start,
+            "fin": period_end,
+            "contrat": numero,
+        }
+        for type_54, montant in (("92", sante), ("93", prevoyance))
+        if montant > 0
+    ]
+    if blocs_54:
+        rubriques_versement["_blocs_54"] = blocs_54
 
     versement = VersementBlock(
         date_versement=period_end,

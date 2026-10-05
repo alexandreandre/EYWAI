@@ -117,7 +117,9 @@ def test_builder_emits_full_remu_types():
         "028",
         "029",
     }
-    assert abs(ver.net_verse - 1622.28) < 0.01
+    # Le net versé n'est pas le net à payer (1622,28) : CT 2026, RNF - CSG non
+    # déductible - CRDS - part patronale santé. Sans ligne de cotisation, la RNF.
+    assert abs(ver.net_verse - 1693.42) < 0.01
     assert not any("Brut ≤ 0" in w for w in warnings)
 
 
