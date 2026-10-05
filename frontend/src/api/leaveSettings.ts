@@ -203,8 +203,39 @@ export async function updateEmployeeLeaveAdjustment(
 }
 
 // CP volontairement exclus : leur recalage passe par la reprise d'un
-// bulletin (mécanique d'import), pas par une inversion cible→écart.
+// bulletin (mécanique d'import), pas par une inversion cible→écart — côté
+// RH, par `recalerSoldesCp`.
 export type CompteurAjustable = 'rtt' | 'jtc';
+
+export interface CpRecalagePayload {
+  year: number;
+  month: number;
+  cp_n1_solde: number;
+  cp_n_solde: number;
+  /** Obligatoire : il reste dans l'historique du compteur. */
+  note: string;
+}
+
+export interface CpRecalageResponse {
+  employee_id: string;
+  /** Fin du mois recalé (AAAA-MM-JJ). */
+  date_reference: string;
+  /** Ce que le bulletin du mois imprime, relu ; null s'il n'imprime rien. */
+  cp_n1_solde: number | null;
+  cp_n_solde: number | null;
+}
+
+/** Recale les CP N-1 et N à la fin d'un mois écoulé (reprise datée). */
+export async function recalerSoldesCp(
+  employeeId: string,
+  payload: CpRecalagePayload,
+): Promise<CpRecalageResponse> {
+  const { data } = await apiClient.put<CpRecalageResponse>(
+    `/api/absences/leave-settings/employees/${employeeId}/soldes-cp`,
+    payload,
+  );
+  return data;
+}
 
 export interface EmployeeLeaveSoldeUpdate {
   compteur: CompteurAjustable;

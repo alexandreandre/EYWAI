@@ -5,6 +5,7 @@ import { AlertCircle, CalendarDays, Loader2, Palmtree, Pencil } from 'lucide-rea
 import {
   updateEmployeeLeaveSolde,
   type CompteurAjustable,
+  type CpRecalageResponse,
 } from '@/api/leaveSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useEmployeeAbsenceBalancesQuery } from '@/hooks/queries/useEmployeeAbsenceBalancesQuery';
@@ -41,6 +42,9 @@ import {
   isRhLeaveBalanceVisible,
 } from '@/lib/employeeAbsencesUtils';
 import { cn } from '@/lib/utils';
+
+import { RecalageCpDialog } from './RecalageCpDialog';
+import { estLigneCp, messageRecalageCp } from './recalageCp';
 
 const EVENEMENT_FAMILIAL_TYPE = 'Événement familial';
 
@@ -81,8 +85,9 @@ export function EmployeeDetailLeaveBalancesTab({
     balancesQuery.data?.filter(isRhLeaveBalanceVisible) ?? [];
   const currentYear = new Date().getFullYear();
 
-  // Dialogue générique « Ajuster le solde » (CP N-1 / CP N / RTT / JTC).
+  // Dialogue générique « Ajuster le solde » (RTT / JTC) ; les CP ont le leur.
   const [adjustType, setAdjustType] = useState<string | null>(null);
+  const [recalageCpOpen, setRecalageCpOpen] = useState(false);
   const [adjustSolde, setAdjustSolde] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
 
@@ -103,6 +108,21 @@ export function EmployeeDetailLeaveBalancesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adjustType, currentYear]);
 
+  const rafraichirSoldes = () => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.employeeAbsenceBalances(companyId, employeeId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: companyQueryKey(companyId, 'leave-balances-overview'),
+    });
+  };
+
+  const handleCpRecales = (reponse: CpRecalageResponse) => {
+    setRecalageCpOpen(false);
+    rafraichirSoldes();
+    toast({ title: 'Congés payés recalés', description: messageRecalageCp(reponse) });
+  };
+
   const adjustMutation = useMutation({
     mutationFn: () => {
       const parsed = Number.parseFloat(adjustSolde.replace(',', '.'));
@@ -118,12 +138,7 @@ export function EmployeeDetailLeaveBalancesTab({
     },
     onSuccess: () => {
       setAdjustType(null);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.employeeAbsenceBalances(companyId, employeeId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: companyQueryKey(companyId, 'leave-balances-overview'),
-      });
+      rafraichirSoldes();
       toast({
         title: 'Solde enregistré',
         description: 'Les soldes du salarié ont été recalculés.',
@@ -164,9 +179,9 @@ export function EmployeeDetailLeaveBalancesTab({
               Soldes de congés
             </CardTitle>
             <CardDescription>
-              Droits acquis, jours pris et soldes restants — le crayon d’une
-              ligne permet d’ajuster son solde (RTT, JTC). Les compteurs CP se
-              recalent par reprise d’un bulletin.
+              Droits acquis, jours pris et soldes restants au jour d’aujourd’hui.
+              Le crayon d’une ligne corrige son solde : congés payés (N-1 et N à
+              la fin d’un mois), RTT, JTC.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild className="shrink-0">
@@ -220,6 +235,7 @@ export function EmployeeDetailLeaveBalancesTab({
                     const isFamilial = balance.type === EVENEMENT_FAMILIAL_TYPE;
                     const remainingDisplay = formatBalanceRemaining(balance.remaining, unit);
                     const ajustable = balance.type in COMPTEURS_AJUSTABLES;
+                    const recalable = estLigneCp(balance.type);
 
                     return (
                       <TableRow key={balance.type}>
@@ -256,15 +272,21 @@ export function EmployeeDetailLeaveBalancesTab({
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {ajustable ? (
+                          {ajustable || recalable ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
                               disabled={adjustActionDisabled}
-                              onClick={() => setAdjustType(balance.type)}
-                              aria-label={`Ajuster le solde ${getRhLeaveBalanceShortLabel(balance.type)}`}
+                              onClick={() =>
+                                recalable ? setRecalageCpOpen(true) : setAdjustType(balance.type)
+                              }
+                              aria-label={
+                                recalable
+                                  ? 'Recaler les congés payés'
+                                  : `Ajuster le solde ${getRhLeaveBalanceShortLabel(balance.type)}`
+                              }
                             >
                               <Pencil className="h-4 w-4" aria-hidden />
                             </Button>
@@ -279,6 +301,13 @@ export function EmployeeDetailLeaveBalancesTab({
           )}
         </CardContent>
       </Card>
+
+      <RecalageCpDialog
+        open={recalageCpOpen}
+        onOpenChange={setRecalageCpOpen}
+        employeeId={employeeId}
+        onRecale={handleCpRecales}
+      />
 
       <Dialog
         open={adjustType != null}
