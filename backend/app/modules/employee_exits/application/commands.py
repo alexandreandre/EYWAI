@@ -635,11 +635,42 @@ def update_employee_exit(
             "avec le bon type.",
         )
 
+    # Montant de la convention de rupture : pas de colonne, il passe au calcul
+    # qui le range dans `calculated_indemnities` (relu par le bulletin de
+    # sortie, et suivi par son empreinte : le bulletin passe « À recalculer »).
+    montant_negocie_saisi = "montant_negocie" in update_data
+    if montant_negocie_saisi and (
+        new_exit_type or existing.get("exit_type")
+    ) != "rupture_conventionnelle":
+        raise EmployeeExitApplicationError(
+            400, "Le montant négocié ne concerne qu'une rupture conventionnelle."
+        )
+
     new_last_working_day = update_data.get("last_working_day")
     last_working_day_changed = bool(
         new_last_working_day
         and str(new_last_working_day)[:10] != str(existing.get("last_working_day") or "")[:10]
     )
+
+    if montant_negocie_saisi and not (exit_type_changed or last_working_day_changed):
+        employee_id = str(existing.get("employee_id") or "")
+        employee_full = get_employee_full(employee_id, sb) if employee_id else {}
+        try:
+            indemnities = get_indemnity_calculator().calculate(
+                employee_full or {}, {**existing, **update_data}, sb
+            )
+        except Exception as exc:
+            raise EmployeeExitApplicationError(
+                500,
+                "Le montant négocié n'est pas enregistré : le calcul des "
+                f"indemnités a échoué ({exc}).",
+            )
+        update_data["calculated_indemnities"] = indemnities
+        update_data["remaining_vacation_days"] = indemnities.get(
+            "indemnite_conges", {}
+        ).get("jours_restants", 0)
+        update_data["final_net_amount"] = indemnities.get("total_net_indemnities", 0)
+        update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if exit_type_changed or last_working_day_changed:
         now = datetime.now(timezone.utc).isoformat()
@@ -713,6 +744,7 @@ def update_employee_exit(
                 update_data["calculated_indemnities"] = None
                 update_data["remaining_vacation_days"] = None
                 update_data["final_net_amount"] = None
+    update_data.pop("montant_negocie", None)
     updated = exit_repo.update(exit_id, company_id, update_data)
     return updated if updated is not None else existing
 

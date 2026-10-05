@@ -109,6 +109,9 @@ class EmployeeExitUpdate(BaseModel):
     notice_period_days: Optional[int] = None
     is_gross_misconduct: Optional[bool] = None
     notice_indemnity_type: Optional[NoticeIndemnityType] = None
+    # Rupture conventionnelle : montant de la convention (None = minimum
+    # légal). Rangé dans le dossier d'indemnités, pas dans une colonne.
+    montant_negocie: Optional[float] = Field(default=None, ge=0)
 
 
 # ============================================================================

@@ -11,7 +11,7 @@ from app.core.logging import get_logger, log_payroll_debug
 
 logger = get_logger("modules.payroll.engine.calcul_indemnites_sortie")
 
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
@@ -243,17 +243,21 @@ def calculer_indemnite_licenciement(
 
 
 def calculer_indemnite_rupture_conventionnelle(
-    anciennete_annees: float, salaire_reference: float
+    anciennete_annees: float,
+    salaire_reference: float,
+    montant_negocie_saisi: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Calcule l'indemnité de rupture conventionnelle
 
     Minimum légal = indemnité légale de licenciement
-    En pratique, souvent négociée au-dessus du minimum
+    En pratique, souvent négociée au-dessus du minimum : le montant de la
+    convention, saisi sur le départ, remplace alors le minimum.
 
     Args:
         anciennete_annees: Ancienneté en années
         salaire_reference: Salaire de référence
+        montant_negocie_saisi: Montant de la convention, ou None
 
     Returns:
         Dict contenant le montant minimum et les détails
@@ -266,19 +270,45 @@ def calculer_indemnite_rupture_conventionnelle(
     )
 
     montant_minimum = indemnite_licenciement["montant"]
+    if montant_negocie_saisi is None:
+        montant_negocie = montant_minimum
+        calcul = f"Minimum légal = {montant_minimum:.2f} € (indemnité de licenciement)"
+    else:
+        montant_negocie = round(float(montant_negocie_saisi), 2)
+        calcul = (
+            f"Montant de la convention saisi : {montant_negocie:.2f} € "
+            f"(minimum légal estimé : {montant_minimum:.2f} €)"
+        )
 
     log_payroll_debug(logger, f'    Minimum légal: {montant_minimum:.2f} € (= indemnité licenciement)')
-    log_payroll_debug(logger, f'    Montant négocié: {montant_minimum:.2f} € (utiliser le minimum par défaut)')
+    log_payroll_debug(logger, f'    Montant négocié: {montant_negocie:.2f} €')
 
     return {
         "montant_minimum": montant_minimum,
-        "montant_negocie": montant_minimum,  # Par défaut, peut être ajusté
+        "montant_negocie": montant_negocie,
+        "montant_negocie_saisi": montant_negocie_saisi,
         "anciennete": anciennete_annees,
         "salaire_reference": salaire_reference,
         "description": "Indemnité de rupture conventionnelle",
-        "calcul": f"Minimum légal = {montant_minimum:.2f} € (indemnité de licenciement)",
+        "calcul": calcul,
         "details_licenciement": indemnite_licenciement,
     }
+
+
+def _montant_negocie_saisi(exit_data: Dict[str, Any]) -> Optional[float]:
+    """Le montant de la convention saisi sur le départ.
+
+    Une saisie nouvelle (`montant_negocie`, None pour l'effacer) l'emporte ;
+    sinon celle du dossier précédent, pour qu'un recalcul ne la perde pas.
+    """
+    if "montant_negocie" in exit_data:
+        valeur = exit_data.get("montant_negocie")
+    else:
+        precedent = (exit_data.get("calculated_indemnities") or {}).get(
+            "indemnite_rupture_conventionnelle"
+        ) or {}
+        valeur = precedent.get("montant_negocie_saisi")
+    return None if valeur is None else float(valeur)
 
 
 # ============================================================================
@@ -640,7 +670,7 @@ def calculer_indemnites_sortie(
 
     elif exit_type == "rupture_conventionnelle":
         indemnite_rupture = calculer_indemnite_rupture_conventionnelle(
-            anciennete, salaire_reference
+            anciennete, salaire_reference, _montant_negocie_saisi(exit_data)
         )
 
     # 6. Calculer les totaux
@@ -708,8 +738,14 @@ def calculer_indemnites_sortie(
         }
 
     if indemnite_rupture:
+        # `montant_negocie` et `montant_minimum` sont les clés que lisent le
+        # bulletin (bulletin.creer_bulletin_sortie), le solde de tout compte
+        # et l'écran ; `montant`, celle de l'attestation.
         result["indemnite_rupture_conventionnelle"] = {
             "montant": indemnite_rupture.get("montant_negocie", 0),
+            "montant_negocie": indemnite_rupture.get("montant_negocie", 0),
+            "montant_minimum": indemnite_rupture.get("montant_minimum", 0),
+            "montant_negocie_saisi": indemnite_rupture.get("montant_negocie_saisi"),
             "description": indemnite_rupture.get(
                 "description", "Indemnité de rupture conventionnelle"
             ),
