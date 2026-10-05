@@ -112,6 +112,27 @@ def test_un_code_risque_qui_varie_dans_l_etablissement_n_est_pas_devine():
     assert any("risque" in a.lower() for a in avertissements)
 
 
+def test_l_apprenti_porte_le_dispositif_d_apprentissage():
+    """CDD devenu apprentissage, fiche sans dispositif : 65 au-delà de 10
+    salariés (64 en deçà), jamais 99 ; le niveau de diplôme manquant est dit."""
+    apprenti = {
+        **SANS_CLASSIFICATION,
+        "contract_type": "Apprentissage",
+        "contract_end_date": "2028-08-31",
+    }
+    societe = {**SOCIETE, "effectif": 25}
+    fichier, avertissements = build_parsed_dsn_from_payroll(
+        societe,
+        [{"employee": apprenti, "payslip_data": BULLETIN}],
+        "2026-09",
+        settings=DsnSettings(idcc="0292"),
+    )
+    contrat = fichier.etablissement.individus[0].contrats[0].rubriques
+    assert contrat["S21.G00.40.007"] == "02"
+    assert contrat["S21.G00.40.008"] == "65"
+    assert any("diplôme" in a for a in avertissements)
+
+
 # --------------------------------------------------------------------------
 # Taux de prélèvement à la source reçus (employee_pas_rates)
 # --------------------------------------------------------------------------
