@@ -60,13 +60,13 @@ def test_enrich_payslip_loans_deducts_from_net(
     mock_repayments_repo.get_existing.return_value = None
     mock_due.return_value = [_loan_item(capital_part=400, interest_part=0)]
 
-    payslip = {"net_a_payer": 2500.0, "salaire_brut": 3000.0}
+    payslip = {"net_a_payer": 4000.0, "salaire_brut": 3000.0}
     result = enrich_payslip_loans(
         payslip, "emp-1", 2026, 6, payslip_id="payslip-1"
     )
 
     assert result["remboursements_prets"]["total_rembourse"] == 400.0
-    assert result["net_a_payer"] == 2100.0
+    assert result["net_a_payer"] == 3600.0
     mock_repayments_repo.create.assert_called_once()
     mock_loans_repo.update.assert_called_once()
     mock_installments_repo.increment_paid.assert_called_once()
@@ -95,13 +95,13 @@ def test_enrich_payslip_loans_caps_by_remaining_capital(
         _loan_item(capital_part=500, interest_part=0, remaining_capital=150)
     ]
 
-    payslip = {"net_a_payer": 2500.0}
+    payslip = {"net_a_payer": 4000.0}
     result = enrich_payslip_loans(
         payslip, "emp-1", 2026, 6, payslip_id="payslip-1"
     )
 
     assert result["remboursements_prets"]["total_capital"] == 150.0
-    assert result["net_a_payer"] == 2350.0
+    assert result["net_a_payer"] == 3850.0
     mock_installments_repo.increment_paid.assert_called_once()
     assert mock_installments_repo.increment_paid.call_args[0][3] == "paid"
 
@@ -228,3 +228,72 @@ def test_process_suspended_loan_installments_marks_skipped(
     mock_installments_repo.update.assert_called_once_with(
         "inst-1", {"status": "skipped"}
     )
+
+
+_PATCHES = (
+    "get_suspended_loans_with_pending_installment",
+    "employee_loans_repository",
+    "employee_loan_installments_repository",
+    "employee_loan_repayments_repository",
+    "get_unsettled_installments_for_payroll",
+    "get_legal_interest_rate",
+)
+
+
+def _retenue_pour(payslip, capital_part=225):
+    """Lance l'enrichissement avec un prêt d'échéance `capital_part`."""
+    from contextlib import ExitStack
+
+    base = "app.modules.employee_loans.application.enrichment."
+    with ExitStack() as stack:
+        mocks = {n: stack.enter_context(patch(base + n)) for n in _PATCHES}
+        mocks["get_legal_interest_rate"].return_value = Decimal("0")
+        mocks["get_suspended_loans_with_pending_installment"].return_value = []
+        mocks["employee_loan_repayments_repository"].get_existing.return_value = None
+        mocks["get_unsettled_installments_for_payroll"].return_value = [
+            _loan_item(capital_part=capital_part, remaining_capital=5000)
+        ]
+        result = enrich_payslip_loans(payslip, "emp-1", 2026, 6, payslip_id="p-1")
+    return result
+
+
+def test_retenue_pret_dixieme_du_net_avant_acompte_avance():
+    # Net avant acompte et prêt 2 183,07 €, acompte 800 € (module Avances).
+    payslip = {
+        "net_a_payer": 1383.07,
+        "remboursements_avances": {"total_rembourse": 800.0},
+    }
+    result = _retenue_pour(payslip)
+    assert result["remboursements_prets"]["total_rembourse"] == 218.31
+    assert result["net_a_payer"] == 1164.76
+
+
+def test_retenue_pret_dixieme_du_net_avant_acompte_variable():
+    # Même cas, acompte saisi en variable du mois (déjà dans le net du moteur).
+    payslip = {"net_a_payer": 1383.07, "synthese_net": {"acompte_verse": 800.0}}
+    result = _retenue_pour(payslip)
+    assert result["remboursements_prets"]["total_rembourse"] == 218.31
+
+
+def test_retenue_pret_echeance_sous_le_dixieme_en_entier():
+    result = _retenue_pour({"net_a_payer": 2000.0}, capital_part=150)
+    assert result["remboursements_prets"]["total_rembourse"] == 150.0
+    assert result["net_a_payer"] == 1850.0
+
+
+def test_retenue_pret_plafonnee_au_net_disponible():
+    # Dixième = 200 € mais il ne reste que 80 € de net après un acompte de 1 920 €.
+    payslip = {
+        "net_a_payer": 80.0,
+        "remboursements_avances": {"total_rembourse": 1920.0},
+    }
+    result = _retenue_pour(payslip, capital_part=150)
+    assert result["remboursements_prets"]["total_rembourse"] == 80.0
+    assert result["net_a_payer"] == 0.0
+
+
+def test_retenue_pret_net_nul_aucune_retenue():
+    payslip = {"net_a_payer": 0.0, "remboursements_avances": {"total_rembourse": 500.0}}
+    result = _retenue_pour(payslip)
+    assert result["remboursements_prets"]["total_rembourse"] == 0.0
+    assert result["net_a_payer"] == 0.0

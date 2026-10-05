@@ -107,10 +107,19 @@ def test_is_installment_fully_paid():
     )
 
 
-def test_compute_loan_repayment_cap_uses_seizable_rules():
-    cap = compute_loan_repayment_cap(Decimal("2500"))
-    assert cap > Decimal("0")
-    assert cap < Decimal("2500")
+def test_compute_loan_repayment_cap_est_le_dixieme_du_salaire_exigible():
+    # Art. L3251-3 : 10 % du salaire exigible (avant acompte), net suffisant.
+    cap = compute_loan_repayment_cap(Decimal("2183.07"), Decimal("1383.07"))
+    assert cap == Decimal("218.31")
+
+
+def test_compute_loan_repayment_cap_plafonne_au_net_disponible():
+    assert compute_loan_repayment_cap(Decimal("2000"), Decimal("50")) == Decimal("50.00")
+
+
+def test_compute_loan_repayment_cap_net_nul_ou_negatif():
+    assert compute_loan_repayment_cap(Decimal("0"), Decimal("0")) == Decimal("0.00")
+    assert compute_loan_repayment_cap(Decimal("2000"), Decimal("-5")) == Decimal("0.00")
 
 
 def test_compute_installment_remaining():
