@@ -508,6 +508,14 @@ def _defauts_contrat(
             codes.add(str(classification["classification_dsn"]))
     if len(codes) == 1:
         defauts["code_risque_at"] = codes.pop()
+    # Dispositif de l'apprentissage (40.008) : 64 sous 11 salariés (ou
+    # entreprise artisanale), 65 au-delà pour une entreprise non inscrite au
+    # répertoire des métiers.
+    try:
+        effectif = int(company.get("effectif") or len(employees_data))
+    except (TypeError, ValueError):
+        effectif = len(employees_data)
+    defauts["dispositif_apprentissage"] = "65" if effectif >= 11 else "64"
     return defauts
 
 
@@ -1279,6 +1287,10 @@ def build_individu_from_payroll(
         or employee.get("dispositif_politique")
         or "99"
     )
+    if dispositif == "99" and apprentissage and defauts.get("dispositif_apprentissage"):
+        # Un apprenti déclaré « sans dispositif » perd ses exonérations et
+        # son contrat se lit comme un CDD ordinaire.
+        dispositif = defauts["dispositif_apprentissage"]
     libelle_emploi = str(
         classification.get("libelle_emploi")
         or employee.get("job_title")
@@ -1429,6 +1441,11 @@ def build_individu_from_payroll(
     )
     if niveau_diplome:
         rubriques_individu["S21.G00.30.025"] = niveau_diplome
+    elif dispositif in {"64", "65", "66"}:
+        warnings.append(
+            f"Niveau de diplôme préparé (S21.G00.30.025) manquant pour l'apprenti "
+            f"NIR {nir_dsn} : obligatoire en apprentissage, fiche à compléter"
+        )
     if departement_naissance:
         rubriques_individu["S21.G00.30.014"] = departement_naissance
     if pays_naissance:
