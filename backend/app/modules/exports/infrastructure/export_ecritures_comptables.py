@@ -133,6 +133,8 @@ def ligne_od_du_bulletin(
         "pas": pas,
         "cotisations_detail": cotisations_list,
         "elements_hors_brut": elements,
+        # Repris de l'ancien logiciel : net imprimé, cotisations recalculées.
+        "reprise": bool(payslip_data.get("reprise")),
     }
 
 

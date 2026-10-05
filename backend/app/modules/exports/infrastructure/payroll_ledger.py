@@ -26,7 +26,6 @@ from app.modules.exports.domain.accounting_plan import (
     FAMILLE_SAISIE,
     FAMILLE_TRANSPORT,
     FAMILY_MAPPING_ALIASES,
-    ORGANISMES,
     ORGANISME_IJSS,
     ORGANISME_INCONNU,
     ORGANISME_MUTUELLE,
@@ -34,11 +33,15 @@ from app.modules.exports.domain.accounting_plan import (
     ORGANISME_RETRAITE,
     ORGANISME_RETRAITE_SUP,
     ORGANISME_URSSAF,
+    ORGANISMES,
     default_accounts_for,
     default_accounts_for_family,
     resolve_organisme_from_coti_id,
 )
-from app.modules.exports.domain.controle_comptable import residu_du_bulletin
+from app.modules.exports.domain.controle_comptable import (
+    conseil_bulletin_incoherent,
+    residu_du_bulletin,
+)
 from app.modules.exports.infrastructure.export_ecritures_comptables import (
     DEFAULT_MAPPINGS,
     get_accounting_mappings,
@@ -724,7 +727,8 @@ def build_payroll_ledger(
                     "detail": (
                         f"{nom} : le net à payer ({_round2(float(payslip.get('net_a_payer', 0) or 0))} €) "
                         f"diffère de {residu} € du brut moins les cotisations et l'impôt, "
-                        f"plus les éléments hors brut — recalculez ce bulletin"
+                        f"plus les éléments hors brut — "
+                        f"{conseil_bulletin_incoherent(bool(payslip.get('reprise')))}"
                     ),
                     "montant": abs(residu),
                 }

@@ -2,6 +2,13 @@
 from typing import Any, Dict, List, Optional
 
 from app.core.database import supabase
+from app.modules.exports.domain.controle_comptable import (
+    conseil_bulletin_incoherent,
+    residu_du_bulletin,
+)
+from app.modules.exports.infrastructure.export_ecritures_comptables import (
+    ligne_od_du_bulletin,
+)
 from app.modules.exports.infrastructure.payslip_accounting_extract import (
     extract_cotisations_from_payslip,
     extract_pas_amount,
@@ -56,6 +63,10 @@ def get_journal_paie_data(
         "total_cotisations_patronales": 0.0,
         "total_net_imposable": 0.0,
         "total_net_a_payer": 0.0,
+        "total_pas": 0.0,
+        # Bulletins dont le net ne se reconstruit pas au centime (brut −
+        # cotisations − PAS + éléments hors brut − retenues).
+        "bulletins_incoherents": [],
     }
 
     for payslip in payslips:
@@ -113,6 +124,25 @@ def get_journal_paie_data(
         totals["total_cotisations_patronales"] += cotisations_patronales
         totals["total_net_imposable"] += net_imposable
         totals["total_net_a_payer"] += net_a_payer
+        totals["total_pas"] += pas
+
+        residu = residu_du_bulletin(
+            ligne_od_du_bulletin(
+                payslip_id=payslip.get("id"),
+                employee=employee,
+                payslip_data=payslip_data,
+                saisies_du_salarie=[],
+                compte_de_saisie=lambda _type: "",
+            )
+        )
+        if residu:
+            totals["bulletins_incoherents"].append(
+                {
+                    "employee_name": f"{employee.get('first_name', '')} {employee.get('last_name', '')}".strip(),
+                    "residu": residu,
+                    "reprise": bool(payslip_data.get("reprise")),
+                }
+            )
 
     return journal_data, totals
 
@@ -167,17 +197,13 @@ def preview_journal_paie(
             }
         )
 
-    if totals["employees_count"] > 0:
-        expected_net = (
-            totals["total_brut"]
-            - totals["total_cotisations_salariales"]
-            - totals.get("total_pas", 0)
+    for bulletin in totals.get("bulletins_incoherents") or []:
+        ecart = f"{abs(bulletin['residu']):.2f}".replace(".", ",")
+        warnings.append(
+            f"{bulletin['employee_name']} : le net à payer ne se retrouve pas à partir "
+            f"du bulletin (écart de {ecart} €) — "
+            f"{conseil_bulletin_incoherent(bool(bulletin.get('reprise')))}"
         )
-        diff = abs(totals["total_net_a_payer"] - expected_net)
-        if diff > 1.0:
-            warnings.append(
-                f"Écart de {diff:.2f}€ entre le net calculé et le net à payer"
-            )
 
     return {
         "employees_count": totals["employees_count"],

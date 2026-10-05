@@ -54,6 +54,22 @@ def residu_du_bulletin(ligne: Mapping[str, Any]) -> float:
     return round(reconstruit - _f(ligne.get("net_a_payer")), 2)
 
 
+def conseil_bulletin_incoherent(est_repris: bool) -> str:
+    """Que faire d'un bulletin dont le net ne se reconstruit pas.
+
+    Un bulletin repris de l'ancien logiciel garde son net imprimé, ses
+    cotisations sont recalculées : l'écart vient de là, et le mois est
+    verrouillé par la bascule. Le recalculer serait une faute.
+    """
+    if est_repris:
+        return (
+            "bulletin repris de l'ancien logiciel, son net imprimé diffère du "
+            "recalcul de ses cotisations : ne pas le recalculer, l'écriture de ce "
+            "mois est celle de l'ancien logiciel"
+        )
+    return "recalculez ce bulletin"
+
+
 def natures_des_bulletins(
     lignes: Iterable[Mapping[str, Any]],
     organisme_de: Any,

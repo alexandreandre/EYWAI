@@ -289,6 +289,20 @@ class TestBulletinIncoherent:
             ledger_module.assert_ledger_balanced(od_totals)
         assert "Salarié B" in str(exc.value)
 
+    def test_bulletin_repris_jamais_a_recalculer(self):
+        """Un bulletin repris de l'ancien logiciel garde le net imprimé ; ses
+        cotisations sont recalculées. L'écart ne se corrige pas en le
+        recalculant : le mois est verrouillé par la bascule."""
+        bulletin = _bulletin_de_sortie()
+        bulletin["net_a_payer"] = 3105.24
+        bulletin["reprise"] = {"logiciel_precedent": "Quadra"}
+        _, od_totals, _ = _construire([_ligne("B", bulletin)])
+        detail = next(
+            a["detail"] for a in od_totals["anomalies"] if a["code"] == "bulletin_incoherent"
+        )
+        assert "repris" in detail
+        assert "recalculez" not in detail
+
 
 class TestOdPartielles:
     @pytest.mark.parametrize("scope", ["salaires", "charges_sociales", "pas"])
