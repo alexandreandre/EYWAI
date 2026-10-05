@@ -11,6 +11,10 @@ from __future__ import annotations
 import logging
 
 from app.core.database import supabase
+from app.modules.monthly_inputs.domain.rules import (
+    RETRAIT_SAISIE_GENEREE,
+    est_saisie_generee,
+)
 from app.modules.payslips.application.dto import PayslipBadRequestError
 from app.modules.payslips.domain.primes_editees import DiffPrimes, prime_ajoutee_propre
 
@@ -70,8 +74,25 @@ def appliquer_primes_editees(
         supabase.table("monthly_inputs").update(
             {"amount": montant, "manual_override": True}
         ).eq("id", saisie_id).execute()
+    # Une prime d'une règle automatique supprimée serait recréée par la
+    # génération des variables, qui tourne avant chaque bulletin : elle passe
+    # à 0, protégée, et le bulletin ne l'imprime plus.
+    generees: set[str] = set()
+    if diff.retirees:
+        r = (
+            supabase.table("monthly_inputs")
+            .select("id, description")
+            .in_("id", list(diff.retirees))
+            .execute()
+        )
+        generees = {str(row["id"]) for row in r.data or [] if est_saisie_generee(row)}
     for saisie_id in diff.retirees:
-        supabase.table("monthly_inputs").delete().eq("id", saisie_id).execute()
+        if saisie_id in generees:
+            supabase.table("monthly_inputs").update(dict(RETRAIT_SAISIE_GENEREE)).eq(
+                "id", saisie_id
+            ).execute()
+        else:
+            supabase.table("monthly_inputs").delete().eq("id", saisie_id).execute()
     logger.info(
         "[edition] Primes du bulletin %s/%s de %s : %d ajoutée(s), %d corrigée(s), %d retirée(s).",
         month,

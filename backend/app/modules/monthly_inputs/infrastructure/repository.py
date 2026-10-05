@@ -74,6 +74,17 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
         rows = resp.data or []
         return rows[0] if rows else None
 
+    def get_by_id(self, input_id: str, company_id: str) -> Dict[str, Any] | None:
+        response = (
+            supabase.table("monthly_inputs")
+            .select("*")
+            .eq("id", input_id)
+            .eq("company_id", str(company_id))
+            .execute()
+        )
+        rows = response.data or []
+        return rows[0] if rows else None
+
     def delete_by_id(self, input_id: str, company_id: str) -> None:
         (
             supabase.table("monthly_inputs")

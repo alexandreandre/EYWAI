@@ -43,6 +43,11 @@ class IMonthlyInputsRepository(ABC):
         ...
 
     @abstractmethod
+    def get_by_id(self, input_id: str, company_id: str) -> Dict[str, Any] | None:
+        """Une saisie de la société, None si absente."""
+        ...
+
+    @abstractmethod
     def delete_by_id(self, input_id: str) -> None:
         """Supprime une saisie par id."""
         ...

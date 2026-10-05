@@ -15,6 +15,10 @@ from app.modules.monthly_inputs.application.dto import (
     CreateBatchResultDto,
     CreateSingleResultDto,
 )
+from app.modules.monthly_inputs.domain.rules import (
+    RETRAIT_SAISIE_GENEREE,
+    est_saisie_generee,
+)
 from app.modules.monthly_inputs.infrastructure.repository import (
     monthly_inputs_repository,
 )
@@ -52,8 +56,14 @@ def create_monthly_inputs_batch(
     payload : liste de modèles Pydantic (MonthlyInput) avec model_dump(mode='json', exclude_none=True).
     """
     # company_id imposé par la session, jamais lu dans le corps de requête.
+    # `manual_override` : une saisie de la RH, la génération des variables ne
+    # l'écrase pas sous le même nom.
     data_to_insert = [
-        {**item.model_dump(mode="json", exclude_none=True), "company_id": str(company_id)}
+        {
+            **item.model_dump(mode="json", exclude_none=True),
+            "company_id": str(company_id),
+            "manual_override": True,
+        }
         for item in payload
     ]
     # Debug conservé pour compatibilité (à retirer en phase de nettoyage)
@@ -78,12 +88,27 @@ def create_employee_monthly_input(
     data_to_insert = prime_data.model_dump()
     data_to_insert["employee_id"] = employee_id
     data_to_insert["company_id"] = str(company_id)
+    data_to_insert["manual_override"] = True
     inserted = monthly_inputs_repository.insert_one(data_to_insert)
     return CreateSingleResultDto(inserted_data=inserted)
 
 
+def _retirer_si_generee(ligne: dict | None, company_id: str) -> bool:
+    """Une saisie d'une règle automatique supprimée serait recréée au calcul
+    suivant : elle passe à 0, protégée. Vrai si c'est fait."""
+    if not ligne or not est_saisie_generee(ligne):
+        return False
+    monthly_inputs_repository.update_by_id(
+        str(ligne["id"]), dict(RETRAIT_SAISIE_GENEREE), company_id
+    )
+    return True
+
+
 def delete_monthly_input(input_id: str, company_id: str) -> None:
     """Supprime une saisie par id, dans la société de l'appelant."""
+    ligne = monthly_inputs_repository.get_by_id(input_id, company_id)
+    if _retirer_si_generee(ligne, company_id):
+        return
     monthly_inputs_repository.delete_by_id(input_id, company_id)
 
 
@@ -91,6 +116,10 @@ def delete_employee_monthly_input(
     employee_id: str, input_id: str, company_id: str
 ) -> None:
     """Supprime une saisie d'un salarié, dans la société de l'appelant."""
+    ligne = monthly_inputs_repository.get_by_id(input_id, company_id)
+    if ligne and str(ligne.get("employee_id")) == str(employee_id):
+        if _retirer_si_generee(ligne, company_id):
+            return
     monthly_inputs_repository.delete_by_id_and_employee(
         input_id, employee_id, company_id
     )

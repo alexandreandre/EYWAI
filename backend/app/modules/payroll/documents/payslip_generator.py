@@ -50,6 +50,7 @@ from app.modules.payroll.documents.pdf_du_bulletin import (
 )
 from app.modules.payslips.domain.heures_sup import est_declaration_bulletin
 from app.modules.ijss_tracking.domain.saisie_ijss import est_saisie_ijss_validees
+from app.modules.monthly_inputs.domain.rules import est_saisie_retiree
 from app.core.logging import get_logger, log_payroll_debug
 from app.core.paths import (
     payroll_engine_root,
@@ -818,6 +819,10 @@ def process_payslip_generation(
         net_a_payer_only_correction_total = 0.0
         reports_nap_negatif: list = []
         for row in saisies_res.data:
+            if est_saisie_retiree(row):
+                # Prime de règle automatique retirée : gardée à 0 pour ne pas
+                # revenir, elle n'est pas une ligne du bulletin.
+                continue
             if est_saisie_ijss_validees(row):
                 # Montant validé au suivi IJSS : les IJSS subrogées du mois, rien d'autre.
                 saisies_data["ijss_brut_override"] = abs(float(row["amount"]))
