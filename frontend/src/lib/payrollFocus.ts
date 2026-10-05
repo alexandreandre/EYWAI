@@ -67,6 +67,9 @@ const PAYROLL_FOCUS_EXTRA_PREFIXES: readonly string[] = [
   // L'entrée est construite dynamiquement par la barre latérale, elle ne
   // figure donc pas dans la liste NAV (retour Alexandre 11/09).
   '/groups',
+  // Support : lien du pied de la barre latérale, hors des sections de menu.
+  // Sans lui, la gestionnaire ne pouvait pas ouvrir de ticket (05/10).
+  '/support',
 ];
 
 /** Comptes conservant la navigation complète en plus des admins plateforme. */
