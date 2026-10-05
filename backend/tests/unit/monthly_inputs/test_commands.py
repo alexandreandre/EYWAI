@@ -194,6 +194,38 @@ class TestDeleteMonthlyInput:
             "input-id-123", {"amount": 0, "manual_override": True}, SOCIETE
         )
 
+    def test_l_ecran_sait_si_la_saisie_a_ete_retiree_ou_supprimee(self):
+        """La ligne reste affichée à 0 : l'écran doit pouvoir dire pourquoi."""
+        with patch.object(commands, "monthly_inputs_repository") as repo:
+            repo.get_by_id.return_value = dict(GENEREE)
+            assert commands.delete_monthly_input("input-id-123", SOCIETE) is True
+            repo.get_by_id.return_value = {"id": "input-id-123", "description": None}
+            assert commands.delete_monthly_input("input-id-123", SOCIETE) is False
+
+    def test_la_route_rend_retiree(self):
+        import importlib
+
+        from fastapi.testclient import TestClient
+
+        from app.core.security import get_current_user
+        from app.main import app
+
+        routes = importlib.import_module("app.modules.monthly_inputs.api.router")
+
+        with (
+            patch.object(routes, "require_rh_access", return_value=SOCIETE),
+            patch.object(routes.commands, "delete_monthly_input", return_value=True),
+        ):
+            app.dependency_overrides[get_current_user] = lambda: type(
+                "Utilisateur", (), {"active_company_id": SOCIETE}
+            )()
+            try:
+                reponse = TestClient(app).delete("/api/monthly-inputs/input-id-123")
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+
+        assert reponse.json() == {"status": "success", "retiree": True}
+
 
 class TestDeleteEmployeeMonthlyInput:
     """Commande delete_employee_monthly_input."""
