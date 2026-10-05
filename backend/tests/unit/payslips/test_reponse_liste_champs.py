@@ -46,3 +46,10 @@ def test_a_recalculer_survit_au_schema():
     assert rendu["origine"] == "calcule"
     assert rendu["points_a_arbitrer"] == []
     assert rendu["a_recalculer"] is None
+
+
+def test_le_statut_valide_survit_au_schema():
+    """La liste de la paie du mois montre « Validé » et propose de valider le reste
+    (revue du 05/10) : le dépôt lit `status`, le schéma doit le garder."""
+    assert PayslipInfo(**{**LIGNE, "status": "valide"}).model_dump()["status"] == "valide"
+    assert PayslipInfo(**LIGNE).model_dump()["status"] is None
