@@ -1,10 +1,52 @@
 """Tests de la base de connaissances produit du copilot."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.modules.copilot.infrastructure.app_knowledge import APP_FEATURE_GUIDE
 
 pytestmark = pytest.mark.unit
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+MANUEL_ECRAN = (
+    REPOSITORY_ROOT / "frontend" / "src" / "features" / "payroll" / "utils"
+    / "manuelOperateur.json"
+)
+MANUEL_ASSISTANT = (
+    REPOSITORY_ROOT / "backend" / "app" / "modules" / "copilot" / "infrastructure"
+    / "manuel_paie.json"
+)
+
+
+def test_l_assistant_lit_le_manuel_de_l_ecran():
+    """Une seule source : la copie du backend est celle du frontend, octet pour octet."""
+    assert MANUEL_ASSISTANT.read_bytes() == MANUEL_ECRAN.read_bytes(), (
+        "Le manuel de la paie a changé côté écran : recopier "
+        "frontend/src/features/payroll/utils/manuelOperateur.json vers "
+        "backend/app/modules/copilot/infrastructure/manuel_paie.json."
+    )
+
+
+def test_guide_contient_le_manuel_de_la_paie_mot_pour_mot():
+    manuel = json.loads(MANUEL_ECRAN.read_text(encoding="utf-8"))
+    textes = [s["titre"] for s in manuel["sections"]]
+    for etape in manuel["etapes"]:
+        textes += [etape["titre"], *etape["paragraphes"]]
+    for piege in manuel["pieges"]:
+        textes += [piege["titre"], piege["quoiFaire"]]
+    absents = [t for t in textes if t not in APP_FEATURE_GUIDE]
+    assert absents == []
+
+
+def test_guide_renvoie_au_manuel_pour_la_paie_du_mois():
+    """Le guide du 01/08 faisait de « Lancer la paie » la fin du parcours."""
+    assert "le bouton « Lancer la paie » génère les bulletins" not in APP_FEATURE_GUIDE
+    assert "Manuel de la paie" in APP_FEATURE_GUIDE
+    assert "« Bulletins de paie »" in APP_FEATURE_GUIDE
+    assert "« Envois »" in APP_FEATURE_GUIDE
+    assert "pas encore déposable" in APP_FEATURE_GUIDE
 
 
 def test_guide_covers_employee_credentials():
