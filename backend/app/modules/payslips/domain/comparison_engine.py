@@ -94,6 +94,52 @@ def _sum_travail_base_hours(calcul_du_brut: Any) -> float:
     return total
 
 
+_LIBELLE_BASE = "Salaire de base"
+_LIBELLE_ENTREE_SORTIE = "Absence pour entrée ou sortie"
+# Temps payé : ces absences ne font pas baisser les heures travaillées de R08.
+_ABSENCES_PAYEES = ("Absence congés payés", "Absence événement familial")
+
+
+def _heures_lignes_reelles(calcul_du_brut: Any) -> tuple[float, float] | None:
+    """(heures travaillées, référence) lues sur les lignes que le moteur écrit.
+
+    Le moteur n'écrit aucun `type` sur ses lignes. La référence est l'horaire
+    du « Salaire de base », moins une entrée ou une sortie en cours de mois ;
+    les heures non travaillées sont les absences retenues (arrêt, absence non
+    rémunérée ou injustifiée, férié non payé). None quand le bulletin porte des
+    lignes typées `travail_base` (moteur forfait) ou n'a pas de salaire de base.
+    """
+    if not isinstance(calcul_du_brut, list):
+        return None
+    lignes = [ligne for ligne in calcul_du_brut if isinstance(ligne, dict)]
+    if any(ligne.get("type") == "travail_base" for ligne in lignes):
+        return None
+    base = [ligne for ligne in lignes if str(ligne.get("libelle") or "").strip() == _LIBELLE_BASE]
+    if not base:
+        return None
+    reference = sum(_to_float(ligne.get("quantite")) for ligne in base)
+    absences = 0.0
+    for ligne in lignes:
+        libelle = str(ligne.get("libelle") or "").strip()
+        if not _to_float(ligne.get("perte")):
+            continue
+        if libelle == _LIBELLE_ENTREE_SORTIE:
+            reference -= _to_float(ligne.get("quantite"))
+        elif libelle.startswith(_ABSENCES_PAYEES):
+            continue
+        elif ligne.get("is_arret_maladie") or libelle.startswith(("Absence", "Abs.")):
+            absences += _to_float(ligne.get("quantite"))
+    reference = max(reference, 0.0)
+    return round(max(reference - absences, 0.0), 2), round(reference, 2)
+
+
+def _heures_travaillees(calcul_du_brut: Any) -> float:
+    lignes_reelles = _heures_lignes_reelles(calcul_du_brut)
+    if lignes_reelles is not None:
+        return lignes_reelles[0]
+    return _sum_travail_base_hours(calcul_du_brut)
+
+
 def _extract_values(bulletin: Dict[str, Any]) -> Dict[str, float]:
     """Extrait les agrégats utiles depuis un payslip_data."""
     sc = bulletin.get("structure_cotisations") or {}
@@ -106,7 +152,7 @@ def _extract_values(bulletin: Dict[str, Any]) -> Dict[str, float]:
         "salaire_brut": _to_float(bulletin.get("salaire_brut")),
         "net_a_payer": _to_float(bulletin.get("net_a_payer")),
         "total_cotisations_salariales": _to_float(sc.get("total_salarial")),
-        "heures_travaillees": _sum_travail_base_hours(bulletin.get("calcul_du_brut")),
+        "heures_travaillees": _heures_travaillees(bulletin.get("calcul_du_brut")),
         "heures_supp": _to_float(bulletin.get("total_heures_supp")),
         "acompte_verse": _to_float(sn.get("acompte_verse")),
     }
@@ -188,7 +234,12 @@ def compute_comparison(
 
     is_forfait = bool(ctx.get("is_forfait_jour", False))
     has_contract_change = bool(ctx.get("has_contract_change", False))
-    monthly_hours = _to_float(ctx.get("monthly_contract_hours", 151.67))
+    lignes_reelles = _heures_lignes_reelles(bulletin_n.get("calcul_du_brut"))
+    monthly_hours = (
+        lignes_reelles[1]
+        if lignes_reelles is not None
+        else _to_float(ctx.get("monthly_contract_hours", 151.67))
+    )
 
     # --- Lignes de synthèse ---
     add_line("Salaire brut", "salaire_brut")
