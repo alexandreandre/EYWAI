@@ -116,3 +116,79 @@ def test_sans_jours_relus_l_apercu_n_est_pas_touche(mock_repo):
     appliquer_revue_au_lot("b1", company_id="c1", employees=[])
 
     mock_repo.update_batch.assert_not_called()
+
+
+def _lot_avec_un_nom_non_reconnu():
+    lot = _lot()
+    lot["preview_json"]["employees"].append(
+        AiEmployeeProposal(
+            raw_name="YSOLDE RECETTE",
+            employee_id=None,
+            days=[AiDayEntry(jour=5, heures=7.0, type="travail", nature="reel")],
+            review_status="warning",
+            match_confidence="none",
+        ).model_dump(mode="json")
+    )
+    lot["summary_json"] = {
+        "multi_month": True,
+        "month_groups": [
+            {
+                "year": 2026,
+                "month": 7,
+                "employees": [
+                    {"raw_name": "YSOLDE RECETTE", "employee_id": None, "review_status": "warning",
+                     "days": [{"jour": 5, "heures": 7.0, "type": "travail", "nature": "reel"}]},
+                ],
+            }
+        ],
+    }
+    return lot
+
+
+@patch(f"{SERVICE}.timesheet_import_repository")
+def test_un_salarie_associe_a_la_main_est_rattache_a_sa_ligne_du_lot(mock_repo):
+    """Constat du 06/10/2026 : « Associer… » puis Enregistrer renvoyait 400
+    « Salarié(s) relu(s) absent(s) du lot » : la ligne du lot n'avait pas de salarié."""
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        appliquer_revue_au_lot,
+    )
+
+    mock_repo.get_batch.return_value = _lot_avec_un_nom_non_reconnu()
+
+    appliquer_revue_au_lot(
+        "b1",
+        company_id="c1",
+        employees=[
+            PersistTimesheetEmployee(
+                employee_id="e-ysolde",
+                raw_name="YSOLDE RECETTE",
+                days=[AiDayEntry(jour=5, heures=6.5, type="travail", nature="reel")],
+            )
+        ],
+    )
+
+    (_, payload), _ = mock_repo.update_batch.call_args
+    ysolde = next(e for e in payload["preview_json"]["employees"] if e["raw_name"] == "YSOLDE RECETTE")
+    assert ysolde["employee_id"] == "e-ysolde"
+    assert ysolde["review_status"] == "ok"
+    assert [d["heures"] for d in ysolde["days"]] == [6.5]
+    groupe = payload["summary_json"]["month_groups"][0]["employees"][0]
+    assert groupe["employee_id"] == "e-ysolde"
+    assert groupe["review_status"] == "ok"
+
+
+@patch(f"{SERVICE}.timesheet_import_repository")
+def test_un_nom_lu_absent_du_lot_reste_refuse(mock_repo):
+    from app.modules.schedules.application.timesheet_import.commit_service import (
+        appliquer_revue_au_lot,
+    )
+
+    mock_repo.get_batch.return_value = _lot_avec_un_nom_non_reconnu()
+
+    with pytest.raises(ScheduleAppError) as exc:
+        appliquer_revue_au_lot(
+            "b1",
+            company_id="c1",
+            employees=[PersistTimesheetEmployee(employee_id="e-x", raw_name="AUTRE NOM", days=[])],
+        )
+    assert exc.value.status_code == 400
