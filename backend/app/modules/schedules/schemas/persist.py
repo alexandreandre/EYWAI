@@ -10,6 +10,8 @@ from app.modules.schedules.schemas.ai import AiDayEntry
 class PersistTimesheetEmployee(BaseModel):
     employee_id: str
     days: List[AiDayEntry] = Field(default_factory=list)
+    # Nom lu sur le relevé : rattache un salarié associé à la main à sa ligne du lot.
+    raw_name: Optional[str] = None
 
 
 class PersistTimesheetRequest(BaseModel):

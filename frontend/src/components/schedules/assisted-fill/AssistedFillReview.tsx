@@ -764,6 +764,7 @@ export function AssistedFillReview({
         proposal.month,
         savableRows.map((row) => ({
           employee_id: row.employeeId as string,
+          raw_name: row.rawName,
           days: row.days.map((d) => ({
             jour: d.jour,
             heures: d.heures,

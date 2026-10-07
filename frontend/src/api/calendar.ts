@@ -386,6 +386,8 @@ export interface TimesheetExtractJobResponse {
 export interface PersistTimesheetEmployeePayload {
   employee_id: string;
   days: AiDayEntry[];
+  /** Nom lu sur le relevé : rattache un salarié associé à la main à sa ligne du lot. */
+  raw_name?: string;
 }
 
 /**

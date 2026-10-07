@@ -821,6 +821,23 @@ def appliquer_revue_au_lot(
     preview = dict(batch.get("preview_json") or {})
     entrees = [dict(e) for e in preview.get("employees") or []]
     presents = {str(e.get("employee_id")) for e in entrees if e.get("employee_id")}
+    summary = dict(batch.get("summary_json") or {})
+    groupes = [
+        {**g, "employees": [dict(e) for e in g.get("employees") or []]}
+        for g in summary.get("month_groups") or []
+    ]
+    # « Associer… » : la ligne non reconnue du lot prend le salarié choisi à l'écran.
+    associes = {
+        (e.raw_name or "").strip(): e.employee_id
+        for e in employees
+        if e.employee_id and e.employee_id not in presents and (e.raw_name or "").strip()
+    }
+    for ligne in entrees + [e for g in groupes for e in g["employees"]]:
+        nom = str(ligne.get("raw_name") or "").strip()
+        if not ligne.get("employee_id") and nom in associes:
+            ligne["employee_id"] = associes[nom]
+            ligne["review_status"] = "ok"
+            presents.add(associes[nom])
     inconnus = sorted(set(relus) - presents)
     if inconnus:
         raise ScheduleAppError(
@@ -839,7 +856,10 @@ def appliquer_revue_au_lot(
         entree["days"] = [d.model_dump(mode="json") for d in relus[eid].days]
         deja.add(eid)
     preview["employees"] = entrees
-    timesheet_import_repository.update_batch(batch_id, {"preview_json": preview})
+    modifications: Dict[str, Any] = {"preview_json": preview}
+    if groupes:
+        modifications["summary_json"] = {**summary, "month_groups": groupes}
+    timesheet_import_repository.update_batch(batch_id, modifications)
 
 
 def _employes_par_mois(
