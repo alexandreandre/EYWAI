@@ -112,6 +112,15 @@ class TestEmployeeMatch:
         )
         assert p.employee_id == "e9"
 
+    def test_un_nom_qui_contient_un_mot_de_pied_de_page_reste_un_nom(self):
+        # 06/10/2026 : « Ysolde Recette » était jetée comme bruit OCR (« solde »).
+        assert not is_junk_employee_name("YSOLDE RECETTE")
+        assert not is_junk_employee_name("Isolde Martin")
+        assert not is_junk_employee_name("Jacquiste Durand")
+        assert is_junk_employee_name("Solde congés")
+        assert is_junk_employee_name("Acquis N-1")
+        assert is_junk_employee_name("Total pris")
+
     def test_junk_ocr_line(self):
         assert is_junk_employee_name("Édition en heures et minutes")
         assert is_junk_employee_name("AH 9 lANOHINV")
