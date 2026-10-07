@@ -27,7 +27,8 @@ _JUNK_NAME_RE = re.compile(
     r"édition|heures\s+et\s+minutes|pointages?|commentaires|retenu|"
     r"entreprise|total\s+pour|semaine\s+du|du\s+\d{1,2}/\d{1,2}|"
     r"presence|présence|jours?\s+de|de\s+presence|de\s+présence|"
-    r"^\d|acquis|solde|total\s+pris",
+    # Mots entiers : « Ysolde » ou « Jacquiste » sont des noms.
+    r"^\d|\bacquis\b|\bsoldes?\b|\btotal\s+pris",
     re.IGNORECASE,
 )
 
