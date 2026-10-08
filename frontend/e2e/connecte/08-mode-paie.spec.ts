@@ -241,7 +241,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
     await expect(complement).toHaveCount(0);
     // Retour à la paie par le menu, sans recharger : la fiche n'y bloque plus.
     const lienPaie = page.getByRole('link', { name: 'Bulletins de paie' });
-    if (!(await lienPaie.isVisible())) await page.getByRole('button', { name: /EYWAI Paie/ }).click();
+    if (!(await lienPaie.isVisible())) await page.getByRole('button', { name: /Martine Paie/ }).click();
     await lienPaie.click();
     await expect(page.getByText(/gestion de la paie/i).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Fiche à compléter/)).toHaveCount(0, { timeout: 30_000 });

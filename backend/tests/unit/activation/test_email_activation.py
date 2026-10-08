@@ -151,7 +151,7 @@ class TestContenuEmail:
         payload = self._payload(msg)
         assert "Jean" in payload
         assert "Entreprise Test" in payload
-        assert "EYWAI" in payload
+        assert "Martine" in payload
         assert "7 jours" in payload
         content_types = [p.get_content_type() for p in msg.walk()]
         assert "text/plain" in content_types

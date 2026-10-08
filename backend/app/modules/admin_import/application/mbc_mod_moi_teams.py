@@ -217,7 +217,7 @@ def run_mbc_mod_moi_teams_import(
     employees = _list_active_employees_with_team(resolved_company_id)
     if not employees:
         raise ValueError(
-            "Aucun salarié actif trouvé pour cette entreprise dans EYWAI."
+            "Aucun salarié actif trouvé pour cette entreprise dans Martine."
         )
 
     teams = _ensure_mod_moi_teams(resolved_company_id, dry_run=dry_run)

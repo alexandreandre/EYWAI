@@ -99,7 +99,7 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
     ],
   },
   {
-    label: "Équipe EYWAI",
+    label: "Équipe Martine",
     items: [
       { name: "Accès plateforme", href: "/super-admin/admins", icon: Shield },
       { name: "Mails automatiques", href: "/super-admin/email-settings", icon: Mail },

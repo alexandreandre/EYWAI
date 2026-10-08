@@ -305,7 +305,7 @@ def resolve_rib_row_match(
 
     if strict_matricule_fallback and mat:
         warnings.append(
-            f"Matricule paie « {mat} » : aucun salarié correspondant dans EYWAI."
+            f"Matricule paie « {mat} » : aucun salarié correspondant dans Martine."
         )
         if _full:
             warnings.append(
@@ -323,7 +323,7 @@ def resolve_rib_row_match(
     if not reliable_identity:
         if mat:
             warnings.append(
-                f"Matricule paie « {mat} » : aucun salarié correspondant dans EYWAI."
+                f"Matricule paie « {mat} » : aucun salarié correspondant dans Martine."
             )
         if _full:
             warnings.append(

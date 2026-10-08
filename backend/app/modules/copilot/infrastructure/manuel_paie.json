@@ -92,7 +92,7 @@
       "titre": "11. Déclarer la DSN",
       "paragraphes": [
         "Ouvrez Exports, onglet « Déclarations », carte « DSN mensuelle », « Configurer », choisissez la période puis « Prévisualiser ».",
-        "Aujourd’hui, la DSN d’EYWAI n’est pas encore déposable : l’aperçu le dit, liste ce qui reste à faire, et « Générer l’export » reste grisé. C’est voulu : un fichier incomplet serait rejeté, ou pire accepté à moitié.",
+        "Aujourd’hui, la DSN de Martine n’est pas encore déposable : l’aperçu le dit, liste ce qui reste à faire, et « Générer l’export » reste grisé. C’est voulu : un fichier incomplet serait rejeté, ou pire accepté à moitié.",
         "En attendant, déposez la DSN du mois comme avant, depuis votre ancien logiciel de paie, sur net-entreprises. Si ce n’est pas possible, ouvrez un ticket au support (module « Paie & Bulletins », urgence « Critique ») avant l’échéance de dépôt."
       ]
     }

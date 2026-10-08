@@ -66,7 +66,7 @@ def parse_rib_import_file(
     employees = repo.list_company_employees(company_id)
     if not employees:
         raise ValueError(
-            "Aucun salarié trouvé pour cette entreprise dans EYWAI. "
+            "Aucun salarié trouvé pour cette entreprise dans Martine. "
             "Importez d'abord les effectifs (DSN ou création manuelle)."
         )
 

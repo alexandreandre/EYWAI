@@ -445,7 +445,7 @@ export default function DocumentLibraryTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Fiche de poste</CardTitle>
             <CardDescription>
-              Importez votre modèle Word — aucun modèle standard EYWAI pour ce type. EYWAI remplira
+              Importez votre modèle Word — aucun modèle standard Martine pour ce type. Martine remplira
               automatiquement les champs salarié et entreprise.
             </CardDescription>
           </CardHeader>
@@ -469,7 +469,7 @@ export default function DocumentLibraryTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Types sans modèle personnalisé</CardTitle>
             <CardDescription>
-              Le modèle standard EYWAI sera utilisé pour ces types tant qu’aucun fichier n’est importé.
+              Le modèle standard Martine sera utilisé pour ces types tant qu’aucun fichier n’est importé.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">

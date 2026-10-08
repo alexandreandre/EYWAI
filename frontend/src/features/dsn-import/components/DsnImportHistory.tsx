@@ -66,8 +66,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_TITLES: Record<string, string> = {
-  previewed: 'Fichier analysé — aucune donnée n’a été créée dans EYWAI',
-  committed: 'Données appliquées dans EYWAI (groupe, établissement, salariés, cumuls)',
+  previewed: 'Fichier analysé — aucune donnée n’a été créée dans Martine',
+  committed: 'Données appliquées dans Martine (groupe, établissement, salariés, cumuls)',
   committing: 'Import en cours d’application',
   parsed: 'Parsing et validation en cours',
   failed: 'L’import a échoué',

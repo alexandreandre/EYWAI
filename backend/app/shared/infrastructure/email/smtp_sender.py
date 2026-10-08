@@ -227,7 +227,7 @@ Ce lien est valide pendant 1 heure.
 Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet e-mail.
 
 Cordialement,
-L'équipe EYWAI
+L'équipe Martine
 """
 
         html_content = f"""
@@ -292,7 +292,7 @@ L'équipe EYWAI
             <p><strong>Ce lien est valide pendant 1 heure.</strong></p>
         </div>
         <div class="footer">
-            <p>Cet e-mail a été envoyé par EYWAI</p>
+            <p>Cet e-mail a été envoyé par Martine</p>
         </div>
     </div>
 </body>

@@ -43,7 +43,7 @@ export function PayrollExportFormatHelp({
         <p>
           Export salariés depuis <strong className="font-medium text-foreground">Quadra Paie</strong>{' '}
           ou <strong className="font-medium text-foreground">Cegid</strong> (.xlsx, .xls ou .csv).
-          Les salariés doivent déjà exister dans EYWAI (import DSN préalable).
+          Les salariés doivent déjà exister dans Martine (import DSN préalable).
         </p>
         <ul className="space-y-1.5">
           {columns.map((row) => (

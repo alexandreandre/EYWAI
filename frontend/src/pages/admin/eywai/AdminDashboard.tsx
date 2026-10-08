@@ -154,7 +154,7 @@ export default function AdminDashboard() {
           onClick={() => navigate("/super-admin/companies?dsn=late")}
         />
         <AdminStatCard
-          title="Équipe EYWAI"
+          title="Équipe Martine"
           value={(stats.platform_admins ?? stats.super_admins)?.total ?? 0}
           subtitle="Accès plateforme"
           icon={Shield}

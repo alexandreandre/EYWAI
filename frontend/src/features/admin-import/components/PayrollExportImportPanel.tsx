@@ -470,7 +470,7 @@ export function PayrollExportImportPanel({
                   <TableRow>
                     <TableHead className="sticky left-0 z-20 w-10 bg-background" />
                     <TableHead className="sticky left-10 z-20 min-w-[10rem] bg-background">
-                      Match EYWAI
+                      Match Martine
                     </TableHead>
                     {previewFields.map((field) => (
                       <TableHead

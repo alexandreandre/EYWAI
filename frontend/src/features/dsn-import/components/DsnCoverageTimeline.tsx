@@ -73,7 +73,7 @@ export function dsnStatusLabel(status: string): string {
     case 'never':
       return 'Jamais importée';
     case 'not_applicable':
-      return 'Paie EYWAI';
+      return 'Paie Martine';
     default:
       return status;
   }

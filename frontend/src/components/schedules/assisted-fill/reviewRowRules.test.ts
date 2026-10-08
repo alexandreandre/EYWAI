@@ -50,7 +50,7 @@ describe('visibleRowWarnings', () => {
   it('montre tous les avertissements d’une ligne à vérifier, pas seulement le premier', () => {
     const warnings = [
       'Nom seul « DUPRAT » rapproché de Claire MOREL (nom d’usage) : seul salarié de ce nom.',
-      'Relevé à relire — EYWAI a retenu les heures du badge, pas les annotations : ven 18/09 « +1 ».',
+      'Relevé à relire — Martine a retenu les heures du badge, pas les annotations : ven 18/09 « +1 ».',
     ];
     expect(visibleRowWarnings(warnings, 'warning')).toEqual(warnings);
   });

@@ -30,11 +30,11 @@ check_environment_consistency()
 
 app = FastAPI(
     lifespan=lifespan,
-    title="EYWAI SIRH API",
+    title="Martine SIRH API",
     description="""
-## API REST EYWAI
+## API REST Martine
 
-API complète pour l'intégration du SIRH EYWAI
+API complète pour l'intégration du SIRH Martine
 dans votre Système d'Information.
 
 ### Authentification
@@ -62,7 +62,7 @@ Abonnez-vous aux événements métier via
     """,
     version="1.0.0",
     contact={
-        "name": "EYWAI Support",
+        "name": "Martine Support",
         "email": "support@eywai.fr",
     },
 )

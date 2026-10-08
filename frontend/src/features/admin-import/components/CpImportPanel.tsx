@@ -372,7 +372,7 @@ export function CpImportPanel({
             Import CP
           </CardTitle>
           <CardDescription>
-            Bulletins de paie PDF (Cegid clarifié ou EYWAI). L&apos;entreprise est détectée via le
+            Bulletins de paie PDF (Cegid clarifié ou Martine). L&apos;entreprise est détectée via le
             SIRET, le salarié via matricule ou nom. Jusqu&apos;à {MAX_FILES} fichiers — les lots
             multi-pages sont dédoublonnés automatiquement.
           </CardDescription>

@@ -282,7 +282,7 @@ export function CompanySetupWizard({
           </DialogTitle>
           <DialogDescription className="line-clamp-2 min-h-[2.5rem]">
             {wizardStep === 'intro'
-              ? 'Sélectionnez une entreprise déjà dans EYWAI. La création d’une nouvelle filiale passe par un import DSN initial.'
+              ? 'Sélectionnez une entreprise déjà dans Martine. La création d’une nouvelle filiale passe par un import DSN initial.'
               : status?.company_name
                 ? `${status.company_name} — suivez les étapes dans l’ordre.`
                 : 'Suivez les étapes dans l’ordre — vous pouvez passer une étape si elle est déjà couverte.'}

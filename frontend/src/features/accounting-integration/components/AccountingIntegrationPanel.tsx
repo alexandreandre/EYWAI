@@ -250,7 +250,7 @@ export function AccountingIntegrationPanel() {
     } else {
       toast({
         title: 'Bientôt disponible',
-        description: 'Ce connecteur sera activé par la plateforme EYWAI.',
+        description: 'Ce connecteur sera activé par la plateforme Martine.',
       });
     }
   };

@@ -17,8 +17,8 @@ import { DsnCoverageTimeline, dsnStatusLabel, dsnStatusVariant } from './DsnCove
 import { Badge } from '@/components/ui/badge';
 
 const MODE_LABELS: Record<DsnSyncMode, string> = {
-  external: 'Paie hors EYWAI (Cegid, etc.)',
-  native: 'Paie calculée dans EYWAI',
+  external: 'Paie hors Martine (Cegid, etc.)',
+  native: 'Paie calculée dans Martine',
   transition: 'Reprise en cours',
 };
 
@@ -103,7 +103,7 @@ export function DsnSyncModeCard({ company, coverage, readOnly = false, onUpdated
             )}
             {mode === 'native' && (
               <p className="text-xs text-muted-foreground">
-                Les cumuls sont maintenus par la paie EYWAI — import DSN optionnel.
+                Les cumuls sont maintenus par la paie Martine — import DSN optionnel.
               </p>
             )}
           </div>

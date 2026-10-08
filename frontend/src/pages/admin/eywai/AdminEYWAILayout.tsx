@@ -36,7 +36,7 @@ export default function AdminEYWAILayout() {
           <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
             <div className="flex flex-col gap-0.5">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                EYWAI
+                Martine
               </span>
               <span className="text-base font-semibold text-sidebar-foreground">
                 Platforme Admin

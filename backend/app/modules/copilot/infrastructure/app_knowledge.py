@@ -47,13 +47,13 @@ def _texte_du_manuel_de_la_paie(manuel: dict) -> str:
 
 
 _GUIDE_NAVIGATION = """\
-EYWAI est un logiciel SaaS de gestion RH et de paie pour les entreprises françaises.
+Martine est un logiciel SaaS de gestion RH et de paie pour les entreprises françaises.
 Il comporte deux grands espaces selon le profil connecté :
 - l'espace RH / administrateur (gestionnaires RH, admins d'entreprise) ;
 - l'espace collaborateur (les salariés).
 
 La navigation se fait via la barre latérale gauche. Quand tu indiques un chemin,
-utilise des libellés clairs (ex. « Menu latéral → EYWAI Paie → Congés & Absences »).
+utilise des libellés clairs (ex. « Menu latéral → Martine Paie → Congés & Absences »).
 
 ================================================================================
 ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
@@ -65,7 +65,7 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
   RIB. Contient aussi l'assistant IA (« Demander à l'IA ») et des analytics
   d'équipe repliables.
 
---- Section « EYWAI Team » (gestion des effectifs et du suivi documentaire) ---
+--- Section « Martine Team » (gestion des effectifs et du suivi documentaire) ---
 
 — Analytics Team (« Analytics Team ») : KPIs effectifs, turnover, absentéisme,
   masse salariale, coûts RH, alertes prioritaires, journal d'audit.
@@ -119,7 +119,7 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 — Titres de séjour (« Titres de séjour ») : suivi des échéances et statuts des
   titres de séjour des collaborateurs étrangers.
 
---- Section « EYWAI Gestion » (pilotage RH au quotidien) ---
+--- Section « Martine Gestion » (pilotage RH au quotidien) ---
 
 — Analytics Gestion (« Analytics Gestion ») : indicateurs RH opérationnels.
 
@@ -185,10 +185,10 @@ ESPACE RH / ADMINISTRATEUR (barre latérale en 3 sections + Tableau de bord)
 — Fiche de poste : importer le modèle dans Mon Entreprise → Bibliothèque de
   documents (type « Fiche de poste »), puis générer depuis la fiche Collaborateur
   → Documents → « Générer une fiche de poste », ou depuis Recrutement (PDF
-  depuis l'offre, ou raccourci après embauche). Aucun modèle EYWAI par défaut
+  depuis l'offre, ou raccourci après embauche). Aucun modèle Martine par défaut
   pour ce type : l'entreprise doit déposer son propre fichier Word.
 
---- Section « EYWAI Paie » (parcours de production de la paie) ---
+--- Section « Martine Paie » (parcours de production de la paie) ---
 
 Pour faire la paie du mois (pointages, génération, vérification, correction,
 validation, envois à la comptabilité et à la banque, DSN), suis le MANUEL DE LA
@@ -196,9 +196,9 @@ PAIE DU MOIS plus bas : il fait foi. Pour les gestionnaires de paie des
 sociétés clientes, le menu est réduit à la paie : certains écrans ci-dessous
 n'y figurent pas.
 
-Le menu « EYWAI Paie » range ces écrans dans l'ordre du parcours :
+Le menu « Martine Paie » range ces écrans dans l'ordre du parcours :
   ① Calendrier → valider les heures / calendriers du mois (même écran que
-    « Calendriers » en EYWAI Gestion, mais accessible ici dans le workflow paie).
+    « Calendriers » en Martine Gestion, mais accessible ici dans le workflow paie).
   ② Congés & Absences → valider / refuser les demandes de congés et absences.
      Pour les arrêts en subrogation : génération automatique de l'attestation de
      salaire ; lien vers le rapprochement IJSS.
@@ -266,8 +266,8 @@ Autres outils de la section paie :
   « Vue RH » et « Vue Collaborateur » (même compte, deux espaces).
 — Groupes multi-entreprises : section « Vues Consolidées » (si le groupe est
   configuré) ; le libellé « Mon Entreprise » affiche le nom de la société active.
-— (Pour les admins plateforme EYWAI uniquement) « Plateforme Admin » : back-office
-  EYWAI — catalogue des conventions collectives (KALI), veille réglementaire,
+— (Pour les admins plateforme Martine uniquement) « Plateforme Admin » : back-office
+  Martine — catalogue des conventions collectives (KALI), veille réglementaire,
   télétransmissions DSN, import DSN par entreprise (onboarding, réconciliation
   effectifs, import RIB salariés, soldes CP depuis bulletins PDF), purge
   employés et paramètres multi-entreprises du groupe.
@@ -338,18 +338,18 @@ Le compte est créé automatiquement lors de :
 
 Où retrouver les identifiants (côté RH) :
   Chemin principal :
-    Menu latéral → EYWAI Team → Collaborateurs → cliquer sur le salarié
+    Menu latéral → Martine Team → Collaborateurs → cliquer sur le salarié
     → onglet « Documents » → dossier « Autres » → « Identifiants de connexion »
     → bouton Télécharger (PDF).
   Chemin alternatif (vue globale) :
-    Menu latéral → EYWAI Team → Documents → dossier « Autres » → sélectionner
+    Menu latéral → Martine Team → Documents → dossier « Autres » → sélectionner
     le collaborateur → « Identifiants de connexion ».
 
 Contenu du PDF : nom d'utilisateur (identifiant de connexion), mot de passe
-temporaire. Au premier login (et tant que le changement n'est pas fait), EYWAI
+temporaire. Au premier login (et tant que le changement n'est pas fait), Martine
 impose de modifier ce mot de passe : l'écran peut être fermé mais revient à la
 connexion suivante. Ensuite, changement via le menu Compte.
-Connexion : page de connexion EYWAI avec le nom d'utilisateur ou l'e-mail +
+Connexion : page de connexion Martine avec le nom d'utilisateur ou l'e-mail +
 mot de passe. En cas d'oubli : « Mot de passe oublié » sur la page de connexion.
 
 Côté collaborateur (salarié) : Menu latéral → Mes documents → dossier « Autres »
@@ -374,10 +374,10 @@ FAQ RH TRANSVERSES
   → Paie → congés/RTT.
 — Plans de calendriers 2026 : Mon Entreprise → Paie (« Calendriers horaires 2026 »)
   ou Onboarding → créer un plan / presets → générer les calendriers ; saisie
-  quotidienne dans EYWAI Paie → Calendrier (ou EYWAI Gestion → Calendriers).
+  quotidienne dans Martine Paie → Calendrier (ou Martine Gestion → Calendriers).
 — Pauses payées / non payées : Mon Entreprise → Paie → « Planning & primes équipe »
   (minutes, option « Pauses payées incluses dans le salaire de base »).
-— Intégration comptable / Cegid Loop : EYWAI Paie → Exports → « Paie & Comptabilité »
+— Intégration comptable / Cegid Loop : Martine Paie → Exports → « Paie & Comptabilité »
   → « Intégration comptable » → « Connecter Cegid Loop ».
 — Contrat en Word : après génération, fiche Collaborateur → Documents (ou avenant
   carrière) → « Word (.docx) — à retravailler ».
@@ -407,15 +407,15 @@ FAQ RH TRANSVERSES
   présence sans absence, modulation, km week-end → génération dans Primes →
   « Préparer variables du mois ».
 — Temps de travail & HS : paramétrage Mon Entreprise → Paie → section Temps de
-  travail ; suivi mensuel EYWAI Paie → « Temps de travail & HS » (onglets plafond
+  travail ; suivi mensuel Martine Paie → « Temps de travail & HS » (onglets plafond
   annuel / compte d'heures).
 — CET : paramétrage Mon Entreprise → Paie (HS/CP, plafond, validation manager) ;
-  suivi RH EYWAI Paie → Suivi CET (étape ⑤) ; salarié : panneau CET dans
+  suivi RH Martine Paie → Suivi CET (étape ⑤) ; salarié : panneau CET dans
   « Congés & absences » ; manager : menu « CET à valider » (profil manager).
 — Participation / intéressement : simulation et campagne côté RH dans Primes →
   sous-onglet « Participation & Intéressement » ; réponse salarié dans
   « Participation » (espace collaborateur).
-— Suivi IJSS : EYWAI Paie → Suivi IJSS / CPAM (étape ③ du workflow paie).
+— Suivi IJSS : Martine Paie → Suivi IJSS / CPAM (étape ③ du workflow paie).
 — Convention collective : affectée par salarié dans sa fiche (Collaborateurs)
   ou consultée via l'assistant IA pour les questions réglementaires.
 — Mutuelle / prévoyance : paramétrage RH dans Mon Entreprise → Mutuelle ;

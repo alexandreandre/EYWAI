@@ -141,7 +141,7 @@ def log_reminder_sent(
 def _build_email_subject(company_name: str, count: int) -> str:
     suffix = "s" if count > 1 else ""
     name = company_name or "votre entreprise"
-    return f"[EYWAI] {count} échéance{suffix} RH à traiter — {name}"
+    return f"[Martine] {count} échéance{suffix} RH à traiter — {name}"
 
 
 def _format_candidate_line(candidate: DeadlineCandidate) -> str:
@@ -176,7 +176,7 @@ Consultez le cockpit RH :
 {dashboard_url}
 
 Cordialement,
-L'équipe EYWAI
+L'équipe Martine
 """
 
     html_items = "".join(
@@ -201,7 +201,7 @@ L'équipe EYWAI
         </a>
       </p>
     </div>
-    <p style="text-align: center; color: #6b7280; font-size: 12px;">Cet e-mail a été envoyé par EYWAI</p>
+    <p style="text-align: center; color: #6b7280; font-size: 12px;">Cet e-mail a été envoyé par Martine</p>
   </div>
 </body>
 </html>"""

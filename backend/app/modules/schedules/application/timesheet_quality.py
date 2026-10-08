@@ -120,7 +120,7 @@ def quality_checks_for_employee(proposal: AiEmployeeProposal) -> List[TimesheetQ
                 TimesheetQualityCheck(
                     level="error",
                     code="matricule_unmatched",
-                    message=f"Matricule {mat} ({name}) : aucun salarié EYWAI correspondant.",
+                    message=f"Matricule {mat} ({name}) : aucun salarié Martine correspondant.",
                     employee_raw_name=name,
                     matricule=mat,
                 )
@@ -278,7 +278,7 @@ def build_global_quality_checks(
                     code="pdf_unknown_matricule",
                     message=(
                         f"Matricule {emp.time_tracking_id} ({emp.raw_name}) "
-                        "absent du roster EYWAI."
+                        "absent du roster Martine."
                     ),
                     employee_raw_name=emp.raw_name,
                     matricule=emp.time_tracking_id,

@@ -1023,7 +1023,7 @@ export function AppSidebar() {
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton size="sm" className="w-full">
                             <Users className={SIDEBAR_NAV.iconPrimary} />
-                            <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Team</span>
+                            <span className={SIDEBAR_NAV.sectionTitle}>Martine Team</span>
                             <ChevronRight
                               className={cn(
                                 "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
@@ -1032,7 +1032,7 @@ export function AppSidebar() {
                             />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
-                        <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="EYWAI Team" />
+                        <SectionTaskDot visible={teamSectionHasTasks} sectionLabel="Martine Team" />
                       </div>
                       <CollapsibleContent>
                         <SidebarMenuSub>
@@ -1054,7 +1054,7 @@ export function AppSidebar() {
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton size="sm" className="w-full">
                               <Settings className={SIDEBAR_NAV.iconPrimary} />
-                              <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Gestion</span>
+                              <span className={SIDEBAR_NAV.sectionTitle}>Martine Gestion</span>
                               <ChevronRight
                                 className={cn(
                                   "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
@@ -1063,7 +1063,7 @@ export function AppSidebar() {
                               />
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
-                          <SectionTaskDot visible={gestionSectionHasTasks} sectionLabel="EYWAI Gestion" />
+                          <SectionTaskDot visible={gestionSectionHasTasks} sectionLabel="Martine Gestion" />
                         </div>
                         <CollapsibleContent>
                           <SidebarMenuSub>
@@ -1084,7 +1084,7 @@ export function AppSidebar() {
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton size="sm" className="w-full">
                             <Calculator className={SIDEBAR_NAV.iconPrimary} />
-                            <span className={SIDEBAR_NAV.sectionTitle}>EYWAI Paie</span>
+                            <span className={SIDEBAR_NAV.sectionTitle}>Martine Paie</span>
                             <ChevronRight
                               className={cn(
                                 "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
@@ -1093,7 +1093,7 @@ export function AppSidebar() {
                             />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
-                        <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="EYWAI Paie" />
+                        <SectionTaskDot visible={paieSectionHasTasks} sectionLabel="Martine Paie" />
                       </div>
                       <CollapsibleContent>
                         <SidebarMenuSub className="mx-0 gap-1 border-0 px-0 py-0.5">

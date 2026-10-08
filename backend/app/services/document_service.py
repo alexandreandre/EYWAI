@@ -277,7 +277,7 @@ class DocumentService:
         story.append(Spacer(1, 0.5 * cm))
         story.append(
             Paragraph(
-                f"<i>Document généré automatiquement le {esc(date_gen)} — modèle EYWAI</i>",
+                f"<i>Document généré automatiquement le {esc(date_gen)} — modèle Martine</i>",
                 ParagraphStyle(
                     name="FbFooter",
                     parent=styles["Normal"],

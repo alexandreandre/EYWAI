@@ -129,7 +129,7 @@ def generate_review_pdf(review: Dict[str, Any], employee: Dict[str, Any]) -> byt
     story.append(Spacer(1, 0.5 * cm))
     story.append(
         Paragraph(
-            '<font size="8" color="grey">Document généré par EYWAI</font>',
+            '<font size="8" color="grey">Document généré par Martine</font>',
             styles["Normal"],
         )
     )

@@ -342,7 +342,7 @@ def _match_by_cegid_name_order(
         for e in roster
     ):
         proposal.warnings.append(
-            f"Matricule {matricule} absent du dossier EYWAI — "
+            f"Matricule {matricule} absent du dossier Martine — "
             f"rapprochement par nom « {ocr_last} »."
         )
 
@@ -576,7 +576,7 @@ def resolve_employee_for_timesheet(
 
     if len(partial) > 1:
         proposal.warnings.append(
-            f"« {raw_name} » : plusieurs candidats possibles dans EYWAI "
+            f"« {raw_name} » : plusieurs candidats possibles dans Martine "
             "(homonyme ou prénom/nom mal lu par l'OCR — vérifiez le matricule "
             "et associez manuellement au bon salarié)."
         )
@@ -633,7 +633,7 @@ def resolve_employee_for_timesheet(
     proposal.warnings.append(f"Aucun employé reconnu pour « {raw_name} ».")
     if norm_mat:
         proposal.warnings.append(
-            f"Matricule {norm_mat} non renseigné dans EYWAI pour ce salarié."
+            f"Matricule {norm_mat} non renseigné dans Martine pour ce salarié."
         )
     proposal.match_method = "none"
     proposal.review_status = "error"

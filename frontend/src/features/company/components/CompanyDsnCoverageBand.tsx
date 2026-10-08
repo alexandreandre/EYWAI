@@ -27,7 +27,7 @@ export function CompanyDsnCoverageBand({
         </CardTitle>
         <CardDescription>
           {isNative
-            ? 'Les cumuls sont maintenus par la paie EYWAI — import DSN optionnel.'
+            ? 'Les cumuls sont maintenus par la paie Martine — import DSN optionnel.'
             : 'Suivi des imports mensuels depuis votre logiciel de paie externe.'}
         </CardDescription>
       </CardHeader>

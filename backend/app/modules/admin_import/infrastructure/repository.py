@@ -117,7 +117,7 @@ def resolve_company_from_payslip(
             if clean_siret and not stored_siret:
                 warnings.append(
                     f"Entreprise identifiée par nom « {company_name.strip()} » "
-                    f"(SIRET {clean_siret} non enregistré dans EYWAI)."
+                    f"(SIRET {clean_siret} non enregistré dans Martine)."
                 )
             elif clean_siret and stored_siret and stored_siret != clean_siret:
                 warnings.append(
@@ -127,7 +127,7 @@ def resolve_company_from_payslip(
             return company, warnings
 
     if clean_siret:
-        warnings.append(f"Entreprise SIRET {clean_siret} introuvable dans EYWAI.")
+        warnings.append(f"Entreprise SIRET {clean_siret} introuvable dans Martine.")
 
     return None, warnings
 

@@ -233,7 +233,7 @@ export function SeniorityImportPanel({
       <p className="text-sm text-muted-foreground">
         Fichier Excel ou CSV avec colonnes <strong>NOM</strong>, <strong>PRENOM</strong> et{' '}
         <strong>Date ancienneté</strong> (tableau prime LEWIS / métallurgie). Seule la date est
-        importée — les montants restent calculés par EYWAI.
+        importée — les montants restent calculés par Martine.
       </p>
         <div className="flex flex-wrap items-center gap-3">
           <label
@@ -311,7 +311,7 @@ export function SeniorityImportPanel({
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10" />
-                        <TableHead>Salarié EYWAI</TableHead>
+                        <TableHead>Salarié Martine</TableHead>
                         <TableHead>Date actuelle</TableHead>
                         <TableHead>Date à enregistrer</TableHead>
                       </TableRow>
@@ -384,7 +384,7 @@ export function SeniorityImportPanel({
                   <TableRow>
                     <TableHead className="w-10" />
                     <TableHead>Identité fichier</TableHead>
-                    <TableHead>Salarié EYWAI</TableHead>
+                    <TableHead>Salarié Martine</TableHead>
                     <TableHead>Date import</TableHead>
                     <TableHead>Date actuelle</TableHead>
                     <TableHead>Statut</TableHead>

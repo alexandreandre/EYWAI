@@ -46,7 +46,7 @@ def send_support_ticket_email(
         module = ticket_data.get("module", "")
         prefix = "[PRIORITAIRE] " if module in MODULES_PRIORITAIRES else ""
         subject_support = (
-            f"{prefix}[SUPPORT EYWAI] {module} — {urgency_label} — {company_name}"
+            f"{prefix}[SUPPORT Martine] {module} — {urgency_label} — {company_name}"
         )
 
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -81,7 +81,7 @@ def send_support_ticket_email(
         )
 
         text_support = f"""
-Nouveau ticket support EYWAI
+Nouveau ticket support Martine
 
 Date et heure (UTC) : {now_iso}
 Entreprise : {company_name}
@@ -150,14 +150,14 @@ Description :
             <p style="white-space: pre-wrap;">{esc_description}</p>
         </div>
         <div class="footer">
-            <p>Message généré par le système EYWAI</p>
+            <p>Message généré par le système Martine</p>
         </div>
     </div>
 </body>
 </html>
 """
 
-        subject_confirm = "[EYWAI] Votre demande de support a bien été reçue"
+        subject_confirm = "[Martine] Votre demande de support a bien été reçue"
 
         text_confirm = f"""
 Bonjour {user_name},
@@ -176,7 +176,7 @@ Récapitulatif :
 Notre équipe traite les demandes sous 24 à 48 heures ouvrées. Vous recevrez une réponse à l'adresse {user_email}.
 
 Cordialement,
-L'équipe EYWAI
+L'équipe Martine
 """.strip()
 
         context_confirm_html = (
@@ -239,10 +239,10 @@ L'équipe EYWAI
             <p style="white-space: pre-wrap;">{esc_description}</p>
             <p>Notre équipe traite les demandes sous <strong>24 à 48 heures ouvrées</strong>.
             Vous recevrez une réponse à l'adresse {esc_user_email}.</p>
-            <p>Cordialement,<br>L'équipe EYWAI</p>
+            <p>Cordialement,<br>L'équipe Martine</p>
         </div>
         <div class="footer">
-            <p>Cet e-mail a été envoyé par le système EYWAI</p>
+            <p>Cet e-mail a été envoyé par le système Martine</p>
         </div>
     </div>
 </body>

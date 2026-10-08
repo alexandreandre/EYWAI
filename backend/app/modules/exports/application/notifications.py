@@ -106,7 +106,7 @@ def _build_email_bodies(
             if url:
                 text_lines.append(f"- {name} : {url}")
         text_lines.append("")
-    text_lines.extend(["Cordialement,", "L'équipe EYWAI"])
+    text_lines.extend(["Cordialement,", "L'équipe Martine"])
     text_content = "\n".join(text_lines)
 
     links_html = ""
@@ -130,7 +130,7 @@ def _build_email_bodies(
     <li><strong>Type :</strong> {export_type_label}</li>
   </ul>
   {links_html}
-  <p>Cordialement,<br>L'équipe EYWAI</p>
+  <p>Cordialement,<br>L'équipe Martine</p>
 </body></html>
 """
     return text_content, html_content
@@ -179,7 +179,7 @@ def notify_export_recipients(
                 continue
 
     subject_channel = f" — {CHANNEL_LABELS.get(channel, channel)}" if channel else ""
-    subject = f"[EYWAI] Export {export_type_label}{subject_channel} — {period}"
+    subject = f"[Martine] Export {export_type_label}{subject_channel} — {period}"
     text_content, html_content = _build_email_bodies(
         company_name=company_name,
         period=period,

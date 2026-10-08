@@ -25,18 +25,18 @@ export default function SuperAdminsPage() {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title="Équipe EYWAI"
+        title="Équipe Martine"
         description="Comptes disposant de l'accès Administration plateforme."
       />
 
       <Card>
         <CardContent className="p-0 pt-0">
           {isLoading ? (
-            <SharkFinLoader label="Chargement de l'équipe EYWAI…" />
+            <SharkFinLoader label="Chargement de l'équipe Martine…" />
           ) : isError && rows.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-destructive">
-                Impossible de charger l&apos;équipe EYWAI.
+                Impossible de charger l&apos;équipe Martine.
               </p>
               <Button className="mt-4" variant="outline" onClick={() => void refetch()}>
                 Réessayer
@@ -47,7 +47,7 @@ export default function SuperAdminsPage() {
               {isError ? (
                 <div className="flex items-center justify-between gap-4 border-b px-4 py-3">
                   <p className="text-sm text-destructive">
-                    Impossible de charger l&apos;équipe EYWAI.
+                    Impossible de charger l&apos;équipe Martine.
                   </p>
                   <Button variant="outline" size="sm" onClick={() => void refetch()}>
                     Réessayer

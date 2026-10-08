@@ -22,16 +22,13 @@ LISTE_BLANCHE: set[tuple[str, str]] = {
     # valeur par défaut du titre d'application envoyé à OpenRouter (identifiant technique)
     ("shared/infrastructure/ai/client.py", "EYWAI"),
     ("shared/infrastructure/ai/client_async.py", "EYWAI"),
+    # variables d'environnement et en-tête webhook (contrats techniques)
+    ("modules/scraping/infrastructure/scraper_runner.py", "EYWAI_SYNC_COTISATION_IDS"),
+    ("modules/scraping/infrastructure/scraper_runner.py", "EYWAI_REVIEWED_BY"),
+    ("modules/webhooks/infrastructure/repository.py", "X-EYWAI-Signature"),
     # message de journal serveur, jamais montré à l'écran
     ("services/document_service.py", "ReportLab fallback PDF (EYWAI): %s"),
 }
-# Fichiers où toute chaîne technique est tolérée (clés, en-têtes, env, etc.)
-# — seules les chaînes exactes ci-dessous, complétées au fil du renommage.
-MOTIFS_TECHNIQUES = (
-    "X-EYWAI-Signature",
-    "__eywai__",
-    "EYWAI_",
-)
 
 
 def _docstrings(tree: ast.AST) -> set[int]:
@@ -68,12 +65,6 @@ def _violations() -> list[str]:
                 s = node.value
                 if (rel, s) in LISTE_BLANCHE:
                     continue
-                if any(m in s for m in MOTIFS_TECHNIQUES) and "Martine" not in s:
-                    stripped = s
-                    for m in MOTIFS_TECHNIQUES:
-                        stripped = stripped.replace(m, "")
-                    if "EYWAI" not in stripped:
-                        continue
                 out.append(f"{rel}:{node.lineno}: {s[:90]!r}")
     return out
 

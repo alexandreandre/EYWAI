@@ -5,7 +5,7 @@ import os
 
 COPILOT_DATA_UNAVAILABLE_MESSAGE = (
     "Les questions portant sur les données RH sont temporairement indisponibles "
-    "pendant une mise à niveau de sécurité. L'aide sur EYWAI et les conventions "
+    "pendant une mise à niveau de sécurité. L'aide sur Martine et les conventions "
     "collectives reste disponible."
 )
 

@@ -46,7 +46,7 @@ def message_non_deposable() -> str:
     reste = "\n".join(f"  - {ligne}" for ligne in RESTE_AVANT_DEPOT)
     return (
         "DSN pas encore déposable : ne déposez pas ce fichier sur net-entreprises.\n"
-        "Déjà produit par EYWAI :\n"
+        "Déjà produit par Martine :\n"
         + produit
         + "\nReste avant d'ouvrir le dépôt :\n"
         + reste

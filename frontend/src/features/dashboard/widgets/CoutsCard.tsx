@@ -80,7 +80,7 @@ export function CoutsCard({ kpis, chartData }: CoutsCardProps) {
           {payroll?.source === 'none' ? (
             <p className="text-sm text-muted-foreground">
               Aucune masse disponible pour ce mois. Importez une DSN mensuelle ou générez les
-              bulletins dans EYWAI.
+              bulletins dans Martine.
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

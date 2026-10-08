@@ -38,7 +38,7 @@ interface CreateExitDialogProps {
 }
 
 export const CONTRAT_ABSENT_MESSAGE =
-  "Contrat non présent dans EYWAI (repris de l'ancien logiciel) : le départ se crée quand même";
+  "Contrat non présent dans Martine (repris de l'ancien logiciel) : le départ se crée quand même";
 
 function noticeSourceLabel(source: NoticePeriodPreview['source']): string {
   switch (source) {

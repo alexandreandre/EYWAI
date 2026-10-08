@@ -665,7 +665,7 @@ export default function CatalogueTab({
                 ) : (ccSuggestionsQuery.data ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Aucune proposition extraite pour votre convention. Contactez l&apos;administrateur
-                    EYWAI pour lancer l&apos;extraction depuis le catalogue des conventions.
+                    Martine pour lancer l&apos;extraction depuis le catalogue des conventions.
                   </p>
                 ) : (
                   (ccSuggestionsQuery.data ?? []).map((s: CcTrainingSuggestion) => (

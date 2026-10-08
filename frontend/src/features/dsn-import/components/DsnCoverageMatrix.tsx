@@ -242,7 +242,7 @@ export function CompanyCoverageRow({
               </Badge>
               {company.dsn_sync_mode === 'native' && (
                 <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
-                  Paie EYWAI
+                  Paie Martine
                 </Badge>
               )}
               {company.at_mp_configured === false && (

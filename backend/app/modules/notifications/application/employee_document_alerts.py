@@ -100,7 +100,7 @@ def _email_content_for_type(
 {page_url}
 
 Cordialement,
-L'équipe EYWAI
+L'équipe Martine
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -122,7 +122,7 @@ L'équipe EYWAI
         </a>
       </p>
     </div>
-    <p style="text-align: center; color: #6b7280; font-size: 12px;">Cet e-mail a été envoyé par EYWAI</p>
+    <p style="text-align: center; color: #6b7280; font-size: 12px;">Cet e-mail a été envoyé par Martine</p>
   </div>
 </body>
 </html>"""

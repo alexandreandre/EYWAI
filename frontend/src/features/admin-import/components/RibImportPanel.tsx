@@ -362,7 +362,7 @@ export function RibImportPanel({
                   <TableHead className="w-12">Ligne</TableHead>
                   <TableHead>Identité fichier</TableHead>
                   <TableHead>RIB (IBAN)</TableHead>
-                  <TableHead>Employé EYWAI</TableHead>
+                  <TableHead>Employé Martine</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="w-28">Valider</TableHead>
                   <TableHead className="w-48">Associer</TableHead>

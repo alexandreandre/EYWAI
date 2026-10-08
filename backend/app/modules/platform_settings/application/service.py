@@ -28,7 +28,7 @@ def _row_to_response(row: Optional[Dict[str, Any]]) -> EmailSettingsResponse:
             has_smtp_password=bool(row.get("smtp_password")),
             smtp_security=row.get("smtp_security") or "starttls",
             from_email=row.get("from_email"),
-            from_name=str(row.get("from_name") or "EYWAI"),
+            from_name=str(row.get("from_name") or "Martine"),
             reply_to=row.get("reply_to"),
             support_recipients=list(recipients),
             is_active=bool(row.get("is_active")),
@@ -43,7 +43,7 @@ def _row_to_response(row: Optional[Dict[str, Any]]) -> EmailSettingsResponse:
         has_smtp_password=False,
         smtp_security="starttls",
         from_email=None,
-        from_name="EYWAI",
+        from_name="Martine",
         reply_to=None,
         support_recipients=list(DEFAULT_SUPPORT_RECIPIENTS),
         is_active=False,
@@ -110,13 +110,13 @@ def send_test_email(to_email: str) -> EmailTestResponse:
     from app.shared.infrastructure.email.smtp_sender import SmtpMailSender
 
     sender = SmtpMailSender()
-    subject = "[EYWAI] Test de configuration e-mail"
+    subject = "[Martine] Test de configuration e-mail"
     text = (
-        "Ceci est un e-mail de test envoyé depuis l'administration EYWAI.\n\n"
+        "Ceci est un e-mail de test envoyé depuis l'administration Martine.\n\n"
         "Si vous recevez ce message, la configuration SMTP est opérationnelle."
     )
     html = (
-        "<p>Ceci est un e-mail de test envoyé depuis l'<strong>administration EYWAI</strong>.</p>"
+        "<p>Ceci est un e-mail de test envoyé depuis l'<strong>administration Martine</strong>.</p>"
         "<p>Si vous recevez ce message, la configuration SMTP est opérationnelle.</p>"
     )
     ok, err = sender.send_multipart_email(

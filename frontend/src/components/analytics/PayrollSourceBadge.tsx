@@ -35,7 +35,7 @@ function tooltipText(source: PayrollSource, sourceLabel?: string, partial?: bool
       ? 'Donnée déclarée DSN — certains salariés sans brut extrait'
       : 'Donnée déclarée DSN — estimée / déclarée';
   }
-  if (source === 'payslip') return 'Calculée à partir des bulletins validés dans EYWAI';
+  if (source === 'payslip') return 'Calculée à partir des bulletins validés dans Martine';
   return 'Importez une DSN ou générez les bulletins pour afficher la masse du mois';
 }
 

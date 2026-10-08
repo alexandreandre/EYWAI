@@ -15,7 +15,7 @@ def report_to_json(report: DsnComparisonReport, *, indent: int = 2) -> str:
 def report_to_markdown(report: DsnComparisonReport) -> str:
     lines: list[str] = []
     meta = report.meta or {}
-    lines.append("# Comparaison DSN EYWAI vs référence")
+    lines.append("# Comparaison DSN Martine vs référence")
     lines.append("")
     if meta:
         lines.append("## Meta")

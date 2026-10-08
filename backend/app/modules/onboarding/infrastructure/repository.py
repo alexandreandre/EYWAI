@@ -65,7 +65,7 @@ DEFAULT_ONBOARDING_TASKS: List[Dict[str, Any]] = [
         "position": 7,
     },
     {
-        "title": "Accès EYWAI collaborateur",
+        "title": "Accès Martine collaborateur",
         "category": "acces",
         "due_days": 1,
         "position": 8,

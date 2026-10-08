@@ -172,7 +172,7 @@ export default function ActivationPage() {
               Compte activé !
             </CardTitle>
             <CardDescription className="text-center">
-              Votre espace EYWAI est prêt.
+              Votre espace Martine est prêt.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -230,7 +230,7 @@ export default function ActivationPage() {
             ) : (
               <>
                 <strong>{welcome.societe}</strong> vous invite à activer votre
-                espace EYWAI. Choisissez votre mot de passe pour terminer.
+                espace Martine. Choisissez votre mot de passe pour terminer.
               </>
             )}
           </CardDescription>

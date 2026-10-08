@@ -400,7 +400,7 @@ export default function ObligationsLegalesTab({ compactTable = false }: Obligati
           </SheetHeader>
           <div className="mt-6 space-y-6 px-1">
             <p className="text-sm text-muted-foreground">
-              Ces critères peuvent être cochés manuellement si le bilan s’est tenu hors EYWAI.
+              Ces critères peuvent être cochés manuellement si le bilan s’est tenu hors Martine.
             </p>
             <div className="flex items-center justify-between gap-4">
               <Label htmlFor="lo-train" className="flex-1 cursor-pointer">

@@ -254,7 +254,7 @@ def apply_legal_name_to_preview(
 
         elif item_type == "group":
             payload["group_name"] = f"Groupe {short}"
-            payload["description"] = "Conteneur EYWAI — créé automatiquement à l'import DSN"
+            payload["description"] = "Conteneur Martine — créé automatiquement à l'import DSN"
             payload["_scaffold"] = True
             it["label"] = f"Groupe {short}"
             it["mapped_payload"] = payload
@@ -270,7 +270,7 @@ def map_group_payload(parsed: ParsedDsnSet) -> Dict[str, Any]:
     return {
         "group_name": f"Groupe {short}" if short else f"Groupe {siren}",
         "siren": siren,
-        "description": "Conteneur EYWAI — créé automatiquement à l'import DSN",
+        "description": "Conteneur Martine — créé automatiquement à l'import DSN",
         "is_active": True,
     }
 

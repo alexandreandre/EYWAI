@@ -100,7 +100,7 @@ function settingsToForm(s: EmailSettings): FormState {
     smtp_password: '',
     smtp_security: s.smtp_security,
     from_email: s.from_email ?? s.smtp_user ?? '',
-    from_name: s.from_name || 'EYWAI',
+    from_name: s.from_name || 'Martine',
     reply_to: s.reply_to ?? '',
     support_email: primary,
     extra_support_emails: rest.join('\n'),
@@ -121,7 +121,7 @@ function formToPayload(form: FormState): EmailSettingsUpdate {
     smtp_user: form.smtp_user.trim() || null,
     smtp_security: form.smtp_security,
     from_email: form.from_email.trim() || form.smtp_user.trim() || null,
-    from_name: form.from_name.trim() || 'EYWAI',
+    from_name: form.from_name.trim() || 'Martine',
     reply_to: form.reply_to.trim() || null,
     support_recipients: support,
   };
@@ -294,7 +294,7 @@ export default function EmailSettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <AdminPageHeader
         title="Mails automatiques"
-        description="Adresses d’envoi et de réception pour les e-mails envoyés par EYWAI (mot de passe oublié, support)."
+        description="Adresses d’envoi et de réception pour les e-mails envoyés par Martine (mot de passe oublié, support)."
       />
 
       <StatusBanner
@@ -333,7 +333,7 @@ export default function EmailSettingsPage() {
                 id="from-name"
                 value={form.from_name}
                 onChange={(e) => setForm({ ...form, from_name: e.target.value })}
-                placeholder="EYWAI"
+                placeholder="Martine"
               />
             </div>
             <div className="space-y-2">

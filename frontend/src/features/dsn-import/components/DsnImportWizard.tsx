@@ -1700,7 +1700,7 @@ export function DsnImportWizard({
             {hasScaffoldGroup && (
               <p className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                 La DSN décrit une <strong className="font-medium text-foreground">entreprise</strong> (SIRET).
-                Un conteneur groupe EYWAI est créé automatiquement en arrière-plan pour le rattachement
+                Un conteneur groupe Martine est créé automatiquement en arrière-plan pour le rattachement
                 plateforme — vous n&apos;avez rien à saisir à ce niveau.
               </p>
             )}

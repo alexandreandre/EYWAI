@@ -15,7 +15,7 @@ export function AppBootScreen() {
       <div className="flex w-full max-w-sm flex-col items-center gap-8 px-6">
         <img
           src="/Colorplast.png"
-          alt="EYWAI"
+          alt="Martine"
           className="h-12 w-auto object-contain"
           width={160}
           height={48}

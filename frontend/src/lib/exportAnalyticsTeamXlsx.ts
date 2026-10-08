@@ -223,7 +223,7 @@ export async function buildAnalyticsTeamWorkbook(
 ): Promise<ExcelJS.Workbook> {
   const ExcelJSRuntime = await loadExcelJS();
   const wb = new ExcelJSRuntime.Workbook();
-  wb.creator = "EYWAI";
+  wb.creator = "Martine";
   wb.created = new Date();
   buildSyntheseSheet(wb, companyName, periodLabel, data);
   buildEffectifsSheet(wb, companyName, periodLabel, data);

@@ -86,7 +86,7 @@ class YousignService:
         ordered = bool(second_signer_email and second_signer_email.strip())
 
         create_payload: Dict[str, Any] = {
-            "name": document_name[:128] if document_name else "Signature EYWAI",
+            "name": document_name[:128] if document_name else "Signature Martine",
             "delivery_mode": "email",
             "timezone": "Europe/Paris",
             "expiration_date": expiration_date,
@@ -128,7 +128,7 @@ class YousignService:
             return {
                 "info": {
                     "first_name": first[:128] or "Signataire",
-                    "last_name": last[:128] or "EYWAI",
+                    "last_name": last[:128] or "Martine",
                     "email": email.strip(),
                     "locale": "fr",
                 },

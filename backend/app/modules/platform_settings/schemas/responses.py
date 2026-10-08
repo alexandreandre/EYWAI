@@ -17,7 +17,7 @@ class EmailSettingsResponse(BaseModel):
     has_smtp_password: bool = False
     smtp_security: SmtpSecurityLiteral = "starttls"
     from_email: Optional[str] = None
-    from_name: str = "EYWAI"
+    from_name: str = "Martine"
     reply_to: Optional[str] = None
     support_recipients: List[str] = Field(default_factory=lambda: ["contact@eywai.fr"])
     is_active: bool = False

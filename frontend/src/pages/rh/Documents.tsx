@@ -15,7 +15,7 @@ export default function DocumentsRhPage() {
 
       {eywaiBanner && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Dernier document généré avec le <strong>modèle standard EYWAI</strong>.
+          Dernier document généré avec le <strong>modèle standard Martine</strong>.
         </div>
       )}
 

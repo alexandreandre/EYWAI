@@ -333,7 +333,7 @@ def _parse_eywai_native(page_text: str) -> ParsedPayslipPage:
         page.siret = siret_match.group(1)
 
     if page.cp_n_solde is None:
-        page.parse_errors.append("Soldes CP EYWAI introuvables sur la page.")
+        page.parse_errors.append("Soldes CP Martine introuvables sur la page.")
 
     return page
 

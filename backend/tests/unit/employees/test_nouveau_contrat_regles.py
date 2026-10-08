@@ -123,7 +123,7 @@ class TestRefus:
         )
         assert refus == (
             "Le nouveau contrat commencerait en 05/2026, le mois où le précédent se "
-            "termine : EYWAI ne fait qu'un bulletin par mois. Il peut commencer le "
+            "termine : Martine ne fait qu'un bulletin par mois. Il peut commencer le "
             "01/06/2026 au plus tôt."
         )
 

@@ -156,7 +156,7 @@ export function CegidConnectWizard({
           <AlertTitle>Pas accès à Cegid Life ?</AlertTitle>
           <AlertDescription>
             Demandez à votre expert-comptable de générer les identifiants, ou partagez-lui
-            le guide Cegid. Aucun partenariat EYWAI/Cegid n’est nécessaire — ce sont les
+            le guide Cegid. Aucun partenariat Martine/Cegid n’est nécessaire — ce sont les
             clés de votre comptabilité.
           </AlertDescription>
         </Alert>

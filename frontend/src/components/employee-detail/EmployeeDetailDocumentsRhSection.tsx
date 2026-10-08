@@ -454,7 +454,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -509,7 +509,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -570,7 +570,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -743,7 +743,7 @@ export function EmployeeDetailDocumentsRhSection({
       <EmployeeDocumentAddMenu handlers={handlers} onManageTemplates={() => navigate('/company?tab=modeles')} />
       {eywaiBanner && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          Générée avec le modèle standard EYWAI.
+          Générée avec le modèle standard Martine.
         </div>
       )}
       {dialogs}
@@ -881,7 +881,7 @@ export function GeneratedDocMeta({ doc }: { doc: GeneratedDocument }): ReactNode
   const sourceLabel = isTransmitted
     ? 'Transmis par les RH'
     : doc.is_eywai_template
-      ? 'Standard EYWAI'
+      ? 'Standard Martine'
       : doc.template_name || 'Modèle personnalisé';
 
   return (

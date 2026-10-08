@@ -160,7 +160,7 @@ def raison_du_refus(
     if _rang(demande.date_debut) <= _rang(precedent.fin):
         return (
             f"Le nouveau contrat commencerait en {_mm_aaaa(demande.date_debut)}, le mois "
-            "où le précédent se termine : EYWAI ne fait qu'un bulletin par mois. Il peut "
+            "où le précédent se termine : Martine ne fait qu'un bulletin par mois. Il peut "
             f"commencer le {_jj_mm_aaaa(premier_jour_possible(precedent))} au plus tôt."
         )
     avant_bascule = rang_de_bascule is not None and _rang(precedent.fin) <= rang_de_bascule

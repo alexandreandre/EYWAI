@@ -27,10 +27,10 @@ def build_activation_link(raw_token: str) -> str:
 
 
 def _build_contents(prenom: str, societe: str, link: str) -> tuple[str, str, str]:
-    subject = f"Activez votre compte EYWAI — {societe}"
+    subject = f"Activez votre compte Martine — {societe}"
     text = f"""Bonjour {prenom},
 
-{societe} vous invite à activer votre compte EYWAI, votre espace RH
+{societe} vous invite à activer votre compte Martine, votre espace RH
 personnel (bulletins de paie, absences, documents).
 
 Pour choisir votre mot de passe, cliquez sur ce lien :
@@ -42,16 +42,16 @@ Passé ce délai, demandez une nouvelle invitation à votre service RH.
 Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail.
 
 Cordialement,
-L'équipe EYWAI
+L'équipe Martine
 """
     html = f"""
 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-        <h1 style="margin: 0; font-size: 22px;">Bienvenue sur EYWAI</h1>
+        <h1 style="margin: 0; font-size: 22px;">Bienvenue sur Martine</h1>
     </div>
     <div style="background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb;">
         <p>Bonjour {prenom},</p>
-        <p><strong>{societe}</strong> vous invite à activer votre compte EYWAI,
+        <p><strong>{societe}</strong> vous invite à activer votre compte Martine,
         votre espace RH personnel (bulletins de paie, absences, documents).</p>
         <div style="text-align: center;">
             <a href="{link}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">Activer mon compte</a>
@@ -65,7 +65,7 @@ L'équipe EYWAI
         de cette demande, vous pouvez ignorer cet e-mail.</p>
     </div>
     <div style="text-align: center; padding: 20px; color: #6b7280; font-size: 12px;">
-        <p>Cet e-mail a été envoyé par EYWAI</p>
+        <p>Cet e-mail a été envoyé par Martine</p>
     </div>
 </div>
 """

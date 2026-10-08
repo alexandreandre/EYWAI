@@ -23,10 +23,10 @@ function DsnRhAlert({ alert }: { alert: CompanyOverviewAlert }) {
   const monthLabel = expected ?? "le mois attendu";
 
   const copyRequest = async () => {
-    const text = `Bonjour,\n\nPourriez-vous importer la DSN de ${monthLabel} dans EYWAI ? Nos cumuls de paie peuvent être incomplets sans cet import.\n\nMerci.`;
+    const text = `Bonjour,\n\nPourriez-vous importer la DSN de ${monthLabel} dans Martine ? Nos cumuls de paie peuvent être incomplets sans cet import.\n\nMerci.`;
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: "Demande copiée", description: "Collez-la dans votre message à l'administrateur EYWAI." });
+      toast({ title: "Demande copiée", description: "Collez-la dans votre message à l'administrateur Martine." });
     } catch {
       toast({ title: "Copie impossible", variant: "destructive" });
     }
@@ -39,7 +39,7 @@ function DsnRhAlert({ alert }: { alert: CompanyOverviewAlert }) {
         <span className="text-sm text-foreground">
           {alert.label}
           {alert.code === "dsn_month_missing" || alert.code === "dsn_never_imported"
-            ? " — vos cumuls de paie peuvent être incomplets. Contactez votre administrateur EYWAI."
+            ? " — vos cumuls de paie peuvent être incomplets. Contactez votre administrateur Martine."
             : null}
         </span>
         <Button

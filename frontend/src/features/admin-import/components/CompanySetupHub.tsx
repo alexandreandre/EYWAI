@@ -77,7 +77,7 @@ export function CompanySetupHub({ onStartWizard, onNewDsnFolder }: Props) {
           />
           {!companyId ? (
             <p className="text-sm text-muted-foreground max-w-xl">
-              Choisissez une entreprise déjà dans EYWAI pour compléter imports et paramètres.
+              Choisissez une entreprise déjà dans Martine pour compléter imports et paramètres.
               <button
                 type="button"
                 className="ml-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"

@@ -216,7 +216,7 @@ def _send_leave_request_email(
     comment = str(row.get("comment") or "").strip()
     url = _build_absence_action_url()
 
-    subject = f"[EYWAI] Nouvelle demande de {absence_label} - {employee_name}"
+    subject = f"[Martine] Nouvelle demande de {absence_label} - {employee_name}"
     text = f"""
 Nouvelle demande de {absence_label}
 
@@ -251,7 +251,7 @@ Traiter la demande : {url}
   <p><strong>Durée :</strong> {duree_label} jour(s)</p>
   <p><strong>Statut :</strong> {esc["stage"]}</p>
   <p><strong>Commentaire :</strong><br>{esc["comment"]}</p>
-  <p><a href="{esc["url"]}">Ouvrir les demandes d'absence dans EYWAI</a></p>
+  <p><a href="{esc["url"]}">Ouvrir les demandes d'absence dans Martine</a></p>
 </body>
 </html>
 """.strip()

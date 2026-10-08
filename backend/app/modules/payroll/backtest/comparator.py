@@ -141,7 +141,7 @@ def compare_bulletins(
                     delta=round(missing_delta, 2),
                     tolerance=tolerance,
                     verdict=Verdict.ANOMALIE,
-                    notes="Valeur absente côté EYWAI" if act_val is None else "Valeur absente côté référence",
+                    notes="Valeur absente côté Martine" if act_val is None else "Valeur absente côté référence",
                 )
             )
             continue

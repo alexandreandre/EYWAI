@@ -368,7 +368,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -429,7 +429,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -494,7 +494,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard EYWAI</SelectItem>
+                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}

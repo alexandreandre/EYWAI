@@ -39,7 +39,7 @@ export function CompanySetupIntroStep({
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-foreground">Filiale existante</h3>
           <p className="text-sm text-muted-foreground">
-            Choisissez une entreprise déjà présente dans EYWAI pour compléter ses imports et
+            Choisissez une entreprise déjà présente dans Martine pour compléter ses imports et
             paramètres.
           </p>
         </div>
@@ -61,7 +61,7 @@ export function CompanySetupIntroStep({
       </section>
 
       <p className="text-center text-xs text-muted-foreground">
-        Première importation dans EYWAI ?
+        Première importation dans Martine ?
         <button
           type="button"
           className="ml-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"

@@ -469,15 +469,15 @@ def merge_dsn_alerts_into_overview(
         if code == "dsn_month_missing":
             period = alert.get("expected_period", "")
             rh_alert["label"] = (
-                f"La DSN de {period} n'a pas encore été importée dans EYWAI. "
+                f"La DSN de {period} n'a pas encore été importée dans Martine. "
                 "Vos cumuls de paie peuvent être incomplets. "
-                "Contactez votre administrateur EYWAI."
+                "Contactez votre administrateur Martine."
             )
             rh_alert["action"] = "contact_admin"
         elif code == "dsn_never_imported":
             rh_alert["label"] = (
                 "Aucune DSN n'a été importée pour cette entreprise. "
-                "Contactez votre administrateur EYWAI pour initialiser le dossier paie."
+                "Contactez votre administrateur Martine pour initialiser le dossier paie."
             )
             rh_alert["action"] = "contact_admin"
         elif code == "dsn_onboarding_incomplete":

@@ -244,7 +244,7 @@ class WebhookRepository:
             raise LookupError("Webhook introuvable.")
         test_payload = {
             "test": True,
-            "message": "Ping EYWAI — webhook de test",
+            "message": "Ping Martine — webhook de test",
             "timestamp": int(time.time()),
         }
         status, _, _, _ = self._post_webhook(

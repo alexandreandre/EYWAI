@@ -207,14 +207,14 @@ def collecter_lignes(
         # sur l'état du cabinet. Tant que les reports ne sont pas chargés, la provision
         # est sous-évaluée. Ne jamais laisser sortir ce chiffre sans le dire.
         avertissements.append(
-            "Solde de la période précédente recalculé par EYWAI et non repris de "
+            "Solde de la période précédente recalculé par Martine et non repris de "
             "la paie actuelle : les congés antérieurs à janvier 2026 n'y sont pas. La provision "
             "est indicative tant que les reports n'ont pas été chargés."
         )
     if lignes and mois_max < FENETRE_REFERENCE_MOIS:
         avertissements.append(
             f"Salaire de référence calculé sur {mois_max} mois sur "
-            f"{FENETRE_REFERENCE_MOIS} — EYWAI ne contient de la paie que depuis "
+            f"{FENETRE_REFERENCE_MOIS} — Martine ne contient de la paie que depuis "
             "janvier 2026."
         )
     if sans_date:

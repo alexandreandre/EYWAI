@@ -784,7 +784,7 @@ export async function buildGroupDashboardWorkbook(
 ): Promise<ExcelJS.Workbook> {
   const ExcelJSRuntime = await loadExcelJS();
   const wb = new ExcelJSRuntime.Workbook();
-  wb.creator = "EYWAI";
+  wb.creator = "Martine";
   wb.created = new Date();
 
   buildSyntheseSheet(wb, payload);
@@ -954,7 +954,7 @@ export async function buildGroupDashboardTableWorkbook(
 ): Promise<ExcelJS.Workbook> {
   const ExcelJSRuntime = await loadExcelJS();
   const wb = new ExcelJSRuntime.Workbook();
-  wb.creator = "EYWAI";
+  wb.creator = "Martine";
   wb.created = new Date();
   buildTableauChargesSheet(wb, payload);
   return wb;

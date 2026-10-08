@@ -110,7 +110,7 @@ export function DsnImportAttributionCard({
           {isRevalidating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
         </CardTitle>
         <CardDescription>
-          Choisissez où importer cette DSN : laissez EYWAI décider via le SIRET, ou rattachez
+          Choisissez où importer cette DSN : laissez Martine décider via le SIRET, ou rattachez
           l&apos;import à une entreprise déjà créée.
         </CardDescription>
       </CardHeader>
@@ -151,7 +151,7 @@ export function DsnImportAttributionCard({
               Entreprise existante
             </span>
             <span className="text-xs text-muted-foreground">
-              Attacher les salariés et cumuls à une entreprise déjà présente dans EYWAI.
+              Attacher les salariés et cumuls à une entreprise déjà présente dans Martine.
             </span>
           </button>
         </div>
