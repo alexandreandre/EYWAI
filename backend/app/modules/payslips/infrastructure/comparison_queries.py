@@ -115,6 +115,32 @@ def fetch_recent_nets_asc_for_r10(
     return nets[-4:] if len(nets) >= 4 else nets
 
 
+def fetch_noms_utilisateurs(user_ids: list[str]) -> dict[str, str]:
+    """« Prénom Nom » des comptes demandés ; un compte sans nom lisible est absent."""
+    ids = sorted({str(i) for i in user_ids if i})
+    if not ids:
+        return {}
+    try:
+        rows = (
+            supabase.table("profiles")
+            .select("id, first_name, last_name")
+            .in_("id", ids)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001 — sans nom, l'écran n'affiche simplement pas la personne
+        return {}
+    noms: dict[str, str] = {}
+    for row in rows:
+        nom = " ".join(
+            str(part).strip() for part in (row.get("first_name"), row.get("last_name")) if part
+        ).strip()
+        if nom:
+            noms[str(row["id"])] = nom
+    return noms
+
+
 def update_payslip_data_alerts_status(
     payslip_id: str,
     rule_id: str,

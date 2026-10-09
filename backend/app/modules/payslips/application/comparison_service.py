@@ -30,6 +30,7 @@ from app.modules.payslips.domain.rules import (
 )
 from app.modules.payslips.infrastructure.comparison_queries import (
     fetch_employee_statut,
+    fetch_noms_utilisateurs,
     fetch_previous_validated_payslip,
     fetch_recent_nets_asc_for_r10,
     fetch_validated_payslips_strictly_before,
@@ -118,6 +119,20 @@ def _extract_totals(payslip_data: dict[str, Any]) -> dict[str, float]:
     }
 
 
+def _avec_noms_des_acquitteurs(resultat: dict[str, Any]) -> dict[str, Any]:
+    """Remplace l'identifiant du compte qui a acquitté par « Prénom Nom ».
+
+    Un compte dont le nom est introuvable n'est pas montré : mieux vaut aucune
+    personne qu'un identifiant illisible.
+    """
+    alertes = resultat.get("alerts") or []
+    noms = fetch_noms_utilisateurs([a.get("acquitted_by") for a in alertes if a.get("acquitted_by")])
+    for alerte in alertes:
+        if alerte.get("acquitted_by"):
+            alerte["acquitted_by"] = noms.get(str(alerte["acquitted_by"]))
+    return resultat
+
+
 def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
     detail = _ensure_view_detail(get_payslip_details(payslip_id), ctx)
     if not _voit_comme_rh(detail, ctx):
@@ -156,7 +171,7 @@ def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[s
     }
 
     result = compute_comparison(pd, prev_data, ctx_engine)
-    return comparison_result_to_dict(result)
+    return _avec_noms_des_acquitteurs(comparison_result_to_dict(result))
 
 
 def get_payslip_trend_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
