@@ -53,3 +53,27 @@ def test_le_statut_valide_survit_au_schema():
     (revue du 05/10) : le dépôt lit `status`, le schéma doit le garder."""
     assert PayslipInfo(**{**LIGNE, "status": "valide"}).model_dump()["status"] == "valide"
     assert PayslipInfo(**LIGNE).model_dump()["status"] is None
+
+
+def test_les_alertes_acquittees_survivent_au_schema():
+    """La liste de la paie du mois ne met plus « à revoir » un bulletin dont
+    l'écart fort a été acquitté : elle lit les règles acquittées ou ignorées."""
+    rendu = PayslipInfo(**{**LIGNE, "alertes_acquittees": ["R03"]}).model_dump()
+    assert rendu["alertes_acquittees"] == ["R03"]
+    assert PayslipInfo(**LIGNE).model_dump()["alertes_acquittees"] == []
+
+
+def test_la_liste_lit_les_regles_acquittees_ou_ignorees_du_bulletin():
+    from app.modules.payslips.infrastructure.payslip_list_meta import payslip_list_meta
+
+    data = {
+        "net_a_payer": 1500.0,
+        "alerts_status": {
+            "R03": {"status": "acquittee", "by": "u", "at": "2026-10-07T07:12:33+00:00"},
+            "R09": {"status": "ignoree", "by": "u", "at": "2026-10-07T07:12:33+00:00"},
+            "R04": {"status": "active"},
+        },
+    }
+    assert payslip_list_meta(data)["alertes_acquittees"] == ["R03", "R09"]
+    assert payslip_list_meta({"net_a_payer": 1.0})["alertes_acquittees"] == []
+    assert payslip_list_meta(None)["alertes_acquittees"] == []
