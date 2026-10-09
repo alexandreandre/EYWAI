@@ -1,22 +1,13 @@
 import { ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PAYROLL_REQUIRED_FIELD_LABELS } from '@/features/payroll/constants';
+import { champsManquants } from '@/features/payroll/utils/ficheIncomplete';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
 
 type PayrollIncompleteEmployeeListProps = {
   employees: PayrollGenerateEmployee[];
   onGoToEmployee: (employeeId: string) => void;
 };
-
-function missingFieldsFor(emp: PayrollGenerateEmployee): string[] {
-  const fromApi = emp.missing_payroll_fields?.filter(Boolean) ?? [];
-  if (fromApi.length > 0) return fromApi;
-  if (emp.employment_status === 'en_onboarding') {
-    return [...PAYROLL_REQUIRED_FIELD_LABELS];
-  }
-  return [...PAYROLL_REQUIRED_FIELD_LABELS];
-}
 
 export function PayrollIncompleteEmployeeList({
   employees,
@@ -27,7 +18,7 @@ export function PayrollIncompleteEmployeeList({
   return (
     <ul className="divide-y divide-border/60 rounded-lg border bg-background/80">
       {employees.map((emp) => {
-        const missing = missingFieldsFor(emp);
+        const missing = champsManquants(emp);
         return (
           <li key={emp.id} className="px-3 py-3 first:rounded-t-lg last:rounded-b-lg">
             <div className="flex items-start justify-between gap-3">
@@ -36,6 +27,11 @@ export function PayrollIncompleteEmployeeList({
                   {emp.first_name} {emp.last_name}
                 </p>
                 <div className="flex flex-wrap gap-1">
+                  {missing.length === 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Champs manquants non précisés : ouvrez la fiche.
+                    </span>
+                  )}
                   {missing.map((field) => (
                     <Badge
                       key={field}

@@ -20,6 +20,7 @@ import {
   MESSAGE_STATUTS_PRIS_EN_COMPTE,
   statutPermetLaPaie,
 } from '@/features/payroll/utils/statutsPaie';
+import { messageAucunSelectionnable } from '@/features/payroll/utils/ficheIncomplete';
 import { PayrollIncompleteEmployeeList } from '@/features/payroll/components/PayrollIncompleteEmployeeList';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
@@ -129,15 +130,14 @@ export function PayrollEmployeeEmptyState({
   const detailEmployees = launchEligible.map(toPayrollEmployee);
 
   if (launchEligible.length > 0) {
+    const message = messageAucunSelectionnable(detailEmployees);
     return (
-      <EmptyStateShell
-        icon={Users}
-        title={`${launchEligible.length} collaborateur${launchEligible.length > 1 ? 's' : ''} — fiches à compléter`}
-        description="Des collaborateurs sont présents, mais leurs fiches paie doivent être finalisées avant la génération."
-      >
-        <p className="text-xs text-muted-foreground">
-          Champs requis&nbsp;: {PAYROLL_REQUIRED_FIELD_LABELS.join(' · ')}
-        </p>
+      <EmptyStateShell icon={Users} title={message.titre} description={message.description}>
+        {message.fichesACompleter && (
+          <p className="text-xs text-muted-foreground">
+            Champs requis&nbsp;: {PAYROLL_REQUIRED_FIELD_LABELS.join(' · ')}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -149,6 +149,7 @@ export function PayrollEmployeeEmptyState({
             Liste des collaborateurs
             <ChevronRight className="ml-1 h-3.5 w-3.5" />
           </Button>
+          {message.fichesACompleter && (
           <Collapsible open={detailOpen} onOpenChange={setDetailOpen}>
             <CollapsibleTrigger asChild>
               <Button
@@ -170,6 +171,7 @@ export function PayrollEmployeeEmptyState({
               />
             </CollapsibleContent>
           </Collapsible>
+          )}
         </div>
       </EmptyStateShell>
     );
