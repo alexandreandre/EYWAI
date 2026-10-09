@@ -6,6 +6,7 @@ import {
   ecartAvecMoisPrecedent,
   estARevoir,
   moisPrecedent,
+  motifsAlerte,
   phraseSynthese,
   syntheseDuMois,
   type BulletinPourRevue,
@@ -162,5 +163,46 @@ describe('syntheseDuMois — une ligne au-dessus de la liste', () => {
   it('sans bulletin, la phrase ne parle pas de montants', () => {
     const synthese = syntheseDuMois([{ statut: 'idle' }, { statut: 'idle' }]);
     expect(lisible(phraseSynthese(synthese, 2026, 9))).toBe('0/2 générés · 0 validé');
+  });
+});
+
+describe('revue du mois — acquittement, validation, motifs', () => {
+  const AOUT_NET = bulletin({ month: 8, net_a_payer: 1500 });
+
+  it('un écart fort acquitté (R03) ne rend plus le bulletin à revoir', () => {
+    const b = bulletin({ net_a_payer: 1800, alertes_acquittees: ['R03'] });
+    const ecart = ecartAvecMoisPrecedent(b, AOUT_NET);
+    expect(ecart.fort).toBe(false);
+    expect(ecart.raison).toBeNull();
+    expect(estARevoir({ statut: 'success', bulletin: b, ecart })).toBe(false);
+  });
+
+  it('des heures sup en excès acquittées (R09) ne comptent plus non plus', () => {
+    const b = bulletin({ heures_sup: 30, alertes_acquittees: ['R09'] });
+    expect(ecartAvecMoisPrecedent(b, AOUT_NET).fort).toBe(false);
+  });
+
+  it('acquitter l’un ne cache pas l’autre motif', () => {
+    const b = bulletin({ net_a_payer: 1800, heures_sup: 30, alertes_acquittees: ['R03'] });
+    const ecart = ecartAvecMoisPrecedent(b, AOUT_NET);
+    expect(ecart.fort).toBe(true);
+    expect(ecart.raison).toBe('30 h sup.');
+  });
+
+  it('un bulletin validé n’est jamais à revoir, même avec un écart fort ou une alerte', () => {
+    const b = bulletin({ status: 'valide', net_a_payer: 1800, a_recalculer: true });
+    const ecart = ecartAvecMoisPrecedent(b, AOUT_NET);
+    expect(estARevoir({ statut: 'success', bulletin: b, ecart, alertes: ['Une alerte.'] })).toBe(false);
+  });
+
+  it('dit tous les motifs d’une ligne, pas seulement le premier', () => {
+    const b = bulletin({ net_a_payer: -40 });
+    expect(
+      motifsAlerte({ statut: 'success', bulletin: b, alertes: ['Classification manquante.', 'Mutuelle absente.'] })
+    ).toEqual(['Classification manquante.', 'Mutuelle absente.', 'Net à payer négatif.']);
+  });
+
+  it('aucun motif sur un bulletin calme', () => {
+    expect(motifsAlerte({ statut: 'success', bulletin: bulletin() })).toEqual([]);
   });
 });

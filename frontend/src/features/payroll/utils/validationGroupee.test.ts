@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BulletinPourRevue, LigneDuMois } from './revueDuMois';
+import { ecartAvecMoisPrecedent, type BulletinPourRevue, type LigneDuMois } from './revueDuMois';
 import {
   estPretAValider,
   libelleBoutonValider,
@@ -104,5 +104,25 @@ describe('resumeValidationGroupee — un succès se confirme, un refus dit où c
     );
     expect(resume.titre).toBe('Aucun bulletin validé, 2 refusés : ouvrez-les pour corriger.');
     expect(resume.refus[1]?.nom).toBe('Bulletin inconnu');
+  });
+});
+
+describe('estPretAValider après acquittement', () => {
+  it('un bulletin dont l’écart fort a été acquitté est de nouveau prêt', () => {
+    const precedent: BulletinPourRevue = { year: 2026, month: 8, net_a_payer: 1500 };
+    const b: BulletinPourRevue = {
+      year: 2026,
+      month: 9,
+      net_a_payer: 1800,
+      status: 'brouillon',
+      origine: 'calcule',
+      a_recalculer: false,
+      alertes_acquittees: ['R03'],
+    };
+    const ecart = ecartAvecMoisPrecedent(b, precedent);
+    expect(estPretAValider({ statut: 'success', bulletin: b, ecart })).toBe(true);
+    expect(
+      estPretAValider({ statut: 'success', bulletin: { ...b, alertes_acquittees: [] }, ecart: ecartAvecMoisPrecedent({ ...b, alertes_acquittees: [] }, precedent) })
+    ).toBe(false);
   });
 });
