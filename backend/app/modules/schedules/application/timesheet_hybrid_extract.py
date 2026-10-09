@@ -203,10 +203,14 @@ def _merged_to_cegid_result(
             except (TypeError, ValueError):
                 continue
             heures = day.get("heures")
+            # Un jour que la feuille ne permet pas de lire n'est pas un 0 h : il
+            # reste hors de la proposition et donc à saisir au calendrier.
+            if heures is None:
+                continue
             try:
-                heures_val = 0.0 if heures is None else float(heures)
+                heures_val = float(heures)
             except (TypeError, ValueError):
-                heures_val = 0.0
+                continue
             if heures_val < 0:
                 # Plages DÉBUT/FIN inversées à la lecture : on garde la valeur
                 # visible à la relecture, le commit la refusera de toute façon.
