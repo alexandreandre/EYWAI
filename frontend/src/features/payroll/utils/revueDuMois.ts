@@ -26,6 +26,8 @@ export type BulletinPourRevue = {
   origine?: string | null;
   a_recalculer?: boolean | null;
   warnings?: string[] | null;
+  /** Règles de comparaison (R03, R09…) que la RH a acquittées ou ignorées sur ce bulletin. */
+  alertes_acquittees?: string[] | null;
 };
 
 export type EcartMoisPrecedent = {
@@ -102,8 +104,14 @@ export function ecartAvecMoisPrecedent(
 ): EcartMoisPrecedent {
   const netPct = ecartPct(nombre(courant.net_a_payer), nombre(precedent?.net_a_payer));
   const heuresSup = nombre(courant.heures_sup) ?? 0;
-  const netFort = netPct !== null && Math.abs(netPct) - SEUIL_ECART_NET_PCT > TOLERANCE;
-  const heuresFortes = heuresSup - SEUIL_HEURES_SUP > TOLERANCE;
+  // Un écart que la RH a acquitté ou ignoré (R03 : net, R09 : heures sup) est
+  // une décision prise : il ne met plus le bulletin « à revoir ».
+  const acquittees = courant.alertes_acquittees ?? [];
+  const netFort =
+    netPct !== null &&
+    Math.abs(netPct) - SEUIL_ECART_NET_PCT > TOLERANCE &&
+    !acquittees.includes('R03');
+  const heuresFortes = heuresSup - SEUIL_HEURES_SUP > TOLERANCE && !acquittees.includes('R09');
   const raisons: string[] = [];
   if (netFort && netPct !== null) {
     raisons.push(`Net ${pourcentage(netPct)} sur ${libelleMoisPrecedent(courant.year, courant.month)}`);
@@ -127,10 +135,18 @@ export function aUneAlerte(ligne: LigneDuMois): boolean {
   return alertes.length > 0 || (nombre(ligne.bulletin?.net_a_payer) ?? 0) < 0;
 }
 
-/** Sans bulletin, en échec, à recalculer, en alerte ou en écart fort. */
+/** Tous les motifs d'alerte d'une ligne, un par alerte (et le net négatif). */
+export function motifsAlerte(ligne: LigneDuMois): string[] {
+  const motifs = [...(ligne.alertes ?? ligne.bulletin?.warnings ?? [])];
+  if ((nombre(ligne.bulletin?.net_a_payer) ?? 0) < 0) motifs.push('Net à payer négatif.');
+  return motifs;
+}
+
+/** Sans bulletin, en échec, à recalculer, en alerte ou en écart fort. Un bulletin validé n'est plus à revoir. */
 export function estARevoir(ligne: LigneDuMois): boolean {
   if (ligne.statut === 'idle' || ligne.statut === 'error') return true;
   if (ligne.statut !== 'success' || !ligne.bulletin) return false;
+  if (ligne.bulletin.status === 'valide') return false;
   return estPerime(ligne.bulletin) || aUneAlerte(ligne) || Boolean(ligne.ecart?.fort);
 }
 

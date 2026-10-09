@@ -87,7 +87,8 @@ export function PayrollPayslipRow({
   const otherWarnings = warnings
     .filter((w) => !isNetSuperieurBrutWarning(w))
     .map(normalizePayslipWarning);
-  const firstOtherWarning = otherWarnings[0];
+  // Toutes les alertes de la ligne, pas seulement la première.
+  const motifsDesAlertes = otherWarnings.join(' · ');
   // Points à arbitrer (plafond transport…) : le bulletin est bon, la RH a une
   // décision à prendre. Pas une alerte : un badge gris, le détail au survol.
   const pointsAArbitrer = payslip?.points_a_arbitrer ?? [];
@@ -293,8 +294,8 @@ export function PayrollPayslipRow({
           <span className="text-destructive">{state.errorMessage}</span>
         ) : state.status === 'unavailable' && state.errorMessage ? (
           <span className="text-muted-foreground">{state.errorMessage}</span>
-        ) : firstOtherWarning ? (
-          <span className="text-amber-700 dark:text-amber-400">{firstOtherWarning}</span>
+        ) : motifsDesAlertes ? (
+          <span className="text-amber-700 dark:text-amber-400">{motifsDesAlertes}</span>
         ) : state.status === 'success' && pointsAArbitrer.length > 0 ? (
           // Point à arbitrer : lisible sans survol, en gris, une ligne.
           <span className="text-muted-foreground">{pointsAArbitrer[0]}</span>
