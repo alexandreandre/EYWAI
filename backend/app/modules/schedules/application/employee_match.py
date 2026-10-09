@@ -635,7 +635,11 @@ def resolve_employee_for_timesheet(
         proposal.review_status = "error"
         return proposal
 
-    proposal.warnings.append(f"Aucun employé reconnu pour « {raw_name} ».")
+    proposal.warnings.append(
+        f"Nom non reconnu : « {raw_name} » — à associer à un salarié."
+        if tabulaire
+        else f"Aucun employé reconnu pour « {raw_name} »."
+    )
     if norm_mat:
         proposal.warnings.append(
             f"Matricule {norm_mat} non renseigné dans Martine pour ce salarié."
@@ -653,6 +657,7 @@ def _est_avertissement_de_rapprochement(message: str, raw_name: str) -> bool:
         or "rapproché de" in message
         or "Ligne ignorée" in message
         or "Nom non reconnu" in message
+        or "Aucun employé reconnu" in message
     )
 
 
