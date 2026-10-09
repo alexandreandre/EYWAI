@@ -53,6 +53,7 @@ import {
   nomsHorsReleve,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import { joursNonLus, phraseJoursNonLus, suiteResultatJoursNonLus } from './joursNonLus';
 import { joursEcritsDuLot, phraseEnregistrement } from './bilanEnregistrement';
 import {
   lignesIgnorees,
@@ -549,6 +550,21 @@ export function AssistedFillReview({
   );
   const phraseIgnorees = phraseLignesIgnorees(ignorees);
   const suiteIgnorees = suiteResultatLignesIgnorees(ignorees);
+  // Jours que la feuille n'a pas permis de lire : jamais écrits, à saisir au calendrier.
+  const nonLus = useMemo(
+    () =>
+      joursNonLus(
+        rows.map((r) => ({
+          nom: r.matchedName ?? r.rawName,
+          joursAttendus: r.daysExpectedCount,
+          joursLus: r.daysImportedCount,
+          enregistrable: isSavableRow(r, includeOrange),
+        })),
+      ),
+    [rows, includeOrange],
+  );
+  const phraseNonLus = phraseJoursNonLus(nonLus);
+  const suiteNonLus = suiteResultatJoursNonLus(nonLus);
 
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
 
@@ -775,7 +791,7 @@ export function AssistedFillReview({
     if (savableRows.length === 0) {
       toast({
         title: 'Rien à enregistrer',
-        description: `Aucun salarié prêt à enregistrer avec les filtres actuels.${suiteIgnorees}`,
+        description: `Aucun salarié prêt à enregistrer avec les filtres actuels.${suiteIgnorees}${suiteNonLus}`,
         variant: 'destructive',
       });
       return;
@@ -846,8 +862,8 @@ export function AssistedFillReview({
           preserved,
           conflits,
           reimport
-            ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}`
-            : `${phraseEnregistrement(savableRows.length, days)}${suiteIgnorees}`,
+            ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}${suiteNonLus}`
+            : `${phraseEnregistrement(savableRows.length, days)}${suiteIgnorees}${suiteNonLus}`,
           applyMeta,
           reimport ? 'Import refait' : undefined,
         );
@@ -874,7 +890,7 @@ export function AssistedFillReview({
       finishSave(
         preserved,
         conflits,
-        `${phraseEnregistrement(savableRows.length, result.total_days_written)}${suiteIgnorees}`,
+        `${phraseEnregistrement(savableRows.length, result.total_days_written)}${suiteIgnorees}${suiteNonLus}`,
         applyMeta,
       );
     } catch (e) {
@@ -1447,6 +1463,14 @@ export function AssistedFillReview({
       )}
 
       {/* Pied fixe */}
+      {phraseNonLus && (
+        <p
+          className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
+          data-testid="jours-non-lus"
+        >
+          {phraseNonLus}
+        </p>
+      )}
       {phraseIgnorees && (
         <p
           className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
