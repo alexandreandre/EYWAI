@@ -387,7 +387,7 @@ def run_timesheet_extraction_job(job_id: str, file_content: bytes) -> None:
         resume_reimport = None
         if request.get("reimport"):
             proposal, resume_reimport = annoter_reimport(
-                company_id, proposal, request["reimport"]
+                company_id, proposal, request["reimport"], roster=roster
             )
 
         batch = create_batch_from_proposal(
@@ -520,7 +520,7 @@ def run_multi_timesheet_extraction_job(
             )
         resume_reimport = None
         if reimport:
-            merged, resume_reimport = annoter_reimport(company_id, merged, reimport)
+            merged, resume_reimport = annoter_reimport(company_id, merged, reimport, roster=roster)
         master_batch = create_batch_from_proposal(
             company_id=company_id,
             user_id=str(user_id) if user_id else None,

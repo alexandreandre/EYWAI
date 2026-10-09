@@ -301,7 +301,7 @@ def parse_structured_file(
             "months_count": len(month_groups),
         }
     if deja:
-        proposal, resume_reimport = annoter_reimport(company_id, proposal, deja)
+        proposal, resume_reimport = annoter_reimport(company_id, proposal, deja, roster=roster)
         extra_summary = {**(extra_summary or {}), **resume_reimport}
 
     batch = create_batch_from_proposal(

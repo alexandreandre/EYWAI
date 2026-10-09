@@ -315,6 +315,7 @@ def _nom_normalise(nom: str | None) -> str:
 def reappliquer_associations(
     proposal: AiCalendarProposalResponse,
     lots: Iterable[dict[str, Any]],
+    roster: Sequence[Any] | None = None,
 ) -> tuple[AiCalendarProposalResponse, list[str]]:
     """Les lignes non reconnues reprennent le salarié associé à la main au lot précédent.
 
@@ -330,6 +331,10 @@ def reappliquer_associations(
                 connus.setdefault(nom, set()).add(
                     (str(ligne["employee_id"]), ligne.get("matched_name"))
                 )
+    # Le lot validé ne garde pas le nom du salarié associé à la main : on le prend au roster.
+    noms_roster = {
+        str(r.id): f"{r.first_name} {r.last_name}".strip() for r in (roster or [])
+    }
     pris = {e.employee_id for e in proposal.employees if e.employee_id}
     reprises: list[str] = []
     lignes = []
@@ -338,7 +343,7 @@ def reappliquer_associations(
         ids = {c[0] for c in candidats}
         if not ligne.employee_id and len(ids) == 1 and next(iter(ids)) not in pris:
             eid = next(iter(ids))
-            nom_affiche = next((c[1] for c in candidats if c[1]), None)
+            nom_affiche = noms_roster.get(eid) or next((c[1] for c in candidats if c[1]), None)
             pris.add(eid)
             reprises.append(ligne.raw_name)
             ligne = ligne.model_copy(
@@ -372,6 +377,7 @@ def annoter_reimport(
     company_id: str,
     proposal: AiCalendarProposalResponse,
     deja: list[dict[str, Any]],
+    roster: Sequence[Any] | None = None,
 ) -> tuple[AiCalendarProposalResponse, dict[str, Any]]:
     """La relecture porte le lot précédent et les jours corrigés à la main depuis.
 
@@ -381,7 +387,7 @@ def annoter_reimport(
     """
     ids_precedents = [d["lot_precedent"]["batch_id"] for d in deja]
     proposal, associations_reprises = reappliquer_associations(
-        proposal, _lots(company_id, ids_precedents)
+        proposal, _lots(company_id, ids_precedents), roster
     )
     ecrits = _jours_ecrits_par_lots(_lots(company_id, ids_precedents))
     jours = _jours_reel_de_la_proposition(proposal)
