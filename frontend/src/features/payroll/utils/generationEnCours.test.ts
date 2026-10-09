@@ -4,6 +4,7 @@ import {
   CLE_INTERRUPTION,
   libelleBandeauGeneration,
   phaseModaleApres,
+  phraseAnnulation,
   lienQuitteLaPage,
   lireInterruption,
   noterInterruption,
@@ -137,5 +138,31 @@ describe('annulation de la génération — la fenêtre redevient utilisable', (
   it('au repos, une fenêtre déjà en sélection ou terminée ne bouge pas', () => {
     expect(phaseModaleApres('idle', 'select')).toBe('select');
     expect(phaseModaleApres('idle', 'done')).toBe('done');
+  });
+});
+
+describe('message d’annulation de la génération', () => {
+  it('dit combien de bulletins sont faits et que les autres restent à générer', () => {
+    expect(phraseAnnulation(3, 10, false)).toBe(
+      'Génération arrêtée : 3 bulletins générés sur 10. Les 7 autres restent « À générer ».'
+    );
+  });
+
+  it('accorde le singulier', () => {
+    expect(phraseAnnulation(1, 2, false)).toBe(
+      'Génération arrêtée : 1 bulletin généré sur 2. Le bulletin restant reste « À générer ».'
+    );
+  });
+
+  it('aucun bulletin généré', () => {
+    expect(phraseAnnulation(0, 4, false)).toBe(
+      'Génération arrêtée : aucun bulletin généré sur 4. Les 4 autres restent « À générer ».'
+    );
+  });
+
+  it('signale le bulletin en cours au moment de l’arrêt', () => {
+    expect(phraseAnnulation(3, 10, true)).toContain(
+      'Le bulletin en cours au moment de l’arrêt est à vérifier.'
+    );
   });
 });
