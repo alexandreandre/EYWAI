@@ -75,6 +75,20 @@ export function formatEuro(value: number | null | undefined): string {
   return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
 }
 
+/** Une valeur de comparaison dans son unité : heures, nombre, ou euros par défaut. */
+export function formatValeur(value: number | null | undefined, unite: string | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '—';
+  }
+  if (unite === 'h') {
+    return `${value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h`;
+  }
+  if (unite === 'nombre') {
+    return value.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  }
+  return formatEuro(value);
+}
+
 function lineRowClass(level: AlertLevel | null | undefined): string {
   if (level === 'CRITIQUE') return 'bg-red-50/90 dark:bg-red-950/30';
   if (level === 'AVERTISSEMENT') return 'bg-orange-50/90 dark:bg-orange-950/25';
@@ -261,15 +275,15 @@ export function PayslipComparisonTab({
                 <TableRow key={line.libelle} className={lineRowClass(line.alert_level)}>
                   <TableCell className="font-medium">{line.libelle}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatEuro(line.value_n)}
+                    {formatValeur(line.value_n, line.unite)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatEuro(line.value_n1)}
+                    {formatValeur(line.value_n1, line.unite)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {line.delta_abs === null || line.delta_abs === undefined
                       ? '—'
-                      : formatEuro(line.delta_abs)}
+                      : formatValeur(line.delta_abs, line.unite)}
                   </TableCell>
                   <TableCell
                     className={cn(
@@ -427,11 +441,11 @@ function AlertRow({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
         <div>
           <span className="text-muted-foreground">Valeur N</span>
-          <p className="font-medium tabular-nums">{formatEuro(alert.value_n)}</p>
+          <p className="font-medium tabular-nums">{formatValeur(alert.value_n, alert.unite)}</p>
         </div>
         <div>
           <span className="text-muted-foreground">Valeur N-1</span>
-          <p className="font-medium tabular-nums">{formatEuro(alert.value_n1)}</p>
+          <p className="font-medium tabular-nums">{formatValeur(alert.value_n1, alert.unite)}</p>
         </div>
         <div>
           <span className="text-muted-foreground">Variation</span>

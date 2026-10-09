@@ -33,6 +33,7 @@ class ComparisonLine:
     delta_abs: Optional[float]
     delta_pct: Optional[float]
     alert_level: Optional[AlertLevel] = None
+    unite: str = "eur"
 
 
 @dataclass
@@ -133,6 +134,28 @@ def _heures_lignes_reelles(calcul_du_brut: Any) -> tuple[float, float] | None:
     return round(max(reference - absences, 0.0), 2), round(reference, 2)
 
 
+# L'unité affichée d'une alerte, d'après le champ qu'elle compare ; euros sinon.
+_UNITE_PAR_CHAMP = {
+    "heures_travaillees": "h",
+    "total_heures_supp": "h",
+    "calcul_du_brut": "nombre",
+    "bulletin_n1": "nombre",
+}
+
+
+def _heures_sup(bulletin: Dict[str, Any]) -> float:
+    """Heures sup du mois sur les lignes de brut (structurelles comprises),
+    comme la liste du mois et « Ce qui a changé » ; à défaut, le total du moteur."""
+    lignes = bulletin.get("calcul_du_brut")
+    total, vu = 0.0, False
+    for ligne in lignes if isinstance(lignes, list) else []:
+        libelle = str(ligne.get("libelle") or "") if isinstance(ligne, dict) else ""
+        if "Heures suppl." in libelle and "major" in libelle.lower():
+            total += _to_float(ligne.get("quantite"))
+            vu = True
+    return round(total, 2) if vu else _to_float(bulletin.get("total_heures_supp"))
+
+
 def _heures_travaillees(calcul_du_brut: Any) -> float:
     lignes_reelles = _heures_lignes_reelles(calcul_du_brut)
     if lignes_reelles is not None:
@@ -153,7 +176,7 @@ def _extract_values(bulletin: Dict[str, Any]) -> Dict[str, float]:
         "net_a_payer": _to_float(bulletin.get("net_a_payer")),
         "total_cotisations_salariales": _to_float(sc.get("total_salarial")),
         "heures_travaillees": _heures_travaillees(bulletin.get("calcul_du_brut")),
-        "heures_supp": _to_float(bulletin.get("total_heures_supp")),
+        "heures_supp": _heures_sup(bulletin),
         "acompte_verse": _to_float(sn.get("acompte_verse")),
     }
 
@@ -216,6 +239,7 @@ def compute_comparison(
         libelle: str,
         key: str,
         alert_level: Optional[AlertLevel] = None,
+        unite: str = "eur",
     ) -> None:
         val_n = vn[key]
         val_n1 = v1[key] if v1 is not None else None
@@ -229,6 +253,7 @@ def compute_comparison(
                 delta_abs=d_abs,
                 delta_pct=d_pct,
                 alert_level=alert_level,
+                unite=unite,
             )
         )
 
@@ -245,8 +270,8 @@ def compute_comparison(
     add_line("Salaire brut", "salaire_brut")
     add_line("Net à payer", "net_a_payer")
     add_line("Cotisations salariales", "total_cotisations_salariales")
-    add_line("Heures travaillées (travail_base)", "heures_travaillees")
-    add_line("Heures supplémentaires", "heures_supp")
+    add_line("Heures travaillées", "heures_travaillees", unite="h")
+    add_line("Heures supplémentaires", "heures_supp", unite="h")
     add_line("Acompte versé", "acompte_verse")
 
     # --- R12 : N-1 absent ---
@@ -499,6 +524,7 @@ def comparison_result_to_dict(result: ComparisonResult) -> dict[str, Any]:
             "acquitted_by": a.acquitted_by,
             "acquitted_at": a.acquitted_at,
             "comment": a.comment,
+            "unite": _UNITE_PAR_CHAMP.get(a.field, "eur"),
         }
 
     def line_to_dict(ln: ComparisonLine) -> dict[str, Any]:
@@ -509,6 +535,7 @@ def comparison_result_to_dict(result: ComparisonResult) -> dict[str, Any]:
             "delta_abs": ln.delta_abs,
             "delta_pct": ln.delta_pct,
             "alert_level": ln.alert_level,
+            "unite": ln.unite,
         }
 
     return {

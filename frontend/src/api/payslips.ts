@@ -186,6 +186,8 @@ export interface PayslipAlert {
   acquitted_by?: string;
   acquitted_at?: string;
   comment?: string;
+  /** eur | h | nombre : comment afficher value_n et value_n1. */
+  unite?: string;
 }
 
 export interface ComparisonLine {
@@ -195,6 +197,8 @@ export interface ComparisonLine {
   delta_abs?: number;
   delta_pct?: number;
   alert_level?: AlertLevel;
+  /** eur | h */
+  unite?: string;
 }
 
 export interface ComparisonResult {

@@ -140,6 +140,7 @@ class PayslipAlertResponse(BaseModel):
     acquitted_by: str | None = None
     acquitted_at: str | None = None
     comment: str | None = None
+    unite: str = "eur"  # eur | h | nombre : comment afficher value_n et value_n1
 
 
 class ComparisonLineResponse(BaseModel):
@@ -151,6 +152,7 @@ class ComparisonLineResponse(BaseModel):
     delta_abs: float | None = None
     delta_pct: float | None = None
     alert_level: AlertLevelResponse | None = None
+    unite: str = "eur"  # eur | h
 
 
 class ComparisonResultResponse(BaseModel):
