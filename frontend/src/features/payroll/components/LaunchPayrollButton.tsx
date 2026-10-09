@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { RefreshCw, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { titreBoutonLancerLaPaie } from '@/features/payroll/lib/controleAvantPaie';
 import { useCanLaunchPayroll } from '@/features/payroll/hooks/useCanLaunchPayroll';
 
 interface LaunchPayrollButtonProps {
@@ -20,7 +21,7 @@ export function LaunchPayrollButton({
   enabled = true,
   pipelineLoading = false,
 }: LaunchPayrollButtonProps) {
-  const { canLaunchPayroll, isError, retry } = useCanLaunchPayroll(enabled);
+  const { canLaunchPayroll, isError, retry, etat } = useCanLaunchPayroll(enabled);
   const showAsReady = canLaunchPayroll && !pipelineLoading;
 
   // Compteurs du parcours illisibles : le verrou ne s'ouvre pas en silence,
@@ -58,13 +59,7 @@ export function LaunchPayrollButton({
           : 'cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted disabled:opacity-100',
         className,
       )}
-      title={
-        pipelineLoading
-          ? 'Vérification du parcours de préparation…'
-          : showAsReady
-            ? 'Lancer la paie'
-            : 'Terminez les étapes en attente avant de lancer la paie'
-      }
+      title={pipelineLoading ? titreBoutonLancerLaPaie('verification') : titreBoutonLancerLaPaie(etat)}
       asChild={showAsReady}
     >
       {showAsReady ? (

@@ -1,5 +1,5 @@
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
-import { etatVerrouPaie } from '@/features/payroll/lib/controleAvantPaie';
+import { etatVerrouPaie, peutLancerLaPaie } from '@/features/payroll/lib/controleAvantPaie';
 
 // Le badge « /schedules » est calé sur le MOIS DE PAIE en préparation
 // (moisDePaieParDefaut dans useRhPendingTasks) : le verrou et la pastille
@@ -22,7 +22,7 @@ export function useCanLaunchPayroll(enabled = true) {
   });
 
   return {
-    canLaunchPayroll: etat === 'ouvert',
+    canLaunchPayroll: peutLancerLaPaie(etat),
     isLoading: isPayrollPipelineLoading,
     /** Une source du parcours n'a pas répondu : « Contrôle indisponible ». */
     isError: etat === 'indisponible',

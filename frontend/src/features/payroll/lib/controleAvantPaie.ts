@@ -61,3 +61,17 @@ export function etatVerrouPaie({
   if (enErreur) return 'indisponible';
   return compteurs.every((n) => n === 0) ? 'ouvert' : 'etapes_en_attente';
 }
+
+/** Les étapes en attente avertissent (comme la liste de préparation) mais n'interdisent rien. */
+export function peutLancerLaPaie(etat: EtatVerrouPaie): boolean {
+  return etat === 'ouvert' || etat === 'etapes_en_attente';
+}
+
+export const AVERTISSEMENT_ETAPES_EN_ATTENTE =
+  'Vous pouvez lancer la paie, mais vérifiez ces points en amont.';
+
+export function titreBoutonLancerLaPaie(etat: EtatVerrouPaie): string {
+  if (etat === 'verification') return 'Vérification du parcours de préparation…';
+  if (etat === 'etapes_en_attente') return AVERTISSEMENT_ETAPES_EN_ATTENTE;
+  return 'Lancer la paie';
+}
