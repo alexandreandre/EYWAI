@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { PreflightAnomaly } from '@/api/payrollPreflight';
 import {
   etatVerrouPaie,
+  peutLancerLaPaie,
+  titreBoutonLancerLaPaie,
   MESSAGE_GENERER_SANS_CONTROLE,
   messageConfirmationGeneration,
 } from './controleAvantPaie';
@@ -92,5 +94,24 @@ describe('etatVerrouPaie', () => {
     expect(etatVerrouPaie({ enChargement: true, enErreur: true, compteurs: [0, 0, 0] })).toBe(
       'verification',
     );
+  });
+});
+
+describe('bouton « Lancer la paie » aligné sur la liste de préparation', () => {
+  it('des étapes en attente n’interdisent pas de lancer la paie', () => {
+    expect(peutLancerLaPaie('etapes_en_attente')).toBe(true);
+    expect(peutLancerLaPaie('ouvert')).toBe(true);
+  });
+
+  it('pendant la vérification ou en cas de panne, le bouton n’est pas actif', () => {
+    expect(peutLancerLaPaie('verification')).toBe(false);
+    expect(peutLancerLaPaie('indisponible')).toBe(false);
+  });
+
+  it('le texte du bouton est celui de la liste de préparation', () => {
+    expect(titreBoutonLancerLaPaie('etapes_en_attente')).toBe(
+      'Vous pouvez lancer la paie, mais vérifiez ces points en amont.',
+    );
+    expect(titreBoutonLancerLaPaie('ouvert')).toBe('Lancer la paie');
   });
 });
