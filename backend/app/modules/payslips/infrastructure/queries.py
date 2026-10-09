@@ -270,6 +270,7 @@ def get_employee_payslips(employee_id: str) -> list[dict[str, Any]]:
                 "empreinte_complementaire": meta.get("empreinte_complementaire"),
                 "warnings": meta["warnings"],
                 "points_a_arbitrer": meta.get("points_a_arbitrer") or [],
+                "alertes_acquittees": meta.get("alertes_acquittees") or [],
                 "origine": str(p.get("origine") or "calcule"),
                 # Validé : une fiche modifiée depuis ne le met pas « À recalculer ».
                 "status": p.get("status"),

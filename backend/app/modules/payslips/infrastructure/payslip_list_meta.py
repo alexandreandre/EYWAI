@@ -54,6 +54,18 @@ def montants_du_bulletin(payslip_data: Any) -> dict[str, float | None]:
     }
 
 
+def regles_acquittees(payslip_data: Any) -> list[str]:
+    """Règles de comparaison que la RH a acquittées ou ignorées sur ce bulletin."""
+    statuts = payslip_data.get("alerts_status") if isinstance(payslip_data, dict) else None
+    if not isinstance(statuts, dict):
+        return []
+    return sorted(
+        str(regle)
+        for regle, entree in statuts.items()
+        if isinstance(entree, dict) and entree.get("status") in ("acquittee", "ignoree")
+    )
+
+
 def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
     """net_a_payer, alertes RH et points à arbitrer depuis payslip_data.
 
@@ -68,6 +80,7 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "empreinte_complementaire": None,
         "warnings": [],
         "points_a_arbitrer": [],
+        "alertes_acquittees": [],
     }
     if not isinstance(payslip_data, dict):
         return vide
@@ -93,4 +106,5 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         "empreinte_complementaire": empreinte_complementaire_stockee(payslip_data),
         "warnings": warnings,
         "points_a_arbitrer": points_a_arbitrer,
+        "alertes_acquittees": regles_acquittees(payslip_data),
     }

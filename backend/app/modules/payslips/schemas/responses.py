@@ -24,6 +24,8 @@ class PayslipInfo(BaseModel):
     warnings: list[str] = []
     #: Points à arbitrer par la RH (plafond transport…) : pas des alertes.
     points_a_arbitrer: list[str] = []
+    #: Règles de comparaison (R03…) acquittées ou ignorées par la RH sur ce bulletin.
+    alertes_acquittees: list[str] = []
     #: « importe » : bulletin repris de l'ancien logiciel, intouchable.
     origine: str = "calcule"
     #: true = une donnée du bulletin a changé depuis le calcul ; false = à jour ;
