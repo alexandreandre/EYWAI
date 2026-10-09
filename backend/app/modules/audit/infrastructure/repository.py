@@ -10,6 +10,8 @@ ACTIONS_LABELS = {
     "employee.update": "Modification salarié",
     "employee.delete": "Suppression salarié",
     "payslip.validate": "Validation bulletin",
+    "payslip.alert_acquit": "Acquittement d'une alerte de bulletin",
+    "payslip.alert_ignore": "Alerte de bulletin ignorée",
     "payslip.generate": "Génération bulletin",
     "payslip.delete": "Suppression bulletin",
     "absence.validate": "Validation absence",

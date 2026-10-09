@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Literal, Optional
 
 AlertLevel = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
 
+#: Les règles que le moteur de comparaison sait produire (R01 à R12) : seules
+#: celles-là peuvent être acquittées ou ignorées.
+REGLES_CONNUES = frozenset(f"R{n:02d}" for n in range(1, 13))
+
 
 @dataclass
 class PayslipAlert:

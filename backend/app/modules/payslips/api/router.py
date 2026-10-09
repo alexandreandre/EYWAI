@@ -50,6 +50,7 @@ from app.modules.payslips.application.comparison_service import (
     valider_plusieurs_bulletins,
 )
 from app.modules.payslips.application.dto import PayslipConflictError
+from app.modules.payslips.domain.comparison_engine import REGLES_CONNUES
 from app.modules.payslips.application.report_nap_negatif import (
     ReportNapRefuse,
     executer_report,
@@ -440,14 +441,58 @@ def post_report_net_negatif_route(
         )
 
 
+def _exiger_regle_connue(rule_id: str) -> None:
+    """Refuse en 422 un code de règle que le moteur ne produit pas (« R99 »)."""
+    if rule_id not in REGLES_CONNUES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Règle d'alerte inconnue : « {rule_id} ». Les règles vont de R01 à R12.",
+        )
+
+
+def _tracer_l_alerte(
+    action: str,
+    payslip_id: str,
+    rule_id: str,
+    comment: str | None,
+    current_user: User,
+    request: Request,
+) -> None:
+    """Journal d'audit d'un acquittement ou d'une alerte ignorée : qui, quand
+    (la date du journal), quelle règle, quel commentaire. Jamais bloquant."""
+    try:
+        meta = get_payslip_meta_for_access(payslip_id)
+        cid = str(meta.get("company_id") or "") if meta else ""
+        if not cid:
+            return
+        log_audit_event(
+            company_id=cid,
+            user_id=str(current_user.id),
+            user_email=current_user.email,
+            action=action,
+            resource_type="payslip",
+            resource_id=payslip_id,
+            details={
+                "employee_id": str(meta.get("employee_id") or ""),
+                "rule_id": rule_id,
+                "comment": comment,
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+    except Exception:  # noqa: BLE001 — l'alerte est déjà traitée, la trace ne doit pas la défaire
+        logger.warning("Trace d'audit de l'alerte %s non écrite", rule_id, exc_info=True)
+
+
 @router.post("/api/payslips/{payslip_id}/alerts/{rule_id}/acquit")
 def acquit_payslip_alert_route(
     payslip_id: str,
     rule_id: str,
+    request: Request,
     body: AcquitAlertRequest = AcquitAlertRequest(),
     current_user: User = Depends(get_current_user),
 ):
     """Acquitte une alerte (RH / admin entreprise)."""
+    _exiger_regle_connue(rule_id)
     try:
         acquit_payslip_alert_for_user(
             payslip_id,
@@ -455,6 +500,7 @@ def acquit_payslip_alert_route(
             _to_user_context(current_user),
             body.comment,
         )
+        _tracer_l_alerte("payslip.alert_acquit", payslip_id, rule_id, body.comment, current_user, request)
         return {"ok": True, "rule_id": rule_id, "status": "acquittee"}
     except _PAYSLIP_APP_ERRORS as e:
         _handle_application_errors(e)
@@ -469,10 +515,12 @@ def acquit_payslip_alert_route(
 def ignore_payslip_alert_route(
     payslip_id: str,
     rule_id: str,
+    request: Request,
     body: AcquitAlertRequest = AcquitAlertRequest(),
     current_user: User = Depends(get_current_user),
 ):
     """Ignore une alerte (RH / admin entreprise)."""
+    _exiger_regle_connue(rule_id)
     try:
         ignore_payslip_alert_for_user(
             payslip_id,
@@ -480,6 +528,7 @@ def ignore_payslip_alert_route(
             _to_user_context(current_user),
             body.comment,
         )
+        _tracer_l_alerte("payslip.alert_ignore", payslip_id, rule_id, body.comment, current_user, request)
         return {"ok": True, "rule_id": rule_id, "status": "ignoree"}
     except _PAYSLIP_APP_ERRORS as e:
         _handle_application_errors(e)
