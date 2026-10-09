@@ -25,3 +25,23 @@ export function removeReviewRow<T extends { key: string }>(
   return rows.filter((row) => row.key !== key);
 }
 
+
+/** Mention sous le bandeau de revue, adaptée à la source de la proposition. */
+export function mentionSourceRevue(proposal: {
+  source: string;
+  detected_format?: string | null;
+}): { ton: 'alerte' | 'neutre'; texte: string } | null {
+  if (proposal.detected_format?.startsWith('tabular')) {
+    return {
+      ton: 'neutre',
+      texte: 'Import fichier — associez manuellement les salariés non reconnus si besoin.',
+    };
+  }
+  if (proposal.source.startsWith('texte')) {
+    return {
+      ton: 'neutre',
+      texte: 'Proposition établie d’après votre consigne : relisez-la avant d’enregistrer.',
+    };
+  }
+  return { ton: 'alerte', texte: 'Import IA — les noms lus sur le PDF peuvent être erronés.' };
+}

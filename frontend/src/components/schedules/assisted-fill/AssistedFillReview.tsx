@@ -41,7 +41,7 @@ import {
   type ConflitsImportSalarie,
 } from '@/features/payroll/utils/heuresSurArret';
 import { downloadBlob } from '@/lib/downloadBlob';
-import { showReviewSummaryBanner, removeReviewRow } from './assistedFillReviewLayout';
+import { showReviewSummaryBanner, removeReviewRow, mentionSourceRevue } from './assistedFillReviewLayout';
 import {
   reservedEmployeeIds,
   rowCarriesHours,
@@ -423,6 +423,7 @@ export function AssistedFillReview({
     proposal.detected_format?.startsWith('tabular'),
   );
   const isTextInstruction = proposal.source === 'texte';
+  const mentionSource = mentionSourceRevue(proposal);
   // Juste ce qu'il faut pour le RH : la barre de filtres/CSV n'a de sens que
   // sur un volume d'import — pas pour une consigne portant sur 1-3 salariés.
   const showToolbar = !isTextInstruction || proposal.employees.length > 3;
@@ -1082,14 +1083,14 @@ export function AssistedFillReview({
             {proposal.consensus_conflicts} écart(s) vision/OCR — vérifiez les heures signalées.
           </p>
         )}
-        {!isTabularImport && !isTextInstruction && (
-          <p className="mt-1 text-[10px] text-destructive">
-            Import IA — les noms lus sur le PDF peuvent être erronés.
-          </p>
-        )}
-        {isTabularImport && (
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            Import fichier — associez manuellement les salariés non reconnus si besoin.
+        {mentionSource && (
+          <p
+            className={cn(
+              'mt-1 text-[10px]',
+              mentionSource.ton === 'alerte' ? 'text-destructive' : 'text-muted-foreground',
+            )}
+          >
+            {mentionSource.texte}
           </p>
         )}
       </div>
