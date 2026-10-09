@@ -75,3 +75,34 @@ export function ecartAffiche(row: {
   const signe = row.ecart >= 0 ? '+' : '';
   return row.isForfaitJour ? `${signe}${row.ecart} j` : `${signe}${row.ecart.toFixed(1)} h`;
 }
+
+/** Pastille du tiroir d'un salarié : « Saisi » n'est dit que sans heures sur un arrêt. */
+export function pastilleSaisieDuMois(
+  statut: 'saisi' | 'a_saisir' | string,
+  joursEnConflit: readonly number[] | undefined,
+): string {
+  if (statut !== 'saisi') return 'À saisir';
+  return (joursEnConflit?.length ?? 0) > 0 ? 'Heures sur un arrêt' : 'Saisi';
+}
+
+/** Phrase de l'en-tête de page : prêt pour la paie seulement sans reste à saisir ni conflit. */
+export function libelleEntetePilotage(k: {
+  aSaisir: number;
+  avecHeuresSurArret: number;
+  total: number;
+}): { ton: 'ok' | 'alerte' | 'neutre'; texte: string } {
+  if (k.aSaisir > 0) {
+    return {
+      ton: 'neutre',
+      texte: `Reste à compléter : ${k.aSaisir} calendrier${k.aSaisir > 1 ? 's' : ''} sur ${k.total}`,
+    };
+  }
+  if (k.avecHeuresSurArret > 0) {
+    const n = k.avecHeuresSurArret;
+    return {
+      ton: 'alerte',
+      texte: `${n} calendrier${n > 1 ? 's portent' : ' porte'} des heures pendant un arrêt : à corriger avant la paie`,
+    };
+  }
+  return { ton: 'ok', texte: 'Tous les calendriers sont prêts pour la paie' };
+}

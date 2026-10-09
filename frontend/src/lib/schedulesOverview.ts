@@ -203,6 +203,8 @@ export interface GlobalOverviewKpis {
   saisis: number;
   aSaisir: number;
   avecEcart: number;
+  /** Calendriers qui portent des heures sur un jour d'arrêt (génération refusée). */
+  avecHeuresSurArret: number;
   conflitsAbsences: number;
   heuresPrevuesTotal: number;
   heuresFaitesTotal: number;
@@ -216,19 +218,26 @@ export function computeGlobalKpis(
   const saisis = rows.filter((r) => r.rowStatus !== 'a_saisir').length;
   const aSaisir = rows.filter((r) => r.rowStatus === 'a_saisir').length;
   const avecEcart = rows.filter((r) => r.rowStatus === 'saisi_avec_ecart').length;
+  const avecHeuresSurArret = rows.filter(
+    (r) => (r.joursHeuresSurArret?.length ?? 0) > 0
+  ).length;
   const conflitsAbsences = rows.filter(
     (r) => r.absenceConflictDays.length > 0
   ).length;
   const heuresPrevuesTotal = rows.reduce((s, r) => s + r.heuresPrevues, 0);
   const heuresFaitesTotal = rows.reduce((s, r) => s + r.heuresFaites, 0);
-  const progressPercent =
-    total > 0 ? Math.round((saisis / total) * 100) : 0;
+  // Prêt = saisi et sans heures sur un jour d'arrêt (la génération serait refusée).
+  const prets = rows.filter(
+    (r) => r.rowStatus !== 'a_saisir' && (r.joursHeuresSurArret?.length ?? 0) === 0
+  ).length;
+  const progressPercent = total > 0 ? Math.round((prets / total) * 100) : 0;
 
   return {
     total,
     saisis,
     aSaisir,
     avecEcart,
+    avecHeuresSurArret,
     conflitsAbsences,
     heuresPrevuesTotal,
     heuresFaitesTotal,

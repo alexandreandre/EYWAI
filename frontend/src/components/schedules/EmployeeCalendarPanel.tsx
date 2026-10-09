@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { pastilleSaisieDuMois } from '@/lib/calendrierPilotage';
 import {
   Card,
   CardContent,
@@ -118,11 +119,13 @@ export function EmployeeCalendarPanel({
                 {calendarView === 'month' && (
                   <Badge
                     variant={
-                      monthCompletionStatus === 'saisi' ? 'secondary' : 'outline'
+                      pastilleSaisieDuMois(monthCompletionStatus, joursEnConflit) === 'Saisi'
+                        ? 'secondary'
+                        : 'outline'
                     }
                     className="text-xs font-normal"
                   >
-                    {monthCompletionStatus === 'saisi' ? 'Saisi' : 'À saisir'}
+                    {pastilleSaisieDuMois(monthCompletionStatus, joursEnConflit)}
                   </Badge>
                 )}
               </CardTitle>

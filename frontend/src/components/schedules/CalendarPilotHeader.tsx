@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { libelleEntetePilotage } from '@/lib/calendrierPilotage';
 import { Progress } from '@/components/ui/progress';
 import { pageTitleClassName } from '@/components/layout';
 import { Sparkles, Upload } from 'lucide-react';
@@ -27,6 +28,7 @@ export function CalendarPilotHeader({
   isLoading = false,
 }: CalendarPilotHeaderProps) {
   const periodLabel = `${CALENDAR_MONTHS[month - 1]} ${year}`;
+  const libelleEntete = libelleEntetePilotage(kpis);
 
   return (
     <div className="-mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b space-y-3 lg:-mx-8 lg:px-8">
@@ -68,17 +70,17 @@ export function CalendarPilotHeader({
         <div className="flex justify-between text-xs text-muted-foreground">
           {isLoading ? (
             <Skeleton className="h-3.5 w-40" />
-          ) : kpis.aSaisir > 0 ? (
-            <span>
-              Reste à compléter :{' '}
-              <span className="font-medium text-foreground">
-                {kpis.aSaisir} calendrier{kpis.aSaisir > 1 ? 's' : ''}
-              </span>{' '}
-              sur {kpis.total}
-            </span>
           ) : (
-            <span className="font-medium text-emerald-600">
-              Tous les calendriers sont prêts pour la paie
+            <span
+              className={
+                libelleEntete.ton === 'ok'
+                  ? 'font-medium text-emerald-600'
+                  : libelleEntete.ton === 'alerte'
+                    ? 'font-medium text-amber-700'
+                    : undefined
+              }
+            >
+              {libelleEntete.texte}
             </span>
           )}
           {!isLoading && <span>{kpis.progressPercent} %</span>}
