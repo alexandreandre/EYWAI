@@ -205,6 +205,37 @@ class TestGardeCalendrierIncomplet:
             for m in (r.getMessage() for r in caplog.records)
         )
 
+    def test_le_forcage_est_conserve_sur_le_bulletin(self):
+        """L'avertissement de forçage n'était que dans la réponse : la ligne le perdait au rechargement."""
+        cmd = GeneratePayslipInput(
+            employee_id="emp-1", year=2026, month=5, force_calendrier_incomplet=True
+        )
+        mock_result = {
+            "status": "success",
+            "message": "OK",
+            "download_url": "u",
+            "payslip_id": "p-1",
+        }
+        p_repo, p_reader, p_provider, p_sched, p_valide = self._patches(None)
+        with p_repo as mock_repo, p_reader as mock_reader, p_provider as mock_provider, p_sched, p_valide:
+            with patch(
+                "app.modules.payslips.application.commands.supabase"
+            ) as mock_supabase:
+                table = mock_supabase.table.return_value
+                table.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+                    "payslip_data": {"salaire_brut": 2200.0}
+                }
+                mock_repo.get_by_id_only.return_value = dict(_COMPLETE_EMPLOYEE)
+                mock_reader.get_employee_statut.return_value = "Non-Cadre"
+                mock_provider.generate_heures.return_value = mock_result
+                generate_payslip(cmd)
+
+        ecrit = table.update.call_args.args[0]["payslip_data"]
+        assert ecrit["salaire_brut"] == 2200.0
+        assert [a["code"] for a in ecrit["avertissements_forces"]] == [
+            "calendrier_incomplet_force"
+        ]
+
     def test_mois_complet_genere_sans_warning(self):
         cmd = GeneratePayslipInput(employee_id="emp-1", year=2026, month=5)
         mock_result = {"status": "success", "message": "OK", "download_url": "u"}

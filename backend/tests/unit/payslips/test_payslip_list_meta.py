@@ -130,3 +130,27 @@ def test_sans_lignes_de_brut_les_heures_sup_sont_inconnues():
 def test_sans_point_a_arbitrer_la_liste_est_vide():
     assert payslip_list_meta({"net_a_payer": 1.0})["points_a_arbitrer"] == []
     assert payslip_list_meta("rien")["points_a_arbitrer"] == []
+
+
+class TestAvertissementsDeForcage:
+    """Le forçage d'un calendrier incomplet reste visible sur la ligne après coup."""
+
+    def test_l_avertissement_de_forcage_est_une_alerte_de_la_liste(self):
+        message = "Généré malgré 5 jours non saisis (26/10–30/10) — forçage explicite."
+        meta = payslip_list_meta(
+            {
+                "salaire_brut": 2200.0,
+                "net_a_payer": 1718.0,
+                "alertes_baremes": [],
+                "avertissements_forces": [
+                    {"code": "calendrier_incomplet_force", "message": message}
+                ],
+            }
+        )
+        assert message in meta["warnings"]
+
+    def test_sans_forcage_rien_n_est_ajoute(self):
+        meta = payslip_list_meta(
+            {"salaire_brut": 2200.0, "net_a_payer": 1718.0, "alertes_baremes": []}
+        )
+        assert meta["warnings"] == []
