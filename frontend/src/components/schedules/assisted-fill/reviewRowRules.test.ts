@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   filtreApresAssociation,
+  nomsHorsReleve,
+  libelleHorsReleve,
   horsReleveRestant,
   reservedEmployeeIds,
   rowCarriesHours,
@@ -89,5 +91,23 @@ describe('filtreApresAssociation', () => {
   it('laisse les autres filtres tels quels', () => {
     expect(filtreApresAssociation('all')).toBe('all');
     expect(filtreApresAssociation('ready')).toBe('ready');
+  });
+});
+
+describe('nomsHorsReleve', () => {
+  const roster = [
+    { id: 'a', first_name: 'Camille', last_name: 'Roussel' },
+    { id: 'b', first_name: 'Léa', last_name: 'Fontaine' },
+    { id: 'c', first_name: 'Mathis', last_name: 'Carpentier' },
+  ];
+
+  it('nomme les salariés du roster qui ne sont sur aucune ligne', () => {
+    expect(nomsHorsReleve(roster, ['a', null, 'c'])).toEqual(['Léa Fontaine']);
+  });
+
+  it('libellé court : les noms jusqu’à trois, puis le reste compté', () => {
+    expect(libelleHorsReleve(['Léa Fontaine'])).toBe('Léa Fontaine');
+    expect(libelleHorsReleve(['A A', 'B B', 'C C', 'D D', 'E E'])).toBe('A A, B B, C C et 2 autres');
+    expect(libelleHorsReleve([])).toBe('');
   });
 });
