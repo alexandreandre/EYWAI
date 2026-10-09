@@ -37,13 +37,19 @@ describe('messageConfirmationGeneration', () => {
     ).toBeNull();
   });
 
-  it('garde le message d’avant pour des anomalies bloquantes ouvertes', () => {
+  it('accorde le pluriel des anomalies bloquantes ouvertes', () => {
     expect(
       messageConfirmationGeneration({
         controleEnErreur: false,
         anomalies: [anomalie({}), anomalie({ id: 'a2' })],
       }),
-    ).toBe('2 anomalie(s) bloquante(s) ouverte(s). Générer quand même les bulletins ?');
+    ).toBe('2 anomalies bloquantes ouvertes. Générer quand même les bulletins ?');
+  });
+
+  it('accorde le singulier pour une seule anomalie bloquante', () => {
+    expect(
+      messageConfirmationGeneration({ controleEnErreur: false, anomalies: [anomalie({})] }),
+    ).toBe('1 anomalie bloquante ouverte. Générer quand même les bulletins ?');
   });
 
   it('demande une confirmation explicite quand le contrôle est en panne', () => {
