@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertesAffichees, dateHeureEnClair, nombreActives, pourcentFr, traceAlerte } from './comparaisonAffichage';
+import { alertesAffichees, dateEnClair, dateHeureEnClair, heureParis, nombreActives, pourcentFr, traceAlerte } from './comparaisonAffichage';
 
 describe('date en clair', () => {
   it('écrit le mois en toutes lettres et l’heure de Paris', () => {
@@ -74,5 +74,25 @@ describe('alertes affichées et filtres de niveau', () => {
 
   it('le décompte d’un niveau ne compte pas R12', () => {
     expect(nombreActives([...alertes], 'INFO')).toBe(1);
+  });
+});
+
+describe('dates et heures de l’écran du bulletin, à l’heure de Paris', () => {
+  it('l’historique affiche 22:26 pour 20:26:53 UTC en été', () => {
+    expect(heureParis('2026-10-09T20:26:53+00:00')).toBe('22:26');
+  });
+
+  it('en hiver, une heure de décalage', () => {
+    expect(heureParis('2026-01-09T20:26:53Z')).toBe('21:26');
+  });
+
+  it('la date est celle de Paris, pas celle du fuseau UTC', () => {
+    expect(dateEnClair('2026-10-09T22:30:00Z')).toBe('10 octobre 2026');
+    expect(dateEnClair('2026-11-01T10:00:00Z')).toBe('1er novembre 2026');
+  });
+
+  it('une date illisible donne une chaîne vide', () => {
+    expect(heureParis('nimporte quoi')).toBe('');
+    expect(dateEnClair(null)).toBe('');
   });
 });
