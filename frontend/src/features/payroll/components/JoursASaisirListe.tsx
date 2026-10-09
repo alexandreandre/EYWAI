@@ -8,6 +8,8 @@ interface Props {
   details: RefusalDetails;
   /** Lien « Compléter le planning » ; absent dans la génération groupée. */
   lienPlanning?: string;
+  /** Appelé au clic sur le lien : la fenêtre qui porte la liste se ferme. */
+  onLienClick?: () => void;
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * variables, les jours à saisir par semaine, et ceux qui attendront le mois
  * suivant. Rien n'est recalculé ici — on montre ce que le 422 a dit.
  */
-export function JoursASaisirListe({ details, lienPlanning }: Props) {
+export function JoursASaisirListe({ details, lienPlanning, onLienClick }: Props) {
   const semaines = regrouperParSemaine(details.joursManquants);
   return (
     <div className="space-y-2 text-sm">
@@ -42,8 +44,12 @@ export function JoursASaisirListe({ details, lienPlanning }: Props) {
           {libellePlages(details.joursInformatifs)}.
         </p>
       )}
-      {lienPlanning && semaines.length > 0 && (
-        <Link to={lienPlanning} className="text-xs underline underline-offset-2">
+      {lienPlanning && (
+        <Link
+          to={lienPlanning}
+          onClick={onLienClick}
+          className="text-xs underline underline-offset-2"
+        >
           Compléter le planning
         </Link>
       )}

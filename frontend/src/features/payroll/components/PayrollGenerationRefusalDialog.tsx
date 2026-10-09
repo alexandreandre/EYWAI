@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { JoursASaisirListe } from '@/features/payroll/components/JoursASaisirListe';
 import {
@@ -22,7 +23,7 @@ import {
   REFUSAL_DIALOG_LABELS,
   estForcable,
 } from '@/features/payroll/utils/generationGuards';
-import { aDesJoursAEffacer } from '@/features/payroll/utils/heuresSurArret';
+import { aDesJoursAEffacer, lienCalendrierDuSalarie } from '@/features/payroll/utils/heuresSurArret';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollGenerationRefusalDialogProps = {
@@ -125,7 +126,11 @@ export function PayrollGenerationRefusalDialog({
         </AlertDialogHeader>
 
         {single?.code === 'calendrier_incomplet' && single.details && (
-          <JoursASaisirListe details={single.details} />
+          <JoursASaisirListe
+            details={single.details}
+            lienPlanning={lienCalendrierDuSalarie(single.job.employeeId)}
+            onLienClick={onDismiss}
+          />
         )}
 
         {single?.code === 'heures_sur_jour_d_arret' &&
@@ -158,6 +163,18 @@ export function PayrollGenerationRefusalDialog({
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {REFUSAL_DIALOG_LABELS[refusal.code].shortLabel}
+                  {refusal.code === 'calendrier_incomplet' && (
+                    <>
+                      {' · '}
+                      <Link
+                        to={lienCalendrierDuSalarie(refusal.job.employeeId)}
+                        onClick={onDismiss}
+                        className="underline underline-offset-2"
+                      >
+                        Compléter le planning
+                      </Link>
+                    </>
+                  )}
                 </span>
               </div>
             ))}
