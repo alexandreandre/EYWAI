@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assistedFillDialogHeightClass,
+  mentionSourceRevue,
   removeReviewRow,
   showReviewSummaryBanner,
 } from './assistedFillReviewLayout';
@@ -40,5 +41,27 @@ describe('removeReviewRow', () => {
   it('ne change rien si la clé est inconnue', () => {
     const rows = [{ key: '1-Hugo' }];
     expect(removeReviewRow(rows, 'missing')).toEqual(rows);
+  });
+});
+
+describe('mentionSourceRevue', () => {
+  it('consigne écrite (même collective) : proposition à relire, pas de PDF', () => {
+    for (const source of ['texte', 'texte (saisie collective)']) {
+      const m = mentionSourceRevue({ source, detected_format: null });
+      expect(m?.texte).toBe('Proposition établie d’après votre consigne : relisez-la avant d’enregistrer.');
+      expect(m?.texte).not.toContain('PDF');
+    }
+  });
+
+  it('PDF ou photo : les noms lus peuvent être erronés', () => {
+    expect(mentionSourceRevue({ source: 'pdf', detected_format: null })?.texte).toBe(
+      'Import IA — les noms lus sur le PDF peuvent être erronés.',
+    );
+  });
+
+  it('fichier tableur : associer à la main les salariés non reconnus', () => {
+    expect(mentionSourceRevue({ source: 'csv', detected_format: 'tabular_csv' })?.texte).toBe(
+      'Import fichier — associez manuellement les salariés non reconnus si besoin.',
+    );
   });
 });
