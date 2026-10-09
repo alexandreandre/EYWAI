@@ -174,6 +174,8 @@ class ReimportInfo(BaseModel):
 
     lots_precedents: List[LotPrecedent] = Field(default_factory=list)
     corrections_a_la_main: List[CorrectionALaMainImport] = Field(default_factory=list)
+    #: Noms lus dont l'association faite à la main au lot précédent est reprise.
+    associations_reprises: List[str] = Field(default_factory=list)
 
 
 class AiCalendarProposalResponse(BaseModel):

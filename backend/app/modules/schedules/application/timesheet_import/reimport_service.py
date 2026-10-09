@@ -308,6 +308,66 @@ def _vers_schema(c: CorrectionALaMain) -> CorrectionALaMainImport:
     return CorrectionALaMainImport.model_validate(c.to_dict())
 
 
+def _nom_normalise(nom: str | None) -> str:
+    return " ".join((nom or "").split()).casefold()
+
+
+def reappliquer_associations(
+    proposal: AiCalendarProposalResponse,
+    lots: Iterable[dict[str, Any]],
+) -> tuple[AiCalendarProposalResponse, list[str]]:
+    """Les lignes non reconnues reprennent le salarié associé à la main au lot précédent.
+
+    Même société (les lots sont ceux du fichier de cette société), même nom lu.
+    Un nom associé à deux salariés différents n'est pas deviné, et un salarié
+    déjà porté par une autre ligne n'est pas pris.
+    """
+    connus: dict[str, set[tuple[str, str | None]]] = {}
+    for lot in lots:
+        for ligne in (lot.get("preview_json") or {}).get("employees") or []:
+            nom = _nom_normalise(ligne.get("raw_name"))
+            if nom and ligne.get("employee_id"):
+                connus.setdefault(nom, set()).add(
+                    (str(ligne["employee_id"]), ligne.get("matched_name"))
+                )
+    pris = {e.employee_id for e in proposal.employees if e.employee_id}
+    reprises: list[str] = []
+    lignes = []
+    for ligne in proposal.employees:
+        candidats = connus.get(_nom_normalise(ligne.raw_name), set())
+        ids = {c[0] for c in candidats}
+        if not ligne.employee_id and len(ids) == 1 and next(iter(ids)) not in pris:
+            eid = next(iter(ids))
+            nom_affiche = next((c[1] for c in candidats if c[1]), None)
+            pris.add(eid)
+            reprises.append(ligne.raw_name)
+            ligne = ligne.model_copy(
+                update={
+                    "employee_id": eid,
+                    "matched_name": nom_affiche,
+                    "match_confidence": "high",
+                    "review_status": "ok" if ligne.days else "empty",
+                }
+            )
+        lignes.append(ligne)
+    if not reprises:
+        return proposal, []
+    from app.modules.schedules.application.ai_fill import _compute_review_summary
+
+    return (
+        proposal.model_copy(
+            update={
+                "employees": lignes,
+                "review_summary": _compute_review_summary(lignes),
+                "roster_not_in_document_count": max(
+                    0, (proposal.roster_not_in_document_count or 0) - len(reprises)
+                ),
+            }
+        ),
+        reprises,
+    )
+
+
 def annoter_reimport(
     company_id: str,
     proposal: AiCalendarProposalResponse,
@@ -320,6 +380,9 @@ def annoter_reimport(
     validé de chaque fichier.
     """
     ids_precedents = [d["lot_precedent"]["batch_id"] for d in deja]
+    proposal, associations_reprises = reappliquer_associations(
+        proposal, _lots(company_id, ids_precedents)
+    )
     ecrits = _jours_ecrits_par_lots(_lots(company_id, ids_precedents))
     jours = _jours_reel_de_la_proposition(proposal)
 
@@ -336,6 +399,7 @@ def annoter_reimport(
             "reimport": ReimportInfo(
                 lots_precedents=[LotPrecedent(**d["lot_precedent"]) for d in deja],
                 corrections_a_la_main=[_vers_schema(c) for c in corrections],
+                associations_reprises=associations_reprises,
             )
         }
     )
