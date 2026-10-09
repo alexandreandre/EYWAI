@@ -18,6 +18,38 @@ const MOIS = [
   'décembre',
 ];
 
+function partiesParis(iso: string | null | undefined): Intl.DateTimeFormatPart[] | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+}
+
+/** « 22:26 », à l'heure de Paris ; chaîne vide si la date est illisible. */
+export function heureParis(iso: string | null | undefined): string {
+  const parties = partiesParis(iso);
+  if (!parties) return '';
+  const valeur = (type: string) => parties.find((p) => p.type === type)?.value ?? '';
+  return `${valeur('hour')}:${valeur('minute')}`;
+}
+
+/** « 9 octobre 2026 », jour de Paris ; chaîne vide si la date est illisible. */
+export function dateEnClair(iso: string | null | undefined): string {
+  const parties = partiesParis(iso);
+  if (!parties) return '';
+  const valeur = (type: string) => parties.find((p) => p.type === type)?.value ?? '';
+  const jour = Number(valeur('day'));
+  return `${jour === 1 ? '1er' : jour} ${MOIS[Number(valeur('month')) - 1] ?? ''} ${valeur('year')}`;
+}
+
 /** « 7 octobre 2026 à 09:12 », à l'heure de Paris ; chaîne vide si la date est illisible. */
 export function dateHeureEnClair(iso: string | null | undefined): string {
   if (!iso) return '';

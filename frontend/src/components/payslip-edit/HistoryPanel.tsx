@@ -1,5 +1,6 @@
 // frontend/src/components/payslip-edit/HistoryPanel.tsx
 
+import { dateEnClair, heureParis } from '@/components/payslip/comparaisonAffichage';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -149,7 +150,7 @@ export default function HistoryPanel({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-lg">Version {entry.version}</span>
                       <span className="text-xs bg-muted px-2 py-1 rounded">
-                        {new Date(entry.edited_at).toLocaleDateString('fr-FR')}
+                        {dateEnClair(entry.edited_at)}
                       </span>
                     </div>
                     <p className="text-sm text-foreground">{entry.changes_summary}</p>
@@ -178,7 +179,7 @@ export default function HistoryPanel({
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {new Date(entry.edited_at).toLocaleTimeString('fr-FR')}
+                    {heureParis(entry.edited_at)}
                   </div>
                 </div>
 

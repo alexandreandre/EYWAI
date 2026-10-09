@@ -1,5 +1,6 @@
 // frontend/src/components/payslip-edit/NotesSection.tsx
 
+import { dateHeureEnClair } from '@/components/payslip/comparaisonAffichage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -115,7 +116,7 @@ export default function NotesSection({
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="font-medium">{note.author_name}</span>
                       <span>
-                        {new Date(note.timestamp).toLocaleString('fr-FR')}
+                        {dateHeureEnClair(note.timestamp)}
                       </span>
                     </div>
                     <p className="text-foreground">{note.content}</p>

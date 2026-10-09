@@ -10,6 +10,7 @@
  * (planning, fiche, saisies), puis « Régénérer ».
  */
 
+import { dateEnClair, dateHeureEnClair } from '@/components/payslip/comparaisonAffichage';
 import { pageTitleClassName } from '@/components/layout';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -109,8 +110,7 @@ function statutHttp(error: unknown): number | undefined {
 }
 
 function dateCourte(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString('fr-FR');
+  return dateEnClair(iso) || iso;
 }
 
 export default function PayslipEdit() {
@@ -416,7 +416,7 @@ export default function PayslipEdit() {
         <Alert>
           <AlertDescription>
             Correction autorisée jusqu&apos;au{' '}
-            {new Date(payslip.manual_edit_lock_until).toLocaleDateString('fr-FR')}.
+            {dateEnClair(payslip.manual_edit_lock_until)}.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -445,7 +445,7 @@ export default function PayslipEdit() {
             <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
               Bulletin validé
               {payslip.validated_at
-                ? ` · ${new Date(payslip.validated_at).toLocaleString('fr-FR')}`
+                ? ` · ${dateHeureEnClair(payslip.validated_at)}`
                 : ''}
             </Badge>
           ) : isRH ? (
