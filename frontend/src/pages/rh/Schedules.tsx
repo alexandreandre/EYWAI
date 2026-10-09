@@ -29,6 +29,11 @@ import { defaultPlanningWeekIndex } from '@/lib/planningWeeks';
 import { PlanningImportPanel } from '@/features/admin-import/components/PlanningImportPanel';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { SAISIE_FILTER_LABELS } from '@/components/schedules/types';
+import {
+  messageFiltreSansCalendrier,
+  phraseHeuresSurArret,
+  resumeHeuresSurArret,
+} from '@/lib/calendrierPilotage';
 import type {
   ModeFilter,
   SaisieStatusFilter,
@@ -374,10 +379,24 @@ export default function Schedules() {
     }
   };
 
+  // Heures saisies un jour d'arrêt (donnée de l'API) : le salarié n'est pas prêt,
+  // la génération serait refusée.
+  const heuresSurArret = useMemo(() => resumeHeuresSurArret(filteredRows), [filteredRows]);
+  const phraseArret = phraseHeuresSurArret(heuresSurArret);
+
   const allSaisiBanner =
     !isPageLoading &&
     filteredRows.length > 0 &&
+    heuresSurArret.totalJours === 0 &&
     filteredRows.every((r) => r.rowStatus !== 'a_saisir');
+
+  // Le filtre ne laisse aucun calendrier : plus rien n'est sélectionné, et sous
+  // « À saisir » on dit qu'il ne reste plus rien à saisir.
+  const filtreSansCalendrier = !isPageLoading && rows.length > 0 && filteredRows.length === 0;
+  const messageSansCalendrier = messageFiltreSansCalendrier(saisieFilter, rows.length);
+  useEffect(() => {
+    if (filtreSansCalendrier) setSelectedIds((prev) => (prev.size > 0 ? new Set() : prev));
+  }, [filtreSansCalendrier]);
 
       return (
     <div className="space-y-2 pb-28">
@@ -470,6 +489,28 @@ export default function Schedules() {
         </div>
       )}
 
+      {phraseArret && (
+        <div
+          className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          data-testid="bandeau-heures-sur-arret"
+        >
+          <p>{phraseArret}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {heuresSurArret.salaries.map((sal) => (
+              <Button
+                key={sal.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDrawerEmployeeId(sal.id)}
+              >
+                Ouvrir le calendrier de {sal.nom} ({sal.jours.join(', ')})
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {allSaisiBanner && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-900">
           Tous les calendriers affichés sont prêts pour la paie ce mois-ci. Vous pouvez lancer le
@@ -477,7 +518,16 @@ export default function Schedules() {
                         </div>
                       )}
 
-      {viewMode === 'list' ? (
+      {filtreSansCalendrier && saisieFilter === 'a_saisir' ? (
+        <div
+          className="rounded-md border border-dashed p-12 text-center"
+          data-testid="plus-aucun-calendrier-a-saisir"
+        >
+          <p className="font-medium text-foreground">{messageSansCalendrier.titre}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{messageSansCalendrier.detail}</p>
+        </div>
+      ) : (
+        viewMode === 'list' ? (
         <div className="space-y-3">
           <div className="flex justify-end">
             <CalendarPeriodSelect
@@ -527,6 +577,7 @@ export default function Schedules() {
           weekIndex={planningWeekIndex}
           onWeekIndexChange={setPlanningWeekIndex}
         />
+      )
       )}
 
       <CalendarEmployeeDrawer

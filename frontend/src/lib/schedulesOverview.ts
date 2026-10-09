@@ -21,6 +21,7 @@ import {
 import type { FrenchPublicHolidayId } from '@/lib/frenchPublicHolidays';
 import { isForfaitJour } from '@/utils/employeeUtils';
 import { downloadBlob } from '@/lib/downloadBlob';
+import { statutAvecHeuresSurArret } from './calendrierPilotage';
 
 export interface DayPatch {
   type?: string;
@@ -52,6 +53,8 @@ export interface EmployeeCalendarOverviewRow {
   ecart: number;
   rowStatus: EmployeeRowStatus;
   absenceConflictDays: number[];
+  /** Jours qui portent des heures réelles alors que le prévu est un arrêt ou une absence (API). */
+  joursHeuresSurArret?: number[];
   loadError: boolean;
   isForfaitJour: boolean;
   /**
@@ -126,13 +129,17 @@ async function fetchEmployeeOverview(
     const stats = computeMonthStats(planned, actual, forfait);
     const pointeMoisPrecedent =
       reelMoisPrecedent === null || aDesHeuresPointees(reelMoisPrecedent);
-    const rowStatus = computeEmployeeRowStatus(
-      planned,
-      actual,
-      year,
-      month,
-      forfait,
-      pointeSurLaPeriode(actual, reelMoisPrecedent)
+    const joursHeuresSurArret: number[] = actualRes.data.jours_en_conflit ?? [];
+    const rowStatus = statutAvecHeuresSurArret(
+      computeEmployeeRowStatus(
+        planned,
+        actual,
+        year,
+        month,
+        forfait,
+        pointeSurLaPeriode(actual, reelMoisPrecedent)
+      ),
+      joursHeuresSurArret
     );
 
     const validatedDays = validatedAbsenceDaysInMonth(
@@ -156,6 +163,7 @@ async function fetchEmployeeOverview(
       ecart: forfait ? stats.ecartJours : stats.ecart,
       rowStatus,
       absenceConflictDays,
+      joursHeuresSurArret,
       loadError: false,
       isForfaitJour: forfait,
       pointeMoisPrecedent,
@@ -170,6 +178,7 @@ async function fetchEmployeeOverview(
       ecart: 0,
       rowStatus: 'a_saisir',
       absenceConflictDays: [],
+      joursHeuresSurArret: [],
       loadError: true,
       isForfaitJour: forfait,
     };
@@ -270,13 +279,16 @@ export function applyDayPatchToRow(
   });
 
   const stats = computeMonthStats(newPlanned, newActual, row.isForfaitJour);
-  const rowStatus = computeEmployeeRowStatus(
-    newPlanned,
-    newActual,
-    year,
-    month,
-    row.isForfaitJour,
-    (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual)
+  const rowStatus = statutAvecHeuresSurArret(
+    computeEmployeeRowStatus(
+      newPlanned,
+      newActual,
+      year,
+      month,
+      row.isForfaitJour,
+      (row.pointeMoisPrecedent ?? true) || aDesHeuresPointees(newActual)
+    ),
+    row.joursHeuresSurArret
   );
 
   return {

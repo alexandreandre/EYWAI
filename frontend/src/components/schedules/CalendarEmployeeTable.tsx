@@ -1,4 +1,5 @@
 import { displayNameNomPrenom } from '@/lib/employeeName';
+import { ecartAffiche } from '@/lib/calendrierPilotage';
 import {
   Table,
   TableBody,
@@ -276,12 +277,13 @@ export function CalendarEmployeeTable({
             const team = row.employee.team_id
               ? teamsById.get(row.employee.team_id)
               : undefined;
-            const ecartSignificant = !row.isForfaitJour
+            const ecartSignificant = row.rowStatus === 'a_saisir'
+              ? false
+              : !row.isForfaitJour
               ? isSignificantEcart(row.heuresPrevues, row.heuresFaites)
               : row.ecart !== 0;
-            const ecartLabel = row.isForfaitJour
-              ? `${row.ecart >= 0 ? '+' : ''}${row.ecart} j`
-              : `${row.ecart >= 0 ? '+' : ''}${row.ecart.toFixed(1)} h`;
+            // Pas d'écart tant que le calendrier est à saisir : le réel manquant n'en est pas un.
+            const ecartLabel = ecartAffiche(row) ?? '—';
 
             return (
               <TableRow
