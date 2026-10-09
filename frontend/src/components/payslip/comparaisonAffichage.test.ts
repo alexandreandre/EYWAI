@@ -91,6 +91,20 @@ describe('dates et heures de l’écran du bulletin, à l’heure de Paris', () 
     expect(dateEnClair('2026-11-01T10:00:00Z')).toBe('1er novembre 2026');
   });
 
+  it('une version datée sans fuseau (écrite par le serveur en UTC) se lit en UTC, quel que soit le navigateur', () => {
+    const avant = process.env.TZ;
+    process.env.TZ = 'Europe/Paris';
+    try {
+      // 00:05 à Paris le 10/10 = 22:05 UTC le 09/10, chaîne sans « Z » ni décalage.
+      expect(heureParis('2026-10-09T22:05:00.123456')).toBe('00:05');
+      expect(dateEnClair('2026-10-09T22:05:00.123456')).toBe('10 octobre 2026');
+      expect(dateHeureEnClair('2026-10-09T22:05:00')).toBe('10 octobre 2026 à 00:05');
+    } finally {
+      if (avant === undefined) delete process.env.TZ;
+      else process.env.TZ = avant;
+    }
+  });
+
   it('une date illisible donne une chaîne vide', () => {
     expect(heureParis('nimporte quoi')).toBe('');
     expect(dateEnClair(null)).toBe('');
