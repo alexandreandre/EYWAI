@@ -3,6 +3,8 @@ import { AxiosError } from 'axios';
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import {
+  CLASSES_BOUTON_DU_CHOIX,
+  CLASSES_BOUTONS_DU_CHOIX,
   TITRE_INFO_BULLE_CONFLIT,
   aDesJoursAEffacer,
   bandeauAbsencesDuSalarie,
@@ -575,5 +577,18 @@ describe('prenomDuBulletin', () => {
     expect(prenomDuBulletin({})).toBeNull();
     expect(prenomDuBulletin(undefined)).toBeNull();
     expect(prenomDuBulletin({ en_tete: { salarie: 'x' } })).toBeNull();
+  });
+});
+
+describe('mise en page du choix « effacer / modifier l’arrêt » (fenêtre de ~510 px)', () => {
+  it('empile les deux boutons au lieu de les aligner hors de la fenêtre', () => {
+    expect(CLASSES_BOUTONS_DU_CHOIX).toContain('flex-col');
+    expect(CLASSES_BOUTONS_DU_CHOIX).not.toContain('flex-row');
+  });
+
+  it('laisse un long libellé passer à la ligne dans la largeur de la fenêtre', () => {
+    expect(CLASSES_BOUTON_DU_CHOIX).toContain('whitespace-normal');
+    expect(CLASSES_BOUTON_DU_CHOIX).toContain('h-auto');
+    expect(CLASSES_BOUTON_DU_CHOIX).toContain('w-full');
   });
 });
