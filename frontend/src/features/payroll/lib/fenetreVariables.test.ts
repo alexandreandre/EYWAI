@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  confirmationFenetre,
+  messageEchecFenetre,
   estSurLeMoisCivil,
   formatFr,
   libelleSemaines,
@@ -51,5 +53,21 @@ describe('estSurLeMoisCivil', () => {
 
   it('est vrai pour une société restée au mois civil', () => {
     expect(estSurLeMoisCivil(MAJI_JUILLET)).toBe(true);
+  });
+});
+
+describe('messages de « Appliquer »', () => {
+  it('le succès dit la date d’arrêt en clair et le sort des bulletins déjà générés', () => {
+    expect(confirmationFenetre('2026-07-26')).toEqual({
+      title: 'Fenêtre des variables enregistrée',
+      description:
+        'Les variables s’arrêtent le 26 juillet 2026. Ce qui suit partira sur le mois suivant.',
+    });
+  });
+
+  it('un échec dit ce qui n’a pas été fait et où corriger', () => {
+    expect(messageEchecFenetre(new Error('boom'))).toBe(
+      'La fenêtre n’a pas été enregistrée. Vérifiez la date d’arrêt choisie, puis réessayez.',
+    );
   });
 });
