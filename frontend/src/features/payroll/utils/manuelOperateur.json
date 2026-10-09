@@ -100,7 +100,7 @@
   "pieges": [
     {
       "titre": "Des heures sont saisies un jour d’arrêt",
-      "quoiFaire": "Le calendrier montre les jours en conflit. Choisissez : le salarié était en arrêt (effacer ces heures) ou il a travaillé (modifier l’arrêt). Sans ce clic, rien ne se corrige. Ensuite le bulletin passe « à recalculer »."
+      "quoiFaire": "Le calendrier signale les jours qui portent des heures pendant l’arrêt. Le choix vient à la génération du bulletin : le salarié était en arrêt (effacer ces heures) ou il a travaillé (modifier l’arrêt). Sans ce clic, rien ne se corrige. Ensuite le bulletin passe « à recalculer »."
     },
     {
       "titre": "L’import dit « Ce fichier a déjà été importé »",

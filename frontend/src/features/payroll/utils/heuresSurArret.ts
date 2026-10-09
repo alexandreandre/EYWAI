@@ -460,3 +460,11 @@ export function messageEchecEffacement(effaces: JourEnConflit[], erreur: unknown
   const reste = incertain ? 'Le reste n’a pas pu être confirmé.' : 'Le reste n’a pas pu l’être.';
   return `Heures effacées seulement ${article} ${libelleDesJours(effaces)}. ${reste} ${raison} ${fin}`;
 }
+
+/**
+ * Mise en page du choix « effacer ces heures / modifier l'arrêt » : la fenêtre de
+ * refus fait ~510 px, deux boutons côte à côte (et leur aide) en sortaient à droite.
+ * Les boutons s'empilent et leur libellé passe à la ligne.
+ */
+export const CLASSES_BOUTONS_DU_CHOIX = 'flex flex-col gap-2';
+export const CLASSES_BOUTON_DU_CHOIX = 'h-auto w-full whitespace-normal py-2 text-left';

@@ -20,6 +20,8 @@ import {
   prenomDe,
   textesDuChoix,
   type JourEnConflit,
+  CLASSES_BOUTON_DU_CHOIX,
+  CLASSES_BOUTONS_DU_CHOIX,
 } from '@/features/payroll/utils/heuresSurArret';
 
 type Props = {
@@ -94,9 +96,10 @@ export function ChoixHeuresSurArret({
             </li>
           ))}
       </ul>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className={CLASSES_BOUTONS_DU_CHOIX}>
         <Button
           type="button"
+          className={CLASSES_BOUTON_DU_CHOIX}
           disabled={enCours}
           data-testid="effacer-heures-arret"
           onClick={() => void effacer()}
@@ -107,6 +110,7 @@ export function ChoixHeuresSurArret({
         <Button
           type="button"
           variant="outline"
+          className={CLASSES_BOUTON_DU_CHOIX}
           disabled={enCours}
           data-testid="modifier-arret"
           onClick={() => {
@@ -118,7 +122,7 @@ export function ChoixHeuresSurArret({
         </Button>
       </div>
       {textes.aide && (
-        <p className="text-sm text-muted-foreground" data-testid="aide-arret-en-cours-de-journee">
+        <p className="break-words text-sm text-muted-foreground" data-testid="aide-arret-en-cours-de-journee">
           {textes.aide}
         </p>
       )}

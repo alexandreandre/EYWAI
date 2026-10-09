@@ -421,7 +421,7 @@ export function listeControleDuMois(entree: EntreeListeControle): ListeControleM
       ouCliquer: 'Calendrier',
       href: '/schedules',
       ensuite:
-        'Le bandeau propose d’effacer ces heures ou de modifier l’arrêt. Après correction, le conflit disparaît.',
+        'Le calendrier signale les jours qui portent des heures pendant l’arrêt. Le choix « effacer ces heures » ou « modifier l’arrêt » est proposé à la génération du bulletin. Après correction, le conflit disparaît.',
     }),
     actionSiNonFaite(absences, {
       quoi: 'Vérifiez que chaque absence du mois est bien saisie.',
