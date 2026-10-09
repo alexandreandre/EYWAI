@@ -1,5 +1,5 @@
 """
-Variables de fusion pour le module Documents (templates client / EYWAI).
+Variables de fusion pour le module Documents (templates client / MARTINE).
 
 Toutes les valeurs sont des chaînes ; les clés manquantes retournent "".
 """

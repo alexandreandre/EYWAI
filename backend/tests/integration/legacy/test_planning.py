@@ -19,7 +19,7 @@ from app.modules.planning.domain.conflict_engine import (
 )
 
 # ---------------------------------------------------------------------------
-# Chemins repo (backend/tests → racine EYWAI)
+# Chemins repo (backend/tests → racine MARTINE)
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]

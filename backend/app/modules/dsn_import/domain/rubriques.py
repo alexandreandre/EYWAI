@@ -80,7 +80,7 @@ R_S21_CTR_DATE_DEBUT = "S21.G00.40.001"
 # S21.G00.40.010 « Date de fin prévisionnelle du contrat ». Pointait sur .003,
 # qui est le « Code statut catégoriel Retraite Complémentaire obligatoire » : un
 # code, jamais une date. À l'import, tout CDD perdait donc sa date de fin ; à
-# l'export, EYWAI écrivait cette date dans le champ du statut retraite.
+# l'export, MARTINE écrivait cette date dans le champ du statut retraite.
 R_S21_CTR_DATE_FIN = "S21.G00.40.010"
 R_S21_CTR_DISPOSITIF = "S21.G00.40.008"
 R_S21_CTR_NUMERO = "S21.G00.40.009"
@@ -284,7 +284,7 @@ BLOCK_G00 = {
     "53": "activite",
 }
 
-# Codes nature contrat DSN -> libellé EYWAI
+# Codes nature contrat DSN -> libellé MARTINE
 CONTRACT_NATURE_MAP = {
     "01": "CDI",
     "02": "CDD",

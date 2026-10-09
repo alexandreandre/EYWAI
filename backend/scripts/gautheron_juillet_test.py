@@ -109,7 +109,7 @@ def main() -> int:
         .execute()
     ).data
     data = (row or [{}])[0].get("payslip_data") or {}
-    print(f"brut EYWAI {data.get('salaire_brut')} — Quadra {QUADRA['salaire_brut']}")
+    print(f"brut MARTINE {data.get('salaire_brut')} — Quadra {QUADRA['salaire_brut']}")
     for cle in ("details_absences", "details_conges"):
         for ligne in _lignes(data, cle):
             if not isinstance(ligne, dict):

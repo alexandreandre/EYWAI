@@ -61,7 +61,7 @@ GROS_BELILLY_PAGE = """
    Nom Patronymique : BELILLY
 """
 
-EYWAI_PAGE = """
+MARTINE_PAGE = """
 BULLETIN DE PAIE
 Solde de congés au 31/05/2026
 CP période précédente
@@ -162,7 +162,7 @@ class TestMbcJunkNameExtraction:
 
 class TestParseEywaiNative:
     def test_solde_section(self):
-        parsed = parse_payslip_page_text(EYWAI_PAGE)
+        parsed = parse_payslip_page_text(MARTINE_PAGE)
         assert parsed.parse_format == "eywai_native"
         assert parsed.cp_n1_solde == 5.0
         assert parsed.cp_n_solde == 11.0

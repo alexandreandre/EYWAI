@@ -47,7 +47,7 @@ class TestResolvedEmailConfig:
             "smtp_password": "db-pass",
             "smtp_security": "ssl",
             "from_email": "noreply@eywai.fr",
-            "from_name": "EYWAI Test",
+            "from_name": "MARTINE Test",
             "support_recipients": ["a@eywai.fr", "b@eywai.fr"],
         }
         with patch.object(email_config.repository, "get_row", return_value=row):

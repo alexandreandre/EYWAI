@@ -1,4 +1,4 @@
-"""Correspondance libellés Cegid <-> champs payslip_data EYWAI."""
+"""Correspondance libellés Cegid <-> champs payslip_data MARTINE."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def rubric_field_key(label: str, idcc: str | None = None) -> str:
 
 
 def extract_eywai_metrics(payslip_data: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    """Extrait les métriques comparables depuis un payslip_data EYWAI."""
+    """Extrait les métriques comparables depuis un payslip_data MARTINE."""
     sc = payslip_data.get("structure_cotisations") or {}
     sn = payslip_data.get("synthese_net") or {}
     pas = sn.get("impot_prelevement_a_la_source") or {}

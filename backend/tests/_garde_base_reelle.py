@@ -9,7 +9,7 @@ Storage, des crédits de repos recalculés sur le premier salarié venu).
 Règle : si l'URL Supabase effective est une vraie base (`*.supabase.co`, hors
 l'hôte factice de la CI), la collecte s'arrête avant d'importer le moindre
 module de test. Pour lancer ces tests sur une base jetable créée pour ça, poser
-explicitement `EYWAI_TESTS_BASE_REELLE=oui`.
+explicitement `MARTINE_TESTS_BASE_REELLE=oui` (l'ancien nom `EYWAI_TESTS_BASE_REELLE` reste lu).
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ from urllib.parse import urlparse
 import pytest
 
 HOTE_FACTICE_CI = "ci-fake.supabase.co"
-VARIABLE_DEROGATION = "EYWAI_TESTS_BASE_REELLE"
+VARIABLE_DEROGATION = "MARTINE_TESTS_BASE_REELLE"
+ANCIENNE_VARIABLE_DEROGATION = "EYWAI_TESTS_BASE_REELLE"
 
 
 def vise_une_vraie_base(url: str | None) -> bool:
@@ -33,7 +34,8 @@ def vise_une_vraie_base(url: str | None) -> bool:
 
 def refuser_une_vraie_base(dossier: str) -> None:
     """À appeler en tête du conftest d'un dossier de tests qui écrit en base."""
-    if os.environ.get(VARIABLE_DEROGATION, "").strip().lower() == "oui":
+    valeur = os.environ.get(VARIABLE_DEROGATION) or os.environ.get(ANCIENNE_VARIABLE_DEROGATION) or ""
+    if valeur.strip().lower() == "oui":
         return
     url = os.environ.get("SUPABASE_URL", "")
     if vise_une_vraie_base(url):

@@ -64,7 +64,7 @@ def get_client() -> OpenAI:
         api_key=require_api_key(),
         default_headers={
             "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", "https://eywai.app"),
-            "X-Title": os.getenv("OPENROUTER_APP_TITLE", "EYWAI Scraping"),
+            "X-Title": os.getenv("OPENROUTER_APP_TITLE", "MARTINE Scraping"),
         },
     )
 

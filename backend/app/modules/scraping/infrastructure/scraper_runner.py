@@ -393,9 +393,9 @@ def run_scraper_script(
     process_env = __import__("os").environ.copy()
     process_env["PYTHONUNBUFFERED"] = "1"
     if sync_cotisation_ids:
-        process_env["EYWAI_SYNC_COTISATION_IDS"] = ",".join(sync_cotisation_ids)
+        process_env["MARTINE_SYNC_COTISATION_IDS"] = ",".join(sync_cotisation_ids)
     else:
-        process_env.pop("EYWAI_SYNC_COTISATION_IDS", None)
+        process_env.pop("MARTINE_SYNC_COTISATION_IDS", None)
 
     process = subprocess.Popen(
         [sys.executable, "-u", script_path],
@@ -653,7 +653,7 @@ def apply_pending_change_sync(
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     if reviewed_by:
-        env["EYWAI_REVIEWED_BY"] = str(reviewed_by)
+        env["MARTINE_REVIEWED_BY"] = str(reviewed_by)
 
     try:
         result = subprocess.run(

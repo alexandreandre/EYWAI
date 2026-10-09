@@ -456,7 +456,7 @@ class DocumentService:
                     template_id = None
                     template_version_id = None
             except Exception as e:
-                logger.warning("ReportLab fallback PDF (EYWAI): %s", e)
+                logger.warning("ReportLab fallback PDF (Martine): %s", e)
 
         if not pdf_bytes:
             raise ValueError("Impossible de générer le document PDF.")

@@ -5,7 +5,7 @@ Le cabinet (Quadra) retire chaque heure d'absence 35/39 au taux de base et
 planifiées du jour : Marion Morande (Colorplast, juillet 2026), journées
 de 8,5 h et 7,5 h → 7,63 + 0,87 et 6,73 + 0,77 ; MBC, journées de 7,8 h →
 7,00 + 0,80. La position de l'absence dans la semaine n'entre pas en jeu.
-EYWAI retenait 7 h + 0,8 h par jour quelle que soit la journée.
+MARTINE retenait 7 h + 0,8 h par jour quelle que soit la journée.
 """
 
 from datetime import date

@@ -151,7 +151,7 @@ def create_employee_exit(
 def list_exit_eligible_employees(
     current_user: User = Depends(get_current_user),
 ):
-    """Liste les collaborateurs éligibles à un nouveau départ (actifs, avec ou sans contrat généré par EYWAI)."""
+    """Liste les collaborateurs éligibles à un nouveau départ (actifs, avec ou sans contrat généré par MARTINE)."""
     company_id = _company_id_required(current_user)
     _check_exit_permission(current_user, company_id, "create")
     return queries.list_exit_eligible_employees(company_id)

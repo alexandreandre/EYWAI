@@ -364,7 +364,7 @@ def run_repair_queue(
 ) -> list[dict[str, Any]]:
     """Traite jusqu'à max_jobs jobs queued."""
     if agent_disabled():
-        logger.info("Agent désactivé (EYWAI_REPAIR_AGENT_DISABLED)")
+        logger.info("Agent désactivé (MARTINE_REPAIR_AGENT_DISABLED)")
         return []
 
     ensure_scraping_path()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Orchestrateur backtest paie autonome — entreprise x mois.
 
-Compare les bulletins EYWAI aux bulletins Cegid (PDF Config), corrige
+Compare les bulletins MARTINE aux bulletins Cegid (PDF Config), corrige
 automatiquement les écarts (données VERT), boucle jusqu'à convergence,
 et envoie un mail de bilan.
 

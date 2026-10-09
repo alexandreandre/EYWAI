@@ -1,4 +1,4 @@
-"""Socle commun du scraping de taux EYWAI."""
+"""Socle commun du scraping de taux MARTINE."""
 
 from core.base_orchestrator import run_orchestrator
 from core.rate_spec import PersistenceMode, RateSpec, ScraperScript

@@ -1,6 +1,6 @@
 """Reprise des soldes de congés reportés depuis l'état de provision du cabinet.
 
-EYWAI ne contient aucun congé antérieur à janvier 2026 : il recalcule un droit
+MARTINE ne contient aucun congé antérieur à janvier 2026 : il recalcule un droit
 théorique d'année pleine au lieu du report réel. L'état « provision des congés payés »
 du cabinet porte ce report, salarié par salarié, en jours ouvrés.
 
@@ -225,7 +225,7 @@ def main() -> int:
             }
         )
 
-    print(f"{'Numéro':14s} {'Nom':30s} {'cabinet':>9s} {'EYWAI':>9s} {'écart':>9s}")
+    print(f"{'Numéro':14s} {'Nom':30s} {'cabinet':>9s} {'MARTINE':>9s} {'écart':>9s}")
     print("-" * 76)
     for l in sorted(lignes, key=lambda x: -abs(x["ecart_ouvrables"]))[:20]:
         print(

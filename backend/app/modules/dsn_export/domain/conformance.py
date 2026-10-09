@@ -1,6 +1,6 @@
 """Diff structurel entre deux fichiers DSN plats.
 
-Sert à mesurer l'écart entre la DSN produite par EYWAI et une DSN de référence
+Sert à mesurer l'écart entre la DSN produite par MARTINE et une DSN de référence
 déjà acceptée par net-entreprises (celle du cabinet). Le comparateur de
 ``dsn_compare`` travaille au niveau métier (montants, effectifs) ; celui-ci
 travaille au niveau rubrique, seul niveau où se juge la conformité.

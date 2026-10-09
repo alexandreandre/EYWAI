@@ -1,12 +1,12 @@
-"""Salarié × mois : SMIC de référence selon Quadra, la loi et EYWAI ; impact et pré-classement.
+"""Salarié × mois : SMIC de référence selon Quadra, la loi et MARTINE ; impact et pré-classement.
 
 Le point non tranché n° 1 (maintien subrogé à 100 %, voir `oracle_smic.py`) a deux
 lectures légales possibles (« smic_entier » et « rapport_salaires ») tant qu'Alexandre
 n'a pas arbitré. `LigneComparee.smic_loi_variante` porte la seconde lecture quand elle
-existe ; `preclasser` compare alors Quadra et EYWAI aux deux lectures, pas à une seule,
+existe ; `preclasser` compare alors Quadra et MARTINE aux deux lectures, pas à une seule,
 et pré-classe « point_non_tranche » quand l'une des deux parties suit une lecture sans
 suivre l'autre — sans jamais faire disparaître un vrai écart Quadra ou une vraie
-erreur EYWAI derrière ce point non tranché (voir `preclasser`).
+erreur MARTINE derrière ce point non tranché (voir `preclasser`).
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def _ecart(a: float | None, b: float | None) -> float | None:
 
 
 def _suit(valeur: float | None, reference: float, l: LigneComparee, prm: Parametres) -> bool:
-    """`valeur` (Quadra ou EYWAI) est-elle, à la tolérance près (SMIC et impact en
+    """`valeur` (Quadra ou MARTINE) est-elle, à la tolérance près (SMIC et impact en
     euros), la même lecture que `reference` ?"""
     ecart = _ecart(valeur, reference)
     if ecart is None or ecart > TOLERANCE_SMIC:
@@ -71,26 +71,26 @@ def _nom_lecture(suit_principale: bool, suit_variante: bool) -> str:
 
 def _segment_eywai(l: LigneComparee, e_suit_principale: bool, e_suit_variante: bool) -> str:
     if l.smic_eywai is None:
-        return "EYWAI : non calculé"
-    return f"EYWAI suit {_nom_lecture(e_suit_principale, e_suit_variante)}"
+        return "MARTINE : non calculé"
+    return f"MARTINE suit {_nom_lecture(e_suit_principale, e_suit_variante)}"
 
 
 def _preclasser_avec_variante(l: LigneComparee, prm: Parametres, q_ok: bool, e_ok: bool) -> str | None:
     """Point non tranché n° 1 : deux lectures légales distinctes de la loi.
 
-    Renvoie « point_non_tranche » quand Quadra ou EYWAI suit, dans la tolérance,
+    Renvoie « point_non_tranche » quand Quadra ou MARTINE suit, dans la tolérance,
     l'une des deux lectures sans suivre l'autre. Renvoie `None` (classement
     ordinaire contre `smic_loi`, jamais « point_non_tranche ») dans deux cas
     symétriques :
     - Quadra ne suit NI la lecture principale NI la variante : il est hors
       tolérance quelle que soit la lecture retenue, trancher le point légal ne le
       rapprocherait pas de la loi — l'écart ne doit pas se cacher derrière un
-      point non tranché, quoi que fasse EYWAI ;
-    - ni Quadra ni EYWAI ne suit une lecture sans suivre l'autre (les deux
+      point non tranché, quoi que fasse MARTINE ;
+    - ni Quadra ni MARTINE ne suit une lecture sans suivre l'autre (les deux
       suivent les deux, ou aucune des deux).
     Renvoie « erreur_eywai » (jamais « point_non_tranche ») quand Quadra suit une
-    lecture et qu'EYWAI ne suit ni l'une ni l'autre : ce n'est pas un point à
-    trancher, c'est une vraie erreur EYWAI.
+    lecture et que Martine ne suit ni l'une ni l'autre : ce n'est pas un point à
+    trancher, c'est une vraie erreur MARTINE.
     """
     q_suit_principale = q_ok
     q_suit_variante = _suit(l.smic_quadra, l.smic_loi_variante, l, prm)
@@ -107,8 +107,8 @@ def _preclasser_avec_variante(l: LigneComparee, prm: Parametres, q_ok: bool, e_o
     if not quadra_suit_une:
         # Garde miroir de celle qui protège « erreur_eywai » ci-dessous : Quadra
         # est hors tolérance quelle que soit la lecture, ce n'est pas un point à
-        # trancher. Classement ordinaire, quoi que suive EYWAI ; la note dit
-        # seulement, pour mémoire, la lecture qu'EYWAI suit.
+        # trancher. Classement ordinaire, quoi que suive MARTINE ; la note dit
+        # seulement, pour mémoire, la lecture que Martine suit.
         if l.smic_eywai is not None and (e_suit_principale or e_suit_variante):
             l.note = (
                 f"point non tranché{point} : Quadra ne suit ni l'une ni l'autre lecture "
@@ -121,7 +121,7 @@ def _preclasser_avec_variante(l: LigneComparee, prm: Parametres, q_ok: bool, e_o
     if eywai_suit_aucune:
         l.note = (
             f"point non tranché{point} : Quadra suit une des deux lectures légales, "
-            "EYWAI ne suit ni l'une ni l'autre : reste une erreur EYWAI, pas un point à trancher."
+            "MARTINE ne suit ni l'une ni l'autre : reste une erreur MARTINE, pas un point à trancher."
         )
         return "erreur_eywai"
 
@@ -141,29 +141,29 @@ def _preclasser_avec_variante(l: LigneComparee, prm: Parametres, q_ok: bool, e_o
 def preclasser(l: LigneComparee, prm: Parametres) -> str:
     """Pré-classe une ligne salarié × mois. Valeurs renvoyées :
 
-    - « identique » : Quadra et, s'il est connu, EYWAI collent à la loi à moins
+    - « identique » : Quadra et, s'il est connu, MARTINE collent à la loi à moins
       d'un centime de SMIC (et d'impact nul en euros) ;
     - « arrondi » : les deux collent à la loi dans la tolérance (0,5 h de SMIC,
       1 € de réduction), mais pas à moins d'un centime ;
     - « a_juger_quadra » : Quadra s'écarte de la loi au-delà de la tolérance,
-      EYWAI (s'il est connu) la suit — y compris quand Quadra ne suit NI la
+      MARTINE (s'il est connu) la suit — y compris quand Quadra ne suit NI la
       lecture principale NI la variante du point non tranché n° 1 : trancher ce
       point ne le rapprocherait pas de la loi, ce n'est jamais un
       « point_non_tranche » (voir plus bas) ;
-    - « erreur_eywai » : Quadra suit la loi, EYWAI s'en écarte seul — y compris
+    - « erreur_eywai » : Quadra suit la loi, MARTINE s'en écarte seul — y compris
       quand Quadra ne suit que l'une des deux lectures du point non tranché n° 1
-      et qu'EYWAI ne suit ni l'une ni l'autre (voir plus bas) ;
-    - « a_juger_les_deux » : Quadra et EYWAI s'écartent tous deux de la loi ;
+      et que Martine ne suit ni l'une ni l'autre (voir plus bas) ;
+    - « a_juger_les_deux » : Quadra et MARTINE s'écartent tous deux de la loi ;
     - « donnee_manquante » : le SMIC légal ou celui de Quadra est inconnu ;
     - « point_non_tranche » : le point non tranché n° 1 (maintien subrogé) porte
       deux lectures légales distinctes (`smic_loi_variante` renseigné et
-      s'écartant de `smic_loi` au-delà de la tolérance), et Quadra ou EYWAI suit,
+      s'écartant de `smic_loi` au-delà de la tolérance), et Quadra ou MARTINE suit,
       dans la tolérance, l'une des deux lectures sans suivre l'autre. Le
       classement final (`methode_legale_differente` ou non) attend l'arbitrage
       d'Alexandre à la tâche 9. Deux gardes symétriques l'empêchent de masquer
       une vraie erreur : si Quadra ne suit aucune des deux lectures, la ligne
-      reste « a_juger_quadra » (ou « a_juger_les_deux ») quoi que fasse EYWAI ;
-      si EYWAI ne suit ni l'une ni l'autre lecture alors que Quadra en suit une,
+      reste « a_juger_quadra » (ou « a_juger_les_deux ») quoi que fasse MARTINE ;
+      si MARTINE ne suit ni l'une ni l'autre lecture alors que Quadra en suit une,
       la ligne reste « erreur_eywai ».
 
     `impact_quadra` et `impact_eywai` sont toujours calculés par rapport à

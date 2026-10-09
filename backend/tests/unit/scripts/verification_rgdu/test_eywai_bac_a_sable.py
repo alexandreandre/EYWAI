@@ -1,4 +1,4 @@
-"""Logique pure du calcul EYWAI en bac à sable (complément de la tâche 9, point 5).
+"""Logique pure du calcul MARTINE en bac à sable (complément de la tâche 9, point 5).
 
 Aucun appel au moteur ni à la base : on vérifie la jointure salarié ↔ clé Quadra, le plan
 des appels (janvier, mois d'embauche, cumuls reconstruits, données manquantes), la reprise

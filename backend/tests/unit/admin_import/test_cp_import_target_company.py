@@ -25,13 +25,13 @@ class TestApplyTargetCompanyScope:
     def test_fallback_when_siret_unresolved(self):
         company, warnings = _apply_target_company_scope(
             None,
-            ["Entreprise SIRET 95147478200020 introuvable dans EYWAI."],
+            ["Entreprise SIRET 95147478200020 introuvable dans MARTINE."],
             CARTOL,
             "95147478200020",
         )
         assert company is CARTOL
         assert any("rapprochement sur Cartol Industrie" in w for w in warnings)
-        assert not any("introuvable dans EYWAI" in w for w in warnings)
+        assert not any("introuvable dans MARTINE" in w for w in warnings)
 
     def test_keeps_match_when_same_company(self):
         company, warnings = _apply_target_company_scope(
@@ -138,7 +138,7 @@ class TestParseCpImportTargetCompany:
             return_value=CARTOL,
         ), patch(
             "app.modules.admin_import.application.cp_import.repo.resolve_company_from_payslip",
-            return_value=(None, ["Entreprise SIRET 95147478200020 introuvable dans EYWAI."]),
+            return_value=(None, ["Entreprise SIRET 95147478200020 introuvable dans MARTINE."]),
         ), patch(
             "app.modules.admin_import.application.cp_import.repo.list_employees_by_company_ids",
             return_value={"co-cartol": employees},
@@ -160,4 +160,4 @@ class TestParseCpImportTargetCompany:
         assert row["company_id"] == "co-cartol"
         assert row["employee_id"] == "e-alves"
         assert row["review_status"] == "ok"
-        assert not any("introuvable dans EYWAI" in w for w in row["warnings"])
+        assert not any("introuvable dans MARTINE" in w for w in row["warnings"])

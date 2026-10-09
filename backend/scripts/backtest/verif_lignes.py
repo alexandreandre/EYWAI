@@ -1,4 +1,4 @@
-"""Verification LIGNE PAR LIGNE : compare les rubriques generees par EYWAI aux
+"""Verification LIGNE PAR LIGNE : compare les rubriques generees par MARTINE aux
 lignes du bulletin reel, pour detecter des erreurs qui se compenseraient au
 niveau des 5 figures du tier-S. Usage: verif_lignes.py <year> <month> MAT..."""
 import sys
@@ -36,16 +36,16 @@ for m in matched:
     txt = m.reference.raw_text or ""
     print(f"\n========== {m.matricule} ==========")
     # BRUT : composantes
-    print("-- BRUT (EYWAI) --")
+    print("-- BRUT (MARTINE) --")
     for l in d.get("calcul_du_brut", []):
         g = l.get("gain") or 0
         if abs(g) > 0.001:
             print(f"   {l.get('libelle','')[:34]:34s} q={l.get('quantite')} t={l.get('taux')}  = {g}")
-    # COTISATIONS salariales : chaque montant EYWAI doit exister dans le bulletin
+    # COTISATIONS salariales : chaque montant MARTINE doit exister dans le bulletin
     # (recherche par VALEUR sur tout le texte -> detecte une ligne inventee ou
     # fausse qui se compenserait ailleurs).
     all_nums = {float(n.replace(" ", "")) for n in _NUM.findall(txt)}
-    print("-- COTISATIONS salariales : montant EYWAI présent au bulletin ? --")
+    print("-- COTISATIONS salariales : montant MARTINE présent au bulletin ? --")
     manquants = 0
     for grp in d.get("cotisations_officielles", []):
         for l in grp.get("lignes", []):

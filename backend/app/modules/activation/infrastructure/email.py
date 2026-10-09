@@ -1,7 +1,7 @@
 """
 E-mail d'invitation à l'activation du compte.
 
-Contenu sobre EYWAI, texte + HTML. Le lien pointe sur
+Contenu sobre MARTINE, texte + HTML. Le lien pointe sur
 {FRONTEND_URL}/activation?token=… — le jeton en clair ne vit que dans cet
 e-mail. Aucune mention d'aucun mécanisme technique interne.
 

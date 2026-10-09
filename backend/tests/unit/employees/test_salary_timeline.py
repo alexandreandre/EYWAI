@@ -187,7 +187,7 @@ class TestRappelSelonBulletinsPayes:
         assert r["periode_fin"] == "2026-05-31"
 
     def test_mois_sans_bulletin_n_est_pas_rappele(self):
-        # Payé hors EYWAI (cabinet) : rien ne prouve un rappel dû, il se
+        # Payé hors MARTINE (cabinet) : rien ne prouve un rappel dû, il se
         # saisit à la main s'il l'est.
         tl = [_entry("2026-03-01", 2000, 2200)]
         r = calculer_rappel_mois_anterieurs(tl, 2026, 6, bases_des_bulletins={(2026, 5): 2000})

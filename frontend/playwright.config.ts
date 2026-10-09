@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { BASE_URL, ETAT_AUTH, identifiantsPresents } from './e2e/helpers/env';
 
 /**
- * Config E2E EYWAI — cible par défaut : l'ENVIRONNEMENT DE TEST (Cloud Run).
+ * Config E2E MARTINE — cible par défaut : l'ENVIRONNEMENT DE TEST (Cloud Run).
  *
  * Identifiants et surcharges dans frontend/.env.e2e (gitignoré, voir
  * .env.e2e.example). La garde anti-prod (allowlist d'hôtes) vit dans

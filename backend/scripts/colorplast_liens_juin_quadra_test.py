@@ -106,7 +106,7 @@ def main() -> int:
         obtenu = (figures or {}).get("cumul_ni")
         ecart = None if obtenu is None else round(obtenu - attendu, 2)
         etat = "OK" if ecart is not None and abs(ecart) <= 0.05 else "ECART"
-        print(f"  {etat:5s} {nom:10s} EYWAI {obtenu} — Quadra {attendu} — écart {ecart}")
+        print(f"  {etat:5s} {nom:10s} MARTINE {obtenu} — Quadra {attendu} — écart {ecart}")
         if etat != "OK":
             rc = 1
     return rc

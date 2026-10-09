@@ -1,4 +1,4 @@
-"""Tests stats dashboard Administration EYWAI (support, badges)."""
+"""Tests stats dashboard Administration MARTINE (support, badges)."""
 
 from unittest.mock import MagicMock, patch
 

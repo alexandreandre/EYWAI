@@ -5,7 +5,7 @@ Single-source de l'écriture : réutilise persist_full_config / persist_cotisati
 (la logique de versioning immuable). Aucune réimplémentation du versioning ici.
 
 Usage : python apply_pending_change.py <pending_id>
-Le réviseur peut être transmis via EYWAI_REVIEWED_BY.
+Le réviseur peut être transmis via MARTINE_REVIEWED_BY.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ if str(_SCRAPING) not in sys.path:
     sys.path.insert(0, str(_SCRAPING))
 
 from core.env import ensure_scraping_path, load_env  # noqa: E402
+from core.env_produit import lire_env  # noqa: E402
 from core.supabase_io import (  # noqa: E402
     fetch_active_config,
     init_supabase_client,
@@ -119,7 +120,7 @@ def main() -> None:
         print("Usage: python apply_pending_change.py <pending_id>", file=sys.stderr)
         sys.exit(64)
     pending_id = sys.argv[1]
-    reviewed_by = os.environ.get("EYWAI_REVIEWED_BY") or None
+    reviewed_by = lire_env("MARTINE_REVIEWED_BY") or None
     sys.exit(apply_pending_change(pending_id, reviewed_by))
 
 

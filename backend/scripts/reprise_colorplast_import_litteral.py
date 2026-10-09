@@ -24,7 +24,7 @@ Usage :
     python -m scripts.reprise_colorplast_import_litteral --apply            # écrit
     python -m scripts.reprise_colorplast_import_litteral --mois 8 --apply   # un seul mois
 
-Août a d'abord été calculé par EYWAI (premier mois en parallèle), puis repris de
+Août a d'abord été calculé par MARTINE (premier mois en parallèle), puis repris de
 Quadra le 29/09/2026 comme les sept mois précédents : le bulletin calculé sert de
 base aux sections non reprises, comme le rejeu pour janvier à juillet.
 """

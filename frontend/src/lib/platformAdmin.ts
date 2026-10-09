@@ -1,5 +1,5 @@
 /**
- * Administrateurs plateforme EYWAI (accès Administration + RH complet).
+ * Administrateurs plateforme MARTINE (accès Administration + RH complet).
  */
 
 export type PlatformAdminUser = {

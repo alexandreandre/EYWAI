@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Source IA — catalogue des primes (Sonar confirme les règles de soumission).
 
-Sonar agit comme témoin : pour chaque prime du référentiel EYWAI, il confirme
+Sonar agit comme témoin : pour chaque prime du référentiel MARTINE, il confirme
 les booléens soumise_a_cotisations / soumise_a_impot selon la convention
 décrite (contexte injecté, pages URSSAF souvent anti-bot). En cas d'écart, le
 consensus échoue (cas C) et aucune écriture automatique n'a lieu.
@@ -145,7 +145,7 @@ def extract_catalogue(max_attempts: int = 3) -> dict | None:
             k for k in reference if k in sig and sig[k] != reference[k]
         )
         print(
-            f"[primes_AI] Écart vs référentiel EYWAI. "
+            f"[primes_AI] Écart vs référentiel MARTINE. "
             f"manquants={manquants} écarts={ecarts}",
             file=sys.stderr,
         )

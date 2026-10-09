@@ -1,6 +1,6 @@
 """Compare l'export provision CP au modèle Cegid transmis par Elsa.
 
-Lecture seule, aucune écriture. À relancer quand EYWAI aura douze mois d'historique
+Lecture seule, aucune écriture. À relancer quand MARTINE aura douze mois d'historique
 de paie (juin 2027) : c'est à ce moment-là seulement que l'égalité au centime a un sens.
 
 Usage :
@@ -79,7 +79,7 @@ def main() -> int:
 
     modele = lire_modele(args.modele)
     nos_lignes, avertissements = collecter_lignes(company_id, args.periode)
-    print(f"Modèle : {len(modele)} lignes | EYWAI : {len(nos_lignes)} lignes")
+    print(f"Modèle : {len(modele)} lignes | MARTINE : {len(nos_lignes)} lignes")
     for a in avertissements:
         print(f"  avertissement : {a}")
 
@@ -116,11 +116,11 @@ def main() -> int:
     total_modele = sum(m["total"] for m, _ in apparies)
     total_eywai = sum(n.total for _, n in apparies)
     print(
-        f"\nTotal modèle {total_modele:12.2f} EUR | total EYWAI {total_eywai:12.2f} EUR | "
+        f"\nTotal modèle {total_modele:12.2f} EUR | total MARTINE {total_eywai:12.2f} EUR | "
         f"écart {total_eywai - total_modele:+12.2f} EUR "
         f"({(total_eywai - total_modele) / total_modele * 100:+.1f} %)"
     )
-    print("\nRappel : l'écart sur le salaire de référence est attendu tant qu'EYWAI n'a")
+    print("\nRappel : l'écart sur le salaire de référence est attendu tant que Martine n'a")
     print("pas la paie 2025. Ne pas corriger le moteur sur cette base.")
     return 0
 

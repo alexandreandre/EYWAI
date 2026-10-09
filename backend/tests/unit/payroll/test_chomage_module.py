@@ -2,7 +2,7 @@
 
 Comitech relève du bonus-malus : la gestionnaire applique 2,95 % depuis le
 printemps 2026, à tous les salariés sauf l'apprenti, resté au taux de droit
-commun (bulletins Quadra d'août et de septembre 2026). EYWAI appliquait 4 %
+commun (bulletins Quadra d'août et de septembre 2026). MARTINE appliquait 4 %
 à tout le monde, faute de réglage.
 """
 

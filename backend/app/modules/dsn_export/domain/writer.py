@@ -234,8 +234,8 @@ def write_envoi(envoi: EnvoiBlock, out: List[str]) -> None:
     if envoi.rubriques:
         _emit_rubriques_dict(envoi.rubriques, out)
         return
-    _emit("S10.G00.00.001", "EYWAI Paie", out)
-    _emit("S10.G00.00.002", "EYWAI", out)
+    _emit("S10.G00.00.001", "Martine Paie", out)
+    _emit("S10.G00.00.002", "Martine", out)
     _emit("S10.G00.00.003", "1.0", out)
     _emit("S10.G00.00.004", "0", out)
     _emit(R_S10_PERIODE, envoi.periode or "01", out)

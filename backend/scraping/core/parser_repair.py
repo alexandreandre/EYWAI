@@ -21,10 +21,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional
 
 from bs4 import BeautifulSoup
+from core.env_produit import lire_env
 
 logger = logging.getLogger(__name__)
 
-ENV_REPAIR_DISABLED = "EYWAI_PARSER_REPAIR_DISABLED"
+ENV_REPAIR_DISABLED = "MARTINE_PARSER_REPAIR_DISABLED"
 DEFAULT_MAX_ATTEMPTS = 3
 # Tolérance par défaut sur la reproduction de la valeur validée (valeurs en €/taux).
 DEFAULT_ABS_TOL = 0.01
@@ -54,7 +55,7 @@ class RepairResult:
 
 
 def repair_disabled() -> bool:
-    return os.environ.get(ENV_REPAIR_DISABLED, "").strip() in ("1", "true", "yes")
+    return (lire_env(ENV_REPAIR_DISABLED, "") or "").strip() in ("1", "true", "yes")
 
 
 def _to_float(raw: str) -> Optional[float]:

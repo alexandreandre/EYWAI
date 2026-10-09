@@ -80,7 +80,7 @@ def generate_contract_docx(
     employee_data: Dict[str, Any],
     company_data: Dict[str, Any],
 ) -> bytes:
-    """Génère un .docx de contrat de travail avec le même contenu que le PDF EYWAI."""
+    """Génère un .docx de contrat de travail avec le même contenu que le PDF MARTINE."""
     doc = Document()
     doc.styles["Normal"].font.name = "Times New Roman"
     doc.styles["Normal"].font.size = Pt(11.5)

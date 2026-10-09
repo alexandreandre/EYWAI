@@ -23,7 +23,7 @@ import { SidebarAccountMenu } from "@/components/ui/sidebar-account-menu";
 import { ADMIN_NAV_SECTIONS, isAdminNavActive } from "@/pages/admin/eywai/navigation";
 import { useAdminSupportBadges } from "@/hooks/useAdminSupportBadges";
 
-export default function AdminEYWAILayout() {
+export default function AdminMartineLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { data: supportBadges } = useAdminSupportBadges();

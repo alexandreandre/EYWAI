@@ -156,7 +156,7 @@ def generate_avenant_docx(
     company_data: Dict[str, Any],
     context: Optional[Dict[str, Any]] = None,
 ) -> bytes:
-    """Génère un .docx d'avenant avec le même contenu que le PDF EYWAI."""
+    """Génère un .docx d'avenant avec le même contenu que le PDF MARTINE."""
     ctx = context or {}
     avenant_type = _ctx_str(ctx, "type_avenant") or "avenant_general"
     objet_label = AVENANT_TYPE_LABELS.get(avenant_type, AVENANT_TYPE_LABELS["avenant_general"])

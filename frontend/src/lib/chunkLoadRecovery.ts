@@ -1,4 +1,4 @@
-const CHUNK_RELOAD_KEY = 'eywai-chunk-reload';
+const CHUNK_RELOAD_KEY = 'martine-chunk-reload';
 
 function isChunkLoadError(message: string): boolean {
   return (

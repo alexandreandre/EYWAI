@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Préflight/apply contrôlé de la matrice d'accès EYWAI.
+"""Préflight/apply contrôlé de la matrice d'accès MARTINE.
 
 Par défaut : lecture seule, plan JSON.
 --apply exige project_ref exact + confirmation production.

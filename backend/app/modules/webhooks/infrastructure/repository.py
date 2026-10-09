@@ -157,7 +157,10 @@ class WebhookRepository:
                 body_bytes,
                 hashlib.sha256,
             ).hexdigest()
-            headers["X-EYWAI-Signature"] = f"sha256={sig}"
+            valeur_signature = f"sha256={sig}"
+            headers["X-Martine-Signature"] = valeur_signature
+            # Ancien nom, encore envoyé tant que les destinataires n'ont pas migré.
+            headers["X-EYWAI-Signature"] = valeur_signature
         t0 = time.perf_counter()
         status = 0
         text: Optional[str] = None

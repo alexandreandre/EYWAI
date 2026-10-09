@@ -33,7 +33,7 @@ export const NOM_DES_ONGLETS: Record<string, string> = {
 
 const ONGLET_VIDE = { collaborateur: 0, contrat: 0, remuneration: 0, avantages: 0, specifiques: 0 };
 
-const CLE_NOUVEAU = 'eywai-nouveau-salarie';
+const CLE_NOUVEAU = 'martine-nouveau-salarie';
 const DUREE_BADGE_MS = 24 * 60 * 60 * 1000;
 let memoireNouveau: { id: string; at: number } | null = null;
 

@@ -171,7 +171,7 @@ class TestCreateEmployeeExit:
         mock_initial_status,
         mock_get_employee,
     ):
-        """Salarié repris de l'ancien logiciel : pas de contrat EYWAI, le départ se crée."""
+        """Salarié repris de l'ancien logiciel : pas de contrat MARTINE, le départ se crée."""
         mock_get_employee.return_value = _make_employee()
         mock_initial_status.return_value = "demission_recue"
         mock_repo = MagicMock()

@@ -1,4 +1,4 @@
-"""Tests mapping cotisations EYWAI → codes DSN."""
+"""Tests mapping cotisations MARTINE → codes DSN."""
 
 from __future__ import annotations
 

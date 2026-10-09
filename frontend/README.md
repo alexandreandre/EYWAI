@@ -257,7 +257,7 @@ frontend/
 │   │
 │   ├── pages/                     # Pages (3 espaces : admin, rh, employee)
 │   │   ├── admin/
-│   │   │   ├── eywai/            # Admin plateforme EYWAI (layout, sociétés, support…)
+│   │   │   ├── eywai/            # Admin plateforme MARTINE (layout, sociétés, support…)
 │   │   │   └── super/            # Routes /super-admin/… (réexport layout/dashboard eywai)
 │   │   ├── rh/                   # Espace RH + modules transverses (auth, support, onboarding)
 │   │   │   ├── auth/             # Login, mot de passe oublié / reset

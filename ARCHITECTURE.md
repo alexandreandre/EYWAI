@@ -1,4 +1,4 @@
-# Architecture EYWAI
+# Architecture MARTINE
 
 Document de référence pour l’organisation du dépôt. Détails backend : [backend/app/README.md](backend/app/README.md).
 

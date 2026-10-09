@@ -157,7 +157,7 @@ def resolve_archive_path(exit_type: str, current_status: str) -> List[str]:
 def exit_block_reason(employee: Dict[str, Any]) -> Optional[str]:
     """Message d'erreur si le salarié ne peut pas faire l'objet d'un départ, sinon None.
 
-    L'absence de contrat généré par EYWAI n'est pas un motif de blocage : un salarié
+    L'absence de contrat généré par MARTINE n'est pas un motif de blocage : un salarié
     repris de l'ancien logiciel n'en a pas et doit pouvoir partir.
     """
     status = str(

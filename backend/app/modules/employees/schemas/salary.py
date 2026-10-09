@@ -156,7 +156,7 @@ class GenerationAvenantsLotRequest(BaseModel):
     employee_ids: List[str]
     effective_date: date
     motif: str | None = None
-    # template_id optionnel — si absent, template EYWAI par défaut
+    # template_id optionnel — si absent, template MARTINE par défaut
     template_id: str | None = None
     nouveau_salaire_par_employe: Dict[str, float] | None = None
 

@@ -1,4 +1,4 @@
-"""Écrit sur disque la DSN qu'EYWAI produit, pour la soumettre à DSN-VAL.
+"""Écrit sur disque la DSN que Martine produit, pour la soumettre à DSN-VAL.
 
 Le validateur officiel de net-entreprises attend un fichier ; ce script le
 fabrique à partir des mêmes jeux que les tests de conformité
@@ -63,7 +63,7 @@ def main() -> int:
         lignes = octets.decode("latin-1").count("\n")
         lignes_ref = copie.read_bytes().decode("latin-1").count("\n")
         print(f"{societe} {periode}")
-        print(f"  EYWAI    {cible.name:34} {len(octets):>8} o  {lignes:>6} lignes")
+        print(f"  MARTINE    {cible.name:34} {len(octets):>8} o  {lignes:>6} lignes")
         print(f"  cabinet  {copie.name:34} {copie.stat().st_size:>8} o  {lignes_ref:>6} lignes")
         if avertissements:
             print(f"  {len(avertissements)} avertissement(s) de construction :")

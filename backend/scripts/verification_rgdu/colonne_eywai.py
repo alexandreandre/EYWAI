@@ -1,4 +1,4 @@
-"""Ce que calcule EYWAI : heures et SMIC de référence du mois, ligne de réduction.
+"""Ce que calcule MARTINE : heures et SMIC de référence du mois, ligne de réduction.
 
 Deux sources :
 - `depuis_le_filet` : le filet de Colorplast (janvier à août), déjà calculé par le
@@ -8,7 +8,7 @@ Deux sources :
   (`scripts.verification_rgdu.piege.poser_le_piege`) est à poser par l'appelant,
   avant tout import de `app` — cette fonction ne le pose pas elle-même.
 
-Quand le bac à sable démarre au milieu de l'année (pas de filet EYWAI avant),
+Quand le bac à sable démarre au milieu de l'année (pas de filet MARTINE avant),
 `cumuls_quadra_avant` reconstruit les cumuls à injecter depuis les seules
 données Quadra (bulletins + DSN), pour un salarié.
 """
@@ -25,7 +25,7 @@ from scripts.verification_rgdu.quadra_mois import MoisQuadra
 
 @dataclass
 class MoisEywai:
-    """Un mois retenu par EYWAI pour un salarié : heures de référence pour le SMIC
+    """Un mois retenu par MARTINE pour un salarié : heures de référence pour le SMIC
     (`heures_reduction`), SMIC de référence qui en découle (`smic`, heures × 12,02),
     et la ligne de réduction générale imprimée par le moteur (`reduction_ligne`,
     `None` si absente du bulletin). `source` vaut « filet » ou « bac_a_sable »."""

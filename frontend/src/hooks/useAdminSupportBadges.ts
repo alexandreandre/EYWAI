@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAdminSupportBadges } from "@/api/adminEYWAI";
+import { getAdminSupportBadges } from "@/api/adminMartine";
 
 export function useAdminSupportBadges() {
   return useQuery({

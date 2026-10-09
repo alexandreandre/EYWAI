@@ -78,7 +78,7 @@ class SimpleEmployee(BaseModel):
     last_name: str
     email: Optional[str] = None
     job_title: Optional[str] = None
-    # Vrai si aucun contrat n'a été généré dans EYWAI (salarié repris d'un autre logiciel).
+    # Vrai si aucun contrat n'a été généré dans MARTINE (salarié repris d'un autre logiciel).
     contrat_absent: bool = False
 
 

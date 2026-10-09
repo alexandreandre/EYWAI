@@ -1,7 +1,7 @@
 """SMIC de référence de la réduction générale : les heures d'absence non
 rémunérée doivent en sortir.
 
-Le SMIC de référence est proportionnel aux heures rémunérées. EYWAI partait
+Le SMIC de référence est proportionnel aux heures rémunérées. MARTINE partait
 des heures contractuelles (151,67 + heures sup structurelles) augmentées des
 heures sup conjoncturelles, sans jamais retrancher les heures d'absence non
 rémunérée : le SMIC de référence était trop élevé, donc la réduction trop

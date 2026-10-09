@@ -163,7 +163,7 @@ def rapport(resultat: Dict[str, Dict[str, Observation]], fichiers: List[pathlib.
         out.append("")
 
         if rubrique == "S21.G00.81.001":
-            out.append("| Code | Libellé officiel | Émis par EYWAI | Occurrences | Sociétés | Taux observés (%) |")
+            out.append("| Code | Libellé officiel | Émis par MARTINE | Occurrences | Sociétés | Taux observés (%) |")
             out.append("|---|---|---|---:|---|---|")
             for code in sorted(obs_par_code):
                 o = obs_par_code[code]

@@ -1,13 +1,13 @@
-"""Colorplast, ligne à ligne : chaque ligne du bulletin Quadra contre la ligne EYWAI.
+"""Colorplast, ligne à ligne : chaque ligne du bulletin Quadra contre la ligne MARTINE.
 
 Pour un mois, lit le PDF du cabinet (`colorplast_lignes_quadra`), charge le
-bulletin EYWAI de la base visée (`payslips.payslip_data`, tel que le rejeu
+bulletin MARTINE de la base visée (`payslips.payslip_data`, tel que le rejeu
 l'a laissé), apparie les lignes une à une — brut, absences, congés,
 cotisations avec base, taux, part salariale et patronale, totaux, net,
 colonne de droite, compteurs — et imprime tout ce qui diffère, au centime.
 
 Ce qui n'a pas de vis-à-vis est listé des deux côtés : « Quadra seulement »,
-« EYWAI seulement ». Une différence de base ou de taux sans différence de
+« MARTINE seulement ». Une différence de base ou de taux sans différence de
 montant est une différence de présentation, comptée à part.
 
 Usage : python -m scripts.backtest.colorplast_lignes 2026 6 [--json sortie.json] [BUGNY ...]
@@ -30,7 +30,7 @@ COMPANY_ID = "dbe2b9f5-44dd-41bc-a625-36ed33d160f7"
 CENTIME = 0.005
 
 
-# ---------------------------------------------------------------- EYWAI, aplati
+# ---------------------------------------------------------------- MARTINE, aplati
 @dataclass
 class Entree:
     zone: str
@@ -156,8 +156,8 @@ class Regle:
     eywai: callable                        # (entrees libres, ligne) -> list[Entree]
     champs: list                           # [(champ_quadra, champ_eywai, nature)]
     grouper: bool = False                  # sommer les lignes Quadra consécutives de même libellé
-    taux_pct: bool = False                 # taux Quadra en %, EYWAI en fraction
-    somme_base: bool = False               # plusieurs lignes EYWAI : base = somme (sinon commune)
+    taux_pct: bool = False                 # taux Quadra en %, MARTINE en fraction
+    somme_base: bool = False               # plusieurs lignes MARTINE : base = somme (sinon commune)
 
 
 def _brut(lib_debut: str, zone: str = "brut"):
@@ -204,7 +204,7 @@ def _absence_datee(libres, lig):
 
 
 def _arret(libres, lig):
-    """Les jours d'arrêt EYWAI (7 h chacun) jusqu'à concurrence des heures de la ligne Quadra."""
+    """Les jours d'arrêt MARTINE (7 h chacun) jusqu'à concurrence des heures de la ligne Quadra."""
     cands = [x for x in libres if x.zone == "absence" and ("arrêt" in x.libelle.lower() or "accident" in x.libelle.lower())]
     if lig.base is None:
         return cands
@@ -328,7 +328,7 @@ REGLES: list[Regle] = [
     Regle("trop-perçu / saisie", lambda lig, p: "trop" in _lib(lig) or "saisie" in _lib(lig) or "sgc" in _lib(lig), _non_soumis(("trop", "saisie", "sgc", "acompte")), [("gain", "gain", M), ("montant_sal", "gain", M)]),
 ]
 
-DROITE_NET = [  # (clé Quadra, clé EYWAI, champ EYWAI, nature)
+DROITE_NET = [  # (clé Quadra, clé MARTINE, champ MARTINE, nature)
     ("smic", "smic", "gain", M), ("plafond", "plafond", "gain", M), ("heures_periode", "heures_periode", "base", P),
     ("cumul_heures", "cumul_heures", "base", P), ("cumul_hs", "cumul_hs", "base", P),
     ("cumul_bases", "cumul_bases", "gain", M), ("cumul_bruts", "cumul_bruts", "gain", M),
@@ -386,7 +386,7 @@ def comparer(b: Bulletin, entrees: list[Entree]) -> dict:
         }
         ey = {
             "base": _somme(cibles, "base") if regle.somme_base else _base_commune(cibles),
-            # plusieurs lignes EYWAI (une absence par jour) : le taux est commun, il ne s'additionne pas
+            # plusieurs lignes MARTINE (une absence par jour) : le taux est commun, il ne s'additionne pas
             "taux": _base_commune([type(c)(**{**c.__dict__, "base": c.taux}) for c in cibles]) if len(cibles) > 1 else _somme(cibles, "taux"),
             "gain": _somme(cibles, "gain"), "sal": _somme(cibles, "sal"), "pat": _somme(cibles, "pat"),
         }
@@ -475,7 +475,7 @@ def comparer_le_mois(annee: int, mois: int, eywai: dict, seuls: list[str] | None
             continue
         data = eywai.get((mat, mois))
         if data is None:
-            out[mat] = {"etat": "absent", "message": "pas de bulletin EYWAI"}
+            out[mat] = {"etat": "absent", "message": "pas de bulletin MARTINE"}
             continue
         entrees = aplatir(data, eywai.get((mat, mois - 1)))
         out[mat] = comparer(b, entrees)
@@ -489,15 +489,15 @@ def imprimer(mois: int, resultats: dict) -> None:
             continue
         print(f"\n=== {mat} {mois:02d} : {r['etat']} — {r['champs_identiques']} champs identiques, "
               f"{r['ecarts_montant']} écart(s) de montant, {r['ecarts_presentation']} de présentation, "
-              f"{len(r['quadra_seulement'])} ligne(s) Quadra seule(s), {len(r['eywai_seulement'])} EYWAI seule(s)")
+              f"{len(r['quadra_seulement'])} ligne(s) Quadra seule(s), {len(r['eywai_seulement'])} MARTINE seule(s)")
         for lig in r["lignes"]:
             for c in lig["champs"]:
                 if not c["ok"]:
-                    print(f"    {c['nature'][:4]}  {lig['quadra'][:38]:38s} ↔ {lig['eywai'][:38]:38s} {c['champ']:11s} Quadra {c['quadra']:>10.4g}  EYWAI {c['eywai']:>10.4g}  écart {c['ecart']:+.2f}")
+                    print(f"    {c['nature'][:4]}  {lig['quadra'][:38]:38s} ↔ {lig['eywai'][:38]:38s} {c['champ']:11s} Quadra {c['quadra']:>10.4g}  MARTINE {c['eywai']:>10.4g}  écart {c['ecart']:+.2f}")
         for q in r["quadra_seulement"]:
             print(f"    QUADRA SEUL  {q}")
         for e in r["eywai_seulement"]:
-            print(f"    EYWAI  SEUL  {e}")
+            print(f"    MARTINE  SEUL  {e}")
 
 
 if __name__ == "__main__":

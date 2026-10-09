@@ -269,7 +269,7 @@ class TestFichierSepa:
 
     def test_identifiants_distincts_de_la_campagne_salaires(self):
         root = ET.fromstring(self._sepa(self._rows()))
-        assert root.find(f".//{NS}GrpHdr/{NS}MsgId").text.startswith("EYWAI-ACO-")
+        assert root.find(f".//{NS}GrpHdr/{NS}MsgId").text.startswith("MARTINE-ACO-")
         assert root.find(f".//{NS}PmtInf/{NS}PmtInfId").text == "PMT-ACO-2026-07"
         ids = [e.text for e in root.iter(f"{NS}EndToEndId")]
         assert ids == ["ACO-2026-07-0001", "ACO-2026-07-0002"]
@@ -302,7 +302,7 @@ class TestNonRegressionSepaSalaires:
                           return_value=(rows, {}, [], [])):
             xml = export_sepa.generate_sepa_pain001("co-1", "2026-07")
         root = ET.fromstring(xml)
-        assert root.find(f".//{NS}GrpHdr/{NS}MsgId").text.startswith("EYWAI-2026-07-")
+        assert root.find(f".//{NS}GrpHdr/{NS}MsgId").text.startswith("MARTINE-2026-07-")
         assert root.find(f".//{NS}PmtInf/{NS}PmtInfId").text == "PMT-2026-07"
         assert root.find(f".//{NS}EndToEndId").text == "SAL-2026-07-0001"
         assert root.find(f".//{NS}Ustrd").text == "Salaires Juillet 2026"

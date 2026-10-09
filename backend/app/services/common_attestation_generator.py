@@ -1,5 +1,5 @@
 """
-Génération PDF ReportLab pour attestations courantes (modèle EYWAI sans template client).
+Génération PDF ReportLab pour attestations courantes (modèle MARTINE sans template client).
 """
 
 from __future__ import annotations

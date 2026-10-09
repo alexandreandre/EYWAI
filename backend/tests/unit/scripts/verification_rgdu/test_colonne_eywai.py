@@ -1,4 +1,4 @@
-"""Ce que calcule EYWAI : heures et SMIC de référence du mois, ligne de réduction."""
+"""Ce que calcule MARTINE : heures et SMIC de référence du mois, ligne de réduction."""
 import json
 from unittest.mock import patch
 

@@ -2,7 +2,7 @@
  * Mode paie — navigation réduite pendant la reprise client.
  *
  * Ne laisse accessible que la paie et ce dont la paie a besoin. S'applique à
- * tous les comptes client ; les administrateurs plateforme EYWAI conservent la
+ * tous les comptes client ; les administrateurs plateforme MARTINE conservent la
  * navigation complète.
  *
  * Spec : docs/superpowers/specs/2026-08-27-mode-paie-navigation-design.md

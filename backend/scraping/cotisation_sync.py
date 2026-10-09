@@ -1,5 +1,5 @@
 """
-Horodatage et persistance des cotisations selon la cible de sync (EYWAI_SYNC_COTISATION_IDS).
+Horodatage et persistance des cotisations selon la cible de sync (MARTINE_SYNC_COTISATION_IDS).
 
 Quand l'utilisateur met à jour une seule cotisation (ex. AGS), seule cette ligne reçoit
 un last_checked_at dans config_data — pas les autres groupes (Brut, CET, etc.).
@@ -14,8 +14,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from supabase import Client
+from core.env_produit import lire_env
 
-ENV_SYNC_COTISATION_IDS = "EYWAI_SYNC_COTISATION_IDS"
+ENV_SYNC_COTISATION_IDS = "MARTINE_SYNC_COTISATION_IDS"
 CONFIG_KEY_COTISATIONS = "cotisations"
 
 # Clé de sync UI (Rates) -> ids présents dans config_data.cotisations
@@ -35,7 +36,7 @@ def iso_now_utc() -> str:
 
 def parse_sync_cotisation_ids() -> Optional[Set[str]]:
     """None = sync large (toutes les lignes patchées sont horodatées)."""
-    raw = os.environ.get(ENV_SYNC_COTISATION_IDS, "").strip()
+    raw = (lire_env(ENV_SYNC_COTISATION_IDS, "") or "").strip()
     if not raw:
         return None
     ids = {part.strip() for part in raw.split(",") if part.strip()}

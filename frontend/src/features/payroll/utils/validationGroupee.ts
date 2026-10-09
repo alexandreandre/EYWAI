@@ -18,7 +18,7 @@ export type RefusNomme = { payslipId: string; nom: string; raison: string };
 
 export const NOM_BULLETIN_INCONNU = 'Bulletin inconnu';
 
-/** Généré, calculé par EYWAI, pas encore validé, et rien à revoir. */
+/** Généré, calculé par MARTINE, pas encore validé, et rien à revoir. */
 export function estPretAValider(ligne: LigneDuMois): boolean {
   const bulletin = ligne.bulletin;
   if (ligne.statut !== 'success' || !bulletin) return false;

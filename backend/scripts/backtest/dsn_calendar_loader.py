@@ -40,7 +40,7 @@ DSN_FILES = {
 
 REPO = Path(__file__).resolve().parents[3]
 
-# Motif arrêt DSN (60.001) -> (type EYWAI, libellé)
+# Motif arrêt DSN (60.001) -> (type MARTINE, libellé)
 ARRET_MOTIF = {
     "01": ("arret_maladie", "Arrêt maladie"),
     "02": ("arret_maternite", "Maternité"),

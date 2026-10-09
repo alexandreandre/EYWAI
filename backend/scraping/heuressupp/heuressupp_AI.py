@@ -116,7 +116,7 @@ def extract_core(max_attempts: int = 3) -> dict | None:
         if _core_equal(core, reference):
             return core
         print(
-            "[heuressupp_AI] Écart vs référentiel légal EYWAI.",
+            "[heuressupp_AI] Écart vs référentiel légal MARTINE.",
             file=sys.stderr,
         )
     return None

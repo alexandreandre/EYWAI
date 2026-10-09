@@ -53,7 +53,7 @@ def calculer_indemnite_conges(
     # PRORATÉE pour un temps partiel — sinon l'indemnité de CP d'un salarié à
     # temps partiel est calculée sur une journée légale (7 h) au lieu de sa
     # journée contractuelle réelle, la sur-évaluant fortement (cf. Cegid MBC
-    # mai 2026 salarié 190, temps partiel 20,08 h/sem ≈ 4 h/j : indemnité EYWAI sur 7
+    # mai 2026 salarié 190, temps partiel 20,08 h/sem ≈ 4 h/j : indemnité MARTINE sur 7
     # h/j au lieu de ~4,02 h/j, écart net +197,31 € alors que Cegid neutralise
     # exactement la retenue par l'indemnité). Même pattern que le repli
     # journalier d'absence (`_heures_journalieres_contrat`, `min(contrat,35)/5`).

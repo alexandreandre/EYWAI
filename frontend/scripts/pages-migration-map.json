@@ -99,7 +99,7 @@
     "@/pages/admin/eywai/companies/CreateCompanyDialog": 1,
     "@/pages/admin/eywai/companies/DeleteCompanyAlert": 1,
     "@/pages/admin/eywai/companies/CompaniesTable": 1,
-    "@/pages/admin/eywai/AdminEYWAILayout": 1,
+    "@/pages/admin/eywai/AdminMartineLayout": 1,
     "@/pages/employee/formation/EmployeeFormationTabs": 1,
     "@/pages/employee/formation/FormationCertificationsPanel": 1,
     "@/pages/employee/formation/FormationCompetenciesPanel": 1,

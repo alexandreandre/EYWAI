@@ -130,7 +130,7 @@ def legal_context_text() -> str:
     """Règles de soumission injectées comme contexte pour la validation Sonar.
 
     Les pages URSSAF étant souvent anti-bot, on fournit le référentiel attendu
-    (convention EYWAI) que Sonar doit confirmer prime par prime.
+    (convention MARTINE) que Sonar doit confirmer prime par prime.
     """
     lignes = []
     for prime in CATALOGUE["primes"]:

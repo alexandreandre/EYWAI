@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
-import { getPlatformAuditLogs, type PlatformAuditLogEntry } from "@/api/adminEYWAI";
+import { getPlatformAuditLogs, type PlatformAuditLogEntry } from "@/api/adminMartine";
 import { getActionLabel } from "@/lib/auditLabels";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Card, CardContent } from "@/components/ui/card";

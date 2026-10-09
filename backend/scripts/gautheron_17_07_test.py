@@ -87,7 +87,7 @@ def main() -> int:
     brut = float(data.get("salaire_brut") or 0)
     for ligne in data.get("details_absences") or []:
         print(f"  {str(ligne.get('libelle'))[:58]:58s} q={ligne.get('quantite')} -{ligne.get('perte')}")
-    print(f"brut EYWAI {brut:.2f} — Quadra {QUADRA_BRUT:.2f} — écart {brut - QUADRA_BRUT:+.2f}")
+    print(f"brut MARTINE {brut:.2f} — Quadra {QUADRA_BRUT:.2f} — écart {brut - QUADRA_BRUT:+.2f}")
     if abs(brut - QUADRA_BRUT) > 0.01:
         print("::error::Marion ne converge pas")
         return 1

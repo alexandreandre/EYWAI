@@ -1,4 +1,4 @@
-"""Dump des rubriques EYWAI d'un salarié MBC mai 2026 (depuis payslips.payslip_data).
+"""Dump des rubriques MARTINE d'un salarié MBC mai 2026 (depuis payslips.payslip_data).
 
 Usage (depuis backend/):
     .venv/bin/python -m scripts.backtest.mbc_dump MATRICULE [MATRICULE ...]

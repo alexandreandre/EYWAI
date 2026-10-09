@@ -29,7 +29,7 @@ def main() -> None:
     if args.dry_run:
         import os
 
-        os.environ["EYWAI_SCRAPING_DRY_RUN"] = "1"
+        os.environ["MARTINE_SCRAPING_DRY_RUN"] = "1"
 
     load_env()
     dry = is_dry_run()

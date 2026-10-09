@@ -1,4 +1,4 @@
-"""Extraction des soldes CP depuis bulletins de paie PDF (Cegid clarifié, EYWAI)."""
+"""Extraction des soldes CP depuis bulletins de paie PDF (Cegid clarifié, MARTINE)."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ _FRENCH_MONTHS = {
 }
 
 _CEGID_BULLETIN = re.compile(r"BULLETIN DE SALAIRE", re.IGNORECASE)
-_EYWAI_SOLDE = re.compile(r"Solde de cong[eé]s au", re.IGNORECASE)
+_MARTINE_SOLDE = re.compile(r"Solde de cong[eé]s au", re.IGNORECASE)
 _CIVILITY_NAME_RE = re.compile(
     r"(?:Mr|M\.|Mme|MME|Me)\s+([^\n]{2,80})",
     re.IGNORECASE,
@@ -345,7 +345,7 @@ def parse_payslip_page_text(page_text: str) -> ParsedPayslipPage:
         r"CP\s+N-1", page_text, re.IGNORECASE
     ):
         return _parse_cegid_clarifie(page_text)
-    if _EYWAI_SOLDE.search(page_text):
+    if _MARTINE_SOLDE.search(page_text):
         return _parse_eywai_native(page_text)
     return ParsedPayslipPage(
         source_file="",
@@ -464,7 +464,7 @@ def parse_pdf_file(
     for idx, page_text in enumerate(pages):
         if not page_text.strip():
             continue
-        if not (_CEGID_BULLETIN.search(page_text) or _EYWAI_SOLDE.search(page_text)):
+        if not (_CEGID_BULLETIN.search(page_text) or _MARTINE_SOLDE.search(page_text)):
             continue
         parsed = parse_payslip_page_text(page_text)
         parsed.source_file = filename

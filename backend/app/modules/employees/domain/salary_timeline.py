@@ -154,7 +154,7 @@ def calculer_rappel_mois_anterieurs(
     `bases_des_bulletins` : salaire de base mensuel sur lequel chaque bulletin
     antérieur a été établi, par (année, mois). Quand il est fourni, seul un
     mois réellement payé en deçà du nouveau salaire est rappelé, à hauteur de
-    ce qui manque ; un mois sans bulletin n'est pas rappelé (payé hors EYWAI,
+    ce qui manque ; un mois sans bulletin n'est pas rappelé (payé hors MARTINE,
     rien ne prouve un dû — il se saisit à la main). Sans lui, tous les mois
     depuis la prise d'effet sont rappelés : c'est ce qui faisait rappeler
     16,69 € à salarié 086 chaque mois pour un juin déjà payé au SMIC revalorisé.

@@ -2,7 +2,7 @@
 """Harnais de comparaison Colorplast (backtest jan-juin 2026).
 
 Pour un mois donne : matche les employes aux bulletins de reference (PDF du
-dossier Bulletins/), (re)genere les bulletins EYWAI, compare les figures cles
+dossier Bulletins/), (re)genere les bulletins MARTINE, compare les figures cles
 tier S salarie par salarie et affiche un tableau lisible.
 
 Usage:

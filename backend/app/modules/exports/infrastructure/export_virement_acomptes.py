@@ -624,7 +624,7 @@ def generate_virement_acomptes_sepa(
         period=period,
         label=payment_label or f"Acompte {format_period(period)}",
         execution_date=execution_date,
-        msg_prefix="EYWAI-ACO",
+        msg_prefix="MARTINE-ACO",
         payment_info_id=f"PMT-ACO-{period}",
         end_to_end_prefix="ACO",
         debtor_name=debtor_name,

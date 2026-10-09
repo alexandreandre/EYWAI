@@ -12,7 +12,7 @@ DOCKER_BIN := $(shell command -v docker 2>/dev/null || test ! -x "$$HOME/.orbsta
 .PHONY: help
 help:
 	@printf "%s\n" \
-		"EYWAI dev commands:" \
+		"MARTINE dev commands:" \
 		"  make check-local-tools                 Verifie Supabase CLI, Docker et psql" \
 		"  make env-local-copy                    Copie les templates local si les .env actifs n'existent pas" \
 		"  make env-local-activate                Genere les .env locaux depuis Supabase local avec backup" \
@@ -68,7 +68,7 @@ env-local-activate:
 		"LOG_LEVEL=INFO" \
 		"NET_ENTREPRISES_ENABLED=false" \
 		"ACCOUNTING_API_ENABLED=false" \
-		"EYWAI_REPAIR_AGENT_ENABLED=0" > backend/.env; \
+		"MARTINE_REPAIR_AGENT_ENABLED=0" > backend/.env; \
 	printf "%s\n" \
 		"VITE_API_URL=http://localhost:8000" \
 		"VITE_SUPABASE_URL=$$api_url" \

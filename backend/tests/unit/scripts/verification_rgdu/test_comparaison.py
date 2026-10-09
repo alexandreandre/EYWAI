@@ -1,4 +1,4 @@
-"""Salarié × mois : SMIC de référence selon Quadra, la loi et EYWAI ; impact et pré-classement."""
+"""Salarié × mois : SMIC de référence selon Quadra, la loi et MARTINE ; impact et pré-classement."""
 import pytest
 
 from scripts.verification_rgdu.comparaison import LigneComparee, impact_en_euros, preclasser
@@ -43,7 +43,7 @@ def _lv(q, loi, e, loi_variante, variante="point_1_subrogation"):
 
 
 def test_quadra_suit_la_variante_et_eywai_la_lecture_principale():
-    """Quadra colle à la seconde lecture légale (smic_entier), EYWAI colle à la
+    """Quadra colle à la seconde lecture légale (smic_entier), MARTINE colle à la
     lecture principale (rapport_salaires) : ni l'accord ni le désaccord entre
     Quadra et la loi principale seule ne suffit à juger — la ligne attend
     l'arbitrage d'Alexandre sur le point non tranché, pas un classement muet."""
@@ -64,7 +64,7 @@ def test_les_deux_lectures_egales_se_traitent_comme_le_brief():
 
 
 def test_eywai_ne_suit_aucune_lecture_reste_erreur_eywai():
-    """Quadra suit l'une des deux lectures légales (ici la variante), mais EYWAI ne
+    """Quadra suit l'une des deux lectures légales (ici la variante), mais MARTINE ne
     suit ni l'une ni l'autre : « point_non_tranche » ne doit jamais remplacer
     silencieusement « erreur_eywai » dans ce cas."""
     l = _lv(2283.0, 2000.0, 1700.0, 2283.0)
@@ -75,7 +75,7 @@ def test_quadra_ne_suit_aucune_lecture_reste_classement_ordinaire():
     """Miroir de la garde ci-dessus : Quadra est hors tolérance quelle que soit la
     lecture retenue (ni la principale, ni la variante). Trancher le point légal ne
     le rapprocherait pas de la loi : la ligne ne doit jamais devenir
-    « point_non_tranche » dans ce cas, même si EYWAI suit l'une des deux lectures —
+    « point_non_tranche » dans ce cas, même si MARTINE suit l'une des deux lectures —
     elle retombe sur le classement ordinaire contre smic_loi, identique à ce que
     donnerait l'absence de variante."""
     l = _lv(2150.0, 2000.0, 2000.0, 2283.0)

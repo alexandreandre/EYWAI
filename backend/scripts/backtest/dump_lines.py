@@ -1,4 +1,4 @@
-"""Génère UN bulletin EYWAI (PDF/stockage stubés) et affiche ses lignes, pour
+"""Génère UN bulletin MARTINE (PDF/stockage stubés) et affiche ses lignes, pour
 le comparer à la main au bulletin réel. Générique : société en argument.
 
 Usage: dump_lines.py <Company> <year> <month> MAT [MAT...]
@@ -72,7 +72,7 @@ for m in matched:
     try:
         data = _generate_payslip(m, year, month)
     except Exception as exc:  # noqa: BLE001
-        print(f"\n===== EYWAI {m.matricule} : ERREUR {exc!r}")
+        print(f"\n===== MARTINE {m.matricule} : ERREUR {exc!r}")
         continue
     # Le générateur renvoie une enveloppe {status, message, payslip_id, warnings} ;
     # le bulletin lui-même est relu en base.
@@ -86,10 +86,10 @@ for m in matched:
             print(f"      generated_at={row.get('generated_at')}")
             data = row.get("payslip_data") or {}
     if not isinstance(data, dict) or "salaire_brut" not in data:
-        print(f"\n===== EYWAI {m.matricule} : structure inattendue, clés={list(data)[:12] if isinstance(data, dict) else type(data)}")
+        print(f"\n===== MARTINE {m.matricule} : structure inattendue, clés={list(data)[:12] if isinstance(data, dict) else type(data)}")
         continue
     syn = data.get("synthese_net") or {}
-    print(f"\n===== EYWAI {m.matricule} {month:02d}/{year} brut={data.get('salaire_brut')} "
+    print(f"\n===== MARTINE {m.matricule} {month:02d}/{year} brut={data.get('salaire_brut')} "
           f"NI={syn.get('net_imposable')} MNS={syn.get('montant_net_social')} "
           f"NAP={data.get('net_a_payer')} PAS={(syn.get('impot_prelevement_a_la_source') or {}).get('montant')}")
     ref = m.reference

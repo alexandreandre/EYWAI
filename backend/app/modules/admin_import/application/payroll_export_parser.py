@@ -1,4 +1,4 @@
-"""Parse lignes export paie Quadra → champs EYWAI."""
+"""Parse lignes export paie Quadra → champs MARTINE."""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def resolve_prior_service_months(
     """Convertit la colonne « Nb jour anc. » en reprise d'ancienneté (mois).
 
     La colonne de l'export porte l'ancienneté **totale** à la date d'extraction du
-    fichier, alors qu'EYWAI stocke dans `prior_service_months` les seuls mois de
+    fichier, alors que Martine stocke dans `prior_service_months` les seuls mois de
     carrière **antérieurs à l'embauche** (le moteur les retranche de `hire_date`).
     Reprendre la colonne telle quelle comptait donc deux fois l'ancienneté acquise
     dans l'entreprise. On retranche ce qui s'est écoulé depuis l'embauche ; la date

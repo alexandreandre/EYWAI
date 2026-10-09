@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { LifeBuoy, Clock, CheckCircle2, AlertCircle } from "lucide-react";
-import { getAdminGlobalStats } from "@/api/adminEYWAI";
+import { getAdminGlobalStats } from "@/api/adminMartine";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { AdminStatCard } from "@/features/admin/components/eywai/AdminStatCard";
 import { Skeleton } from "@/components/ui/skeleton";

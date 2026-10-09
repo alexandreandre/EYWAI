@@ -1,5 +1,5 @@
 """
-Helpers pour les administrateurs plateforme EYWAI (ex-super admins).
+Helpers pour les administrateurs plateforme MARTINE (ex-super admins).
 
 Un admin plateforme a accès à l'interface Administration et à l'interface RH
 avec tous les droits sur toutes les entreprises.

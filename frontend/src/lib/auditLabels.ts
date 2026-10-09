@@ -1,4 +1,4 @@
-/** Libellés FR des actions journalisées (partagé Analytics + Administration EYWAI). */
+/** Libellés FR des actions journalisées (partagé Analytics + Administration MARTINE). */
 export const ACTIONS_LABELS: Record<string, string> = {
   "employee.create": "Création salarié",
   "employee.update": "Modification salarié",

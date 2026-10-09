@@ -1,4 +1,4 @@
-"""Consensus scraper/Sonar limité aux cotisations ciblées (EYWAI_SYNC_COTISATION_IDS)."""
+"""Consensus scraper/Sonar limité aux cotisations ciblées (MARTINE_SYNC_COTISATION_IDS)."""
 
 from __future__ import annotations
 

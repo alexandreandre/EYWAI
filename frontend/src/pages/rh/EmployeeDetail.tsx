@@ -210,7 +210,7 @@ export default function EmployeeDetail() {
   const [contractualOpen, setContractualOpen] = useState(false);
   const [contractualDiffs, setContractualDiffs] = useState<ContractualFieldDiff[]>([]);
   const [contractualAvenantType, setContractualAvenantType] = useState("avenant_general");
-  const [contractualTemplate, setContractualTemplate] = useState("__eywai__");
+  const [contractualTemplate, setContractualTemplate] = useState("__martine__");
   const [contractualDateEffet, setContractualDateEffet] = useState("");
   const [contractualMotifExtra, setContractualMotifExtra] = useState("");
 
@@ -248,7 +248,7 @@ export default function EmployeeDetail() {
     if (diffs.length === 0) return;
     setContractualDiffs(diffs);
     setContractualAvenantType(resolveAvenantTypeFromDiffs(diffs));
-    setContractualTemplate("__eywai__");
+    setContractualTemplate("__martine__");
     setContractualDateEffet("");
     setContractualMotifExtra("");
     setContractualOpen(true);

@@ -83,7 +83,7 @@ def test_absent_from_dsn_is_departure():
 
 
 def test_exit_before_period_but_present_is_post_exit_payment():
-    # Sortie EYWAI déjà enregistrée avant la période, mais réapparaît dans la DSN
+    # Sortie MARTINE déjà enregistrée avant la période, mais réapparaît dans la DSN
     # (participation / solde) → versement post-départ, pas une paie récurrente.
     res = classify_dsn_situation(
         _signals(exit_last_working_day=date(2026, 1, 31), period_brut=0.0, period_net=2974.29)

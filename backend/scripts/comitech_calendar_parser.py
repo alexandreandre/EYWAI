@@ -1,4 +1,4 @@
-"""Parse le calendrier Excel Quadra Comitech Composite → calendrier_prevu EYWAI."""
+"""Parse le calendrier Excel Quadra Comitech Composite → calendrier_prevu MARTINE."""
 
 from __future__ import annotations
 

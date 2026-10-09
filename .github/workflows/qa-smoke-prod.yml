@@ -1,4 +1,4 @@
-# Smoke production — vérifie toutes les heures que l'EYWAI de production
+# Smoke production — vérifie toutes les heures que Martine de production
 # répond, SANS s'y connecter et sans rien y écrire (deux GET anonymes).
 # Un échec = run rouge → notification GitHub au propriétaire du dépôt.
 # C'est le « Checkly maison » : suffisant tant qu'on n'a pas besoin de

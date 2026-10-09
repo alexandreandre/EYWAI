@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare une DSN EYWAI générée à une DSN Cegid de référence (lecture seule).
+"""Compare une DSN MARTINE générée à une DSN Cegid de référence (lecture seule).
 
 Exemples :
   python -m scripts.compare_config_dsn \\
@@ -70,9 +70,9 @@ def _resolve_reference(company: str | None, period: str | None, reference: str |
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Comparaison DSN EYWAI vs Cegid (read-only)")
+    parser = argparse.ArgumentParser(description="Comparaison DSN MARTINE vs Cegid (read-only)")
     parser.add_argument("--reference", help="Chemin fichier DSN Cegid de référence")
-    parser.add_argument("--actual", required=True, help="Chemin fichier DSN EYWAI générée")
+    parser.add_argument("--actual", required=True, help="Chemin fichier DSN MARTINE générée")
     parser.add_argument("--company", help="Nom société (dossier Config)")
     parser.add_argument("--period", help="Période YYYY-MM")
     parser.add_argument("--json-out", help="Chemin rapport JSON")

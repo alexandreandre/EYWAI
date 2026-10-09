@@ -1,6 +1,6 @@
-# EYWAI
+# MARTINE
 
-EYWAI est un SIRH avec un moteur de paie français : salariés, contrats,
+MARTINE est un SIRH avec un moteur de paie français : salariés, contrats,
 absences, plannings et pointages, bulletins de paie, DSN, pour plusieurs
 sociétés à la fois.
 

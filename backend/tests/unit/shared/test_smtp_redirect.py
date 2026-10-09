@@ -18,7 +18,7 @@ def config_smtp():
         smtp_password="p",
         smtp_security="starttls",
         from_email="no-reply@eywai.fr",
-        from_name="EYWAI",
+        from_name="MARTINE",
         reply_to=None,
         support_recipients=("contact@eywai.fr",),
         frontend_url="https://app.eywai.fr",

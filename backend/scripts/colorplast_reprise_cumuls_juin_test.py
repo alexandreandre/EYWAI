@@ -109,7 +109,7 @@ def main() -> int:
     chaine.MOIS = range(7, 8)
     chaine.main()
 
-    print("\n=== Juillet : EYWAI contre Quadra (écart = EYWAI − Quadra) ===")
+    print("\n=== Juillet : MARTINE contre Quadra (écart = MARTINE − Quadra) ===")
     print(f"  {'':10s} {'net imposable':>16s} {'PAS':>10s} {'heures':>10s} {'h. sup':>10s} {'bruts':>12s}")
     for nom, attendus in JUILLET_QUADRA.items():
         emp = emps.get(nom)

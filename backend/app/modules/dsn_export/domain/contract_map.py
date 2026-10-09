@@ -1,4 +1,4 @@
-"""Mapping contrat / identité EYWAI → codes DSN P26."""
+"""Mapping contrat / identité MARTINE → codes DSN P26."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from typing import Any, Dict, Optional
 from app.modules.dsn_import.domain.rubriques import CONTRACT_NATURE_MAP, STATUT_CADRE_CODES
 
 # Inverse nature contrat
-_NATURE_FROM_EYWAI: Dict[str, str] = {}
+_NATURE_FROM_MARTINE: Dict[str, str] = {}
 for code, label in CONTRACT_NATURE_MAP.items():
-    _NATURE_FROM_EYWAI.setdefault(label.lower(), code)
+    _NATURE_FROM_MARTINE.setdefault(label.lower(), code)
 # L'apprentissage et la professionnalisation restent des CDD (nature 02) : ce
 # qui les distingue est porté par le dispositif de politique publique
 # (S21.G00.40.008 = 65), pas par la nature du contrat. C'est ainsi que les
 # déclare le cabinet dans les fichiers acceptés.
-_NATURE_FROM_EYWAI.update(
+_NATURE_FROM_MARTINE.update(
     {
         "cdi": "01",
         "cdd": "02",
@@ -80,7 +80,7 @@ def map_contract_nature_to_dsn(contract_type: Optional[str]) -> str:
     key = str(contract_type).strip().lower()
     if key.isdigit():
         return key.zfill(2)
-    return _NATURE_FROM_EYWAI.get(key, "01")
+    return _NATURE_FROM_MARTINE.get(key, "01")
 
 
 def map_statut_to_dsn(statut: Optional[str], *, is_cadre: Optional[bool] = None) -> str:

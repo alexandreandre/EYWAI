@@ -58,7 +58,7 @@ def list_exit_eligible_employees(
 ) -> List[Dict[str, Any]]:
     """Salariés actifs éligibles à un nouveau départ.
 
-    ``contrat_absent`` signale un salarié sans contrat généré par EYWAI (repris de
+    ``contrat_absent`` signale un salarié sans contrat généré par MARTINE (repris de
     l'ancien logiciel) : information seulement, le départ reste possible.
     """
     _ = supabase_client  # réservé pour tests / injection future

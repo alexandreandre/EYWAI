@@ -1,4 +1,4 @@
-"""Traduction des cotisations du bulletin EYWAI en blocs DSN 78 / 81.
+"""Traduction des cotisations du bulletin MARTINE en blocs DSN 78 / 81.
 
 Un bulletin de paie et une DSN ne découpent pas les cotisations de la même
 façon. Le bulletin porte une ligne par rubrique, avec sa part salariale et sa

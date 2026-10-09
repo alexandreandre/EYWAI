@@ -2,7 +2,7 @@
 """Backtest paie — participation Colorplast 2025 sur le bulletin de mai 2026 (M. BUGNY).
 
 Ce script *réutilisable* injecte les trois opérations ponctuelles présentes sur le
-bulletin Cegid de référence, puis régénère le bulletin EYWAI pour vérifier qu'il
+bulletin Cegid de référence, puis régénère le bulletin MARTINE pour vérifier qu'il
 coïncide :
 
   1. Participation 2025 — numéraire (BRUT) : le moteur applique le régime participation

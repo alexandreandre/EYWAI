@@ -86,7 +86,7 @@ test('le parcours d’une gestionnaire de paie', async ({ page }) => {
   await commeUneGestionnaireDePaie(page);
   // Chaque chargement repart sans le cache de requêtes que l'application garde
   // 24 h dans le navigateur : les réponses simulées sont bien celles affichées.
-  await page.addInitScript(() => localStorage.removeItem('eywai-rq-cache-v2'));
+  await page.addInitScript(() => localStorage.removeItem('martine-rq-cache-v2'));
   await seConnecter(page);
   await page.route('**/api/client-errors', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();

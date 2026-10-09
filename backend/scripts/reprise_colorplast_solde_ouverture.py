@@ -14,7 +14,7 @@ absorbe les absences validées jusqu'à cette date : ranger des doublons d'avant
 la bascule se fait donc avant ce script, jamais après.
 
 Bascule au 31/07 le 21/09/2026, puis au 31/08 le 29/09/2026 : août est payé par
-Quadra comme les mois précédents, septembre est le premier mois EYWAI.
+Quadra comme les mois précédents, septembre est le premier mois MARTINE.
 
 Usage :
     python -m scripts.reprise_colorplast_solde_ouverture            # simulation
@@ -261,7 +261,7 @@ def main(appliquer: bool) -> int:
     ligne = {"company_id": COMPANY_ID, "cutoff_year": BASCULE[0], "cutoff_month": BASCULE[1],
              "source": "bulletins", "previous_software": "Quadra",
              "note": f"Reprise Colorplast : Gaëlle a payé janvier à {BASCULE[1]:02d}/{BASCULE[0]} dans "
-                     f"Quadra. Bulletins et compteurs repris littéralement des PDF ; la paie EYWAI "
+                     f"Quadra. Bulletins et compteurs repris littéralement des PDF ; la paie MARTINE "
                      f"commence le mois suivant (bascule posée le {date.today():%d/%m/%Y})."}
     if admin.table("company_payroll_takeover").select("id").eq("company_id", COMPANY_ID).execute().data:
         admin.table("company_payroll_takeover").update(ligne).eq("company_id", COMPANY_ID).execute()

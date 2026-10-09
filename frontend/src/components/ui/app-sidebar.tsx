@@ -102,7 +102,7 @@ type SidebarLinkGroup = {
 
 /** Hiérarchie typo sidebar RH — alignée sur les primitives `sidebar.tsx`. */
 const SIDEBAR_NAV = {
-  /** L0 — libellé de groupe (ex. EYWAI Home). */
+  /** L0 — libellé de groupe (ex. MARTINE Home). */
   groupLabel: "text-xs font-medium text-sidebar-foreground/70",
   /** L1 — lien principal ou titre de section repliable. */
   sectionTitle: "text-sm font-medium leading-none",

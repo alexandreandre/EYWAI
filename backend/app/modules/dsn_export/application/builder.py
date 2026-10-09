@@ -709,8 +709,8 @@ def build_envoi(
         mode = "02"
     parametres = settings or DsnSettings()
     rubriques = {
-        "S10.G00.00.001": "EYWAI Paie",
-        "S10.G00.00.002": "EYWAI",
+        "S10.G00.00.001": "Martine Paie",
+        "S10.G00.00.002": "Martine",
         "S10.G00.00.003": VERSION_LOGICIEL,
         "S10.G00.00.004": "0",
         # Aligné sur les fichiers acceptés par net-entreprises.

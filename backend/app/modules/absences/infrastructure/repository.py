@@ -138,7 +138,7 @@ class SupabaseAbsenceRepository(IAbsenceRepository):
         SELECT absence_requests WHERE company_id
         AND workflow_step = 'pending_manager'
         AND status = 'pending'
-        Pattern liste EYWAI (join employé).
+        Pattern liste MARTINE (join employé).
         """
         result = (
             supabase.table("absence_requests")

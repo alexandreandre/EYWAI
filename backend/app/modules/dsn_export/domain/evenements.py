@@ -42,7 +42,7 @@ MOTIFS_ACCIDENT = {"04", "05", "06"}
 MOTIF_CONGE_NON_REMUNERE = "501"
 MOTIF_EVENEMENT_FAMILIAL = "637"
 
-#: Type de sortie EYWAI → motif de rupture (S21.G00.62.002).
+#: Type de sortie MARTINE → motif de rupture (S21.G00.62.002).
 MOTIF_RUPTURE = {
     "fin_cdd": "031",
     "demission": "059",
@@ -206,7 +206,7 @@ def blocs_arret(
 # --------------------------------------------------------------------------
 
 #: Bulletin calculé : « Absence injustifiée du 14/09/26 (base) ».
-_LIGNE_EYWAI = re.compile(
+_LIGNE_MARTINE = re.compile(
     r"absence (injustifiée|injustifiee|non rémunérée|non remuneree|événement familial|evenement familial)"
     r" du (\d{2}/\d{2}/\d{2,4})(?: au (\d{2}/\d{2}/\d{2,4}))?",
     re.IGNORECASE,
@@ -263,7 +263,7 @@ def suspensions_du_bulletin(payslip_data: Dict[str, Any]) -> List[Tuple[str, dat
         motif = _motif_suspension(libelle)
         if not motif:
             continue
-        trouve = _LIGNE_EYWAI.search(libelle)
+        trouve = _LIGNE_MARTINE.search(libelle)
         if trouve:
             debut = _jour_eywai(trouve.group(2))
             fin = _jour_eywai(trouve.group(3)) if trouve.group(3) else debut

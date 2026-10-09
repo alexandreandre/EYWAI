@@ -1,6 +1,6 @@
 """Classifieur de situation d'un salarié face à la DSN de la période (avant paie).
 
-Distingue quatre situations, à partir de signaux DSN + contexte EYWAI, sans aucune
+Distingue quatre situations, à partir de signaux DSN + contexte MARTINE, sans aucune
 dépendance base / FastAPI (domaine pur, testable) :
 
 - ``ACTIVE_NORMAL``    : salarié en activité, paie normale attendue ;
@@ -8,7 +8,7 @@ dépendance base / FastAPI (domaine pur, testable) :
 - ``PROLONGED_ABSENCE``: individu déclaré, sans fin de contrat, mais arrêt/suspension
                          couvrant l'essentiel du mois (arrêt maladie longue durée, congé
                          sans solde…) — la paie ne doit pas être un salaire plein ;
-- ``POST_EXIT_PAYMENT``: sortie déjà connue (exit EYWAI ou fin de contrat DSN antérieure)
+- ``POST_EXIT_PAYMENT``: sortie déjà connue (exit MARTINE ou fin de contrat DSN antérieure)
                          mais réapparition dans la DSN — versement ponctuel (participation,
                          solde de tout compte), pas une paie récurrente.
 

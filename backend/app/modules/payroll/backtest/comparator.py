@@ -1,4 +1,4 @@
-"""Comparateur multi-tiers EYWAI vs référentiel Cegid."""
+"""Comparateur multi-tiers MARTINE vs référentiel Cegid."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def compare_bulletins(
                     )
                 )
                 continue
-            # Référence présente mais absent côté EYWAI → anomalie tier A/S
+            # Référence présente mais absent côté MARTINE → anomalie tier A/S
             missing_delta = -(ref_val or 0.0) if act_val is None else (act_val or 0.0)
             tier = FIELD_TIERS.get(key, "A")
             tolerance = cfg.tolerance(tier, ref_val or act_val)

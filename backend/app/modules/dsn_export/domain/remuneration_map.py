@@ -1,4 +1,4 @@
-"""Construction des blocs rémunération DSN (S21.G00.51) depuis un bulletin EYWAI."""
+"""Construction des blocs rémunération DSN (S21.G00.51) depuis un bulletin MARTINE."""
 
 from __future__ import annotations
 

@@ -14,7 +14,7 @@ empl. », avec une ligne par assiette. Sur les 43 bulletins de janvier à juille
 * **20 %** sur la part patronale de retraite supplémentaire, pour le seul cadre
   (Moroche : 19,00 € sur 94,98 €).
 
-EYWAI ne produisait aucune de ces trois dernières lignes pour Colorplast. Le
+MARTINE ne produisait aucune de ces trois dernières lignes pour Colorplast. Le
 forfait social existait déjà, mais seulement quand une ligne de prévoyance de la
 fiche portait un taux : c'est le cas des deux salariés importés de la DSN, pas
 des sept autres, qui passent par le barème global. La retraite supplémentaire

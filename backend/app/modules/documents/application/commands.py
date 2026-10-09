@@ -69,10 +69,12 @@ def _load_company(company_id: str) -> Dict[str, Any]:
     return dict(row)
 
 
+# "__eywai__" : ancienne sentinelle du modèle standard, encore envoyée par
+# l'ancien front pendant le déploiement.
 def _validate_template_choice(
     company_id: str, document_type: str, template_id: Optional[str]
 ) -> Optional[str]:
-    if not template_id or template_id.strip() in ("", "__eywai__"):
+    if not template_id or template_id.strip() in ("", "__martine__", "__eywai__"):
         return None
     tid = template_id.strip()
     tr = (

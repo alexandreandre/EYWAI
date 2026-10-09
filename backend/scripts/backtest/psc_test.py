@@ -30,7 +30,7 @@ def show(tag, d):
     print(tag)
     for k, (ev, rv) in d.items():
         delta = (ev - rv) if ev is not None and rv is not None else None
-        print(f"   {k:5s} EYWAI={ev} REAL={rv} delta={delta}")
+        print(f"   {k:5s} MARTINE={ev} REAL={rv} delta={delta}")
 
 def main():
     admin = get_supabase_admin_client()

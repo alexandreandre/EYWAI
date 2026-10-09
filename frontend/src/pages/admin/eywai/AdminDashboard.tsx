@@ -14,7 +14,7 @@ import {
   Shield,
   RefreshCw,
 } from "lucide-react";
-import { getAdminGlobalStats } from "@/api/adminEYWAI";
+import { getAdminGlobalStats } from "@/api/adminMartine";
 import { fetchDsnAdminLateSummary } from "@/api/dsnImport";
 import { getActionLabel } from "@/lib/auditLabels";
 import { queryKeys } from "@/lib/queryKeys";

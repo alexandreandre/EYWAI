@@ -14,7 +14,7 @@ les trois salariés qui paient le complément « GAN Famille », la relation
 
 se vérifie sur les 21 bulletins concernés, et vaut zéro pour les salariés sans
 complément. La retenue réduit donc le net à payer mais jamais le montant net
-social. EYWAI la déduisait des deux (Lanolet janvier : 2 440,05 € au lieu de
+social. MARTINE la déduisait des deux (Lanolet janvier : 2 440,05 € au lieu de
 2 538,18 €).
 
 Le montant net social est transmis aux organismes sociaux : c'est le seul écart

@@ -37,7 +37,7 @@ CP_DAYS_PER_MONTH_OUVRE_DISPLAY = 25.0 / 12.0
 
 @dataclass(frozen=True)
 class LeavePolicySettings:
-    """Politique congés / RTT entreprise. Defaults = comportement historique EYWAI."""
+    """Politique congés / RTT entreprise. Defaults = comportement historique MARTINE."""
 
     cp_acquisition_days_per_month: float = CP_ACQUISITION_DAYS_PER_MONTH_DEFAULT
     cp_counting_unit: CpCountingUnit = "ouvrable"

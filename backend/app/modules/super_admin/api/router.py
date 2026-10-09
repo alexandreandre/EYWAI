@@ -120,7 +120,7 @@ def get_global_stats(
 def get_support_badges(
     super_admin: Dict[str, Any] = Depends(verify_super_admin),
 ):
-    """Compteurs tickets pour la navigation Administration EYWAI."""
+    """Compteurs tickets pour la navigation Administration MARTINE."""
     try:
         return queries.get_support_badges()
     except Exception as e:

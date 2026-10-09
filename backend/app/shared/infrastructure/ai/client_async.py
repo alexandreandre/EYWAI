@@ -42,7 +42,7 @@ def get_async_chat_client() -> AsyncOpenAI:
             max_retries=2,  # backoff SDK sur 429/5xx
             default_headers={
                 "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", "https://eywai.app"),
-                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "EYWAI"),
+                "X-Title": os.getenv("OPENROUTER_APP_TITLE", "Martine"),
             },
         )
         _clients_by_loop[id(loop)] = client

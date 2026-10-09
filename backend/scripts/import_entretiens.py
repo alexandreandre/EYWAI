@@ -5,7 +5,7 @@ Le classeur porte deux choses distinctes :
 1. La **politique d'entretien de chaque société** (colonne « Règle appliquée ») — un
    mois de campagne commun, ou la date d'ancienneté, et parfois un cycle de deux ans.
    Elle est écrite dans `company_interview_settings`, pas dans ce script : la RH la
-   modifie ensuite sans nous, et EYWAI propose seul la campagne des années suivantes.
+   modifie ensuite sans nous, et MARTINE propose seul la campagne des années suivantes.
 
 2. Le **dernier entretien connu** (colonne « Dernier entretien »), qui ne contient
    qu'une année et seulement pour une société. Il est repris tel quel : `year` renseigné,

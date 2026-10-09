@@ -1,2 +1,2 @@
-/** @deprecated Utiliser AdminEYWAILayout — conservé pour compatibilité lazy import. */
-export { default } from "@/pages/admin/eywai/AdminEYWAILayout";
+/** @deprecated Utiliser AdminMartineLayout — conservé pour compatibilité lazy import. */
+export { default } from "@/pages/admin/eywai/AdminMartineLayout";

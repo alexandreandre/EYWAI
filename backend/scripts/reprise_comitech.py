@@ -414,7 +414,7 @@ def heures_reduction_forfait_quadra(bulletin) -> float | None:
     """Heures de la réduction générale d'un mois Quadra au forfait jours, ou None.
 
     Quadra n'imprime pas de « Cumul heures » pour un forfait jours : sans ce
-    compte, l'ouverture portait 0 h et le premier bulletin EYWAI remboursait
+    compte, l'ouverture portait 0 h et le premier bulletin MARTINE remboursait
     toute la réduction de l'année. Quadra compte 151,67 × jours du forfait / 218
     par mois (150,28 h pour 216 jours), corrigé du rapport des salaires quand
     une absence ou un arrêt réduit le salaire (salaire de base − retenues

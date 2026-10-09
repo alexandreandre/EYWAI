@@ -2,7 +2,7 @@
 
 Contexte
 --------
-EYWAI porte la cotisation mutuelle **en entier** à la charge du salarié : les
+MARTINE porte la cotisation mutuelle **en entier** à la charge du salarié : les
 lignes issues de l'import DSN valent 59,27 €, 119,75 €, 116,06 €… avec une part
 patronale à zéro. Ces montants sont en réalité des *totaux* — le bulletin Cegid
 les répartit en deux :
@@ -76,7 +76,7 @@ def decouper_bulletins(texte: str):
 def extraire(pdf: Path) -> tuple[list[dict], int]:
     """Une ligne par bulletin. Code vide = ce salarié n'a PAS de mutuelle.
 
-    L'absence est une information : si EYWAI lui retient malgré tout une
+    L'absence est une information : si MARTINE lui retient malgré tout une
     « mutuelle », c'est qu'une autre cotisation (prévoyance) a été rangée là.
     """
     texte = pdf_en_texte(pdf)

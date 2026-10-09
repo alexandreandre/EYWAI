@@ -20,7 +20,7 @@ jobs:
       run:
         working-directory: backend
     env:
-      EYWAI_SCRAPING_DISABLE_AI: "1"
+      MARTINE_SCRAPING_DISABLE_AI: "1"
     steps:
       - uses: actions/checkout@v4
 

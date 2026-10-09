@@ -33,11 +33,15 @@ FICHIERS_COMPATIBILITE: dict[str, str] = {
     "backend/scraping/core/env_produit.py": "repli de lecture EYWAI_*",
     "backend/app/modules/documents/application/commands.py": "sentinelle __eywai__ (ancien front)",
     "backend/tests/unit/architecture/test_nom_produit.py": "ce garde",
-    "backend/tests/unit/shared/test_env_produit.py": "test du repli",
+    "backend/tests/unit/scraping/test_env_produit.py": "test du repli",
     "backend/tests/unit/webhooks/test_en_tetes_signature.py": "test de l'ancien en-tête",
     "backend/tests/unit/documents/test_sentinelle_modele_standard.py": "test de l'ancienne sentinelle",
     "backend/tests/_garde_base_reelle.py": "repli de lecture EYWAI_*",
+    "backend/app/modules/badgeuse/application/badge_tokens.py": "secret par défaut: le changer invaliderait les QR émis",
 }
+# Chemins de dossiers et dépôt GitHub : le nom du dossier ne change pas.
+CHEMINS = ("Desktop/" + ANCIEN + "/" + ANCIEN, "Desktop-" + ANCIEN + "-" + ANCIEN,
+           "dev/" + ANCIEN, "alexandreandre/" + ANCIEN, ANCIEN + "/" + ANCIEN)
 EXCLUS = ("docs/", "supabase/", ".cursor/", ".claude/", "node_modules/", "data/")
 SUFFIXES = {".py", ".ts", ".tsx", ".json", ".md", ".yml", ".yaml", ".html", ".sh", ".toml",
             ".example", ".txt", ".js", ".mjs", ".cfg", ".ini", ".css", ".sql"}
@@ -103,7 +107,12 @@ def _texte_brut() -> list[str]:
         except UnicodeDecodeError:
             continue
         for i, ligne in enumerate(texte.splitlines(), 1):
-            if ANCIEN in ligne or f"__{ANCIEN_MIN}__" in ligne or f"{ANCIEN_MIN}-" in ligne:
+            ligne_nue = ligne
+            for chemin in CHEMINS:
+                ligne_nue = ligne_nue.replace(chemin, "")
+            if ANCIEN in ligne_nue or f"__{ANCIEN_MIN}__" in ligne_nue or (
+                f.endswith((".ts", ".tsx")) and f"{ANCIEN_MIN}-" in ligne_nue
+            ):
                 out.append(f"{f}:{i}: {ligne.strip()[:90]}")
     return out
 

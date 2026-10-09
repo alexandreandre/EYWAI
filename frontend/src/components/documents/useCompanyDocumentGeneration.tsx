@@ -63,7 +63,7 @@ export function useCompanyDocumentGeneration() {
   const [genMode, setGenMode] = useState<GenMode>(null);
   const [genEmployeeId, setGenEmployeeId] = useState('');
   const [genDocType, setGenDocType] = useState('');
-  const [genTemplate, setGenTemplate] = useState('__eywai__');
+  const [genTemplate, setGenTemplate] = useState('__martine__');
   const [genDateEffet, setGenDateEffet] = useState('');
   const [genMotif, setGenMotif] = useState('');
   const [genMissions, setGenMissions] = useState('');
@@ -190,7 +190,7 @@ export function useCompanyDocumentGeneration() {
       setEywaiBanner(doc.is_eywai_template);
       setGenMode(null);
       setGenDocType('');
-      setGenTemplate('__eywai__');
+      setGenTemplate('__martine__');
       setGenDateEffet('');
       setGenMotif('');
       toast({
@@ -218,7 +218,7 @@ export function useCompanyDocumentGeneration() {
       setGenTemplate(fichePosteTemplates[0]?.id ?? '');
     } else {
       setGenDocType('');
-      setGenTemplate('__eywai__');
+      setGenTemplate('__martine__');
     }
     setGenDateEffet('');
     setGenMotif('');
@@ -256,7 +256,7 @@ export function useCompanyDocumentGeneration() {
       category,
       date_effet: genDateEffet,
       motif: genMotif.trim() || null,
-      template_id: genTemplate === '__eywai__' ? null : genTemplate,
+      template_id: genTemplate === '__martine__' ? null : genTemplate,
     });
   };
 
@@ -269,7 +269,7 @@ export function useCompanyDocumentGeneration() {
       employee_id: genEmployeeId,
       document_type: genDocType,
       category: 'attestation_courante',
-      template_id: genTemplate === '__eywai__' ? null : genTemplate,
+      template_id: genTemplate === '__martine__' ? null : genTemplate,
     });
   };
 
@@ -368,7 +368,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -429,7 +429,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -494,7 +494,7 @@ export function useCompanyDocumentGeneration() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}

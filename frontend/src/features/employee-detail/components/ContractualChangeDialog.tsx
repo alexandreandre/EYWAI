@@ -222,7 +222,7 @@ export function ContractualChangeDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {contractualTemplatesForType.map((tpl: DocumentTemplate) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -272,7 +272,7 @@ export function ContractualChangeDialog({
                   category: "avenant",
                   date_effet: dateEffet,
                   motif,
-                  template_id: template === "__eywai__" ? null : template,
+                  template_id: template === "__martine__" ? null : template,
                   ...avenantFields,
                 });
               }}

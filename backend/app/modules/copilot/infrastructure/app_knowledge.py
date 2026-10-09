@@ -1,5 +1,5 @@
 """
-Base de connaissances produit EYWAI exposée à l'assistant IA.
+Base de connaissances produit MARTINE exposée à l'assistant IA.
 
 Sert à répondre aux questions d'aide à l'utilisation du logiciel :
 « comment faire X ? », « où trouver Y ? », « à quoi sert tel module ? ».

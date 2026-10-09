@@ -1,4 +1,4 @@
-"""Dump rubriques EYWAI generees vs lignes bulletin pour des matricules MBC.
+"""Dump rubriques MARTINE generees vs lignes bulletin pour des matricules MBC.
 Usage: dump_rub.py <year> <month> MAT [MAT...]"""
 import sys, json
 sys.path.insert(0, "/Users/alex/Desktop/EYWAI/EYWAI/backend")
@@ -41,7 +41,7 @@ def walk(d, out, pfx=""):
 
 for m in matched:
     data = _generate_payslip(m, year, month)
-    print(f"\n===== EYWAI {m.matricule} (brut={data.get('salaire_brut') or data.get('brut')}) =====")
+    print(f"\n===== MARTINE {m.matricule} (brut={data.get('salaire_brut') or data.get('brut')}) =====")
     out = []
     walk(data, out)
     seen = set()

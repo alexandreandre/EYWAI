@@ -1,7 +1,7 @@
 """Prévoyance cadre tranche B : la régularisation du plafond s'applique aussi.
 
 Comitech, septembre 2026 : un cadre dont le brut repasse sous le plafond voit
-sa tranche 2 cumulée régularisée (assiette négative). EYWAI régularisait la
+sa tranche 2 cumulée régularisée (assiette négative). MARTINE régularisait la
 retraite complémentaire mais sautait la ligne de prévoyance tranche B de la
 fiche ; l'ancien logiciel rend 2,91 € au salarié (−255 × 1,14 %).
 """

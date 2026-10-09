@@ -52,7 +52,7 @@ export interface SimpleEmployee {
   last_name: string;
   email?: string;
   job_title?: string;
-  /** Vrai si aucun contrat n'a été généré dans EYWAI (salarié repris de l'ancien logiciel). */
+  /** Vrai si aucun contrat n'a été généré dans MARTINE (salarié repris de l'ancien logiciel). */
   contrat_absent?: boolean;
 }
 
@@ -372,7 +372,7 @@ export interface UpdateChecklistItemRequest {
 // ============================================================================
 
 /**
- * Liste les collaborateurs éligibles à un nouveau départ (actifs, avec ou sans contrat généré par EYWAI).
+ * Liste les collaborateurs éligibles à un nouveau départ (actifs, avec ou sans contrat généré par MARTINE).
  */
 export async function getExitEligibleEmployees(): Promise<SimpleEmployee[]> {
   const response = await apiClient.get('/api/employee-exits/eligible-employees');

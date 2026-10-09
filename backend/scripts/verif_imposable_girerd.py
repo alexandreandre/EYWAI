@@ -5,7 +5,7 @@ non déductible », au lieu de le prédire depuis les tests unitaires.
 
 Bulletin de référence du service paie (Quadra, juillet 2026) :
   net imposable 2 668,88 € · PAS 114,76 € · net à payer 3 080,74 €
-Avant correctif, EYWAI produisait 2 570,73 € / 110,54 € / 3 084,92 €.
+Avant correctif, MARTINE produisait 2 570,73 € / 110,54 € / 3 084,92 €.
 
 Le bulletin visé est un BROUILLON sans édition manuelle (vérifié le 08/09/2026 :
 manually_edited=false, edit_count=0) ; le régénérer n'écrase donc aucune

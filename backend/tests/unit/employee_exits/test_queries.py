@@ -398,7 +398,7 @@ class TestGetExitChecklist:
 
 
 class TestListExitEligibleEmployees:
-    """Éligibilité à un départ : l'absence de contrat EYWAI n'est qu'une information."""
+    """Éligibilité à un départ : l'absence de contrat MARTINE n'est qu'une information."""
 
     @staticmethod
     def _row(emp_id, status="actif"):

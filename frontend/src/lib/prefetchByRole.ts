@@ -8,7 +8,7 @@ import { getCandidates, getRecruitmentSettings } from '@/api/recruitment';
 import * as ribAlertsApi from '@/api/ribAlerts';
 import { RIB_ALERTS_UI_ENABLED } from '@/lib/productFeatureFlags';
 import { getPendingSignaturesRH } from '@/api/signatures';
-import { getAdminGlobalStats } from '@/api/adminEYWAI';
+import { getAdminGlobalStats } from '@/api/adminMartine';
 import { queryKeys } from '@/lib/queryKeys';
 import { currentWeekStartIso } from '@/lib/planningWeek';
 import { isPlatformAdmin, type PlatformAdminUser } from '@/lib/platformAdmin';

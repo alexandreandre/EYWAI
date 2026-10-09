@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Prépare (variables EYWAI) et uploade les trames contrat Comitech Composite.
+Prépare (variables MARTINE) et uploade les trames contrat Comitech Composite.
 
 Sources : fichiers Word sur le Bureau de l'utilisateur (ou --source-dir).
 Cibles : bucket Supabase document_templates + bibliothèque entreprise.

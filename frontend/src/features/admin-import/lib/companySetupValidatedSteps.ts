@@ -1,4 +1,4 @@
-const STORAGE_PREFIX = 'eywai-company-setup-validated:';
+const STORAGE_PREFIX = 'martine-company-setup-validated:';
 
 export function loadValidatedSetupSteps(companyId: string): Set<string> {
   if (!companyId) return new Set();

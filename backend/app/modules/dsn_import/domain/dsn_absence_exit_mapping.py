@@ -1,4 +1,4 @@
-"""Mapping motifs DSN → enums EYWAI (absences / sorties)."""
+"""Mapping motifs DSN → enums MARTINE (absences / sorties)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 from app.modules.dsn_import.domain.normalize import normalize_date_dsn
 from app.shared.domain.absence_calendar import daterange_days
 
-# Motifs fin de contrat DSN (S21.G00.62.002) → ExitType EYWAI
+# Motifs fin de contrat DSN (S21.G00.62.002) → ExitType MARTINE
 EXIT_MOTIF_MAP: Dict[str, str] = {
     "011": "demission",
     "012": "demission",

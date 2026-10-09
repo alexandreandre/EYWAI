@@ -45,7 +45,7 @@ function ligneBulletin(aRecalculer: boolean | null) {
 
 async function preparerPaiePerimee(page: Page) {
   let perime = true;
-  await page.addInitScript(() => localStorage.removeItem('eywai-rq-cache-v2'));
+  await page.addInitScript(() => localStorage.removeItem('martine-rq-cache-v2'));
   await page.route('**/api/employees/summary**', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({ json: [salarieDemo()] });

@@ -167,7 +167,7 @@ def test_deux_contrats_le_meme_mois_l_ouverture_est_celle_du_contrat_qui_continu
 # ---------------------------------------------------------------------------
 #
 # Quadra n'imprime pas de « Cumul heures » pour un salarié au forfait jours :
-# l'ouverture portait 0 h, et le premier bulletin calculé par EYWAI remboursait
+# l'ouverture portait 0 h, et le premier bulletin calculé par MARTINE remboursait
 # toute la réduction de l'année. Quadra compte 151,67 × jours du forfait / 218
 # par mois (150,28 h pour 216 jours), corrigé du rapport des salaires les mois
 # d'absence (CSS D241-7, IV, 3e et 5e alinéas) : l'ouverture reprend ce compte.

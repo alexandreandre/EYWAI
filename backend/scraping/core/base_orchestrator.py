@@ -16,6 +16,7 @@ from core.consensus import (
     prefer_primary_on_divergence,
 )
 from core.decision import classify_decision
+from core.env_produit import lire_env
 from core.partial_consensus import (
     format_out_of_scope_divergence_warning,
     format_target_divergence_reason,
@@ -50,13 +51,13 @@ logger = logging.getLogger(__name__)
 
 
 def is_dry_run(argv: list[str] | None = None) -> bool:
-    if os.environ.get("EYWAI_SCRAPING_DRY_RUN", "").strip() in ("1", "true", "yes"):
+    if (lire_env("MARTINE_SCRAPING_DRY_RUN", "") or "").strip() in ("1", "true", "yes"):
         return True
     return "--dry-run" in (argv or sys.argv)
 
 
 def is_ai_disabled(argv: list[str] | None = None) -> bool:
-    if os.environ.get("EYWAI_SCRAPING_DISABLE_AI", "").strip() in ("1", "true", "yes"):
+    if (lire_env("MARTINE_SCRAPING_DISABLE_AI", "") or "").strip() in ("1", "true", "yes"):
         return True
     return "--no-ai" in (argv or sys.argv)
 
@@ -504,7 +505,7 @@ def main_entry(spec: RateSpec) -> None:
     )
     args, _ = parser.parse_known_args()
     if args.dry_run:
-        os.environ["EYWAI_SCRAPING_DRY_RUN"] = "1"
+        os.environ["MARTINE_SCRAPING_DRY_RUN"] = "1"
     if args.no_ai:
-        os.environ["EYWAI_SCRAPING_DISABLE_AI"] = "1"
+        os.environ["MARTINE_SCRAPING_DISABLE_AI"] = "1"
     sys.exit(run_orchestrator(spec))

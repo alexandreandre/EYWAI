@@ -68,7 +68,7 @@ EXPECTED_FOLDERS = {
     "Zone": ("zone 404", "zone"),
 }
 EXPECTED_PERIODS = [f"2026-{month:02d}" for month in range(1, 6)]
-CONFIRMATION = "EYWAI_PROD_DSN_REIMPORT_2026_JAN_MAY"
+CONFIRMATION = "MARTINE_PROD_DSN_REIMPORT_2026_JAN_MAY"
 
 
 @dataclass(frozen=True)

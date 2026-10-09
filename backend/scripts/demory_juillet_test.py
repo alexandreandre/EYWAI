@@ -108,8 +108,8 @@ def main() -> int:
         print("::error::Bulletin introuvable après génération")
         return 1
     data = row[0]["payslip_data"] or {}
-    print(f"brut EYWAI {data.get('salaire_brut')} — Quadra {QUADRA['salaire_brut']}")
-    print(f"net à payer EYWAI {data.get('net_a_payer')}")
+    print(f"brut MARTINE {data.get('salaire_brut')} — Quadra {QUADRA['salaire_brut']}")
+    print(f"net à payer MARTINE {data.get('net_a_payer')}")
     for cle in ("calcul_du_brut", "details_conges", "details_absences"):
         for ligne in _lignes(data, cle):
             if not isinstance(ligne, dict) or ligne.get("is_sous_total"):

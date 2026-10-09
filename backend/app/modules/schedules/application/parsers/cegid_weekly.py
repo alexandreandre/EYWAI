@@ -363,7 +363,7 @@ def describe_day_note(note: CegidDayNote) -> str:
 
 
 def describe_day_notes(notes: list[CegidDayNote]) -> str:
-    """Message de revue : ce que le relevé porte, et ce qu'EYWAI a retenu."""
+    """Message de revue : ce que le relevé porte, et ce que Martine a retenu."""
     return (
         "Relevé à relire — Martine a retenu les heures du badge, pas les annotations : "
         + " ; ".join(describe_day_note(n) for n in notes)

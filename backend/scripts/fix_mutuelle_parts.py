@@ -8,7 +8,7 @@ retenir le double de ce que le cabinet leur retient réellement, et la part
 patronale — un avantage soumis à CSG — manque au net imposable.
 
 Le rapprochement est arithmétique, pas approximatif. Les bulletins du cabinet
-donnent les deux parts, et leur somme est exactement le montant qu'EYWAI porte
+donnent les deux parts, et leur somme est exactement le montant que Martine porte
 au salarié :
 
     Cartol  EMU1 Isolé            29,64 + 29,63 = 59,27
@@ -58,7 +58,7 @@ RACINE = Path(__file__).resolve().parents[2]
 DATA = RACINE / "data"
 SAUVEGARDES = DATA / "_backups"
 
-# société EYWAI → dossier data/ portant ses bulletins
+# société MARTINE → dossier data/ portant ses bulletins
 SOCIETES = {
     "Cartol Industrie": "cartol",
     "LEWIS": "lewis",
@@ -122,7 +122,7 @@ def charger_affectations(
     """(matricule → code EMU, matricules vus au bulletin).
 
     Un matricule connu mais absent des affectations n'a **aucune** mutuelle au
-    cabinet : si EYWAI lui en retient une, ce n'est pas une mutuelle.
+    cabinet : si MARTINE lui en retient une, ce n'est pas une mutuelle.
 
     Un salarié entré ou sorti en cours d'année n'a pas de ligne mutuelle sur le
     mois de référence : son bulletin d'un autre mois la porte. On part du mois
@@ -226,7 +226,7 @@ def choisir_code(
     if matricule in connus:
         montant = float((type_actuel or {}).get("montant_salarial") or 0)
         return None, (
-            f"AUCUNE mutuelle au bulletin — EYWAI retient {montant:.2f} € "
+            f"AUCUNE mutuelle au bulletin — MARTINE retient {montant:.2f} € "
             "(prévoyance rangée en mutuelle ?)"
         )
 

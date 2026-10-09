@@ -1,4 +1,4 @@
-"""Appariement matricule Cegid <-> employés EYWAI."""
+"""Appariement matricule Cegid <-> employés MARTINE."""
 
 from __future__ import annotations
 

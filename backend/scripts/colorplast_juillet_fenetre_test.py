@@ -111,7 +111,7 @@ def main() -> int:
         en_tete = data.get("en_tete") or {}
         print(
             f"fenêtre {en_tete.get('date_debut_variables')} → {en_tete.get('date_fin_variables')} ; "
-            f"brut EYWAI {brut:.2f} — attendu {attendu:.2f} — Quadra {quadra:.2f}"
+            f"brut MARTINE {brut:.2f} — attendu {attendu:.2f} — Quadra {quadra:.2f}"
         )
         for cle in ("details_absences", "details_conges"):
             for ligne in _lignes(data, cle):

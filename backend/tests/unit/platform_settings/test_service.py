@@ -38,7 +38,7 @@ class TestGetEmailSettings:
             "smtp_user": "user",
             "is_active": True,
             "smtp_port": 587,
-            "from_name": "EYWAI",
+            "from_name": "MARTINE",
             "support_recipients": ["contact@eywai.fr"],
             "updated_at": "2026-01-01T00:00:00Z",
         }
@@ -63,7 +63,7 @@ class TestUpdateEmailSettings:
                 **fields,
                 "is_active": True,
                 "smtp_port": 587,
-                "from_name": "EYWAI",
+                "from_name": "MARTINE",
                 "support_recipients": ["contact@eywai.fr"],
             }
 
@@ -91,7 +91,7 @@ class TestUpdateEmailSettings:
                 **fields,
                 "is_active": True,
                 "smtp_port": 587,
-                "from_name": "EYWAI",
+                "from_name": "MARTINE",
                 "support_recipients": ["contact@eywai.fr"],
             }
 

@@ -1,4 +1,4 @@
-"""Normalisation des valeurs DSN vers le modèle EYWAI."""
+"""Normalisation des valeurs DSN vers le modèle MARTINE."""
 
 from __future__ import annotations
 

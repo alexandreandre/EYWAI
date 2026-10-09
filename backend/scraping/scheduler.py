@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scheduler EYWAI — exécute automatiquement les scrapers
+Scheduler MARTINE — exécute automatiquement les scrapers
 dont next_run_at est dépassé.
 """
 

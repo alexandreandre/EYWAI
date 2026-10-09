@@ -201,7 +201,7 @@ def collecter_lignes(
 
     avertissements: List[str] = []
     if lignes:
-        # Les congés antérieurs à janvier 2026 ne sont pas dans EYWAI : le solde de la
+        # Les congés antérieurs à janvier 2026 ne sont pas dans MARTINE : le solde de la
         # période précédente est un droit recalculé, pas un report repris du cabinet.
         # Mesuré le 07/08/2026 sur Cartol : 20,8 à 22,5 j chez nous contre 3 à 88 j
         # sur l'état du cabinet. Tant que les reports ne sont pas chargés, la provision

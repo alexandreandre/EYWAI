@@ -1,4 +1,4 @@
-"""Backtest paie autonome — comparaison EYWAI vs référentiel Cegid."""
+"""Backtest paie autonome — comparaison MARTINE vs référentiel Cegid."""
 
 from app.modules.payroll.backtest.comparator import compare_bulletins
 from app.modules.payroll.backtest.models import (

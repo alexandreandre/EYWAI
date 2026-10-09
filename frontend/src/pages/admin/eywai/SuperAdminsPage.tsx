@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
 import { SharkFinLoader } from '@/components/SharkFinLoader';
-import { listSuperAdmins } from "@/api/adminEYWAI";
+import { listSuperAdmins } from "@/api/adminMartine";
 import { AdminPageHeader } from "@/features/admin/components/eywai/AdminPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

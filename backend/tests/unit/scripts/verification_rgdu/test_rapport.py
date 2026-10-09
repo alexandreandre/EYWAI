@@ -43,7 +43,7 @@ def test_le_resume_compte_par_preclassement_et_par_mois_sans_cle():
 def test_la_couverture_compte_les_trois_colonnes_par_mois_sans_cle():
     texte = couverture(_lignes())
     assert CLE_A not in texte and CLE_B not in texte
-    # société, mois, lignes, Quadra DSN, Quadra implicite, Quadra absent, loi, variante, EYWAI
+    # société, mois, lignes, Quadra DSN, Quadra implicite, Quadra absent, loi, variante, MARTINE
     assert "| colorplast | 3 | 2 | 1 | 1 | 0 | 2 | 0 | 1 |" in texte
     assert "| colorplast | 4 | 2 | 1 | 0 | 1 | 2 | 1 | 2 |" in texte
 

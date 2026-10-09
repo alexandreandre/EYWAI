@@ -1,4 +1,4 @@
-# Recette live scraping EYWAI
+# Recette live scraping MARTINE
 
 Document de recette pour valider les **26 orchestrateurs** scraping avant mise en production.
 Trois niveaux (tiers) :
@@ -9,7 +9,7 @@ Trois niveaux (tiers) :
 | **1 — Dry-run live** | Réseau, `--dry-run`, `--no-ai` | Oui (local + workflow hebdo) | Non |
 | **2 — Staging** | Orchestrateurs sans dry-run | Manuel (checklist) | Oui |
 
-L’IA (`*_AI.py`) est **hors scope** de la recette live : utiliser `--no-ai` ou `EYWAI_SCRAPING_DISABLE_AI=1`.
+L’IA (`*_AI.py`) est **hors scope** de la recette live : utiliser `--no-ai` ou `MARTINE_SCRAPING_DISABLE_AI=1`.
 
 ---
 
@@ -30,7 +30,7 @@ pip install -r requirements.txt
 | `SUPABASE_URL` | Non requis | **Requis** |
 | `SUPABASE_SERVICE_KEY` | Non requis | **Requis** |
 | `OPENROUTER_API_KEY` | Non requis (IA désactivée) | Optionnel |
-| `EYWAI_SCRAPING_DISABLE_AI=1` | Recommandé en recette | Recommandé |
+| `MARTINE_SCRAPING_DISABLE_AI=1` | Recommandé en recette | Recommandé |
 
 Fichier : `backend/.env` (ne jamais committer).
 

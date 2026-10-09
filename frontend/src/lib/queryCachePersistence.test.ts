@@ -283,16 +283,16 @@ describe('requêtes de la paie : jamais persistées', () => {
 
 describe('version du cache persisté', () => {
   it('passe à v2 : le cache v1 gardait les bulletins 24 h', () => {
-    expect(QUERY_CACHE_KEY).toBe('eywai-rq-cache-v2');
+    expect(QUERY_CACHE_KEY).toBe('martine-rq-cache-v2');
   });
 
   it('le cache v1 laissé par l’ancienne version est jeté au démarrage', () => {
-    store.set('eywai-rq-cache-v1', '{"buster":"x","clientState":{"queries":[]}}');
+    store.set('martine-rq-cache-v1', '{"buster":"x","clientState":{"queries":[]}}');
     store.set('activeCompanyId', 'societe-a');
 
     mod.createAppQueryPersister();
 
-    expect(store.has('eywai-rq-cache-v1')).toBe(false);
+    expect(store.has('martine-rq-cache-v1')).toBe(false);
     expect(store.get('activeCompanyId')).toBe('societe-a');
   });
 });

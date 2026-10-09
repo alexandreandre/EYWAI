@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sys
 
-# Code du travail L3121-22 / CSS L.241-17 et L.241-18 — valeurs stables au référentiel EYWAI.
+# Code du travail L3121-22 / CSS L.241-17 et L.241-18 — valeurs stables au référentiel MARTINE.
 URL_MAJORATIONS = (
     "https://travail-emploi.gouv.fr/droit-du-travail/temps-de-travail/"
     "article/les-heures-supplementaires"

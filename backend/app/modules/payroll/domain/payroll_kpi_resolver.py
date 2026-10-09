@@ -64,7 +64,7 @@ class PayrollPeriodSnapshot:
 
 
 def extract_payslip_period_totals(payslip_data: Any) -> PayslipPeriodTotals:
-    """Extrait brut, net et coût employeur d'un payslip_data EYWAI."""
+    """Extrait brut, net et coût employeur d'un payslip_data MARTINE."""
     pd = payslip_data if isinstance(payslip_data, dict) else {}
     pied = pd.get("pied_de_page") if isinstance(pd.get("pied_de_page"), dict) else {}
     sc = (

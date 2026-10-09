@@ -193,7 +193,7 @@ class TestHandleAgentQuery:
             "needs_clarification": False,
             "requires_app_help": True,
         }
-        mock_app_help.return_value = "Menu latéral → EYWAI Paie → Lancer la paie."
+        mock_app_help.return_value = "Menu latéral → MARTINE Paie → Lancer la paie."
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
 
         result = handle_agent_query(
@@ -205,7 +205,7 @@ class TestHandleAgentQuery:
             )
         )
 
-        assert "EYWAI Paie" in result.answer
+        assert "MARTINE Paie" in result.answer
         mock_app_help.assert_called_once()
 
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")
@@ -257,7 +257,7 @@ class TestHandleAgentQuery:
             "requires_data_retrieval": False,
         }
         mock_app_help.return_value = (
-            "Pour lancer la paie : Menu latéral → EYWAI Paie → Lancer la paie."
+            "Pour lancer la paie : Menu latéral → MARTINE Paie → Lancer la paie."
         )
 
         result = handle_agent_query(
@@ -270,7 +270,7 @@ class TestHandleAgentQuery:
         )
 
         assert result.needs_clarification is False
-        assert "EYWAI Paie" in result.answer
+        assert "MARTINE Paie" in result.answer
         mock_app_help.assert_called_once()
 
     @patch("app.modules.copilot.application.commands.get_company_collective_agreements")

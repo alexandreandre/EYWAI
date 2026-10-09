@@ -103,12 +103,12 @@ BLOCS_A_VENIR: List[str] = [
 ECARTS_ATTENDUS: List[EcartAttendu] = [
     EcartAttendu(
         rubrique="S10.G00.00.001",
-        motif="nom du logiciel émetteur : EYWAI, pas Cegid",
+        motif="nom du logiciel émetteur : MARTINE, pas Cegid",
         depuis="2026-08-03",
     ),
     EcartAttendu(
         rubrique="S10.G00.00.002",
-        motif="éditeur du logiciel émetteur : EYWAI, pas Cegid",
+        motif="éditeur du logiciel émetteur : MARTINE, pas Cegid",
         depuis="2026-08-03",
     ),
     EcartAttendu(

@@ -30,7 +30,7 @@ def _config() -> ResolvedEmailConfig:
         smtp_password="secret-smtp-de-test",
         smtp_security="starttls",
         from_email="noreply@exemple.fr",
-        from_name="EYWAI",
+        from_name="MARTINE",
         reply_to=None,
         support_recipients=("contact@exemple.fr",),
         frontend_url="https://app.exemple.fr",

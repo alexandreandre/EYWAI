@@ -430,7 +430,7 @@ def _set_calendar(admin, emp_id: str, year: int, month: int,
 
 def _clear_actual(admin, emp_id: str, year: int, month: int) -> bool:
     """Vide actual_hours.calendrier_reel (pointage corrompu -> absences fantomes).
-    EYWAI retombe alors sur le planned_calendar (jours travailles reels)."""
+    MARTINE retombe alors sur le planned_calendar (jours travailles reels)."""
     sch = (admin.table("employee_schedules").select("id,actual_hours")
            .match({"employee_id": emp_id, "year": year, "month": month})
            .maybe_single().execute())

@@ -221,7 +221,7 @@ def git_commit_and_push(
     """Commit + push ; utilisé en CI avec GITHUB_TOKEN."""
     try:
         subprocess.run(["git", "config", "user.email", "scraping-agent@eywai.app"], check=True)
-        subprocess.run(["git", "config", "user.name", "EYWAI Scraping Agent"], check=True)
+        subprocess.run(["git", "config", "user.name", "MARTINE Scraping Agent"], check=True)
         subprocess.run(["git", "checkout", "-B", branch], cwd=str(REPO_ROOT), check=True)
         for f in files:
             subprocess.run(["git", "add", f], cwd=str(REPO_ROOT), check=True)

@@ -1,5 +1,5 @@
 """Importe les pointages manuscrits Colorplast -> actual_hours.calendrier_reel
-(les « heures faites » du calendrier), via le pipeline IA d'EYWAI
+(les « heures faites » du calendrier), via le pipeline IA de Martine
 (ai_fill.extract_timesheet, hybrid vision+OCR).
 
 Chaque pointage = une semaine ISO (n° dans le nom de fichier). On ancre à la

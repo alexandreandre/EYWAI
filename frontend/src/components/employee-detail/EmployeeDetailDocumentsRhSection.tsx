@@ -139,7 +139,7 @@ export function useEmployeeDocumentGeneration(
 
   const [genMode, setGenMode] = useState<GenMode>(null);
   const [genDocType, setGenDocType] = useState('');
-  const [genTemplate, setGenTemplate] = useState('__eywai__');
+  const [genTemplate, setGenTemplate] = useState('__martine__');
   const [genDateEffet, setGenDateEffet] = useState('');
   const [genMotif, setGenMotif] = useState('');
   const [genMissions, setGenMissions] = useState('');
@@ -244,7 +244,7 @@ export function useEmployeeDocumentGeneration(
       setEywaiBanner(doc.is_eywai_template);
       setGenMode(null);
       setGenDocType('');
-      setGenTemplate('__eywai__');
+      setGenTemplate('__martine__');
       setGenDateEffet('');
       setGenMotif('');
       setGenMissions('');
@@ -271,7 +271,7 @@ export function useEmployeeDocumentGeneration(
   const openContrat = () => {
     setGenMode('contrat');
     setGenDocType(resolveGeneratedContractDocType(employee.contract_type));
-    setGenTemplate('__eywai__');
+    setGenTemplate('__martine__');
     setGenDateEffet(employee.hire_date ?? '');
     setGenMotif('');
     setEywaiBanner(false);
@@ -280,14 +280,14 @@ export function useEmployeeDocumentGeneration(
   const openAttestation = () => {
     setGenMode('attestation');
     setGenDocType('');
-    setGenTemplate('__eywai__');
+    setGenTemplate('__martine__');
     setEywaiBanner(false);
   };
 
   const openAvenant = (preset?: { document_type: string; template_id: string | null }) => {
     setGenMode('avenant');
     setGenDocType(preset?.document_type ?? '');
-    setGenTemplate(preset?.template_id ?? '__eywai__');
+    setGenTemplate(preset?.template_id ?? '__martine__');
     setGenDateEffet('');
     setGenMotif('');
     setEywaiBanner(false);
@@ -345,7 +345,7 @@ export function useEmployeeDocumentGeneration(
       category,
       date_effet: genDateEffet,
       motif: genMotif.trim() || null,
-      template_id: genTemplate === '__eywai__' ? null : genTemplate,
+      template_id: genTemplate === '__martine__' ? null : genTemplate,
     });
   };
 
@@ -358,7 +358,7 @@ export function useEmployeeDocumentGeneration(
       employee_id: employeeId,
       document_type: genDocType,
       category: 'attestation_courante',
-      template_id: genTemplate === '__eywai__' ? null : genTemplate,
+      template_id: genTemplate === '__martine__' ? null : genTemplate,
     });
   };
 
@@ -454,7 +454,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -509,7 +509,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -570,7 +570,7 @@ export function useEmployeeDocumentGeneration(
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__eywai__">Standard Martine</SelectItem>
+                  <SelectItem value="__martine__">Standard Martine</SelectItem>
                   {templatesForType.map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
                       {tpl.name}

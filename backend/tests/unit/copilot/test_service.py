@@ -248,14 +248,14 @@ class TestAnswerAppUsageQuestion:
     def test_delegates_to_provider_with_guide(self, mock_get_provider):
         mock_provider = MagicMock()
         mock_provider.answer_app_usage_question.return_value = (
-            "Menu latéral → EYWAI Paie → Lancer la paie."
+            "Menu latéral → MARTINE Paie → Lancer la paie."
         )
         mock_get_provider.return_value = mock_provider
         history = [AgentMessageDto(role="user", content="Comment lancer la paie ?")]
 
         result = answer_app_usage_question("Comment lancer la paie ?", history)
 
-        assert result == "Menu latéral → EYWAI Paie → Lancer la paie."
+        assert result == "Menu latéral → MARTINE Paie → Lancer la paie."
         mock_provider.answer_app_usage_question.assert_called_once()
         call_args = mock_provider.answer_app_usage_question.call_args
         assert call_args[0][0] == "Comment lancer la paie ?"

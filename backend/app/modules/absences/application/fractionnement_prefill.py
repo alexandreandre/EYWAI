@@ -1,4 +1,4 @@
-"""Préremplissage fractionnement CP depuis soldes EYWAI."""
+"""Préremplissage fractionnement CP depuis soldes MARTINE."""
 
 from __future__ import annotations
 

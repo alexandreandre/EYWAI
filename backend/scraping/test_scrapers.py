@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Auto-test des scrapers EYWAI.
+Auto-test des scrapers MARTINE.
 
 - Mode hermétique (défaut) : compile tous les scripts.
 - Mode réseau (--live) : dry-run des orchestrateurs (nécessite réseau, pas d'écriture BDD).
@@ -101,9 +101,9 @@ def compile_all_scripts() -> list[str]:
 def build_env(*, dry_run: bool, no_ai: bool) -> dict[str, str]:
     env = os.environ.copy()
     if dry_run:
-        env["EYWAI_SCRAPING_DRY_RUN"] = "1"
+        env["MARTINE_SCRAPING_DRY_RUN"] = "1"
     if no_ai:
-        env["EYWAI_SCRAPING_DISABLE_AI"] = "1"
+        env["MARTINE_SCRAPING_DISABLE_AI"] = "1"
     return env
 
 
@@ -189,7 +189,7 @@ def evaluate_entry(entry: ScraperEntry, result: dict) -> tuple[bool, list[dict]]
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Harness scraping EYWAI")
+    parser = argparse.ArgumentParser(description="Harness scraping MARTINE")
     parser.add_argument("--live", action="store_true", help="Dry-run live (réseau)")
     parser.add_argument(
         "--no-ai",

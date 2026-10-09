@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Configuration initiale complète de l'entreprise « Comitech Composite » dans EYWAI.
+Configuration initiale complète de l'entreprise « Comitech Composite » dans MARTINE.
 
 Société cible : Comitech Composite (SIRET 49861035100013, Belley, CCN plasturgie IDCC 0292).
 Ce script ne concerne pas d'autres filiales du groupe MAJI.
@@ -2734,7 +2734,7 @@ def run_comitech_composite_setup(options: SetupOptions) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Configuration initiale complète Comitech Composite dans EYWAI"
+        description="Configuration initiale complète Comitech Composite dans MARTINE"
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(

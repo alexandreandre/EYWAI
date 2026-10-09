@@ -232,7 +232,7 @@ def apply_legal_name_to_preview(
     single_establishment: bool = False,
 ) -> None:
     """
-    Applique la raison sociale (DSN / SIRENE) sur l'entreprise, pas sur le groupe EYWAI.
+    Applique la raison sociale (DSN / SIRENE) sur l'entreprise, pas sur le groupe MARTINE.
     Le groupe reste un conteneur organisationnel discret.
     """
     clean = legal_name.strip()
@@ -484,7 +484,7 @@ def map_employee_payload(
             else None,
         },
         "collective_agreement_idcc": contrat.idcc,
-        # Salariés en activité chez l'établisseur externe — pas le flux onboarding EYWAI.
+        # Salariés en activité chez l'établisseur externe — pas le flux onboarding MARTINE.
         "employment_status": "actif",
         "import_source": "dsn",
         "_psc_meta": psc_meta,
