@@ -8,7 +8,7 @@ Logique applicative : décision forfait jour vs heures, délégation aux provide
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.core.database import supabase
@@ -269,7 +269,7 @@ def archiver_version(
     )
     avant = [*history, {
         "version": version,
-        "edited_at": datetime.now().isoformat(),
+        "edited_at": datetime.now(timezone.utc).isoformat(),
         "edited_by": edited_by,
         "edited_by_name": edited_by_name or AUTEUR_SYSTEME,
         "changes_summary": changes_summary,
