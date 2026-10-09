@@ -16,7 +16,7 @@
       "titre": "1. Importer les pointages",
       "paragraphes": [
         "Ouvrez Calendrier, puis « Importer des pointages ». Déposez un fichier par semaine (PDF ou photo) et choisissez sa semaine en face du fichier ; un CSV ou un Excel se dépose aussi, il est lu directement, sans IA et sans choix de semaine. « Analyser » lit les feuilles.",
-        "La revue liste les salariés reconnus. Associez les autres (liste « Associer… »), vérifiez les heures, puis « Enregistrer ».",
+        "La revue liste les salariés reconnus. Associez les autres (liste « Associer… »), vérifiez les heures, puis « Enregistrer ». L’import remplace toujours les heures déjà saisies : la revue annonce, avant d’enregistrer, combien de jours déjà saisis vont être remplacés et pour qui, ainsi que les jours que la feuille n’a pas permis de lire (ils restent à saisir au calendrier).",
         "Une ligne de pointage qui tombe un jour d’arrêt n’est plus écrite en silence : elle apparaît dans le récapitulatif. Traitez-la avant de continuer."
       ]
     },
@@ -38,14 +38,16 @@
       "titre": "4. Générer les bulletins",
       "paragraphes": [
         "Sur la page Bulletins de paie, onglet « Par mois », cliquez « Générer le mois ». « Lancer la paie (Mode Groupé) » fait de même en vous laissant choisir les salariés. Si un calendrier est incomplet ou si des heures sont saisies un jour d’arrêt, la génération s’arrête et dit pourquoi. Rien n’est calculé en silence.",
-        "Restez sur la page pendant la génération : elle se fait bulletin par bulletin. Ensuite, les listes se rechargent. Le PDF affiché est celui du dernier calcul."
+        "Restez sur la page pendant la génération : elle se fait bulletin par bulletin. La croix « Annuler la génération » l’arrête : un message dit combien de bulletins sont faits, les autres restent « À générer ». Ensuite, les listes se rechargent. Le PDF affiché est celui du dernier calcul."
       ]
     },
     {
       "titre": "5. Vérifier les bulletins",
       "paragraphes": [
-        "Ouvrez chaque bulletin qui sort de l’ordinaire : heures sup, absence, net négatif, premier ou dernier mois. Un astérisque sur une ligne explique le calcul.",
-        "Dans l’onglet « Bulletin », le cadre « Ce qui a changé par rapport au mois dernier » compare au mois précédent. Si un montant change sans raison, ne validez pas."
+        "Ouvrez chaque bulletin qui sort de l’ordinaire : heures sup, absence, net négatif, premier ou dernier mois. Dans l’onglet « Bulletin », le cadre « D’où viennent ces lignes » explique certaines lignes du calcul (un astérisque bleu donne l’explication au survol). Ce cadre n’est pas imprimé sur le PDF.",
+        "Dans l’onglet « Bulletin », le cadre « Ce qui a changé par rapport au mois dernier » compare au mois précédent. Si un montant change sans raison, ne validez pas.",
+        "Sur l’onglet « Par mois », « Seulement à revoir » ne garde que les bulletins qui demandent votre regard. Chaque ligne dit pourquoi : toutes ses alertes, le net négatif, l’écart avec le mois précédent. Un bulletin validé n’est plus à revoir.",
+        "Dans l’onglet « Comparaison N-1 », chaque alerte se traite : « Acquitter » (avec un commentaire si vous le souhaitez) quand l’écart est normal, « Ignorer » quand vous choisissez de ne pas la traiter. Le nom, la date et le commentaire restent écrits sous l’alerte et dans le journal d’audit. Un écart fort acquitté ne rend plus le bulletin « à revoir »."
       ]
     },
     {
@@ -67,7 +69,7 @@
     {
       "titre": "8. Valider",
       "paragraphes": [
-        "Ouvrez le bulletin et cliquez « Valider le bulletin », un bulletin à la fois. Le salarié ne voit son bulletin qu’une fois validé.",
+        "Ouvrez le bulletin et cliquez « Valider le bulletin », ou, sur l’onglet « Par mois », cliquez « Valider les bulletins prêts » : il valide d’un coup tous les bulletins générés qui n’ont rien à revoir et dit pourquoi il refuse les autres. Le salarié ne voit son bulletin qu’une fois validé.",
         "Ne validez un bulletin que s’il n’est pas à recalculer. Le message dit alors pourquoi il faut d’abord relancer le calcul.",
         "Valider envoie le bulletin vers la suite (PDF, documents). Ce n’est pas la même action que générer."
       ]
@@ -116,7 +118,7 @@
     },
     {
       "titre": "Une génération échoue",
-      "quoiFaire": "La ligne du salarié porte « Échec » et le message en rouge sous son nom. Souvent il dit quoi corriger (calendrier, arrêt, fiche) : corrigez, puis générez de nouveau. S’il n’est pas clair ou s’il revient, ouvrez un ticket : menu Support, module « Paie & Bulletins », type « Bulletin non généré », urgence « Critique » si la paie est bloquée. Écrivez la société, le salarié, le mois, le message exact et ce que vous veniez de faire. Copiez le message avant de fermer la fenêtre de génération : il n’est pas gardé. Le ticket ne prend pas de pièce jointe. Réponse habituelle sous 24 à 48 h ouvrées."
+      "quoiFaire": "La ligne du salarié porte « Échec » et le message en rouge sous son nom. Souvent il dit quoi corriger (calendrier, arrêt, fiche) : corrigez, puis générez de nouveau. S’il n’est pas clair ou s’il revient, ouvrez un ticket : menu Support, module « Paie & Bulletins », type « Bulletin non généré », urgence « Critique » si la paie est bloquée. Écrivez la société, le salarié, le mois, le message exact et ce que vous veniez de faire. Le message reste sur la ligne du salarié et dans le récapitulatif de la page jusqu’à la prochaine génération. Le ticket ne prend pas de pièce jointe. Réponse habituelle sous 24 à 48 h ouvrées."
     },
     {
       "titre": "Le bulletin est déjà validé",
