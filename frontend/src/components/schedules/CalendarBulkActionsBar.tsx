@@ -21,6 +21,7 @@ import {
   type ActualSnapshot,
   type PlannedSnapshot,
 } from '@/lib/calendarBulkUndo';
+import { completerReelDepuisPrevu, messageReelDepuisPrevu } from '@/lib/reelDepuisPrevu';
 import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
 
 interface CalendarBulkActionsBarProps {
@@ -179,29 +180,28 @@ export function CalendarBulkActionsBar({
     setBusy('equal');
     try {
       const snapshots: ActualSnapshot[] = [];
+      let completes = 0;
+      let gardes = 0;
       const tasks = selectedEmployeeIds.map((id) => async () => {
         const row = overviewRows.find((r) => r.employee.id === id);
         if (!row) return;
         const prevActualRes = await calendarApi.getActualHours(id, year, month);
-        snapshots.push({
-          id,
-          actual: prevActualRes.data.calendrier_reel ?? [],
-        });
-        // Le réel ne se copie que sur les jours de travail : un réel > 0 sur
-        // un jour congé/arrêt compte les heures comme travaillées en paie et
-        // efface l'absence du bulletin (analyzer).
-        const actual = row.planned.map((p) => ({
-          jour: p.jour,
-          type: p.type,
-          heures_faites:
-            p.type === 'travail' || p.type === 'work' ? p.heures_prevues : 0,
-        }));
-        await calendarApi.updateActualHours(id, year, month, actual);
+        const avant = prevActualRes.data.calendrier_reel ?? [];
+        snapshots.push({ id, actual: avant });
+        // Seuls les jours de travail prévus SANS heures réelles sont remplis :
+        // les heures déjà saisies (à la main ou importées) sont gardées, et un
+        // jour sans prévu (week-end) n'est pas écrit.
+        const resultat = completerReelDepuisPrevu(row.planned, avant);
+        completes += resultat.completes;
+        gardes += resultat.gardes;
+        if (resultat.completes > 0) {
+          await calendarApi.updateActualHours(id, year, month, resultat.actual);
+        }
       });
       await runWithConcurrency(tasks, 5);
       toast({
         title: 'Heures réelles mises à jour',
-        description: `Réel = prévu pour ${selectedEmployeeIds.length} employé(s).`,
+        description: messageReelDepuisPrevu(selectedEmployeeIds.length, completes, gardes),
         action: undoToastAction(() =>
           restoreActualSnapshots(snapshots, year, month)
         ),
@@ -304,6 +304,7 @@ export function CalendarBulkActionsBar({
         size="sm"
         variant="outline"
         onClick={() => void copyPlannedToActual()}
+        title="Complète les jours prévus sans heures réelles. Les heures déjà saisies sont gardées."
         disabled={!!busy}
         className={outlineAction}
       >
