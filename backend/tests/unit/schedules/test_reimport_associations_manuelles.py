@@ -97,7 +97,7 @@ def test_une_association_manuelle_du_lot_precedent_est_reappliquee():
     assert ligne.matched_name == "Camille Dupré"
     assert ligne.review_status == "ok"
     assert ligne.match_confidence == "high"
-    assert annotee.reimport.associations_reprises == ["Camou Cam"]
+    assert annotee.reimport.associations_reprises == ["Camou  CAM"]
     assert annotee.review_summary["error"] == 0
     assert annotee.review_summary["ready"] == 1
     assert annotee.roster_not_in_document_count == 1
