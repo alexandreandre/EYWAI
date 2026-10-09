@@ -38,6 +38,12 @@ export function ReimportBanner({ reimport, bilan, libelleSalarie }: ReimportBann
           </li>
         ))}
       </ul>
+      {(reimport.associations_reprises?.length ?? 0) > 0 && (
+        <p className="mt-1">
+          Association reprise de l&apos;import précédent :{' '}
+          {reimport.associations_reprises?.map((n) => `« ${n} »`).join(', ')}.
+        </p>
+      )}
       {corrections.length === 0 ? (
         <p className="mt-1">
           Aucun jour n&apos;a été corrigé à la main depuis cet import : le fichier relu

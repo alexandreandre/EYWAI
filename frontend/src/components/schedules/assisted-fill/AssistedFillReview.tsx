@@ -51,6 +51,11 @@ import {
   horsReleveRestant,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import {
+  lignesIgnorees,
+  phraseLignesIgnorees,
+  suiteResultatLignesIgnorees,
+} from './lignesIgnorees';
 import { ReimportBanner } from './ReimportBanner';
 import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
 import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
@@ -525,6 +530,22 @@ export function AssistedFillReview({
     return rows.filter((r) => isSavableRow(r, includeOrange));
   }, [rows, includeOrange]);
 
+  // Les lignes qui portent des heures mais ne seront pas enregistrées : dites avant, nommées après.
+  const ignorees = useMemo(
+    () =>
+      lignesIgnorees(
+        rows.map((r) => ({
+          rawName: r.rawName,
+          employeeId: r.employeeId,
+          days: r.days,
+          enregistrable: isSavableRow(r, includeOrange),
+        })),
+      ),
+    [rows, includeOrange],
+  );
+  const phraseIgnorees = phraseLignesIgnorees(ignorees);
+  const suiteIgnorees = suiteResultatLignesIgnorees(ignorees);
+
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
 
   // Ce que l'enregistrement d'une relecture écrira : une correction faite à la
@@ -746,7 +767,7 @@ export function AssistedFillReview({
     if (savableRows.length === 0) {
       toast({
         title: 'Rien à enregistrer',
-        description: 'Aucun salarié prêt à enregistrer avec les filtres actuels.',
+        description: `Aucun salarié prêt à enregistrer avec les filtres actuels.${suiteIgnorees}`,
         variant: 'destructive',
       });
       return;
@@ -820,8 +841,8 @@ export function AssistedFillReview({
           preserved,
           conflits,
           reimport
-            ? `${libelleImportRefait(committed.summary)}.`
-            : `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.`,
+            ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}`
+            : `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.${suiteIgnorees}`,
           applyMeta,
           reimport ? 'Import refait' : undefined,
         );
@@ -848,7 +869,7 @@ export function AssistedFillReview({
       finishSave(
         preserved,
         conflits,
-        `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.`,
+        `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.${suiteIgnorees}`,
         applyMeta,
       );
     } catch (e) {
@@ -1417,6 +1438,14 @@ export function AssistedFillReview({
       )}
 
       {/* Pied fixe */}
+      {phraseIgnorees && (
+        <p
+          className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
+          data-testid="lignes-non-enregistrees"
+        >
+          {phraseIgnorees} Associez-les ou retirez-les, sinon leurs jours ne seront pas écrits.
+        </p>
+      )}
       <div className="flex shrink-0 items-center justify-between border-t pt-2">
         <Button
           type="button"

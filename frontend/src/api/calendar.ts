@@ -341,6 +341,8 @@ export interface LotPrecedent {
 export interface ReimportInfo {
   lots_precedents: LotPrecedent[];
   corrections_a_la_main: CorrectionALaMain[];
+  /** Noms lus dont l'association manuelle du lot précédent est reprise. */
+  associations_reprises?: string[];
 }
 
 /** Corps du refus 409 « déjà importé » (`detail`). */
