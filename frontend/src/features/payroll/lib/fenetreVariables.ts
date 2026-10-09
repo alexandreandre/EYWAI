@@ -8,6 +8,7 @@
  */
 
 import type { PeriodeVariables } from '@/api/periodeVariables';
+import { getUserErrorMessage } from '@/lib/errorMessages';
 
 /** `2026-07-26` → `26/07/2026`. */
 export const formatFr = (iso: string): string => {
@@ -25,3 +26,30 @@ export const libelleSemaines = (semaines: number[]): string => {
 /** Vrai quand la fenêtre est le mois civil : rien à décaler, rien à saisir. */
 export const estSurLeMoisCivil = (fenetre: PeriodeVariables): boolean =>
   fenetre.debut === fenetre.mois_civil[0] && fenetre.fin === fenetre.mois_civil[1];
+
+const MOIS_EN_CLAIR = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+];
+
+/** « 26 juillet 2026 » depuis une date ISO (jour 1 : « 1er »). */
+export function dateEnClair(iso: string): string {
+  const [annee, mois, jour] = iso.split('-').map(Number);
+  if (!annee || !mois || !jour) return iso;
+  return `${jour === 1 ? '1er' : jour} ${MOIS_EN_CLAIR[mois - 1]} ${annee}`;
+}
+
+/** Toast après « Appliquer » : la date retenue, et ce qui part sur le mois suivant. */
+export function confirmationFenetre(finIso: string): { title: string; description: string } {
+  return {
+    title: 'Fenêtre des variables enregistrée',
+    description: `Les variables s’arrêtent le ${dateEnClair(finIso)}. Ce qui suit partira sur le mois suivant.`,
+  };
+}
+
+export function messageEchecFenetre(erreur: unknown): string {
+  return getUserErrorMessage(
+    erreur,
+    'La fenêtre n’a pas été enregistrée. Vérifiez la date d’arrêt choisie, puis réessayez.',
+  );
+}

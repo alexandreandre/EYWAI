@@ -6,6 +6,11 @@ import {
 } from '@/api/periodeVariables';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
+import { toast } from '@/hooks/use-toast';
+import {
+  confirmationFenetre,
+  messageEchecFenetre,
+} from '@/features/payroll/lib/fenetreVariables';
 
 export function usePeriodeVariables(year: number, month: number, enabled = true) {
   const companyId = useActiveCompanyId();
@@ -24,10 +29,18 @@ export function useEnregistrerPeriodeVariables(year: number, month: number) {
 
   return useMutation({
     mutationFn: (fin: string) => putPeriodeVariables(year, month, fin),
-    onSuccess: (data) => {
+    onSuccess: (data, fin) => {
+      toast(confirmationFenetre(fin));
       queryClient.setQueryData(queryKeys.periodeVariables(companyId, year, month), data);
       queryClient.invalidateQueries({
         queryKey: queryKeys.surchargesPeriodeVariables(companyId, year),
+      });
+    },
+    onError: (erreur) => {
+      toast({
+        variant: 'destructive',
+        title: 'Fenêtre non enregistrée',
+        description: messageEchecFenetre(erreur),
       });
     },
   });
