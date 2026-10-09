@@ -25,6 +25,14 @@ PAYROLL_REQUIRED_FIELDS: List[Tuple[str, str]] = [
 PAYROLL_ACTIVE_STATUSES = frozenset({"actif", "active"})
 DEFAULT_EMPLOYMENT_STATUS = "actif"
 
+#: Statuts dits en français dans les refus de paie (jamais le code brut).
+_LIBELLES_STATUT = {
+    "en_sortie": "en départ",
+    "parti": "parti",
+    "suspendu": "suspendu",
+    "demissionnaire": "démissionnaire",
+}
+
 
 def _is_blank(value: Any) -> bool:
     """Considère None, chaîne vide, dict/list vides (ou entièrement vides) comme absent."""
@@ -78,13 +86,17 @@ def payroll_block_reason(employee: Dict[str, Any]) -> str | None:
     status = str(employee.get("employment_status") or DEFAULT_EMPLOYMENT_STATUS).lower()
     missing = missing_payroll_fields(employee)
     if status == "en_onboarding":
-        fields = ", ".join(missing) if missing else "informations paie"
-        return (
-            "La fiche de ce collaborateur est incomplète (onboarding en cours). "
-            f"Complétez : {fields}."
+        # Le refus tient au statut, pas à la fiche : même complète, elle ne suffit pas.
+        motif = (
+            "Ce collaborateur est encore en onboarding : la paie ne se génère que pour "
+            "un collaborateur actif. Passez-le en « Actif » sur sa fiche."
         )
+        if missing:
+            motif += f" Il manque aussi : {', '.join(missing)}."
+        return motif
     if status not in PAYROLL_ACTIVE_STATUSES:
-        return f"Ce collaborateur n'est pas actif (statut : {status})."
+        libelle = _LIBELLES_STATUT.get(status, "inconnu")
+        return f"Ce collaborateur n'est pas actif (statut : {libelle})."
     if missing:
         return (
             "Impossible de générer un bulletin : fiche paie incomplète. "

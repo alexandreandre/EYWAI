@@ -15,27 +15,15 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { PAYROLL_REQUIRED_FIELD_LABELS } from '@/features/payroll/constants';
+import {
+  libelleStatutSalarie,
+  MESSAGE_STATUTS_PRIS_EN_COMPTE,
+  statutPermetLaPaie,
+} from '@/features/payroll/utils/statutsPaie';
 import { PayrollIncompleteEmployeeList } from '@/features/payroll/components/PayrollIncompleteEmployeeList';
 import type { PayrollGenerateEmployee } from '@/features/payroll/types';
 import type { EmployeeListItem } from '@/hooks/queries/useEmployeesQuery';
 import { cn } from '@/lib/utils';
-
-const STATUS_LABELS: Record<string, string> = {
-  actif: 'Actif',
-  active: 'Actif',
-  en_onboarding: 'En onboarding',
-  en_sortie: 'En départ',
-  parti: 'Parti',
-  suspendu: 'Suspendu',
-  demissionnaire: 'Démissionnaire',
-};
-
-const PAYROLL_LAUNCH_STATUSES = new Set(['actif', 'active', 'en_onboarding']);
-
-function statusLabel(status: string | null | undefined): string {
-  const key = (status ?? 'actif').toLowerCase();
-  return STATUS_LABELS[key] ?? status ?? 'Inconnu';
-}
 
 function toPayrollEmployee(emp: EmployeeListItem): PayrollGenerateEmployee {
   return {
@@ -127,13 +115,13 @@ export function PayrollEmployeeEmptyState({
 
   const total = allEmployees.length;
   const launchEligible = allEmployees.filter((e) =>
-    PAYROLL_LAUNCH_STATUSES.has((e.employment_status ?? 'actif').toLowerCase()),
+    statutPermetLaPaie(e.employment_status),
   );
   const excluded = allEmployees.filter(
-    (e) => !PAYROLL_LAUNCH_STATUSES.has((e.employment_status ?? 'actif').toLowerCase()),
+    (e) => !statutPermetLaPaie(e.employment_status),
   );
   const statusCounts = excluded.reduce<Record<string, number>>((acc, emp) => {
-    const label = statusLabel(emp.employment_status);
+    const label = libelleStatutSalarie(emp.employment_status);
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
@@ -192,7 +180,7 @@ export function PayrollEmployeeEmptyState({
       <EmptyStateShell
         icon={UserPlus}
         title="Aucun collaborateur enregistré"
-        description="Créez un collaborateur actif ou en onboarding, puis complétez sa fiche paie."
+        description="Créez un collaborateur, passez-le en Actif, puis complétez sa fiche paie."
       >
         <p className="text-xs text-muted-foreground">
           Champs requis&nbsp;: {PAYROLL_REQUIRED_FIELD_LABELS.join(' · ')}
@@ -216,11 +204,7 @@ export function PayrollEmployeeEmptyState({
       icon={Users}
       title={`${total} collaborateur${total > 1 ? 's' : ''} en base — aucun sélectionnable`}
       description={
-        <>
-          Seuls les statuts <strong className="font-medium text-foreground">Actif</strong> et{' '}
-          <strong className="font-medium text-foreground">En onboarding</strong> sont pris en compte
-          pour la génération.
-        </>
+        MESSAGE_STATUTS_PRIS_EN_COMPTE
       }
     >
       {excluded.length > 0 && (
