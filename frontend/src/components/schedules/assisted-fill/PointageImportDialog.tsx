@@ -61,6 +61,12 @@ import {
   type WeekByFile,
 } from './importWeekAssignments';
 import {
+  FORMATS_ACCEPTES_ATTRIBUT,
+  FORMATS_ACCEPTES_LIBELLE,
+  estFichierTabulaire,
+  libelleAnalyseEnCours,
+} from './importFormats';
+import {
   expectedSegmentMs,
   smoothedPercent,
 } from './importProgressSmoothing';
@@ -74,7 +80,6 @@ const MONTHS = [
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
 
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff,.csv,.xlsx,.xls';
 
 /** Valeur Radix pour « pas de semaine » (un SelectItem ne peut pas valoir ''). */
 const NO_WEEK = '__none__';
@@ -113,11 +118,6 @@ function useSmoothedProgress(
   }, [active, expectedMs]);
 
   return active ? value : realPct;
-}
-
-function isStructuredFile(name: string): boolean {
-  const lower = name.toLowerCase();
-  return lower.endsWith('.csv') || lower.endsWith('.xlsx') || lower.endsWith('.xls');
 }
 
 function mergeEmployeeProposals(
@@ -464,7 +464,7 @@ export function PointageImportDialog({
     try {
       const results: AiCalendarProposal[] = [];
       let lastBatchId: string | null = null;
-      const allDocuments = files.every((f) => !isStructuredFile(f.name));
+      const allDocuments = files.every((f) => !estFichierTabulaire(f.name));
 
       if (files.length > 1 && allDocuments) {
         const started = await startTimesheetExtractBatch(files, year, month, roster, {
@@ -498,7 +498,7 @@ export function PointageImportDialog({
         if (abort.signal.aborted) return;
         const file = files[i];
         let result: AiCalendarProposal;
-        if (isStructuredFile(file.name)) {
+        if (estFichierTabulaire(file.name)) {
           const parsed = await runStructuredParse(file, abort, refaireImport);
           if (!parsed) return;
           result = parsed.preview;
@@ -658,6 +658,7 @@ export function PointageImportDialog({
                 <ol className="list-decimal space-y-1 pl-4">
                   <li>Le mois affiché est ajusté automatiquement si le PDF concerne un autre mois.</li>
                   <li>Format Cegid « Pointages retenu » : extraction IA hybride vision + OCR par page.</li>
+                  <li>Formats acceptés : PDF, photo (JPG, PNG), CSV ou Excel. Un CSV ou un Excel est lu directement, sans IA et sans choix de semaine.</li>
                   <li>Déposez plusieurs PDF d&apos;un coup (S19–S22) : traitement séquentiel puis revue unique.</li>
                   <li>Vous pouvez fermer cette fenêtre pendant l&apos;analyse : elle continue en arrière-plan.</li>
                 </ol>
@@ -711,14 +712,14 @@ export function PointageImportDialog({
               ) : (
                 <>
                   <span className="font-medium">Glissez un ou plusieurs relevés</span>
-                  <span className="text-xs text-muted-foreground">PDF, JPG ou PNG (max 15 Mo)</span>
+                  <span className="text-xs text-muted-foreground">{FORMATS_ACCEPTES_LIBELLE}</span>
                 </>
               )}
             </button>
             <input
               ref={fileInputRef}
               type="file"
-              accept={ACCEPTED}
+              accept={FORMATS_ACCEPTES_ATTRIBUT}
               multiple
               className="hidden"
               onChange={(e) => {
@@ -733,7 +734,8 @@ export function PointageImportDialog({
                     <span className="min-w-0 flex-1 truncate" title={f.name}>
                       {f.name}
                     </span>
-                    {(documentScope === 'weekly' || documentScope === 'auto') && (
+                    {(documentScope === 'weekly' || documentScope === 'auto') &&
+                      !estFichierTabulaire(f.name) && (
                       <Select
                         value={weekByFile[f.name] || NO_WEEK}
                         onValueChange={(v) => setWeekOf(f.name, v)}
@@ -844,7 +846,7 @@ export function PointageImportDialog({
                     ? `Page ${pageProgress.pages_done} / ${pageProgress.pages_total} — analyse IA…`
                     : files.length > 1
                       ? `Analyse en cours… ${Math.round(smoothedQueuePct)}%`
-                      : 'Analyse IA en cours…'}
+                      : libelleAnalyseEnCours(files)}
                 </p>
               </div>
             )}

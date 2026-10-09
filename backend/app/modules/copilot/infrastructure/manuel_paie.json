@@ -15,7 +15,7 @@
     {
       "titre": "1. Importer les pointages",
       "paragraphes": [
-        "Ouvrez Calendrier, puis « Importer des pointages ». Déposez un fichier par semaine (PDF ou photo) et choisissez sa semaine en face du fichier. « Analyser » lit les feuilles.",
+        "Ouvrez Calendrier, puis « Importer des pointages ». Déposez un fichier par semaine (PDF ou photo) et choisissez sa semaine en face du fichier ; un CSV ou un Excel se dépose aussi, il est lu directement, sans IA et sans choix de semaine. « Analyser » lit les feuilles.",
         "La revue liste les salariés reconnus. Associez les autres (liste « Associer… »), vérifiez les heures, puis « Enregistrer ».",
         "Une ligne de pointage qui tombe un jour d’arrêt n’est plus écrite en silence : elle apparaît dans le récapitulatif. Traitez-la avant de continuer."
       ]

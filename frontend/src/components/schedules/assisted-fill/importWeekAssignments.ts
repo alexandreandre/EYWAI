@@ -5,6 +5,8 @@
  * (YYYY-MM-DD), ce que le backend attend en `week_anchor_date`. Absente =
  * « Non précisée », comme le sélecteur d'aujourd'hui, sans pré-remplissage.
  */
+import { estFichierTabulaire } from './importFormats';
+
 export type WeekByFile = Record<string, string>;
 
 /** Les semaines dans l'ordre des fichiers, `null` quand non précisée. */
@@ -15,9 +17,12 @@ export function weeksAlignedWithFiles(
   return files.map((f) => weekByFile[f.name] || null);
 }
 
-/** Les fichiers sans semaine — bloquant en mode hebdomadaire, comme avant. */
+/**
+ * Les fichiers sans semaine — bloquant en mode hebdomadaire, comme avant.
+ * Un CSV ou un Excel porte ses dates : il n'a pas de semaine à choisir.
+ */
 export function filesMissingWeek(files: { name: string }[], weekByFile: WeekByFile): string[] {
-  return files.filter((f) => !weekByFile[f.name]).map((f) => f.name);
+  return files.filter((f) => !estFichierTabulaire(f.name) && !weekByFile[f.name]).map((f) => f.name);
 }
 
 /** « S28 » pour chaque semaine donnée à plusieurs fichiers : le dernier écrasera le premier. */
