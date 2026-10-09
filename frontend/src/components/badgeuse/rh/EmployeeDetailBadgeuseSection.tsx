@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useAuth } from '@/contexts/AuthContext';
+import { isPayrollFocusActive, isPayrollFocusAllowed } from '@/lib/payrollFocus';
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw } from "lucide-react";
@@ -163,6 +165,8 @@ export function EmployeeDetailBadgeuseSection({
     }
   };
 
+  const { user } = useAuth();
+  const payrollFocus = isPayrollFocusActive(user) && !isPayrollFocusAllowed('/badgeuse-rh');
   const badgeuseRhLink = `/badgeuse-rh?employee=${encodeURIComponent(employeeId)}&tab=corrections`;
 
   if (isForfaitJour) {
@@ -203,12 +207,15 @@ export function EmployeeDetailBadgeuseSection({
             Carte QR, historique et corrections pour {employeeName}
           </p>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link to={badgeuseRhLink}>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Badgeuse entreprise
-          </Link>
-        </Button>
+        {/* Mode paie : la page Badgeuse est inatteignable, le lien ne s'affiche pas. */}
+        {!payrollFocus && (
+          <Button variant="outline" size="sm" asChild>
+            <Link to={badgeuseRhLink}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Badgeuse entreprise
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">

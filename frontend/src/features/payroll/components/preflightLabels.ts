@@ -52,7 +52,9 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
     return '/company?tab=payroll';
   }
   if (anomaly.type === 'pointage') {
-    return `/badgeuse-rh?employee=${encodeURIComponent(anomaly.employee_id)}`;
+    // Le calendrier du salarié permet de corriger le pointage et reste dans le
+    // périmètre du mode paie (la badgeuse, elle, y est inatteignable).
+    return `/schedules?employee=${encodeURIComponent(anomaly.employee_id)}`;
   }
   if (anomaly.type === 'fenetre_modifiee') {
     // Le remède est de régénérer : le lancement de paie.
@@ -63,7 +65,6 @@ export function verifyPathForAnomaly(anomaly: PreflightAnomaly): string {
 
 /** @deprecated Utiliser verifyPathForAnomaly */
 export function correctionPathForType(type: PreflightAnomalyType): string {
-  if (type === 'pointage') return '/badgeuse-rh';
   return '/schedules';
 }
 
