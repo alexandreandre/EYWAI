@@ -97,6 +97,12 @@ def payslip_list_meta(payslip_data: Any) -> dict[str, Any]:
         else:
             warnings.append(str(avertissement.get("message") or ""))
 
+    # Forçage d'un calendrier incomplet : l'alerte reste sur la ligne.
+    for forcage in payslip_data.get("avertissements_forces") or []:
+        message = str(forcage.get("message") or "") if isinstance(forcage, dict) else ""
+        if message and message not in warnings:
+            warnings.append(message)
+
     return {
         "net_a_payer": montants["net_a_payer"],
         "salaire_brut": montants["salaire_brut"],

@@ -377,6 +377,33 @@ def _signaler_documents_de_sortie(employee: dict[str, Any], year: int, month: in
         )
 
 
+def _conserver_avertissements_forces(
+    payslip_id: str | None, avertissements: list[dict[str, Any]]
+) -> None:
+    """Garde sur le bulletin ce que le forçage a signalé.
+
+    L'avertissement n'était que dans la réponse de génération : une fois le suivi
+    fermé ou la page rechargée, la ligne du bulletin forcé ne portait plus aucune
+    alerte. Clé propre (`avertissements_forces`), lue par la liste ; la prochaine
+    génération réécrit `payslip_data` et l'efface avec lui.
+    """
+    if not payslip_id:
+        return
+    ligne = (
+        supabase.table("payslips")
+        .select("payslip_data")
+        .eq("id", payslip_id)
+        .maybe_single()
+        .execute()
+    )
+    donnees = (ligne.data or {}).get("payslip_data") if ligne else None
+    if not isinstance(donnees, dict):
+        return
+    supabase.table("payslips").update(
+        {"payslip_data": {**donnees, "avertissements_forces": avertissements}}
+    ).eq("id", payslip_id).execute()
+
+
 def _reset_payslip_flags_after_regeneration(payslip_id: str) -> None:
     """Après régénération forcée : le bulletin redevient un brouillon.
 
@@ -559,6 +586,8 @@ def _generer_sous_verrou(
     warnings: list[Any] = list(result.get("warnings") or [])
     if calendar_warning:
         warnings.append(calendar_warning)
+        if str(result.get("status") or "") == "success":
+            _conserver_avertissements_forces(result.get("payslip_id"), [calendar_warning])
     if validated_existing and str(result.get("status") or "") == "success":
         _reset_payslip_flags_after_regeneration(str(validated_existing["id"]))
         warnings.append(
