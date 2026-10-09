@@ -226,3 +226,19 @@ describe('annulation : le bulletin en vol est attendu, pas lâché', () => {
     expect(source).toMatch(/logRef\.current = \[\.\.\.logRef\.current, entry\];[\s\S]*?if \(abortRef\.current\) break;/);
   });
 });
+
+describe('forçage : le toast jaune accompagne toujours un bulletin forcé', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '../hooks/usePayrollGeneration.ts'),
+    'utf8'
+  );
+
+  it('l’avertissement de forçage est annoncé une fois le bulletin compté et rechargé, pour durer', () => {
+    // Émis en fin de tour (après le rechargement), jamais au milieu des mises à jour
+    // d'état du suivi, et assez longtemps pour être lu.
+    const apresRechargement = source.split('await invalidatePayslips(job.employeeId);')[1] ?? '';
+    expect(apresRechargement).toContain('variant: \'warning\'');
+    expect(apresRechargement).toContain('avertissementsForces');
+    expect(apresRechargement).toMatch(/duration: \d{5,}/);
+  });
+});
