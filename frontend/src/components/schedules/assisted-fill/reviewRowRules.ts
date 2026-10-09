@@ -36,3 +36,32 @@ export function statusAfterLosingEmployee(row: ReviewRowLike): 'error' | 'empty'
 export function visibleRowWarnings(warnings: string[], status: string): string[] {
   return status === 'ok' ? [] : warnings;
 }
+
+/**
+ * Compteur « hors relevé » à jour : celui de l'analyse, moins les salariés
+ * associés à la main depuis (plus ceux dont l'association a été défaite).
+ */
+export function horsReleveRestant(
+  initial: number,
+  idsAuDepart: (string | null)[],
+  idsMaintenant: (string | null)[],
+): number {
+  const depart = new Set(idsAuDepart.filter(Boolean));
+  const maintenant = new Set(idsMaintenant.filter(Boolean));
+  let delta = 0;
+  maintenant.forEach((id) => {
+    if (!depart.has(id)) delta -= 1;
+  });
+  depart.forEach((id) => {
+    if (!maintenant.has(id)) delta += 1;
+  });
+  return Math.max(0, initial + delta);
+}
+
+/**
+ * Après « Associer… », la ligne devient prête : sous un filtre qui ne la montre
+ * plus (« À vérifier », « Incomplets », « Vides »), on passe à « Tous ».
+ */
+export function filtreApresAssociation<T extends string>(filtre: T): T | 'all' {
+  return filtre === 'all' || filtre === 'ready' ? filtre : 'all';
+}

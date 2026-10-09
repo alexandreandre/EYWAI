@@ -47,6 +47,8 @@ import {
   rowCarriesHours,
   statusAfterLosingEmployee,
   visibleRowWarnings,
+  filtreApresAssociation,
+  horsReleveRestant,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { ReimportBanner } from './ReimportBanner';
@@ -548,7 +550,19 @@ export function AssistedFillReview({
   // porte ses heures (ancienne fiche badge vide, 02/10/2026).
   const takenEmployeeIds = useMemo(() => reservedEmployeeIds(rows), [rows]);
 
+  // Compteur « hors relevé » : celui de l'analyse, corrigé des associations faites ici.
+  const idsAuDepart = useRef(proposal.employees.map((e) => e.employee_id)).current;
+  const horsReleve = horsReleveRestant(
+    proposal.roster_not_in_document_count ?? 0,
+    idsAuDepart,
+    rows.map((r) => r.employeeId),
+  );
+  // Ligne qui vient d'être associée : mise en évidence dans la liste.
+  const [cleAssociee, setCleAssociee] = useState<string | null>(null);
+
   const associateEmployee = (rowKey: string, employeeId: string, matchedName: string) => {
+    setFilter((f) => filtreApresAssociation(f));
+    setCleAssociee(rowKey);
     setRows((prev) => {
       const conflicting = prev.find(
         (r) => r.key !== rowKey && r.employeeId === employeeId,
@@ -1009,9 +1023,9 @@ export function AssistedFillReview({
               {summary.empty} vides
             </Badge>
           )}
-          {(proposal.roster_not_in_document_count ?? 0) > 0 && (
+          {horsReleve > 0 && (
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
-              {proposal.roster_not_in_document_count} hors relevé
+              {horsReleve} hors relevé
             </Badge>
           )}
         </div>
@@ -1167,6 +1181,7 @@ export function AssistedFillReview({
                   status === 'error' && 'border-destructive/30 bg-destructive/[0.02]',
                   status === 'warning' && 'border-amber-300/60 bg-amber-50/30',
                   status === 'ok' && 'border-border/60',
+                  row.key === cleAssociee && 'ring-2 ring-primary/50',
                 )}
               >
                 <div className="flex items-center gap-1.5">
