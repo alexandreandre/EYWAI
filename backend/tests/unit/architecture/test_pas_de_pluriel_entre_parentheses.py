@@ -16,6 +16,32 @@ FICHIERS = [
     "modules/payslips/application/commands.py",
     "modules/payroll/application/preflight_anomalies.py",
     "modules/payslips/application/anomalies_report.py",
+    "modules/absences/application/commands.py",
+    "modules/absences/application/fractionnement_queries.py",
+    "modules/absences/application/notifications.py",
+    "modules/absences/domain/rules.py",
+    "modules/dashboard/domain/rules.py",
+    "modules/exports/application/notifications.py",
+    "modules/exports/domain/rules.py",
+    "modules/exports/infrastructure/export_paiement_salaires.py",
+    "modules/exports/infrastructure/export_provision_cp.py",
+    "modules/exports/infrastructure/export_virement_acomptes.py",
+    "modules/oeth_settings/application/queries.py",
+    "modules/participation/api/router.py",
+    "modules/participation/application/campaign_import_service.py",
+    "modules/participation/application/participation_notifications.py",
+    "modules/pas_rates/domain/rapprochement.py",
+    "modules/payroll/exports/paiement_salaires.py",
+    "modules/schedules/application/ai_fill.py",
+    "modules/schedules/application/calendar_generation.py",
+    "modules/schedules/application/commands.py",
+    "modules/schedules/application/nl_fast_path.py",
+    "modules/schedules/application/planning_import/quadra_calendar.py",
+    "modules/schedules/application/preset_apply.py",
+    "modules/schedules/application/timesheet_import/commit_service.py",
+    "modules/schedules/application/timesheet_import_service.py",
+    "modules/schedules/application/timesheet_page_merge.py",
+    "modules/schedules/application/timesheet_quality.py",
 ]
 
 MOTIF = re.compile(r"[A-Za-zÀ-ÿ]\((s|e|es|x)\)")
@@ -47,3 +73,12 @@ def test_pluriel_accorde_le_nombre():
     assert pluriel(3, "cotisation patronale négative", "cotisations patronales négatives") == (
         "3 cotisations patronales négatives"
     )
+
+
+def test_accord_n_ecrit_que_le_mot():
+    from app.shared.domain.pluriel import accord
+
+    assert accord(1, "validé") == "validé"
+    assert accord(0, "validé") == "validé"
+    assert accord(2, "validé") == "validés"
+    assert accord(2, "mis à jour", "mis à jour") == "mis à jour"
