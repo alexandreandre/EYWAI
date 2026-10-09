@@ -81,7 +81,7 @@ def test_un_arret_de_tout_le_mois_declenche_r08_avec_les_vraies_heures():
     alertes = _r08(bulletin)
     assert len(alertes) == 1
     assert alertes[0].message == (
-        "Heures travaillées (0.00 h) inférieures à 50 % du volume contractuel (151.67 h)."
+        "Heures travaillées (0,00 h) inférieures à 50 % du volume contractuel (151,67 h)."
     )
 
 

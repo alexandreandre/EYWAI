@@ -7,6 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
+from app.shared.domain.pluriel import pluriel
+
 AlertLevel = Literal["CRITIQUE", "AVERTISSEMENT", "INFO"]
 
 #: Les règles que le moteur de comparaison sait produire (R01 à R12) : seules
@@ -67,6 +69,11 @@ def _to_float(v: Any) -> float:
 def _pct_fr(valeur: float) -> str:
     """« 14,0 % » : virgule décimale et espace avant le signe, comme partout à l'écran."""
     return f"{valeur:.1f}".replace(".", ",") + " %"
+
+
+def _nombre_fr(valeur: float, decimales: int = 2) -> str:
+    """« 1 951,19 » : virgule décimale, espace entre les milliers."""
+    return f"{valeur:,.{decimales}f}".replace(",", " ").replace(".", ",")
 
 
 def _pct_change(old: float, new: float) -> float:
@@ -397,7 +404,7 @@ def compute_comparison(
                     rule_id="R06",
                     level="AVERTISSEMENT",
                     message=(
-                        "Éléments présents en N-1 absents en N : "
+                        f"{pluriel(len(missing), 'ligne')} de moins que le mois de référence : "
                         + ", ".join(missing)
                         + "."
                     ),
@@ -413,7 +420,7 @@ def compute_comparison(
                     rule_id="R07",
                     level="INFO",
                     message=(
-                        "Nouveaux éléments de brut en N absents en N-1 : "
+                        f"{pluriel(len(new_ones), 'ligne')} de plus que le mois de référence : "
                         + ", ".join(new_ones)
                         + "."
                     ),
@@ -432,8 +439,8 @@ def compute_comparison(
                     rule_id="R08",
                     level="CRITIQUE",
                     message=(
-                        f"Heures travaillées ({vn['heures_travaillees']:.2f} h) "
-                        f"inférieures à 50 % du volume contractuel ({monthly_hours:.2f} h)."
+                        f"Heures travaillées ({_nombre_fr(vn['heures_travaillees'])} h) "
+                        f"inférieures à 50 % du volume contractuel ({_nombre_fr(monthly_hours)} h)."
                     ),
                     field="heures_travaillees",
                     value_n=vn["heures_travaillees"],
@@ -453,7 +460,7 @@ def compute_comparison(
                 rule_id="R09",
                 level="INFO",
                 message=(
-                    f"Heures supplémentaires élevées : {vn['heures_supp']:.2f} h (> 20 h)."
+                    f"Heures supplémentaires élevées : {_nombre_fr(vn['heures_supp'])} h (> 20 h)."
                 ),
                 field="total_heures_supp",
                 value_n=vn["heures_supp"],
@@ -473,7 +480,8 @@ def compute_comparison(
                     level="AVERTISSEMENT",
                     message=(
                         "Tendance à la baisse du net à payer sur trois mois consécutifs "
-                        f"({nets[0]:.2f} → {nets[1]:.2f} → {nets[2]:.2f} → {nets[3]:.2f} €)."
+                        f"({_nombre_fr(nets[0])} → {_nombre_fr(nets[1])} → "
+                        f"{_nombre_fr(nets[2])} → {_nombre_fr(nets[3])} €)."
                     ),
                     field="net_a_payer",
                     value_n=nets[3],
@@ -489,7 +497,7 @@ def compute_comparison(
                 rule_id="R11",
                 level="CRITIQUE",
                 message=(
-                    f"Acompte déduit ({vn['acompte_verse']:.2f} €) "
+                    f"Acompte déduit ({_nombre_fr(vn['acompte_verse'])} €) "
                     "sans avance déclarée côté dossier."
                 ),
                 field="synthese_net.acompte_verse",
