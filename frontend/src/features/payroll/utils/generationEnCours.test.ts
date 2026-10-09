@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLE_INTERRUPTION,
   libelleBandeauGeneration,
+  libelleCompteurGeneration,
   phaseModaleApres,
   phraseAnnulation,
   lienQuitteLaPage,
@@ -186,5 +187,19 @@ describe('texte de fin de suivi', () => {
 
   it('un échec : rien de plus, les échecs ont leur propre affichage', () => {
     expect(texteFinDeSuivi(echec, true)).toBeNull();
+  });
+});
+
+describe('compteur de la barre de suivi', () => {
+  it('dit « 1 bulletin traité sur 4 »', () => {
+    expect(libelleCompteurGeneration(1, 4)).toBe('1 bulletin traité sur 4');
+  });
+
+  it('0 est au singulier', () => {
+    expect(libelleCompteurGeneration(0, 1)).toBe('0 bulletin traité sur 1');
+  });
+
+  it('pluriel dès 2 traités', () => {
+    expect(libelleCompteurGeneration(3, 4)).toBe('3 bulletins traités sur 4');
   });
 });
