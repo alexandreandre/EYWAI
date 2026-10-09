@@ -65,3 +65,21 @@ export function horsReleveRestant(
 export function filtreApresAssociation<T extends string>(filtre: T): T | 'all' {
   return filtre === 'all' || filtre === 'ready' ? filtre : 'all';
 }
+
+/** Les salariés du roster qui ne sont sur aucune ligne de la revue (« hors relevé »). */
+export function nomsHorsReleve(
+  roster: { id: string; first_name: string; last_name: string }[],
+  idsDesLignes: (string | null)[],
+): string[] {
+  const presents = new Set(idsDesLignes.filter(Boolean));
+  return roster
+    .filter((r) => !presents.has(r.id))
+    .map((r) => `${r.first_name} ${r.last_name}`.trim());
+}
+
+/** « Léa Fontaine » ou « A, B, C et 2 autres » : court, pour le badge. */
+export function libelleHorsReleve(noms: string[]): string {
+  if (noms.length <= 3) return noms.join(', ');
+  const reste = noms.length - 3;
+  return `${noms.slice(0, 3).join(', ')} et ${reste} autre${reste > 1 ? 's' : ''}`;
+}

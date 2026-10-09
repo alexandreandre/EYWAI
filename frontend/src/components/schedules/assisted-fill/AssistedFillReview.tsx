@@ -49,6 +49,8 @@ import {
   visibleRowWarnings,
   filtreApresAssociation,
   horsReleveRestant,
+  libelleHorsReleve,
+  nomsHorsReleve,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { joursEcritsDuLot, phraseEnregistrement } from './bilanEnregistrement';
@@ -579,6 +581,10 @@ export function AssistedFillReview({
     idsAuDepart,
     rows.map((r) => r.employeeId),
   );
+  const nomsAbsents = nomsHorsReleve(
+    roster,
+    rows.map((r) => r.employeeId),
+  ).slice(0, Math.max(horsReleve, 0) + 5);
   // Ligne qui vient d'être associée : mise en évidence dans la liste.
   const [cleAssociee, setCleAssociee] = useState<string | null>(null);
 
@@ -1043,8 +1049,12 @@ export function AssistedFillReview({
             </Badge>
           )}
           {horsReleve > 0 && (
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
-              {horsReleve} hors relevé
+            <Badge
+              variant="outline"
+              className="h-5 px-1.5 text-[10px] text-muted-foreground"
+              title={nomsAbsents.join(', ')}
+            >
+              {horsReleve} hors relevé{nomsAbsents.length > 0 && ` : ${libelleHorsReleve(nomsAbsents)}`}
             </Badge>
           )}
         </div>
