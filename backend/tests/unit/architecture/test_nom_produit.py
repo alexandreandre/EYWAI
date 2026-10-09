@@ -1,34 +1,46 @@
-"""Garde : le produit visible s'appelle Martine, pas EYWAI.
+"""Garde : le produit s'appelle Martine, nulle part EYWAI.
 
-Parcourt backend/app, collecte les chaînes littérales (hors docstrings) et
-échoue si l'une contient « EYWAI », sauf cas explicitement autorisés.
+Deux gardes :
+- les chaînes littérales de backend/app (hors docstrings) ;
+- le texte brut (code, commentaires, docstrings, README, workflows) du dépôt
+  hors docs/, supabase/, .cursor/, .claude/.
+
+Seuls trois cas de compatibilité subsistent, listés explicitement.
 """
 from __future__ import annotations
 
 import ast
+import subprocess
 from pathlib import Path
 
-APP = Path(__file__).resolve().parents[3] / "app"
+BACKEND = Path(__file__).resolve().parents[3]
+APP = BACKEND / "app"
+DEPOT = BACKEND.parent
 
-# (fichier relatif à app/, chaîne exacte) : identifiants techniques et
-# décisions en attente. Une chaîne vide dans le second champ n'existe pas.
+# Les noms sont construits pour que ce fichier ne se cite pas lui-même.
+ANCIEN = "EY" + "WAI"
+ANCIEN_MIN = ANCIEN.lower()
+
+# (fichier relatif à app/, chaîne exacte)
 LISTE_BLANCHE: set[tuple[str, str]] = {
-    ("modules/exports/infrastructure/export_sepa.py", "EYWAI"),
-    ("modules/exports/infrastructure/export_virement_acomptes.py", "EYWAI-ACO"),
-    ("modules/dsn_export/application/builder.py", "EYWAI Paie"),
-    ("modules/dsn_export/application/builder.py", "EYWAI"),
-    ("modules/dsn_export/domain/writer.py", "EYWAI Paie"),
-    ("modules/dsn_export/domain/writer.py", "EYWAI"),
-    # valeur par défaut du titre d'application envoyé à OpenRouter (identifiant technique)
-    ("shared/infrastructure/ai/client.py", "EYWAI"),
-    ("shared/infrastructure/ai/client_async.py", "EYWAI"),
-    # variables d'environnement et en-tête webhook (contrats techniques)
-    ("modules/scraping/infrastructure/scraper_runner.py", "EYWAI_SYNC_COTISATION_IDS"),
-    ("modules/scraping/infrastructure/scraper_runner.py", "EYWAI_REVIEWED_BY"),
-    ("modules/webhooks/infrastructure/repository.py", "X-EYWAI-Signature"),
-    # message de journal serveur, jamais montré à l'écran
-    ("services/document_service.py", "ReportLab fallback PDF (EYWAI): %s"),
+    # ancien en-tête de signature des webhooks, encore envoyé (compatibilité)
+    ("modules/webhooks/infrastructure/repository.py", "X-" + ANCIEN + "-Signature"),
 }
+
+# Fichiers du texte brut autorisés à citer l'ancien nom, et pourquoi.
+FICHIERS_COMPATIBILITE: dict[str, str] = {
+    "backend/app/modules/webhooks/infrastructure/repository.py": "ancien en-tête webhook",
+    "backend/scraping/core/env_produit.py": "repli de lecture EYWAI_*",
+    "backend/app/modules/documents/application/commands.py": "sentinelle __eywai__ (ancien front)",
+    "backend/tests/unit/architecture/test_nom_produit.py": "ce garde",
+    "backend/tests/unit/shared/test_env_produit.py": "test du repli",
+    "backend/tests/unit/webhooks/test_en_tetes_signature.py": "test de l'ancien en-tête",
+    "backend/tests/unit/documents/test_sentinelle_modele_standard.py": "test de l'ancienne sentinelle",
+    "backend/tests/_garde_base_reelle.py": "repli de lecture EYWAI_*",
+}
+EXCLUS = ("docs/", "supabase/", ".cursor/", ".claude/", "node_modules/", "data/")
+SUFFIXES = {".py", ".ts", ".tsx", ".json", ".md", ".yml", ".yaml", ".html", ".sh", ".toml",
+            ".example", ".txt", ".js", ".mjs", ".cfg", ".ini", ".css", ".sql"}
 
 
 def _docstrings(tree: ast.AST) -> set[int]:
@@ -60,25 +72,57 @@ def _violations() -> list[str]:
                 isinstance(node, ast.Constant)
                 and isinstance(node.value, str)
                 and id(node) not in docs
-                and "EYWAI" in node.value
+                and ANCIEN in node.value
+                and (rel, node.value) not in LISTE_BLANCHE
             ):
-                s = node.value
-                if (rel, s) in LISTE_BLANCHE:
-                    continue
-                out.append(f"{rel}:{node.lineno}: {s[:90]!r}")
+                out.append(f"{rel}:{node.lineno}: {node.value[:90]!r}")
+    return out
+
+
+def _fichiers_du_depot() -> list[str]:
+    res = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=DEPOT, capture_output=True, text=True, check=True,
+    )
+    return [
+        f for f in res.stdout.splitlines()
+        if not f.startswith(EXCLUS) and (Path(f).suffix in SUFFIXES or Path(f).name in {"Makefile", ".env.example", ".env.local.example"})
+    ]
+
+
+def _texte_brut() -> list[str]:
+    out: list[str] = []
+    for f in _fichiers_du_depot():
+        if f in FICHIERS_COMPATIBILITE:
+            continue
+        p = DEPOT / f
+        if not p.is_file():
+            continue
+        try:
+            texte = p.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for i, ligne in enumerate(texte.splitlines(), 1):
+            if ANCIEN in ligne or f"__{ANCIEN_MIN}__" in ligne or f"{ANCIEN_MIN}-" in ligne:
+                out.append(f"{f}:{i}: {ligne.strip()[:90]}")
     return out
 
 
 def test_le_produit_visible_s_appelle_martine():
     v = _violations()
-    assert not v, f"{len(v)} chaînes citent encore EYWAI:\n" + "\n".join(v)
+    assert not v, f"{len(v)} chaînes citent encore l'ancien nom:\n" + "\n".join(v)
 
 
-def test_les_fichiers_de_donnees_du_serveur_ne_citent_pas_eywai():
+def test_aucun_texte_du_depot_ne_cite_l_ancien_nom():
+    v = _texte_brut()
+    assert not v, f"{len(v)} lignes citent encore l'ancien nom:\n" + "\n".join(v[:80])
+
+
+def test_les_fichiers_de_donnees_du_serveur_ne_citent_pas_l_ancien_nom():
     fautifs = [
         p.relative_to(APP).as_posix()
         for ext in ("*.json", "*.md", "*.txt", "*.html")
         for p in APP.rglob(ext)
-        if "EYWAI" in p.read_text(encoding="utf-8", errors="ignore")
+        if ANCIEN in p.read_text(encoding="utf-8", errors="ignore")
     ]
-    assert not fautifs, f"Fichiers de données citant EYWAI : {fautifs}"
+    assert not fautifs, f"Fichiers de données citant l'ancien nom : {fautifs}"
