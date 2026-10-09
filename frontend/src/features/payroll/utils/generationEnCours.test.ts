@@ -12,6 +12,7 @@ import {
   phraseInterruption,
   questionQuitterGeneration,
   recapitulatifEchecs,
+  texteFinDeSuivi,
 } from './generationEnCours';
 
 describe('bandeau et question pendant la génération — revue du 05/10', () => {
@@ -164,5 +165,26 @@ describe('message d’annulation de la génération', () => {
     expect(phraseAnnulation(3, 10, true)).toContain(
       'Le bulletin en cours au moment de l’arrêt est à vérifier.'
     );
+  });
+});
+
+describe('texte de fin de suivi', () => {
+  const ok = [{ status: 'success' as const }];
+  const alerte = [{ status: 'warning' as const }];
+  const echec = [{ status: 'error' as const }];
+
+  it('n’annonce une fermeture automatique que là où elle a lieu', () => {
+    expect(texteFinDeSuivi(ok, true)).toBe('Fermeture automatique dans quelques secondes…');
+    expect(texteFinDeSuivi(ok, false)).toBeNull();
+  });
+
+  it('des alertes : on invite à ouvrir les bulletins, avec ou sans fermeture', () => {
+    const attendu = 'Des bulletins ont été générés avec des alertes — ouvrez-les pour corriger.';
+    expect(texteFinDeSuivi(alerte, true)).toBe(attendu);
+    expect(texteFinDeSuivi(alerte, false)).toBe(attendu);
+  });
+
+  it('un échec : rien de plus, les échecs ont leur propre affichage', () => {
+    expect(texteFinDeSuivi(echec, true)).toBeNull();
   });
 });
