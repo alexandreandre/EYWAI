@@ -64,6 +64,11 @@ def _to_float(v: Any) -> float:
         return 0.0
 
 
+def _pct_fr(valeur: float) -> str:
+    """« 14,0 % » : virgule décimale et espace avant le signe, comme partout à l'écran."""
+    return f"{valeur:.1f}".replace(".", ",") + " %"
+
+
 def _pct_change(old: float, new: float) -> float:
     if old == 0:
         return 0.0 if new == 0 else 100.0
@@ -307,7 +312,7 @@ def compute_comparison(
                     rule_id="R01",
                     level="AVERTISSEMENT",
                     message=(
-                        f"Le salaire brut a varié de {d_brut:.1f}% "
+                        f"Le salaire brut a varié de {_pct_fr(d_brut)} "
                         "par rapport au dernier bulletin validé."
                     ),
                     field="salaire_brut",
@@ -322,7 +327,7 @@ def compute_comparison(
                     rule_id="R02",
                     level="AVERTISSEMENT",
                     message=(
-                        f"Variation du salaire brut de {d_brut:.1f}% "
+                        f"Variation du salaire brut de {_pct_fr(d_brut)} "
                         "(seuil d'avertissement 1–5 %)."
                     ),
                     field="salaire_brut",
@@ -339,7 +344,7 @@ def compute_comparison(
                     rule_id="R03",
                     level="CRITIQUE",
                     message=(
-                        f"Le net à payer a varié de {d_net:.1f}% "
+                        f"Le net à payer a varié de {_pct_fr(d_net)} "
                         "(seuil critique > 10 %)."
                     ),
                     field="net_a_payer",
@@ -354,7 +359,7 @@ def compute_comparison(
                     rule_id="R04",
                     level="AVERTISSEMENT",
                     message=(
-                        f"Le net à payer a varié de {d_net:.1f}% "
+                        f"Le net à payer a varié de {_pct_fr(d_net)} "
                         "(seuil d'avertissement 5–10 %)."
                     ),
                     field="net_a_payer",
@@ -371,7 +376,7 @@ def compute_comparison(
                     rule_id="R05",
                     level="AVERTISSEMENT",
                     message=(
-                        f"Variation des cotisations salariales de {d_cot:.1f}% "
+                        f"Variation des cotisations salariales de {_pct_fr(d_cot)} "
                         "(seuil > 8 %)."
                     ),
                     field="total_cotisations_salariales",
