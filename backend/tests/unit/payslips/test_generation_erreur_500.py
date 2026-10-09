@@ -44,7 +44,7 @@ def test_le_message_generique_dit_quoi_faire():
 def test_le_refus_forfait_jour_ne_parle_ni_de_generateur_ni_de_dossier():
     from app.modules.payroll.documents.payslip_run_forfait import message_pas_forfait_jour
 
-    message = message_pas_forfait_jour("cadre")
+    message = message_pas_forfait_jour()
     assert "générateur" not in message
     assert "dossier" not in message.lower()
     assert "forfait jour" in message

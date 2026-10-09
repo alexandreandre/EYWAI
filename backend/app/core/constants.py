@@ -32,3 +32,11 @@ EXPOSED_HEADERS = [HEADER_DEJA_SUPPRIME]
 # dans `details`). Relue par l'écran des exports : un export dont un bulletin
 # du mois a été supprimé depuis est « à refaire ».
 AUDIT_BULLETIN_SUPPRIME = "payslip.delete"
+
+#: Ce que voit la gestionnaire quand la génération d'un bulletin échoue sur une
+#: erreur interne : le détail technique reste dans les journaux du serveur.
+MESSAGE_ERREUR_GENERATION = (
+    "Le bulletin n'a pas pu être généré à cause d'une erreur interne de Martine. "
+    "Réessayez dans un instant ; si l'erreur revient, signalez-la au support en "
+    "indiquant le salarié et le mois."
+)

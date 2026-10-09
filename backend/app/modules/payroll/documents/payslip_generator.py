@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from app.modules.collective_agreements.application.idcc_resolution import (
     build_convention_collective_payload,
 )
+from app.core.constants import MESSAGE_ERREUR_GENERATION
 from app.core.database import supabase
 from app.shared.domain.absence_calendar import ABSENCE_TYPE_TO_CALENDAR_TYPE
 from app.shared.reprise_paie import raison_de_cumul_manquant
@@ -1548,7 +1549,7 @@ def process_payslip_generation(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("Exception")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_GENERATION)
     finally:
         for path in files_to_cleanup:
             try:

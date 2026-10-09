@@ -58,6 +58,14 @@ from .payslip_run_heures import (
 from app.modules.payroll.engine.lien_saisie import lier_a_la_saisie
 
 
+def message_pas_forfait_jour() -> str:
+    """Refus d'un bulletin au forfait jour pour un salarié qui ne l'est pas."""
+    return (
+        "Ce salarié n'est pas au forfait jour : son bulletin se calcule sur ses heures. "
+        "Vérifiez son statut sur sa fiche."
+    )
+
+
 def jours_du_forfait_pour_reduction(contexte: ContextePaie, company_id: str | None) -> float:
     """Jours « prévus au forfait du salarié » (BOSS, allègements généraux, § 860).
 
@@ -198,10 +206,7 @@ def run_payslip_generation_forfait(
     resolved_employee_id = employee_id or contexte.contrat.get("employee_id")
 
     if not contexte.is_forfait_jour:
-        raise ValueError(
-            f"L'employé {employee_folder_name} n'est pas en forfait jour "
-            f"(statut: {contexte.statut_salarie}). Utilisez le générateur heures."
-        )
+        raise ValueError(message_pas_forfait_jour())
 
     employee_id = contexte.contrat.get("employee_id")
     # Le `company_id` de l'appelant fait foi (comme sur le chemin horaire, qui

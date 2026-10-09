@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
-from app.core.constants import HEADER_DEJA_SUPPRIME
+from app.core.constants import HEADER_DEJA_SUPPRIME, MESSAGE_ERREUR_GENERATION
 from app.core.security import get_current_user
 from app.modules.access_control.application.service import access_control_service
 from app.modules.audit.application.commands import log_audit_event
@@ -278,7 +278,7 @@ def generate_payslip_route(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as e:
         logger.exception("Échec de generate_payslip_route")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=MESSAGE_ERREUR_GENERATION)
 
 
 # --- Mes bulletins ---
