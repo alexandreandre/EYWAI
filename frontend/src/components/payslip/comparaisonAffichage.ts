@@ -20,9 +20,19 @@ const MOIS = [
   'décembre',
 ];
 
+/**
+ * Lit une date du serveur. Une chaîne datée sans « Z » ni décalage (versions
+ * d'historique écrites par le serveur, en UTC) serait lue par le navigateur à son
+ * heure locale : on la lit en UTC.
+ */
+function lireDate(iso: string): Date {
+  const sansFuseau = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(iso.trim());
+  return new Date(sansFuseau ? `${iso.trim().replace(' ', 'T')}Z` : iso);
+}
+
 function partiesParis(iso: string | null | undefined): Intl.DateTimeFormatPart[] | null {
   if (!iso) return null;
-  const date = new Date(iso);
+  const date = lireDate(iso);
   if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat('fr-FR', {
     timeZone: 'Europe/Paris',
@@ -55,7 +65,7 @@ export function dateEnClair(iso: string | null | undefined): string {
 /** « 7 octobre 2026 à 09:12 », à l'heure de Paris ; chaîne vide si la date est illisible. */
 export function dateHeureEnClair(iso: string | null | undefined): string {
   if (!iso) return '';
-  const date = new Date(iso);
+  const date = lireDate(iso);
   if (Number.isNaN(date.getTime())) return '';
   const parties = new Intl.DateTimeFormat('fr-FR', {
     timeZone: 'Europe/Paris',
