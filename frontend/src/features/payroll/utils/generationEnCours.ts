@@ -126,3 +126,20 @@ export function phraseInterruption(info: InterruptionGeneration): string {
     'Les autres sont encore « À générer » : relancez « Générer le mois ».'
   );
 }
+
+export type PhaseModaleGeneration = 'select' | 'running' | 'done';
+
+/**
+ * Phase de la fenêtre de génération groupée d'après celle du suivi. Quand le
+ * suivi revient au repos en pleine génération (annulation), la fenêtre revient
+ * à la sélection : sans cela elle restait sur « Génération en cours… », sans
+ * bouton ni fermeture possible.
+ */
+export function phaseModaleApres(
+  phaseSuivi: 'idle' | 'running' | 'done',
+  phaseFenetre: PhaseModaleGeneration
+): PhaseModaleGeneration {
+  if (phaseSuivi === 'running') return 'running';
+  if (phaseSuivi === 'done') return 'done';
+  return phaseFenetre === 'running' ? 'select' : phaseFenetre;
+}

@@ -14,6 +14,7 @@ import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/Pa
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/PayrollPreflightAnomaliesSection';
 import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRoutingPanel';
+import { phaseModaleApres } from '@/features/payroll/utils/generationEnCours';
 import { usePayrollGeneration } from '@/features/payroll/hooks/usePayrollGeneration';
 import { usePreflightAnomalies } from '@/features/payroll/hooks/usePreflightAnomaliesCount';
 import { messageConfirmationGeneration } from '@/features/payroll/lib/controleAvantPaie';
@@ -123,11 +124,9 @@ export function GeneratePayrollModal({
 
   useEffect(() => {
     if (generation.phase === 'running') {
-      setUiPhase('running');
       setRefusalDialogDismissed(false);
-    } else if (generation.phase === 'done') {
-      setUiPhase('done');
     }
+    setUiPhase((courante) => phaseModaleApres(generation.phase, courante));
   }, [generation.phase]);
 
   useEffect(() => {

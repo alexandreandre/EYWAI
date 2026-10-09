@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLE_INTERRUPTION,
   libelleBandeauGeneration,
+  phaseModaleApres,
   lienQuitteLaPage,
   lireInterruption,
   noterInterruption,
