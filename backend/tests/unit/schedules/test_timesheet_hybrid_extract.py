@@ -230,3 +230,38 @@ def test_une_heure_negative_lue_est_signalee_des_l_extraction():
 
     assert [d.heures for d in bloc.days] == [-10.5, 8.0]
     assert any("16" in w and "négative" in w for w in bloc.parse_warnings), bloc.parse_warnings
+
+
+def test_un_jour_non_lu_n_est_jamais_transforme_en_zero_heure():
+    """Relevé PDF à couverture 3/5 (09/10/2026) : les jours que la feuille ne permet
+    pas de lire étaient écrits à 0 h. Un jour non lu reste absent de la proposition
+    (il reste à saisir au calendrier) ; un 0 h lu explicitement est conservé."""
+    from app.modules.schedules.application.timesheet_hybrid_extract import (
+        _merged_to_cegid_result,
+    )
+    from app.modules.schedules.application.timesheet_page_merge import (
+        MergedEmployee,
+        MergedExtractionResult,
+    )
+
+    merged = MergedExtractionResult(
+        employees=[
+            MergedEmployee(
+                raw_name="VASSEUR Élodie",
+                days=[
+                    {"jour": 14, "heures": 7.0, "type": "travail"},
+                    {"jour": 15, "heures": None, "type": "travail"},
+                    {"jour": 16, "heures": 0.0, "type": "travail"},
+                    {"jour": 17, "heures": None, "type": "travail"},
+                    {"jour": 18, "heures": 7.0, "type": "travail"},
+                ],
+            )
+        ],
+        confidence=0.9,
+    )
+
+    bloc = _merged_to_cegid_result(merged, target_year=2026, target_month=10).employees[0]
+
+    assert [(d.jour, d.heures) for d in bloc.days] == [(14, 7.0), (16, 0.0), (18, 7.0)]
+    assert bloc.days_expected_count == 5
+    assert bloc.days_parsed_count == 3
