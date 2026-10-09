@@ -19,6 +19,8 @@ type PayrollProgressBarProps = {
   completedCount?: number;
   onDismiss?: () => void;
   onCancel?: () => void;
+  /** Arrêt demandé : le bulletin déjà parti au serveur se termine. */
+  arretDemande?: boolean;
   /** La fenêtre se ferme toute seule après une génération sans alerte (Mode Groupé). */
   fermetureAutomatique?: boolean;
   className?: string;
@@ -34,6 +36,7 @@ export function PayrollProgressBar({
   completedCount = 0,
   onDismiss,
   onCancel,
+  arretDemande = false,
   fermetureAutomatique = false,
   className,
 }: PayrollProgressBarProps) {
@@ -70,7 +73,7 @@ export function PayrollProgressBar({
               ~{estimatedRemainingSec}s restantes
             </span>
           )}
-          {phase === 'running' && onCancel && (
+          {phase === 'running' && onCancel && !arretDemande && (
             <Button
               type="button"
               variant="ghost"
@@ -104,6 +107,12 @@ export function PayrollProgressBar({
           <Loader2 className="h-4 w-4 shrink-0 animate-spin text-cyan-500" aria-hidden />
           <span>{currentLabel}</span>
         </div>
+      )}
+
+      {phase === 'running' && arretDemande && (
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          Arrêt demandé : le bulletin en cours se termine, les suivants ne seront pas générés.
+        </p>
       )}
 
       {showFeed && (

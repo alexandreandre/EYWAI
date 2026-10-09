@@ -728,6 +728,7 @@ export default function Payroll() {
         completedCount={generation.completedCount}
         onDismiss={generation.dismiss}
         onCancel={generation.cancel}
+        arretDemande={generation.arretDemande}
       />
     ) : null;
 

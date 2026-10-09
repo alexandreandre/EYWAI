@@ -454,6 +454,7 @@ export function GeneratePayrollModal({
                   completedCount={generation.completedCount}
                   onDismiss={generation.dismiss}
                   onCancel={generation.cancel}
+                  arretDemande={generation.arretDemande}
                   fermetureAutomatique
                 />
               </div>

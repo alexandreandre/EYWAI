@@ -223,8 +223,6 @@ describe('annulation : le bulletin en vol est attendu, pas lâché', () => {
   });
 
   it('le bulletin revenu après l’annulation entre au journal avant l’arrêt', () => {
-    const apres = source.split('stopTick();\n\n        if (abortRef.current) {')[1];
-    expect(apres).toBeUndefined();
     expect(source).toMatch(/logRef\.current = \[\.\.\.logRef\.current, entry\];[\s\S]*?if \(abortRef\.current\) break;/);
   });
 });

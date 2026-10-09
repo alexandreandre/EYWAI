@@ -129,6 +129,9 @@ export function usePayrollGeneration() {
   /** Phrase laissée par la dernière annulation, jusqu'à la prochaine génération. */
   const [annulation, setAnnulation] = useState<string | null>(null);
 
+  /** Arrêt demandé, le bulletin en cours se termine. */
+  const [arretDemande, setArretDemande] = useState(false);
+
   const abortRef = useRef(false);
   const tickRef = useRef<number | null>(null);
   const dismissTimerRef = useRef<number | null>(null);
@@ -286,7 +289,7 @@ export function usePayrollGeneration() {
             setFailedJobs((prev) => ({ ...prev, [payrollJobKey(job)]: errorMessage }));
           }
         } catch (error: unknown) {
-          if (abortRef.current || controller.signal.aborted || isAbortError(error)) {
+          if (controller.signal.aborted || isAbortError(error)) {
             salarieInterrompu = job.employeeId;
             stopTick();
             break;
@@ -316,11 +319,6 @@ export function usePayrollGeneration() {
 
         stopTick();
 
-        if (abortRef.current) {
-          salarieInterrompu = job.employeeId;
-          break;
-        }
-
         // Remplace un éventuel refus antérieur du même job par l'issue du jour.
         setRefusedJobs((prev) => {
           const rest = prev.filter(
@@ -334,10 +332,14 @@ export function usePayrollGeneration() {
         setLog(logRef.current);
         updateProgress(completedCountRef.current, 0);
         await invalidatePayslips(job.employeeId);
+        // Arrêt demandé pendant ce bulletin : il est allé au bout côté serveur,
+        // il est compté et sa ligne a pris son état ; les suivants ne partent pas.
+        if (abortRef.current) break;
       }
     } finally {
       stopTick();
       setCurrentJob(null);
+      setArretDemande(false);
       processingRef.current = false;
 
       if (abortRef.current) {
@@ -448,9 +450,11 @@ export function usePayrollGeneration() {
     abortRef.current = false;
   }, [stopTick, clearDismissTimer]);
 
+  // Le bulletin déjà parti au serveur ne s'annule pas : on le laisse finir et
+  // on arrête seulement les suivants (sinon il serait généré sans être compté).
   const cancel = useCallback(() => {
     abortRef.current = true;
-    abortControllerRef.current?.abort();
+    setArretDemande(true);
     queueRef.current = [];
     setQueuedJobs([]);
     stopTick();
@@ -589,6 +593,7 @@ export function usePayrollGeneration() {
     refusedJobs,
     recapEchecs,
     annulation,
+    arretDemande,
     oublierEchecs,
     forceRefused,
     retryJob,
