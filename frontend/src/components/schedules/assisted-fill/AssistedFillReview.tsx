@@ -51,6 +51,7 @@ import {
   horsReleveRestant,
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
+import { joursEcritsDuLot, phraseEnregistrement } from './bilanEnregistrement';
 import {
   lignesIgnorees,
   phraseLignesIgnorees,
@@ -819,10 +820,7 @@ export function AssistedFillReview({
 
       if (batchId && result.total_days_written === 0) {
         const committed = await waitForTimesheetImportBatchCommitted(batchId);
-        const days = committed.preview?.employees.reduce(
-          (acc, e) => acc + e.days.length,
-          0,
-        ) ?? 0;
+        const days = joursEcritsDuLot(committed.summary, committed.preview?.employees);
         // Le commit asynchrone dépose ses refus dans le résumé du batch.
         const preserved = toPreservedAbsenceDays(
           result.warnings?.length
@@ -842,7 +840,7 @@ export function AssistedFillReview({
           conflits,
           reimport
             ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}`
-            : `${savableRows.length} salarié(s) · ${days} jour(s) mis à jour.${suiteIgnorees}`,
+            : `${phraseEnregistrement(savableRows.length, days)}${suiteIgnorees}`,
           applyMeta,
           reimport ? 'Import refait' : undefined,
         );
@@ -869,7 +867,7 @@ export function AssistedFillReview({
       finishSave(
         preserved,
         conflits,
-        `${savableRows.length} salarié(s) · ${result.total_days_written} jour(s) mis à jour.${suiteIgnorees}`,
+        `${phraseEnregistrement(savableRows.length, result.total_days_written)}${suiteIgnorees}`,
         applyMeta,
       );
     } catch (e) {
