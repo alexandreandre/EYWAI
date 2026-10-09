@@ -19,13 +19,12 @@ import { MOTIF_BULLETIN_IMPORTE, estBulletinImporte } from '@/features/payroll/u
 import { estPerime } from '@/features/payroll/utils/bulletinARecalculer';
 import {
   hasNetSuperieurBrutWarning,
-  isNetSuperieurBrutWarning,
-  normalizePayslipWarning,
   PayslipNetBrutInlineLabel,
 } from '@/lib/payslipNetBrutAlert';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { ReportNetNegatif } from '@/features/payroll/components/ReportNetNegatif';
 import { libelleDuBlocage } from '@/features/payroll/utils/employmentPeriod';
+import { motifsDesAlertes as motifsDesAlertesDeLaLigne } from '@/features/payroll/utils/motifsAlertes';
 import { useGenerationEnCours } from '@/features/payroll/components/GenerationEnCoursContext';
 import { Edit, Loader2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -84,11 +83,8 @@ export function PayrollPayslipRow({
   const ecartAffiche = ecart ? (ecart.fort ? ecart.raison : ecart.texte) : null;
   const warnings = state.warnings ?? payslip?.warnings ?? [];
   const showNetBrut = hasNetSuperieurBrutWarning(warnings);
-  const otherWarnings = warnings
-    .filter((w) => !isNetSuperieurBrutWarning(w))
-    .map(normalizePayslipWarning);
   // Toutes les alertes de la ligne, pas seulement la première.
-  const motifsDesAlertes = otherWarnings.join(' · ');
+  const motifsDesAlertes = motifsDesAlertesDeLaLigne(warnings);
   // Points à arbitrer (plafond transport…) : le bulletin est bon, la RH a une
   // décision à prendre. Pas une alerte : un badge gris, le détail au survol.
   const pointsAArbitrer = payslip?.points_a_arbitrer ?? [];
