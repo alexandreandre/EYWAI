@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { accord, pluriel } from '@/lib/pluriel';
 
 type Props = {
   data: RatesResponse;
@@ -252,7 +253,7 @@ export function RatesManualEditDialog({ data, onSaved }: Props) {
         <DialogFooter className="gap-2 sm:gap-0">
           <span className="mr-auto self-center text-xs text-muted-foreground">
             {changedLeaves.length > 0
-              ? `${changedLeaves.length} valeur(s) modifiée(s)`
+              ? `${pluriel(changedLeaves.length, 'valeur')} ${accord(changedLeaves.length, 'modifiée')}`
               : 'Aucune modification'}
           </span>
           <Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={saving}>

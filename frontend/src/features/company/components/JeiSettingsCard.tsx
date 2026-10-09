@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { FlaskConical } from 'lucide-react';
+import { accord, pluriel } from '@/lib/pluriel';
 
 function toUpdatePayload(form: JeiSettings): JeiSettingsUpdate {
   return {
@@ -207,7 +208,7 @@ export default function JeiSettingsCard() {
             </p>
             <p className="text-muted-foreground">
               {form.annees_restantes != null && form.annees_restantes > 0
-                ? `${form.annees_restantes} année(s) restante(s) (7 ans à compter de la création).`
+                ? `${pluriel(form.annees_restantes, 'année')} ${accord(form.annees_restantes, 'restante')} (7 ans à compter de la création).`
                 : form.annees_restantes === 0
                   ? 'Période d’éligibilité expirée.'
                   : null}

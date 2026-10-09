@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/collapsible';
 import { MonthlyReviewTab } from '@/features/admin/components/scraping/MonthlyReviewTab';
 import { RatesManualEditDialog } from '@/components/rates/RatesManualEditDialog';
+import { accord, pluriel } from '@/lib/pluriel';
 
 type Props = {
   data: RatesResponse;
@@ -65,13 +66,13 @@ export function RatesAdminPanel({ data, onManualSaved }: Props) {
             <div className="flex flex-wrap items-center gap-2 text-sm">
               {pendingCount > 0 && (
                 <Badge variant="default" className="bg-purple-600 hover:bg-purple-600">
-                  {pendingCount} changement(s) en attente de validation
+                  {pluriel(pendingCount, 'changement')} en attente de validation
                 </Badge>
               )}
               {criticalCount > 0 && (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  {criticalCount} alerte(s) critique(s)
+                  {pluriel(criticalCount, 'alerte')} {accord(criticalCount, 'critique')}
                 </Badge>
               )}
             </div>

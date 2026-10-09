@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
+import { pluriel } from '@/lib/pluriel';
 
 export function LeaveCampaignSection() {
   const { user } = useAuth();
@@ -45,7 +46,7 @@ export function LeaveCampaignSection() {
       void dashboardQuery.refetch();
       toast({
         title: 'CP ancienneté validés',
-        description: `${res.validated_count} salarié(s) pour ${grantYear}.`,
+        description: `${pluriel(res.validated_count, 'salarié')} pour ${grantYear}.`,
       });
     },
   });
@@ -59,7 +60,7 @@ export function LeaveCampaignSection() {
       void dashboardQuery.refetch();
       toast({
         title: 'Fractionnement validé',
-        description: `${res.validated_count} salarié(s) pour ${grantYear}.`,
+        description: `${pluriel(res.validated_count, 'salarié')} pour ${grantYear}.`,
       });
     },
   });
@@ -119,10 +120,10 @@ export function LeaveCampaignSection() {
             {d.cp_seniority.enabled ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  {d.cp_seniority.employee_count} salarié(s) · {d.cp_seniority.total_days} j. ·{' '}
-                  {d.cp_seniority.validated_count} validé(s)
+                  {pluriel(d.cp_seniority.employee_count, 'salarié')} · {d.cp_seniority.total_days} j. ·{' '}
+                  {pluriel(d.cp_seniority.validated_count, 'validé')}
                   {d.cp_seniority.warnings_count > 0
-                    ? ` · ${d.cp_seniority.warnings_count} alerte(s)`
+                    ? ` · ${pluriel(d.cp_seniority.warnings_count, 'alerte')}`
                     : ''}
                 </p>
                 <p className="text-xs text-muted-foreground">Échéance {d.cp_seniority.deadline}</p>
@@ -148,8 +149,8 @@ export function LeaveCampaignSection() {
             {d.fractionnement.enabled ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  {d.fractionnement.employee_count} salarié(s) · {d.fractionnement.total_days} j. ·{' '}
-                  {d.fractionnement.validated_count} validé(s) · méthode {d.fractionnement.calculation_method}
+                  {pluriel(d.fractionnement.employee_count, 'salarié')} · {d.fractionnement.total_days} j. ·{' '}
+                  {pluriel(d.fractionnement.validated_count, 'validé')} · méthode {d.fractionnement.calculation_method}
                 </p>
                 <p className="text-xs text-muted-foreground">Échéance {d.fractionnement.deadline}</p>
                 {canEdit ? (

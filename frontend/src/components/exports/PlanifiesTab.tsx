@@ -90,6 +90,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { accord, pluriel } from '@/lib/pluriel';
 
 type WizardStep = "preview" | "generating" | "result";
 
@@ -666,7 +667,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>
-                  {preview.anomalies.length} anomalie(s) à corriger avant l&apos;envoi
+                  {pluriel(preview.anomalies.length, 'anomalie')} à corriger avant l&apos;envoi
                 </AlertTitle>
                 <AlertDescription>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
@@ -677,7 +678,7 @@ function DispatchWizardDialog({ open, channel, period, companyId, onClose, onDon
                       </li>
                     ))}
                     {preview.anomalies.length > 8 ? (
-                      <li>… et {preview.anomalies.length - 8} autre(s)</li>
+                      <li>… et {preview.anomalies.length - 8} {accord(preview.anomalies.length - 8, 'autre')}</li>
                     ) : null}
                   </ul>
                 </AlertDescription>

@@ -43,6 +43,7 @@ import type {
 } from '@/components/schedules/types';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { invalidateRhSidebarBadges } from '@/lib/invalidateRhSidebarBadges';
+import { accord, pluriel } from '@/lib/pluriel';
 
 function employeesLoadErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -152,7 +153,7 @@ export default function Schedules() {
     if (loadErrors > 0) {
       toast({
         title: 'Attention',
-        description: `${loadErrors} calendrier(s) n'ont pas pu être chargés.`,
+        description: `${pluriel(loadErrors, 'calendrier')} ${loadErrors > 1 ? "n'ont pas pu être chargés" : "n'a pas pu être chargé"}.`,
         variant: 'destructive',
       });
     }
@@ -167,7 +168,7 @@ export default function Schedules() {
         refreshCalendars();
         toast({
           title: 'Calendrier enregistré',
-          description: `${job.employeesProcessed ?? 0} salarié(s), ${(job.totalDaysWritten ?? 0).toLocaleString('fr-FR')} jour(s) de calendrier prévu.`,
+          description: `${pluriel(job.employeesProcessed ?? 0, 'salarié')}, ${(job.totalDaysWritten ?? 0).toLocaleString('fr-FR')} ${accord(job.totalDaysWritten ?? 0, 'jour')} de calendrier prévu.`,
         });
         return;
       }

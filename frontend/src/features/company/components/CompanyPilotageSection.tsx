@@ -33,6 +33,7 @@ import {
   type PeriodPayrollSnapshot,
 } from "@/features/company/lib/companyPeriodKpis";
 import type { PeriodSelection } from "@/lib/analyticsPeriod";
+import { pluriel } from '@/lib/pluriel';
 
 const eur = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -215,7 +216,7 @@ export function CompanyPilotageSection({
                           />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v: number) => [`${v} salarié(s)`, "Effectif"]} />
+                      <Tooltip formatter={(v: number) => [pluriel(v, 'salarié'), "Effectif"]} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>

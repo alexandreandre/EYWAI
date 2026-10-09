@@ -49,6 +49,7 @@ import { loadSavedWeekTemplates, saveWeekTemplate, type SavedWeekTemplate } from
 import { useCompany } from '@/contexts/CompanyContext';
 import type { WeekTemplate } from '@/hooks/useCalendar';
 import type { DayConfig, WeekConfig } from './types';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const TIER_LABELS: Record<string, string> = {
   high: '37h',
@@ -360,7 +361,7 @@ export function ApplyModelDialog({
         <DialogHeader>
           <DialogTitle>Appliquer un modèle de semaine</DialogTitle>
           <DialogDescription>
-            {selectedEmployeeIds.length} employé(s) sélectionné(s) —{' '}
+            {pluriel(selectedEmployeeIds.length, 'employé')} {accord(selectedEmployeeIds.length, 'sélectionné')} —{' '}
             {new Date(year, month - 1).toLocaleString('fr-FR', {
               month: 'long',
               year: 'numeric',

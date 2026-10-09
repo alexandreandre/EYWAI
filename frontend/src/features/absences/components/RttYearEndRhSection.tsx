@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { AlertTriangle } from 'lucide-react';
+import { pluriel } from '@/lib/pluriel';
 
 export function RttYearEndRhSection() {
   const { activeCompany } = useCompany();
@@ -45,7 +46,7 @@ export function RttYearEndRhSection() {
       setSelected(new Set());
       toast({
         title: 'Clôture RTT enregistrée',
-        description: `${result.closed_count} salarié(s) — ${result.total_days_forfeited} j perdus`,
+        description: `${pluriel(result.closed_count, 'salarié')} — ${result.total_days_forfeited} j perdus`,
       });
     },
     onError: () => {
@@ -88,7 +89,7 @@ export function RttYearEndRhSection() {
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <AlertTitle>Rappel fin d&apos;année</AlertTitle>
             <AlertDescription>
-              {closable.length} salarié(s) ont encore des RTT à solder avant le 31/12.
+              {pluriel(closable.length, 'salarié')} {closable.length > 1 ? 'ont' : 'a'} encore des RTT à solder avant le 31/12.
             </AlertDescription>
           </Alert>
         ) : null}

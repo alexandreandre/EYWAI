@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { downloadBlob } from '@/lib/downloadBlob';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const MONTH_OPTIONS = [
   { value: 1, label: 'Janvier' },
@@ -175,7 +176,7 @@ export function ParticipationCampaignPanel({
       void queryClient.invalidateQueries({ queryKey: ['participation-campaigns', year] });
       toast({
         title: 'Campagne créée',
-        description: `${data.bulletins_created} bulletin(s) préparé(s).`,
+        description: `${pluriel(data.bulletins_created, 'bulletin')} ${accord(data.bulletins_created, 'préparé')}.`,
       });
     },
     onError: (e: unknown) => {
@@ -392,7 +393,7 @@ export function ParticipationCampaignPanel({
                 {importPreview.bulletins > 0 && (
                   <div>
                     {importPreview.full_cash} numéraire · {importPreview.partial_cash} mixte
-                    · {importPreview.full_pee} PEE — {importPreview.linked_inputs} saisie(s)
+                    · {importPreview.full_pee} PEE — {pluriel(importPreview.linked_inputs, 'saisie')}
                     à rattacher
                   </div>
                 )}

@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Award, RefreshCw } from 'lucide-react';
+import { accord, pluriel } from '@/lib/pluriel';
 
 function toUpdatePayload(form: WorkMedalSettings): WorkMedalSettingsUpdate {
   return {
@@ -96,7 +97,7 @@ export default function WorkMedalSettingsCard() {
       queryClient.invalidateQueries({ queryKey: ['work-medal-summary'] });
       toast({
         title: 'Scan terminé',
-        description: `${result.created} dossier(s) créé(s), ${result.updated} mis à jour.`,
+        description: `${pluriel(result.created, 'dossier')} ${accord(result.created, 'créé')}, ${result.updated} mis à jour.`,
       });
     },
     onError: (e: unknown) => {

@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Accessibility, AlertTriangle, Calculator, Plus, Trash2 } from 'lucide-react';
+import { accord } from '@/lib/pluriel';
 
 function toUpdatePayload(form: OethSettings): OethSettingsUpdate {
   return {
@@ -220,7 +221,7 @@ export default function OethSettingsCard() {
               <Badge variant="outline">{compliance.boeth_count} BOETH internes</Badge>
               <Badge variant="outline">Taux {compliance.taux_emploi_pct.toFixed(1)} %</Badge>
               {compliance.boeth_manquants > 0 ? (
-                <Badge variant="destructive">{compliance.boeth_manquants} manquant(s)</Badge>
+                <Badge variant="destructive">{compliance.boeth_manquants} {accord(compliance.boeth_manquants, 'manquant')}</Badge>
               ) : null}
               {compliance.neutralisation_active ? (
                 <Badge variant="secondary">Neutralisation active</Badge>

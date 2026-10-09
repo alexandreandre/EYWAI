@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AbsenceBalance } from '@/api/absences';
 import {
+  formatCongePayeInsufficientMessage,
   formatRhLeaveBalanceDetail,
   getRhLeaveBalanceShortLabel,
   isRhLeaveBalanceVisible,
@@ -33,5 +34,12 @@ describe('employeeAbsencesUtils — soldes RH', () => {
     expect(formatRhLeaveBalanceDetail(balance)).toBe(
       'Acquis : 25.0 j · Pris : 6.5 j · Restant : 18.5 j',
     );
+  });
+});
+
+describe("formatCongePayeInsufficientMessage : accord en nombre", () => {
+  it("singulier pour un jour, pluriel au-delà", () => {
+    expect(formatCongePayeInsufficientMessage(1, 1)).toContain("il vous reste 1 jour disponible pour 1 jour demandé.");
+    expect(formatCongePayeInsufficientMessage(2, 3)).toContain("il vous reste 2 jours disponibles pour 3 jours demandés.");
   });
 });

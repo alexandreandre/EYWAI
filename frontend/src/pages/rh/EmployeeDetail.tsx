@@ -73,6 +73,7 @@ import {
 import { useEmployeeQuery, useUpdateEmployeeCache } from "@/hooks/queries/useEmployeeQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import { Skeleton } from "@/components/ui/skeleton";
+import { accord, pluriel } from '@/lib/pluriel';
 
 const EmployeeDetailAugmentationsPromotionsTab = lazy(() =>
   import("@/features/employee-detail/components/EmployeeDetailAugmentationsPromotionsTab").then(
@@ -476,7 +477,7 @@ export default function EmployeeDetail() {
   const handleSaveSaisie = async (data: any[]) => {
     try {
       await saisiesApi.createMonthlyInputs(data);
-      toast({ title: "Succès", description: "Saisie(s) enregistrée(s) avec succès." });
+      toast({ title: "Succès", description: `${pluriel(data.length, 'saisie')} ${accord(data.length, 'enregistrée')} avec succès.` });
       fetchSaisies();
     } catch {
       toast({ title: "Erreur", description: "Échec de l'enregistrement.", variant: "destructive" });

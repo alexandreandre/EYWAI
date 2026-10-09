@@ -6,6 +6,8 @@
  * reprise, jour couvert par une autre demande, échec de synchronisation).
  * Rien de tout cela ne doit rester silencieux. */
 
+import { accord, pluriel } from '@/lib/pluriel';
+
 export interface PlanningWarning {
   code?: string;
   jour?: number;
@@ -69,17 +71,17 @@ export function planningWarningsToast(
   const parts: string[] = [];
   if (summary.createdCount > 0) {
     parts.push(
-      `${summary.createdCount} demande(s) de congé validée(s) créée(s) depuis le calendrier.`,
+      `${pluriel(summary.createdCount, 'demande')} de congé ${accord(summary.createdCount, 'validée')} ${accord(summary.createdCount, 'créée')} depuis le calendrier.`,
     );
   }
   if (summary.cancelledCount > 0) {
     parts.push(
-      `${summary.cancelledCount} demande(s) issue(s) du calendrier annulée(s).`,
+      `${pluriel(summary.cancelledCount, 'demande')} ${accord(summary.cancelledCount, 'issue')} du calendrier ${accord(summary.cancelledCount, 'annulée')}.`,
     );
   }
   if (summary.requalifiedCount > 0) {
     parts.push(
-      `${summary.requalifiedCount} jour(s) d'absence validée requalifié(s).`,
+      `${pluriel(summary.requalifiedCount, 'jour')} d'absence validée ${accord(summary.requalifiedCount, 'requalifié')}.`,
     );
   }
   parts.push(...summary.notices);

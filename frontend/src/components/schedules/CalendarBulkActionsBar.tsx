@@ -24,6 +24,7 @@ import {
 } from '@/lib/calendarBulkUndo';
 import { completerReelDepuisPrevu, messageReelDepuisPrevu } from '@/lib/reelDepuisPrevu';
 import { NON_COPYABLE_DAY_TYPES } from '@/lib/calendarTypes';
+import { accord, pluriel } from '@/lib/pluriel';
 
 interface CalendarBulkActionsBarProps {
   selectedCount: number;
@@ -145,12 +146,12 @@ export function CalendarBulkActionsBar({
       await runWithConcurrency(tasks, 5);
       const preservedNote =
         preservedCount > 0
-          ? ` ${preservedCount} jour(s) d'absence validée conservé(s).`
+          ? ` ${pluriel(preservedCount, 'jour')} d'absence validée ${accord(preservedCount, 'conservé')}.`
           : '';
       if (requalifiedCount > 0) {
         toast({
           title: 'Mois précédent copié — absences requalifiées',
-          description: `Ce changement requalifie ${requalifiedCount} jour(s) d'absence validée.${preservedNote}`,
+          description: `Ce changement requalifie ${pluriel(requalifiedCount, 'jour')} d'absence validée.${preservedNote}`,
           variant: 'warning',
           action: undoToastAction(() =>
             restorePlannedSnapshots(snapshots, year, month)

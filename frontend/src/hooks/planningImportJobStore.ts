@@ -6,6 +6,7 @@ import {
   type PlanningImportCommitProgress,
   type PlanningImportParseResponse,
 } from '@/api/adminImport';
+import { accord } from '@/lib/pluriel';
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -320,7 +321,7 @@ export function planningImportProgressLabel(job: PlanningImportJob): string {
   const total = Number(progress?.total);
   const done = Number(progress?.done);
   if (Number.isFinite(total) && Number.isFinite(done) && total > 0) {
-    return `${done}/${total} salarié(s) — enregistrement…`;
+    return `${done}/${total} ${accord(total, 'salarié')} — enregistrement…`;
   }
   return 'Enregistrement du calendrier en cours…';
 }

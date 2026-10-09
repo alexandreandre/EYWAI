@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { accord, pluriel } from '@/lib/pluriel';
 
 interface SimpleEmployee {
   id: string;
@@ -609,7 +610,7 @@ export function CompanyMutuelleSection({
                   disabled={loadingEmployees}
                 >
                   {formData.employee_ids && formData.employee_ids.length > 0
-                    ? `${formData.employee_ids.length} salarié(s) sélectionné(s)`
+                    ? `${pluriel(formData.employee_ids.length, 'salarié')} ${accord(formData.employee_ids.length, 'sélectionné')}`
                     : 'Sélectionner des salariés…'}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>

@@ -7,6 +7,7 @@ import {
   type PlanningImportJob,
 } from '@/hooks/planningImportJobStore';
 import { cn } from '@/lib/utils';
+import { accord, pluriel } from '@/lib/pluriel';
 
 type Props = {
   jobs: PlanningImportJob[];
@@ -77,7 +78,7 @@ export function PlanningImportBanner({ jobs, onReview, onCancel, onDismiss, clas
               </div>
               <p className="text-xs text-muted-foreground">
                 {job.status === 'committed'
-                  ? `${job.employeesProcessed ?? 0} salarié(s), ${(job.totalDaysWritten ?? 0).toLocaleString('fr-FR')} jour(s) de calendrier prévu.`
+                  ? `${pluriel(job.employeesProcessed ?? 0, 'salarié')}, ${(job.totalDaysWritten ?? 0).toLocaleString('fr-FR')} ${accord(job.totalDaysWritten ?? 0, 'jour')} de calendrier prévu.`
                   : isParseReady
                     ? 'Ouvrez la revue pour vérifier les rapprochements et enregistrer.'
                   : planningImportProgressLabel(job)}

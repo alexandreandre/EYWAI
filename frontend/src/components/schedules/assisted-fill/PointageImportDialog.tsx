@@ -74,6 +74,7 @@ import {
   usePointageImportJobs,
   type PointageImportJob,
 } from '@/hooks/usePointageImportJobs';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const MONTHS = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -176,7 +177,7 @@ function mergeProposals(proposals: AiCalendarProposal[]): AiCalendarProposal {
     ...base,
     employees,
     warnings: [...warnings],
-    source: `${proposals.length} relevé(s) fusionné(s)`,
+    source: `${pluriel(proposals.length, 'relevé')} ${accord(proposals.length, 'fusionné')}`,
     review_summary: {
       ready,
       warning,
@@ -404,8 +405,8 @@ export function PointageImportDialog({
     const verifyCount = result.review_summary?.warning ?? 0;
     toast({
       title: fileCount > 1 ? `${fileCount} semaines importées` : formatHint,
-      description: `${MONTHS[result.month - 1]} ${result.year} · ${result.employees.length} salarié(s)${
-        verifyCount > 0 ? ` · ${verifyCount} point(s) à vérifier` : ''
+      description: `${MONTHS[result.month - 1]} ${result.year} · ${pluriel(result.employees.length, 'salarié')}${
+        verifyCount > 0 ? ` · ${pluriel(verifyCount, 'point')} à vérifier` : ''
       }`,
     });
     setProposal(result);
@@ -707,7 +708,7 @@ export function PointageImportDialog({
               <Upload className="h-7 w-7 text-muted-foreground" />
               {files.length > 0 ? (
                 <span className="font-medium">
-                  {files.length} fichier(s) sélectionné(s)
+                  {pluriel(files.length, 'fichier')} {accord(files.length, 'sélectionné')}
                 </span>
               ) : (
                 <>

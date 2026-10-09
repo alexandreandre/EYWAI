@@ -6,6 +6,7 @@ import { RhPageHeader } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCompany } from '@/contexts/CompanyContext';
 import { queryKeys } from '@/lib/queryKeys';
+import { pluriel } from '@/lib/pluriel';
 
 export default function ManagerApprovals() {
   const { activeCompany } = useCompany();
@@ -44,7 +45,7 @@ export default function ManagerApprovals() {
           {absences.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune demande de congé.</p>
           ) : (
-            <p className="text-sm">{absences.length} demande(s) en attente.</p>
+            <p className="text-sm">{pluriel(absences.length, 'demande')} en attente.</p>
           )}
         </CardContent>
       </Card>
@@ -60,7 +61,7 @@ export default function ManagerApprovals() {
           {cet.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune demande CET.</p>
           ) : (
-            <p className="text-sm">{cet.length} demande(s) en attente.</p>
+            <p className="text-sm">{pluriel(cet.length, 'demande')} en attente.</p>
           )}
         </CardContent>
       </Card>

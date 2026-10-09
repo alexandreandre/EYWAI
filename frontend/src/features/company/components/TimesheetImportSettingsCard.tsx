@@ -12,6 +12,7 @@ import {
   saveTimesheetImportProfile,
   type TimesheetImportProfile,
 } from '@/api/calendar';
+import { accord, pluriel } from '@/lib/pluriel';
 
 export default function TimesheetImportSettingsCard() {
   const { activeCompany } = useCompany();
@@ -82,7 +83,7 @@ export default function TimesheetImportSettingsCard() {
             <p className="text-sm text-muted-foreground">
               {profiles.length === 0
                 ? 'Aucun profil — créé automatiquement au premier import CSV.'
-                : `${profiles.length} profil(s) enregistré(s).`}
+                : `${pluriel(profiles.length, 'profil')} ${accord(profiles.length, 'enregistré')}.`}
             </p>
             <div className="grid max-w-xs gap-2">
               <Label htmlFor="skip-rows">Lignes d&apos;en-tête à ignorer (CSV)</Label>

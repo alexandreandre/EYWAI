@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   fixed_monthly: 'Montant fixe mensuel',
@@ -318,7 +319,7 @@ export default function PayrollVariableRulesCard() {
       if (result.dry_run) setSimulation(result);
       toast({
         title: result.dry_run ? 'Simulation terminée' : 'Variables générées',
-        description: `${result.preview.length} ligne(s) — ${result.written_count} écriture(s)`,
+        description: `${pluriel(result.preview.length, 'ligne')} — ${pluriel(result.written_count, 'écriture')}`,
       });
     },
   });
@@ -332,7 +333,7 @@ export default function PayrollVariableRulesCard() {
       queryClient.invalidateQueries({ queryKey: ['bonus-types', activeCompanyId] });
       toast({
         title: 'Modèle astreinte appliqué',
-        description: `${result.created_rules.length} règle(s), ${result.created_bonus_types.length} type(s) de prime créés.`,
+        description: `${pluriel(result.created_rules.length, 'règle')}, ${pluriel(result.created_bonus_types.length, 'type')} de prime ${accord(result.created_bonus_types.length, 'créé')}.`,
       });
     },
   });
@@ -346,7 +347,7 @@ export default function PayrollVariableRulesCard() {
       queryClient.invalidateQueries({ queryKey: ['bonus-types', activeCompanyId] });
       toast({
         title: 'Modèle équipes appliqué',
-        description: `${result.created_rules.length} règle(s), ${result.created_bonus_types.length} type(s) de prime créés. Complétez les montants et codes export.`,
+        description: `${pluriel(result.created_rules.length, 'règle')}, ${pluriel(result.created_bonus_types.length, 'type')} de prime ${accord(result.created_bonus_types.length, 'créé')}. Complétez les montants et codes export.`,
       });
     },
   });
@@ -435,11 +436,11 @@ export default function PayrollVariableRulesCard() {
         {simulation && (
           <div className="rounded-lg border bg-muted/40 p-3 text-sm whitespace-pre-wrap">
             <p className="font-medium mb-2">
-              Simulation {simulation.month}/{simulation.year} — {simulation.preview.length} ligne(s)
+              Simulation {simulation.month}/{simulation.year} — {pluriel(simulation.preview.length, 'ligne')}
             </p>
             {formatPreview(simulation)}
             {simulation.preview.length > 15 && (
-              <p className="text-muted-foreground mt-2">… et {simulation.preview.length - 15} autre(s)</p>
+              <p className="text-muted-foreground mt-2">… et {simulation.preview.length - 15} {accord(simulation.preview.length - 15, 'autre')}</p>
             )}
           </div>
         )}

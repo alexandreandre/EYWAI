@@ -25,6 +25,7 @@ import {
   EmployeesTableRow,
 } from "@/features/employees/components/EmployeesTableRow";
 import { salariesAvecNouveauEnTete } from "@/features/employees/utils/creationSalarie";
+import { pluriel } from '@/lib/pluriel';
 
 export default function Employees() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -146,7 +147,7 @@ export default function Employees() {
           <CardHeader className="py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-amber-700" />
-              {overdueContractEndCount} collaborateur(s) avec une fin de contrat dépassée
+              {pluriel(overdueContractEndCount, 'collaborateur')} avec une fin de contrat dépassée
             </CardTitle>
           </CardHeader>
           <CardContent className="pb-3 pt-0 text-sm text-muted-foreground">
@@ -205,7 +206,7 @@ export default function Employees() {
               ? "Chargement des échéances…"
               : contractDeadlineIds && contractDeadlineIds.size === 0
                 ? "Aucune échéance dans les 15 prochains jours."
-                : `${contractDeadlineIds?.size ?? 0} salarié(s) à traiter.`}
+                : `${pluriel(contractDeadlineIds?.size ?? 0, 'salarié')} à traiter.`}
           </CardContent>
         </Card>
       )}

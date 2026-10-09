@@ -92,6 +92,7 @@ import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadBlob, openBlobInNewTab } from '@/lib/downloadBlob';
 import { libelleStatutDepart } from '@/features/employee-exits/utils/statutDepart';
+import { accord, pluriel } from '@/lib/pluriel';
 
 interface ExitDetailsPanelProps {
   exitId: string | null;
@@ -262,7 +263,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
     const generatedDocsCount = documents.filter((doc) => doc.document_category === 'generated').length;
     const message = generatedDocsCount > 0
-      ? `Changer le type de départ recalculera les indemnités et signalera ${generatedDocsCount} document(s) généré(s) à revoir. Régénérez les PDF concernés après validation.`
+      ? `Changer le type de départ recalculera les indemnités et signalera ${pluriel(generatedDocsCount, 'document')} ${accord(generatedDocsCount, 'généré')} à revoir. Régénérez les PDF concernés après validation.`
       : 'Changer le type de départ recalculera les indemnités et réalignera le workflow.';
 
     if (!confirm(message)) return;
@@ -307,7 +308,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
 
     const generatedDocsCount = documents.filter((doc) => doc.document_category === 'generated').length;
     const message = generatedDocsCount > 0
-      ? `Corriger le dernier jour travaillé recalculera les indemnités et signalera ${generatedDocsCount} document(s) généré(s) à revoir. Régénérez les PDF concernés après validation.`
+      ? `Corriger le dernier jour travaillé recalculera les indemnités et signalera ${pluriel(generatedDocsCount, 'document')} ${accord(generatedDocsCount, 'généré')} à revoir. Régénérez les PDF concernés après validation.`
       : 'Corriger le dernier jour travaillé recalculera les indemnités.';
 
     if (!confirm(message)) return;
@@ -555,11 +556,11 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       
       let message = '';
       if (successCount > 0 && alreadyPublishedCount > 0) {
-        message = `${successCount} document(s) publié(s) avec succès, ${alreadyPublishedCount} déjà publié(s)`;
+        message = `${pluriel(successCount, 'document')} ${accord(successCount, 'publié')} avec succès, ${alreadyPublishedCount} déjà ${accord(alreadyPublishedCount, 'publié')}`;
       } else if (successCount > 0) {
-        message = `${successCount} document(s) publié(s) avec succès`;
+        message = `${pluriel(successCount, 'document')} ${accord(successCount, 'publié')} avec succès`;
       } else if (alreadyPublishedCount > 0) {
-        message = `${alreadyPublishedCount} document(s) déjà publié(s)`;
+        message = `${pluriel(alreadyPublishedCount, 'document')} déjà ${accord(alreadyPublishedCount, 'publié')}`;
       } else {
         message = 'Aucun document publié';
       }
@@ -574,7 +575,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
       if (response.total_failed > 0) {
         toast({
           title: 'Attention',
-          description: `${response.total_failed} document(s) n'ont pas pu être publiés`,
+          description: `${pluriel(response.total_failed, 'document')} ${response.total_failed > 1 ? "n'ont pas pu être publiés" : "n'a pas pu être publié"}`,
           variant: 'destructive',
         });
       }
@@ -851,7 +852,7 @@ export function ExitDetailsPanel({ exitId, open, onClose, onUpdate }: ExitDetail
                     <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
                     <div>
                       <p className="font-medium text-amber-900 dark:text-amber-100">
-                        Prêt(s) employeur non soldé(s)
+                        {accord(exitDetails.outstanding_loans.active_loans_count, 'Prêt employeur non soldé', 'Prêts employeur non soldés')}
                       </p>
                       <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
                         Capital restant dû :{' '}

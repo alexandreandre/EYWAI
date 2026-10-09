@@ -7,6 +7,7 @@ import {
   type PointageImportJob,
 } from '@/hooks/pointageImportJobStore';
 import { cn } from '@/lib/utils';
+import { pluriel } from '@/lib/pluriel';
 
 interface PointageImportBannerProps {
   jobs: PointageImportJob[];
@@ -65,7 +66,7 @@ export function PointageImportBanner({
               </div>
               <p className="text-xs text-muted-foreground">
                 {isReady
-                  ? `${job.proposal?.employees.length ?? 0} salarié(s) — ouvrez la revue pour valider`
+                  ? `${pluriel(job.proposal?.employees.length ?? 0, 'salarié')} — ouvrez la revue pour valider`
                   : isFailed
                     ? job.errorMessage ?? "L'analyse a échoué."
                     : progressLabel(job)}

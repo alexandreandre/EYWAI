@@ -18,6 +18,7 @@ import * as saisiesApi from '@/api/saisies';
 import { log } from '@/lib/logger';
 import { ParticipationCampaignPanel } from '@/components/saisies/ParticipationCampaignPanel';
 import { downloadBlob } from '@/lib/downloadBlob';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const MONTH_OPTIONS = [
   { value: 1, label: "Janvier" },
@@ -559,7 +560,7 @@ export function ParticipationInteressementTab() {
       const monthLabel = MONTH_OPTIONS.find((m) => m.value === validateMonth)?.label ?? '';
       toast({
         title: "Saisies créées",
-        description: `${payloads.length} ligne(s) ajoutée(s) aux saisies de ${monthLabel} ${validateYear}. Retrouvez-les dans l'onglet Primes.`,
+        description: `${pluriel(payloads.length, 'ligne')} ${accord(payloads.length, 'ajoutée')} aux saisies de ${monthLabel} ${validateYear}. Retrouvez-les dans l'onglet Primes.`,
       });
       setShowValidateDialog(false);
     } catch (error: any) {
@@ -1196,7 +1197,7 @@ export function ParticipationInteressementTab() {
               Annuler
             </Button>
             <Button onClick={handleValidateCalculation} disabled={isValidating || linesPreview.total === 0}>
-              {isValidating ? "Création..." : `Créer ${linesPreview.total} ligne(s)`}
+              {isValidating ? "Création..." : `Créer ${pluriel(linesPreview.total, 'ligne')}`}
             </Button>
           </DialogFooter>
         </DialogContent>

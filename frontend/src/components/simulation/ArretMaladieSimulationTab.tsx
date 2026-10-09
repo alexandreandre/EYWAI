@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { MaintenanceDetailModal } from '@/components/payslip/MaintenanceDetailModal';
+import { accord } from '@/lib/pluriel';
 
 interface Employee {
   id: string;
@@ -365,7 +366,7 @@ export function ArretMaladieSimulationTab({ employees }: ArretMaladieSimulationT
                 {result.profil.est_cadre ? ' (cadre)' : ''}
               </span>
               <span className="rounded-full bg-muted px-2.5 py-1">
-                Ancienneté : <span className="font-medium">{result.profil.anciennete_annees} an(s)</span>
+                Ancienneté : <span className="font-medium">{result.profil.anciennete_annees} {accord(result.profil.anciennete_annees, 'an')}</span>
               </span>
               <span className="rounded-full bg-muted px-2.5 py-1">
                 Maintien légal :{' '}

@@ -34,6 +34,7 @@ import {
   type PasApercuLigne,
   type PasSource,
 } from "@/api/pasRates";
+import { accord, pluriel } from '@/lib/pluriel';
 
 interface PasImportDialogProps {
   open: boolean;
@@ -124,7 +125,7 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
         title: `${resultat.appliques} taux mis à jour`,
         description:
           resultat.echecs.length > 0
-            ? `${resultat.echecs.length} salarié(s) en échec : ${resultat.echecs
+            ? `${pluriel(resultat.echecs.length, 'salarié')} en échec : ${resultat.echecs
                 .map((e) => e.salarie)
                 .join(", ")}`
             : `Période ${resultat.periode}.`,
@@ -218,9 +219,9 @@ export function PasImportDialog({ open, onOpenChange, onApplied }: PasImportDial
                 <Badge variant="outline">Période {apercu.periode}</Badge>
                 <Badge variant="outline">SIREN {apercu.siren}</Badge>
                 <span className="text-muted-foreground">
-                  {compteurs.inchange ?? 0} inchangé(s)
+                  {pluriel(compteurs.inchange ?? 0, 'inchangé')}
                   {compteurs.hors_effectif
-                    ? `, ${compteurs.hors_effectif} sorti(s) ignoré(s)`
+                    ? `, ${pluriel(compteurs.hors_effectif, 'sorti')} ${accord(compteurs.hors_effectif, 'ignoré')}`
                     : ""}
                   {compteurs.non_rapproche
                     ? `, ${compteurs.non_rapproche} sans fiche`

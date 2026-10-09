@@ -19,6 +19,7 @@ import {
 } from '@/lib/planningAbsenceWarnings';
 import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
+import { accord, pluriel } from '@/lib/pluriel';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -562,7 +563,7 @@ export function useCalendar(
         description:
           `Planning de ${new Date(prevYear, prevMonth - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} appliqué au mois courant.` +
           (preservedCount > 0
-            ? ` ${preservedCount} jour(s) d'absence validée conservé(s).`
+            ? ` ${pluriel(preservedCount, 'jour')} d'absence validée ${accord(preservedCount, 'conservé')}.`
             : ''),
       });
     } catch (error) {

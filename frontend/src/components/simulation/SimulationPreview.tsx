@@ -5,6 +5,7 @@
 import React from 'react';
 import { FileText, Download, Save } from 'lucide-react';
 import { Button } from '../ui/button';
+import { accord } from '@/lib/pluriel';
 
 interface SimulationPreviewProps {
   payslipData: any;
@@ -74,7 +75,7 @@ export const SimulationPreview: React.FC<SimulationPreviewProps> = ({
           ))}
           {payslipData.calcul_du_brut?.length > 5 && (
             <p className="text-xs text-gray-500 italic">
-              ... et {payslipData.calcul_du_brut.length - 5} autre(s) ligne(s)
+              ... et {payslipData.calcul_du_brut.length - 5} {accord(payslipData.calcul_du_brut.length - 5, 'autre')} {accord(payslipData.calcul_du_brut.length - 5, 'ligne')}
             </p>
           )}
         </div>

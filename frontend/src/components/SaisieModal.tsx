@@ -47,6 +47,7 @@ import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { accord, pluriel } from '@/lib/pluriel';
 
 // --- Types & Interfaces ---
 interface Employee {
@@ -772,7 +773,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
               <Popover open={employeePopoverOpen} onOpenChange={setEmployeePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {formData.selectedEmployees.length > 0 ? `${formData.selectedEmployees.length} employé(s) sélectionné(s)`: "Sélectionner des employés..."}
+                    {formData.selectedEmployees.length > 0 ? `${pluriel(formData.selectedEmployees.length, 'employé')} ${accord(formData.selectedEmployees.length, 'sélectionné')}`: "Sélectionner des employés..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>

@@ -22,6 +22,7 @@ import { generatePayrollVariables } from '@/api/payrollVariables';
 import apiClient from '@/api/apiClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPayrollFocusActive } from '@/lib/payrollFocus';
+import { accord, pluriel } from '@/lib/pluriel';
 
 // --- Types & Interfaces ---
 interface Employee { id: string; first_name: string; last_name: string; job_title: string; }
@@ -100,7 +101,7 @@ export function PrimesTab({
 
       await saisiesApi.createMonthlyInputs(correctedPayloads);
       
-      toast({ title: "Succès", description: "Saisie(s) ajoutée(s) avec succès." });
+      toast({ title: "Succès", description: `${pluriel(correctedPayloads.length, 'saisie')} ${accord(correctedPayloads.length, 'ajoutée')} avec succès.` });
       fetchData();
       setModalOpen(false);
     } catch (error) {
@@ -160,7 +161,7 @@ export function PrimesTab({
       const result = await generatePayrollVariables(selectedYear, selectedMonth, false);
       toast({
         title: "Variables générées",
-        description: `${result.written_count} saisie(s) créée(s) pour ${monthOptions[selectedMonth - 1]?.label} ${selectedYear}.`,
+        description: `${pluriel(result.written_count, 'saisie')} ${accord(result.written_count, 'créée')} pour ${monthOptions[selectedMonth - 1]?.label} ${selectedYear}.`,
       });
       fetchData();
     } catch (error) {

@@ -35,6 +35,7 @@ import {
   type EmployeeRequestableAbsenceType,
 } from "@/lib/employeeAbsencesUtils";
 import { formatPeriodeArret } from "@/lib/arretPeriode";
+import { accord } from '@/lib/pluriel';
 
 export type AbsenceRequestModalMode = "employee" | "rh_arret" | "rh_leave";
 
@@ -89,7 +90,7 @@ function BalanceHint({
       <div className="space-y-1 text-xs text-muted-foreground">
         <p>Solde {typeLabel} restant : {rest.toFixed(1)} j</p>
         {pendingDays > 0 && (
-          <p>{pendingDays.toFixed(1)} j déjà réservé(s) par des demandes en attente.</p>
+          <p>{pendingDays.toFixed(1)} j déjà {accord(pendingDays, 'réservé')} par des demandes en attente.</p>
         )}
         <p className="font-medium text-foreground">
           Disponible pour une nouvelle demande : {available.toFixed(1)} j

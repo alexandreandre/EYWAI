@@ -76,6 +76,7 @@ import {
 import { BookOpen, Copy, Download, History, Loader2, MoreHorizontal, Plus, Variable } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { accord, pluriel } from '@/lib/pluriel';
 
 const QK_TEMPLATES = ['document-library', 'templates'] as const;
 const QK_MISSING = ['document-library', 'missing-types'] as const;
@@ -274,7 +275,7 @@ export default function DocumentLibraryTab() {
         title: 'Modèle enregistré',
         description:
           unknown > 0
-            ? `Le modèle a été ajouté. ${unknown} variable(s) non reconnue(s) dans le fichier.`
+            ? `Le modèle a été ajouté. ${pluriel(unknown, 'variable')} non ${accord(unknown, 'reconnue')} dans le fichier.`
             : 'Le modèle a été ajouté à la bibliothèque.',
       });
     },

@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { accord } from '@/lib/pluriel';
 
 /** Types d'absence pour lesquels le bloc maintien est pertinent (types principaux arrêt). */
 export const ABSENCE_TYPES_MAINTIEN_PREVIEW = new Set<string>([
@@ -166,8 +167,8 @@ function MaintenancePreviewBody({
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Carence
         </h4>
-        <p>Carence SS : {carence.carence_ss_jours} jour(s)</p>
-        <p>Carence employeur : {carence.carence_employeur_jours} jour(s)</p>
+        <p>Carence SS : {accord(carence.carence_ss_jours, 'jour')}</p>
+        <p>Carence employeur : {accord(carence.carence_employeur_jours, 'jour')}</p>
         {carence.est_continuite ? (
           <Badge className="bg-emerald-600 hover:bg-emerald-600">
             Continuité — pas de nouvelle carence

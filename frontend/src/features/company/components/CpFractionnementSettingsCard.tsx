@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { queryKeys } from '@/lib/queryKeys';
 import { useToast } from '@/hooks/use-toast';
+import { pluriel } from '@/lib/pluriel';
 
 type RowDrafts = Record<
   string,
@@ -143,7 +144,7 @@ export default function CpFractionnementSettingsCard() {
       void previewQuery.refetch();
       toast({
         title: 'Fractionnement validé',
-        description: `${res.validated_count} salarié(s).`,
+        description: `${pluriel(res.validated_count, 'salarié')}.`,
       });
     },
   });

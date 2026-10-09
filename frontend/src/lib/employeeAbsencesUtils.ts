@@ -1,4 +1,5 @@
 import type { AbsenceBalance, AbsenceRequest } from '@/api/absences';
+import { accord } from '@/lib/pluriel';
 
 export const ABSENCE_TYPE_LABELS: Record<AbsenceRequest['type'], string> = {
   conge_paye: 'Congé payé',
@@ -187,8 +188,8 @@ export function formatCongePayeInsufficientMessage(
     ? String(requested)
     : requested.toFixed(1);
   return (
-    `Solde de congés payés insuffisant : il vous reste ${availLabel} jour(s) ` +
-    `disponible(s) pour ${requestedLabel} jour(s) demandé(s). ` +
+    `Solde de congés payés insuffisant : il vous reste ${availLabel} ${accord(available, 'jour')} ` +
+    `${accord(available, 'disponible')} pour ${requestedLabel} ${accord(requested, 'jour')} ${accord(requested, 'demandé')}. ` +
     'Rapprochez-vous de votre direction pour une demande hors solde.'
   );
 }

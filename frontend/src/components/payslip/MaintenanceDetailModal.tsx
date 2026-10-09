@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { accord } from '@/lib/pluriel';
 
 function alertBannerClass(text: string): string {
   const t = text.toLowerCase();
@@ -73,8 +74,8 @@ export function MaintenanceDetailModal({
               <span className="text-muted-foreground">Type d&apos;arrêt : </span>
               <span className="font-medium">{maintien.type_arret}</span>
             </p>
-            <p>Carence SS : {carence.carence_ss_jours} jour(s)</p>
-            <p>Carence employeur : {carence.carence_employeur_jours} jour(s)</p>
+            <p>Carence SS : {accord(carence.carence_ss_jours, 'jour')}</p>
+            <p>Carence employeur : {accord(carence.carence_employeur_jours, 'jour')}</p>
             {carence.est_continuite ? (
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
                 Continuité — pas de nouvelle carence
@@ -123,12 +124,12 @@ export function MaintenanceDetailModal({
               </h3>
               {maintien.prevoyance.seuil_jours != null ? (
                 <p>
-                  Seuil de déclenchement : {maintien.prevoyance.seuil_jours} jour(s)
+                  Seuil de déclenchement : {accord(maintien.prevoyance.seuil_jours, 'jour')}
                   d&apos;arrêt
                 </p>
               ) : null}
               {maintien.prevoyance.franchise_jours != null ? (
-                <p>Franchise : {maintien.prevoyance.franchise_jours} jour(s)</p>
+                <p>Franchise : {accord(maintien.prevoyance.franchise_jours, 'jour')}</p>
               ) : null}
               {maintien.prevoyance.taux_cible != null ? (
                 <p>Taux garanti : {pct(maintien.prevoyance.taux_cible)}</p>
