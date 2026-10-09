@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alertesAffichees, dateEnClair, dateHeureEnClair, heureParis, nombreActives, pourcentFr, traceAlerte } from './comparaisonAffichage';
+import { alertesAffichees, dateEnClair, variationAffichee, dateHeureEnClair, heureParis, nombreActives, pourcentFr, traceAlerte } from './comparaisonAffichage';
 
 describe('date en clair', () => {
   it('écrit le mois en toutes lettres et l’heure de Paris', () => {
@@ -94,5 +94,18 @@ describe('dates et heures de l’écran du bulletin, à l’heure de Paris', () 
   it('une date illisible donne une chaîne vide', () => {
     expect(heureParis('nimporte quoi')).toBe('');
     expect(dateEnClair(null)).toBe('');
+  });
+});
+
+describe('variation d’une alerte', () => {
+  it('en euros ou en heures : le pourcentage', () => {
+    expect(variationAffichee({ unite: 'eur', value_n: 1710, value_n1: 1500, delta_pct: 14 })).toBe('14,0 %');
+  });
+
+  it('en nombre de lignes : la différence en lignes, pas un pourcentage', () => {
+    expect(variationAffichee({ unite: 'nombre', value_n: 4, value_n1: 3, delta_pct: 1 })).toBe('+1 ligne');
+    expect(variationAffichee({ unite: 'nombre', value_n: 6, value_n1: 3, delta_pct: 3 })).toBe('+3 lignes');
+    expect(variationAffichee({ unite: 'nombre', value_n: 3, value_n1: 4, delta_pct: 1 })).toBe('−1 ligne');
+    expect(variationAffichee({ unite: 'nombre', value_n: 3, value_n1: 3, delta_pct: 0 })).toBe('0 ligne');
   });
 });
