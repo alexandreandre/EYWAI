@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { messageBadgeuse, pourEmployes } from '@/lib/messagesSaisie';
 import { Button } from '@/components/ui/button';
 import { ToastAction } from '@/components/ui/toast';
 import {
@@ -158,7 +159,7 @@ export function CalendarBulkActionsBar({
       } else {
         toast({
           title: 'Mois précédent copié',
-          description: `Planning copié pour ${selectedEmployeeIds.length} employé(s).${preservedNote}`,
+          description: `Planning copié pour ${pourEmployes(selectedEmployeeIds.length)}.${preservedNote}`,
           action: undoToastAction(() =>
             restorePlannedSnapshots(snapshots, year, month)
           ),
@@ -237,8 +238,8 @@ export function CalendarBulkActionsBar({
       );
       const payload = res.data;
       toast({
-        title: 'Badgeuse importée',
-        description: `${payload.total_days_updated} jour(s) mis à jour pour ${payload.employees_processed} employé(s).`,
+        title: payload.total_days_updated === 0 ? 'Rien à importer' : 'Badgeuse importée',
+        description: messageBadgeuse(payload),
       });
       if (payload.errors?.length) {
         toast({

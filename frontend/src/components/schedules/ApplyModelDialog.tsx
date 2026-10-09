@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { pourEmployes } from '@/lib/messagesSaisie';
 import {
   Dialog,
   DialogContent,
@@ -292,16 +293,16 @@ export function ApplyModelDialog({
         applyTarget === 'actual'
           ? {
               title: 'Heures faites appliquées',
-              description: `Heures faites posées sur ${scopeLabel} pour ${count} employé(s).`,
+              description: `Heures faites posées sur ${scopeLabel} pour ${pourEmployes(count)}.`,
             }
           : applyTarget === 'both'
             ? {
                 title: 'Modèle appliqué',
-                description: `Heures prévues et faites posées sur ${scopeLabel} pour ${count} employé(s).`,
+                description: `Heures prévues et faites posées sur ${scopeLabel} pour ${pourEmployes(count)}.`,
               }
             : {
                 title: 'Modèle appliqué',
-                description: `Planning prévu appliqué sur ${scopeLabel} pour ${count} employé(s).`,
+                description: `Planning prévu appliqué sur ${scopeLabel} pour ${pourEmployes(count)}.`,
               };
 
       toast({
