@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { libelleStatutDecision, messageEchecDecision } from '@/features/payroll/utils/decisionsHeuresSup';
 import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
 
 interface OvertimeRoutingPanelProps {
@@ -65,8 +66,8 @@ export function OvertimeRoutingPanel({ year, month, className }: OvertimeRouting
       queryClient.invalidateQueries({ queryKey: ['overtime-routing', year, month] });
       queryClient.invalidateQueries({ queryKey: ['preflight-anomalies'] });
     },
-    onError: (err: Error) => {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    onError: (err: unknown) => {
+      toast({ title: 'Décision non enregistrée', description: messageEchecDecision(err), variant: 'destructive' });
     },
   });
 
@@ -158,7 +159,7 @@ export function OvertimeRoutingPanel({ year, month, className }: OvertimeRouting
                     }
                   />
                 </TableCell>
-                <TableCell className="text-sm capitalize">{row.status}</TableCell>
+                <TableCell className="text-sm">{libelleStatutDecision(row.status)}</TableCell>
                 <TableCell>
                   <Button
                     size="sm"
