@@ -2,6 +2,8 @@
 
 from datetime import date
 
+import pytest
+
 from app.modules.onboarding.domain.profile import (
     PAYROLL_REQUIRED_FIELDS,
     is_payroll_eligible,
@@ -95,3 +97,33 @@ class TestPayrollEligibility:
         emp["employment_status"] = "actif"
         assert is_payroll_eligible(emp) is True
         assert payroll_block_reason(emp) is None
+
+
+class TestMotifsDeRefusDeLaPaie:
+    """Le refus dit son vrai motif : le statut, pas une fiche incomplète qui ne l'est pas."""
+
+    def test_onboarding_fiche_complete_dit_de_passer_actif(self):
+        emp = _complete_employee()
+        emp["employment_status"] = "en_onboarding"
+        reason = payroll_block_reason(emp)
+        assert reason is not None
+        assert "Actif" in reason
+        assert "informations paie" not in reason
+        assert "incomplète" not in reason.lower()
+
+    def test_onboarding_fiche_incomplete_dit_aussi_ce_qui_manque(self):
+        emp = {"employment_status": "en_onboarding", "first_name": "A", "last_name": "B"}
+        reason = payroll_block_reason(emp)
+        assert "Actif" in reason
+        assert "manque" in reason.lower()
+
+    @pytest.mark.parametrize(
+        "statut,libelle",
+        [("en_sortie", "en départ"), ("suspendu", "suspendu"), ("parti", "parti")],
+    )
+    def test_statut_non_actif_en_francais(self, statut, libelle):
+        emp = _complete_employee()
+        emp["employment_status"] = statut
+        reason = payroll_block_reason(emp)
+        assert libelle in reason.lower()
+        assert "_" not in reason
