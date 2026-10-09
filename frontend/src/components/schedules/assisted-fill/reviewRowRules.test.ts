@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filtreApresAssociation,
+  horsReleveRestant,
   reservedEmployeeIds,
   rowCarriesHours,
   statusAfterLosingEmployee,
@@ -57,5 +59,35 @@ describe('visibleRowWarnings', () => {
 
   it('ne montre rien sous une ligne prête', () => {
     expect(visibleRowWarnings(['bruit'], 'ok')).toEqual([]);
+  });
+});
+
+describe('horsReleveRestant', () => {
+  it('retire du compteur les salariés associés à la main depuis l’analyse', () => {
+    expect(horsReleveRestant(2, ['a'], ['a', 'b'])).toBe(1);
+  });
+
+  it('ne bouge pas tant que personne n’est associé', () => {
+    expect(horsReleveRestant(2, ['a'], ['a'])).toBe(2);
+  });
+
+  it('ne descend jamais sous zéro et ignore les lignes sans salarié', () => {
+    expect(horsReleveRestant(1, [], ['a', 'b', null])).toBe(0);
+  });
+
+  it('remonte si une association est défaite', () => {
+    expect(horsReleveRestant(2, ['a'], [])).toBe(3);
+  });
+});
+
+describe('filtreApresAssociation', () => {
+  it('quitte « À vérifier » pour que la ligne associée reste visible', () => {
+    expect(filtreApresAssociation('verify')).toBe('all');
+    expect(filtreApresAssociation('incomplete')).toBe('all');
+  });
+
+  it('laisse les autres filtres tels quels', () => {
+    expect(filtreApresAssociation('all')).toBe('all');
+    expect(filtreApresAssociation('ready')).toBe('ready');
   });
 });
