@@ -31,11 +31,11 @@ export function LignesExpliquees({ payslipData }: Props) {
           >
             <span>{ligne.libelle}</span>
             {afficherAsterisque(ligne) ? (
-              <Tooltip>
+              <Tooltip disableHoverableContent delayDuration={200}>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="shrink-0 font-semibold text-sky-700"
+                    className="shrink-0 px-1 font-semibold text-sky-700"
                     aria-label={ligne.explication}
                   >
                     *
