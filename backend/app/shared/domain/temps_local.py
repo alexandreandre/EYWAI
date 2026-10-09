@@ -49,3 +49,26 @@ def fenetre_jour_local(jour: date) -> tuple[datetime, datetime]:
     debut = datetime.combine(jour, datetime.min.time(), tzinfo=FUSEAU_ENTREPRISE)
     fin = datetime.combine(jour, datetime.max.time(), tzinfo=FUSEAU_ENTREPRISE)
     return debut, fin
+
+
+_MOIS = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def date_heure_en_clair(valeur: object) -> str:
+    """« 7 octobre 2026 à 09:12 » (heure de Paris) depuis un instant ISO.
+
+    Une valeur qui n'est pas un instant ISO (déjà mise en forme) est rendue telle quelle.
+    """
+    if isinstance(valeur, datetime):
+        ts = valeur
+    else:
+        try:
+            ts = datetime.fromisoformat(str(valeur).replace("Z", "+00:00"))
+        except ValueError:
+            return str(valeur)
+    local = en_heure_locale(ts)
+    jour = "1er" if local.day == 1 else str(local.day)
+    return f"{jour} {_MOIS[local.month - 1]} {local.year} à {local:%H:%M}"

@@ -11,6 +11,7 @@ from __future__ import annotations
 import calendar
 from typing import Any, Dict, List, Optional
 
+from app.shared.domain.temps_local import date_heure_en_clair
 from app.modules.payroll.domain.report_nap_negatif import (
     CLE_BULLETIN as CLE_REPORTS_NAP_NEGATIF,
 )
@@ -646,7 +647,7 @@ def construire_pied(bulletin: Dict[str, Any]) -> Dict[str, Any]:
     if bulletin.get("manually_edited"):
         edite_le = bulletin.get("edited_at")
         rectification = (
-            f"Bulletin rectifié le {edite_le}" if edite_le else "Bulletin rectifié"
+            f"Bulletin rectifié le {date_heure_en_clair(edite_le)}" if edite_le else "Bulletin rectifié"
         )
 
     return {
