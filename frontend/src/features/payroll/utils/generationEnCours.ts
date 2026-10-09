@@ -6,6 +6,7 @@
  * même.
  */
 
+import { accord } from '@/lib/pluriel';
 import { monthYearLabel } from './payrollMonth';
 
 export const CLE_INTERRUPTION = 'eywai.paie.generationInterrompue';
@@ -41,6 +42,11 @@ type Stockage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export function libelleBandeauGeneration(faits: number, total: number): string {
   return `Génération en cours (${faits}/${total}) : ne quittez pas cette page.`;
+}
+
+/** « 1 bulletin traité sur 4 » : le nombre traité s'accorde, le total reste un nombre. */
+export function libelleCompteurGeneration(faits: number, total: number): string {
+  return `${faits} ${accord(faits, 'bulletin')} ${accord(faits, 'traité')} sur ${total}`;
 }
 
 export function questionQuitterGeneration(faits: number, total: number): string {

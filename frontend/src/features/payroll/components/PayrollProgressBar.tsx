@@ -6,7 +6,7 @@ import type {
   PayrollGenerationLogEntry,
   PayrollGenerationPhase,
 } from '@/features/payroll/hooks/usePayrollGeneration';
-import { texteFinDeSuivi } from '@/features/payroll/utils/generationEnCours';
+import { libelleCompteurGeneration, texteFinDeSuivi } from '@/features/payroll/utils/generationEnCours';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollProgressBarProps = {
@@ -60,8 +60,7 @@ export function PayrollProgressBar({
           </p>
           {showCounter && (
             <p className="text-xs text-muted-foreground tabular-nums">
-              {completedCount} / {totalJobs} bulletin{totalJobs !== 1 ? 's' : ''} traité
-              {completedCount !== 1 ? 's' : ''}
+              {libelleCompteurGeneration(completedCount, totalJobs)}
             </p>
           )}
         </div>
