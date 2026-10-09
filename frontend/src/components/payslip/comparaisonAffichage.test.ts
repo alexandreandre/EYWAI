@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dateHeureEnClair, traceAlerte } from './comparaisonAffichage';
+import { alertesAffichees, dateHeureEnClair, nombreActives, pourcentFr, traceAlerte } from './comparaisonAffichage';
 
 describe('date en clair', () => {
   it('écrit le mois en toutes lettres et l’heure de Paris', () => {
@@ -43,5 +43,36 @@ describe('trace d’un acquittement', () => {
 
   it('une alerte active n’a pas de trace', () => {
     expect(traceAlerte({ status: 'active' })).toBe('');
+  });
+});
+
+describe('pourcentages à la française', () => {
+  it('une décimale, virgule, espace avant le signe', () => {
+    expect(pourcentFr(12.3)).toBe('12,3 %');
+    expect(pourcentFr(12.3)).not.toContain('.');
+    expect(pourcentFr(-4)).toBe('-4,0 %');
+    expect(pourcentFr(0)).toBe('0,0 %');
+  });
+});
+
+describe('alertes affichées et filtres de niveau', () => {
+  const alertes = [
+    { rule_id: 'R03', level: 'CRITIQUE', status: 'active' },
+    { rule_id: 'R04', level: 'AVERTISSEMENT', status: 'active' },
+    { rule_id: 'R07', level: 'INFO', status: 'active' },
+    { rule_id: 'R12', level: 'INFO', status: 'active' },
+  ] as const;
+
+  it('sans filtre, toutes les alertes sauf R12 (déjà dite par l’encadré « pas de N-1 »)', () => {
+    expect(alertesAffichees([...alertes], null).map((a) => a.rule_id)).toEqual(['R03', 'R04', 'R07']);
+  });
+
+  it('un filtre ne garde que son niveau', () => {
+    expect(alertesAffichees([...alertes], 'CRITIQUE').map((a) => a.rule_id)).toEqual(['R03']);
+    expect(alertesAffichees([...alertes], 'INFO').map((a) => a.rule_id)).toEqual(['R07']);
+  });
+
+  it('le décompte d’un niveau ne compte pas R12', () => {
+    expect(nombreActives([...alertes], 'INFO')).toBe(1);
   });
 });
