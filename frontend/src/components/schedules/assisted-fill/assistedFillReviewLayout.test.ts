@@ -19,8 +19,12 @@ describe('assistedFillDialogHeightClass', () => {
 });
 
 describe('showReviewSummaryBanner', () => {
-  it('masque Consigne texte, le badge N prêts et la phrase de vérification', () => {
-    expect(showReviewSummaryBanner({ source: 'texte' })).toBe(false);
+  it('garde le bandeau (mention de source, pastille « N prêts ») pour toute consigne texte, avant comme après une correction', () => {
+    // La première analyse peut dire « texte (analyse rapide) », la correction « texte » :
+    // le bandeau ne doit pas disparaître au changement de chemin.
+    for (const source of ['texte', 'texte (analyse rapide)', 'texte (saisie collective)', 'texte (reprise planning)']) {
+      expect(showReviewSummaryBanner({ source })).toBe(true);
+    }
   });
 
   it('conserve le bandeau pour un import fichier ou PDF', () => {
