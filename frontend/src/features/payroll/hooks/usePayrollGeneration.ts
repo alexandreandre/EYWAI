@@ -219,6 +219,8 @@ export function usePayrollGeneration() {
 
         let entry: PayrollGenerationLogEntry;
         let refusal: PayrollGenerationRefusal | null = null;
+        // Un forçage ne reste jamais silencieux : annoncé en fin de tour.
+        const avertissementsForces: { title: string; description: string }[] = [];
         try {
           const response = await generatePayslip(
             {
@@ -247,8 +249,7 @@ export function usePayrollGeneration() {
               guardWarnings,
             } = splitGenerationWarnings(response.warnings);
             for (const guardWarning of guardWarnings) {
-              toast({
-                variant: 'warning',
+              avertissementsForces.push({
                 title: `${monthYearLabel(job.month, job.year)} — ${job.employeeName}`,
                 description: guardWarning.message,
               });
@@ -332,6 +333,9 @@ export function usePayrollGeneration() {
         setLog(logRef.current);
         updateProgress(completedCountRef.current, 0);
         await invalidatePayslips(job.employeeId);
+        for (const avertissement of avertissementsForces) {
+          toast({ variant: 'warning', duration: 15000, ...avertissement });
+        }
         // Arrêt demandé pendant ce bulletin : il est allé au bout côté serveur,
         // il est compté et sa ligne a pris son état ; les suivants ne partent pas.
         if (abortRef.current) break;
