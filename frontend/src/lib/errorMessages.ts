@@ -103,7 +103,11 @@ export function extractDetail(error: unknown): string | null {
     const first = detail[0] as { msg?: unknown } | undefined;
     if (first && typeof first.msg === 'string') return first.msg;
   }
-  // Le backend renvoie parfois un objet (ex. alertes bulletin) : non affichable ici.
+  // Détail structuré {code, message} (refus métier du backend) : on lit le message.
+  if (detail && typeof detail === 'object') {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
   return null;
 }
 
