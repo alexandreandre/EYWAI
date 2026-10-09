@@ -122,3 +122,19 @@ describe('interruption — quitter la page en pleine génération ne passe plus 
     );
   });
 });
+
+describe('annulation de la génération — la fenêtre redevient utilisable', () => {
+  it('quand le suivi est revenu au repos, la fenêtre revient à la sélection', () => {
+    expect(phaseModaleApres('idle', 'running')).toBe('select');
+  });
+
+  it('une génération qui démarre ou se termine fait suivre la fenêtre', () => {
+    expect(phaseModaleApres('running', 'select')).toBe('running');
+    expect(phaseModaleApres('done', 'running')).toBe('done');
+  });
+
+  it('au repos, une fenêtre déjà en sélection ou terminée ne bouge pas', () => {
+    expect(phaseModaleApres('idle', 'select')).toBe('select');
+    expect(phaseModaleApres('idle', 'done')).toBe('done');
+  });
+});
