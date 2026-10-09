@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -54,6 +55,14 @@ import {
 } from './reviewRowRules';
 import { ImportPunchRuleBar } from './ImportPunchRuleBar';
 import { joursNonLus, phraseJoursNonLus, suiteResultatJoursNonLus } from './joursNonLus';
+import {
+  cleJourExistant,
+  joursRemplaces,
+  phraseJoursRemplaces,
+  suiteResultatJoursRemplaces,
+  type HeuresDejaSaisies,
+  type LigneAvecJours,
+} from './joursDejaSaisis';
 import { joursEcritsDuLot, phraseEnregistrement } from './bilanEnregistrement';
 import {
   lignesIgnorees,
@@ -64,6 +73,7 @@ import { ReimportBanner } from './ReimportBanner';
 import { bilanReimport, cleJour, libelleImportRefait } from './reimport';
 import { reapplyPauseOnDay, type PunchBreakRule } from '@/lib/punchBreakHours';
 import {
+  getActualHours,
   persistTimesheetBatch,
   waitForTimesheetImportBatchCommitted,
   type AiCalendarProposal,
@@ -566,6 +576,55 @@ export function AssistedFillReview({
   const phraseNonLus = phraseJoursNonLus(nonLus);
   const suiteNonLus = suiteResultatJoursNonLus(nonLus);
 
+  // Heures réelles déjà saisies que l'import va remplacer : lues au calendrier
+  // des salariés à enregistrer, annoncées avant « Enregistrer » et redites au
+  // résultat. La règle ne change pas (l'import remplace toujours).
+  const lignesAvecJours: LigneAvecJours[] = useMemo(
+    () =>
+      rows.map((r) => ({
+        nom: r.matchedName ?? r.rawName,
+        employeeId: r.employeeId,
+        enregistrable: isSavableRow(r, includeOrange),
+        jours: r.days.map((d) => ({
+          jour: d.jour,
+          heures: d.heures,
+          nature: d.nature,
+          annee: d.year ?? proposal.year,
+          mois: d.month ?? proposal.month,
+        })),
+      })),
+    [rows, includeOrange, proposal.year, proposal.month],
+  );
+  const moisALire = useMemo(() => {
+    const vus = new Map<string, { employeeId: string; annee: number; mois: number }>();
+    for (const l of lignesAvecJours) {
+      if (!l.enregistrable || !l.employeeId || reimport) continue;
+      for (const j of l.jours) {
+        if (j.nature !== 'reel') continue;
+        vus.set(`${l.employeeId}|${j.annee}|${j.mois}`, { employeeId: l.employeeId, annee: j.annee, mois: j.mois });
+      }
+    }
+    return [...vus.values()];
+  }, [lignesAvecJours, reimport]);
+  const lecturesExistantes = useQueries({
+    queries: moisALire.map((m) => ({
+      queryKey: ['import-heures-deja-saisies', m.employeeId, m.annee, m.mois],
+      queryFn: async () => (await getActualHours(m.employeeId, m.annee, m.mois)).data,
+      staleTime: 30_000,
+    })),
+  });
+  const heuresDejaSaisies: HeuresDejaSaisies = {};
+  lecturesExistantes.forEach((q, i) => {
+    const m = moisALire[i];
+    for (const e of q.data?.calendrier_reel ?? []) {
+      (heuresDejaSaisies[m.employeeId] ??= {})[cleJourExistant(m.annee, m.mois, e.jour)] = e.heures_faites;
+    }
+  });
+  const remplaces = joursRemplaces(lignesAvecJours, heuresDejaSaisies);
+  const phraseRemplaces = phraseJoursRemplaces(remplaces);
+  const suiteRemplaces = suiteResultatJoursRemplaces(remplaces);
+  const lectureExistanteEnEchec = lecturesExistantes.some((q) => q.isError);
+
   const totalDaysToSave = savableRows.reduce((acc, r) => acc + r.days.length, 0);
 
   // Ce que l'enregistrement d'une relecture écrira : une correction faite à la
@@ -791,7 +850,7 @@ export function AssistedFillReview({
     if (savableRows.length === 0) {
       toast({
         title: 'Rien à enregistrer',
-        description: `Aucun salarié prêt à enregistrer avec les filtres actuels.${suiteIgnorees}${suiteNonLus}`,
+        description: `Aucun salarié prêt à enregistrer avec les filtres actuels.${suiteIgnorees}${suiteNonLus}${suiteRemplaces}`,
         variant: 'destructive',
       });
       return;
@@ -862,8 +921,8 @@ export function AssistedFillReview({
           preserved,
           conflits,
           reimport
-            ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}${suiteNonLus}`
-            : `${phraseEnregistrement(savableRows.length, days)}${suiteIgnorees}${suiteNonLus}`,
+            ? `${libelleImportRefait(committed.summary)}.${suiteIgnorees}${suiteNonLus}${suiteRemplaces}`
+            : `${phraseEnregistrement(savableRows.length, days)}${suiteIgnorees}${suiteNonLus}${suiteRemplaces}`,
           applyMeta,
           reimport ? 'Import refait' : undefined,
         );
@@ -890,7 +949,7 @@ export function AssistedFillReview({
       finishSave(
         preserved,
         conflits,
-        `${phraseEnregistrement(savableRows.length, result.total_days_written)}${suiteIgnorees}${suiteNonLus}`,
+        `${phraseEnregistrement(savableRows.length, result.total_days_written)}${suiteIgnorees}${suiteNonLus}${suiteRemplaces}`,
         applyMeta,
       );
     } catch (e) {
@@ -1463,6 +1522,23 @@ export function AssistedFillReview({
       )}
 
       {/* Pied fixe */}
+      {phraseRemplaces && (
+        <p
+          className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
+          data-testid="jours-deja-saisis"
+        >
+          {phraseRemplaces}
+        </p>
+      )}
+      {lectureExistanteEnEchec && (
+        <p
+          className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
+          data-testid="lecture-deja-saisis-en-echec"
+        >
+          Les heures déjà saisies n’ont pas pu être lues : l’import remplacera celles qui existent
+          sans que ce contrôle puisse les citer.
+        </p>
+      )}
       {phraseNonLus && (
         <p
           className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-950"
