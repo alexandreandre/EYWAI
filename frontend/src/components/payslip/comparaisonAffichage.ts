@@ -3,6 +3,8 @@
  * acquittement. Fonctions pures, testées à part de l'écran.
  */
 
+import { pluriel } from '@/lib/pluriel';
+
 const MOIS = [
   'janvier',
   'février',
@@ -91,6 +93,22 @@ export function traceAlerte(alerte: TraceAlerte): string {
 /** « 12,3 % » : une décimale, virgule, espace avant le signe. */
 export function pourcentFr(valeur: number): string {
   return `${valeur.toFixed(1).replace('.', ',')} %`;
+}
+
+/**
+ * La variation d'une alerte : un pourcentage pour des euros ou des heures, la
+ * différence en lignes quand l'alerte compare deux nombres de lignes (« +1 ligne »).
+ */
+export function variationAffichee(alerte: {
+  unite?: string | null;
+  value_n: number;
+  value_n1: number;
+  delta_pct: number;
+}): string {
+  if (alerte.unite !== 'nombre') return pourcentFr(alerte.delta_pct);
+  const ecart = alerte.value_n - alerte.value_n1;
+  const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '';
+  return `${signe}${pluriel(Math.abs(ecart), 'ligne')}`;
 }
 
 type NiveauAlerte = 'CRITIQUE' | 'AVERTISSEMENT' | 'INFO';

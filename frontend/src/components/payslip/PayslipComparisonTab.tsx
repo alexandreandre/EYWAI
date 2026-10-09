@@ -52,6 +52,7 @@ import {
   LIBELLE_NIVEAU,
   nombreActives,
   pourcentFr,
+  variationAffichee,
   traceAlerte,
 } from './comparaisonAffichage';
 
@@ -459,7 +460,7 @@ function AlertRow({
               alert.delta_pct > 0 && 'text-emerald-600'
             )}
           >
-            {pourcentFr(alert.delta_pct)}
+            {variationAffichee(alert)}
           </p>
         </div>
       </div>
