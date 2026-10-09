@@ -6,6 +6,7 @@ import type {
   PayrollGenerationLogEntry,
   PayrollGenerationPhase,
 } from '@/features/payroll/hooks/usePayrollGeneration';
+import { texteFinDeSuivi } from '@/features/payroll/utils/generationEnCours';
 import { monthYearLabel } from '@/features/payroll/utils/payrollMonth';
 
 type PayrollProgressBarProps = {
@@ -18,6 +19,8 @@ type PayrollProgressBarProps = {
   completedCount?: number;
   onDismiss?: () => void;
   onCancel?: () => void;
+  /** La fenêtre se ferme toute seule après une génération sans alerte (Mode Groupé). */
+  fermetureAutomatique?: boolean;
   className?: string;
 };
 
@@ -31,6 +34,7 @@ export function PayrollProgressBar({
   completedCount = 0,
   onDismiss,
   onCancel,
+  fermetureAutomatique = false,
   className,
 }: PayrollProgressBarProps) {
   if (phase === 'idle') return null;
@@ -38,6 +42,7 @@ export function PayrollProgressBar({
   const showFeed = log.length > 0 || currentLabel;
   const canDismiss = phase === 'done' && onDismiss;
   const showCounter = totalJobs > 0;
+  const texteFin = texteFinDeSuivi(log, fermetureAutomatique);
 
   return (
     <div
@@ -146,12 +151,8 @@ export function PayrollProgressBar({
         </ul>
       )}
 
-      {phase === 'done' && !log.some((entry) => entry.status === 'error') && (
-        <p className="text-xs text-muted-foreground">
-          {log.some((entry) => entry.status === 'warning')
-            ? 'Des bulletins ont été générés avec des alertes — ouvrez-les pour corriger.'
-            : 'Fermeture automatique dans quelques secondes…'}
-        </p>
+      {phase === 'done' && texteFin && (
+        <p className="text-xs text-muted-foreground">{texteFin}</p>
       )}
     </div>
   );

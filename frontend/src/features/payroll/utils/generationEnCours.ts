@@ -157,3 +157,19 @@ export function phraseAnnulation(generes: number, total: number, enCours: boolea
   if (enCours) phrase += ' Le bulletin en cours au moment de l’arrêt est à vérifier.';
   return phrase;
 }
+
+/**
+ * Phrase sous le suivi une fois la génération terminée. La fermeture
+ * automatique n'est annoncée que là où elle a lieu (fenêtre du Mode Groupé) :
+ * sur la page Paie, le suivi reste jusqu'à ce qu'on le ferme.
+ */
+export function texteFinDeSuivi(
+  journal: readonly { status: 'success' | 'warning' | 'error' }[],
+  fermetureAutomatique: boolean
+): string | null {
+  if (journal.some((e) => e.status === 'error')) return null;
+  if (journal.some((e) => e.status === 'warning')) {
+    return 'Des bulletins ont été générés avec des alertes — ouvrez-les pour corriger.';
+  }
+  return fermetureAutomatique ? 'Fermeture automatique dans quelques secondes…' : null;
+}
