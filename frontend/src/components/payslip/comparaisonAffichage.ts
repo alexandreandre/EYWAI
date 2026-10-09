@@ -55,3 +55,36 @@ export function traceAlerte(alerte: TraceAlerte): string {
   if (alerte.comment) trace += ` · ${alerte.comment}`;
   return trace;
 }
+
+/** « 12,3 % » : une décimale, virgule, espace avant le signe. */
+export function pourcentFr(valeur: number): string {
+  return `${valeur.toFixed(1).replace('.', ',')} %`;
+}
+
+type NiveauAlerte = 'CRITIQUE' | 'AVERTISSEMENT' | 'INFO';
+
+export const LIBELLE_NIVEAU: Record<NiveauAlerte, string> = {
+  CRITIQUE: 'Critique',
+  AVERTISSEMENT: 'Avertissement',
+  INFO: 'Info',
+};
+
+/** R12 (« pas de bulletin précédent ») est dite par l'encadré dédié, pas deux fois. */
+const REGLE_SANS_REFERENCE = 'R12';
+
+/** Les alertes à lister : sans R12, et seulement le niveau filtré s'il y en a un. */
+export function alertesAffichees<T extends { rule_id: string; level: NiveauAlerte }>(
+  alertes: T[],
+  niveau: NiveauAlerte | null
+): T[] {
+  return alertes.filter(
+    (a) => a.rule_id !== REGLE_SANS_REFERENCE && (niveau === null || a.level === niveau)
+  );
+}
+
+/** Alertes encore actives d'un niveau (R12 exclue, comme dans la liste). */
+export function nombreActives<
+  T extends { rule_id: string; level: NiveauAlerte; status: string },
+>(alertes: T[], niveau: NiveauAlerte): number {
+  return alertesAffichees(alertes, niveau).filter((a) => a.status === 'active').length;
+}

@@ -47,7 +47,13 @@ import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
-import { traceAlerte } from './comparaisonAffichage';
+import {
+  alertesAffichees,
+  LIBELLE_NIVEAU,
+  nombreActives,
+  pourcentFr,
+  traceAlerte,
+} from './comparaisonAffichage';
 
 const MONTHS_SHORT = [
   'Jan',
@@ -90,17 +96,6 @@ export function formatValeur(value: number | null | undefined, unite: string | n
   return formatEuro(value);
 }
 
-function lineRowClass(level: AlertLevel | null | undefined): string {
-  if (level === 'CRITIQUE') return 'bg-red-50/90 dark:bg-red-950/30';
-  if (level === 'AVERTISSEMENT') return 'bg-orange-50/90 dark:bg-orange-950/25';
-  if (level === 'INFO') return 'bg-sky-50/80 dark:bg-sky-950/25';
-  return '';
-}
-
-function countActiveByLevel(alerts: PayslipAlert[], level: AlertLevel): number {
-  return alerts.filter((a) => a.level === level && a.status === 'active').length;
-}
-
 export interface PayslipComparisonTabProps {
   payslipId: string;
   isRH: boolean;
@@ -119,6 +114,7 @@ export function PayslipComparisonTab({
   const queryClient = useQueryClient();
   const alertsRef = useRef<HTMLDivElement>(null);
   const [alertsOpen, setAlertsOpen] = useState(true);
+  const [niveauFiltre, setNiveauFiltre] = useState<AlertLevel | null>(null);
   const [acquitRuleId, setAcquitRuleId] = useState<string | null>(null);
   const [acquitComment, setAcquitComment] = useState('');
   const [ignoreRuleId, setIgnoreRuleId] = useState<string | null>(null);
@@ -135,7 +131,8 @@ export function PayslipComparisonTab({
     await onPayslipRefresh?.();
   };
 
-  const scrollToAlerts = () => {
+  const filtrerSur = (niveau: AlertLevel) => {
+    setNiveauFiltre((courant) => (courant === niveau ? null : niveau));
     setAlertsOpen(true);
     requestAnimationFrame(() => {
       alertsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -209,9 +206,10 @@ export function PayslipComparisonTab({
 
   const result = comparisonQuery.data as ComparisonResult;
 
-  const crit = countActiveByLevel(result.alerts, 'CRITIQUE');
-  const warn = countActiveByLevel(result.alerts, 'AVERTISSEMENT');
-  const info = countActiveByLevel(result.alerts, 'INFO');
+  const crit = nombreActives(result.alerts, 'CRITIQUE');
+  const warn = nombreActives(result.alerts, 'AVERTISSEMENT');
+  const info = nombreActives(result.alerts, 'INFO');
+  const alertesListees = alertesAffichees(result.alerts, niveauFiltre);
 
   return (
     <div className="space-y-6 mt-6">
@@ -230,17 +228,35 @@ export function PayslipComparisonTab({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={scrollToAlerts}>
+          <Button
+            type="button"
+            variant={niveauFiltre === 'CRITIQUE' ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={niveauFiltre === 'CRITIQUE'}
+            onClick={() => filtrerSur('CRITIQUE')}
+          >
             <Badge variant="destructive" className="mr-1.5">
               {crit}
             </Badge>
             Critique
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={scrollToAlerts}>
+          <Button
+            type="button"
+            variant={niveauFiltre === 'AVERTISSEMENT' ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={niveauFiltre === 'AVERTISSEMENT'}
+            onClick={() => filtrerSur('AVERTISSEMENT')}
+          >
             <Badge className="mr-1.5 bg-orange-500 hover:bg-orange-600">{warn}</Badge>
             Avertissement
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={scrollToAlerts}>
+          <Button
+            type="button"
+            variant={niveauFiltre === 'INFO' ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={niveauFiltre === 'INFO'}
+            onClick={() => filtrerSur('INFO')}
+          >
             <Badge className="mr-1.5 bg-sky-600 hover:bg-sky-700">{info}</Badge>
             Info
           </Button>
@@ -250,7 +266,7 @@ export function PayslipComparisonTab({
       {result.bulletin_n1_id == null ? (
         <Card className="border-sky-200 bg-sky-50/60 dark:bg-sky-950/20">
           <CardContent className="py-4 text-sm">
-            Aucun bulletin N-1 disponible pour ce salarié.
+            Aucun bulletin validé avant ce mois : la comparaison n’est pas possible pour ce salarié.
           </CardContent>
         </Card>
       ) : null}
@@ -264,16 +280,15 @@ export function PayslipComparisonTab({
             <TableHeader>
               <TableRow>
                 <TableHead>Poste</TableHead>
-                <TableHead className="text-right">N</TableHead>
-                <TableHead className="text-right">N-1</TableHead>
-                <TableHead className="text-right">Δ abs.</TableHead>
-                <TableHead className="text-right">Δ %</TableHead>
-                <TableHead>Niveau</TableHead>
+                <TableHead className="text-right">Ce mois</TableHead>
+                <TableHead className="text-right">Bulletin de référence</TableHead>
+                <TableHead className="text-right">Écart</TableHead>
+                <TableHead className="text-right">Écart en %</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {result.lines.map((line) => (
-                <TableRow key={line.libelle} className={lineRowClass(line.alert_level)}>
+                <TableRow key={line.libelle}>
                   <TableCell className="font-medium">{line.libelle}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatValeur(line.value_n, line.unite)}
@@ -299,22 +314,7 @@ export function PayslipComparisonTab({
                   >
                     {line.delta_pct === null || line.delta_pct === undefined
                       ? '—'
-                      : `${line.delta_pct.toFixed(2)} %`}
-                  </TableCell>
-                  <TableCell>
-                    {line.alert_level ? (
-                      <Badge
-                        variant={line.alert_level === 'CRITIQUE' ? 'destructive' : 'secondary'}
-                        className={cn(
-                          line.alert_level === 'AVERTISSEMENT' && 'bg-orange-500 text-white',
-                          line.alert_level === 'INFO' && 'bg-sky-600 text-white'
-                        )}
-                      >
-                        {line.alert_level}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                      : pourcentFr(line.delta_pct)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -328,7 +328,7 @@ export function PayslipComparisonTab({
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer select-none flex flex-row items-center justify-between space-y-0 py-4">
               <CardTitle className="text-base">
-                Alertes détectées ({result.alerts.length})
+                Alertes détectées ({alertesListees.length}){niveauFiltre ? ` · ${LIBELLE_NIVEAU[niveauFiltre]}` : ''}
               </CardTitle>
               {alertsOpen ? (
                 <ChevronDown className="h-5 w-5 text-muted-foreground" />
@@ -339,10 +339,12 @@ export function PayslipComparisonTab({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="space-y-4 pt-0">
-              {result.alerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucune alerte.</p>
+              {alertesListees.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {niveauFiltre ? 'Aucune alerte à ce niveau.' : 'Aucune alerte.'}
+                </p>
               ) : (
-                result.alerts.map((alert) => (
+                alertesListees.map((alert) => (
                   <AlertRow
                     key={`${alert.rule_id}-${alert.message.slice(0, 40)}`}
                     alert={alert}
@@ -419,11 +421,11 @@ function AlertRow({
 }) {
   const levelBadge =
     alert.level === 'CRITIQUE' ? (
-      <Badge variant="destructive">{alert.level}</Badge>
+      <Badge variant="destructive">{LIBELLE_NIVEAU[alert.level]}</Badge>
     ) : alert.level === 'AVERTISSEMENT' ? (
-      <Badge className="bg-orange-500 text-white">{alert.level}</Badge>
+      <Badge className="bg-orange-500 text-white">{LIBELLE_NIVEAU[alert.level]}</Badge>
     ) : (
-      <Badge className="bg-sky-600 text-white">{alert.level}</Badge>
+      <Badge className="bg-sky-600 text-white">{LIBELLE_NIVEAU[alert.level]}</Badge>
     );
 
   return (
@@ -441,11 +443,11 @@ function AlertRow({
       <p className="text-sm">{alert.message}</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
         <div>
-          <span className="text-muted-foreground">Valeur N</span>
+          <span className="text-muted-foreground">Ce mois</span>
           <p className="font-medium tabular-nums">{formatValeur(alert.value_n, alert.unite)}</p>
         </div>
         <div>
-          <span className="text-muted-foreground">Valeur N-1</span>
+          <span className="text-muted-foreground">Bulletin de référence</span>
           <p className="font-medium tabular-nums">{formatValeur(alert.value_n1, alert.unite)}</p>
         </div>
         <div>
@@ -457,7 +459,7 @@ function AlertRow({
               alert.delta_pct > 0 && 'text-emerald-600'
             )}
           >
-            {alert.delta_pct.toFixed(2)} %
+            {pourcentFr(alert.delta_pct)}
           </p>
         </div>
       </div>
