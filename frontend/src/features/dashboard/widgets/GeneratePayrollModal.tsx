@@ -266,6 +266,16 @@ export function GeneratePayrollModal({
 
         {uiPhase === 'select' && (
           <>
+            {generation.annulation && (
+              <div className="px-6 pb-4">
+                <p
+                  role="status"
+                  className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  {generation.annulation}
+                </p>
+              </div>
+            )}
             <div className="px-6 pb-4">
               <PayrollPreflightChecklist onStepClick={onNavigateTo} />
             </div>

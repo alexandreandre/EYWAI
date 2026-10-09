@@ -143,3 +143,17 @@ export function phaseModaleApres(
   if (phaseSuivi === 'done') return 'done';
   return phaseFenetre === 'running' ? 'select' : phaseFenetre;
 }
+
+/** Ce que dit Martine quand la RH arrête une génération en cours. */
+export function phraseAnnulation(generes: number, total: number, enCours: boolean): string {
+  const restants = Math.max(0, total - generes);
+  const faits =
+    generes === 0
+      ? 'aucun bulletin généré'
+      : `${generes} bulletin${generes > 1 ? 's' : ''} généré${generes > 1 ? 's' : ''}`;
+  let phrase = `Génération arrêtée : ${faits} sur ${total}.`;
+  if (restants === 1) phrase += ' Le bulletin restant reste « À générer ».';
+  else if (restants > 1) phrase += ` Les ${restants} autres restent « À générer ».`;
+  if (enCours) phrase += ' Le bulletin en cours au moment de l’arrêt est à vérifier.';
+  return phrase;
+}

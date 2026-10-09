@@ -36,6 +36,7 @@ import {
 import {
   lienQuitteLaPage,
   noterInterruption,
+  phraseAnnulation,
   questionQuitterGeneration,
   recapitulatifEchecs,
   type EchecGeneration,
@@ -125,6 +126,8 @@ export function usePayrollGeneration() {
   const [refusedJobs, setRefusedJobs] = useState<PayrollGenerationRefusal[]>([]);
   /** Échecs de la dernière passe, gardés une fois le suivi fermé. */
   const [recapEchecs, setRecapEchecs] = useState<EchecGeneration[]>([]);
+  /** Phrase laissée par la dernière annulation, jusqu'à la prochaine génération. */
+  const [annulation, setAnnulation] = useState<string | null>(null);
 
   const abortRef = useRef(false);
   const tickRef = useRef<number | null>(null);
@@ -343,6 +346,10 @@ export function usePayrollGeneration() {
         abortRef.current = false;
         setPhase('idle');
         setEstimatedRemainingSec(null);
+        const generes = logRef.current.filter((e) => e.status !== 'error').length;
+        const phrase = phraseAnnulation(generes, totalRef.current, salarieInterrompu !== null);
+        setAnnulation(phrase);
+        toast({ title: 'Génération arrêtée', description: phrase });
         void invaliderCles(queryClient, clesApresAnnulation(companyId, salarieInterrompu));
       } else if (queueRef.current.length > 0) {
         void processQueue();
@@ -375,6 +382,7 @@ export function usePayrollGeneration() {
         setFailedJobs({});
         setRefusedJobs([]);
         setRecapEchecs([]);
+        setAnnulation(null);
         completedCountRef.current = 0;
         totalRef.current = 0;
         setProgress(0);
@@ -433,6 +441,7 @@ export function usePayrollGeneration() {
     setTotalJobs(0);
     setFailedJobs({});
     setRefusedJobs([]);
+    setAnnulation(null);
     completedCountRef.current = 0;
     totalRef.current = 0;
     processingRef.current = false;
@@ -579,6 +588,7 @@ export function usePayrollGeneration() {
     failedJobs,
     refusedJobs,
     recapEchecs,
+    annulation,
     oublierEchecs,
     forceRefused,
     retryJob,
