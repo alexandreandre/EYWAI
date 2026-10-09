@@ -47,6 +47,7 @@ import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { traceAlerte } from './comparaisonAffichage';
 
 const MONTHS_SHORT = [
   'Jan',
@@ -460,19 +461,8 @@ function AlertRow({
           </p>
         </div>
       </div>
-      {alert.status === 'acquittee' && (
-        <p className="text-xs text-muted-foreground">
-          {alert.acquitted_by ? `Par ${alert.acquitted_by}` : ''}
-          {alert.acquitted_at ? ` · ${alert.acquitted_at}` : ''}
-          {alert.comment ? ` · ${alert.comment}` : ''}
-        </p>
-      )}
-      {alert.status === 'ignoree' && (
-        <p className="text-xs text-muted-foreground">
-          {alert.acquitted_by ? `Par ${alert.acquitted_by}` : ''}
-          {alert.acquitted_at ? ` · ${alert.acquitted_at}` : ''}
-          {alert.comment ? ` · ${alert.comment}` : ''}
-        </p>
+      {alert.status !== 'active' && (
+        <p className="text-xs text-muted-foreground">{traceAlerte(alert)}</p>
       )}
       {alert.status === 'active' && isRH ? (
         <div className="flex gap-2 pt-1">
