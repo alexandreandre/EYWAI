@@ -525,6 +525,20 @@ class TestPied:
         pied = construire_vue_bulletin(bulletin)["pied"]
         assert pied["rectification"] == "Bulletin rectifié le 02/08/2026 à 14:30"
 
+    @pytest.mark.parametrize(
+        "brut,attendu",
+        [
+            ("2026-10-07T07:12:33+00:00", "Bulletin rectifié le 7 octobre 2026 à 09:12"),
+            ("2026-01-01T10:05:00Z", "Bulletin rectifié le 1er janvier 2026 à 11:05"),
+            ("2026-10-07T07:12:33.123456", "Bulletin rectifié le 7 octobre 2026 à 09:12"),
+        ],
+    )
+    def test_rectification_date_en_clair_depuis_l_iso_de_la_base(self, brut, attendu):
+        bulletin = self._bulletin()
+        bulletin["manually_edited"] = True
+        bulletin["edited_at"] = brut
+        assert construire_vue_bulletin(bulletin)["pied"]["rectification"] == attendu
+
     def test_sans_rectification_pas_de_mention(self):
         assert construire_vue_bulletin(self._bulletin())["pied"]["rectification"] == ""
 
