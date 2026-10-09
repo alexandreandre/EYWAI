@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { destinationDeFermeture } from '@/features/payroll/utils/retourModeGroupe';
 import {
   useEmployeesSummaryQuery,
   usePayrollEmployeesQuery,
@@ -19,6 +20,7 @@ function employeesQueryErrorMessage(error: unknown): string | null {
 
 export default function PayrollGenerate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const employeesQuery = usePayrollEmployeesQuery();
   const allEmployeesQuery = useEmployeesSummaryQuery('all');
   const employees = (employeesQuery.data ?? []).map((employee) => ({
@@ -39,15 +41,11 @@ export default function PayrollGenerate() {
     employeesQueryErrorMessage(allEmployeesQuery.error);
 
   const handleClose = () => {
-    // Annuler / Échap : retour d'où l'on vient. La navigation vers les
-    // bulletins après un SUCCÈS passe par onNavigateTo, déclenchée par le
-    // modal lui-même (retour Gaëlle 04/09 + revue : ne pas détourner
-    // l'annulation).
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate('/');
+    // Annuler / Échap : retour à la page d'où l'on vient (la page Paie à défaut).
+    // La navigation vers les bulletins après un SUCCÈS passe par onNavigateTo,
+    // déclenchée par le modal lui-même (retour Gaëlle 04/09 + revue : ne pas
+    // détourner l'annulation).
+    navigate(destinationDeFermeture(location.state), { replace: true });
   };
 
   const handleRetryEmployees = () => {

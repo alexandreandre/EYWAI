@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { etatPourModeGroupe } from '@/features/payroll/utils/retourModeGroupe';
 import { RefreshCw, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ export function LaunchPayrollButton({
   enabled = true,
   pipelineLoading = false,
 }: LaunchPayrollButtonProps) {
+  const location = useLocation();
   const { canLaunchPayroll, isError, retry, etat } = useCanLaunchPayroll(enabled);
   const showAsReady = canLaunchPayroll && !pipelineLoading;
 
@@ -63,7 +65,7 @@ export function LaunchPayrollButton({
       asChild={showAsReady}
     >
       {showAsReady ? (
-        <Link to="/payroll/generate">
+        <Link to="/payroll/generate" state={etatPourModeGroupe(location)}>
           <Rocket className="h-4 w-4 shrink-0" />
           Lancer la paie
         </Link>
