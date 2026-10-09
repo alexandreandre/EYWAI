@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -73,5 +75,23 @@ describe('lignesAvecExplication', () => {
         details_absences: [{ libelle: 'Absence arrêt maladie du 01/09 au 30/09' }],
       })
     ).toEqual([]);
+  });
+});
+
+describe('cadre « D’où viennent ces lignes » : chaque astérisque ouvre sa propre info-bulle', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '../components/LignesExpliquees.tsx'),
+    'utf8'
+  );
+
+  it('l’info-bulle d’une ligne ne retient pas le pointeur qui passe à la ligne suivante', () => {
+    // Sans cela, l'info-bulle ouverte garde une zone de passage vers elle : le survol de
+    // l'astérisque de la ligne du dessous reste sans réponse (cas des heures sup puis
+    // de la réduction générale).
+    expect(source).toMatch(/<Tooltip[^>]*\bdisableHoverableContent\b/);
+  });
+
+  it('seule une ligne expliquée porte l’astérisque', () => {
+    expect(source).toContain('afficherAsterisque(ligne)');
   });
 });
