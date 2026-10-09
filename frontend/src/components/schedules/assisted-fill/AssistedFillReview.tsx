@@ -63,7 +63,16 @@ import {
   type HeuresDejaSaisies,
   type LigneAvecJours,
 } from './joursDejaSaisis';
-import { joursEcritsDuLot, phraseEnregistrement } from './bilanEnregistrement';
+import {
+  joursEcritsDuLot,
+  phraseAlertesMasquees,
+  phraseEcartsOcr,
+  phraseEnregistrement,
+  phraseEnregistrementPartiel,
+  phraseHorsReleve,
+  phraseJoursEnConflit,
+  phraseJoursPreserves,
+} from './bilanEnregistrement';
 import {
   lignesIgnorees,
   phraseLignesIgnorees,
@@ -823,8 +832,7 @@ export function AssistedFillReview({
       toast({
         title: 'Heures enregistrées — jours en conflit avec un arrêt',
         description:
-          `${nbJours} jour(s) portent des heures alors que le planning les marque en arrêt ou en absence : `
-          + 'le bulletin sera refusé tant que ce n’est pas corrigé (voir détail).',
+          phraseJoursEnConflit(nbJours),
         variant: 'warning',
       });
       setConflitsArret(conflits);
@@ -835,7 +843,7 @@ export function AssistedFillReview({
     if (preserved.length > 0) {
       toast({
         title: 'Heures enregistrées — jours préservés',
-        description: `${preserved.length} jour(s) laissé(s) en l'état : absence validée (voir détail).`,
+        description: phraseJoursPreserves(preserved.length),
         variant: 'warning',
       });
       setPreservedAbsenceDays(preserved);
@@ -934,7 +942,7 @@ export function AssistedFillReview({
       if (failed.length > 0) {
         toast({
           title: 'Enregistrement partiel',
-          description: `${result.total_days_written} jour(s) · ${failed.length} échec(s).`,
+          description: phraseEnregistrementPartiel(result.total_days_written, failed.length),
           variant: 'destructive',
         });
         if (preserved.length > 0 || conflits.length > 0) {
@@ -1035,7 +1043,7 @@ export function AssistedFillReview({
         <div className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            {preservedAbsenceDays.length} jour(s) laissé(s) en l&apos;état : absence validée
+            {phraseJoursPreserves(preservedAbsenceDays.length).replace(' (voir détail)', '')}
           </p>
           <p className="mt-1 text-xs">
             Une absence validée occupe déjà ces jours au planning : le relevé ne
@@ -1155,7 +1163,7 @@ export function AssistedFillReview({
         )}
         {(proposal.consensus_conflicts ?? 0) > 0 && (
           <p className="mt-1 text-[10px] text-amber-800">
-            {proposal.consensus_conflicts} écart(s) vision/OCR — vérifiez les heures signalées.
+            {phraseEcartsOcr(proposal.consensus_conflicts ?? 0)}
           </p>
         )}
         {mentionSource && (
@@ -1251,7 +1259,7 @@ export function AssistedFillReview({
             )}
             {globalWarnings.length > 0
               ? `${globalWarnings.length} point${globalWarnings.length > 1 ? 's' : ''} d'attention`
-              : `${noiseWarningCount} alerte(s) masquée(s) (salariés hors PDF)`}
+              : phraseAlertesMasquees(noiseWarningCount)}
           </button>
           {showGlobalWarnings && (
             <div className="mt-1 space-y-0.5 pl-5">
@@ -1260,8 +1268,7 @@ export function AssistedFillReview({
               ))}
               {noiseWarningCount > 0 && (
                 <p className="text-muted-foreground">
-                  {noiseWarningCount} salarié(s) du roster absents du relevé — normal, non
-                  affichés.
+                  {phraseHorsReleve(noiseWarningCount)}
                 </p>
               )}
             </div>
