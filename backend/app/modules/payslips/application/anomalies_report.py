@@ -318,7 +318,7 @@ def _collect_anomalies_for_row(
                 payslip_id=payslip_id,
                 type="COTISATIONS_PAT_NEGATIVES",
                 severite="bloquant",
-                message="Cotisation(s) patronale(s) négative(s) ou total patronal négatif.",
+                message="Cotisations patronales négatives ou total patronal négatif.",
                 valeur_detectee=f"total patronal agrégé={tot_pat:.2f} €",
                 suggestion_correction="Contrôler structure_cotisations et rubriques exonérations / reprises.",
             )

@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+from app.shared.domain.pluriel import pluriel
 from app.core.database import supabase
 from app.modules.badgeuse.application import punch_service as badgeuse_service
 from app.modules.payroll.application.periode_variables_service import (
@@ -226,7 +227,7 @@ def build_preflight_anomalies(
             if bloquants:
                 debut, fin = periode.fenetre
                 message = (
-                    f"{len(bloquants)} jour(s) à saisir dans la fenêtre des variables "
+                    f"{pluriel(len(bloquants), 'jour')} à saisir dans la fenêtre des variables "
                     f"({debut:%d/%m} → {fin:%d/%m}) : {libelle_plages(bloquants)} "
                     f"({raisons_en_clair(periode.bloquants)})."
                 )
@@ -318,7 +319,7 @@ def build_preflight_anomalies(
                 conflict_days=conflict_days,
                 message=(
                     f"Conflit entre absences validées et calendrier "
-                    f"({len(conflict_days)} jour(s))."
+                    f"({pluriel(len(conflict_days), 'jour')})."
                 ),
             )
             anomalies.append(
@@ -340,7 +341,7 @@ def build_preflight_anomalies(
                 status="a_traiter",
                 days_with_pointage_anomalies=badge_summary.days_with_anomalies,
                 message=(
-                    f"{badge_summary.days_with_anomalies} jour(s) avec pointage "
+                    f"{pluriel(badge_summary.days_with_anomalies, 'jour')} avec pointage "
                     "incohérent (entrée/sortie)."
                 ),
             )
@@ -366,7 +367,7 @@ def build_preflight_anomalies(
                 status="a_traiter",
                 ecart=total_hs,
                 message=(
-                    f"{len(emp_pending)} jour(s) avec HS pointage à valider "
+                    f"{pluriel(len(emp_pending), 'jour')} avec HS pointage à valider "
                     f"({total_hs:.2f} h)."
                 ),
             )

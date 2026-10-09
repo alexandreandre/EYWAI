@@ -30,7 +30,8 @@ export function messageConfirmationGeneration({
   if (controleEnErreur) return MESSAGE_GENERER_SANS_CONTROLE;
   const bloquantes = countOpenBlockingAnomalies(anomalies);
   if (bloquantes > 0) {
-    return `${bloquantes} anomalie(s) bloquante(s) ouverte(s). Générer quand même les bulletins ?`;
+    const anomalies = bloquantes > 1 ? 'anomalies bloquantes ouvertes' : 'anomalie bloquante ouverte';
+    return `${bloquantes} ${anomalies}. Générer quand même les bulletins ?`;
   }
   return null;
 }
