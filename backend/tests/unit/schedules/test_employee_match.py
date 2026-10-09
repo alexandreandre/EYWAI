@@ -131,3 +131,25 @@ class TestEmployeeMatch:
         )
         assert p.employee_id is None
         assert p.review_status == "error"
+
+
+def test_tableur_nom_non_reconnu_se_dit_a_associer_sans_parler_d_ocr():
+    """Un CSV n'a pas d'OCR : « Solde Cam » est une ligne à associer (09/10/2026)."""
+    proposal = resolve_employee_for_timesheet(
+        raw_name="Solde Cam", matricule=None, roster=ROSTER, tabulaire=True
+    )
+
+    assert proposal.employee_id is None
+    assert proposal.review_status == "error"
+    texte = " ".join(proposal.warnings)
+    assert "OCR" not in texte
+    assert "à associer" in texte
+    assert "Solde Cam" in texte
+
+
+def test_document_ocr_garde_la_mention_texte_non_salarie():
+    proposal = resolve_employee_for_timesheet(
+        raw_name="Total pour la semaine", matricule=None, roster=ROSTER
+    )
+
+    assert any("texte OCR non salarié" in w for w in proposal.warnings)
