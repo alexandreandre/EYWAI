@@ -100,6 +100,27 @@ describe('manuel opérateur', () => {
     }
   });
 
+  it('suit l’écran de la revue du 09/10 : échecs gardés, validation groupée, À revoir, alertes', () => {
+    const texte = TEXTE_MANUEL();
+    for (const attendu of [
+      'Valider les bulletins prêts',
+      'Seulement à revoir',
+      'Acquitter',
+      'Ignorer',
+      'D’où viennent ces lignes',
+      'Annuler la génération',
+    ]) {
+      expect(texte, attendu).toContain(attendu);
+    }
+    for (const perime of [
+      'il n’est pas gardé',
+      'un bulletin à la fois',
+      'Un astérisque sur une ligne explique',
+    ]) {
+      expect(texte, perime).not.toContain(perime);
+    }
+  });
+
   it('ne cite que des libellés qui existent à l’écran', () => {
     const code = apostrophes(codeDeLEcran());
     const cites = [...TEXTE_MANUEL().matchAll(/«\s*([^»]+?)\s*»/g)].map((m) => m[1]);
