@@ -99,6 +99,16 @@ def _ensure_edit_meta(meta: dict[str, Any] | None, ctx: UserContext) -> dict[str
     return meta
 
 
+def _voit_comme_rh(detail: dict[str, Any], ctx: UserContext) -> bool:
+    """La RH (ou l'admin) du bulletin, pas le salarié qui le consulte."""
+    return can_edit_or_restore_payslip(
+        detail,
+        ctx.is_platform_admin,
+        ctx.has_rh_access_in_company,
+        ctx.active_company_id,
+    )
+
+
 def _extract_totals(payslip_data: dict[str, Any]) -> dict[str, float]:
     v = _extract_values(payslip_data)
     return {
@@ -110,6 +120,12 @@ def _extract_totals(payslip_data: dict[str, Any]) -> dict[str, float]:
 
 def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
     detail = _ensure_view_detail(get_payslip_details(payslip_id), ctx)
+    if not _voit_comme_rh(detail, ctx):
+        # Les alertes de contrôle (R03 critique, R08, R10…) sont un outil de la
+        # RH : le salarié ne les reçoit pas pour son propre bulletin.
+        raise PayslipForbiddenError(
+            "La comparaison avec le mois précédent est réservée aux ressources humaines."
+        )
     emp_id = str(detail["employee_id"])
     comp_id = str(detail["company_id"])
     year = int(detail["year"])
@@ -145,6 +161,7 @@ def get_payslip_comparison_for_user(payslip_id: str, ctx: UserContext) -> dict[s
 
 def get_payslip_trend_for_user(payslip_id: str, ctx: UserContext) -> dict[str, Any]:
     detail = _ensure_view_detail(get_payslip_details(payslip_id), ctx)
+    avec_alertes = _voit_comme_rh(detail, ctx)
     emp_id = str(detail["employee_id"])
     comp_id = str(detail["company_id"])
     year = int(detail["year"])
@@ -192,7 +209,7 @@ def get_payslip_trend_for_user(payslip_id: str, ctx: UserContext) -> dict[str, A
                 "salaire_brut": totals["salaire_brut"],
                 "net_a_payer": totals["net_a_payer"],
                 "total_cotisations": totals["total_cotisations"],
-                "alerts": alerts_dicts,
+                "alerts": alerts_dicts if avec_alertes else [],
             }
         )
         prev_pd = pdata

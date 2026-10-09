@@ -1,5 +1,5 @@
 /**
- * Détail bulletin côté collaborateur : comparaison N-1 et tendance (lecture seule).
+ * Détail bulletin côté collaborateur : ce qui a changé et tendance (lecture seule).
  * Route : /employee/payslips/:payslipId
  */
 
@@ -14,8 +14,6 @@ import {
   EmployeePageShell,
 } from '@/components/employee/EmployeePageHeader';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PayslipComparisonTab } from '@/components/payslip/PayslipComparisonTab';
 import { PayslipTrendTab } from '@/components/payslip/PayslipTrendTab';
 import { formatMonthYearFr } from '@/components/payslip/PayslipComparisonTab';
 import { ComparaisonMoisDernier } from '@/features/payroll/components/ComparaisonMoisDernier';
@@ -27,7 +25,6 @@ export default function EmployeePayslipDetail() {
   const { toast } = useToast();
   const [payslip, setPayslip] = useState<PayslipDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('comparison');
 
   useEffect(() => {
     if (!payslipId) {
@@ -69,7 +66,7 @@ export default function EmployeePayslipDetail() {
           <EmployeePageBackLink to="/payslips" label="Retour à ma rémunération" />
         }
         title={`Mon bulletin — ${formatMonthYearFr(payslip.month, payslip.year)}`}
-        description="Comparaison avec le mois précédent et tendance sur l'historique (lecture seule)."
+        description="Ce qui a changé depuis le mois précédent et tendance sur l'historique (lecture seule)."
         actions={
           <Button variant="outline" size="sm" asChild>
             <a href={payslip.url} download={payslip.name}>
@@ -80,28 +77,17 @@ export default function EmployeePayslipDetail() {
         }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-1 gap-1 sm:grid-cols-2">
-          <TabsTrigger value="comparison">Comparaison N-1</TabsTrigger>
-          <TabsTrigger value="trend">Tendance</TabsTrigger>
-        </TabsList>
-        <TabsContent value="comparison" className="mt-0 space-y-4">
-          <ComparaisonMoisDernier comparaison={payslip.comparaison_mois_dernier} />
-          <PayslipComparisonTab
-            payslipId={payslip.id}
-            isRH={false}
-            onShowTrend={() => setActiveTab('trend')}
-          />
-        </TabsContent>
-        <TabsContent value="trend" className="mt-0">
-          <PayslipTrendTab
-            payslipId={payslip.id}
-            referenceYear={payslip.year}
-            referenceMonth={payslip.month}
-            payslipRowHref={(id) => `/employee/payslips/${id}`}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Les alertes de contrôle de la comparaison N-1 sont un outil de la RH :
+          le salarié n'a que « ce qui a changé » et la tendance. */}
+      <div className="space-y-4">
+        <ComparaisonMoisDernier comparaison={payslip.comparaison_mois_dernier} />
+        <PayslipTrendTab
+          payslipId={payslip.id}
+          referenceYear={payslip.year}
+          referenceMonth={payslip.month}
+          payslipRowHref={(id) => `/employee/payslips/${id}`}
+        />
+      </div>
     </EmployeePageShell>
   );
 }
