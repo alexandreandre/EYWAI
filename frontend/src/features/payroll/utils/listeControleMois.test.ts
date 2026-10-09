@@ -116,6 +116,16 @@ describe('listeControleDuMois — pas de coche verte sans preuve', () => {
     expect(etape(resultat, ETAPE_CONFLITS).etat).toBe('a_faire');
   });
 
+  it('conflit arrêt/heures : le texte ne promet que ce qui existe (calendrier qui signale, choix à la génération)', () => {
+    const resultat = listeControleDuMois(entree({ conflitsArret: OK(['e-2']) }));
+    const action = resultat.actions.find((a) => a.id === ETAPE_CONFLITS);
+    expect(action?.ensuite).not.toContain('bandeau propose');
+    expect(action?.ensuite).toContain('signale');
+    expect(action?.ensuite).toContain('effacer ces heures');
+    expect(action?.ensuite).toContain('modifier l’arrêt');
+    expect(action?.ensuite).toContain('génération');
+  });
+
   it('conflits indisponibles : à confirmer, pas une liste vide prise pour « aucun »', () => {
     expect(
       etape(listeControleDuMois(entree({ conflitsArret: INDISPONIBLE })), ETAPE_CONFLITS).etat
