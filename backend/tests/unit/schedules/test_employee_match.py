@@ -153,3 +153,22 @@ def test_document_ocr_garde_la_mention_texte_non_salarie():
     )
 
     assert any("texte OCR non salarié" in w for w in proposal.warnings)
+
+
+def test_tableur_meme_phrase_pour_tout_nom_non_reconnu():
+    """Nom ordinaire ou proche du bruit : une seule phrase pour un tableur (09/10/2026)."""
+    ordinaire = resolve_employee_for_timesheet(
+        raw_name="Zoé Quenelle", matricule=None, roster=ROSTER, tabulaire=True
+    )
+    bruit = resolve_employee_for_timesheet(
+        raw_name="Solde Cam", matricule=None, roster=ROSTER, tabulaire=True
+    )
+
+    assert ordinaire.employee_id is None
+    assert ordinaire.warnings[0] == "Nom non reconnu : « Zoé Quenelle » — à associer à un salarié."
+    assert bruit.warnings[0] == "Nom non reconnu : « Solde Cam » — à associer à un salarié."
+
+
+def test_pdf_nom_ordinaire_garde_sa_phrase():
+    p = resolve_employee_for_timesheet(raw_name="Zoé Quenelle", matricule=None, roster=ROSTER)
+    assert p.warnings[0] == "Aucun employé reconnu pour « Zoé Quenelle »."
