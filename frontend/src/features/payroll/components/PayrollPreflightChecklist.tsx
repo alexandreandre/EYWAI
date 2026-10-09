@@ -14,6 +14,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useRhSidebarTaskBadges } from '@/hooks/useRhSidebarTaskBadges';
 import { ControleIndisponible } from '@/features/payroll/components/ControleIndisponible';
+import { compteEtapeCalendriers } from '@/features/payroll/utils/etapesPreparation';
+import type { Lecture } from '@/features/payroll/utils/listeControleMois';
 
 interface PreflightStep {
   url: string;
@@ -56,11 +58,14 @@ interface PayrollPreflightChecklistProps {
   className?: string;
   /** Navigation programmée (ex. depuis un modal) — évite le conflit Link + navigate(-1). */
   onStepClick?: (url: string) => void;
+  /** Salariés dont le calendrier du mois choisi a des jours à saisir (juge unique du contrôle avant paie). */
+  calendriersDuMois?: Lecture<readonly string[]>;
 }
 
 export function PayrollPreflightChecklist({
   className,
   onStepClick,
+  calendriersDuMois,
 }: PayrollPreflightChecklistProps) {
   const {
     getCount,
@@ -71,11 +76,12 @@ export function PayrollPreflightChecklist({
   } = useRhSidebarTaskBadges(true);
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
-  const isLoading = badgesLoading;
+  const calendriers = compteEtapeCalendriers(getCount('/schedules'), calendriersDuMois);
+  const isLoading = badgesLoading || calendriers.statut === 'chargement';
 
   // Un compteur en erreur vaut 0 : sans ce cas, la liste annonçait
   // « Processus de préparation validé » alors que rien n'avait été vérifié.
-  if (!isLoading && isPayrollPipelineError) {
+  if (!isLoading && (isPayrollPipelineError || calendriers.statut === 'erreur')) {
     return (
       <ControleIndisponible
         titre="Étapes de préparation non vérifiées."
@@ -89,7 +95,14 @@ export function PayrollPreflightChecklist({
 
   const steps = PREFLIGHT_STEPS.map((step) => ({
     ...step,
-    count: step.tracked ? getCount(step.url) : 0,
+    count:
+      step.url === '/schedules'
+        ? calendriers.statut === 'ok'
+          ? calendriers.compte
+          : 0
+        : step.tracked
+          ? getCount(step.url)
+          : 0,
   }));
 
   const pendingSteps = steps.filter((step) => step.count > 0);

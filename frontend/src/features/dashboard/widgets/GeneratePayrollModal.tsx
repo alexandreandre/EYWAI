@@ -11,6 +11,10 @@ import { BlocPeriodeVariables } from '@/features/payroll/components/BlocPeriodeV
 import { AlertTriangle, Loader2, PartyPopper } from 'lucide-react';
 import { PayrollProgressBar } from '@/features/payroll/components/PayrollProgressBar';
 import { PayrollGenerationRefusalDialog } from '@/features/payroll/components/PayrollGenerationRefusalDialog';
+import {
+  lectureCalendriersASaisir,
+  type Lecture,
+} from '@/features/payroll/utils/listeControleMois';
 import { PayrollPreflightChecklist } from '@/features/payroll/components/PayrollPreflightChecklist';
 import { PayrollPreflightAnomaliesSection } from '@/features/payroll/components/PayrollPreflightAnomaliesSection';
 import { OvertimeRoutingPanel } from '@/features/payroll/components/OvertimeRoutingPanel';
@@ -84,6 +88,19 @@ export function GeneratePayrollModal({
     isFetching: preflightFetching,
     refetch: refetchPreflight,
   } = usePreflightAnomalies(parsedMonth.year, parsedMonth.month, !!selectedMonth);
+
+  // Même juge que la liste de contrôle du mois : le contrôle avant paie du mois choisi.
+  const calendriersDuMois = useMemo((): Lecture<string[]> | undefined => {
+    if (!selectedMonth) return undefined;
+    const lecture = lectureCalendriersASaisir({
+      chargement: preflightLoading,
+      erreur: preflightError,
+      anomalies: preflightData?.anomalies,
+    });
+    if (lecture.statut !== 'ok') return lecture;
+    const presents = new Set(employees.map((e) => e.id));
+    return { statut: 'ok', valeur: lecture.valeur.filter((id) => presents.has(id)) };
+  }, [selectedMonth, preflightLoading, preflightError, preflightData, employees]);
 
   const generateMonthOptions = () => {
     const options = [];
@@ -277,7 +294,10 @@ export function GeneratePayrollModal({
               </div>
             )}
             <div className="px-6 pb-4">
-              <PayrollPreflightChecklist onStepClick={onNavigateTo} />
+              <PayrollPreflightChecklist
+                onStepClick={onNavigateTo}
+                calendriersDuMois={calendriersDuMois}
+              />
             </div>
 
             <div className="px-6 pb-4">
