@@ -91,6 +91,7 @@ def build_month_groups_from_rows(
             raw_name=raw_name,
             matricule=sample.matricule,
             roster=roster,
+            tabulaire=True,
         )
         days = [
             AiDayEntry(

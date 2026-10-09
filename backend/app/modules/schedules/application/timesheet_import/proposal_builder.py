@@ -40,6 +40,7 @@ def build_proposal_from_tabular(
             raw_name=raw_name,
             matricule=sample.matricule,
             roster=roster,
+            tabulaire=True,
         )
         days = [
             AiDayEntry(

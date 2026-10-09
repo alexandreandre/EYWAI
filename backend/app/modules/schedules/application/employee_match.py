@@ -448,6 +448,7 @@ def resolve_employee_for_timesheet(
     matricule: str | None,
     roster: List[RosterEmployee],
     format_hint: str | None = None,
+    tabulaire: bool = False,
 ) -> AiEmployeeProposal:
     # Un matricule connu de la fiche décide seul ; sinon, une ligne au nom seul
     # (fiche badge sans prénom) ou au prénom seul se rapproche avant le filtre
@@ -467,8 +468,12 @@ def resolve_employee_for_timesheet(
     if is_junk_employee_name(raw_name, format_hint=format_hint) and not fiche_badge_au_nom_seul:
         proposal = AiEmployeeProposal(raw_name=raw_name or "")
         proposal.time_tracking_id = matricule
+        # Un CSV ou un Excel n'a pas d'OCR : la ligne n'est pas du bruit, elle
+        # n'est pas reconnue et s'associe à la main.
         proposal.warnings.append(
-            f"Ligne ignorée (texte OCR non salarié) : « {raw_name} »."
+            f"Nom non reconnu : « {raw_name} » — à associer à un salarié."
+            if tabulaire
+            else f"Ligne ignorée (texte OCR non salarié) : « {raw_name} »."
         )
         proposal.match_method = "none"
         proposal.review_status = "error"
@@ -647,6 +652,7 @@ def _est_avertissement_de_rapprochement(message: str, raw_name: str) -> bool:
         or message.startswith("Matricule ")
         or "rapproché de" in message
         or "Ligne ignorée" in message
+        or "Nom non reconnu" in message
     )
 
 
