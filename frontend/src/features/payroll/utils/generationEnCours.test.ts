@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -201,5 +203,28 @@ describe('compteur de la barre de suivi', () => {
 
   it('pluriel dès 2 traités', () => {
     expect(libelleCompteurGeneration(3, 4)).toBe('3 bulletins traités sur 4');
+  });
+});
+
+describe('annulation : le bulletin en vol est attendu, pas lâché', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '../hooks/usePayrollGeneration.ts'),
+    'utf8'
+  );
+
+  it('« Annuler » ne coupe pas la requête partie : le serveur la finit de toute façon', () => {
+    const corps = source.match(/const cancel = useCallback\(\(\) => \{([\s\S]*?)\}, \[/)?.[1] ?? '';
+    expect(corps).toContain('abortRef.current = true');
+    expect(corps).not.toContain('.abort()');
+  });
+
+  it('une erreur du serveur après l’annulation reste une erreur, pas une interruption', () => {
+    expect(source).not.toMatch(/if \(abortRef\.current \|\| controller\.signal\.aborted/);
+  });
+
+  it('le bulletin revenu après l’annulation entre au journal avant l’arrêt', () => {
+    const apres = source.split('stopTick();\n\n        if (abortRef.current) {')[1];
+    expect(apres).toBeUndefined();
+    expect(source).toMatch(/logRef\.current = \[\.\.\.logRef\.current, entry\];[\s\S]*?if \(abortRef\.current\) break;/);
   });
 });
