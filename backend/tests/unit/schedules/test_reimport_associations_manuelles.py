@@ -62,7 +62,7 @@ def _lot(lignes):
     }
 
 
-def _annoter(proposition, lot):
+def _annoter(proposition, lot, roster=None):
     deja = [
         {
             "filename": "c1b.csv",
@@ -83,7 +83,7 @@ def _annoter(proposition, lot):
     ):
         repo.get_batch.return_value = lot
         calendriers.list_schedules_for_employees.return_value = {}
-        return reimport_service.annoter_reimport("co-1", proposition, deja)
+        return reimport_service.annoter_reimport("co-1", proposition, deja, roster=roster)
 
 
 def test_une_association_manuelle_du_lot_precedent_est_reappliquee():
@@ -129,3 +129,18 @@ def test_un_salarie_deja_pris_par_une_autre_ligne_n_est_pas_reassigne():
     annotee, _ = _annoter(relue, lot)
 
     assert annotee.employees[1].employee_id is None
+
+
+def test_la_ligne_reprise_porte_le_nom_du_salarie_associe_pas_le_nom_lu():
+    """Le lot validé ne garde pas le nom du salarié associé à la main : on le prend au roster."""
+    from app.modules.schedules.schemas.ai import RosterEmployee
+
+    ligne_lot = _ligne("Camou Cam", "emp-camille", statut="ok")
+    ligne_lot.matched_name = None
+    lot = _lot([ligne_lot])
+    relue = _proposition([_ligne("Camou Cam", None)])
+    roster = [RosterEmployee(id="emp-camille", first_name="Camille", last_name="Roussel")]
+
+    annotee, _ = _annoter(relue, lot, roster=roster)
+
+    assert annotee.employees[0].matched_name == "Camille Roussel"
