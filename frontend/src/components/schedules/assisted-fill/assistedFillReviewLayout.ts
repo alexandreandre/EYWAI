@@ -10,11 +10,14 @@ export function assistedFillDialogHeightClass(hasProposal: boolean): string {
 }
 
 /**
- * Bandeau « Consigne texte / N prêts / Vérifiez les jours… ».
- * Inutile en consigne texte : le titre du modal et la liste suffisent.
+ * Bandeau de revue (mention de source, pastille « N prêts ») : toujours montré.
+ * Une correction (« vendredi à 8h ») repasse par un autre chemin d'analyse dont
+ * la source s'écrit « texte » tout court ; le masquer pour cette seule source
+ * faisait disparaître la mention et la pastille après « Corriger ».
  */
 export function showReviewSummaryBanner(proposal: { source: string }): boolean {
-  return proposal.source !== 'texte';
+  void proposal;
+  return true;
 }
 
 /** Retire une ligne lue de la revue (OCR bruit, mauvais rapprochement). */
