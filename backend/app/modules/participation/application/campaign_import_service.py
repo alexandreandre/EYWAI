@@ -23,6 +23,7 @@ from app.modules.participation.domain.import_reconstruction import (
 from app.modules.participation.infrastructure.campaign_repository import (
     campaign_repository,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 
 @dataclass(frozen=True)
@@ -104,8 +105,8 @@ def import_campaign_from_inputs(
                 skipped=True,
                 dry_run=dry_run,
                 detail=(
-                    f"Campagne {year} déjà importée ({total_existing} "
-                    "bulletin(s)) — utilisez force=true pour la remplacer."
+                    f"Campagne {year} déjà importée ({pluriel(total_existing, 'bulletin')}) "
+                    "— utilisez force=true pour la remplacer."
                 ),
             )
         if not dry_run:
@@ -139,7 +140,7 @@ def import_campaign_from_inputs(
             linked_inputs=sum(len(b.source_input_ids) for b in bulletins),
             skipped=False,
             dry_run=True,
-            detail=f"Aperçu : {len(bulletins)} bulletin(s) seraient créés{suffix}.",
+            detail=f"Aperçu : {pluriel(len(bulletins), 'bulletin')} {'seraient créés' if len(bulletins) > 1 else 'serait créé'}{suffix}.",
         )
 
     campaign = campaign_repository.create_campaign(
@@ -219,7 +220,7 @@ def import_campaign_from_inputs(
         skipped=False,
         dry_run=False,
         detail=(
-            f"{len(bulletins)} bulletin(s) importé(s), {linked} saisie(s) "
-            f"rattachée(s){suffix}."
+            f"{pluriel(len(bulletins), 'bulletin')} {accord(len(bulletins), 'importé')}, "
+            f"{pluriel(linked, 'saisie')} {accord(linked, 'rattachée')}{suffix}."
         ),
     )

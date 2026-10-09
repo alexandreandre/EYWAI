@@ -14,6 +14,7 @@ from app.modules.modulation.infrastructure import repository as mod_repo
 from app.modules.schedules.application.presets_2026 import get_registry
 from app.modules.schedules.domain.calendar_generation_rules import week_weekly_hours
 from app.modules.schedules.infrastructure import schedule_plans_repository as plans_repo
+from app.shared.domain.pluriel import accord
 
 
 def apply_preset(company_id: str, preset_key: str) -> Dict[str, Any]:
@@ -61,7 +62,7 @@ def apply_preset(company_id: str, preset_key: str) -> Dict[str, Any]:
         notes = p.notes
         if unresolved:
             notes = (notes + " " if notes else "") + (
-                f"Affectation à confirmer : {', '.join(unresolved)} introuvable(s)."
+                f"Affectation à confirmer : {', '.join(unresolved)} {accord(len(unresolved), 'introuvable')}."
             )
 
         plan_payload = {

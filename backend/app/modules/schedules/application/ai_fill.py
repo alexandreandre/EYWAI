@@ -45,6 +45,7 @@ from app.modules.schedules.application.timesheet_native_extract import (
 from app.shared.infrastructure.documents.text_extraction import (
     extract_pdf_text_layer,
 )
+from app.shared.domain.pluriel import pluriel
 
 logger = logging.getLogger(__name__)
 
@@ -786,7 +787,7 @@ def _build_broadcast_proposal(
     if len(employees_out) > 1:
         global_warnings.insert(
             0,
-            f"Saisie collective appliquée à {len(employees_out)} collaborateur(s). "
+            f"Saisie collective appliquée à {pluriel(len(employees_out), 'collaborateur')}. "
             "Ajustez individuellement si besoin avant d'enregistrer.",
         )
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any, Dict, List, Set
+from app.shared.domain.pluriel import accord
 
 
 def is_active_employee(employee: Dict[str, Any]) -> bool:
@@ -132,7 +133,7 @@ def build_upcoming_events_raw(
                                 "type": "work_anniversary",
                                 "employee_name": f"{emp.get('first_name', '')} {emp.get('last_name', '')}".strip(),
                                 "date": hire_anniversary_this_year,
-                                "detail": f"fête ses {years} an(s) d'ancienneté",
+                                "detail": f"fête ses {years} {accord(years, 'an')} d'ancienneté",
                             }
                         )
         except (ValueError, TypeError, KeyError):

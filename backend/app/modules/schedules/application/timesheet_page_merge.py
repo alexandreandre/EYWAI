@@ -17,6 +17,7 @@ from app.modules.schedules.application.timesheet_page_consensus import (
     PageEmployee,
     PageExtractionResult,
 )
+from app.shared.domain.pluriel import pluriel
 
 
 @dataclass
@@ -131,7 +132,7 @@ def merge_page_results(
             conflicts_total += day_conflicts
             if day_conflicts:
                 target.warnings.append(
-                    f"Conflit inter-pages sur {day_conflicts} jour(s) — dernière page retenue."
+                    f"Conflit inter-pages sur {pluriel(day_conflicts, 'jour')} — dernière page retenue."
                 )
             if emp.weekly_total_pdf is not None:
                 target.weekly_total_pdf = emp.weekly_total_pdf

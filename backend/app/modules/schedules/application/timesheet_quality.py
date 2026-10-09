@@ -11,6 +11,7 @@ from app.modules.schedules.schemas.ai import (
     RosterEmployee,
     TimesheetQualityCheck,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 QualityLevel = Literal["ok", "warning", "error", "info"]
 
@@ -255,7 +256,7 @@ def build_global_quality_checks(
                 level="info",
                 code="roster_not_in_document",
                 message=(
-                    f"{roster_not_in_doc} salarié(s) actif(s) hors relevé "
+                    f"{pluriel(roster_not_in_doc, 'salarié')} {accord(roster_not_in_doc, 'actif')} hors relevé "
                     "(normal pour un import hebdomadaire partiel)."
                 ),
             )

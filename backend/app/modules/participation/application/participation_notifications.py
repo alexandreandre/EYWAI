@@ -8,6 +8,7 @@ from app.core.database import supabase
 from app.modules.notifications.application.employee_document_alerts import (
     notify_employee_new_document,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ def notify_bulletin_reminder(
 ) -> None:
     message = (
         f"Rappel : votre bulletin d'option {dispositif_label} {year} "
-        f"attend une réponse (échéance dans {days_left} jour(s))."
+        f"attend une réponse (échéance dans {pluriel(days_left, 'jour')})."
     )
     _insert_notification(employee_id, company_id, message, NOTIF_BULLETIN_REMINDER)
 
@@ -86,7 +87,7 @@ def notify_rh_late_bulletins(
     if count <= 0:
         return
     message = (
-        f"{count} bulletin(s) d'option participation {year} "
+        f"{pluriel(count, 'bulletin')} d'option participation {year} "
         f"sans réponse — relance recommandée."
     )
     _insert_notification(
@@ -104,7 +105,7 @@ def notify_rh_default_pee_applied(
     if count <= 0:
         return
     message = (
-        f"{count} salarié(s) passés en placement PEE par défaut "
+        f"{pluriel(count, 'salarié')} {accord(count, 'passé')} en placement PEE par défaut "
         f"(participation {year}, délai 15 jours dépassé)."
     )
     _insert_notification(

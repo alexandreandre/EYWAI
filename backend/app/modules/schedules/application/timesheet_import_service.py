@@ -26,6 +26,7 @@ from app.modules.schedules.application.timesheet_import.reimport_service import 
     annoter_reimport,
 )
 from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +325,7 @@ def _merge_proposals(proposals: List[AiCalendarProposalResponse]) -> AiCalendarP
         update={
             "employees": list(by_key.values()),
             "warnings": list(warnings),
-            "source": f"{len(proposals)} relevé(s) fusionné(s)",
+            "source": f"{pluriel(len(proposals), 'relevé')} {accord(len(proposals), 'fusionné')}",
         }
     )
     return merged

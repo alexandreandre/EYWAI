@@ -185,7 +185,7 @@ class TestValidateDsnCanGenerate:
                 },
                 accept_warnings=True,
             )
-        assert "2 anomalie(s) bloquante(s)" in str(exc_info.value)
+        assert "2 anomalies bloquantes" in str(exc_info.value)
 
     def test_warnings_without_accept_raises(self):
         """Des warnings sans accept_warnings lèvent ValueError."""

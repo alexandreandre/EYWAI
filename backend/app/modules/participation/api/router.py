@@ -59,6 +59,7 @@ from app.modules.participation.schemas.campaign_responses import (
 from app.shared.employee_resolution import resolve_employee_id_for_user_account
 
 from app.core.logging import get_logger
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = get_logger(__name__)
 
@@ -469,7 +470,7 @@ def remind_campaign_route(
         detail = campaign_svc.get_campaign_detail(campaign_id, company_id)
         return ParticipationCampaignActionResponse(
             campaign=detail,
-            detail=f"{count} rappel(s) envoyé(s).",
+            detail=f"{pluriel(count, 'rappel')} {accord(count, 'envoyé')}.",
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -498,7 +499,7 @@ def close_defaults_route(
         )
         return ParticipationCampaignActionResponse(
             campaign=detail,
-            detail=f"{count} salarié(s) passé(s) en défaut PEE.",
+            detail=f"{pluriel(count, 'salarié')} {accord(count, 'passé')} en défaut PEE.",
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -527,7 +528,7 @@ def generate_payroll_lines_route(
         )
         return ParticipationCampaignActionResponse(
             campaign=detail,
-            detail=f"{count} ligne(s) de paie créée(s).",
+            detail=f"{pluriel(count, 'ligne')} de paie {accord(count, 'créée')}.",
             payroll_lines_created=count,
         )
     except ValueError as e:

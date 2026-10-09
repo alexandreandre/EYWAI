@@ -12,6 +12,7 @@ from app.modules.exports.infrastructure.storage import (
     download_export_file,
 )
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
+from app.shared.domain.pluriel import pluriel
 
 logger = get_logger("modules.exports.notifications")
 
@@ -201,7 +202,7 @@ def notify_export_recipients(
         return NotifyResult(
             status="sent",
             sent_count=len(clean),
-            message=f"E-mail envoyé à {len(clean)} destinataire(s).",
+            message=f"E-mail envoyé à {pluriel(len(clean), 'destinataire')}.",
         )
     return NotifyResult(
         status="partial",

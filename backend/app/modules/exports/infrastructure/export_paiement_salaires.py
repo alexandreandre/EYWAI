@@ -12,6 +12,7 @@ from app.shared.utils.iban import (
     mask_iban,
     validate_iban,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 
 def get_paiement_salaires_data(
@@ -188,7 +189,7 @@ def get_paiement_salaires_data(
 
     if excluded_non_virement:
         warnings.append(
-            f"{excluded_non_virement} salarié(s) exclu(s) — paiement par chèque ou espèces."
+            f"{pluriel(excluded_non_virement, 'salarié')} {accord(excluded_non_virement, 'exclu')} — paiement par chèque ou espèces."
         )
 
     return paiement_data, totals, anomalies, warnings

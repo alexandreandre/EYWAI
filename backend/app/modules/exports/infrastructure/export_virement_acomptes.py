@@ -27,6 +27,7 @@ from app.shared.utils.iban import (
     mask_iban,
     validate_iban,
 )
+from app.shared.domain.pluriel import accord, pluriel
 
 MODE_A_VERSER = "a_verser"
 MODE_VERSES = "verses"
@@ -353,7 +354,7 @@ def get_virement_acomptes_data(
 
     if excluded_non_virement:
         warnings.append(
-            f"{excluded_non_virement} acompte(s) exclu(s) — règlement par chèque ou espèces."
+            f"{pluriel(excluded_non_virement, 'acompte')} {accord(excluded_non_virement, 'exclu')} — règlement par chèque ou espèces."
         )
 
     totals["employees_count"] = len({r["employee_id"] for r in rows})
@@ -505,9 +506,12 @@ def preview_virement_acomptes(
             )
         incoherentes = _detect_paid_without_payment(company_id)
         if incoherentes:
+            nb = len(incoherentes)
             warnings.append(
-                f"{len(incoherentes)} acompte(s) marqué(s) « versé(e) » sans aucun "
-                "versement enregistré — ils n'apparaissent pas dans ce fichier."
+                f"{pluriel(nb, 'acompte')} {accord(nb, 'marqué')} « versé » sans aucun "
+                "versement enregistré — "
+                + ("ils n'apparaissent pas" if nb > 1 else "il n'apparaît pas")
+                + " dans ce fichier."
             )
     else:
         warnings.append(

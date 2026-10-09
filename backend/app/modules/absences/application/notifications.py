@@ -13,6 +13,7 @@ from app.modules.platform_settings.application.email_config import (
     get_resolved_email_config,
 )
 from app.shared.infrastructure.email.smtp_sender import get_smtp_mail_sender
+from app.shared.domain.pluriel import accord
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +224,7 @@ Nouvelle demande de {absence_label}
 Entreprise : {company_name}
 Salarié : {employee_name}
 Période : {d0} au {d1}
-Durée : {duree_label} jour(s)
+Durée : {duree_label} {accord(quotite, 'jour')}
 Statut : {stage_label}
 Commentaire : {comment or "Aucun"}
 
@@ -248,7 +249,7 @@ Traiter la demande : {url}
   <p><strong>Entreprise :</strong> {esc["company"]}</p>
   <p><strong>Salarié :</strong> {esc["employee"]}</p>
   <p><strong>Période :</strong> {esc["d0"]} au {esc["d1"]}</p>
-  <p><strong>Durée :</strong> {duree_label} jour(s)</p>
+  <p><strong>Durée :</strong> {duree_label} {accord(quotite, 'jour')}</p>
   <p><strong>Statut :</strong> {esc["stage"]}</p>
   <p><strong>Commentaire :</strong><br>{esc["comment"]}</p>
   <p><a href="{esc["url"]}">Ouvrir les demandes d'absence dans Martine</a></p>

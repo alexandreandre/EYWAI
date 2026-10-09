@@ -1,6 +1,7 @@
 # Règles métier pures exports (sans FastAPI, sans infrastructure).
 # Comportement strictement identique aux vérifications de l'ancien router.
 from typing import Any, Dict
+from app.shared.domain.pluriel import accord, pluriel
 
 
 def is_supported_export_type_for_preview(export_type: str) -> bool:
@@ -30,7 +31,8 @@ def validate_dsn_can_generate(
     blocking = [a for a in anomalies if a.get("severity") == "blocking"]
     if blocking:
         raise ValueError(
-            f"Impossible de générer la DSN : {len(blocking)} anomalie(s) bloquante(s) détectée(s)"
+            f"Impossible de générer la DSN : {pluriel(len(blocking), 'anomalie')} "
+            f"{accord(len(blocking), 'bloquante')} {accord(len(blocking), 'détectée')}"
         )
     warnings = preview_data.get("warnings") or []
     if warnings and not accept_warnings:

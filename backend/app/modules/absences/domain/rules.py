@@ -26,6 +26,7 @@ from app.modules.absences.domain.leave_policy import (
     LeavePolicySettings,
     RTT_ANNUAL_DAYS_DEFAULT,
 )
+from app.shared.domain.pluriel import accord
 
 
 def get_cp_reference_period(
@@ -1115,8 +1116,9 @@ def validate_conge_paye_request_days(
         str(int(requested)) if requested == int(requested) else f"{requested:.1f}"
     )
     raise ValueError(
-        f"Solde de congés payés insuffisant : il vous reste {avail_label} jour(s) "
-        f"disponible(s) pour {requested_label} jour(s) demandé(s). "
+        f"Solde de congés payés insuffisant : il vous reste {avail_label} {accord(available, 'jour')} "
+        f"{accord(available, 'disponible')} pour {requested_label} {accord(requested, 'jour')} "
+        f"{accord(requested, 'demandé')}. "
         "Rapprochez-vous de votre direction pour une demande hors solde."
     )
 

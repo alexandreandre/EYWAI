@@ -10,6 +10,7 @@ from app.core.database import supabase
 from app.modules.payroll.domain.report_nap_negatif import avertissement_virement_ecarte
 from app.modules.payroll.engine.controles_convention import NET_SUPERIEUR_BRUT_MESSAGE
 from app.shared.utils.export import format_period, generate_csv, generate_xlsx
+from app.shared.domain.pluriel import accord, pluriel
 
 
 def validate_iban(iban: str) -> bool:
@@ -225,7 +226,7 @@ def get_paiement_salaires_data(
 
     if excluded_non_virement:
         warnings.append(
-            f"{excluded_non_virement} salarié(s) exclu(s) — paiement par chèque ou espèces."
+            f"{pluriel(excluded_non_virement, 'salarié')} {accord(excluded_non_virement, 'exclu')} — paiement par chèque ou espèces."
         )
 
     return paiement_data, totals, anomalies, warnings

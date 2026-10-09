@@ -31,6 +31,7 @@ from app.modules.oeth_settings.schemas.responses import (
     OethEcapPosition,
     OethSettings,
 )
+from app.shared.domain.pluriel import accord
 
 
 def _label_boeth(code: Optional[str], config: dict) -> Optional[str]:
@@ -99,7 +100,7 @@ def get_compliance(company_id: str) -> OethCompliance:
     alertes: List[str] = []
     if settings.oeth_assujetti and manquants > 0:
         alertes.append(
-            f"Écart OETH : {manquants} BOETH manquant(s) pour atteindre {settings.taux_obligation * 100:.0f} %."
+            f"Écart OETH : {manquants} BOETH {accord(manquants, 'manquant')} pour atteindre {settings.taux_obligation * 100:.0f} %."
         )
     if settings.oeth_assujetti and date.today().month >= 3:
         alertes.append("Préparer la DOETH annuelle (DSN d'avril).")

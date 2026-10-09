@@ -23,6 +23,7 @@ from app.modules.absences.domain.rules import compute_cp_balances_for_bulletin
 from app.modules.absences.infrastructure import fractionnement_repository as frac_repo
 from app.modules.absences.infrastructure.repository import absence_repository
 from app.modules.payroll.application.payslip_commands import is_forfait_jour
+from app.shared.domain.pluriel import accord
 
 
 def _settings_to_api(row: dict[str, Any]) -> dict[str, Any]:
@@ -245,7 +246,7 @@ def apply_fractionnement_to_payslip_balances(
         balances["fractionnement"] = {
             "jours_acquis": days,
             "reference_date": f"31/10/{grant_year}",
-            "libelle": f"Jour(s) de fractionnement acquis : {days}",
+            "libelle": f"{accord(days, 'Jour')} de fractionnement acquis : {days}",
             "source": snapshot.get("source", "fractionnement_mbc"),
             **({"validated_at": validated_at} if validated_at else {}),
         }

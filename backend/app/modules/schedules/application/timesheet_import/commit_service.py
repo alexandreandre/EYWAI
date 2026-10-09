@@ -31,6 +31,7 @@ from app.modules.schedules.schemas.persist import (
     PersistTimesheetRequest,
 )
 from app.modules.schedules.schemas.timesheet_import import TimesheetImportCommitRequest
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = logging.getLogger(__name__)
 
@@ -573,7 +574,7 @@ def _commit_multi_month_batch(
     if unmatched and not request.allow_partial:
         raise ScheduleAppError(
             "validation",
-            f"{len(unmatched)} salarié(s) non rapproché(s) — corrigez ou activez allow_partial.",
+            f"{pluriel(len(unmatched), 'salarié')} {accord(len(unmatched), 'non rapproché')} — corrigez ou activez allow_partial.",
             status_code=422,
         )
 
@@ -641,7 +642,7 @@ def _commit_multi_month_batch(
     for month_index, (year, month) in enumerate(month_keys):
         if timesheet_import_repository.is_cancel_requested(batch_id):
             raise CommitCancelled(
-                f"Annulation après {month_index} mois traité(s) sur {len(month_keys)}."
+                f"Annulation après {month_index} mois {accord(month_index, 'traité')} sur {len(month_keys)}."
             )
         month_employees = by_month[(year, month)]
         employee_ids = [emp.employee_id for emp in month_employees]
@@ -726,7 +727,7 @@ def _commit_multi_month_batch(
             raise ScheduleAppError(
                 "validation",
                 (
-                    f"Aucun des {plan_count} salarié(s) du batch n'appartient à l'entreprise "
+                    f"Aucun des {pluriel(plan_count, 'salarié')} du batch n'appartient à l'entreprise "
                     f"active ({company_id}). Vérifiez que l'entreprise sélectionnée correspond "
                     "bien à l'import."
                 ),
@@ -842,7 +843,7 @@ def appliquer_revue_au_lot(
     if inconnus:
         raise ScheduleAppError(
             "validation",
-            f"Salarié(s) relu(s) absent(s) du lot : {', '.join(inconnus)}.",
+            f"{accord(len(inconnus), 'Salarié relu absent', 'Salariés relus absents')} du lot : {', '.join(inconnus)}.",
             status_code=400,
         )
     deja: Set[str] = set()
@@ -926,7 +927,7 @@ def commit_batch_bulk(
     if unmatched and not request.allow_partial:
         raise ScheduleAppError(
             "validation",
-            f"{len(unmatched)} salarié(s) non rapproché(s) — corrigez ou activez allow_partial.",
+            f"{pluriel(len(unmatched), 'salarié')} {accord(len(unmatched), 'non rapproché')} — corrigez ou activez allow_partial.",
             status_code=422,
         )
 

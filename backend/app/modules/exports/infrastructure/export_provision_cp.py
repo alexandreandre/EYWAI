@@ -21,6 +21,7 @@ from app.modules.exports.domain.provision_cp import (
     resoudre_reference,
 )
 from app.shared.utils.export import generate_csv, generate_xlsx
+from app.shared.domain.pluriel import accord, pluriel
 
 #: PostgREST tronque une réponse à 1000 lignes sans le dire — on pagine en deçà.
 TAILLE_PAGE = 500
@@ -219,7 +220,7 @@ def collecter_lignes(
         )
     if sans_date:
         avertissements.append(
-            f"{sans_date} salarié(s) exclu(s) : aucune date d'entrée renseignée."
+            f"{pluriel(sans_date, 'salarié')} {accord(sans_date, 'exclu')} : aucune date d'entrée renseignée."
         )
     return lignes, avertissements
 
@@ -258,7 +259,7 @@ def preview_provision_cp(
         anomalies.append(
             {
                 "type": "warning",
-                "message": f"{nb_anomalies} ligne(s) signalée(s) dans la colonne Anomalie",
+                "message": f"{pluriel(nb_anomalies, 'ligne')} {accord(nb_anomalies, 'signalée')} dans la colonne Anomalie",
                 "severity": "warning",
             }
         )

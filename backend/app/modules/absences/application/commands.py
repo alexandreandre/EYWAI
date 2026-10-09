@@ -7,6 +7,7 @@ Utilise domain (règles) et infrastructure (repository, providers, queries).
 
 from __future__ import annotations
 from app.core.logging import get_logger
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = get_logger("modules.absences.application.commands")
 
@@ -237,7 +238,7 @@ def create_absence_request(
         jours_demandes = len(selected_days)
         if jours_demandes > solde_data["solde_restant"]:
             raise ValueError(
-                f"Vous avez droit à {solde_data['solde_restant']} jour(s) pour cet événement. "
+                f"Vous avez droit à {pluriel(solde_data['solde_restant'], 'jour')} pour cet événement. "
                 f"Vous en avez demandé {jours_demandes}."
             )
 
@@ -786,7 +787,7 @@ def create_absences_from_planning(
                             "code": "cp_au_dela_du_solde",
                             "detail": (
                                 f"CP du {day:%d/%m} posé au-delà du solde : "
-                                f"{db_data['jours_payes']:.1f} j payé(s) sur 1."
+                                f"{db_data['jours_payes']:.1f} j {accord(db_data['jours_payes'], 'payé')} sur 1."
                             ),
                         }
                     )

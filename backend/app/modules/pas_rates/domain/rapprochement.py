@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from app.modules.pas_rates.domain.extraction import TauxFichier, normaliser_nom
 from app.modules.pas_rates.domain.model import Apercu, LigneApercu
+from app.shared.domain.pluriel import pluriel
 
 TOLERANCE_TAUX = 0.005
 
@@ -145,8 +146,9 @@ def construire_apercu(
     ]
     if manquants:
         apercu.avertissements.append(
-            f"{len(manquants)} salarié(s) de la société ne figurent pas dans le fichier : "
-            "leur taux est laissé tel quel."
+            f"{pluriel(len(manquants), 'salarié')} de la société "
+            f"{'ne figurent' if len(manquants) > 1 else 'ne figure'} pas dans le fichier : "
+            f"{'leur taux est laissé' if len(manquants) > 1 else 'son taux est laissé'} tel quel."
         )
     return apercu
 

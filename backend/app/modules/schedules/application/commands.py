@@ -5,6 +5,7 @@ Délèguent au repository et aux providers (infrastructure), règles du domain.
 Comportement identique à l'ancien router. Lève ScheduleAppError.
 """
 from app.core.logging import get_logger, log_app_debug
+from app.shared.domain.pluriel import accord, pluriel
 
 logger = get_logger("modules.schedules.application.commands")
 
@@ -330,7 +331,7 @@ def effacer_heures_des_jours(
     if hors_mois:
         raise ScheduleAppError(
             "validation",
-            f"Jour(s) {', '.join(map(str, hors_mois))} hors du mois {month:02d}/{year}. "
+            f"{accord(len(hors_mois), 'Jour')} {', '.join(map(str, hors_mois))} hors du mois {month:02d}/{year}. "
             "Rien n'a été modifié.",
             status_code=422,
         )
@@ -750,7 +751,7 @@ def apply_schedule_model(request: Any, current_user: Any) -> Dict[str, Any]:
 
         return {
             "status": "success",
-            "message": f"Le modèle a été appliqué à {len(request.employee_ids)} employé(s)",
+            "message": f"Le modèle a été appliqué à {pluriel(len(request.employee_ids), 'employé')}",
             "details": {
                 "year": request.year,
                 "month": request.month,

@@ -18,6 +18,7 @@ from app.modules.schedules.application.timesheet_import.tabular_period import (
     ImportPeriodConfig,
 )
 from app.modules.schedules.schemas.ai import AiDayEntry, RosterEmployee
+from app.shared.domain.pluriel import pluriel
 
 SKIP_SHEETS = frozenset({"SOMMAIRE", "MODELE"})
 
@@ -601,7 +602,7 @@ def parse_quadra_planning_workbook(
     anchor_year, anchor_month = month_groups[0]["year"], month_groups[0]["month"]
     if sheets_unmatched:
         warnings.append(
-            f"{len(sheets_unmatched)} feuille(s) sans salarié rapproché : "
+            f"{pluriel(len(sheets_unmatched), 'feuille')} sans salarié rapproché : "
             + ", ".join(sheets_unmatched[:8])
             + ("…" if len(sheets_unmatched) > 8 else "")
         )

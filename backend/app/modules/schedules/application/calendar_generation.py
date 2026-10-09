@@ -29,6 +29,7 @@ from app.modules.schedules.infrastructure.mappers import (
 )
 from app.modules.schedules.infrastructure.repository import schedule_repository
 from app.shared.public_holidays import day_numbers_observed_holidays
+from app.shared.domain.pluriel import accord
 
 logger = get_logger("modules.schedules.application.calendar_generation")
 
@@ -114,7 +115,7 @@ def generate(
     templates = plans_repo.get_templates_by_ids(spec.company_id, spec.template_cycle)
     missing = [tid for tid in spec.template_cycle if tid not in templates]
     if missing:
-        raise ValueError(f"Modèle(s) introuvable(s) : {missing}")
+        raise ValueError(f"{accord(len(missing), 'Modèle')} {accord(len(missing), 'introuvable')} : {missing}")
 
     # Cartes jour ISO → config, dans l'ordre du cycle.
     cycle_maps = [day_config_map(templates[tid].get("day_configs") or []) for tid in spec.template_cycle]

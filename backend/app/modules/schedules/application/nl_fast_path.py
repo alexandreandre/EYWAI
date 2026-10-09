@@ -23,6 +23,7 @@ from app.modules.schedules.application.ai_fill import (
     _resolve_employee,
 )
 from app.modules.schedules.schemas.ai import AiCalendarProposalResponse, RosterEmployee
+from app.shared.domain.pluriel import pluriel
 
 _HOUR_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*h(?:eures?)?", re.IGNORECASE)
 _DAY_RANGE_NUM_RE = re.compile(
@@ -335,7 +336,7 @@ def try_mirror_planned_instruction(
     if len(employees_out) > 1:
         global_warnings.insert(
             0,
-            f"Reprise du planning prévu pour {len(employees_out)} collaborateur(s).",
+            f"Reprise du planning prévu pour {pluriel(len(employees_out), 'collaborateur')}.",
         )
 
     return AiCalendarProposalResponse(

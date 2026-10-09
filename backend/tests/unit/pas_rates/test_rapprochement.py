@@ -148,7 +148,7 @@ def test_salaries_absents_du_fichier_sont_signales():
     autre = _salarie(id="emp-2", last_name="ABSENT", first_name="Paul", nir="2800175306789")
     apercu = _apercu([_ligne()], [_salarie(), autre])
     assert apercu.avertissements
-    assert "1 salarié(s)" in apercu.avertissements[0]
+    assert "1 salarié de la société ne figure pas" in apercu.avertissements[0]
 
 
 def test_compteurs_resument_l_apercu():
