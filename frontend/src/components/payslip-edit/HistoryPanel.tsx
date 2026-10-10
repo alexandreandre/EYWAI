@@ -10,6 +10,22 @@ import { SharkFinLoader } from '@/components/SharkFinLoader';
 import { getPayslipHistory, restorePayslipVersion, HistoryEntry } from '@/api/payslips';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { accord, pluriel } from '@/lib/pluriel';
+import {
+  libelleBoutonRestaurer,
+  phraseConservation,
+  textesConfirmationRestauration,
+} from './historiqueVersions';
+import {
   choixApresCorrection,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
@@ -37,6 +53,7 @@ export default function HistoryPanel({
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRestoring, setIsRestoring] = useState<number | null>(null);
+  const [aConfirmer, setAConfirmer] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,16 +76,14 @@ export default function HistoryPanel({
     fetchHistory();
   }, [payslipId, toast]);
 
-  const handleRestore = async (version: number) => {
+  // Le clic ouvre la fenêtre de confirmation ; la restauration part de son bouton.
+  const demanderRestauration = (version: number) => {
     if (avantRestauration && !avantRestauration()) return;
-    if (
-      !confirm(
-        `Revenir aux heures sup et aux primes de la version ${version} ? Le bulletin sera recalculé.`
-      )
-    ) {
-      return;
-    }
+    setAConfirmer(version);
+  };
 
+  const handleRestore = async (version: number) => {
+    setAConfirmer(null);
     setIsRestoring(version);
     try {
       const reponse = await restorePayslipVersion(payslipId, version, companyId);
@@ -123,7 +138,7 @@ export default function HistoryPanel({
       <Alert>
         <AlertDescription>
           {canRestore
-            ? 'Restaurer une version revient à ses heures sup et à ses primes saisies, puis recalcule le bulletin. La version actuelle reste dans l\'historique.'
+            ? 'Restaurer une version rétablit seulement ses heures sup et ses primes saisies, puis recalcule le bulletin. La version actuelle reste dans l\'historique.'
             : 'La restauration est désactivée : la période de ce bulletin est verrouillée pour la correction.'}
         </AlertDescription>
       </Alert>
@@ -135,7 +150,7 @@ export default function HistoryPanel({
             Versions précédentes
           </CardTitle>
           <CardDescription>
-            {history.length} version{history.length > 1 ? 's' : ''} enregistrée{history.length > 1 ? 's' : ''}
+            {pluriel(history.length, 'version')} {accord(history.length, 'enregistrée')}. {phraseConservation(history.map((e) => e.version))}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -158,7 +173,7 @@ export default function HistoryPanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleRestore(entry.version)}
+                    onClick={() => demanderRestauration(entry.version)}
                     disabled={isRestoring !== null || !canRestore}
                   >
                     {isRestoring === entry.version ? (
@@ -166,7 +181,7 @@ export default function HistoryPanel({
                     ) : (
                       <>
                         <RotateCcw className="h-4 w-4 mr-2" />
-                        Restaurer
+                        {libelleBoutonRestaurer}
                       </>
                     )}
                   </Button>
@@ -200,6 +215,30 @@ export default function HistoryPanel({
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={aConfirmer !== null} onOpenChange={(ouvert) => !ouvert && setAConfirmer(null)}>
+        <AlertDialogContent>
+          {aConfirmer !== null ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{textesConfirmationRestauration(aConfirmer).titre}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {textesConfirmationRestauration(aConfirmer).description}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  data-testid="confirmer-restauration"
+                  onClick={() => void handleRestore(aConfirmer)}
+                >
+                  {textesConfirmationRestauration(aConfirmer).confirmer}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : null}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
