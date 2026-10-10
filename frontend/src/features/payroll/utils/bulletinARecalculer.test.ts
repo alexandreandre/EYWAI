@@ -7,6 +7,8 @@ import {
   jobsDesBulletinsPerimes,
   jobsDesLignesPerimes,
   libelleBoutonRecalculerTout,
+  messageValidesChanges,
+  nomsDesValidesChanges,
   libelleToastRecalcul,
   infobulleARecalculer,
   messageARecalculer,
@@ -266,5 +268,38 @@ describe('infobulleARecalculer : la pastille dit la même chose que le bandeau',
 
   it('un brouillon garde la phrase du serveur', () => {
     expect(infobulleARecalculer({ status: 'brouillon', a_recalculer: true, raison_a_recalculer: raison })).toBe(raison);
+  });
+});
+
+describe('bulletins validés « à recalculer » : jamais recalculés en groupe', () => {
+  const salaries = [
+    { id: 'e1', first_name: 'Jeanne', last_name: 'Essai' },
+    { id: 'e2', first_name: 'Paul', last_name: 'Essai' },
+  ];
+  const lignes = {
+    e1: [{ year: 2026, month: 5, a_recalculer: true, origine: 'calcule', status: 'valide' }],
+    e2: [{ year: 2026, month: 5, a_recalculer: true, origine: 'calcule', status: 'brouillon' }],
+  };
+
+  it('la liste du mois exclut les validés', () => {
+    expect(jobsDesBulletinsPerimes(salaries, lignes, 2026, 5).map((j) => j.employeeId)).toEqual(['e2']);
+  });
+
+  it('la liste d’un salarié exclut ses mois validés', () => {
+    expect(jobsDesLignesPerimes(salaries[0], lignes.e1)).toEqual([]);
+  });
+
+  it('nomme les validés qui ont changé', () => {
+    expect(nomsDesValidesChanges(salaries, lignes, 2026, 5)).toEqual(['Jeanne Essai']);
+  });
+
+  it('le message est accordé et sans bouton', () => {
+    expect(messageValidesChanges(['Jeanne Essai'])).toBe(
+      '1 bulletin validé a changé depuis sa validation : ouvrez-le pour décider (Jeanne Essai).'
+    );
+    expect(messageValidesChanges(['A B', 'C D'])).toBe(
+      '2 bulletins validés ont changé depuis leur validation : ouvrez-les un par un pour décider (A B, C D).'
+    );
+    expect(messageValidesChanges([])).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractGenerationRefusal,
   estForcable,
+  refusForcablesEnGroupe,
   splitGenerationWarnings,
 } from './generationGuards';
 
@@ -218,5 +219,26 @@ describe('refus heures_sur_jour_d_arret et arrets_illisibles', () => {
     expect(estForcable('bulletin_valide')).toBe(true);
     expect(estForcable('heures_sur_jour_d_arret')).toBe(false);
     expect(estForcable('arrets_illisibles')).toBe(false);
+  });
+});
+
+describe('refusForcablesEnGroupe : jamais de régénération en masse de bulletins validés', () => {
+  const refus = (code: 'calendrier_incomplet' | 'bulletin_valide' | 'arrets_illisibles') => ({
+    code,
+    job: { employeeId: code },
+  });
+
+  it('un seul refus : il reste forçable, bulletin par bulletin', () => {
+    expect(refusForcablesEnGroupe([refus('bulletin_valide')])).toHaveLength(1);
+  });
+
+  it('plusieurs refus : les bulletins validés ne se forcent pas', () => {
+    const forcables = refusForcablesEnGroupe([
+      refus('bulletin_valide'),
+      refus('bulletin_valide'),
+      refus('calendrier_incomplet'),
+      refus('arrets_illisibles'),
+    ]);
+    expect(forcables.map((r) => r.code)).toEqual(['calendrier_incomplet']);
   });
 });
