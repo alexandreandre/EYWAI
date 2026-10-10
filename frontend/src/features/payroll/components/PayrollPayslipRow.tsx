@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { fenetreDeSuppression } from '@/features/payroll/utils/suppressionBulletin';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -148,14 +149,21 @@ export function PayrollPayslipRow({
         </Badge>
       )}
       {perime && (
-        <Badge
-          variant="outline"
-          className="border-amber-200 bg-amber-50 text-amber-800"
-          data-testid="badge-a-recalculer"
-          title={payslip?.raison_a_recalculer ?? undefined}
-        >
-          À recalculer
-        </Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-800"
+              data-testid="badge-a-recalculer"
+              tabIndex={0}
+            >
+              À recalculer
+            </Badge>
+          </TooltipTrigger>
+          {payslip?.raison_a_recalculer ? (
+            <TooltipContent className="max-w-xs">{payslip.raison_a_recalculer}</TooltipContent>
+          ) : null}
+        </Tooltip>
       )}
       {state.status === 'success' && pointsAArbitrer.length > 0 && (
         <Badge
