@@ -674,9 +674,9 @@ def delete_payslip(payslip_id: str) -> bool:
         return False
     if existing.get("status") == "valide":
         raise PayslipValidatedError(
-            "Ce bulletin est validé : sa suppression directe est refusée. "
-            "Régénérez-le en forçant (l'ancienne version sera archivée), "
-            "puis supprimez le brouillon si nécessaire."
+            "Ce bulletin est validé : il ne peut pas être supprimé directement. "
+            "Ouvrez le bulletin et cliquez sur « Régénérer » (l'ancienne version "
+            "est archivée) : il repasse en brouillon, que vous pouvez alors supprimer."
         )
     # L'échéance de prêt redevient due, l'avance se rouvre, les dépôts CET et les
     # heures créditées en modulation reviennent : le bulletin n'existera plus.
