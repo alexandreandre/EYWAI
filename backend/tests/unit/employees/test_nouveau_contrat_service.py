@@ -183,6 +183,21 @@ class TestCreer:
         assert resultat["employee"]["employment_status"] == "actif"
         assert resultat["date_anciennete"] == "2026-09-01"
 
+    def test_le_maintien_apprenti_est_remis_a_zero_sur_la_fiche(self, base):
+        assert "specificites_paie" in service.COLONNES_FICHE
+        base.fiche["contract_type"] = "Apprentissage"
+        base.fiche["specificites_paie"] = {
+            "maintien_regime_apprenti": True,
+            "apprenti_date_effet": "2025-09-01",
+            "mutuelle": {"adhesion": True},
+        }
+        service.creer(EMP, SOC, _payload(contract_type="Apprentissage", date_fin="2027-08-31"), "rh-1")
+        assert base.fiche["specificites_paie"] == {
+            "maintien_regime_apprenti": False,
+            "apprenti_date_effet": None,
+            "mutuelle": {"adhesion": True},
+        }
+
     def test_la_case_cochee_garde_la_date_d_anciennete(self, base):
         resultat = service.creer(EMP, SOC, _payload(reprendre_anciennete=True), "rh-1")
         assert base.fiche["seniority_reference_date"] == "2026-01-19"

@@ -227,6 +227,31 @@ class TestEcritures:
         _, _, salaire = ecritures(FICHE, PRECEDENT, _demande(salaire_mensuel=1964.73))
         assert salaire is None
 
+    def test_le_maintien_apprenti_du_contrat_precedent_ne_suit_pas(self):
+        """Un apprenti « maintien 79 % » qui signe un nouveau contrat n'a plus le
+        maintien : le régime et sa date d'effet étaient ceux du contrat rangé."""
+        fiche = {
+            **FICHE,
+            "contract_type": "Apprentissage",
+            "specificites_paie": {
+                "maintien_regime_apprenti": True,
+                "apprenti_date_effet": "2025-09-01",
+                "mutuelle": {"adhesion": True},
+            },
+        }
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande(contract_type="Apprentissage", date_fin=date(2027, 8, 31)))
+        assert nouvelle["specificites_paie"] == {
+            "maintien_regime_apprenti": False,
+            "apprenti_date_effet": None,
+            "mutuelle": {"adhesion": True},
+        }
+        assert fiche["specificites_paie"]["maintien_regime_apprenti"] is True  # la fiche lue n'est pas modifiée
+
+    def test_sans_drapeau_d_alternance_les_specificites_ne_sont_pas_reecrites(self):
+        fiche = {**FICHE, "specificites_paie": {"mutuelle": {"adhesion": True}}}
+        _, nouvelle, _ = ecritures(fiche, PRECEDENT, _demande())
+        assert "specificites_paie" not in nouvelle
+
 
 def test_message_de_succes():
     assert message_de_succes(PRECEDENT, _demande()) == (
