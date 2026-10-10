@@ -32,6 +32,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
+import {
+  MODULATION_PRESETS,
+  changementsDuPreset,
+  type ModulationPresetId,
+} from '@/lib/modulationPresets';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const HS_POLICY_LABELS: Record<HsRoutingPolicy, string> = {
   pay_all: 'Tout payer au bulletin',
@@ -39,12 +54,6 @@ const HS_POLICY_LABELS: Record<HsRoutingPolicy, string> = {
   franchise: 'Franchise (plafond par période)',
   manual: 'Validation RH mensuelle',
 };
-
-const PRESETS = [
-  { id: 'standard', label: 'Standard (HS payées)' },
-  { id: 'metallurgie_hour_account', label: 'Métallurgie annualisée' },
-  { id: 'hour_account_only', label: 'Compte HS sans modulation' },
-] as const;
 
 export default function ModulationSettingsCard() {
   const { user } = useAuth();
@@ -68,6 +77,7 @@ export default function ModulationSettingsCard() {
   const [annualOpen, setAnnualOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(true);
   const [policyOpen, setPolicyOpen] = useState(true);
+  const [presetEnAttente, setPresetEnAttente] = useState<ModulationPresetId | null>(null);
 
   useEffect(() => {
     if (data) setForm(data);
@@ -94,12 +104,12 @@ export default function ModulationSettingsCard() {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.modulationSettings(activeCompanyId), saved);
       setForm(saved);
-      toast({ title: 'Preset appliqué', description: 'Configuration mise à jour.' });
+      toast({ title: 'Préréglage appliqué', description: 'Configuration mise à jour.' });
     },
     onError: () => {
       toast({
         title: 'Erreur',
-        description: 'Impossible d\'appliquer le preset.',
+        description: 'Impossible d\'appliquer le préréglage.',
         variant: 'destructive',
       });
     },
@@ -338,14 +348,14 @@ export default function ModulationSettingsCard() {
             </Button>
           )}
           {canEdit &&
-            PRESETS.map((p) => (
+            MODULATION_PRESETS.map((p) => (
               <Button
                 key={p.id}
                 type="button"
                 variant="secondary"
                 size="sm"
                 disabled={applyPresetMutation.isPending}
-                onClick={() => applyPresetMutation.mutate(p.id)}
+                onClick={() => setPresetEnAttente(p.id)}
               >
                 {p.label}
               </Button>
@@ -354,6 +364,51 @@ export default function ModulationSettingsCard() {
             <Link to="/suivi-temps-travail?tab=compte-heures">Suivi compteurs</Link>
           </Button>
         </div>
+        {presetEnAttente && (
+          <AlertDialog
+            open
+            onOpenChange={(ouvert) => {
+              if (!ouvert) setPresetEnAttente(null);
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Appliquer « {MODULATION_PRESETS.find((p) => p.id === presetEnAttente)?.label} » ?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Ce préréglage modifie les réglages de toute la société, et s&apos;applique dès
+                  maintenant.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {(() => {
+                const changements = changementsDuPreset(form, presetEnAttente);
+                return changements.length === 0 ? (
+                  <p className="text-sm">Ces réglages sont déjà ceux du préréglage : rien ne change.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {changements.map((c) => (
+                      <li key={c.champ}>
+                        <span className="font-medium">{c.champ}</span> : {c.avant} → {c.apres}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    applyPresetMutation.mutate(presetEnAttente);
+                    setPresetEnAttente(null);
+                  }}
+                >
+                  Appliquer
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </CardContent>
     </Card>
   );
