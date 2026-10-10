@@ -29,6 +29,24 @@ from app.modules.monthly_inputs.schemas.requests import (
 )
 
 
+def _montant_corrige_meme_sens(ancien, nouveau: float) -> float:
+    """Corriger un montant change le montant, jamais le sens.
+
+    Le moteur lit le signe d'une saisie sur le net : négatif = retenue,
+    positif = versement ajouté au net. Le signe tapé est donc ignoré : on garde
+    celui de la saisie existante (une saisie à 0 n'a pas de sens établi).
+    """
+    try:
+        ancien_f = float(ancien)
+    except (TypeError, ValueError):
+        return nouveau
+    if ancien_f < 0:
+        return -abs(nouveau)
+    if ancien_f > 0:
+        return abs(nouveau)
+    return nouveau
+
+
 def update_monthly_input(
     input_id: str, payload: MonthlyInputUpdate, company_id: str
 ) -> dict:
@@ -41,6 +59,12 @@ def update_monthly_input(
     if not changes:
         raise ValueError("Aucun champ à mettre à jour.")
     changes["manual_override"] = True
+    if "amount" in changes:
+        existant = monthly_inputs_repository.get_by_id(input_id, company_id)
+        if isinstance(existant, dict):
+            changes["amount"] = _montant_corrige_meme_sens(
+                existant.get("amount"), changes["amount"]
+            )
     row = monthly_inputs_repository.update_by_id(input_id, changes, company_id)
     if row is None:
         raise ValueError(f"Saisie {input_id} introuvable.")
