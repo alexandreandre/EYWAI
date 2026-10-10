@@ -215,6 +215,7 @@ class TestDeleteMonthlyInput:
         with (
             patch.object(routes, "require_rh_access", return_value=SOCIETE),
             patch.object(routes.commands, "delete_monthly_input", return_value=True),
+            patch.object(routes.queries, "cible_de_la_saisie", return_value=None),
         ):
             app.dependency_overrides[get_current_user] = lambda: type(
                 "Utilisateur", (), {"active_company_id": SOCIETE}
@@ -224,7 +225,11 @@ class TestDeleteMonthlyInput:
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
 
-        assert reponse.json() == {"status": "success", "retiree": True}
+        assert reponse.json() == {
+            "status": "success",
+            "retiree": True,
+            "bulletins_a_recalculer": [],
+        }
 
 
 class TestDeleteEmployeeMonthlyInput:

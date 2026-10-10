@@ -106,5 +106,38 @@ class SupabaseMonthlyInputsRepository(IMonthlyInputsRepository):
             .execute()
         )
 
+    def employes_avec_bulletin(
+        self, company_id: str, year: int, month: int, employee_ids: List[str]
+    ) -> List[str]:
+        """Parmi ces salariés, ceux qui ont un bulletin calculé ce mois-là.
+
+        Un bulletin repris de l'ancien logiciel (`origine` = importe) ne se
+        recalcule jamais : il n'est pas compté. `origine` vient d'une migration
+        récente ; absente, tous les bulletins comptent.
+        """
+        if not employee_ids:
+            return []
+        for colonnes in ("employee_id, origine", "employee_id"):
+            try:
+                response = (
+                    supabase.table("payslips")
+                    .select(colonnes)
+                    .eq("company_id", str(company_id))
+                    .eq("year", year)
+                    .eq("month", month)
+                    .in_("employee_id", [str(e) for e in employee_ids])
+                    .execute()
+                )
+            except Exception:
+                if "origine" not in colonnes:
+                    raise
+                continue
+            return [
+                str(row["employee_id"])
+                for row in response.data or []
+                if row.get("origine") != "importe"
+            ]
+        return []
+
 
 monthly_inputs_repository = SupabaseMonthlyInputsRepository()

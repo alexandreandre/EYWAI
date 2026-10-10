@@ -42,6 +42,24 @@ logger = get_logger("modules.monthly_inputs")
 router = APIRouter(tags=["Monthly Inputs"])
 
 
+def _bulletins_a_recalculer(company_id: str, cibles) -> list[dict] | None:
+    """Les bulletins du mois que la saisie rend « À recalculer ». `None` si la
+    recherche échoue : l'écriture a réussi, l'écran le dit sans fausse alerte."""
+    try:
+        return queries.bulletins_a_recalculer(company_id, cibles)
+    except Exception:
+        logger.exception("bulletins_a_recalculer")
+        return None
+
+
+def _cible_avant_suppression(input_id: str, company_id: str):
+    try:
+        return queries.cible_de_la_saisie(input_id, company_id)
+    except Exception:
+        logger.exception("cible_de_la_saisie")
+        return None
+
+
 def _societe_active(current_user: User) -> str:
     """Société active de l'appelant, sinon 403 (jamais de portée globale)."""
     company_id = current_user.active_company_id
@@ -74,7 +92,12 @@ def create_monthly_inputs(
     company_id = require_rh_access(current_user.active_company_id, current_user)
     try:
         result = commands.create_monthly_inputs_batch(payload, company_id)
-        return create_batch_response(result.inserted_count)
+        reponse = create_batch_response(result.inserted_count)
+        reponse["bulletins_a_recalculer"] = _bulletins_a_recalculer(
+            company_id,
+            [(str(p.employee_id), p.year, p.month) for p in payload],
+        )
+        return reponse
     except Exception as e:
         logger.exception("create_monthly_inputs")
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,7 +112,13 @@ def update_monthly_input(
     """Corrige une saisie. La ligne devient prioritaire sur la génération."""
     company_id = require_rh_access(current_user.active_company_id, current_user)
     try:
-        return commands.update_monthly_input(input_id, payload, company_id)
+        ligne = commands.update_monthly_input(input_id, payload, company_id)
+        cible = (
+            [(str(ligne["employee_id"]), ligne["year"], ligne["month"])]
+            if ligne.get("employee_id") and ligne.get("year") and ligne.get("month")
+            else []
+        )
+        return {**ligne, "bulletins_a_recalculer": _bulletins_a_recalculer(company_id, cible)}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -103,8 +132,13 @@ def delete_monthly_input(
 ):
     """Supprime une saisie ponctuelle (réservé RH, société active)."""
     company_id = require_rh_access(current_user.active_company_id, current_user)
+    cible = _cible_avant_suppression(input_id, company_id)
     retiree = commands.delete_monthly_input(input_id, company_id)
-    return delete_response(bool(retiree))
+    reponse = delete_response(bool(retiree))
+    reponse["bulletins_a_recalculer"] = _bulletins_a_recalculer(
+        company_id, [cible] if cible else []
+    )
+    return reponse
 
 
 @router.get("/api/employees/{employee_id}/monthly-inputs")
@@ -135,7 +169,11 @@ def create_employee_monthly_inputs(
         result = commands.create_employee_monthly_input(
             employee_id, prime_data, company_id
         )
-        return create_single_response(result.inserted_data)
+        reponse = create_single_response(result.inserted_data)
+        reponse["bulletins_a_recalculer"] = _bulletins_a_recalculer(
+            company_id, [(str(employee_id), prime_data.year, prime_data.month)]
+        )
+        return reponse
     except Exception as e:
         logger.exception("create_employee_monthly_inputs")
         raise HTTPException(status_code=500, detail=str(e))
@@ -150,8 +188,13 @@ def delete_employee_monthly_input(
     """Supprime une saisie ponctuelle d'un salarié (réservé RH)."""
     company_id = require_rh_access(current_user.active_company_id, current_user)
     try:
+        cible = _cible_avant_suppression(input_id, company_id)
         retiree = commands.delete_employee_monthly_input(employee_id, input_id, company_id)
-        return delete_response(bool(retiree))
+        reponse = delete_response(bool(retiree))
+        reponse["bulletins_a_recalculer"] = _bulletins_a_recalculer(
+            company_id, [cible] if cible else []
+        )
+        return reponse
     except Exception as e:
         logger.exception("delete_employee_monthly_input")
         raise HTTPException(status_code=500, detail=str(e))
