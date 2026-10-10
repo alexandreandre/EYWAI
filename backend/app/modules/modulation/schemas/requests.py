@@ -125,6 +125,8 @@ class ModulationOverviewRow(BaseModel):
     account_balance_hours: float = 0.0
     period_credited_hours: float = 0.0
     period_paid_hours: float = 0.0
+    # True quand aucun compteur n'existe : les heures sont un repli (durée x 52), pas un relevé.
+    estimated: bool = False
 
 
 class ModulationBalanceResponse(BaseModel):

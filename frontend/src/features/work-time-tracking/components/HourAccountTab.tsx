@@ -28,6 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { libelleStatutMouvement } from '@/features/work-time-tracking/lib/hourAccountLabels';
 import { workTimeHubPath } from '@/features/work-time-tracking/lib/workTimeTabRouting';
 import { useToast } from '@/hooks/use-toast';
 import { queryKeys } from '@/lib/queryKeys';
@@ -183,8 +184,16 @@ export function HourAccountTab({
                         <TableCell>
                           {row.first_name} {row.last_name}
                         </TableCell>
-                        <TableCell>{row.theoretical_hours.toFixed(2)}</TableCell>
-                        <TableCell>{row.actual_hours.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {row.estimated ? (
+                            <span title="Estimation (durée hebdomadaire × 52) : aucun compteur n'existe encore pour ce salarié.">
+                              ≈ {row.theoretical_hours.toFixed(2)} (estimé)
+                            </span>
+                          ) : (
+                            row.theoretical_hours.toFixed(2)
+                          )}
+                        </TableCell>
+                        <TableCell>{row.estimated ? '—' : row.actual_hours.toFixed(2)}</TableCell>
                         <TableCell
                           className={
                             row.balance_hours < 0
@@ -194,11 +203,17 @@ export function HourAccountTab({
                                 : ''
                           }
                         >
-                          {row.balance_hours > 0 ? '+' : ''}
-                          {row.balance_hours.toFixed(2)}
+                          {row.estimated ? (
+                            '—'
+                          ) : (
+                            <>
+                              {row.balance_hours > 0 ? '+' : ''}
+                              {row.balance_hours.toFixed(2)}
+                            </>
+                          )}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {row.account_balance_hours.toFixed(2)}
+                          {row.estimated ? '—' : row.account_balance_hours.toFixed(2)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -276,7 +291,7 @@ export function HourAccountTab({
                             {MOVEMENT_LABELS[m.movement_type] ?? m.movement_type}
                           </TableCell>
                           <TableCell>{m.hours.toFixed(2)}</TableCell>
-                          <TableCell>{m.status}</TableCell>
+                          <TableCell>{libelleStatutMouvement(m.status)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

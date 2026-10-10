@@ -109,6 +109,7 @@ def get_modulation_overview(
                 theoretical_hours=theoretical,
                 actual_hours=theoretical,
                 balance_hours=0.0,
+                estimated=True,
             )
         )
     return rows

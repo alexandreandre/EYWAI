@@ -74,6 +74,8 @@ export interface ModulationOverviewRow {
   account_balance_hours: number;
   period_credited_hours: number;
   period_paid_hours: number;
+  /** Vrai quand aucun compteur n'existe : les heures sont un repli, pas un relevé. */
+  estimated?: boolean;
 }
 
 export interface ModulationBalance {
