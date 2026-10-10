@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { fenetreDeSuppression } from '@/features/payroll/utils/suppressionBulletin';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -97,6 +98,7 @@ export function PayrollPayslipRow({
   const motifGeneration = generationEnCours ? 'Génération en cours : patientez' : undefined;
   const netNegatif = (payslip?.net_a_payer ?? 0) < 0;
   const valide = payslip?.status === 'valide';
+  const fenetreSuppression = fenetreDeSuppression(valide);
   const enAlerte = warnings.length > 0 || netNegatif;
   const badgeValide = (
     <Badge className="bg-emerald-600 text-white hover:bg-emerald-600" data-testid="badge-valide">
@@ -251,12 +253,16 @@ export function PayrollPayslipRow({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Supprimer ce bulletin ?</AlertDialogTitle>
-              <AlertDialogDescription>{deleteDescription}</AlertDialogDescription>
+              <AlertDialogTitle>{fenetreSuppression.titre}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {fenetreSuppression.peutSupprimer ? deleteDescription : fenetreSuppression.explication}
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
-              <AlertDialogAction onClick={() => onDelete(payslip.id)}>Supprimer</AlertDialogAction>
+              <AlertDialogCancel>{fenetreSuppression.peutSupprimer ? 'Annuler' : 'Fermer'}</AlertDialogCancel>
+              {fenetreSuppression.peutSupprimer ? (
+                <AlertDialogAction onClick={() => onDelete(payslip.id)}>Supprimer</AlertDialogAction>
+              ) : null}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
