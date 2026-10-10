@@ -358,6 +358,19 @@ export default function EmployeeDetail() {
     }
   };
 
+  // Un lien peut ouvrir le calendrier sur un mois précis (?year=2026&month=10),
+  // par exemple depuis un bulletin.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const year = Number(params.get("year"));
+    const month = Number(params.get("month"));
+    if (Number.isInteger(year) && year >= 2000 && Number.isInteger(month) && month >= 1 && month <= 12) {
+      setSelectedDate({ year, month });
+    }
+    // Une seule fois, à l'arrivée sur la fiche.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId]);
+
   const fetchSaisies = useCallback(async () => {
     if (!employeeId) return;
     const { year, month } = selectedDate;

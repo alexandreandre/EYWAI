@@ -38,6 +38,7 @@ import {
 } from '@/features/payroll/components/ChoixHeuresSurArret';
 import {
   etatDialogueHeuresSurArret,
+  lienCalendrierDuSalarie,
   type JourEnConflit,
   type RefusApresCorrection,
   type SuiteEffacement,
@@ -250,7 +251,7 @@ export default function RegeneratePayslipButton({
           {refus?.code === 'calendrier_incomplet' && refus.details && (
             <JoursASaisirListe
               details={refus.details}
-              lienPlanning={`/schedules?employee=${encodeURIComponent(employeeId)}`}
+              lienPlanning={lienCalendrierDuSalarie(employeeId, { year, month })}
             />
           )}
           {etatHeures?.kind === 'choix' && (

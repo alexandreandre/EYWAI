@@ -50,6 +50,7 @@ import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import CorrectionsBulletinPanel from '@/components/payslip-edit/CorrectionsBulletinPanel';
 import {
   choixApresCorrection,
+  lienCalendrierDuSalarie,
   prenomDuBulletin,
   type RefusApresCorrection,
 } from '@/features/payroll/utils/heuresSurArret';
@@ -549,7 +550,7 @@ export default function PayslipEdit() {
               employeeId={payslip.employee_id}
               year={payslip.year}
               month={payslip.month}
-              lienPlanning={`/schedules?employee=${encodeURIComponent(payslip.employee_id)}`}
+              lienPlanning={lienCalendrierDuSalarie(payslip.employee_id, { year: payslip.year, month: payslip.month })}
               lienFiche={`/employees/${encodeURIComponent(payslip.employee_id)}`}
               lienSaisies={lienSaisies}
               onAller={aller}

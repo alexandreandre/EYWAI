@@ -170,8 +170,12 @@ export function lireNatureDuLien(valeur: string | null | undefined): NatureConfl
 }
 
 /** Onglet Calendrier de la fiche du salarié : là où se corrige ce qui a été saisi au planning. */
-export function lienCalendrierDuSalarie(employeeId: string): string {
-  return `/employees/${encodeURIComponent(employeeId)}?tab=${TAB_CALENDRIER}`;
+export function lienCalendrierDuSalarie(
+  employeeId: string,
+  mois?: { year: number; month: number }
+): string {
+  const lien = `/employees/${encodeURIComponent(employeeId)}?tab=${TAB_CALENDRIER}`;
+  return mois ? `${lien}&year=${mois.year}&month=${mois.month}` : lien;
 }
 
 const MOTS_DE_LA_NATURE: Record<
