@@ -46,6 +46,7 @@ import { reverseCalculation } from "@/api/simulation";
 import type { BonusType } from "@/api/bonusTypes";
 import { estRoleRh } from '@/lib/rolesRh';
 import { SENS_SAISIE, champsDeLaSaisie, type SensSaisie } from '@/components/saisies/sensSaisie';
+import { phraseSaisiePonctuelle } from '@/components/saisies/libellesSaisie';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { accord, pluriel } from '@/lib/pluriel';
 
@@ -432,7 +433,7 @@ export function SaisieModal({ isOpen, onClose, onSave, employees, employeeScopeI
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Ajouter une Saisie du Mois</DialogTitle>
           <DialogDescription>
-            {employeeScopeId ? "Cette saisie ponctuelle ne s'appliquera que pour le mois en cours." : "Créez une saisie pour un ou plusieurs employés."}
+            {employeeScopeId ? phraseSaisiePonctuelle(year, month) : "Créez une saisie pour un ou plusieurs employés."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
