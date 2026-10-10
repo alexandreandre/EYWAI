@@ -133,3 +133,15 @@ export function validateEmployeeContractConfig(
   }
   return null;
 }
+
+/** Aide sous le champ de fin de contrat : la prime de précarité ne concerne que le CDD. */
+export function aideDateFinContrat(contractType: string | null | undefined): string {
+  if (isStageContract(contractType)) {
+    return "Déclenche le prorata de sortie au dernier mois et le rappel d'échéance. Un stage ne donne pas de prime de précarité.";
+  }
+  return 'Déclenche la prime de précarité CDD et le prorata de sortie au dernier mois.';
+}
+
+/** Aide sous la case « Maintien de l'ancien régime » d'un contrat d'apprentissage. */
+export const AIDE_MAINTIEN_REGIME_APPRENTI =
+  "À cocher pour un contrat d'apprentissage conclu avant le 1er mars 2025, même s'il commence après. Sans date d'exécution renseignée, Martine retient la date d'entrée.";

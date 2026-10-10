@@ -17,7 +17,11 @@ export interface SavedWeekTemplate {
 const MAX_TEMPLATES = 50;
 
 function weekTemplateToDayConfigs(template: WeekTemplate): Record<string, unknown>[] {
-  return [1, 2, 3, 4, 5].map((day) => {
+  // Le week-end n'est enregistré que s'il est rempli.
+  const jours = [1, 2, 3, 4, 5, 6, 7].filter(
+    (day) => day <= 5 || String(template[day] ?? '').trim() !== '',
+  );
+  return jours.map((day) => {
     const raw = template[day];
     const hours = raw === '1' ? 1 : parseFloat(String(raw || '0')) || 0;
     return {
@@ -34,7 +38,7 @@ function dayConfigsToWeekTemplate(
   const tpl: WeekTemplate = {};
   for (const cfg of configs || []) {
     const day = Number(cfg.day);
-    if (day >= 1 && day <= 5) {
+    if (day >= 1 && day <= 7) {
       const hours = cfg.hours;
       if (hours === 1 && cfg.type === 'travail') {
         tpl[day] = '1';

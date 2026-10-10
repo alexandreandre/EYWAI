@@ -23,10 +23,12 @@ import {
 import { toast } from '@/components/ui/use-toast';
 import type { Employee } from '@/features/employee-detail/types';
 import { peutCreerUnNouveauContrat } from '@/features/employee-detail/nouveauContrat';
+import { CONTRACT_TYPES } from '@/constants/contracts';
 import { useActiveCompanyId } from '@/hooks/queries/useCompanyId';
 import { queryKeys } from '@/lib/queryKeys';
 
-const TYPES = ['CDI', 'CDD', 'Alternance', 'Intérim', 'Autre'] as const;
+/** Même liste de référence que la fiche du salarié. */
+export const TYPES_CONTRAT = CONTRACT_TYPES;
 
 function jour(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -194,7 +196,7 @@ export function EmployeeContractPeriodsCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPES.map((type) => (
+                {TYPES_CONTRAT.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>

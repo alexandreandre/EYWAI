@@ -6,7 +6,7 @@ describe('décompte des échéances', () => {
   it('dit tout ce qu’il compte, titres de séjour compris, avec leur fenêtre', () => {
     expect(TITRE_ECHEANCES).toContain('CDD');
     expect(TITRE_ECHEANCES).toContain('stage');
-    expect(TITRE_ECHEANCES).toContain('période d’essai');
+    expect(TITRE_ECHEANCES).toContain('périodes d’essai');
     expect(TITRE_ECHEANCES).toContain('titres de séjour');
     expect(TITRE_ECHEANCES).toContain('30 jours');
   });

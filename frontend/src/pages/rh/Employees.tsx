@@ -26,6 +26,7 @@ import {
 } from "@/features/employees/components/EmployeesTableRow";
 import { salariesAvecNouveauEnTete } from "@/features/employees/utils/creationSalarie";
 import { pluriel } from '@/lib/pluriel';
+import { TITRE_ECHEANCES, messageEcheances } from '@/lib/libelleEcheances';
 
 export default function Employees() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -185,7 +186,7 @@ export default function Employees() {
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-700" />
-                Échéances contrat / période d&apos;essai (15 jours)
+                {TITRE_ECHEANCES}
               </span>
               <Button
                 type="button"
@@ -204,9 +205,7 @@ export default function Employees() {
           <CardContent className="pb-3 pt-0 text-sm text-muted-foreground">
             {deadlineCandidatesQuery.isLoading
               ? "Chargement des échéances…"
-              : contractDeadlineIds && contractDeadlineIds.size === 0
-                ? "Aucune échéance dans les 15 prochains jours."
-                : `${pluriel(contractDeadlineIds?.size ?? 0, 'salarié')} à traiter.`}
+              : messageEcheances(contractDeadlineIds?.size ?? 0)}
           </CardContent>
         </Card>
       )}

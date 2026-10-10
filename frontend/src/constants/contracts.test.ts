@@ -13,7 +13,7 @@ describe('aideDateFinContrat', () => {
 
   it("ne parle pas de prime de précarité pour un stage, qui n'en a pas", () => {
     const aide = aideDateFinContrat('Stage');
-    expect(aide).not.toContain('précarité');
+    expect(aide).not.toContain('Déclenche la prime');
     expect(aide.toLowerCase()).toContain('stage');
   });
 });

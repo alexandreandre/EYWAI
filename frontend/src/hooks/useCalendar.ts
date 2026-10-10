@@ -21,6 +21,7 @@ import { useObservedPublicHolidays } from '@/hooks/useObservedPublicHolidays';
 import { avecLeReelEnregistre, joursAuxHeuresRetirees, messageHeuresRetirees } from '@/lib/heuresRetireesAuReel';
 import { accord, pluriel } from '@/lib/pluriel';
 import { modeleSemaineDuSalarie } from '@/lib/modeleSemaine';
+import { valeurModelePourLeJour } from '@/lib/weekTemplateDays';
 
 type PlannedEventData = calendarApi.PlannedEventData;
 type ActualHoursData = calendarApi.ActualHoursData;
@@ -362,13 +363,13 @@ export function useCalendar(
 
       // Un jour issu d'une absence validée (origine "absence") est préservé,
       // comme les types ferie/conge/arret_maladie déjà exclus du modèle.
+      // Le week-end n'est touché que si le modèle y dit quelque chose.
+      const templateValue = valeurModelePourLeJour(weekTemplate, dayOfWeek);
       if (
-        dayOfWeek >= 1 &&
-        dayOfWeek <= 5 &&
+        templateValue !== undefined &&
         day.origine !== 'absence' &&
         !['ferie', 'conge', 'arret_maladie'].includes(day.type)
       ) {
-        const templateValue = weekTemplate[dayOfWeek];
 
         if (isForfaitJourMode) {
           const isWorkDay =

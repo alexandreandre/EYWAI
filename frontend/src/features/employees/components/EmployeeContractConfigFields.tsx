@@ -25,6 +25,8 @@ import {
   isApprentissageContract,
   needsContractEndDate,
   type EmployeeContractConfigValues,
+  AIDE_MAINTIEN_REGIME_APPRENTI,
+  aideDateFinContrat,
 } from '@/constants/contracts';
 
 type ControlledProps = {
@@ -176,7 +178,7 @@ function AlternanceFields({
               Maintien de l&apos;ancien régime (exonération 79&nbsp;% SMIC)
             </Label>
             <p className="text-xs text-muted-foreground">
-              Contrat conclu avant le 01/03/2025 mais débutant après cette date.
+              {AIDE_MAINTIEN_REGIME_APPRENTI}
             </p>
           </div>
         </div>
@@ -208,7 +210,7 @@ function ContractEndDateField({
         onChange={(e) => onChange(e.target.value)}
       />
       <p className="mt-1 text-xs text-muted-foreground">
-        Déclenche la prime de précarité CDD et le prorata de sortie au dernier mois.
+        {aideDateFinContrat(contractType)}
       </p>
     </div>
   );
@@ -319,7 +321,7 @@ export function EmployeeContractConfigFormFields<T extends FieldValues>({
                 <Input type="date" {...field} value={field.value ?? ''} />
               </FormControl>
               <p className="text-xs text-muted-foreground">
-                Déclenche la prime de précarité CDD et le prorata de sortie au dernier mois.
+                {aideDateFinContrat(contractType)}
               </p>
               <FormMessage />
             </FormItem>
@@ -388,7 +390,7 @@ export function EmployeeContractConfigFormFields<T extends FieldValues>({
                   <div className="space-y-1 leading-none">
                     <FormLabel>Maintien de l&apos;ancien régime (exonération 79&nbsp;% SMIC)</FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      Contrat conclu avant le 01/03/2025 mais débutant après cette date.
+                      {AIDE_MAINTIEN_REGIME_APPRENTI}
                     </p>
                   </div>
                 </FormItem>

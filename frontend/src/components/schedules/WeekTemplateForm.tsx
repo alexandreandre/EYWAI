@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Save, ArrowRight } from 'lucide-react';
 import type { WeekTemplate } from '@/hooks/useCalendar';
+import { JOURS_MODELE_SEMAINE } from '@/lib/weekTemplateDays';
 
 interface WeekTemplateFormProps {
   template: WeekTemplate;
@@ -23,13 +24,7 @@ export function WeekTemplateForm({
   isSaving,
   isForfaitJour = false,
 }: WeekTemplateFormProps) {
-  const days = [
-    { label: 'Lundi', key: 1 },
-    { label: 'Mardi', key: 2 },
-    { label: 'Mercredi', key: 3 },
-    { label: 'Jeudi', key: 4 },
-    { label: 'Vendredi', key: 5 },
-  ];
+  const days = JOURS_MODELE_SEMAINE;
 
   const handleInputChange = (dayKey: number, value: string) => {
     setTemplate((prev) => ({ ...prev, [dayKey]: value }));
@@ -50,7 +45,7 @@ export function WeekTemplateForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col md:flex-row items-center gap-4">
-        <div className="grid grid-cols-5 gap-3 flex-grow">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 flex-grow">
           {days.map((day) => (
             <div key={day.key} className="grid gap-1.5">
               <Label htmlFor={`template-day-${day.key}`} className="text-xs">
